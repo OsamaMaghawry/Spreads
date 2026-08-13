@@ -42,7 +42,9 @@ export default function AccountSection({ account, onCloseSpread }) {
       {!account.ok ? (
         <div className="px-5 py-6 flex items-center gap-3 text-amber-400 text-sm">
           <AlertTriangle className="w-4 h-4 shrink-0" />
-          Connection failed — check the API keys for this account. ({account.error})
+          {/rate limit/i.test(account.error || "")
+            ? "Alpaca is rate-limiting this account right now — data will reappear on the next refresh."
+            : `Connection failed — check the API keys for this account. (${account.error})`}
         </div>
       ) : account.spreads.length === 0 ? (
         <div className="px-5 py-6 text-sm text-slate-500">No open put credit spreads in this account.</div>

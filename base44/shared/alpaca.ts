@@ -14,7 +14,9 @@ export function authHeaders(account) {
   };
 }
 
-export async function alpacaFetch(url, account, options = {}, retries = 2) {
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+export async function alpacaFetch(url, account, options = {}, retries = 4) {
   let lastErr = null;
   for (let i = 0; i <= retries; i++) {
     let res;
@@ -22,14 +24,23 @@ export async function alpacaFetch(url, account, options = {}, retries = 2) {
       res = await fetch(url, { ...options, headers: { ...authHeaders(account), ...(options.headers || {}) } });
     } catch (e) {
       lastErr = e;
-      await new Promise((r) => setTimeout(r, 600));
+      await wait(600 * (i + 1));
       continue;
     }
     const text = await res.text();
     if (res.ok) return text ? JSON.parse(text) : null;
+
+    // 429 = rate limit: back off (honoring Retry-After) and try again.
+    if (res.status === 429) {
+      lastErr = new Error("Alpaca rate limit — too many requests, please wait a moment.");
+      const retryAfter = parseFloat(res.headers.get("retry-after") || "0");
+      await wait(retryAfter > 0 ? retryAfter * 1000 : Math.min(8000, 1000 * Math.pow(2, i)));
+      continue;
+    }
+
     lastErr = new Error(`Alpaca ${res.status}: ${text}`);
     if (res.status < 500) throw lastErr;
-    await new Promise((r) => setTimeout(r, 600));
+    await wait(600 * (i + 1));
   }
   throw lastErr;
 }
