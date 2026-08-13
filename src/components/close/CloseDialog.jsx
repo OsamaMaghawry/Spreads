@@ -44,13 +44,13 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
     else onClose();
   };
 
-  const inputCls = "w-full bg-[#0A0E16] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50";
+  const inputCls = "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500";
 
   return (
     <Dialog open onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="bg-[#111725] border-white/10 text-slate-200 sm:max-w-lg">
+      <DialogContent className="bg-white border-slate-200 text-slate-700 sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-white">
+          <DialogTitle className="text-slate-900">
             Close {spread.ticker} {spread.shortStrike}/{spread.longStrike} put spread
           </DialogTitle>
         </DialogHeader>
@@ -64,7 +64,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
             {openOrders.length > 0 && (
               <OpenOrdersPanel accountId={account.id} orders={openOrders} onChange={setOpenOrders} />
             )}
-            <div className="bg-[#0A0E16] border border-white/[0.06] rounded-lg p-3 text-sm">
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm">
               {quoteLoading ? (
                 <div className="flex items-center gap-2 text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Fetching live quote…</div>
               ) : quote ? (
@@ -73,12 +73,12 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                   <span className="text-slate-500">Mid debit to close</span><span className="text-right">{fmtMoney(midDebit)}</span>
                   <span className="text-slate-500">Bid / Ask debit</span><span className="text-right">{fmtMoney(quote.bidDebit)} / {fmtMoney(quote.askDebit)}</span>
                   <span className="text-slate-500">P/L per contract (mid)</span>
-                  <span className={`text-right font-medium ${plPerContract >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{fmtMoney(plPerContract)}</span>
+                  <span className={`text-right font-medium ${plPerContract >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{fmtMoney(plPerContract)}</span>
                   <span className="text-slate-500">Total P/L for {qty} contract{qty > 1 ? "s" : ""}</span>
-                  <span className={`text-right font-semibold ${plPerContract >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{fmtMoney(plPerContract * qty)}</span>
+                  <span className={`text-right font-semibold ${plPerContract >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{fmtMoney(plPerContract * qty)}</span>
                 </div>
               ) : (
-                <span className="text-amber-400">Live quote unavailable — market may be closed.</span>
+                <span className="text-amber-600">Live quote unavailable — market may be closed.</span>
               )}
             </div>
 
@@ -91,10 +91,10 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
               </div>
               <div className="flex-1">
                 <label className="text-xs text-slate-500 block mb-1.5">Order type</label>
-                <div className="flex rounded-lg overflow-hidden border border-white/10">
+                <div className="flex rounded-lg overflow-hidden border border-slate-300">
                   {["limit", "market"].map((t) => (
                     <button key={t} onClick={() => setOrderType(t)}
-                      className={`flex-1 py-2 text-sm capitalize transition-colors ${orderType === t ? "bg-emerald-500/20 text-emerald-300" : "bg-[#0A0E16] text-slate-400 hover:text-white"}`}>
+                      className={`flex-1 py-2 text-sm capitalize transition-colors ${orderType === t ? "bg-emerald-100 text-emerald-700 font-medium" : "bg-white text-slate-500 hover:text-slate-900"}`}>
                       {t}
                     </button>
                   ))}
@@ -124,20 +124,20 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
           <div className="space-y-4">
             <OrderLog log={log} phase={phase} />
             {phase === "working" ? (
-              <button onClick={stop} className="w-full py-2.5 rounded-lg border border-white/10 text-slate-300 hover:bg-white/[0.04] text-sm transition-colors">
+              <button onClick={stop} className="w-full py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm transition-colors">
                 Stop & cancel order
               </button>
             ) : phase === "failed" ? (
               <div className="flex gap-3">
-                <button onClick={reset} className="flex-1 py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-sm font-medium hover:bg-emerald-500/25 transition-colors">
+                <button onClick={reset} className="flex-1 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-medium hover:bg-emerald-100 transition-colors">
                   Try again
                 </button>
-                <button onClick={handleClose} className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-sm font-medium transition-colors">
+                <button onClick={handleClose} className="flex-1 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition-colors">
                   Close
                 </button>
               </div>
             ) : (
-              <button onClick={handleClose} className="w-full py-2.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-sm font-medium transition-colors">
+              <button onClick={handleClose} className="w-full py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition-colors">
                 Done — refresh positions
               </button>
             )}

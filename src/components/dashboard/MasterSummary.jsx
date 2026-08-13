@@ -25,16 +25,16 @@ export default function MasterSummary({ accounts }) {
       label: "Unrealized P/L",
       value: fmtMoney(t.pl),
       sub: t.equity > 0 ? `${fmtPct(t.pl / t.equity)} of equity` : null,
-      tone: t.pl > 0 ? "text-emerald-400" : t.pl < 0 ? "text-rose-400" : ""
+      tone: t.pl > 0 ? "text-emerald-600" : t.pl < 0 ? "text-rose-600" : ""
     }
   ];
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
       {cards.map((c) => (
-        <div key={c.label} className="bg-[#111725] border border-white/[0.06] rounded-xl px-4 py-3.5">
+        <div key={c.label} className="bg-white border border-slate-200 rounded-xl px-4 py-3.5 shadow-sm">
           <div className="text-[11px] uppercase tracking-wider text-slate-500 mb-1">{c.label}</div>
-          <div className={`text-lg font-semibold tabular-nums ${c.tone || "text-white"}`}>{c.value}</div>
+          <div className={`text-lg font-semibold tabular-nums ${c.tone || "text-slate-900"}`}>{c.value}</div>
           {c.sub && <div className="text-[11px] text-slate-500 mt-0.5 tabular-nums">{c.sub}</div>}
         </div>
       ))}
