@@ -15,6 +15,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Accounts from './pages/Accounts';
+import AccountDetail from './pages/AccountDetail';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -50,6 +51,7 @@ const AuthenticatedApp = () => {
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/accounts" element={<Accounts />} />
+          <Route path="/account/:id" element={<AccountDetail />} />
         </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />

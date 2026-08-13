@@ -3,15 +3,13 @@ import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { RefreshCw, KeyRound } from "lucide-react";
 import MasterSummary from "@/components/dashboard/MasterSummary";
-import AccountSection from "@/components/dashboard/AccountSection";
-import CloseDialog from "@/components/close/CloseDialog";
+import AccountSummaryCard from "@/components/dashboard/AccountSummaryCard";
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [closing, setClosing] = useState(null); // { account, spread }
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -78,21 +76,13 @@ export default function Dashboard() {
       ) : (
         <>
           <MasterSummary accounts={accounts} />
-          <div className="space-y-5">
+          <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider pt-1">Per-account summary</h2>
+          <div className="space-y-4">
             {accounts.map((a) => (
-              <AccountSection key={a.id} account={a} onCloseSpread={(account, spread) => setClosing({ account, spread })} />
+              <AccountSummaryCard key={a.id} account={a} />
             ))}
           </div>
         </>
-      )}
-
-      {closing && (
-        <CloseDialog
-          account={closing.account}
-          spread={closing.spread}
-          onClose={() => setClosing(null)}
-          onDone={() => { setClosing(null); load(); }}
-        />
       )}
     </div>
   );
