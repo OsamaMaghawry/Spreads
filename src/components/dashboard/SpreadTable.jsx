@@ -1,9 +1,19 @@
 import { fmtMoney } from "@/lib/format";
 
-const th = "px-3 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
-const td = "px-3 py-2.5 whitespace-nowrap tabular-nums";
+const th = "px-2.5 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
+const td = "px-2.5 py-2.5 whitespace-nowrap tabular-nums";
 
 export default function SpreadTable({ spreads, onClose }) {
+  const totals = spreads.reduce(
+    (a, s) => ({
+      totalCredit: a.totalCredit + (s.totalCredit || 0),
+      maxRisk: a.maxRisk + (s.maxRisk || 0),
+      closeCost: a.closeCost + (s.closeCost || 0),
+      unrealizedPL: a.unrealizedPL + (s.unrealizedPL || 0)
+    }),
+    { totalCredit: 0, maxRisk: 0, closeCost: 0, unrealizedPL: 0 }
+  );
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm text-slate-700">
@@ -14,12 +24,18 @@ export default function SpreadTable({ spreads, onClose }) {
             <th className={th}>Expiry</th>
             <th className={`${th} text-right`}>Stock</th>
             <th className={`${th} text-center`}>Money</th>
-            <th className={`${th} text-right`}>Strikes</th>
+            <th className={`${th} text-right`}>Short Strike</th>
+            <th className={`${th} text-right`}>Long Strike</th>
             <th className={`${th} text-right`}>Qty</th>
+            <th className={`${th} text-right`}>Short Entry</th>
+            <th className={`${th} text-right`}>Long Entry</th>
+            <th className={`${th} text-right`}>Width</th>
             <th className={`${th} text-right`}>Net Credit</th>
             <th className={`${th} text-right`}>Total Credit</th>
             <th className={`${th} text-right`}>Max Risk</th>
             <th className={`${th} text-right`}>Break-Even</th>
+            <th className={`${th} text-right`}>Cur Short</th>
+            <th className={`${th} text-right`}>Cur Long</th>
             <th className={`${th} text-right`}>Close Cost</th>
             <th className={`${th} text-right`}>Unrlzd P/L</th>
             <th className={th}></th>
@@ -53,12 +69,18 @@ export default function SpreadTable({ spreads, onClose }) {
                   {s.moneyness}
                 </span>
               </td>
-              <td className={`${td} text-right`}>{s.shortStrike} / {s.longStrike}</td>
+              <td className={`${td} text-right`}>{fmtMoney(s.shortStrike)}</td>
+              <td className={`${td} text-right`}>{fmtMoney(s.longStrike)}</td>
               <td className={`${td} text-right`}>{s.qty}</td>
+              <td className={`${td} text-right`}>{fmtMoney(s.shortEntryPrice)}</td>
+              <td className={`${td} text-right`}>{fmtMoney(s.longEntryPrice)}</td>
+              <td className={`${td} text-right`}>{fmtMoney(s.spreadWidth)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.netCredit)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.totalCredit)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.maxRisk)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.breakEven)}</td>
+              <td className={`${td} text-right`}>{fmtMoney(s.shortCurrentPrice)}</td>
+              <td className={`${td} text-right`}>{fmtMoney(s.longCurrentPrice)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.closeCost)}</td>
               <td className={`${td} text-right font-semibold ${s.unrealizedPL > 0 ? "text-emerald-600" : s.unrealizedPL < 0 ? "text-rose-600" : ""}`}>
                 {fmtMoney(s.unrealizedPL)}
@@ -73,6 +95,20 @@ export default function SpreadTable({ spreads, onClose }) {
               </td>
             </tr>
           ))}
+          {spreads.length > 0 && (
+            <tr className="bg-slate-50 font-semibold text-slate-900">
+              <td className={`${td} text-[11px] uppercase tracking-wider text-slate-500`}>Totals</td>
+              <td className={td} colSpan={11}></td>
+              <td className={`${td} text-right`}>{fmtMoney(totals.totalCredit)}</td>
+              <td className={`${td} text-right`}>{fmtMoney(totals.maxRisk)}</td>
+              <td className={td} colSpan={3}></td>
+              <td className={`${td} text-right`}>{fmtMoney(totals.closeCost)}</td>
+              <td className={`${td} text-right ${totals.unrealizedPL > 0 ? "text-emerald-600" : totals.unrealizedPL < 0 ? "text-rose-600" : ""}`}>
+                {fmtMoney(totals.unrealizedPL)}
+              </td>
+              <td className={td}></td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
