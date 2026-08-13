@@ -45,20 +45,20 @@ export default function Dashboard() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-white tracking-tight">Positions Monitor</h1>
+          <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Positions Monitor</h1>
           {data?.syncedAt && (
             <p className="text-xs text-slate-500 mt-0.5">Last synced {new Date(data.syncedAt).toLocaleTimeString()}</p>
           )}
         </div>
         <div className="ml-auto flex items-center gap-3">
-          <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
+          <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer select-none">
             <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} className="accent-emerald-500" />
             Auto-refresh (60s)
           </label>
           <button
             onClick={load}
             disabled={refreshing}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-sm hover:bg-emerald-500/25 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm hover:bg-emerald-100 transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh
           </button>
@@ -66,17 +66,17 @@ export default function Dashboard() {
       </div>
 
       {accounts.length === 0 ? (
-        <div className="bg-[#111725] border border-white/[0.06] rounded-xl p-12 flex flex-col items-center text-center gap-3">
-          <KeyRound className="w-8 h-8 text-slate-600" />
-          <p className="text-slate-400 text-sm max-w-sm">No trading accounts yet. Add your Alpaca API keys to start monitoring positions.</p>
-          <Link to="/accounts" className="mt-1 px-4 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-sm hover:bg-emerald-500/25 transition-colors">
+        <div className="bg-white border border-slate-200 rounded-xl p-12 flex flex-col items-center text-center gap-3">
+          <KeyRound className="w-8 h-8 text-slate-400" />
+          <p className="text-slate-500 text-sm max-w-sm">No trading accounts yet. Add your Alpaca API keys to start monitoring positions.</p>
+          <Link to="/accounts" className="mt-1 px-4 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm hover:bg-emerald-100 transition-colors">
             Add an account
           </Link>
         </div>
       ) : (
         <>
           <MasterSummary accounts={accounts} />
-          <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider pt-1">Per-account summary</h2>
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider pt-1">Per-account summary</h2>
           <div className="space-y-4">
             {accounts.map((a) => (
               <AccountSummaryCard key={a.id} account={a} />

@@ -47,10 +47,10 @@ export default function AccountDetail() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
         <div>
-          <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 transition-colors">
             <ArrowLeft className="w-3.5 h-3.5" /> Master dashboard
           </Link>
-          <h1 className="text-xl font-semibold text-white tracking-tight mt-1">
+          <h1 className="text-xl font-semibold text-slate-900 tracking-tight mt-1">
             {account ? account.name : "Account not found"}
           </h1>
           {syncedAt && (
@@ -58,14 +58,14 @@ export default function AccountDetail() {
           )}
         </div>
         <div className="ml-auto flex items-center gap-3">
-          <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
+          <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer select-none">
             <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} className="accent-emerald-500" />
             Auto-refresh (60s)
           </label>
           <button
             onClick={load}
             disabled={refreshing}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-sm hover:bg-emerald-500/25 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm hover:bg-emerald-100 transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh
           </button>
@@ -75,9 +75,9 @@ export default function AccountDetail() {
       {account ? (
         <AccountSection account={account} onCloseSpread={(acc, spread) => setClosing({ account: acc, spread })} />
       ) : (
-        <div className="bg-[#111725] border border-white/[0.06] rounded-xl p-12 text-center text-sm text-slate-400">
+        <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-sm text-slate-500">
           This account no longer exists.{" "}
-          <Link to="/accounts" className="text-emerald-300 hover:underline">Manage accounts</Link>
+          <Link to="/accounts" className="text-emerald-700 hover:underline">Manage accounts</Link>
         </div>
       )}
 
