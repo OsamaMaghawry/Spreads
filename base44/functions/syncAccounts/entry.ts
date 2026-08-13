@@ -19,11 +19,15 @@ async function syncOne(account) {
   const base = tradingBase(account);
   const empty = { credit: 0, risk: 0, closeCost: 0, pl: 0 };
   try {
-    const [info, positions, activities] = await Promise.all([
+    const [info, positions, activities, openOrders] = await Promise.all([
       alpacaFetch(`${base}/account`, account),
       alpacaFetch(`${base}/positions`, account),
-      alpacaFetch(`${base}/account/activities/FILL?page_size=100`, account).catch(() => [])
+      alpacaFetch(`${base}/account/activities/FILL?page_size=100`, account).catch(() => []),
+      alpacaFetch(`${base}/orders?status=open&nested=true&limit=100`, account).catch(() => [])
     ]);
+
+    const openList = Array.isArray(openOrders) ? openOrders : [];
+    const orderSymbols = (o) => (Array.isArray(o.legs) && o.legs.length ? o.legs.map((l) => l.symbol) : [o.symbol]);
 
     const spreads = pairSpreads(Array.isArray(positions) ? positions : [], Array.isArray(activities) ? activities : []);
 
@@ -54,7 +58,20 @@ async function syncOne(account) {
         maxRisk,
         breakEven: s.shortStrike - netCredit,
         closeCost,
-        unrealizedPL: totalCredit - closeCost
+        unrealizedPL: totalCredit - closeCost,
+        openOrders: openList
+          .filter((o) => {
+            const syms = orderSymbols(o);
+            return syms.includes(s.shortSymbol) || syms.includes(s.longSymbol);
+          })
+          .map((o) => ({
+            id: o.id,
+            type: o.type,
+            qty: o.qty,
+            limitPrice: o.limit_price,
+            status: o.status,
+            submittedAt: o.submitted_at
+          }))
       };
     });
 

@@ -27,8 +27,20 @@ export default function SpreadTable({ spreads, onClose }) {
         </thead>
         <tbody>
           {spreads.map((s, i) => (
-            <tr key={`${s.shortSymbol}_${s.longSymbol}_${i}`} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
-              <td className={`${td} font-semibold text-white`}>{s.ticker}</td>
+            <tr
+              key={`${s.shortSymbol}_${s.longSymbol}_${i}`}
+              className={`border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors ${
+                s.openOrders?.length > 0 ? "bg-amber-500/[0.05]" : ""
+              }`}
+            >
+              <td className={`${td} font-semibold text-white`}>
+                {s.ticker}
+                {s.openOrders?.length > 0 && (
+                  <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                    OPEN ORDER
+                  </span>
+                )}
+              </td>
               <td className={`${td} text-slate-400`}>{s.entryDate}</td>
               <td className={`${td} text-slate-400`}>{s.expiryFormatted}</td>
               <td className={`${td} text-right`}>{s.stockPrice ? fmtMoney(s.stockPrice) : "—"}</td>

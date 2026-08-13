@@ -5,16 +5,19 @@ import { fmtMoney } from "@/lib/format";
 import { Loader2 } from "lucide-react";
 import useCloseOrder, { getLastDebit } from "./useCloseOrder";
 import OrderLog from "./OrderLog";
+import OpenOrdersPanel from "./OpenOrdersPanel";
 
 export default function CloseDialog({ account, spread, onClose, onDone }) {
   const [qty, setQty] = useState(1);
   const [orderType, setOrderType] = useState("limit");
   const [quote, setQuote] = useState(null);
   const [quoteLoading, setQuoteLoading] = useState(true);
+  const [openOrders, setOpenOrders] = useState(spread.openOrders || []);
   const { phase, log, run, stop, reset } = useCloseOrder();
 
   useEffect(() => {
     setQty(spread.qty);
+    setOpenOrders(spread.openOrders || []);
     setQuote(null);
     setQuoteLoading(true);
     base44.functions
@@ -53,6 +56,9 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
 
         {phase === "idle" ? (
           <div className="space-y-4">
+            {openOrders.length > 0 && (
+              <OpenOrdersPanel accountId={account.id} orders={openOrders} onChange={setOpenOrders} />
+            )}
             <div className="bg-[#0A0E16] border border-white/[0.06] rounded-lg p-3 text-sm">
               {quoteLoading ? (
                 <div className="flex items-center gap-2 text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Fetching live quote…</div>
@@ -101,9 +107,12 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
 
             <button
               onClick={() => run({ accountId: account.id, spread, qty, orderType, startDebit })}
-              className="w-full py-2.5 rounded-lg bg-rose-500/90 hover:bg-rose-500 text-white font-medium text-sm transition-colors"
+              disabled={openOrders.length > 0}
+              className="w-full py-2.5 rounded-lg bg-rose-500/90 hover:bg-rose-500 text-white font-medium text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Confirm — close {qty} contract{qty > 1 ? "s" : ""} ({orderType})
+              {openOrders.length > 0
+                ? "Cancel the open order first"
+                : `Confirm — close ${qty} contract${qty > 1 ? "s" : ""} (${orderType})`}
             </button>
           </div>
         ) : (
