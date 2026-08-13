@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { fmtMoney } from "@/lib/format";
 import { Loader2 } from "lucide-react";
-import useCloseOrder from "./useCloseOrder";
+import useCloseOrder, { getLastDebit } from "./useCloseOrder";
 import OrderLog from "./OrderLog";
 
 export default function CloseDialog({ account, spread, onClose, onDone }) {
@@ -26,6 +26,8 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
 
   const midDebit = quote?.midDebit ?? 0;
   const plPerContract = (spread.netCredit - midDebit) * 100;
+  const lastDebit = getLastDebit(account.id, spread);
+  const startDebit = lastDebit ?? (quote ? midDebit : 0.3);
 
   const handleClose = () => {
     if (phase === "working") return;
@@ -91,12 +93,14 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
 
             <p className="text-xs text-slate-500 leading-relaxed">
               {orderType === "limit"
-                ? `Limit starts at the mid debit (${fmtMoney(midDebit)}) and walks up $0.02 every 30s (max 5 steps, 5 min timeout).`
+                ? lastDebit !== null
+                  ? `Limit resumes from your last attempt at ${fmtMoney(lastDebit)} and walks up $0.02 every 30s (max 10 steps, 10 min timeout).`
+                  : `Limit starts at the mid debit (${fmtMoney(midDebit)}) and walks up $0.02 every 30s (max 10 steps, 10 min timeout).`
                 : "Market executes immediately at the current best price — may slip toward the ask."}
             </p>
 
             <button
-              onClick={() => run({ accountId: account.id, spread, qty, orderType, startDebit: quote ? midDebit : 0.3 })}
+              onClick={() => run({ accountId: account.id, spread, qty, orderType, startDebit })}
               className="w-full py-2.5 rounded-lg bg-rose-500/90 hover:bg-rose-500 text-white font-medium text-sm transition-colors"
             >
               Confirm — close {qty} contract{qty > 1 ? "s" : ""} ({orderType})
@@ -109,9 +113,18 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
               <button onClick={stop} className="w-full py-2.5 rounded-lg border border-white/10 text-slate-300 hover:bg-white/[0.04] text-sm transition-colors">
                 Stop & cancel order
               </button>
+            ) : phase === "failed" ? (
+              <div className="flex gap-3">
+                <button onClick={reset} className="flex-1 py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-sm font-medium hover:bg-emerald-500/25 transition-colors">
+                  Try again
+                </button>
+                <button onClick={handleClose} className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-sm font-medium transition-colors">
+                  Close
+                </button>
+              </div>
             ) : (
               <button onClick={handleClose} className="w-full py-2.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-sm font-medium transition-colors">
-                {phase === "filled" ? "Done — refresh positions" : "Close"}
+                Done — refresh positions
               </button>
             )}
           </div>
