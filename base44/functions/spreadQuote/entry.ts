@@ -1,5 +1,25 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
-import { getSpreadQuote, loadAccount } from '../../shared/alpaca.ts';
+import { getSpreadQuote, loadAccount, tradingBase, alpacaFetch } from '../../shared/alpaca.ts';
+
+// Highest limit price we already tried on this spread (from Alpaca order history),
+// so a retry can resume from where the last attempt left off.
+async function lastAttemptDebit(account, shortSymbol, longSymbol) {
+  const orders = await alpacaFetch(
+    `${tradingBase(account)}/orders?status=all&nested=true&limit=100&direction=desc`,
+    account
+  ).catch(() => []);
+  if (!Array.isArray(orders)) return null;
+  let best = null;
+  for (const o of orders) {
+    const syms = Array.isArray(o.legs) && o.legs.length ? o.legs.map((l) => l.symbol) : [o.symbol];
+    if (!syms.includes(shortSymbol) && !syms.includes(longSymbol)) continue;
+    const price = parseFloat(o.limit_price);
+    if (!isFinite(price)) continue;
+    if (o.status === 'filled') break; // position was already closed/reopened after this
+    if (best === null || price > best) best = price;
+  }
+  return best;
+}
 
 export default async function(req) {
   try {
@@ -13,9 +33,12 @@ export default async function(req) {
     }
 
     const account = await loadAccount(base44, accountId);
-    const quote = await getSpreadQuote(account, shortSymbol, longSymbol);
+    const [quote, lastDebit] = await Promise.all([
+      getSpreadQuote(account, shortSymbol, longSymbol),
+      lastAttemptDebit(account, shortSymbol, longSymbol)
+    ]);
     if (!quote) return Response.json({ error: 'No quote available for these contracts' }, { status: 404 });
-    return Response.json(quote);
+    return Response.json({ ...quote, lastAttemptDebit: lastDebit });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

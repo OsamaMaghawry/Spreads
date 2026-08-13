@@ -115,7 +115,7 @@ export default function useCloseOrder() {
             shortSymbol: spread.shortSymbol,
             longSymbol: spread.longSymbol
           }).catch(() => null);
-          if (q && q.askDebit) proposed = Math.min(proposed, round2(q.askDebit + 0.05));
+          if (q && q.askDebit) proposed = Math.max(debit, Math.min(proposed, round2(q.askDebit + 0.05)));
 
           if (Math.abs(proposed - debit) >= 0.01) {
             addLog(`Repricing (${steps}/${MAX_STEPS}): $${debit.toFixed(2)} → $${proposed.toFixed(2)}`);

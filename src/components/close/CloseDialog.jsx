@@ -29,8 +29,13 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
 
   const midDebit = quote?.midDebit ?? 0;
   const plPerContract = (spread.netCredit - midDebit) * 100;
-  const lastDebit = getLastDebit(account.id, spread);
-  const startDebit = lastDebit ?? (quote ? midDebit : 0.3);
+  // Resume from the highest price already attempted — either this session's memory
+  // or the last limit price Alpaca has on record for this spread.
+  const attempts = [getLastDebit(account.id, spread), quote?.lastAttemptDebit].filter(
+    (v) => typeof v === "number" && isFinite(v)
+  );
+  const lastDebit = attempts.length ? Math.max(...attempts) : null;
+  const startDebit = Math.max(lastDebit ?? 0, quote ? midDebit : 0.3);
 
   const handleClose = () => {
     if (phase === "working") return;
@@ -100,7 +105,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
             <p className="text-xs text-slate-500 leading-relaxed">
               {orderType === "limit"
                 ? lastDebit !== null
-                  ? `Limit resumes from your last attempt at ${fmtMoney(lastDebit)} and walks up $0.02 every 30s (max 10 steps, 10 min timeout).`
+                  ? `Limit resumes from your last attempt at ${fmtMoney(lastDebit)} — starting at ${fmtMoney(startDebit)} and walking up $0.02 every 30s (max 10 steps, 10 min timeout).`
                   : `Limit starts at the mid debit (${fmtMoney(midDebit)}) and walks up $0.02 every 30s (max 10 steps, 10 min timeout).`
                 : "Market executes immediately at the current best price — may slip toward the ask."}
             </p>
