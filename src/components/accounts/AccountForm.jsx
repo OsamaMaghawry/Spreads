@@ -7,7 +7,9 @@ export default function AccountForm({ account, onSave, onCancel }) {
     name: account?.name || "",
     api_key: account?.api_key || "",
     api_secret: account?.api_secret || "",
-    is_paper: account?.is_paper || false
+    is_paper: account?.is_paper || false,
+    spreads_client_prefix: account?.spreads_client_prefix || "",
+    wheel_client_prefix: account?.wheel_client_prefix || ""
   });
   const [saving, setSaving] = useState(false);
 
@@ -40,6 +42,17 @@ export default function AccountForm({ account, onSave, onCancel }) {
           <div>
             <label className="text-xs text-slate-500 block mb-1.5">API Secret Key</label>
             <input type="password" value={form.api_secret} onChange={set("api_secret")} className={inputCls} autoComplete="off" />
+          </div>
+          <div className="border-t border-slate-200 pt-4 space-y-3">
+            <div className="text-xs font-medium text-slate-700">Strategy client order id prefixes</div>
+            <div>
+              <label className="text-xs text-slate-500 block mb-1.5">Spreads prefix</label>
+              <input value={form.spreads_client_prefix} onChange={set("spreads_client_prefix")} placeholder="e.g. 0DTE_Alton_LIVE_Options" className={inputCls} />
+            </div>
+            <div>
+              <label className="text-xs text-slate-500 block mb-1.5">Wheel prefix</label>
+              <input value={form.wheel_client_prefix} onChange={set("wheel_client_prefix")} placeholder="e.g. Alton_Live_WHEEL_3DAY" className={inputCls} />
+            </div>
           </div>
           <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
             <div>

@@ -12,6 +12,7 @@ export default function TradeHistoryTable({ trades }) {
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-left">
             <th className={th}>Ticker</th>
+            <th className={th}>Strategy</th>
             <th className={th}>Opened</th>
             <th className={th}>Closed</th>
             <th className={th}>Expiry</th>
@@ -32,17 +33,26 @@ export default function TradeHistoryTable({ trades }) {
           {trades.map((t) => (
             <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
               <td className={`${td} font-semibold text-slate-900`}>{t.ticker}</td>
+              <td className={td}>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  t.strategy === "spreads" ? "bg-indigo-100 text-indigo-700"
+                    : t.strategy === "wheel" ? "bg-amber-100 text-amber-700"
+                    : "bg-slate-100 text-slate-600"
+                }`}>
+                  {(t.strategy || "unknown").toUpperCase()}
+                </span>
+              </td>
               <td className={`${td} text-slate-500`}>{t.open_date}</td>
               <td className={`${td} text-slate-500`}>{t.close_date}</td>
               <td className={`${td} text-slate-500`}>{t.expiry}</td>
               <td className={`${td} text-right`}>{fmtMoney(t.short_strike)}</td>
-              <td className={`${td} text-right`}>{fmtMoney(t.long_strike)}</td>
+              <td className={`${td} text-right`}>{t.long_symbol ? fmtMoney(t.long_strike) : "—"}</td>
               <td className={`${td} text-right`}>{t.qty}</td>
               <td className={`${td} text-right`}>{fmtMoney(t.short_entry)}</td>
-              <td className={`${td} text-right`}>{fmtMoney(t.long_entry)}</td>
+              <td className={`${td} text-right`}>{t.long_symbol ? fmtMoney(t.long_entry) : "—"}</td>
               <td className={`${td} text-right`}>{fmtMoney(t.net_credit)}</td>
               <td className={`${td} text-right`}>{fmtMoney(t.short_exit)}</td>
-              <td className={`${td} text-right`}>{fmtMoney(t.long_exit)}</td>
+              <td className={`${td} text-right`}>{t.long_symbol ? fmtMoney(t.long_exit) : "—"}</td>
               <td className={`${td} text-right`}>{fmtMoney(t.close_debit)}</td>
               <td className={`${td} text-right font-semibold ${t.realized_pl > 0 ? "text-emerald-600" : t.realized_pl < 0 ? "text-rose-600" : ""}`}>
                 {fmtMoney(t.realized_pl)}
@@ -59,7 +69,7 @@ export default function TradeHistoryTable({ trades }) {
           {trades.length > 0 && (
             <tr className="bg-slate-50 font-semibold text-slate-900">
               <td className={`${td} text-[11px] uppercase tracking-wider text-slate-500`}>Totals</td>
-              <td className={td} colSpan={12}></td>
+              <td className={td} colSpan={13}></td>
               <td className={`${td} text-right ${totalPL > 0 ? "text-emerald-600" : totalPL < 0 ? "text-rose-600" : ""}`}>
                 {fmtMoney(totalPL)}
               </td>

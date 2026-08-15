@@ -6,9 +6,19 @@
       "type": "string",
       "description": "TradingAccount id this trade belongs to"
     },
+    "strategy": {
+      "type": "string",
+      "enum": [
+        "spreads",
+        "wheel",
+        "unknown"
+      ],
+      "default": "unknown",
+      "description": "Strategy derived from the Alpaca client order id prefix"
+    },
     "trade_key": {
       "type": "string",
-      "description": "Dedupe key: shortSymbol|longSymbol|closeDate"
+      "description": "Dedupe key: strategy|shortSymbol|longSymbol|closeDate"
     },
     "ticker": {
       "type": "string"
@@ -21,7 +31,8 @@
       "type": "string"
     },
     "long_symbol": {
-      "type": "string"
+      "type": "string",
+      "description": "Empty for single-leg (wheel) trades"
     },
     "short_strike": {
       "type": "number"
@@ -71,7 +82,6 @@
     "account_id",
     "trade_key",
     "ticker",
-    "short_symbol",
-    "long_symbol"
+    "short_symbol"
   ]
 }

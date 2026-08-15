@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { RefreshCw, ArrowLeft, History } from "lucide-react";
 import TradeHistoryTable from "@/components/history/TradeHistoryTable";
+import StrategyTabs from "@/components/history/StrategyTabs";
 
 export default function AccountHistory() {
   const { id } = useParams();
@@ -10,6 +11,7 @@ export default function AccountHistory() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [strategy, setStrategy] = useState("all");
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -37,6 +39,7 @@ export default function AccountHistory() {
   }
 
   const trades = data?.trades || [];
+  const visible = strategy === "all" ? trades : trades.filter((t) => (t.strategy || "unknown") === strategy);
 
   return (
     <div className="space-y-5">
@@ -71,7 +74,10 @@ export default function AccountHistory() {
           </p>
         </div>
       ) : (
-        <TradeHistoryTable trades={trades} />
+        <>
+          <StrategyTabs trades={trades} active={strategy} onChange={setStrategy} />
+          <TradeHistoryTable trades={visible} />
+        </>
       )}
     </div>
   );

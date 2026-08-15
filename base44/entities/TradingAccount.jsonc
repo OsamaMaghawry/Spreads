@@ -18,6 +18,14 @@
       "type": "boolean",
       "default": false,
       "description": "Paper trading account"
+    },
+    "spreads_client_prefix": {
+      "type": "string",
+      "description": "Client order id prefix used by the spreads strategy"
+    },
+    "wheel_client_prefix": {
+      "type": "string",
+      "description": "Client order id prefix used by the wheel strategy"
     }
   },
   "required": [
