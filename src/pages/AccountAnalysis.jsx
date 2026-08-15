@@ -9,6 +9,7 @@ import BreakdownTable from "@/components/analysis/BreakdownTable";
 import StrategyComparison from "@/components/analysis/StrategyComparison";
 import StrategyTabs from "@/components/history/StrategyTabs";
 import ExportPdfButton from "@/components/analysis/ExportPdfButton";
+import DateRangeFilter from "@/components/analysis/DateRangeFilter";
 
 export default function AccountAnalysis() {
   const { id } = useParams();
@@ -17,6 +18,7 @@ export default function AccountAnalysis() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [strategy, setStrategy] = useState("all");
+  const [range, setRange] = useState({ from: "", to: "" });
   const reportRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -38,7 +40,20 @@ export default function AccountAnalysis() {
 
   useEffect(() => { load(); }, [load]);
 
-  const trades = data?.trades || [];
+  const allTrades = data?.trades || [];
+  const bounds = useMemo(() => {
+    const dates = allTrades.map((t) => t.close_date).filter(Boolean).sort();
+    return { min: dates[0], max: dates[dates.length - 1] };
+  }, [allTrades]);
+  const trades = useMemo(
+    () => allTrades.filter((t) => {
+      const d = t.close_date || "";
+      if (range.from && d < range.from) return false;
+      if (range.to && d > range.to) return false;
+      return true;
+    }),
+    [allTrades, range]
+  );
 
   const { stats, comparison } = useMemo(() => {
     const subset = strategy === "all" ? trades : trades.filter((t) => (t.strategy || "unknown") === strategy);
@@ -98,6 +113,8 @@ export default function AccountAnalysis() {
           )}
         </div>
       </div>
+
+      <DateRangeFilter from={range.from} to={range.to} bounds={bounds} onChange={setRange} />
 
       {error ? (
         <div className="bg-rose-50 border border-rose-200 rounded-xl p-6 text-sm text-rose-700">{error}</div>

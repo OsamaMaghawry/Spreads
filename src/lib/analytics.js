@@ -135,6 +135,7 @@ export function computeStats(trades, equity = 0) {
     avgTradeRoR,
     roe,
     annualized: roe !== null ? roe * (365 / span) : null,
+    cagr: roe !== null && 1 + roe > 0 ? Math.pow(1 + roe, 365 / span) - 1 : null,
     maxDrawdown: maxDD,
     avgHoldDays: holdDays,
     tradingDays: byDay.length,
@@ -143,6 +144,9 @@ export function computeStats(trades, equity = 0) {
     medianDayPL,
     avgDayReturn: equity > 0 && byDay.length ? totalPL / byDay.length / equity : null,
     medianDayReturn: equity > 0 ? medianDayPL / equity : null,
+    // Per-day return on the collateral actually at work (peak concurrent risk).
+    avgDayRiskReturn: peakRisk > 0 && byDay.length ? totalPL / byDay.length / peakRisk : null,
+    medianDayRiskReturn: peakRisk > 0 ? medianDayPL / peakRisk : null,
     bestDay: byDay.reduce((m, d) => (d.pl > (m?.pl ?? -Infinity) ? d : m), null),
     worstDay: byDay.reduce((m, d) => (d.pl < (m?.pl ?? Infinity) ? d : m), null),
     bestStreak,

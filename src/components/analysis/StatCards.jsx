@@ -10,7 +10,8 @@ export default function StatCards({ stats }) {
       items: [
         { label: "Realized P/L", value: fmtMoney(stats.totalPL), tone: stats.totalPL >= 0 ? "pos" : "neg" },
         { label: "Return on equity", value: pct(stats.roe), sub: "Realized P/L ÷ account equity", tone: stats.roe >= 0 ? "pos" : "neg" },
-        { label: "Annualized return", value: pct(stats.annualized), sub: `Over ${stats.spanDays} days of history`, tone: stats.annualized >= 0 ? "pos" : "neg" },
+        { label: "Annualized (simple)", value: pct(stats.annualized), sub: `ROE × 365 ÷ ${stats.spanDays} days`, tone: stats.annualized >= 0 ? "pos" : "neg" },
+        { label: "Annualized (CAGR)", value: pct(stats.cagr), sub: "Compounded over the same span", tone: stats.cagr >= 0 ? "pos" : "neg" },
         { label: "Return on risk", value: pct(stats.returnOnRisk), sub: `vs ${fmtMoney(stats.peakRisk)} peak capital at risk` },
         { label: "Avg return / trade", value: pct(stats.avgTradeRoR, 2), sub: "Each trade's P/L ÷ its own collateral" },
         { label: "Credit collected", value: fmtMoney(stats.creditCollected) },
@@ -45,6 +46,8 @@ export default function StatCards({ stats }) {
         { label: "Green days", value: pct(stats.dayWinRate), sub: `${stats.tradingDays} closing days` },
         { label: "Avg per day", value: fmtMoney(stats.avgDayPL), sub: `${pct(stats.avgDayReturn, 3)} of equity`, tone: stats.avgDayPL >= 0 ? "pos" : "neg" },
         { label: "Median per day", value: fmtMoney(stats.medianDayPL), sub: `${pct(stats.medianDayReturn, 3)} of equity`, tone: stats.medianDayPL >= 0 ? "pos" : "neg" },
+        { label: "Avg return / day", value: pct(stats.avgDayReturn, 3), sub: `${pct(stats.avgDayRiskReturn, 2)} of capital at risk`, tone: stats.avgDayReturn >= 0 ? "pos" : "neg" },
+        { label: "Median return / day", value: pct(stats.medianDayReturn, 3), sub: `${pct(stats.medianDayRiskReturn, 2)} of capital at risk`, tone: stats.medianDayReturn >= 0 ? "pos" : "neg" },
         { label: "Best day", value: fmtMoney(stats.bestDay?.pl || 0), sub: stats.bestDay?.date, tone: "pos" },
         { label: "Worst day", value: fmtMoney(stats.worstDay?.pl || 0), sub: stats.worstDay?.date, tone: "neg" },
         { label: "Best win streak", value: `${stats.bestStreak} ${stats.bestStreak === 1 ? "trade" : "trades"}` },
