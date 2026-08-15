@@ -10,6 +10,7 @@ import StrategyComparison from "@/components/analysis/StrategyComparison";
 import StrategyTabs from "@/components/history/StrategyTabs";
 import ExportPdfButton from "@/components/analysis/ExportPdfButton";
 import DateRangeFilter from "@/components/analysis/DateRangeFilter";
+import CaptureBreakdown from "@/components/analysis/CaptureBreakdown";
 
 export default function AccountAnalysis() {
   const { id } = useParams();
@@ -58,7 +59,7 @@ export default function AccountAnalysis() {
     [allTrades, range]
   );
 
-  const { stats, comparison } = useMemo(() => {
+  const { stats, comparison, subset } = useMemo(() => {
     const subset = strategy === "all" ? trades : trades.filter((t) => (t.strategy || "unknown") === strategy);
     const share = trades.length ? subset.length / trades.length : 0;
     const s = computeStats(subset, equity * (strategy === "all" ? 1 : share));
@@ -72,7 +73,7 @@ export default function AccountAnalysis() {
         return { label: r.label, stats: computeStats(r.trades, r.label === "All strategies" ? equity : eq) };
       })
       .filter((r) => r.stats);
-    return { stats: s, comparison: rows };
+    return { stats: s, comparison: rows, subset };
   }, [trades, strategy, equity]);
 
   if (loading) {
@@ -139,6 +140,7 @@ export default function AccountAnalysis() {
           <div ref={reportRef} className="space-y-5 bg-white">
             {comparison.length > 1 && <StrategyComparison rows={comparison} />}
             <StatCards stats={stats} />
+            <CaptureBreakdown trades={subset} />
             <EquityCurveChart curve={stats.curve} />
             <div className="grid gap-4 lg:grid-cols-2">
               <BreakdownTable title="By month" keyLabel="Month" keyField="month" rows={stats.byMonth} />
