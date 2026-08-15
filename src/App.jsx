@@ -16,6 +16,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Accounts from './pages/Accounts';
 import AccountDetail from './pages/AccountDetail';
+import AccountHistory from './pages/AccountHistory';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -52,6 +53,7 @@ const AuthenticatedApp = () => {
           <Route path="/" element={<Dashboard />} />
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/account/:id" element={<AccountDetail />} />
+          <Route path="/account/:id/history" element={<AccountHistory />} />
         </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />

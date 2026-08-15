@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { RefreshCw, ArrowLeft } from "lucide-react";
+import { RefreshCw, ArrowLeft, History } from "lucide-react";
 import AccountSection from "@/components/dashboard/AccountSection";
 import CloseDialog from "@/components/close/CloseDialog";
 
@@ -58,6 +58,12 @@ export default function AccountDetail() {
           )}
         </div>
         <div className="ml-auto flex items-center gap-3">
+          <Link
+            to={`/account/${id}/history`}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white border border-slate-200 text-slate-700 text-sm hover:bg-slate-50 transition-colors"
+          >
+            <History className="w-4 h-4" /> Trade history
+          </Link>
           <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer select-none">
             <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} className="accent-emerald-500" />
             Auto-refresh (60s)

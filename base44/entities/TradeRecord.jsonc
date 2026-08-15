@@ -1,0 +1,77 @@
+{
+  "name": "TradeRecord",
+  "type": "object",
+  "properties": {
+    "account_id": {
+      "type": "string",
+      "description": "TradingAccount id this trade belongs to"
+    },
+    "trade_key": {
+      "type": "string",
+      "description": "Dedupe key: shortSymbol|longSymbol|closeDate"
+    },
+    "ticker": {
+      "type": "string"
+    },
+    "expiry": {
+      "type": "string",
+      "description": "Option expiry date YYYY-MM-DD"
+    },
+    "short_symbol": {
+      "type": "string"
+    },
+    "long_symbol": {
+      "type": "string"
+    },
+    "short_strike": {
+      "type": "number"
+    },
+    "long_strike": {
+      "type": "number"
+    },
+    "qty": {
+      "type": "number"
+    },
+    "open_date": {
+      "type": "string"
+    },
+    "close_date": {
+      "type": "string"
+    },
+    "short_entry": {
+      "type": "number"
+    },
+    "long_entry": {
+      "type": "number"
+    },
+    "net_credit": {
+      "type": "number"
+    },
+    "short_exit": {
+      "type": "number"
+    },
+    "long_exit": {
+      "type": "number"
+    },
+    "close_debit": {
+      "type": "number"
+    },
+    "realized_pl": {
+      "type": "number"
+    },
+    "close_reason": {
+      "type": "string",
+      "enum": [
+        "closed",
+        "expired"
+      ]
+    }
+  },
+  "required": [
+    "account_id",
+    "trade_key",
+    "ticker",
+    "short_symbol",
+    "long_symbol"
+  ]
+}
