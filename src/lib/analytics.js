@@ -23,6 +23,31 @@ export function computeStats(trades, equity = 0) {
   const totalRisk = sorted.reduce((a, t) => a + riskOf(t), 0);
   const avgRisk = totalRisk / sorted.length;
 
+  // Peak concurrent capital at risk: sweep open/close events so sequential trades
+  // that reuse the same collateral are not double counted.
+  const events = [];
+  sorted.forEach((t) => {
+    const risk = riskOf(t);
+    if (risk <= 0) return;
+    events.push({ date: t.open_date || t.close_date, delta: risk });
+    events.push({ date: t.close_date, delta: -risk, close: true });
+  });
+  events.sort((a, b) => a.date.localeCompare(b.date) || (a.close ? -1 : 1));
+  let openRisk = 0, peakRisk = 0;
+  events.forEach((e) => {
+    openRisk += e.delta;
+    peakRisk = Math.max(peakRisk, openRisk);
+  });
+
+  // Average of each trade's own return on its collateral.
+  const perTradeRoRs = sorted.map((t) => {
+    const risk = riskOf(t);
+    return risk > 0 ? (t.realized_pl || 0) / risk : null;
+  }).filter((v) => v !== null);
+  const avgTradeRoR = perTradeRoRs.length
+    ? perTradeRoRs.reduce((a, v) => a + v, 0) / perTradeRoRs.length
+    : null;
+
   // Equity curve + max drawdown of cumulative realized P/L.
   let cum = 0, peak = 0, maxDD = 0;
   const curve = sorted.map((t) => {
@@ -76,7 +101,7 @@ export function computeStats(trades, equity = 0) {
   const holdDays = sorted.reduce((a, t) => a + (t.open_date ? days(t.open_date, t.close_date) : 0), 0) / sorted.length;
 
   const roe = equity > 0 ? totalPL / equity : null;
-  const returnOnRisk = totalRisk > 0 ? totalPL / totalRisk : null;
+  const returnOnRisk = peakRisk > 0 ? totalPL / peakRisk : null;
 
   return {
     totalPL,
@@ -98,7 +123,9 @@ export function computeStats(trades, equity = 0) {
     captureRate: creditCollected > 0 ? totalPL / creditCollected : null,
     totalRisk,
     avgRisk,
+    peakRisk,
     returnOnRisk,
+    avgTradeRoR,
     roe,
     annualized: roe !== null ? roe * (365 / span) : null,
     maxDrawdown: maxDD,

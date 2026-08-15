@@ -11,7 +11,8 @@ export default function StatCards({ stats }) {
         { label: "Realized P/L", value: fmtMoney(stats.totalPL), tone: stats.totalPL >= 0 ? "pos" : "neg" },
         { label: "Return on equity", value: pct(stats.roe), sub: "Realized P/L ÷ account equity", tone: stats.roe >= 0 ? "pos" : "neg" },
         { label: "Annualized return", value: pct(stats.annualized), sub: `Over ${stats.spanDays} days of history`, tone: stats.annualized >= 0 ? "pos" : "neg" },
-        { label: "Return on risk", value: pct(stats.returnOnRisk), sub: `${fmtMoney(stats.totalRisk)} total capital at risk` },
+        { label: "Return on risk", value: pct(stats.returnOnRisk), sub: `vs ${fmtMoney(stats.peakRisk)} peak capital at risk` },
+        { label: "Avg return / trade", value: pct(stats.avgTradeRoR, 2), sub: "Each trade's P/L ÷ its own collateral" },
         { label: "Credit collected", value: fmtMoney(stats.creditCollected) },
         { label: "Credit capture", value: pct(stats.captureRate), sub: "Kept share of premium sold" }
       ]
