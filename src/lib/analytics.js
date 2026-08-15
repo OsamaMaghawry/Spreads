@@ -64,6 +64,13 @@ export function computeStats(trades, equity = 0) {
   });
   const byDay = Object.entries(byDayMap).map(([date, pl]) => ({ date, pl })).sort((a, b) => a.date.localeCompare(b.date));
   const winDays = byDay.filter((d) => d.pl > 0).length;
+  const median = (arr) => {
+    if (arr.length === 0) return 0;
+    const s = arr.slice().sort((a, b) => a - b);
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  };
+  const medianDayPL = median(byDay.map((d) => d.pl));
 
   // Per-month aggregation.
   const byMonthMap = {};
@@ -133,6 +140,9 @@ export function computeStats(trades, equity = 0) {
     tradingDays: byDay.length,
     dayWinRate: byDay.length ? winDays / byDay.length : 0,
     avgDayPL: byDay.length ? totalPL / byDay.length : 0,
+    medianDayPL,
+    avgDayReturn: equity > 0 && byDay.length ? totalPL / byDay.length / equity : null,
+    medianDayReturn: equity > 0 ? medianDayPL / equity : null,
     bestDay: byDay.reduce((m, d) => (d.pl > (m?.pl ?? -Infinity) ? d : m), null),
     worstDay: byDay.reduce((m, d) => (d.pl < (m?.pl ?? Infinity) ? d : m), null),
     bestStreak,
