@@ -22,6 +22,7 @@ export default function StrategyComparison({ rows }) {
               <th className={`${th} text-right`}>Return on risk</th>
               <th className={`${th} text-right`}>ROE</th>
               <th className={`${th} text-right`}>Annualized</th>
+              <th className={`${th} text-right`}>CAGR</th>
               <th className={`${th} text-right`}>Max DD</th>
             </tr>
           </thead>
@@ -39,6 +40,7 @@ export default function StrategyComparison({ rows }) {
                 <td className={`${td} text-right`}>{pct(stats.returnOnRisk)}</td>
                 <td className={`${td} text-right`}>{pct(stats.roe)}</td>
                 <td className={`${td} text-right`}>{pct(stats.annualized, 0)}</td>
+                <td className={`${td} text-right`}>{pct(stats.cagr, 0)}</td>
                 <td className={`${td} text-right text-rose-600`}>{fmtMoney(stats.maxDrawdown ? -stats.maxDrawdown : 0)}</td>
               </tr>
             ))}

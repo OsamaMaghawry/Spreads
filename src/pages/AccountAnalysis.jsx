@@ -108,7 +108,7 @@ export default function AccountAnalysis() {
             <ExportPdfButton
               targetRef={reportRef}
               title={data?.account ? `${data.account.name} — Performance Analysis` : "Performance Analysis"}
-              subtitle={`${stats.firstDate} → ${stats.lastDate} · ${strategy === "all" ? "All strategies" : strategy} · generated ${new Date().toLocaleDateString()}`}
+              subtitle={`${stats.firstDate} → ${stats.lastDate}${range.from || range.to ? " (filtered)" : ""} · ${strategy === "all" ? "All strategies" : strategy} · equity ${equity ? `$${equity.toLocaleString()}` : "n/a"} · generated ${new Date().toLocaleString()}`}
             />
           )}
         </div>
@@ -125,9 +125,9 @@ export default function AccountAnalysis() {
         </div>
       ) : (
         <>
-          {comparison.length > 1 && <StrategyComparison rows={comparison} />}
           <StrategyTabs trades={trades} active={strategy} onChange={setStrategy} />
           <div ref={reportRef} className="space-y-5 bg-white">
+            {comparison.length > 1 && <StrategyComparison rows={comparison} />}
             <StatCards stats={stats} />
             <EquityCurveChart curve={stats.curve} />
             <div className="grid gap-4 lg:grid-cols-2">
