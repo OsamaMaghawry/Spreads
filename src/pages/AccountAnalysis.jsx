@@ -19,26 +19,29 @@ export default function AccountAnalysis() {
   const [loading, setLoading] = useState(true);
   const [strategy, setStrategy] = useState("all");
   const [range, setRange] = useState({ from: "", to: "" });
+  const [syncing, setSyncing] = useState(false);
   const reportRef = useRef(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (sync = false) => {
     setError(null);
+    setSyncing(sync);
     try {
-      const [hist, sync] = await Promise.all([
-        base44.functions.invoke("tradeHistory", { accountId: id }),
+      const [hist, live] = await Promise.all([
+        base44.functions.invoke("tradeHistory", { accountId: id, sync }),
         base44.functions.invoke("syncAccounts", {}).catch(() => null)
       ]);
       setData(hist.data);
-      const acct = sync?.data?.accounts?.find((a) => a.id === id);
+      const acct = live?.data?.accounts?.find((a) => a.id === id);
       setEquity(acct?.equity || 0);
     } catch (e) {
       setError(e.response?.data?.error || e.message);
     } finally {
       setLoading(false);
+      setSyncing(false);
     }
   }, [id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(false); }, [load]);
 
   const allTrades = data?.trades || [];
   const bounds = useMemo(() => {
@@ -98,6 +101,13 @@ export default function AccountAnalysis() {
           )}
         </div>
         <div className="ml-auto flex items-center gap-3">
+          <button
+            onClick={() => load(true)}
+            disabled={syncing}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} /> {syncing ? "Syncing…" : "Sync from Alpaca"}
+          </button>
           <Link
             to={`/account/${id}/history`}
             className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors"

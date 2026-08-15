@@ -10,10 +10,22 @@ export default async function(req) {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { accountId } = await req.json();
+    const { accountId, sync = false } = await req.json();
     if (!accountId) return Response.json({ error: 'accountId is required' }, { status: 400 });
     const account = await loadAccount(base44, accountId);
     const base = tradingBase(account);
+
+    const accountInfo = {
+      id: account.id, name: account.name, is_paper: account.is_paper,
+      spreads_client_prefix: (account.spreads_client_prefix || '').trim(),
+      wheel_client_prefix: (account.wheel_client_prefix || '').trim()
+    };
+
+    // Read-only mode: serve stored trades without touching Alpaca.
+    if (!sync) {
+      const stored = await base44.asServiceRole.entities.TradeRecord.filter({ account_id: accountId }, '-close_date');
+      return Response.json({ account: accountInfo, trades: stored, fromCache: true });
+    }
 
     const spreadsPrefix = (account.spreads_client_prefix || '').trim();
     const wheelPrefix = (account.wheel_client_prefix || '').trim();
@@ -219,10 +231,7 @@ export default async function(req) {
 
     const all = await base44.asServiceRole.entities.TradeRecord.filter({ account_id: accountId }, '-close_date');
     return Response.json({
-      account: {
-        id: account.id, name: account.name, is_paper: account.is_paper,
-        spreads_client_prefix: spreadsPrefix, wheel_client_prefix: wheelPrefix
-      },
+      account: accountInfo,
       trades: all,
       stats: { created: toCreate.length, updated: toUpdate.length, removed: stale.length },
       syncedAt: new Date().toISOString()

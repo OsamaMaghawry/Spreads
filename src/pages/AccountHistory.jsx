@@ -13,11 +13,11 @@ export default function AccountHistory() {
   const [refreshing, setRefreshing] = useState(false);
   const [strategy, setStrategy] = useState("all");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (sync = false) => {
     setRefreshing(true);
     setError(null);
     try {
-      const res = await base44.functions.invoke("tradeHistory", { accountId: id });
+      const res = await base44.functions.invoke("tradeHistory", { accountId: id, sync });
       setData(res.data);
     } catch (e) {
       setError(e.response?.data?.error || e.message);
@@ -27,7 +27,7 @@ export default function AccountHistory() {
     }
   }, [id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(false); }, [load]);
 
   if (loading) {
     return (
@@ -62,7 +62,7 @@ export default function AccountHistory() {
           <BarChart3 className="w-4 h-4" /> Analysis
         </Link>
         <button
-          onClick={load}
+          onClick={() => load(true)}
           disabled={refreshing}
           className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm hover:bg-emerald-100 transition-colors disabled:opacity-50"
         >
