@@ -112,10 +112,12 @@ export default async function(req) {
     });
 
     // 5. Build trades: pair spreads within the same strategy; wheel/unpaired stay single-leg.
+    // Orders placed without a configured prefix ('unknown') are resolved by shape:
+    // legs that pair into a vertical are spreads, leftover single legs are wheel puts.
     const trades = [];
     const single = (l) => trades.push({
       account_id: accountId,
-      strategy: l.strategy,
+      strategy: l.strategy === 'unknown' ? 'wheel' : l.strategy,
       ticker: l.parsed.ticker,
       expiry: l.parsed.expiryFormatted,
       short_symbol: l.symbol,
@@ -146,7 +148,7 @@ export default async function(req) {
             const q = Math.min(s.left, l.left);
             trades.push({
               account_id: accountId,
-              strategy,
+              strategy: strategy === 'unknown' ? 'spreads' : strategy,
               ticker: s.parsed.ticker,
               expiry: s.parsed.expiryFormatted,
               short_symbol: s.symbol,

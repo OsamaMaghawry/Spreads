@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { RefreshCw, ArrowLeft, History } from "lucide-react";
+import { RefreshCw, ArrowLeft, History, BarChart3 } from "lucide-react";
 import TradeHistoryTable from "@/components/history/TradeHistoryTable";
 import StrategyTabs from "@/components/history/StrategyTabs";
 
@@ -55,10 +55,16 @@ export default function AccountHistory() {
             <p className="text-xs text-slate-500 mt-0.5">Last synced {new Date(data.syncedAt).toLocaleTimeString()}</p>
           )}
         </div>
+        <Link
+          to={`/account/${id}/analysis`}
+          className="ml-auto flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors"
+        >
+          <BarChart3 className="w-4 h-4" /> Analysis
+        </Link>
         <button
           onClick={load}
           disabled={refreshing}
-          className="ml-auto flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm hover:bg-emerald-100 transition-colors disabled:opacity-50"
+          className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm hover:bg-emerald-100 transition-colors disabled:opacity-50"
         >
           <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} /> Sync from Alpaca
         </button>
