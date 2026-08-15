@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { RefreshCw, ArrowLeft, BarChart3 } from "lucide-react";
@@ -8,6 +8,7 @@ import EquityCurveChart from "@/components/analysis/EquityCurveChart";
 import BreakdownTable from "@/components/analysis/BreakdownTable";
 import StrategyComparison from "@/components/analysis/StrategyComparison";
 import StrategyTabs from "@/components/history/StrategyTabs";
+import ExportPdfButton from "@/components/analysis/ExportPdfButton";
 
 export default function AccountAnalysis() {
   const { id } = useParams();
@@ -16,6 +17,7 @@ export default function AccountAnalysis() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [strategy, setStrategy] = useState("all");
+  const reportRef = useRef(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -80,12 +82,21 @@ export default function AccountAnalysis() {
             </p>
           )}
         </div>
-        <Link
-          to={`/account/${id}/history`}
-          className="ml-auto flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors"
-        >
-          View trade history
-        </Link>
+        <div className="ml-auto flex items-center gap-3">
+          <Link
+            to={`/account/${id}/history`}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors"
+          >
+            View trade history
+          </Link>
+          {stats && (
+            <ExportPdfButton
+              targetRef={reportRef}
+              title={data?.account ? `${data.account.name} — Performance Analysis` : "Performance Analysis"}
+              subtitle={`${stats.firstDate} → ${stats.lastDate} · ${strategy === "all" ? "All strategies" : strategy} · generated ${new Date().toLocaleDateString()}`}
+            />
+          )}
+        </div>
       </div>
 
       {error ? (
@@ -99,11 +110,13 @@ export default function AccountAnalysis() {
         <>
           {comparison.length > 1 && <StrategyComparison rows={comparison} />}
           <StrategyTabs trades={trades} active={strategy} onChange={setStrategy} />
-          <StatCards stats={stats} />
-          <EquityCurveChart curve={stats.curve} />
-          <div className="grid gap-4 lg:grid-cols-2">
-            <BreakdownTable title="By month" keyLabel="Month" keyField="month" rows={stats.byMonth} />
-            <BreakdownTable title="By ticker" keyLabel="Ticker" keyField="ticker" rows={stats.byTicker} />
+          <div ref={reportRef} className="space-y-5 bg-white">
+            <StatCards stats={stats} />
+            <EquityCurveChart curve={stats.curve} />
+            <div className="grid gap-4 lg:grid-cols-2">
+              <BreakdownTable title="By month" keyLabel="Month" keyField="month" rows={stats.byMonth} />
+              <BreakdownTable title="By ticker" keyLabel="Ticker" keyField="ticker" rows={stats.byTicker} />
+            </div>
           </div>
         </>
       )}
