@@ -14,12 +14,14 @@ export default async function(req) {
     const account = await loadAccount(base44, accountId);
     const base = tradingBase(account);
 
-    // 1. Pull activities (oldest first), paginated.
+    // 1. Pull activities newest-first (option trades are recent; old stock fills
+    // would otherwise exhaust the page budget), paginated. Per-symbol processing
+    // re-sorts ascending, and already-stored records persist across syncs.
     let activities = [];
     let pageToken = null;
-    for (let i = 0; i < 10; i++) {
-      const url = `${base}/account/activities?activity_types=FILL,OPEXP&direction=asc&page_size=100` +
-        (pageToken ? `&page_token=${pageToken}` : '');
+    for (let i = 0; i < 20; i++) {
+      const url = `${base}/account/activities?activity_types=FILL,OPEXP&direction=desc&page_size=100` +
+        (pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : '');
       const page = await alpacaFetch(url, account);
       if (!Array.isArray(page) || page.length === 0) break;
       activities = activities.concat(page);
