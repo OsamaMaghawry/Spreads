@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { RefreshCw, KeyRound } from "lucide-react";
 import MasterSummary from "@/components/dashboard/MasterSummary";
 import AccountSummaryCard from "@/components/dashboard/AccountSummaryCard";
+import BackupButton from "@/components/BackupButton";
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
@@ -51,6 +52,7 @@ export default function Dashboard() {
           )}
         </div>
         <div className="ml-auto flex items-center gap-3">
+          <BackupButton />
           <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer select-none">
             <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} className="accent-emerald-500" />
             Auto-refresh (60s)
