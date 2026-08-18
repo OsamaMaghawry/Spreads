@@ -1,4 +1,5 @@
 import { fmtMoney } from "@/lib/format";
+import SpreadStructure from "./SpreadStructure";
 
 const th = "px-2.5 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
 const td = "px-2.5 py-2.5 whitespace-nowrap tabular-nums";
@@ -20,6 +21,7 @@ export default function SpreadTable({ spreads, onClose }) {
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-left">
             <th className={th}>Ticker</th>
+            <th className={th}>Structure</th>
             <th className={th}>Entry</th>
             <th className={th}>Expiry</th>
             <th className={`${th} text-right`}>Stock</th>
@@ -67,6 +69,7 @@ export default function SpreadTable({ spreads, onClose }) {
                   </span>
                 )}
               </td>
+              <td className={td}><SpreadStructure spread={s} /></td>
               <td className={`${td} text-slate-500`}>{s.entryDate}</td>
               <td className={`${td} text-slate-500`}>{s.expiryFormatted}</td>
               <td className={`${td} text-right`}>{s.stockPrice ? fmtMoney(s.stockPrice) : "—"}</td>
@@ -123,7 +126,7 @@ export default function SpreadTable({ spreads, onClose }) {
           {spreads.length > 0 && (
             <tr className="bg-slate-50 font-semibold text-slate-900">
               <td className={`${td} text-[11px] uppercase tracking-wider text-slate-500`}>Totals</td>
-              <td className={td} colSpan={11}></td>
+              <td className={td} colSpan={12}></td>
               <td className={`${td} text-right`}>{fmtMoney(totals.totalCredit)}</td>
               <td className={`${td} text-right`}>{fmtMoney(totals.maxRisk)}</td>
               <td className={td} colSpan={3}></td>
