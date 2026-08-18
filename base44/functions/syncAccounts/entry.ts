@@ -45,8 +45,11 @@ async function syncOne(account) {
       const stockPrice = prices[s.ticker] || 0;
       const isCondor = s.type === 'iron_condor';
       const isCall = s.type === 'call_spread';
-      const putWidth = isCall ? 0 : s.shortStrike - s.longStrike;
-      const callWidth = isCondor ? s.callLongStrike - s.callShortStrike : isCall ? s.longStrike - s.shortStrike : 0;
+      const putRatio = s.putRatio || 1;
+      const callRatio = s.callRatio || 1;
+      // Widths are per condor unit: ratio × strike width per side.
+      const putWidth = isCall ? 0 : (s.shortStrike - s.longStrike) * putRatio;
+      const callWidth = isCondor ? (s.callLongStrike - s.callShortStrike) * callRatio : isCall ? s.longStrike - s.shortStrike : 0;
       const spreadWidth = Math.max(putWidth, callWidth);
       const netCredit = s.shortEntryPrice - s.longEntryPrice;
       const totalCredit = netCredit * s.qty * 100;
@@ -66,8 +69,8 @@ async function syncOne(account) {
         netCredit,
         totalCredit,
         maxRisk,
-        breakEven: isCall ? s.shortStrike + netCredit : s.shortStrike - netCredit,
-        breakEvenHigh: isCondor ? s.callShortStrike + netCredit : null,
+        breakEven: isCall ? s.shortStrike + netCredit : s.shortStrike - netCredit / putRatio,
+        breakEvenHigh: isCondor ? s.callShortStrike + netCredit / callRatio : null,
         closeCost,
         unrealizedPL: totalCredit - closeCost,
         openOrders: openList

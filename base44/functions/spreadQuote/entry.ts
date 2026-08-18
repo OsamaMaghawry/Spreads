@@ -27,7 +27,7 @@ export default async function(req) {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { accountId, shortSymbol, longSymbol, callShortSymbol, callLongSymbol } = await req.json();
+    const { accountId, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, putRatio, callRatio } = await req.json();
     if (!accountId || !shortSymbol || !longSymbol) {
       return Response.json({ error: 'accountId, shortSymbol and longSymbol are required' }, { status: 400 });
     }
@@ -35,7 +35,7 @@ export default async function(req) {
     const account = await loadAccount(base44, accountId);
     const symbols = [shortSymbol, longSymbol, callShortSymbol, callLongSymbol].filter(Boolean);
     const [quote, lastDebit] = await Promise.all([
-      getSpreadQuote(account, shortSymbol, longSymbol, callShortSymbol, callLongSymbol),
+      getSpreadQuote(account, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, putRatio || 1, callRatio || 1),
       lastAttemptDebit(account, symbols)
     ]);
     if (!quote) return Response.json({ error: 'No quote available for these contracts' }, { status: 404 });

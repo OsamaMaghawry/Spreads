@@ -19,7 +19,9 @@ const legParams = (spread) => ({
   shortSymbol: spread.shortSymbol,
   longSymbol: spread.longSymbol,
   callShortSymbol: spread.callShortSymbol,
-  callLongSymbol: spread.callLongSymbol
+  callLongSymbol: spread.callLongSymbol,
+  putRatio: spread.putRatio || 1,
+  callRatio: spread.callRatio || 1
 });
 export const getLastDebit = (accountId, spread) => lastDebits[spreadKey(accountId, spread)] ?? null;
 

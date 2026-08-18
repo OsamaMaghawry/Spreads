@@ -7,7 +7,7 @@ export default async function(req) {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { accountId, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, qty, orderType, limitPrice } = await req.json();
+    const { accountId, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, putRatio, callRatio, qty, orderType, limitPrice } = await req.json();
     if (!accountId || !shortSymbol || !longSymbol || !qty || !orderType) {
       return Response.json({ error: 'Missing required parameters' }, { status: 400 });
     }
@@ -24,15 +24,16 @@ export default async function(req) {
       time_in_force: 'day',
       client_order_id: `APP_CLOSE_${orderType.toUpperCase()}_${Date.now()}`,
       legs: [
-        { symbol: shortSymbol, ratio_qty: '1', side: 'buy', position_intent: 'buy_to_close' },
-        { symbol: longSymbol, ratio_qty: '1', side: 'sell', position_intent: 'sell_to_close' }
+        { symbol: shortSymbol, ratio_qty: String(putRatio || 1), side: 'buy', position_intent: 'buy_to_close' },
+        { symbol: longSymbol, ratio_qty: String(putRatio || 1), side: 'sell', position_intent: 'sell_to_close' }
       ]
     };
     // Iron condor: close the call side in the same multi-leg order.
+    // Ratios support unbalanced condors (e.g. 2 put spreads : 1 call spread per unit).
     if (callShortSymbol && callLongSymbol) {
       body.legs.push(
-        { symbol: callShortSymbol, ratio_qty: '1', side: 'buy', position_intent: 'buy_to_close' },
-        { symbol: callLongSymbol, ratio_qty: '1', side: 'sell', position_intent: 'sell_to_close' }
+        { symbol: callShortSymbol, ratio_qty: String(callRatio || 1), side: 'buy', position_intent: 'buy_to_close' },
+        { symbol: callLongSymbol, ratio_qty: String(callRatio || 1), side: 'sell', position_intent: 'sell_to_close' }
       );
     }
     if (orderType === 'limit') {

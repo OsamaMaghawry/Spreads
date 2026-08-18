@@ -80,12 +80,18 @@ export default function SpreadTable({ spreads, onClose }) {
                 </span>
               </td>
               <td className={`${td} text-right`}>
+                {s.type === "iron_condor" && s.putRatio > 1 && <span className="text-slate-400">{s.putRatio}× </span>}
                 {fmtMoney(s.shortStrike)}
-                {s.type === "iron_condor" && <span className="text-slate-400">P · {fmtMoney(s.callShortStrike)}C</span>}
+                {s.type === "iron_condor" && (
+                  <span className="text-slate-400">P · {s.callRatio > 1 ? `${s.callRatio}× ` : ""}{fmtMoney(s.callShortStrike)}C</span>
+                )}
               </td>
               <td className={`${td} text-right`}>
+                {s.type === "iron_condor" && s.putRatio > 1 && <span className="text-slate-400">{s.putRatio}× </span>}
                 {fmtMoney(s.longStrike)}
-                {s.type === "iron_condor" && <span className="text-slate-400">P · {fmtMoney(s.callLongStrike)}C</span>}
+                {s.type === "iron_condor" && (
+                  <span className="text-slate-400">P · {s.callRatio > 1 ? `${s.callRatio}× ` : ""}{fmtMoney(s.callLongStrike)}C</span>
+                )}
               </td>
               <td className={`${td} text-right`}>{s.qty}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.shortEntryPrice)}</td>

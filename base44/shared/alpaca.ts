@@ -141,12 +141,17 @@ export function pairSpreads(positions, activities) {
   });
 
   // Merge a put spread + call spread (same ticker & expiry) into an iron condor.
-  // Entry/current prices are summed across both sides so netCredit/closeCost math holds.
+  // Supports unbalanced condors (e.g. 2 put spreads per 1 call spread): the ratio
+  // is derived from the quantities via GCD, and qty becomes the number of condor
+  // "units". Per-unit entry/current prices are ratio-weighted sums of both sides.
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
   const condors = [];
   puts.forEach((p) => {
     calls.forEach((c) => {
       if (p.qty > 0 && c.qty > 0 && c.ticker === p.ticker && c.expiry === p.expiry) {
-        const q = Math.min(p.qty, c.qty);
+        const units = gcd(p.qty, c.qty);
+        const putRatio = p.qty / units;
+        const callRatio = c.qty / units;
         condors.push({
           type: "iron_condor",
           ticker: p.ticker,
@@ -161,14 +166,16 @@ export function pairSpreads(positions, activities) {
           longStrike: p.longStrike,
           callShortStrike: c.shortStrike,
           callLongStrike: c.longStrike,
-          qty: q,
-          shortEntryPrice: p.shortEntryPrice + c.shortEntryPrice,
-          longEntryPrice: p.longEntryPrice + c.longEntryPrice,
-          shortCurrentPrice: p.shortCurrentPrice + c.shortCurrentPrice,
-          longCurrentPrice: p.longCurrentPrice + c.longCurrentPrice
+          qty: units,
+          putRatio,
+          callRatio,
+          shortEntryPrice: putRatio * p.shortEntryPrice + callRatio * c.shortEntryPrice,
+          longEntryPrice: putRatio * p.longEntryPrice + callRatio * c.longEntryPrice,
+          shortCurrentPrice: putRatio * p.shortCurrentPrice + callRatio * c.shortCurrentPrice,
+          longCurrentPrice: putRatio * p.longCurrentPrice + callRatio * c.longCurrentPrice
         });
-        p.qty -= q;
-        c.qty -= q;
+        p.qty = 0;
+        c.qty = 0;
       }
     });
   });
@@ -176,18 +183,20 @@ export function pairSpreads(positions, activities) {
   return [...condors, ...puts.filter((s) => s.qty > 0), ...calls.filter((s) => s.qty > 0)];
 }
 
-// Latest option quotes for all legs -> combined debit (cost to close).
-// Pass callShortSymbol/callLongSymbol too for iron condors; bids/asks are summed per side.
-export async function getSpreadQuote(account, shortSymbol, longSymbol, callShortSymbol, callLongSymbol) {
-  const shortSyms = [shortSymbol, callShortSymbol].filter(Boolean);
-  const longSyms = [longSymbol, callLongSymbol].filter(Boolean);
-  const url = `https://data.alpaca.markets/v1beta1/options/quotes/latest?symbols=${[...shortSyms, ...longSyms].join(",")}`;
+// Latest option quotes for all legs -> combined debit (cost to close) per unit.
+// Pass callShortSymbol/callLongSymbol too for iron condors; bids/asks are summed
+// per side, weighted by putRatio/callRatio for unbalanced condors.
+export async function getSpreadQuote(account, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, putRatio = 1, callRatio = 1) {
+  const shortLegs = [[shortSymbol, putRatio || 1], [callShortSymbol, callRatio || 1]].filter(([s]) => s);
+  const longLegs = [[longSymbol, putRatio || 1], [callLongSymbol, callRatio || 1]].filter(([s]) => s);
+  const allSyms = [...shortLegs, ...longLegs].map(([s]) => s);
+  const url = `https://data.alpaca.markets/v1beta1/options/quotes/latest?symbols=${allSyms.join(",")}`;
   const data = await alpacaFetch(url, account);
   const quotes = (data && data.quotes) || {};
-  if ([...shortSyms, ...longSyms].some((sym) => !quotes[sym])) return null;
-  const sum = (syms, field) => syms.reduce((a, sym) => a + (quotes[sym][field] || 0), 0);
-  const shortBid = sum(shortSyms, "bp"), shortAsk = sum(shortSyms, "ap");
-  const longBid = sum(longSyms, "bp"), longAsk = sum(longSyms, "ap");
+  if (allSyms.some((sym) => !quotes[sym])) return null;
+  const sum = (legs, field) => legs.reduce((a, [sym, r]) => a + r * (quotes[sym][field] || 0), 0);
+  const shortBid = sum(shortLegs, "bp"), shortAsk = sum(shortLegs, "ap");
+  const longBid = sum(longLegs, "bp"), longAsk = sum(longLegs, "ap");
   return {
     shortBid, shortAsk, longBid, longAsk,
     askDebit: shortAsk - longBid,

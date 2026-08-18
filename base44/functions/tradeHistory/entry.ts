@@ -66,11 +66,11 @@ export default async function(req) {
       pageToken = page[page.length - 1].id;
     }
 
-    // 3. Group put-option events per symbol.
+    // 3. Group option events per symbol (puts and calls — calls come from condors).
     const bySymbol = {};
     activities.forEach((a) => {
       const parsed = a.symbol ? parseOCCSymbol(a.symbol) : null;
-      if (!parsed || parsed.type !== 'P') return;
+      if (!parsed) return;
       (bySymbol[a.symbol] = bySymbol[a.symbol] || []).push(a);
     });
 
@@ -156,7 +156,10 @@ export default async function(req) {
           longs.forEach((l) => {
             if (s.left <= 0 || l.left <= 0) return;
             if (l.parsed.ticker !== s.parsed.ticker || l.parsed.expiry !== s.parsed.expiry) return;
-            if (l.parsed.strike >= s.parsed.strike || l.closeDate !== s.closeDate) return;
+            if (l.parsed.type !== s.parsed.type) return;
+            // Protective long: below the short for puts, above it for calls.
+            const protective = s.parsed.type === 'C' ? l.parsed.strike > s.parsed.strike : l.parsed.strike < s.parsed.strike;
+            if (!protective || l.closeDate !== s.closeDate) return;
             const q = Math.min(s.left, l.left);
             trades.push({
               account_id: accountId,

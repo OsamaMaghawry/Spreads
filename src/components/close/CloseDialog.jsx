@@ -26,7 +26,9 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
         shortSymbol: spread.shortSymbol,
         longSymbol: spread.longSymbol,
         callShortSymbol: spread.callShortSymbol,
-        callLongSymbol: spread.callLongSymbol
+        callLongSymbol: spread.callLongSymbol,
+        putRatio: spread.putRatio || 1,
+        callRatio: spread.callRatio || 1
       })
       .then((res) => setQuote(res.data))
       .catch(() => setQuote(null))
@@ -35,6 +37,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
 
   const midDebit = quote?.midDebit ?? 0;
   const plPerContract = (spread.netCredit - midDebit) * 100;
+  const unit = spread.type === "iron_condor" ? "condor" : "contract";
   // Resume from the highest price already attempted — either this session's memory
   // or the last limit price Alpaca has on record for this spread.
   const attempts = [getLastDebit(account.id, spread), quote?.lastAttemptDebit].filter(
@@ -58,7 +61,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
         <DialogHeader>
           <DialogTitle className="text-slate-900">
             {spread.type === "iron_condor"
-              ? `Close ${spread.ticker} ${spread.longStrike}/${spread.shortStrike}P · ${spread.callShortStrike}/${spread.callLongStrike}C iron condor`
+              ? `Close ${spread.ticker} ${spread.putRatio > 1 ? `${spread.putRatio}× ` : ""}${spread.longStrike}/${spread.shortStrike}P · ${spread.callRatio > 1 ? `${spread.callRatio}× ` : ""}${spread.callShortStrike}/${spread.callLongStrike}C iron condor`
               : spread.type === "call_spread"
                 ? `Close ${spread.ticker} ${spread.shortStrike}/${spread.longStrike} call spread`
                 : `Close ${spread.ticker} ${spread.shortStrike}/${spread.longStrike} put spread`}
@@ -66,7 +69,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
         </DialogHeader>
 
         <div className="text-xs text-slate-500 -mt-2">
-          {account.name} · Expiry {spread.expiryFormatted} · {spread.qty} open contracts
+          {account.name} · Expiry {spread.expiryFormatted} · {spread.qty} open {spread.type === "iron_condor" ? (spread.qty > 1 ? "condors" : "condor") : `contract${spread.qty > 1 ? "s" : ""}`}
         </div>
 
         {phase === "idle" ? (
@@ -79,12 +82,12 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                 <div className="flex items-center gap-2 text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Fetching live quote…</div>
               ) : quote ? (
                 <div className="grid grid-cols-2 gap-y-1.5 tabular-nums">
-                  <span className="text-slate-500">Entry credit / contract</span><span className="text-right">{fmtMoney(spread.netCredit)}</span>
+                  <span className="text-slate-500">Entry credit / {unit}</span><span className="text-right">{fmtMoney(spread.netCredit)}</span>
                   <span className="text-slate-500">Mid debit to close</span><span className="text-right">{fmtMoney(midDebit)}</span>
                   <span className="text-slate-500">Bid / Ask debit</span><span className="text-right">{fmtMoney(quote.bidDebit)} / {fmtMoney(quote.askDebit)}</span>
-                  <span className="text-slate-500">P/L per contract (mid)</span>
+                  <span className="text-slate-500">P/L per {unit} (mid)</span>
                   <span className={`text-right font-medium ${plPerContract >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{fmtMoney(plPerContract)}</span>
-                  <span className="text-slate-500">Total P/L for {qty} contract{qty > 1 ? "s" : ""}</span>
+                  <span className="text-slate-500">Total P/L for {qty} {unit}{qty > 1 ? "s" : ""}</span>
                   <span className={`text-right font-semibold ${plPerContract >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{fmtMoney(plPerContract * qty)}</span>
                 </div>
               ) : (
@@ -127,7 +130,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
             >
               {openOrders.length > 0
                 ? "Cancel the open order first"
-                : `Confirm — close ${qty} contract${qty > 1 ? "s" : ""} (${orderType})`}
+                : `Confirm — close ${qty} ${unit}${qty > 1 ? "s" : ""} (${orderType})`}
             </button>
           </div>
         ) : (
