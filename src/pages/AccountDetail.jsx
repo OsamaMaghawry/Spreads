@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { RefreshCw, ArrowLeft, History, BarChart3 } from "lucide-react";
+import { RefreshCw, ArrowLeft, History, BarChart3, Plus } from "lucide-react";
 import AccountSection from "@/components/dashboard/AccountSection";
 import CloseDialog from "@/components/close/CloseDialog";
+import OpenPositionDialog from "@/components/open/OpenPositionDialog";
 
 export default function AccountDetail() {
   const { id } = useParams();
@@ -13,6 +14,7 @@ export default function AccountDetail() {
   const [refreshing, setRefreshing] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [closing, setClosing] = useState(null);
+  const [opening, setOpening] = useState(false);
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -58,6 +60,14 @@ export default function AccountDetail() {
           )}
         </div>
         <div className="ml-auto flex items-center gap-3">
+          {account && (
+            <button
+              onClick={() => setOpening(true)}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-500/90 hover:bg-emerald-500 text-white text-sm font-medium transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Open position
+            </button>
+          )}
           <Link
             to={`/account/${id}/analysis`}
             className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white border border-slate-200 text-slate-700 text-sm hover:bg-slate-50 transition-colors"
@@ -91,6 +101,14 @@ export default function AccountDetail() {
           This account no longer exists.{" "}
           <Link to="/accounts" className="text-emerald-700 hover:underline">Manage accounts</Link>
         </div>
+      )}
+
+      {opening && account && (
+        <OpenPositionDialog
+          account={account}
+          onClose={() => setOpening(false)}
+          onDone={() => { setOpening(false); load(); }}
+        />
       )}
 
       {closing && (
