@@ -3,52 +3,78 @@ import { base44 } from "@/api/base44Client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, Search } from "lucide-react";
 import StrategyPicker from "./StrategyPicker";
+import ScanFilters from "./ScanFilters";
+import CandidateList from "./CandidateList";
 import SetupPreview from "./SetupPreview";
 
-const input = "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500";
-const label = "text-xs text-slate-500 block mb-1.5";
+const DEFAULTS = {
+  tickers: "SPY, QQQ",
+  dteMin: 0,
+  dteMax: 3,
+  deltaMin: 0.12,
+  deltaMax: 0.22,
+  deltaStep: 0.02,
+  widthMin: 1,
+  widthMax: 3,
+  widthStep: 1,
+  minCredit: 0.2,
+  maxRisk: "",
+  putRatio: 2,
+  callRatio: 1
+};
+
+const legKey = (s) => s.legs.map((l) => l.symbol).join("|");
 
 export default function OpenPositionDialog({ account, onClose, onDone }) {
   const [strategy, setStrategy] = useState("iron_condor");
-  const [ticker, setTicker] = useState("SPY");
-  const [dte, setDte] = useState(2);
-  const [targetDelta, setTargetDelta] = useState(0.18);
-  const [wingWidth, setWingWidth] = useState(1);
-  const [putRatio, setPutRatio] = useState(2);
-  const [callRatio, setCallRatio] = useState(1);
+  const [cfg, setCfg] = useState(DEFAULTS);
   const [qty, setQty] = useState(1);
   const [orderType, setOrderType] = useState("limit");
 
   const [scanning, setScanning] = useState(false);
+  const [candidates, setCandidates] = useState(null);
+  const [skipped, setSkipped] = useState([]);
   const [setup, setSetup] = useState(null);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
 
   const isCondor = strategy === "iron_condor";
+  const set = (patch) => setCfg((c) => ({ ...c, ...patch }));
 
   const scan = async () => {
     setScanning(true);
     setError(null);
+    setCandidates(null);
     setSetup(null);
     setResult(null);
     try {
-      const res = await base44.functions.invoke("findEntry", {
+      const res = await base44.functions.invoke("scanEntries", {
         accountId: account.id,
-        ticker,
         strategy,
-        dte: Number(dte),
-        targetDelta: Number(targetDelta),
-        wingWidth: Number(wingWidth),
-        putRatio: isCondor ? Number(putRatio) : 1,
-        callRatio: isCondor ? Number(callRatio) : 1,
-        minCredit: 0,
-        maxCredit: 1000
+        tickers: cfg.tickers.split(",").map((t) => t.trim()).filter(Boolean),
+        dteMin: Number(cfg.dteMin),
+        dteMax: Number(cfg.dteMax),
+        deltaMin: Number(cfg.deltaMin),
+        deltaMax: Number(cfg.deltaMax),
+        deltaStep: Number(cfg.deltaStep),
+        widthMin: Number(cfg.widthMin),
+        widthMax: Number(cfg.widthMax),
+        widthStep: Number(cfg.widthStep),
+        minCredit: Number(cfg.minCredit),
+        maxCredit: 1000,
+        maxRisk: cfg.maxRisk === "" ? null : Number(cfg.maxRisk),
+        putRatio: isCondor ? Number(cfg.putRatio) : 1,
+        callRatio: isCondor ? Number(cfg.callRatio) : 1
       });
       const data = res.data || {};
       if (data.error) setError(data.error);
-      else if (!data.ok) setError(data.reason || "No setup found.");
-      else setSetup(data.setup);
+      else {
+        setCandidates(data.candidates || []);
+        setSkipped(data.skipped || []);
+        if ((data.candidates || []).length > 0) setSetup(data.candidates[0]);
+        else setError("No setup matched these ranges.");
+      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -76,6 +102,9 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
     }
   };
 
+  const label = "text-xs text-slate-500 block mb-1.5";
+  const input = "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500";
+
   return (
     <Dialog open onOpenChange={(o) => !o && (result ? onDone() : onClose())}>
       <DialogContent className="bg-white border-slate-200 text-slate-700 sm:max-w-lg max-h-[90vh] overflow-y-auto">
@@ -83,52 +112,34 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
           <DialogTitle className="text-slate-900">Open a position — {account.name}</DialogTitle>
         </DialogHeader>
 
-        <StrategyPicker value={strategy} onChange={(v) => { setStrategy(v); setSetup(null); setResult(null); }} />
+        <StrategyPicker
+          value={strategy}
+          onChange={(v) => { setStrategy(v); setCandidates(null); setSetup(null); setResult(null); }}
+        />
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={label}>Ticker</label>
-            <input value={ticker} onChange={(e) => setTicker(e.target.value.toUpperCase())} className={input} />
-          </div>
-          <div>
-            <label className={label}>Max days to expiry</label>
-            <input type="number" min={0} value={dte} onChange={(e) => setDte(e.target.value)} className={input} />
-          </div>
-          <div>
-            <label className={label}>Target short delta</label>
-            <input type="number" step="0.01" min={0.01} max={0.5} value={targetDelta}
-              onChange={(e) => setTargetDelta(e.target.value)} className={input} />
-          </div>
-          <div>
-            <label className={label}>Wing width ($)</label>
-            <input type="number" step="0.5" min={0.5} value={wingWidth}
-              onChange={(e) => setWingWidth(e.target.value)} className={input} />
-          </div>
-          {isCondor && (
-            <>
-              <div>
-                <label className={label}>Put ratio</label>
-                <input type="number" min={1} value={putRatio} onChange={(e) => setPutRatio(e.target.value)} className={input} />
-              </div>
-              <div>
-                <label className={label}>Call ratio</label>
-                <input type="number" min={1} value={callRatio} onChange={(e) => setCallRatio(e.target.value)} className={input} />
-              </div>
-            </>
-          )}
-        </div>
+        <ScanFilters cfg={cfg} set={set} isCondor={isCondor} />
 
         <button
           onClick={scan}
-          disabled={scanning || !ticker}
+          disabled={scanning || !cfg.tickers.trim()}
           className="w-full py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-          {scanning ? "Scanning chain…" : "Find setup"}
+          {scanning ? "Scanning chains…" : "Scan for setups"}
         </button>
 
         {error && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">{error}</div>
+        )}
+
+        {skipped.length > 0 && !result && (
+          <div className="text-[11px] text-slate-500 leading-relaxed">
+            Skipped: {skipped.map((s) => `${s.ticker} (${s.reason})`).join(" · ")}
+          </div>
+        )}
+
+        {candidates?.length > 0 && !result && (
+          <CandidateList candidates={candidates} selected={setup ? legKey(setup) : null} onSelect={setSetup} />
         )}
 
         {setup && !result && (
@@ -165,7 +176,7 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
               className="w-full py-2.5 rounded-lg bg-emerald-500/90 hover:bg-emerald-500 text-white font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              Submit — open {qty} {isCondor ? "condor" : "spread"}{Number(qty) > 1 ? "s" : ""} ({orderType})
+              Submit — open {qty} {isCondor ? "condor" : "spread"}{Number(qty) > 1 ? "s" : ""} ({orderType}) on {setup.ticker}
             </button>
           </>
         )}

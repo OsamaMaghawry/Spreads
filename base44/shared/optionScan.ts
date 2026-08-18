@@ -54,15 +54,19 @@ export async function getSpot(account, ticker) {
   return (d && d.latestTrade && d.latestTrade.p) || (d && d.dailyBar && d.dailyBar.c) || 0;
 }
 
-// Nearest expiry within the requested DTE window.
-export async function findExpiry(account, ticker, dte) {
-  const today = new Date().toISOString().substring(0, 10);
-  const max = new Date(Date.now() + dte * 86400000).toISOString().substring(0, 10);
+// All expiries inside the requested DTE window, soonest first.
+export async function findExpiries(account, ticker, dteMin, dteMax) {
+  const day = (offset) => new Date(Date.now() + offset * 86400000).toISOString().substring(0, 10);
   const url = `${tradingBase(account)}/options/contracts?underlying_symbols=${ticker}` +
-    `&expiration_date_gte=${today}&expiration_date_lte=${max}&status=active&limit=1000`;
+    `&expiration_date_gte=${day(Math.max(dteMin, 0))}&expiration_date_lte=${day(dteMax)}&status=active&limit=1000`;
   const res = await alpacaFetch(url, account);
   const list = (res && res.option_contracts) || [];
-  const dates = [...new Set(list.map((c) => c.expiration_date))].sort();
+  return [...new Set(list.map((c) => c.expiration_date))].sort();
+}
+
+// Nearest expiry within the requested DTE window.
+export async function findExpiry(account, ticker, dte) {
+  const dates = await findExpiries(account, ticker, 0, dte);
   return dates[0] || null;
 }
 
@@ -137,7 +141,14 @@ export async function findSetup(account, params) {
   if (needPuts && puts.length === 0) return { ok: false, reason: `No priced put chain for ${ticker} ${expiry}.` };
   if (needCalls && calls.length === 0) return { ok: false, reason: `No priced call chain for ${ticker} ${expiry}.` };
 
-  const base = { ticker, expiry, spot, strategy };
+  const built = buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio, callRatio });
+  if (!built.ok) return built;
+  return validate(built.setup, minCredit, maxCredit);
+}
+
+// Pure setup construction from already-priced chains, so a sweep can reuse one fetch.
+export function buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio = 1, callRatio = 1 }) {
+  const base = { ticker, expiry, spot, strategy, targetDelta, wingWidth };
 
   if (strategy === 'iron_condor') {
     const shortPut = nearestDelta(puts, targetDelta);
@@ -161,7 +172,7 @@ export async function findSetup(account, params) {
         { role: 'long_call', ...longCall, ratio: callRatio, side: 'buy' }
       ]
     };
-    return validate(setup, minCredit, maxCredit);
+    return { ok: true, setup };
   }
 
   const isCall = strategy === 'call_spread';
@@ -181,7 +192,73 @@ export async function findSetup(account, params) {
       { role: isCall ? 'long_call' : 'long_put', ...long, ratio: 1, side: 'buy' }
     ]
   };
-  return validate(setup, minCredit, maxCredit);
+  return { ok: true, setup };
+}
+
+const steps = (min, max, step) => {
+  const out = [];
+  const s = step > 0 ? step : Math.max(max - min, 1e-9);
+  for (let v = min; v <= max + 1e-9; v += s) out.push(Math.round(v * 10000) / 10000);
+  return out.length ? out : [min];
+};
+
+// Sweeps tickers × expiries × deltas × widths and ranks every valid setup by
+// return on risk (credit / max risk), the way the automated strategy picks entries.
+export async function scanCandidates(account, params) {
+  const {
+    tickers = [], strategy, dteMin = 0, dteMax = 3,
+    deltaMin = 0.12, deltaMax = 0.22, deltaStep = 0.02,
+    widthMin = 1, widthMax = 3, widthStep = 1,
+    minCredit = 0, maxCredit = 1000, putRatio = 1, callRatio = 1, maxRisk = null
+  } = params;
+
+  const deltas = steps(deltaMin, deltaMax, deltaStep);
+  const widths = steps(widthMin, widthMax, widthStep);
+  const needPuts = strategy === 'put_spread' || strategy === 'iron_condor';
+  const needCalls = strategy === 'call_spread' || strategy === 'iron_condor';
+
+  const candidates = [];
+  const skipped = [];
+
+  for (const raw of tickers) {
+    const ticker = String(raw).trim().toUpperCase();
+    if (!ticker) continue;
+    try {
+      const spot = await getSpot(account, ticker);
+      if (!(spot > 0)) { skipped.push({ ticker, reason: 'No live price.' }); continue; }
+      const expiries = await findExpiries(account, ticker, dteMin, dteMax);
+      if (expiries.length === 0) { skipped.push({ ticker, reason: `No expiry between ${dteMin} and ${dteMax} days.` }); continue; }
+
+      for (const expiry of expiries) {
+        const puts = needPuts ? await scanChain(account, ticker, expiry, 'put', spot) : [];
+        const calls = needCalls ? await scanChain(account, ticker, expiry, 'call', spot) : [];
+        if ((needPuts && puts.length === 0) || (needCalls && calls.length === 0)) {
+          skipped.push({ ticker, reason: `No priced chain for ${expiry}.` });
+          continue;
+        }
+        const seen = new Set();
+        for (const targetDelta of deltas) {
+          for (const wingWidth of widths) {
+            const built = buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio, callRatio });
+            if (!built.ok) continue;
+            const s = built.setup;
+            const key = s.legs.map((l) => l.symbol).join('|');
+            if (seen.has(key)) continue;
+            seen.add(key);
+            const checked = validate(s, minCredit, maxCredit);
+            if (!checked.ok) continue;
+            if (maxRisk && s.maxRisk > maxRisk) continue;
+            candidates.push({ ...s, returnOnRisk: (s.credit * 100) / s.maxRisk });
+          }
+        }
+      }
+    } catch (e) {
+      skipped.push({ ticker, reason: e.message });
+    }
+  }
+
+  candidates.sort((a, b) => b.returnOnRisk - a.returnOnRisk);
+  return { ok: candidates.length > 0, candidates: candidates.slice(0, 25), skipped };
 }
 
 function validate(setup, minCredit, maxCredit) {
