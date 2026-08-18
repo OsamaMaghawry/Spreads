@@ -53,11 +53,13 @@ export default function useScanLoop() {
         const res = await base44.functions.invoke("scanEntries", payload);
         if (stopped.current) return;
         const data = res.data || {};
+        // A failed pass (rate limit, no chain, market closed) is not fatal — keep looping.
         if (data.error) {
           setError(data.error);
-          setRunning(false);
+          countdown(attempt);
           return;
         }
+        setError(null);
         setSkipped(data.skipped || []);
         const found = data.candidates || [];
         if (found.length > 0) {
