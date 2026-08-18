@@ -83,17 +83,33 @@ export default function SpreadTable({ spreads, onClose }) {
                 </span>
               </td>
               <td className={`${td} text-right`}>
-                {s.type === "iron_condor" && s.putRatio > 1 && <span className="text-slate-400">{s.putRatio}× </span>}
-                {fmtMoney(s.shortStrike)}
-                {s.type === "iron_condor" && (
-                  <span className="text-slate-400">P · {s.callRatio > 1 ? `${s.callRatio}× ` : ""}{fmtMoney(s.callShortStrike)}C</span>
+                {s.type === "iron_condor" ? (
+                  <span>
+                    <span className="text-slate-400">{s.putRatio}× </span>
+                    {fmtMoney(s.shortStrike)}
+                    <span className="text-slate-400"> P</span>
+                    <span className="text-slate-300 mx-1">·</span>
+                    <span className="text-slate-400">{s.callRatio}× </span>
+                    {fmtMoney(s.callShortStrike)}
+                    <span className="text-slate-400"> C</span>
+                  </span>
+                ) : (
+                  fmtMoney(s.shortStrike)
                 )}
               </td>
               <td className={`${td} text-right`}>
-                {s.type === "iron_condor" && s.putRatio > 1 && <span className="text-slate-400">{s.putRatio}× </span>}
-                {fmtMoney(s.longStrike)}
-                {s.type === "iron_condor" && (
-                  <span className="text-slate-400">P · {s.callRatio > 1 ? `${s.callRatio}× ` : ""}{fmtMoney(s.callLongStrike)}C</span>
+                {s.type === "iron_condor" ? (
+                  <span>
+                    <span className="text-slate-400">{s.putRatio}× </span>
+                    {fmtMoney(s.longStrike)}
+                    <span className="text-slate-400"> P</span>
+                    <span className="text-slate-300 mx-1">·</span>
+                    <span className="text-slate-400">{s.callRatio}× </span>
+                    {fmtMoney(s.callLongStrike)}
+                    <span className="text-slate-400"> C</span>
+                  </span>
+                ) : (
+                  fmtMoney(s.longStrike)
                 )}
               </td>
               <td className={`${td} text-right`}>{s.qty}</td>
