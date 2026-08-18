@@ -7,7 +7,7 @@ export default async function(req) {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { accountId, shortSymbol, longSymbol, qty, orderType, limitPrice } = await req.json();
+    const { accountId, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, qty, orderType, limitPrice } = await req.json();
     if (!accountId || !shortSymbol || !longSymbol || !qty || !orderType) {
       return Response.json({ error: 'Missing required parameters' }, { status: 400 });
     }
@@ -28,6 +28,13 @@ export default async function(req) {
         { symbol: longSymbol, ratio_qty: '1', side: 'sell', position_intent: 'sell_to_close' }
       ]
     };
+    // Iron condor: close the call side in the same multi-leg order.
+    if (callShortSymbol && callLongSymbol) {
+      body.legs.push(
+        { symbol: callShortSymbol, ratio_qty: '1', side: 'buy', position_intent: 'buy_to_close' },
+        { symbol: callLongSymbol, ratio_qty: '1', side: 'sell', position_intent: 'sell_to_close' }
+      );
+    }
     if (orderType === 'limit') {
       body.limit_price = String(Math.round(limitPrice * 100) / 100);
     }

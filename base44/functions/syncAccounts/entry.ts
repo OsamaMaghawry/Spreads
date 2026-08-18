@@ -43,27 +43,35 @@ async function syncOne(account) {
 
     const rows = spreads.map((s) => {
       const stockPrice = prices[s.ticker] || 0;
-      const spreadWidth = s.shortStrike - s.longStrike;
+      const isCondor = s.type === 'iron_condor';
+      const isCall = s.type === 'call_spread';
+      const putWidth = isCall ? 0 : s.shortStrike - s.longStrike;
+      const callWidth = isCondor ? s.callLongStrike - s.callShortStrike : isCall ? s.longStrike - s.shortStrike : 0;
+      const spreadWidth = Math.max(putWidth, callWidth);
       const netCredit = s.shortEntryPrice - s.longEntryPrice;
       const totalCredit = netCredit * s.qty * 100;
       const maxRisk = (spreadWidth - netCredit) * s.qty * 100;
       const closeCost = (s.shortCurrentPrice - s.longCurrentPrice) * s.qty * 100;
+      const itm = isCondor
+        ? stockPrice < s.shortStrike || stockPrice > s.callShortStrike
+        : isCall
+          ? stockPrice > s.shortStrike
+          : stockPrice < s.shortStrike;
+      const mySymbols = [s.shortSymbol, s.longSymbol, s.callShortSymbol, s.callLongSymbol].filter(Boolean);
       return {
         ...s,
         stockPrice,
-        moneyness: stockPrice > 0 && stockPrice < s.shortStrike ? 'ITM' : 'OTM',
+        moneyness: stockPrice > 0 && itm ? 'ITM' : 'OTM',
         spreadWidth,
         netCredit,
         totalCredit,
         maxRisk,
-        breakEven: s.shortStrike - netCredit,
+        breakEven: isCall ? s.shortStrike + netCredit : s.shortStrike - netCredit,
+        breakEvenHigh: isCondor ? s.callShortStrike + netCredit : null,
         closeCost,
         unrealizedPL: totalCredit - closeCost,
         openOrders: openList
-          .filter((o) => {
-            const syms = orderSymbols(o);
-            return syms.includes(s.shortSymbol) || syms.includes(s.longSymbol);
-          })
+          .filter((o) => orderSymbols(o).some((sym) => mySymbols.includes(sym)))
           .map((o) => ({
             id: o.id,
             type: o.type,

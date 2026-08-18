@@ -3,7 +3,7 @@ import { getSpreadQuote, loadAccount, tradingBase, alpacaFetch } from '../../sha
 
 // Highest limit price we already tried on this spread (from Alpaca order history),
 // so a retry can resume from where the last attempt left off.
-async function lastAttemptDebit(account, shortSymbol, longSymbol) {
+async function lastAttemptDebit(account, symbols) {
   const orders = await alpacaFetch(
     `${tradingBase(account)}/orders?status=all&nested=true&limit=100&direction=desc`,
     account
@@ -12,7 +12,7 @@ async function lastAttemptDebit(account, shortSymbol, longSymbol) {
   let best = null;
   for (const o of orders) {
     const syms = Array.isArray(o.legs) && o.legs.length ? o.legs.map((l) => l.symbol) : [o.symbol];
-    if (!syms.includes(shortSymbol) && !syms.includes(longSymbol)) continue;
+    if (!syms.some((sym) => symbols.includes(sym))) continue;
     const price = parseFloat(o.limit_price);
     if (!isFinite(price)) continue;
     if (o.status === 'filled') break; // position was already closed/reopened after this
@@ -27,15 +27,16 @@ export default async function(req) {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { accountId, shortSymbol, longSymbol } = await req.json();
+    const { accountId, shortSymbol, longSymbol, callShortSymbol, callLongSymbol } = await req.json();
     if (!accountId || !shortSymbol || !longSymbol) {
       return Response.json({ error: 'accountId, shortSymbol and longSymbol are required' }, { status: 400 });
     }
 
     const account = await loadAccount(base44, accountId);
+    const symbols = [shortSymbol, longSymbol, callShortSymbol, callLongSymbol].filter(Boolean);
     const [quote, lastDebit] = await Promise.all([
-      getSpreadQuote(account, shortSymbol, longSymbol),
-      lastAttemptDebit(account, shortSymbol, longSymbol)
+      getSpreadQuote(account, shortSymbol, longSymbol, callShortSymbol, callLongSymbol),
+      lastAttemptDebit(account, symbols)
     ]);
     if (!quote) return Response.json({ error: 'No quote available for these contracts' }, { status: 404 });
     return Response.json({ ...quote, lastAttemptDebit: lastDebit });

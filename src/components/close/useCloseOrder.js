@@ -13,7 +13,14 @@ const round2 = (v) => Math.round(v * 100) / 100;
 
 // Remembers the last limit price attempted per spread so a retry resumes from it.
 const lastDebits = {};
-const spreadKey = (accountId, spread) => `${accountId}_${spread.shortSymbol}_${spread.longSymbol}`;
+const spreadKey = (accountId, spread) =>
+  `${accountId}_${spread.shortSymbol}_${spread.longSymbol}${spread.callShortSymbol ? `_${spread.callShortSymbol}_${spread.callLongSymbol}` : ""}`;
+const legParams = (spread) => ({
+  shortSymbol: spread.shortSymbol,
+  longSymbol: spread.longSymbol,
+  callShortSymbol: spread.callShortSymbol,
+  callLongSymbol: spread.callLongSymbol
+});
 export const getLastDebit = (accountId, spread) => lastDebits[spreadKey(accountId, spread)] ?? null;
 
 export default function useCloseOrder() {
@@ -54,7 +61,7 @@ export default function useCloseOrder() {
     stopRef.current = false;
     setLog([]);
     setPhase("working");
-    const params = { accountId, shortSymbol: spread.shortSymbol, longSymbol: spread.longSymbol, qty };
+    const params = { accountId, ...legParams(spread), qty };
     const key = spreadKey(accountId, spread);
     try {
       if (orderType === "market") {
@@ -110,11 +117,7 @@ export default function useCloseOrder() {
         if (steps < MAX_STEPS && Date.now() - lastWalk >= WALK_INTERVAL) {
           steps += 1;
           let proposed = round2(debit + WALK_STEP);
-          const q = await invoke("spreadQuote", {
-            accountId,
-            shortSymbol: spread.shortSymbol,
-            longSymbol: spread.longSymbol
-          }).catch(() => null);
+          const q = await invoke("spreadQuote", { accountId, ...legParams(spread) }).catch(() => null);
           if (q && q.askDebit) proposed = Math.max(debit, Math.min(proposed, round2(q.askDebit + 0.05)));
 
           if (Math.abs(proposed - debit) >= 0.01) {

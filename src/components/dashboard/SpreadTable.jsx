@@ -51,6 +51,16 @@ export default function SpreadTable({ spreads, onClose }) {
             >
               <td className={`${td} font-semibold text-slate-900`}>
                 {s.ticker}
+                {s.type === "iron_condor" && (
+                  <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
+                    IC
+                  </span>
+                )}
+                {s.type === "call_spread" && (
+                  <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 border border-sky-200">
+                    CALL
+                  </span>
+                )}
                 {s.openOrders?.length > 0 && (
                   <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
                     OPEN ORDER
@@ -69,8 +79,14 @@ export default function SpreadTable({ spreads, onClose }) {
                   {s.moneyness}
                 </span>
               </td>
-              <td className={`${td} text-right`}>{fmtMoney(s.shortStrike)}</td>
-              <td className={`${td} text-right`}>{fmtMoney(s.longStrike)}</td>
+              <td className={`${td} text-right`}>
+                {fmtMoney(s.shortStrike)}
+                {s.type === "iron_condor" && <span className="text-slate-400">P · {fmtMoney(s.callShortStrike)}C</span>}
+              </td>
+              <td className={`${td} text-right`}>
+                {fmtMoney(s.longStrike)}
+                {s.type === "iron_condor" && <span className="text-slate-400">P · {fmtMoney(s.callLongStrike)}C</span>}
+              </td>
               <td className={`${td} text-right`}>{s.qty}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.shortEntryPrice)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.longEntryPrice)}</td>
@@ -78,7 +94,10 @@ export default function SpreadTable({ spreads, onClose }) {
               <td className={`${td} text-right`}>{fmtMoney(s.netCredit)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.totalCredit)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.maxRisk)}</td>
-              <td className={`${td} text-right`}>{fmtMoney(s.breakEven)}</td>
+              <td className={`${td} text-right`}>
+                {fmtMoney(s.breakEven)}
+                {s.breakEvenHigh != null && <span className="text-slate-400"> – {fmtMoney(s.breakEvenHigh)}</span>}
+              </td>
               <td className={`${td} text-right`}>{fmtMoney(s.shortCurrentPrice)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.longCurrentPrice)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.closeCost)}</td>

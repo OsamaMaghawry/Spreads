@@ -21,7 +21,13 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
     setQuote(null);
     setQuoteLoading(true);
     base44.functions
-      .invoke("spreadQuote", { accountId: account.id, shortSymbol: spread.shortSymbol, longSymbol: spread.longSymbol })
+      .invoke("spreadQuote", {
+        accountId: account.id,
+        shortSymbol: spread.shortSymbol,
+        longSymbol: spread.longSymbol,
+        callShortSymbol: spread.callShortSymbol,
+        callLongSymbol: spread.callLongSymbol
+      })
       .then((res) => setQuote(res.data))
       .catch(() => setQuote(null))
       .finally(() => setQuoteLoading(false));
@@ -51,7 +57,11 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
       <DialogContent className="bg-white border-slate-200 text-slate-700 sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-slate-900">
-            Close {spread.ticker} {spread.shortStrike}/{spread.longStrike} put spread
+            {spread.type === "iron_condor"
+              ? `Close ${spread.ticker} ${spread.longStrike}/${spread.shortStrike}P · ${spread.callShortStrike}/${spread.callLongStrike}C iron condor`
+              : spread.type === "call_spread"
+                ? `Close ${spread.ticker} ${spread.shortStrike}/${spread.longStrike} call spread`
+                : `Close ${spread.ticker} ${spread.shortStrike}/${spread.longStrike} put spread`}
           </DialogTitle>
         </DialogHeader>
 
