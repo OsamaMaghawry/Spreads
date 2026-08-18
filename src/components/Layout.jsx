@@ -1,6 +1,6 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { CandlestickChart, LayoutDashboard, KeyRound, LogOut } from "lucide-react";
+import { CandlestickChart, LayoutDashboard, KeyRound, LogOut, Radar } from "lucide-react";
 
 export default function Layout() {
   const { pathname } = useLocation();
@@ -22,6 +22,9 @@ export default function Layout() {
           <nav className="flex items-center gap-1">
             <Link to="/" className={linkCls(pathname === "/")}>
               <LayoutDashboard className="w-4 h-4" /> <span className="hidden sm:inline">Dashboard</span>
+            </Link>
+            <Link to="/screener" className={linkCls(pathname === "/screener")}>
+              <Radar className="w-4 h-4" /> <span className="hidden sm:inline">Screener</span>
             </Link>
             <Link to="/accounts" className={linkCls(pathname === "/accounts")}>
               <KeyRound className="w-4 h-4" /> <span className="hidden sm:inline">Accounts</span>
