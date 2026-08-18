@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Search, BellRing, StopCircle } from "lucide-react";
 import StrategyPicker from "./StrategyPicker";
 import ScanFilters from "./ScanFilters";
 import CandidateList from "./CandidateList";
 import SetupPreview from "./SetupPreview";
+import useScanLoop from "./useScanLoop";
 
 const DEFAULTS = {
   tickers: "SPY, QQQ",
@@ -31,9 +32,7 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
   const [qty, setQty] = useState(1);
   const [orderType, setOrderType] = useState("limit");
 
-  const [scanning, setScanning] = useState(false);
-  const [candidates, setCandidates] = useState(null);
-  const [skipped, setSkipped] = useState([]);
+  const { running, attempts, nextIn, candidates, skipped, error: scanError, start, stop, setCandidates } = useScanLoop();
   const [setup, setSetup] = useState(null);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -42,14 +41,12 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
   const isCondor = strategy === "iron_condor";
   const set = (patch) => setCfg((c) => ({ ...c, ...patch }));
 
-  const scan = async () => {
-    setScanning(true);
+  const scan = () => {
     setError(null);
-    setCandidates(null);
     setSetup(null);
     setResult(null);
-    try {
-      const res = await base44.functions.invoke("scanEntries", {
+    start(
+      {
         accountId: account.id,
         strategy,
         tickers: cfg.tickers.split(",").map((t) => t.trim()).filter(Boolean),
@@ -66,20 +63,9 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
         maxRisk: cfg.maxRisk === "" ? null : Number(cfg.maxRisk),
         putRatio: isCondor ? Number(cfg.putRatio) : 1,
         callRatio: isCondor ? Number(cfg.callRatio) : 1
-      });
-      const data = res.data || {};
-      if (data.error) setError(data.error);
-      else {
-        setCandidates(data.candidates || []);
-        setSkipped(data.skipped || []);
-        if ((data.candidates || []).length > 0) setSetup(data.candidates[0]);
-        else setError("No setup matched these ranges.");
-      }
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setScanning(false);
-    }
+      },
+      (found) => setSetup(found[0])
+    );
   };
 
   const submit = async () => {
@@ -119,17 +105,41 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
 
         <ScanFilters cfg={cfg} set={set} isCondor={isCondor} />
 
-        <button
-          onClick={scan}
-          disabled={scanning || !cfg.tickers.trim()}
-          className="w-full py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-        >
-          {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-          {scanning ? "Scanning chains…" : "Scan for setups"}
-        </button>
+        {running ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-700">
+              <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+              <span>
+                Scanning continuously — pass {attempts}
+                {nextIn > 0 ? ` · retrying in ${nextIn}s` : "…"}
+              </span>
+            </div>
+            <button
+              onClick={stop}
+              className="w-full py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              <StopCircle className="w-4 h-4" /> Stop scanning
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={scan}
+            disabled={!cfg.tickers.trim()}
+            className="w-full py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            <Search className="w-4 h-4" />
+            {candidates ? "Scan again" : "Start scanning"}
+          </button>
+        )}
 
-        {error && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">{error}</div>
+        {candidates?.length > 0 && !result && (
+          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5 text-sm text-emerald-700 font-medium">
+            <BellRing className="w-4 h-4" /> {candidates.length} setups found — scan stopped.
+          </div>
+        )}
+
+        {(error || scanError) && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">{error || scanError}</div>
         )}
 
         {skipped.length > 0 && !result && (
