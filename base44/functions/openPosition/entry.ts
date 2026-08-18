@@ -33,7 +33,9 @@ export default async function(req) {
       }))
     };
     if (orderType === 'limit') {
-      body.limit_price = String(Math.round(limitPrice * 100) / 100);
+      // Alpaca multi-leg: a NEGATIVE limit price signifies a net credit to be received.
+      // Opening credit spreads/condors always collect credit, so send -|price|.
+      body.limit_price = String(-Math.abs(Math.round(limitPrice * 100) / 100));
     }
 
     const order = await alpacaFetch(`${tradingBase(account)}/orders`, account, {

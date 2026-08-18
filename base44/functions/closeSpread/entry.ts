@@ -37,6 +37,8 @@ export default async function(req) {
       );
     }
     if (orderType === 'limit') {
+      // Alpaca multi-leg: positive = net debit paid, negative = net credit received.
+      // Closing normally pays a debit; keep the sign the caller intends.
       body.limit_price = String(Math.round(limitPrice * 100) / 100);
     }
 
