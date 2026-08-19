@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { invokeFunction } from "@/lib/functions";
 import { playAlert } from "@/lib/beep";
 
 const BATCH = 4;
@@ -33,7 +33,7 @@ export default function useMarketScan() {
       if (stopped.current) return;
       const batch = tickers.slice(i, i + BATCH);
       try {
-        const res = await base44.functions.invoke("scanEntries", { accountId, tickers: batch, ...filters });
+        const res = await invokeFunction("scanEntries", { accountId, tickers: batch, ...filters });
         if (stopped.current) return;
         const data = res.data || {};
         if (data.error) throw new Error(data.error);

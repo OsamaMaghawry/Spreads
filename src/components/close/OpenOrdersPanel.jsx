@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { invokeFunction } from "@/lib/functions";
 import { AlertTriangle, Loader2 } from "lucide-react";
 
 export default function OpenOrdersPanel({ accountId, orders, onChange }) {
@@ -10,10 +10,11 @@ export default function OpenOrdersPanel({ accountId, orders, onChange }) {
     setCancelingId(id);
     setError(null);
     try {
-      await base44.functions.invoke("manageOrder", { accountId, orderId: id, action: "cancel" });
+      const res = await invokeFunction("manageOrder", { accountId, orderId: id, action: "cancel" });
+      if (res.data?.error) throw new Error(res.data.error);
       onChange(orders.filter((o) => o.id !== id));
     } catch (e) {
-      setError(e.response?.data?.error || e.message);
+      setError(e.message);
     } finally {
       setCancelingId(null);
     }

@@ -1,9 +1,7 @@
 // Shared Alpaca helpers: fetch with retry, OCC parsing, spread pairing, quotes.
 
 export function tradingBase(account) {
-  return account.is_paper
-    ? "https://paper-api.alpaca.markets/v2"
-    : "https://api.alpaca.markets/v2";
+  return account.is_paper ? "https://paper-api.alpaca.markets/v2" : "https://api.alpaca.markets/v2";
 }
 
 export function authHeaders(account) {
@@ -16,7 +14,7 @@ export function authHeaders(account) {
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export async function alpacaFetch(url, account, options = {}, retries = 4) {
+export async function alpacaFetch(url, account, options: RequestInit = {}, retries = 4) {
   let lastErr = null;
   for (let i = 0; i <= retries; i++) {
     let res;
@@ -92,7 +90,7 @@ export function pairSpreads(positions, activities) {
   });
 
   const grouped = {};
-  Object.values(legsBySymbol).forEach((leg) => {
+  Object.values(legsBySymbol).forEach((leg: any) => {
     (grouped[leg.ticker] = grouped[leg.ticker] || []).push(leg);
   });
 
@@ -135,7 +133,7 @@ export function pairSpreads(positions, activities) {
 
   const puts = [];
   const calls = [];
-  Object.values(grouped).forEach((legs) => {
+  Object.values(grouped).forEach((legs: any) => {
     puts.push(...pairSide(legs, "P"));
     calls.push(...pairSide(legs, "C"));
   });
@@ -146,8 +144,8 @@ export function pairSpreads(positions, activities) {
   // "units". Per-unit entry/current prices are ratio-weighted sums of both sides.
   const gcd = (a, b) => (b ? gcd(b, a % b) : a);
   const condors = [];
-  puts.forEach((p) => {
-    calls.forEach((c) => {
+  puts.forEach((p: any) => {
+    calls.forEach((c: any) => {
       if (p.qty > 0 && c.qty > 0 && c.ticker === p.ticker && c.expiry === p.expiry) {
         const units = gcd(p.qty, c.qty);
         const putRatio = p.qty / units;
@@ -180,7 +178,7 @@ export function pairSpreads(positions, activities) {
     });
   });
 
-  return [...condors, ...puts.filter((s) => s.qty > 0), ...calls.filter((s) => s.qty > 0)];
+  return [...condors, ...puts.filter((s: any) => s.qty > 0), ...calls.filter((s: any) => s.qty > 0)];
 }
 
 // Latest option quotes for all legs -> combined debit (cost to close) per unit.
@@ -193,8 +191,8 @@ export async function getSpreadQuote(account, shortSymbol, longSymbol, callShort
   const url = `https://data.alpaca.markets/v1beta1/options/quotes/latest?symbols=${allSyms.join(",")}`;
   const data = await alpacaFetch(url, account);
   const quotes = (data && data.quotes) || {};
-  if (allSyms.some((sym) => !quotes[sym])) return null;
-  const sum = (legs, field) => legs.reduce((a, [sym, r]) => a + r * (quotes[sym][field] || 0), 0);
+  if (allSyms.some((sym) => !quotes[sym as string])) return null;
+  const sum = (legs, field) => legs.reduce((a, [sym, r]) => a + (r as number) * (quotes[sym as string][field] || 0), 0);
   const shortBid = sum(shortLegs, "bp"), shortAsk = sum(shortLegs, "ap");
   const longBid = sum(longLegs, "bp"), longAsk = sum(longLegs, "ap");
   return {
@@ -205,8 +203,18 @@ export async function getSpreadQuote(account, shortSymbol, longSymbol, callShort
   };
 }
 
-export async function loadAccount(base44, accountId) {
-  const account = await base44.asServiceRole.entities.TradingAccount.get(accountId);
-  if (!account) throw new Error("Trading account not found");
-  return account;
+// Loads a trading account, enforcing that it belongs to the requesting user.
+// The admin (service-role) client bypasses RLS, so this ownership check is
+// what actually scopes access per-user (Base44's asServiceRole had no such
+// check — every authenticated user could load any account).
+export async function loadAccount(admin, accountId, userId) {
+  const { data, error } = await admin
+    .from("trading_accounts")
+    .select("*")
+    .eq("id", accountId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("Trading account not found");
+  return data;
 }

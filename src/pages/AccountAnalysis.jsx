@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { invokeFunction } from "@/lib/functions";
 import { RefreshCw, ArrowLeft, BarChart3 } from "lucide-react";
 import { computeStats } from "@/lib/analytics";
 import StatCards from "@/components/analysis/StatCards";
@@ -28,14 +28,15 @@ export default function AccountAnalysis() {
     setSyncing(sync);
     try {
       const [hist, live] = await Promise.all([
-        base44.functions.invoke("tradeHistory", { accountId: id, sync }),
-        base44.functions.invoke("syncAccounts", {}).catch(() => null)
+        invokeFunction("tradeHistory", { accountId: id, sync }),
+        invokeFunction("syncAccounts", {}).catch(() => null)
       ]);
+      if (hist.data?.error) throw new Error(hist.data.error);
       setData(hist.data);
       const acct = live?.data?.accounts?.find((a) => a.id === id);
       setEquity(acct?.equity || 0);
     } catch (e) {
-      setError(e.response?.data?.error || e.message);
+      setError(e.message);
     } finally {
       setLoading(false);
       setSyncing(false);

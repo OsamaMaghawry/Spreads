@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { invokeFunction } from "@/lib/functions";
 import { RefreshCw, ArrowLeft, History, BarChart3, Plus } from "lucide-react";
 import AccountSection from "@/components/dashboard/AccountSection";
 import CloseDialog from "@/components/close/CloseDialog";
@@ -19,7 +19,7 @@ export default function AccountDetail() {
   const load = useCallback(async () => {
     setRefreshing(true);
     try {
-      const res = await base44.functions.invoke("syncAccounts", {});
+      const res = await invokeFunction("syncAccounts", {});
       setAccount((res.data?.accounts || []).find((a) => a.id === id) || null);
       setSyncedAt(res.data?.syncedAt || null);
     } finally {

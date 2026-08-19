@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { invokeFunction } from "@/lib/functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, Search, BellRing, StopCircle } from "lucide-react";
 import StrategyPicker from "./StrategyPicker";
@@ -72,7 +72,7 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await base44.functions.invoke("openPosition", {
+      const res = await invokeFunction("openPosition", {
         accountId: account.id,
         legs: setup.legs.map((l) => ({ symbol: l.symbol, ratio: l.ratio, side: l.side })),
         qty: Number(qty),

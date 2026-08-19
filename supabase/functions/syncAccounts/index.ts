@@ -1,19 +1,23 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
-import { tradingBase, alpacaFetch, pairSpreads } from '../../shared/alpaca.ts';
+import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
+import { tradingBase, alpacaFetch, pairSpreads } from "../_shared/alpaca.ts";
 
-export default async function(req) {
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    const user = await requireUser(req);
+    if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-    const accounts = await base44.asServiceRole.entities.TradingAccount.list();
-    const results = await Promise.all(accounts.map((a) => syncOne(a)));
-    return Response.json({ accounts: results, syncedAt: new Date().toISOString() });
+    const admin = adminClient();
+    const { data: accounts, error } = await admin.from("trading_accounts").select("*").eq("user_id", user.id);
+    if (error) throw new Error(error.message);
+
+    const results = await Promise.all((accounts || []).map((a) => syncOne(a)));
+    return jsonResponse({ accounts: results, syncedAt: new Date().toISOString() });
   } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+    return jsonResponse({ error: error.message }, 500);
   }
-}
+});
 
 async function syncOne(account) {
   const base = tradingBase(account);
@@ -27,24 +31,24 @@ async function syncOne(account) {
     ]);
 
     const openList = Array.isArray(openOrders) ? openOrders : [];
-    const orderSymbols = (o) => (Array.isArray(o.legs) && o.legs.length ? o.legs.map((l) => l.symbol) : [o.symbol]);
+    const orderSymbols = (o: any) => (Array.isArray(o.legs) && o.legs.length ? o.legs.map((l: any) => l.symbol) : [o.symbol]);
 
     const spreads = pairSpreads(Array.isArray(positions) ? positions : [], Array.isArray(activities) ? activities : []);
 
-    const tickers = [...new Set(spreads.map((s) => s.ticker))];
+    const tickers = [...new Set(spreads.map((s: any) => s.ticker))];
     const prices = {};
     if (tickers.length > 0) {
-      const snap = await alpacaFetch(`https://data.alpaca.markets/v2/stocks/snapshots?symbols=${tickers.join(',')}`, account).catch(() => null);
-      tickers.forEach((t) => {
+      const snap = await alpacaFetch(`https://data.alpaca.markets/v2/stocks/snapshots?symbols=${tickers.join(",")}`, account).catch(() => null);
+      tickers.forEach((t: any) => {
         const d = snap ? snap[t] : null;
         prices[t] = (d && d.latestTrade && d.latestTrade.p) || (d && d.dailyBar && d.dailyBar.c) || 0;
       });
     }
 
-    const rows = spreads.map((s) => {
+    const rows = spreads.map((s: any) => {
       const stockPrice = prices[s.ticker] || 0;
-      const isCondor = s.type === 'iron_condor';
-      const isCall = s.type === 'call_spread';
+      const isCondor = s.type === "iron_condor";
+      const isCall = s.type === "call_spread";
       const putRatio = s.putRatio || 1;
       const callRatio = s.callRatio || 1;
       // Widths are per condor unit: ratio × strike width per side.
@@ -64,7 +68,7 @@ async function syncOne(account) {
       return {
         ...s,
         stockPrice,
-        moneyness: stockPrice > 0 && itm ? 'ITM' : 'OTM',
+        moneyness: stockPrice > 0 && itm ? "ITM" : "OTM",
         spreadWidth,
         netCredit,
         totalCredit,
@@ -74,8 +78,8 @@ async function syncOne(account) {
         closeCost,
         unrealizedPL: totalCredit - closeCost,
         openOrders: openList
-          .filter((o) => orderSymbols(o).some((sym) => mySymbols.includes(sym)))
-          .map((o) => ({
+          .filter((o: any) => orderSymbols(o).some((sym: string) => mySymbols.includes(sym)))
+          .map((o: any) => ({
             id: o.id,
             type: o.type,
             qty: o.qty,
@@ -100,7 +104,7 @@ async function syncOne(account) {
     return {
       id: account.id,
       name: account.name,
-      type: account.is_paper ? 'Paper' : 'Live',
+      type: account.is_paper ? "Paper" : "Live",
       ok: true,
       equity,
       cash: info ? parseFloat(info.cash) : 0,
@@ -115,7 +119,7 @@ async function syncOne(account) {
     return {
       id: account.id,
       name: account.name,
-      type: account.is_paper ? 'Paper' : 'Live',
+      type: account.is_paper ? "Paper" : "Live",
       ok: false,
       error: e.message,
       equity: 0, cash: 0, buyingPower: 0, optionsBuyingPower: 0,

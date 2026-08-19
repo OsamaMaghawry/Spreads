@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { base44 } from "@/api/base44Client";
+import { invokeFunction } from "@/lib/functions";
 
 const WALK_STEP = 0.02;
 const WALK_INTERVAL = 30000;
@@ -8,7 +8,11 @@ const POLL = 2000;
 const MAX_TIME = 600000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const invoke = async (fn, payload) => (await base44.functions.invoke(fn, payload)).data;
+const invoke = async (fn, payload) => {
+  const { data } = await invokeFunction(fn, payload);
+  if (data?.error) throw new Error(data.error);
+  return data;
+};
 const round2 = (v) => Math.round(v * 100) / 100;
 
 // Remembers the last limit price attempted per spread so a retry resumes from it.
@@ -149,7 +153,7 @@ export default function useCloseOrder() {
         await sleep(POLL);
       }
     } catch (e) {
-      addLog(`Error: ${e.response?.data?.error || e.message}`);
+      addLog(`Error: ${e.message}`);
       setPhase("failed");
     }
   }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { invokeFunction } from "@/lib/functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { fmtMoney } from "@/lib/format";
 import { Loader2 } from "lucide-react";
@@ -20,17 +20,16 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
     setOpenOrders(spread.openOrders || []);
     setQuote(null);
     setQuoteLoading(true);
-    base44.functions
-      .invoke("spreadQuote", {
-        accountId: account.id,
-        shortSymbol: spread.shortSymbol,
-        longSymbol: spread.longSymbol,
-        callShortSymbol: spread.callShortSymbol,
-        callLongSymbol: spread.callLongSymbol,
-        putRatio: spread.putRatio || 1,
-        callRatio: spread.callRatio || 1
-      })
-      .then((res) => setQuote(res.data))
+    invokeFunction("spreadQuote", {
+      accountId: account.id,
+      shortSymbol: spread.shortSymbol,
+      longSymbol: spread.longSymbol,
+      callShortSymbol: spread.callShortSymbol,
+      callLongSymbol: spread.callLongSymbol,
+      putRatio: spread.putRatio || 1,
+      callRatio: spread.callRatio || 1
+    })
+      .then((res) => setQuote(res.data?.error ? null : res.data))
       .catch(() => setQuote(null))
       .finally(() => setQuoteLoading(false));
   }, [account.id, spread]);

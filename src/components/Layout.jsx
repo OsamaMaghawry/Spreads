@@ -1,9 +1,10 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { useAuth } from "@/lib/AuthContext";
 import { CandlestickChart, LayoutDashboard, KeyRound, LogOut, Radar } from "lucide-react";
 
 export default function Layout() {
   const { pathname } = useLocation();
+  const { logout } = useAuth();
   const linkCls = (active) =>
     `flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm transition-colors ${
       active ? "bg-slate-900/[0.06] text-slate-900 font-medium" : "text-slate-500 hover:text-slate-900 hover:bg-slate-900/[0.04]"
@@ -31,7 +32,7 @@ export default function Layout() {
             </Link>
           </nav>
           <button
-            onClick={() => base44.auth.logout()}
+            onClick={logout}
             className="ml-auto flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 transition-colors"
           >
             <LogOut className="w-4 h-4" /> <span className="hidden sm:inline">Log out</span>

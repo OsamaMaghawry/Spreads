@@ -1,14 +1,19 @@
 import { useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Download } from "lucide-react";
 
-async function fetchAll(entity) {
+async function fetchAll(table) {
   const all = [];
   let skip = 0;
   for (;;) {
-    const page = await entity.list("-created_date", 500, skip);
-    all.push(...page);
-    if (page.length < 500) return all;
+    const { data, error } = await supabase
+      .from(table)
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(skip, skip + 499);
+    if (error) throw new Error(error.message);
+    all.push(...data);
+    if (data.length < 500) return all;
     skip += 500;
   }
 }
@@ -20,8 +25,8 @@ export default function BackupButton() {
     setBusy(true);
     try {
       const [accounts, trades] = await Promise.all([
-        fetchAll(base44.entities.TradingAccount),
-        fetchAll(base44.entities.TradeRecord)
+        fetchAll("trading_accounts"),
+        fetchAll("trade_records")
       ]);
       const backup = {
         exported_at: new Date().toISOString(),

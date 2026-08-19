@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { invokeFunction } from "@/lib/functions";
 import { playAlert } from "@/lib/beep";
 
 const RETRY_MS = 20000;
@@ -50,7 +50,7 @@ export default function useScanLoop() {
       setAttempts((a) => a + 1);
       setNextIn(0);
       try {
-        const res = await base44.functions.invoke("scanEntries", payload);
+        const res = await invokeFunction("scanEntries", payload);
         if (stopped.current) return;
         const data = res.data || {};
         // A failed pass (rate limit, no chain, market closed) is not fatal — keep looping.

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { invokeFunction } from "@/lib/functions";
 import { RefreshCw, ArrowLeft, History, BarChart3 } from "lucide-react";
 import TradeHistoryTable from "@/components/history/TradeHistoryTable";
 import StrategyTabs from "@/components/history/StrategyTabs";
@@ -17,10 +17,11 @@ export default function AccountHistory() {
     setRefreshing(true);
     setError(null);
     try {
-      const res = await base44.functions.invoke("tradeHistory", { accountId: id, sync });
+      const res = await invokeFunction("tradeHistory", { accountId: id, sync });
+      if (res.data?.error) throw new Error(res.data.error);
       setData(res.data);
     } catch (e) {
-      setError(e.response?.data?.error || e.message);
+      setError(e.message);
     } finally {
       setRefreshing(false);
       setLoading(false);

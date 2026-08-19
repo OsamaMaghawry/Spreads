@@ -1,7 +1,7 @@
 // Option chain scanning + strategy selection, ported from the Python strategy:
 // Black-Scholes delta from the live mid, delta-targeted short strike, adjacent/width
 // long wing, credit from short bid - long ask, ratio-aware iron condors.
-import { tradingBase, alpacaFetch } from './alpaca.ts';
+import { tradingBase, alpacaFetch } from "./alpaca.ts";
 
 const erf = (x) => {
   const s = x < 0 ? -1 : 1;
@@ -61,7 +61,7 @@ export async function findExpiries(account, ticker, dteMin, dteMax) {
     `&expiration_date_gte=${day(Math.max(dteMin, 0))}&expiration_date_lte=${day(dteMax)}&status=active&limit=1000`;
   const res = await alpacaFetch(url, account);
   const list = (res && res.option_contracts) || [];
-  return [...new Set(list.map((c) => c.expiration_date))].sort();
+  return [...new Set(list.map((c: any) => c.expiration_date))].sort();
 }
 
 // Nearest expiry within the requested DTE window.
@@ -83,15 +83,15 @@ export async function scanChain(account, ticker, expiry, type, spot) {
 
   const quotes = {};
   for (let i = 0; i < contracts.length; i += 100) {
-    const syms = contracts.slice(i, i + 100).map((c) => c.symbol).join(',');
+    const syms = contracts.slice(i, i + 100).map((c: any) => c.symbol).join(",");
     const data = await alpacaFetch(`https://data.alpaca.markets/v1beta1/options/quotes/latest?symbols=${syms}`, account);
     Object.assign(quotes, (data && data.quotes) || {});
   }
 
   const T = tteYears(expiry);
-  const isCall = type === 'call';
+  const isCall = type === "call";
   return contracts
-    .map((c) => {
+    .map((c: any) => {
       const q = quotes[c.symbol];
       if (!q || !(q.bp > 0) || !(q.ap > 0)) return null;
       const mid = (q.bp + q.ap) / 2;
@@ -106,7 +106,7 @@ export async function scanChain(account, ticker, expiry, type, spot) {
       };
     })
     .filter(Boolean)
-    .sort((a, b) => a.strike - b.strike);
+    .sort((a: any, b: any) => a.strike - b.strike);
 }
 
 const nearestDelta = (opts, target) => opts.reduce((best, o) =>
@@ -134,10 +134,10 @@ export async function findSetup(account, params) {
   const expiry = await findExpiry(account, ticker, dte);
   if (!expiry) return { ok: false, reason: `No expiry found for ${ticker} within ${dte} days.` };
 
-  const needPuts = strategy === 'put_spread' || strategy === 'iron_condor';
-  const needCalls = strategy === 'call_spread' || strategy === 'iron_condor';
-  const puts = needPuts ? await scanChain(account, ticker, expiry, 'put', spot) : [];
-  const calls = needCalls ? await scanChain(account, ticker, expiry, 'call', spot) : [];
+  const needPuts = strategy === "put_spread" || strategy === "iron_condor";
+  const needCalls = strategy === "call_spread" || strategy === "iron_condor";
+  const puts = needPuts ? await scanChain(account, ticker, expiry, "put", spot) : [];
+  const calls = needCalls ? await scanChain(account, ticker, expiry, "call", spot) : [];
   if (needPuts && puts.length === 0) return { ok: false, reason: `No priced put chain for ${ticker} ${expiry}.` };
   if (needCalls && calls.length === 0) return { ok: false, reason: `No priced call chain for ${ticker} ${expiry}.` };
 
@@ -147,15 +147,15 @@ export async function findSetup(account, params) {
 }
 
 // Pure setup construction from already-priced chains, so a sweep can reuse one fetch.
-export function buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio = 1, callRatio = 1 }) {
+export function buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio = 1, callRatio = 1 }: any) {
   const base = { ticker, expiry, spot, strategy, targetDelta, wingWidth };
 
-  if (strategy === 'iron_condor') {
-    const shortPut = nearestDelta(puts, targetDelta);
-    const shortCall = nearestDelta(calls, targetDelta);
-    const longPut = pickWing(puts, shortPut.strike, wingWidth, false);
-    const longCall = pickWing(calls, shortCall.strike, wingWidth, true);
-    if (!longPut || !longCall) return { ok: false, reason: 'No protective wings available on both sides.' };
+  if (strategy === "iron_condor") {
+    const shortPut: any = nearestDelta(puts, targetDelta);
+    const shortCall: any = nearestDelta(calls, targetDelta);
+    const longPut: any = pickWing(puts, shortPut.strike, wingWidth, false);
+    const longCall: any = pickWing(calls, shortCall.strike, wingWidth, true);
+    if (!longPut || !longCall) return { ok: false, reason: "No protective wings available on both sides." };
     const credit = (shortPut.bid - longPut.ask) * putRatio + (shortCall.bid - longCall.ask) * callRatio;
     const putWidth = (shortPut.strike - longPut.strike) * putRatio;
     const callWidth = (longCall.strike - shortCall.strike) * callRatio;
@@ -166,20 +166,20 @@ export function buildSetup({ ticker, expiry, spot, strategy, puts, calls, target
       breakEvenLow: shortPut.strike - credit / putRatio,
       breakEvenHigh: shortCall.strike + credit / callRatio,
       legs: [
-        { role: 'short_put', ...shortPut, ratio: putRatio, side: 'sell' },
-        { role: 'long_put', ...longPut, ratio: putRatio, side: 'buy' },
-        { role: 'short_call', ...shortCall, ratio: callRatio, side: 'sell' },
-        { role: 'long_call', ...longCall, ratio: callRatio, side: 'buy' }
+        { role: "short_put", ...shortPut, ratio: putRatio, side: "sell" },
+        { role: "long_put", ...longPut, ratio: putRatio, side: "buy" },
+        { role: "short_call", ...shortCall, ratio: callRatio, side: "sell" },
+        { role: "long_call", ...longCall, ratio: callRatio, side: "buy" }
       ]
     };
     return { ok: true, setup };
   }
 
-  const isCall = strategy === 'call_spread';
+  const isCall = strategy === "call_spread";
   const chain = isCall ? calls : puts;
-  const short = nearestDelta(chain, targetDelta);
-  const long = pickWing(chain, short.strike, wingWidth, isCall);
-  if (!long) return { ok: false, reason: 'No protective long strike available.' };
+  const short: any = nearestDelta(chain, targetDelta);
+  const long: any = pickWing(chain, short.strike, wingWidth, isCall);
+  if (!long) return { ok: false, reason: "No protective long strike available." };
   const credit = short.bid - long.ask;
   const width = Math.abs(long.strike - short.strike);
   const setup = {
@@ -188,8 +188,8 @@ export function buildSetup({ ticker, expiry, spot, strategy, puts, calls, target
     breakEvenLow: isCall ? null : short.strike - credit,
     breakEvenHigh: isCall ? short.strike + credit : null,
     legs: [
-      { role: isCall ? 'short_call' : 'short_put', ...short, ratio: 1, side: 'sell' },
-      { role: isCall ? 'long_call' : 'long_put', ...long, ratio: 1, side: 'buy' }
+      { role: isCall ? "short_call" : "short_put", ...short, ratio: 1, side: "sell" },
+      { role: isCall ? "long_call" : "long_put", ...long, ratio: 1, side: "buy" }
     ]
   };
   return { ok: true, setup };
@@ -214,8 +214,8 @@ export async function scanCandidates(account, params) {
 
   const deltas = steps(deltaMin, deltaMax, deltaStep);
   const widths = steps(widthMin, widthMax, widthStep);
-  const needPuts = strategy === 'put_spread' || strategy === 'iron_condor';
-  const needCalls = strategy === 'call_spread' || strategy === 'iron_condor';
+  const needPuts = strategy === "put_spread" || strategy === "iron_condor";
+  const needCalls = strategy === "call_spread" || strategy === "iron_condor";
 
   const candidates = [];
   const skipped = [];
@@ -225,13 +225,13 @@ export async function scanCandidates(account, params) {
     if (!ticker) continue;
     try {
       const spot = await getSpot(account, ticker);
-      if (!(spot > 0)) { skipped.push({ ticker, reason: 'No live price.' }); continue; }
+      if (!(spot > 0)) { skipped.push({ ticker, reason: "No live price." }); continue; }
       const expiries = await findExpiries(account, ticker, dteMin, dteMax);
       if (expiries.length === 0) { skipped.push({ ticker, reason: `No expiry between ${dteMin} and ${dteMax} days.` }); continue; }
 
       for (const expiry of expiries) {
-        const puts = needPuts ? await scanChain(account, ticker, expiry, 'put', spot) : [];
-        const calls = needCalls ? await scanChain(account, ticker, expiry, 'call', spot) : [];
+        const puts = needPuts ? await scanChain(account, ticker, expiry, "put", spot) : [];
+        const calls = needCalls ? await scanChain(account, ticker, expiry, "call", spot) : [];
         if ((needPuts && puts.length === 0) || (needCalls && calls.length === 0)) {
           skipped.push({ ticker, reason: `No priced chain for ${expiry}.` });
           continue;
@@ -242,7 +242,7 @@ export async function scanCandidates(account, params) {
             const built = buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio, callRatio });
             if (!built.ok) continue;
             const s = built.setup;
-            const key = s.legs.map((l) => l.symbol).join('|');
+            const key = s.legs.map((l) => l.symbol).join("|");
             if (seen.has(key)) continue;
             seen.add(key);
             const checked = validate(s, minCredit, maxCredit);
@@ -257,7 +257,7 @@ export async function scanCandidates(account, params) {
     }
   }
 
-  candidates.sort((a, b) => b.returnOnRisk - a.returnOnRisk);
+  candidates.sort((a: any, b: any) => b.returnOnRisk - a.returnOnRisk);
   return { ok: candidates.length > 0, candidates: candidates.slice(0, 25), skipped };
 }
 
@@ -269,7 +269,7 @@ function validate(setup, minCredit, maxCredit) {
     return { ok: false, reason: `Credit $${setup.credit.toFixed(2)} is above the $${maxCredit} maximum.`, setup };
   }
   if (setup.maxRisk <= 0) {
-    return { ok: false, reason: 'Credit exceeds the spread width — quote looks stale.', setup };
+    return { ok: false, reason: "Credit exceeds the spread width — quote looks stale.", setup };
   }
   return { ok: true, setup };
 }

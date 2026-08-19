@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { invokeFunction } from "@/lib/functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import SetupPreview from "@/components/open/SetupPreview";
@@ -22,7 +22,7 @@ export default function TradeDialog({ setup, accounts, onClose }) {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await base44.functions.invoke("openPosition", {
+      const res = await invokeFunction("openPosition", {
         accountId,
         legs: setup.legs.map((l) => ({ symbol: l.symbol, ratio: l.ratio, side: l.side })),
         qty: Number(qty),

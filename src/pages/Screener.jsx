@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Loader2, Radar, StopCircle } from "lucide-react";
 import StrategyPicker from "@/components/open/StrategyPicker";
 import ScreenerConfig, { SCREENER_DEFAULTS } from "@/components/screener/ScreenerConfig";
@@ -16,7 +16,7 @@ export default function Screener() {
   const { running, progress, candidates, skippedCount, error, start, stop } = useMarketScan();
 
   useEffect(() => {
-    base44.entities.TradingAccount.list().then(setAccounts);
+    supabase.from("trading_accounts").select("*").then(({ data }) => setAccounts(data || []));
   }, []);
 
   const isCondor = strategy === "iron_condor";

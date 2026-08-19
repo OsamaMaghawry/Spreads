@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Plus, Pencil, Trash2, KeyRound } from "lucide-react";
 import AccountForm from "@/components/accounts/AccountForm";
 
@@ -9,20 +9,28 @@ export default function Accounts() {
   const [deleting, setDeleting] = useState(null);
 
   const load = useCallback(async () => {
-    setAccounts(await base44.entities.TradingAccount.list("-created_date"));
+    const { data, error } = await supabase.from("trading_accounts").select("*").order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    setAccounts(data);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
   const save = async (form) => {
-    if (editing === "new") await base44.entities.TradingAccount.create(form);
-    else await base44.entities.TradingAccount.update(editing.id, form);
+    if (editing === "new") {
+      const { error } = await supabase.from("trading_accounts").insert(form);
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await supabase.from("trading_accounts").update(form).eq("id", editing.id);
+      if (error) throw new Error(error.message);
+    }
     setEditing(null);
     load();
   };
 
   const remove = async (account) => {
-    await base44.entities.TradingAccount.delete(account.id);
+    const { error } = await supabase.from("trading_accounts").delete().eq("id", account.id);
+    if (error) throw new Error(error.message);
     setDeleting(null);
     load();
   };

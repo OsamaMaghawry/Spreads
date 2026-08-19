@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { invokeFunction } from "@/lib/functions";
 import { RefreshCw, KeyRound } from "lucide-react";
 import MasterSummary from "@/components/dashboard/MasterSummary";
 import AccountSummaryCard from "@/components/dashboard/AccountSummaryCard";
@@ -15,7 +15,7 @@ export default function Dashboard() {
   const load = useCallback(async () => {
     setRefreshing(true);
     try {
-      const res = await base44.functions.invoke("syncAccounts", {});
+      const res = await invokeFunction("syncAccounts", {});
       setData(res.data);
     } finally {
       setRefreshing(false);
