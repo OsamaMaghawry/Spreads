@@ -10,9 +10,10 @@ export default function SpreadTable({ spreads, onClose }) {
       totalCredit: a.totalCredit + (s.totalCredit || 0),
       maxRisk: a.maxRisk + (s.maxRisk || 0),
       closeCost: a.closeCost + (s.closeCost || 0),
-      unrealizedPL: a.unrealizedPL + (s.unrealizedPL || 0)
+      unrealizedPL: a.unrealizedPL + (s.unrealizedPL || 0),
+      expirationPL: a.expirationPL + (s.expirationPL || 0)
     }),
-    { totalCredit: 0, maxRisk: 0, closeCost: 0, unrealizedPL: 0 }
+    { totalCredit: 0, maxRisk: 0, closeCost: 0, unrealizedPL: 0, expirationPL: 0 }
   );
 
   return (
@@ -40,6 +41,9 @@ export default function SpreadTable({ spreads, onClose }) {
             <th className={`${th} text-right`}>Cur Long</th>
             <th className={`${th} text-right`}>Close Cost</th>
             <th className={`${th} text-right`}>Unrlzd P/L</th>
+            <th className={`${th} text-right`} title="P/L if every position expired right now at the current stock price (intrinsic value only, no time premium)">
+              Exp P/L
+            </th>
             <th className={th}></th>
           </tr>
         </thead>
@@ -129,6 +133,9 @@ export default function SpreadTable({ spreads, onClose }) {
               <td className={`${td} text-right font-semibold ${s.unrealizedPL > 0 ? "text-emerald-600" : s.unrealizedPL < 0 ? "text-rose-600" : ""}`}>
                 {fmtMoney(s.unrealizedPL)}
               </td>
+              <td className={`${td} text-right font-semibold ${s.expirationPL > 0 ? "text-emerald-600" : s.expirationPL < 0 ? "text-rose-600" : ""}`}>
+                {fmtMoney(s.expirationPL)}
+              </td>
               <td className={td}>
                 <button
                   onClick={() => onClose(s)}
@@ -149,6 +156,9 @@ export default function SpreadTable({ spreads, onClose }) {
               <td className={`${td} text-right`}>{fmtMoney(totals.closeCost)}</td>
               <td className={`${td} text-right ${totals.unrealizedPL > 0 ? "text-emerald-600" : totals.unrealizedPL < 0 ? "text-rose-600" : ""}`}>
                 {fmtMoney(totals.unrealizedPL)}
+              </td>
+              <td className={`${td} text-right ${totals.expirationPL > 0 ? "text-emerald-600" : totals.expirationPL < 0 ? "text-rose-600" : ""}`}>
+                {fmtMoney(totals.expirationPL)}
               </td>
               <td className={td}></td>
             </tr>

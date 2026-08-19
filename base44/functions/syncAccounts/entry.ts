@@ -17,7 +17,7 @@ export default async function(req) {
 
 async function syncOne(account) {
   const base = tradingBase(account);
-  const empty = { credit: 0, risk: 0, closeCost: 0, pl: 0 };
+  const empty = { credit: 0, risk: 0, closeCost: 0, pl: 0, expirationPL: 0 };
   try {
     const [info, positions, activities, openOrders] = await Promise.all([
       alpacaFetch(`${base}/account`, account),
@@ -55,6 +55,21 @@ async function syncOne(account) {
       const totalCredit = netCredit * s.qty * 100;
       const maxRisk = (spreadWidth - netCredit) * s.qty * 100;
       const closeCost = (s.shortCurrentPrice - s.longCurrentPrice) * s.qty * 100;
+      // Expiration scenario: what the spread would settle for if it expired right
+      // now at the current stock price — intrinsic value only, no time premium.
+      const clamp = (v, cap) => Math.min(Math.max(v, 0), cap);
+      let intrinsic = 0;
+      if (stockPrice > 0) {
+        if (!isCall) {
+          intrinsic += clamp(s.shortStrike - stockPrice, s.shortStrike - s.longStrike) * putRatio;
+        }
+        if (isCondor) {
+          intrinsic += clamp(stockPrice - s.callShortStrike, s.callLongStrike - s.callShortStrike) * callRatio;
+        } else if (isCall) {
+          intrinsic += clamp(stockPrice - s.shortStrike, s.longStrike - s.shortStrike);
+        }
+      }
+      const expirationCost = intrinsic * s.qty * 100;
       const itm = isCondor
         ? stockPrice < s.shortStrike || stockPrice > s.callShortStrike
         : isCall
@@ -73,6 +88,8 @@ async function syncOne(account) {
         breakEvenHigh: isCondor ? s.callShortStrike + netCredit / callRatio : null,
         closeCost,
         unrealizedPL: totalCredit - closeCost,
+        expirationCost,
+        expirationPL: stockPrice > 0 ? totalCredit - expirationCost : null,
         openOrders: openList
           .filter((o) => orderSymbols(o).some((sym) => mySymbols.includes(sym)))
           .map((o) => ({
@@ -91,7 +108,8 @@ async function syncOne(account) {
         credit: acc.credit + r.totalCredit,
         risk: acc.risk + r.maxRisk,
         closeCost: acc.closeCost + r.closeCost,
-        pl: acc.pl + r.unrealizedPL
+        pl: acc.pl + r.unrealizedPL,
+        expirationPL: acc.expirationPL + (r.expirationPL || 0)
       }),
       { ...empty }
     );
