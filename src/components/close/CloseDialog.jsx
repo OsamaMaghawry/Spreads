@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import useCloseOrder, { getLastDebit } from "./useCloseOrder";
 import OrderLog from "./OrderLog";
 import OpenOrdersPanel from "./OpenOrdersPanel";
+import ConfirmSubmit from "@/components/common/ConfirmSubmit";
 
 export default function CloseDialog({ account, spread, onClose, onDone }) {
   const [qty, setQty] = useState(1);
@@ -123,15 +124,17 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                 : "Market executes immediately at the current best price — may slip toward the ask."}
             </p>
 
-            <button
-              onClick={() => run({ accountId: account.id, spread, qty, orderType, startDebit })}
+            <ConfirmSubmit
+              tone="rose"
+              label={
+                openOrders.length > 0
+                  ? "Cancel the open order first"
+                  : `Close ${qty} ${unit}${qty > 1 ? "s" : ""} (${orderType})`
+              }
+              summary={`${orderType === "limit" ? `Limit order starting at ${fmtMoney(startDebit)} debit` : "Market order at the current best price"} · close ${qty} ${spread.ticker} ${unit}${qty > 1 ? "s" : ""} on ${account.name}.`}
+              onConfirm={() => run({ accountId: account.id, spread, qty, orderType, startDebit })}
               disabled={openOrders.length > 0}
-              className="w-full py-2.5 rounded-lg bg-rose-500/90 hover:bg-rose-500 text-white font-medium text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {openOrders.length > 0
-                ? "Cancel the open order first"
-                : `Confirm — close ${qty} ${unit}${qty > 1 ? "s" : ""} (${orderType})`}
-            </button>
+            />
           </div>
         ) : (
           <div className="space-y-4">
