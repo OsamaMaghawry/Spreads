@@ -19,17 +19,23 @@ async function syncOne(account) {
   const base = tradingBase(account);
   const empty = { credit: 0, risk: 0, closeCost: 0, pl: 0, expirationPL: 0 };
   try {
-    const [info, positions, activities, openOrders] = await Promise.all([
+    const [info, positions, activities, openOrders, filledOrders] = await Promise.all([
       alpacaFetch(`${base}/account`, account),
       alpacaFetch(`${base}/positions`, account),
       alpacaFetch(`${base}/account/activities/FILL?page_size=100`, account).catch(() => []),
-      alpacaFetch(`${base}/orders?status=open&nested=true&limit=100`, account).catch(() => [])
+      alpacaFetch(`${base}/orders?status=open&nested=true&limit=100`, account).catch(() => []),
+      alpacaFetch(`${base}/orders?status=closed&nested=true&limit=200&direction=desc`, account).catch(() => [])
     ]);
 
     const openList = Array.isArray(openOrders) ? openOrders : [];
     const orderSymbols = (o) => (Array.isArray(o.legs) && o.legs.length ? o.legs.map((l) => l.symbol) : [o.symbol]);
 
-    const spreads = pairSpreads(Array.isArray(positions) ? positions : [], Array.isArray(activities) ? activities : []);
+    // Provenance: legs opened by the same multi-leg order form one structure.
+    const spreads = pairSpreads(
+      Array.isArray(positions) ? positions : [],
+      Array.isArray(activities) ? activities : [],
+      (Array.isArray(filledOrders) ? filledOrders : []).filter((o) => o.status === 'filled')
+    );
 
     const tickers = [...new Set(spreads.map((s) => s.ticker))];
     const prices = {};

@@ -1,0 +1,216 @@
+// Provenance-based spread pairing.
+//
+// Multi-leg structures are grouped by the Alpaca order that actually created
+// them: legs filled by one multi-leg order belong to one structure. Legs we
+// cannot trace back to an order are only paired per side (put spread / call
+// spread) and never guessed into an iron condor.
+
+import { parseOCCSymbol } from "./alpaca.ts";
+
+const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+
+// Current option positions keyed by OCC symbol, with a signed qty.
+function buildLegs(positions, activities) {
+  const fillDates = {};
+  (activities || []).forEach((a) => {
+    if (a.symbol && a.transaction_time && !fillDates[a.symbol]) {
+      fillDates[a.symbol] = a.transaction_time.substring(0, 10);
+    }
+  });
+
+  const legsBySymbol = {};
+  (positions || []).forEach((p) => {
+    if (p.asset_class !== "us_option" && p.symbol.length <= 10) return;
+    const parsed = parseOCCSymbol(p.symbol);
+    if (!parsed) return;
+    const qty = parseInt(p.qty);
+    if (!legsBySymbol[p.symbol]) {
+      legsBySymbol[p.symbol] = {
+        symbol: p.symbol,
+        ticker: parsed.ticker,
+        optionType: parsed.type,
+        expiry: parsed.expiry,
+        expiryFormatted: parsed.expiryFormatted,
+        entryDate: fillDates[p.symbol] || new Date().toISOString().substring(0, 10),
+        strike: parsed.strike,
+        qty,
+        avgEntryPrice: Math.abs(parseFloat(p.avg_entry_price)),
+        currentPrice: Math.abs(parseFloat(p.current_price || p.avg_entry_price))
+      };
+    } else {
+      legsBySymbol[p.symbol].qty += qty;
+    }
+  });
+  return legsBySymbol;
+}
+
+// Pair shorts with protective longs of the same option type.
+// Puts: long strike below short. Calls: long strike above short.
+// Mutates the qty of the legs it consumes.
+function pairSide(legs, optionType) {
+  const isCall = optionType === "C";
+  const shorts = legs.filter((l) => l.optionType === optionType && l.qty < 0);
+  const longs = legs.filter((l) => l.optionType === optionType && l.qty > 0);
+  const out = [];
+  shorts.forEach((s) => {
+    let remaining = Math.abs(s.qty);
+    longs.forEach((l) => {
+      const strikeOk = isCall ? l.strike > s.strike : l.strike < s.strike;
+      if (remaining > 0 && strikeOk && l.expiry === s.expiry && l.qty > 0) {
+        const q = Math.min(remaining, l.qty);
+        const legOf = (leg, side) => ({
+          symbol: leg.symbol,
+          side,
+          kind: isCall ? "call" : "put",
+          strike: leg.strike,
+          ratio: 1,
+          entryPrice: leg.avgEntryPrice,
+          currentPrice: leg.currentPrice
+        });
+        out.push({
+          type: isCall ? "call_spread" : "put_spread",
+          legs: [legOf(s, "short"), legOf(l, "long")],
+          ticker: s.ticker,
+          expiry: s.expiry,
+          expiryFormatted: s.expiryFormatted,
+          entryDate: s.entryDate,
+          shortSymbol: s.symbol,
+          longSymbol: l.symbol,
+          shortStrike: s.strike,
+          longStrike: l.strike,
+          qty: q,
+          shortEntryPrice: s.avgEntryPrice,
+          longEntryPrice: l.avgEntryPrice,
+          shortCurrentPrice: s.currentPrice,
+          longCurrentPrice: l.currentPrice
+        });
+        remaining -= q;
+        l.qty -= q;
+        s.qty += q;
+      }
+    });
+  });
+  return out;
+}
+
+// Combine a put spread and a call spread that were opened by the SAME order
+// into an iron condor. Ratios come from the leg quantities via GCD.
+function toCondor(p, c) {
+  const units = gcd(p.qty, c.qty);
+  const putRatio = p.qty / units;
+  const callRatio = c.qty / units;
+  return {
+    type: "iron_condor",
+    ticker: p.ticker,
+    expiry: p.expiry,
+    expiryFormatted: p.expiryFormatted,
+    entryDate: p.entryDate < c.entryDate ? p.entryDate : c.entryDate,
+    shortSymbol: p.shortSymbol,
+    longSymbol: p.longSymbol,
+    callShortSymbol: c.shortSymbol,
+    callLongSymbol: c.longSymbol,
+    shortStrike: p.shortStrike,
+    longStrike: p.longStrike,
+    callShortStrike: c.shortStrike,
+    callLongStrike: c.longStrike,
+    qty: units,
+    putRatio,
+    callRatio,
+    legs: [
+      ...p.legs.map((l) => ({ ...l, ratio: putRatio })),
+      ...c.legs.map((l) => ({ ...l, ratio: callRatio }))
+    ],
+    shortEntryPrice: putRatio * p.shortEntryPrice + callRatio * c.shortEntryPrice,
+    longEntryPrice: putRatio * p.longEntryPrice + callRatio * c.longEntryPrice,
+    shortCurrentPrice: putRatio * p.shortCurrentPrice + callRatio * c.shortCurrentPrice,
+    longCurrentPrice: putRatio * p.longCurrentPrice + callRatio * c.longCurrentPrice
+  };
+}
+
+// A filled multi-leg order claims quantity from the still-unassigned positions.
+// Returns cloned leg slices (with the claimed qty) or null when the order can no
+// longer be matched to live positions.
+function claimOrderLegs(order, legsBySymbol) {
+  const orderLegs = Array.isArray(order.legs) ? order.legs : [];
+  if (orderLegs.length < 2) return null;
+
+  const claims = [];
+  for (const ol of orderLegs) {
+    const pos = legsBySymbol[ol.symbol];
+    const filled = parseInt(ol.filled_qty || "0");
+    if (!pos || !filled) return null;
+    const wantShort = ol.side === "sell";
+    if (wantShort ? pos.qty >= 0 : pos.qty <= 0) return null;
+    const take = Math.min(filled, Math.abs(pos.qty));
+    if (!take) return null;
+    claims.push({ pos, take, wantShort });
+  }
+
+  return claims.map(({ pos, take, wantShort }) => {
+    pos.qty += wantShort ? take : -take;
+    return { ...pos, qty: wantShort ? -take : take };
+  });
+}
+
+// Merge structures with identical strikes / expiry (opened by separate orders)
+// into one row, summing qty and qty-weighting the per-unit entry prices.
+function mergeIdentical(spreads) {
+  const merged = [];
+  const byKey = {};
+  spreads.forEach((s) => {
+    const key = [
+      s.type, s.ticker, s.expiry,
+      s.shortStrike, s.longStrike, s.callShortStrike, s.callLongStrike,
+      s.putRatio || 1, s.callRatio || 1
+    ].join("|");
+    const existing = byKey[key];
+    if (!existing) {
+      byKey[key] = { ...s };
+      merged.push(byKey[key]);
+      return;
+    }
+    const total = existing.qty + s.qty;
+    const avg = (a, b) => (a * existing.qty + b * s.qty) / total;
+    existing.shortEntryPrice = avg(existing.shortEntryPrice, s.shortEntryPrice);
+    existing.longEntryPrice = avg(existing.longEntryPrice, s.longEntryPrice);
+    existing.qty = total;
+    if (s.entryDate < existing.entryDate) existing.entryDate = s.entryDate;
+  });
+  return merged;
+}
+
+// positions/activities from Alpaca, plus filled historical orders (nested=true).
+export function pairSpreads(positions, activities, filledOrders = []) {
+  const legsBySymbol = buildLegs(positions, activities);
+
+  // Oldest orders first so FIFO-style claims match how the positions were built.
+  const orders = (Array.isArray(filledOrders) ? filledOrders : [])
+    .filter((o) => Array.isArray(o.legs) && o.legs.length >= 2)
+    .sort((a, b) => String(a.filled_at || a.submitted_at || "").localeCompare(String(b.filled_at || b.submitted_at || "")));
+
+  const proven = [];
+  orders.forEach((o) => {
+    const claimed = claimOrderLegs(o, legsBySymbol);
+    if (!claimed) return;
+    const puts = pairSide(claimed, "P");
+    const calls = pairSide(claimed, "C");
+    // Within one order, a put spread + call spread IS an iron condor.
+    while (puts.length && calls.length) {
+      proven.push(toCondor(puts.shift(), calls.shift()));
+    }
+    proven.push(...puts, ...calls);
+  });
+
+  // Anything left is untraceable: pair per side only, never guess a condor.
+  const remaining = {};
+  Object.values(legsBySymbol).forEach((leg) => {
+    if (leg.qty === 0) return;
+    (remaining[leg.ticker] = remaining[leg.ticker] || []).push(leg);
+  });
+  const loose = [];
+  Object.values(remaining).forEach((legs) => {
+    loose.push(...pairSide(legs, "P"), ...pairSide(legs, "C"));
+  });
+
+  return mergeIdentical([...proven, ...loose].filter((s) => s.qty > 0));
+}
