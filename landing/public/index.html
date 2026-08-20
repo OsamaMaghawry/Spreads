@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DeltaMint — Automated Credit Spread Trading</title>
+  <meta name="description" content="DeltaMint scans, prices, and manages credit spread trades across your brokerage accounts." />
+  <style>
+    :root {
+      --background: 0 0% 100%;
+      --foreground: 0 0% 3.9%;
+      --muted-foreground: 0 0% 45.1%;
+      --border: 0 0% 89.8%;
+      --primary: 0 0% 9%;
+      --primary-foreground: 0 0% 98%;
+      --accent: 217.2 91.2% 59.8%;
+      --radius: 0.5rem;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --background: 0 0% 3.9%;
+        --foreground: 0 0% 98%;
+        --muted-foreground: 0 0% 63.9%;
+        --border: 0 0% 14.9%;
+        --primary: 0 0% 98%;
+        --primary-foreground: 0 0% 9%;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: hsl(var(--background));
+      color: hsl(var(--foreground));
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      line-height: 1.5;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 24px 0;
+      border-bottom: 1px solid hsl(var(--border));
+    }
+    .logo { font-weight: 700; font-size: 1.25rem; letter-spacing: -0.02em; }
+    .logo span { color: hsl(var(--accent)); }
+    nav a {
+      color: hsl(var(--foreground));
+      text-decoration: none;
+      margin-left: 24px;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+    nav a.cta {
+      background: hsl(var(--primary));
+      color: hsl(var(--primary-foreground));
+      padding: 8px 16px;
+      border-radius: var(--radius);
+    }
+    .hero {
+      padding: 96px 0 80px;
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: clamp(2.25rem, 5vw, 3.5rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin: 0 0 20px;
+    }
+    .hero p {
+      font-size: 1.15rem;
+      color: hsl(var(--muted-foreground));
+      max-width: 640px;
+      margin: 0 auto 36px;
+    }
+    .hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-block;
+      padding: 12px 28px;
+      border-radius: var(--radius);
+      font-weight: 600;
+      text-decoration: none;
+      font-size: 0.95rem;
+    }
+    .btn-primary { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+    .btn-secondary { border: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); }
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 24px;
+      padding: 40px 0 96px;
+    }
+    .feature {
+      border: 1px solid hsl(var(--border));
+      border-radius: calc(var(--radius) + 4px);
+      padding: 28px;
+    }
+    .feature h3 { margin: 0 0 8px; font-size: 1.05rem; }
+    .feature p { margin: 0; color: hsl(var(--muted-foreground)); font-size: 0.95rem; }
+    footer {
+      border-top: 1px solid hsl(var(--border));
+      padding: 24px 0;
+      color: hsl(var(--muted-foreground));
+      font-size: 0.85rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">Delta<span>Mint</span></div>
+      <nav>
+        <a href="https://dashboard.deltamint.app/login">Log in</a>
+        <a class="cta" href="https://dashboard.deltamint.app/register">Get started</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <h1>Trade credit spreads,<br />without the busywork.</h1>
+      <p>
+        DeltaMint scans the market for high-probability setups, prices them against your
+        broker in real time, and tracks every trade from open to close — across all your accounts.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="https://dashboard.deltamint.app/register">Get started free</a>
+        <a class="btn btn-secondary" href="https://dashboard.deltamint.app/login">Log in</a>
+      </div>
+    </section>
+
+    <section class="features">
+      <div class="feature">
+        <h3>Market screener</h3>
+        <p>Continuously scans for credit spread candidates that match your strategy and risk criteria.</p>
+      </div>
+      <div class="feature">
+        <h3>One-click execution</h3>
+        <p>Review the setup, confirm, and send the order straight to your connected brokerage account.</p>
+      </div>
+      <div class="feature">
+        <h3>Multi-account dashboard</h3>
+        <p>See open positions, capture rate, and P/L across every account in one place.</p>
+      </div>
+      <div class="feature">
+        <h3>Performance analysis</h3>
+        <p>Break down results by strategy, account, and time period to see what's actually working.</p>
+      </div>
+    </section>
+  </div>
+  <footer>
+    <div class="wrap">© <span id="year"></span> DeltaMint</div>
+  </footer>
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body>
+</html>
