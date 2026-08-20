@@ -10,6 +10,8 @@ const MAX_TIME = 600000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const invoke = async (fn, payload) => (await base44.functions.invoke(fn, payload)).data;
 const round2 = (v) => Math.round(v * 100) / 100;
+// Net price convention (Alpaca mleg): positive = net debit paid, negative = net credit received.
+const priceLabel = (v) => `$${Math.abs(v).toFixed(2)} ${v < 0 ? "credit" : "debit"}`;
 
 // Remembers the last limit price attempted per spread so a retry resumes from it.
 const lastDebits = {};
@@ -85,7 +87,7 @@ export default function useCloseOrder() {
 
       let debit = round2(startDebit);
       lastDebits[key] = debit;
-      addLog(`Submitting limit order at $${debit.toFixed(2)} debit…`);
+      addLog(`Submitting limit order at ${priceLabel(debit)}…`);
       let res = await invoke("closeSpread", { ...params, orderType: "limit", limitPrice: debit });
       let orderId = res.orderId;
       const start = Date.now();
@@ -128,7 +130,7 @@ export default function useCloseOrder() {
           if (q && q.askDebit) proposed = Math.max(debit, Math.min(proposed, round2(q.askDebit + 0.05)));
 
           if (Math.abs(proposed - debit) >= 0.01) {
-            addLog(`Repricing (${steps}/${MAX_STEPS}): $${debit.toFixed(2)} → $${proposed.toFixed(2)}`);
+            addLog(`Repricing (${steps}/${MAX_STEPS}): ${priceLabel(debit)} → ${priceLabel(proposed)}`);
             const cancelResult = await ensureCanceled(accountId, orderId);
             if (cancelResult === "filled") {
               addLog("Filled during reprice");
@@ -143,7 +145,7 @@ export default function useCloseOrder() {
               lastDebits[key] = debit;
               res = await invoke("closeSpread", { ...params, orderType: "limit", limitPrice: debit });
               orderId = res.orderId;
-              addLog(`Resubmitted at $${debit.toFixed(2)} (${res.orderId})`);
+              addLog(`Resubmitted at ${priceLabel(debit)} (${res.orderId})`);
               lastStatus = null;
             }
           } else {
