@@ -9,6 +9,7 @@ import OpenOrdersPanel from "./OpenOrdersPanel";
 import ConfirmSubmit from "@/components/common/ConfirmSubmit";
 import LegPicker from "./LegPicker";
 import { spreadLegs, legLabel } from "@/lib/spreadLegs";
+import LegsQuoteSummary from "./LegsQuoteSummary";
 
 export default function CloseDialog({ account, spread, onClose, onDone }) {
   const [qty, setQty] = useState(1);
@@ -38,6 +39,9 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
       setQuoteLoading(false);
       return;
     }
+    // Guard the mount race: a whole-structure fetch in flight must not overwrite
+    // the per-leg quote once the dialog switches into legs mode.
+    let active = true;
     setQuote(null);
     setQuoteLoading(true);
     base44.functions
@@ -54,9 +58,10 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
               callRatio: spread.callRatio || 1
             })
       })
-      .then((res) => setQuote(res.data))
-      .catch(() => setQuote(null))
-      .finally(() => setQuoteLoading(false));
+      .then((res) => active && setQuote(res.data))
+      .catch(() => active && setQuote(null))
+      .finally(() => active && setQuoteLoading(false));
+    return () => { active = false; };
   }, [account.id, spread, mode, legSig]);
 
   const midDebit = quote?.midDebit ?? 0;
@@ -131,16 +136,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
               ) : quoteLoading ? (
                 <div className="flex items-center gap-2 text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Fetching live quote…</div>
               ) : quote && customLegs ? (
-                <div className="grid grid-cols-2 gap-y-1.5 tabular-nums">
-                  <span className="text-slate-500">{midDebit >= 0 ? "Mid debit to close" : "Mid credit to close"}</span>
-                  <span className="text-right">{fmtMoney(Math.abs(midDebit))}</span>
-                  <span className="text-slate-500">Bid / Ask</span>
-                  <span className="text-right">{fmtMoney(quote.bidDebit)} / {fmtMoney(quote.askDebit)}</span>
-                  <span className="text-slate-500">Estimated cash for {qty} unit{qty > 1 ? "s" : ""}</span>
-                  <span className={`text-right font-semibold ${midDebit <= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                    {fmtMoney(-midDebit * qty * 100)}
-                  </span>
-                </div>
+                <LegsQuoteSummary quote={quote} qty={qty} />
               ) : quote ? (
                 <div className="grid grid-cols-2 gap-y-1.5 tabular-nums">
                   <span className="text-slate-500">Entry credit / {unit}</span><span className="text-right">{fmtMoney(spread.netCredit)}</span>
@@ -192,7 +188,9 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
               {orderType === "limit"
                 ? lastDebit !== null
                   ? `Limit resumes from your last attempt at ${fmtMoney(lastDebit)} — starting at ${fmtMoney(startDebit)} and walking up $0.02 every 30s (max 10 steps, 10 min timeout).`
-                  : `Limit starts at the mid debit (${fmtMoney(midDebit)}) and walks up $0.02 every 30s (max 10 steps, 10 min timeout).`
+                  : midDebit < 0
+                    ? `Limit starts at the mid credit (${fmtMoney(Math.abs(midDebit))}) and concedes $0.02 every 30s (max 10 steps, 10 min timeout).`
+                    : `Limit starts at the mid debit (${fmtMoney(midDebit)}) and walks up $0.02 every 30s (max 10 steps, 10 min timeout).`
                 : "Market executes immediately at the current best price — may slip toward the ask."}
             </p>
 
