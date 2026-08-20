@@ -2,12 +2,19 @@ import { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { fmtMoney } from "@/lib/format";
 import { Loader2 } from "lucide-react";
+import { spreadLegs } from "@/lib/spreadLegs";
 
 // Per-leg detail shown beneath an expanded spread row.
 export default function LegRows({ spread, colSpan, onCloseLeg }) {
   const [quotes, setQuotes] = useState(null);
   const [loading, setLoading] = useState(true);
-  const legs = spread.legs || [];
+  // Prefer the backend-paired legs; fall back to deriving them from the spread's
+  // symbols so the row always expands.
+  const legs = (spread.legs && spread.legs.length ? spread.legs : spreadLegs(spread)).map((l) => ({
+    ...l,
+    entryPrice: l.entryPrice ?? (l.side === "short" ? spread.shortEntryPrice : spread.longEntryPrice),
+    currentPrice: l.currentPrice ?? (l.side === "short" ? spread.shortCurrentPrice : spread.longCurrentPrice)
+  }));
 
   useEffect(() => {
     let alive = true;
