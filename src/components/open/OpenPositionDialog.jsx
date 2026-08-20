@@ -83,7 +83,7 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
       if (res.data?.error) setError(res.data.error);
       else setResult(res.data);
     } catch (e) {
-      setError(e.message);
+      setError(e.response?.data?.error || e.message);
     } finally {
       setSubmitting(false);
     }

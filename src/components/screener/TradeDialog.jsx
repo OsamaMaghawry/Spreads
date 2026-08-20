@@ -33,7 +33,7 @@ export default function TradeDialog({ setup, accounts, onClose }) {
       if (res.data?.error) setError(res.data.error);
       else setResult(res.data);
     } catch (e) {
-      setError(e.message);
+      setError(e.response?.data?.error || e.message);
     } finally {
       setSubmitting(false);
     }
