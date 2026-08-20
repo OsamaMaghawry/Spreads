@@ -53,7 +53,11 @@ export default async function(req) {
         };
       }
       if (orderType === 'limit') {
-        legBody.limit_price = String(Math.round(limitPrice * 100) / 100);
+        // Single-leg option orders must carry a positive per-contract limit price
+        // (max paid on a buy, min accepted on a sell). Only multi-leg orders use a
+        // signed net price where negative means a net credit.
+        const price = customLegs.length === 1 ? Math.abs(limitPrice) : limitPrice;
+        legBody.limit_price = String(Math.round(price * 100) / 100);
       }
       const legOrder = await alpacaFetch(`${tradingBase(account)}/orders`, account, {
         method: 'POST',
