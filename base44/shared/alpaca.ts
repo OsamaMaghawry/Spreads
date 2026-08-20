@@ -109,8 +109,18 @@ export function pairSpreads(positions, activities) {
         const strikeOk = isCall ? l.strike > s.strike : l.strike < s.strike;
         if (remaining > 0 && strikeOk && l.expiry === s.expiry && l.qty > 0) {
           const q = Math.min(remaining, l.qty);
+          const legOf = (leg, side) => ({
+            symbol: leg.symbol,
+            side,
+            kind: isCall ? "call" : "put",
+            strike: leg.strike,
+            ratio: 1,
+            entryPrice: leg.avgEntryPrice,
+            currentPrice: leg.currentPrice
+          });
           out.push({
             type: isCall ? "call_spread" : "put_spread",
+            legs: [legOf(s, "short"), legOf(l, "long")],
             ticker: s.ticker,
             expiry: s.expiry,
             expiryFormatted: s.expiryFormatted,
@@ -169,6 +179,10 @@ export function pairSpreads(positions, activities) {
           qty: units,
           putRatio,
           callRatio,
+          legs: [
+            ...p.legs.map((l) => ({ ...l, ratio: putRatio })),
+            ...c.legs.map((l) => ({ ...l, ratio: callRatio }))
+          ],
           shortEntryPrice: putRatio * p.shortEntryPrice + callRatio * c.shortEntryPrice,
           longEntryPrice: putRatio * p.longEntryPrice + callRatio * c.longEntryPrice,
           shortCurrentPrice: putRatio * p.shortCurrentPrice + callRatio * c.shortCurrentPrice,

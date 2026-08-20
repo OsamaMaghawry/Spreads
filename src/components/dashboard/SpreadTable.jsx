@@ -1,10 +1,17 @@
+import { useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import SpreadStructure from "./SpreadStructure";
+import LegRows from "./LegRows";
 
 const th = "px-2.5 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
 const td = "px-2.5 py-2.5 whitespace-nowrap tabular-nums";
 
-export default function SpreadTable({ spreads, onClose }) {
+const COL_COUNT = 23;
+
+export default function SpreadTable({ spreads, accountId, onClose }) {
+  const [expanded, setExpanded] = useState({});
+  const toggle = (key) => setExpanded((e) => ({ ...e, [key]: !e[key] }));
   const totals = spreads.reduce(
     (a, s) => ({
       totalCredit: a.totalCredit + (s.totalCredit || 0),
@@ -21,6 +28,7 @@ export default function SpreadTable({ spreads, onClose }) {
       <table className="w-full text-sm text-slate-700">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-left">
+            <th className={`${th} w-8`}></th>
             <th className={th}>Ticker</th>
             <th className={th}>Structure</th>
             <th className={th}>Entry</th>
@@ -48,13 +56,25 @@ export default function SpreadTable({ spreads, onClose }) {
           </tr>
         </thead>
         <tbody>
-          {spreads.map((s, i) => (
+          {spreads.map((s, i) => {
+            const key = `${s.shortSymbol}_${s.longSymbol}_${i}`;
+            const isOpen = !!expanded[key];
+            return [
             <tr
-              key={`${s.shortSymbol}_${s.longSymbol}_${i}`}
+              key={key}
               className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${
                 s.openOrders?.length > 0 ? "bg-amber-50" : ""
               }`}
             >
+              <td className={`${td} pr-0`}>
+                <button
+                  onClick={() => toggle(key)}
+                  title={isOpen ? "Hide individual legs" : "Show individual legs"}
+                  className="p-1 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-200/70 transition-colors"
+                >
+                  <ChevronRight className={`w-4 h-4 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                </button>
+              </td>
               <td className={`${td} font-semibold text-slate-900`}>
                 {s.ticker}
                 {s.type === "iron_condor" && (
@@ -144,10 +164,20 @@ export default function SpreadTable({ spreads, onClose }) {
                   Close
                 </button>
               </td>
-            </tr>
-          ))}
+            </tr>,
+            isOpen ? (
+              <LegRows
+                key={`${key}_legs`}
+                spread={{ ...s, accountId }}
+                colSpan={COL_COUNT}
+                onCloseLeg={(leg) => onClose({ ...s, presetLegSymbol: leg.symbol })}
+              />
+            ) : null
+            ];
+          })}
           {spreads.length > 0 && (
             <tr className="bg-slate-50 font-semibold text-slate-900">
+              <td className={td}></td>
               <td className={`${td} text-[11px] uppercase tracking-wider text-slate-500`}>Totals</td>
               <td className={td} colSpan={12}></td>
               <td className={`${td} text-right`}>{fmtMoney(totals.totalCredit)}</td>

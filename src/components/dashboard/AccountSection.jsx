@@ -49,7 +49,11 @@ export default function AccountSection({ account, onCloseSpread }) {
       ) : account.spreads.length === 0 ? (
         <div className="px-5 py-6 text-sm text-slate-500">No open put credit spreads in this account.</div>
       ) : (
-        <SpreadTable spreads={account.spreads} onClose={(spread) => onCloseSpread(account, spread)} />
+        <SpreadTable
+          spreads={account.spreads}
+          accountId={account.id}
+          onClose={(spread) => onCloseSpread(account, spread)}
+        />
       )}
     </section>
   );

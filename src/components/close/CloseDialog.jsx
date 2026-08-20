@@ -28,8 +28,8 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   useEffect(() => {
     setQty(spread.qty);
     setOpenOrders(spread.openOrders || []);
-    setMode("whole");
-    setSelected([]);
+    setMode(spread.presetLegSymbol ? "legs" : "whole");
+    setSelected(spread.presetLegSymbol ? [spread.presetLegSymbol] : []);
   }, [spread]);
 
   useEffect(() => {
