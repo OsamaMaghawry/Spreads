@@ -8,7 +8,7 @@ import OrderLog from "./OrderLog";
 import OpenOrdersPanel from "./OpenOrdersPanel";
 import ConfirmSubmit from "@/components/common/ConfirmSubmit";
 import LegPicker from "./LegPicker";
-import { spreadLegs } from "@/lib/spreadLegs";
+import { spreadLegs, legLabel } from "@/lib/spreadLegs";
 
 export default function CloseDialog({ account, spread, onClose, onDone }) {
   const [qty, setQty] = useState(1);
@@ -158,7 +158,9 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
 
             <div className="flex gap-3">
               <div className="flex-1">
-                <label className="text-xs text-slate-500 block mb-1.5">Quantity (max {spread.qty})</label>
+                <label className="text-xs text-slate-500 block mb-1.5">
+                  {mode === "legs" ? "Units to close" : "Quantity"} (max {spread.qty})
+                </label>
                 <input type="number" min={1} max={spread.qty} value={qty}
                   onChange={(e) => setQty(Math.max(1, Math.min(spread.qty, parseInt(e.target.value) || 1)))}
                   className={inputCls} />
@@ -175,6 +177,16 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                 </div>
               </div>
             </div>
+
+            {customLegs && (
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Closes{" "}
+                {customLegs
+                  .map((l) => `${qty * (l.ratio || 1)} contract${qty * (l.ratio || 1) > 1 ? "s" : ""} of ${legLabel(l)}`)
+                  .join(", ")}
+                .
+              </p>
+            )}
 
             <p className="text-xs text-slate-500 leading-relaxed">
               {orderType === "limit"
