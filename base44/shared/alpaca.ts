@@ -205,6 +205,31 @@ export async function getSpreadQuote(account, shortSymbol, longSymbol, callShort
   };
 }
 
+// Quote for an arbitrary set of closing legs.
+// Each leg: { symbol, ratio, action: 'buy_to_close' | 'sell_to_close' }.
+// Result is the net debit per unit (negative = net credit received).
+export async function getLegsQuote(account, legs) {
+  const syms = legs.map((l) => l.symbol);
+  const url = `https://data.alpaca.markets/v1beta1/options/quotes/latest?symbols=${syms.join(",")}`;
+  const data = await alpacaFetch(url, account);
+  const quotes = (data && data.quotes) || {};
+  if (syms.some((sym) => !quotes[sym])) return null;
+  let askDebit = 0;
+  let bidDebit = 0;
+  legs.forEach((l) => {
+    const q = quotes[l.symbol];
+    const r = l.ratio || 1;
+    if (l.action === "sell_to_close") {
+      askDebit -= r * (q.bp || 0);
+      bidDebit -= r * (q.ap || 0);
+    } else {
+      askDebit += r * (q.ap || 0);
+      bidDebit += r * (q.bp || 0);
+    }
+  });
+  return { askDebit, bidDebit, midDebit: (askDebit + bidDebit) / 2 };
+}
+
 export async function loadAccount(base44, accountId) {
   const account = await base44.asServiceRole.entities.TradingAccount.get(accountId);
   if (!account) throw new Error("Trading account not found");

@@ -7,8 +7,9 @@ export default async function(req) {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { accountId, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, putRatio, callRatio, qty, orderType, limitPrice } = await req.json();
-    if (!accountId || !shortSymbol || !longSymbol || !qty || !orderType) {
+    const { accountId, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, putRatio, callRatio, qty, orderType, limitPrice, legs } = await req.json();
+    const customLegs = Array.isArray(legs) && legs.length > 0 ? legs : null;
+    if (!accountId || !qty || !orderType || (!customLegs && (!shortSymbol || !longSymbol))) {
       return Response.json({ error: 'Missing required parameters' }, { status: 400 });
     }
     if (orderType === 'limit' && (limitPrice === undefined || limitPrice === null)) {
@@ -16,6 +17,50 @@ export default async function(req) {
     }
 
     const account = await loadAccount(base44, accountId);
+
+    // Closing a specific subset of legs (or a single leg) rather than the whole structure.
+    if (customLegs) {
+      const clientId = `APP_CLOSE_${orderType.toUpperCase()}_${Date.now()}`;
+      let legBody;
+      if (customLegs.length === 1) {
+        const l = customLegs[0];
+        const isBuy = (l.action || 'buy_to_close') === 'buy_to_close';
+        legBody = {
+          symbol: l.symbol,
+          qty: String(qty * (l.ratio || 1)),
+          side: isBuy ? 'buy' : 'sell',
+          position_intent: isBuy ? 'buy_to_close' : 'sell_to_close',
+          type: orderType,
+          time_in_force: 'day',
+          client_order_id: clientId
+        };
+      } else {
+        legBody = {
+          order_class: 'mleg',
+          qty: String(qty),
+          type: orderType,
+          time_in_force: 'day',
+          client_order_id: clientId,
+          legs: customLegs.map((l) => {
+            const isBuy = (l.action || 'buy_to_close') === 'buy_to_close';
+            return {
+              symbol: l.symbol,
+              ratio_qty: String(l.ratio || 1),
+              side: isBuy ? 'buy' : 'sell',
+              position_intent: isBuy ? 'buy_to_close' : 'sell_to_close'
+            };
+          })
+        };
+      }
+      if (orderType === 'limit') {
+        legBody.limit_price = String(Math.round(limitPrice * 100) / 100);
+      }
+      const legOrder = await alpacaFetch(`${tradingBase(account)}/orders`, account, {
+        method: 'POST',
+        body: JSON.stringify(legBody)
+      });
+      return Response.json({ orderId: legOrder.id, status: legOrder.status });
+    }
 
     const body = {
       order_class: 'mleg',

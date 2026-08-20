@@ -7,45 +7,69 @@ import useCloseOrder, { getLastDebit } from "./useCloseOrder";
 import OrderLog from "./OrderLog";
 import OpenOrdersPanel from "./OpenOrdersPanel";
 import ConfirmSubmit from "@/components/common/ConfirmSubmit";
+import LegPicker from "./LegPicker";
+import { spreadLegs } from "@/lib/spreadLegs";
 
 export default function CloseDialog({ account, spread, onClose, onDone }) {
   const [qty, setQty] = useState(1);
   const [orderType, setOrderType] = useState("limit");
   const [quote, setQuote] = useState(null);
   const [quoteLoading, setQuoteLoading] = useState(true);
+  const [mode, setMode] = useState("whole"); // whole | legs
+  const [selected, setSelected] = useState([]);
   const [openOrders, setOpenOrders] = useState(spread.openOrders || []);
   const { phase, log, run, stop, reset } = useCloseOrder();
+
+  const allLegs = spreadLegs(spread);
+  const pickedLegs = allLegs.filter((l) => selected.includes(l.symbol));
+  const customLegs = mode === "legs" && pickedLegs.length > 0 ? pickedLegs : null;
+  const legSig = customLegs ? customLegs.map((l) => l.symbol).join(",") : "";
 
   useEffect(() => {
     setQty(spread.qty);
     setOpenOrders(spread.openOrders || []);
+    setMode("whole");
+    setSelected([]);
+  }, [spread]);
+
+  useEffect(() => {
+    if (mode === "legs" && !customLegs) {
+      setQuote(null);
+      setQuoteLoading(false);
+      return;
+    }
     setQuote(null);
     setQuoteLoading(true);
     base44.functions
       .invoke("spreadQuote", {
         accountId: account.id,
-        shortSymbol: spread.shortSymbol,
-        longSymbol: spread.longSymbol,
-        callShortSymbol: spread.callShortSymbol,
-        callLongSymbol: spread.callLongSymbol,
-        putRatio: spread.putRatio || 1,
-        callRatio: spread.callRatio || 1
+        ...(customLegs
+          ? { legs: customLegs.map((l) => ({ symbol: l.symbol, ratio: l.ratio, action: l.action })) }
+          : {
+              shortSymbol: spread.shortSymbol,
+              longSymbol: spread.longSymbol,
+              callShortSymbol: spread.callShortSymbol,
+              callLongSymbol: spread.callLongSymbol,
+              putRatio: spread.putRatio || 1,
+              callRatio: spread.callRatio || 1
+            })
       })
       .then((res) => setQuote(res.data))
       .catch(() => setQuote(null))
       .finally(() => setQuoteLoading(false));
-  }, [account.id, spread]);
+  }, [account.id, spread, mode, legSig]);
 
   const midDebit = quote?.midDebit ?? 0;
   const plPerContract = (spread.netCredit - midDebit) * 100;
   const unit = spread.type === "iron_condor" ? "condor" : "contract";
   // Resume from the highest price already attempted — either this session's memory
   // or the last limit price Alpaca has on record for this spread.
-  const attempts = [getLastDebit(account.id, spread), quote?.lastAttemptDebit].filter(
+  const attempts = [getLastDebit(account.id, spread, customLegs), quote?.lastAttemptDebit].filter(
     (v) => typeof v === "number" && isFinite(v)
   );
   const lastDebit = attempts.length ? Math.max(...attempts) : null;
-  const startDebit = Math.max(lastDebit ?? 0, quote ? midDebit : 0.3);
+  const baseDebit = quote ? midDebit : 0.3;
+  const startDebit = lastDebit !== null ? Math.max(lastDebit, baseDebit) : baseDebit;
 
   const handleClose = () => {
     if (phase === "working") return;
@@ -78,9 +102,45 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
             {openOrders.length > 0 && (
               <OpenOrdersPanel accountId={account.id} orders={openOrders} onChange={setOpenOrders} />
             )}
+            <div>
+              <label className="text-xs text-slate-500 block mb-1.5">What to close</label>
+              <div className="flex rounded-lg overflow-hidden border border-slate-300">
+                {[["whole", "Whole position"], ["legs", "Individual legs"]].map(([m, l]) => (
+                  <button key={m} onClick={() => setMode(m)}
+                    className={`flex-1 py-2 text-sm transition-colors ${mode === m ? "bg-emerald-100 text-emerald-700 font-medium" : "bg-white text-slate-500 hover:text-slate-900"}`}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {mode === "legs" && (
+              <LegPicker
+                legs={allLegs}
+                selected={selected}
+                units={qty}
+                onToggle={(sym) =>
+                  setSelected((s) => (s.includes(sym) ? s.filter((x) => x !== sym) : [...s, sym]))
+                }
+              />
+            )}
+
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm">
-              {quoteLoading ? (
+              {mode === "legs" && !customLegs ? (
+                <span className="text-slate-500">Pick at least one leg to close.</span>
+              ) : quoteLoading ? (
                 <div className="flex items-center gap-2 text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Fetching live quote…</div>
+              ) : quote && customLegs ? (
+                <div className="grid grid-cols-2 gap-y-1.5 tabular-nums">
+                  <span className="text-slate-500">{midDebit >= 0 ? "Mid debit to close" : "Mid credit to close"}</span>
+                  <span className="text-right">{fmtMoney(Math.abs(midDebit))}</span>
+                  <span className="text-slate-500">Bid / Ask</span>
+                  <span className="text-right">{fmtMoney(quote.bidDebit)} / {fmtMoney(quote.askDebit)}</span>
+                  <span className="text-slate-500">Estimated cash for {qty} unit{qty > 1 ? "s" : ""}</span>
+                  <span className={`text-right font-semibold ${midDebit <= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                    {fmtMoney(-midDebit * qty * 100)}
+                  </span>
+                </div>
               ) : quote ? (
                 <div className="grid grid-cols-2 gap-y-1.5 tabular-nums">
                   <span className="text-slate-500">Entry credit / {unit}</span><span className="text-right">{fmtMoney(spread.netCredit)}</span>
@@ -129,11 +189,17 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
               label={
                 openOrders.length > 0
                   ? "Cancel the open order first"
-                  : `Close ${qty} ${unit}${qty > 1 ? "s" : ""} (${orderType})`
+                  : customLegs
+                    ? `Close ${customLegs.length} selected leg${customLegs.length > 1 ? "s" : ""} (${orderType})`
+                    : mode === "legs"
+                      ? "Select legs to close"
+                      : `Close ${qty} ${unit}${qty > 1 ? "s" : ""} (${orderType})`
               }
-              summary={`${orderType === "limit" ? `Limit order starting at ${fmtMoney(startDebit)} debit` : "Market order at the current best price"} · close ${qty} ${spread.ticker} ${unit}${qty > 1 ? "s" : ""} on ${account.name}.`}
-              onConfirm={() => run({ accountId: account.id, spread, qty, orderType, startDebit })}
-              disabled={openOrders.length > 0}
+              summary={`${orderType === "limit" ? `Limit order starting at ${fmtMoney(startDebit)}` : "Market order at the current best price"} · close ${
+                customLegs ? `${customLegs.length} leg${customLegs.length > 1 ? "s" : ""} of` : ""
+              } ${qty} ${spread.ticker} ${unit}${qty > 1 ? "s" : ""} on ${account.name}.`}
+              onConfirm={() => run({ accountId: account.id, spread, qty, orderType, startDebit, legs: customLegs })}
+              disabled={openOrders.length > 0 || (mode === "legs" && !customLegs)}
             />
           </div>
         ) : (
