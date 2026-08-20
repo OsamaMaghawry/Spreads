@@ -5,6 +5,16 @@ import { AlertTriangle } from "lucide-react";
 export default function AccountSection({ account, onCloseSpread }) {
   const stats = [
     { label: "Equity", value: fmtMoney(account.equity) },
+    {
+      label: "Equity at Exp",
+      value: account.equityAtExp != null ? fmtMoney(account.equityAtExp) : "—",
+      tone:
+        account.equityAtExp > account.equity
+          ? "text-emerald-600"
+          : account.equityAtExp < account.equity
+            ? "text-rose-600"
+            : ""
+    },
     { label: "Cash", value: fmtMoney(account.cash) },
     { label: "Options BP", value: fmtMoney(account.optionsBuyingPower) },
     { label: "Risk / Equity", value: fmtPct(account.riskPct) },

@@ -121,6 +121,9 @@ async function syncOne(account) {
       type: account.is_paper ? 'Paper' : 'Live',
       ok: true,
       equity,
+      // Equity if the market froze now, time value vanished and every spread
+      // settled at intrinsic value: swap mark-to-market P/L for expiration P/L.
+      equityAtExp: equity - totals.pl + totals.expirationPL,
       cash: info ? parseFloat(info.cash) : 0,
       buyingPower: info ? parseFloat(info.buying_power) : 0,
       optionsBuyingPower: info ? parseFloat(info.options_buying_power || info.buying_power) : 0,
