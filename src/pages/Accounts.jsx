@@ -3,11 +3,13 @@ import { supabase } from "@/lib/supabaseClient";
 import { Plus, Pencil, Trash2, KeyRound, Link2 } from "lucide-react";
 import AccountForm from "@/components/accounts/AccountForm";
 import { startAlpacaOAuth } from "@/lib/alpacaOAuth";
+import AlpacaConnectConsent from "@/components/accounts/AlpacaConnectConsent";
 
 export default function Accounts() {
   const [accounts, setAccounts] = useState(null);
   const [editing, setEditing] = useState(null); // null | "new" | account
   const [deleting, setDeleting] = useState(null);
+  const [connectEnv, setConnectEnv] = useState(null); // null | "paper" | "live"
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.from("trading_accounts").select("*").order("created_at", { ascending: false });
@@ -45,13 +47,13 @@ export default function Accounts() {
         </div>
         <div className="ml-auto flex items-center gap-2">
           <button
-            onClick={() => startAlpacaOAuth(true)}
+            onClick={() => setConnectEnv("paper")}
             className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 text-sm hover:bg-sky-100 transition-colors"
           >
             <Link2 className="w-4 h-4" /> Connect Alpaca (Paper)
           </button>
           <button
-            onClick={() => startAlpacaOAuth(false)}
+            onClick={() => setConnectEnv("live")}
             className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm hover:bg-emerald-100 transition-colors"
           >
             <Link2 className="w-4 h-4" /> Connect Alpaca (Live)
@@ -117,6 +119,14 @@ export default function Accounts() {
           account={editing === "new" ? null : editing}
           onSave={save}
           onCancel={() => setEditing(null)}
+        />
+      )}
+
+      {connectEnv && (
+        <AlpacaConnectConsent
+          isPaper={connectEnv === "paper"}
+          onCancel={() => setConnectEnv(null)}
+          onContinue={() => startAlpacaOAuth(connectEnv === "paper")}
         />
       )}
     </div>
