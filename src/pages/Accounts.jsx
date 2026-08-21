@@ -9,7 +9,7 @@ export default function Accounts() {
   const [accounts, setAccounts] = useState(null);
   const [editing, setEditing] = useState(null); // null | "new" | account
   const [deleting, setDeleting] = useState(null);
-  const [connectEnv, setConnectEnv] = useState(null); // null | "paper" | "live"
+  const [connecting, setConnecting] = useState(false);
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.from("trading_accounts").select("*").order("created_at", { ascending: false });
@@ -47,16 +47,10 @@ export default function Accounts() {
         </div>
         <div className="ml-auto flex items-center gap-2">
           <button
-            onClick={() => setConnectEnv("paper")}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 text-sm hover:bg-sky-100 transition-colors"
-          >
-            <Link2 className="w-4 h-4" /> Connect Alpaca (Paper)
-          </button>
-          <button
-            onClick={() => setConnectEnv("live")}
+            onClick={() => setConnecting(true)}
             className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm hover:bg-emerald-100 transition-colors"
           >
-            <Link2 className="w-4 h-4" /> Connect Alpaca (Live)
+            <Link2 className="w-4 h-4" /> Connect Alpaca
           </button>
           <button
             onClick={() => setEditing("new")}
@@ -122,11 +116,10 @@ export default function Accounts() {
         />
       )}
 
-      {connectEnv && (
+      {connecting && (
         <AlpacaConnectConsent
-          isPaper={connectEnv === "paper"}
-          onCancel={() => setConnectEnv(null)}
-          onContinue={() => startAlpacaOAuth(connectEnv === "paper")}
+          onCancel={() => setConnecting(false)}
+          onContinue={() => startAlpacaOAuth()}
         />
       )}
     </div>

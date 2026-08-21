@@ -1,13 +1,32 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 
+// The user picks which account (live or paper) to authorize on Alpaca's own
+// consent page, so we don't know which one we got back — probe both trading
+// API bases with the token and see which one accepts it.
+async function detectAccount(accessToken: string) {
+  for (const [isPaper, base] of [
+    [false, "https://api.alpaca.markets/v2"],
+    [true, "https://paper-api.alpaca.markets/v2"]
+  ] as const) {
+    const res = await fetch(`${base}/account`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    }).catch(() => null);
+    if (res && res.ok) {
+      const account = await res.json();
+      return { isPaper, accountNumber: account.account_number };
+    }
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const user = await requireUser(req);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-    const { code, redirectUri, isPaper, accountName } = await req.json();
+    const { code, redirectUri } = await req.json();
     if (!code || !redirectUri) {
       return jsonResponse({ error: "code and redirectUri are required" }, 400);
     }
@@ -39,13 +58,18 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "No access_token in Alpaca response" }, 502);
     }
 
+    const detected = await detectAccount(accessToken);
+    if (!detected) {
+      return jsonResponse({ error: "Connected to Alpaca, but couldn't read the authorized account" }, 502);
+    }
+
     const admin = adminClient();
     const { data, error } = await admin
       .from("trading_accounts")
       .insert({
         user_id: user.id,
-        name: accountName || (isPaper ? "Alpaca (Paper)" : "Alpaca (Live)"),
-        is_paper: !!isPaper,
+        name: `Alpaca ${detected.isPaper ? "Paper" : "Live"} (${detected.accountNumber})`,
+        is_paper: detected.isPaper,
         oauth_access_token: accessToken
       })
       .select()

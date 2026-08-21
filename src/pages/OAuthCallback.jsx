@@ -20,9 +20,7 @@ export default function OAuthCallback() {
       const state = searchParams.get("state");
       const oauthError = searchParams.get("error");
       const savedState = sessionStorage.getItem("alpaca_oauth_state");
-      const isPaper = sessionStorage.getItem("alpaca_oauth_is_paper") === "true";
       sessionStorage.removeItem("alpaca_oauth_state");
-      sessionStorage.removeItem("alpaca_oauth_is_paper");
 
       if (oauthError) {
         setStatus("error");
@@ -37,8 +35,7 @@ export default function OAuthCallback() {
 
       const res = await invokeFunction("alpacaOAuthCallback", {
         code,
-        redirectUri: getOAuthRedirectUri(),
-        isPaper
+        redirectUri: getOAuthRedirectUri()
       });
       if (res.data?.error) {
         setStatus("error");

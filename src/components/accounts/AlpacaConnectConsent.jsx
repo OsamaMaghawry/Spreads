@@ -3,7 +3,7 @@ import { ShieldAlert } from "lucide-react";
 
 // Alpaca requires this exact disclosure to be shown to the user at the moment
 // they authorize the OAuth connection, before they're redirected to Alpaca.
-export default function AlpacaConnectConsent({ isPaper, onCancel, onContinue }) {
+export default function AlpacaConnectConsent({ onCancel, onContinue }) {
   return (
     <Dialog open onOpenChange={(o) => !o && onCancel()}>
       <DialogContent className="bg-white border-slate-200 text-slate-700 sm:max-w-md">
@@ -25,8 +25,8 @@ export default function AlpacaConnectConsent({ isPaper, onCancel, onContinue }) 
             .
           </div>
           <p className="text-xs text-slate-500">
-            You'll be redirected to Alpaca to sign in and authorize this connection for your {isPaper ? "paper" : "live"}{" "}
-            account. DeltaMint never sees your Alpaca password.
+            You'll be redirected to Alpaca to sign in, choose which account (live or paper) to connect, and authorize
+            DeltaMint. DeltaMint never sees your Alpaca password.
           </p>
           <div className="flex gap-2">
             <button
