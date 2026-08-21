@@ -1,13 +1,10 @@
-import { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
 import { fmtMoney } from "@/lib/format";
 import { Loader2 } from "lucide-react";
 import { spreadLegs } from "@/lib/spreadLegs";
+import useLegQuotes from "./useLegQuotes";
 
 // Per-leg detail shown beneath an expanded spread row.
 export default function LegRows({ spread, colSpan, onCloseLeg }) {
-  const [quotes, setQuotes] = useState(null);
-  const [loading, setLoading] = useState(true);
   // Prefer the backend-paired legs; fall back to deriving them from the spread's
   // symbols so the row always expands.
   const legs = (spread.legs && spread.legs.length ? spread.legs : spreadLegs(spread)).map((l) => ({
@@ -16,27 +13,7 @@ export default function LegRows({ spread, colSpan, onCloseLeg }) {
     currentPrice: l.currentPrice ?? (l.side === "short" ? spread.shortCurrentPrice : spread.longCurrentPrice)
   }));
 
-  useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    Promise.all(
-      legs.map((l) =>
-        base44.functions
-          .invoke("spreadQuote", {
-            accountId: spread.accountId,
-            legs: [{ symbol: l.symbol, ratio: 1, action: "buy_to_close" }]
-          })
-          .then((res) => [l.symbol, res.data])
-          .catch(() => [l.symbol, null])
-      )
-    ).then((pairs) => {
-      if (!alive) return;
-      setQuotes(Object.fromEntries(pairs));
-      setLoading(false);
-    });
-    return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spread.accountId, legs.map((l) => l.symbol).join(",")]);
+  const { quotes, loading } = useLegQuotes(spread.accountId, legs);
 
   if (legs.length === 0) return null;
 

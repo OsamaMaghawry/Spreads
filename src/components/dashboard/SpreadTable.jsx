@@ -5,7 +5,7 @@ import SpreadStructure from "./SpreadStructure";
 import LegRows from "./LegRows";
 
 const th = "px-2.5 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
-const td = "px-2.5 py-2.5 whitespace-nowrap tabular-nums";
+const td = "px-2.5 py-4 whitespace-nowrap tabular-nums";
 
 const COL_COUNT = 23;
 
