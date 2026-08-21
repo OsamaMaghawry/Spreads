@@ -44,7 +44,12 @@ async function syncOne(account) {
     const tickers = [...new Set(spreads.map((s: any) => s.ticker))];
     const prices = {};
     if (tickers.length > 0) {
-      const snap = await alpacaFetch(`https://data.alpaca.markets/v2/stocks/snapshots?symbols=${tickers.join(",")}`, account).catch(() => null);
+      const snap = await alpacaFetch(`https://data.alpaca.markets/v2/stocks/snapshots?symbols=${tickers.join(",")}`, account)
+        .catch((e) => {
+          console.error("snapshots fetch failed", account.id, tickers.join(","), e?.message || e);
+          return null;
+        });
+      if (snap) console.log("snapshots response", account.id, JSON.stringify(snap).slice(0, 1000));
       tickers.forEach((t: any) => {
         const d = snap ? snap[t] : null;
         prices[t] = (d && d.latestTrade && d.latestTrade.p) || (d && d.dailyBar && d.dailyBar.c) || 0;

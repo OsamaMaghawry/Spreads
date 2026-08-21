@@ -1,45 +1,46 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { CandlestickChart, LayoutDashboard, KeyRound, LogOut, Radar } from "lucide-react";
+import { LayoutDashboard, KeyRound, LogOut, Radar } from "lucide-react";
+import Wordmark from "@/components/brand/Wordmark";
 
 export default function Layout() {
   const { pathname } = useLocation();
   const { logout } = useAuth();
+  const links = [
+    { to: "/", label: "dashboard", Icon: LayoutDashboard },
+    { to: "/screener", label: "screener", Icon: Radar },
+    { to: "/accounts", label: "accounts", Icon: KeyRound }
+  ];
   const linkCls = (active) =>
-    `flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm transition-colors ${
-      active ? "bg-slate-900/[0.06] text-slate-900 font-medium" : "text-slate-500 hover:text-slate-900 hover:bg-slate-900/[0.04]"
+    `flex items-center gap-2 rounded-[6px] px-3 py-1.5 text-[13px] transition-colors ${
+      active
+        ? "bg-dm-accent/[0.08] text-dm-accent font-medium"
+        : "text-dm-sub hover:text-dm-accent hover:bg-dm-accent/[0.04]"
     }`;
 
   return (
-    <div className="min-h-screen bg-[#F5F7FA] text-slate-700">
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
-          <div className="flex items-center gap-2.5 mr-4">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center">
-              <CandlestickChart className="w-4 h-4 text-emerald-600" />
-            </div>
-            <span className="font-semibold tracking-tight text-slate-900">Spread Deck</span>
-          </div>
+    <div className="min-h-screen bg-dm-bg font-body text-dm-text">
+      <header className="sticky top-0 z-40 border-b border-dm-line bg-dm-panel">
+        <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-4 px-5 sm:px-10">
+          <Link to="/" className="mr-4">
+            <Wordmark size={24} textClass="text-[15px]" />
+          </Link>
           <nav className="flex items-center gap-1">
-            <Link to="/" className={linkCls(pathname === "/")}>
-              <LayoutDashboard className="w-4 h-4" /> <span className="hidden sm:inline">Dashboard</span>
-            </Link>
-            <Link to="/screener" className={linkCls(pathname === "/screener")}>
-              <Radar className="w-4 h-4" /> <span className="hidden sm:inline">Screener</span>
-            </Link>
-            <Link to="/accounts" className={linkCls(pathname === "/accounts")}>
-              <KeyRound className="w-4 h-4" /> <span className="hidden sm:inline">Accounts</span>
-            </Link>
+            {links.map(({ to, label, Icon }) => (
+              <Link key={to} to={to} className={linkCls(pathname === to)}>
+                <Icon className="h-4 w-4" /> <span className="hidden sm:inline">{label}</span>
+              </Link>
+            ))}
           </nav>
           <button
             onClick={logout}
-            className="ml-auto flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 transition-colors"
+            className="ml-auto flex items-center gap-2 text-[13px] text-dm-sub transition-colors hover:text-dm-accent"
           >
-            <LogOut className="w-4 h-4" /> <span className="hidden sm:inline">Log out</span>
+            <LogOut className="h-4 w-4" /> <span className="hidden sm:inline">log_out</span>
           </button>
         </div>
       </header>
-      <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6">
+      <main className="mx-auto max-w-[1400px] px-5 py-7 sm:px-10">
         <Outlet />
       </main>
     </div>
