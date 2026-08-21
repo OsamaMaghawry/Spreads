@@ -1,155 +1,175 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DeltaMint — Automated Credit Spread Trading</title>
-  <meta name="description" content="DeltaMint scans, prices, and manages credit spread trades across your brokerage accounts." />
-  <style>
-    :root {
-      --background: 0 0% 100%;
-      --foreground: 0 0% 3.9%;
-      --muted-foreground: 0 0% 45.1%;
-      --border: 0 0% 89.8%;
-      --primary: 0 0% 9%;
-      --primary-foreground: 0 0% 98%;
-      --accent: 217.2 91.2% 59.8%;
-      --radius: 0.5rem;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --background: 0 0% 3.9%;
-        --foreground: 0 0% 98%;
-        --muted-foreground: 0 0% 63.9%;
-        --border: 0 0% 14.9%;
-        --primary: 0 0% 98%;
-        --primary-foreground: 0 0% 9%;
-      }
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: hsl(var(--background));
-      color: hsl(var(--foreground));
-      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
-      line-height: 1.5;
-    }
-    .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 24px 0;
-      border-bottom: 1px solid hsl(var(--border));
-    }
-    .logo { font-weight: 700; font-size: 1.25rem; letter-spacing: -0.02em; }
-    .logo span { color: hsl(var(--accent)); }
-    nav a {
-      color: hsl(var(--foreground));
-      text-decoration: none;
-      margin-left: 24px;
-      font-size: 0.9rem;
-      font-weight: 500;
-    }
-    nav a.cta {
-      background: hsl(var(--primary));
-      color: hsl(var(--primary-foreground));
-      padding: 8px 16px;
-      border-radius: var(--radius);
-    }
-    .hero {
-      padding: 96px 0 80px;
-      text-align: center;
-    }
-    .hero h1 {
-      font-size: clamp(2.25rem, 5vw, 3.5rem);
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      margin: 0 0 20px;
-    }
-    .hero p {
-      font-size: 1.15rem;
-      color: hsl(var(--muted-foreground));
-      max-width: 640px;
-      margin: 0 auto 36px;
-    }
-    .hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-    .btn {
-      display: inline-block;
-      padding: 12px 28px;
-      border-radius: var(--radius);
-      font-weight: 600;
-      text-decoration: none;
-      font-size: 0.95rem;
-    }
-    .btn-primary { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
-    .btn-secondary { border: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); }
-    .features {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 24px;
-      padding: 40px 0 96px;
-    }
-    .feature {
-      border: 1px solid hsl(var(--border));
-      border-radius: calc(var(--radius) + 4px);
-      padding: 28px;
-    }
-    .feature h3 { margin: 0 0 8px; font-size: 1.05rem; }
-    .feature p { margin: 0; color: hsl(var(--muted-foreground)); font-size: 0.95rem; }
-    footer {
-      border-top: 1px solid hsl(var(--border));
-      padding: 24px 0;
-      color: hsl(var(--muted-foreground));
-      font-size: 0.85rem;
-      text-align: center;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DeltaMint — Alpaca-connected options desk</title>
+<meta name="description" content="Delta-filtered screening, multi-leg order routing, and position tracking for put spreads, call spreads, and iron condors — across every Alpaca account you connect." />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --dm-bg: #F6F5FB;
+    --dm-panel: #FFFFFF;
+    --dm-line: #E1DEF2;
+    --dm-accent: #534AB7;
+    --dm-accent-dim: #7F77DD;
+    --dm-accent-bright: #3C3489;
+    --dm-mint: #3FA672;
+    --dm-text: #201B3A;
+    --dm-sub: #6A6294;
+    --dm-positive: #0F6E56;
+    --dm-negative: #993C1D;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+    background: var(--dm-bg);
+    color: var(--dm-text);
+  }
+  a { color: inherit; }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 22px 56px;
+    border-bottom: 1px solid var(--dm-line);
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand svg { display: block; }
+  .brand span { font-size: 16px; font-weight: 500; letter-spacing: .02em; }
+  .brand span b { color: var(--dm-mint); font-weight: 600; }
+  nav { display: flex; align-items: center; flex-wrap: wrap; }
+  nav a { margin-left: 28px; font-size: 13px; color: var(--dm-sub); text-decoration: none; }
+  .cta { padding: 8px 16px; border: 1px solid var(--dm-accent-dim); border-radius: 6px; color: var(--dm-accent); font-size: 13px; }
+  .hero {
+    padding: 56px 56px 40px;
+    display: grid;
+    grid-template-columns: 0.95fr 1.05fr;
+    gap: 40px;
+  }
+  .eyebrow { font-size: 10px; color: var(--dm-accent-dim); letter-spacing: .1em; text-transform: uppercase; margin-bottom: 16px; }
+  h1 { font-size: 38px; font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; color: var(--dm-text); }
+  h1 span { color: var(--dm-accent); }
+  .lead { margin-top: 18px; font-size: 14px; line-height: 1.75; color: var(--dm-sub); max-width: 420px; }
+  .actions { margin-top: 28px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn-primary {
+    background: var(--dm-accent);
+    color: #FFFFFF;
+    padding: 11px 18px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .btn-secondary {
+    border: 1px solid var(--dm-line);
+    color: var(--dm-text);
+    padding: 11px 18px;
+    border-radius: 6px;
+    font-size: 13px;
+    text-decoration: none;
+  }
+  .term { background: var(--dm-panel); border: 1px solid var(--dm-line); border-radius: 8px; overflow: hidden; }
+  .term-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--dm-line); font-size: 11px; color: var(--dm-sub); }
+  .term-head i { width: 8px; height: 8px; border-radius: 50%; background: var(--dm-line); display: inline-block; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; padding: 10px 14px; color: var(--dm-sub); font-weight: 400; border-bottom: 1px solid var(--dm-line); font-size: 11px; }
+  td { padding: 9px 14px; border-bottom: 1px solid var(--dm-line); }
+  tr:last-child td { border-bottom: none; }
+  .pos { color: var(--dm-positive); }
+  .neg { color: var(--dm-negative); }
+  .amt { color: var(--dm-accent-bright); }
+  section { padding: 52px 56px; border-top: 1px solid var(--dm-line); }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--dm-line); margin-top: 32px; }
+  .cell { background: var(--dm-bg); padding: 26px; }
+  .cell .tag { font-size: 11px; color: var(--dm-accent-dim); margin-bottom: 10px; }
+  .cell h3 { font-size: 15px; font-weight: 500; margin-bottom: 8px; color: var(--dm-text); }
+  .cell p { font-size: 13px; color: var(--dm-sub); line-height: 1.65; }
+  h2 { font-size: 20px; font-weight: 500; color: var(--dm-text); }
+  .stats { display: flex; border: 1px solid var(--dm-line); border-radius: 8px; margin-top: 32px; flex-wrap: wrap; }
+  .stats > div { flex: 1; min-width: 140px; padding: 22px; border-right: 1px solid var(--dm-line); }
+  .stats > div:last-child { border-right: none; }
+  .stats .v { font-size: 22px; color: var(--dm-accent); font-weight: 600; }
+  .stats .l { font-size: 11px; color: var(--dm-sub); margin-top: 6px; }
+  footer {
+    padding: 32px 56px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--dm-sub);
+    border-top: 1px solid var(--dm-line);
+  }
+  @media (max-width: 860px) {
+    header, section, footer { padding-left: 24px; padding-right: 24px; }
+    .hero { grid-template-columns: 1fr; padding-left: 24px; padding-right: 24px; }
+    h1 { font-size: 30px; }
+  }
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <div class="logo">Delta<span>Mint</span></div>
-      <nav>
-        <a href="https://dashboard.deltamint.app/login">Log in</a>
-        <a class="cta" href="https://dashboard.deltamint.app/register">Get started</a>
-      </nav>
-    </header>
 
-    <section class="hero">
-      <h1>Trade credit spreads,<br />without the busywork.</h1>
-      <p>
-        DeltaMint scans the market for high-probability setups, prices them against your
-        broker in real time, and tracks every trade from open to close — across all your accounts.
-      </p>
-      <div class="hero-actions">
-        <a class="btn btn-primary" href="https://dashboard.deltamint.app/register">Get started free</a>
-        <a class="btn btn-secondary" href="https://dashboard.deltamint.app/login">Log in</a>
-      </div>
-    </section>
-
-    <section class="features">
-      <div class="feature">
-        <h3>Market screener</h3>
-        <p>Continuously scans for credit spread candidates that match your strategy and risk criteria.</p>
-      </div>
-      <div class="feature">
-        <h3>One-click execution</h3>
-        <p>Review the setup, confirm, and send the order straight to your connected brokerage account.</p>
-      </div>
-      <div class="feature">
-        <h3>Multi-account dashboard</h3>
-        <p>See open positions, capture rate, and P/L across every account in one place.</p>
-      </div>
-      <div class="feature">
-        <h3>Performance analysis</h3>
-        <p>Break down results by strategy, account, and time period to see what's actually working.</p>
-      </div>
-    </section>
+<header>
+  <div class="brand">
+    <svg width="26" height="26" viewBox="0 0 26 26"><path d="M13 8 L21 22 L5 22 Z" fill="none" stroke="#534AB7" stroke-width="1.6"/><path d="M10 15 Q13 10.5 10 6 Q7 10.5 10 15 Z" fill="#3FA672"/><path d="M16 15 Q19 10.5 16 6 Q13 10.5 16 15 Z" fill="#3FA672"/></svg>
+    <span>delta<b>mint</b></span>
   </div>
-  <footer>
-    <div class="wrap">© <span id="year"></span> DeltaMint</div>
-  </footer>
-  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+  <nav>
+    <a href="https://dashboard.deltamint.app/login">screener</a>
+    <a href="https://dashboard.deltamint.app/login">accounts</a>
+    <a href="https://dashboard.deltamint.app/login">analysis</a>
+    <a class="cta" href="https://dashboard.deltamint.app/register">connect_alpaca</a>
+  </nav>
+</header>
+
+<div class="hero">
+  <div>
+    <div class="eyebrow">// alpaca-connected desk</div>
+    <h1>Run spreads and condors like<br><span>your own desk</span></h1>
+    <p class="lead">Delta-filtered screening, multi-leg order routing, and position tracking for put spreads, call spreads, and iron condors — across every Alpaca account you connect.</p>
+    <div class="actions">
+      <a class="btn-primary" href="https://dashboard.deltamint.app/register">connect_alpaca</a>
+      <a class="btn-secondary" href="https://dashboard.deltamint.app/login">log_in</a>
+    </div>
+  </div>
+  <div class="term">
+    <div class="term-head"><i></i><i></i><i></i>&nbsp;positions.log</div>
+    <table>
+      <tr><th>structure</th><th>legs</th><th>width</th><th>dte</th><th>pnl</th></tr>
+      <tr><td>SPY put spread</td><td>2</td><td>$5</td><td>21</td><td class="amt pos">+$184</td></tr>
+      <tr><td>AAPL iron condor</td><td>4</td><td>$5</td><td>14</td><td class="amt pos">+$96</td></tr>
+      <tr><td>MSFT call spread</td><td>2</td><td>$5</td><td>7</td><td class="amt pos">+$41</td></tr>
+      <tr><td>NVDA iron condor</td><td>4</td><td>$10</td><td>28</td><td class="amt neg">-$22</td></tr>
+    </table>
+  </div>
+</div>
+
+<section>
+  <h2>&gt; the stack</h2>
+  <div class="grid3">
+    <div class="cell"><div class="tag">01_screen</div><h3>Filter by delta and width</h3><p>Set delta band, spread width, and DTE once. The scanner returns put spreads, call spreads, and iron condors across your watchlist, ranked by return on risk.</p></div>
+    <div class="cell"><div class="tag">02_execute</div><h3>Route multi-leg orders</h3><p>Every leg of the spread routes together to your connected Alpaca account. Preview the structure before it fires.</p></div>
+    <div class="cell"><div class="tag">03_manage</div><h3>Close from one dialog</h3><p>Close full spreads, check open orders, and pull the order log across every connected account without switching screens.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>&gt; this_month</h2>
+  <div class="stats">
+    <div><div class="v">$1,240</div><div class="l">premium captured</div></div>
+    <div><div class="v">87%</div><div class="l">avg probability of profit</div></div>
+    <div><div class="v">$5</div><div class="l">avg spread width</div></div>
+    <div><div class="v">6</div><div class="l">open positions</div></div>
+  </div>
+</section>
+
+<footer>
+  <span>delta<b style="color:#3FA672;">mint</b></span>
+  <span>not a broker-dealer. trading involves risk, including loss of principal.</span>
+</footer>
+
 </body>
 </html>
