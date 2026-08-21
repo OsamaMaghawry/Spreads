@@ -1,10 +1,23 @@
+import { useState } from "react";
 import { fmtMoney, fmtPct } from "@/lib/format";
 import SpreadTable from "./SpreadTable";
-import { AlertTriangle } from "lucide-react";
+import PositionCards from "./PositionCards";
+import { AlertTriangle, LayoutGrid, Table2 } from "lucide-react";
 
 export default function AccountSection({ account, onCloseSpread }) {
+  const [view, setView] = useState("simple");
   const stats = [
     { label: "Equity", value: fmtMoney(account.equity) },
+    {
+      label: "Equity at Exp",
+      value: account.equityAtExp != null ? fmtMoney(account.equityAtExp) : "—",
+      tone:
+        account.equityAtExp > account.equity
+          ? "text-emerald-600"
+          : account.equityAtExp < account.equity
+            ? "text-rose-600"
+            : ""
+    },
     { label: "Cash", value: fmtMoney(account.cash) },
     { label: "Options BP", value: fmtMoney(account.optionsBuyingPower) },
     { label: "Risk / Equity", value: fmtPct(account.riskPct) },
@@ -29,6 +42,23 @@ export default function AccountSection({ account, onCloseSpread }) {
           >
             {account.type}
           </span>
+          <div className="ml-1 flex items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-100 p-0.5">
+            {[
+              { id: "simple", label: "Simple", Icon: LayoutGrid },
+              { id: "detailed", label: "Detailed", Icon: Table2 }
+            ].map(({ id, label, Icon }) => (
+              <button
+                key={id}
+                onClick={() => setView(id)}
+                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                  view === id ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-2 ml-auto">
           {stats.map((s) => (
@@ -48,8 +78,18 @@ export default function AccountSection({ account, onCloseSpread }) {
         </div>
       ) : account.spreads.length === 0 ? (
         <div className="px-5 py-6 text-sm text-slate-500">No open put credit spreads in this account.</div>
+      ) : view === "simple" ? (
+        <PositionCards
+          spreads={account.spreads}
+          accountId={account.id}
+          onClose={(spread) => onCloseSpread(account, spread)}
+        />
       ) : (
-        <SpreadTable spreads={account.spreads} onClose={(spread) => onCloseSpread(account, spread)} />
+        <SpreadTable
+          spreads={account.spreads}
+          accountId={account.id}
+          onClose={(spread) => onCloseSpread(account, spread)}
+        />
       )}
     </section>
   );

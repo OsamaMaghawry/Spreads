@@ -6,44 +6,74 @@ import { Loader2 } from "lucide-react";
 import useCloseOrder, { getLastDebit } from "./useCloseOrder";
 import OrderLog from "./OrderLog";
 import OpenOrdersPanel from "./OpenOrdersPanel";
+import ConfirmSubmit from "@/components/common/ConfirmSubmit";
+import LegPicker from "./LegPicker";
+import { spreadLegs, legLabel } from "@/lib/spreadLegs";
+import LegsQuoteSummary from "./LegsQuoteSummary";
 
 export default function CloseDialog({ account, spread, onClose, onDone }) {
   const [qty, setQty] = useState(1);
   const [orderType, setOrderType] = useState("limit");
   const [quote, setQuote] = useState(null);
   const [quoteLoading, setQuoteLoading] = useState(true);
+  const [mode, setMode] = useState("whole"); // whole | legs
+  const [selected, setSelected] = useState([]);
   const [openOrders, setOpenOrders] = useState(spread.openOrders || []);
   const { phase, log, run, stop, reset } = useCloseOrder();
+
+  const allLegs = spreadLegs(spread);
+  const pickedLegs = allLegs.filter((l) => selected.includes(l.symbol));
+  const customLegs = mode === "legs" && pickedLegs.length > 0 ? pickedLegs : null;
+  const legSig = customLegs ? customLegs.map((l) => l.symbol).join(",") : "";
 
   useEffect(() => {
     setQty(spread.qty);
     setOpenOrders(spread.openOrders || []);
+    setMode(spread.presetLegSymbol ? "legs" : "whole");
+    setSelected(spread.presetLegSymbol ? [spread.presetLegSymbol] : []);
+  }, [spread]);
+
+  useEffect(() => {
+    if (mode === "legs" && !customLegs) {
+      setQuote(null);
+      setQuoteLoading(false);
+      return;
+    }
+    // Guard the mount race: a whole-structure fetch in flight must not overwrite
+    // the per-leg quote once the dialog switches into legs mode.
+    let active = true;
     setQuote(null);
     setQuoteLoading(true);
     invokeFunction("spreadQuote", {
       accountId: account.id,
-      shortSymbol: spread.shortSymbol,
-      longSymbol: spread.longSymbol,
-      callShortSymbol: spread.callShortSymbol,
-      callLongSymbol: spread.callLongSymbol,
-      putRatio: spread.putRatio || 1,
-      callRatio: spread.callRatio || 1
+      ...(customLegs
+        ? { legs: customLegs.map((l) => ({ symbol: l.symbol, ratio: l.ratio, action: l.action })) }
+        : {
+            shortSymbol: spread.shortSymbol,
+            longSymbol: spread.longSymbol,
+            callShortSymbol: spread.callShortSymbol,
+            callLongSymbol: spread.callLongSymbol,
+            putRatio: spread.putRatio || 1,
+            callRatio: spread.callRatio || 1
+          })
     })
-      .then((res) => setQuote(res.data?.error ? null : res.data))
-      .catch(() => setQuote(null))
-      .finally(() => setQuoteLoading(false));
-  }, [account.id, spread]);
+      .then((res) => active && setQuote(res.data?.error ? null : res.data))
+      .catch(() => active && setQuote(null))
+      .finally(() => active && setQuoteLoading(false));
+    return () => { active = false; };
+  }, [account.id, spread, mode, legSig]);
 
   const midDebit = quote?.midDebit ?? 0;
   const plPerContract = (spread.netCredit - midDebit) * 100;
   const unit = spread.type === "iron_condor" ? "condor" : "contract";
   // Resume from the highest price already attempted — either this session's memory
   // or the last limit price Alpaca has on record for this spread.
-  const attempts = [getLastDebit(account.id, spread), quote?.lastAttemptDebit].filter(
+  const attempts = [getLastDebit(account.id, spread, customLegs), quote?.lastAttemptDebit].filter(
     (v) => typeof v === "number" && isFinite(v)
   );
   const lastDebit = attempts.length ? Math.max(...attempts) : null;
-  const startDebit = Math.max(lastDebit ?? 0, quote ? midDebit : 0.3);
+  const baseDebit = quote ? midDebit : 0.3;
+  const startDebit = lastDebit !== null ? Math.max(lastDebit, baseDebit) : baseDebit;
 
   const handleClose = () => {
     if (phase === "working") return;
@@ -76,9 +106,36 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
             {openOrders.length > 0 && (
               <OpenOrdersPanel accountId={account.id} orders={openOrders} onChange={setOpenOrders} />
             )}
+            <div>
+              <label className="text-xs text-slate-500 block mb-1.5">What to close</label>
+              <div className="flex rounded-lg overflow-hidden border border-slate-300">
+                {[["whole", "Whole position"], ["legs", "Individual legs"]].map(([m, l]) => (
+                  <button key={m} onClick={() => setMode(m)}
+                    className={`flex-1 py-2 text-sm transition-colors ${mode === m ? "bg-emerald-100 text-emerald-700 font-medium" : "bg-white text-slate-500 hover:text-slate-900"}`}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {mode === "legs" && (
+              <LegPicker
+                legs={allLegs}
+                selected={selected}
+                units={qty}
+                onToggle={(sym) =>
+                  setSelected((s) => (s.includes(sym) ? s.filter((x) => x !== sym) : [...s, sym]))
+                }
+              />
+            )}
+
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm">
-              {quoteLoading ? (
+              {mode === "legs" && !customLegs ? (
+                <span className="text-slate-500">Pick at least one leg to close.</span>
+              ) : quoteLoading ? (
                 <div className="flex items-center gap-2 text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Fetching live quote…</div>
+              ) : quote && customLegs ? (
+                <LegsQuoteSummary quote={quote} qty={qty} />
               ) : quote ? (
                 <div className="grid grid-cols-2 gap-y-1.5 tabular-nums">
                   <span className="text-slate-500">Entry credit / {unit}</span><span className="text-right">{fmtMoney(spread.netCredit)}</span>
@@ -96,7 +153,9 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
 
             <div className="flex gap-3">
               <div className="flex-1">
-                <label className="text-xs text-slate-500 block mb-1.5">Quantity (max {spread.qty})</label>
+                <label className="text-xs text-slate-500 block mb-1.5">
+                  {mode === "legs" ? "Units to close" : "Quantity"} (max {spread.qty})
+                </label>
                 <input type="number" min={1} max={spread.qty} value={qty}
                   onChange={(e) => setQty(Math.max(1, Math.min(spread.qty, parseInt(e.target.value) || 1)))}
                   className={inputCls} />
@@ -114,23 +173,43 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
               </div>
             </div>
 
+            {customLegs && (
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Closes{" "}
+                {customLegs
+                  .map((l) => `${qty * (l.ratio || 1)} contract${qty * (l.ratio || 1) > 1 ? "s" : ""} of ${legLabel(l)}`)
+                  .join(", ")}
+                .
+              </p>
+            )}
+
             <p className="text-xs text-slate-500 leading-relaxed">
               {orderType === "limit"
                 ? lastDebit !== null
                   ? `Limit resumes from your last attempt at ${fmtMoney(lastDebit)} — starting at ${fmtMoney(startDebit)} and walking up $0.02 every 30s (max 10 steps, 10 min timeout).`
-                  : `Limit starts at the mid debit (${fmtMoney(midDebit)}) and walks up $0.02 every 30s (max 10 steps, 10 min timeout).`
+                  : midDebit < 0
+                    ? `Limit starts at the mid credit (${fmtMoney(Math.abs(midDebit))}) and concedes $0.02 every 30s (max 10 steps, 10 min timeout).`
+                    : `Limit starts at the mid debit (${fmtMoney(midDebit)}) and walks up $0.02 every 30s (max 10 steps, 10 min timeout).`
                 : "Market executes immediately at the current best price — may slip toward the ask."}
             </p>
 
-            <button
-              onClick={() => run({ accountId: account.id, spread, qty, orderType, startDebit })}
-              disabled={openOrders.length > 0}
-              className="w-full py-2.5 rounded-lg bg-rose-500/90 hover:bg-rose-500 text-white font-medium text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {openOrders.length > 0
-                ? "Cancel the open order first"
-                : `Confirm — close ${qty} ${unit}${qty > 1 ? "s" : ""} (${orderType})`}
-            </button>
+            <ConfirmSubmit
+              tone="rose"
+              label={
+                openOrders.length > 0
+                  ? "Cancel the open order first"
+                  : customLegs
+                    ? `Close ${customLegs.length} selected leg${customLegs.length > 1 ? "s" : ""} (${orderType})`
+                    : mode === "legs"
+                      ? "Select legs to close"
+                      : `Close ${qty} ${unit}${qty > 1 ? "s" : ""} (${orderType})`
+              }
+              summary={`${orderType === "limit" ? `Limit order starting at ${fmtMoney(startDebit)}` : "Market order at the current best price"} · close ${
+                customLegs ? `${customLegs.length} leg${customLegs.length > 1 ? "s" : ""} of` : ""
+              } ${qty} ${spread.ticker} ${unit}${qty > 1 ? "s" : ""} on ${account.name}.`}
+              onConfirm={() => run({ accountId: account.id, spread, qty, orderType, startDebit, legs: customLegs })}
+              disabled={openOrders.length > 0 || (mode === "legs" && !customLegs)}
+            />
           </div>
         ) : (
           <div className="space-y-4">
