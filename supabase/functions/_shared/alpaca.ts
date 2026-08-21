@@ -5,6 +5,12 @@ export function tradingBase(account) {
 }
 
 export function authHeaders(account) {
+  if (account.oauth_access_token) {
+    return {
+      Authorization: `Bearer ${account.oauth_access_token}`,
+      "Content-Type": "application/json"
+    };
+  }
   return {
     "APCA-API-KEY-ID": account.api_key,
     "APCA-API-SECRET-KEY": account.api_secret,
