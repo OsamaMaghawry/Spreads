@@ -1,6 +1,6 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
-import { getSpreadQuote, loadAccount, tradingBase, alpacaFetch } from "../_shared/alpaca.ts";
+import { getSpreadQuote, getLegsQuote, loadAccount, tradingBase, alpacaFetch } from "../_shared/alpaca.ts";
 
 // Highest limit price we already tried on this spread (from Alpaca order history),
 // so a retry can resume from where the last attempt left off.
@@ -28,16 +28,21 @@ Deno.serve(async (req) => {
     const user = await requireUser(req);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-    const { accountId, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, putRatio, callRatio } = await req.json();
-    if (!accountId || !shortSymbol || !longSymbol) {
+    const { accountId, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, putRatio, callRatio, legs } = await req.json();
+    const customLegs = Array.isArray(legs) && legs.length > 0 ? legs : null;
+    if (!accountId || (!customLegs && (!shortSymbol || !longSymbol))) {
       return jsonResponse({ error: "accountId, shortSymbol and longSymbol are required" }, 400);
     }
 
     const admin = adminClient();
     const account = await loadAccount(admin, accountId, user.id);
-    const symbols = [shortSymbol, longSymbol, callShortSymbol, callLongSymbol].filter(Boolean);
+    const symbols = customLegs
+      ? customLegs.map((l) => l.symbol)
+      : [shortSymbol, longSymbol, callShortSymbol, callLongSymbol].filter(Boolean);
     const [quote, lastDebit] = await Promise.all([
-      getSpreadQuote(account, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, putRatio || 1, callRatio || 1),
+      customLegs
+        ? getLegsQuote(account, customLegs)
+        : getSpreadQuote(account, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, putRatio || 1, callRatio || 1),
       lastAttemptDebit(account, symbols)
     ]);
     if (!quote) return jsonResponse({ error: "No quote available for these contracts" }, 404);

@@ -1,18 +1,26 @@
+import { useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import SpreadStructure from "./SpreadStructure";
+import LegRows from "./LegRows";
 
 const th = "px-2.5 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
-const td = "px-2.5 py-2.5 whitespace-nowrap tabular-nums";
+const td = "px-2.5 py-4 whitespace-nowrap tabular-nums";
 
-export default function SpreadTable({ spreads, onClose }) {
+const COL_COUNT = 21;
+
+export default function SpreadTable({ spreads, accountId, onClose }) {
+  const [expanded, setExpanded] = useState({});
+  const toggle = (key) => setExpanded((e) => ({ ...e, [key]: !e[key] }));
   const totals = spreads.reduce(
     (a, s) => ({
       totalCredit: a.totalCredit + (s.totalCredit || 0),
       maxRisk: a.maxRisk + (s.maxRisk || 0),
       closeCost: a.closeCost + (s.closeCost || 0),
-      unrealizedPL: a.unrealizedPL + (s.unrealizedPL || 0)
+      unrealizedPL: a.unrealizedPL + (s.unrealizedPL || 0),
+      expirationPL: a.expirationPL + (s.expirationPL || 0)
     }),
-    { totalCredit: 0, maxRisk: 0, closeCost: 0, unrealizedPL: 0 }
+    { totalCredit: 0, maxRisk: 0, closeCost: 0, unrealizedPL: 0, expirationPL: 0 }
   );
 
   return (
@@ -20,14 +28,13 @@ export default function SpreadTable({ spreads, onClose }) {
       <table className="w-full text-sm text-slate-700">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-left">
+            <th className={`${th} w-8`}></th>
             <th className={th}>Ticker</th>
             <th className={th}>Structure</th>
             <th className={th}>Entry</th>
             <th className={th}>Expiry</th>
             <th className={`${th} text-right`}>Stock</th>
             <th className={`${th} text-center`}>Money</th>
-            <th className={`${th} text-right`}>Short Strike</th>
-            <th className={`${th} text-right`}>Long Strike</th>
             <th className={`${th} text-right`}>Qty</th>
             <th className={`${th} text-right`}>Short Entry</th>
             <th className={`${th} text-right`}>Long Entry</th>
@@ -40,17 +47,32 @@ export default function SpreadTable({ spreads, onClose }) {
             <th className={`${th} text-right`}>Cur Long</th>
             <th className={`${th} text-right`}>Close Cost</th>
             <th className={`${th} text-right`}>Unrlzd P/L</th>
+            <th className={`${th} text-right`} title="P/L if every position expired right now at the current stock price (intrinsic value only, no time premium)">
+              Exp P/L
+            </th>
             <th className={th}></th>
           </tr>
         </thead>
         <tbody>
-          {spreads.map((s, i) => (
+          {spreads.map((s, i) => {
+            const key = `${s.shortSymbol}_${s.longSymbol}_${i}`;
+            const isOpen = !!expanded[key];
+            return [
             <tr
-              key={`${s.shortSymbol}_${s.longSymbol}_${i}`}
+              key={key}
               className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${
                 s.openOrders?.length > 0 ? "bg-amber-50" : ""
               }`}
             >
+              <td className={`${td} pr-0`}>
+                <button
+                  onClick={() => toggle(key)}
+                  title={isOpen ? "Hide individual legs" : "Show individual legs"}
+                  className="p-1 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-200/70 transition-colors"
+                >
+                  <ChevronRight className={`w-4 h-4 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                </button>
+              </td>
               <td className={`${td} font-semibold text-slate-900`}>
                 {s.ticker}
                 {s.type === "iron_condor" && (
@@ -82,36 +104,6 @@ export default function SpreadTable({ spreads, onClose }) {
                   {s.moneyness}
                 </span>
               </td>
-              <td className={`${td} text-right`}>
-                {s.type === "iron_condor" ? (
-                  <span>
-                    <span className="text-slate-400">{s.putRatio}× </span>
-                    {fmtMoney(s.shortStrike)}
-                    <span className="text-slate-400"> P</span>
-                    <span className="text-slate-300 mx-1">·</span>
-                    <span className="text-slate-400">{s.callRatio}× </span>
-                    {fmtMoney(s.callShortStrike)}
-                    <span className="text-slate-400"> C</span>
-                  </span>
-                ) : (
-                  fmtMoney(s.shortStrike)
-                )}
-              </td>
-              <td className={`${td} text-right`}>
-                {s.type === "iron_condor" ? (
-                  <span>
-                    <span className="text-slate-400">{s.putRatio}× </span>
-                    {fmtMoney(s.longStrike)}
-                    <span className="text-slate-400"> P</span>
-                    <span className="text-slate-300 mx-1">·</span>
-                    <span className="text-slate-400">{s.callRatio}× </span>
-                    {fmtMoney(s.callLongStrike)}
-                    <span className="text-slate-400"> C</span>
-                  </span>
-                ) : (
-                  fmtMoney(s.longStrike)
-                )}
-              </td>
               <td className={`${td} text-right`}>{s.qty}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.shortEntryPrice)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.longEntryPrice)}</td>
@@ -129,6 +121,9 @@ export default function SpreadTable({ spreads, onClose }) {
               <td className={`${td} text-right font-semibold ${s.unrealizedPL > 0 ? "text-emerald-600" : s.unrealizedPL < 0 ? "text-rose-600" : ""}`}>
                 {fmtMoney(s.unrealizedPL)}
               </td>
+              <td className={`${td} text-right font-semibold ${s.expirationPL > 0 ? "text-emerald-600" : s.expirationPL < 0 ? "text-rose-600" : ""}`}>
+                {fmtMoney(s.expirationPL)}
+              </td>
               <td className={td}>
                 <button
                   onClick={() => onClose(s)}
@@ -137,18 +132,31 @@ export default function SpreadTable({ spreads, onClose }) {
                   Close
                 </button>
               </td>
-            </tr>
-          ))}
+            </tr>,
+            isOpen ? (
+              <LegRows
+                key={`${key}_legs`}
+                spread={{ ...s, accountId }}
+                colSpan={COL_COUNT}
+                onCloseLeg={(leg) => onClose({ ...s, presetLegSymbol: leg.symbol })}
+              />
+            ) : null
+            ];
+          })}
           {spreads.length > 0 && (
             <tr className="bg-slate-50 font-semibold text-slate-900">
+              <td className={td}></td>
               <td className={`${td} text-[11px] uppercase tracking-wider text-slate-500`}>Totals</td>
-              <td className={td} colSpan={12}></td>
+              <td className={td} colSpan={10}></td>
               <td className={`${td} text-right`}>{fmtMoney(totals.totalCredit)}</td>
               <td className={`${td} text-right`}>{fmtMoney(totals.maxRisk)}</td>
               <td className={td} colSpan={3}></td>
               <td className={`${td} text-right`}>{fmtMoney(totals.closeCost)}</td>
               <td className={`${td} text-right ${totals.unrealizedPL > 0 ? "text-emerald-600" : totals.unrealizedPL < 0 ? "text-rose-600" : ""}`}>
                 {fmtMoney(totals.unrealizedPL)}
+              </td>
+              <td className={`${td} text-right ${totals.expirationPL > 0 ? "text-emerald-600" : totals.expirationPL < 0 ? "text-rose-600" : ""}`}>
+                {fmtMoney(totals.expirationPL)}
               </td>
               <td className={td}></td>
             </tr>

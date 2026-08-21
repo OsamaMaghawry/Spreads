@@ -7,6 +7,7 @@ import ScanFilters from "./ScanFilters";
 import CandidateList from "./CandidateList";
 import SetupPreview from "./SetupPreview";
 import useScanLoop from "./useScanLoop";
+import ConfirmSubmit from "@/components/common/ConfirmSubmit";
 
 const DEFAULTS = {
   tickers: "SPY, QQQ",
@@ -82,7 +83,7 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
       if (res.data?.error) setError(res.data.error);
       else setResult(res.data);
     } catch (e) {
-      setError(e.message);
+      setError(e.response?.data?.error || e.message);
     } finally {
       setSubmitting(false);
     }
@@ -180,14 +181,12 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
                 : "Market order executes immediately — the credit received may be lower than quoted."}
             </p>
 
-            <button
-              onClick={submit}
-              disabled={submitting}
-              className="w-full py-2.5 rounded-lg bg-emerald-500/90 hover:bg-emerald-500 text-white font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              Submit — open {qty} {isCondor ? "condor" : "spread"}{Number(qty) > 1 ? "s" : ""} ({orderType}) on {setup.ticker}
-            </button>
+            <ConfirmSubmit
+              label={`Submit — open ${qty} ${isCondor ? "condor" : "spread"}${Number(qty) > 1 ? "s" : ""} (${orderType}) on ${setup.ticker}`}
+              summary={`${orderType === "limit" ? "Limit" : "Market"} order · open ${qty} ${setup.ticker} ${isCondor ? "condor" : "spread"}${Number(qty) > 1 ? "s" : ""} for $${setup.credit.toFixed(2)} credit each on ${account.name}.`}
+              onConfirm={submit}
+              submitting={submitting}
+            />
           </>
         )}
 
