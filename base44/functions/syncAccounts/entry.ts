@@ -87,6 +87,9 @@ async function syncOne(account) {
         stockPrice,
         moneyness: stockPrice > 0 && itm ? 'ITM' : 'OTM',
         spreadWidth,
+        // Per-side worst case (used for directional condor aggregation).
+        putSideRisk: (putWidth - netCredit) * s.qty * 100,
+        callSideRisk: (callWidth - netCredit) * s.qty * 100,
         netCredit,
         totalCredit,
         maxRisk,
@@ -112,13 +115,30 @@ async function syncOne(account) {
     const totals = rows.reduce(
       (acc, r) => ({
         credit: acc.credit + r.totalCredit,
-        risk: acc.risk + r.maxRisk,
+        risk: acc.risk,
         closeCost: acc.closeCost + r.closeCost,
         pl: acc.pl + r.unrealizedPL,
         expirationPL: acc.expirationPL + (r.expirationPL || 0)
       }),
       { ...empty }
     );
+
+    // Total max risk: 2-leg spreads sum (a whipsaw can hit both), but iron
+    // condors on the same ticker can only lose on ONE side at expiration, so
+    // each ticker contributes max(put-side, call-side) of its condors.
+    let nonCondorRisk = 0;
+    const condorByTicker = {};
+    rows.forEach((r) => {
+      if (r.type === 'iron_condor') {
+        const t = (condorByTicker[r.ticker] = condorByTicker[r.ticker] || { putSide: 0, callSide: 0 });
+        t.putSide += r.putSideRisk;
+        t.callSide += r.callSideRisk;
+      } else {
+        nonCondorRisk += r.maxRisk;
+      }
+    });
+    totals.risk = nonCondorRisk + Object.values(condorByTicker)
+      .reduce((a, t) => a + Math.max(t.putSide, t.callSide), 0);
 
     const equity = info ? parseFloat(info.equity) : 0;
     return {
