@@ -18,6 +18,7 @@ import AccountDetail from './pages/AccountDetail';
 import AccountHistory from './pages/AccountHistory';
 import AccountAnalysis from './pages/AccountAnalysis';
 import Screener from './pages/Screener';
+import OAuthCallback from './pages/OAuthCallback';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth } = useAuth();
@@ -41,6 +42,7 @@ const AuthenticatedApp = () => {
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/accounts" element={<Accounts />} />
+          <Route path="/oauth/callback" element={<OAuthCallback />} />
           <Route path="/screener" element={<Screener />} />
           <Route path="/account/:id" element={<AccountDetail />} />
           <Route path="/account/:id/history" element={<AccountHistory />} />

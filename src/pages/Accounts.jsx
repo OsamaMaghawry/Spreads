@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Plus, Pencil, Trash2, KeyRound } from "lucide-react";
+import { Plus, Pencil, Trash2, KeyRound, Link2 } from "lucide-react";
 import AccountForm from "@/components/accounts/AccountForm";
+import { startAlpacaOAuth } from "@/lib/alpacaOAuth";
 
 export default function Accounts() {
   const [accounts, setAccounts] = useState(null);
@@ -42,12 +43,26 @@ export default function Accounts() {
           <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Accounts</h1>
           <p className="text-xs text-slate-500 mt-0.5">Alpaca API credentials for the accounts shown on the monitor.</p>
         </div>
-        <button
-          onClick={() => setEditing("new")}
-          className="ml-auto flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm hover:bg-emerald-100 transition-colors"
-        >
-          <Plus className="w-4 h-4" /> Add account
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => startAlpacaOAuth(true)}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 text-sm hover:bg-sky-100 transition-colors"
+          >
+            <Link2 className="w-4 h-4" /> Connect Alpaca (Paper)
+          </button>
+          <button
+            onClick={() => startAlpacaOAuth(false)}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm hover:bg-emerald-100 transition-colors"
+          >
+            <Link2 className="w-4 h-4" /> Connect Alpaca (Live)
+          </button>
+          <button
+            onClick={() => setEditing("new")}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-slate-500 border border-slate-200 text-sm hover:bg-slate-100 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Add manually
+          </button>
+        </div>
       </div>
 
       {accounts === null ? (
@@ -71,13 +86,17 @@ export default function Accounts() {
                   </span>
                 </div>
                 <div className="text-xs text-slate-500 font-mono mt-1 truncate">
-                  Key: {a.api_key.slice(0, 4)}••••{a.api_key.slice(-4)} · Secret: ••••••••
+                  {a.oauth_access_token
+                    ? "Connected via Alpaca OAuth"
+                    : `Key: ${a.api_key.slice(0, 4)}••••${a.api_key.slice(-4)} · Secret: ••••••••`}
                 </div>
               </div>
               <div className="ml-auto flex items-center gap-1.5">
-                <button onClick={() => setEditing(a)} className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors">
-                  <Pencil className="w-4 h-4" />
-                </button>
+                {!a.oauth_access_token && (
+                  <button onClick={() => setEditing(a)} className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors">
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                )}
                 {deleting === a.id ? (
                   <button onClick={() => remove(a)} className="px-3 py-1.5 rounded-lg text-xs bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
                     Confirm delete
