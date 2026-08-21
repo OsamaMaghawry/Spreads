@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { LayoutDashboard, KeyRound, LogOut, Radar } from "lucide-react";
 import Wordmark from "@/components/brand/Wordmark";
+import DisclaimerFooter from "@/components/DisclaimerFooter";
 
 export default function Layout() {
   const { pathname } = useLocation();
@@ -19,7 +20,7 @@ export default function Layout() {
     }`;
 
   return (
-    <div className="min-h-screen bg-dm-bg font-body text-dm-text">
+    <div className="min-h-screen flex flex-col bg-dm-bg font-body text-dm-text">
       <header className="sticky top-0 z-40 border-b border-dm-line bg-dm-panel">
         <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-4 px-5 sm:px-10">
           <Link to="/" className="mr-4">
@@ -40,9 +41,10 @@ export default function Layout() {
           </button>
         </div>
       </header>
-      <main className="mx-auto max-w-[1400px] px-5 py-7 sm:px-10">
+      <main className="mx-auto w-full max-w-[1400px] flex-1 px-5 py-7 sm:px-10">
         <Outlet />
       </main>
+      <DisclaimerFooter />
     </div>
   );
 }
