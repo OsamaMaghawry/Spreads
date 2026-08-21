@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2 } from "lucide-react";
 import SetupPreview from "@/components/open/SetupPreview";
 import ConfirmSubmit from "@/components/common/ConfirmSubmit";
 
