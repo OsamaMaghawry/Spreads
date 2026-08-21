@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -29,9 +31,22 @@
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
-    --font-heading: ui-sans-serif, system-ui, sans-serif;
-    --font-body: ui-sans-serif, system-ui, sans-serif;
-    --font-display: ui-sans-serif, system-ui, sans-serif;
+    --font-heading: 'IBM Plex Mono', ui-monospace, monospace;
+    --font-body: 'IBM Plex Mono', ui-monospace, monospace;
+    --font-display: 'IBM Plex Mono', ui-monospace, monospace;
+    /* DeltaMint brand tokens */
+    --dm-bg: #F6F5FB;
+    --dm-panel: #FFFFFF;
+    --dm-line: #E1DEF2;
+    --dm-accent: #534AB7;
+    --dm-accent-dim: #7F77DD;
+    --dm-accent-bright: #3C3489;
+    --dm-mint: #3FA672;
+    --dm-text: #201B3A;
+    --dm-sub: #6A6294;
+    --dm-positive: #0F6E56;
+    --dm-negative: #993C1D;
+    --dm-warning: #854F0B;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
