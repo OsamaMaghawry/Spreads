@@ -7,7 +7,7 @@ import LegRows from "./LegRows";
 const th = "px-2.5 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
 const td = "px-2.5 py-4 whitespace-nowrap tabular-nums";
 
-const COL_COUNT = 23;
+const COL_COUNT = 21;
 
 export default function SpreadTable({ spreads, accountId, onClose }) {
   const [expanded, setExpanded] = useState({});
@@ -35,8 +35,6 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
             <th className={th}>Expiry</th>
             <th className={`${th} text-right`}>Stock</th>
             <th className={`${th} text-center`}>Money</th>
-            <th className={`${th} text-right`}>Short Strike</th>
-            <th className={`${th} text-right`}>Long Strike</th>
             <th className={`${th} text-right`}>Qty</th>
             <th className={`${th} text-right`}>Short Entry</th>
             <th className={`${th} text-right`}>Long Entry</th>
@@ -106,36 +104,6 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
                   {s.moneyness}
                 </span>
               </td>
-              <td className={`${td} text-right`}>
-                {s.type === "iron_condor" ? (
-                  <span>
-                    <span className="text-slate-400">{s.putRatio}× </span>
-                    {fmtMoney(s.shortStrike)}
-                    <span className="text-slate-400"> P</span>
-                    <span className="text-slate-300 mx-1">·</span>
-                    <span className="text-slate-400">{s.callRatio}× </span>
-                    {fmtMoney(s.callShortStrike)}
-                    <span className="text-slate-400"> C</span>
-                  </span>
-                ) : (
-                  fmtMoney(s.shortStrike)
-                )}
-              </td>
-              <td className={`${td} text-right`}>
-                {s.type === "iron_condor" ? (
-                  <span>
-                    <span className="text-slate-400">{s.putRatio}× </span>
-                    {fmtMoney(s.longStrike)}
-                    <span className="text-slate-400"> P</span>
-                    <span className="text-slate-300 mx-1">·</span>
-                    <span className="text-slate-400">{s.callRatio}× </span>
-                    {fmtMoney(s.callLongStrike)}
-                    <span className="text-slate-400"> C</span>
-                  </span>
-                ) : (
-                  fmtMoney(s.longStrike)
-                )}
-              </td>
               <td className={`${td} text-right`}>{s.qty}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.shortEntryPrice)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.longEntryPrice)}</td>
@@ -179,7 +147,7 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
             <tr className="bg-slate-50 font-semibold text-slate-900">
               <td className={td}></td>
               <td className={`${td} text-[11px] uppercase tracking-wider text-slate-500`}>Totals</td>
-              <td className={td} colSpan={12}></td>
+              <td className={td} colSpan={10}></td>
               <td className={`${td} text-right`}>{fmtMoney(totals.totalCredit)}</td>
               <td className={`${td} text-right`}>{fmtMoney(totals.maxRisk)}</td>
               <td className={td} colSpan={3}></td>
