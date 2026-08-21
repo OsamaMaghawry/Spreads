@@ -21,19 +21,25 @@ Deno.serve(async (req) => {
 
 async function syncOne(account) {
   const base = tradingBase(account);
-  const empty = { credit: 0, risk: 0, closeCost: 0, pl: 0 };
+  const empty = { credit: 0, risk: 0, closeCost: 0, pl: 0, expirationPL: 0 };
   try {
-    const [info, positions, activities, openOrders] = await Promise.all([
+    const [info, positions, activities, openOrders, filledOrders] = await Promise.all([
       alpacaFetch(`${base}/account`, account),
       alpacaFetch(`${base}/positions`, account),
       alpacaFetch(`${base}/account/activities/FILL?page_size=100`, account).catch(() => []),
-      alpacaFetch(`${base}/orders?status=open&nested=true&limit=100`, account).catch(() => [])
+      alpacaFetch(`${base}/orders?status=open&nested=true&limit=100`, account).catch(() => []),
+      alpacaFetch(`${base}/orders?status=closed&nested=true&limit=200&direction=desc`, account).catch(() => [])
     ]);
 
     const openList = Array.isArray(openOrders) ? openOrders : [];
     const orderSymbols = (o: any) => (Array.isArray(o.legs) && o.legs.length ? o.legs.map((l: any) => l.symbol) : [o.symbol]);
 
-    const spreads = pairSpreads(Array.isArray(positions) ? positions : [], Array.isArray(activities) ? activities : []);
+    // Provenance: legs opened by the same multi-leg order form one structure.
+    const spreads = pairSpreads(
+      Array.isArray(positions) ? positions : [],
+      Array.isArray(activities) ? activities : [],
+      (Array.isArray(filledOrders) ? filledOrders : []).filter((o) => o.status === 'filled')
+    );
 
     const tickers = [...new Set(spreads.map((s: any) => s.ticker))];
     const prices = {};
@@ -59,6 +65,21 @@ async function syncOne(account) {
       const totalCredit = netCredit * s.qty * 100;
       const maxRisk = (spreadWidth - netCredit) * s.qty * 100;
       const closeCost = (s.shortCurrentPrice - s.longCurrentPrice) * s.qty * 100;
+      // Expiration scenario: what the spread would settle for if it expired right
+      // now at the current stock price — intrinsic value only, no time premium.
+      const clamp = (v, cap) => Math.min(Math.max(v, 0), cap);
+      let intrinsic = 0;
+      if (stockPrice > 0) {
+        if (!isCall) {
+          intrinsic += clamp(s.shortStrike - stockPrice, s.shortStrike - s.longStrike) * putRatio;
+        }
+        if (isCondor) {
+          intrinsic += clamp(stockPrice - s.callShortStrike, s.callLongStrike - s.callShortStrike) * callRatio;
+        } else if (isCall) {
+          intrinsic += clamp(stockPrice - s.shortStrike, s.longStrike - s.shortStrike);
+        }
+      }
+      const expirationCost = intrinsic * s.qty * 100;
       const itm = isCondor
         ? stockPrice < s.shortStrike || stockPrice > s.callShortStrike
         : isCall
@@ -70,6 +91,9 @@ async function syncOne(account) {
         stockPrice,
         moneyness: stockPrice > 0 && itm ? "ITM" : "OTM",
         spreadWidth,
+        // Per-side worst case (used for directional condor aggregation).
+        putSideRisk: (putWidth - netCredit) * s.qty * 100,
+        callSideRisk: (callWidth - netCredit) * s.qty * 100,
         netCredit,
         totalCredit,
         maxRisk,
@@ -77,6 +101,8 @@ async function syncOne(account) {
         breakEvenHigh: isCondor ? s.callShortStrike + netCredit / callRatio : null,
         closeCost,
         unrealizedPL: totalCredit - closeCost,
+        expirationCost,
+        expirationPL: stockPrice > 0 ? totalCredit - expirationCost : null,
         openOrders: openList
           .filter((o: any) => orderSymbols(o).some((sym: string) => mySymbols.includes(sym)))
           .map((o: any) => ({
@@ -93,12 +119,30 @@ async function syncOne(account) {
     const totals = rows.reduce(
       (acc, r) => ({
         credit: acc.credit + r.totalCredit,
-        risk: acc.risk + r.maxRisk,
+        risk: acc.risk,
         closeCost: acc.closeCost + r.closeCost,
-        pl: acc.pl + r.unrealizedPL
+        pl: acc.pl + r.unrealizedPL,
+        expirationPL: acc.expirationPL + (r.expirationPL || 0)
       }),
       { ...empty }
     );
+
+    // Total max risk: 2-leg spreads sum (a whipsaw can hit both), but iron
+    // condors on the same ticker can only lose on ONE side at expiration, so
+    // each ticker contributes max(put-side, call-side) of its condors.
+    let nonCondorRisk = 0;
+    const condorByTicker = {};
+    rows.forEach((r) => {
+      if (r.type === 'iron_condor') {
+        const t = (condorByTicker[r.ticker] = condorByTicker[r.ticker] || { putSide: 0, callSide: 0 });
+        t.putSide += r.putSideRisk;
+        t.callSide += r.callSideRisk;
+      } else {
+        nonCondorRisk += r.maxRisk;
+      }
+    });
+    totals.risk = nonCondorRisk + Object.values(condorByTicker)
+      .reduce((a, t) => a + Math.max(t.putSide, t.callSide), 0);
 
     const equity = info ? parseFloat(info.equity) : 0;
     return {
@@ -107,6 +151,9 @@ async function syncOne(account) {
       type: account.is_paper ? "Paper" : "Live",
       ok: true,
       equity,
+      // Equity if the market froze now, time value vanished and every spread
+      // settled at intrinsic value: swap mark-to-market P/L for expiration P/L.
+      equityAtExp: equity - totals.pl + totals.expirationPL,
       cash: info ? parseFloat(info.cash) : 0,
       buyingPower: info ? parseFloat(info.buying_power) : 0,
       optionsBuyingPower: info ? parseFloat(info.options_buying_power || info.buying_power) : 0,

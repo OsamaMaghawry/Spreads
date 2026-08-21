@@ -3,6 +3,7 @@ import { invokeFunction } from "@/lib/functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import SetupPreview from "@/components/open/SetupPreview";
+import ConfirmSubmit from "@/components/common/ConfirmSubmit";
 
 const label = "text-xs text-slate-500 block mb-1.5";
 const input = "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500";
@@ -32,7 +33,7 @@ export default function TradeDialog({ setup, accounts, onClose }) {
       if (res.data?.error) setError(res.data.error);
       else setResult(res.data);
     } catch (e) {
-      setError(e.message);
+      setError(e.response?.data?.error || e.message);
     } finally {
       setSubmitting(false);
     }
@@ -78,14 +79,13 @@ export default function TradeDialog({ setup, accounts, onClose }) {
 
             {error && <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">{error}</div>}
 
-            <button
-              onClick={submit}
-              disabled={submitting || !accountId}
-              className="w-full py-2.5 rounded-lg bg-emerald-500/90 hover:bg-emerald-500 text-white font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              Submit — open {qty} {unit}{Number(qty) > 1 ? "s" : ""} ({orderType}) on {account?.name || "…"}
-            </button>
+            <ConfirmSubmit
+              label={`Submit — open ${qty} ${unit}${Number(qty) > 1 ? "s" : ""} (${orderType}) on ${account?.name || "…"}`}
+              summary={`${orderType === "limit" ? "Limit" : "Market"} order · open ${qty} ${setup.ticker} ${unit}${Number(qty) > 1 ? "s" : ""} for $${setup.credit.toFixed(2)} credit each on ${account?.name || ""}.`}
+              onConfirm={submit}
+              submitting={submitting}
+              disabled={!accountId}
+            />
           </>
         )}
 

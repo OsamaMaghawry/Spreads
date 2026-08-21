@@ -8,9 +8,10 @@ Deno.serve(async (req) => {
     const user = await requireUser(req);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-    const { accountId, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, putRatio, callRatio, qty, orderType, limitPrice } =
+    const { accountId, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, putRatio, callRatio, qty, orderType, limitPrice, legs } =
       await req.json();
-    if (!accountId || !shortSymbol || !longSymbol || !qty || !orderType) {
+    const customLegs = Array.isArray(legs) && legs.length > 0 ? legs : null;
+    if (!accountId || !qty || !orderType || (!customLegs && (!shortSymbol || !longSymbol))) {
       return jsonResponse({ error: "Missing required parameters" }, 400);
     }
     if (orderType === "limit" && (limitPrice === undefined || limitPrice === null)) {
@@ -19,6 +20,54 @@ Deno.serve(async (req) => {
 
     const admin = adminClient();
     const account = await loadAccount(admin, accountId, user.id);
+
+    // Closing a specific subset of legs (or a single leg) rather than the whole structure.
+    if (customLegs) {
+      const clientId = `APP_CLOSE_${orderType.toUpperCase()}_${Date.now()}`;
+      let legBody: any;
+      if (customLegs.length === 1) {
+        const l = customLegs[0];
+        const isBuy = (l.action || "buy_to_close") === "buy_to_close";
+        legBody = {
+          symbol: l.symbol,
+          qty: String(qty * (l.ratio || 1)),
+          side: isBuy ? "buy" : "sell",
+          position_intent: isBuy ? "buy_to_close" : "sell_to_close",
+          type: orderType,
+          time_in_force: "day",
+          client_order_id: clientId
+        };
+      } else {
+        legBody = {
+          order_class: "mleg",
+          qty: String(qty),
+          type: orderType,
+          time_in_force: "day",
+          client_order_id: clientId,
+          legs: customLegs.map((l) => {
+            const isBuy = (l.action || "buy_to_close") === "buy_to_close";
+            return {
+              symbol: l.symbol,
+              ratio_qty: String(l.ratio || 1),
+              side: isBuy ? "buy" : "sell",
+              position_intent: isBuy ? "buy_to_close" : "sell_to_close"
+            };
+          })
+        };
+      }
+      if (orderType === "limit") {
+        // Single-leg option orders must carry a positive per-contract limit price
+        // (max paid on a buy, min accepted on a sell). Only multi-leg orders use a
+        // signed net price where negative means a net credit.
+        const price = customLegs.length === 1 ? Math.abs(limitPrice) : limitPrice;
+        legBody.limit_price = String(Math.round(price * 100) / 100);
+      }
+      const legOrder = await alpacaFetch(`${tradingBase(account)}/orders`, account, {
+        method: "POST",
+        body: JSON.stringify(legBody)
+      });
+      return jsonResponse({ orderId: legOrder.id, status: legOrder.status });
+    }
 
     const body: any = {
       order_class: "mleg",
