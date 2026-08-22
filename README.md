@@ -21,7 +21,16 @@ VITE_ALPACA_OAUTH_CLIENT_ID=your-alpaca-oauth-client-id
 
 The Supabase values are on your project's dashboard under Settings → API. `VITE_ALPACA_OAUTH_CLIENT_ID` is the Client ID from your app's page under your [Alpaca broker dashboard](https://broker-app.alpaca.markets) → OAuth Apps.
 
-Vite inlines every `VITE_*` variable into the built JS at build time — it is not read at runtime. If you build for production somewhere other than your local machine (a CI job, `wrangler deploy`, a platform build step), `VITE_ALPACA_OAUTH_CLIENT_ID` must be set in *that* environment before `vite build` runs, or the deployed app will send Alpaca a request with `client_id=undefined` and the OAuth connect flow will fail.
+`.env.local` is only needed to point local development at a different Supabase project. Production values are committed in `.env.production` and used by every `vite build`, so CI and hosting platforms need no environment configuration of their own. Those values are safe to commit because Vite inlines every `VITE_*` variable into the browser bundle — they are public the moment the app ships. Real secrets (the Supabase service role key, `ALPACA_OAUTH_CLIENT_SECRET`) are never `VITE_` variables; they live as Edge Function secrets, described below.
+
+Two consequences of that build-time inlining are worth knowing:
+
+- Changing any `VITE_*` value requires a rebuild. Editing it on a hosting dashboard does nothing to an already-built bundle.
+- A build that cannot resolve one compiles it to a literal `undefined`. `vite build` prints the names it resolved, so check that line first when a deployed build misbehaves:
+
+  ```
+  [build] VITE_* variables visible to this build: VITE_ALPACA_OAUTH_CLIENT_ID, VITE_SUPABASE_ANON_KEY, VITE_SUPABASE_URL
+  ```
 
 ## Run locally
 
