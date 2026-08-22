@@ -3,10 +3,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Switch } from "@/components/ui/switch";
 
 export default function AccountForm({ account, onSave, onCancel }) {
+  // Stored credentials are encrypted and never sent to the browser, so the key
+  // fields always start empty. On an existing account, leaving them empty keeps
+  // whatever is already stored — only a filled-in pair replaces it.
   const [form, setForm] = useState({
     name: account?.name || "",
-    api_key: account?.api_key || "",
-    api_secret: account?.api_secret || "",
+    api_key: "",
+    api_secret: "",
     is_paper: account?.is_paper || false,
     spreads_client_prefix: account?.spreads_client_prefix || "",
     wheel_client_prefix: account?.wheel_client_prefix || ""
@@ -14,7 +17,10 @@ export default function AccountForm({ account, onSave, onCancel }) {
   const [saving, setSaving] = useState(false);
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
-  const valid = form.name.trim() && form.api_key.trim() && form.api_secret.trim();
+  const bothKeysOrNeither =
+    (form.api_key.trim() && form.api_secret.trim()) ||
+    (account && !form.api_key.trim() && !form.api_secret.trim());
+  const valid = form.name.trim() && bothKeysOrNeither;
 
   const submit = async () => {
     if (!valid || saving) return;
@@ -37,12 +43,30 @@ export default function AccountForm({ account, onSave, onCancel }) {
           </div>
           <div>
             <label className="text-xs text-slate-500 block mb-1.5">API Key ID</label>
-            <input value={form.api_key} onChange={set("api_key")} className={inputCls} autoComplete="off" />
+            <input
+              value={form.api_key}
+              onChange={set("api_key")}
+              placeholder={account ? `${account.api_key_hint || "stored"} — leave blank to keep` : ""}
+              className={inputCls}
+              autoComplete="off"
+            />
           </div>
           <div>
             <label className="text-xs text-slate-500 block mb-1.5">API Secret Key</label>
-            <input type="password" value={form.api_secret} onChange={set("api_secret")} className={inputCls} autoComplete="off" />
+            <input
+              type="password"
+              value={form.api_secret}
+              onChange={set("api_secret")}
+              placeholder={account ? "Leave blank to keep the stored secret" : ""}
+              className={inputCls}
+              autoComplete="off"
+            />
           </div>
+          {account && (
+            <p className="text-xs text-slate-500 -mt-1">
+              Stored credentials are encrypted and can't be displayed. Fill in both fields to replace them.
+            </p>
+          )}
           <div className="border-t border-slate-200 pt-4 space-y-3">
             <div className="text-xs font-medium text-slate-700">Strategy client order id prefixes</div>
             <div>

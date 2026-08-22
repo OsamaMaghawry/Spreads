@@ -49,10 +49,26 @@ Apply the schema and deploy the functions with the Supabase CLI:
 ```bash
 supabase link --project-ref your-project-ref
 supabase db push
-supabase functions deploy syncAccounts spreadQuote tradeHistory scanEntries findEntry manageOrder closeSpread openPosition alpacaOAuthCallback
+supabase functions deploy syncAccounts spreadQuote tradeHistory scanEntries findEntry manageOrder closeSpread openPosition alpacaOAuthCallback saveAccount
 ```
 
-Edge functions read `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` from the platform-provided environment — no manual secret configuration is needed for them.
+Edge functions read `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` from the platform-provided environment. Two secrets must be set by hand.
+
+### Credential encryption (required)
+
+Brokerage API keys and OAuth tokens are encrypted with AES-256-GCM before they are stored, by `supabase/functions/_shared/crypto.ts`. The key lives in the function environment and never in the database, so a database dump — or a leaked service role key — yields ciphertext rather than working credentials.
+
+Generate a key and set it before deploying:
+
+```bash
+supabase secrets set CREDENTIAL_ENCRYPTION_KEY="$(openssl rand -base64 32)"
+```
+
+Store a copy somewhere safe. **If this key is lost, stored credentials cannot be decrypted** and every account has to be re-entered or reconnected. Changing it has the same effect, so treat rotation as a deliberate migration rather than a routine change.
+
+The database enforces the other half of this: migration `0004` revokes the credential columns from the `authenticated` role, so a browser can read the account list but not the keys themselves, and all writes go through the `saveAccount` and `alpacaOAuthCallback` functions. Row-level security scopes rows to their owner; these grants scope columns.
+
+Credentials written before this migration remain readable and are re-encrypted the next time the account is saved — open each key-based account and re-enter its key pair once to migrate it, and reconnect OAuth accounts.
 
 ### Alpaca OAuth (Connect)
 

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { invokeFunction } from "@/lib/functions";
+import { SAFE_ACCOUNT_COLUMNS } from "@/lib/accountColumns";
 import { Plus, Pencil, Trash2, KeyRound, Link2 } from "lucide-react";
 import AccountForm from "@/components/accounts/AccountForm";
 import { startAlpacaOAuth } from "@/lib/alpacaOAuth";
@@ -12,21 +14,29 @@ export default function Accounts() {
   const [connecting, setConnecting] = useState(false);
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase.from("trading_accounts").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase
+      .from("trading_accounts")
+      .select(SAFE_ACCOUNT_COLUMNS)
+      .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     setAccounts(data);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
+  // Credentials are encrypted server-side, so writes go through the saveAccount
+  // function rather than straight to the table.
   const save = async (form) => {
-    if (editing === "new") {
-      const { error } = await supabase.from("trading_accounts").insert(form);
-      if (error) throw new Error(error.message);
-    } else {
-      const { error } = await supabase.from("trading_accounts").update(form).eq("id", editing.id);
-      if (error) throw new Error(error.message);
-    }
+    const res = await invokeFunction("saveAccount", {
+      id: editing === "new" ? null : editing.id,
+      name: form.name,
+      apiKey: form.api_key,
+      apiSecret: form.api_secret,
+      isPaper: form.is_paper,
+      spreadsClientPrefix: form.spreads_client_prefix,
+      wheelClientPrefix: form.wheel_client_prefix
+    });
+    if (res.data?.error) throw new Error(res.data.error);
     setEditing(null);
     load();
   };
@@ -82,13 +92,13 @@ export default function Accounts() {
                   </span>
                 </div>
                 <div className="text-xs text-slate-500 font-mono mt-1 truncate">
-                  {a.oauth_access_token
+                  {a.is_oauth
                     ? "Connected via Alpaca OAuth"
-                    : `Key: ${a.api_key.slice(0, 4)}••••${a.api_key.slice(-4)} · Secret: ••••••••`}
+                    : `Key: ${a.api_key_hint || "••••••••"} · Secret: ••••••••`}
                 </div>
               </div>
               <div className="ml-auto flex items-center gap-1.5">
-                {!a.oauth_access_token && (
+                {!a.is_oauth && (
                   <button onClick={() => setEditing(a)} className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors">
                     <Pencil className="w-4 h-4" />
                   </button>

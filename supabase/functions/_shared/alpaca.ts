@@ -1,5 +1,7 @@
 // Shared Alpaca helpers: fetch with retry, OCC parsing, spread pairing, quotes.
 
+import { decryptSecret } from "./crypto.ts";
+
 export function tradingBase(account) {
   return account.is_paper ? "https://paper-api.alpaca.markets/v2" : "https://api.alpaca.markets/v2";
 }
@@ -101,7 +103,15 @@ export async function loadAccount(admin, accountId, userId) {
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new Error("Trading account not found");
-  return data;
+
+  // Credentials are stored encrypted; they exist in plaintext only in this
+  // function's memory, for the duration of this request.
+  return {
+    ...data,
+    api_key: await decryptSecret(data.api_key),
+    api_secret: await decryptSecret(data.api_secret),
+    oauth_access_token: await decryptSecret(data.oauth_access_token)
+  };
 }
 
 // Quote for an arbitrary set of closing legs.

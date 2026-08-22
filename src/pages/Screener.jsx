@@ -7,6 +7,7 @@ import ResultsTable from "@/components/screener/ResultsTable";
 import TradeDialog from "@/components/screener/TradeDialog";
 import useMarketScan from "@/components/screener/useMarketScan";
 import { SP500, TOP50 } from "@/lib/sp500";
+import { SAFE_ACCOUNT_COLUMNS } from "@/lib/accountColumns";
 
 export default function Screener() {
   const [accounts, setAccounts] = useState([]);
@@ -16,7 +17,10 @@ export default function Screener() {
   const { running, progress, candidates, skippedCount, error, start, stop } = useMarketScan();
 
   useEffect(() => {
-    supabase.from("trading_accounts").select("*").then(({ data }) => setAccounts(data || []));
+    supabase
+      .from("trading_accounts")
+      .select(SAFE_ACCOUNT_COLUMNS)
+      .then(({ data }) => setAccounts(data || []));
   }, []);
 
   const isCondor = strategy === "iron_condor";
