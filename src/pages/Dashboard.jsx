@@ -70,7 +70,7 @@ export default function Dashboard() {
       {accounts.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-xl p-12 flex flex-col items-center text-center gap-3">
           <KeyRound className="w-8 h-8 text-slate-400" />
-          <p className="text-slate-500 text-sm max-w-sm">No trading accounts yet. Add your Alpaca API keys to start monitoring positions.</p>
+          <p className="text-slate-500 text-sm max-w-sm">No trading accounts yet. Link a brokerage account to start monitoring positions.</p>
           <Link to="/accounts" className="mt-1 px-4 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm hover:bg-emerald-100 transition-colors">
             Add an account
           </Link>
