@@ -1,6 +1,7 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { tradingBase, alpacaFetch, pairSpreads } from "../_shared/alpaca.ts";
+import { decryptSecret } from "../_shared/crypto.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -12,7 +13,18 @@ Deno.serve(async (req) => {
     const { data: accounts, error } = await admin.from("trading_accounts").select("*").eq("user_id", user.id);
     if (error) throw new Error(error.message);
 
-    const results = await Promise.all((accounts || []).map((a) => syncOne(a)));
+    // This function reads the accounts itself rather than going through
+    // loadAccount, so it has to decrypt the stored credentials the same way.
+    const results = await Promise.all(
+      (accounts || []).map(async (a) =>
+        syncOne({
+          ...a,
+          api_key: await decryptSecret(a.api_key),
+          api_secret: await decryptSecret(a.api_secret),
+          oauth_access_token: await decryptSecret(a.oauth_access_token)
+        })
+      )
+    );
     return jsonResponse({ accounts: results, syncedAt: new Date().toISOString() });
   } catch (error) {
     return jsonResponse({ error: error.message }, 500);

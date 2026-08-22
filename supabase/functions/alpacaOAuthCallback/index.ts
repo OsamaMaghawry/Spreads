@@ -1,5 +1,7 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
+import { SAFE_ACCOUNT_COLUMNS } from "../_shared/accounts.ts";
+import { encryptSecret } from "../_shared/crypto.ts";
 
 // The user picks which account (live or paper) to authorize on Alpaca's own
 // consent page, so we don't know which one we got back — probe both trading
@@ -70,9 +72,9 @@ Deno.serve(async (req) => {
         user_id: user.id,
         name: `Alpaca ${detected.isPaper ? "Paper" : "Live"} (${detected.accountNumber})`,
         is_paper: detected.isPaper,
-        oauth_access_token: accessToken
+        oauth_access_token: await encryptSecret(accessToken)
       })
-      .select()
+      .select(SAFE_ACCOUNT_COLUMNS)
       .single();
     if (error) throw new Error(error.message);
 
