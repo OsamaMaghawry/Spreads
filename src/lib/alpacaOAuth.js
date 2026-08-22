@@ -10,6 +10,17 @@ const CLIENT_ID = import.meta.env.VITE_ALPACA_OAUTH_CLIENT_ID;
 const REDIRECT_URI = `${window.location.origin}/oauth/callback`;
 
 export function startAlpacaOAuth() {
+  // Without this the URLSearchParams below stringifies an undefined CLIENT_ID to
+  // the literal "undefined", and the failure only surfaces on Alpaca's side as a
+  // generic invalid-client error.
+  if (!CLIENT_ID) {
+    throw new Error(
+      'Missing VITE_ALPACA_OAUTH_CLIENT_ID at build time. Set it in the environment that runs ' +
+      '`vite build` — locally in .env.local, on Cloudflare under Settings → Build → Variables ' +
+      'and secrets — then rebuild.'
+    );
+  }
+
   const state = crypto.randomUUID();
   sessionStorage.setItem("alpaca_oauth_state", state);
 
