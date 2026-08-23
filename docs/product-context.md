@@ -100,15 +100,17 @@ against peak *concurrent* collateral rather than the sum of every trade.
 
 Deliberately not built yet — see `docs/deferred-work.md`.
 
-- Encryption key rotation
+- Encryption key rotation — DONE
 - Continuous deployment for edge functions
 - Leaked-password protection
 - Portfolio-cumulative risk at order time
 - Pin risk and short-strike drift alerts
 - Earnings calendar coverage is unverified
+- Contact address on the legal pages
 
 ## Recent work
 
+- 2026-08-23  Rebalance the homepage: income and risk, not risk alone
 - 2026-08-23  Watch the signals that decide whether a browser blocks us
 - 2026-08-23  Reposition around risk, and build the two warnings that back it up
 - 2026-08-23  Replace the invented sweep totals with the app's own readouts
@@ -123,7 +125,6 @@ Deliberately not built yet — see `docs/deferred-work.md`.
 - 2026-08-23  Rebuild the marketing site around what the product actually does
 - 2026-08-23  Note that the deploy workflow is unmerged pending its credential
 - 2026-08-23  Deploy edge functions from CI on push to main
-- 2026-08-23  Record deferred work and the shared-code deploy fan-out
 
 ---
 
@@ -465,9 +466,14 @@ These are not style preferences. They govern what may ship.
 - All traffic is TLS end to end. No production servers exist to patch; the
   runtime is managed.
 
-**Outstanding:** encryption key rotation has no path yet — see
-`docs/deferred-work.md`. Leaked-password protection is disabled in Supabase Auth
-and is a free toggle worth enabling before review.
+- Encryption keys can be rotated without user involvement: a previous-key
+  secret lets in-flight values decrypt while an admin-only maintenance job
+  re-encrypts them under the new key.
+
+**Outstanding:** leaked-password protection is disabled in Supabase Auth and is a
+free toggle worth enabling before review. The legal pages still lack a published
+contact address, which the questionnaire's incident-response question also
+wants.
 
 ### Domain reputation is separate from broker approval
 

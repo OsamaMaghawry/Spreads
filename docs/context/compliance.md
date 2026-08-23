@@ -75,9 +75,14 @@ These are not style preferences. They govern what may ship.
 - All traffic is TLS end to end. No production servers exist to patch; the
   runtime is managed.
 
-**Outstanding:** encryption key rotation has no path yet — see
-`docs/deferred-work.md`. Leaked-password protection is disabled in Supabase Auth
-and is a free toggle worth enabling before review.
+- Encryption keys can be rotated without user involvement: a previous-key
+  secret lets in-flight values decrypt while an admin-only maintenance job
+  re-encrypts them under the new key.
+
+**Outstanding:** leaked-password protection is disabled in Supabase Auth and is a
+free toggle worth enabling before review. The legal pages still lack a published
+contact address, which the questionnaire's incident-response question also
+wants.
 
 ## Domain reputation is separate from broker approval
 
