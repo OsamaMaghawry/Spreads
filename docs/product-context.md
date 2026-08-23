@@ -109,6 +109,7 @@ Deliberately not built yet — see `docs/deferred-work.md`.
 
 ## Recent work
 
+- 2026-08-23  Reposition around risk, and build the two warnings that back it up
 - 2026-08-23  Replace the invented sweep totals with the app's own readouts
 - 2026-08-23  Downgrade candidate construction from edge to plumbing
 - 2026-08-23  Show the screener as what it is: a sweep, not a filter
@@ -123,7 +124,6 @@ Deliberately not built yet — see `docs/deferred-work.md`.
 - 2026-08-23  Deploy edge functions from CI on push to main
 - 2026-08-23  Record deferred work and the shared-code deploy fan-out
 - 2026-08-23  Encrypt legacy credentials server-side instead of per user
-- 2026-08-22  Decrypt credentials in syncAccounts
 
 ---
 
@@ -306,6 +306,11 @@ timer. No screener documented here puts an order control on a ranked row for a
 person to look at and press. That distinction is checkable and it is where the
 "ease" claim actually lives.
 
+**Puthouse** is a second Alpaca-connected options tool, already through Alpaca's
+OAuth compliance review. Two approved competitors on this broker means the
+"first on Alpaca" framing is gone entirely — plan on the assumption that broker
+choice confers no advantage.
+
 Adjacent: **QuantWheel** routes to tastytrade; **Option Alpha** runs entries,
 exits and rolls through Tradier and TradeStation, free to users who route there;
 **TradeSteward** builds bots for Schwab, tastytrade, Tradier and TradeStation.
@@ -463,3 +468,31 @@ These are not style preferences. They govern what may ship.
 **Outstanding:** encryption key rotation has no path yet — see
 `docs/deferred-work.md`. Leaked-password protection is disabled in Supabase Auth
 and is a free toggle worth enabling before review.
+
+### Domain reputation is separate from broker approval
+
+Alpaca's review and a browser's reputation engine share nothing. Puthouse — an
+approved, Alpaca-connected competitor — is flagged **Risky / Phishing** by McAfee
+WebAdvisor while fully compliant.
+
+The reason is structural, and it applies to us identically: a young domain that
+shows a login, discusses money, and redirects to a brokerage and back is the
+same shape as a credential-phishing kit. Classifiers score shape, not intent, so
+being approved to run an OAuth flow slightly *raises* the risk of being flagged
+for running it.
+
+Being blocked during the DDQ review would mean explaining a phishing warning to
+the people deciding whether to approve us. Mitigations, checked by
+`npm run site:health` and the Site health workflow:
+
+- Trust pages published *and linked*; a reachable contact address, not a form.
+- No credential form on the marketing domain — login stays on `dashboard.`.
+- HSTS, `x-content-type-options`, `referrer-policy` set; Cloudflare SSL/TLS on
+  Full (strict).
+- SPF and DMARC present, before any mail is sent.
+- Registered with Google Safe Browsing, Bing/SmartScreen, McAfee TrustedSource,
+  Norton Safe Web and VirusTotal *before* launch — being known beats being
+  unknown.
+- Public WHOIS for the business domain rather than a privacy proxy.
+
+If flagged, dispute with every vendor in parallel; they do not share verdicts.

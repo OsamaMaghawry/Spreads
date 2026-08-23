@@ -65,6 +65,11 @@ timer. No screener documented here puts an order control on a ranked row for a
 person to look at and press. That distinction is checkable and it is where the
 "ease" claim actually lives.
 
+**Puthouse** is a second Alpaca-connected options tool, already through Alpaca's
+OAuth compliance review. Two approved competitors on this broker means the
+"first on Alpaca" framing is gone entirely — plan on the assumption that broker
+choice confers no advantage.
+
 Adjacent: **QuantWheel** routes to tastytrade; **Option Alpha** runs entries,
 exits and rolls through Tradier and TradeStation, free to users who route there;
 **TradeSteward** builds bots for Schwab, tastytrade, Tradier and TradeStation.
