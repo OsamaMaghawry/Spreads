@@ -108,24 +108,6 @@ Deliberately not built yet — see `docs/deferred-work.md`.
 - Earnings calendar coverage is unverified
 - Contact address on the legal pages
 
-## Recent work
-
-- 2026-08-23  Rebalance the homepage: income and risk, not risk alone
-- 2026-08-23  Watch the signals that decide whether a browser blocks us
-- 2026-08-23  Reposition around risk, and build the two warnings that back it up
-- 2026-08-23  Replace the invented sweep totals with the app's own readouts
-- 2026-08-23  Downgrade candidate construction from edge to plumbing
-- 2026-08-23  Show the screener as what it is: a sweep, not a filter
-- 2026-08-23  Show the loop on the homepage, with screening as the ante
-- 2026-08-23  Carry brand, positioning and compliance into the generated brief
-- 2026-08-23  Generate a product brief from the codebase, and keep CI honest about it
-- 2026-08-23  Match the app's typography to the marketing site, drop the backup export
-- 2026-08-23  Fix the data backup, broken by the credential column revoke
-- 2026-08-23  Skip the function deploy when no access token is configured
-- 2026-08-23  Rebuild the marketing site around what the product actually does
-- 2026-08-23  Note that the deploy workflow is unmerged pending its credential
-- 2026-08-23  Deploy edge functions from CI on push to main
-
 ---
 
 # Brand and identity
