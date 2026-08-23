@@ -20,6 +20,9 @@
   --rose: #B4485C;
   --rose-soft: #FBE7EB;
   --shadow: 0 1px 2px rgba(20, 21, 28, .04), 0 12px 32px -16px rgba(20, 21, 28, .18);
+  --amber: #9A6414;
+  --amber-soft: #FDF6E7;
+  --amber-line: #EBD9AE;
   --on-brand: #FFFFFF;
 }
 
@@ -39,6 +42,9 @@
     --rose: #E68094;
     --rose-soft: #2B1820;
     --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 12px 32px -16px rgba(0, 0, 0, .7);
+    --amber: #E8B75C;
+    --amber-soft: #2A2213;
+    --amber-line: #443722;
     --on-brand: #14151C;
   }
 }
@@ -58,6 +64,9 @@
   --rose: #E68094;
   --rose-soft: #2B1820;
   --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 12px 32px -16px rgba(0, 0, 0, .7);
+  --amber: #E8B75C;
+  --amber-soft: #2A2213;
+  --amber-line: #443722;
   --on-brand: #14151C;
 }
 
@@ -202,6 +211,57 @@ p { margin: 0; }
 
 .statement { font-size: clamp(1.8rem, 6.5vw, 3rem); line-height: 1.08; max-width: 24rem; }
 .statement .dim { color: var(--ink-mute); }
+
+/* ---------- home: the guard rails ----------
+ * The two things shown at the moment of commitment: how much of the account one
+ * position risks, and whether anything is scheduled to hit it before expiry.
+ * The meter is scaled so 70% of equity fills it, matching RiskMeter.jsx — the
+ * interesting range for a defined-risk position is the bottom of the scale. */
+
+.guard { display: grid; grid-template-columns: 1fr; gap: 1rem; margin-top: 2.5rem; }
+@media (min-width: 50rem) { .guard { grid-template-columns: 1.1fr 1fr; gap: 1.25rem; } }
+
+.gcard { padding: 1.25rem 1.35rem; }
+.gcard.warn { border-color: var(--amber-line); background: var(--amber-soft); }
+
+.gt {
+  font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.58rem;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-mute);
+}
+.gtop { display: flex; align-items: baseline; gap: 0.6rem; margin: 0.55rem 0 0.75rem; }
+.gpct {
+  font-family: "Bricolage Grotesque", sans-serif; font-weight: 700;
+  font-size: clamp(1.9rem, 6vw, 2.4rem); letter-spacing: -0.03em; line-height: 1;
+  font-variant-numeric: tabular-nums; color: var(--amber);
+}
+.gband {
+  font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.6rem;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--amber);
+  border: 1px solid var(--amber-line); background: var(--amber-soft);
+  border-radius: 3px; padding: 0.18rem 0.44rem;
+}
+
+.gmeter { position: relative; height: 9px; border-radius: 5px; background: var(--line-soft); overflow: hidden; }
+.gmeter i { display: block; height: 100%; background: var(--amber); }
+.gmeter span { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--surface); }
+
+.gscale { position: relative; height: 1rem; margin-top: 0.3rem; }
+.gscale span {
+  position: absolute; transform: translateX(-50%);
+  font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.6rem; color: var(--ink-mute);
+}
+
+.gwarn { display: flex; gap: 0.55rem; align-items: flex-start; color: var(--amber); font-weight: 500; font-size: 0.95rem; }
+.gwarn svg { flex: none; margin-top: 0.15rem; }
+.gnote { font-size: 0.88rem; color: var(--ink-soft); margin-top: 0.8rem; }
+
+/* the earnings flag as it appears on a scan row */
+.echip {
+  font-family: "IBM Plex Mono", ui-monospace, monospace; font-style: normal;
+  font-size: 0.55rem; letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--amber); border: 1px solid var(--amber-line); background: var(--amber-soft);
+  border-radius: 3px; padding: 0.1rem 0.3rem; margin-left: 0.3rem; vertical-align: 1px;
+}
 
 /* ---------- home: finding them ----------
  * The results sheet mirrors ResultsTable.jsx column for column. It is a table in

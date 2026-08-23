@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import SetupPreview from "@/components/open/SetupPreview";
 import ConfirmSubmit from "@/components/common/ConfirmSubmit";
+import RiskMeter from "@/components/common/RiskMeter";
+import EarningsWarning from "@/components/common/EarningsWarning";
 
 const label = "text-xs text-slate-500 block mb-1.5";
 const input = "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500";
@@ -14,9 +16,23 @@ export default function TradeDialog({ setup, accounts, onClose }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+  const [equity, setEquity] = useState(null);
 
   const account = accounts.find((a) => a.id === accountId);
   const unit = setup.strategy === "iron_condor" ? "condor" : "spread";
+  const totalRisk = setup.maxRisk * (Number(qty) || 1);
+
+  // Equity is per account, so it is refetched when the target account changes.
+  // A failure leaves it null and RiskMeter says so rather than guessing.
+  useEffect(() => {
+    if (!accountId) return;
+    let live = true;
+    setEquity(null);
+    invokeFunction("accountEquity", { accountId })
+      .then((res) => { if (live && !res.data?.error) setEquity(res.data?.equity ?? null); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [accountId]);
 
   const submit = async () => {
     setSubmitting(true);
@@ -46,6 +62,13 @@ export default function TradeDialog({ setup, accounts, onClose }) {
         </DialogHeader>
 
         <SetupPreview setup={setup} qty={Number(qty) || 1} />
+
+        {!result && (
+          <>
+            <EarningsWarning earnings={setup.earnings} ticker={setup.ticker} />
+            <RiskMeter risk={totalRisk} equity={equity} />
+          </>
+        )}
 
         {!result && (
           <>
@@ -81,6 +104,12 @@ export default function TradeDialog({ setup, accounts, onClose }) {
             <ConfirmSubmit
               label={`Submit — open ${qty} ${unit}${Number(qty) > 1 ? "s" : ""} (${orderType}) on ${account?.name || "…"}`}
               summary={`${orderType === "limit" ? "Limit" : "Market"} order · open ${qty} ${setup.ticker} ${unit}${Number(qty) > 1 ? "s" : ""} for $${setup.credit.toFixed(2)} credit each on ${account?.name || ""}.`}
+              warnings={
+                <>
+                  <EarningsWarning earnings={setup.earnings} ticker={setup.ticker} />
+                  <RiskMeter risk={totalRisk} equity={equity} />
+                </>
+              }
               onConfirm={submit}
               submitting={submitting}
               disabled={!accountId}

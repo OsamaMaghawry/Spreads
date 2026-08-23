@@ -61,14 +61,16 @@ nothing contingent on trading activity.
 Each runs as its own bundle carrying a copy of what it imports from `_shared/`,
 so a change to shared code requires redeploying all of them.
 
+- **accountEquity** — Returns one account's equity and options buying power, for sizing a new order.
 - **alpacaOAuthCallback** — The user picks which account (live or paper) to authorize on Alpaca's own consent page, so we don't know which one we got back — probe both trading API bases with the token and see which one accepts it.
 - **closeSpread** — Submits the closing order for a position: the whole structure by default, or just the legs the caller picked when only one side needs unwinding.
 - **findEntry** — Scans the live chain and returns the delta-targeted setup for one strategy.
 - **manageOrder** — Reads the status of a working order, or cancels it.
 - **migrateCredentials** — Encrypts credentials that are still stored in plaintext, across every user's accounts, without involving those users.
 - **openPosition** — Submits the opening multi-leg credit order (sell to open the shorts, buy the wings).
+- **refreshEarnings** — Refreshes the cached earnings calendar for the next 90 days from the provider.
 - **saveAccount** — Creating and editing a manually-keyed trading account.
-- **scanEntries** — Sweeps multiple tickers across DTE / delta / width ranges and returns ranked setups.
+- **scanEntries** — Sweeps multiple tickers across DTE / delta / width ranges and returns ranked setups, each flagged if the underlying reports earnings before it expires.
 - **spreadQuote** — Prices a position for closing: what the legs are worth right now, plus the highest limit already tried on them so a retry resumes rather than restarts.
 - **syncAccounts** — Rebuilds the live picture for every account the caller owns: positions paired into structures, credit and risk per position, and totals that net a ticker's condors instead of double counting both wings.
 - **tradeHistory** — Reconstruct closed option trades per strategy.
@@ -83,6 +85,7 @@ revoked from the browser role entirely.
 - **trading_accounts** — id, user_id, name, api_key, api_secret, is_paper, spreads_client_prefix, wheel_client_prefix, created_at, oauth_access_token, api_key_hint, is_oauth
 - **trade_records** — id, user_id, account_id, strategy, trade_key, ticker, expiry, short_symbol, long_symbol, short_strike, long_strike, qty, open_date, close_date, short_entry, long_entry, net_credit, short_exit, long_exit, close_debit, realized_pl, close_reason, created_at
 - **profiles** — id, role, created_at
+- **earnings_calendar** — symbol, report_date, session, fetched_at
 
 ## Analytics vocabulary
 
@@ -100,9 +103,13 @@ Deliberately not built yet — see `docs/deferred-work.md`.
 - Encryption key rotation
 - Continuous deployment for edge functions
 - Leaked-password protection
+- Portfolio-cumulative risk at order time
+- Pin risk and short-strike drift alerts
+- Earnings calendar coverage is unverified
 
 ## Recent work
 
+- 2026-08-23  Replace the invented sweep totals with the app's own readouts
 - 2026-08-23  Downgrade candidate construction from edge to plumbing
 - 2026-08-23  Show the screener as what it is: a sweep, not a filter
 - 2026-08-23  Show the loop on the homepage, with screening as the ante
@@ -117,7 +124,6 @@ Deliberately not built yet — see `docs/deferred-work.md`.
 - 2026-08-23  Record deferred work and the shared-code deploy fan-out
 - 2026-08-23  Encrypt legacy credentials server-side instead of per user
 - 2026-08-22  Decrypt credentials in syncAccounts
-- 2026-08-22  Encrypt brokerage credentials and keep them out of the browser
 
 ---
 
@@ -195,8 +201,24 @@ sells it.
 
 ### What the product is, in one line
 
-Everyone else helps a trader put on a trade. DeltaMint helps them hold a book of
-them.
+**A risk management layer for options income.** Everyone else helps a trader put
+a trade on. DeltaMint keeps them in the game long enough for the income to
+matter.
+
+The longer version, for anyone writing copy:
+
+- Selling premium generates income and hedges a portfolio. Managed badly, it
+  also ends accounts — the losses are rare, sudden and larger than the wins.
+- The product's job is awareness: what each position really risks, what the
+  book really risks, and what is scheduled to happen before expiry.
+- It warns. It does not decide. Every alert states a fact and leaves the call to
+  the trader — which is both the honest posture and the compliant one.
+- The audience is serious traders who already take risk seriously, not people
+  looking for signals.
+
+**Danger words.** Never "protect", "safe", "guaranteed", "prevent losses" or
+"risk-free". The product improves *awareness* of risk; it does not reduce risk,
+and claiming otherwise is both false and a compliance problem.
 
 ### Language that is not optional
 

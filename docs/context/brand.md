@@ -72,8 +72,24 @@ sells it.
 
 ## What the product is, in one line
 
-Everyone else helps a trader put on a trade. DeltaMint helps them hold a book of
-them.
+**A risk management layer for options income.** Everyone else helps a trader put
+a trade on. DeltaMint keeps them in the game long enough for the income to
+matter.
+
+The longer version, for anyone writing copy:
+
+- Selling premium generates income and hedges a portfolio. Managed badly, it
+  also ends accounts — the losses are rare, sudden and larger than the wins.
+- The product's job is awareness: what each position really risks, what the
+  book really risks, and what is scheduled to happen before expiry.
+- It warns. It does not decide. Every alert states a fact and leaves the call to
+  the trader — which is both the honest posture and the compliant one.
+- The audience is serious traders who already take risk seriously, not people
+  looking for signals.
+
+**Danger words.** Never "protect", "safe", "guaranteed", "prevent losses" or
+"risk-free". The product improves *awareness* of risk; it does not reduce risk,
+and claiming otherwise is both false and a compliance problem.
 
 ## Language that is not optional
 

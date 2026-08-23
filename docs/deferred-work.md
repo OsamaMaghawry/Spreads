@@ -59,3 +59,25 @@ function version.
 A toggle under Authentication settings that checks new passwords against
 HaveIBeenPwned. No code change; worth enabling before the Alpaca compliance
 review reads the cybersecurity policy.
+
+### Portfolio-cumulative risk at order time
+
+`RiskMeter` shows what a single order risks as a share of equity. The number a
+premium seller actually needs is *total* open risk after this order — five
+contained positions can add to a severe book. Blocked on cost: current open risk
+means walking positions and pairing them, which `syncAccounts` does but is far
+too heavy to run behind a dialog. Wants a cached per-account risk figure,
+refreshed on sync and read cheaply here.
+
+### Pin risk and short-strike drift alerts
+
+Alert when a short leg moves inside a dangerous delta near expiry. Related to
+the end-of-session de-risking below, and arrived at independently in outside
+analysis, which is some evidence it is the right next thing.
+
+### Earnings calendar coverage is unverified
+
+`refreshEarnings` caches from one provider over a 90-day window. Nobody has
+checked coverage against the top-50 universe, and a missing symbol produces
+silence rather than a warning — the UI is careful never to imply that no flag
+means no announcement, but the gap should be measured.

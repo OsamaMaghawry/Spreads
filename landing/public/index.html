@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>DeltaMint — See your spreads as spreads</title>
-<meta name="description" content="Your broker lists four options. You put on one condor. DeltaMint groups every position back into the structure you traded, across every brokerage account you link." />
+<title>DeltaMint — Risk management for options income</title>
+<meta name="description" content="Selling premium is a good way to earn — and a fast way to blow up an account. DeltaMint shows what every position really risks, and tells you when a position is heading somewhere dangerous." />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
@@ -29,11 +29,11 @@
   <section class="hero">
     <div class="hero-grid">
       <div>
-        <h1>See your spreads as spreads.</h1>
-        <p class="sub">Your broker lists four options. You put on one condor. We show you the condor.</p>
+        <h1>Stay in the game.</h1>
+        <p class="sub">Multi-leg options are a good way to earn income &mdash; and a fast way to end a run. DeltaMint keeps every risk in front of you, so one position never takes the account.</p>
         <div class="actions">
           <a class="btn btn-primary" href="https://dashboard.deltamint.app/register">Start free on paper</a>
-          <a class="btn btn-ghost" href="#find">See it</a>
+          <a class="btn btn-ghost" href="#risk">How it works</a>
         </div>
       </div>
 
@@ -75,16 +75,45 @@
 
 <section class="band">
   <div class="wrap">
-    <p class="big statement">Three positions you can hold in your head.<br><span class="dim">Thirty, you can't.</span></p>
-    <p class="cap" style="margin-top:1.5rem">So most people trade fewer than they'd like. This is the tool that removes that ceiling.</p>
+    <p class="big statement">Income compounds quietly.<br><span class="dim">Losses don't.</span></p>
+    <p class="cap" style="margin-top:1.5rem">Months of collected premium can go back out on one position nobody was watching. The whole job is noticing first.</p>
   </div>
 </section>
 
 <div class="wrap">
+  <section id="risk">
+    <p class="eyebrow">Before you commit</p>
+    <h2>Every order tells you what it puts at stake.</h2>
+    <p class="cap">Not the credit &mdash; the exposure. What share of the account this one position risks, and whether anything is already scheduled to happen to it before it expires.</p>
+
+    <div class="guard">
+      <div class="panel gcard">
+        <div class="gt">Share of account at risk</div>
+        <div class="gtop"><span class="gpct">31.4%</span><span class="gband">Elevated</span></div>
+        <div class="gmeter">
+          <i style="width:44.9%"></i>
+          <span style="left:14.3%"></span><span style="left:35.7%"></span><span style="left:71.4%"></span>
+        </div>
+        <div class="gscale"><span style="left:14.3%">10%</span><span style="left:35.7%">25%</span><span style="left:71.4%">50%</span></div>
+        <p class="gnote">Over a quarter of the account on one position. Thresholds at 10, 25, 50 and 70% &mdash; you always know which side of each you&rsquo;re on.</p>
+      </div>
+
+      <div class="panel gcard warn">
+        <div class="gwarn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M12 14v3"/></svg>
+          <span>NVDA reports earnings before the open on 18 Sep &mdash; in 4 days.</span>
+        </div>
+        <p class="gnote">This position would be held through the announcement, which is typically the largest single-day move the underlying makes. We tell you. You decide.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="wrap">
   <section id="find">
-    <p class="eyebrow">Finding them</p>
+    <p class="eyebrow">Finding the next one</p>
     <h2>You never pick a strike.</h2>
-    <p class="cap">Say how far out, how far from the money, and how much you&rsquo;ll risk. It builds every structure that fits, prices each one on the bid you&rsquo;d actually get, and ranks what&rsquo;s left by return on risk.</p>
+    <p class="cap">Say how far out, how far from the money, and how much you&rsquo;ll risk. It builds every structure that fits, prices each one on the bid you&rsquo;d actually get, and ranks what&rsquo;s left by return on risk &mdash; flagging anything with earnings due before expiry.</p>
 
     <div class="sweep">
       <div class="sw-col">
@@ -159,7 +188,7 @@
       </div>
 
       <div class="r">
-        <span class="c c-tkr">NVDA</span>
+        <span class="c c-tkr">NVDA <em class="echip">earnings</em></span>
         <span class="c c-exp" data-l="Expiry">2026-09-19</span>
         <span class="c c-str" data-l="Structure">118/113P</span>
         <span class="c c-n" data-l="Spot">$124.60</span>
