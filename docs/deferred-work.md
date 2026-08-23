@@ -39,8 +39,11 @@ run the maintenance job, clear previous.
 
 ### Continuous deployment for edge functions
 
-**Status:** done — `.github/workflows/deploy-functions.yml`. Needs the
-`SUPABASE_ACCESS_TOKEN` repository secret to be set before its first run.
+**Status:** written and committed on the feature branch, **not yet merged to
+`main`**, deliberately: the workflow fires on the merge and would fail without
+its credential. To finish — set the `SUPABASE_ACCESS_TOKEN` repository secret
+(Supabase → Account → Access Tokens; GitHub → Settings → Secrets and variables
+→ Actions), merge to `main`, then confirm the first run goes green.
 
 Pushing to `main` now redeploys every function, so the shared-code fan-out
 costs a CI run rather than a manual redeploy of each. Migrations are still
