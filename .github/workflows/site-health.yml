@@ -1,0 +1,46 @@
+name: Site health
+
+# Watches the signals that decide whether a browser blocks the site.
+#
+# A young finance domain with a login form and a redirect to a brokerage looks
+# exactly like a credential-phishing kit to an automated classifier, and a
+# broker's compliance approval carries no weight with one — the two systems
+# share nothing. Competitors in this exact category have been flagged while
+# fully approved, so the aim is to hear it from a build rather than from a
+# customer who cannot reach the login page.
+#
+# Optional repository secrets enable the reputation lookups; without them those
+# checks report as skipped rather than failing:
+#   SAFE_BROWSING_API_KEY   https://developers.google.com/safe-browsing
+#   VIRUSTOTAL_API_KEY      https://www.virustotal.com
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'landing/**'
+      - 'scripts/site-health.mjs'
+      - '.github/workflows/site-health.yml'
+  # Reputation changes without anyone touching the repository, so the useful
+  # signal is the daily run, not the push-triggered one.
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # No npm ci: the script uses only the Node standard library, and a health
+      # check that depends on an install is one more thing that can break.
+      - name: Check site health
+        env:
+          SAFE_BROWSING_API_KEY: ${{ secrets.SAFE_BROWSING_API_KEY }}
+          VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+        run: node scripts/site-health.mjs --live

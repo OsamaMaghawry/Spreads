@@ -3,6 +3,9 @@
 Where DeltaMint sits, and why. Written from public evidence rather than
 ambition — the uncomfortable findings are kept deliberately.
 
+Competitor prices, integrations and feature sets below were checked against
+public sources in August 2026. They age; re-check before planning against them.
+
 ## The market, honestly sized
 
 There is no measurable "multi-leg options strategies market"; nobody clears or
@@ -43,6 +46,39 @@ tastytrade's own platform and IBKR all bundle strategy builders and analytics.
 Independent tools live in the gap between what brokers bundle and what serious
 traders want, and that gap narrows each year.
 
+### The closest competitor, named
+
+**Tiblio**, roughly $35/month, is the nearest thing to a direct competitor and
+should be treated as one. It screens spreads and iron condors, connects by OAuth
+to Schwab, Tradier, TradeStation, tastytrade **and Alpaca**, routes orders to the
+connected broker, and tracks open and closed positions with profit and loss and
+per-strategy win rates. That is screen → order → hold → measure, on our broker,
+already shipping and cheaper than most of the analytics layer.
+
+Its documented limit is the opening: credit and debit spreads must be logged
+**leg by leg**, with alerts configured per component. The tool that will fire the
+spread order for you cannot hold the spread as one object once it fills.
+
+**But its broker link is a bot, not a button.** Tiblio sends orders to the
+connected broker "every 10 minutes, on your rules" — unattended automation on a
+timer. No screener documented here puts an order control on a ranked row for a
+person to look at and press. That distinction is checkable and it is where the
+"ease" claim actually lives.
+
+**Puthouse** is a second Alpaca-connected options tool, already through Alpaca's
+OAuth compliance review. Two approved competitors on this broker means the
+"first on Alpaca" framing is gone entirely — plan on the assumption that broker
+choice confers no advantage.
+
+Adjacent: **QuantWheel** routes to tastytrade; **Option Alpha** runs entries,
+exits and rolls through Tradier and TradeStation, free to users who route there;
+**TradeSteward** builds bots for Schwab, tastytrade, Tradier and TradeStation.
+
+All three, and Tiblio, are **rule runners** — the user configures conditions and
+the software fires on a schedule. DeltaMint is a place the user looks and
+decides. That is a real difference in posture, but it is a preference, not a
+moat; do not plan against it as defensibility.
+
 ## What the market rewards
 
 - **Removing a constraint, not adding a view.** Execution and management, not
@@ -65,9 +101,10 @@ Scored against the above, not against effort spent.
 | Real-time comprehension of many holdings | **Real edge** — removes a scaling constraint; pain grows with position count, so per-trade tools never feel it |
 | End-of-session assignment de-risking | **Real edge** — runs when the user cannot, against a quantifiable loss; more valuable as 0DTE share rises. **Not yet built.** |
 | Grouping legs into structures | **Foundation** — the primitive the two above depend on; pairing by order provenance rather than guessing strikes is a genuine technical position |
-| Price walking on limit orders | **Table stakes** — real, but a competitor already markets it as a headline feature |
+| Price walking on limit orders | **Table stakes, and that understates it** — Schwab ships WALK LIMIT® as a native order type on thinkorswim, built for multi-leg orders with wide spreads. Not a competitor's feature to be beaten; a broker's order type to be matched |
 | Portfolio statistics | **Conditional** — commodity if it is profit and loss; differentiated only when structure-aware |
-| Opportunity screening | **Commodity** — every player has a scanner |
+| Constructing candidates from ranges | **Commodity output, better plumbing** — the sweep builds structures from delta and width targets rather than filtering a chain, and prices them at short bid − long ask rather than mid. Real engineering, but Market Chameleon exposes per-leg delta filters over pre-enumerated spreads, so the *customer-visible output* is the same thing: a ranked list of spreads matching delta and width criteria. Do not market this as a differentiator. The executable pricing is the only part a user would feel, and it only shows up as fills matching the screen |
+| Opportunity screening (filtering chains) | **Commodity** — and more so than assumed. Barchart alone gives away ~10 dedicated multi-leg screeners (short and long iron condor, all four verticals) with legs, max profit, max loss and probability of loss; Market Chameleon covers 18 spread types at $69–99/mo |
 | Pre-trade return on risk | **Commodity** — a competitor gives this away free |
 
 The through-line: competitors optimise the **single-trade lifecycle** — find,
@@ -75,17 +112,35 @@ evaluate, place. DeltaMint's differentiated features all sit on the **portfolio
 lifecycle** — hold, manage, exit. Those are different products, and only one of
 those halves is contested.
 
+### The chain is not the differentiator
+
+It is tempting to argue that the features above undercount the product because
+customers buy the *chain* — screen → order → grouped position → worked exit —
+and that no competitor closes that loop. The evidence does not support it.
+Tiblio closes it today, on Alpaca, for $35. Price walking is a broker order
+type. Screening is free at Barchart. Every individual link, and the fact of the
+links being joined, is already purchasable.
+
+What survives scrutiny is narrower and better: competitors are strong from
+screen to fill and weak immediately after it. The structural, portfolio-level
+view of many concurrent positions — legs paired by order provenance, statistics
+computed against peak concurrent collateral — is the claim no competitor's own
+documentation contradicts. Marketing should lead with what happens *after* the
+fill, not with the completeness of the chain, because the second claim is
+falsifiable in one search and the first is not.
+
 ## Honest weaknesses
 
 - **No data moat.** No historical archive, so no credible backtesting story.
   Defensibility must come from integration depth and operational trust, both
   earned slowly and neither purchasable.
-- **Alpaca is a smaller pond.** Every competing automation product integrates
-  tastytrade, Tradier, Schwab or TradeStation; none leads with Alpaca. That is
-  genuine white space, but the retail options traders with real size are
-  concentrated on the other platforms. Being first can mean uncontested or it can
-  mean fishing where there are fewer fish — worth establishing empirically before
-  betting the roadmap.
+- **Alpaca is a smaller pond, and it is not empty.** Every competing automation
+  product integrates tastytrade, Tradier, Schwab or TradeStation, and none of
+  them *leads* with Alpaca — but Tiblio already supports it via OAuth, so the
+  white space is narrower than previously recorded. The retail options traders
+  with real size remain concentrated on the other platforms. Being first can mean
+  uncontested or it can mean fishing where there are fewer fish — worth
+  establishing empirically before betting the roadmap.
 - **Squeezed from both sides.** Brokers ship features downward for free; data
   vendors price upward. Switching costs are near zero for analysis tools and only
   moderate for automation.

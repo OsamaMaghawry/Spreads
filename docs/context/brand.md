@@ -60,11 +60,36 @@ sells it.
 - **Short.** A homepage feature is a heading and one sentence. Parameters,
   intervals and thresholds belong in documentation.
 - **Never promise outcomes.** No performance claims, no implied edge.
+- **Every figure must be checkable.** A number on a marketing page is either
+  rendered by the product itself or arithmetic the reader can do from what is on
+  screen. Never a calculation performed offstage and presented as a product
+  fact — that is how "1,800 structures" reached the homepage.
+- **Never talk the product down.** Being accurate about competitors is an
+  internal discipline, kept in `positioning.md`. It must not leak into public
+  copy as hedging or self-deprecation. A visitor has not heard of our
+  competitors; a homepage that opens by minimising a real capability is not
+  honest, only weak. State plainly what the product does, and show it.
 
 ## What the product is, in one line
 
-Everyone else helps a trader put on a trade. DeltaMint helps them hold a book of
-them.
+**Options income you get to keep.** The income is in the repetition — meaningful
+premium selling means running many positions — and so is the risk. DeltaMint
+finds the setups, groups every position back into the structure that was
+actually traded, and keeps what each one risks in plain sight.
+
+Neither half stands alone, and copy that leans entirely on one is wrong:
+
+- **Income without risk control is a pitch.** It promises returns, which the
+  compliance rules forbid and experienced traders discount anyway.
+- **Risk control without income is a warning label.** Nobody buys a tool whose
+  whole message is what might go wrong; it reads as having nothing to offer.
+
+The four capabilities are one argument, not a feature list: you must run many
+positions to earn (**screener**), which makes them impossible to hold in your
+head (**grouping**), which is how one of them quietly becomes too large
+(**risk warnings**), and the whole point is what you actually kept
+(**statistics**). Return on risk is the hinge — it is simultaneously the return
+metric and the risk metric.
 
 ## Language that is not optional
 

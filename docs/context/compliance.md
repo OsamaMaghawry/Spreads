@@ -75,6 +75,39 @@ These are not style preferences. They govern what may ship.
 - All traffic is TLS end to end. No production servers exist to patch; the
   runtime is managed.
 
-**Outstanding:** encryption key rotation has no path yet — see
-`docs/deferred-work.md`. Leaked-password protection is disabled in Supabase Auth
-and is a free toggle worth enabling before review.
+- Encryption keys can be rotated without user involvement: a previous-key
+  secret lets in-flight values decrypt while an admin-only maintenance job
+  re-encrypts them under the new key.
+
+**Outstanding:** leaked-password protection is disabled in Supabase Auth and is a
+free toggle worth enabling before review. The legal pages still lack a published
+contact address, which the questionnaire's incident-response question also
+wants.
+
+## Domain reputation is separate from broker approval
+
+Alpaca's review and a browser's reputation engine share nothing. Puthouse — an
+approved, Alpaca-connected competitor — is flagged **Risky / Phishing** by McAfee
+WebAdvisor while fully compliant.
+
+The reason is structural, and it applies to us identically: a young domain that
+shows a login, discusses money, and redirects to a brokerage and back is the
+same shape as a credential-phishing kit. Classifiers score shape, not intent, so
+being approved to run an OAuth flow slightly *raises* the risk of being flagged
+for running it.
+
+Being blocked during the DDQ review would mean explaining a phishing warning to
+the people deciding whether to approve us. Mitigations, checked by
+`npm run site:health` and the Site health workflow:
+
+- Trust pages published *and linked*; a reachable contact address, not a form.
+- No credential form on the marketing domain — login stays on `dashboard.`.
+- HSTS, `x-content-type-options`, `referrer-policy` set; Cloudflare SSL/TLS on
+  Full (strict).
+- SPF and DMARC present, before any mail is sent.
+- Registered with Google Safe Browsing, Bing/SmartScreen, McAfee TrustedSource,
+  Norton Safe Web and VirusTotal *before* launch — being known beats being
+  unknown.
+- Public WHOIS for the business domain rather than a privacy proxy.
+
+If flagged, dispute with every vendor in parallel; they do not share verdicts.

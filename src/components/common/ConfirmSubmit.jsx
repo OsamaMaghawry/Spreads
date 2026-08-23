@@ -2,7 +2,12 @@ import { useState } from "react";
 import { Loader2, AlertTriangle } from "lucide-react";
 
 // Two-step guard: every order submission must be explicitly confirmed.
-export default function ConfirmSubmit({ label, summary, onConfirm, disabled, submitting, tone = "emerald" }) {
+//
+// `warnings` renders above the confirm buttons, so anything the trader should
+// weigh — an earnings date inside the holding period, an outsized share of the
+// account — is in front of them at the moment of commitment rather than one
+// screen back.
+export default function ConfirmSubmit({ label, summary, warnings, onConfirm, disabled, submitting, tone = "emerald" }) {
   const [armed, setArmed] = useState(false);
 
   const toneCls =
@@ -31,6 +36,8 @@ export default function ConfirmSubmit({ label, summary, onConfirm, disabled, sub
           {summary && <div className="mt-1 text-amber-700">{summary}</div>}
         </div>
       </div>
+      {warnings && <div className="space-y-2">{warnings}</div>}
+
       <div className="flex gap-2">
         <button
           onClick={() => setArmed(false)}

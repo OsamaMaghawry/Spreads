@@ -57,7 +57,7 @@ export default function AdminMaintenance() {
 
       {result && (
         <div className="text-xs text-slate-600 mt-3 pt-3 border-t border-slate-100">
-          Scanned {result.scanned} · encrypted {result.encrypted} · already encrypted {result.alreadyEncrypted}
+          Scanned {result.scanned} · encrypted {result.encrypted} · rotated {result.rotated ?? 0} · already current {result.alreadyCurrent}
           {result.failed?.length > 0 && (
             <span className="text-rose-600"> · failed {result.failed.length}</span>
           )}
