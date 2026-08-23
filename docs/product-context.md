@@ -103,6 +103,7 @@ Deliberately not built yet — see `docs/deferred-work.md`.
 
 ## Recent work
 
+- 2026-08-23  Show the screener as what it is: a sweep, not a filter
 - 2026-08-23  Show the loop on the homepage, with screening as the ante
 - 2026-08-23  Carry brand, positioning and compliance into the generated brief
 - 2026-08-23  Generate a product brief from the codebase, and keep CI honest about it
@@ -117,7 +118,6 @@ Deliberately not built yet — see `docs/deferred-work.md`.
 - 2026-08-22  Decrypt credentials in syncAccounts
 - 2026-08-22  Encrypt brokerage credentials and keep them out of the browser
 - 2026-08-22  Use neutral brokerage wording outside the connection flow
-- 2026-08-22  Use neutral brokerage language in landing marketing copy
 
 ---
 
@@ -313,7 +313,7 @@ Scored against the above, not against effort spent.
 | Grouping legs into structures | **Foundation** — the primitive the two above depend on; pairing by order provenance rather than guessing strikes is a genuine technical position |
 | Price walking on limit orders | **Table stakes, and that understates it** — Schwab ships WALK LIMIT® as a native order type on thinkorswim, built for multi-leg orders with wide spreads. Not a competitor's feature to be beaten; a broker's order type to be matched |
 | Portfolio statistics | **Conditional** — commodity if it is profit and loss; differentiated only when structure-aware |
-| Constructing candidates from ranges | **Under-rated, and previously mis-scored** — the screener does not filter a chain. It sweeps tickers × expiries × delta targets × wing widths, *builds* each structure, prices it at short bid − long ask, and computes both break-evens. Every competitor documented below filters existing chain combinations. Scored as "screening" this looked like a commodity; it is not the same operation |
+| Constructing candidates from ranges | **Commodity output, better plumbing** — the sweep builds structures from delta and width targets rather than filtering a chain, and prices them at short bid − long ask rather than mid. Real engineering, but Market Chameleon exposes per-leg delta filters over pre-enumerated spreads, so the *customer-visible output* is the same thing: a ranked list of spreads matching delta and width criteria. Do not market this as a differentiator. The executable pricing is the only part a user would feel, and it only shows up as fills matching the screen |
 | Opportunity screening (filtering chains) | **Commodity** — and more so than assumed. Barchart alone gives away ~10 dedicated multi-leg screeners (short and long iron condor, all four verticals) with legs, max profit, max loss and probability of loss; Market Chameleon covers 18 spread types at $69–99/mo |
 | Pre-trade return on risk | **Commodity** — a competitor gives this away free |
 
