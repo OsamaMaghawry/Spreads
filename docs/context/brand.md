@@ -60,6 +60,10 @@ sells it.
 - **Short.** A homepage feature is a heading and one sentence. Parameters,
   intervals and thresholds belong in documentation.
 - **Never promise outcomes.** No performance claims, no implied edge.
+- **Every figure must be checkable.** A number on a marketing page is either
+  rendered by the product itself or arithmetic the reader can do from what is on
+  screen. Never a calculation performed offstage and presented as a product
+  fact — that is how "1,800 structures" reached the homepage.
 - **Never talk the product down.** Being accurate about competitors is an
   internal discipline, kept in `positioning.md`. It must not leak into public
   copy as hedging or self-deprecation. A visitor has not heard of our
