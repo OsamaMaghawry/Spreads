@@ -203,6 +203,60 @@ p { margin: 0; }
 .statement { font-size: clamp(1.8rem, 6.5vw, 3rem); line-height: 1.08; max-width: 24rem; }
 .statement .dim { color: var(--ink-mute); }
 
+/* ---------- home: the loop ----------
+ * Four steps whose top rules abut at the widest breakpoint, so they read as one
+ * continuous rail through the chain; on narrower screens the same rule reads as
+ * a list divider. No pseudo-element connector to break at in-between widths. */
+
+.chain { display: grid; grid-template-columns: 1fr; gap: 1.75rem; margin-top: 2.5rem; }
+@media (min-width: 34rem) { .chain { grid-template-columns: repeat(2, 1fr); gap: 1.75rem 1.5rem; } }
+@media (min-width: 62rem) { .chain { grid-template-columns: repeat(4, 1fr); gap: 1.5rem; } }
+
+.step { border-top: 1px solid var(--line); padding-top: 1.1rem; }
+.stepno {
+  font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.62rem;
+  letter-spacing: 0.14em; color: var(--brand); margin-bottom: 0.5rem;
+}
+.steph { font-size: 1rem; margin: 0; }
+.stepart { margin: 0.9rem 0 0.85rem; min-height: 5.25rem; }
+.stepcap { font-size: 0.88rem; color: var(--ink-soft); }
+
+/* 01 — matches ordered by return on risk */
+.scan { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.srow {
+  display: flex; align-items: baseline; gap: 0.45rem; padding: 0.34rem 0.5rem;
+  font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.68rem;
+  font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--line-soft);
+}
+.srow:last-child { border-bottom: none; }
+.srow.top { background: var(--brand-soft); }
+.srow .st { font-weight: 500; }
+.srow .ss { color: var(--ink-mute); }
+.srow .sr { margin-left: auto; color: var(--mint); }
+
+/* 02 — an order ticket, rhyming with the rows above it */
+.ticket { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.tline {
+  display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.34rem 0.5rem;
+  font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.68rem;
+  font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--line-soft);
+}
+.tline:last-child { border-bottom: none; }
+.tline span:last-child { color: var(--ink-mute); }
+
+/* The confirm step, drawn not built: decoration, never a control */
+.fauxbtn {
+  margin-top: 0.6rem; background: var(--brand); color: var(--on-brand);
+  border-radius: 7px; padding: 0.42rem 0.6rem; text-align: center;
+  font-size: 0.76rem; font-weight: 500;
+}
+
+/* 03 — reuses the book's mini position card without its panel inset */
+.stepart .mini { padding: 0; }
+
+/* 04 — a thumbnail of the walk; the full figure is its own section below */
+.walk { display: block; width: 100%; max-width: 12rem; height: auto; color: var(--ink-mute); }
+
 /* ---------- home: the book ---------- */
 
 .book { display: grid; grid-template-columns: 1fr; gap: 0.85rem; margin-top: 2.5rem; }
