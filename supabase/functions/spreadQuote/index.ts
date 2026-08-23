@@ -2,6 +2,8 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { getSpreadQuote, getLegsQuote, loadAccount, tradingBase, alpacaFetch } from "../_shared/alpaca.ts";
 
+// Prices a position for closing: what the legs are worth right now, plus the
+// highest limit already tried on them so a retry resumes rather than restarts.
 // Highest limit price we already tried on this spread (from Alpaca order history),
 // so a retry can resume from where the last attempt left off.
 async function lastAttemptDebit(account, symbols) {

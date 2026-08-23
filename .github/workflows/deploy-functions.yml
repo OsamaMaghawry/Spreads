@@ -43,6 +43,10 @@ jobs:
       # rather than by the bundler halfway through deploying twelve of them.
       - run: npm run lint
 
+      # The generated product brief must match the code it describes; a stale
+      # copy is worse than none, because it reads as current.
+      - run: npm run context:check
+
       - uses: supabase/setup-cli@v1
         with:
           version: latest

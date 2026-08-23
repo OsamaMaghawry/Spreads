@@ -3,6 +3,9 @@ import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { tradingBase, alpacaFetch, pairSpreads } from "../_shared/alpaca.ts";
 import { decryptSecret } from "../_shared/crypto.ts";
 
+// Rebuilds the live picture for every account the caller owns: positions paired
+// into structures, credit and risk per position, and totals that net a ticker's
+// condors instead of double counting both wings.
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
