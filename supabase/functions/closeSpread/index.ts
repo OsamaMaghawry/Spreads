@@ -2,6 +2,8 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { tradingBase, alpacaFetch, loadAccount } from "../_shared/alpaca.ts";
 
+// Submits the closing order for a position: the whole structure by default, or
+// just the legs the caller picked when only one side needs unwinding.
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {

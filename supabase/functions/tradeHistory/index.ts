@@ -2,6 +2,9 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { tradingBase, alpacaFetch, parseOCCSymbol, loadAccount } from "../_shared/alpaca.ts";
 
+// Reconstruct closed option trades per strategy. Strategy comes from the Alpaca
+// client order id prefix configured on the account (spreads vs wheel), so wheel
+// cash-secured puts are never mis-paired into spreads.
 async function fetchTrades(admin, accountId, ordered = true) {
   let query = admin.from("trade_records").select("*").eq("account_id", accountId);
   if (ordered) query = query.order("close_date", { ascending: false });
@@ -10,9 +13,6 @@ async function fetchTrades(admin, accountId, ordered = true) {
   return data || [];
 }
 
-// Reconstruct closed option trades per strategy. Strategy comes from the Alpaca
-// client order id prefix configured on the account (spreads vs wheel), so wheel
-// cash-secured puts are never mis-paired into spreads.
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {

@@ -9,7 +9,9 @@
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "context": "node scripts/product-context.mjs",
+    "context:check": "node scripts/product-context.mjs --check"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
