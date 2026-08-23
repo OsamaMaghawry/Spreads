@@ -109,6 +109,7 @@ Deliberately not built yet — see `docs/deferred-work.md`.
 
 ## Recent work
 
+- 2026-08-23  Watch the signals that decide whether a browser blocks us
 - 2026-08-23  Reposition around risk, and build the two warnings that back it up
 - 2026-08-23  Replace the invented sweep totals with the app's own readouts
 - 2026-08-23  Downgrade candidate construction from edge to plumbing
@@ -123,7 +124,6 @@ Deliberately not built yet — see `docs/deferred-work.md`.
 - 2026-08-23  Note that the deploy workflow is unmerged pending its credential
 - 2026-08-23  Deploy edge functions from CI on push to main
 - 2026-08-23  Record deferred work and the shared-code deploy fan-out
-- 2026-08-23  Encrypt legacy credentials server-side instead of per user
 
 ---
 
@@ -201,24 +201,24 @@ sells it.
 
 ### What the product is, in one line
 
-**A risk management layer for options income.** Everyone else helps a trader put
-a trade on. DeltaMint keeps them in the game long enough for the income to
-matter.
+**Options income you get to keep.** The income is in the repetition — meaningful
+premium selling means running many positions — and so is the risk. DeltaMint
+finds the setups, groups every position back into the structure that was
+actually traded, and keeps what each one risks in plain sight.
 
-The longer version, for anyone writing copy:
+Neither half stands alone, and copy that leans entirely on one is wrong:
 
-- Selling premium generates income and hedges a portfolio. Managed badly, it
-  also ends accounts — the losses are rare, sudden and larger than the wins.
-- The product's job is awareness: what each position really risks, what the
-  book really risks, and what is scheduled to happen before expiry.
-- It warns. It does not decide. Every alert states a fact and leaves the call to
-  the trader — which is both the honest posture and the compliant one.
-- The audience is serious traders who already take risk seriously, not people
-  looking for signals.
+- **Income without risk control is a pitch.** It promises returns, which the
+  compliance rules forbid and experienced traders discount anyway.
+- **Risk control without income is a warning label.** Nobody buys a tool whose
+  whole message is what might go wrong; it reads as having nothing to offer.
 
-**Danger words.** Never "protect", "safe", "guaranteed", "prevent losses" or
-"risk-free". The product improves *awareness* of risk; it does not reduce risk,
-and claiming otherwise is both false and a compliance problem.
+The four capabilities are one argument, not a feature list: you must run many
+positions to earn (**screener**), which makes them impossible to hold in your
+head (**grouping**), which is how one of them quietly becomes too large
+(**risk warnings**), and the whole point is what you actually kept
+(**statistics**). Return on risk is the hinge — it is simultaneously the return
+metric and the risk metric.
 
 ### Language that is not optional
 

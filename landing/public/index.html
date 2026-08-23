@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>DeltaMint — Risk management for options income</title>
-<meta name="description" content="Selling premium is a good way to earn — and a fast way to blow up an account. DeltaMint shows what every position really risks, and tells you when a position is heading somewhere dangerous." />
+<title>DeltaMint — Options income, with the risk in plain sight</title>
+<meta name="description" content="DeltaMint finds credit-spread and condor setups ranked by return on risk, groups every position back into the structure you actually traded, and keeps what each one risks in plain sight." />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
@@ -29,11 +29,11 @@
   <section class="hero">
     <div class="hero-grid">
       <div>
-        <h1>Stay in the game.</h1>
-        <p class="sub">Multi-leg options are a good way to earn income &mdash; and a fast way to end a run. DeltaMint keeps every risk in front of you, so one position never takes the account.</p>
+        <h1>Earn it. Keep it.</h1>
+        <p class="sub">Finds the setups, groups every position back into the structure you actually traded, and keeps what each one risks in plain sight &mdash; so a good year doesn&rsquo;t end on one bad position.</p>
         <div class="actions">
           <a class="btn btn-primary" href="https://dashboard.deltamint.app/register">Start free on paper</a>
-          <a class="btn btn-ghost" href="#risk">How it works</a>
+          <a class="btn btn-ghost" href="#find">How it works</a>
         </div>
       </div>
 
@@ -75,39 +75,10 @@
 
 <section class="band">
   <div class="wrap">
-    <p class="big statement">Income compounds quietly.<br><span class="dim">Losses don't.</span></p>
-    <p class="cap" style="margin-top:1.5rem">Months of collected premium can go back out on one position nobody was watching. The whole job is noticing first.</p>
+    <p class="big statement">The income is in the repetition.<br><span class="dim">So is the risk.</span></p>
+    <p class="cap" style="margin-top:1.5rem">Which is why this shows all of it &mdash; what you&rsquo;re finding, what you&rsquo;re holding, and what it would cost you.</p>
   </div>
 </section>
-
-<div class="wrap">
-  <section id="risk">
-    <p class="eyebrow">Before you commit</p>
-    <h2>Every order tells you what it puts at stake.</h2>
-    <p class="cap">Not the credit &mdash; the exposure. What share of the account this one position risks, and whether anything is already scheduled to happen to it before it expires.</p>
-
-    <div class="guard">
-      <div class="panel gcard">
-        <div class="gt">Share of account at risk</div>
-        <div class="gtop"><span class="gpct">31.4%</span><span class="gband">Elevated</span></div>
-        <div class="gmeter">
-          <i style="width:44.9%"></i>
-          <span style="left:14.3%"></span><span style="left:35.7%"></span><span style="left:71.4%"></span>
-        </div>
-        <div class="gscale"><span style="left:14.3%">10%</span><span style="left:35.7%">25%</span><span style="left:71.4%">50%</span></div>
-        <p class="gnote">Over a quarter of the account on one position. Thresholds at 10, 25, 50 and 70% &mdash; you always know which side of each you&rsquo;re on.</p>
-      </div>
-
-      <div class="panel gcard warn">
-        <div class="gwarn">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M12 14v3"/></svg>
-          <span>NVDA reports earnings before the open on 18 Sep &mdash; in 4 days.</span>
-        </div>
-        <p class="gnote">This position would be held through the announcement, which is typically the largest single-day move the underlying makes. We tell you. You decide.</p>
-      </div>
-    </div>
-  </section>
-</div>
 
 <div class="wrap">
   <section id="find">
@@ -239,6 +210,35 @@
         <div class="bar"></div>
         <h3>Straight to the order</h3>
         <p>Trade from the row. Every leg goes as one order, and lands in your book grouped.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="wrap">
+  <section id="risk">
+    <p class="eyebrow">Before you commit</p>
+    <h2>Every order tells you what it puts at stake.</h2>
+    <p class="cap">Not the credit &mdash; the exposure. What share of the account this one position risks, and whether anything is already scheduled to happen to it before it expires.</p>
+
+    <div class="guard">
+      <div class="panel gcard">
+        <div class="gt">Share of account at risk</div>
+        <div class="gtop"><span class="gpct">31.4%</span><span class="gband">Elevated</span></div>
+        <div class="gmeter">
+          <i style="width:44.9%"></i>
+          <span style="left:14.3%"></span><span style="left:35.7%"></span><span style="left:71.4%"></span>
+        </div>
+        <div class="gscale"><span style="left:14.3%">10%</span><span style="left:35.7%">25%</span><span style="left:71.4%">50%</span></div>
+        <p class="gnote">Over a quarter of the account on one position. Thresholds at 10, 25, 50 and 70% &mdash; you always know which side of each you&rsquo;re on.</p>
+      </div>
+
+      <div class="panel gcard warn">
+        <div class="gwarn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M12 14v3"/></svg>
+          <span>NVDA reports earnings before the open on 18 Sep &mdash; in 4 days.</span>
+        </div>
+        <p class="gnote">This position would be held through the announcement, which is typically the largest single-day move the underlying makes. We tell you. You decide.</p>
       </div>
     </div>
   </section>
