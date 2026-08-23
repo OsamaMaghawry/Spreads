@@ -59,6 +59,12 @@ Its documented limit is the opening: credit and debit spreads must be logged
 **leg by leg**, with alerts configured per component. The tool that will fire the
 spread order for you cannot hold the spread as one object once it fills.
 
+**But its broker link is a bot, not a button.** Tiblio sends orders to the
+connected broker "every 10 minutes, on your rules" — unattended automation on a
+timer. No screener documented here puts an order control on a ranked row for a
+person to look at and press. That distinction is checkable and it is where the
+"ease" claim actually lives.
+
 Adjacent: **QuantWheel** routes to tastytrade; **Option Alpha** runs entries,
 exits and rolls through Tradier and TradeStation, free to users who route there;
 **TradeSteward** builds bots for Schwab, tastytrade, Tradier and TradeStation.
@@ -92,7 +98,8 @@ Scored against the above, not against effort spent.
 | Grouping legs into structures | **Foundation** — the primitive the two above depend on; pairing by order provenance rather than guessing strikes is a genuine technical position |
 | Price walking on limit orders | **Table stakes, and that understates it** — Schwab ships WALK LIMIT® as a native order type on thinkorswim, built for multi-leg orders with wide spreads. Not a competitor's feature to be beaten; a broker's order type to be matched |
 | Portfolio statistics | **Conditional** — commodity if it is profit and loss; differentiated only when structure-aware |
-| Opportunity screening | **Commodity** — and more so than assumed. Barchart alone gives away ~10 dedicated multi-leg screeners (short and long iron condor, all four verticals) with legs, max profit, max loss and probability of loss; Market Chameleon covers 18 spread types at $69–99/mo |
+| Constructing candidates from ranges | **Under-rated, and previously mis-scored** — the screener does not filter a chain. It sweeps tickers × expiries × delta targets × wing widths, *builds* each structure, prices it at short bid − long ask, and computes both break-evens. Every competitor documented below filters existing chain combinations. Scored as "screening" this looked like a commodity; it is not the same operation |
+| Opportunity screening (filtering chains) | **Commodity** — and more so than assumed. Barchart alone gives away ~10 dedicated multi-leg screeners (short and long iron condor, all four verticals) with legs, max profit, max loss and probability of loss; Market Chameleon covers 18 spread types at $69–99/mo |
 | Pre-trade return on risk | **Commodity** — a competitor gives this away free |
 
 The through-line: competitors optimise the **single-trade lifecycle** — find,

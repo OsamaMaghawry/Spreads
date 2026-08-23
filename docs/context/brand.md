@@ -60,6 +60,11 @@ sells it.
 - **Short.** A homepage feature is a heading and one sentence. Parameters,
   intervals and thresholds belong in documentation.
 - **Never promise outcomes.** No performance claims, no implied edge.
+- **Never talk the product down.** Being accurate about competitors is an
+  internal discipline, kept in `positioning.md`. It must not leak into public
+  copy as hedging or self-deprecation. A visitor has not heard of our
+  competitors; a homepage that opens by minimising a real capability is not
+  honest, only weak. State plainly what the product does, and show it.
 
 ## What the product is, in one line
 

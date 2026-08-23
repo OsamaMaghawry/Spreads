@@ -81,65 +81,132 @@
 </section>
 
 <div class="wrap">
-  <section id="loop">
-    <p class="eyebrow">The loop</p>
-    <h2>Finding it is the easy part.</h2>
-    <p class="cap">Plenty of tools will help you put a spread on. Most lose it the moment it&rsquo;s on &mdash; back to four legs, four rows, four alerts. This one still knows it&rsquo;s one condor.</p>
+  <section id="find">
+    <p class="eyebrow">Finding them</p>
+    <h2>You never pick a strike.</h2>
+    <p class="cap">Say how far out, how far from the money, and how much you&rsquo;ll risk. It builds every structure that fits, prices each one on the bid you&rsquo;d actually get, and ranks what&rsquo;s left by return on risk.</p>
 
-    <div class="chain">
-      <div class="step">
-        <div class="stepno">01</div>
-        <h3 class="steph">Screen</h3>
-        <div class="stepart">
-          <div class="scan">
-            <div class="srow top"><span class="st">SPY</span><span class="ss">605/600P</span><span class="sr">22%</span></div>
-            <div class="srow"><span class="st">NVDA</span><span class="ss">118/113P</span><span class="sr">19%</span></div>
-            <div class="srow"><span class="st">AAPL</span><span class="ss">230/235C</span><span class="sr">17%</span></div>
-          </div>
+    <div class="sweep">
+      <div class="sw-col">
+        <div class="sw-cap">You set</div>
+        <div class="sw-set">
+          <div><span>Universe</span><b>Top 50</b></div>
+          <div><span>Expiry</span><b>0&ndash;5 days</b></div>
+          <div><span>Short delta</span><b>0.12&ndash;0.22</b></div>
+          <div><span>Wing width</span><b>$1&ndash;$3</b></div>
         </div>
-        <p class="stepcap">Your filters. Ranked by return on risk.</p>
       </div>
 
-      <div class="step">
-        <div class="stepno">02</div>
-        <h3 class="steph">Send</h3>
-        <div class="stepart">
-          <div class="ticket">
-            <div class="tline"><span>SPY 605/600P</span><span>&times;2</span></div>
-            <div class="tline"><span>Limit</span><span>1.05 credit</span></div>
-          </div>
-          <div class="fauxbtn">Open 2 SPY spreads</div>
-        </div>
-        <p class="stepcap">Two taps. Every leg, one order.</p>
+      <div class="sw-arrow" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 13h17M15 7l6 6-6 6"/></svg>
       </div>
 
-      <div class="step">
-        <div class="stepno">03</div>
-        <h3 class="steph">Hold</h3>
-        <div class="stepart">
-          <div class="mini">
-            <div class="mt"><span class="mtk">SPY</span><span class="mkd">put spread</span></div>
-            <div class="lad"><div class="lad-bar"><i class="l" style="flex:.6"></i><i class="p"></i></div></div>
-            <div class="pl up">+$96</div>
-          </div>
-        </div>
-        <p class="stepcap">It arrives already grouped.</p>
+      <div class="sw-col">
+        <div class="sw-cap">It builds and prices</div>
+        <div class="sw-big">1,800</div>
+        <div class="sw-note">structures, each one quoted at short bid minus long ask</div>
       </div>
 
-      <div class="step">
-        <div class="stepno">04</div>
-        <h3 class="steph">Close</h3>
-        <div class="stepart">
-          <svg class="walk" viewBox="0 0 150 62" role="img" aria-label="A limit price stepping up in small increments until it fills, staying below the market's asking price.">
-            <line x1="4" y1="10" x2="146" y2="10" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 4" opacity=".45"/>
-            <polyline points="16,50 54,41 92,32 130,23" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linejoin="round"/>
-            <circle cx="16" cy="50" r="3.2" fill="var(--brand)"/>
-            <circle cx="54" cy="41" r="3.2" fill="var(--brand)"/>
-            <circle cx="92" cy="32" r="3.2" fill="var(--brand)"/>
-            <circle cx="130" cy="23" r="4.6" fill="var(--mint)"/>
-          </svg>
+      <div class="sw-arrow" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 13h17M15 7l6 6-6 6"/></svg>
+      </div>
+
+      <div class="sw-col">
+        <div class="sw-cap">You see</div>
+        <div class="sw-big mint">25</div>
+        <div class="sw-note">that clear your rules, best return on risk first</div>
+      </div>
+    </div>
+
+    <div class="panel sheet">
+      <div class="r rh">
+        <span class="c c-tkr">Ticker</span>
+        <span class="c c-exp">Expiry</span>
+        <span class="c c-str">Structure</span>
+        <span class="c c-n">Spot</span>
+        <span class="c c-n">Short &Delta;</span>
+        <span class="c c-n">RoR</span>
+        <span class="c c-n">Credit</span>
+        <span class="c c-n">Max risk</span>
+        <span class="c c-act"></span>
+      </div>
+
+      <div class="r top">
+        <span class="c c-tkr">SPY</span>
+        <span class="c c-exp" data-l="Expiry">2026-09-19</span>
+        <span class="c c-str" data-l="Structure">605/600P &middot; 655/660C</span>
+        <span class="c c-n" data-l="Spot">$612.40</span>
+        <span class="c c-n" data-l="Short &Delta;">0.18</span>
+        <span class="c c-n c-ror" data-l="RoR">30.9%</span>
+        <span class="c c-n" data-l="Credit">$1.18</span>
+        <span class="c c-n" data-l="Max risk">$382</span>
+        <span class="c c-act"><span class="tradebtn">Trade</span></span>
+      </div>
+
+      <div class="expand">
+        <div class="ex-t">What that row already knows</div>
+        <div class="lad-bar"><i class="l"></i><i class="p"></i><i class="l"></i></div>
+        <div class="ex-sc">
+          <span class="m-start">600</span>
+          <span class="be" style="left:21.7%">603.82</span>
+          <span class="be" style="left:78.3%">656.18</span>
+          <span class="m-end">660</span>
         </div>
-        <p class="stepcap">Walked up, never past the market.</p>
+        <p class="ex-cap">Both break-evens, from the same credit that priced the row.</p>
+      </div>
+
+      <div class="r">
+        <span class="c c-tkr">NVDA</span>
+        <span class="c c-exp" data-l="Expiry">2026-09-19</span>
+        <span class="c c-str" data-l="Structure">118/113P</span>
+        <span class="c c-n" data-l="Spot">$124.60</span>
+        <span class="c c-n" data-l="Short &Delta;">0.20</span>
+        <span class="c c-n c-ror" data-l="RoR">26.6%</span>
+        <span class="c c-n" data-l="Credit">$1.05</span>
+        <span class="c c-n" data-l="Max risk">$395</span>
+        <span class="c c-act"><span class="tradebtn ghost">Trade</span></span>
+      </div>
+
+      <div class="r">
+        <span class="c c-tkr">AAPL</span>
+        <span class="c c-exp" data-l="Expiry">2026-09-26</span>
+        <span class="c c-str" data-l="Structure">230/235C</span>
+        <span class="c c-n" data-l="Spot">$221.80</span>
+        <span class="c c-n" data-l="Short &Delta;">0.16</span>
+        <span class="c c-n c-ror" data-l="RoR">22.5%</span>
+        <span class="c c-n" data-l="Credit">$0.92</span>
+        <span class="c c-n" data-l="Max risk">$408</span>
+        <span class="c c-act"><span class="tradebtn ghost">Trade</span></span>
+      </div>
+
+      <div class="r">
+        <span class="c c-tkr">MSFT</span>
+        <span class="c c-exp" data-l="Expiry">2026-09-26</span>
+        <span class="c c-str" data-l="Structure">490/485P</span>
+        <span class="c c-n" data-l="Spot">$502.10</span>
+        <span class="c c-n" data-l="Short &Delta;">0.14</span>
+        <span class="c c-n c-ror" data-l="RoR">17.4%</span>
+        <span class="c c-n" data-l="Credit">$0.74</span>
+        <span class="c c-n" data-l="Max risk">$426</span>
+        <span class="c c-act"><span class="tradebtn ghost">Trade</span></span>
+      </div>
+    </div>
+
+    <div class="findgrid">
+      <div>
+        <div class="bar"></div>
+        <h3>Your ceiling, not ours</h3>
+        <p>Set the most you&rsquo;ll put at risk on one position. Nothing above it reaches the list.</p>
+      </div>
+      <div>
+        <div class="bar"></div>
+        <h3>Priced on the bid you&rsquo;d get</h3>
+        <p>Short bid minus long ask &mdash; not the mid, which nobody fills at.</p>
+      </div>
+      <div>
+        <div class="bar"></div>
+        <h3>Straight to the order</h3>
+        <p>Trade from the row. Every leg goes as one order, and lands in your book grouped.</p>
       </div>
     </div>
   </section>

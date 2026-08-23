@@ -103,6 +103,7 @@ Deliberately not built yet — see `docs/deferred-work.md`.
 
 ## Recent work
 
+- 2026-08-23  Show the loop on the homepage, with screening as the ante
 - 2026-08-23  Carry brand, positioning and compliance into the generated brief
 - 2026-08-23  Generate a product brief from the codebase, and keep CI honest about it
 - 2026-08-23  Match the app's typography to the marketing site, drop the backup export
@@ -117,7 +118,6 @@ Deliberately not built yet — see `docs/deferred-work.md`.
 - 2026-08-22  Encrypt brokerage credentials and keep them out of the browser
 - 2026-08-22  Use neutral brokerage wording outside the connection flow
 - 2026-08-22  Use neutral brokerage language in landing marketing copy
-- 2026-08-22  Commit public build-time config so every build resolves it
 
 ---
 
@@ -183,6 +183,11 @@ sells it.
 - **Short.** A homepage feature is a heading and one sentence. Parameters,
   intervals and thresholds belong in documentation.
 - **Never promise outcomes.** No performance claims, no implied edge.
+- **Never talk the product down.** Being accurate about competitors is an
+  internal discipline, kept in `positioning.md`. It must not leak into public
+  copy as hedging or self-deprecation. A visitor has not heard of our
+  competitors; a homepage that opens by minimising a real capability is not
+  honest, only weak. State plainly what the product does, and show it.
 
 ### What the product is, in one line
 
@@ -269,6 +274,12 @@ Its documented limit is the opening: credit and debit spreads must be logged
 **leg by leg**, with alerts configured per component. The tool that will fire the
 spread order for you cannot hold the spread as one object once it fills.
 
+**But its broker link is a bot, not a button.** Tiblio sends orders to the
+connected broker "every 10 minutes, on your rules" — unattended automation on a
+timer. No screener documented here puts an order control on a ranked row for a
+person to look at and press. That distinction is checkable and it is where the
+"ease" claim actually lives.
+
 Adjacent: **QuantWheel** routes to tastytrade; **Option Alpha** runs entries,
 exits and rolls through Tradier and TradeStation, free to users who route there;
 **TradeSteward** builds bots for Schwab, tastytrade, Tradier and TradeStation.
@@ -302,7 +313,8 @@ Scored against the above, not against effort spent.
 | Grouping legs into structures | **Foundation** — the primitive the two above depend on; pairing by order provenance rather than guessing strikes is a genuine technical position |
 | Price walking on limit orders | **Table stakes, and that understates it** — Schwab ships WALK LIMIT® as a native order type on thinkorswim, built for multi-leg orders with wide spreads. Not a competitor's feature to be beaten; a broker's order type to be matched |
 | Portfolio statistics | **Conditional** — commodity if it is profit and loss; differentiated only when structure-aware |
-| Opportunity screening | **Commodity** — and more so than assumed. Barchart alone gives away ~10 dedicated multi-leg screeners (short and long iron condor, all four verticals) with legs, max profit, max loss and probability of loss; Market Chameleon covers 18 spread types at $69–99/mo |
+| Constructing candidates from ranges | **Under-rated, and previously mis-scored** — the screener does not filter a chain. It sweeps tickers × expiries × delta targets × wing widths, *builds* each structure, prices it at short bid − long ask, and computes both break-evens. Every competitor documented below filters existing chain combinations. Scored as "screening" this looked like a commodity; it is not the same operation |
+| Opportunity screening (filtering chains) | **Commodity** — and more so than assumed. Barchart alone gives away ~10 dedicated multi-leg screeners (short and long iron condor, all four verticals) with legs, max profit, max loss and probability of loss; Market Chameleon covers 18 spread types at $69–99/mo |
 | Pre-trade return on risk | **Commodity** — a competitor gives this away free |
 
 The through-line: competitors optimise the **single-trade lifecycle** — find,
