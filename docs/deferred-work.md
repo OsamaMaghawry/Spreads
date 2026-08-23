@@ -39,13 +39,14 @@ run the maintenance job, clear previous.
 
 ### Continuous deployment for edge functions
 
-**Status:** no CI exists (`.github/` is absent). Deploys are manual.
+**Status:** done — `.github/workflows/deploy-functions.yml`. Needs the
+`SUPABASE_ACCESS_TOKEN` repository secret to be set before its first run.
 
-Every function deploy is currently a hand-run command, which is why shared-code
-changes feel expensive. A GitHub Actions workflow running
-`supabase functions deploy` on push to `main` makes the fan-out a non-event:
-the cost of touching shared code drops to a normal CI run. Needs a
-`SUPABASE_ACCESS_TOKEN` repository secret and the project ref.
+Pushing to `main` now redeploys every function, so the shared-code fan-out
+costs a CI run rather than a manual redeploy of each. Migrations are still
+applied by hand with `supabase db push`; automating those is a separate
+decision, since a bad migration is much harder to roll back than a bad
+function version.
 
 ### Leaked-password protection
 

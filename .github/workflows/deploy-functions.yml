@@ -1,0 +1,55 @@
+name: Deploy edge functions
+
+# Each function is deployed as its own bundle containing a copy of whatever it
+# imports from supabase/functions/_shared/, so editing a shared file leaves every
+# other function running the old copy. Deploying with no function name deploys
+# all of them, which keeps what is running consistent with the commit and makes
+# a shared-code change cost one CI run instead of a manual redeploy of each.
+#
+# Requires one repository secret: SUPABASE_ACCESS_TOKEN
+# (Supabase dashboard -> Account -> Access Tokens -> Generate new token,
+#  then GitHub -> Settings -> Secrets and variables -> Actions -> New secret).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - '.github/workflows/deploy-functions.yml'
+  # Lets a deploy be re-run from the Actions tab without an empty commit —
+  # useful after rotating a function secret, which needs a redeploy to take hold.
+  workflow_dispatch:
+
+# Never let two deploys overlap, and never cancel one midway: a half-applied
+# deploy would leave some functions on the new shared code and some on the old.
+concurrency:
+  group: deploy-edge-functions
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # The repo's own check, so a syntax error in a function is caught here
+      # rather than by the bundler halfway through deploying twelve of them.
+      - run: npm run lint
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy all functions
+        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          # Not a secret: this ref is already public in the project URL.
+          SUPABASE_PROJECT_REF: yecfbeohyakuoyczvdbj

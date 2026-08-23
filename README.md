@@ -52,6 +52,8 @@ supabase db push
 supabase functions deploy syncAccounts spreadQuote tradeHistory scanEntries findEntry manageOrder closeSpread openPosition alpacaOAuthCallback saveAccount migrateCredentials
 ```
 
+Pushing to `main` deploys the functions automatically — `.github/workflows/deploy-functions.yml` runs `supabase functions deploy` whenever anything under `supabase/functions/` changes, and can also be triggered by hand from the Actions tab. It needs a `SUPABASE_ACCESS_TOKEN` repository secret. Deploying every function on each run is deliberate: each one bundles its own copy of `_shared/`, so a shared-code change leaves the others stale. Migrations are not automated and still need `supabase db push`.
+
 Edge functions read `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` from the platform-provided environment. Two secrets must be set by hand.
 
 ### Credential encryption (required)
