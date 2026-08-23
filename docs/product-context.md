@@ -3,9 +3,20 @@
 
 # DeltaMint — product context
 
-A single current description of this product, generated from the codebase. Give
-this to a model, a new contributor, or a reviewer instead of explaining the
-product from memory.
+Everything worth knowing about this product in one file: what it is, how it is
+built, how it should look and sound, where it sits in its market, and what its
+broker approval requires. Give this to a model, a contributor or a reviewer
+instead of explaining any of it from memory.
+
+Two kinds of content are assembled here, and they are maintained differently:
+
+- **Derived from the code** — screens, functions, schema, analytics, history.
+  Regenerated on every run, so it cannot drift.
+- **Written judgement** — brand, positioning, compliance. Lives in
+  `docs/context/`. Edit those files, then run `npm run context`.
+
+Never edit this file directly; it is overwritten. CI fails when it no longer
+matches its sources.
 
 ## What it is
 
@@ -92,6 +103,7 @@ Deliberately not built yet — see `docs/deferred-work.md`.
 
 ## Recent work
 
+- 2026-08-23  Generate a product brief from the codebase, and keep CI honest about it
 - 2026-08-23  Match the app's typography to the marketing site, drop the backup export
 - 2026-08-23  Fix the data backup, broken by the credential column revoke
 - 2026-08-23  Skip the function deploy when no access token is configured
@@ -106,4 +118,267 @@ Deliberately not built yet — see `docs/deferred-work.md`.
 - 2026-08-22  Use neutral brokerage language in landing marketing copy
 - 2026-08-22  Commit public build-time config so every build resolves it
 - 2026-08-22  Log which VITE_* variables a build can see
-- 2026-08-22  Fail with a named variable when VITE_* config is missing at build time
+
+---
+
+# Brand and identity
+
+**This file is the source of truth for how DeltaMint looks and sounds.** Change
+it here and ask for it to be applied — the app (`src/index.css`), the marketing
+site (`landing/public/assets/site.css`) and anything written for either should
+follow this file, not the other way round.
+
+### Name
+
+DeltaMint. One word, capital D and M in prose. The wordmark renders lowercase as
+`delta` + `mint`, with `mint` in the mint green.
+
+Never "Spread Deck", "OptiFlow" or "Optiflow Trading" — earlier names that still
+surface occasionally in older code and exports.
+
+### Colour
+
+The app carries the full palette; the marketing site uses a subset. Both define
+a dark theme, and every value below is the light-theme value.
+
+| Token | Value | Used for |
+| --- | --- | --- |
+| Accent | `#534AB7` | Primary actions, links, brand mark outline |
+| Accent dim | `#7F77DD` | Hover and secondary accent |
+| Accent bright | `#3C3489` | Pressed and high-emphasis accent |
+| Mint | `#3FA672` | The `mint` in the wordmark, profit zones |
+| Positive | `#0F6E56` | Gains, filled orders, safe states |
+| Negative | `#993C1D` | Losses, max-loss wings, destructive actions |
+| Ink | `#201B3A` | Primary text |
+| Muted | `#6A6294` | Secondary text and labels |
+| Ground | `#F6F5FB` | Page background |
+| Panel | `#FFFFFF` | Cards and surfaces |
+| Line | `#E1DEF2` | Borders and dividers |
+
+Green means profit or safety, red-brown means loss or risk, violet means the
+product itself. Never use the profit and loss colours decoratively — in a
+trading interface they carry meaning.
+
+### Typography
+
+| Role | Face | Why |
+| --- | --- | --- |
+| Headings | Bricolage Grotesque, 600–700 | Carries personality without being a default |
+| Body | IBM Plex Sans, 400–600 | Reads well at length |
+| Figures | IBM Plex Mono | Columns of numbers must line up; `tabular-nums` throughout |
+
+Mono is for data, not for atmosphere. Setting the whole interface in monospace —
+as this product originally did — reads as a developer tool rather than a
+trading one.
+
+### Voice
+
+Write the way a competent colleague explains something, not the way a brochure
+sells it.
+
+- **Plain over technical.** "We show you the condor", not "structural
+  aggregation of multi-leg positions".
+- **Specific over impressive.** Name the real thing. Avoid "powerful",
+  "seamless", "cutting-edge", "revolutionise".
+- **Short.** A homepage feature is a heading and one sentence. Parameters,
+  intervals and thresholds belong in documentation.
+- **Never promise outcomes.** No performance claims, no implied edge.
+
+### What the product is, in one line
+
+Everyone else helps a trader put on a trade. DeltaMint helps them hold a book of
+them.
+
+### Language that is not optional
+
+Alpaca's OAuth due diligence questionnaire governs public wording. These are
+compliance constraints, not style preferences — see `compliance.md`.
+
+- Marketing pages use neutral brokerage language: "your brokerage account", not
+  the broker's name. The broker may be named where an integration is genuinely
+  being described, and in the legal pages where accuracy requires it.
+- Never state or imply that DeltaMint is a broker-dealer, holds funds or
+  securities, opens or maintains accounts, or provides brokerage services.
+- Never give investment advice or recommendations. The screener lists what
+  matches the user's own filters; it does not suggest trades. Any mention of a
+  specific security or strategy must be worded so the reader draws their own
+  conclusion.
+- The authorization disclosure shown before connecting a brokerage account is
+  mandated wording and must be reproduced verbatim.
+
+---
+
+# Positioning and market
+
+Where DeltaMint sits, and why. Written from public evidence rather than
+ambition — the uncomfortable findings are kept deliberately.
+
+### The market, honestly sized
+
+There is no measurable "multi-leg options strategies market"; nobody clears or
+reports that as a category. What exists is a very large *activity* and a very
+small *software revenue pool*, and conflating them is how this analysis usually
+goes wrong.
+
+**The activity is large and growing.** Complex and multi-leg orders are roughly
+30–40% of US options volume — a third of everything traded, not a niche. Zero
+days to expiry reached 24.1% of 2025 volume, up from 21.5% in 2024, and a record
+110 million contracts cleared in a single day in October 2025.
+
+**The revenue is not where the volume is.** Robinhood earns roughly $300M from
+options in a single quarter. tastytrade did $58.2M in exchange-traded
+derivatives in three months to November 2025, growing 46% year on year, inside
+IG Group's £1.12B. The entire independent retail options tooling layer prices at
+$9–99 per month. Brokers capture the value of the volume that tools help create.
+
+Anyone building here is selling a subscription against a hobby budget, not
+taking a share of a large flow. That is a real business, but a thin-margin one.
+
+### Who else is in it
+
+| Segment | Who | How they earn |
+| --- | --- | --- |
+| Execution and custody | tastytrade, Interactive Brokers, Schwab, Robinhood, Webull | Order flow, commissions, margin |
+| API / embedded brokerage | Alpaca, Tradier, Interactive Brokers | Per-account and per-trade fees |
+| Visualisation and analytics | OptionStrat, Market Chameleon, Barchart, ORATS | $9–29/mo subscription |
+| Flow and sentiment | Unusual Whales, Cheddar Flow | $29–99/mo subscription |
+| Backtest and automation | Option Alpha, Option Omega, TradeSteward | Tiered subscription |
+
+No revenue, share or subscriber figures exist publicly for that software layer —
+every player is private with no disclosure obligation. Any figure quoted for them
+is scraped-traffic guesswork and should not be planned against.
+
+Note also that brokers ship this functionality downward for free: thinkorswim,
+tastytrade's own platform and IBKR all bundle strategy builders and analytics.
+Independent tools live in the gap between what brokers bundle and what serious
+traders want, and that gap narrows each year.
+
+### What the market rewards
+
+- **Removing a constraint, not adding a view.** Execution and management, not
+  signals or opinions. Automation is the only category answering a problem the
+  customer cannot solve by paying more attention.
+- **Proprietary data with real acquisition cost.** Historical option chains are
+  expensive to license and painful to serve; an archive is the only genuine moat
+  visible in the retail layer.
+- **Broker integration breadth.** Each one is slow and compliance-gated, which is
+  precisely why it is defensible once held.
+- **Reliability as the feature.** Once software places real orders, trust
+  dominates the purchase decision and is earned slowly.
+
+### Where DeltaMint's edge actually is
+
+Scored against the above, not against effort spent.
+
+| Feature | Verdict |
+| --- | --- |
+| Real-time comprehension of many holdings | **Real edge** — removes a scaling constraint; pain grows with position count, so per-trade tools never feel it |
+| End-of-session assignment de-risking | **Real edge** — runs when the user cannot, against a quantifiable loss; more valuable as 0DTE share rises. **Not yet built.** |
+| Grouping legs into structures | **Foundation** — the primitive the two above depend on; pairing by order provenance rather than guessing strikes is a genuine technical position |
+| Price walking on limit orders | **Table stakes** — real, but a competitor already markets it as a headline feature |
+| Portfolio statistics | **Conditional** — commodity if it is profit and loss; differentiated only when structure-aware |
+| Opportunity screening | **Commodity** — every player has a scanner |
+| Pre-trade return on risk | **Commodity** — a competitor gives this away free |
+
+The through-line: competitors optimise the **single-trade lifecycle** — find,
+evaluate, place. DeltaMint's differentiated features all sit on the **portfolio
+lifecycle** — hold, manage, exit. Those are different products, and only one of
+those halves is contested.
+
+### Honest weaknesses
+
+- **No data moat.** No historical archive, so no credible backtesting story.
+  Defensibility must come from integration depth and operational trust, both
+  earned slowly and neither purchasable.
+- **Alpaca is a smaller pond.** Every competing automation product integrates
+  tastytrade, Tradier, Schwab or TradeStation; none leads with Alpaca. That is
+  genuine white space, but the retail options traders with real size are
+  concentrated on the other platforms. Being first can mean uncontested or it can
+  mean fishing where there are fewer fish — worth establishing empirically before
+  betting the roadmap.
+- **Squeezed from both sides.** Brokers ship features downward for free; data
+  vendors price upward. Switching costs are near zero for analysis tools and only
+  moderate for automation.
+
+---
+
+# Compliance and broker approval
+
+State of the Alpaca OAuth application, and the rules it imposes on the product.
+
+### Where the application stands
+
+The OAuth connect flow is built and technically correct — the authorize request
+carries a valid client ID, a registered redirect URI and valid scopes. Alpaca
+still rejects it with `invalid_client`, because **the OAuth app has not been
+approved**. Client ID and secret are issued at creation, but the app does not
+function at the authorize endpoint until Alpaca's review passes.
+
+There is no sandbox. Approval is a compliance review, not a technical toggle,
+so the flow cannot be demonstrated end to end beforehand.
+
+### What the questionnaire requires
+
+**Agreements** — end user terms, fee schedule, privacy policy, cybersecurity
+policy. The first three are published on the marketing site; the cybersecurity
+policy is drafted and covers the seven areas Alpaca lists as minimum: data
+classification, access control, encryption at rest and in transit, vulnerability
+and patch management, incident response and recovery, physical security, and
+vendor risk.
+
+**Business description** — model, products and technology; customer count;
+endpoint protection on production and corporate networks; and a video or
+screenshots of a user connecting their account.
+
+**Still needed from the founder:** customer count, a named incident-response
+owner and contact, confirmation of workstation controls (disk encryption,
+automatic updates, multi-factor authentication on GitHub, Cloudflare, Supabase
+and Alpaca), and the connection walkthrough capture.
+
+### The capture they ask for
+
+Record: signed-in dashboard → Accounts → Connect Alpaca → **the authorization
+disclosure dialog, fully legible** → Continue → the broker's own sign-in page.
+The disclosure and its acknowledgement is the part under review, and it must
+visibly precede connecting. State in the covering message that the final
+callback cannot be shown until the app is approved.
+
+### Rules this imposes on the product
+
+These are not style preferences. They govern what may ship.
+
+1. **Neutral brokerage language in marketing.** The broker's name stays off the
+   site except where an integration is genuinely being described. Legal pages
+   may name them where accuracy requires it — a privacy policy that hides who
+   receives user data is a worse problem than the naming rule.
+2. **Never imply broker-dealer status.** DeltaMint does not hold funds or
+   securities, open or maintain accounts, or provide brokerage services.
+3. **No investment advice, signals or recommendations.** The screener lists what
+   matches the user's filters. Any mention of a specific security or strategy
+   must let the reader draw their own conclusion.
+4. **No copy trading, mirror trading, social trading or influencer promotion.**
+   Alpaca will not approve these models at all without registered adviser or
+   broker-dealer status.
+5. **Automated actions are user-configured rules.** Anything that places or
+   closes orders without the user present — the planned end-of-session
+   de-risking, for instance — must be described as a rule the user configured and
+   the software executed at their direction, never as the software deciding.
+6. **Commercial model must be disclosed.** Flat monthly subscription; no
+   commission, no share of profits, nothing contingent on trading activity.
+
+### Security posture, as it can be truthfully stated
+
+- Brokerage credentials are encrypted with AES-256-GCM before storage. The key
+  lives in the edge function environment, never in the database, so a database
+  dump or a leaked service role key yields ciphertext.
+- Credential columns are revoked from the browser role entirely — verified
+  against the live project — so a client session cannot read them even if
+  application code asked.
+- Row-level security scopes every table to `auth.uid()`; edge functions verify
+  the caller's JWT and re-confirm account ownership before use.
+- All traffic is TLS end to end. No production servers exist to patch; the
+  runtime is managed.
+
+**Outstanding:** encryption key rotation has no path yet — see
+`docs/deferred-work.md`. Leaked-password protection is disabled in Supabase Auth
+and is a free toggle worth enabling before review.
