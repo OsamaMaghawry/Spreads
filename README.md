@@ -49,7 +49,7 @@ Apply the schema and deploy the functions with the Supabase CLI:
 ```bash
 supabase link --project-ref your-project-ref
 supabase db push
-supabase functions deploy syncAccounts spreadQuote tradeHistory scanEntries findEntry manageOrder closeSpread openPosition alpacaOAuthCallback saveAccount
+supabase functions deploy syncAccounts spreadQuote tradeHistory scanEntries findEntry manageOrder closeSpread openPosition alpacaOAuthCallback saveAccount migrateCredentials
 ```
 
 Edge functions read `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` from the platform-provided environment. Two secrets must be set by hand.
@@ -68,7 +68,7 @@ Store a copy somewhere safe. **If this key is lost, stored credentials cannot be
 
 The database enforces the other half of this: migration `0004` revokes the credential columns from the `authenticated` role, so a browser can read the account list but not the keys themselves, and all writes go through the `saveAccount` and `alpacaOAuthCallback` functions. Row-level security scopes rows to their owner; these grants scope columns.
 
-Credentials written before this migration remain readable and are re-encrypted the next time the account is saved — open each key-based account and re-enter its key pair once to migrate it, and reconnect OAuth accounts.
+Credentials written before this migration remain readable, so nothing breaks, but they stay in plaintext until rewritten. To encrypt them without involving the account owners, sign in as an administrator and run **Encrypt legacy credentials** on the Accounts page. It calls the `migrateCredentials` function, which re-encrypts every plaintext credential across all users and backfills the masked key hints. It is idempotent — already-encrypted rows are skipped — so it is safe to re-run at any time, and worth re-running after any bulk import.
 
 ### Alpaca OAuth (Connect)
 
