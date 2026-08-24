@@ -25,6 +25,11 @@ const SORTS = [
   { key: "maxRisk", label: "Max Risk" }
 ];
 
+// Ranked scan results for the screener.
+//
+// Counterpart: components/open/CandidateList.jsx renders the same candidate
+// objects inside the account's own open-position dialog. What a candidate row
+// tells a trader has to match in both — change one, change the other.
 export default function ResultsTable({ candidates, onTrade }) {
   const [sortKey, setSortKey] = useState("returnOnRisk");
   const [asc, setAsc] = useState(false);
@@ -76,7 +81,10 @@ export default function ResultsTable({ candidates, onTrade }) {
                 <td className={`${td} text-right`}>{fmtMoney(c.spot)}</td>
                 <td className={`${td} text-right`}>{Math.abs(shortLeg?.delta ?? 0).toFixed(2)}</td>
                 <td className={`${td} text-right font-semibold text-emerald-600`}>{(c.returnOnRisk * 100).toFixed(1)}%</td>
-                <td className={`${td} text-right`}>{fmtMoney(c.credit)}</td>
+                {/* Per contract, so it sits in the same unit as Max Risk beside
+                    it and as the preview this row opens. Sorting uses the raw
+                    value and is unaffected. */}
+                <td className={`${td} text-right`}>{fmtMoney(c.credit * 100)}</td>
                 <td className={`${td} text-right`}>{fmtMoney(c.maxRisk)}</td>
                 <td className={td}>
                   <button

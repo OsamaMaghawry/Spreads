@@ -1,5 +1,11 @@
 import { fmtMoney } from "@/lib/format";
+import EarningsWarning from "@/components/common/EarningsWarning";
 
+// Ranked scan results inside the account's own open-position dialog.
+//
+// Counterpart: components/screener/ResultsTable.jsx renders the same candidate
+// objects for the screener. What a candidate row tells a trader has to match in
+// both — change one, change the other.
 export default function CandidateList({ candidates, selected, onSelect }) {
   return (
     <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-64 overflow-y-auto">
@@ -16,7 +22,10 @@ export default function CandidateList({ candidates, selected, onSelect }) {
             className={`w-full text-left px-3 py-2 transition-colors ${isSel ? "bg-emerald-50" : "hover:bg-slate-50"}`}
           >
             <div className="flex items-center justify-between text-sm">
-              <span className="font-semibold text-slate-900">{c.ticker}</span>
+              <span className="inline-flex items-center gap-1.5 font-semibold text-slate-900">
+                {c.ticker}
+                <EarningsWarning earnings={c.earnings} ticker={c.ticker} compact />
+              </span>
               <span className="text-emerald-600 font-medium tabular-nums">
                 {(c.returnOnRisk * 100).toFixed(1)}% on risk
               </span>
@@ -25,8 +34,10 @@ export default function CandidateList({ candidates, selected, onSelect }) {
               <span>
                 {c.expiry} · Δ {c.targetDelta} · width {fmtMoney(c.wingWidth)}
               </span>
+              {/* Per contract, matching SetupPreview — a row saying $0.93 above a
+                  preview saying $93.00 for the same trade reads as a bug. */}
               <span>
-                credit {fmtMoney(c.credit)} · risk {fmtMoney(c.maxRisk)}
+                credit {fmtMoney(c.credit * 100)} · risk {fmtMoney(c.maxRisk)}
               </span>
             </div>
           </button>
