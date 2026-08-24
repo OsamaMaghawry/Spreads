@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>DeltaMint — Options income, with the risk in plain sight</title>
-<meta name="description" content="DeltaMint finds credit-spread and condor setups ranked by return on risk, groups every position back into the structure you actually traded, and keeps what each one risks in plain sight." />
+<title>DeltaMint — Options income, with risk in plain sight</title>
+<meta name="description" content="DeltaMint finds credit-spread and condor setups, groups every position back into the structure you traded, and shows exactly what each one risks — before and after you trade." />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
@@ -29,8 +29,8 @@
   <section class="hero">
     <div class="hero-grid">
       <div>
-        <h1>Earn it. Keep it.</h1>
-        <p class="sub">Finds the setups, groups every position back into the structure you actually traded, and keeps what each one risks in plain sight &mdash; so a good year doesn&rsquo;t end on one bad position.</p>
+        <h1>Generate income from options. Keep the risk controlled.</h1>
+        <p class="sub">Track every credit spread and condor you sell, and see exactly how much of your account is at risk &mdash; before and after you trade.</p>
         <div class="actions">
           <a class="btn btn-primary" href="https://dashboard.deltamint.app/register">Start free on paper</a>
           <a class="btn btn-ghost" href="#find">How it works</a>
@@ -38,34 +38,30 @@
       </div>
 
       <div class="hero-art">
-        <div class="ba">
-          <div class="panel legs">
-            <div class="plabel" style="margin-bottom:.7rem">Your broker</div>
-            <div class="leg"><span class="s">SPY 250815P00610000</span><span>&minus;2</span></div>
-            <div class="leg"><span class="s">SPY 250815P00605000</span><span>+2</span></div>
-            <div class="leg"><span class="s">SPY 250815C00650000</span><span>&minus;2</span></div>
-            <div class="leg"><span class="s">SPY 250815C00655000</span><span>+2</span></div>
+        <div class="book book-hero">
+          <div class="panel mini">
+            <div class="mt"><span class="mtk">SPY</span><span class="mkd">condor</span></div>
+            <div class="lad"><div class="lad-bar"><i class="l"></i><i class="p"></i><i class="l"></i></div></div>
+            <div class="mini-nums"><span>Credit $412</span><span>At risk $588</span></div>
+            <div class="pl up">+$164</div>
           </div>
-
-          <div class="arrow" aria-hidden="true">
-            <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 13h17M15 7l6 6-6 6"/></svg>
+          <div class="panel mini">
+            <div class="mt"><span class="mtk">AAPL</span><span class="mkd">put spread</span></div>
+            <div class="lad"><div class="lad-bar"><i class="l" style="flex:.6"></i><i class="p"></i></div></div>
+            <div class="mini-nums"><span>Credit $210</span><span>At risk $290</span></div>
+            <div class="pl up">+$96</div>
           </div>
-
-          <div class="panel struct">
-            <div class="top">
-              <span class="tkr">SPY</span>
-              <span class="kind">iron condor</span>
-              <span class="pill">safe</span>
-            </div>
-            <div class="lad">
-              <div class="lad-bar"><i class="l"></i><i class="p"></i><i class="l"></i></div>
-              <div class="lad-sc"><span>605</span><span>655</span></div>
-            </div>
-            <div class="row4">
-              <div><div class="k">Credit</div><div class="v">$412</div></div>
-              <div><div class="k">At risk</div><div class="v">$588</div></div>
-              <div><div class="k">P/L</div><div class="v up">+$164</div></div>
-            </div>
+          <div class="panel mini">
+            <div class="mt"><span class="mtk">NVDA</span><span class="mkd">condor</span></div>
+            <div class="lad"><div class="lad-bar"><i class="l" style="flex:1.8"></i><i class="p" style="flex:1.6"></i><i class="l"></i></div></div>
+            <div class="mini-nums"><span>Credit $148</span><span>At risk $352</span></div>
+            <div class="pl dn">&minus;$22</div>
+          </div>
+          <div class="panel mini">
+            <div class="mt"><span class="mtk">MSFT</span><span class="mkd">call spread</span></div>
+            <div class="lad"><div class="lad-bar"><i class="p"></i><i class="l" style="flex:.5"></i></div></div>
+            <div class="mini-nums"><span>Credit $186</span><span>At risk $314</span></div>
+            <div class="pl up">+$41</div>
           </div>
         </div>
       </div>
@@ -73,213 +69,11 @@
   </section>
 </div>
 
-<section class="band">
-  <div class="wrap">
-    <p class="big statement">The income is in the repetition.<br><span class="dim">So is the risk.</span></p>
-    <p class="cap" style="margin-top:1.5rem">Which is why this shows all of it &mdash; what you&rsquo;re finding, what you&rsquo;re holding, and what it would cost you.</p>
-  </div>
-</section>
-
 <div class="wrap">
-  <section id="find">
-    <p class="eyebrow">Finding the next one</p>
-    <h2>You never pick a strike.</h2>
-    <p class="cap">Say how far out, how far from the money, and how much you&rsquo;ll risk. It builds every structure that fits, prices each one on the bid you&rsquo;d actually get, and ranks what&rsquo;s left by return on risk &mdash; flagging anything with earnings due before expiry.</p>
-
-    <div class="sweep">
-      <div class="sw-col">
-        <div class="sw-cap">You set</div>
-        <div class="sw-set">
-          <div><span>Universe</span><b>Top 50</b></div>
-          <div><span>Expiry</span><b>0&ndash;5 days</b></div>
-          <div><span>Short delta</span><b>0.12&ndash;0.22</b></div>
-          <div><span>Wing width</span><b>$1&ndash;$3</b></div>
-        </div>
-      </div>
-
-      <div class="sw-arrow" aria-hidden="true">
-        <svg width="22" height="22" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 13h17M15 7l6 6-6 6"/></svg>
-      </div>
-
-      <div class="sw-col">
-        <div class="sw-cap">It builds and prices</div>
-        <div class="sw-prog">
-          <div class="sw-pl">50 of 50 tickers &middot; 3 skipped</div>
-          <div class="sw-track"><i></i></div>
-        </div>
-        <div class="sw-note">Every structure in range, quoted at short bid minus long ask.</div>
-      </div>
-
-      <div class="sw-arrow" aria-hidden="true">
-        <svg width="22" height="22" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 13h17M15 7l6 6-6 6"/></svg>
-      </div>
-
-      <div class="sw-col">
-        <div class="sw-cap">You see</div>
-        <div class="sw-sum">18 setups &ge; 15% RoR</div>
-        <div class="sw-note">Best return on risk first.</div>
-      </div>
-    </div>
-
-    <div class="panel sheet">
-      <div class="r rh">
-        <span class="c c-tkr">Ticker</span>
-        <span class="c c-exp">Expiry</span>
-        <span class="c c-str">Structure</span>
-        <span class="c c-n">Spot</span>
-        <span class="c c-n">Short &Delta;</span>
-        <span class="c c-n">RoR</span>
-        <span class="c c-n">Credit</span>
-        <span class="c c-n">Max risk</span>
-        <span class="c c-act"></span>
-      </div>
-
-      <div class="r top">
-        <span class="c c-tkr">SPY</span>
-        <span class="c c-exp" data-l="Expiry">2026-09-19</span>
-        <span class="c c-str" data-l="Structure">605/600P &middot; 655/660C</span>
-        <span class="c c-n" data-l="Spot">$612.40</span>
-        <span class="c c-n" data-l="Short &Delta;">0.18</span>
-        <span class="c c-n c-ror" data-l="RoR">30.9%</span>
-        <span class="c c-n" data-l="Credit">$1.18</span>
-        <span class="c c-n" data-l="Max risk">$382</span>
-        <span class="c c-act"><span class="tradebtn">Trade</span></span>
-      </div>
-
-      <div class="expand">
-        <div class="ex-t">What that row already knows</div>
-        <div class="lad-bar"><i class="l"></i><i class="p"></i><i class="l"></i></div>
-        <div class="ex-sc">
-          <span class="m-start">600</span>
-          <span class="be" style="left:21.7%">603.82</span>
-          <span class="be" style="left:78.3%">656.18</span>
-          <span class="m-end">660</span>
-        </div>
-        <p class="ex-cap">Both break-evens, from the same credit that priced the row.</p>
-      </div>
-
-      <div class="r">
-        <span class="c c-tkr">NVDA <em class="echip">earnings</em></span>
-        <span class="c c-exp" data-l="Expiry">2026-09-19</span>
-        <span class="c c-str" data-l="Structure">118/113P</span>
-        <span class="c c-n" data-l="Spot">$124.60</span>
-        <span class="c c-n" data-l="Short &Delta;">0.20</span>
-        <span class="c c-n c-ror" data-l="RoR">26.6%</span>
-        <span class="c c-n" data-l="Credit">$1.05</span>
-        <span class="c c-n" data-l="Max risk">$395</span>
-        <span class="c c-act"><span class="tradebtn ghost">Trade</span></span>
-      </div>
-
-      <div class="r">
-        <span class="c c-tkr">AAPL</span>
-        <span class="c c-exp" data-l="Expiry">2026-09-26</span>
-        <span class="c c-str" data-l="Structure">230/235C</span>
-        <span class="c c-n" data-l="Spot">$221.80</span>
-        <span class="c c-n" data-l="Short &Delta;">0.16</span>
-        <span class="c c-n c-ror" data-l="RoR">22.5%</span>
-        <span class="c c-n" data-l="Credit">$0.92</span>
-        <span class="c c-n" data-l="Max risk">$408</span>
-        <span class="c c-act"><span class="tradebtn ghost">Trade</span></span>
-      </div>
-
-      <div class="r">
-        <span class="c c-tkr">MSFT</span>
-        <span class="c c-exp" data-l="Expiry">2026-09-26</span>
-        <span class="c c-str" data-l="Structure">490/485P</span>
-        <span class="c c-n" data-l="Spot">$502.10</span>
-        <span class="c c-n" data-l="Short &Delta;">0.14</span>
-        <span class="c c-n c-ror" data-l="RoR">17.4%</span>
-        <span class="c c-n" data-l="Credit">$0.74</span>
-        <span class="c c-n" data-l="Max risk">$426</span>
-        <span class="c c-act"><span class="tradebtn ghost">Trade</span></span>
-      </div>
-    </div>
-
-    <div class="findgrid">
-      <div>
-        <div class="bar"></div>
-        <h3>Your ceiling, not ours</h3>
-        <p>Set the most you&rsquo;ll put at risk on one position. Nothing above it reaches the list.</p>
-      </div>
-      <div>
-        <div class="bar"></div>
-        <h3>Priced on the bid you&rsquo;d get</h3>
-        <p>Short bid minus long ask &mdash; not the mid, which nobody fills at.</p>
-      </div>
-      <div>
-        <div class="bar"></div>
-        <h3>Straight to the order</h3>
-        <p>Trade from the row. Every leg goes as one order, and lands in your book grouped.</p>
-      </div>
-    </div>
-  </section>
-</div>
-
-<div class="wrap">
-  <section id="risk">
-    <p class="eyebrow">Before you commit</p>
-    <h2>Every order tells you what it puts at stake.</h2>
-    <p class="cap">Not the credit &mdash; the exposure. What share of the account this one position risks, and whether anything is already scheduled to happen to it before it expires.</p>
-
-    <div class="guard">
-      <div class="panel gcard">
-        <div class="gt">Share of account at risk</div>
-        <div class="gtop"><span class="gpct">31.4%</span><span class="gband">Elevated</span></div>
-        <div class="gmeter">
-          <i style="width:44.9%"></i>
-          <span style="left:14.3%"></span><span style="left:35.7%"></span><span style="left:71.4%"></span>
-        </div>
-        <div class="gscale"><span style="left:14.3%">10%</span><span style="left:35.7%">25%</span><span style="left:71.4%">50%</span></div>
-        <p class="gnote">Over a quarter of the account on one position. Thresholds at 10, 25, 50 and 70% &mdash; you always know which side of each you&rsquo;re on.</p>
-      </div>
-
-      <div class="panel gcard warn">
-        <div class="gwarn">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M12 14v3"/></svg>
-          <span>NVDA reports earnings before the open on 18 Sep &mdash; in 4 days.</span>
-        </div>
-        <p class="gnote">This position would be held through the announcement, which is typically the largest single-day move the underlying makes. We tell you. You decide.</p>
-      </div>
-    </div>
-  </section>
-</div>
-
-<div class="wrap">
-  <section id="book">
-    <p class="eyebrow">The whole book</p>
-    <h2>However many you're running.</h2>
-    <p class="cap">Every structure grouped, priced and sized &mdash; across every account, on one screen.</p>
-
-    <div class="book">
-      <div class="panel mini">
-        <div class="mt"><span class="mtk">SPY</span><span class="mkd">condor</span></div>
-        <div class="lad"><div class="lad-bar"><i class="l"></i><i class="p"></i><i class="l"></i></div></div>
-        <div class="pl up">+$164</div>
-      </div>
-      <div class="panel mini">
-        <div class="mt"><span class="mtk">AAPL</span><span class="mkd">put spread</span></div>
-        <div class="lad"><div class="lad-bar"><i class="l" style="flex:.6"></i><i class="p"></i></div></div>
-        <div class="pl up">+$96</div>
-      </div>
-      <div class="panel mini">
-        <div class="mt"><span class="mtk">NVDA</span><span class="mkd">condor</span></div>
-        <div class="lad"><div class="lad-bar"><i class="l" style="flex:1.8"></i><i class="p" style="flex:1.6"></i><i class="l"></i></div></div>
-        <div class="pl dn">&minus;$22</div>
-      </div>
-      <div class="panel mini">
-        <div class="mt"><span class="mtk">MSFT</span><span class="mkd">call spread</span></div>
-        <div class="lad"><div class="lad-bar"><i class="p"></i><i class="l" style="flex:.5"></i></div></div>
-        <div class="pl up">+$41</div>
-      </div>
-    </div>
-  </section>
-</div>
-
-<section class="band">
-  <div class="wrap">
-    <p class="eyebrow">The scoreboard</p>
-    <h2>Know what's actually working.</h2>
-    <p class="cap">Built from your broker's own fill history. Nothing to type in.</p>
+  <section id="income">
+    <p class="eyebrow">Income generation</p>
+    <h2>Every trade, and what it earned.</h2>
+    <p class="cap">Built from your broker&rsquo;s own fill history. Nothing to type in.</p>
 
     <div class="tiles">
       <div class="tile"><div class="tv up">68%</div><div class="tl">Credit kept</div></div>
@@ -287,57 +81,108 @@
       <div class="tile"><div class="tv">1.9&times;</div><div class="tl">Profit factor</div></div>
       <div class="tile"><div class="tv">$1,240</div><div class="tl">Worst drawdown</div></div>
     </div>
+  </section>
+</div>
+
+<section class="band">
+  <div class="wrap">
+    <section id="find">
+      <p class="eyebrow">Finding opportunities</p>
+      <h2>Screen the market. One tap to trade it.</h2>
+      <p class="cap">Ranked by return on risk. Flagged if earnings land before expiry.</p>
+
+      <div class="panel scanlist">
+        <div class="srow srow-1">
+          <span class="stk">SPY</span>
+          <span class="sstruct">605/600P &middot; 655/660C</span>
+          <span class="sror">30.9%</span>
+          <span class="tradebtn">Trade</span>
+        </div>
+        <div class="srow">
+          <span class="stk">NVDA <em class="echip">earnings</em></span>
+          <span class="sstruct">118/113P</span>
+          <span class="sror">26.6%</span>
+          <span class="tradebtn ghost">Trade</span>
+        </div>
+        <div class="srow">
+          <span class="stk">AAPL</span>
+          <span class="sstruct">230/235C</span>
+          <span class="sror">22.5%</span>
+          <span class="tradebtn ghost">Trade</span>
+        </div>
+      </div>
+    </section>
   </div>
 </section>
 
 <div class="wrap">
-  <section>
-    <p class="eyebrow">The exit</p>
-    <h2>Fills, worked for you.</h2>
-    <p class="cap">Multi-leg orders rarely fill at the first price. Instead of sitting there nudging it, let it walk &mdash; patiently, and never past the market.</p>
+  <section id="ops">
+    <p class="eyebrow">Operational strengths</p>
+    <h2>Set it up once. Let it work.</h2>
 
-    <div class="panel figure">
-      <svg viewBox="0 0 620 150" role="img" aria-label="A limit price stepping up in small increments over time until the order fills, staying below the market's asking price throughout.">
-        <line x1="20" y1="30" x2="600" y2="30" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 5" opacity=".5"/>
-        <text x="20" y="20" font-family="IBM Plex Mono, monospace" font-size="11" fill="currentColor" opacity=".7">market ask &mdash; never crossed</text>
-
-        <polyline points="60,118 170,100 280,82 390,64 500,52" fill="none" stroke="#534AB7" stroke-width="2.5" stroke-linejoin="round"/>
-        <circle cx="60"  cy="118" r="5" fill="#534AB7"/>
-        <circle cx="170" cy="100" r="5" fill="#534AB7"/>
-        <circle cx="280" cy="82"  r="5" fill="#534AB7"/>
-        <circle cx="390" cy="64"  r="5" fill="#534AB7"/>
-        <circle cx="500" cy="52"  r="8" fill="#2E8B5F"/>
-        <text x="518" y="57" font-family="IBM Plex Mono, monospace" font-size="12" fill="#2E8B5F">filled</text>
-
-        <text x="60" y="140" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="currentColor" opacity=".7">your price</text>
-      </svg>
+    <div class="findgrid">
+      <div>
+        <div class="bar"></div>
+        <h3>Every leg, one order.</h3>
+        <p>Four legs go in together, and the fill price walks toward the market on its own &mdash; never past it.</p>
+      </div>
+      <div>
+        <div class="bar"></div>
+        <h3>Scales with you.</h3>
+        <p>Three positions or thirty, the book reads the same way: grouped, priced, sized.</p>
+      </div>
+      <div>
+        <div class="bar"></div>
+        <h3>One-tap from a scan.</h3>
+        <p>Find a setup, trade it, and it lands in your book already grouped &mdash; no extra step.</p>
+      </div>
     </div>
   </section>
 </div>
 
 <section class="band">
   <div class="wrap">
-    <h2>What we don't do.</h2>
+    <section id="risk">
+      <p class="eyebrow">Risk management</p>
+      <h2>Know before it&rsquo;s a problem.</h2>
+      <p class="cap">Every order shows its share of your account. Every scan flags earnings before you&rsquo;re exposed to them.</p>
 
-    <div class="trust">
-      <div>
-        <div class="bar"></div>
-        <h3>We're not a broker</h3>
-        <p>Your account, your money, your securities. We never hold any of it.</p>
+      <div class="guard">
+        <div class="panel gcard">
+          <div class="gt">Share of account at risk</div>
+          <div class="gtop"><span class="gpct">31.4%</span><span class="gband">Elevated</span></div>
+          <div class="gmeter">
+            <i class="gfill" style="--fillw:44.9%"></i>
+            <span style="left:14.3%"></span><span style="left:35.7%"></span><span style="left:71.4%"></span>
+          </div>
+          <div class="gscale"><span style="left:14.3%">10%</span><span style="left:35.7%">25%</span><span style="left:71.4%">50%</span></div>
+        </div>
+
+        <div class="panel gcard warn">
+          <div class="gwarn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M12 14v3"/></svg>
+            <span>NVDA reports earnings before the open on 18 Sep.</span>
+          </div>
+          <p class="gnote">Held through the announcement &mdash; typically the largest single-day move the underlying makes. We tell you. You decide.</p>
+        </div>
       </div>
-      <div>
-        <div class="bar"></div>
-        <h3>We don't give advice</h3>
-        <p>No signals, no tips, no picks. You set the rules; every order is yours.</p>
-      </div>
-      <div>
-        <div class="bar"></div>
-        <h3>We don't take a cut</h3>
-        <p>A flat monthly price. Nothing tied to how much or how well you trade.</p>
-      </div>
-    </div>
+    </section>
   </div>
 </section>
+
+<div class="wrap">
+  <section id="broker">
+    <p class="eyebrow">Connect your broker</p>
+    <p class="broker-line">Works with the brokerage you already use.</p>
+    <div class="broker-row">
+      <div class="panel brokercard">
+        <svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="12" fill="#FFC94D"/><path d="M9 17.5 L11.5 8.5 L14.5 8.5 L17 17.5 L14.6 17.5 L14.1 15.3 L11.9 15.3 L11.4 17.5 Z" fill="#111"/></svg>
+        <span class="brokername">Alpaca</span>
+        <span class="brokertag">Live now</span>
+      </div>
+    </div>
+  </section>
+</div>
 
 <section class="cta-band">
   <div class="wrap">
@@ -365,6 +210,7 @@
     <p class="fine">DeltaMint is a software tool, not a broker-dealer, and does not provide investment advice. Options trading involves substantial risk of loss and is not suitable for every investor. Trades are placed through your own brokerage account, under that broker's terms. Figures shown are illustrative.</p>
   </div>
 </footer>
+
 
 </body>
 </html>
