@@ -33,13 +33,13 @@ export default function AlpacaConnectConsent({ onCancel, onContinue }) {
               onClick={onCancel}
               className="flex-1 py-2.5 rounded-lg border border-slate-300 text-slate-700 font-medium text-sm hover:bg-slate-50 transition-colors"
             >
-              Cancel
+              Deny
             </button>
             <button
               onClick={onContinue}
               className="flex-1 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm transition-colors"
             >
-              Continue to Alpaca
+              Allow
             </button>
           </div>
         </div>
