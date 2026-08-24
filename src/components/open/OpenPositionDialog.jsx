@@ -8,6 +8,7 @@ import CandidateList from "./CandidateList";
 import SetupPreview from "./SetupPreview";
 import useScanLoop from "./useScanLoop";
 import ConfirmSubmit from "@/components/common/ConfirmSubmit";
+import PreTradeRisk from "@/components/common/PreTradeRisk";
 
 const DEFAULTS = {
   tickers: "SPY, QQQ",
@@ -157,6 +158,8 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
           <>
             <SetupPreview setup={setup} qty={Number(qty) || 1} />
 
+            <PreTradeRisk setup={setup} accountId={account.id} qty={qty} />
+
             <div className="flex gap-3">
               <div className="flex-1">
                 <label className={label}>Quantity</label>
@@ -184,6 +187,7 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
             <ConfirmSubmit
               label={`Submit — open ${qty} ${isCondor ? "condor" : "spread"}${Number(qty) > 1 ? "s" : ""} (${orderType}) on ${setup.ticker}`}
               summary={`${orderType === "limit" ? "Limit" : "Market"} order · open ${qty} ${setup.ticker} ${isCondor ? "condor" : "spread"}${Number(qty) > 1 ? "s" : ""} for $${setup.credit.toFixed(2)} credit each on ${account.name}.`}
+              warnings={<PreTradeRisk setup={setup} accountId={account.id} qty={qty} />}
               onConfirm={submit}
               submitting={submitting}
             />

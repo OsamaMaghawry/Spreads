@@ -31,10 +31,14 @@ export default function SetupPreview({ setup, qty }) {
       </div>
 
       <div className="grid grid-cols-2 gap-y-1.5 tabular-nums border-t border-slate-200 pt-2">
+        {/* Credit and width are quoted per share; risk and totals are per
+            contract. Scaling the credit here keeps every dollar figure in this
+            block on the same footing — a $0.93 credit beside a $157.00 risk
+            reads as a mistake even when the arithmetic behind it is right. */}
         <span className="text-slate-500">Credit / {unit}</span>
-        <span className="text-right text-emerald-600 font-medium">{fmtMoney(setup.credit)}</span>
+        <span className="text-right text-emerald-600 font-medium">{fmtMoney(setup.credit * 100)}</span>
         <span className="text-slate-500">Widest side width</span>
-        <span className="text-right">{fmtMoney(setup.width)}</span>
+        <span className="text-right">{fmtMoney(setup.width * 100)}</span>
         <span className="text-slate-500">Max risk / {unit}</span>
         <span className="text-right">{fmtMoney(setup.maxRisk)}</span>
         <span className="text-slate-500">Total credit ({qty} {unit}{qty > 1 ? "s" : ""})</span>
