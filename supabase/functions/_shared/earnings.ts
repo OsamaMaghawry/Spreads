@@ -78,45 +78,91 @@ export function daysUntil(date: string): number {
   return Math.max(Math.ceil(ms / 86400000), 0);
 }
 
+const SLICE_DAYS = 14;
+const ymd = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+
 /**
  * Repopulates the cache for the next `days` days from the provider.
  *
- * No auth/admin gating here — that's the caller's job. `refreshEarnings`
- * gates it behind an admin JWT for on-demand use; `scanEntries` and
- * `openPosition` call this unawaited to warm an empty cache in the
- * background, so a throw here must never propagate to a request that isn't
- * awaiting it — callers doing that must attach their own `.catch()`.
+ * Fetched in short slices walking forward from today rather than as one
+ * 90-day request. A single wide request came back holding only the far tail
+ * of the window — 500 rows three months out, nothing in the near term — which
+ * is the half that actually matters, since a position can only be held
+ * through an announcement inside its own expiry. Slicing means the nearest
+ * dates are requested and written first, so neither a provider-side cap nor
+ * an interrupted run can leave the near term empty.
+ *
+ * No auth/admin gating here — that's the caller's job. A throw must never
+ * reach a caller that isn't awaiting it: unawaited callers attach `.catch()`
+ * and hand the promise to `EdgeRuntime.waitUntil` so the runtime does not
+ * tear the isolate down mid-write.
  */
 export async function refreshEarningsWindow(
   admin,
   days = 90
 ): Promise<{ from: string; to: string; upserted: number }> {
-  const from = new Date().toISOString().slice(0, 10);
-  const to = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+  const startMs = Date.now();
+  const from = ymd(startMs);
+  const to = ymd(startMs + days * 86400000);
 
-  const events = await fetchProviderWindow(from, to);
   let upserted = 0;
-  for (let i = 0; i < events.length; i += 500) {
-    const rows = events.slice(i, i + 500).map((e) => ({
-      symbol: e.symbol,
-      report_date: e.reportDate,
-      session: e.session,
-      fetched_at: new Date().toISOString()
-    }));
-    const { error } = await admin
-      .from("earnings_calendar")
-      .upsert(rows, { onConflict: "symbol,report_date" });
-    if (error) throw new Error(error.message);
-    upserted += rows.length;
+  for (let offset = 0; offset < days; offset += SLICE_DAYS) {
+    const sliceFrom = ymd(startMs + offset * 86400000);
+    const sliceTo = ymd(startMs + Math.min(offset + SLICE_DAYS - 1, days) * 86400000);
+
+    const events = await fetchProviderWindow(sliceFrom, sliceTo);
+    // Still chunked: a slice is normally one upsert, but a heavy earnings
+    // fortnight must not become one oversized payload.
+    for (let i = 0; i < events.length; i += 500) {
+      const rows = events.slice(i, i + 500).map((e) => ({
+        symbol: e.symbol,
+        report_date: e.reportDate,
+        session: e.session,
+        fetched_at: new Date().toISOString()
+      }));
+      const { error } = await admin
+        .from("earnings_calendar")
+        .upsert(rows, { onConflict: "symbol,report_date" });
+      if (error) throw new Error(error.message);
+      upserted += rows.length;
+    }
   }
   return { from, to, upserted };
 }
 
-/** True if the earnings cache has never been populated — the trigger for a
- *  lazy background refresh, not a staleness check. */
-export async function earningsCacheIsEmpty(admin): Promise<boolean> {
+/** Hours since the calendar was last written, or null if never. */
+async function hoursSinceRefresh(admin): Promise<number | null> {
+  const { data, error } = await admin
+    .from("earnings_calendar")
+    .select("fetched_at")
+    .order("fetched_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return null;
+  return (Date.now() - new Date(data.fetched_at).getTime()) / 3600000;
+}
+
+/**
+ * Whether the cache can still be trusted for scans reaching to `throughDate`.
+ *
+ * `missing` means there is nothing cached for the window at all, so a warning
+ * could not be raised even if one were due — worth waiting for. `stale` means
+ * dates are cached but were fetched over a day ago, so they are usable now and
+ * worth refreshing behind the response. Checking coverage of the window rather
+ * than "is the table empty" is deliberate: an empty-table test stops firing
+ * the moment any row lands, even a row three months from the dates in view.
+ */
+export async function earningsCoverage(
+  admin,
+  throughDate: string
+): Promise<{ missing: boolean; stale: boolean }> {
+  const today = new Date().toISOString().slice(0, 10);
   const { count } = await admin
     .from("earnings_calendar")
-    .select("*", { count: "exact", head: true });
-  return !count;
+    .select("*", { count: "exact", head: true })
+    .gte("report_date", today)
+    .lte("report_date", throughDate);
+
+  const age = await hoursSinceRefresh(admin);
+  return { missing: !count, stale: age === null || age > 24 };
 }

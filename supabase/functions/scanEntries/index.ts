@@ -2,7 +2,13 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { loadAccount } from "../_shared/alpaca.ts";
 import { scanCandidates } from "../_shared/optionScan.ts";
-import { earningsThrough, daysUntil, earningsCacheIsEmpty, refreshEarningsWindow } from "../_shared/earnings.ts";
+import { earningsThrough, daysUntil, earningsCoverage, refreshEarningsWindow } from "../_shared/earnings.ts";
+import { inBackground, withTimeout } from "../_shared/background.ts";
+
+// Longest a scan will wait on a cold earnings cache before answering with
+// whatever is already there. A missing warning is recoverable — the next scan
+// has the data — but a scan that hangs on a slow provider is not.
+const COLD_CACHE_BUDGET_MS = 4000;
 
 // Sweeps multiple tickers across DTE / delta / width ranges and returns ranked
 // setups, each flagged if the underlying reports earnings before it expires.
@@ -22,14 +28,6 @@ Deno.serve(async (req) => {
     }
 
     const admin = adminClient();
-
-    // Warms an empty earnings cache in the background — never awaited past
-    // the cheap emptiness check, so a slow or failing provider never delays
-    // or breaks a scan.
-    if (await earningsCacheIsEmpty(admin)) {
-      refreshEarningsWindow(admin).catch(() => {});
-    }
-
     const account = await loadAccount(admin, accountId, user.id);
     const result = await scanCandidates(account, body);
 
@@ -39,6 +37,17 @@ Deno.serve(async (req) => {
     const candidates = result.candidates || [];
     if (candidates.length > 0) {
       const latestExpiry = candidates.reduce((a, c) => (c.expiry > a ? c.expiry : a), candidates[0].expiry);
+
+      // Nothing cached for the dates in view means no warning could be raised
+      // at all, so it is worth a bounded wait; merely-old data is usable now
+      // and refreshes behind the response.
+      const { missing, stale } = await earningsCoverage(admin, latestExpiry);
+      if (missing) {
+        await withTimeout(refreshEarningsWindow(admin), COLD_CACHE_BUDGET_MS);
+      } else if (stale) {
+        inBackground(refreshEarningsWindow(admin));
+      }
+
       const calendar = await earningsThrough(admin, [...new Set(candidates.map((c) => c.ticker))], latestExpiry);
 
       for (const c of candidates) {

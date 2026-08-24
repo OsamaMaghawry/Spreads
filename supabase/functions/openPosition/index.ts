@@ -1,7 +1,8 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { tradingBase, alpacaFetch, loadAccount } from "../_shared/alpaca.ts";
-import { earningsCacheIsEmpty, refreshEarningsWindow } from "../_shared/earnings.ts";
+import { earningsCoverage, refreshEarningsWindow } from "../_shared/earnings.ts";
+import { inBackground } from "../_shared/background.ts";
 
 // Submits the opening multi-leg credit order (sell to open the shorts, buy the wings).
 Deno.serve(async (req) => {
@@ -20,11 +21,15 @@ Deno.serve(async (req) => {
 
     const admin = adminClient();
 
-    // Same lazy background warm as scanEntries — covers a position opened
-    // without scanning first, so the cache never depends on which path ran.
-    if (await earningsCacheIsEmpty(admin)) {
-      refreshEarningsWindow(admin).catch(() => {});
-    }
+    // Seeds the cache for a position opened without scanning first, so its
+    // freshness never depends on which path the trader took. Always behind the
+    // response and never awaited — an order must not wait on the calendar.
+    const horizon = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
+    earningsCoverage(admin, horizon)
+      .then(({ missing, stale }) => {
+        if (missing || stale) inBackground(refreshEarningsWindow(admin));
+      })
+      .catch(() => {});
 
     const account = await loadAccount(admin, accountId, user.id);
     const prefix = (account.spreads_client_prefix || "APP_OPEN").trim();
