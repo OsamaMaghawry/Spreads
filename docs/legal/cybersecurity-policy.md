@@ -6,16 +6,13 @@
 > and patch management, incident response and disaster recovery, physical
 > security, and vendor risk management.
 >
-> **Still open:** `{{CONTACT_EMAIL}}` — the mailbox must actually work before
-> this is sent.
->
 > **Workstation security below:** disk encryption and MFA are confirmed true.
 > Auto-updates and a password manager were not confirmed, so neither is
 > claimed — the ⚠ stays on those two until confirmed or made true.
 > Overstating security posture to a broker is worse than admitting a gap.
 
 **Owner:** Osama Maghawry, CEO, Optvest Inc.
-**Contact:** {{CONTACT_EMAIL}}
+**Contact:** support@deltamint.app
 **Version:** 1.0 — August 24, 2026
 **Review cycle:** annually, or after any material change to the architecture or
 any security incident.
@@ -131,7 +128,7 @@ they are stored:
 ## 6. Incident response and disaster recovery
 
 **Owner.** Osama Maghawry is accountable for detecting, triaging, and
-responding to security incidents. Reports may be sent to {{CONTACT_EMAIL}}.
+responding to security incidents. Reports may be sent to support@deltamint.app.
 
 **Response procedure.**
 1. **Detect and triage** — classify severity by whether Class 1 or Class 2 data
