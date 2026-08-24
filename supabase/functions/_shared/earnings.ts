@@ -78,43 +78,56 @@ export function daysUntil(date: string): number {
   return Math.max(Math.ceil(ms / 86400000), 0);
 }
 
-const SLICE_DAYS = 14;
+// A week per request. Measured against the live provider, a fortnight in peak
+// season returns exactly 1500 rows — its result cap, silently truncating the
+// rest. Halving the slice keeps the busiest week (~750) clear of that ceiling,
+// and 13 requests still sit far inside the per-minute rate limit.
+const SLICE_DAYS = 7;
 const ymd = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+const addDays = (date: string, n: number) =>
+  ymd(new Date(`${date}T00:00:00Z`).getTime() + n * 86400000);
 
 /**
- * Repopulates the cache for the next `days` days from the provider.
+ * Repopulates the cache for an explicit date range, in short slices.
  *
- * Fetched in short slices walking forward from today rather than as one
- * 90-day request. A single wide request came back holding only the far tail
- * of the window — 500 rows three months out, nothing in the near term — which
- * is the half that actually matters, since a position can only be held
- * through an announcement inside its own expiry. Slicing means the nearest
- * dates are requested and written first, so neither a provider-side cap nor
- * an interrupted run can leave the near term empty.
+ * The provider truncates a wide request and returns the *newest* matches
+ * first: asking for 90 days yields its result cap dated three months out,
+ * with the near term — the only part a scan can actually hold a position
+ * through — cut off entirely. Measured directly: a 24 Aug → 22 Nov request
+ * returns 1500 rows starting 5 Nov, while 24 Aug → 6 Sep returns 322 rows
+ * starting 24 Aug. So the range is walked in fortnight slices, nearest
+ * first, keeping every request well inside the cap.
  *
  * No auth/admin gating here — that's the caller's job. A throw must never
- * reach a caller that isn't awaiting it: unawaited callers attach `.catch()`
- * and hand the promise to `EdgeRuntime.waitUntil` so the runtime does not
- * tear the isolate down mid-write.
+ * reach a caller that isn't awaiting it; unawaited callers route through
+ * `inBackground`/`awaitUpTo`, which swallow and keep the isolate alive.
  */
-export async function refreshEarningsWindow(
+export async function refreshEarningsRange(
   admin,
-  days = 90
+  from: string,
+  to: string
 ): Promise<{ from: string; to: string; upserted: number }> {
-  const startMs = Date.now();
-  const from = ymd(startMs);
-  const to = ymd(startMs + days * 86400000);
-
   let upserted = 0;
-  for (let offset = 0; offset < days; offset += SLICE_DAYS) {
-    const sliceFrom = ymd(startMs + offset * 86400000);
-    const sliceTo = ymd(startMs + Math.min(offset + SLICE_DAYS - 1, days) * 86400000);
+  for (let sliceFrom = from; sliceFrom <= to; sliceFrom = addDays(sliceFrom, SLICE_DAYS)) {
+    const sliceEnd = addDays(sliceFrom, SLICE_DAYS - 1);
+    const sliceTo = sliceEnd > to ? to : sliceEnd;
 
     const events = await fetchProviderWindow(sliceFrom, sliceTo);
+
+    // The provider lists some symbols twice for one date — a restatement, or
+    // the same report filed under two quarters. Postgres rejects an upsert
+    // whose conflict key repeats within a single statement ("cannot affect
+    // row a second time"), which fails the whole slice, so the payload is
+    // reduced to one row per (symbol, date) before it is written. Later wins:
+    // a correction arrives after the entry it corrects.
+    const deduped = [...new Map(
+      events.map((e) => [`${e.symbol}|${e.reportDate}`, e])
+    ).values()];
+
     // Still chunked: a slice is normally one upsert, but a heavy earnings
     // fortnight must not become one oversized payload.
-    for (let i = 0; i < events.length; i += 500) {
-      const rows = events.slice(i, i + 500).map((e) => ({
+    for (let i = 0; i < deduped.length; i += 500) {
+      const rows = deduped.slice(i, i + 500).map((e) => ({
         symbol: e.symbol,
         report_date: e.reportDate,
         session: e.session,
@@ -128,6 +141,17 @@ export async function refreshEarningsWindow(
     }
   }
   return { from, to, upserted };
+}
+
+/** Repopulates the cache for the next `days` days from today. */
+export function refreshEarningsWindow(admin, days = 90) {
+  const today = ymd(Date.now());
+  return refreshEarningsRange(admin, today, addDays(today, days));
+}
+
+/** Repopulates only as far out as `throughDate` — the dates a scan in view needs. */
+export function refreshEarningsThrough(admin, throughDate: string) {
+  return refreshEarningsRange(admin, ymd(Date.now()), throughDate);
 }
 
 /** Hours since the calendar was last written, or null if never. */

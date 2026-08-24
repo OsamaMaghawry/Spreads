@@ -70,7 +70,7 @@ so a change to shared code requires redeploying all of them.
 - **openPosition** — Submits the opening multi-leg credit order (sell to open the shorts, buy the wings).
 - **refreshEarnings** — Refreshes the cached earnings calendar for the next 90 days from the provider.
 - **saveAccount** — Creating and editing a manually-keyed trading account.
-- **scanEntries** — Longest a scan will wait on a cold earnings cache before answering with whatever is already there.
+- **scanEntries** — (no summary comment)
 - **spreadQuote** — Prices a position for closing: what the legs are worth right now, plus the highest limit already tried on them so a retry resumes rather than restarts.
 - **syncAccounts** — Rebuilds the live picture for every account the caller owns: positions paired into structures, credit and risk per position, and totals that net a ticker's condors instead of double counting both wings.
 - **tradeHistory** — Reconstruct closed option trades per strategy.
