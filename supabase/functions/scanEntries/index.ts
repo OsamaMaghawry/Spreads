@@ -2,7 +2,7 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { loadAccount } from "../_shared/alpaca.ts";
 import { scanCandidates } from "../_shared/optionScan.ts";
-import { earningsThrough, daysUntil } from "../_shared/earnings.ts";
+import { earningsThrough, daysUntil, earningsCacheIsEmpty, refreshEarningsWindow } from "../_shared/earnings.ts";
 
 // Sweeps multiple tickers across DTE / delta / width ranges and returns ranked
 // setups, each flagged if the underlying reports earnings before it expires.
@@ -22,6 +22,14 @@ Deno.serve(async (req) => {
     }
 
     const admin = adminClient();
+
+    // Warms an empty earnings cache in the background — never awaited past
+    // the cheap emptiness check, so a slow or failing provider never delays
+    // or breaks a scan.
+    if (await earningsCacheIsEmpty(admin)) {
+      refreshEarningsWindow(admin).catch(() => {});
+    }
+
     const account = await loadAccount(admin, accountId, user.id);
     const result = await scanCandidates(account, body);
 

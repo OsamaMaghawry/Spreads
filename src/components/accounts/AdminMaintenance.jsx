@@ -14,12 +14,6 @@ const ACTIONS = [
     summarize: (r) =>
       `Scanned ${r.scanned} · encrypted ${r.encrypted} · rotated ${r.rotated ?? 0} · already current ${r.alreadyCurrent}` +
       (r.failed?.length > 0 ? ` · failed ${r.failed.length}` : "")
-  },
-  {
-    fn: "refreshEarnings",
-    label: "Refresh earnings calendar",
-    note: "Repopulates the next 90 days of earnings dates from the provider. Run once after setting EARNINGS_API_KEY, then on a schedule.",
-    summarize: (r) => `${r.from} to ${r.to} · ${r.upserted} dates upserted`
   }
 ];
 

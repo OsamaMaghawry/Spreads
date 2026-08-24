@@ -77,3 +77,46 @@ export function daysUntil(date: string): number {
   const ms = new Date(`${date}T00:00:00Z`).getTime() - Date.now();
   return Math.max(Math.ceil(ms / 86400000), 0);
 }
+
+/**
+ * Repopulates the cache for the next `days` days from the provider.
+ *
+ * No auth/admin gating here — that's the caller's job. `refreshEarnings`
+ * gates it behind an admin JWT for on-demand use; `scanEntries` and
+ * `openPosition` call this unawaited to warm an empty cache in the
+ * background, so a throw here must never propagate to a request that isn't
+ * awaiting it — callers doing that must attach their own `.catch()`.
+ */
+export async function refreshEarningsWindow(
+  admin,
+  days = 90
+): Promise<{ from: string; to: string; upserted: number }> {
+  const from = new Date().toISOString().slice(0, 10);
+  const to = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+
+  const events = await fetchProviderWindow(from, to);
+  let upserted = 0;
+  for (let i = 0; i < events.length; i += 500) {
+    const rows = events.slice(i, i + 500).map((e) => ({
+      symbol: e.symbol,
+      report_date: e.reportDate,
+      session: e.session,
+      fetched_at: new Date().toISOString()
+    }));
+    const { error } = await admin
+      .from("earnings_calendar")
+      .upsert(rows, { onConflict: "symbol,report_date" });
+    if (error) throw new Error(error.message);
+    upserted += rows.length;
+  }
+  return { from, to, upserted };
+}
+
+/** True if the earnings cache has never been populated — the trigger for a
+ *  lazy background refresh, not a staleness check. */
+export async function earningsCacheIsEmpty(admin): Promise<boolean> {
+  const { count } = await admin
+    .from("earnings_calendar")
+    .select("*", { count: "exact", head: true });
+  return !count;
+}
