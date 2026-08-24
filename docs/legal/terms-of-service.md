@@ -107,12 +107,18 @@ set — it does so by executing parameters you configured, at your direction. Th
 Service does not exercise discretion over your account and does not decide what
 or when to trade.
 
-You acknowledge that: technical failures, connectivity loss, or broker outages
-may cause an order to fail, to be delayed, to be rejected, or to be duplicated;
-market conditions may move faster than any software can respond; an order may
-fill at a price different from the one quoted; and you remain solely responsible
-for every order placed through your account and for monitoring your open
-positions.
+Orders depend on infrastructure DeltaMint does not control, including your
+broker's API, market data feeds, and the network between them. You acknowledge
+that: an order may be rejected, delayed, filled at a different price than
+quoted, partially filled, duplicated, or not filled at all, because of a
+broker-side error, a mismatch between the order's parameters and your broker's
+account state, a network or connectivity failure, a platform outage on either
+side, or a defect in the Service; that figures shown by the Service — credit,
+risk, break-even, and any other calculated value — are estimates that may be
+inaccurate, delayed, or based on stale market data; and that you remain solely
+responsible for verifying an order's outcome with your broker, and for any loss
+arising from a technology failure, data inaccuracy, or execution issue of this
+kind, and for monitoring your open positions.
 
 ## 9. Subscription and fees
 

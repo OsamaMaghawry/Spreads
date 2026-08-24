@@ -6,18 +6,17 @@
 > and patch management, incident response and disaster recovery, physical
 > security, and vendor risk management.
 >
-> **Placeholders to resolve before submission:**
-> - `{{LEGAL_ENTITY}}`, `{{CONTACT_EMAIL}}`, `{{DATE}}`
-> - `{{OWNER_NAME}}` — the named individual accountable for security and
->   incident response.
-> - The **Workstation security** section states controls that depend on the
->   founder's own machine. Each is marked ⚠ and must be confirmed true, or
->   made true, before this document is sent. Overstating security posture to a
->   broker is worse than admitting a gap.
+> **Still open:** `{{CONTACT_EMAIL}}` — the mailbox must actually work before
+> this is sent.
+>
+> **Workstation security below:** disk encryption and MFA are confirmed true.
+> Auto-updates and a password manager were not confirmed, so neither is
+> claimed — the ⚠ stays on those two until confirmed or made true.
+> Overstating security posture to a broker is worse than admitting a gap.
 
-**Owner:** {{OWNER_NAME}}, {{LEGAL_ENTITY}}
+**Owner:** Osama Maghawry, CEO, Optvest Inc.
 **Contact:** {{CONTACT_EMAIL}}
-**Version:** 1.0 — {{DATE}}
+**Version:** 1.0 — August 24, 2026
 **Review cycle:** annually, or after any material change to the architecture or
 any security incident.
 
@@ -131,8 +130,8 @@ they are stored:
 
 ## 6. Incident response and disaster recovery
 
-**Owner.** {{OWNER_NAME}} is accountable for detecting, triaging, and responding
-to security incidents. Reports may be sent to {{CONTACT_EMAIL}}.
+**Owner.** Osama Maghawry is accountable for detecting, triaging, and
+responding to security incidents. Reports may be sent to {{CONTACT_EMAIL}}.
 
 **Response procedure.**
 1. **Detect and triage** — classify severity by whether Class 1 or Class 2 data
@@ -164,10 +163,11 @@ their underlying providers, whose data centres operate under SOC 2 controls.
 **Workstation security.** The only company-controlled physical asset is the
 founder's workstation. It is protected by:
 
-- ⚠ Full-disk encryption (FileVault / BitLocker).
-- ⚠ Automatic operating system and browser updates.
-- ⚠ A password manager with unique credentials per service; no reused passwords.
-- ⚠ Multi-factor authentication on every privileged account (§3).
+- Full-disk encryption (FileVault / BitLocker). **Confirmed enabled.**
+- ⚠ Automatic operating system and browser updates — not yet confirmed.
+- ⚠ A password manager with unique credentials per service — not yet confirmed.
+- Multi-factor authentication on every privileged account (§3). **Confirmed
+  enabled on GitHub, Cloudflare, Supabase, and the broker.**
 - Screen lock on idle, and the device is not shared.
 
 No production secret is stored on the workstation in plaintext; secrets live in
@@ -210,9 +210,8 @@ multi-factor-gated access and by static analysis and lint gates in continuous
 integration.
 
 **Corporate.** The single corporate endpoint is the founder's workstation,
-protected as described in §7 — full-disk encryption, automatic OS and browser
-patching, the platform's built-in endpoint protection (macOS XProtect and
-Gatekeeper, or Microsoft Defender on Windows) left enabled, and no production
-data stored locally. Administrative access to every production platform requires
-multi-factor authentication, so compromise of the workstation alone does not
-yield production access.
+protected as described in §7 — full-disk encryption enabled, and no production
+data stored locally. Administrative access to every production platform —
+GitHub, Cloudflare, Supabase, and the broker — requires multi-factor
+authentication, so compromise of the workstation alone does not yield
+production access.

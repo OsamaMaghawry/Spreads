@@ -4,27 +4,45 @@ Answers to paste into the form, plus the covering note. Every factual claim here
 is verifiable against the codebase or the live infrastructure; nothing is
 aspirational.
 
-> **Unresolved — needs the founder before sending.** Marked `{{TOKEN}}` below.
-> - `{{LEGAL_ENTITY}}`, company type, state/country of incorporation
-> - Beneficial owners >25%, authorised persons and titles, organisational chart
+> **Resolved this round:** entity, company type, incorporation state,
+> beneficial owner, authorised person, and the endpoint-protection answer are
+> all filled in below with confirmed facts.
+>
+> **Still open:**
 > - `{{CONTACT_EMAIL}}` (proposed `support@deltamint.app` — mailbox must work)
-> - `{{OWNER_NAME}}` for the security policy
-> - The four ⚠ workstation controls in the security policy
+> - The org chart PDF (generated, see Section 2) and the connection-walkthrough
+>   recording (Section 6) — the recording needs the founder's own screen.
+> - Auto-updates and a password manager were not confirmed, so the endpoint
+>   protection answer below deliberately does not claim them. If both are
+>   actually true, say so and I'll add them.
 
 ---
 
 ## Section 1 — Company details
 
+**Correction made this round:** "Type of Entity (registered, regulated,
+licensed)" was filled in as just "Registered" in the founder's draft. That
+field asks about *financial* regulatory status — broker-dealer, investment
+adviser, etc. — not corporate registration. Read as submitted, it risks Alpaca
+reading it as "we are a registered financial entity," which is false and would
+raise the bar the application is held to rather than lower it.
+
+**Second correction, found by rendering the filled PDF rather than just
+reading the text:** that field is a fixed single-line box. A full-paragraph
+answer auto-shrank to an illegible, visually cut-off size — worse than the
+original, just less obviously wrong. Shortened to something that actually
+renders legibly in that field; the fuller reasoning lives in this document.
+
 | Field | Answer |
 |---|---|
-| Full legal company name | `{{LEGAL_ENTITY}}` |
-| Company type | `{{Inc / LLC / Ltd}}` |
-| State or country of incorporation | `{{...}}` |
-| Beneficial owners >25% | `{{...}}` |
-| Authorised persons in contact with Alpaca | `{{Name, Founder}}` |
+| Full legal company name | Optvest Inc. |
+| Company type | Inc |
+| State or country of incorporation | Delaware |
+| Beneficial owners >25% | Osama Safwat Maghawry |
+| Authorised persons in contact with Alpaca | Osama Maghawry, CEO |
 | Company website | https://deltamint.app |
-| Type of entity (registered, regulated, licensed) | Not registered, regulated, or licensed. DeltaMint is a software vendor. It is not a broker-dealer, investment adviser, exchange, or custodian, holds no client funds or securities, and does not provide investment advice. It therefore does not hold and does not require a securities registration or licence. |
-| Organisational chart | Single-entity, sole operator. `{{Name}}` — Founder, holding all functions (engineering, operations, security, support). No employees or contractors. A one-box chart is attached. |
+| Type of entity (registered, regulated, licensed) | Registered Delaware corporation. Not a broker-dealer, adviser, exchange, or custodian. *(Fuller reasoning: Optvest is a software vendor that holds no client funds or securities and provides no investment advice, so no securities registration is required or held.)* |
+| Organisational chart | Single-entity, sole operator. Osama Safwat Maghawry — Founder & CEO, sole owner, holding all functions (engineering, operations, security, support). No employees or contractors. A one-box chart is attached (`org-chart.pdf`). |
 
 ## Section 2 — Documents attached
 
@@ -34,7 +52,8 @@ aspirational.
 | Privacy Policy | `privacy-policy.pdf` — also published at https://deltamint.app/privacy |
 | Fee / Pricing Schedule | `pricing.pdf` — also published at https://deltamint.app/pricing |
 | Cybersecurity Policy | `information-security-policy.pdf` |
-| Connection walkthrough | `connect-walkthrough.mp4` (see note in Section 6) |
+| Organisational chart | `org-chart.pdf` |
+| Connection walkthrough | **Outstanding** — a screen recording only the founder can capture; see Section 6. |
 
 ---
 
@@ -112,13 +131,11 @@ production through the source repository, which is gated by authenticated,
 MFA-protected access plus lint and type checks in CI that block a failing build
 from deploying.
 
-**Corporate.** One workstation, the founder's. It runs full-disk encryption,
-automatic OS and browser updates, and the platform's built-in endpoint
-protection (macOS XProtect/Gatekeeper or Microsoft Defender) enabled. Unique
-credentials are held in a password manager, and every privileged platform
-account requires multi-factor authentication, so compromising the workstation
-alone does not yield production access. No production data or plaintext secret
-is stored locally.
+**Corporate.** One workstation, the founder's, with full-disk encryption
+enabled. Every administrative account for production infrastructure — GitHub,
+Cloudflare, Supabase, and the broker — requires multi-factor authentication, so
+compromising the workstation alone does not yield production access. No
+production data or plaintext secret is stored locally.
 
 ---
 
