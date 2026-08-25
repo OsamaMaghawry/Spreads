@@ -208,6 +208,20 @@ export function buildSetup({ ticker, expiry, spot, strategy, puts, calls, target
   return { ok: true, setup };
 }
 
+// Granularity of the sweep inside each requested range. This is an engine
+// detail, not a trading parameter: the caller says "deltas 0.12 to 0.22" and
+// this decides how finely to sample that range.
+//
+// Both are deliberately fine. Sampling costs no extra broker calls — the option
+// chains are fetched once per expiry and every combination is built from them
+// in memory — so the only reason to sample coarsely would be to hide setups.
+// The width figure matters especially: strikes are commonly listed $2.50 apart,
+// and a $1 sweep step over a $1–$3 range would only ever try $1, $2 and $3,
+// never $2.50, so those chains could produce nothing at all now that the
+// requested width is enforced exactly.
+const DELTA_SWEEP_STEP = 0.01;
+const WIDTH_SWEEP_STEP = 0.5;
+
 const steps = (min, max, step) => {
   const out = [];
   const s = step > 0 ? step : Math.max(max - min, 1e-9);
@@ -220,8 +234,8 @@ const steps = (min, max, step) => {
 export async function scanCandidates(account, params) {
   const {
     tickers = [], strategy, dteMin = 0, dteMax = 3,
-    deltaMin = 0.12, deltaMax = 0.22, deltaStep = 0.02,
-    widthMin = 1, widthMax = 3, widthStep = 1,
+    deltaMin = 0.12, deltaMax = 0.22, deltaStep = DELTA_SWEEP_STEP,
+    widthMin = 1, widthMax = 3, widthStep = WIDTH_SWEEP_STEP,
     minCredit = 0, maxCredit = 1000, putRatio = 1, callRatio = 1, maxRisk = null
   } = params;
 

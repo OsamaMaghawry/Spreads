@@ -7,16 +7,24 @@ const label = "text-xs text-slate-500 block mb-1.5";
 // to step by 0.5 here, which is not a thing a day can do.
 const STEP = { dte: 1, delta: 0.01, width: 0.5, credit: 0.05, risk: 50, ratio: 1 };
 
-function Range({ title, note, min, max, step, onChange, hasStep = true, fieldStep }) {
+// Counterpart of the same component in screener/ScreenerConfig.jsx — keep the
+// labelling and stepping behaviour identical in both.
+function Bound({ caption, value, onChange, step, min, placeholder, ariaLabel }) {
   return (
     <div>
-      <label className={label}>{title} <span className="text-slate-400">{note}</span></label>
-      <div className={`grid ${hasStep ? "grid-cols-3" : "grid-cols-2"} gap-2`}>
-        <NumberField value={min} onChange={(v) => onChange({ min: v })} step={fieldStep} min={0} placeholder="min" ariaLabel={`${title} minimum`} />
-        <NumberField value={max} onChange={(v) => onChange({ max: v })} step={fieldStep} min={0} placeholder="max" ariaLabel={`${title} maximum`} />
-        {hasStep && (
-          <NumberField value={step} onChange={(v) => onChange({ step: v })} step={fieldStep} min={fieldStep} placeholder="step" ariaLabel={`${title} step`} />
-        )}
+      <span className="block text-[10px] uppercase tracking-wider text-slate-400 mb-1">{caption}</span>
+      <NumberField value={value} onChange={onChange} step={step} min={min} placeholder={placeholder} ariaLabel={ariaLabel} />
+    </div>
+  );
+}
+
+function Range({ title, min, max, onChange, fieldStep }) {
+  return (
+    <div>
+      <label className={label}>{title}</label>
+      <div className="grid grid-cols-2 gap-2">
+        <Bound caption="Min" value={min} onChange={(v) => onChange({ min: v })} step={fieldStep} min={0} ariaLabel={`${title} minimum`} />
+        <Bound caption="Max" value={max} onChange={(v) => onChange({ max: v })} step={fieldStep} min={0} ariaLabel={`${title} maximum`} />
       </div>
     </div>
   );
@@ -31,17 +39,17 @@ export default function ScanFilters({ cfg, set, isCondor }) {
           className={input} placeholder="SPY, QQQ, IWM" />
       </div>
 
-      <Range title="Days to expiry" note="min / max" hasStep={false} fieldStep={STEP.dte}
+      <Range title="Days to expiry" fieldStep={STEP.dte}
         min={cfg.dteMin} max={cfg.dteMax}
         onChange={(v) => set({ dteMin: v.min ?? cfg.dteMin, dteMax: v.max ?? cfg.dteMax })} />
 
-      <Range title="Short delta" note="min / max / step" fieldStep={STEP.delta}
-        min={cfg.deltaMin} max={cfg.deltaMax} step={cfg.deltaStep}
-        onChange={(v) => set({ deltaMin: v.min ?? cfg.deltaMin, deltaMax: v.max ?? cfg.deltaMax, deltaStep: v.step ?? cfg.deltaStep })} />
+      <Range title="Short delta" fieldStep={STEP.delta}
+        min={cfg.deltaMin} max={cfg.deltaMax}
+        onChange={(v) => set({ deltaMin: v.min ?? cfg.deltaMin, deltaMax: v.max ?? cfg.deltaMax })} />
 
-      <Range title="Wing width ($)" note="min / max / step" fieldStep={STEP.width}
-        min={cfg.widthMin} max={cfg.widthMax} step={cfg.widthStep}
-        onChange={(v) => set({ widthMin: v.min ?? cfg.widthMin, widthMax: v.max ?? cfg.widthMax, widthStep: v.step ?? cfg.widthStep })} />
+      <Range title="Wing width ($)" fieldStep={STEP.width}
+        min={cfg.widthMin} max={cfg.widthMax}
+        onChange={(v) => set({ widthMin: v.min ?? cfg.widthMin, widthMax: v.max ?? cfg.widthMax })} />
       <p className="text-[11px] text-slate-400 -mt-1.5 leading-relaxed">
         Only spreads whose strikes are exactly this far apart are returned — a chain with no
         strike at that distance is skipped rather than widened.

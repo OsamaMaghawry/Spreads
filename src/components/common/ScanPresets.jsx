@@ -17,6 +17,12 @@ export default function ScanPresets({ scope, strategy, config, onApply }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  // Two-step delete, matching pages/Accounts.jsx: the trash icon arms the
+  // confirm rather than deleting, so a mistap on a phone can't silently destroy
+  // a preset that took real tuning to arrive at. Inline rather than a modal
+  // because this renders inside the open-position Dialog, and nesting Radix
+  // modals fights over the focus trap.
+  const [confirming, setConfirming] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,8 +61,11 @@ export default function ScanPresets({ scope, strategy, config, onApply }) {
     try {
       await deletePreset(preset.id);
       setPresets((list) => list.filter((p) => p.id !== preset.id));
+      toast({ title: `Deleted "${preset.name}"` });
     } catch (e) {
       toast({ title: "Couldn't delete preset", description: e.message, variant: "destructive" });
+    } finally {
+      setConfirming(null);
     }
   };
 
@@ -79,16 +88,24 @@ export default function ScanPresets({ scope, strategy, config, onApply }) {
           </button>
         )}
 
-        {presets.map((p) => (
-          <span key={p.id} className={`${chip} border-emerald-200 bg-emerald-50 text-emerald-700 inline-flex items-center gap-1.5 group`}>
-            <button onClick={() => onApply(p.strategy, p.config)} className="hover:underline">
-              {p.name}
-            </button>
-            <button onClick={() => remove(p)} aria-label={`Delete ${p.name}`} className="text-emerald-400 hover:text-rose-600 transition-colors">
-              <Trash2 className="w-3 h-3" />
-            </button>
-          </span>
-        ))}
+        {presets.map((p) =>
+          confirming === p.id ? (
+            <span key={p.id} className={`${chip} border-rose-200 bg-rose-50 text-rose-700 inline-flex items-center gap-2`}>
+              Delete &ldquo;{p.name}&rdquo;?
+              <button onClick={() => remove(p)} className="font-semibold hover:underline">Delete</button>
+              <button onClick={() => setConfirming(null)} className="text-rose-400 hover:text-rose-700">Cancel</button>
+            </span>
+          ) : (
+            <span key={p.id} className={`${chip} border-emerald-200 bg-emerald-50 text-emerald-700 inline-flex items-center gap-1.5`}>
+              <button onClick={() => onApply(p.strategy, p.config)} className="hover:underline">
+                {p.name}
+              </button>
+              <button onClick={() => setConfirming(p.id)} aria-label={`Delete ${p.name}`} className="text-emerald-400 hover:text-rose-600 transition-colors">
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </span>
+          )
+        )}
 
         {!naming && (
           <button
