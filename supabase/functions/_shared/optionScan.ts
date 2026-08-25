@@ -112,13 +112,22 @@ export async function scanChain(account, ticker, expiry, type, spot) {
 const nearestDelta = (opts, target) => opts.reduce((best, o) =>
   Math.abs(Math.abs(o.delta) - target) < Math.abs(Math.abs(best.delta) - target) ? o : best);
 
-// Long wing: strike closest to the requested width away from the short, on the
-// protective side. Falls back to the adjacent strike when the width isn't listed.
+// Long wing: the strike exactly `width` away from the short, on the protective
+// side.
+//
+// This used to fall back to whatever strike was nearest when the requested
+// width wasn't listed, which silently produced a different spread than asked
+// for: request $1 wings on a chain that only lists $2.50 strikes and you got a
+// $2.50 spread, with ~2.5x the max risk. The requested width is a risk control,
+// so a width that isn't available is a rejection, not something to approximate.
+//
+// The tolerance only absorbs floating-point drift in the strike arithmetic, not
+// a genuinely different strike.
+const WIDTH_EPSILON = 0.001;
+
 function pickWing(opts, shortStrike, width, isCall) {
-  const side = opts.filter((o) => (isCall ? o.strike > shortStrike : o.strike < shortStrike));
-  if (side.length === 0) return null;
   const target = isCall ? shortStrike + width : shortStrike - width;
-  return side.reduce((best, o) => (Math.abs(o.strike - target) < Math.abs(best.strike - target) ? o : best));
+  return opts.find((o) => Math.abs(o.strike - target) < WIDTH_EPSILON) || null;
 }
 
 // Builds the setup for the requested strategy. Returns { ok, reason } on rejection.
@@ -155,7 +164,9 @@ export function buildSetup({ ticker, expiry, spot, strategy, puts, calls, target
     const shortCall: any = nearestDelta(calls, targetDelta);
     const longPut: any = pickWing(puts, shortPut.strike, wingWidth, false);
     const longCall: any = pickWing(calls, shortCall.strike, wingWidth, true);
-    if (!longPut || !longCall) return { ok: false, reason: "No protective wings available on both sides." };
+    if (!longPut || !longCall) {
+      return { ok: false, reason: `No listed strike $${wingWidth} from both short legs — this chain can't make a $${wingWidth} wing.` };
+    }
     const credit = (shortPut.bid - longPut.ask) * putRatio + (shortCall.bid - longCall.ask) * callRatio;
     const putWidth = (shortPut.strike - longPut.strike) * putRatio;
     const callWidth = (longCall.strike - shortCall.strike) * callRatio;
@@ -179,7 +190,9 @@ export function buildSetup({ ticker, expiry, spot, strategy, puts, calls, target
   const chain = isCall ? calls : puts;
   const short: any = nearestDelta(chain, targetDelta);
   const long: any = pickWing(chain, short.strike, wingWidth, isCall);
-  if (!long) return { ok: false, reason: "No protective long strike available." };
+  if (!long) {
+    return { ok: false, reason: `No listed strike $${wingWidth} from the short leg — this chain can't make a $${wingWidth} wing.` };
+  }
   const credit = short.bid - long.ask;
   const width = Math.abs(long.strike - short.strike);
   const setup = {
@@ -229,28 +242,41 @@ export async function scanCandidates(account, params) {
       const expiries = await findExpiries(account, ticker, dteMin, dteMax);
       if (expiries.length === 0) { skipped.push({ ticker, reason: `No expiry between ${dteMin} and ${dteMax} days.` }); continue; }
 
+      // Why every combination for this ticker was rejected, so a ticker that
+      // yields nothing explains itself instead of just vanishing from the
+      // results. Distinct reasons only — one per cause, not one per attempt.
+      const reasons = new Set<string>();
+      const foundBefore = candidates.length;
+
       for (const expiry of expiries) {
         const puts = needPuts ? await scanChain(account, ticker, expiry, "put", spot) : [];
         const calls = needCalls ? await scanChain(account, ticker, expiry, "call", spot) : [];
         if ((needPuts && puts.length === 0) || (needCalls && calls.length === 0)) {
-          skipped.push({ ticker, reason: `No priced chain for ${expiry}.` });
+          reasons.add(`No priced chain for ${expiry}.`);
           continue;
         }
         const seen = new Set();
         for (const targetDelta of deltas) {
           for (const wingWidth of widths) {
             const built = buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio, callRatio });
-            if (!built.ok) continue;
+            if (!built.ok) { reasons.add(built.reason); continue; }
             const s = built.setup;
             const key = s.legs.map((l) => l.symbol).join("|");
             if (seen.has(key)) continue;
             seen.add(key);
             const checked = validate(s, minCredit, maxCredit);
-            if (!checked.ok) continue;
-            if (maxRisk && s.maxRisk > maxRisk) continue;
+            if (!checked.ok) { reasons.add(checked.reason); continue; }
+            if (maxRisk && s.maxRisk > maxRisk) {
+              reasons.add(`Max risk $${s.maxRisk.toFixed(0)} exceeds the $${maxRisk} limit.`);
+              continue;
+            }
             candidates.push({ ...s, returnOnRisk: (s.credit * 100) / s.maxRisk });
           }
         }
+      }
+
+      if (candidates.length === foundBefore && reasons.size > 0) {
+        skipped.push({ ticker, reason: [...reasons].join(" ") });
       }
     } catch (e) {
       skipped.push({ ticker, reason: e.message });
