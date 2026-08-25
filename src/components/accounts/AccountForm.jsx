@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
+import { toast } from "@/components/ui/use-toast";
 
 export default function AccountForm({ account, onSave, onCancel }) {
   // Stored credentials are encrypted and never sent to the browser, so the key
@@ -25,7 +26,13 @@ export default function AccountForm({ account, onSave, onCancel }) {
   const submit = async () => {
     if (!valid || saving) return;
     setSaving(true);
-    await onSave(form);
+    try {
+      await onSave(form);
+    } catch (err) {
+      toast({ title: "Couldn't save account", description: err.message || "Something went wrong.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const inputCls = "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500";
