@@ -9,6 +9,8 @@ import SetupPreview from "./SetupPreview";
 import useScanLoop from "./useScanLoop";
 import ConfirmSubmit from "@/components/common/ConfirmSubmit";
 import PreTradeRisk from "@/components/common/PreTradeRisk";
+import ScanPresets from "@/components/common/ScanPresets";
+import { SCOPE, saveLastUsed } from "@/lib/scanPresets";
 
 const DEFAULTS = {
   tickers: "SPY, QQQ",
@@ -43,10 +45,22 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
   const isCondor = strategy === "iron_condor";
   const set = (patch) => setCfg((c) => ({ ...c, ...patch }));
 
+  // Merged over DEFAULTS so a preset saved before a filter existed still yields
+  // a complete config — same reasoning as the screener's applyPreset.
+  const applyPreset = (savedStrategy, savedConfig) => {
+    setStrategy(savedStrategy);
+    setCfg({ ...DEFAULTS, ...savedConfig });
+    setCandidates(null);
+    setSetup(null);
+    setResult(null);
+  };
+
   const scan = () => {
     setError(null);
     setSetup(null);
     setResult(null);
+    // Never let recording the parameters block the scan.
+    saveLastUsed(SCOPE.OPEN, strategy, cfg).catch(() => {});
     start(
       {
         accountId: account.id,
@@ -99,6 +113,8 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
         <DialogHeader>
           <DialogTitle className="text-slate-900">Open a position — {account.name}</DialogTitle>
         </DialogHeader>
+
+        <ScanPresets scope={SCOPE.OPEN} strategy={strategy} config={cfg} onApply={applyPreset} />
 
         <StrategyPicker
           value={strategy}

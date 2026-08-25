@@ -60,6 +60,7 @@ export default function ResultsTable({ candidates, onTrade }) {
             <th className={th}>Structure</th>
             <th className={`${th} text-right`}>Spot</th>
             <th className={`${th} text-right`}>Short Δ</th>
+            <th className={`${th} text-right`}>Width</th>
             {SORTS.map((s) => sortableTh(s.key, s.label))}
             <th className={th}></th>
           </tr>
@@ -80,6 +81,10 @@ export default function ResultsTable({ candidates, onTrade }) {
                 <td className={td}>{structureLabel(c)}</td>
                 <td className={`${td} text-right`}>{fmtMoney(c.spot)}</td>
                 <td className={`${td} text-right`}>{Math.abs(shortLeg?.delta ?? 0).toFixed(2)}</td>
+                {/* Actual strike distance, not the requested wing width — these
+                    are the same now that the scan enforces the request, and
+                    showing the real one keeps it that way visibly. */}
+                <td className={`${td} text-right`}>{fmtMoney(c.width)}</td>
                 <td className={`${td} text-right font-semibold text-emerald-600`}>{(c.returnOnRisk * 100).toFixed(1)}%</td>
                 {/* Per contract, so it sits in the same unit as Max Risk beside
                     it and as the preview this row opens. Sorting uses the raw

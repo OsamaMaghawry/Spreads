@@ -86,6 +86,8 @@ revoked from the browser role entirely.
 - **trade_records** — id, user_id, account_id, strategy, trade_key, ticker, expiry, short_symbol, long_symbol, short_strike, long_strike, qty, open_date, close_date, short_entry, long_entry, net_credit, short_exit, long_exit, close_debit, realized_pl, close_reason, created_at
 - **profiles** — id, role, created_at
 - **earnings_calendar** — symbol, report_date, session, fetched_at
+- **scan_presets** — id, user_id, scope, name, strategy, config, created_at, updated_at
+- **scan_last_used** — user_id, scope, strategy, config, updated_at
 
 ## Analytics vocabulary
 

@@ -6,6 +6,8 @@ import ScreenerConfig, { SCREENER_DEFAULTS } from "@/components/screener/Screene
 import ResultsTable from "@/components/screener/ResultsTable";
 import TradeDialog from "@/components/screener/TradeDialog";
 import useMarketScan from "@/components/screener/useMarketScan";
+import ScanPresets from "@/components/common/ScanPresets";
+import { SCOPE, saveLastUsed } from "@/lib/scanPresets";
 import { SP500, TOP50 } from "@/lib/sp500";
 import { SAFE_ACCOUNT_COLUMNS } from "@/lib/accountColumns";
 
@@ -33,7 +35,17 @@ export default function Screener() {
         ? SP500
         : TOP50;
 
-  const run = () =>
+  // Applying a preset merges over the defaults rather than replacing state
+  // outright, so a preset saved before a new filter existed still lands in a
+  // complete, valid config instead of leaving that field undefined.
+  const applyPreset = (savedStrategy, savedConfig) => {
+    setStrategy(savedStrategy);
+    setCfg({ ...SCREENER_DEFAULTS, ...savedConfig });
+  };
+
+  const run = () => {
+    // Recording what was scanned must never be able to stop the scan itself.
+    saveLastUsed(SCOPE.SCREENER, strategy, cfg).catch(() => {});
     start(accounts[0].id, tickers, {
       strategy,
       dteMin: Number(cfg.dteMin),
@@ -50,6 +62,7 @@ export default function Screener() {
       putRatio: isCondor ? Number(cfg.putRatio) : 1,
       callRatio: isCondor ? Number(cfg.callRatio) : 1
     });
+  };
 
   const minRoR = Number(cfg.minRoR) || 0;
   const shown = candidates.filter((c) => c.returnOnRisk * 100 >= minRoR);
@@ -68,6 +81,7 @@ export default function Screener() {
 
       <div className="grid lg:grid-cols-[340px_1fr] gap-5 items-start">
         <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
+          <ScanPresets scope={SCOPE.SCREENER} strategy={strategy} config={cfg} onApply={applyPreset} />
           <StrategyPicker value={strategy} onChange={setStrategy} />
           <ScreenerConfig cfg={cfg} set={set} isCondor={isCondor} />
 

@@ -31,8 +31,11 @@ export default function CandidateList({ candidates, selected, onSelect }) {
               </span>
             </div>
             <div className="flex items-center justify-between text-[11px] text-slate-500 tabular-nums">
+              {/* c.width is the actual strike distance; c.wingWidth is only what
+                  was requested. Showing the requested one here put "width $1.00"
+                  next to a risk figure derived from a real $2.50 spread. */}
               <span>
-                {c.expiry} · Δ {c.targetDelta} · width {fmtMoney(c.wingWidth)}
+                {c.expiry} · Δ {c.targetDelta} · width {fmtMoney(c.width)}
               </span>
               {/* Per contract, matching SetupPreview — a row saying $0.93 above a
                   preview saying $93.00 for the same trade reads as a bug. */}
