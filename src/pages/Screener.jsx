@@ -50,12 +50,13 @@ export default function Screener() {
       strategy,
       dteMin: Number(cfg.dteMin),
       dteMax: Number(cfg.dteMax),
+      // No step values: how finely the scan samples inside these ranges is the
+      // engine's call (see DELTA_SWEEP_STEP / WIDTH_SWEEP_STEP in optionScan.ts),
+      // not a trading parameter worth putting in front of the trader.
       deltaMin: Number(cfg.deltaMin),
       deltaMax: Number(cfg.deltaMax),
-      deltaStep: Number(cfg.deltaStep),
       widthMin: Number(cfg.widthMin),
       widthMax: Number(cfg.widthMax),
-      widthStep: Number(cfg.widthStep),
       minCredit: Number(cfg.minCredit),
       maxCredit: 1000,
       maxRisk: cfg.maxRisk === "" ? null : Number(cfg.maxRisk),
