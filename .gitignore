@@ -1,11 +1,12 @@
 #env
 # .env.local holds per-developer values and stays out of the repo. .env.production
-# is committed on purpose: it carries only VITE_* values, which Vite inlines into
-# the public browser bundle anyway. See the comments in that file.
+# and .env.staging are committed on purpose: they carry only VITE_* values, which
+# Vite inlines into the public browser bundle anyway. See the comments in those files.
 .env
 .env.*
 !.env.example
 !.env.production
+!.env.staging
 
 # Logs
 /logs

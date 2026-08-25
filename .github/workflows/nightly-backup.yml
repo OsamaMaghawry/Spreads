@@ -1,0 +1,64 @@
+name: Nightly database backup
+
+# There is no backup service on Supabase's free plan (no daily backups, no
+# point-in-time recovery), so this is the only copy of production data that
+# exists anywhere other than the live database itself. Runs a full pg_dump
+# every night and keeps 30 days of them as GitHub Actions artifacts — a
+# private, encrypted-at-rest store that needs no new account or credential
+# beyond the one Postgres connection string below.
+#
+# Requires one repository secret: SUPABASE_DB_URL
+# (Supabase dashboard -> Project Settings -> Database -> Connection string ->
+#  URI, "Use connection pooling" OFF so pg_dump gets a direct connection;
+#  then GitHub -> Settings -> Secrets and variables -> Actions -> New secret).
+#
+# To restore: download the artifact from the Actions run, then
+#   gunzip -c backup.sql.gz | psql "$SUPABASE_DB_URL"
+# against a fresh or existing project. Safe to run against an empty database;
+# running against a non-empty one will fail on existing objects rather than
+# silently overwriting them, since the dump has no --clean flag.
+
+on:
+  schedule:
+    # 08:00 UTC daily. Cron minute/hour only - no timezone in cron syntax.
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump and upload
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::notice title=Backup skipped::SUPABASE_DB_URL is not set, so there is nothing to connect to. Add it under Settings → Secrets and variables → Actions and re-run."
+            exit 0
+          fi
+
+          # Match the server's Postgres major version (17) rather than
+          # whatever ubuntu-latest ships, so pg_dump's output is guaranteed
+          # compatible with the server it came from.
+          sudo apt-get update -qq
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
+          echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+
+          date_stamp=$(date -u +%Y-%m-%d)
+          pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges | gzip > "backup-${date_stamp}.sql.gz"
+          echo "BACKUP_NAME=backup-${date_stamp}" >> "$GITHUB_ENV"
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+      - name: Upload backup artifact
+        if: env.BACKUP_NAME != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BACKUP_NAME }}
+          path: '*.sql.gz'
+          retention-days: 30
