@@ -26,3 +26,24 @@ Start with `README.md` for local setup and environment variables.
 - Its judgement sections come from `docs/context/`: `brand.md` (colour, type, voice, naming), `positioning.md` (market, competitors, where the edge is), `compliance.md` (broker approval and the rules it imposes). **These are the source of truth, not the code** — when `brand.md` and the stylesheets disagree, the stylesheets are wrong. Change identity or strategy there, then apply it.
 - Each edge function's describing comment feeds that file, so give a new function a one-sentence `//` summary above `Deno.serve`.
 - Run the relevant checks from `package.json` before finishing code changes.
+
+## Deployment: staging before production
+
+There are two environments, each with its own Supabase project and its own pair of Cloudflare Workers (app + landing site):
+
+| | App | Landing | Supabase |
+|---|---|---|---|
+| Staging | `dev-dash.deltamint.app` | `dev-landing.deltamint.app` | "Spread Staging" (`wpwaomzgpbozzghohwmf`) |
+| Production | the live app | the live marketing site | production project |
+
+**The flow is one-directional, with a checkpoint, not a copy:**
+
+1. Push code changes to the `staging` branch only. This deploys automatically to the two `dev-*.deltamint.app` URLs and to the staging Supabase project's edge functions (`.github/workflows/deploy-functions-staging.yml`).
+2. Actually check the change on the `dev-*` URLs (or verify it another way — a build passing, a function log) before doing anything else.
+3. Only after that checks out, merge `staging` into `main`. That merge is what deploys to production (Cloudflare Workers Build promotes `main` pushes automatically; `.github/workflows/deploy-functions.yml` does the same for edge functions).
+
+**Never push a change to `main` and `staging` in the same step.** Landing both at once is not staging, it's just copying the same untested change to two places — it defeats the entire point of having a staging environment. If a fix is trivial and low-risk (a typo, a comment), say so and ask before skipping the staging checkpoint — don't skip it by default.
+
+Config note: `wrangler.staging.jsonc` (app) and `landing/wrangler.staging.jsonc` (landing site) are separate files from their production `wrangler.jsonc` counterparts specifically so staging deploys under different Worker names (`spreads-staging`, `deltamint-landing-staging`) and never collide with production. `.env.staging` points frontend builds at the staging Supabase project; keep it out of sync with `.env.production` only where the environment genuinely differs (it should not share `CREDENTIAL_ENCRYPTION_KEY` with production, for instance).
+
+A nightly GitHub Actions job (`nightly-backup.yml`) `pg_dump`s the **production** database and keeps 30 days of it as workflow artifacts — the only backup that exists, since the Supabase project is on the free plan (no PITR).
