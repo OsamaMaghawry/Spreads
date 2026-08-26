@@ -157,8 +157,24 @@ function UserDetail({ user, onClose }) {
   );
 }
 
-export default function UsersPanel({ users }) {
+export default function UsersPanel({ users, currentUserId, onRefresh }) {
   const [selected, setSelected] = useState(null);
+  const [confirmingRole, setConfirmingRole] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const setRole = async (user, role) => {
+    if (busy) return;
+    setBusy(true);
+    const res = await invokeFunction("adminData", { action: "setRole", userId: user.id, role });
+    if (res.data?.error) {
+      toast({ title: "Couldn't change role", description: res.data.error, variant: "destructive" });
+    } else {
+      toast({ title: role === "admin" ? `${user.email} is now an admin` : `Admin removed from ${user.email}` });
+      onRefresh?.();
+    }
+    setConfirmingRole(null);
+    setBusy(false);
+  };
 
   return (
     <div className="space-y-4">
@@ -201,12 +217,43 @@ export default function UsersPanel({ users }) {
                 <td className={`${td} tabular-nums text-dm-text`}>{u.trades}</td>
                 <td className={`${td} tabular-nums text-dm-sub`}>{shortDate(u.lastTradeAt)}</td>
                 <td className={td}>
-                  <button
-                    onClick={() => setSelected(u)}
-                    className="rounded-lg border border-dm-line px-2.5 py-1 text-xs text-dm-sub transition-colors hover:text-dm-text"
-                  >
-                    Notes
-                  </button>
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => setSelected(u)}
+                      className="rounded-lg border border-dm-line px-2.5 py-1 text-xs text-dm-sub transition-colors hover:text-dm-text"
+                    >
+                      Notes
+                    </button>
+
+                    {/* No control on your own row: the server refuses a
+                        self-role-change anyway, so offering the button would
+                        only produce an error. */}
+                    {u.id === currentUserId ? (
+                      <span className="text-[11px] text-dm-sub">you</span>
+                    ) : confirmingRole === u.id ? (
+                      <span className="flex items-center gap-2 text-xs">
+                        <button
+                          onClick={() => setRole(u, u.role === "admin" ? "user" : "admin")}
+                          disabled={busy}
+                          className={`font-medium hover:underline disabled:opacity-40 ${
+                            u.role === "admin" ? "text-rose-600" : "text-dm-accent"
+                          }`}
+                        >
+                          {u.role === "admin" ? "Remove admin" : "Confirm admin"}
+                        </button>
+                        <button onClick={() => setConfirmingRole(null)} className="text-dm-sub hover:text-dm-text">
+                          Cancel
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmingRole(u.id)}
+                        className="rounded-lg border border-dm-line px-2.5 py-1 text-xs text-dm-sub transition-colors hover:text-dm-text"
+                      >
+                        {u.role === "admin" ? "Revoke admin" : "Make admin"}
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

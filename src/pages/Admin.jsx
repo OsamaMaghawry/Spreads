@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
 import { invokeFunction } from "@/lib/functions";
 import useIsAdmin from "@/lib/useIsAdmin";
 import EngagementPanel from "@/components/admin/EngagementPanel";
@@ -18,18 +19,21 @@ export default function Admin() {
   const [tab, setTab] = useState("engagement");
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  // Needed so the users table can suppress the role control on your own row —
+  // the server refuses a self-role-change, so the button would only ever error.
+  const [currentUserId, setCurrentUserId] = useState(null);
+
+  const load = useCallback(async () => {
+    const res = await invokeFunction("adminData", { action: "overview" });
+    if (res.data?.error) setError(res.data.error);
+    else { setError(null); setData(res.data); }
+  }, []);
 
   useEffect(() => {
     if (!isAdmin) return;
-    let cancelled = false;
-    (async () => {
-      const res = await invokeFunction("adminData", { action: "overview" });
-      if (cancelled) return;
-      if (res.data?.error) setError(res.data.error);
-      else setData(res.data);
-    })();
-    return () => { cancelled = true; };
-  }, [isAdmin]);
+    supabase.auth.getUser().then(({ data: { user } }) => setCurrentUserId(user?.id ?? null));
+    load();
+  }, [isAdmin, load]);
 
   if (checkingRole) {
     return <div className="py-16 text-center text-sm text-dm-sub">Checking access…</div>;
@@ -76,7 +80,7 @@ export default function Admin() {
       ) : tab === "engagement" ? (
         <EngagementPanel engagement={data.engagement} />
       ) : (
-        <UsersPanel users={data.users} />
+        <UsersPanel users={data.users} currentUserId={currentUserId} onRefresh={load} />
       )}
     </div>
   );
