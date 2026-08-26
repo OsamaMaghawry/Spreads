@@ -143,6 +143,13 @@ Deno.serve(async (req) => {
     const { action, ...payload } = await req.json();
 
     switch (action) {
+      // Cheapest possible authorized call: reaching this line already means
+      // requireAdmin passed. The client uses it instead of deciding for itself
+      // whether someone is an admin — see src/lib/useIsAdmin.js.
+      case "whoami": {
+        return jsonResponse({ isAdmin: true, isOwner: gate.isOwner, email: user.email });
+      }
+
       case "overview": {
         const users = await loadUsers(admin);
         return jsonResponse({ users, engagement: engagement(users) });
