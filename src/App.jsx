@@ -18,6 +18,7 @@ import AccountDetail from './pages/AccountDetail';
 import AccountHistory from './pages/AccountHistory';
 import AccountAnalysis from './pages/AccountAnalysis';
 import Screener from './pages/Screener';
+import Admin from './pages/Admin';
 import OAuthCallback from './pages/OAuthCallback';
 
 const AuthenticatedApp = () => {
@@ -44,6 +45,9 @@ const AuthenticatedApp = () => {
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/oauth/callback" element={<OAuthCallback />} />
           <Route path="/screener" element={<Screener />} />
+          {/* Admin.jsx redirects a non-admin away, and every request it makes
+              is re-authorized server-side in _shared/admin.ts. */}
+          <Route path="/admin" element={<Admin />} />
           <Route path="/account/:id" element={<AccountDetail />} />
           <Route path="/account/:id/history" element={<AccountHistory />} />
           <Route path="/account/:id/analysis" element={<AccountAnalysis />} />

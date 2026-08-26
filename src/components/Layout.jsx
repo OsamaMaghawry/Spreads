@@ -1,16 +1,21 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { LayoutDashboard, KeyRound, LogOut, Radar } from "lucide-react";
+import { LayoutDashboard, KeyRound, LogOut, Radar, ShieldCheck } from "lucide-react";
 import Wordmark from "@/components/brand/Wordmark";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
+import useIsAdmin from "@/lib/useIsAdmin";
 
 export default function Layout() {
   const { pathname } = useLocation();
   const { logout } = useAuth();
+  // Hides the link for everyone else. Not a security boundary — /admin
+  // redirects and the edge function refuses a non-admin token either way.
+  const { isAdmin } = useIsAdmin();
   const links = [
     { to: "/", label: "dashboard", Icon: LayoutDashboard },
     { to: "/screener", label: "screener", Icon: Radar },
-    { to: "/accounts", label: "accounts", Icon: KeyRound }
+    { to: "/accounts", label: "accounts", Icon: KeyRound },
+    ...(isAdmin ? [{ to: "/admin", label: "admin", Icon: ShieldCheck }] : [])
   ];
   const linkCls = (active) =>
     `flex items-center gap-2 rounded-[6px] px-3 py-1.5 text-[13px] transition-colors ${
