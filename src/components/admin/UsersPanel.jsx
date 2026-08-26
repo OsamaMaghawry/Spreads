@@ -198,11 +198,18 @@ export default function UsersPanel({ users, currentUserId, onRefresh }) {
               <tr key={u.id} className="border-b border-dm-line/60 last:border-0">
                 <td className={`${td} font-medium text-dm-text`}>
                   {u.email}
-                  {u.role === "admin" && (
+                  {u.isOwner ? (
+                    <span
+                      title="Access comes from the ADMIN_EMAILS secret, not the database"
+                      className="ml-2 rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700"
+                    >
+                      owner
+                    </span>
+                  ) : u.role === "admin" ? (
                     <span className="ml-2 rounded-full border border-dm-accent/30 bg-dm-accent/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-dm-accent">
                       admin
                     </span>
-                  )}
+                  ) : null}
                 </td>
                 <td className={`${td} tabular-nums text-dm-sub`}>{shortDate(u.createdAt)}</td>
                 <td className={`${td} tabular-nums text-dm-sub`}>{shortDate(u.lastSignInAt)}</td>
@@ -230,6 +237,13 @@ export default function UsersPanel({ users, currentUserId, onRefresh }) {
                         only produce an error. */}
                     {u.id === currentUserId ? (
                       <span className="text-[11px] text-dm-sub">you</span>
+                    ) : u.isOwner ? (
+                      // No control at all: the server refuses it, because the
+                      // grant lives in ADMIN_EMAILS and a role write here would
+                      // change nothing while appearing to succeed.
+                      <span className="text-[11px] text-dm-sub" title="Managed in the ADMIN_EMAILS secret">
+                        via secret
+                      </span>
                     ) : confirmingRole === u.id ? (
                       <span className="flex items-center gap-2 text-xs">
                         <button
