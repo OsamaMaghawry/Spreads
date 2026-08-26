@@ -27,6 +27,13 @@ Start with `README.md` for local setup and environment variables.
 - Each edge function's describing comment feeds that file, so give a new function a one-sentence `//` summary above `Deno.serve`.
 - Run the relevant checks from `package.json` before finishing code changes.
 
+## Admin access
+
+The first operator account is created in the Supabase dashboard, not by signing
+up — `auth.users` rows are customers, and operating the product is a different
+job from using it. `docs/admin-access.md` has the procedure and the reasoning;
+read it before changing anything about who can reach `/admin`.
+
 ## Deployment: staging before production
 
 There are two environments, each with its own Supabase project and its own pair of Cloudflare Workers (app + landing site):
