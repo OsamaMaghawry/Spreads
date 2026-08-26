@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# The dashboard is an authenticated single-page app on its own subdomain. It
+# has nothing to index and every route behind the login renders empty to a
+# crawler, so it is excluded there rather than here.
+
+Sitemap: https://deltamint.app/sitemap.xml

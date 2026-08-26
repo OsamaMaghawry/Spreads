@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 26" width="26" height="26">
+  <!-- Same brandmark as the site nav. A filled background rather than a
+       transparent one so the dark triangle stays visible against a dark
+       browser tab strip. -->
+  <rect width="26" height="26" rx="5" fill="#F6F7FB"/>
+  <path d="M13 8 L21 22 L5 22 Z" fill="none" stroke="#14151C" stroke-width="1.6"/>
+  <path d="M10 15 Q13 10.5 10 6 Q7 10.5 10 15 Z" fill="#2E8B5F"/>
+  <path d="M16 15 Q19 10.5 16 6 Q13 10.5 16 15 Z" fill="#2E8B5F"/>
+</svg>
