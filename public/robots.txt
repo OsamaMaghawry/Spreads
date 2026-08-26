@@ -1,0 +1,7 @@
+# dashboard.deltamint.app is the authenticated app. Every route behind the
+# login renders empty to a crawler, so there is nothing worth indexing here —
+# and indexing it would compete with deltamint.app for the brand term.
+# Marketing content lives on deltamint.app, which has its own robots.txt.
+
+User-agent: *
+Disallow: /

@@ -88,6 +88,9 @@ revoked from the browser role entirely.
 - **earnings_calendar** — symbol, report_date, session, fetched_at
 - **scan_presets** — id, user_id, scope, name, strategy, config, created_at, updated_at
 - **scan_last_used** — user_id, scope, strategy, config, updated_at
+- **blog_posts** — id, slug, title, excerpt, body, author, meta_description, og_image, status, published_at, created_at, updated_at
+- **user_notes** — id, user_id, author_id, body, created_at
+- **user_crm** — user_id, status, tags, updated_at
 
 ## Analytics vocabulary
 

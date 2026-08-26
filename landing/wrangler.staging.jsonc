@@ -1,8 +1,17 @@
 {
   "name": "deltamint-landing-staging",
   "compatibility_date": "2025-06-05",
+  "main": "./src/index.js",
   "assets": {
     "directory": "./public",
-    "not_found_handling": "404-page"
+    "not_found_handling": "404-page",
+    "binding": "ASSETS",
+    "run_worker_first": ["/blog", "/blog/*", "/sitemap.xml"]
+  },
+  "vars": {
+    // Staging Supabase project — never production's. Same public-by-
+    // construction reasoning as landing/wrangler.jsonc.
+    "SUPABASE_URL": "https://wpwaomzgpbozzghohwmf.supabase.co",
+    "SUPABASE_ANON_KEY": "sb_publishable_kT2Ov5TjG-6MxfU3X-L3HA_BDmlchL1"
   }
 }
