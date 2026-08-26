@@ -184,6 +184,25 @@ Deno.serve(async (req) => {
         return jsonResponse({ ok: true });
       }
 
+      case "setRole": {
+        const role = payload.role === "admin" ? "admin" : "user";
+
+        // Refusing self-changes is what keeps at least one administrator in
+        // existence. Demoting yourself is the only single action that can take
+        // the count to zero, and recovering from zero needs direct database
+        // access — there is no way back through the app.
+        if (payload.userId === user.id) {
+          return jsonResponse(
+            { error: "You can't change your own role — that could leave the panel with no administrator." },
+            400
+          );
+        }
+
+        const { error } = await admin.from("profiles").update({ role }).eq("id", payload.userId);
+        if (error) throw new Error(error.message);
+        return jsonResponse({ ok: true, role });
+      }
+
       case "listPosts": {
         // Drafts included — this path is the service role, unlike the public
         // Worker which RLS limits to published posts.
