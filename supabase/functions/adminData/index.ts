@@ -1,5 +1,5 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
-import { requireAdmin } from "../_shared/admin.ts";
+import { requireAdmin, isOwnerEmail } from "../_shared/admin.ts";
 
 // Back-office reads and writes: users and their activity, engagement figures,
 // blog posts, and the internal customer record.
@@ -33,12 +33,17 @@ async function loadUsers(admin: any) {
 
   const byUser = new Map<string, any>();
   for (const u of authUsers.users) {
+    // An owner's profiles.role is usually still 'user' — their access comes
+    // from the ADMIN_EMAILS secret, not the database. Reporting the raw role
+    // would show the owner as an ordinary user in their own panel.
+    const owner = isOwnerEmail(u.email);
     byUser.set(u.id, {
       id: u.id,
       email: u.email,
       createdAt: u.created_at,
       lastSignInAt: u.last_sign_in_at,
-      role: "user",
+      isOwner: owner,
+      role: owner ? "owner" : "user",
       accounts: 0,
       liveAccounts: 0,
       paperAccounts: 0,
@@ -51,7 +56,9 @@ async function loadUsers(admin: any) {
 
   for (const p of profiles || []) {
     const u = byUser.get(p.id);
-    if (u) u.role = p.role;
+    // Owner outranks whatever the row says; the env grant is what is actually
+    // enforced, so it is what gets displayed.
+    if (u && !u.isOwner) u.role = p.role;
   }
 
   for (const a of accounts || []) {
@@ -195,6 +202,20 @@ Deno.serve(async (req) => {
           return jsonResponse(
             { error: "You can't change your own role — that could leave the panel with no administrator." },
             400
+          );
+        }
+
+        // An owner's access comes from ADMIN_EMAILS, which this cannot touch.
+        // Writing profiles.role for them would succeed and change nothing —
+        // the UI would report a demotion that did not happen.
+        const { data: target } = await admin.auth.admin.getUserById(payload.userId);
+        if (isOwnerEmail(target?.user?.email)) {
+          return jsonResponse(
+            {
+              error:
+                "That account is an owner via the ADMIN_EMAILS secret. Remove the email there to revoke it — a role change here would have no effect."
+            },
+            409
           );
         }
 
