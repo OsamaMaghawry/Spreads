@@ -5,19 +5,37 @@ import { SAFE_ACCOUNT_COLUMNS } from "@/lib/accountColumns";
 import { Plus, Pencil, Trash2, KeyRound, Link2 } from "lucide-react";
 import AccountForm from "@/components/accounts/AccountForm";
 import { startAlpacaOAuth, describeOAuthConfig } from "@/lib/alpacaOAuth";
-import AlpacaConnectConsent from "@/components/accounts/AlpacaConnectConsent";
 import AdminMaintenance from "@/components/accounts/AdminMaintenance";
 
 export default function Accounts() {
   const [accounts, setAccounts] = useState(null);
   const [editing, setEditing] = useState(null); // null | "new" | account
   const [deleting, setDeleting] = useState(null);
-  const [connecting, setConnecting] = useState(false);
   // startAlpacaOAuth throws when this build cannot possibly complete the round
   // trip — no client id, or a redirect URI that does not belong to this origin.
   // Left unhandled it navigated nowhere and said nothing.
   const [connectError, setConnectError] = useState(null);
   const oauthConfig = describeOAuthConfig();
+
+  // Straight to Alpaca, with nothing in between.
+  //
+  // There used to be a modal here repeating Alpaca's authorization disclosure
+  // before the redirect, on the reading that the DDQ's "[Name]" template was a
+  // screen we had to build and that acknowledgement had to happen before
+  // leaving our app. Watching an approved app connect settles it: Connect goes
+  // directly to app.alpaca.markets, and Alpaca renders "Authorize <app>" with
+  // that disclosure themselves, from the registered app name. The template
+  // describes their page. The acknowledgement the DDQ asks for is the Allow
+  // button on it, which comes before the token exchange that actually connects
+  // the account. Our own copy of it was a second, redundant consent that looked
+  // like Alpaca's but was not.
+  const connect = () => {
+    try {
+      startAlpacaOAuth();
+    } catch (e) {
+      setConnectError(e.message);
+    }
+  };
 
   const load = useCallback(async () => {
     const { data, error } = await supabase
@@ -63,7 +81,7 @@ export default function Accounts() {
         </div>
         <div className="ml-auto flex items-center gap-2">
           <button
-            onClick={() => setConnecting(true)}
+            onClick={connect}
             className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm hover:bg-emerald-100 transition-colors"
           >
             <Link2 className="w-4 h-4" /> Connect Alpaca
@@ -134,19 +152,6 @@ export default function Accounts() {
         />
       )}
 
-      {connecting && (
-        <AlpacaConnectConsent
-          onCancel={() => setConnecting(false)}
-          onContinue={() => {
-            try {
-              startAlpacaOAuth();
-            } catch (e) {
-              setConnecting(false);
-              setConnectError(e.message);
-            }
-          }}
-        />
-      )}
 
       {connectError && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">

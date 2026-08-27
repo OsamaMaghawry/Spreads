@@ -29,16 +29,22 @@ Start with `README.md` for local setup and environment variables.
 
 ## Alpaca OAuth
 
-**The pre-redirect disclosure is required, not optional.** The OAuth DDQ (v3,
-page 3) carries a template disclosure — "Authorize [Name] … granting [Name]
-access to your account information and authorization to place transactions at
-your direction … Alpaca does not warrant or guarantee …" with DENY and ALLOW —
-and states: *"Acknowledgement of the disclosure must be done prior to a client
-connecting their Alpaca account."* `AlpacaConnectConsent.jsx` is that
-disclosure. Do not remove it because Alpaca's own consent page says something
-similar: that page is reached *after* connecting has begun, which is what the
-DDQ rules out. Keep the wording matching the template; it is compared against
-one.
+**Alpaca shows the authorization disclosure. We do not.** Connect goes straight
+to `app.alpaca.markets/oauth/authorize`, with nothing in between — the same as
+every approved app. Alpaca's page renders "Authorize <app>" with the disclosure
+from the registered app name, lists the user's live and paper accounts, and
+carries Allow and Deny.
+
+The DDQ (v3, page 3) shows that disclosure as a `[Name]` template and says
+*"Acknowledgement of the disclosure must be done prior to a client connecting
+their Alpaca account."* That describes **Alpaca's page**: the acknowledgement is
+its Allow button, which precedes the token exchange that actually connects the
+account. It is not a spec for a screen to build.
+
+There was once an `AlpacaConnectConsent` modal repeating that text before the
+redirect. It was removed: it was a second consent, shown on our domain, that
+looked like Alpaca's and was not. Do not reintroduce it — check a real
+connect flow before concluding otherwise.
 
 **The redirect URI is configuration, never derived.** It must byte-for-byte
 match a URI registered on the OAuth app at `app.alpaca.markets/connect`, so it
