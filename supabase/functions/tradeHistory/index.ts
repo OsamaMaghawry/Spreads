@@ -1,10 +1,13 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
-import { tradingBase, alpacaFetch, parseOCCSymbol, loadAccount } from "../_shared/alpaca.ts";
+import { tradingBase, alpacaFetch, loadAccount } from "../_shared/alpaca.ts";
+import { reconstruct } from "../_shared/tradeReconstruction.ts";
 
-// Reconstruct closed option trades per strategy. Strategy comes from the Alpaca
-// client order id prefix configured on the account (spreads vs wheel), so wheel
-// cash-secured puts are never mis-paired into spreads.
+// Fetches the account's activity from Alpaca and hands it to the pure
+// reconstruction in _shared/tradeReconstruction.ts, which is where the pairing,
+// assignment and share-ledger logic lives and where it is tested. Everything
+// here is I/O: pull activities, write the results, reconcile what changed.
+
 async function fetchTrades(admin, accountId, ordered = true) {
   let query = admin.from("trade_records").select("*").eq("account_id", accountId);
   if (ordered) query = query.order("close_date", { ascending: false });
@@ -13,13 +16,40 @@ async function fetchTrades(admin, accountId, ordered = true) {
   return data || [];
 }
 
+async function fetchStockLots(admin, accountId) {
+  const { data, error } = await admin
+    .from("stock_lots")
+    .select("*")
+    .eq("account_id", accountId)
+    .order("acquired_date", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+// A rebuild recomputes history that the previous, broken logic produced, so
+// figures change. Every row is copied out first: the nightly pg_dump is a
+// second net, but it should not be the only one when the destructive step is
+// deliberate.
+async function snapshotAndClear(admin, accountId) {
+  const existing = await fetchTrades(admin, accountId, false);
+  if (existing.length > 0) {
+    const { error } = await admin.from("trade_records_backup").insert(existing);
+    if (error) throw new Error(`Backup failed, nothing deleted: ${error.message}`);
+  }
+  for (const table of ["trade_records", "stock_lots"]) {
+    const { error } = await admin.from(table).delete().eq("account_id", accountId);
+    if (error) throw new Error(error.message);
+  }
+  return existing.length;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const user = await requireUser(req);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-    const { accountId, sync = false } = await req.json();
+    const { accountId, sync = false, rebuild = false } = await req.json();
     if (!accountId) return jsonResponse({ error: "accountId is required" }, 400);
 
     const admin = adminClient();
@@ -34,8 +64,8 @@ Deno.serve(async (req) => {
 
     // Read-only mode: serve stored trades without touching Alpaca.
     if (!sync) {
-      const stored = await fetchTrades(admin, accountId);
-      return jsonResponse({ account: accountInfo, trades: stored, fromCache: true });
+      const [stored, lots] = await Promise.all([fetchTrades(admin, accountId), fetchStockLots(admin, accountId)]);
+      return jsonResponse({ account: accountInfo, trades: stored, stockLots: lots, fromCache: true });
     }
 
     const spreadsPrefix = (account.spreads_client_prefix || "").trim();
@@ -64,11 +94,13 @@ Deno.serve(async (req) => {
       if (page.length < 500) break;
     }
 
-    // 2. Fill + expiration activities (newest first).
+    // 2. Activities. OPASN and OPEXC were missing here, which is why an
+    //    assigned spread produced no record at all — its lots never closed.
+    //    FILL now also carries stock fills, which were previously discarded.
     let activities: any[] = [];
     let pageToken = null;
     for (let i = 0; i < 20; i++) {
-      const url = `${base}/account/activities?activity_types=FILL,OPEXP&direction=desc&page_size=100` +
+      const url = `${base}/account/activities?activity_types=FILL,OPEXP,OPASN,OPEXC&direction=desc&page_size=100` +
         (pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : "");
       const page = await alpacaFetch(url, account);
       if (!Array.isArray(page) || page.length === 0) break;
@@ -77,154 +109,12 @@ Deno.serve(async (req) => {
       pageToken = page[page.length - 1].id;
     }
 
-    // 3. Group option events per symbol (puts and calls — calls come from condors).
-    const bySymbol = {};
-    activities.forEach((a: any) => {
-      const parsed = a.symbol ? parseOCCSymbol(a.symbol) : null;
-      if (!parsed) return;
-      (bySymbol[a.symbol] = bySymbol[a.symbol] || []).push(a);
-    });
+    // 3. Reconstruct. Pure, and covered by tradeReconstruction.test.ts.
+    const { records, stockLots } = reconstruct(activities, orderStrategy, accountId);
 
-    // 4. Reconstruct closed lots per symbol (FIFO), carrying the opening strategy.
-    const closedLots: any[] = [];
-    Object.keys(bySymbol).forEach((symbol) => {
-      const parsed = parseOCCSymbol(symbol);
-      const events = bySymbol[symbol].slice().sort((x: any, y: any) => {
-        const tx = x.transaction_time || (x.date ? x.date + "T23:59:59Z" : "");
-        const ty = y.transaction_time || (y.date ? y.date + "T23:59:59Z" : "");
-        return tx.localeCompare(ty);
-      });
-      let position = 0;
-      let openLots: any[] = [];
-      const push = (lot, closePrice, closeDate, expired) => closedLots.push({
-        symbol, parsed, qty: lot.qty, openPrice: lot.price, closePrice,
-        openDate: lot.date, closeDate, short: lot.short, expired, strategy: lot.strategy
-      });
-      events.forEach((a: any) => {
-        if (a.activity_type === "OPEXP") {
-          openLots.forEach((lot) => push(lot, 0, a.date, true));
-          openLots = [];
-          position = 0;
-          return;
-        }
-        const qty = Math.abs(parseFloat(a.qty));
-        const price = parseFloat(a.price);
-        const date = (a.transaction_time || "").substring(0, 10);
-        const delta = a.side === "buy" ? qty : -qty;
-        const strategy = orderStrategy[a.order_id] || "unknown";
-        if (position === 0 || (delta > 0) === (position > 0)) {
-          openLots.push({ qty, price, date, short: delta < 0, strategy });
-          position += delta;
-        } else {
-          let remaining = qty;
-          while (remaining > 0 && openLots.length > 0) {
-            const lot = openLots[0];
-            const q = Math.min(lot.qty, remaining);
-            push({ ...lot, qty: q }, price, date, false);
-            lot.qty -= q;
-            remaining -= q;
-            position += lot.short ? q : -q;
-            if (lot.qty === 0) openLots.shift();
-          }
-          if (remaining > 0) {
-            openLots.push({ qty: remaining, price, date, short: delta < 0, strategy });
-            position += delta > 0 ? remaining : -remaining;
-          }
-        }
-      });
-    });
+    const cleared = rebuild ? await snapshotAndClear(admin, accountId) : 0;
 
-    // 5. Build trades: pair spreads within the same strategy; wheel/unpaired stay single-leg.
-    // Orders placed without a configured prefix ('unknown') are resolved by shape:
-    // legs that pair into a vertical are spreads, leftover single legs are wheel puts.
-    const trades: any[] = [];
-    const single = (l: any) => trades.push({
-      account_id: accountId,
-      strategy: l.strategy === "unknown" ? "wheel" : l.strategy,
-      ticker: l.parsed.ticker,
-      expiry: l.parsed.expiryFormatted,
-      short_symbol: l.symbol,
-      long_symbol: "",
-      short_strike: l.parsed.strike,
-      long_strike: 0,
-      qty: l.qty,
-      open_date: l.openDate,
-      close_date: l.closeDate,
-      short_entry: l.openPrice,
-      long_entry: 0,
-      short_exit: l.closePrice,
-      long_exit: 0,
-      close_reason: l.expired ? "expired" : "closed"
-    });
-
-    ["spreads", "wheel", "unknown"].forEach((strategy) => {
-      const lots = closedLots.filter((l) => l.strategy === strategy);
-      const shorts = lots.filter((l) => l.short).map((l) => ({ ...l, left: l.qty }));
-      const longs = lots.filter((l) => !l.short).map((l) => ({ ...l, left: l.qty }));
-      const pairSpreads = strategy !== "wheel";
-      shorts.forEach((s: any) => {
-        if (pairSpreads) {
-          longs.forEach((l: any) => {
-            if (s.left <= 0 || l.left <= 0) return;
-            if (l.parsed.ticker !== s.parsed.ticker || l.parsed.expiry !== s.parsed.expiry) return;
-            if (l.parsed.type !== s.parsed.type) return;
-            // Protective long: below the short for puts, above it for calls.
-            const protective = s.parsed.type === "C" ? l.parsed.strike > s.parsed.strike : l.parsed.strike < s.parsed.strike;
-            if (!protective || l.closeDate !== s.closeDate) return;
-            const q = Math.min(s.left, l.left);
-            trades.push({
-              account_id: accountId,
-              strategy: strategy === "unknown" ? "spreads" : strategy,
-              ticker: s.parsed.ticker,
-              expiry: s.parsed.expiryFormatted,
-              short_symbol: s.symbol,
-              long_symbol: l.symbol,
-              short_strike: s.parsed.strike,
-              long_strike: l.parsed.strike,
-              qty: q,
-              open_date: s.openDate < l.openDate ? s.openDate : l.openDate,
-              close_date: s.closeDate,
-              short_entry: s.openPrice,
-              long_entry: l.openPrice,
-              short_exit: s.closePrice,
-              long_exit: l.closePrice,
-              close_reason: s.expired && l.expired ? "expired" : "closed"
-            });
-            s.left -= q;
-            l.left -= q;
-          });
-        }
-        if (s.left > 0) single({ ...s, qty: s.left });
-      });
-    });
-
-    // 6. Merge identical spread/leg closes on the same day (weighted averages).
-    const merged: any = {};
-    trades.forEach((t) => {
-      const key = `${t.strategy}|${t.short_symbol}|${t.long_symbol}|${t.close_date}`;
-      const m = merged[key];
-      if (!m) {
-        merged[key] = { ...t, trade_key: key };
-      } else {
-        const tot = m.qty + t.qty;
-        ["short_entry", "long_entry", "short_exit", "long_exit"].forEach((f) => {
-          m[f] = (m[f] * m.qty + t[f] * t.qty) / tot;
-        });
-        m.qty = tot;
-        m.open_date = m.open_date < t.open_date ? m.open_date : t.open_date;
-        if (t.close_reason === "closed") m.close_reason = "closed";
-      }
-    });
-    const records = Object.values(merged).map((t: any) => {
-      const netCredit = t.short_entry - t.long_entry;
-      const closeDebit = t.short_exit - t.long_exit;
-      return {
-        ...t, net_credit: netCredit, close_debit: closeDebit,
-        realized_pl: (netCredit - closeDebit) * t.qty * 100
-      };
-    });
-
-    // 7. Reconcile stored records with what Alpaca reports.
+    // 4. Reconcile stored records with what Alpaca reports.
     const existing = await fetchTrades(admin, accountId, false);
     const existingByKey: any = {};
     existing.forEach((r: any) => { existingByKey[r.trade_key] = r; });
@@ -235,7 +125,14 @@ Deno.serve(async (req) => {
     const toUpdate = records
       .filter((r: any) => {
         const e = existingByKey[r.trade_key];
-        return e && (e.qty !== r.qty || e.strategy !== r.strategy || e.realized_pl !== r.realized_pl);
+        return e && (
+          e.qty !== r.qty ||
+          e.strategy !== r.strategy ||
+          e.realized_pl !== r.realized_pl ||
+          e.close_reason !== r.close_reason ||
+          e.unpaired !== r.unpaired ||
+          e.chain_id !== r.chain_id
+        );
       })
       .map((r: any) => ({ id: existingByKey[r.trade_key].id, ...r }));
     // Drop stale rows inside the window we just recomputed (e.g. previously mis-paired trades).
@@ -255,11 +152,35 @@ Deno.serve(async (req) => {
       if (error) throw new Error(error.message);
     }
 
-    const all = await fetchTrades(admin, accountId);
+    // 5. Share lots are fully derived from the same activities, so the fresh
+    //    set is authoritative: anything no longer derivable is removed, and the
+    //    rest is upserted on its stable key.
+    const existingLots = await fetchStockLots(admin, accountId);
+    const freshLotKeys = new Set(stockLots.map((l: any) => l.lot_key));
+    const staleLots = existingLots.filter((l: any) => !freshLotKeys.has(l.lot_key));
+    for (const l of staleLots) {
+      const { error } = await admin.from("stock_lots").delete().eq("id", (l as any).id);
+      if (error) throw new Error(error.message);
+    }
+    if (stockLots.length > 0) {
+      const { error } = await admin
+        .from("stock_lots")
+        .upsert(stockLots.map((l: any) => ({ ...l, user_id: user.id })), { onConflict: "account_id,lot_key" });
+      if (error) throw new Error(error.message);
+    }
+
+    const [all, lots] = await Promise.all([fetchTrades(admin, accountId), fetchStockLots(admin, accountId)]);
     return jsonResponse({
       account: accountInfo,
       trades: all,
-      stats: { created: toCreate.length, updated: toUpdate.length, removed: stale.length },
+      stockLots: lots,
+      stats: {
+        created: toCreate.length,
+        updated: toUpdate.length,
+        removed: stale.length,
+        stockLots: stockLots.length,
+        rebuiltFrom: cleared
+      },
       syncedAt: new Date().toISOString()
     });
   } catch (error) {

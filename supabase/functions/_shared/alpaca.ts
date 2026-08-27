@@ -51,18 +51,9 @@ export async function alpacaFetch(url, account, options: RequestInit = {}, retri
   throw lastErr;
 }
 
-export function parseOCCSymbol(symbol) {
-  const match = symbol.match(/^([A-Z]+)(\d{6})([CP])(\d{8})$/);
-  if (!match) return null;
-  const raw = match[2];
-  return {
-    ticker: match[1],
-    expiry: raw,
-    expiryFormatted: `20${raw.substring(0, 2)}-${raw.substring(2, 4)}-${raw.substring(4, 6)}`,
-    type: match[3],
-    strike: parseFloat(match[4]) / 1000
-  };
-}
+// Lives in occ.ts so it can be imported without this module's Deno-only
+// dependencies; re-exported here because everything already imports it here.
+export { parseOCCSymbol } from "./occ.ts";
 
 // Spread pairing lives in spreadPairing.ts (provenance-based); re-exported here
 // so existing consumers keep importing it from this module.
