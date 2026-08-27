@@ -69,7 +69,7 @@ so a change to shared code requires redeploying all of them.
 - **findEntry** — Scans the live chain and returns the delta-targeted setup for one strategy.
 - **manageOrder** — Reads the status of a working order, or cancels it.
 - **migrateCredentials** — Encrypts credentials that are still stored in plaintext, across every user's accounts, without involving those users.
-- **openPosition** — Submits the opening multi-leg credit order (sell to open the shorts, buy the wings).
+- **openPosition** — How far the stock may have moved since the setup was built before the order is refused.
 - **refreshEarnings** — Refreshes the cached earnings calendar for the next 90 days from the provider.
 - **saveAccount** — Creating and editing a manually-keyed trading account.
 - **scanEntries** — (no summary comment)

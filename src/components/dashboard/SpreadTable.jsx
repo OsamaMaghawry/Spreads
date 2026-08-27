@@ -120,6 +120,12 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
               <td className={`${td} text-right`}>{fmtMoney(s.closeCost)}</td>
               <td className={`${td} text-right font-semibold ${s.unrealizedPL > 0 ? "text-emerald-600" : s.unrealizedPL < 0 ? "text-rose-600" : ""}`}>
                 {fmtMoney(s.unrealizedPL)}
+                {/* Still counted in the totals — just not presented as a mark. */}
+                {s.priceSource === "broker" && (
+                  <span className="ml-1 font-normal text-amber-600" title="No live quote for every leg — priced from the broker's last-trade values">
+                    *
+                  </span>
+                )}
               </td>
               <td className={`${td} text-right font-semibold ${s.expirationPL > 0 ? "text-emerald-600" : s.expirationPL < 0 ? "text-rose-600" : ""}`}>
                 {fmtMoney(s.expirationPL)}

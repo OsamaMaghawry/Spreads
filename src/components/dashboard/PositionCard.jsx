@@ -47,6 +47,14 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
             {s.unrealizedPL > 0 ? "+" : ""}
             {fmtMoney(s.unrealizedPL)}
           </div>
+          {/* Priced from the broker's stored per-leg price because a live quote
+              was missing. That price is last-trade based and goes stale on thin
+              contracts, so say so rather than presenting it as a mark. */}
+          {s.priceSource === "broker" && (
+            <div className="text-[10px] text-amber-600" title="No live quote for every leg — priced from the broker's last-trade values">
+              broker mark
+            </div>
+          )}
         </div>
       </div>
 

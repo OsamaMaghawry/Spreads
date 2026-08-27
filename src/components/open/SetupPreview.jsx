@@ -13,7 +13,18 @@ export default function SetupPreview({ setup, qty }) {
     <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-3 text-sm">
       <div className="flex items-center justify-between text-xs text-slate-500">
         <span>{setup.ticker} · Expiry {setup.expiry}</span>
-        <span>Spot {fmtMoney(setup.spot)}</span>
+        {/* Where the spot came from and when. This number picks the strikes,
+            and a scan built on a bad one sold a short put that was already in
+            the money while the dialog showed it $8.50 clear of the stock. */}
+        <span>
+          Spot {fmtMoney(setup.spot)}
+          {setup.spotSource && (
+            <span className="ml-1.5 text-slate-400">
+              {setup.spotSource === "trade" ? "last trade" : setup.spotSource === "quote" ? "quote mid" : setup.spotSource}
+              {setup.spotAsOf ? ` ${new Date(setup.spotAsOf).toLocaleTimeString()}` : ""}
+            </span>
+          )}
+        </span>
       </div>
 
       <div className="space-y-1">
