@@ -1,0 +1,116 @@
+import { fmtMoney } from "@/lib/format";
+
+// Shares, kept deliberately separate from premium.
+//
+// When a short call is assigned, the option keeps its full premium and the
+// result lands on the stock: called away at 470 against shares bought at
+// 472.50 on exercise is a $250 loss that belongs here, not in the option row.
+// Merging the two would hide which half of a wheel cycle actually worked, and
+// a merged cost basis can always be derived from these two figures — the
+// reverse cannot.
+
+const th = "px-2.5 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
+const td = "px-2.5 py-2.5 whitespace-nowrap tabular-nums";
+
+const SOURCE = {
+  assignment: "bg-amber-100 text-amber-800",
+  exercise: "bg-violet-100 text-violet-700",
+  trade: "bg-slate-100 text-slate-600"
+};
+
+const Tag = ({ value }) =>
+  value ? (
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${SOURCE[value] || SOURCE.trade}`}>
+      {value.toUpperCase()}
+    </span>
+  ) : (
+    <span className="text-slate-400">—</span>
+  );
+
+export default function StockLotsTable({ lots }) {
+  if (!lots || lots.length === 0) return null;
+
+  // Only closed lots contribute. Shares still held are unrealized, and were
+  // never a result to begin with.
+  const realized = lots.reduce((a, l) => a + (l.realized_pl || 0), 0);
+  const openQty = lots.filter((l) => !l.disposed_date).reduce((a, l) => a + Number(l.qty || 0), 0);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 className="text-sm font-semibold text-slate-900">Shares</h2>
+        <p className="text-xs text-slate-500">
+          From assignment and exercise, plus any stock traded directly. Kept apart from premium so a
+          wheel cycle shows both halves.
+        </p>
+      </div>
+
+      <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
+        <table className="w-full text-sm text-slate-700">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-50 text-left">
+              <th className={th}>Ticker</th>
+              <th className={`${th} text-right`}>Shares</th>
+              <th className={th}>Acquired</th>
+              <th className={`${th} text-right`}>Cost</th>
+              <th className={th}>Via</th>
+              <th className={th}>Disposed</th>
+              <th className={`${th} text-right`}>Proceeds</th>
+              <th className={th}>Via</th>
+              <th className={`${th} text-right`}>Realized P/L</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lots.map((l) => (
+              <tr key={l.id || l.lot_key} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                <td className={`${td} font-semibold text-slate-900`}>{l.ticker}</td>
+                <td className={`${td} text-right`}>{Number(l.qty)}</td>
+                <td className={`${td} text-slate-500`}>{l.acquired_date || "—"}</td>
+                <td className={`${td} text-right`}>
+                  {l.acquired_price == null ? (
+                    // Bought before the window the broker's activity feed
+                    // covers, so the basis genuinely is not known. Saying so
+                    // beats inventing one.
+                    <span className="text-slate-400" title="Purchase predates the available activity history">
+                      unknown
+                    </span>
+                  ) : (
+                    fmtMoney(l.acquired_price)
+                  )}
+                </td>
+                <td className={td}><Tag value={l.acquired_source} /></td>
+                <td className={`${td} text-slate-500`}>{l.disposed_date || "—"}</td>
+                <td className={`${td} text-right`}>{l.disposed_price == null ? "—" : fmtMoney(l.disposed_price)}</td>
+                <td className={td}><Tag value={l.disposed_source} /></td>
+                <td className={`${td} text-right font-semibold ${
+                  l.realized_pl > 0 ? "text-emerald-600" : l.realized_pl < 0 ? "text-rose-600" : ""
+                }`}>
+                  {l.realized_pl == null ? (
+                    <span className="font-normal text-slate-400" title="Still held — not a realized result">
+                      open
+                    </span>
+                  ) : (
+                    fmtMoney(l.realized_pl)
+                  )}
+                </td>
+              </tr>
+            ))}
+            <tr className="bg-slate-50 font-semibold text-slate-900">
+              <td className={`${td} text-[11px] uppercase tracking-wider text-slate-500`}>Realized</td>
+              <td className={td} colSpan={7}>
+                {openQty > 0 && (
+                  <span className="text-[11px] font-normal normal-case text-slate-500">
+                    {openQty} share{openQty === 1 ? "" : "s"} still held, excluded
+                  </span>
+                )}
+              </td>
+              <td className={`${td} text-right ${realized > 0 ? "text-emerald-600" : realized < 0 ? "text-rose-600" : ""}`}>
+                {fmtMoney(realized)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

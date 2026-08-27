@@ -1,4 +1,5 @@
 import { fmtMoney } from "@/lib/format";
+import { heldToExpiry } from "@/lib/analytics";
 
 const th = "px-3 py-2 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
 const td = "px-3 py-2 whitespace-nowrap tabular-nums";
@@ -35,15 +36,15 @@ const agg = (rows) => {
 };
 
 export default function CaptureBreakdown({ trades }) {
-  const early = rowsOf(trades.filter((t) => t.close_reason !== "expired"));
-  const expired = rowsOf(trades.filter((t) => t.close_reason === "expired"));
+  const early = rowsOf(trades.filter((t) => !heldToExpiry(t)));
+  const expired = rowsOf(trades.filter(heldToExpiry));
   const all = agg([...early, ...expired]);
   const e = agg(early);
   const x = agg(expired);
   if (all.trades === 0) return null;
 
   const summary = [
-    { label: "Expired worthless", data: x, note: "Full credit kept" },
+    { label: "Held to expiry", data: x, note: "Expired, assigned or exercised" },
     { label: "Closed early", data: e, note: "Bought back before expiry" },
     { label: "All trades", data: all, note: "Overall credit capture" }
   ];
