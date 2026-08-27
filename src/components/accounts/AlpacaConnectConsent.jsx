@@ -1,8 +1,23 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ShieldAlert } from "lucide-react";
 
-// Alpaca requires this exact disclosure to be shown to the user at the moment
-// they authorize the OAuth connection, before they're redirected to Alpaca.
+// The authorization disclosure required by Alpaca's OAuth Due Diligence
+// Questionnaire (v3, page 3). Two requirements come from it, and both are
+// load-bearing for approval:
+//
+//   "Please ensure that the following Authorization disclosure is captured in
+//    the video. *Acknowledgement of the disclosure must be done prior to a
+//    client connecting their Alpaca account."
+//
+// So it is shown here, before the redirect, with Deny and Allow — not left to
+// Alpaca's own consent page, which the user only reaches after connecting has
+// already begun.
+//
+// The wording below is the DDQ's template with [Name] filled in, and should be
+// changed only to track a new DDQ version. It previously read "place
+// transactions in your account at your direction"; the template says "place
+// transactions at your direction", and a disclosure that Alpaca will compare
+// against their own template should match it.
 export default function AlpacaConnectConsent({ onCancel, onContinue }) {
   return (
     <Dialog open onOpenChange={(o) => !o && onCancel()}>
@@ -15,14 +30,18 @@ export default function AlpacaConnectConsent({ onCancel, onContinue }) {
         </DialogHeader>
         <div className="space-y-4">
           <div className="text-sm text-slate-700 leading-relaxed bg-slate-50 border border-slate-200 rounded-lg p-4">
-            By allowing DeltaMint to access your Alpaca account, you are granting DeltaMint access to your account
-            information and authorization to place transactions in your account at your direction. Alpaca does not
-            warrant or guarantee that DeltaMint will work as advertised or expected. Before authorizing, learn more
-            about DeltaMint at{" "}
-            <a href="https://deltamint.app" target="_blank" rel="noreferrer" className="underline">
-              deltamint.app
-            </a>
-            .
+            <p>
+              By allowing DeltaMint to access your Alpaca account, you are granting DeltaMint access to your account
+              information and authorization to place transactions at your direction.
+            </p>
+            <p className="mt-3">
+              Alpaca does not warrant or guarantee that DeltaMint will work as advertised or expected. Before
+              authorizing, learn more about{" "}
+              <a href="https://deltamint.app" target="_blank" rel="noreferrer" className="underline">
+                DeltaMint
+              </a>
+              .
+            </p>
           </div>
           <p className="text-xs text-slate-500">
             You'll be redirected to Alpaca to sign in, choose which account (live or paper) to connect, and authorize
