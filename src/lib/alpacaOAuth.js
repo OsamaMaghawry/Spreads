@@ -25,38 +25,28 @@ export function getOAuthRedirectUri() {
   return REDIRECT_URI;
 }
 
-const SCOPES = ["account:write", "trading", "data"];
+const SCOPE = "account:write trading data";
 
-// Built by hand rather than with URLSearchParams, which encodes the scope
-// separator as "+" and the colon as "%3A" — giving
-// `scope=account%3Awrite+trading+data`. Both are valid form-encoding and a
-// strict RFC 6749 server decodes them identically, but a working request
-// observed against this same endpoint sends
-// `scope=account:write%20trading%20data`, and matching a request that is known
-// to be accepted costs nothing while removing a variable from a failure we
-// cannot otherwise reproduce.
-export function authorizeUrl(state) {
-  const query = [
-    "response_type=code",
-    `client_id=${encodeURIComponent(CLIENT_ID || "")}`,
-    `redirect_uri=${encodeRedirectUri(REDIRECT_URI)}`,
-    `scope=${SCOPES.join("%20")}`,
-    `state=${encodeURIComponent(state)}`
-  ].join("&");
-  return `https://app.alpaca.markets/oauth/authorize?${query}`;
-}
-
-// `:` and `/` are legal unencoded in a query string (RFC 3986 §3.4), and the
-// working request sends the redirect URI that way — `redirect_uri=https://…`
-// rather than `https%3A%2F%2F…`. Percent-encoding is what RFC 6749 asks for and
-// a compliant server decodes before comparing against the registered value, but
-// a server comparing raw strings would not match, and that failure is
-// indistinguishable from every other cause on Alpaca's error page.
+// Standard form encoding, which is what RFC 6749 asks for and what a working
+// request against this endpoint actually sends:
 //
-// Anything that would genuinely break query parsing is still encoded; a URI
-// containing those characters could not be registered as-is anyway.
-function encodeRedirectUri(uri) {
-  return /[?#&%\s]/.test(uri) ? encodeURIComponent(uri) : uri;
+//   redirect_uri=https%3A%2F%2Fhost%2Fpath   scope=account%3Awrite+trading+data
+//
+// This briefly emitted `https://host/path` and `account:write%20trading%20data`
+// instead, on the theory that Alpaca might compare raw strings — read off a
+// browser address bar, which displays a decoded URL and is not evidence of what
+// was sent. The encoding was never the problem, so there is nothing here to
+// tune: an "unknown client" response is about the client id or the registered
+// redirect URI, not this.
+export function authorizeUrl(state) {
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id: CLIENT_ID || "",
+    redirect_uri: REDIRECT_URI,
+    scope: SCOPE,
+    state
+  });
+  return `https://app.alpaca.markets/oauth/authorize?${params.toString()}`;
 }
 
 // Alpaca's authorize page reports a bad client_id or an unregistered redirect
