@@ -1,11 +1,11 @@
-import { SITE, esc, markdown, formatDate, page } from "./render.js";
+import { esc, markdown, formatDate, page } from "./render.js";
 
 // Blog routes for the marketing site.
 //
-// Only the paths listed in `assets.run_worker_first` reach this Worker; every
-// other request is served straight from static assets without invoking any of
-// this. That keeps the existing pages exactly as fast as they were and means
-// blog traffic is the only thing spending Worker requests.
+// Production and staging run this same code against different Supabase
+// projects, so nothing here may assume a host. `SITE_URL` comes from the
+// wrangler config per deployment; a hardcoded canonical previously made
+// staging emit production links.
 //
 // Posts are read from Supabase with the anon key over REST — no SDK, so the
 // Worker stays dependency-free and needs no build step. The anon key is public
@@ -19,6 +19,16 @@ const POST_FIELDS = "slug,title,excerpt,body,author,meta_description,og_image,pu
 // crawler burst off Supabase entirely — which matters on a free-tier project
 // that pauses when idle.
 const CACHE_SECONDS = 300;
+
+const siteUrl = (request, env) => env.SITE_URL || new URL(request.url).origin;
+
+// Staging must never reach an index. A `dev-landing…` URL ranking for the
+// brand would compete with the real site and split its authority, so the
+// non-production deployment sets NOINDEX and gets: a blanket Disallow in
+// robots.txt, an X-Robots-Tag header on every response including assets and
+// XML, and a meta robots tag in the HTML. Production sets none of this and is
+// indexed normally.
+const isNoIndex = (env) => env.NOINDEX === "1";
 
 async function fetchPosts(env, { slug = null } = {}) {
   const url = new URL(`${env.SUPABASE_URL}/rest/v1/blog_posts`);
@@ -37,12 +47,24 @@ async function fetchPosts(env, { slug = null } = {}) {
   return res.json();
 }
 
-function notFound() {
+// A response is never mutated in place — headers on a cached or asset response
+// are immutable, so anything added has to go onto a fresh copy.
+function withNoIndexHeader(response) {
+  const out = new Response(response.body, response);
+  out.headers.set("X-Robots-Tag", "noindex, nofollow");
+  return out;
+}
+
+const robotsMeta = (noindex) => (noindex ? '<meta name="robots" content="noindex, nofollow">\n' : "");
+
+// Always noindex regardless of environment — a 404 should never be indexed
+// anywhere, so this one does not take the deployment flag.
+function notFound(site) {
   return new Response(
     page({
       title: "Not found — DeltaMint",
       description: "That page could not be found.",
-      canonical: `${SITE}/blog`,
+      canonical: `${site}/blog`,
       head: '<meta name="robots" content="noindex">',
       body: `<h1>Not found</h1>
 <p>That post doesn't exist, or it hasn't been published yet.</p>
@@ -52,17 +74,16 @@ function notFound() {
   );
 }
 
-function html(body, extraHeaders = {}) {
+function html(body) {
   return new Response(body, {
     headers: {
       "content-type": "text/html; charset=utf-8",
-      "cache-control": `public, max-age=60, s-maxage=${CACHE_SECONDS}`,
-      ...extraHeaders
+      "cache-control": `public, max-age=60, s-maxage=${CACHE_SECONDS}`
     }
   });
 }
 
-function renderIndex(posts) {
+function renderIndex(posts, site, noindex) {
   const items = posts.length
     ? posts
         .map(
@@ -78,14 +99,14 @@ function renderIndex(posts) {
   return page({
     title: "Blog — DeltaMint",
     description: "Notes on selling options premium with defined risk: credit spreads, iron condors, position sizing and execution.",
-    canonical: `${SITE}/blog`,
-    head: `<meta property="og:type" content="website" />
+    canonical: `${site}/blog`,
+    head: `${robotsMeta(noindex)}<meta property="og:type" content="website" />
 <meta property="og:site_name" content="DeltaMint" />
-<meta property="og:url" content="${SITE}/blog" />
+<meta property="og:url" content="${site}/blog" />
 <meta property="og:title" content="Blog — DeltaMint" />
-<meta property="og:image" content="${SITE}/assets/og-card.png" />
+<meta property="og:image" content="${site}/assets/og-card.png" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:image" content="${SITE}/assets/og-card.png" />`,
+<meta name="twitter:image" content="${site}/assets/og-card.png" />`,
     body: `<h1>Blog</h1>
 <p>Notes on selling options premium with defined risk.</p>
 <ul class="postlist">
@@ -94,10 +115,10 @@ ${items}
   });
 }
 
-function renderPost(post) {
-  const url = `${SITE}/blog/${post.slug}`;
+function renderPost(post, site, noindex) {
+  const url = `${site}/blog/${post.slug}`;
   const description = post.meta_description || post.excerpt || "";
-  const image = post.og_image || `${SITE}/assets/og-card.png`;
+  const image = post.og_image || `${site}/assets/og-card.png`;
 
   // BlogPosting structured data. Finance is YMYL under Google's quality
   // guidelines, so a named author and real dates carry more weight here than
@@ -111,7 +132,7 @@ function renderPost(post) {
     datePublished: post.published_at,
     dateModified: post.updated_at || post.published_at,
     author: { "@type": "Person", name: post.author },
-    publisher: { "@type": "Organization", name: "DeltaMint", url: SITE },
+    publisher: { "@type": "Organization", name: "DeltaMint", url: site },
     mainEntityOfPage: { "@type": "WebPage", "@id": url }
   };
 
@@ -119,7 +140,7 @@ function renderPost(post) {
     title: `${post.title} — DeltaMint`,
     description,
     canonical: url,
-    head: `<meta property="og:type" content="article" />
+    head: `${robotsMeta(noindex)}<meta property="og:type" content="article" />
 <meta property="og:site_name" content="DeltaMint" />
 <meta property="og:url" content="${esc(url)}" />
 <meta property="og:title" content="${esc(post.title)}" />
@@ -138,15 +159,15 @@ ${markdown(post.body)}
   });
 }
 
-function renderSitemap(posts) {
+function renderSitemap(posts, site) {
   // Static pages plus every published post. Drafts cannot appear here because
   // RLS never returned them.
   const staticPaths = ["/", "/pricing", "/blog", "/terms", "/privacy"];
   const urls = [
-    ...staticPaths.map((p) => `  <url><loc>${SITE}${p}</loc></url>`),
+    ...staticPaths.map((p) => `  <url><loc>${site}${p}</loc></url>`),
     ...posts.map(
       (p) =>
-        `  <url><loc>${SITE}/blog/${esc(p.slug)}</loc><lastmod>${esc(
+        `  <url><loc>${site}/blog/${esc(p.slug)}</loc><lastmod>${esc(
           (p.updated_at || p.published_at || "").slice(0, 10)
         )}</lastmod></url>`
     )
@@ -162,9 +183,30 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, "") || "/";
+    const site = siteUrl(request, env);
+    const noindex = isNoIndex(env);
 
-    // Serve from the edge cache when we can; a crawler working through the
-    // archive should not wake Supabase once per page.
+    // On a non-production deployment the Worker runs ahead of every asset
+    // (run_worker_first: true), so this is the one place that can guarantee no
+    // response leaves without the noindex header.
+    if (noindex && path === "/robots.txt") {
+      return new Response("User-agent: *\nDisallow: /\n", {
+        headers: {
+          "content-type": "text/plain; charset=utf-8",
+          "cache-control": "no-store",
+          "X-Robots-Tag": "noindex, nofollow"
+        }
+      });
+    }
+
+    const isBlogPath = path === "/blog" || path.startsWith("/blog/") || path === "/sitemap.xml";
+    if (!isBlogPath) {
+      // Anything else is a static asset. On production the Worker is not even
+      // invoked for these; on staging it is, purely to stamp the header.
+      const asset = await env.ASSETS.fetch(request);
+      return noindex ? withNoIndexHeader(asset) : asset;
+    }
+
     const cache = caches.default;
     const cached = await cache.match(request);
     if (cached) return cached;
@@ -173,21 +215,18 @@ export default {
     try {
       if (path === "/sitemap.xml") {
         const posts = await fetchPosts(env);
-        response = new Response(renderSitemap(posts), {
+        response = new Response(renderSitemap(posts, site), {
           headers: {
             "content-type": "application/xml; charset=utf-8",
             "cache-control": `public, max-age=300, s-maxage=${CACHE_SECONDS}`
           }
         });
       } else if (path === "/blog") {
-        response = html(renderIndex(await fetchPosts(env)));
-      } else if (path.startsWith("/blog/")) {
+        response = html(renderIndex(await fetchPosts(env), site, noindex));
+      } else {
         const slug = decodeURIComponent(path.slice("/blog/".length));
         const [post] = await fetchPosts(env, { slug });
-        response = post ? html(renderPost(post)) : notFound();
-      } else {
-        // Not a blog path: hand back to static assets.
-        return env.ASSETS.fetch(request);
+        response = post ? html(renderPost(post, site, noindex)) : notFound(site);
       }
     } catch (err) {
       // A database hiccup must not return a broken page to a crawler that
@@ -196,7 +235,7 @@ export default {
         page({
           title: "Temporarily unavailable — DeltaMint",
           description: "The blog is temporarily unavailable.",
-          canonical: `${SITE}/blog`,
+          canonical: `${site}/blog`,
           head: '<meta name="robots" content="noindex">',
           body: `<h1>Temporarily unavailable</h1><p>Please try again shortly.</p>`
         }),
@@ -207,6 +246,7 @@ export default {
       );
     }
 
+    if (noindex) response = withNoIndexHeader(response);
     if (response.status === 200) ctx.waitUntil(cache.put(request, response.clone()));
     return response;
   }

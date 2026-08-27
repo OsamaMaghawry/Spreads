@@ -5,7 +5,10 @@
 // — that is the whole reason the blog lives in this Worker rather than in the
 // React app on the dashboard subdomain.
 
-export const SITE = "https://deltamint.app";
+// The canonical host is per-deployment, not a constant: production and staging
+// run the same Worker code, and a hardcoded host made staging link into
+// production. It comes from the SITE_URL var in each wrangler config, falling
+// back to the origin the request actually arrived on.
 
 // Escaping happens before any markup is inserted, never after. Doing it the
 // other way round strips the tags this renderer just added.
