@@ -65,6 +65,28 @@ up — `auth.users` rows are customers, and operating the product is a different
 job from using it. `docs/admin-access.md` has the procedure and the reasoning;
 read it before changing anything about who can reach `/admin`.
 
+## Nothing touches production without approval
+
+**Ask the owner first, every time, before any action that reaches production.**
+No exceptions for "additive", "safe", "reversible" or "prerequisite". That
+judgement is not yours to make on someone else's live trading data.
+
+This covers, at minimum:
+
+- Applying a migration to the production Supabase project (`yecfbeohyakuoyczvdbj`) — including
+  pure `add column` / `create table` / widened `check` changes
+- Deploying production edge functions, or merging `staging` into `main` (that merge *is* a
+  production deploy)
+- Editing production data, settings, secrets, or Cloudflare production Worker config
+
+Do the work on `staging`, get it verified, then **say what you want to run and
+wait**. Preparing production ahead of time so the merge "just works" is exactly
+the reasoning this rule exists to overrule: the ordering convenience is yours,
+the risk is the owner's.
+
+Applying a migration to the staging project, pushing to `staging` or to a
+feature branch, and running local checks are all fine without asking.
+
 ## Deployment: staging before production
 
 There are two environments, each with its own Supabase project and its own pair of Cloudflare Workers (app + landing site):
