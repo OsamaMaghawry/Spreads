@@ -68,8 +68,20 @@ an "unknown client" response is a registration or configuration fault, never
 `app.alpaca.markets/connect/edit/<client_id>`. The archived `alpacahq/alpaca-docs`
 repo still says `/brokerage/apps/manage` — that path is years stale, though its
 protocol reference (parameters, scopes, token exchange) still matches the OAS
-spec and is worth reading. Registration takes a name, description, application
-website, redirect URI, terms and privacy links, and an enabled flag.
+spec and is worth reading.
+
+**One redirect URI per app.** The form has a single Redirect URI field, so an
+app cannot serve both `dashboard.deltamint.app` and `dev-dash.deltamint.app`.
+Staging needs its own OAuth app and its own client id, or the field has to be
+swapped back and forth — which breaks whichever environment is not currently
+named. This is what an "unknown client" error looked like: the app was correct
+and enabled, its Redirect URI was the production callback, and the flow was
+being tested on staging.
+
+Each environment also needs `ALPACA_OAUTH_CLIENT_ID` and
+`ALPACA_OAUTH_CLIENT_SECRET` set as Supabase secrets on its own project — the
+browser's `VITE_ALPACA_OAUTH_CLIENT_ID` only covers the authorize step, and the
+token exchange after Allow fails without them.
 
 **Diagnosing "Client authentication failed due to unknown client".** Alpaca
 returns it for a client id it cannot resolve *and* for a redirect URI that is
