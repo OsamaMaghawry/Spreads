@@ -3,7 +3,9 @@ import { invokeFunction } from "@/lib/functions";
 import { toast } from "@/components/ui/use-toast";
 import { Trash2, ExternalLink } from "lucide-react";
 
-const SITE = "https://deltamint.app";
+// Per-environment, so the staging admin links to the staging blog rather than
+// sending you to production. Set in .env.production / .env.staging.
+const SITE = import.meta.env.VITE_SITE_URL || "https://deltamint.app";
 
 const EMPTY = {
   id: null,
