@@ -46,19 +46,38 @@ redirect. It was removed: it was a second consent, shown on our domain, that
 looked like Alpaca's and was not. Do not reintroduce it — check a real
 connect flow before concluding otherwise.
 
-**The redirect URI is configuration, never derived.** It must byte-for-byte
-match a URI registered on the OAuth app at `app.alpaca.markets/connect`, so it
-comes from `VITE_ALPACA_OAUTH_REDIRECT_URI` per environment. It was once
-`${window.location.origin}/oauth/callback`, which produced a different URI on
-production, staging, localhost and every preview deploy — and Alpaca reports an
-unregistered one, and a bad client id, as the same generic "Client
-authentication failed due to unknown client" page on their domain. Register
-each environment's URI on the same app.
+**The redirect URI is configuration, never derived.** Alpaca's spec: *"It must
+match one of the whitelisted redirect URIs for your application."* So it comes
+from `VITE_ALPACA_OAUTH_REDIRECT_URI` per environment and must be registered on
+the app. It was once `${window.location.origin}/oauth/callback`, which produced
+a different URI on production, staging, localhost and every preview deploy.
 
-**Approval gates trading, not the flow.** The DDQ asks for a video of a user
-connecting, so the authorize round trip must work before approval. Treat an
-"unknown client" error as a configuration fault on our side — client id, or a
-redirect URI that is not registered — not as "we are waiting on Alpaca".
+Note what that change did and did not do: it made the value explicit and
+checkable, but for any given environment the string it sends is the same one the
+old code derived. It is a robustness fix, not a fix for a connection that is
+already failing.
+
+**Approval gates other people's trading, not the flow.** From Alpaca's OAuth
+terms: *"Live trading is allowed for the app developer user without approval"*,
+and approval is needed only *"to allow live trading for other users"*. The DDQ
+also asks for a video of a user connecting, which could not exist otherwise. So
+an "unknown client" response is a registration or configuration fault, never
+"we are waiting on Alpaca".
+
+**Where the app lives.** `app.alpaca.markets/connect`, and an individual app at
+`app.alpaca.markets/connect/edit/<client_id>`. The archived `alpacahq/alpaca-docs`
+repo still says `/brokerage/apps/manage` — that path is years stale, though its
+protocol reference (parameters, scopes, token exchange) still matches the OAS
+spec and is worth reading. Registration takes a name, description, application
+website, redirect URI, terms and privacy links, and an enabled flag.
+
+**Diagnosing "Client authentication failed due to unknown client".** Alpaca
+returns it for a client id it cannot resolve *and* for a redirect URI that is
+not whitelisted, on their domain, naming neither. Discriminate by sending the
+same client id with a deliberately bogus redirect URI: a *different* error means
+the client resolves and the real redirect URI is not whitelisted; the *same*
+error means the client itself is not being found — disabled, deleted, or a
+different id than the one in `.env`.
 
 **Brand rules (DDQ page 1 and 4).** Alpaca's name must not appear on the
 marketing site except when showing brokerage integration partners — the
