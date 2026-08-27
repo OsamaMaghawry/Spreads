@@ -5,6 +5,7 @@ import { RefreshCw, ArrowLeft, History, BarChart3 } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import TradeHistoryTable from "@/components/history/TradeHistoryTable";
 import StockLotsTable from "@/components/history/StockLotsTable";
+import RebuildPreview from "@/components/history/RebuildPreview";
 import StrategyTabs from "@/components/history/StrategyTabs";
 
 export default function AccountHistory() {
@@ -14,7 +15,7 @@ export default function AccountHistory() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [strategy, setStrategy] = useState("all");
-  const [confirmRebuild, setConfirmRebuild] = useState(false);
+  const [preview, setPreview] = useState(null);
 
   const load = useCallback(async (sync = false, rebuild = false) => {
     setRefreshing(true);
@@ -23,12 +24,52 @@ export default function AccountHistory() {
       const res = await invokeFunction("tradeHistory", { accountId: id, sync, rebuild });
       if (res.data?.error) throw new Error(res.data.error);
       setData(res.data);
+      setPreview(null);
     } catch (e) {
       setError(e.message);
     } finally {
       setRefreshing(false);
       setLoading(false);
-      setConfirmRebuild(false);
+    }
+  }, [id]);
+
+  // A rebuild rewrites figures that real money produced, so it is proposed
+  // before it is performed. This writes nothing.
+  const runPreview = useCallback(async () => {
+    setRefreshing(true);
+    setError(null);
+    try {
+      const res = await invokeFunction("tradeHistory", { accountId: id, preview: true });
+      if (res.data?.error) throw new Error(res.data.error);
+      setPreview(res.data);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [id]);
+
+  // The broker's own activity feed, unmodified, next to what this code made of
+  // it. For checking the inputs rather than only the conclusion — and for
+  // handing to someone else to check, without sharing API credentials.
+  const exportRaw = useCallback(async () => {
+    setRefreshing(true);
+    setError(null);
+    try {
+      const res = await invokeFunction("tradeHistory", { accountId: id, preview: true, includeRaw: true });
+      if (res.data?.error) throw new Error(res.data.error);
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(res.data, null, 2)], { type: "application/json" })
+      );
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `deltamint-activity-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setRefreshing(false);
     }
   }, [id]);
 
@@ -88,26 +129,21 @@ export default function AccountHistory() {
           earlier version of the reconstruction can be wrong in ways a normal
           sync will not correct, because a sync only revisits the window it just
           recomputed. Every row is copied to a backup table first. */}
-      {confirmRebuild ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <span>
-            Rebuild recalculates all history for this account from Alpaca. Past figures may change.
-            The current records are copied to a backup first.
-          </span>
-          <button
-            onClick={() => load(true, true)}
-            disabled={refreshing}
-            className="ml-auto rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
-          >
-            Rebuild history
-          </button>
-          <button onClick={() => setConfirmRebuild(false)} className="text-xs text-amber-800 hover:underline">
-            Cancel
-          </button>
-        </div>
+      {preview ? (
+        <RebuildPreview
+          preview={preview}
+          busy={refreshing}
+          onConfirm={() => load(true, true)}
+          onCancel={() => setPreview(null)}
+          onExportRaw={exportRaw}
+        />
       ) : (
-        <button onClick={() => setConfirmRebuild(true)} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
-          Rebuild history from scratch
+        <button
+          onClick={runPreview}
+          disabled={refreshing}
+          className="text-xs text-slate-400 transition-colors hover:text-slate-600 disabled:opacity-50"
+        >
+          {refreshing ? "Checking…" : "Preview a rebuild from scratch"}
         </button>
       )}
 

@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     const user = await requireUser(req);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-    const { accountId, sync = false, rebuild = false } = await req.json();
+    const { accountId, sync = false, rebuild = false, preview = false, includeRaw = false } = await req.json();
     if (!accountId) return jsonResponse({ error: "accountId is required" }, 400);
 
     const admin = adminClient();
@@ -62,8 +62,9 @@ Deno.serve(async (req) => {
       wheel_client_prefix: (account.wheel_client_prefix || "").trim()
     };
 
-    // Read-only mode: serve stored trades without touching Alpaca.
-    if (!sync) {
+    // Read-only mode: serve stored trades without touching Alpaca. A preview
+    // needs the live feed, so it goes down the sync path — it just never writes.
+    if (!sync && !preview) {
       const [stored, lots] = await Promise.all([fetchTrades(admin, accountId), fetchStockLots(admin, accountId)]);
       return jsonResponse({ account: accountInfo, trades: stored, stockLots: lots, fromCache: true });
     }
@@ -111,6 +112,45 @@ Deno.serve(async (req) => {
 
     // 3. Reconstruct. Pure, and covered by tradeReconstruction.test.ts.
     const { records, stockLots } = reconstruct(activities, orderStrategy, accountId);
+
+    // 3a. Dry run: compute everything, write nothing, and hand back the broker's
+    //     own activities next to what this code made of them. A rebuild rewrites
+    //     history that real money produced, so there has to be a way to audit the
+    //     answer — and the source it came from — before anything is committed.
+    if (preview) {
+      const stored = await fetchTrades(admin, accountId, false);
+      const storedByKey: any = {};
+      stored.forEach((r: any) => { storedByKey[r.trade_key] = r; });
+      const proposedKeys = new Set(records.map((r: any) => r.trade_key));
+      const sum = (rows: any[], field = "realized_pl") =>
+        rows.reduce((a: number, r: any) => a + (Number(r[field]) || 0), 0);
+
+      return jsonResponse({
+        account: accountInfo,
+        preview: true,
+        // Every option position that would exist after a rebuild, and every
+        // share lot, exactly as they would be written.
+        proposed: { records, stockLots },
+        diff: {
+          created: records.filter((r: any) => !storedByKey[r.trade_key]),
+          removed: stored.filter((r: any) => !proposedKeys.has(r.trade_key)),
+          changed: records
+            .map((r: any) => ({ before: storedByKey[r.trade_key], after: r }))
+            .filter((p: any) => p.before && Number(p.before.realized_pl) !== Number(p.after.realized_pl))
+        },
+        totals: {
+          storedPremium: sum(stored),
+          proposedPremium: sum(records),
+          proposedStock: sum(stockLots),
+          proposedCombined: sum(records) + sum(stockLots),
+          sharesStillHeld: stockLots.filter((l: any) => !l.disposed_date).length
+        },
+        // The unmodified broker feed, so the inputs can be checked and not just
+        // the conclusion. Off by default because it is large.
+        activities: includeRaw ? activities : undefined,
+        activityCount: activities.length
+      });
+    }
 
     const cleared = rebuild ? await snapshotAndClear(admin, accountId) : 0;
 
