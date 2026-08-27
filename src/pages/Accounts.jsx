@@ -15,6 +15,7 @@ export default function Accounts() {
   // trip — no client id, or a redirect URI that does not belong to this origin.
   // Left unhandled it navigated nowhere and said nothing.
   const [connectError, setConnectError] = useState(null);
+  const [showDiag, setShowDiag] = useState(false);
   const oauthConfig = describeOAuthConfig();
 
   // Straight to Alpaca, with nothing in between.
@@ -94,6 +95,46 @@ export default function Accounts() {
           </button>
         </div>
       </div>
+
+      {/* Alpaca reports an unregistered redirect URI and an unrecognised client
+          id as the same "unknown client" page, on their domain, naming neither.
+          The only way to tell them apart is to read what we sent — and once the
+          button is pressed the browser has already left. So it is readable
+          here, beforehand. */}
+      <div className="text-right">
+        <button
+          onClick={() => setShowDiag((v) => !v)}
+          className="text-[11px] text-slate-400 transition-colors hover:text-slate-600"
+        >
+          {showDiag ? "Hide connection details" : "Trouble connecting?"}
+        </button>
+      </div>
+      {showDiag && (
+        <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+          <p>
+            Every value below must match the OAuth app at{" "}
+            <a href="https://app.alpaca.markets/connect" target="_blank" rel="noreferrer" className="underline">
+              app.alpaca.markets/connect
+            </a>
+            . The redirect URI has to be registered there exactly as written.
+          </p>
+          <dl className="space-y-1 break-all font-mono text-[11px]">
+            <div><dt className="inline text-slate-400">client_id: </dt><dd className="inline">{oauthConfig.clientId || "(not set)"}</dd></div>
+            <div><dt className="inline text-slate-400">redirect_uri: </dt><dd className="inline">{oauthConfig.redirectUri}</dd></div>
+            <div><dt className="inline text-slate-400">origin: </dt><dd className="inline">{oauthConfig.origin}</dd></div>
+          </dl>
+          <p className="pt-1 text-slate-500">Full authorization URL:</p>
+          <code className="block break-all rounded-lg border border-slate-200 bg-white p-2 font-mono text-[10px] leading-relaxed">
+            {oauthConfig.authorizeUrl}
+          </code>
+          <button
+            onClick={() => navigator.clipboard?.writeText(oauthConfig.authorizeUrl)}
+            className="text-[11px] underline hover:text-slate-900"
+          >
+            Copy URL
+          </button>
+        </div>
+      )}
 
       {accounts === null ? (
         <div className="text-sm text-slate-500 py-12 text-center">Loading…</div>

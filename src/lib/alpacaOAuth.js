@@ -25,6 +25,40 @@ export function getOAuthRedirectUri() {
   return REDIRECT_URI;
 }
 
+const SCOPES = ["account:write", "trading", "data"];
+
+// Built by hand rather than with URLSearchParams, which encodes the scope
+// separator as "+" and the colon as "%3A" — giving
+// `scope=account%3Awrite+trading+data`. Both are valid form-encoding and a
+// strict RFC 6749 server decodes them identically, but a working request
+// observed against this same endpoint sends
+// `scope=account:write%20trading%20data`, and matching a request that is known
+// to be accepted costs nothing while removing a variable from a failure we
+// cannot otherwise reproduce.
+export function authorizeUrl(state) {
+  const query = [
+    "response_type=code",
+    `client_id=${encodeURIComponent(CLIENT_ID || "")}`,
+    `redirect_uri=${encodeRedirectUri(REDIRECT_URI)}`,
+    `scope=${SCOPES.join("%20")}`,
+    `state=${encodeURIComponent(state)}`
+  ].join("&");
+  return `https://app.alpaca.markets/oauth/authorize?${query}`;
+}
+
+// `:` and `/` are legal unencoded in a query string (RFC 3986 §3.4), and the
+// working request sends the redirect URI that way — `redirect_uri=https://…`
+// rather than `https%3A%2F%2F…`. Percent-encoding is what RFC 6749 asks for and
+// a compliant server decodes before comparing against the registered value, but
+// a server comparing raw strings would not match, and that failure is
+// indistinguishable from every other cause on Alpaca's error page.
+//
+// Anything that would genuinely break query parsing is still encoded; a URI
+// containing those characters could not be registered as-is anyway.
+function encodeRedirectUri(uri) {
+  return /[?#&%\s]/.test(uri) ? encodeURIComponent(uri) : uri;
+}
+
 // Alpaca's authorize page reports a bad client_id or an unregistered redirect
 // URI as one generic "Client authentication failed due to unknown client"
 // screen, on their domain, with no indication of which value it objected to.
@@ -40,7 +74,10 @@ export function describeOAuthConfig() {
     configured,
     // Alpaca will not redirect back to a different origin than the one that
     // started the flow, so this combination cannot work even if registered.
-    originMismatch: Boolean(origin) && !REDIRECT_URI.startsWith(`${origin}/`)
+    originMismatch: Boolean(origin) && !REDIRECT_URI.startsWith(`${origin}/`),
+    // The exact URL the button navigates to, so it can be read and compared
+    // before the browser leaves for a page that explains nothing.
+    authorizeUrl: authorizeUrl("EXAMPLE-STATE")
   };
 }
 
@@ -67,13 +104,5 @@ export function startAlpacaOAuth() {
 
   const state = crypto.randomUUID();
   sessionStorage.setItem("alpaca_oauth_state", state);
-
-  const params = new URLSearchParams({
-    response_type: "code",
-    client_id: CLIENT_ID,
-    redirect_uri: REDIRECT_URI,
-    state,
-    scope: "account:write trading data"
-  });
-  window.location.href = `https://app.alpaca.markets/oauth/authorize?${params.toString()}`;
+  window.location.href = authorizeUrl(state);
 }
