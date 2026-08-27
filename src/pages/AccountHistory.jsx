@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
 import { invokeFunction } from "@/lib/functions";
-import { RefreshCw, ArrowLeft, History, BarChart3 } from "lucide-react";
+import { RefreshCw, ArrowLeft, History, BarChart3, FileSearch } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import TradeHistoryTable from "@/components/history/TradeHistoryTable";
 import StockLotsTable from "@/components/history/StockLotsTable";
@@ -116,6 +116,17 @@ export default function AccountHistory() {
         >
           <BarChart3 className="w-4 h-4" /> Analysis
         </Link>
+        {/* A rebuild recomputes every record from scratch, which a normal sync
+            cannot do: a sync only revisits the window it just recomputed, so
+            rows written by an earlier version of the reconstruction survive it.
+            This button only ever proposes — the preview writes nothing. */}
+        <button
+          onClick={runPreview}
+          disabled={refreshing}
+          className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+        >
+          <FileSearch className="h-4 w-4" /> {refreshing && !preview ? "Checking…" : "Check / rebuild"}
+        </button>
         <button
           onClick={() => load(true)}
           disabled={refreshing}
@@ -125,11 +136,7 @@ export default function AccountHistory() {
         </button>
       </div>
 
-      {/* Rebuilding recomputes every record from scratch. Records written by an
-          earlier version of the reconstruction can be wrong in ways a normal
-          sync will not correct, because a sync only revisits the window it just
-          recomputed. Every row is copied to a backup table first. */}
-      {preview ? (
+      {preview && (
         <RebuildPreview
           preview={preview}
           busy={refreshing}
@@ -137,14 +144,6 @@ export default function AccountHistory() {
           onCancel={() => setPreview(null)}
           onExportRaw={exportRaw}
         />
-      ) : (
-        <button
-          onClick={runPreview}
-          disabled={refreshing}
-          className="text-xs text-slate-400 transition-colors hover:text-slate-600 disabled:opacity-50"
-        >
-          {refreshing ? "Checking…" : "Preview a rebuild from scratch"}
-        </button>
       )}
 
       {error ? (
