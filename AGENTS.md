@@ -57,26 +57,26 @@ checkable, but for any given environment the string it sends is the same one the
 old code derived. It is a robustness fix, not a fix for a connection that is
 already failing.
 
-**Approval gates other people's trading, not the flow.** From Alpaca's OAuth
-terms: *"Live trading is allowed for the app developer user without approval"*,
-and approval is needed only *"to allow live trading for other users"*. The DDQ
-also asks for a video of a user connecting, which could not exist otherwise. So
-an "unknown client" response is a registration or configuration fault, never
-"we are waiting on Alpaca".
+**Approval gates the flow itself. Nothing in this repo can bypass it.** The app
+page says so directly: *"All Alpaca Connect apps require approval from Alpaca
+Compliance before going live."* Until Compliance approves it, the client does
+not resolve and `/oauth/authorize` answers "Client authentication failed due to
+unknown client" — with a correct client id, correct secret and a correctly
+whitelisted redirect URI. **An "unknown client" error is not evidence of a bug
+here.** Check the app's approval state before touching code.
 
-**Where the app lives.** `app.alpaca.markets/connect`, and an individual app at
-`app.alpaca.markets/connect/edit/<client_id>`. The archived `alpacahq/alpaca-docs`
-repo still says `/brokerage/apps/manage` — that path is years stale, though its
-protocol reference (parameters, scopes, token exchange) still matches the OAS
-spec and is worth reading.
+Do not be misled by the archived `alpacahq/alpaca-docs` repo, which says *"Live
+trading is allowed for the app developer user without approval"*. That describes
+the **older** "OAuth Apps" system at `/brokerage/apps/manage`. **Alpaca Connect**
+(`/connect`) is a different, newer system with different rules, and it is the one
+in use. The archived protocol reference — parameters, scopes, token exchange —
+still matches the current OAS spec and is fine; its rules and dashboard paths are
+not.
 
-**One redirect URI per app.** The form has a single Redirect URI field, so an
-app cannot serve both `dashboard.deltamint.app` and `dev-dash.deltamint.app`.
-Staging needs its own OAuth app and its own client id, or the field has to be
-swapped back and forth — which breaks whichever environment is not currently
-named. This is what an "unknown client" error looked like: the app was correct
-and enabled, its Redirect URI was the production callback, and the flow was
-being tested on staging.
+**Where the app lives.** `app.alpaca.markets/connect`, an individual app at
+`app.alpaca.markets/connect/edit/<client_id>`. Several redirect URIs are allowed
+per app, via "+ Add new redirect URI", so one app can serve production and
+staging.
 
 Each environment also needs `ALPACA_OAUTH_CLIENT_ID` and
 `ALPACA_OAUTH_CLIENT_SECRET` set as Supabase secrets on its own project — the
