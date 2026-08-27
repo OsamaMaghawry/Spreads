@@ -27,6 +27,38 @@ Start with `README.md` for local setup and environment variables.
 - Each edge function's describing comment feeds that file, so give a new function a one-sentence `//` summary above `Deno.serve`.
 - Run the relevant checks from `package.json` before finishing code changes.
 
+## Alpaca OAuth
+
+**The pre-redirect disclosure is required, not optional.** The OAuth DDQ (v3,
+page 3) carries a template disclosure — "Authorize [Name] … granting [Name]
+access to your account information and authorization to place transactions at
+your direction … Alpaca does not warrant or guarantee …" with DENY and ALLOW —
+and states: *"Acknowledgement of the disclosure must be done prior to a client
+connecting their Alpaca account."* `AlpacaConnectConsent.jsx` is that
+disclosure. Do not remove it because Alpaca's own consent page says something
+similar: that page is reached *after* connecting has begun, which is what the
+DDQ rules out. Keep the wording matching the template; it is compared against
+one.
+
+**The redirect URI is configuration, never derived.** It must byte-for-byte
+match a URI registered on the OAuth app at `app.alpaca.markets/connect`, so it
+comes from `VITE_ALPACA_OAUTH_REDIRECT_URI` per environment. It was once
+`${window.location.origin}/oauth/callback`, which produced a different URI on
+production, staging, localhost and every preview deploy — and Alpaca reports an
+unregistered one, and a bad client id, as the same generic "Client
+authentication failed due to unknown client" page on their domain. Register
+each environment's URI on the same app.
+
+**Approval gates trading, not the flow.** The DDQ asks for a video of a user
+connecting, so the authorize round trip must work before approval. Treat an
+"unknown client" error as a configuration fault on our side — client id, or a
+redirect URI that is not registered — not as "we are waiting on Alpaca".
+
+**Brand rules (DDQ page 1 and 4).** Alpaca's name must not appear on the
+marketing site except when showing brokerage integration partners — the
+homepage broker card is that exception. Use "link your brokerage account"
+elsewhere. Never imply DeltaMint is a broker-dealer or give investment advice.
+
 ## Market prices: one source, and it says where it came from
 
 Every price the product shows or acts on comes from `_shared/marketPrice.ts`

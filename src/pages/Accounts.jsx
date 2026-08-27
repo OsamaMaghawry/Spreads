@@ -4,7 +4,7 @@ import { invokeFunction } from "@/lib/functions";
 import { SAFE_ACCOUNT_COLUMNS } from "@/lib/accountColumns";
 import { Plus, Pencil, Trash2, KeyRound, Link2 } from "lucide-react";
 import AccountForm from "@/components/accounts/AccountForm";
-import { startAlpacaOAuth } from "@/lib/alpacaOAuth";
+import { startAlpacaOAuth, describeOAuthConfig } from "@/lib/alpacaOAuth";
 import AlpacaConnectConsent from "@/components/accounts/AlpacaConnectConsent";
 import AdminMaintenance from "@/components/accounts/AdminMaintenance";
 
@@ -13,6 +13,11 @@ export default function Accounts() {
   const [editing, setEditing] = useState(null); // null | "new" | account
   const [deleting, setDeleting] = useState(null);
   const [connecting, setConnecting] = useState(false);
+  // startAlpacaOAuth throws when this build cannot possibly complete the round
+  // trip — no client id, or a redirect URI that does not belong to this origin.
+  // Left unhandled it navigated nowhere and said nothing.
+  const [connectError, setConnectError] = useState(null);
+  const oauthConfig = describeOAuthConfig();
 
   const load = useCallback(async () => {
     const { data, error } = await supabase
@@ -132,8 +137,32 @@ export default function Accounts() {
       {connecting && (
         <AlpacaConnectConsent
           onCancel={() => setConnecting(false)}
-          onContinue={() => startAlpacaOAuth()}
+          onContinue={() => {
+            try {
+              startAlpacaOAuth();
+            } catch (e) {
+              setConnecting(false);
+              setConnectError(e.message);
+            }
+          }}
         />
+      )}
+
+      {connectError && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <p className="font-medium">Can't start the Alpaca connection</p>
+          <p className="mt-1 leading-relaxed">{connectError}</p>
+          {/* The values actually being sent. Alpaca reports a bad client id and
+              an unregistered redirect URI as the same generic page on their
+              domain, so the only way to tell them apart is to compare these
+              against the OAuth app's settings. */}
+          <dl className="mt-3 space-y-1 font-mono text-[11px] text-rose-700">
+            <div><dt className="inline text-rose-500">client_id: </dt><dd className="inline">{oauthConfig.clientId || "(not set)"}</dd></div>
+            <div><dt className="inline text-rose-500">redirect_uri: </dt><dd className="inline">{oauthConfig.redirectUri}</dd></div>
+            <div><dt className="inline text-rose-500">origin: </dt><dd className="inline">{oauthConfig.origin}</dd></div>
+          </dl>
+          <button onClick={() => setConnectError(null)} className="mt-3 text-xs underline">Dismiss</button>
+        </div>
       )}
     </div>
   );
