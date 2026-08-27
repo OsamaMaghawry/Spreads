@@ -1,6 +1,7 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
-import { tradingBase, alpacaFetch, pairSpreads } from "../_shared/alpaca.ts";
+import { tradingBase, alpacaFetch, pairSpreads, getOptionQuotes } from "../_shared/alpaca.ts";
+import { getSpots } from "../_shared/marketPrice.ts";
 import { decryptSecret } from "../_shared/crypto.ts";
 
 // Rebuilds the live picture for every account the caller owns: positions paired
@@ -57,22 +58,28 @@ async function syncOne(account) {
     );
 
     const tickers = [...new Set(spreads.map((s: any) => s.ticker))];
-    const prices = {};
-    if (tickers.length > 0) {
-      const snap = await alpacaFetch(`https://data.alpaca.markets/v2/stocks/snapshots?symbols=${tickers.join(",")}`, account)
-        .catch((e) => {
-          console.error("snapshots fetch failed", account.id, tickers.join(","), e?.message || e);
-          return null;
-        });
-      if (snap) console.log("snapshots response", account.id, JSON.stringify(snap).slice(0, 1000));
-      tickers.forEach((t: any) => {
-        const d = snap ? snap[t] : null;
-        prices[t] = (d && d.latestTrade && d.latestTrade.p) || (d && d.dailyBar && d.dailyBar.c) || 0;
-      });
-    }
+    // The same helper the scanner uses. These were separate implementations
+    // with opposite field priorities, so the dashboard and the trade dialog
+    // could show a $9 difference for one stock at one moment.
+    const spots = await getSpots(account, tickers);
+
+    // Every option leg across every position, priced in one request. Marking
+    // each leg from the broker's stale per-position price and subtracting is
+    // what produced an $85 loss on a spread that was near break-even.
+    const legQuotes = await getOptionQuotes(
+      account,
+      spreads.flatMap((s: any) => [s.shortSymbol, s.longSymbol, s.callShortSymbol, s.callLongSymbol])
+    ).catch((e) => {
+      console.error("option quotes fetch failed", account.id, e?.message || e);
+      return {};
+    });
+    const midOf = (sym: string) => {
+      const q = sym ? legQuotes[sym] : null;
+      return q && q.ap > 0 && q.bp >= 0 && q.ap >= q.bp ? (q.bp + q.ap) / 2 : null;
+    };
 
     const rows = spreads.map((s: any) => {
-      const stockPrice = prices[s.ticker] || 0;
+      const stockPrice = spots[s.ticker]?.price || 0;
       const isCondor = s.type === "iron_condor";
       const isCall = s.type === "call_spread";
       const putRatio = s.putRatio || 1;
@@ -84,10 +91,28 @@ async function syncOne(account) {
       const netCredit = s.shortEntryPrice - s.longEntryPrice;
       const totalCredit = netCredit * s.qty * 100;
       const maxRisk = (spreadWidth - netCredit) * s.qty * 100;
-      const closeCost = (s.shortCurrentPrice - s.longCurrentPrice) * s.qty * 100;
+      // Cost to close, from live NBBO mids across every leg at one instant.
+      // Signs follow the position: a short leg is bought back, a long leg sold.
+      const legs = [
+        { sym: s.shortSymbol, sign: 1, ratio: isCondor ? putRatio : 1 },
+        { sym: s.longSymbol, sign: -1, ratio: isCondor ? putRatio : 1 },
+        { sym: s.callShortSymbol, sign: 1, ratio: callRatio },
+        { sym: s.callLongSymbol, sign: -1, ratio: callRatio }
+      ].filter((l) => l.sym);
+      const mids = legs.map((l) => ({ ...l, mid: midOf(l.sym) }));
+      const quoted = mids.length > 0 && mids.every((l) => l.mid !== null);
+
+      // A defined-risk spread cannot be worth less than nothing or more than
+      // its width. Bounding here bounds unrealized P/L to
+      // [-maxRisk, +totalCredit], so an impossible figure is unreachable
+      // rather than merely unlikely.
+      const clamp = (v, cap) => Math.min(Math.max(v, 0), cap);
+      const rawCost = quoted
+        ? mids.reduce((a, l) => a + l.sign * l.ratio * l.mid, 0)
+        : s.shortCurrentPrice - s.longCurrentPrice;
+      const closeCost = clamp(rawCost, putWidth + callWidth) * s.qty * 100;
       // Expiration scenario: what the spread would settle for if it expired right
       // now at the current stock price — intrinsic value only, no time premium.
-      const clamp = (v, cap) => Math.min(Math.max(v, 0), cap);
       let intrinsic = 0;
       if (stockPrice > 0) {
         if (!isCall) {
@@ -109,6 +134,12 @@ async function syncOne(account) {
       return {
         ...s,
         stockPrice,
+        // So a figure that cannot be trusted never looks like one that can.
+        // Substituting a bad number silently is how the -$85 was presented as
+        // fact in the first place.
+        priceSource: quoted ? "quote" : "broker",
+        spotSource: spots[s.ticker]?.source || null,
+        spotTrusted: spots[s.ticker]?.trusted ?? false,
         moneyness: stockPrice > 0 && itm ? "ITM" : "OTM",
         spreadWidth,
         // Per-side worst case (used for directional condor aggregation).

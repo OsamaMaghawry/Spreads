@@ -27,6 +27,36 @@ Start with `README.md` for local setup and environment variables.
 - Each edge function's describing comment feeds that file, so give a new function a one-sentence `//` summary above `Deno.serve`.
 - Run the relevant checks from `package.json` before finishing code changes.
 
+## Market prices: one source, and it says where it came from
+
+Every price the product shows or acts on comes from `_shared/marketPrice.ts`
+(stocks) or `_shared/alpaca.ts`'s `getOptionQuotes` (options). **Do not add a
+second way to price something.** Two existed once, with opposite field
+priorities, and the dashboard and the trade dialog showed a $9 difference for
+one stock at one moment — a scan built on $363.54 sold a JPM short put that was
+actually in the money at $354.33.
+
+Rules that keep that from coming back:
+
+- **A midpoint is a calculation; a trade is a fact.** The last print leads. A
+  quote mid is used only when it corroborates the print or when there is no
+  print at all, and never when the quote is crossed or wide.
+- **Two sources disagreeing means the price is unknown.** Return it untrusted
+  rather than picking one. The scanner refuses; the dashboard labels.
+- **Never return a number without its provenance.** `{ price, source, asOf,
+  trusted }`, and the UI shows it. Silently substituting a bad number is how
+  both incidents reached the screen looking authoritative.
+- **A delta target cannot validate a spot price.** `optionDelta` back-solves
+  implied vol from the option's own mid, so a wrong spot is absorbed into an
+  absurd vol and the delta still looks sane. Guards must sit on spot itself.
+- **Put-call parity is the only independent witness.** When both chains are in
+  hand it costs nothing — the options market had the JPM price right the whole
+  time.
+- **A scan result is a proposal, not a price.** `openPosition` re-checks spot
+  and the short strikes at submit and returns 409 if the market has moved.
+
+Tests: `marketPrice.test.ts` and `optionScan.test.ts`, both runnable under Node.
+
 ## Trade reconstruction
 
 The logic that turns a broker activity feed into closed trades lives in
