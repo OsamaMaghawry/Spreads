@@ -16,6 +16,7 @@ export default function Accounts() {
   // Left unhandled it navigated nowhere and said nothing.
   const [connectError, setConnectError] = useState(null);
   const [showDiag, setShowDiag] = useState(false);
+  const [diag, setDiag] = useState(null);
   const oauthConfig = describeOAuthConfig();
 
   // Straight to Alpaca, with nothing in between.
@@ -127,12 +128,58 @@ export default function Accounts() {
           <code className="block break-all rounded-lg border border-slate-200 bg-white p-2 font-mono text-[10px] leading-relaxed">
             {oauthConfig.authorizeUrl}
           </code>
-          <button
-            onClick={() => navigator.clipboard?.writeText(oauthConfig.authorizeUrl)}
-            className="text-[11px] underline hover:text-slate-900"
-          >
-            Copy URL
-          </button>
+          <div className="flex flex-wrap items-center gap-4 pt-1">
+            <button
+              onClick={() => navigator.clipboard?.writeText(oauthConfig.authorizeUrl)}
+              className="text-[11px] underline hover:text-slate-900"
+            >
+              Copy URL
+            </button>
+            {/* Alpaca's authorize page reports an unrecognised app and an
+                unregistered redirect URI identically. The token endpoint can
+                tell them apart, because it authenticates on the client id and
+                secret alone. */}
+            <button
+              onClick={async () => {
+                setDiag({ verdict: "running" });
+                const res = await invokeFunction("oauthDiag", { redirectUri: oauthConfig.redirectUri });
+                setDiag(res.data?.error ? { verdict: "error", detail: res.data.error } : res.data);
+              }}
+              className="text-[11px] underline hover:text-slate-900"
+            >
+              Test app credentials
+            </button>
+          </div>
+          {diag && (
+            <div
+              className={`rounded-lg border p-3 text-[11px] leading-relaxed ${
+                diag.verdict === "credentials_accepted"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                  : diag.verdict === "running"
+                    ? "border-slate-200 bg-white text-slate-500"
+                    : "border-rose-200 bg-rose-50 text-rose-900"
+              }`}
+            >
+              {diag.verdict === "running" ? (
+                "Asking Alpaca…"
+              ) : (
+                <>
+                  <p>{diag.detail}</p>
+                  {diag.serverClientId && diag.serverClientId !== oauthConfig.clientId && (
+                    <p className="mt-2 font-medium">
+                      The server exchanges with client id {diag.serverClientId}, but this page sends{" "}
+                      {oauthConfig.clientId}. They must be the same app.
+                    </p>
+                  )}
+                  {diag.alpacaMessage && (
+                    <p className="mt-2 font-mono">
+                      Alpaca {diag.alpacaStatus}: {diag.alpacaMessage}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
 
