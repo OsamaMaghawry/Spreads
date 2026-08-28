@@ -64,7 +64,7 @@ so a change to shared code requires redeploying all of them.
 
 - **accountEquity** — Returns one account's equity and options buying power, for sizing a new order.
 - **adminData** — Back-office reads and writes: users and their activity, engagement figures, blog posts, and the internal customer record.
-- **alpacaOAuthCallback** — The user picks which account (live or paper) to authorize on Alpaca's own consent page, so we don't know which one we got back — probe both trading API bases with the token and see which one accepts it.
+- **alpacaOAuthCallback** — One token, two endpoints.
 - **closeSpread** — Submits the closing order for a position: the whole structure by default, or just the legs the caller picked when only one side needs unwinding.
 - **findEntry** — Scans the live chain and returns the delta-targeted setup for one strategy.
 - **manageOrder** — Reads the status of a working order, or cancels it.
