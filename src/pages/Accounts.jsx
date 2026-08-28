@@ -5,6 +5,7 @@ import { SAFE_ACCOUNT_COLUMNS } from "@/lib/accountColumns";
 import { Plus, Pencil, Trash2, KeyRound, Link2 } from "lucide-react";
 import AccountForm from "@/components/accounts/AccountForm";
 import { startAlpacaOAuth, describeOAuthConfig } from "@/lib/alpacaOAuth";
+import useAdminSettings from "@/lib/useAdminSettings";
 import AdminMaintenance from "@/components/accounts/AdminMaintenance";
 
 export default function Accounts() {
@@ -18,6 +19,14 @@ export default function Accounts() {
   const [showDiag, setShowDiag] = useState(false);
   const [diag, setDiag] = useState(null);
   const oauthConfig = describeOAuthConfig();
+
+  // Pasting an Alpaca key and secret into this app is an operator tool, not a
+  // feature: connecting through Alpaca is the only path a customer is offered.
+  // It survives behind an admin-only switch that is off by default, for
+  // testing against an account the OAuth app cannot reach. Both halves matter —
+  // an administrator with the switch off sees no more than a customer does.
+  const { isAdmin, settings } = useAdminSettings();
+  const manualKeys = isAdmin && settings.manualApiKeys === true;
 
   // Straight to Alpaca, with nothing in between.
   //
@@ -88,12 +97,14 @@ export default function Accounts() {
           >
             <Link2 className="w-4 h-4" /> Connect Alpaca
           </button>
-          <button
-            onClick={() => setEditing("new")}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-slate-500 border border-slate-200 text-sm hover:bg-slate-100 transition-colors"
-          >
-            <Plus className="w-4 h-4" /> Add manually
-          </button>
+          {manualKeys && (
+            <button
+              onClick={() => setEditing("new")}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-slate-500 border border-slate-200 text-sm hover:bg-slate-100 transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Add manually
+            </button>
+          )}
         </div>
       </div>
 
@@ -188,7 +199,7 @@ export default function Accounts() {
       ) : accounts.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-xl p-12 flex flex-col items-center gap-3 text-center">
           <KeyRound className="w-8 h-8 text-slate-400" />
-          <p className="text-slate-500 text-sm">No accounts yet — add your first Alpaca account.</p>
+          <p className="text-slate-500 text-sm">No accounts yet — connect your Alpaca account to get started.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -240,6 +251,7 @@ export default function Accounts() {
       {editing && (
         <AccountForm
           account={editing === "new" ? null : editing}
+          allowCredentials={manualKeys}
           onSave={save}
           onCancel={() => setEditing(null)}
         />

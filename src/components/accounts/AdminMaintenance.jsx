@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ShieldCheck, Loader2 } from "lucide-react";
-import { supabase } from "@/lib/supabaseClient";
 import { invokeFunction } from "@/lib/functions";
+import useIsAdmin from "@/lib/useIsAdmin";
 
 // Admin-only maintenance actions that operate across every user's accounts.
 // Renders nothing for ordinary users; each edge function enforces the same
@@ -61,18 +61,11 @@ function MaintenanceAction({ fn, label, note, summarize }) {
 }
 
 export default function AdminMaintenance() {
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-      if (active) setIsAdmin(data?.role === "admin");
-    })();
-    return () => { active = false; };
-  }, []);
+  // Asks the server, like every other admin-gated piece of UI. Reading
+  // profiles.role here instead used to hide these actions from an owner, whose
+  // access comes from the ADMIN_EMAILS secret and whose role column still says
+  // 'user' — see the note in useIsAdmin.js.
+  const { isAdmin } = useIsAdmin();
 
   if (!isAdmin) return null;
 
