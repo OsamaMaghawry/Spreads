@@ -71,7 +71,19 @@ approval is its own boolean. A client can be unapproved and still `ACTIVE`.
 The authorize page's failing call is documented as returning 401 for *"Client
 does not exist or you do not have access to the client."*
 
-Established by elimination, so it does not have to be done again:
+**The cause, when this happened: the app's "Publish" toggle was off.** Turning
+it on in the Alpaca Connect settings made the consent screen render immediately,
+with nothing else changed. Publish is a switch on the app, separate from
+Compliance approval and separate from `live_trading_approved`.
+
+**So check Publish first.** An `invalid_client` here says nothing about the
+request. Every parameter was eliminated by experiment over several hours while
+the actual cause sat in a dashboard toggle nobody had looked at — because the
+values that can be tested from a terminal got tested, and the one that had to be
+read off a screen did not. Ask for the app's Publish state before touching a
+single parameter.
+
+The parameter eliminations below are kept only so they are not repeated:
 
 - The page is a JavaScript shell. The real failure is `POST
   app.alpaca.markets/api/v1/oauth/client` → `401 {"code":40110000,"message":
@@ -89,11 +101,7 @@ Established by elimination, so it does not have to be done again:
   `VITE_ALPACA_OAUTH_ENV`. `env=live`, `env=paper` and omitting it all fail
   identically.
 
-Every variable in the request has now been eliminated by experiment, so a
-further round of parameter-tweaking is wasted effort. The next useful step is to
-register a second OAuth app and try its client id: if the new one authorizes,
-the original record is broken and should be replaced; if it fails the same way,
-the problem is on Alpaca's side and needs their support, not a change here.
+None of them was the cause. Publish was.
 
 The DDQ asks for *"a short video **or screenshots**"* of a user connecting, so
 screenshots of the flow are an accepted substitute if a recording is not
