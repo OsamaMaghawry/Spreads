@@ -46,6 +46,12 @@ redirect. It was removed: it was a second consent, shown on our domain, that
 looked like Alpaca's and was not. Do not reintroduce it — check a real
 connect flow before concluding otherwise.
 
+**`env` is deliberately not sent.** That parameter narrows Alpaca's consent
+screen to only a live or only a paper account. Omitting it lists every account
+the user has, live and paper, and lets them tick the ones they want — which is
+the only way to authorize more than one. Which accounts to connect is the user's
+choice at the moment of connecting, not a build-time setting.
+
 **The redirect URI is configuration, never derived.** Alpaca's spec: *"It must
 match one of the whitelisted redirect URIs for your application."* So it comes
 from `VITE_ALPACA_OAUTH_REDIRECT_URI` per environment and must be registered on
@@ -97,9 +103,8 @@ The parameter eliminations below are kept only so they are not repeated:
 - It is not the request. Ours is byte-identical in shape to a working app's:
   same endpoint, same five parameters, same order, same encoding.
 
-- It is not the `env` parameter, which the code can now send via
-  `VITE_ALPACA_OAUTH_ENV`. `env=live`, `env=paper` and omitting it all fail
-  identically.
+- It is not the `env` parameter: `env=live`, `env=paper` and omitting it all
+  fail identically.
 
 None of them was the cause. Publish was.
 
