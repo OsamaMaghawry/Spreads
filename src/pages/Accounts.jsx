@@ -67,9 +67,7 @@ export default function Accounts() {
       name: form.name,
       apiKey: form.api_key,
       apiSecret: form.api_secret,
-      isPaper: form.is_paper,
-      spreadsClientPrefix: form.spreads_client_prefix,
-      wheelClientPrefix: form.wheel_client_prefix
+      isPaper: form.is_paper
     });
     if (res.data?.error) throw new Error(res.data.error);
     setEditing(null);
