@@ -9,6 +9,7 @@ export default function OAuthCallback() {
   const navigate = useNavigate();
   const [status, setStatus] = useState("connecting"); // connecting | success | error
   const [error, setError] = useState("");
+  const [connected, setConnected] = useState(0);
   const ran = useRef(false);
 
   useEffect(() => {
@@ -42,8 +43,12 @@ export default function OAuthCallback() {
         setError(res.data.error);
         return;
       }
+      // A single authorization can cover both a live and a paper account, so
+      // say how many arrived — otherwise there is no way to tell that the paper
+      // account you ticked actually came through.
+      setConnected(res.data?.accounts?.length || 1);
       setStatus("success");
-      setTimeout(() => navigate("/accounts", { replace: true }), 1200);
+      setTimeout(() => navigate("/accounts", { replace: true }), 1600);
     };
 
     run();
@@ -61,7 +66,9 @@ export default function OAuthCallback() {
         {status === "success" && (
           <>
             <CheckCircle2 className="w-8 h-8 text-dm-positive mx-auto mb-4" />
-            <p className="text-dm-text">Connected. Redirecting…</p>
+            <p className="text-dm-text">
+              Connected {connected} account{connected === 1 ? "" : "s"}. Redirecting…
+            </p>
           </>
         )}
         {status === "error" && (
