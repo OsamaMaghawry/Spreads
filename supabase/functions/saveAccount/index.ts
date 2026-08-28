@@ -37,6 +37,19 @@ Deno.serve(async (req) => {
     const admin = adminClient();
 
     if (id) {
+      // An OAuth account's live/paper nature is a fact about the token, not a
+      // preference: it was established by which trading API answered during the
+      // callback. Flipping it would point a live account at the paper endpoint
+      // and quietly stop it working, so the field is dropped here rather than
+      // merely hidden in the form — the browser is not where that is enforced.
+      const { data: existing } = await admin
+        .from("trading_accounts")
+        .select("oauth_access_token")
+        .eq("id", id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (existing?.oauth_access_token) delete fields.is_paper;
+
       // The admin client bypasses RLS, so matching user_id here is what scopes
       // the update to the caller's own account.
       const { data, error } = await admin

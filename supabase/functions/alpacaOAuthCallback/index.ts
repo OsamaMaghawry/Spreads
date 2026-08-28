@@ -82,24 +82,31 @@ Deno.serve(async (req) => {
     const saved = [];
 
     for (const { isPaper, accountNumber } of detected) {
-      const name = `Alpaca ${isPaper ? "Paper" : "Live"} (${accountNumber})`;
-
       // Re-authorizing an account already connected refreshes its token instead
       // of adding a second row for the same brokerage account — which is what
-      // reconnecting after an expiry or a scope change does.
+      // reconnecting after an expiry or a scope change does. The match is on the
+      // account number rather than the name: names are the user's to edit, since
+      // Alpaca's API does not return the nickname its own consent screen shows.
       const { data: existing } = await admin
         .from("trading_accounts")
         .select("id")
         .eq("user_id", user.id)
-        .eq("name", name)
+        .eq("broker_account_number", accountNumber)
+        .eq("is_paper", isPaper)
         .maybeSingle();
 
       const query = existing
-        ? admin.from("trading_accounts").update({ oauth_access_token: sealed }).eq("id", existing.id)
+        ? admin
+            .from("trading_accounts")
+            .update({ oauth_access_token: sealed })
+            .eq("id", existing.id)
         : admin.from("trading_accounts").insert({
             user_id: user.id,
-            name,
+            // A placeholder until it is renamed: the number is all Alpaca gives
+            // us to tell one authorized account from another.
+            name: `Alpaca ${isPaper ? "Paper" : "Live"} (${accountNumber})`,
             is_paper: isPaper,
+            broker_account_number: accountNumber,
             oauth_access_token: sealed
           });
 

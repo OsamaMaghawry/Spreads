@@ -205,16 +205,21 @@ export default function Accounts() {
                 </div>
                 <div className="text-xs text-slate-500 font-mono mt-1 truncate">
                   {a.is_oauth
-                    ? "Connected via Alpaca OAuth"
+                    ? a.broker_account_number
+                      ? `Alpaca OAuth · ${a.broker_account_number}`
+                      : "Connected via Alpaca OAuth"
                     : `Key: ${a.api_key_hint || "••••••••"} · Secret: ••••••••`}
                 </div>
               </div>
               <div className="ml-auto flex items-center gap-1.5">
-                {!a.is_oauth && (
-                  <button onClick={() => setEditing(a)} className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors">
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                )}
+                {/* OAuth accounts are editable too. There are no credentials to
+                    change, but Alpaca's API does not expose the nickname shown
+                    on its own consent screen, so renaming here is the only way
+                    to tell two connected accounts apart by anything but their
+                    number. */}
+                <button onClick={() => setEditing(a)} className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors">
+                  <Pencil className="w-4 h-4" />
+                </button>
                 {deleting === a.id ? (
                   <button onClick={() => remove(a)} className="px-3 py-1.5 rounded-lg text-xs bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
                     Confirm delete
