@@ -17,8 +17,16 @@ export default function AccountForm({ account, onSave, onCancel }) {
   });
   const [saving, setSaving] = useState(false);
 
+  // An OAuth account has no API key of ours to edit, and its live/paper nature
+  // was established by which Alpaca trading endpoint answered the token — not
+  // by a preference. So the only things worth showing are the name (Alpaca
+  // doesn't expose the nickname you gave the account, so this is where "OS-LIVE"
+  // gets typed) and the client-order-id prefixes.
+  const isOAuth = !!account?.is_oauth;
+
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   const bothKeysOrNeither =
+    isOAuth ||
     (form.api_key.trim() && form.api_secret.trim()) ||
     (account && !form.api_key.trim() && !form.api_secret.trim());
   const valid = form.name.trim() && bothKeysOrNeither;
@@ -47,32 +55,42 @@ export default function AccountForm({ account, onSave, onCancel }) {
           <div>
             <label className="text-xs text-slate-500 block mb-1.5">Account name</label>
             <input value={form.name} onChange={set("name")} placeholder="e.g. Alton Live" className={inputCls} />
+            {isOAuth && (
+              <p className="text-xs text-slate-500 mt-1.5">
+                Alpaca doesn't send the nickname you gave this account, so it arrives as its
+                account number. Rename it to whatever you call it there.
+              </p>
+            )}
           </div>
-          <div>
-            <label className="text-xs text-slate-500 block mb-1.5">API Key ID</label>
-            <input
-              value={form.api_key}
-              onChange={set("api_key")}
-              placeholder={account ? `${account.api_key_hint || "stored"} — leave blank to keep` : ""}
-              className={inputCls}
-              autoComplete="off"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-slate-500 block mb-1.5">API Secret Key</label>
-            <input
-              type="password"
-              value={form.api_secret}
-              onChange={set("api_secret")}
-              placeholder={account ? "Leave blank to keep the stored secret" : ""}
-              className={inputCls}
-              autoComplete="off"
-            />
-          </div>
-          {account && (
-            <p className="text-xs text-slate-500 -mt-1">
-              Stored credentials are encrypted and can't be displayed. Fill in both fields to replace them.
-            </p>
+          {!isOAuth && (
+            <>
+              <div>
+                <label className="text-xs text-slate-500 block mb-1.5">API Key ID</label>
+                <input
+                  value={form.api_key}
+                  onChange={set("api_key")}
+                  placeholder={account ? `${account.api_key_hint || "stored"} — leave blank to keep` : ""}
+                  className={inputCls}
+                  autoComplete="off"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500 block mb-1.5">API Secret Key</label>
+                <input
+                  type="password"
+                  value={form.api_secret}
+                  onChange={set("api_secret")}
+                  placeholder={account ? "Leave blank to keep the stored secret" : ""}
+                  className={inputCls}
+                  autoComplete="off"
+                />
+              </div>
+              {account && (
+                <p className="text-xs text-slate-500 -mt-1">
+                  Stored credentials are encrypted and can't be displayed. Fill in both fields to replace them.
+                </p>
+              )}
+            </>
           )}
           <div className="border-t border-slate-200 pt-4 space-y-3">
             <div className="text-xs font-medium text-slate-700">Strategy client order id prefixes</div>
@@ -88,9 +106,17 @@ export default function AccountForm({ account, onSave, onCancel }) {
           <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
             <div>
               <div className="text-sm text-slate-900">Paper trading</div>
-              <div className="text-xs text-slate-500">Use Alpaca's paper (demo) endpoint</div>
+              <div className="text-xs text-slate-500">
+                {isOAuth
+                  ? "Set by the Alpaca authorization — reconnect to change it"
+                  : "Use Alpaca's paper (demo) endpoint"}
+              </div>
             </div>
-            <Switch checked={form.is_paper} onCheckedChange={(v) => setForm({ ...form, is_paper: v })} />
+            <Switch
+              checked={form.is_paper}
+              disabled={isOAuth}
+              onCheckedChange={(v) => setForm({ ...form, is_paper: v })}
+            />
           </div>
           <button
             onClick={submit}
