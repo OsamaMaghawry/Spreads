@@ -85,10 +85,15 @@ Established by elimination, so it does not have to be done again:
 - It is not the request. Ours is byte-identical in shape to a working app's:
   same endpoint, same five parameters, same order, same encoding.
 
-Not yet ruled out: the `env` parameter. The current docs' own example authorize
-URL carries `env=live`, and *"if not specified, the user will be prompted to
-authorize both a live and a paper account"*. It is documented as optional, but
-we had never sent it. `VITE_ALPACA_OAUTH_ENV` sets it per environment.
+- It is not the `env` parameter, which the code can now send via
+  `VITE_ALPACA_OAUTH_ENV`. `env=live`, `env=paper` and omitting it all fail
+  identically.
+
+Every variable in the request has now been eliminated by experiment, so a
+further round of parameter-tweaking is wasted effort. The next useful step is to
+register a second OAuth app and try its client id: if the new one authorizes,
+the original record is broken and should be replaced; if it fails the same way,
+the problem is on Alpaca's side and needs their support, not a change here.
 
 The DDQ asks for *"a short video **or screenshots**"* of a user connecting, so
 screenshots of the flow are an accepted substitute if a recording is not
