@@ -38,6 +38,13 @@ const SCOPE = "account:write trading data";
 // was sent. The encoding was never the problem, so there is nothing here to
 // tune: an "unknown client" response is about the client id or the registered
 // redirect URI, not this.
+// Optional, and absent from this request until now even though Alpaca's own
+// example authorize URL carries it. Without it "the user will be prompted to
+// authorize both a live and a paper account"; with `live` or `paper` they are
+// asked for just the one. Left unset by default so behaviour does not change
+// silently — set VITE_ALPACA_OAUTH_ENV per environment to pin it.
+const ENV = import.meta.env.VITE_ALPACA_OAUTH_ENV;
+
 export function authorizeUrl(state) {
   const params = new URLSearchParams({
     response_type: "code",
@@ -46,6 +53,7 @@ export function authorizeUrl(state) {
     scope: SCOPE,
     state
   });
+  if (ENV) params.set("env", ENV);
   return `https://app.alpaca.markets/oauth/authorize?${params.toString()}`;
 }
 

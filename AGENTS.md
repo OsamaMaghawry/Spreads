@@ -57,13 +57,19 @@ checkable, but for any given environment the string it sends is the same one the
 old code derived. It is a robustness fix, not a fix for a connection that is
 already failing.
 
-**Approval gates the flow itself. Nothing in this repo can bypass it.** The app
-page says so directly: *"All Alpaca Connect apps require approval from Alpaca
-Compliance before going live."* Until Compliance approves it, the client does
-not resolve and `/oauth/authorize` answers "Client authentication failed due to
-unknown client" — with a correct client id, correct secret and a correctly
-whitelisted redirect URI. **An "unknown client" error is not evidence of a bug
-here.** Check the app's approval state before touching code.
+**Approval is not required to connect.** From the current docs: *"By default
+once you have a valid client_id and client_secret, any paper account and the
+live account associated with the OAuth Client will be available to connect to
+your app."* Compliance approval governs going live on the Connect platform, not
+whether the authorize flow runs. Do not diagnose an OAuth failure as "waiting
+for approval" — that was asserted repeatedly here and was wrong every time.
+
+`status` and `live_trading_approved` are **separate fields** on the client
+record (see `reference/getoauthclient`): `status` is `ACTIVE` or `DISABLED`,
+approval is its own boolean. A client can be unapproved and still `ACTIVE`.
+
+The authorize page's failing call is documented as returning 401 for *"Client
+does not exist or you do not have access to the client."*
 
 Established by elimination, so it does not have to be done again:
 
@@ -79,10 +85,14 @@ Established by elimination, so it does not have to be done again:
 - It is not the request. Ours is byte-identical in shape to a working app's:
   same endpoint, same five parameters, same order, same encoding.
 
-The DDQ asks for *"a short video **or screenshots**"* of a user connecting.
-Screenshots of the flow up to the redirect, plus the `invalid_client` error, are
-what can honestly be produced before approval; ask Alpaca to enable the app for
-testing if they want the consent screen captured.
+Not yet ruled out: the `env` parameter. The current docs' own example authorize
+URL carries `env=live`, and *"if not specified, the user will be prompted to
+authorize both a live and a paper account"*. It is documented as optional, but
+we had never sent it. `VITE_ALPACA_OAUTH_ENV` sets it per environment.
+
+The DDQ asks for *"a short video **or screenshots**"* of a user connecting, so
+screenshots of the flow are an accepted substitute if a recording is not
+possible.
 
 Do not be misled by the archived `alpacahq/alpaca-docs` repo, which says *"Live
 trading is allowed for the app developer user without approval"*. That describes
