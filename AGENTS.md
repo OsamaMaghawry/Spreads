@@ -65,6 +65,25 @@ unknown client" — with a correct client id, correct secret and a correctly
 whitelisted redirect URI. **An "unknown client" error is not evidence of a bug
 here.** Check the app's approval state before touching code.
 
+Established by elimination, so it does not have to be done again:
+
+- The page is a JavaScript shell. The real failure is `POST
+  app.alpaca.markets/api/v1/oauth/client` → `401 {"code":40110000,"message":
+  "invalid_client"}`. Everything else on that page returns 200, so the session
+  is fine.
+- `40110000` is generic. The token endpoint returns the identical code for a
+  client id that cannot exist, for a third party's real client id, and for ours
+  — so it says "client rejected" and nothing more specific.
+- It is not the scopes. Authorizing with no `scope` parameter at all, and with
+  read-only `scope=data`, both fail identically.
+- It is not the request. Ours is byte-identical in shape to a working app's:
+  same endpoint, same five parameters, same order, same encoding.
+
+The DDQ asks for *"a short video **or screenshots**"* of a user connecting.
+Screenshots of the flow up to the redirect, plus the `invalid_client` error, are
+what can honestly be produced before approval; ask Alpaca to enable the app for
+testing if they want the consent screen captured.
+
 Do not be misled by the archived `alpacahq/alpaca-docs` repo, which says *"Live
 trading is allowed for the app developer user without approval"*. That describes
 the **older** "OAuth Apps" system at `/brokerage/apps/manage`. **Alpaca Connect**
