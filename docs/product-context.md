@@ -72,7 +72,7 @@ so a change to shared code requires redeploying all of them.
 - **oauthDiag** — Answers one question: does Alpaca recognise this app's OAuth credentials? The authorize page cannot answer it.
 - **openPosition** — How far the stock may have moved since the setup was built before the order is refused.
 - **refreshEarnings** — Refreshes the cached earnings calendar for the next 90 days from the provider.
-- **saveAccount** — Creating and editing a manually-keyed trading account.
+- **saveAccount** — Creating and editing a trading account.
 - **scanEntries** — (no summary comment)
 - **spreadQuote** — Prices a position for closing: what the legs are worth right now, plus the highest limit already tried on them so a retry resumes rather than restarts.
 - **syncAccounts** — Rebuilds the live picture for every account the caller owns: positions paired into structures, credit and risk per position, and totals that net a ticker's condors instead of double counting both wings.
@@ -95,6 +95,7 @@ revoked from the browser role entirely.
 - **user_notes** — id, user_id, author_id, body, created_at
 - **user_crm** — user_id, status, tags, updated_at
 - **stock_lots** — id, user_id, account_id, lot_key, chain_id, ticker, qty, acquired_date, acquired_price, acquired_source, disposed_date, disposed_price, disposed_source, realized_pl, created_at, backed_up_at
+- **app_settings** — key, value, updated_at, updated_by
 
 ## Analytics vocabulary
 

@@ -7,11 +7,13 @@ import useIsAdmin from "@/lib/useIsAdmin";
 import EngagementPanel from "@/components/admin/EngagementPanel";
 import UsersPanel from "@/components/admin/UsersPanel";
 import BlogPanel from "@/components/admin/BlogPanel";
+import SettingsPanel from "@/components/admin/SettingsPanel";
 
 const TABS = [
   { key: "engagement", label: "Engagement" },
   { key: "users", label: "Users" },
-  { key: "blog", label: "Blog" }
+  { key: "blog", label: "Blog" },
+  { key: "settings", label: "Settings" }
 ];
 
 export default function Admin() {
@@ -73,8 +75,12 @@ export default function Admin() {
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{error}</div>
       )}
 
+      {/* Blog and Settings load their own data, so neither waits on the
+          overview query. */}
       {tab === "blog" ? (
         <BlogPanel />
+      ) : tab === "settings" ? (
+        <SettingsPanel />
       ) : !data ? (
         <div className="py-16 text-center text-sm text-dm-sub">Loading…</div>
       ) : tab === "engagement" ? (

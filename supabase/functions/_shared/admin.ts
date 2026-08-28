@@ -56,34 +56,50 @@ interface AdminGate {
   isOwner: boolean;
 }
 
-export async function requireAdmin(req: Request): Promise<AdminGate> {
-  const user = await requireUser(req);
-  if (!user) {
-    return { response: jsonResponse({ error: "Unauthorized" }, 401), user: null, admin: null, isOwner: false };
-  }
+// The rule itself, with no HTTP framing around it. requireAdmin() below is
+// this plus the 401 and 403 responses; a handler that has already
+// authenticated its caller and only needs the answer — saveAccount deciding
+// whether manual credentials may be stored — calls this instead of restating
+// either half of the rule.
+export async function isAdminUser(
+  user: Awaited<ReturnType<typeof requireUser>>,
+  admin: ReturnType<typeof adminClient>
+): Promise<{ isAdmin: boolean; isOwner: boolean }> {
+  if (!user) return { isAdmin: false, isOwner: false };
 
   // The email comes from the verified JWT, not from the request body, so it
-  // cannot be spoofed by the caller.
-  const isOwner = isOwnerEmail(user.email);
-  const admin = adminClient();
-
-  if (isOwner) {
-    // Checked before the profile lookup so the owner can still get in when the
-    // profiles row is missing or the table is unreachable — the whole point of
-    // an out-of-band allowlist is that it does not depend on app state.
-    return { response: null, user, admin, isOwner: true };
-  }
+  // cannot be spoofed by the caller. Checked before the profile lookup so the
+  // owner can still get in when the profiles row is missing or the table is
+  // unreachable — the whole point of an out-of-band allowlist is that it does
+  // not depend on app state.
+  if (isOwnerEmail(user.email)) return { isAdmin: true, isOwner: true };
 
   const { data: profile, error } = await admin
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .maybeSingle();
+  if (error) throw new Error(error.message);
 
-  if (error) {
+  return { isAdmin: profile?.role === "admin", isOwner: false };
+}
+
+export async function requireAdmin(req: Request): Promise<AdminGate> {
+  const user = await requireUser(req);
+  if (!user) {
+    return { response: jsonResponse({ error: "Unauthorized" }, 401), user: null, admin: null, isOwner: false };
+  }
+
+  const admin = adminClient();
+
+  let verdict: { isAdmin: boolean; isOwner: boolean };
+  try {
+    verdict = await isAdminUser(user, admin);
+  } catch (error) {
     return { response: jsonResponse({ error: error.message }, 500), user, admin: null, isOwner: false };
   }
-  if (!profile || profile.role !== "admin") {
+
+  if (!verdict.isAdmin) {
     // Deliberately the same message whether the profile is missing or simply
     // not an admin — the difference is not the caller's business.
     return {
@@ -94,5 +110,5 @@ export async function requireAdmin(req: Request): Promise<AdminGate> {
     };
   }
 
-  return { response: null, user, admin, isOwner: false };
+  return { response: null, user, admin, isOwner: verdict.isOwner };
 }

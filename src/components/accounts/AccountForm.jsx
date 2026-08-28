@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/use-toast";
 
-export default function AccountForm({ account, onSave, onCancel }) {
+export default function AccountForm({ account, allowCredentials = false, onSave, onCancel }) {
   // Stored credentials are encrypted and never sent to the browser, so the key
   // fields always start empty. On an existing account, leaving them empty keeps
   // whatever is already stored — only a filled-in pair replaces it.
@@ -24,9 +24,15 @@ export default function AccountForm({ account, onSave, onCancel }) {
   // gets typed) and the client-order-id prefixes.
   const isOAuth = !!account?.is_oauth;
 
+  // Manual key entry is an admin-only switch that is off by default, so most of
+  // the time there is no key field to render at all. An account keyed before
+  // the switch existed is still renameable — saveAccount only gates the
+  // credentials themselves.
+  const showKeyFields = allowCredentials && !isOAuth;
+
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   const bothKeysOrNeither =
-    isOAuth ||
+    !showKeyFields ||
     (form.api_key.trim() && form.api_secret.trim()) ||
     (account && !form.api_key.trim() && !form.api_secret.trim());
   const valid = form.name.trim() && bothKeysOrNeither;
@@ -62,7 +68,7 @@ export default function AccountForm({ account, onSave, onCancel }) {
               </p>
             )}
           </div>
-          {!isOAuth && (
+          {showKeyFields && (
             <>
               <div>
                 <label className="text-xs text-slate-500 block mb-1.5">API Key ID</label>
@@ -91,6 +97,11 @@ export default function AccountForm({ account, onSave, onCancel }) {
                 </p>
               )}
             </>
+          )}
+          {account && !isOAuth && !showKeyFields && (
+            <p className="text-xs text-slate-500 -mt-1">
+              This account's stored API key stays as it is — manual key entry is switched off.
+            </p>
           )}
           <div className="border-t border-slate-200 pt-4 space-y-3">
             <div className="text-xs font-medium text-slate-700">Strategy client order id prefixes</div>

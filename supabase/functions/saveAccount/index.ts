@@ -1,11 +1,21 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
+import { isAdminUser } from "../_shared/admin.ts";
+import { manualApiKeysEnabled } from "../_shared/settings.ts";
 import { SAFE_ACCOUNT_COLUMNS } from "../_shared/accounts.ts";
 import { apiKeyHint, encryptSecret } from "../_shared/crypto.ts";
 
-// Creating and editing a manually-keyed trading account. The browser cannot
-// write trading_accounts at all after migration 0004, so this is the only path
-// for an API key to reach storage — and it encrypts on the way in.
+// Creating and editing a trading account. The browser cannot write
+// trading_accounts at all after migration 0004, so this is the only path for an
+// API key to reach storage — and it encrypts on the way in.
+//
+// Storing a raw key and secret is now an administrator-only, switched-off-by-
+// default capability. Customers connect through Alpaca's OAuth flow; asking
+// them to paste brokerage credentials into a third-party form is not something
+// to offer, and the switch exists so the path stays available for testing
+// against accounts the OAuth app cannot reach. Renaming and the strategy
+// prefixes are unaffected — this gate is about credentials only, so a customer
+// with an account keyed before the change can still manage it.
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -25,16 +35,38 @@ Deno.serve(async (req) => {
       wheel_client_prefix: wheelClientPrefix || null
     };
 
+    const admin = adminClient();
+
     // Credentials are optional when editing: the browser no longer holds the
     // existing key, so an empty pair means "leave the stored one alone" and
     // renaming an account never requires re-entering secrets.
-    if (apiKey && apiSecret) {
+    //
+    // The gate is on either field being present rather than both, so a partial
+    // payload gets the real reason back instead of a confusing 400 about a
+    // missing secret.
+    if (apiKey || apiSecret) {
+      const { isAdmin } = await isAdminUser(user, admin);
+      if (!isAdmin) {
+        // Same answer whether or not the switch happens to be on: manual entry
+        // is never a customer-facing feature.
+        return jsonResponse(
+          { error: "Manual API keys aren't available. Connect your account through Alpaca instead." },
+          403
+        );
+      }
+      if (!(await manualApiKeysEnabled(admin))) {
+        return jsonResponse(
+          { error: "Manual API key entry is switched off. Turn it on in Admin → Settings first." },
+          403
+        );
+      }
+      if (!apiKey || !apiSecret) {
+        return jsonResponse({ error: "apiKey and apiSecret are required together" }, 400);
+      }
       fields.api_key = await encryptSecret(apiKey);
       fields.api_secret = await encryptSecret(apiSecret);
       fields.api_key_hint = apiKeyHint(apiKey);
     }
-
-    const admin = adminClient();
 
     if (id) {
       // An OAuth account's live/paper nature is a fact about the token, not a
