@@ -13,9 +13,9 @@ import { apiKeyHint, encryptSecret } from "../_shared/crypto.ts";
 // default capability. Customers connect through Alpaca's OAuth flow; asking
 // them to paste brokerage credentials into a third-party form is not something
 // to offer, and the switch exists so the path stays available for testing
-// against accounts the OAuth app cannot reach. Renaming and the strategy
-// prefixes are unaffected — this gate is about credentials only, so a customer
-// with an account keyed before the change can still manage it.
+// against accounts the OAuth app cannot reach. Renaming is unaffected — this
+// gate is about credentials only, so a customer with an account keyed before
+// the change can still manage it.
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -30,10 +30,19 @@ Deno.serve(async (req) => {
 
     const fields: Record<string, unknown> = {
       name: name.trim(),
-      is_paper: !!isPaper,
-      spreads_client_prefix: spreadsClientPrefix || null,
-      wheel_client_prefix: wheelClientPrefix || null
+      is_paper: !!isPaper
     };
+
+    // The strategy prefixes have no form behind them any more; they are only
+    // written when a caller actually sends them. Defaulting an absent field to
+    // null instead would have every rename quietly wipe the stored prefixes,
+    // and the orders they claim would stop being attributed to their strategy.
+    if (spreadsClientPrefix !== undefined) {
+      fields.spreads_client_prefix = spreadsClientPrefix || null;
+    }
+    if (wheelClientPrefix !== undefined) {
+      fields.wheel_client_prefix = wheelClientPrefix || null;
+    }
 
     const admin = adminClient();
 

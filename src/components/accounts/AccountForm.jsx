@@ -11,9 +11,7 @@ export default function AccountForm({ account, allowCredentials = false, onSave,
     name: account?.name || "",
     api_key: "",
     api_secret: "",
-    is_paper: account?.is_paper || false,
-    spreads_client_prefix: account?.spreads_client_prefix || "",
-    wheel_client_prefix: account?.wheel_client_prefix || ""
+    is_paper: account?.is_paper || false
   });
   const [saving, setSaving] = useState(false);
 
@@ -60,7 +58,7 @@ export default function AccountForm({ account, allowCredentials = false, onSave,
         <div className="space-y-4">
           <div>
             <label className="text-xs text-slate-500 block mb-1.5">Account name</label>
-            <input value={form.name} onChange={set("name")} placeholder="e.g. Alton Live" className={inputCls} />
+            <input value={form.name} onChange={set("name")} placeholder="e.g. Main Live" className={inputCls} />
             {isOAuth && (
               <p className="text-xs text-slate-500 mt-1.5">
                 Alpaca doesn't send the nickname you gave this account, so it arrives as its
@@ -103,32 +101,19 @@ export default function AccountForm({ account, allowCredentials = false, onSave,
               This account's stored API key stays as it is — manual key entry is switched off.
             </p>
           )}
-          <div className="border-t border-slate-200 pt-4 space-y-3">
-            <div className="text-xs font-medium text-slate-700">Strategy client order id prefixes</div>
-            <div>
-              <label className="text-xs text-slate-500 block mb-1.5">Spreads prefix</label>
-              <input value={form.spreads_client_prefix} onChange={set("spreads_client_prefix")} placeholder="e.g. 0DTE_Alton_LIVE_Options" className={inputCls} />
-            </div>
-            <div>
-              <label className="text-xs text-slate-500 block mb-1.5">Wheel prefix</label>
-              <input value={form.wheel_client_prefix} onChange={set("wheel_client_prefix")} placeholder="e.g. Alton_Live_WHEEL_3DAY" className={inputCls} />
-            </div>
-          </div>
-          <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
-            <div>
-              <div className="text-sm text-slate-900">Paper trading</div>
-              <div className="text-xs text-slate-500">
-                {isOAuth
-                  ? "Set by the Alpaca authorization — reconnect to change it"
-                  : "Use Alpaca's paper (demo) endpoint"}
+          {/* Nothing to decide for an OAuth account: live or paper was settled
+              by which Alpaca endpoint answered the token, and the account list
+              already carries the badge. A disabled switch would only invite the
+              question of why it can't be moved. */}
+          {!isOAuth && (
+            <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
+              <div>
+                <div className="text-sm text-slate-900">Paper trading</div>
+                <div className="text-xs text-slate-500">Use Alpaca's paper (demo) endpoint</div>
               </div>
+              <Switch checked={form.is_paper} onCheckedChange={(v) => setForm({ ...form, is_paper: v })} />
             </div>
-            <Switch
-              checked={form.is_paper}
-              disabled={isOAuth}
-              onCheckedChange={(v) => setForm({ ...form, is_paper: v })}
-            />
-          </div>
+          )}
           <button
             onClick={submit}
             disabled={!valid || saving}

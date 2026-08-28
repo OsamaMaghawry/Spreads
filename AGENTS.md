@@ -225,9 +225,14 @@ request carrying credentials is refused unless the caller passes `isAdminUser`
 *and* the switch is on. A non-admin is refused either way, and the refusal says
 the same thing whether the switch is on or off.
 
-Renaming an account and editing its client-order-id prefixes are never gated;
-the check is on credentials alone, so an account keyed before the switch
-existed stays manageable by its owner.
+Renaming an account is never gated; the check is on credentials alone, so an
+account keyed before the switch existed stays manageable by its owner.
+
+The account form no longer edits the strategy client-order-id prefixes — that
+UI is coming back in a different shape. The columns, `openPosition`'s tagging
+and `tradeHistory`'s attribution are all untouched, and `saveAccount` writes
+those two fields only when a caller actually sends them, so a rename cannot
+wipe a stored prefix.
 
 ## Nothing touches production without approval
 
