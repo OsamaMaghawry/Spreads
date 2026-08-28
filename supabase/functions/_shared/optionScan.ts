@@ -1,7 +1,8 @@
 // Option chain scanning + strategy selection, ported from the Python strategy:
 // Black-Scholes delta from the live mid, delta-targeted short strike, adjacent/width
 // long wing, credit from short bid - long ask, ratio-aware iron condors.
-import { tradingBase, alpacaFetch } from "./alpaca.ts";
+import { tradingBase, alpacaFetch, getOptionQuotes } from "./alpaca.ts";
+import { getSpot, MAX_SOURCE_DIVERGENCE_PCT } from "./marketPrice.ts";
 
 const erf = (x) => {
   const s = x < 0 ? -1 : 1;
@@ -46,12 +47,19 @@ export function optionDelta(price, S, K, T, r, isCall) {
   return isCall ? cdf(d1) : -cdf(-d1);
 }
 
-export async function getSpot(account, ticker) {
-  const snap = await alpacaFetch(`https://data.alpaca.markets/v2/stocks/snapshots?symbols=${ticker}`, account);
-  const d = snap ? snap[ticker] : null;
-  const q = d && d.latestQuote;
-  if (q && q.bp > 0 && q.ap > 0) return (q.bp + q.ap) / 2;
-  return (d && d.latestTrade && d.latestTrade.p) || (d && d.dailyBar && d.dailyBar.c) || 0;
+// The spot price used to be resolved here, preferring the midpoint of the
+// latest bid/ask. That midpoint is an arithmetic artifact when the quote is
+// stale or wide — nobody traded there — and it once produced a JPM scan built
+// on $363.54 while the stock was at $354.33, which sold a short put that was
+// already in the money. It now comes from _shared/marketPrice.ts, which the
+// dashboard uses too, so the two can no longer disagree.
+//
+// The spot is what picks strikes, so an untrusted one is a refusal here rather
+// than something to proceed on.
+function spotOrReason(spot, ticker) {
+  if (!(spot.price > 0)) return `No live price available for ${ticker}.`;
+  if (!spot.trusted) return `Unreliable price for ${ticker}: ${spot.reason}`;
+  return null;
 }
 
 // All expiries inside the requested DTE window, soonest first.
@@ -81,12 +89,7 @@ export async function scanChain(account, ticker, expiry, type, spot) {
   const contracts = (res && res.option_contracts) || [];
   if (contracts.length === 0) return [];
 
-  const quotes = {};
-  for (let i = 0; i < contracts.length; i += 100) {
-    const syms = contracts.slice(i, i + 100).map((c: any) => c.symbol).join(",");
-    const data = await alpacaFetch(`https://data.alpaca.markets/v1beta1/options/quotes/latest?symbols=${syms}`, account);
-    Object.assign(quotes, (data && data.quotes) || {});
-  }
+  const quotes = await getOptionQuotes(account, contracts.map((c: any) => c.symbol));
 
   const T = tteYears(expiry);
   const isCall = type === "call";
@@ -138,15 +141,16 @@ export async function findSetup(account, params) {
   } = params;
 
   const spot = await getSpot(account, ticker);
-  if (!(spot > 0)) return { ok: false, reason: `No live price available for ${ticker}.` };
+  const bad = spotOrReason(spot, ticker);
+  if (bad) return { ok: false, reason: bad };
 
   const expiry = await findExpiry(account, ticker, dte);
   if (!expiry) return { ok: false, reason: `No expiry found for ${ticker} within ${dte} days.` };
 
   const needPuts = strategy === "put_spread" || strategy === "iron_condor";
   const needCalls = strategy === "call_spread" || strategy === "iron_condor";
-  const puts = needPuts ? await scanChain(account, ticker, expiry, "put", spot) : [];
-  const calls = needCalls ? await scanChain(account, ticker, expiry, "call", spot) : [];
+  const puts = needPuts ? await scanChain(account, ticker, expiry, "put", spot.price) : [];
+  const calls = needCalls ? await scanChain(account, ticker, expiry, "call", spot.price) : [];
   if (needPuts && puts.length === 0) return { ok: false, reason: `No priced put chain for ${ticker} ${expiry}.` };
   if (needCalls && calls.length === 0) return { ok: false, reason: `No priced call chain for ${ticker} ${expiry}.` };
 
@@ -155,13 +159,66 @@ export async function findSetup(account, params) {
   return validate(built.setup, minCredit, maxCredit);
 }
 
+// A credit spread is sold out of the money. A short leg already through spot is
+// not a position that expires worthless — it is one that starts at a loss, and
+// it is precisely what a wrong spot price produces: the JPM 355 put looked
+// $8.50 clear of the stock and was in fact in the money.
+function itmShortReason(shortLeg, spot, isCall) {
+  const through = isCall ? shortLeg.strike <= spot : shortLeg.strike >= spot;
+  if (!through) return null;
+  return `Short ${isCall ? "call" : "put"} $${shortLeg.strike} is already through the spot price ` +
+    `$${spot.toFixed(2)} — that is not an out-of-the-money credit spread.`;
+}
+
+// Put-call parity is the only witness to the spot price that does not come from
+// the stock feed: at a common strike, C − P = S − K·e^(−rT). Costs nothing when
+// both chains are already in hand, which is the iron-condor case, and it is the
+// check that catches a stock feed lying about itself — the options market had
+// the JPM price right the whole time.
+//
+// Median rather than mean so one bad quote in the chain cannot move it.
+export function impliedSpotFromParity(puts, calls, expiry, r = 0.04) {
+  if (!puts?.length || !calls?.length) return null;
+  const byStrike = new Map(puts.map((p: any) => [p.strike, p]));
+  const T = tteYears(expiry);
+  const est: number[] = [];
+  calls.forEach((c: any) => {
+    const p: any = byStrike.get(c.strike);
+    if (p) est.push(c.mid - p.mid + c.strike * Math.exp(-r * T));
+  });
+  if (est.length === 0) return null;
+  est.sort((a, b) => a - b);
+  return est[Math.floor(est.length / 2)];
+}
+
 // Pure setup construction from already-priced chains, so a sweep can reuse one fetch.
-export function buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio = 1, callRatio = 1 }: any) {
-  const base = { ticker, expiry, spot, strategy, targetDelta, wingWidth };
+export function buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio = 1, callRatio = 1, allowItmShort = false }: any) {
+  // Accepts either a bare number or the { price, source, asOf } result from
+  // marketPrice.getSpot, so callers and tests need not unwrap it.
+  const px = typeof spot === "number" ? spot : spot?.price;
+  const base = {
+    ticker, expiry, strategy, targetDelta, wingWidth,
+    spot: px,
+    spotSource: typeof spot === "number" ? null : spot?.source ?? null,
+    spotAsOf: typeof spot === "number" ? null : spot?.asOf ?? null
+  };
+
+  const implied = impliedSpotFromParity(puts, calls, expiry);
+  if (implied !== null && px > 0 && Math.abs(implied - px) / px > MAX_SOURCE_DIVERGENCE_PCT) {
+    return {
+      ok: false,
+      reason: `The option chain implies a spot of $${implied.toFixed(2)}, not $${px.toFixed(2)} — ` +
+        `the stock price feed disagrees with the options market.`
+    };
+  }
 
   if (strategy === "iron_condor") {
     const shortPut: any = nearestDelta(puts, targetDelta);
     const shortCall: any = nearestDelta(calls, targetDelta);
+    if (!allowItmShort) {
+      const bad = itmShortReason(shortPut, px, false) || itmShortReason(shortCall, px, true);
+      if (bad) return { ok: false, reason: bad };
+    }
     const longPut: any = pickWing(puts, shortPut.strike, wingWidth, false);
     const longCall: any = pickWing(calls, shortCall.strike, wingWidth, true);
     if (!longPut || !longCall) {
@@ -189,6 +246,10 @@ export function buildSetup({ ticker, expiry, spot, strategy, puts, calls, target
   const isCall = strategy === "call_spread";
   const chain = isCall ? calls : puts;
   const short: any = nearestDelta(chain, targetDelta);
+  if (!allowItmShort) {
+    const bad = itmShortReason(short, px, isCall);
+    if (bad) return { ok: false, reason: bad };
+  }
   const long: any = pickWing(chain, short.strike, wingWidth, isCall);
   if (!long) {
     return { ok: false, reason: `No listed strike $${wingWidth} from the short leg — this chain can't make a $${wingWidth} wing.` };
@@ -252,7 +313,8 @@ export async function scanCandidates(account, params) {
     if (!ticker) continue;
     try {
       const spot = await getSpot(account, ticker);
-      if (!(spot > 0)) { skipped.push({ ticker, reason: "No live price." }); continue; }
+      const bad = spotOrReason(spot, ticker);
+      if (bad) { skipped.push({ ticker, reason: bad }); continue; }
       const expiries = await findExpiries(account, ticker, dteMin, dteMax);
       if (expiries.length === 0) { skipped.push({ ticker, reason: `No expiry between ${dteMin} and ${dteMax} days.` }); continue; }
 
@@ -263,8 +325,8 @@ export async function scanCandidates(account, params) {
       const foundBefore = candidates.length;
 
       for (const expiry of expiries) {
-        const puts = needPuts ? await scanChain(account, ticker, expiry, "put", spot) : [];
-        const calls = needCalls ? await scanChain(account, ticker, expiry, "call", spot) : [];
+        const puts = needPuts ? await scanChain(account, ticker, expiry, "put", spot.price) : [];
+        const calls = needCalls ? await scanChain(account, ticker, expiry, "call", spot.price) : [];
         if ((needPuts && puts.length === 0) || (needCalls && calls.length === 0)) {
           reasons.add(`No priced chain for ${expiry}.`);
           continue;

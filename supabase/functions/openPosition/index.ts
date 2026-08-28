@@ -1,8 +1,54 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
-import { tradingBase, alpacaFetch, loadAccount } from "../_shared/alpaca.ts";
+import { tradingBase, alpacaFetch, loadAccount, parseOCCSymbol } from "../_shared/alpaca.ts";
+import { getSpot } from "../_shared/marketPrice.ts";
 import { earningsCoverage, refreshEarningsWindow } from "../_shared/earnings.ts";
 import { inBackground } from "../_shared/background.ts";
+
+// How far the stock may have moved since the setup was built before the order
+// is refused. A scan result is a proposal, not a price: the legs and the credit
+// travel unchanged from whenever the scan ran to whenever Submit is pressed.
+const MAX_SPOT_DRIFT_PCT = 0.01;
+
+// Re-checks the trade against the market as it is now, rather than as it was
+// when the scan ran. Reads the ticker and strikes straight out of the OCC
+// symbols, so it needs nothing from the client that the order itself does not
+// already carry.
+//
+// This exists because a spread was once opened on a spot price of $363.54 when
+// the stock was at $354.33: the short put looked $8.50 out of the money and was
+// in fact through it. Nothing between the scan and the broker looked again.
+async function preflight(account, legs, expectedSpot, allowItmShort) {
+  const parsed = legs
+    .map((l: any) => ({ ...l, occ: parseOCCSymbol(l.symbol) }))
+    .filter((l: any) => l.occ);
+  if (parsed.length === 0) return null;
+
+  const ticker = parsed[0].occ.ticker;
+  const spot = await getSpot(account, ticker);
+  if (!(spot.price > 0)) return `No live price for ${ticker} — refusing to open a position without one.`;
+  if (!spot.trusted) return `Unreliable price for ${ticker}: ${spot.reason} Refusing to open a position on it.`;
+
+  if (expectedSpot > 0) {
+    const drift = Math.abs(spot.price - expectedSpot) / expectedSpot;
+    if (drift > MAX_SPOT_DRIFT_PCT) {
+      return `${ticker} is $${spot.price.toFixed(2)} now, not $${expectedSpot.toFixed(2)} — ` +
+        `${(drift * 100).toFixed(1)}% away from the setup. Re-scan before opening.`;
+    }
+  }
+
+  if (!allowItmShort) {
+    const through = parsed.find(
+      (l: any) => l.side === "sell" &&
+        (l.occ.type === "C" ? l.occ.strike <= spot.price : l.occ.strike >= spot.price)
+    );
+    if (through) {
+      return `Short ${through.occ.type === "C" ? "call" : "put"} $${through.occ.strike} is through ` +
+        `${ticker} at $${spot.price.toFixed(2)} — that is not an out-of-the-money credit spread.`;
+    }
+  }
+  return null;
+}
 
 // Submits the opening multi-leg credit order (sell to open the shorts, buy the wings).
 Deno.serve(async (req) => {
@@ -11,7 +57,7 @@ Deno.serve(async (req) => {
     const user = await requireUser(req);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-    const { accountId, legs, qty, orderType = "limit", limitPrice } = await req.json();
+    const { accountId, legs, qty, orderType = "limit", limitPrice, expectedSpot, allowItmShort = false } = await req.json();
     if (!accountId || !Array.isArray(legs) || legs.length < 2 || !qty) {
       return jsonResponse({ error: "accountId, legs and qty are required" }, 400);
     }
@@ -32,6 +78,12 @@ Deno.serve(async (req) => {
       .catch(() => {});
 
     const account = await loadAccount(admin, accountId, user.id);
+
+    // Last look before the money leaves. 409 rather than 400: the request was
+    // well formed, the market moved out from under it.
+    const stale = await preflight(account, legs, Number(expectedSpot) || 0, allowItmShort);
+    if (stale) return jsonResponse({ error: stale, staleSetup: true }, 409);
+
     const prefix = (account.spreads_client_prefix || "APP_OPEN").trim();
 
     const body: any = {

@@ -4,15 +4,40 @@ import { invokeFunction } from "@/lib/functions";
 import { SAFE_ACCOUNT_COLUMNS } from "@/lib/accountColumns";
 import { Plus, Pencil, Trash2, KeyRound, Link2 } from "lucide-react";
 import AccountForm from "@/components/accounts/AccountForm";
-import { startAlpacaOAuth } from "@/lib/alpacaOAuth";
-import AlpacaConnectConsent from "@/components/accounts/AlpacaConnectConsent";
+import { startAlpacaOAuth, describeOAuthConfig } from "@/lib/alpacaOAuth";
 import AdminMaintenance from "@/components/accounts/AdminMaintenance";
 
 export default function Accounts() {
   const [accounts, setAccounts] = useState(null);
   const [editing, setEditing] = useState(null); // null | "new" | account
   const [deleting, setDeleting] = useState(null);
-  const [connecting, setConnecting] = useState(false);
+  // startAlpacaOAuth throws when this build cannot possibly complete the round
+  // trip — no client id, or a redirect URI that does not belong to this origin.
+  // Left unhandled it navigated nowhere and said nothing.
+  const [connectError, setConnectError] = useState(null);
+  const [showDiag, setShowDiag] = useState(false);
+  const [diag, setDiag] = useState(null);
+  const oauthConfig = describeOAuthConfig();
+
+  // Straight to Alpaca, with nothing in between.
+  //
+  // There used to be a modal here repeating Alpaca's authorization disclosure
+  // before the redirect, on the reading that the DDQ's "[Name]" template was a
+  // screen we had to build and that acknowledgement had to happen before
+  // leaving our app. Watching an approved app connect settles it: Connect goes
+  // directly to app.alpaca.markets, and Alpaca renders "Authorize <app>" with
+  // that disclosure themselves, from the registered app name. The template
+  // describes their page. The acknowledgement the DDQ asks for is the Allow
+  // button on it, which comes before the token exchange that actually connects
+  // the account. Our own copy of it was a second, redundant consent that looked
+  // like Alpaca's but was not.
+  const connect = () => {
+    try {
+      startAlpacaOAuth();
+    } catch (e) {
+      setConnectError(e.message);
+    }
+  };
 
   const load = useCallback(async () => {
     const { data, error } = await supabase
@@ -58,7 +83,7 @@ export default function Accounts() {
         </div>
         <div className="ml-auto flex items-center gap-2">
           <button
-            onClick={() => setConnecting(true)}
+            onClick={connect}
             className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm hover:bg-emerald-100 transition-colors"
           >
             <Link2 className="w-4 h-4" /> Connect Alpaca
@@ -71,6 +96,92 @@ export default function Accounts() {
           </button>
         </div>
       </div>
+
+      {/* Alpaca reports an unregistered redirect URI and an unrecognised client
+          id as the same "unknown client" page, on their domain, naming neither.
+          The only way to tell them apart is to read what we sent — and once the
+          button is pressed the browser has already left. So it is readable
+          here, beforehand. */}
+      <div className="text-right">
+        <button
+          onClick={() => setShowDiag((v) => !v)}
+          className="text-[11px] text-slate-400 transition-colors hover:text-slate-600"
+        >
+          {showDiag ? "Hide connection details" : "Trouble connecting?"}
+        </button>
+      </div>
+      {showDiag && (
+        <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+          <p>
+            Every value below must match the OAuth app at{" "}
+            <a href="https://app.alpaca.markets/connect" target="_blank" rel="noreferrer" className="underline">
+              app.alpaca.markets/connect
+            </a>
+            . The redirect URI has to be registered there exactly as written.
+          </p>
+          <dl className="space-y-1 break-all font-mono text-[11px]">
+            <div><dt className="inline text-slate-400">client_id: </dt><dd className="inline">{oauthConfig.clientId || "(not set)"}</dd></div>
+            <div><dt className="inline text-slate-400">redirect_uri: </dt><dd className="inline">{oauthConfig.redirectUri}</dd></div>
+            <div><dt className="inline text-slate-400">origin: </dt><dd className="inline">{oauthConfig.origin}</dd></div>
+          </dl>
+          <p className="pt-1 text-slate-500">Full authorization URL:</p>
+          <code className="block break-all rounded-lg border border-slate-200 bg-white p-2 font-mono text-[10px] leading-relaxed">
+            {oauthConfig.authorizeUrl}
+          </code>
+          <div className="flex flex-wrap items-center gap-4 pt-1">
+            <button
+              onClick={() => navigator.clipboard?.writeText(oauthConfig.authorizeUrl)}
+              className="text-[11px] underline hover:text-slate-900"
+            >
+              Copy URL
+            </button>
+            {/* Alpaca's authorize page reports an unrecognised app and an
+                unregistered redirect URI identically. The token endpoint can
+                tell them apart, because it authenticates on the client id and
+                secret alone. */}
+            <button
+              onClick={async () => {
+                setDiag({ verdict: "running" });
+                const res = await invokeFunction("oauthDiag", { redirectUri: oauthConfig.redirectUri });
+                setDiag(res.data?.error ? { verdict: "error", detail: res.data.error } : res.data);
+              }}
+              className="text-[11px] underline hover:text-slate-900"
+            >
+              Test app credentials
+            </button>
+          </div>
+          {diag && (
+            <div
+              className={`rounded-lg border p-3 text-[11px] leading-relaxed ${
+                diag.verdict === "credentials_accepted"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                  : diag.verdict === "running"
+                    ? "border-slate-200 bg-white text-slate-500"
+                    : "border-rose-200 bg-rose-50 text-rose-900"
+              }`}
+            >
+              {diag.verdict === "running" ? (
+                "Asking Alpaca…"
+              ) : (
+                <>
+                  <p>{diag.detail}</p>
+                  {diag.serverClientId && diag.serverClientId !== oauthConfig.clientId && (
+                    <p className="mt-2 font-medium">
+                      The server exchanges with client id {diag.serverClientId}, but this page sends{" "}
+                      {oauthConfig.clientId}. They must be the same app.
+                    </p>
+                  )}
+                  {diag.alpacaMessage && (
+                    <p className="mt-2 font-mono">
+                      Alpaca {diag.alpacaStatus}: {diag.alpacaMessage}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {accounts === null ? (
         <div className="text-sm text-slate-500 py-12 text-center">Loading…</div>
@@ -129,11 +240,22 @@ export default function Accounts() {
         />
       )}
 
-      {connecting && (
-        <AlpacaConnectConsent
-          onCancel={() => setConnecting(false)}
-          onContinue={() => startAlpacaOAuth()}
-        />
+
+      {connectError && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <p className="font-medium">Can't start the Alpaca connection</p>
+          <p className="mt-1 leading-relaxed">{connectError}</p>
+          {/* The values actually being sent. Alpaca reports a bad client id and
+              an unregistered redirect URI as the same generic page on their
+              domain, so the only way to tell them apart is to compare these
+              against the OAuth app's settings. */}
+          <dl className="mt-3 space-y-1 font-mono text-[11px] text-rose-700">
+            <div><dt className="inline text-rose-500">client_id: </dt><dd className="inline">{oauthConfig.clientId || "(not set)"}</dd></div>
+            <div><dt className="inline text-rose-500">redirect_uri: </dt><dd className="inline">{oauthConfig.redirectUri}</dd></div>
+            <div><dt className="inline text-rose-500">origin: </dt><dd className="inline">{oauthConfig.origin}</dd></div>
+          </dl>
+          <button onClick={() => setConnectError(null)} className="mt-3 text-xs underline">Dismiss</button>
+        </div>
       )}
     </div>
   );

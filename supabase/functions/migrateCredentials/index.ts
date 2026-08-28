@@ -1,5 +1,5 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
-import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
+import { requireAdmin } from "../_shared/admin.ts";
 import { apiKeyHint, decryptSecret, encryptSecret, isEncrypted, needsRewrite } from "../_shared/crypto.ts";
 
 // Encrypts credentials that are still stored in plaintext, across every user's
@@ -22,21 +22,11 @@ import { apiKeyHint, decryptSecret, encryptSecret, isEncrypted, needsRewrite } f
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const user = await requireUser(req);
-    if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
-
     // This reads and rewrites every user's credentials, so it is restricted to
     // administrators rather than scoped to the caller's own rows.
-    const admin = adminClient();
-    const { data: profile, error: profileError } = await admin
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-    if (profileError) throw new Error(profileError.message);
-    if (!profile || profile.role !== "admin") {
-      return jsonResponse({ error: "Administrator access is required" }, 403);
-    }
+    const gate = await requireAdmin(req);
+    if (gate.response) return gate.response;
+    const admin = gate.admin!;
 
     const { data: accounts, error } = await admin
       .from("trading_accounts")

@@ -91,7 +91,12 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
         legs: setup.legs.map((l) => ({ symbol: l.symbol, ratio: l.ratio, side: l.side })),
         qty: Number(qty),
         orderType,
-        limitPrice: setup.credit
+        limitPrice: setup.credit,
+        // The price this setup was built on. The server re-checks it against
+        // the market as it is now and refuses if they have parted company — a
+        // scan result is a proposal, and it travels here unchanged however long
+        // the dialog has been open.
+        expectedSpot: setup.spot
       });
       if (res.data?.error) setError(res.data.error);
       else setResult(res.data);

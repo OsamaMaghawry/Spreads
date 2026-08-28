@@ -48,6 +48,7 @@ nothing contingent on trading activity.
 - AccountDetail
 - AccountHistory
 - Accounts
+- Admin
 - Dashboard
 - ForgotPassword
 - Login
@@ -62,12 +63,14 @@ Each runs as its own bundle carrying a copy of what it imports from `_shared/`,
 so a change to shared code requires redeploying all of them.
 
 - **accountEquity** — Returns one account's equity and options buying power, for sizing a new order.
+- **adminData** — Back-office reads and writes: users and their activity, engagement figures, blog posts, and the internal customer record.
 - **alpacaOAuthCallback** — The user picks which account (live or paper) to authorize on Alpaca's own consent page, so we don't know which one we got back — probe both trading API bases with the token and see which one accepts it.
 - **closeSpread** — Submits the closing order for a position: the whole structure by default, or just the legs the caller picked when only one side needs unwinding.
 - **findEntry** — Scans the live chain and returns the delta-targeted setup for one strategy.
 - **manageOrder** — Reads the status of a working order, or cancels it.
 - **migrateCredentials** — Encrypts credentials that are still stored in plaintext, across every user's accounts, without involving those users.
-- **openPosition** — Submits the opening multi-leg credit order (sell to open the shorts, buy the wings).
+- **oauthDiag** — Answers one question: does Alpaca recognise this app's OAuth credentials? The authorize page cannot answer it.
+- **openPosition** — How far the stock may have moved since the setup was built before the order is refused.
 - **refreshEarnings** — Refreshes the cached earnings calendar for the next 90 days from the provider.
 - **saveAccount** — Creating and editing a manually-keyed trading account.
 - **scanEntries** — (no summary comment)
@@ -88,6 +91,9 @@ revoked from the browser role entirely.
 - **earnings_calendar** — symbol, report_date, session, fetched_at
 - **scan_presets** — id, user_id, scope, name, strategy, config, created_at, updated_at
 - **scan_last_used** — user_id, scope, strategy, config, updated_at
+- **blog_posts** — id, slug, title, excerpt, body, author, meta_description, og_image, status, published_at, created_at, updated_at
+- **user_notes** — id, user_id, author_id, body, created_at
+- **user_crm** — user_id, status, tags, updated_at
 
 ## Analytics vocabulary
 

@@ -68,6 +68,27 @@ export function parseOCCSymbol(symbol) {
 // so existing consumers keep importing it from this module.
 export { pairSpreads } from "./spreadPairing.ts";
 
+// Latest NBBO for any number of option symbols, in as few requests as the
+// endpoint's symbol limit allows. One place that talks to the options quote
+// endpoint, so every caller values a contract the same way — the dashboard
+// previously marked legs from the broker's per-position `current_price`
+// instead, which is last-trade based and goes stale on thin contracts, and
+// subtracting two independently stale legs is how a $2.50-wide spread came to
+// show an $85 loss it never had.
+export async function getOptionQuotes(account, symbols) {
+  const list = [...new Set((symbols || []).filter(Boolean))];
+  const out = {};
+  for (let i = 0; i < list.length; i += 100) {
+    const chunk = list.slice(i, i + 100);
+    const data = await alpacaFetch(
+      `https://data.alpaca.markets/v1beta1/options/quotes/latest?symbols=${chunk.join(",")}`,
+      account
+    );
+    Object.assign(out, (data && data.quotes) || {});
+  }
+  return out;
+}
+
 // Latest option quotes for all legs -> combined debit (cost to close) per unit.
 // Pass callShortSymbol/callLongSymbol too for iron condors; bids/asks are summed
 // per side, weighted by putRatio/callRatio for unbalanced condors.
@@ -75,9 +96,7 @@ export async function getSpreadQuote(account, shortSymbol, longSymbol, callShort
   const shortLegs = [[shortSymbol, putRatio || 1], [callShortSymbol, callRatio || 1]].filter(([s]) => s);
   const longLegs = [[longSymbol, putRatio || 1], [callLongSymbol, callRatio || 1]].filter(([s]) => s);
   const allSyms = [...shortLegs, ...longLegs].map(([s]) => s);
-  const url = `https://data.alpaca.markets/v1beta1/options/quotes/latest?symbols=${allSyms.join(",")}`;
-  const data = await alpacaFetch(url, account);
-  const quotes = (data && data.quotes) || {};
+  const quotes = await getOptionQuotes(account, allSyms);
   if (allSyms.some((sym) => !quotes[sym as string])) return null;
   const sum = (legs, field) => legs.reduce((a, [sym, r]) => a + (r as number) * (quotes[sym as string][field] || 0), 0);
   const shortBid = sum(shortLegs, "bp"), shortAsk = sum(shortLegs, "ap");
@@ -119,9 +138,7 @@ export async function loadAccount(admin, accountId, userId) {
 // Result is the net debit per unit (negative = net credit received).
 export async function getLegsQuote(account, legs) {
   const syms = legs.map((l) => l.symbol);
-  const url = `https://data.alpaca.markets/v1beta1/options/quotes/latest?symbols=${syms.join(",")}`;
-  const data = await alpacaFetch(url, account);
-  const quotes = (data && data.quotes) || {};
+  const quotes = await getOptionQuotes(account, syms);
   if (syms.some((sym) => !quotes[sym])) return null;
   let askDebit = 0;
   let bidDebit = 0;

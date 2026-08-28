@@ -1,8 +1,25 @@
 {
   "name": "deltamint-landing",
   "compatibility_date": "2025-06-05",
+  "main": "./src/index.js",
   "assets": {
     "directory": "./public",
-    "not_found_handling": "404-page"
+    "not_found_handling": "404-page",
+    "binding": "ASSETS",
+    // Only these paths invoke the Worker. Everything else — the homepage,
+    // pricing, terms, privacy, css, images — is served straight from static
+    // assets exactly as before, with no Worker execution and no cost.
+    "run_worker_first": ["/blog", "/blog/*", "/sitemap.xml"]
+  },
+  "vars": {
+    // The canonical host for canonical tags, OG URLs and the sitemap. Set
+    // per deployment so staging never emits production links.
+    "SITE_URL": "https://deltamint.app",
+    // No NOINDEX here on purpose: this is the deployment that should rank.
+    // Public by construction: the same two values already ship inside the
+    // browser bundle. RLS on blog_posts is what actually restricts this key,
+    // limiting it to posts that are published and past their publish date.
+    "SUPABASE_URL": "https://yecfbeohyakuoyczvdbj.supabase.co",
+    "SUPABASE_ANON_KEY": "sb_publishable_bq8zUxWfrWn6vbyv_NLtsA_62xhUV7U"
   }
 }
