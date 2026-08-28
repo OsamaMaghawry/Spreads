@@ -76,7 +76,7 @@ so a change to shared code requires redeploying all of them.
 - **scanEntries** — (no summary comment)
 - **spreadQuote** — Prices a position for closing: what the legs are worth right now, plus the highest limit already tried on them so a retry resumes rather than restarts.
 - **syncAccounts** — Rebuilds the live picture for every account the caller owns: positions paired into structures, credit and risk per position, and totals that net a ticker's condors instead of double counting both wings.
-- **tradeHistory** — Fetches the account's activity from Alpaca and hands it to the pure reconstruction in _shared/tradeReconstruction.ts, which is where the pairing, assignment and share-ledger logic lives and where it is tested.
+- **tradeHistory** — Reconstruct closed option trades per strategy.
 
 ## Database
 
@@ -86,7 +86,7 @@ function environment rather than the database, and the credential columns are
 revoked from the browser role entirely.
 
 - **trading_accounts** — id, user_id, name, api_key, api_secret, is_paper, spreads_client_prefix, wheel_client_prefix, created_at, oauth_access_token, api_key_hint, is_oauth
-- **trade_records** — id, user_id, account_id, strategy, trade_key, ticker, expiry, short_symbol, long_symbol, short_strike, long_strike, qty, open_date, close_date, short_entry, long_entry, net_credit, short_exit, long_exit, close_debit, realized_pl, close_reason, created_at, chain_id, unpaired
+- **trade_records** — id, user_id, account_id, strategy, trade_key, ticker, expiry, short_symbol, long_symbol, short_strike, long_strike, qty, open_date, close_date, short_entry, long_entry, net_credit, short_exit, long_exit, close_debit, realized_pl, close_reason, created_at
 - **profiles** — id, role, created_at
 - **earnings_calendar** — symbol, report_date, session, fetched_at
 - **scan_presets** — id, user_id, scope, name, strategy, config, created_at, updated_at
@@ -94,7 +94,6 @@ revoked from the browser role entirely.
 - **blog_posts** — id, slug, title, excerpt, body, author, meta_description, og_image, status, published_at, created_at, updated_at
 - **user_notes** — id, user_id, author_id, body, created_at
 - **user_crm** — user_id, status, tags, updated_at
-- **stock_lots** — id, user_id, account_id, lot_key, chain_id, ticker, qty, acquired_date, acquired_price, acquired_source, disposed_date, disposed_price, disposed_source, realized_pl, created_at, backed_up_at
 
 ## Analytics vocabulary
 

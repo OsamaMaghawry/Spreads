@@ -2,9 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
 import { invokeFunction } from "@/lib/functions";
 import { RefreshCw, ArrowLeft, History, BarChart3 } from "lucide-react";
-import { fmtMoney } from "@/lib/format";
 import TradeHistoryTable from "@/components/history/TradeHistoryTable";
-import StockLotsTable from "@/components/history/StockLotsTable";
 import StrategyTabs from "@/components/history/StrategyTabs";
 
 export default function AccountHistory() {
@@ -14,13 +12,12 @@ export default function AccountHistory() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [strategy, setStrategy] = useState("all");
-  const [confirmRebuild, setConfirmRebuild] = useState(false);
 
-  const load = useCallback(async (sync = false, rebuild = false) => {
+  const load = useCallback(async (sync = false) => {
     setRefreshing(true);
     setError(null);
     try {
-      const res = await invokeFunction("tradeHistory", { accountId: id, sync, rebuild });
+      const res = await invokeFunction("tradeHistory", { accountId: id, sync });
       if (res.data?.error) throw new Error(res.data.error);
       setData(res.data);
     } catch (e) {
@@ -28,7 +25,6 @@ export default function AccountHistory() {
     } finally {
       setRefreshing(false);
       setLoading(false);
-      setConfirmRebuild(false);
     }
   }, [id]);
 
@@ -44,16 +40,7 @@ export default function AccountHistory() {
   }
 
   const trades = data?.trades || [];
-  const stockLots = data?.stockLots || [];
   const visible = strategy === "all" ? trades : trades.filter((t) => (t.strategy || "unknown") === strategy);
-
-  // Premium and shares are tracked separately and shown separately, because on
-  // an assigned spread the option looks like a full win while the shares carry
-  // the loss. The combined figure is the one that matches the brokerage
-  // statement, so all three belong on screen.
-  const premiumPL = trades.reduce((a, t) => a + (t.realized_pl || 0), 0);
-  const stockPL = stockLots.reduce((a, l) => a + (l.realized_pl || 0), 0);
-  const unpairedCount = trades.filter((t) => t.unpaired).length;
 
   return (
     <div className="space-y-5">
@@ -84,36 +71,9 @@ export default function AccountHistory() {
         </button>
       </div>
 
-      {/* Rebuilding recomputes every record from scratch. Records written by an
-          earlier version of the reconstruction can be wrong in ways a normal
-          sync will not correct, because a sync only revisits the window it just
-          recomputed. Every row is copied to a backup table first. */}
-      {confirmRebuild ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <span>
-            Rebuild recalculates all history for this account from Alpaca. Past figures may change.
-            The current records are copied to a backup first.
-          </span>
-          <button
-            onClick={() => load(true, true)}
-            disabled={refreshing}
-            className="ml-auto rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
-          >
-            Rebuild history
-          </button>
-          <button onClick={() => setConfirmRebuild(false)} className="text-xs text-amber-800 hover:underline">
-            Cancel
-          </button>
-        </div>
-      ) : (
-        <button onClick={() => setConfirmRebuild(true)} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
-          Rebuild history from scratch
-        </button>
-      )}
-
       {error ? (
         <div className="bg-rose-50 border border-rose-200 rounded-xl p-6 text-sm text-rose-700">{error}</div>
-      ) : trades.length === 0 && stockLots.length === 0 ? (
+      ) : trades.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-xl p-12 flex flex-col items-center gap-3 text-center">
           <History className="w-8 h-8 text-slate-400" />
           <p className="text-slate-500 text-sm max-w-sm">
@@ -122,40 +82,8 @@ export default function AccountHistory() {
         </div>
       ) : (
         <>
-          {stockLots.length > 0 && (
-            <div className="flex flex-wrap gap-x-8 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3">
-              {[
-                ["Premium", premiumPL],
-                ["Shares", stockPL],
-                ["Combined", premiumPL + stockPL]
-              ].map(([label, value]) => (
-                <div key={label}>
-                  <div className="text-[11px] uppercase tracking-wider text-slate-500">{label}</div>
-                  <div className={`text-lg font-semibold tabular-nums ${
-                    value > 0 ? "text-emerald-600" : value < 0 ? "text-rose-600" : "text-slate-900"
-                  }`}>
-                    {fmtMoney(value)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {unpairedCount > 0 && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              {unpairedCount} leg{unpairedCount === 1 ? "" : "s"} could not be matched to a counterpart and
-              {unpairedCount === 1 ? " is" : " are"} flagged below. Worth checking against your broker — these
-              used to be silently booked as naked positions or dropped entirely.
-            </div>
-          )}
-
-          {trades.length > 0 && (
-            <>
-              <StrategyTabs trades={trades} active={strategy} onChange={setStrategy} />
-              <TradeHistoryTable trades={visible} />
-            </>
-          )}
-          <StockLotsTable lots={stockLots} />
+          <StrategyTabs trades={trades} active={strategy} onChange={setStrategy} />
+          <TradeHistoryTable trades={visible} />
         </>
       )}
     </div>
