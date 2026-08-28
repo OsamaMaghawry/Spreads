@@ -180,6 +180,29 @@ up — `auth.users` rows are customers, and operating the product is a different
 job from using it. `docs/admin-access.md` has the procedure and the reasoning;
 read it before changing anything about who can reach `/admin`.
 
+## Connecting a brokerage account: OAuth only
+
+Customers connect through Alpaca's OAuth flow. There is no customer-facing path
+for pasting a raw API key and secret into DeltaMint, and adding one back is not
+a UI decision — asking someone to hand a third party their brokerage
+credentials is the thing Alpaca Connect exists to replace.
+
+Manual key entry survives as an operator tool: the `manual_api_keys` row in
+`app_settings` (migration 0010), off by default, toggled in **Admin →
+Settings**. Both halves are enforced in `saveAccount`, not in the browser — a
+request carrying credentials is refused unless the caller passes `isAdminUser`
+*and* the switch is on. A non-admin is refused either way, and the refusal says
+the same thing whether the switch is on or off.
+
+Renaming an account is never gated; the check is on credentials alone, so an
+account keyed before the switch existed stays manageable by its owner.
+
+The account form no longer edits the strategy client-order-id prefixes — that
+UI is coming back in a different shape. The columns, `openPosition`'s tagging
+and `tradeHistory`'s attribution are all untouched, and `saveAccount` writes
+those two fields only when a caller actually sends them, so a rename cannot
+wipe a stored prefix.
+
 ## Nothing touches production without approval
 
 **Ask the owner first, every time, before any action that reaches production.**

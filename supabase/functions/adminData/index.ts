@@ -1,5 +1,6 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { requireAdmin, isOwnerEmail } from "../_shared/admin.ts";
+import { readSettings, writeSetting, WRITABLE_SETTINGS } from "../_shared/settings.ts";
 
 // Back-office reads and writes: users and their activity, engagement figures,
 // blog posts, and the internal customer record.
@@ -148,6 +149,23 @@ Deno.serve(async (req) => {
       // whether someone is an admin — see src/lib/useIsAdmin.js.
       case "whoami": {
         return jsonResponse({ isAdmin: true, isOwner: gate.isOwner, email: user.email });
+      }
+
+      // Operator switches. Read here rather than from the browser because
+      // app_settings denies every client role — the panel and the Accounts page
+      // both ask through this action.
+      case "getSettings": {
+        return jsonResponse({ settings: await readSettings(admin) });
+      }
+
+      case "setSetting": {
+        if (!WRITABLE_SETTINGS.includes(payload.key)) {
+          return jsonResponse({ error: `Unknown setting "${payload.key}"` }, 400);
+        }
+        // Booleans are all these switches are today, and coercing here means a
+        // stray string can never land in the column and read as truthy.
+        await writeSetting(admin, payload.key, payload.value === true, user.id);
+        return jsonResponse({ settings: await readSettings(admin) });
       }
 
       case "overview": {

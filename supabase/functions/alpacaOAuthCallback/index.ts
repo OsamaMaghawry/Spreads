@@ -3,10 +3,19 @@ import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { SAFE_ACCOUNT_COLUMNS } from "../_shared/accounts.ts";
 import { encryptSecret } from "../_shared/crypto.ts";
 
-// The user picks which account (live or paper) to authorize on Alpaca's own
-// consent page, so we don't know which one we got back — probe both trading
-// API bases with the token and see which one accepts it.
-async function detectAccount(accessToken: string) {
+// One token, two endpoints.
+//
+// Alpaca's consent screen lets the user tick a live account and a paper account
+// in the same authorization, and returns a *single* access token carrying both.
+// There is no field naming what it covers: the only way to find out is to
+// present it to each trading API in turn and see which answer.
+//
+// This used to stop at the first endpoint that responded. Live is probed first,
+// so a token covering both stored the live account and silently dropped the
+// paper one — the account appeared on the consent screen, could be ticked, and
+// then never showed up. Both are collected now.
+async function detectAccounts(accessToken: string) {
+  const found: { isPaper: boolean; accountNumber: string }[] = [];
   for (const [isPaper, base] of [
     [false, "https://api.alpaca.markets/v2"],
     [true, "https://paper-api.alpaca.markets/v2"]
@@ -16,10 +25,10 @@ async function detectAccount(accessToken: string) {
     }).catch(() => null);
     if (res && res.ok) {
       const account = await res.json();
-      return { isPaper, accountNumber: account.account_number };
+      found.push({ isPaper, accountNumber: account.account_number });
     }
   }
-  return null;
+  return found;
 }
 
 Deno.serve(async (req) => {
@@ -60,25 +69,54 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "No access_token in Alpaca response" }, 502);
     }
 
-    const detected = await detectAccount(accessToken);
-    if (!detected) {
-      return jsonResponse({ error: "Connected to Alpaca, but couldn't read the authorized account" }, 502);
+    const detected = await detectAccounts(accessToken);
+    if (detected.length === 0) {
+      return jsonResponse({ error: "Connected to Alpaca, but couldn't read any authorized account" }, 502);
     }
 
     const admin = adminClient();
-    const { data, error } = await admin
-      .from("trading_accounts")
-      .insert({
-        user_id: user.id,
-        name: `Alpaca ${detected.isPaper ? "Paper" : "Live"} (${detected.accountNumber})`,
-        is_paper: detected.isPaper,
-        oauth_access_token: await encryptSecret(accessToken)
-      })
-      .select(SAFE_ACCOUNT_COLUMNS)
-      .single();
-    if (error) throw new Error(error.message);
+    // Encrypted once and shared: it is the same token for every account it
+    // covers, and each call would otherwise produce a different ciphertext for
+    // an identical secret.
+    const sealed = await encryptSecret(accessToken);
+    const saved = [];
 
-    return jsonResponse({ account: data });
+    for (const { isPaper, accountNumber } of detected) {
+      // Re-authorizing an account already connected refreshes its token instead
+      // of adding a second row for the same brokerage account — which is what
+      // reconnecting after an expiry or a scope change does. The match is on the
+      // account number rather than the name: names are the user's to edit, since
+      // Alpaca's API does not return the nickname its own consent screen shows.
+      const { data: existing } = await admin
+        .from("trading_accounts")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("broker_account_number", accountNumber)
+        .eq("is_paper", isPaper)
+        .maybeSingle();
+
+      const query = existing
+        ? admin
+            .from("trading_accounts")
+            .update({ oauth_access_token: sealed })
+            .eq("id", existing.id)
+        : admin.from("trading_accounts").insert({
+            user_id: user.id,
+            // A placeholder until it is renamed: the number is all Alpaca gives
+            // us to tell one authorized account from another.
+            name: `Alpaca ${isPaper ? "Paper" : "Live"} (${accountNumber})`,
+            is_paper: isPaper,
+            broker_account_number: accountNumber,
+            oauth_access_token: sealed
+          });
+
+      const { data, error } = await query.select(SAFE_ACCOUNT_COLUMNS).single();
+      if (error) throw new Error(error.message);
+      saved.push(data);
+    }
+
+    // `account` stays for any caller still reading a single one.
+    return jsonResponse({ accounts: saved, account: saved[0] });
   } catch (error) {
     return jsonResponse({ error: error.message }, 500);
   }

@@ -64,7 +64,7 @@ so a change to shared code requires redeploying all of them.
 
 - **accountEquity** — Returns one account's equity and options buying power, for sizing a new order.
 - **adminData** — Back-office reads and writes: users and their activity, engagement figures, blog posts, and the internal customer record.
-- **alpacaOAuthCallback** — The user picks which account (live or paper) to authorize on Alpaca's own consent page, so we don't know which one we got back — probe both trading API bases with the token and see which one accepts it.
+- **alpacaOAuthCallback** — One token, two endpoints.
 - **closeSpread** — Submits the closing order for a position: the whole structure by default, or just the legs the caller picked when only one side needs unwinding.
 - **findEntry** — Scans the live chain and returns the delta-targeted setup for one strategy.
 - **manageOrder** — Reads the status of a working order, or cancels it.
@@ -72,7 +72,7 @@ so a change to shared code requires redeploying all of them.
 - **oauthDiag** — Answers one question: does Alpaca recognise this app's OAuth credentials? The authorize page cannot answer it.
 - **openPosition** — How far the stock may have moved since the setup was built before the order is refused.
 - **refreshEarnings** — Refreshes the cached earnings calendar for the next 90 days from the provider.
-- **saveAccount** — Creating and editing a manually-keyed trading account.
+- **saveAccount** — Creating and editing a trading account.
 - **scanEntries** — (no summary comment)
 - **spreadQuote** — Prices a position for closing: what the legs are worth right now, plus the highest limit already tried on them so a retry resumes rather than restarts.
 - **syncAccounts** — Rebuilds the live picture for every account the caller owns: positions paired into structures, credit and risk per position, and totals that net a ticker's condors instead of double counting both wings.
@@ -85,7 +85,7 @@ encrypted with AES-256-GCM before storage, with the key held in the edge
 function environment rather than the database, and the credential columns are
 revoked from the browser role entirely.
 
-- **trading_accounts** — id, user_id, name, api_key, api_secret, is_paper, spreads_client_prefix, wheel_client_prefix, created_at, oauth_access_token, api_key_hint, is_oauth
+- **trading_accounts** — id, user_id, name, api_key, api_secret, is_paper, spreads_client_prefix, wheel_client_prefix, created_at, oauth_access_token, api_key_hint, is_oauth, broker_account_number
 - **trade_records** — id, user_id, account_id, strategy, trade_key, ticker, expiry, short_symbol, long_symbol, short_strike, long_strike, qty, open_date, close_date, short_entry, long_entry, net_credit, short_exit, long_exit, close_debit, realized_pl, close_reason, created_at, chain_id, unpaired
 - **profiles** — id, role, created_at
 - **earnings_calendar** — symbol, report_date, session, fetched_at
@@ -95,6 +95,7 @@ revoked from the browser role entirely.
 - **user_notes** — id, user_id, author_id, body, created_at
 - **user_crm** — user_id, status, tags, updated_at
 - **stock_lots** — id, user_id, account_id, lot_key, chain_id, ticker, qty, acquired_date, acquired_price, acquired_source, disposed_date, disposed_price, disposed_source, realized_pl, created_at, backed_up_at
+- **app_settings** — key, value, updated_at, updated_by
 
 ## Analytics vocabulary
 
