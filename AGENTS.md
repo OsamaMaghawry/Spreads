@@ -168,37 +168,6 @@ Rules that keep that from coming back:
 
 Tests: `marketPrice.test.ts` and `optionScan.test.ts`, both runnable under Node.
 
-## Trade reconstruction
-
-The logic that turns a broker activity feed into closed trades lives in
-`supabase/functions/_shared/tradeReconstruction.ts` as pure functions, and
-`tradeHistory/index.ts` is only the I/O around it. Keep it that way: every
-defect this code has had was invisible until it met a real position, and the
-fixtures in `tradeReconstruction.test.ts` *are* those positions — an assigned
-AMD call spread, a TSLA pair that mis-matched by strike, an orphaned KO call
-with no shares behind it.
-
-    node --experimental-strip-types --test supabase/functions/_shared/tradeReconstruction.test.ts
-
-Three properties are load-bearing and easy to break by accident:
-
-- **A short pairs to the nearest protective long, never the first one found.**
-  Taking the first match invents spreads that were never traded and orphans
-  real ones.
-- **Premium and shares are separate rows linked by `chain_id`.** An assigned
-  short keeps its full premium; the result lands on the stock. Merging the two
-  hides which half of a wheel cycle worked, and the merge cannot be undone.
-- **Nothing unmatched is dropped.** An unpaired leg is written down and
-  flagged. Dropping is what previously hid a long leg's entire cost.
-
-Wheel versus spread is decided by shape only when the order carries no strategy
-prefix: an orphaned short put is a cash-secured put, an orphaned short call is a
-broken pair *unless* 100+ shares were held that day.
-
-A normal sync only revisits the window it just recomputed, so it cannot correct
-rows written by older logic. Use the rebuild path on the trade-history page for
-that; it snapshots to `trade_records_backup` before deleting.
-
 ## Admin access
 
 The first operator account is created in the Supabase dashboard, not by signing

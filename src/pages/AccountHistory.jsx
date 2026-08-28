@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
 import { invokeFunction } from "@/lib/functions";
-import { RefreshCw, ArrowLeft, History, BarChart3, FileSearch } from "lucide-react";
+import { RefreshCw, ArrowLeft, History, BarChart3 } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import TradeHistoryTable from "@/components/history/TradeHistoryTable";
 import StockLotsTable from "@/components/history/StockLotsTable";
-import RebuildPreview from "@/components/history/RebuildPreview";
 import StrategyTabs from "@/components/history/StrategyTabs";
 
 export default function AccountHistory() {
@@ -15,7 +14,7 @@ export default function AccountHistory() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [strategy, setStrategy] = useState("all");
-  const [preview, setPreview] = useState(null);
+  const [confirmRebuild, setConfirmRebuild] = useState(false);
 
   const load = useCallback(async (sync = false, rebuild = false) => {
     setRefreshing(true);
@@ -24,52 +23,12 @@ export default function AccountHistory() {
       const res = await invokeFunction("tradeHistory", { accountId: id, sync, rebuild });
       if (res.data?.error) throw new Error(res.data.error);
       setData(res.data);
-      setPreview(null);
     } catch (e) {
       setError(e.message);
     } finally {
       setRefreshing(false);
       setLoading(false);
-    }
-  }, [id]);
-
-  // A rebuild rewrites figures that real money produced, so it is proposed
-  // before it is performed. This writes nothing.
-  const runPreview = useCallback(async () => {
-    setRefreshing(true);
-    setError(null);
-    try {
-      const res = await invokeFunction("tradeHistory", { accountId: id, preview: true });
-      if (res.data?.error) throw new Error(res.data.error);
-      setPreview(res.data);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [id]);
-
-  // The broker's own activity feed, unmodified, next to what this code made of
-  // it. For checking the inputs rather than only the conclusion — and for
-  // handing to someone else to check, without sharing API credentials.
-  const exportRaw = useCallback(async () => {
-    setRefreshing(true);
-    setError(null);
-    try {
-      const res = await invokeFunction("tradeHistory", { accountId: id, preview: true, includeRaw: true });
-      if (res.data?.error) throw new Error(res.data.error);
-      const url = URL.createObjectURL(
-        new Blob([JSON.stringify(res.data, null, 2)], { type: "application/json" })
-      );
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `deltamint-activity-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setRefreshing(false);
+      setConfirmRebuild(false);
     }
   }, [id]);
 
@@ -116,17 +75,6 @@ export default function AccountHistory() {
         >
           <BarChart3 className="w-4 h-4" /> Analysis
         </Link>
-        {/* A rebuild recomputes every record from scratch, which a normal sync
-            cannot do: a sync only revisits the window it just recomputed, so
-            rows written by an earlier version of the reconstruction survive it.
-            This button only ever proposes — the preview writes nothing. */}
-        <button
-          onClick={runPreview}
-          disabled={refreshing}
-          className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
-        >
-          <FileSearch className="h-4 w-4" /> {refreshing && !preview ? "Checking…" : "Check / rebuild"}
-        </button>
         <button
           onClick={() => load(true)}
           disabled={refreshing}
@@ -136,14 +84,31 @@ export default function AccountHistory() {
         </button>
       </div>
 
-      {preview && (
-        <RebuildPreview
-          preview={preview}
-          busy={refreshing}
-          onConfirm={() => load(true, true)}
-          onCancel={() => setPreview(null)}
-          onExportRaw={exportRaw}
-        />
+      {/* Rebuilding recomputes every record from scratch. Records written by an
+          earlier version of the reconstruction can be wrong in ways a normal
+          sync will not correct, because a sync only revisits the window it just
+          recomputed. Every row is copied to a backup table first. */}
+      {confirmRebuild ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span>
+            Rebuild recalculates all history for this account from Alpaca. Past figures may change.
+            The current records are copied to a backup first.
+          </span>
+          <button
+            onClick={() => load(true, true)}
+            disabled={refreshing}
+            className="ml-auto rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+          >
+            Rebuild history
+          </button>
+          <button onClick={() => setConfirmRebuild(false)} className="text-xs text-amber-800 hover:underline">
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button onClick={() => setConfirmRebuild(true)} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
+          Rebuild history from scratch
+        </button>
       )}
 
       {error ? (
