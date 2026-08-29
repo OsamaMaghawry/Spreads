@@ -59,9 +59,9 @@ your account.
 ## 5. Brokerage connection
 
 The Service connects to third-party brokerage services through secure API
-connections, using either credentials you supply or an authorisation you grant
-through your broker's own connection flow. You may revoke that authorisation at
-any time through your broker or by disconnecting the account in the Service.
+connections, using an authorisation you grant through your broker's own
+connection flow. You may revoke that authorisation at any time through your
+broker or by disconnecting the account in the Service.
 
 Your relationship with your broker is separate from your relationship with
 DeltaMint and is governed by that broker's own agreements and disclosures. You
