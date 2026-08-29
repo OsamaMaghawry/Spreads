@@ -24,27 +24,36 @@ export default function AccountAnalysis() {
   const [syncing, setSyncing] = useState(false);
   const reportRef = useRef(null);
 
-  const load = useCallback(async (sync = false) => {
+  // Same as the history page: the function refreshes itself when what it holds
+  // is stale, so there is nothing here to press.
+  const load = useCallback(async () => {
     setError(null);
-    setSyncing(sync);
     try {
       const [hist, live] = await Promise.all([
-        invokeFunction("tradeHistory", { accountId: id, sync }),
+        invokeFunction("tradeHistory", { accountId: id }),
         invokeFunction("syncAccounts", {}).catch(() => null)
       ]);
       if (hist.data?.error) throw new Error(hist.data.error);
       setData(hist.data);
+      setSyncing(Boolean(hist.data?.syncing));
       const acct = live?.data?.accounts?.find((a) => a.id === id);
       setEquity(acct?.equity || 0);
+      return hist.data;
     } catch (e) {
       setError(e.message);
+      return null;
     } finally {
       setLoading(false);
-      setSyncing(false);
     }
   }, [id]);
 
-  useEffect(() => { load(false); }, [load]);
+  useEffect(() => {
+    let timer = null;
+    load().then((res) => {
+      if (res?.syncing) timer = setTimeout(() => load(), 12000);
+    });
+    return () => timer && clearTimeout(timer);
+  }, [load]);
 
   const allTrades = data?.trades || [];
   const bounds = useMemo(() => {
@@ -108,13 +117,11 @@ export default function AccountAnalysis() {
           )}
         </div>
         <div className="ml-auto flex items-center gap-3">
-          <button
-            onClick={() => load(true)}
-            disabled={syncing}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} /> {syncing ? "Syncing…" : "Sync from Alpaca"}
-          </button>
+          {syncing && (
+            <span className="flex items-center gap-2 text-xs text-slate-500">
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Updating from your broker…
+            </span>
+          )}
           <Link
             to={`/account/${id}/history`}
             className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors"

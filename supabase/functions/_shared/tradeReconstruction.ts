@@ -198,6 +198,25 @@ export function mergeShareMoves(optionDerived, fills) {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+// True when an option put these shares into the account or took them out. It is
+// the boundary of what this product reports on.
+//
+// An account's ordinary investing runs through the same activity feed: on the
+// live account that is 1,995 lots across 310 tickers and $19,660 of results
+// that no spread or wheel produced. Every one of them used to land on the trade
+// history page. Worse, the feed is finite, so purchases old enough to fall off
+// the end left their sales unmatched — which is what put "still held" on shares
+// that were sold years ago.
+//
+// The whole history is still walked, because the basis of a called-away lot may
+// be a purchase made long before any option existed. Only lots an option
+// touched are reported.
+const fromOption = (lot) =>
+  lot.acquired_source === "assignment" ||
+  lot.acquired_source === "exercise" ||
+  lot.disposed_source === "assignment" ||
+  lot.disposed_source === "exercise";
+
 // FIFO lots per ticker. A 100-share lot sold in two 50-share sales becomes two
 // rows, so each disposal carries its own basis.
 //
@@ -310,7 +329,7 @@ export function buildStockLedger(moves) {
       .filter((m) => !date || m.date <= date)
       .reduce((n, m) => n + (m.side === "buy" ? m.qty : -m.qty), 0);
 
-  return { lots, sharesHeldAt };
+  return { lots: lots.filter(fromOption), allLots: lots, sharesHeldAt };
 }
 
 // ---------------------------------------------------------------------------
@@ -568,16 +587,19 @@ export function mergeAndPrice(trades) {
 //
 // Shares sold on the open market carry no disposal chain, so they fall back to
 // the option that delivered them: a put assigned and later sold is the put's
-// result. Shares both bought and sold on the market belong to no option at all
-// and are returned separately rather than being pushed into whichever record
-// happened to be nearby.
+// result.
+//
+// Every lot reaching here has an option on at least one side — that is what
+// buildStockLedger now returns — so a lot with no owner means the option that
+// produced it was not reconstructed, which is a defect worth seeing rather than
+// a number to display. It is returned for the caller to notice.
 export function attributeStockPL(records, stockLots) {
   const byChain = new Map();
   records.forEach((r) => {
     if (r.chain_id) byChain.set(r.chain_id, r);
   });
 
-  let unattributed = 0;
+  let orphaned = 0;
 
   stockLots.forEach((lot) => {
     // A lot still held has a null result. Unrealised is not a result.
@@ -587,7 +609,7 @@ export function attributeStockPL(records, stockLots) {
       (lot.acquired_chain_id && byChain.get(lot.acquired_chain_id)) ||
       null;
     if (owner) owner.stock_pl += lot.realized_pl;
-    else unattributed += lot.realized_pl;
+    else orphaned += lot.realized_pl;
   });
 
   records.forEach((r) => {
@@ -595,7 +617,7 @@ export function attributeStockPL(records, stockLots) {
     r.realized_pl = noNegZero(r.premium_pl + r.early_close_pl + r.stock_pl);
   });
 
-  return unattributed;
+  return orphaned;
 }
 
 // ---------------------------------------------------------------------------
@@ -620,7 +642,7 @@ export function reconstruct(activities, orderStrategy, accountId) {
   }));
 
   const records = mergeAndPrice(trades);
-  const unattributedStockPL = attributeStockPL(records, stockLots);
+  const orphanedStockPL = attributeStockPL(records, stockLots);
 
-  return { records, stockLots, unattributedStockPL };
+  return { records, stockLots, orphanedStockPL };
 }

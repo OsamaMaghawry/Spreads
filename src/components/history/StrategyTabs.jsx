@@ -15,8 +15,10 @@ export default function StrategyTabs({ trades, active, onChange }) {
 
   return (
     <div className="flex flex-wrap gap-2">
+      {/* Every category, always, including at zero. Hiding an empty one is why
+          "you removed covered calls" was a reasonable thing to conclude. */}
       {groups
-        .filter((g) => g.key === "all" || g.rows.length > 0)
+        .filter((g) => g.key !== "wheel" || g.rows.length > 0)
         .map((g) => {
           const total = sumBy(g.rows, "realized_pl");
           const isActive = active === g.key;
@@ -44,7 +46,7 @@ export default function StrategyTabs({ trades, active, onChange }) {
               <div className="mt-0.5 text-[11px] tabular-nums text-slate-500">
                 {fmtMoney(sumBy(g.rows, "premium_pl"))} premium ·{" "}
                 {fmtMoney(sumBy(g.rows, "early_close_pl"))} close ·{" "}
-                {fmtMoney(sumBy(g.rows, "stock_pl"))} shares
+                {fmtMoney(sumBy(g.rows, "stock_pl"))} assigned
               </div>
             </button>
           );

@@ -38,11 +38,12 @@ export default function StockLotsTable({ lots }) {
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="text-sm font-semibold text-slate-900">Shares</h2>
+        <h2 className="text-sm font-semibold text-slate-900">Shares from assignment</h2>
         <p className="text-xs text-slate-500">
-          From assignment and exercise, plus any stock traded directly. Each lot's result is already
-          counted above, against the option that sold the shares — this is the same money in detail,
-          not more of it.
+          Only shares an option put into or took out of the account. Stock you bought and sold
+          yourself is not part of a strategy and is not shown. Each lot's result is already counted
+          above against the option that sold the shares — this is the same money in detail, not more
+          of it.
         </p>
       </div>
 

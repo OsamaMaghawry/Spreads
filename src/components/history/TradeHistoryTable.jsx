@@ -48,7 +48,7 @@ export default function TradeHistoryTable({ trades }) {
             <th className={`${th} text-right`}>Close Debit</th>
             <th className={`${th} text-right`}>Premium</th>
             <th className={`${th} text-right`}>Early Close</th>
-            <th className={`${th} text-right`}>Shares</th>
+            <th className={`${th} text-right`}>From Assignment</th>
             <th className={`${th} text-right`}>Total P/L</th>
             <th className={`${th} text-center`}>Result</th>
           </tr>
