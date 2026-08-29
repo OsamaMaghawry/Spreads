@@ -1,13 +1,14 @@
 ---
-title: Return on risk vs return on capital
+title: Return on risk vs return on capital on credit spreads
 slug: return-on-risk-vs-return-on-capital
 excerpt: Premium collected tells you the size of the credit and nothing about what was posted behind it.
-meta_description: Why credit collected is the wrong way to rank defined-risk spreads, what return on risk measures, and how the same credit reads on a $1 and a $5 wing.
+meta_description: Return on capital moves with your margin agreement; return on risk is fixed at the fill. Which one ranks credit spreads, shown on a $1 and a $5 width.
 author: DeltaMint
 ---
 
-Sorting a screen by premium is an argument people have had a thousand times, and
-it usually stays theoretical. It stops being theoretical when there are twenty
+Premium collected, return on capital, return on risk — three ways to rank a
+credit spread, used interchangeably and not the same number. The argument over
+which to sort by usually stays theoretical. It stops being theoretical when there are twenty
 spreads open at once and the question is which of them is doing the most work
 for the collateral it is holding down. At that point the ranking is not a
 preference. It is the only way to read the book.
@@ -28,8 +29,8 @@ looked at.
 buying power reduction your brokerage account actually applies. That is a real
 number and it matters for planning, but it is a number your broker computes
 under your margin agreement, and it changes when the agreement does. The same
-cash-secured put reads one way in a cash account, where the full strike is
-parked, and another way under portfolio margin. Nothing about the position
+cash-secured put reads one way in a cash account, where the full strike — give
+or take the premium — is parked, and another way under portfolio margin. Nothing about the position
 changed. The denominator did.
 
 **Return on risk** divides the credit by the most the structure can lose. For a
@@ -43,7 +44,7 @@ That last property is why return on risk is worth building a habit around. It is
 the one denominator that is a property of the trade rather than a property of
 the account it was placed in.
 
-## The same dollar of credit, two ways
+## The same credit on a $1-wide and a $5-wide spread
 
 Take a hypothetical put spread, purely to show the arithmetic — no view about
 the underlying, no suggestion the trade is worth doing, and no claim about what
@@ -91,11 +92,11 @@ The denominator does not move. Max loss was set at entry and stays there —
 that is the useful thing about defined risk, and it is why the number is worth
 holding onto.
 
-The numerator does move. What is still collectible is the remaining credit, not
-the original one: the difference between the credit received and what it would
-cost to close the spread right now. A spread that took in $35 and can be bought
-back for $5 has $5 of the original credit still on the table, against a max loss
-that is still $65. That is a different ratio from the one on the screen, and it
+The numerator does move. What is still collectible is not the original credit
+but what it would cost to close the spread right now — the slice of the credit
+that has not yet been captured and still decays toward zero. A spread that took
+in $35 and can be bought back for $5 has $5 of the original credit still on the
+table, against a max loss that is still $65. That is a different ratio from the one on the screen, and it
 is the one that describes the position as it currently stands rather than as it
 was sold.
 
@@ -106,11 +107,14 @@ credit. Neither question is answerable from a list of premiums.
 ## What this looks like in DeltaMint
 
 Candidates are ranked by return on risk rather than credit, and the max loss is
-shown next to it so the ratio can be checked rather than trusted. After a fill,
-each grouped position carries its max loss as a share of the account, with
-warnings at 10, 25 and 50 percent — because the failure mode with a book of
-defined-risk trades is rarely one position going wrong. It is a dozen small max
-losses that were each fine and never got added up.
+shown next to it so the ratio can be checked rather than trusted. Before an
+order is sent, its max loss is shown as a share of account equity, with bands
+at 10, 25, 50 and 70 percent. After the fill, each
+[grouped position](/blog/options-journal-splits-spreads-into-legs) carries its max
+loss in dollars and the account shows the total against equity, netted
+condor-aware — because the failure mode with a book of defined-risk trades is
+rarely one position going wrong. It is a dozen small max losses that were each
+fine and never got added up.
 
 None of that is a judgement about which spread to place. The filters are yours;
 the screen lists what matches them and shows the arithmetic underneath. What the
