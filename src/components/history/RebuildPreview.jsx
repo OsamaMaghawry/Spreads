@@ -1,12 +1,12 @@
 import { fmtMoney } from "@/lib/format";
 
-// What a rebuild would do, before it does it.
+// What the next sync will produce, read against what is stored.
 //
-// A rebuild rewrites history that real money produced, and the figures it
-// produces are the ones used to judge whether the strategy works. Committing
-// that on trust is not reasonable, so this shows the whole proposed result —
-// and, on request, the broker's own activity feed behind it — while nothing
-// has been written.
+// The reconstruction rewrites history that real money produced, and its figures
+// are the ones used to judge whether a strategy works. Trusting that blind is
+// not reasonable, so this shows the whole result it would write — and, on
+// request, the broker's own activity feed behind it — having written nothing.
+// It is how the assignment and pairing defects were found.
 
 const th = "px-2.5 py-2 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
 const td = "px-2.5 py-2 whitespace-nowrap tabular-nums";
@@ -22,8 +22,8 @@ const legOf = (r) =>
     .filter(Boolean)
     .join(" / ");
 
-export default function RebuildPreview({ preview, onConfirm, onCancel, onExportRaw, busy }) {
-  const { diff, totals, proposed, needsRebuild } = preview;
+export default function RebuildPreview({ preview, onCancel, onExportRaw, busy }) {
+  const { diff, totals, proposed } = preview;
   const delta = totals.proposedTotal - totals.storedTotal;
   const rows = [
     ["Recorded now", totals.storedTotal],
@@ -31,15 +31,16 @@ export default function RebuildPreview({ preview, onConfirm, onCancel, onExportR
     ["Early close", totals.proposedEarlyClose],
     ["Shares", totals.proposedStock],
     ...(totals.proposedUnattributedStock ? [["Shares, no option", totals.proposedUnattributedStock]] : []),
-    ["Total after rebuild", totals.proposedTotal]
+    ["Total", totals.proposedTotal]
   ];
 
   return (
     <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
       <div>
-        <h2 className="text-sm font-semibold text-slate-900">Rebuild preview — nothing has been written</h2>
+        <h2 className="text-sm font-semibold text-slate-900">Audit against the broker feed</h2>
         <p className="mt-0.5 text-xs text-slate-500">
-          Read from {preview.activityCount} broker activities. Check this before committing.
+          Read from {preview.activityCount} broker activities, and written nowhere. This is what the
+          next automatic sync will produce, next to what is stored now.
         </p>
       </div>
 
@@ -48,7 +49,7 @@ export default function RebuildPreview({ preview, onConfirm, onCancel, onExportR
           <div key={label}>
             <div className="text-[10px] uppercase tracking-wider text-slate-500">{label}</div>
             <div className="text-base tabular-nums">
-              <Money value={value} bold={label === "Total after rebuild"} />
+              <Money value={value} bold={label === "Total"} />
             </div>
           </div>
         ))}
@@ -58,18 +59,13 @@ export default function RebuildPreview({ preview, onConfirm, onCancel, onExportR
         </div>
       </div>
 
-      {/* A record's key contains its strategy, so splitting the wheel category
-          changed the key of every row that had it. A sync matches on that key:
-          it would add the new rows and leave the old ones sitting beside them,
-          doubling the account. Only a rebuild replaces them. */}
-      {needsRebuild && (
+      {totals.orphanedStockPL ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900">
-          These records were written before P/L was split into premium, early close and shares.
-          Their identity changed with it, so a plain sync would leave the old rows in place and add
-          the new ones alongside — <strong>a rebuild is required</strong>, which is what the button
-          below does.
+          {fmtMoney(totals.orphanedStockPL)} of share results could not be traced back to the option
+          that produced them. That means an option was not reconstructed, not that the figure is
+          missing from the totals — worth looking at the raw feed below.
         </div>
-      )}
+      ) : null}
 
       {totals.sharesStillHeld > 0 && (
         <p className="text-xs text-slate-500">
@@ -180,15 +176,11 @@ export default function RebuildPreview({ preview, onConfirm, onCancel, onExportR
       )}
 
       <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-3">
-        <button
-          onClick={onConfirm}
-          disabled={busy}
-          className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-50"
-        >
-          {busy ? "Rebuilding…" : "Commit this rebuild"}
-        </button>
+        {/* Nothing to commit. The reconstruction is deterministic over the
+            whole broker feed, so the next automatic sync writes exactly what is
+            proposed here — this reads, it does not decide. */}
         <button onClick={onCancel} className="text-sm text-slate-500 transition-colors hover:text-slate-900">
-          Cancel
+          Close
         </button>
         {onExportRaw && (
           <button

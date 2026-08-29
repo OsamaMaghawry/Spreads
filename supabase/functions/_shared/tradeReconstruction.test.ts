@@ -245,6 +245,11 @@ test("shares still held are not booked as realized profit", () => {
   assert.equal(stockLots[0].realized_pl, null, "an open position is not a result");
 });
 
+// The ledger mechanics below are asserted on `allLots`, the full internal
+// walk, rather than on what gets reported. FIFO and unknown-basis handling
+// still have to be right — a called-away lot's basis depends on them — but
+// shares no option touched are deliberately never reported, so `lots` is empty
+// for a fixture made only of ordinary stock trades.
 test("a partial disposal splits the lot so each sale carries its own basis", () => {
   const activities = [
     fill("2026-08-03", "buy", "KO", 100, 88.0),
@@ -252,7 +257,10 @@ test("a partial disposal splits the lot so each sale carries its own basis", () 
     fill("2026-08-12", "sell", "KO", 25, 89.0)
   ];
 
-  const { stockLots } = run(activities);
+  const { lots: reported, allLots: stockLots } = buildStockLedger(
+    mergeShareMoves([], stockFillMoves(activities))
+  );
+  assert.equal(reported.length, 0, "no option touched any of these shares");
   const closed = stockLots.filter((l) => l.disposed_date);
   assert.equal(closed.length, 2);
   assert.equal(money(closed[0].realized_pl), 80);
@@ -265,12 +273,12 @@ test("a partial disposal splits the lot so each sale carries its own basis", () 
 });
 
 test("a sale with no visible purchase records an unknown basis rather than inventing one", () => {
-  const { lots } = buildStockLedger(
+  const { allLots } = buildStockLedger(
     mergeShareMoves([], stockFillMoves([fill("2026-08-24", "sell", "KO", 100, 91.2)]))
   );
-  assert.equal(lots.length, 1);
-  assert.equal(lots[0].acquired_date, null);
-  assert.equal(lots[0].realized_pl, null);
+  assert.equal(allLots.length, 1);
+  assert.equal(allLots[0].acquired_date, null);
+  assert.equal(allLots[0].realized_pl, null);
 });
 
 // ---------------------------------------------------------------------------
@@ -398,7 +406,7 @@ test("a full wheel cycle credits the shares to the call that sold them", () => {
     assign("2026-08-21", "KO260821C00092000", 1)
   ];
 
-  const { records, stockLots, unattributedStockPL } = run(activities);
+  const { records, stockLots, orphanedStockPL } = run(activities);
 
   const put = find(records, "KO260814P00090000", "");
   const call = find(records, "KO260821C00092000", "");
@@ -416,7 +424,7 @@ test("a full wheel cycle credits the shares to the call that sold them", () => {
   assert.equal(money(put.stock_pl), 0);
   assert.equal(money(call.realized_pl), 260);
   assert.equal(money(put.realized_pl), 110);
-  assert.equal(unattributedStockPL, 0);
+  assert.equal(orphanedStockPL, 0);
 
   // The ledger says which option was on each side of the lot.
   const lot = stockLots.find((l) => l.ticker === "KO");
@@ -425,7 +433,7 @@ test("a full wheel cycle credits the shares to the call that sold them", () => {
 
   // And the cycle totals what the account actually made: $170 of premium plus
   // $200 on the stock.
-  const total = records.reduce((n, r) => n + r.realized_pl, 0) + unattributedStockPL;
+  const total = records.reduce((n, r) => n + r.realized_pl, 0) + orphanedStockPL;
   assert.equal(money(total), 370);
 });
 
@@ -436,7 +444,7 @@ test("a covered call over shares bought on the market still owns their result", 
     assign("2026-08-21", "KO260821C00090000", 1)
   ];
 
-  const { records, unattributedStockPL } = run(activities);
+  const { records, orphanedStockPL } = run(activities);
   const call = find(records, "KO260821C00090000", "");
 
   assert.equal(call.strategy, "covered_call");
@@ -444,19 +452,42 @@ test("a covered call over shares bought on the market still owns their result", 
   // Bought at 88, called away at 90.
   assert.equal(money(call.stock_pl), 200);
   assert.equal(money(call.realized_pl), 255);
-  assert.equal(unattributedStockPL, 0, "the call disposed of them, so nothing is left over");
+  assert.equal(orphanedStockPL, 0, "the call disposed of them, so nothing is left over");
 });
 
-test("shares traded with no option involved belong to no category", () => {
+test("shares traded with no option involved are not reported at all", () => {
   const activities = [
     fill("2026-08-03", "buy", "KO", 100, 88.0),
     fill("2026-08-10", "sell", "KO", 100, 91.0)
   ];
 
-  const { records, unattributedStockPL } = run(activities);
-  assert.equal(records.length, 0, "there is no option here to attribute anything to");
-  // $300, counted in the account total and pushed into nobody's strategy.
-  assert.equal(money(unattributedStockPL), 300);
+  const { records, stockLots, orphanedStockPL } = run(activities);
+  assert.equal(records.length, 0, "there is no option here");
+  // Ordinary investing. On the live account this was 1,995 lots and $19,660 of
+  // results landing on a page about options.
+  assert.equal(stockLots.length, 0);
+  assert.equal(orphanedStockPL, 0);
+});
+
+test("a covered call assigned over long-held stock reports only that lot", () => {
+  const activities = [
+    // Bought years ago and never touched by an option.
+    fill("2024-03-05", "buy", "KO", 300, 60.0),
+    fill("2026-08-14", "sell", "KO260821C00090000", 1, 0.55),
+    assign("2026-08-21", "KO260821C00090000", 1)
+  ];
+
+  const { records, stockLots } = run(activities);
+  const call = find(records, "KO260821C00090000", "");
+
+  // One lot: the 100 shares the call actually delivered. The other 200 are
+  // still the user's own investment and are none of this page's business.
+  assert.equal(stockLots.length, 1);
+  assert.equal(stockLots[0].qty, 100);
+  assert.equal(stockLots[0].acquired_price, 60, "FIFO basis from a purchase that predates the option");
+  assert.equal(money(call.stock_pl), 3000);
+  assert.equal(money(call.premium_pl), 55);
+  assert.equal(money(call.realized_pl), 3055);
 });
 
 test("shares still held contribute nothing to any category", () => {
@@ -465,9 +496,9 @@ test("shares still held contribute nothing to any category", () => {
     assign("2026-08-14", "KO260814P00090000", 1)
   ];
 
-  const { records, unattributedStockPL } = run(activities);
+  const { records, orphanedStockPL } = run(activities);
   const put = find(records, "KO260814P00090000", "");
   assert.equal(money(put.stock_pl), 0, "an open position is not a result");
   assert.equal(money(put.realized_pl), 110);
-  assert.equal(unattributedStockPL, 0);
+  assert.equal(orphanedStockPL, 0);
 });

@@ -8,9 +8,11 @@ import TradeHistoryTable from "@/components/history/TradeHistoryTable";
 import StockLotsTable from "@/components/history/StockLotsTable";
 import RebuildPreview from "@/components/history/RebuildPreview";
 import StrategyTabs from "@/components/history/StrategyTabs";
+import useIsAdmin from "@/lib/useIsAdmin";
 
 export default function AccountHistory() {
   const { id } = useParams();
+  const { isAdmin } = useIsAdmin();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -18,24 +20,30 @@ export default function AccountHistory() {
   const [strategy, setStrategy] = useState("all");
   const [preview, setPreview] = useState(null);
 
-  const load = useCallback(async (sync = false, rebuild = false) => {
+  // No sync button. The function serves what it has and refreshes itself when
+  // that is stale, the same way the dashboard has always worked. When a refresh
+  // outruns the server's wait it says so, and we come back for the result once
+  // rather than making the reader press anything.
+  const load = useCallback(async () => {
     setRefreshing(true);
     setError(null);
     try {
-      const res = await invokeFunction("tradeHistory", { accountId: id, sync, rebuild });
+      const res = await invokeFunction("tradeHistory", { accountId: id });
       if (res.data?.error) throw new Error(res.data.error);
       setData(res.data);
       setPreview(null);
+      return res.data;
     } catch (e) {
       setError(e.message);
+      return null;
     } finally {
       setRefreshing(false);
       setLoading(false);
     }
   }, [id]);
 
-  // A rebuild rewrites figures that real money produced, so it is proposed
-  // before it is performed. This writes nothing.
+  // Reads the broker feed and reconstructs it without writing anything, so the
+  // stored figures can be checked against their source.
   const runPreview = useCallback(async () => {
     setRefreshing(true);
     setError(null);
@@ -74,7 +82,13 @@ export default function AccountHistory() {
     }
   }, [id]);
 
-  useEffect(() => { load(false); }, [load]);
+  useEffect(() => {
+    let timer = null;
+    load().then((res) => {
+      if (res?.syncing) timer = setTimeout(() => load(), 12000);
+    });
+    return () => timer && clearTimeout(timer);
+  }, [load]);
 
   if (loading) {
     return (
@@ -94,13 +108,11 @@ export default function AccountHistory() {
   // Each record's total already contains the share result attributed to it, so
   // adding the stock_lots table on top would count the shares twice — which is
   // what the old "Premium + Shares = Combined" row did the moment shares
-  // started being attributed. The only thing left outside the categories is
-  // stock traded with no option involved.
+  // started being attributed.
   const premiumPL = sumBy(trades, "premium_pl");
   const earlyClosePL = sumBy(trades, "early_close_pl");
   const stockPL = sumBy(trades, "stock_pl");
-  const unattributed = Number(data?.unattributedStockPL) || 0;
-  const totalPL = premiumPL + earlyClosePL + stockPL + unattributed;
+  const totalPL = premiumPL + earlyClosePL + stockPL;
   const unpairedCount = trades.filter((t) => t.unpaired).length;
 
   return (
@@ -113,9 +125,11 @@ export default function AccountHistory() {
           <h1 className="text-xl font-semibold text-slate-900 tracking-tight mt-1">
             {data?.account ? `${data.account.name} — Trade History` : "Trade History"}
           </h1>
-          {data?.syncedAt && (
-            <p className="text-xs text-slate-500 mt-0.5">Last synced {new Date(data.syncedAt).toLocaleTimeString()}</p>
-          )}
+          {(refreshing || data?.syncing) ? (
+            <p className="text-xs text-slate-500 mt-0.5">Updating from your broker…</p>
+          ) : data?.syncedAt ? (
+            <p className="text-xs text-slate-500 mt-0.5">Updated {new Date(data.syncedAt).toLocaleTimeString()}</p>
+          ) : null}
         </div>
         <Link
           to={`/account/${id}/analysis`}
@@ -123,31 +137,25 @@ export default function AccountHistory() {
         >
           <BarChart3 className="w-4 h-4" /> Analysis
         </Link>
-        {/* A rebuild recomputes every record from scratch, which a normal sync
-            cannot do: a sync only revisits the window it just recomputed, so
-            rows written by an earlier version of the reconstruction survive it.
-            This button only ever proposes — the preview writes nothing. */}
-        <button
-          onClick={runPreview}
-          disabled={refreshing}
-          className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
-        >
-          <FileSearch className="h-4 w-4" /> {refreshing && !preview ? "Checking…" : "Check / rebuild"}
-        </button>
-        <button
-          onClick={() => load(true)}
-          disabled={refreshing}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm hover:bg-emerald-100 transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} /> Sync from Alpaca
-        </button>
+        {/* Reading the broker's own feed beside what this code made of it. It
+            is how the reconstruction defects were found and it writes nothing,
+            but it is an operator's tool, not something a reader needs to
+            understand — so only an admin sees it. */}
+        {isAdmin && (
+          <button
+            onClick={runPreview}
+            disabled={refreshing}
+            className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+          >
+            <FileSearch className="h-4 w-4" /> {refreshing && !preview ? "Checking…" : "Audit against broker feed"}
+          </button>
+        )}
       </div>
 
       {preview && (
         <RebuildPreview
           preview={preview}
           busy={refreshing}
-          onConfirm={() => load(true, true)}
           onCancel={() => setPreview(null)}
           onExportRaw={exportRaw}
         />
@@ -168,8 +176,7 @@ export default function AccountHistory() {
             {[
               ["Premium", premiumPL],
               ["Early close", earlyClosePL],
-              ["Shares", stockPL],
-              ...(unattributed !== 0 ? [["Shares, no option", unattributed]] : []),
+              ["From assignment", stockPL],
               ["Total", totalPL]
             ].map(([label, value]) => (
               <div key={label}>
