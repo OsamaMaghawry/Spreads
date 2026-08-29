@@ -4,27 +4,37 @@ What DeltaMint writes about, why those things and not others, and what has been
 published. `content-engine` reads this before writing; keep it current or the
 agent works from a stale brief.
 
-## The angle, and why it is the only defensible one
+## The angle
 
-`docs/context/positioning.md`, scored against public evidence rather than
-effort: competitors are strong from **screen to fill** and weak immediately
-after it. Screening, chain filtering and pre-trade return on risk are commodity
-— Barchart alone gives away around ten multi-leg screeners free, Market
-Chameleon covers eighteen spread types — so a post that leads with finding
-trades is undifferentiated *and* falsifiable in one search.
+Two pillars, from the owner's positioning document (v1.0, 29 Aug 2026 —
+operational extract in `growth/playbook.md`):
 
-What survives scrutiny: the structural, portfolio-level view of many concurrent
-positions — legs paired by order provenance, statistics computed against peak
-concurrent collateral. No competitor's own documentation contradicts it.
+**1. Return on risk as the stance.** Ranking setups by return on risk rather
+than premium collected is a philosophy, not a sort order, and it is the thing
+the content strategy exists to teach (§5.6 of the positioning doc). Premium
+flatters wide, risky structures; credit against max loss compares them
+honestly.
 
-**So every post is about what happens after the fill.** Holding, managing,
-measuring, exiting. Write for someone already running more spreads than they can
-hold in their head, not for someone deciding whether options are for them.
+**2. What happens after the fill.** Holding, managing, measuring, exiting —
+the half of the trade lifecycle competitors are weak at. The structural,
+portfolio-level view of many concurrent positions: legs paired by order
+provenance, statistics computed against peak concurrent collateral.
+
+Write for someone already running more spreads than they can hold in their
+head, not for someone deciding whether options are for them. Each post should
+answer a question people actually ask in r/options and r/thetagang — the
+demand themes in `growth/playbook.md` — so queue replies have something
+substantive to link.
 
 ## Topics
 
-Ordered by how directly each demonstrates the claim above.
+Ordered by how directly each demonstrates the claims above.
 
+0. **Return on risk vs return on capital** — the pillar-1 piece. Why premium
+   collected is the wrong ranking, what return on risk actually measures, and
+   how the same dollar of credit looks on a $1-wide and a $5-wide spread.
+   Educational mechanics only; hypothetical numbers for structure, never for
+   outcome.
 1. **Twenty open spreads and one afternoon** — what actually breaks when
    position count outgrows attention. The failure is not analysis, it is
    noticing. Per-trade tools never feel this because they are per trade.
@@ -58,9 +68,12 @@ Full list in `docs/context/compliance.md`; these are the ones that bite:
 
 ## Published
 
-Nothing yet. `blog_posts` is empty on production — the schema, the editor, the
-server-rendered Worker and the sitemap all currently serve an empty page.
+Nothing is live yet. `blog_posts` is empty on production — the schema, the
+editor, the server-rendered Worker and the sitemap all currently serve an empty
+page. The rows below are drafts in `content/blog/`; publishing is a person's
+decision, not the writer's.
 
 | Date | Slug | Topic | Notes |
 | --- | --- | --- | --- |
-| — | — | — | — |
+| 2026-08-29 | `return-on-risk-vs-return-on-capital` | 0 — Return on risk vs return on capital | draft — awaiting review |
+| 2026-08-29 | `a-spread-is-one-position-not-two-legs` | 3 — A spread is one position, not two legs | draft — awaiting review |

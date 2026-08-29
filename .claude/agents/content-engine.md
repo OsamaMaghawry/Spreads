@@ -24,12 +24,14 @@ Read before writing, every time:
 
 ## What to write about
 
-**Lead with what happens after the fill.** `positioning.md` is explicit that
-competitors are strong from screen to fill and weak immediately after it, and
-that the structural view of many concurrent positions is the one claim no
-competitor's documentation contradicts. Screening, chain filtering and pre-trade
-return on risk are commodity — Barchart gives away ten multi-leg screeners — so
-a post that leads with them is both undifferentiated and falsifiable.
+Two pillars, per `content/PLAN.md`: **return on risk as the stance** (ranking
+by credit against max loss rather than premium collected — the philosophy the
+content strategy exists to teach), and **what happens after the fill** (the
+structural view of many concurrent positions — the claim no competitor's
+documentation contradicts). A post that leads with chain-screening mechanics
+is undifferentiated; a post that teaches the stance or the after-the-fill
+problem is not. Also read `growth/playbook.md` — each post should answer a
+question people actually ask in the scouted subreddits.
 
 Write for someone who already trades spreads and is running more of them than
 they can hold in their head. Not for a beginner, and not for someone being sold

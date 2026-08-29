@@ -10,8 +10,11 @@ export default function StatCards({ stats }) {
       items: [
         { label: "Realized P/L", value: fmtMoney(stats.totalPL), tone: stats.totalPL >= 0 ? "pos" : "neg" },
         { label: "Return on equity", value: pct(stats.roe), sub: "Realized P/L ÷ account equity", tone: stats.roe >= 0 ? "pos" : "neg" },
-        { label: "Annualized (simple)", value: pct(stats.annualized), sub: `ROE × 365 ÷ ${stats.spanDays} days`, tone: stats.annualized >= 0 ? "pos" : "neg" },
-        { label: "Annualized (CAGR)", value: pct(stats.cagr), sub: "Compounded over the same span", tone: stats.cagr >= 0 ? "pos" : "neg" },
+        // Withheld below 30 trades / 90 days: annualizing a short window
+        // multiplies noise into a headline figure. The sub says so, so the
+        // dash reads as deliberate rather than broken.
+        { label: "Annualized (simple)", value: pct(stats.annualized), sub: stats.annualizable ? `ROE × 365 ÷ ${stats.spanDays} days` : "Needs 30 closed trades and 90 days of history", tone: stats.annualized === null ? undefined : stats.annualized >= 0 ? "pos" : "neg" },
+        { label: "Annualized (CAGR)", value: pct(stats.cagr), sub: stats.annualizable ? "Compounded over the same span" : "Needs 30 closed trades and 90 days of history", tone: stats.cagr === null ? undefined : stats.cagr >= 0 ? "pos" : "neg" },
         { label: "Return on risk", value: pct(stats.returnOnRisk), sub: `vs ${fmtMoney(stats.peakRisk)} peak capital at risk` },
         { label: "Avg return / trade", value: pct(stats.avgTradeRoR, 2), sub: "Each trade's P/L ÷ its own collateral" },
         { label: "Credit collected", value: fmtMoney(stats.creditCollected) },

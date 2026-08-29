@@ -140,8 +140,16 @@ export function computeStats(trades, equity = 0) {
     returnOnRisk,
     avgTradeRoR,
     roe,
-    annualized: roe !== null ? roe * (365 / span) : null,
-    cagr: roe !== null && 1 + roe > 0 ? Math.pow(1 + roe, 365 / span) - 1 : null,
+    // Annualizing a short window multiplies noise into a headline — a five-day
+    // span scales by 73. Below 30 closed trades or 90 days of history the
+    // figure is a compliance liability, not a statistic, so it is withheld
+    // rather than rendered. annualizable tells the UI the blank is deliberate.
+    annualizable: sorted.length >= 30 && span >= 90,
+    annualized: roe !== null && sorted.length >= 30 && span >= 90 ? roe * (365 / span) : null,
+    cagr:
+      roe !== null && 1 + roe > 0 && sorted.length >= 30 && span >= 90
+        ? Math.pow(1 + roe, 365 / span) - 1
+        : null,
     maxDrawdown: maxDD,
     avgHoldDays: holdDays,
     tradingDays: byDay.length,
