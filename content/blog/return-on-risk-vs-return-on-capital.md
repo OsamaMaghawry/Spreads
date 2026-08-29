@@ -57,6 +57,18 @@ Now the same $0.35 of credit on a $5-wide spread. Still $35 received. The most
 the structure can lose is now $500 less the credit: $465. Roughly thirteen
 dollars at risk for every dollar of credit.
 
+![The same $35 credit on two widths: the $1-wide spread has $65 behind it, the $5-wide has $465 — about seven times the risk for the identical premium.](/assets/blog/same-credit-two-widths.svg)
+
+Side by side, sorted three ways:
+
+| | $1-wide spread | $5-wide spread |
+| --- | --- | --- |
+| Credit received | $35 | $35 |
+| Max loss | $65 | $465 |
+| At risk per $1 of credit | ≈ $2 | ≈ $13 |
+| Rank on a premium sort | tied | tied |
+| Rank on a return-on-risk sort | well ahead | well behind |
+
 The screen sorted by premium puts these two rows in exactly the same place. They
 are the same trade to a sort on credit and about seven times apart on what they
 put behind that credit. A wide spread taken for a thin credit is a position that

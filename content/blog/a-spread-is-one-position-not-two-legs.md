@@ -48,6 +48,8 @@ The result is a 10-wide spread that was never traded, sitting in the book with a
 max loss more than double the real one, while the two positions you actually
 have are nowhere.
 
+![Left: pairing each short to its nearest protective long reconstructs the two $5-wide spreads actually traded. Right: first-match pairing invents a $10-wide spread that never existed, shows the 100 short as naked and drops the 100 long's cost.](/assets/blog/nearest-long-pairing.svg)
+
 **Orphaned shorts.** The mirror image. When the guess consumes the wrong long,
 some real short is left with nothing behind it. A short call with no long against
 it and no shares behind it is a naked position, and a book that shows one when
@@ -88,6 +90,8 @@ execution as its own event can record a brand-new four-lot debit spread instead
 of reducing the position that already exists. Now the book has a ten-lot that is
 really a six, plus a four-lot that does not exist, and the collateral figure is
 wrong in both directions at once.
+
+![Closing four contracts of a ten-lot: in reality one position shrinks to six. A per-execution tool records the ten-lot still open plus a phantom four-lot debit spread that was never traded.](/assets/blog/partial-close-phantom.svg)
 
 Neither of these is exotic. They are Tuesday afternoon.
 

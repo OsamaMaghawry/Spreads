@@ -1,0 +1,40 @@
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Two spreads with the same $35 credit: the $1-wide risks $65, the $5-wide risks $465.">
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#B4485C" stroke-width="1.4" opacity="0.35"/>
+    </pattern>
+  </defs>
+  <rect width="720" height="300" fill="#FFFFFF"/>
+
+  <!-- group 1: $1-wide -->
+  <text x="24" y="44" font-size="13.5" font-weight="600" fill="#14151C">$1-wide spread — $0.35 credit</text>
+
+  <text x="24" y="72" font-size="12" fill="#767B8E">Credit</text>
+  <rect x="96" y="59" width="39" height="18" rx="4" fill="#2E8B5F"/>
+  <text x="143" y="72" font-size="12.5" font-weight="500" fill="#2E8B5F">$35</text>
+
+  <text x="24" y="100" font-size="12" fill="#767B8E">Max loss</text>
+  <rect x="96" y="87" width="73" height="18" rx="4" fill="#FBE7EB" stroke="#B4485C" stroke-width="1"/>
+  <rect x="96" y="87" width="73" height="18" rx="4" fill="url(#hatch)"/>
+  <text x="177" y="100" font-size="12.5" font-weight="500" fill="#B4485C">$65</text>
+
+  <text x="96" y="128" font-size="11.5" fill="#4B4F60">≈ $2 at risk for every $1 of credit</text>
+
+  <!-- group 2: $5-wide -->
+  <text x="24" y="176" font-size="13.5" font-weight="600" fill="#14151C">$5-wide spread — same $0.35 credit</text>
+
+  <text x="24" y="204" font-size="12" fill="#767B8E">Credit</text>
+  <rect x="96" y="191" width="39" height="18" rx="4" fill="#2E8B5F"/>
+  <text x="143" y="204" font-size="12.5" font-weight="500" fill="#2E8B5F">$35</text>
+
+  <text x="24" y="232" font-size="12" fill="#767B8E">Max loss</text>
+  <rect x="96" y="219" width="520" height="18" rx="4" fill="#FBE7EB" stroke="#B4485C" stroke-width="1"/>
+  <rect x="96" y="219" width="520" height="18" rx="4" fill="url(#hatch)"/>
+  <text x="624" y="232" font-size="12.5" font-weight="500" fill="#B4485C">$465</text>
+
+  <text x="96" y="260" font-size="11.5" fill="#4B4F60">≈ $13 at risk for every $1 of credit</text>
+
+  <!-- shared baseline -->
+  <line x1="96" y1="52" x2="96" y2="244" stroke="#E2E5EE" stroke-width="1"/>
+  <text x="24" y="288" font-size="11" fill="#767B8E">Hypothetical figures, for the arithmetic only. A screen sorted by premium ranks these two rows identically.</text>
+</svg>
