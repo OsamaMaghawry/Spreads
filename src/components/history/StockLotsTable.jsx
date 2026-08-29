@@ -40,8 +40,9 @@ export default function StockLotsTable({ lots }) {
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="text-sm font-semibold text-slate-900">Shares</h2>
         <p className="text-xs text-slate-500">
-          From assignment and exercise, plus any stock traded directly. Kept apart from premium so a
-          wheel cycle shows both halves.
+          From assignment and exercise, plus any stock traded directly. Each lot's result is already
+          counted above, against the option that sold the shares — this is the same money in detail,
+          not more of it.
         </p>
       </div>
 

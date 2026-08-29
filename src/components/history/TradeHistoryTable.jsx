@@ -1,5 +1,6 @@
 import { fmtMoney } from "@/lib/format";
 import { AlertTriangle } from "lucide-react";
+import { strategyOf, strategyLabel, strategyBadge, sumBy } from "@/lib/strategies";
 
 const th = "px-2.5 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
 const td = "px-2.5 py-2.5 whitespace-nowrap tabular-nums";
@@ -14,8 +15,17 @@ const RESULT = {
   exercised: "bg-violet-100 text-violet-700"
 };
 
+// A signed figure, coloured, with nothing rendered for a component a position
+// never had — a spread that expired has no early close, and printing $0.00
+// three times a row buries the numbers that are real.
+function Money({ value }) {
+  const n = Number(value) || 0;
+  if (n === 0) return <span className="text-slate-300">—</span>;
+  return <span className={n > 0 ? "text-emerald-600" : "text-rose-600"}>{fmtMoney(n)}</span>;
+}
+
 export default function TradeHistoryTable({ trades }) {
-  const totalPL = trades.reduce((a, t) => a + (t.realized_pl || 0), 0);
+  const total = (field) => sumBy(trades, field);
 
   return (
     <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
@@ -36,7 +46,10 @@ export default function TradeHistoryTable({ trades }) {
             <th className={`${th} text-right`}>Short Exit</th>
             <th className={`${th} text-right`}>Long Exit</th>
             <th className={`${th} text-right`}>Close Debit</th>
-            <th className={`${th} text-right`}>Realized P/L</th>
+            <th className={`${th} text-right`}>Premium</th>
+            <th className={`${th} text-right`}>Early Close</th>
+            <th className={`${th} text-right`}>Shares</th>
+            <th className={`${th} text-right`}>Total P/L</th>
             <th className={`${th} text-center`}>Result</th>
           </tr>
         </thead>
@@ -60,12 +73,8 @@ export default function TradeHistoryTable({ trades }) {
                 </span>
               </td>
               <td className={td}>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  t.strategy === "spreads" ? "bg-indigo-100 text-indigo-700"
-                    : t.strategy === "wheel" ? "bg-amber-100 text-amber-700"
-                    : "bg-slate-100 text-slate-600"
-                }`}>
-                  {(t.strategy || "unknown").toUpperCase()}
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${strategyBadge(strategyOf(t))}`}>
+                  {strategyLabel(strategyOf(t))}
                 </span>
               </td>
               <td className={`${td} text-slate-500`}>{t.open_date}</td>
@@ -80,9 +89,10 @@ export default function TradeHistoryTable({ trades }) {
               <td className={`${td} text-right`}>{t.short_symbol ? fmtMoney(t.short_exit) : "—"}</td>
               <td className={`${td} text-right`}>{t.long_symbol ? fmtMoney(t.long_exit) : "—"}</td>
               <td className={`${td} text-right`}>{fmtMoney(t.close_debit)}</td>
-              <td className={`${td} text-right font-semibold ${t.realized_pl > 0 ? "text-emerald-600" : t.realized_pl < 0 ? "text-rose-600" : ""}`}>
-                {fmtMoney(t.realized_pl)}
-              </td>
+              <td className={`${td} text-right`}><Money value={t.premium_pl} /></td>
+              <td className={`${td} text-right`}><Money value={t.early_close_pl} /></td>
+              <td className={`${td} text-right`}><Money value={t.stock_pl} /></td>
+              <td className={`${td} text-right font-semibold`}><Money value={t.realized_pl} /></td>
               <td className={`${td} text-center`}>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${RESULT[t.close_reason] || RESULT.closed}`}>
                   {(t.close_reason || "closed").toUpperCase()}
@@ -94,9 +104,10 @@ export default function TradeHistoryTable({ trades }) {
             <tr className="bg-slate-50 font-semibold text-slate-900">
               <td className={`${td} text-[11px] uppercase tracking-wider text-slate-500`}>Totals</td>
               <td className={td} colSpan={13}></td>
-              <td className={`${td} text-right ${totalPL > 0 ? "text-emerald-600" : totalPL < 0 ? "text-rose-600" : ""}`}>
-                {fmtMoney(totalPL)}
-              </td>
+              <td className={`${td} text-right`}><Money value={total("premium_pl")} /></td>
+              <td className={`${td} text-right`}><Money value={total("early_close_pl")} /></td>
+              <td className={`${td} text-right`}><Money value={total("stock_pl")} /></td>
+              <td className={`${td} text-right`}><Money value={total("realized_pl")} /></td>
               <td className={td}></td>
             </tr>
           )}

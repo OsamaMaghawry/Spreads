@@ -66,7 +66,24 @@ Deno.serve(async (req) => {
     // needs the live feed, so it goes down the sync path — it just never writes.
     if (!sync && !preview) {
       const [stored, lots] = await Promise.all([fetchTrades(admin, accountId), fetchStockLots(admin, accountId)]);
-      return jsonResponse({ account: accountInfo, trades: stored, stockLots: lots, fromCache: true });
+      // Share results already sit inside each record's realized_pl, so the only
+      // thing left to report separately is the shares no option was responsible
+      // for — recomputed from the stored rows rather than cached, since it is a
+      // subtraction and not a new fact.
+      const attributed = new Set(
+        stored.filter((r: any) => Number(r.stock_pl) !== 0).map((r: any) => r.chain_id).filter(Boolean)
+      );
+      const unattributed = lots
+        .filter((l: any) => l.realized_pl != null)
+        .filter((l: any) => !attributed.has(l.disposed_chain_id) && !attributed.has(l.acquired_chain_id))
+        .reduce((a: number, l: any) => a + Number(l.realized_pl || 0), 0);
+      return jsonResponse({
+        account: accountInfo,
+        trades: stored,
+        stockLots: lots,
+        unattributedStockPL: unattributed,
+        fromCache: true
+      });
     }
 
     const spreadsPrefix = (account.spreads_client_prefix || "").trim();
@@ -111,7 +128,7 @@ Deno.serve(async (req) => {
     }
 
     // 3. Reconstruct. Pure, and covered by tradeReconstruction.test.ts.
-    const { records, stockLots } = reconstruct(activities, orderStrategy, accountId);
+    const { records, stockLots, unattributedStockPL } = reconstruct(activities, orderStrategy, accountId);
 
     // 3a. Dry run: compute everything, write nothing, and hand back the broker's
     //     own activities next to what this code made of them. A rebuild rewrites
@@ -125,9 +142,15 @@ Deno.serve(async (req) => {
       const sum = (rows: any[], field = "realized_pl") =>
         rows.reduce((a: number, r: any) => a + (Number(r[field]) || 0), 0);
 
+      // Splitting the strategy changes every wheel row's trade_key, because the
+      // key embeds it. A sync would leave the old rows in place and add the new
+      // ones beside them, so this has to be said where the decision is made.
+      const needsRebuild = stored.some((r: any) => r.strategy === "wheel" || r.premium_pl == null);
+
       return jsonResponse({
         account: accountInfo,
         preview: true,
+        needsRebuild,
         // Every option position that would exist after a rebuild, and every
         // share lot, exactly as they would be written.
         proposed: { records, stockLots },
@@ -138,11 +161,17 @@ Deno.serve(async (req) => {
             .map((r: any) => ({ before: storedByKey[r.trade_key], after: r }))
             .filter((p: any) => p.before && Number(p.before.realized_pl) !== Number(p.after.realized_pl))
         },
+        // Component by component, so a wrong total can be traced to the part
+        // that is wrong. records.realized_pl already contains the share result
+        // attributed to each option, so it is the whole account except the
+        // shares no option was responsible for.
         totals: {
-          storedPremium: sum(stored),
-          proposedPremium: sum(records),
-          proposedStock: sum(stockLots),
-          proposedCombined: sum(records) + sum(stockLots),
+          storedTotal: sum(stored),
+          proposedPremium: sum(records, "premium_pl"),
+          proposedEarlyClose: sum(records, "early_close_pl"),
+          proposedStock: sum(records, "stock_pl"),
+          proposedUnattributedStock: unattributedStockPL,
+          proposedTotal: sum(records) + unattributedStockPL,
           sharesStillHeld: stockLots.filter((l: any) => !l.disposed_date).length
         },
         // The unmodified broker feed, so the inputs can be checked and not just
@@ -165,10 +194,16 @@ Deno.serve(async (req) => {
     const toUpdate = records
       .filter((r: any) => {
         const e = existingByKey[r.trade_key];
+        // Each component, not only the total: a row whose premium and share
+        // results moved in opposite directions has the same total and is still
+        // a different row.
         return e && (
           e.qty !== r.qty ||
           e.strategy !== r.strategy ||
           e.realized_pl !== r.realized_pl ||
+          Number(e.premium_pl) !== r.premium_pl ||
+          Number(e.early_close_pl) !== r.early_close_pl ||
+          Number(e.stock_pl) !== r.stock_pl ||
           e.close_reason !== r.close_reason ||
           e.unpaired !== r.unpaired ||
           e.chain_id !== r.chain_id
@@ -214,6 +249,7 @@ Deno.serve(async (req) => {
       account: accountInfo,
       trades: all,
       stockLots: lots,
+      unattributedStockPL,
       stats: {
         created: toCreate.length,
         updated: toUpdate.length,

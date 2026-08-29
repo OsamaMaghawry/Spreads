@@ -23,13 +23,15 @@ const legOf = (r) =>
     .join(" / ");
 
 export default function RebuildPreview({ preview, onConfirm, onCancel, onExportRaw, busy }) {
-  const { diff, totals, proposed } = preview;
-  const delta = totals.proposedPremium - totals.storedPremium;
+  const { diff, totals, proposed, needsRebuild } = preview;
+  const delta = totals.proposedTotal - totals.storedTotal;
   const rows = [
-    ["Premium now recorded", totals.storedPremium],
-    ["Premium after rebuild", totals.proposedPremium],
-    ["Share P/L after rebuild", totals.proposedStock],
-    ["Combined after rebuild", totals.proposedCombined]
+    ["Recorded now", totals.storedTotal],
+    ["Premium", totals.proposedPremium],
+    ["Early close", totals.proposedEarlyClose],
+    ["Shares", totals.proposedStock],
+    ...(totals.proposedUnattributedStock ? [["Shares, no option", totals.proposedUnattributedStock]] : []),
+    ["Total after rebuild", totals.proposedTotal]
   ];
 
   return (
@@ -46,15 +48,28 @@ export default function RebuildPreview({ preview, onConfirm, onCancel, onExportR
           <div key={label}>
             <div className="text-[10px] uppercase tracking-wider text-slate-500">{label}</div>
             <div className="text-base tabular-nums">
-              <Money value={value} bold={i === 3} />
+              <Money value={value} bold={label === "Total after rebuild"} />
             </div>
           </div>
         ))}
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-slate-500">Change to premium</div>
+          <div className="text-[10px] uppercase tracking-wider text-slate-500">Change to total</div>
           <div className="text-base tabular-nums"><Money value={delta} /></div>
         </div>
       </div>
+
+      {/* A record's key contains its strategy, so splitting the wheel category
+          changed the key of every row that had it. A sync matches on that key:
+          it would add the new rows and leave the old ones sitting beside them,
+          doubling the account. Only a rebuild replaces them. */}
+      {needsRebuild && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900">
+          These records were written before P/L was split into premium, early close and shares.
+          Their identity changed with it, so a plain sync would leave the old rows in place and add
+          the new ones alongside — <strong>a rebuild is required</strong>, which is what the button
+          below does.
+        </div>
+      )}
 
       {totals.sharesStillHeld > 0 && (
         <p className="text-xs text-slate-500">
