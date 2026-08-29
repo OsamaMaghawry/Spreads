@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import useAdminSettings from "@/lib/useAdminSettings";
+import AdminMaintenance from "@/components/admin/AdminMaintenance";
 
 // Operator switches. Each one changes what the product allows rather than how
 // it looks, so each says plainly who it affects — a switch whose blast radius
@@ -59,6 +60,11 @@ export default function SettingsPanel() {
           </div>
         </div>
       ))}
+
+      <div className="pt-4">
+        <div className="mb-2 text-xs font-medium text-dm-text">Maintenance</div>
+        <AdminMaintenance />
+      </div>
     </div>
   );
 }
