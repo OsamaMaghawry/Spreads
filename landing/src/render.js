@@ -32,9 +32,11 @@ export function markdown(src) {
       .replace(/`([^`]+)`/g, "<code>$1</code>")
       .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
       .replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>")
-      // Only http(s) links are linkified, so an escaped javascript: URL can
-      // never become an anchor.
-      .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" rel="noopener">$1</a>');
+      // Only http(s) and root-relative links are linkified, so an escaped
+      // javascript: URL can never become an anchor. Root-relative keeps
+      // internal links on whichever host serves the page — an absolute URL
+      // here would make staging pages link into production.
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+|\/[\w\/.#-]+)\)/g, '<a href="$2" rel="noopener">$1</a>');
 
   return blocks
     .map((raw) => {
