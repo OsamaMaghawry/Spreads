@@ -26,7 +26,7 @@ const args = process.argv.slice(2).filter((a) => !a.startsWith("-"));
 
 // Everything a stranger can read. Legal pages are checked too: they are the one
 // place the broker may be named, but they may not make claims either.
-const SCAN_DIRS = ["content/blog", "landing/public"];
+const SCAN_DIRS = ["content/blog", "landing/public", "growth/queue"];
 
 // The broker's name stays off marketing copy except where an integration is
 // genuinely being described. A privacy policy that hides who receives user data
@@ -104,6 +104,17 @@ const RULES = [
     ]
   },
   {
+    id: "vocabulary",
+    why: "on the positioning playbook's avoid-list; this audience reads these words as a scam tell",
+    patterns: [
+      /\bai[- ]powered\b/i,
+      /\bpassive\s+income\b/i,
+      /\bconsistent\s+income\b/i,
+      /\bbeat\s+the\s+market\b/i,
+      /\balerts?\s+you\s+(on\s+)?what\s+to\s+trade\b/i
+    ]
+  },
+  {
     id: "testimonial",
     why: "a testimonial about results; with two users there is nothing truthful to quote yet",
     patterns: [
@@ -138,6 +149,11 @@ function filesUnder(dir) {
 function prose(text, file) {
   let body = text;
   if (file.endsWith(".md")) body = body.replace(/^---\n[\s\S]*?\n---\n/, "");
+  // Queue files quote forum posters verbatim; their words are evidence, not
+  // our copy, and the rules govern only what we would publish. Blockquotes
+  // are stripped there — and only there — so a poster asking about "passive
+  // income" doesn't fail the reply drafted to answer them.
+  if (/growth[\\/]queue/.test(file)) body = body.replace(/^\s*>.*$/gm, " ");
   return body
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -158,7 +174,9 @@ function isNegated(text, index) {
 // The broker may be named where an integration is genuinely being described —
 // which is exactly what a "Connect your broker" section does. The rule exists
 // to stop the name being used as marketing weight, not to hide the integration.
-const INTEGRATION_CONTEXT = /\b(connect|connects|connecting|works with|integration|integrates|supported|brokerage you already use|your broker)\b/i;
+// "Alpaca-only for now" and "routes through Alpaca" are the honest-limitation
+// disclosures the playbook requires in forum replies — accuracy, not weight.
+const INTEGRATION_CONTEXT = /\b(connect|connects|connecting|works with|integration|integrates|supported|brokerage you already use|your broker|only\s+supports?|[a-z]+[- ]only\b|routes?\s+through)\b/i;
 
 function inIntegrationContext(text, index) {
   return INTEGRATION_CONTEXT.test(text.slice(Math.max(0, index - 300), index + 120));
@@ -199,6 +217,20 @@ function checkFile(file) {
         `${rel} · broker-name`,
         `"${hit[0]}" — the broker is named only where an integration is genuinely described, or on legal pages where accuracy requires it`
       );
+    }
+  }
+
+  // Headlines carry the register. An exclamation mark or an emoji in one is
+  // the playbook's shorthand for "written by marketing" — banned outright.
+  // Queue files are exempt: their headings are other people's thread titles
+  // plus working-state markers, and none of it gets published as a headline.
+  if (file.endsWith(".md") && !/growth[\\/]queue/.test(rel)) {
+    for (const line of raw.split("\n")) {
+      if (!/^#{1,6}\s/.test(line)) continue;
+      if (/!/.test(line) || /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(line)) {
+        clean = false;
+        fail(`${rel} · vocabulary`, `"${line.trim()}" — no exclamation marks or emoji in a headline`);
+      }
     }
   }
 

@@ -49,6 +49,16 @@ export function markdown(src) {
       const block = raw.trim();
       if (!block) return "";
 
+      // A figure: ![caption](/assets/…) alone on a line. Only same-origin
+      // asset paths become an image — a remote URL stays escaped text, so a
+      // post can never make the reader's browser fetch a third-party host.
+      const figure = block.match(/^!\[([^\]]*)\]\((\/assets\/[\w\/.-]+)\)$/);
+      if (figure) {
+        return `<figure><img src="${figure[2]}" alt="${figure[1]}" loading="lazy" />${
+          figure[1] ? `<figcaption>${inline(figure[1])}</figcaption>` : ""
+        }</figure>`;
+      }
+
       const heading = block.match(/^(#{1,4})\s+(.*)$/s);
       if (heading) {
         // The post title is the page's h1, so body headings start at h2 and a
@@ -58,6 +68,18 @@ export function markdown(src) {
       }
 
       const lines = block.split("\n");
+
+      // A pipe table: every line is |…|…| and the second row is the ---
+      // separator. Cells run through the same inline pass as any prose.
+      if (lines.length >= 2 && lines.every((l) => /^\s*\|.*\|\s*$/.test(l)) && /^\s*\|[\s:|-]+\|\s*$/.test(lines[1])) {
+        const cells = (l) => l.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+        const head = cells(lines[0]).map((c) => `<th>${inline(c)}</th>`).join("");
+        const rows = lines
+          .slice(2)
+          .map((l) => `<tr>${cells(l).map((c) => `<td>${inline(c)}</td>`).join("")}</tr>`)
+          .join("");
+        return `<div class="tablewrap"><table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
+      }
 
       if (lines.every((l) => /^\s*[-*]\s+/.test(l))) {
         const items = lines.map((l) => `<li>${inline(l.replace(/^\s*[-*]\s+/, ""))}</li>`).join("");
@@ -119,6 +141,17 @@ ${head}
   .doc blockquote { margin: 16px 0; padding: 4px 0 4px 16px; border-left: 3px solid var(--line);
                     color: var(--ink-mute); }
   .doc a { color: var(--brand); }
+  .doc figure { margin: 28px 0; }
+  .doc figure img { width: 100%; height: auto; display: block; border: 1px solid var(--line);
+                    border-radius: 12px; background: #FFFFFF; }
+  .doc figcaption { margin-top: 8px; font-size: 12px; color: var(--ink-mute); line-height: 1.5; }
+  .doc .tablewrap { overflow-x: auto; margin: 20px 0; }
+  .doc table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  .doc th { text-align: left; font-weight: 500; color: var(--ink-mute); font-size: 12px;
+            border-bottom: 1px solid var(--line); padding: 8px 14px 8px 0; white-space: nowrap; }
+  .doc td { border-bottom: 1px solid var(--line-soft); padding: 9px 14px 9px 0;
+            color: var(--ink-soft); line-height: 1.5; }
+  .doc td:first-child, .doc th:first-child { padding-left: 0; }
   .postlist { list-style: none; padding: 0; margin: 28px 0 0; }
   .postlist li { margin: 0 0 26px; }
   .postlist h2 { font-size: 18px; margin: 0 0 6px; }
