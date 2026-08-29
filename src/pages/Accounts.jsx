@@ -6,7 +6,6 @@ import { Plus, Pencil, Trash2, KeyRound, Link2 } from "lucide-react";
 import AccountForm from "@/components/accounts/AccountForm";
 import { startAlpacaOAuth, describeOAuthConfig } from "@/lib/alpacaOAuth";
 import useAdminSettings from "@/lib/useAdminSettings";
-import AdminMaintenance from "@/components/accounts/AdminMaintenance";
 
 export default function Accounts() {
   const [accounts, setAccounts] = useState(null);
@@ -86,7 +85,14 @@ export default function Accounts() {
       <div className="flex items-center gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Accounts</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Alpaca API credentials for the accounts shown on the monitor.</p>
+          {/* Alpaca's rule, stated where it matters: a token is bound to one
+              live and one paper account by account id, so several paper
+              accounts means several trips through the consent screen. Ticking
+              three at once does not connect three. */}
+          <p className="text-xs text-slate-500 mt-0.5">
+            The Alpaca accounts shown on the monitor. Each authorization connects one live and one
+            paper account — to add another paper account, connect again and tick just that one.
+          </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <button
@@ -243,8 +249,6 @@ export default function Accounts() {
           ))}
         </div>
       )}
-
-      <AdminMaintenance />
 
       {editing && (
         <AccountForm

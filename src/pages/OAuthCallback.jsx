@@ -9,7 +9,7 @@ export default function OAuthCallback() {
   const navigate = useNavigate();
   const [status, setStatus] = useState("connecting"); // connecting | success | error
   const [error, setError] = useState("");
-  const [connected, setConnected] = useState(0);
+  const [connected, setConnected] = useState([]);
   const ran = useRef(false);
 
   useEffect(() => {
@@ -43,12 +43,15 @@ export default function OAuthCallback() {
         setError(res.data.error);
         return;
       }
-      // A single authorization can cover both a live and a paper account, so
-      // say how many arrived — otherwise there is no way to tell that the paper
-      // account you ticked actually came through.
-      setConnected(res.data?.accounts?.length || 1);
+      // Name what arrived, and stop redirecting on a timer.
+      //
+      // A token carries no field saying which accounts it covers: the only way
+      // to find out is to present it to each trading API and read back the
+      // account number. That answer is worth showing, because it is not always
+      // the account that was ticked on Alpaca's screen — and a count plus a
+      // 1.6-second redirect gave nobody a chance to notice.
+      setConnected(res.data?.accounts || []);
       setStatus("success");
-      setTimeout(() => navigate("/accounts", { replace: true }), 1600);
     };
 
     run();
@@ -66,9 +69,22 @@ export default function OAuthCallback() {
         {status === "success" && (
           <>
             <CheckCircle2 className="w-8 h-8 text-dm-positive mx-auto mb-4" />
-            <p className="text-dm-text">
-              Connected {connected} account{connected === 1 ? "" : "s"}. Redirecting…
+            <p className="text-dm-text font-medium">
+              Connected {connected.length} account{connected.length === 1 ? "" : "s"}
             </p>
+            <ul className="mt-3 space-y-1 text-sm text-dm-sub">
+              {connected.map((a) => (
+                <li key={a.id} className="font-mono">
+                  {a.is_paper ? "Paper" : "Live"} · {a.broker_account_number || a.name}
+                </li>
+              ))}
+            </ul>
+            <button
+              onClick={() => navigate("/accounts", { replace: true })}
+              className="mt-6 text-sm text-dm-accent hover:underline"
+            >
+              Go to accounts
+            </button>
           </>
         )}
         {status === "error" && (
