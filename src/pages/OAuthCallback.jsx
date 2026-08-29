@@ -79,17 +79,9 @@ export default function OAuthCallback() {
                 </li>
               ))}
             </ul>
-            {/* Alpaca binds a token to one live and one paper account, by
-                account id. Anyone with several paper accounts has to authorize
-                them one run at a time, so this is where a mismatch between what
-                was ticked and what arrived becomes visible. */}
-            <p className="mx-auto mt-4 max-w-sm text-xs leading-relaxed text-dm-sub">
-              Alpaca connects one live and one paper account per authorization. If a number above
-              isn't the account you picked, connect again and tick only that one.
-            </p>
             <button
               onClick={() => navigate("/accounts", { replace: true })}
-              className="mt-5 text-sm text-dm-accent hover:underline"
+              className="mt-6 text-sm text-dm-accent hover:underline"
             >
               Go to accounts
             </button>
