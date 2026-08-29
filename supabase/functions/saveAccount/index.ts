@@ -17,6 +17,45 @@ import { apiKeyHint, encryptSecret } from "../_shared/crypto.ts";
 // gate is about credentials only, so a customer with an account keyed before
 // the change can still manage it.
 
+// Which brokerage account a key pair actually belongs to.
+//
+// A manually keyed account used to be stored with no broker identity of any
+// kind: not the id, not the number. So removing an account and adding it again
+// produced a second row for the same brokerage account, holding a second copy
+// of its history, indistinguishable from the first except by name — which is
+// how two rows called "Alton Live" came to exist with the same key hint.
+//
+// Asking Alpaca who the keys belong to fixes that and validates the keys in
+// the same call: a pair that cannot read its own account is a pair that was
+// never going to work, and finding out at save time beats finding out on the
+// first sync.
+async function resolveBrokerIdentity(apiKey: string, apiSecret: string, isPaper: boolean) {
+  const base = isPaper
+    ? "https://paper-api.alpaca.markets/v2"
+    : "https://api.alpaca.markets/v2";
+  const res = await fetch(`${base}/account`, {
+    headers: {
+      "APCA-API-KEY-ID": apiKey,
+      "APCA-API-SECRET-KEY": apiSecret,
+      "Content-Type": "application/json"
+    }
+  }).catch(() => null);
+
+  if (!res || !res.ok) {
+    throw new Error(
+      `Those keys could not read the ${isPaper ? "paper" : "live"} account at Alpaca` +
+        (res ? ` (${res.status})` : "") +
+        ". Check the key, the secret, and whether this is a paper or live account."
+    );
+  }
+  const account = await res.json();
+  if (!account?.id) throw new Error("Alpaca did not return an account id for those keys.");
+  return {
+    brokerAccountId: String(account.id),
+    brokerAccountNumber: account.account_number ? String(account.account_number) : null
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -72,6 +111,13 @@ Deno.serve(async (req) => {
       if (!apiKey || !apiSecret) {
         return jsonResponse({ error: "apiKey and apiSecret are required together" }, 400);
       }
+      // Resolved before anything is written, so a bad key pair fails the save
+      // instead of creating a row that cannot talk to the broker.
+      const identity = await resolveBrokerIdentity(apiKey, apiSecret, !!isPaper);
+      fields.broker_account_id = identity.brokerAccountId;
+      if (identity.brokerAccountNumber) {
+        fields.broker_account_number = identity.brokerAccountNumber;
+      }
       fields.api_key = await encryptSecret(apiKey);
       fields.api_secret = await encryptSecret(apiSecret);
       fields.api_key_hint = apiKeyHint(apiKey);
@@ -100,13 +146,51 @@ Deno.serve(async (req) => {
         .eq("user_id", user.id)
         .select(SAFE_ACCOUNT_COLUMNS)
         .maybeSingle();
-      if (error) throw new Error(error.message);
+      if (error) {
+        // The unique index on (user_id, broker_account_id) refusing to let two
+        // rows claim one brokerage account. That is the constraint doing its
+        // job, but "duplicate key value violates unique constraint" tells the
+        // person nothing about what they did.
+        if (error.code === "23505") {
+          return jsonResponse(
+            {
+              error:
+                "Those keys belong to a brokerage account you have already connected. " +
+                "Update that account instead, or remove it first."
+            },
+            409
+          );
+        }
+        throw new Error(error.message);
+      }
       if (!data) return jsonResponse({ error: "Trading account not found" }, 404);
       return jsonResponse({ account: data });
     }
 
     if (!fields.api_key) {
       return jsonResponse({ error: "apiKey and apiSecret are required" }, 400);
+    }
+
+    // Adding an account this user already has -- the common case being one
+    // removed and added back -- re-keys the row that is already there instead
+    // of standing a second one beside it. The old row keeps its history and
+    // its name; only the credentials and the identity are refreshed.
+    const { data: already } = await admin
+      .from("trading_accounts")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("broker_account_id", fields.broker_account_id)
+      .maybeSingle();
+
+    if (already) {
+      const { data, error } = await admin
+        .from("trading_accounts")
+        .update(fields)
+        .eq("id", already.id)
+        .select(SAFE_ACCOUNT_COLUMNS)
+        .single();
+      if (error) throw new Error(error.message);
+      return jsonResponse({ account: data, reconnected: true });
     }
 
     const { data, error } = await admin
