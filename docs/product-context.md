@@ -239,6 +239,15 @@ ambition — the uncomfortable findings are kept deliberately.
 
 Competitor prices, integrations and feature sets below were checked against
 public sources in August 2026. They age; re-check before planning against them.
+The `market-watch` agent (`.claude/agents/market-watch.md`) exists to do exactly
+that on a schedule and propose edits here — this file is its output, and nobody
+should be planning against a figure it has not re-verified.
+
+**One correction, August 2026:** the note below that Puthouse is "already
+through Alpaca's OAuth compliance review" was inferred, not checked. Approval is
+not what makes an OAuth app function — see `compliance.md` — so a competitor
+running the flow proves only that their app is published. Treat their approval
+status as unknown.
 
 ### The market, honestly sized
 
@@ -387,14 +396,36 @@ State of the Alpaca OAuth application, and the rules it imposes on the product.
 
 ### Where the application stands
 
-The OAuth connect flow is built and technically correct — the authorize request
-carries a valid client ID, a registered redirect URI and valid scopes. Alpaca
-still rejects it with `invalid_client`, because **the OAuth app has not been
-approved**. Client ID and secret are issued at creation, but the app does not
-function at the authorize endpoint until Alpaca's review passes.
+**The connect flow works end to end, on production, today.** A user authorises
+on the broker's own consent screen and their live and paper accounts arrive in
+DeltaMint. Signup is open and the marketing site points at it.
 
-There is no sandbox. Approval is a compliance review, not a technical toggle,
-so the flow cannot be demonstrated end to end beforehand.
+This section previously said the opposite: that the authorize endpoint returned
+`invalid_client` **because the app had not been approved**, and that the flow
+therefore could not be demonstrated beforehand. Both halves were wrong, and the
+correction matters more than the error, because plans were being made on it:
+
+- **Approval is not required to connect.** From the current documentation:
+  *"By default once you have a valid client_id and client_secret, any paper
+  account and the live account associated with the OAuth Client will be
+  available to connect to your app."* Compliance approval governs going live on
+  the Connect platform, not whether the authorize flow runs. `status` and
+  `live_trading_approved` are separate fields on the client record; a client can
+  be unapproved and still `ACTIVE`.
+- **The actual cause was the app's own "Publish" toggle**, off in the Connect
+  settings. Turning it on made the consent screen render immediately with
+  nothing else changed. Publish is a switch on the app, separate from compliance
+  approval and from `live_trading_approved`.
+
+Hours went into eliminating request parameters — scopes, encoding, `env`,
+redirect URI — while the cause sat in a dashboard toggle nobody had read. The
+lesson is recorded in `AGENTS.md`: ask for the app's Publish state before
+touching a single parameter.
+
+**What this changes for planning.** Nothing is waiting on approval to launch.
+Growth, content and acquisition work can proceed against a working product
+rather than a waitlist. What approval still governs is the Connect platform
+listing and `live_trading_approved`.
 
 ### What the questionnaire requires
 
@@ -409,18 +440,31 @@ vendor risk.
 endpoint protection on production and corporate networks; and a video or
 screenshots of a user connecting their account.
 
-**Still needed from the founder:** customer count, a named incident-response
-owner and contact, confirmation of workstation controls (disk encryption,
-automatic updates, multi-factor authentication on GitHub, Cloudflare, Supabase
-and Alpaca), and the connection walkthrough capture.
+**Resolved since:** the incident-response owner and contact are named in the
+Information Security Policy (Osama Maghawry, support@deltamint.app). Customer
+count is answerable — two accounts, the founder's and one acquaintance's, no
+paying customers. Disk encryption and multi-factor authentication are confirmed;
+the policy marks automatic updates and a password manager as unconfirmed rather
+than claiming them.
+
+**Still needed from the founder:** the connection walkthrough capture — now
+straightforwardly recordable, since the flow works end to end.
 
 ### The capture they ask for
 
 Record: signed-in dashboard → Accounts → Connect Alpaca → **the authorization
-disclosure dialog, fully legible** → Continue → the broker's own sign-in page.
-The disclosure and its acknowledgement is the part under review, and it must
-visibly precede connecting. State in the covering message that the final
-callback cannot be shown until the app is approved.
+disclosure dialog, fully legible** → Allow → back in DeltaMint with the account
+connected. The disclosure and its acknowledgement is the part under review, and
+it must visibly precede connecting.
+
+The whole flow is recordable, including the callback. An earlier version of this
+file said the callback could not be shown until approval; it can, and a capture
+that stops before it is weaker than one that does not.
+
+The disclosure is **the broker's own page**, not a screen to build. DeltaMint
+sends the user straight to it. There was once a modal repeating that text before
+the redirect; it was removed as a second consent that looked like the broker's
+and was not. Do not reintroduce one.
 
 ### Rules this imposes on the product
 
@@ -462,10 +506,10 @@ These are not style preferences. They govern what may ship.
   secret lets in-flight values decrypt while an admin-only maintenance job
   re-encrypts them under the new key.
 
-**Outstanding:** leaked-password protection is disabled in Supabase Auth and is a
-free toggle worth enabling before review. The legal pages still lack a published
-contact address, which the questionnaire's incident-response question also
-wants.
+**Outstanding:** leaked-password protection is disabled in Supabase Auth —
+still, checked against the live project — and is a free toggle worth enabling
+before review. The published contact address is done: `support@deltamint.app`
+appears on the legal pages and `npm run site:health` checks it stays there.
 
 ### Domain reputation is separate from broker approval
 
