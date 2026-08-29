@@ -15,7 +15,7 @@ import { encryptSecret } from "../_shared/crypto.ts";
 // paper one — the account appeared on the consent screen, could be ticked, and
 // then never showed up. Both are collected now.
 async function detectAccounts(accessToken: string) {
-  const found: { isPaper: boolean; accountNumber: string }[] = [];
+  const found: { isPaper: boolean; accountId: string; accountNumber: string | null }[] = [];
   for (const [isPaper, base] of [
     [false, "https://api.alpaca.markets/v2"],
     [true, "https://paper-api.alpaca.markets/v2"]
@@ -25,10 +25,69 @@ async function detectAccounts(accessToken: string) {
     }).catch(() => null);
     if (res && res.ok) {
       const account = await res.json();
-      found.push({ isPaper, accountNumber: account.account_number });
+      // An account with no identifier is not stored at all. Previously
+      // `account_number` was used unchecked, and when it came back absent the
+      // result was a row named "Alpaca Live (null)" whose null identity
+      // matched nothing on the next reconnect -- so every reconnect added
+      // another one. Skipping is the honest outcome: a connection we cannot
+      // name is one we cannot recognise again.
+      if (!account?.id) continue;
+      found.push({
+        isPaper,
+        accountId: String(account.id),
+        accountNumber: account.account_number ? String(account.account_number) : null
+      });
     }
   }
   return found;
+}
+
+// Which stored row, if any, is this brokerage account — tried in descending
+// order of certainty.
+//
+//  1. The broker's own account id. Immutable, and the only one of the three
+//     that cannot be wrong.
+//  2. The account number, for rows connected before the id was stored.
+//  3. Adoption: one unidentified OAuth row of the same kind. Rows predating
+//     the id column carry no identity at all, so without this every one of
+//     them would be duplicated on its next reconnect — which is exactly what
+//     happened when 0009 could not backfill a renamed account.
+//
+// Adoption refuses when it is not certain: two unidentified live rows could
+// be two different brokerage accounts, and attaching a token to the wrong
+// one would show a user another account's positions. Ambiguity inserts a new
+// row instead, which is recoverable; a wrong match is not.
+async function findExisting(admin, userId, { accountId, accountNumber, isPaper }) {
+  const byId = await admin
+    .from("trading_accounts")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("broker_account_id", accountId)
+    .maybeSingle();
+  if (byId.data) return byId.data;
+
+  if (accountNumber) {
+    const byNumber = await admin
+      .from("trading_accounts")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("broker_account_number", accountNumber)
+      .eq("is_paper", isPaper)
+      .is("broker_account_id", null)
+      .maybeSingle();
+    if (byNumber.data) return byNumber.data;
+  }
+
+  const { data: unidentified } = await admin
+    .from("trading_accounts")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("is_paper", isPaper)
+    .eq("is_oauth", true)
+    .is("broker_account_id", null)
+    .is("broker_account_number", null);
+
+  return unidentified?.length === 1 ? unidentified[0] : null;
 }
 
 Deno.serve(async (req) => {
@@ -81,31 +140,36 @@ Deno.serve(async (req) => {
     const sealed = await encryptSecret(accessToken);
     const saved = [];
 
-    for (const { isPaper, accountNumber } of detected) {
+    for (const { isPaper, accountId, accountNumber } of detected) {
       // Re-authorizing an account already connected refreshes its token instead
       // of adding a second row for the same brokerage account — which is what
-      // reconnecting after an expiry or a scope change does. The match is on the
-      // account number rather than the name: names are the user's to edit, since
-      // Alpaca's API does not return the nickname its own consent screen shows.
-      const { data: existing } = await admin
-        .from("trading_accounts")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("broker_account_number", accountNumber)
-        .eq("is_paper", isPaper)
-        .maybeSingle();
+      // reconnecting after an expiry or a scope change does.
+      //
+      // Three ways to recognise it, in descending order of trust. The name is
+      // not among them: names are the user's to edit, since Alpaca's API does
+      // not return the nickname its own consent screen shows.
+      const existing = await findExisting(admin, user.id, { accountId, accountNumber, isPaper });
 
       const query = existing
         ? admin
             .from("trading_accounts")
-            .update({ oauth_access_token: sealed })
+            .update({
+              oauth_access_token: sealed,
+              // Adopting an unidentified row: give it the identity it never
+              // had, so this is the last reconnect that has to guess. The
+              // user's own name is left alone.
+              broker_account_id: accountId,
+              ...(accountNumber ? { broker_account_number: accountNumber } : {})
+            })
             .eq("id", existing.id)
         : admin.from("trading_accounts").insert({
             user_id: user.id,
-            // A placeholder until it is renamed: the number is all Alpaca gives
-            // us to tell one authorized account from another.
-            name: `Alpaca ${isPaper ? "Paper" : "Live"} (${accountNumber})`,
+            // A placeholder until it is renamed. The number is what Alpaca
+            // prints on its own screens, so it is what a person recognises;
+            // the id is what the software matches on.
+            name: `Alpaca ${isPaper ? "Paper" : "Live"} (${accountNumber || accountId.slice(0, 8)})`,
             is_paper: isPaper,
+            broker_account_id: accountId,
             broker_account_number: accountNumber,
             oauth_access_token: sealed
           });
