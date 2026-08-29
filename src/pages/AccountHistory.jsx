@@ -125,8 +125,16 @@ export default function AccountHistory() {
           <h1 className="text-xl font-semibold text-slate-900 tracking-tight mt-1">
             {data?.account ? `${data.account.name} — Trade History` : "Trade History"}
           </h1>
+          {/* A failed refresh outranks the timestamp: saying "Updated 14:03"
+              under figures the failed sync never touched is the specific way
+              this screen used to mislead. */}
           {(refreshing || data?.syncing) ? (
             <p className="text-xs text-slate-500 mt-0.5">Updating from your broker…</p>
+          ) : data?.syncError ? (
+            <p className="text-xs text-amber-700 mt-0.5">
+              Could not refresh from your broker
+              {data?.syncedAt ? ` — showing figures from ${new Date(data.syncedAt).toLocaleString()}` : " — nothing has been recorded yet"}
+            </p>
           ) : data?.syncedAt ? (
             <p className="text-xs text-slate-500 mt-0.5">Updated {new Date(data.syncedAt).toLocaleTimeString()}</p>
           ) : null}

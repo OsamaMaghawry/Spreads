@@ -3,6 +3,7 @@ import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { tradingBase, alpacaFetch, loadAccount } from "../_shared/alpaca.ts";
 import { awaitUpTo } from "../_shared/background.ts";
 import { reconstruct } from "../_shared/tradeReconstruction.ts";
+import { refuseMassDelete, lotFromOption } from "../_shared/writeGuards.ts";
 
 // Closed trade history, rebuilt from the broker's activity feed.
 //
@@ -46,14 +47,29 @@ async function fetchStockLots(admin, accountId) {
   return data || [];
 }
 
-// Rows about to be deleted are copied out first. Recomputing history that real
-// money produced changes figures, and the nightly dump is a second net rather
-// than the only one when the destructive step is deliberate.
-async function snapshot(admin, rows) {
-  if (rows.length === 0) return;
-  const { error } = await admin.from("trade_records_backup").insert(rows);
-  if (error) throw new Error(`Backup failed, nothing deleted: ${error.message}`);
+// Everything the write is about to destroy, copied out first, as one row.
+//
+// This used to insert into `trade_records_backup`, a table created with `like
+// trade_records` before the P/L component columns existed -- so the insert
+// failed with 42703 on every attempt and the table has never held a row. It
+// now writes jsonb, which cannot go stale when a column is added, and it
+// covers updates as well as deletes: rewriting a row's figures in place
+// destroys the old ones exactly as thoroughly as removing the row.
+//
+// Throwing here stops the write. That is the point: no snapshot, no deletion.
+async function snapshot(admin, accountId, userId, reason, { deleted, updatedBefore, deletedLots }) {
+  if (deleted.length === 0 && updatedBefore.length === 0 && deletedLots.length === 0) return;
+  const { error } = await admin.from("history_snapshots").insert({
+    account_id: accountId,
+    user_id: userId,
+    reason,
+    deleted_trades: deleted,
+    updated_trades_before: updatedBefore,
+    deleted_lots: deletedLots
+  });
+  if (error) throw new Error(`Snapshot failed, nothing written: ${error.message}`);
 }
+
 
 // The broker feed, in full. Two loops, both bounded, both stopping early on a
 // short page.
@@ -149,7 +165,26 @@ async function writeResults(admin, accountId, userId, records, stockLots) {
     (r: any) => !freshKeys.has(r.trade_key) && (r.close_date || "") >= oldestClose
   );
 
-  await snapshot(admin, stale);
+  // Share lots the reconstruction is entitled to remove: option-touched only,
+  // and only those it no longer derives.
+  const existingLots = await fetchStockLots(admin, accountId);
+  const freshLotKeys = new Set(stockLots.map((l: any) => l.lot_key));
+  const optionLots = existingLots.filter(lotFromOption);
+  const staleLots = optionLots.filter((l: any) => !freshLotKeys.has(l.lot_key));
+
+  // Both refusals are checked before anything is written, so a sync that trips
+  // either one leaves the account exactly as it found it.
+  const refusal =
+    refuseMassDelete("trade records", stale.length, existing.length) ||
+    refuseMassDelete("share lots", staleLots.length, optionLots.length);
+  if (refusal) throw new Error(refusal);
+
+  await snapshot(admin, accountId, userId, "sync", {
+    deleted: stale,
+    updatedBefore: toUpdate.map((r: any) => existingByKey[r.trade_key]),
+    deletedLots: staleLots
+  });
+
   for (const r of stale) {
     const { error } = await admin.from("trade_records").delete().eq("id", (r as any).id);
     if (error) throw new Error(error.message);
@@ -166,11 +201,7 @@ async function writeResults(admin, accountId, userId, records, stockLots) {
     if (error) throw new Error(error.message);
   }
 
-  // Share lots are fully derived from the same activities, so anything no
-  // longer derivable is removed and the rest upserted on its stable key.
-  const existingLots = await fetchStockLots(admin, accountId);
-  const freshLotKeys = new Set(stockLots.map((l: any) => l.lot_key));
-  for (const l of existingLots.filter((l: any) => !freshLotKeys.has(l.lot_key))) {
+  for (const l of staleLots) {
     const { error } = await admin.from("stock_lots").delete().eq("id", (l as any).id);
     if (error) throw new Error(error.message);
   }
@@ -185,10 +216,15 @@ async function writeResults(admin, accountId, userId, records, stockLots) {
 
   await admin
     .from("trading_accounts")
-    .update({ trades_synced_at: new Date().toISOString() })
+    .update({ trades_synced_at: new Date().toISOString(), trades_sync_error: null })
     .eq("id", accountId);
 
-  return { created: toCreate.length, updated: toUpdate.length, removed: stale.length };
+  return {
+    created: toCreate.length,
+    updated: toUpdate.length,
+    removed: stale.length,
+    removedLots: staleLots.length
+  };
 }
 
 Deno.serve(async (req) => {
@@ -247,14 +283,43 @@ Deno.serve(async (req) => {
     }
 
     const syncedAt = account.trades_synced_at ? Date.parse(account.trades_synced_at) : 0;
-    const stale = !syncedAt || Date.now() - syncedAt > STALE_AFTER_MS;
+    const attemptedAt = account.trades_sync_attempted_at
+      ? Date.parse(account.trades_sync_attempted_at)
+      : 0;
+
+    // `trades_synced_at` is written only on success, so a failing sync used to
+    // leave it null and every single page load re-ran the whole broker sweep --
+    // about 112 requests -- forever, silently. Backing off on the *attempt*
+    // means a broken sync costs one sweep per interval instead of one per view.
+    const dueForRetry = Date.now() - attemptedAt > STALE_AFTER_MS;
+    const stale = (!syncedAt || Date.now() - syncedAt > STALE_AFTER_MS) && dueForRetry;
+
+    let syncError: string | null = account.trades_sync_error || null;
 
     if (stale) {
+      await admin
+        .from("trading_accounts")
+        .update({ trades_sync_attempted_at: new Date().toISOString() })
+        .eq("id", accountId);
+
       const work = (async () => {
         const { orderStrategy, activities } = await fetchBrokerData(account, base);
         const { records, stockLots } = reconstruct(activities, orderStrategy, accountId);
         return writeResults(admin, accountId, user.id, records, stockLots);
-      })();
+      })().catch(async (err) => {
+        // The failure has to land somewhere a person can see. Previously it was
+        // caught by inBackground's `work.catch(() => {})`, so a sync that wrote
+        // nothing still answered 200 and said "up to date".
+        syncError = err.message;
+        console.error(`tradeHistory sync failed for ${accountId}: ${err.message}`);
+        await admin
+          .from("trading_accounts")
+          .update({ trades_sync_error: err.message })
+          .eq("id", accountId)
+          .then(() => {}, () => {});
+        return null;
+      });
+
       // Wait for it, but only for a while. Registering the work first means a
       // timeout stops us blocking rather than abandoning a half-written sync.
       await awaitUpTo(work, WAIT_FOR_SYNC_MS);
@@ -263,18 +328,27 @@ Deno.serve(async (req) => {
     const [trades, stockLots, { data: fresh }] = await Promise.all([
       fetchTrades(admin, accountId),
       fetchStockLots(admin, accountId),
-      admin.from("trading_accounts").select("trades_synced_at").eq("id", accountId).maybeSingle()
+      admin
+        .from("trading_accounts")
+        .select("trades_synced_at, trades_sync_error")
+        .eq("id", accountId)
+        .maybeSingle()
     ]);
 
     const finishedAt = fresh?.trades_synced_at || account.trades_synced_at || null;
+    const failed = syncError || fresh?.trades_sync_error || null;
     return jsonResponse({
       account: accountInfo,
       trades,
       stockLots,
       syncedAt: finishedAt,
+      // Why the figures below may be older than they should be. Null once a
+      // sync succeeds; the page says so rather than implying it is current.
+      syncError: failed,
       // True when the refresh outran the wait: the numbers below are the
-      // previous ones, and the page should come back for the new set.
-      syncing: stale && (!finishedAt || Date.parse(finishedAt) <= syncedAt)
+      // previous ones, and the page should come back for the new set. A failed
+      // sync is not "still running" -- coming back would only fail again.
+      syncing: stale && !failed && (!finishedAt || Date.parse(finishedAt) <= syncedAt)
     });
   } catch (error) {
     return jsonResponse({ error: error.message }, 500);

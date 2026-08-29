@@ -234,6 +234,32 @@ and `tradeHistory`'s attribution are all untouched, and `saveAccount` writes
 those two fields only when a caller actually sends them, so a rename cannot
 wipe a stored prefix.
 
+## The review bench: nothing on a money path ships unreviewed
+
+Five specialist agents in `.claude/agents/` exist because a defect here is
+somebody's account, not a rendering glitch. They report; they never edit and
+never deploy.
+
+| Agent | Owns |
+| --- | --- |
+| `agent-manager` | Commissions the others, reconciles verdicts, returns one decision. The release gate. |
+| `systems-engineer` | Code and trading logic: order construction, pairing, risk and collateral math, data integrity |
+| `investment-analyst` | Whether reported figures are true, complete and not misleading |
+| `tax-accountant` | Records defensible at tax time; the line between reporting and tax advice |
+| `desk-editor` | Technical truth of anything published — text and diagrams |
+
+Route through `agent-manager` before any production deploy touching orders,
+positions, P/L, risk or stored records. Three rules it enforces and nobody
+may quietly relax:
+
+- **Migrations before code**, verified against the target database by
+  listing them, not by trusting the branch.
+- **Nothing rewrites a user's history unasked** — this is why the P/L
+  reconstruction was held back from production (`c7829d8`): a routine sync
+  rewrites closed trades whether or not a rebuild button is pressed.
+- **An approval covers what was described when it was given.** If the branch
+  carries more than that, the scope question goes back to the owner.
+
 ## Nothing touches production without approval
 
 **Ask the owner first, every time, before any action that reaches production.**
