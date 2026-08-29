@@ -6,7 +6,6 @@ import { Plus, Pencil, Trash2, KeyRound, Link2 } from "lucide-react";
 import AccountForm from "@/components/accounts/AccountForm";
 import { startAlpacaOAuth, describeOAuthConfig } from "@/lib/alpacaOAuth";
 import useAdminSettings from "@/lib/useAdminSettings";
-import AdminMaintenance from "@/components/accounts/AdminMaintenance";
 
 export default function Accounts() {
   const [accounts, setAccounts] = useState(null);
@@ -250,8 +249,6 @@ export default function Accounts() {
           ))}
         </div>
       )}
-
-      <AdminMaintenance />
 
       {editing && (
         <AccountForm

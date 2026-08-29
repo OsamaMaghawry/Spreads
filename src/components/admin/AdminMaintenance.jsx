@@ -1,11 +1,18 @@
 import { useState } from "react";
 import { ShieldCheck, Loader2 } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
-import useIsAdmin from "@/lib/useIsAdmin";
 
-// Admin-only maintenance actions that operate across every user's accounts.
-// Renders nothing for ordinary users; each edge function enforces the same
-// check server-side, so hiding this is presentation, not the access control.
+// Operator maintenance that runs across every user's accounts.
+//
+// This used to sit on the Accounts page, under a customer's own list of
+// brokerage connections. Only an administrator could see it, which is not the
+// same as it belonging there: "Encrypt legacy credentials, for all users" next
+// to your own accounts reads as something wrong with them. It lives in the
+// admin panel now, where a job that operates on everybody's data is what the
+// page is for.
+//
+// The edge function enforces the same administrator check server-side, so
+// where this renders is presentation, never the access control.
 const ACTIONS = [
   {
     fn: "migrateCredentials",
@@ -61,14 +68,8 @@ function MaintenanceAction({ fn, label, note, summarize }) {
 }
 
 export default function AdminMaintenance() {
-  // Asks the server, like every other admin-gated piece of UI. Reading
-  // profiles.role here instead used to hide these actions from an owner, whose
-  // access comes from the ADMIN_EMAILS secret and whose role column still says
-  // 'user' — see the note in useIsAdmin.js.
-  const { isAdmin } = useIsAdmin();
-
-  if (!isAdmin) return null;
-
+  // No admin check of its own: this renders only inside /admin, which already
+  // asks the server and redirects anyone else away.
   return (
     <div className="space-y-3">
       {ACTIONS.map((action) => (
