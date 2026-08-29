@@ -5,6 +5,15 @@ ambition — the uncomfortable findings are kept deliberately.
 
 Competitor prices, integrations and feature sets below were checked against
 public sources in August 2026. They age; re-check before planning against them.
+The `market-watch` agent (`.claude/agents/market-watch.md`) exists to do exactly
+that on a schedule and propose edits here — this file is its output, and nobody
+should be planning against a figure it has not re-verified.
+
+**One correction, August 2026:** the note below that Puthouse is "already
+through Alpaca's OAuth compliance review" was inferred, not checked. Approval is
+not what makes an OAuth app function — see `compliance.md` — so a competitor
+running the flow proves only that their app is published. Treat their approval
+status as unknown.
 
 ## The market, honestly sized
 
