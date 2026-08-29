@@ -15,11 +15,18 @@ const BUCKETS = [
 ];
 
 // Per-trade share of the sold credit that was actually kept.
+//
+// Deliberately the option result — premium less what closing it cost — and not
+// the position's total. Once shares delivered on assignment are folded in, a
+// put assigned and sold at a profit reports capture well above 100%, and a
+// ratio that can exceed its own maximum measures nothing.
+const optionPL = (t) => (Number(t.premium_pl) || 0) + (Number(t.early_close_pl) || 0);
+
 const rowsOf = (trades) =>
   trades
     .map((t) => {
       const credit = (t.net_credit || 0) * (t.qty || 0) * 100;
-      return credit > 0 ? { credit, pl: t.realized_pl || 0, capture: (t.realized_pl || 0) / credit } : null;
+      return credit > 0 ? { credit, pl: optionPL(t), capture: optionPL(t) / credit } : null;
     })
     .filter(Boolean);
 

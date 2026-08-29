@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
 import { invokeFunction } from "@/lib/functions";
 import { RefreshCw, ArrowLeft, BarChart3 } from "lucide-react";
+import { STRATEGIES, strategyOf, strategyLabel } from "@/lib/strategies";
 import { computeStats } from "@/lib/analytics";
 import StatCards from "@/components/analysis/StatCards";
 import EquityCurveChart from "@/components/analysis/EquityCurveChart";
@@ -61,14 +62,18 @@ export default function AccountAnalysis() {
   );
 
   const { stats, comparison, subset } = useMemo(() => {
-    const subset = strategy === "all" ? trades : trades.filter((t) => (t.strategy || "unknown") === strategy);
+    const subset = strategy === "all" ? trades : trades.filter((t) => strategyOf(t) === strategy);
     const share = trades.length ? subset.length / trades.length : 0;
     const s = computeStats(subset, equity * (strategy === "all" ? 1 : share));
-    const rows = [
-      { label: "All strategies", trades },
-      { label: "Spreads", trades: trades.filter((t) => t.strategy === "spreads") },
-      { label: "Wheel", trades: trades.filter((t) => t.strategy === "wheel") }
-    ]
+    // Built from the shared category list, so a category added there appears
+    // here without a second place needing to know the names.
+    const rows = [{ label: "All strategies", trades }]
+      .concat(
+        STRATEGIES.map((s) => ({
+          label: s.label,
+          trades: trades.filter((t) => strategyOf(t) === s.key)
+        })).filter((r) => r.trades.length > 0)
+      )
       .map((r) => {
         const eq = equity * (trades.length ? r.trades.length / trades.length : 0);
         return { label: r.label, stats: computeStats(r.trades, r.label === "All strategies" ? equity : eq) };
@@ -120,7 +125,7 @@ export default function AccountAnalysis() {
             <ExportPdfButton
               targetRef={reportRef}
               title={data?.account ? `${data.account.name} — Performance Analysis` : "Performance Analysis"}
-              subtitle={`${stats.firstDate} → ${stats.lastDate}${range.from || range.to ? " (filtered)" : ""} · ${strategy === "all" ? "All strategies" : strategy} · equity ${equity ? `$${equity.toLocaleString()}` : "n/a"} · generated ${new Date().toLocaleString()}`}
+              subtitle={`${stats.firstDate} → ${stats.lastDate}${range.from || range.to ? " (filtered)" : ""} · ${strategy === "all" ? "All strategies" : strategyLabel(strategy)} · equity ${equity ? `$${equity.toLocaleString()}` : "n/a"} · generated ${new Date().toLocaleString()}`}
             />
           )}
         </div>

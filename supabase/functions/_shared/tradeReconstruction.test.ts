@@ -70,8 +70,15 @@ test("an assigned call spread produces a record, and its shares net the width", 
   assert.ok(spread, "the assigned spread must exist — previously there was no record at all");
   assert.equal(spread.close_reason, "assigned");
   assert.equal(spread.unpaired, false);
-  // Premium is kept in full: assignment lands on the shares, not the option.
-  assert.equal(money(spread.realized_pl), 50);
+  // Premium is kept in full — assignment costs nothing on the option itself —
+  // and the shares it delivered are what the position actually lost.
+  assert.equal(money(spread.premium_pl), 50);
+  assert.equal(money(spread.early_close_pl), 0);
+  assert.equal(money(spread.stock_pl), -250);
+  // $2.50 width less $0.50 credit: the most this spread could ever lose. The
+  // old single figure said +50 — a full win — while the loss sat in a table
+  // nobody was adding up.
+  assert.equal(money(spread.realized_pl), -200);
 
   // Called away at 470 against shares bought at 472.50 on exercise: exactly the
   // $2.50 width, which is what the position risked.
@@ -155,12 +162,12 @@ test("an orphaned short call is a covered call when the shares are actually held
 
   const { records } = run(activities);
   const call = find(records, "KO260821C00090000", "");
-  assert.equal(call.strategy, "wheel");
+  assert.equal(call.strategy, "covered_call");
   assert.equal(call.unpaired, false);
   assert.equal(money(call.realized_pl), 55);
 });
 
-test("orphaned short puts stay wheel — the fallback was right for those", () => {
+test("an orphaned short put is a cash-secured put — the fallback was right for those", () => {
   const activities = [
     fill("2026-08-11", "sell", "NVDA260821P00150000", 1, 2.0),
     expire("2026-08-21", "NVDA260821P00150000", 1)
@@ -168,7 +175,7 @@ test("orphaned short puts stay wheel — the fallback was right for those", () =
 
   const { records } = run(activities);
   assert.equal(records.length, 1);
-  assert.equal(records[0].strategy, "wheel");
+  assert.equal(records[0].strategy, "cash_secured_put");
   assert.equal(records[0].unpaired, false);
   assert.equal(money(records[0].realized_pl), 200);
 });
@@ -206,8 +213,13 @@ test("a put assigned into shares sold later books premium and stock separately",
   const { records, stockLots } = run(activities);
 
   const put = find(records, "KO260821P00090000", "");
+  assert.equal(put.strategy, "cash_secured_put");
   assert.equal(put.close_reason, "assigned");
-  assert.equal(money(put.realized_pl), 100, "the premium is kept in full");
+  assert.equal(money(put.premium_pl), 100, "the premium is kept in full");
+  // Assigned at 90, sold on the market at 91.20. No call sold them, so they
+  // belong to the put that took delivery.
+  assert.equal(money(put.stock_pl), 120);
+  assert.equal(money(put.realized_pl), 220);
 
   const lot = stockLots.find((l) => l.ticker === "KO");
   assert.equal(lot.acquired_price, 90);
@@ -347,4 +359,115 @@ test("an explicit strategy prefix wins over shape", () => {
   const { records } = run(activities, { "order-1": "spreads" });
   assert.equal(records[0].strategy, "spreads");
   assert.equal(records[0].unpaired, true, "a spread order with one leg is a broken pair, not a wheel");
+});
+
+// ---------------------------------------------------------------------------
+// The three parts a result is made of, and who owns the shares
+// ---------------------------------------------------------------------------
+
+test("a spread closed early splits into premium and the cost of closing it", () => {
+  const activities = [
+    fill("2026-08-25", "sell", "JPM260826P00355000", 1, 1.05),
+    fill("2026-08-25", "buy", "JPM260826P00352500", 1, 0.32),
+    fill("2026-08-26", "buy", "JPM260826P00355000", 1, 0.44),
+    fill("2026-08-26", "sell", "JPM260826P00352500", 1, 0.14)
+  ];
+
+  const { records } = run(activities);
+  const spread = find(records, "JPM260826P00355000", "JPM260826P00352500");
+
+  // Sold for 0.73, bought back for 0.30.
+  assert.equal(money(spread.premium_pl), 73);
+  assert.equal(money(spread.early_close_pl), -30);
+  assert.equal(money(spread.stock_pl), 0);
+  assert.equal(money(spread.realized_pl), 43);
+  // The whole point: the parts add up to the total, on every row.
+  assert.equal(
+    money(spread.premium_pl + spread.early_close_pl + spread.stock_pl),
+    money(spread.realized_pl)
+  );
+});
+
+test("a full wheel cycle credits the shares to the call that sold them", () => {
+  const activities = [
+    // Put sold, assigned: 100 shares arrive at 90.
+    fill("2026-08-07", "sell", "KO260814P00090000", 1, 1.1),
+    assign("2026-08-14", "KO260814P00090000", 1),
+    // Call sold against them, assigned: the shares leave at 92.
+    fill("2026-08-17", "sell", "KO260821C00092000", 1, 0.6),
+    assign("2026-08-21", "KO260821C00092000", 1)
+  ];
+
+  const { records, stockLots, unattributedStockPL } = run(activities);
+
+  const put = find(records, "KO260814P00090000", "");
+  const call = find(records, "KO260821C00092000", "");
+  assert.equal(put.strategy, "cash_secured_put");
+  assert.equal(call.strategy, "covered_call");
+
+  // Each half keeps its own premium.
+  assert.equal(money(put.premium_pl), 110);
+  assert.equal(money(call.premium_pl), 60);
+
+  // The shares moved 90 -> 92. That $200 belongs to the call that sold them,
+  // and to nothing else: crediting the put instead would rewrite a position
+  // that closed a week earlier.
+  assert.equal(money(call.stock_pl), 200);
+  assert.equal(money(put.stock_pl), 0);
+  assert.equal(money(call.realized_pl), 260);
+  assert.equal(money(put.realized_pl), 110);
+  assert.equal(unattributedStockPL, 0);
+
+  // The ledger says which option was on each side of the lot.
+  const lot = stockLots.find((l) => l.ticker === "KO");
+  assert.equal(lot.acquired_chain_id, put.chain_id);
+  assert.equal(lot.disposed_chain_id, call.chain_id);
+
+  // And the cycle totals what the account actually made: $170 of premium plus
+  // $200 on the stock.
+  const total = records.reduce((n, r) => n + r.realized_pl, 0) + unattributedStockPL;
+  assert.equal(money(total), 370);
+});
+
+test("a covered call over shares bought on the market still owns their result", () => {
+  const activities = [
+    fill("2026-08-03", "buy", "KO", 100, 88.0),
+    fill("2026-08-14", "sell", "KO260821C00090000", 1, 0.55),
+    assign("2026-08-21", "KO260821C00090000", 1)
+  ];
+
+  const { records, unattributedStockPL } = run(activities);
+  const call = find(records, "KO260821C00090000", "");
+
+  assert.equal(call.strategy, "covered_call");
+  assert.equal(money(call.premium_pl), 55);
+  // Bought at 88, called away at 90.
+  assert.equal(money(call.stock_pl), 200);
+  assert.equal(money(call.realized_pl), 255);
+  assert.equal(unattributedStockPL, 0, "the call disposed of them, so nothing is left over");
+});
+
+test("shares traded with no option involved belong to no category", () => {
+  const activities = [
+    fill("2026-08-03", "buy", "KO", 100, 88.0),
+    fill("2026-08-10", "sell", "KO", 100, 91.0)
+  ];
+
+  const { records, unattributedStockPL } = run(activities);
+  assert.equal(records.length, 0, "there is no option here to attribute anything to");
+  // $300, counted in the account total and pushed into nobody's strategy.
+  assert.equal(money(unattributedStockPL), 300);
+});
+
+test("shares still held contribute nothing to any category", () => {
+  const activities = [
+    fill("2026-08-07", "sell", "KO260814P00090000", 1, 1.1),
+    assign("2026-08-14", "KO260814P00090000", 1)
+  ];
+
+  const { records, unattributedStockPL } = run(activities);
+  const put = find(records, "KO260814P00090000", "");
+  assert.equal(money(put.stock_pl), 0, "an open position is not a result");
+  assert.equal(money(put.realized_pl), 110);
+  assert.equal(unattributedStockPL, 0);
 });

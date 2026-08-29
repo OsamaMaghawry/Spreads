@@ -249,6 +249,11 @@ export function buildStockLedger(moves) {
         emit({
           ticker,
           qty: q,
+          // Both sides, separately. A wheel cycle acquires through an assigned
+          // put and disposes through an assigned call, and one field cannot say
+          // that — which is exactly the sentence the attribution needs.
+          acquired_chain_id: lot.chainKey || null,
+          disposed_chain_id: m.chainKey || null,
           chain_id: lot.chainKey || m.chainKey || null,
           acquired_date: lot.date,
           acquired_price: lot.price,
@@ -266,6 +271,8 @@ export function buildStockLedger(moves) {
         emit({
           ticker,
           qty: remaining,
+          acquired_chain_id: null,
+          disposed_chain_id: m.chainKey || null,
           chain_id: m.chainKey || null,
           acquired_date: null,
           acquired_price: null,
@@ -282,6 +289,8 @@ export function buildStockLedger(moves) {
       emit({
         ticker,
         qty: lot.qty,
+        acquired_chain_id: lot.chainKey || null,
+        disposed_chain_id: null,
         chain_id: lot.chainKey || null,
         acquired_date: lot.date,
         acquired_price: lot.price,
@@ -363,14 +372,21 @@ function combineReasons(shortReason, longReason) {
 //   orphaned short call -> a broken pair, unless the shares to cover it were
 //                          actually held, which makes it a covered call
 //
-// An explicit strategy prefix on the order always wins over shape.
+// A put and a call used to come back as the same answer, "wheel". They are the
+// two halves of a cycle — one takes delivery, the other gives it away — so
+// merging them hid the only distinction worth having when reading a cycle back.
+//
+// An explicit strategy prefix on the order still wins over shape, but a prefix
+// only says "wheel": which half it is, is the option's own business.
+const wheelHalf = (lot) => (lot.parsed.type === "P" ? "cash_secured_put" : "covered_call");
+
 function classifyOrphanShort(lot, sharesHeldAt) {
-  if (lot.strategy === "wheel") return { strategy: "wheel", unpaired: false };
+  if (lot.strategy === "wheel") return { strategy: wheelHalf(lot), unpaired: false };
   if (lot.strategy === "spreads") return { strategy: "spreads", unpaired: true };
-  if (lot.parsed.type === "P") return { strategy: "wheel", unpaired: false };
+  if (lot.parsed.type === "P") return { strategy: "cash_secured_put", unpaired: false };
   const held = sharesHeldAt(lot.parsed.ticker, lot.openDate);
   return held >= lot.qty * CONTRACT_SIZE
-    ? { strategy: "wheel", unpaired: false }
+    ? { strategy: "covered_call", unpaired: false }
     : { strategy: "spreads", unpaired: true };
 }
 
@@ -493,6 +509,12 @@ export function buildTrades(closedLots, sharesHeldAt, accountId) {
 // contracts where one is assigned and two expire are two different outcomes on
 // the same day — one delivered shares and one did not — and folding them into
 // a single row loses the count that the share ledger has to agree with.
+// Negating zero gives -0, which survives arithmetic, storage and formatting
+// all the way to a card reading "-$0.00" on a position that cost nothing to
+// close. It is only ever an artefact of the sign flip, so it is removed here
+// rather than papered over in a formatter.
+const noNegZero = (n) => (n === 0 ? 0 : n);
+
 export function mergeAndPrice(trades) {
   const merged = {};
   trades.forEach((t) => {
@@ -513,13 +535,67 @@ export function mergeAndPrice(trades) {
   return Object.values(merged).map((t) => {
     const netCredit = t.short_entry - t.long_entry;
     const closeDebit = t.short_exit - t.long_exit;
+    const scale = t.qty * CONTRACT_SIZE;
     return {
       ...t,
       net_credit: netCredit,
       close_debit: closeDebit,
-      realized_pl: (netCredit - closeDebit) * t.qty * CONTRACT_SIZE
+      // The three parts a position's result is made of, kept apart rather than
+      // fused into one number. Premium is what was taken at open and is real
+      // the moment it is collected; the close is what giving the position back
+      // cost, and is zero on anything that expired or was assigned; shares are
+      // added later by attributeStockPL, once the ledger exists.
+      premium_pl: noNegZero(netCredit * scale),
+      early_close_pl: noNegZero(-closeDebit * scale),
+      stock_pl: 0,
+      realized_pl: noNegZero((netCredit - closeDebit) * scale)
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// 5. Share results, credited to the option responsible for them
+// ---------------------------------------------------------------------------
+
+// Which option owns a lot's profit: the one that *disposed* of the shares.
+//
+// A wheel cycle runs put -> shares -> call -> shares gone. Crediting the put,
+// which acquired them, would mean a position closed in March has its result
+// rewritten in July when the shares finally leave — a log whose past keeps
+// moving is not a log. Crediting the disposal also books the gain on the day it
+// was realised, which is the day the brokerage statement books it, so the two
+// reconcile line by line.
+//
+// Shares sold on the open market carry no disposal chain, so they fall back to
+// the option that delivered them: a put assigned and later sold is the put's
+// result. Shares both bought and sold on the market belong to no option at all
+// and are returned separately rather than being pushed into whichever record
+// happened to be nearby.
+export function attributeStockPL(records, stockLots) {
+  const byChain = new Map();
+  records.forEach((r) => {
+    if (r.chain_id) byChain.set(r.chain_id, r);
+  });
+
+  let unattributed = 0;
+
+  stockLots.forEach((lot) => {
+    // A lot still held has a null result. Unrealised is not a result.
+    if (lot.realized_pl === null || lot.realized_pl === undefined) return;
+    const owner =
+      (lot.disposed_chain_id && byChain.get(lot.disposed_chain_id)) ||
+      (lot.acquired_chain_id && byChain.get(lot.acquired_chain_id)) ||
+      null;
+    if (owner) owner.stock_pl += lot.realized_pl;
+    else unattributed += lot.realized_pl;
+  });
+
+  records.forEach((r) => {
+    r.stock_pl = noNegZero(r.stock_pl);
+    r.realized_pl = noNegZero(r.premium_pl + r.early_close_pl + r.stock_pl);
+  });
+
+  return unattributed;
 }
 
 // ---------------------------------------------------------------------------
@@ -534,11 +610,17 @@ export function reconstruct(activities, orderStrategy, accountId) {
   const { lots, sharesHeldAt } = buildStockLedger(moves);
   const { trades, chainRemap } = buildTrades(closedLots, sharesHeldAt, accountId);
 
+  const remap = (chain) => (chain && chainRemap.get(chain)) || chain || null;
   const stockLots = lots.map((l) => ({
     ...l,
     account_id: accountId,
-    chain_id: (l.chain_id && chainRemap.get(l.chain_id)) || l.chain_id
+    acquired_chain_id: remap(l.acquired_chain_id),
+    disposed_chain_id: remap(l.disposed_chain_id),
+    chain_id: remap(l.chain_id)
   }));
 
-  return { records: mergeAndPrice(trades), stockLots };
+  const records = mergeAndPrice(trades);
+  const unattributedStockPL = attributeStockPL(records, stockLots);
+
+  return { records, stockLots, unattributedStockPL };
 }

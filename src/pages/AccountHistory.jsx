@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { invokeFunction } from "@/lib/functions";
 import { RefreshCw, ArrowLeft, History, BarChart3, FileSearch } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
+import { sumBy, strategyOf } from "@/lib/strategies";
 import TradeHistoryTable from "@/components/history/TradeHistoryTable";
 import StockLotsTable from "@/components/history/StockLotsTable";
 import RebuildPreview from "@/components/history/RebuildPreview";
@@ -86,14 +87,20 @@ export default function AccountHistory() {
 
   const trades = data?.trades || [];
   const stockLots = data?.stockLots || [];
-  const visible = strategy === "all" ? trades : trades.filter((t) => (t.strategy || "unknown") === strategy);
+  const visible = strategy === "all" ? trades : trades.filter((t) => strategyOf(t) === strategy);
 
-  // Premium and shares are tracked separately and shown separately, because on
-  // an assigned spread the option looks like a full win while the shares carry
-  // the loss. The combined figure is the one that matches the brokerage
-  // statement, so all three belong on screen.
-  const premiumPL = trades.reduce((a, t) => a + (t.realized_pl || 0), 0);
-  const stockPL = stockLots.reduce((a, l) => a + (l.realized_pl || 0), 0);
+  // The three parts a result is made of, and the total they add up to.
+  //
+  // Each record's total already contains the share result attributed to it, so
+  // adding the stock_lots table on top would count the shares twice — which is
+  // what the old "Premium + Shares = Combined" row did the moment shares
+  // started being attributed. The only thing left outside the categories is
+  // stock traded with no option involved.
+  const premiumPL = sumBy(trades, "premium_pl");
+  const earlyClosePL = sumBy(trades, "early_close_pl");
+  const stockPL = sumBy(trades, "stock_pl");
+  const unattributed = Number(data?.unattributedStockPL) || 0;
+  const totalPL = premiumPL + earlyClosePL + stockPL + unattributed;
   const unpairedCount = trades.filter((t) => t.unpaired).length;
 
   return (
@@ -157,24 +164,24 @@ export default function AccountHistory() {
         </div>
       ) : (
         <>
-          {stockLots.length > 0 && (
-            <div className="flex flex-wrap gap-x-8 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3">
-              {[
-                ["Premium", premiumPL],
-                ["Shares", stockPL],
-                ["Combined", premiumPL + stockPL]
-              ].map(([label, value]) => (
-                <div key={label}>
-                  <div className="text-[11px] uppercase tracking-wider text-slate-500">{label}</div>
-                  <div className={`text-lg font-semibold tabular-nums ${
-                    value > 0 ? "text-emerald-600" : value < 0 ? "text-rose-600" : "text-slate-900"
-                  }`}>
-                    {fmtMoney(value)}
-                  </div>
+          <div className="flex flex-wrap gap-x-8 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3">
+            {[
+              ["Premium", premiumPL],
+              ["Early close", earlyClosePL],
+              ["Shares", stockPL],
+              ...(unattributed !== 0 ? [["Shares, no option", unattributed]] : []),
+              ["Total", totalPL]
+            ].map(([label, value]) => (
+              <div key={label}>
+                <div className="text-[11px] uppercase tracking-wider text-slate-500">{label}</div>
+                <div className={`text-lg font-semibold tabular-nums ${
+                  value > 0 ? "text-emerald-600" : value < 0 ? "text-rose-600" : "text-slate-900"
+                }`}>
+                  {fmtMoney(value)}
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            ))}
+          </div>
 
           {unpairedCount > 0 && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
