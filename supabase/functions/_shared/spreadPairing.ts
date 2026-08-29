@@ -47,6 +47,12 @@ function buildLegs(positions, activities) {
 // Pair shorts with protective longs of the same option type.
 // Puts: long strike below short. Calls: long strike above short.
 // Mutates the qty of the legs it consumes.
+//
+// Each short takes the NEAREST eligible long, not the first one the
+// position list happens to offer. With puts at 105 short / 100 long and
+// 100 short / 95 long, first-match in ascending-strike order bolted the
+// 105 short onto the 95 long — a 10-wide never traded — and left the 100
+// short looking naked. Same rule as tradeReconstruction's nearestLong.
 function pairSide(legs, optionType) {
   const isCall = optionType === "C";
   const shorts = legs.filter((l) => l.optionType === optionType && l.qty < 0);
@@ -54,7 +60,10 @@ function pairSide(legs, optionType) {
   const out = [];
   shorts.forEach((s) => {
     let remaining = Math.abs(s.qty);
-    longs.forEach((l) => {
+    const byDistance = longs
+      .slice()
+      .sort((a, b) => Math.abs(a.strike - s.strike) - Math.abs(b.strike - s.strike));
+    byDistance.forEach((l) => {
       const strikeOk = isCall ? l.strike > s.strike : l.strike < s.strike;
       if (remaining > 0 && strikeOk && l.expiry === s.expiry && l.qty > 0) {
         const q = Math.min(remaining, l.qty);

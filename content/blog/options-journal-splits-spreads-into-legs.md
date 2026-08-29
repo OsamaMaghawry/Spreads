@@ -1,15 +1,15 @@
 ---
-title: A spread is one position, not two legs
-slug: a-spread-is-one-position-not-two-legs
-excerpt: If a tool rebuilds your spreads by matching strikes instead of reading the order they came from, it will eventually invent one.
-meta_description: Why grouping option legs by order provenance beats guessing from strikes, and what breaks when a tool guesses after a roll or a partial close.
+title: Why your options journal splits spreads into legs
+slug: options-journal-splits-spreads-into-legs
+excerpt: A spread is one position, not two legs — but if a tool rebuilds it by matching strikes instead of reading the order it came from, it will eventually invent one.
+meta_description: Your broker's fill feed doesn't say which legs were one order. Why syncs split spreads into legs, and what strike-guessing invents after rolls and partial closes.
 author: DeltaMint
 ---
 
-You sent one order. The broker filled it as several executions, and somewhere
-downstream a piece of software has to put them back together. How it does that
-is not a detail. It decides whether your book shows the positions you actually
-have.
+You sent one order — a credit spread. The broker filled it as several
+executions, and somewhere downstream — a journal, a tracker, a dashboard — a
+piece of software has to put them back together. How it does that is not a
+detail. It decides whether your book shows the positions you actually have.
 
 There are two ways to do it. One reads where the legs came from. The other looks
 at the strikes and guesses.
@@ -27,14 +27,16 @@ decides that the ones which look like a spread probably are one. On a clean
 account with a handful of positions, resemblance and provenance agree, which is
 exactly why the difference is invisible until it isn't.
 
+### Why a CSV import groups the spread and the broker sync splits it
+
 There is a diagnostic people stumble into without meaning to. A trader comparing
 two ways of loading the same account into a journal found that a manual CSV
 upload grouped their spreads correctly while the automatic broker sync split the
 same trades into legs. Nothing was wrong with the account. The CSV was a
 per-order export — one row, both legs, already tied together — so the grouping
 was carried in the file. The sync pulled individual executions from the
-activities feed, which has no such tie, and reconstructed the pairing from what
-the executions looked like. Same data, same trades, two different books, and the
+activities feed and rebuilt the pairing from what the executions looked like —
+whatever order tie the feed carried, the sync didn't use it. Same data, same trades, two different books, and the
 one that came from the file was right because the file preserved the provenance
 that the feed had thrown away.
 
@@ -44,9 +46,9 @@ that the feed had thrown away.
 protective long it finds rather than the nearest one. Run two put spreads on the
 same underlying and expiry — say one at 100/95 and, opened a week later, another
 at 105/100 — and a first-match pairing can bolt the 105 short onto the 95 long.
-The result is a 10-wide spread that was never traded, sitting in the book with a
-max loss more than double the real one, while the two positions you actually
-have are nowhere.
+The result is a 10-wide spread that was never traded, sitting in the book with
+[a max loss more than double the real one](/blog/return-on-risk-vs-return-on-capital),
+while the two positions you actually have are nowhere.
 
 ![Left: pairing each short to its nearest protective long reconstructs the two $5-wide spreads actually traded. Right: first-match pairing invents a $10-wide spread that never existed, shows the 100 short as naked and drops the 100 long's cost.](/assets/blog/nearest-long-pairing.svg)
 
@@ -107,9 +109,10 @@ never there, so the fallback matters: in DeltaMint, a short pairs to the
 difference between reconstructing the spread you traded and manufacturing a
 wider one you did not.
 
-And nothing unmatched gets thrown away. An unpaired leg is written down and
-flagged as unpaired, because a visible orphan is a question you can answer and a
-dropped one is a cost that silently never happened. Premium and shares stay as
+And nothing unmatched gets thrown away from the record. In the trade history an
+unpaired leg is written down and flagged as unpaired, because a visible orphan
+is a question you can answer and a dropped one is a cost that silently never
+happened. Premium and shares stay as
 separate linked records for the same reason: an assigned short keeps its full
 premium, the result lands on the stock, and both stay legible afterwards.
 

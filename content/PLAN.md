@@ -76,4 +76,4 @@ decision, not the writer's.
 | Date | Slug | Topic | Notes |
 | --- | --- | --- | --- |
 | 2026-08-29 | `return-on-risk-vs-return-on-capital` | 0 — Return on risk vs return on capital | draft — awaiting review |
-| 2026-08-29 | `a-spread-is-one-position-not-two-legs` | 3 — A spread is one position, not two legs | draft — awaiting review |
+| 2026-08-29 | `options-journal-splits-spreads-into-legs` | 3 — A spread is one position, not two legs | draft — awaiting review |

@@ -85,7 +85,11 @@ End every post with a plain line stating it is not investment advice.
 Then:
 
 1. Run `npm run content:check -- content/blog/<slug>.md`. Fix what it flags.
-2. Say that `compliance-gate` should review it before it goes anywhere.
+2. Say that the review chain must run before the post goes anywhere, in this
+   order: `desk-editor` (technical truth — arithmetic, mechanics, product
+   claims, figures), `seo-editor` (query-space study, title/slug/meta/
+   headings/links), `compliance-gate` (regulatory exposure). A post that has
+   not passed all three does not get published.
 3. Add the post to `content/PLAN.md` under what has been written.
 
 Stop there. Merging the file and pressing Publish are decisions for a person.
