@@ -629,23 +629,34 @@ test("once the shares are sold the row is final", () => {
   assert.equal(Math.round(csp.realized_pl), -800, "the winner was a loser all along");
 });
 
-test("a cash-settled index option delivers no shares", () => {
-  // An assigned SPX spread used to produce a 100-share "SPX" lot at the strike
-  // -- a securities position that does not exist, with a basis that never
-  // existed. Inert while the ledger dropped it; live once the legs paired.
+test("an index spread settling in the money is a loss, not a full-credit win", () => {
+  // This test previously asserted stockLots.length, orphanedStockPL, stock_pl
+  // and premium_pl -- and omitted realized_pl, the only number that matters.
+  // So it passed while the guard it was written for turned a -$600 maximum
+  // loss into a +$400 winner: $1,000 per contract, in the user's favour, on
+  // the worst possible outcome, with every flag reading clean.
+  //
+  // A cash-settled contract really does deliver no shares, but the share
+  // round-trip is where this code carries the settlement -- buy at the short
+  // strike, sell at the long, netting the width. Remove it and the premium
+  // stands alone. Whatever mechanism eventually books index settlement, THIS
+  // is the assertion that has to hold.
   const acts = [
     fill("2026-08-03", "sell", "SPXW260828P05200000", 1, 12.00),
     fill("2026-08-03", "buy", "SPXW260828P05190000", 1, 8.00),
     assign("2026-08-28", "SPXW260828P05200000", 1),
     exercise("2026-08-28", "SPXW260828P05190000", 1)
   ];
-  const { records, stockLots, orphanedStockPL } = reconstruct(acts, {}, ACCOUNT);
-
-  assert.equal(stockLots.length, 0, "no share lot may be invented for a cash-settled contract");
-  assert.equal(orphanedStockPL, 0);
+  const { records, orphanedStockPL } = reconstruct(acts, {}, ACCOUNT);
   const spread = records.find((r) => r.short_symbol === "SPXW260828P05200000");
-  assert.equal(spread.stock_pl, 0, "no share result");
-  assert.equal(Math.round(spread.premium_pl), 400, "the credit is still real");
+
+  assert.equal(Math.round(spread.premium_pl), 400, "$4.00 credit on one contract");
+  assert.equal(
+    Math.round(spread.realized_pl),
+    -600,
+    "10-wide less the 4.00 credit = the maximum loss"
+  );
+  assert.equal(orphanedStockPL, 0, "the settlement belongs to this spread, not to nobody");
 });
 
 test("equity options still deliver shares", () => {

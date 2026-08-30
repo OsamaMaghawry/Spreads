@@ -120,19 +120,35 @@ export function reconstructOptionLots(activities, orderStrategy = {}) {
         const q = Math.min(lot.qty, remaining);
         const chainKey = chainKeyFor(symbol, date);
         push({ ...lot, qty: q }, 0, date, reason, chainKey);
-        // Cash-settled contracts deliver no shares. Emitting a move here
-        // invented a stock position, a basis and a result for it.
-        if (!isCashSettled(parsed.ticker)) {
-          shareMoves.push({
-            ticker: parsed.ticker,
-            date,
-            side: shareSide(lot.short, parsed.type === "C"),
-            qty: q * CONTRACT_SIZE,
-            price: parsed.strike,
-            source: lot.short ? "assignment" : "exercise",
-            chainKey
-          });
-        }
+        // NOTE: a guard here suppressing the share move for cash-settled
+        // contracts was reverted, because it removed the settlement rather
+        // than the phantom.
+        //
+        // closeSome closes the option lot at price 0 deliberately: for an
+        // equity option the economics arrive afterwards, through the share
+        // round-trip. For an index spread that round-trip -- buy 100 at the
+        // short strike, sell 100 at the long -- nets exactly the width, which
+        // IS the cash settlement. The figure was right by the wrong mechanism.
+        // Suppressing the move left the premium alone on the record, so an
+        // SPXW 5200/5190 spread settling at maximum loss reported +$400
+        // instead of -$600: $1,000 per contract, in the user's favour, on the
+        // worst outcome, with every flag reading clean.
+        //
+        // So the move stays until the settlement is booked properly.
+        // isCashSettled below is still the right classification and is what a
+        // real fix will key on. This state is cosmetically wrong -- it records
+        // a share position that never existed, in an instrument under a
+        // different tax regime -- and financially right, which is the safer of
+        // the two.
+        shareMoves.push({
+          ticker: parsed.ticker,
+          date,
+          side: shareSide(lot.short, parsed.type === "C"),
+          qty: q * CONTRACT_SIZE,
+          price: parsed.strike,
+          source: lot.short ? "assignment" : "exercise",
+          chainKey
+        });
         lot.qty -= q;
         remaining -= q;
         position += lot.short ? q : -q;
