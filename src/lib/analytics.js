@@ -45,7 +45,7 @@ export function computeStats(trades, equity = 0) {
   // trade opened and closed the same day a peak contribution of zero, however
   // much it tied up. The tie-break is the whole of the bug: on 99 real trades
   // it reported $119,014 against a true $162,678.
-  events.sort((a, b) => a.date.localeCompare(b.date) || (a.close ? 1 : -1));
+  events.sort((a, b) => a.date.localeCompare(b.date) || (a.close ? 1 : 0) - (b.close ? 1 : 0));
   let openRisk = 0, peakRisk = 0;
   events.forEach((e) => {
     openRisk += e.delta;
