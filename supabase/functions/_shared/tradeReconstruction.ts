@@ -68,15 +68,31 @@ const dayOf = (a) => (a.transaction_time || "").substring(0, 10) || a.date || ""
 // settlement whose amount we cannot read must be reported as unknown, never
 // inferred as zero, because zero is a number a reader would believe.
 export function cashAmountOf(a) {
+  // parseFloat("-1,000.00") is -1, silently. Thousands separators are stripped
+  // before parsing rather than trusted to a function that stops at the comma.
+  const num = (v) => {
+    if (typeof v === "number") return Number.isFinite(v) ? v : null;
+    if (typeof v !== "string") return null;
+    const cleaned = v.replace(/[$\s,]/g, "");
+    if (!/^[+-]?\d*\.?\d+$/.test(cleaned)) return null;
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : null;
+  };
+
   for (const field of ["net_amount", "amount", "cash_amount", "settlement_amount"]) {
-    const v = parseFloat(a?.[field]);
-    if (Number.isFinite(v)) return v;
+    const v = num(a?.[field]);
+    if (v !== null) return v;
   }
-  // Per-share and per-contract variants, which need the quantity to become an
-  // amount. Only used when no total was given.
-  const per = parseFloat(a?.per_share_amount ?? a?.price);
-  const qty = Math.abs(parseFloat(a?.qty));
-  if (Number.isFinite(per) && Number.isFinite(qty) && qty > 0) return per * qty * CONTRACT_SIZE;
+  // A per-contract amount, which needs the quantity to become a total.
+  //
+  // `price` is deliberately NOT a candidate. Every OPEXP, OPASN and OPEXC
+  // fixture in this repo carries price "0", which would make an unreadable
+  // settlement report a confident $0 -- and if OPCSH instead carries the
+  // settlement index level there, a 5185 settle would read as $518,500.
+  // per_share_amount is the only per-unit field specific enough to trust.
+  const per = num(a?.per_share_amount);
+  const qty = Math.abs(num(a?.qty) ?? NaN);
+  if (per !== null && Number.isFinite(qty) && qty > 0) return per * qty * CONTRACT_SIZE;
   return null;
 }
 
@@ -188,35 +204,37 @@ export function reconstructOptionLots(activities, orderStrategy = {}) {
         return;
       }
 
-      // Cash settlement, as the broker reports it.
+      // A cash settlement is RECORDED here and closes nothing.
       //
-      // Index options pay a difference in cash and deliver nothing, so OPCSH
-      // is what actually closes an SPX or VIX position. It is recorded here
-      // and *checked against* the position rather than believed: Alpaca's
-      // paper index settlement has a reported defect in which out-of-the-money
-      // shorts are credited instead of expiring worthless, so a broker figure
-      // that contradicts the structure is a finding, not an answer.
+      // It was briefly wired into closeSome, and that was wrong in a way worth
+      // writing down. closeSome books a share round-trip at the strikes, which
+      // is a maximum-loss outcome -- correct only because OPASN and OPEXC mean
+      // the broker has already asserted the option finished in the money.
+      // OPCSH asserts nothing about moneyness: an index option cash-settles
+      // whether it finished in or out. Pointing a moneyness-agnostic event at
+      // a mechanism whose correctness depends on moneyness produced, on an
+      // index settling BETWEEN the strikes -- an ordinary outcome -- a +$400
+      // record on a true -$100, with every flag reading clean. Out of the
+      // money in both legs it would report -$600 on a +$400 maximum win.
       //
-      // The economics still come from the share round-trip below, which for a
-      // spread nets exactly the width and is provably right at maximum loss.
-      // Promoting the broker's number to the source of truth needs the OPCSH
-      // payload confirmed -- its field names and its sign convention are not
-      // in any documentation reachable from here, and a sign read backwards on
-      // a settlement is a two-way error. Recorded now, trusted when verified.
+      // The position still closes through its own OPEXP, OPASN or OPEXC,
+      // which are verified. What arrives here is the broker's stated cash
+      // amount, kept for reconciliation only.
+      //
+      // Nothing consumes it on the write path yet, and OPCSH is deliberately
+      // not requested in tradeHistory's activity_types, so this is dormant
+      // until one real payload confirms the field names and the sign
+      // convention -- neither of which appears in any documentation reachable
+      // from here. A settlement sign read backwards is a two-way error.
       if (type === "OPCSH") {
-        const raw = Math.abs(parseFloat(a.qty));
-        const contracts = Number.isFinite(raw) && raw > 0
-          ? raw
-          : openLots.reduce((n, l) => n + l.qty, 0);
         cashSettlements.push({
           symbol,
           ticker: parsed.ticker,
           date: a.date || dayOf(a),
-          qty: contracts,
+          qty: Math.abs(parseFloat(a.qty)) || 0,
           amount: cashAmountOf(a),
           raw: a
         });
-        closeSome(contracts, a.date || dayOf(a), "settled");
         return;
       }
 
