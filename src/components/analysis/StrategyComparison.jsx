@@ -6,6 +6,11 @@ const pct = (v, d = 1) => (v === null || v === undefined || !isFinite(v) ? "—"
 const num = (v) => (v === null || v === undefined || !isFinite(v) ? "—" : v.toFixed(2));
 
 export default function StrategyComparison({ rows }) {
+  // Three of these columns are measured over settled trades and three over
+  // every row. Unsaid, the table reads as one population and a reader would
+  // divide one column by another -- which is how "12 trades, 100% win rate,
+  // -$5,900" gets onto a screen and stays there unexplained.
+  const notFinal = rows.reduce((a, r) => a + (r.stats?.provisionalTrades || 0), 0);
   return (
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
       <h3 className="text-sm font-medium text-slate-900 px-4 py-3 border-b border-slate-200">Strategy comparison</h3>
@@ -47,6 +52,15 @@ export default function StrategyComparison({ rows }) {
           </tbody>
         </table>
       </div>
+      {notFinal > 0 && (
+        <p className="border-t border-slate-200 px-4 py-2.5 text-[11px] leading-relaxed text-slate-500">
+          Win rate, expectancy and profit factor are measured over settled trades. {notFinal} position
+          {notFinal === 1 ? "" : "s"} closed by assignment {notFinal === 1 ? "still holds" : "still hold"}{" "}
+          shares, so {notFinal === 1 ? "its result is" : "their results are"} not final and{" "}
+          {notFinal === 1 ? "it is" : "they are"} left out of those three. Trades, realized P/L and max
+          drawdown count every row.
+        </p>
+      )}
     </div>
   );
 }

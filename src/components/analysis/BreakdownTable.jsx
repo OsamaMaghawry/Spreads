@@ -24,7 +24,12 @@ export default function BreakdownTable({ title, keyLabel, rows, keyField }) {
               <tr key={r[keyField]} className="border-b border-slate-100 last:border-0">
                 <td className={`${td} font-medium text-slate-900`}>{r[keyField]}</td>
                 <td className={`${td} text-right`}>{r.trades}</td>
-                <td className={`${td} text-right`}>{((r.wins / r.trades) * 100).toFixed(0)}%</td>
+                {/* Over settled trades, the same population as the win rate
+                    above it. Dividing settled wins by every trade would report
+                    a rate lower than either measurement. */}
+                <td className={`${td} text-right`}>
+                  {r.settled ? `${((r.wins / r.settled) * 100).toFixed(0)}%` : "—"}
+                </td>
                 <td className={`${td} text-right font-semibold ${r.pl >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                   {fmtMoney(r.pl)}
                 </td>

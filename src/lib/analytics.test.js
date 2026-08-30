@@ -115,3 +115,34 @@ test("with nothing settled yet the outcome figures are withheld, not zero", () =
   assert.equal(s.winRate, null, "0% would be a claim; there is no settled trade to make it about");
   assert.equal(s.avgPL, null);
 });
+
+test("no figure that classifies a trade counts an unfinished one, and none of them reads zero", () => {
+  // The screen the bench reproduced: two settled winners and one assignment
+  // still holding shares thousands of dollars underwater. Applying the
+  // settled-only rule to some of the figures and not the rest produced, on one
+  // page, "Win rate 100% · Largest loss $0.00" beside a five-figure realized
+  // loss -- and every mixed figure erred flattering.
+  const win = trade({ open: "2026-03-01", close: "2026-03-10", pl: 150 });
+  const win2 = trade({ open: "2026-03-02", close: "2026-03-11", pl: 150 });
+  const notFinal = { ...trade({ open: "2026-03-03", close: "2026-03-12", pl: -6200 }), provisional: true };
+
+  const s = computeStats([win, win2, notFinal], 10000);
+
+  // Money: every row.
+  assert.equal(s.totalPL, -5900);
+  assert.equal(s.trades, 3);
+  assert.equal(s.maxDrawdown, 6200);
+
+  // Outcome: settled only, and no settled loss exists to report.
+  assert.equal(s.winRate, 1);
+  assert.equal(s.largestLoss, null, "not $0.00 — there is no settled loss, which is not the same as a loss of zero");
+  assert.equal(s.avgLoss, null);
+  assert.equal(s.largestWin, 150);
+
+  // The breakdown tables ask the same question and must answer it the same way.
+  const march = s.byMonth.find((m) => m.month === "2026-03");
+  assert.equal(march.trades, 3, "P/L covers every row");
+  assert.equal(march.settled, 2, "the win rate's denominator does not");
+  assert.equal(march.wins, 2);
+  assert.equal(march.pl, -5900);
+});

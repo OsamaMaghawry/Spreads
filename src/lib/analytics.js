@@ -21,12 +21,25 @@ export function computeStats(trades, equity = 0) {
   // figure — usually the premium, positive, before a loss on the shares lands
   // on the same row.
   //
-  // Money aggregates keep it: the cash from the option really did move, and a
-  // total that quietly dropped it would not match the account. Outcome
+  // One rule, applied everywhere rather than to some of the figures that
+  // answer the same question:
+  //
+  //   Anything that calls a trade a win or a loss is measured over settled
+  //   trades. Anything that measures money booked is measured over every row.
+  //
+  // Money aggregates keep it because the cash from the option really did move,
+  // and a total that quietly dropped it would not match the account. Outcome
   // statistics do not, because they ask a question it cannot yet answer. A win
   // rate that counts unfinished positions as wins is the single most flattering
   // thing this page could do, and it would correct itself downwards later,
   // which is the worst possible order to learn it in.
+  //
+  // Applying that to thirteen figures and not the rest was worse than either
+  // basis on its own: an account could read "Win rate 100%, Largest loss
+  // $0.00" beside "Realized P/L -$5,900", and every mixed figure erred
+  // flattering. Where a settled figure has nothing to measure it returns null,
+  // never zero -- $0.00 is a statement about an account, and "no settled
+  // losses yet" is not that statement.
   const settled = sorted.filter((t) => !t.provisional);
   const settledPLs = settled.map((t) => t.realized_pl || 0);
   const provisionalCount = sorted.length - settled.length;
@@ -77,7 +90,9 @@ export function computeStats(trades, equity = 0) {
   });
 
   // Average of each trade's own return on its collateral.
-  const perTradeRoRs = sorted.map((t) => {
+  // Settled only: this is each trade's own result, and an unfinished row's
+  // result is the premium half of one.
+  const perTradeRoRs = sorted.filter((t) => !t.provisional).map((t) => {
     const risk = riskOf(t);
     return risk > 0 ? (t.realized_pl || 0) / risk : null;
   }).filter((v) => v !== null);
@@ -94,7 +109,9 @@ export function computeStats(trades, equity = 0) {
     return { date: t.close_date, cum, pl: t.realized_pl || 0 };
   });
 
-  // Per-day aggregation.
+  // Per-day aggregation, over every row: a day's figure is the cash booked that
+  // day, which is a money question. "Green days" therefore counts days that
+  // booked money, not days that finished winning trades, and the card says so.
   const byDayMap = {};
   sorted.forEach((t) => {
     byDayMap[t.close_date] = (byDayMap[t.close_date] || 0) + (t.realized_pl || 0);
@@ -110,12 +127,16 @@ export function computeStats(trades, equity = 0) {
   const medianDayPL = median(byDay.map((d) => d.pl));
 
   // Per-month aggregation.
+  // P/L over every row; the win count and its denominator over settled ones,
+  // so the win rate these produce is the same measurement as the headline.
   const byMonthMap = {};
   sorted.forEach((t) => {
     const m = t.close_date.substring(0, 7);
-    const b = (byMonthMap[m] = byMonthMap[m] || { month: m, pl: 0, trades: 0, wins: 0 });
+    const b = (byMonthMap[m] = byMonthMap[m] || { month: m, pl: 0, trades: 0, settled: 0, wins: 0 });
     b.pl += t.realized_pl || 0;
     b.trades += 1;
+    if (t.provisional) return;
+    b.settled += 1;
     if ((t.realized_pl || 0) > 0) b.wins += 1;
   });
   const byMonth = Object.values(byMonthMap).sort((a, b) => a.month.localeCompare(b.month));
@@ -123,9 +144,13 @@ export function computeStats(trades, equity = 0) {
   // Per-ticker aggregation.
   const byTickerMap = {};
   sorted.forEach((t) => {
-    const b = (byTickerMap[t.ticker] = byTickerMap[t.ticker] || { ticker: t.ticker, pl: 0, trades: 0, wins: 0 });
+    const b = (byTickerMap[t.ticker] = byTickerMap[t.ticker] || {
+      ticker: t.ticker, pl: 0, trades: 0, settled: 0, wins: 0
+    });
     b.pl += t.realized_pl || 0;
     b.trades += 1;
+    if (t.provisional) return;
+    b.settled += 1;
     if ((t.realized_pl || 0) > 0) b.wins += 1;
   });
   const byTicker = Object.values(byTickerMap).sort((a, b) => b.pl - a.pl);
@@ -161,12 +186,15 @@ export function computeStats(trades, equity = 0) {
     losses: losses.length,
     scratches: settled.length - wins.length - losses.length,
     avgPL: settled.length ? settledPLs.reduce((a, v) => a + v, 0) / settled.length : null,
-    avgWin: wins.length ? grossWin / wins.length : 0,
-    avgLoss: losses.length ? -grossLoss / losses.length : 0,
+    // null, not zero, when there is nothing settled to measure. "Largest loss
+    // $0.00" on an account holding shares thousands of dollars underwater is
+    // an affirmative false statement; "—" is the true one.
+    avgWin: wins.length ? grossWin / wins.length : null,
+    avgLoss: losses.length ? -grossLoss / losses.length : null,
     profitFactor: grossLoss > 0 ? grossWin / grossLoss : null,
     payoffRatio: wins.length && losses.length ? (grossWin / wins.length) / (grossLoss / losses.length) : null,
-    largestWin: Math.max(...settledPLs, 0),
-    largestLoss: Math.min(...settledPLs, 0),
+    largestWin: wins.length ? Math.max(...settledPLs) : null,
+    largestLoss: losses.length ? Math.min(...settledPLs) : null,
     expiredCount: sorted.filter((t) => t.close_reason === 'expired').length,
     creditCollected,
     captureRate: creditCollected > 0 ? totalPL / creditCollected : null,

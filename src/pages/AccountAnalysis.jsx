@@ -196,10 +196,13 @@ export default function AccountAnalysis() {
               {provisionalCount > 0 && (
                 <> {provisionalCount} position{provisionalCount === 1 ? "" : "s"} closed by assignment
                 {provisionalCount === 1 ? " still has" : " still have"} shares held, so
-                {provisionalCount === 1 ? " its result is" : " their results are"} not final. The cash
-                already booked is in the totals and the equity curve; win rate, profit factor,
-                expectancy, payoff, largest win and loss, and the streaks are measured without
-                {provisionalCount === 1 ? " it" : " them"}.</>
+                {provisionalCount === 1 ? " its result is" : " their results are"} not final. Anything
+                that calls a trade a win or a loss &mdash; win rate, profit factor, expectancy, payoff,
+                average and largest win and loss, per-trade return, the streaks, and the win-rate
+                columns in the tables above &mdash; is measured without
+                {provisionalCount === 1 ? " it" : " them"}. Anything that measures money booked &mdash;
+                the totals, the equity curve, drawdown, and the per-day and per-month figures &mdash;
+                counts {provisionalCount === 1 ? "it" : "them"} in full.</>
               )}{" "}
               Reconcile against your broker&rsquo;s Form 1099-B before using any figure for a return.
             </div>
