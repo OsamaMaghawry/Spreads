@@ -808,3 +808,40 @@ test("two spreads on one short strike at different widths each carry their own l
     )
   );
 });
+
+// ---------------------------------------------------------------------------
+// The defect that turned an option into a stock ticker
+// ---------------------------------------------------------------------------
+
+test("an adjusted contract is reconstructed, not booked as a stock", () => {
+  // A corporate action renames AAPL to AAPL1 for contracts written before it.
+  // The parser took letters only, so both legs were refused -- their premium
+  // left the account total, and the stock side, which takes everything that is
+  // not an option, booked "1 share of AAPL1260828C00100000 at $2.50".
+  const acts = [
+    fill("2026-08-03", "sell", "AAPL1260828C00100000", 1, 2.5),
+    fill("2026-08-03", "buy", "AAPL1260828C00105000", 1, 1.0),
+    expire("2026-08-28", "AAPL1260828C00100000", 1),
+    expire("2026-08-28", "AAPL1260828C00105000", 1)
+  ];
+  const { records, stockLots } = reconstruct(acts, {}, ACCOUNT);
+
+  assert.equal(records.length, 1, "one spread, not zero");
+  assert.equal(records[0].ticker, "AAPL", "the shares it delivers are ordinary AAPL shares");
+  assert.equal(money(records[0].realized_pl), 150);
+  assert.equal(stockLots.length, 0, "no option symbol reaches the share ledger");
+});
+
+test("an adjusted contract keeps its adjustment digit in the symbol", () => {
+  const { records } = reconstruct(
+    [
+      fill("2026-08-03", "sell", "T1260828P00015000", 1, 0.8),
+      expire("2026-08-28", "T1260828P00015000", 1)
+    ],
+    {},
+    ACCOUNT
+  );
+  assert.equal(records[0].short_symbol, "T1260828P00015000");
+  assert.equal(records[0].ticker, "T");
+  assert.equal(records[0].short_strike, 15);
+});

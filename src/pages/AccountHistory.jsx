@@ -9,6 +9,7 @@ import StockLotsTable from "@/components/history/StockLotsTable";
 import RebuildPreview from "@/components/history/RebuildPreview";
 import StrategyTabs from "@/components/history/StrategyTabs";
 import useIsAdmin from "@/lib/useIsAdmin";
+import { isAdjustedTrade } from "@/lib/occ";
 
 export default function AccountHistory() {
   const { id } = useParams();
@@ -123,6 +124,7 @@ export default function AccountHistory() {
   const componentsMissing = trades.some((t) => t.premium_pl === null || t.premium_pl === undefined);
   const unpairedCount = trades.filter((t) => t.unpaired).length;
   const provisionalCount = trades.filter((t) => t.provisional).length;
+  const adjustedCount = trades.filter(isAdjustedTrade).length;
 
   return (
     <div className="space-y-5">
@@ -233,6 +235,15 @@ export default function AccountHistory() {
               {provisionalCount === 1 ? " its result" : " their results"} will change when those shares are
               sold &mdash; under the close date shown, not the date of the sale. Marked
               &ldquo;not final&rdquo; below and included in the totals above.
+            </div>
+          )}
+
+          {adjustedCount > 0 && (
+            <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+              {adjustedCount} position{adjustedCount === 1 ? "" : "s"} use an adjusted contract, written before a
+              corporate action changed what it delivers. Its figures here are worked out as 100 shares at the
+              strike, which is no longer what it settles into &mdash; check {adjustedCount === 1 ? "it" : "them"} against
+              your broker.
             </div>
           )}
 

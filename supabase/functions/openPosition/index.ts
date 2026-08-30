@@ -24,6 +24,18 @@ async function preflight(account, legs, expectedSpot, allowItmShort) {
     .filter((l: any) => l.occ);
   if (parsed.length === 0) return null;
 
+  // An adjusted contract -- AAPL1 rather than AAPL -- no longer delivers 100
+  // shares of the underlying at the strike, and the symbol does not say what it
+  // delivers instead. Every check below compares its strike against the
+  // underlying's spot, which is the wrong comparison, and the credit and the
+  // width would be wrong in the same way. The scanner never produces these; if
+  // one arrives, refusing is the only honest answer.
+  const adjusted = parsed.find((l: any) => l.occ.adjusted);
+  if (adjusted) {
+    return `${adjusted.symbol} is an adjusted contract — what it delivers is not 100 shares ` +
+      `of ${adjusted.occ.ticker}, so this order cannot be checked against the market. Place it with your broker.`;
+  }
+
   const ticker = parsed[0].occ.ticker;
   const spot = await getSpot(account, ticker);
   if (!(spot.price > 0)) return `No live price for ${ticker} — refusing to open a position without one.`;
