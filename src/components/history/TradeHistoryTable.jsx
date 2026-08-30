@@ -106,13 +106,13 @@ export default function TradeHistoryTable({ trades }) {
               <td className={`${td} text-slate-500`}>{t.open_date}</td>
               <td className={`${td} text-slate-500`}>{t.close_date}</td>
               <td className={`${td} text-slate-500`}>{t.expiry}</td>
-              <td className={`${td} text-right`}>{fmtMoney(t.short_strike)}</td>
+              <td className={`${td} text-right`}>{t.short_symbol ? fmtMoney(t.short_strike) : "—"}</td>
               <td className={`${td} text-right`}>{t.long_symbol ? fmtMoney(t.long_strike) : "—"}</td>
               <td className={`${td} text-right`}>{t.qty}</td>
-              <td className={`${td} text-right`}>{fmtMoney(t.short_entry)}</td>
+              <td className={`${td} text-right`}>{t.short_symbol ? fmtMoney(t.short_entry) : "—"}</td>
               <td className={`${td} text-right`}>{t.long_symbol ? fmtMoney(t.long_entry) : "—"}</td>
               <td className={`${td} text-right`}>{fmtMoney(t.net_credit)}</td>
-              <td className={`${td} text-right`}>{fmtMoney(t.short_exit)}</td>
+              <td className={`${td} text-right`}>{t.short_symbol ? fmtMoney(t.short_exit) : "—"}</td>
               <td className={`${td} text-right`}>{t.long_symbol ? fmtMoney(t.long_exit) : "—"}</td>
               <td className={`${td} text-right`}>{fmtMoney(t.close_debit)}</td>
               <td className={`${td} text-right`}><Money value={t.premium_pl} /></td>
@@ -120,10 +120,8 @@ export default function TradeHistoryTable({ trades }) {
               <td className={`${td} text-right`}><Money value={t.stock_pl} /></td>
               <td className={`${td} text-right font-semibold`}><Money value={t.realized_pl} /></td>
               <td className={`${td} text-center`}>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  t.close_reason === "expired" ? "bg-slate-100 text-slate-600" : "bg-sky-100 text-sky-700"
-                }`}>
-                  {t.close_reason === "expired" ? "EXPIRED" : "CLOSED"}
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${RESULT[t.close_reason] || RESULT.closed}`}>
+                  {(t.close_reason || "closed").toUpperCase()}
                 </span>
               </td>
             </tr>

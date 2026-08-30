@@ -30,9 +30,6 @@ const STALE_AFTER_MS = 15 * 60 * 1000;
 // keeps running (see awaitUpTo) rather than being killed mid-write.
 const WAIT_FOR_SYNC_MS = 8000;
 
-// Reconstruct closed option trades per strategy. Strategy comes from the Alpaca
-// client order id prefix configured on the account (spreads vs wheel), so wheel
-// cash-secured puts are never mis-paired into spreads.
 async function fetchTrades(admin, accountId, ordered = true) {
   let query = admin.from("trade_records").select("*").eq("account_id", accountId);
   if (ordered) query = query.order("close_date", { ascending: false });
@@ -461,45 +458,7 @@ Deno.serve(async (req) => {
         activities: includeRaw ? activities : undefined,
         activityCount: activities.length
       });
-      let position = 0;
-      let openLots: any[] = [];
-      const push = (lot, closePrice, closeDate, expired) => closedLots.push({
-        symbol, parsed, qty: lot.qty, openPrice: lot.price, closePrice,
-        openDate: lot.date, closeDate, short: lot.short, expired, strategy: lot.strategy
-      });
-      events.forEach((a: any) => {
-        if (a.activity_type === "OPEXP") {
-          openLots.forEach((lot) => push(lot, 0, a.date, true));
-          openLots = [];
-          position = 0;
-          return;
-        }
-        const qty = Math.abs(parseFloat(a.qty));
-        const price = parseFloat(a.price);
-        const date = (a.transaction_time || "").substring(0, 10);
-        const delta = a.side === "buy" ? qty : -qty;
-        const strategy = orderStrategy[a.order_id] || "unknown";
-        if (position === 0 || (delta > 0) === (position > 0)) {
-          openLots.push({ qty, price, date, short: delta < 0, strategy });
-          position += delta;
-        } else {
-          let remaining = qty;
-          while (remaining > 0 && openLots.length > 0) {
-            const lot = openLots[0];
-            const q = Math.min(lot.qty, remaining);
-            push({ ...lot, qty: q }, price, date, false);
-            lot.qty -= q;
-            remaining -= q;
-            position += lot.short ? q : -q;
-            if (lot.qty === 0) openLots.shift();
-          }
-          if (remaining > 0) {
-            openLots.push({ qty: remaining, price, date, short: delta < 0, strategy });
-            position += delta > 0 ? remaining : -remaining;
-          }
-        }
-      });
-    });
+    }
 
     const syncedAt = account.trades_synced_at ? Date.parse(account.trades_synced_at) : 0;
     const attemptedAt = account.trades_sync_attempted_at
