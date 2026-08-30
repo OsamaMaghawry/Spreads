@@ -10,7 +10,13 @@ export default function StrategyComparison({ rows }) {
   // every row. Unsaid, the table reads as one population and a reader would
   // divide one column by another -- which is how "12 trades, 100% win rate,
   // -$5,900" gets onto a screen and stays there unexplained.
-  const notFinal = rows.reduce((a, r) => a + (r.stats?.provisionalTrades || 0), 0);
+  //
+  // Summed across rows this counted every unfinished position twice: the rows
+  // include an "All strategies" row that already contains the others, so the
+  // footnote printed double the figure the page footer gives for the same
+  // thing, 200px away. The whole-book row is the one to read it off.
+  const whole = rows.find((r) => r.stats?.provisionalTrades !== undefined && /all/i.test(r.label));
+  const notFinal = (whole || rows[0])?.stats?.provisionalTrades || 0;
   return (
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
       <h3 className="text-sm font-medium text-slate-900 px-4 py-3 border-b border-slate-200">Strategy comparison</h3>

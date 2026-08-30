@@ -328,10 +328,11 @@ export default function AccountHistory() {
           {adjustedCount > 0 && (
             <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
               {adjustedCount} position{adjustedCount === 1 ? "" : "s"} use an adjusted contract, written before a
-              corporate action changed what it delivers. Its figures here are worked out as 100 shares at the
-              strike, which is no longer what it settles into &mdash; check {adjustedCount === 1 ? "it" : "them"} against
-              your broker. Shares from {adjustedCount === 1 ? "it" : "them"} are listed under the adjusted symbol
-              rather than the plain ticker, so they stay separate from your ordinary holdings in that stock.
+              corporate action changed what it delivers. The premium shown for
+              {adjustedCount === 1 ? " it" : " them"} is exact. Anything that would depend on the deliverable
+              &mdash; width, maximum loss, and the result of shares it settled into &mdash; is not shown, because
+              the contract no longer delivers 100 shares at the strike and the symbol does not say what it
+              delivers instead.
             </div>
           )}
 

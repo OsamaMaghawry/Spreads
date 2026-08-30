@@ -15,7 +15,7 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
   const totals = spreads.reduce(
     (a, s) => ({
       totalCredit: a.totalCredit + (s.totalCredit || 0),
-      maxRisk: a.maxRisk + (s.maxRisk || 0),
+      maxRisk: a.maxRisk + (s.adjusted ? 0 : s.maxRisk || 0),
       closeCost: a.closeCost + (s.closeCost || 0),
       unrealizedPL: a.unrealizedPL + (s.unrealizedPL || 0),
       expirationPL: a.expirationPL + (s.expirationPL || 0)
@@ -98,22 +98,34 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
               <td className={`${td} text-center`}>
                 <span
                   className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    s.moneyness === "ITM" ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"
+                    s.moneyness === "ITM"
+                      ? "bg-rose-100 text-rose-700"
+                      : s.moneyness === "OTM"
+                        ? "bg-emerald-100 text-emerald-700"
+                        // No price to judge against. Green here would be an
+                        // answer; this is the absence of one.
+                        : "bg-slate-100 text-slate-500"
                   }`}
                 >
-                  {s.moneyness}
+                  {s.moneyness || "—"}
                 </span>
               </td>
               <td className={`${td} text-right`}>{s.qty}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.shortEntryPrice)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.longEntryPrice)}</td>
-              <td className={`${td} text-right`}>{fmtMoney(s.spreadWidth)}</td>
+              {/* Width, risk and break-even are all computed from a
+                  deliverable an adjusted contract no longer has. A dash is
+                  the honest cell; a number here would be arithmetic about a
+                  contract that does not exist. */}
+              <td className={`${td} text-right`}>{s.adjusted ? "—" : fmtMoney(s.spreadWidth)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.netCredit)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.totalCredit)}</td>
-              <td className={`${td} text-right`}>{fmtMoney(s.maxRisk)}</td>
+              <td className={`${td} text-right`}>{s.adjusted ? "—" : fmtMoney(s.maxRisk)}</td>
               <td className={`${td} text-right`}>
-                {fmtMoney(s.breakEven)}
-                {s.breakEvenHigh != null && <span className="text-slate-400"> – {fmtMoney(s.breakEvenHigh)}</span>}
+                {s.adjusted ? "—" : fmtMoney(s.breakEven)}
+                {!s.adjusted && s.breakEvenHigh != null && (
+                  <span className="text-slate-400"> – {fmtMoney(s.breakEvenHigh)}</span>
+                )}
               </td>
               <td className={`${td} text-right`}>{fmtMoney(s.shortCurrentPrice)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.longCurrentPrice)}</td>

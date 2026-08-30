@@ -219,7 +219,24 @@ async function fetchBrokerData(account, base) {
 
 // Reconcile what the broker says against what is stored. The reconstruction is
 // deterministic over the whole feed, so the fresh set is authoritative.
-async function writeResults(admin, accountId, userId, records, stockLots) {
+async function writeResults(admin, accountId, userId, records, stockLots, breaches = []) {
+  // A spread reporting a loss beyond its own arithmetic maximum is not a
+  // figure to store and explain later. The sync fails, the page says the
+  // refresh failed, and the stored history is left exactly as it was --
+  // the same posture as refuseMassDelete, for the same reason.
+  if (breaches.length > 0) {
+    const first = breaches[0];
+    throw new Error(
+      `Refusing to store an impossible result: ${first.short_symbol}/${first.long_symbol} closed ` +
+        `${first.close_date} computes to ${first.realized_pl.toFixed(2)} against a maximum loss of ` +
+        `${first.max_loss.toFixed(2)}${breaches.length > 1 ? ` (and ${breaches.length - 1} more)` : ""}. ` +
+        `Nothing was changed.`
+    );
+  }
+  return writeResultsInner(admin, accountId, userId, records, stockLots);
+}
+
+async function writeResultsInner(admin, accountId, userId, records, stockLots) {
   const existing = await fetchTrades(admin, accountId, false);
   const existingByKey: any = {};
   existing.forEach((r: any) => { existingByKey[r.trade_key] = r; });
@@ -376,7 +393,7 @@ Deno.serve(async (req) => {
     // it is the tool that found these defects, not a control a reader needs.
     if (preview) {
       const { orderStrategy, activities, settlementFeed } = await fetchBrokerData(account, base);
-      const { records, stockLots, orphanedStockPL, settlementChecks } =
+      const { records, stockLots, orphanedStockPL, settlementChecks, breaches } =
         reconstruct(activities, orderStrategy, accountId);
       const stored = await fetchTrades(admin, accountId, false);
       const storedByKey: any = {};
@@ -405,6 +422,10 @@ Deno.serve(async (req) => {
           // Non-zero means an option that produced shares was not itself
           // reconstructed. A defect to look at, not a figure to display.
           orphanedStockPL,
+          // Records whose result is beyond what the position could lose. A
+          // sync refuses to store these; the audit shows them so the defect
+          // can be found rather than only blocked.
+          breaches,
           // Cash settlements the broker reported, beside what the positions
           // say they must have paid. Anything other than "agrees" wants a
           // person: Alpaca's paper index settlement has a reported defect
@@ -443,8 +464,8 @@ Deno.serve(async (req) => {
 
       const work = (async () => {
         const { orderStrategy, activities } = await fetchBrokerData(account, base);
-        const { records, stockLots } = reconstruct(activities, orderStrategy, accountId);
-        return writeResults(admin, accountId, user.id, records, stockLots);
+        const { records, stockLots, breaches } = reconstruct(activities, orderStrategy, accountId);
+        return writeResults(admin, accountId, user.id, records, stockLots, breaches);
       })().catch(async (err) => {
         // The failure has to land somewhere a person can see. Previously it was
         // caught by inBackground's `work.catch(() => {})`, so a sync that wrote

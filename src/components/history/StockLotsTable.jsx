@@ -46,9 +46,8 @@ export default function StockLotsTable({ lots }) {
           of it.
         </p>
         <p className="text-xs text-slate-500">
-          Share price in and share price out are the price the shares actually moved at: the
-          option&rsquo;s strike where the Via column says assignment or exercise, and the traded price
-          where it says trade. Neither is your tax basis, and the realized P/L here is simply the
+          Share price in and share price out are the option&rsquo;s strike where the Via column says
+          assignment or exercise, and the traded price where it says trade. Neither is your tax basis, and the realized P/L here is simply the
           difference between the two &mdash; it is not your taxable gain or loss. Premium on a short
           put reduces the basis of shares put to you, and premium on a short call is added to the
           proceeds when shares are called away; neither adjustment is made here. Lots are matched

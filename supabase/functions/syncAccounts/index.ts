@@ -3,6 +3,7 @@ import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { tradingBase, alpacaFetch, pairSpreads, getOptionQuotes } from "../_shared/alpaca.ts";
 import { getSpots } from "../_shared/marketPrice.ts";
 import { decryptSecret } from "../_shared/crypto.ts";
+import { parseOCCSymbol } from "../_shared/occ.ts";
 
 // Rebuilds the live picture for every account the caller owns: positions paired
 // into structures, credit and risk per position, and totals that net a ticker's
@@ -131,6 +132,7 @@ async function syncOne(account) {
           ? stockPrice > s.shortStrike
           : stockPrice < s.shortStrike;
       const mySymbols = [s.shortSymbol, s.longSymbol, s.callShortSymbol, s.callLongSymbol].filter(Boolean);
+      const isAdjusted = mySymbols.some((sym) => parseOCCSymbol(sym)?.adjusted);
       return {
         ...s,
         stockPrice,
@@ -140,7 +142,21 @@ async function syncOne(account) {
         priceSource: quoted ? "quote" : "broker",
         spotSource: spots[s.ticker]?.source || null,
         spotTrusted: spots[s.ticker]?.trusted ?? false,
-        moneyness: stockPrice > 0 && itm ? "ITM" : "OTM",
+        // Null when there is no price to judge against, rather than "OTM".
+        //
+        // `stockPrice > 0 && itm ? "ITM" : "OTM"` reads as a ternary on
+        // moneyness and is really a ternary on whether a quote arrived: with
+        // no price it returns "OTM" deterministically, whatever the underlying
+        // is doing, and the interface paints that green. An adjusted contract
+        // has no such underlying to quote -- there is no stock called AAPL1 --
+        // so every one of them would show a green out-of-the-money chip while
+        // sitting through the strike. A quote outage does the same to ordinary
+        // positions.
+        moneyness: !(stockPrice > 0) ? null : itm ? "ITM" : "OTM",
+        // A corporate action changed what this contract delivers, so the
+        // width, the risk and the break-even are all computed from a
+        // deliverable it no longer has. Withheld rather than shown wrong.
+        adjusted: isAdjusted,
         spreadWidth,
         // Per-side worst case (used for directional condor aggregation).
         putSideRisk: (putWidth - netCredit) * s.qty * 100,

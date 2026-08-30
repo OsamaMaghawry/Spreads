@@ -7,7 +7,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { reconstruct, buildStockLedger, mergeShareMoves, stockFillMoves, cashAmountOf } from "./tradeReconstruction.ts";
+import {
+  reconstruct,
+  buildStockLedger,
+  mergeShareMoves,
+  stockFillMoves,
+  cashAmountOf,
+  attributeStockPL
+} from "./tradeReconstruction.ts";
 
 const ACCOUNT = "acct-1";
 
@@ -823,6 +830,105 @@ test("two spreads on one short strike at different widths each carry their own l
 // ---------------------------------------------------------------------------
 // The defect that turned an option into a stock ticker
 // ---------------------------------------------------------------------------
+
+test("a spread never reports a loss beyond its arithmetic maximum", () => {
+  // One long exercised, one expired, the remaining shares sold on the market.
+  // Identifying the first lot and splitting the second charged the record that
+  // had already taken its 100 shares for another 50: -$750 against a -$400
+  // maximum, while the record that actually held the sold shares understated
+  // by $350. A record owns qty x 100 shares and no more.
+  const acts = [
+    fill("2026-08-03", "sell", "AMD260828P00150000", 2, 2.0),
+    fill("2026-08-03", "buy", "AMD260828P00145000", 1, 1.0),
+    fill("2026-08-03", "buy", "AMD260828P00140000", 1, 0.5),
+    assign("2026-08-26", "AMD260828P00150000", 2),
+    exercise("2026-08-26", "AMD260828P00145000", 1),
+    expire("2026-08-28", "AMD260828P00140000", 1),
+    fill("2026-08-31", "sell", "AMD", 100, 143.0)
+  ];
+  const { records, breaches } = reconstruct(acts, {}, ACCOUNT);
+  const narrow = find(records, "AMD260828P00150000", "AMD260828P00145000");
+  const wide = find(records, "AMD260828P00150000", "AMD260828P00140000");
+
+  assert.equal(money(narrow.stock_pl), -500, "its own long's lot, and no share of the other");
+  assert.equal(money(narrow.realized_pl), -400, "exactly its maximum, not past it");
+  assert.equal(money(wide.stock_pl), -700, "the shares it still held when they were sold");
+  assert.equal(money(wide.realized_pl), -550);
+  [narrow, wide].forEach((r) => assertWithinMaxLoss(r));
+  assert.deepEqual(breaches, [], "and the invariant agrees");
+});
+
+test("an impossible result is reported as a breach rather than stored", () => {
+  // The invariant itself, over a record built to violate it. Three versions of
+  // the attribution have now published a loss a defined-risk spread could not
+  // take, each time with the account total still right, so nothing reconciled
+  // it away. A sync refuses to write when this fires.
+  const { breaches } = reconstruct(
+    [
+      fill("2026-08-03", "sell", "AMD260828P00150000", 1, 1.0),
+      fill("2026-08-03", "buy", "AMD260828P00145000", 1, 0.5),
+      assign("2026-08-26", "AMD260828P00150000", 1),
+      exercise("2026-08-26", "AMD260828P00145000", 1)
+    ],
+    {},
+    ACCOUNT
+  );
+  assert.deepEqual(breaches, [], "a correct spread breaches nothing");
+
+  const records = [
+    {
+      short_symbol: "X260828P00150000", long_symbol: "X260828P00145000",
+      short_strike: 150, long_strike: 145, qty: 1, chain_id: "c",
+      premium_pl: 50, early_close_pl: 0, stock_pl: 0, realized_pl: 0, close_date: "2026-08-26"
+    }
+  ];
+  const lots = [
+    { ticker: "X", qty: 100, chain_id: "c", acquired_chain_id: "c", disposed_chain_id: "c",
+      acquired_price: 150, disposed_price: 130, realized_pl: -2000, disposed_date: "2026-08-27" }
+  ];
+  const out = attributeStockPL(records, lots);
+  assert.equal(out.breaches.length, 1, "a $450 maximum losing $1,950 is refused");
+  assert.equal(out.breaches[0].short_symbol, "X260828P00150000");
+});
+
+test("an assigned adjusted contract is withheld, not reported at its premium", () => {
+  // The deliverable is unknown, so the share leg cannot be derived. Keyed by
+  // the plain ticker a fabricated lot ate the account's real shares; keyed by
+  // the adjusted root the assignment and the broker's real sale landed in
+  // different books and never met, so a position that lost $700 reported
+  // +$300 -- premium only, permanently, with a lot that could never be
+  // disposed. Neither number is published now.
+  const { records, stockLots, unreconstructable } = reconstruct(
+    [
+      fill("2026-01-02", "sell", "AAPL1260116P00150000", 1, 3.0),
+      assign("2026-01-16", "AAPL1260116P00150000", 1),
+      fill("2026-01-20", "sell", "AAPL", 100, 140.0)
+    ],
+    {},
+    ACCOUNT
+  );
+  assert.equal(records.length, 0, "no row asserting a profit on a losing position");
+  assert.equal(stockLots.length, 0, "and no share lot that can never be disposed");
+  assert.equal(unreconstructable.length, 1);
+  assert.equal(unreconstructable[0].symbol, "AAPL1260116P00150000");
+  assert.equal(unreconstructable[0].premium_pl, 300, "what was withheld, for whoever looks");
+});
+
+test("an adjusted contract that simply expires keeps its record", () => {
+  // No assignment, no deliverable question: the premium is exactly right and
+  // withholding it would lose real money from the account total.
+  const { records, unreconstructable } = reconstruct(
+    [
+      fill("2026-01-02", "sell", "AAPL1260116P00150000", 1, 3.0),
+      expire("2026-01-16", "AAPL1260116P00150000", 1)
+    ],
+    {},
+    ACCOUNT
+  );
+  assert.equal(records.length, 1);
+  assert.equal(money(records[0].realized_pl), 300);
+  assert.equal(unreconstructable.length, 0);
+});
 
 test("an adjusted contract is reconstructed, not booked as a stock", () => {
   // A corporate action renames AAPL to AAPL1 for contracts written before it.
