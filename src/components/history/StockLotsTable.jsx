@@ -46,10 +46,11 @@ export default function StockLotsTable({ lots }) {
           of it.
         </p>
         <p className="text-xs text-slate-500">
-          Strike paid and strike received are the option&rsquo;s strike price. They are not your tax
-          basis: premium on a short put reduces the basis of shares put to you, and premium on a short
-          call is added to the proceeds when shares are called away. Lots are matched
-          first-in-first-out, which may not be the method your broker used.
+          Acquired at and disposed at are the price the shares actually moved at: the option&rsquo;s
+          strike where the Via column says assignment or exercise, and the traded price where it says
+          trade. Neither is your tax basis &mdash; premium on a short put reduces the basis of shares
+          put to you, and premium on a short call is added to the proceeds when shares are called
+          away. Lots are matched first-in-first-out, which may not be the method your broker used.
         </p>
       </div>
 
@@ -64,11 +65,17 @@ export default function StockLotsTable({ lots }) {
                   names -- "Cost or other basis" and "Proceeds" -- and these are
                   not those figures: an assignment records the bare strike, with
                   the option's premium kept as a separate record. Naming them
-                  after the tax form invites the reader to copy them onto it. */}
-              <th className={`${th} text-right`}>Strike paid</th>
+                  after the tax form invites the reader to copy them onto it.
+
+                  Not "Strike" either, which was the correction that overshot: a
+                  lot disposed of on the open market carries the price it sold
+                  at, and a column headed "Strike received" printed that sale
+                  price as though a contract had set it. Via says which it is,
+                  row by row. */}
+              <th className={`${th} text-right`}>Acquired at</th>
               <th className={th}>Via</th>
               <th className={th}>Disposed</th>
-              <th className={`${th} text-right`}>Strike received</th>
+              <th className={`${th} text-right`}>Disposed at</th>
               <th className={th}>Via</th>
               <th className={`${th} text-right`}>Realized P/L</th>
             </tr>

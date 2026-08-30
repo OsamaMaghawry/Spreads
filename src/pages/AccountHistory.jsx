@@ -250,7 +250,9 @@ export default function AccountHistory() {
           {componentsMissing && (
             <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
               Some rows predate the premium / early-close / assignment split, so those three figures cover
-              only part of the book. The total is taken from each row&rsquo;s own result and is complete.
+              only part of the book. The total is taken from each row&rsquo;s own result instead, so it
+              covers every row shown here &mdash; which is not the same as covering every trade in the
+              account, and neither figure is a substitute for your broker&rsquo;s records.
             </div>
           )}
 
