@@ -251,6 +251,31 @@ This applies to every agent in `.claude/agents/` as well. An agent that wants a
 decision returns the question to whoever commissioned it; it does not surface
 one to the owner directly.
 
+## Staging first, every time
+
+**Merge to `staging`, let it deploy, exercise the change there against real
+data, and only then merge to `main`.**
+
+Not because it is tidy. Because on 30 Aug a release that had been through five
+adversarial review rounds went branch to `main` directly, and staging — which
+was never consulted — held 187 trade records including the exact spread that
+broke it. Two defects reached production that staging would have caught in
+seconds:
+
+- a merge resolved line by line produced a syntax error, and the deploy died
+  after three functions had already shipped
+- an invariant refused a real, already-verified result and stopped an account's
+  history from ever writing
+
+Both were visible the moment the code met real data. Neither was visible in a
+test, a lint, or a review.
+
+Exercising it means running the thing itself: sync the staging account, open the
+page, confirm records were written. A green deploy is not verification.
+
+No exceptions for "small", "urgent", "already reviewed" or "the fix for the last
+deploy". That release was all four.
+
 ## Nothing touches production without approval
 
 **Ask the owner first, every time, before any action that reaches production.**
