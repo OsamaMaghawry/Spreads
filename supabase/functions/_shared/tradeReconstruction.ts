@@ -964,8 +964,17 @@ export function reconcileCashSettlements(records, cashSettlements) {
   // summed and the sum is what gets checked.
   const groups = new Map();
   cashSettlements.forEach((s) => {
+    // Within a day, not on the day. Index settlement is exactly where this
+    // file already allows a one-day skew -- the cash is stamped when it
+    // settles and the position when it closed, and the two straddle midnight
+    // often enough that an exact match would report every real settlement as
+    // "no matching position" and the comparison would be noise.
     const owner = records.find(
-      (r) => (r.short_symbol === s.symbol || r.long_symbol === s.symbol) && r.close_date === s.date
+      (r) =>
+        (r.short_symbol === s.symbol || r.long_symbol === s.symbol) &&
+        r.close_date &&
+        s.date &&
+        Math.abs(Date.parse(r.close_date) - Date.parse(s.date)) <= 86400000
     );
     const key = owner ? `${owner.short_symbol}|${owner.long_symbol}|${owner.close_date}` : `?${s.symbol}@${s.date}`;
     const g = groups.get(key) || { owner, legs: [], date: s.date, ticker: s.ticker };

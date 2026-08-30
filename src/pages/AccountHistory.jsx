@@ -241,7 +241,8 @@ export default function AccountHistory() {
                     <span className="text-slate-900">{new Date(s.taken_at).toLocaleString()}</span>
                     <span className="text-slate-500">{s.reason}</span>
                     <span>
-                      {s.deletedTrades} removed · {s.updatedTrades} rewritten · {s.deletedLots} lots
+                      {s.deletedTrades} removed · {s.updatedTrades} rewritten ·{" "}
+                      {s.deletedLots + (s.updatedLots || 0)} lots
                     </span>
                     <button
                       onClick={() => downloadSnapshot(s.id)}

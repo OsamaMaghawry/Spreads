@@ -46,11 +46,13 @@ export default function StockLotsTable({ lots }) {
           of it.
         </p>
         <p className="text-xs text-slate-500">
-          Acquired at and disposed at are the price the shares actually moved at: the option&rsquo;s
-          strike where the Via column says assignment or exercise, and the traded price where it says
-          trade. Neither is your tax basis &mdash; premium on a short put reduces the basis of shares
-          put to you, and premium on a short call is added to the proceeds when shares are called
-          away. Lots are matched first-in-first-out, which may not be the method your broker used.
+          Share price in and share price out are the price the shares actually moved at: the
+          option&rsquo;s strike where the Via column says assignment or exercise, and the traded price
+          where it says trade. Neither is your tax basis, and the realized P/L here is simply the
+          difference between the two &mdash; it is not your taxable gain or loss. Premium on a short
+          put reduces the basis of shares put to you, and premium on a short call is added to the
+          proceeds when shares are called away; neither adjustment is made here. Lots are matched
+          first-in-first-out, which may not be the method your broker used.
         </p>
       </div>
 
@@ -67,15 +69,20 @@ export default function StockLotsTable({ lots }) {
                   the option's premium kept as a separate record. Naming them
                   after the tax form invites the reader to copy them onto it.
 
-                  Not "Strike" either, which was the correction that overshot: a
-                  lot disposed of on the open market carries the price it sold
+                  Not "Strike" either, which was the correction that overshot:
+                  a lot disposed of on the open market carries the price it sold
                   at, and a column headed "Strike received" printed that sale
-                  price as though a contract had set it. Via says which it is,
-                  row by row. */}
-              <th className={`${th} text-right`}>Acquired at</th>
+                  price as though a contract had set it.
+
+                  So: what the cells contain, in words that belong to neither
+                  the tax form nor the option chain. Via says which kind each
+                  one is, row by row, and the note above disclaims the figure
+                  they produce as well as the figures themselves -- Realized P/L
+                  is the column most likely to be copied onto a return. */}
+              <th className={`${th} text-right`}>Share price in</th>
               <th className={th}>Via</th>
               <th className={th}>Disposed</th>
-              <th className={`${th} text-right`}>Disposed at</th>
+              <th className={`${th} text-right`}>Share price out</th>
               <th className={th}>Via</th>
               <th className={`${th} text-right`}>Realized P/L</th>
             </tr>

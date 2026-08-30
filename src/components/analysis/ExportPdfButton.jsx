@@ -40,11 +40,27 @@ export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = 
       // Room for a banner line above the title on a paper export, and for two
       // footer lines the page image must not be allowed to run over.
       const headerH = isPaper ? 68 : 54;
-      const footerH = 44;
+      // A red banner on every page, not only the first. Page two of a paper
+      // export is a monthly realized-P/L schedule, and a 7pt grey footer line
+      // is not the same warning as an 11pt red one at the top.
+      const bannerH = isPaper ? 16 : 0;
+      const disclaimer =
+        "DeltaMint is not a broker-dealer and does not provide investment advice. Options trading involves " +
+        "substantial risk of loss and is not suitable for every investor. Trades are placed through your own " +
+        "brokerage account, under that broker's terms; DeltaMint never holds your funds or securities.";
       const imgW = pw - margin * 2;
       const scale = imgW / canvas.width;
+
+      // Measured, not assumed. The footer used to draw the first three wrapped
+      // lines and drop the rest -- silently, in the change whose point was that
+      // this text must not be shortened. Whatever it wraps to is what the page
+      // makes room for.
+      pdf.setFontSize(6.5);
+      const disclaimerLines = pdf.splitTextToSize(disclaimer, imgW);
+      const footerH = 22 + disclaimerLines.length * 8;
+
       const usableFirst = ph - margin * 2 - headerH - footerH;
-      const usableRest = ph - margin * 2 - footerH;
+      const usableRest = ph - margin * 2 - footerH - bannerH;
 
       // Anything drawn as one string is clipped from the right when it does not
       // fit, and the account name comes first -- so "Wife's Roth IRA — Alpaca
@@ -59,12 +75,17 @@ export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = 
         return `${cut}…`;
       };
 
+      const drawBanner = (y) => {
+        if (!isPaper) return;
+        pdf.setFontSize(11);
+        pdf.setTextColor(180, 72, 92);
+        pdf.text("PAPER TRADING — SIMULATED RESULTS, NOT REAL MONEY", margin, y);
+      };
+
       const drawHeader = () => {
         let y = margin + 14;
         if (isPaper) {
-          pdf.setFontSize(11);
-          pdf.setTextColor(180, 72, 92);
-          pdf.text("PAPER TRADING — SIMULATED RESULTS, NOT REAL MONEY", margin, y);
+          drawBanner(y);
           y += 18;
         }
         pdf.setFontSize(15);
@@ -86,21 +107,17 @@ export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = 
           : "DeltaMint — economic performance report. Not a tax document and not investment advice.";
         pdf.setFontSize(7);
         pdf.setTextColor(120, 130, 150);
-        pdf.text(fit(identity, imgW - 40), margin, ph - 32);
-        pdf.text(`Page ${n}`, pw - margin, ph - 32, { align: "right" });
+        const identityY = ph - 22 - (disclaimerLines.length - 1) * 8;
+        pdf.text(fit(identity, imgW - 40), margin, identityY);
+        pdf.text(`Page ${n}`, pw - margin, identityY, { align: "right" });
 
         // Wrapped, not truncated. Cut to one line this text ends somewhere
         // around "does not provide investment" -- which drops the risk warning
         // and keeps the reassuring half, the one way of shortening it that is
         // worse than omitting it.
         pdf.setFontSize(6.5);
-        const lines = pdf.splitTextToSize(
-          "DeltaMint is not a broker-dealer and does not provide investment advice. Options trading involves " +
-            "substantial risk of loss and is not suitable for every investor. Trades are placed through your own " +
-            "brokerage account, under that broker's terms; DeltaMint never holds your funds or securities.",
-          imgW
-        );
-        lines.slice(0, 3).forEach((line, i) => pdf.text(line, margin, ph - 22 + i * 8));
+        const top = ph - 14 - (disclaimerLines.length - 1) * 8;
+        disclaimerLines.forEach((line, i) => pdf.text(line, margin, top + i * 8));
       };
 
       let offset = 0; // in canvas px
@@ -114,11 +131,12 @@ export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = 
         slice.getContext("2d").drawImage(canvas, 0, -offset);
         if (page > 0) pdf.addPage();
         if (page === 0) drawHeader();
+        else drawBanner(margin + 10);
         pdf.addImage(
           slice.toDataURL("image/jpeg", 0.92),
           "JPEG",
           margin,
-          margin + (page === 0 ? headerH : 0),
+          margin + (page === 0 ? headerH : bannerH),
           imgW,
           sliceH * scale
         );

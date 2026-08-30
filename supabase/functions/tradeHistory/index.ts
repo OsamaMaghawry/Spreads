@@ -58,15 +58,33 @@ async function fetchStockLots(admin, accountId) {
 // destroys the old ones exactly as thoroughly as removing the row.
 //
 // Throwing here stops the write. That is the point: no snapshot, no deletion.
-async function snapshot(admin, accountId, userId, reason, { deleted, updatedBefore, deletedLots }) {
-  if (deleted.length === 0 && updatedBefore.length === 0 && deletedLots.length === 0) return;
+async function snapshot(
+  admin,
+  accountId,
+  userId,
+  reason,
+  { deleted, updatedBefore, deletedLots, updatedLotsBefore = [] }
+) {
+  if (
+    deleted.length === 0 &&
+    updatedBefore.length === 0 &&
+    deletedLots.length === 0 &&
+    updatedLotsBefore.length === 0
+  ) {
+    return;
+  }
   const { error } = await admin.from("history_snapshots").insert({
     account_id: accountId,
     user_id: userId,
     reason,
     deleted_trades: deleted,
     updated_trades_before: updatedBefore,
-    deleted_lots: deletedLots
+    deleted_lots: deletedLots,
+    // Share lots are upserted in place on (account_id, lot_key), so a lot
+    // keeps its key while its basis, disposal price and result are replaced.
+    // Without this the one case that leaves no trace at all was the one the
+    // snapshot did not cover.
+    updated_lots_before: updatedLotsBefore
   });
   if (error) throw new Error(`Snapshot failed, nothing written: ${error.message}`);
 }
@@ -82,7 +100,7 @@ async function snapshot(admin, accountId, userId, reason, { deleted, updatedBefo
 async function listSnapshots(admin, accountId) {
   const { data, error } = await admin
     .from("history_snapshots")
-    .select("id, taken_at, reason, deleted_trades, updated_trades_before, deleted_lots")
+    .select("id, taken_at, reason, deleted_trades, updated_trades_before, deleted_lots, updated_lots_before")
     .eq("account_id", accountId)
     .order("taken_at", { ascending: false })
     .limit(20);
@@ -93,7 +111,8 @@ async function listSnapshots(admin, accountId) {
     reason: s.reason,
     deletedTrades: (s.deleted_trades || []).length,
     updatedTrades: (s.updated_trades_before || []).length,
-    deletedLots: (s.deleted_lots || []).length
+    deletedLots: (s.deleted_lots || []).length,
+    updatedLots: (s.updated_lots_before || []).length
   }));
 }
 
@@ -182,7 +201,10 @@ async function fetchBrokerData(account, base) {
         (token ? `&page_token=${encodeURIComponent(token)}` : "");
       const page = await alpacaFetch(url, account);
       if (!Array.isArray(page) || page.length === 0) break;
-      activities = activities.concat(page);
+      // By id, so that adding OPCSH to the main request one day cannot double
+      // every settlement silently. Cheap here, invisible if it ever matters.
+      const already = new Set(activities.map((a: any) => a.id));
+      activities = activities.concat(page.filter((a: any) => !already.has(a.id)));
       if (page.length < 100) break;
       token = page[page.length - 1].id;
     }
@@ -252,10 +274,21 @@ async function writeResults(admin, accountId, userId, records, stockLots) {
     refuseMassDelete("share lots", staleLots.length, optionLots.length);
   if (refusal) throw new Error(refusal);
 
+  const freshLotByKey: any = {};
+  stockLots.forEach((l: any) => { freshLotByKey[l.lot_key] = l; });
+  const changedFields = (before: any, after: any) =>
+    ["qty", "acquired_date", "acquired_price", "acquired_source",
+     "disposed_date", "disposed_price", "disposed_source", "realized_pl"]
+      .some((f) => String(before[f] ?? "") !== String(after[f] ?? ""));
+  const updatedLotsBefore = existingLots.filter(
+    (l: any) => freshLotByKey[l.lot_key] && changedFields(l, freshLotByKey[l.lot_key])
+  );
+
   await snapshot(admin, accountId, userId, "sync", {
     deleted: stale,
     updatedBefore: toUpdate.map((r: any) => existingByKey[r.trade_key]),
-    deletedLots: staleLots
+    deletedLots: staleLots,
+    updatedLotsBefore
   });
 
   for (const r of stale) {
