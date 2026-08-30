@@ -229,6 +229,28 @@ may quietly relax:
 - **An approval covers what was described when it was given.** If the branch
   carries more than that, the scope question goes back to the owner.
 
+## Never put a prompt on the owner's screen
+
+**Ask in text. Never with an interactive picker.**
+
+A choice rendered as clickable options appears without warning, on top of
+whatever the owner is doing. It arrived mid-sentence while he was typing
+somewhere else, took a stray keystroke as an answer, and that "answer" deleted
+files. He never read the question.
+
+An answer collected that way is not consent, and work done on it has to be
+undone. A question written as a sentence waits for a real reply and costs the
+owner nothing if he ignores it.
+
+So: no `AskUserQuestion`, no menus, no numbered choices demanding a selection.
+Put the options in a paragraph, say which you would pick, and wait. If a
+decision matters enough to interrupt for, it matters enough to be readable in
+his own time.
+
+This applies to every agent in `.claude/agents/` as well. An agent that wants a
+decision returns the question to whoever commissioned it; it does not surface
+one to the owner directly.
+
 ## Nothing touches production without approval
 
 **Ask the owner first, every time, before any action that reaches production.**
