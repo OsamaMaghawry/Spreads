@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
 import { invokeFunction } from "@/lib/functions";
 import { RefreshCw, ArrowLeft, BarChart3 } from "lucide-react";
+import { STRATEGIES, strategyOf, strategyLabel } from "@/lib/strategies";
 import { computeStats } from "@/lib/analytics";
 import StatCards from "@/components/analysis/StatCards";
 import EquityCurveChart from "@/components/analysis/EquityCurveChart";
@@ -23,27 +24,36 @@ export default function AccountAnalysis() {
   const [syncing, setSyncing] = useState(false);
   const reportRef = useRef(null);
 
-  const load = useCallback(async (sync = false) => {
+  // Same as the history page: the function refreshes itself when what it holds
+  // is stale, so there is nothing here to press.
+  const load = useCallback(async () => {
     setError(null);
-    setSyncing(sync);
     try {
       const [hist, live] = await Promise.all([
-        invokeFunction("tradeHistory", { accountId: id, sync }),
+        invokeFunction("tradeHistory", { accountId: id }),
         invokeFunction("syncAccounts", {}).catch(() => null)
       ]);
       if (hist.data?.error) throw new Error(hist.data.error);
       setData(hist.data);
+      setSyncing(Boolean(hist.data?.syncing));
       const acct = live?.data?.accounts?.find((a) => a.id === id);
       setEquity(acct?.equity || 0);
+      return hist.data;
     } catch (e) {
       setError(e.message);
+      return null;
     } finally {
       setLoading(false);
-      setSyncing(false);
     }
   }, [id]);
 
-  useEffect(() => { load(false); }, [load]);
+  useEffect(() => {
+    let timer = null;
+    load().then((res) => {
+      if (res?.syncing) timer = setTimeout(() => load(), 12000);
+    });
+    return () => timer && clearTimeout(timer);
+  }, [load]);
 
   const allTrades = data?.trades || [];
   const bounds = useMemo(() => {
@@ -60,21 +70,38 @@ export default function AccountAnalysis() {
     [allTrades, range]
   );
 
-  const { stats, comparison, subset } = useMemo(() => {
-    const subset = strategy === "all" ? trades : trades.filter((t) => (t.strategy || "unknown") === strategy);
-    const share = trades.length ? subset.length / trades.length : 0;
-    const s = computeStats(subset, equity * (strategy === "all" ? 1 : share));
-    const rows = [
-      { label: "All strategies", trades },
-      { label: "Spreads", trades: trades.filter((t) => t.strategy === "spreads") },
-      { label: "Wheel", trades: trades.filter((t) => t.strategy === "wheel") }
-    ]
-      .map((r) => {
-        const eq = equity * (trades.length ? r.trades.length / trades.length : 0);
-        return { label: r.label, stats: computeStats(r.trades, r.label === "All strategies" ? equity : eq) };
-      })
+  const { stats, comparison, subset, provisionalCount } = useMemo(() => {
+    const subset = strategy === "all" ? trades : trades.filter((t) => strategyOf(t) === strategy);
+    // Equity belongs to the account, not to a strategy, and it was being split
+    // between them by *trade count*: cash-secured puts with 44 trades and
+    // $1.36M of collateral got 44% of equity while spreads with 55 trades and
+    // $20k got 56% — denominators inverted against the capital actually used,
+    // with CAGR exponential in the invented number and the whole thing landing
+    // in the exported report. There is no honest share to use, so a filtered
+    // view withholds return on equity rather than inventing one. Return on
+    // risk, which divides by collateral the strategy really tied up, still
+    // answers the question for a single strategy.
+    const s = computeStats(subset, strategy === "all" ? equity : 0);
+    // Built from the shared category list, so a category added there appears
+    // here without a second place needing to know the names.
+    const rows = [{ label: "All strategies", trades }]
+      .concat(
+        STRATEGIES.map((s) => ({
+          label: s.label,
+          trades: trades.filter((t) => strategyOf(t) === s.key)
+        })).filter((r) => r.trades.length > 0)
+      )
+      .map((r) => ({
+        label: r.label,
+        stats: computeStats(r.trades, r.label === "All strategies" ? equity : 0)
+      }))
       .filter((r) => r.stats);
-    return { stats: s, comparison: rows, subset };
+    return {
+      stats: s,
+      comparison: rows,
+      subset,
+      provisionalCount: subset.filter((t) => t.provisional).length
+    };
   }, [trades, strategy, equity]);
 
   if (loading) {
@@ -103,13 +130,11 @@ export default function AccountAnalysis() {
           )}
         </div>
         <div className="ml-auto flex items-center gap-3">
-          <button
-            onClick={() => load(true)}
-            disabled={syncing}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} /> {syncing ? "Syncing…" : "Sync from Alpaca"}
-          </button>
+          {syncing && (
+            <span className="flex items-center gap-2 text-xs text-slate-500">
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Updating from your broker…
+            </span>
+          )}
           <Link
             to={`/account/${id}/history`}
             className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors"
@@ -120,7 +145,8 @@ export default function AccountAnalysis() {
             <ExportPdfButton
               targetRef={reportRef}
               title={data?.account ? `${data.account.name} — Performance Analysis` : "Performance Analysis"}
-              subtitle={`${stats.firstDate} → ${stats.lastDate}${range.from || range.to ? " (filtered)" : ""} · ${strategy === "all" ? "All strategies" : strategy} · equity ${equity ? `$${equity.toLocaleString()}` : "n/a"} · generated ${new Date().toLocaleString()}`}
+              subtitle={`${stats.firstDate} → ${stats.lastDate}${range.from || range.to ? " (filtered)" : ""} · ${strategy === "all" ? "All strategies" : strategyLabel(strategy)} · equity ${equity ? `$${equity.toLocaleString()}` : "n/a"} · generated ${new Date().toLocaleString()}`}
+              isPaper={!!data?.account?.is_paper}
             />
           )}
         </div>
@@ -139,6 +165,14 @@ export default function AccountAnalysis() {
         <>
           <StrategyTabs trades={trades} active={strategy} onChange={setStrategy} />
           <div ref={reportRef} className="space-y-5 bg-white">
+            {/* Inside reportRef so it is captured in the export as well. A
+                simulated account must not produce a document that reads like
+                a record of real money. */}
+            {data?.account?.is_paper && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-800">
+                Paper account &mdash; every figure below is simulated, not real money.
+              </div>
+            )}
             {comparison.length > 1 && <StrategyComparison rows={comparison} />}
             <StatCards stats={stats} />
             <CaptureBreakdown trades={subset} />
@@ -146,6 +180,31 @@ export default function AccountAnalysis() {
             <div className="grid gap-4 lg:grid-cols-2">
               <BreakdownTable title="By month" keyLabel="Month" keyField="month" rows={stats.byMonth} />
               <BreakdownTable title="By ticker" keyLabel="Ticker" keyField="ticker" rows={stats.byTicker} />
+            </div>
+
+            {/* Inside reportRef on purpose. The site-wide disclaimer sits in
+                Layout, outside the captured element, so the exported PDF left
+                here carrying an account name, a date range and a table of
+                monthly realized P/L — a document shaped exactly like a tax
+                schedule, saying nothing about what it is. This is the page a
+                user forwards to their accountant in March. */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] leading-relaxed text-slate-600">
+              <span className="font-semibold text-slate-700">DeltaMint — economic performance report. Not a tax document.</span>{" "}
+              Figures cover only positions an option opened or closed and exclude the rest of this
+              account. Realized P/L here is not taxable gain or loss: wash sales, straddle rules,
+              Section 1256 treatment and cost-basis adjustments on assignment are not applied.
+              {provisionalCount > 0 && (
+                <> {provisionalCount} position{provisionalCount === 1 ? "" : "s"} closed by assignment
+                {provisionalCount === 1 ? " still has" : " still have"} shares held, so
+                {provisionalCount === 1 ? " its result is" : " their results are"} not final. Anything
+                that calls a trade a win or a loss &mdash; win rate, profit factor, expectancy, payoff,
+                average and largest win and loss, per-trade return, the streaks, and the win-rate
+                columns in the tables above &mdash; is measured without
+                {provisionalCount === 1 ? " it" : " them"}. Anything that measures money booked &mdash;
+                the totals, the equity curve, drawdown, and the per-day and per-month figures &mdash;
+                counts {provisionalCount === 1 ? "it" : "them"} in full.</>
+              )}{" "}
+              Reconcile against your broker&rsquo;s Form 1099-B before using any figure for a return.
             </div>
           </div>
         </>

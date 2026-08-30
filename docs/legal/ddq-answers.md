@@ -128,8 +128,8 @@ rebuilt from an immutable artefact on each release. Risk is reduced
 structurally: no persistent host, no shell access, no long-lived process, and no
 ability to install software into a running environment. Code can only reach
 production through the source repository, which is gated by authenticated,
-MFA-protected access plus lint and type checks in CI that block a failing build
-from deploying.
+MFA-protected access plus lint checks in CI and a clean production build, either
+of which blocks a failing change from deploying.
 
 **Corporate.** One workstation, the founder's, with full-disk encryption
 enabled. Every administrative account for production infrastructure — GitHub,

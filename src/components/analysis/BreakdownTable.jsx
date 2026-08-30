@@ -16,15 +16,31 @@ export default function BreakdownTable({ title, keyLabel, rows, keyField }) {
               <th className={`${th} text-right`}>Trades</th>
               <th className={`${th} text-right`}>Win rate</th>
               <th className={`${th} text-right`}>P/L</th>
-              <th className={`${th} text-right`}>Avg / trade</th>
+              {/* Not "expectancy": that name belongs to the settled-only
+                  figure on the cards above, and this is P/L over every row. */}
+              <th className={`${th} text-right`}>P/L ÷ trades</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r[keyField]} className="border-b border-slate-100 last:border-0">
                 <td className={`${td} font-medium text-slate-900`}>{r[keyField]}</td>
-                <td className={`${td} text-right`}>{r.trades}</td>
-                <td className={`${td} text-right`}>{((r.wins / r.trades) * 100).toFixed(0)}%</td>
+                <td className={`${td} text-right`}>
+                  {r.trades}
+                  {r.settled !== r.trades && (
+                    // The win rate beside this runs over settled trades only.
+                    // Without saying how many that was, a reader multiplies
+                    // this column by that one and gets a number of wins that
+                    // does not exist.
+                    <span className="text-slate-400"> ({r.settled} settled)</span>
+                  )}
+                </td>
+                {/* Over settled trades, the same population as the win rate
+                    above it. Dividing settled wins by every trade would report
+                    a rate lower than either measurement. */}
+                <td className={`${td} text-right`}>
+                  {r.settled ? `${((r.wins / r.settled) * 100).toFixed(0)}%` : "—"}
+                </td>
                 <td className={`${td} text-right font-semibold ${r.pl >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                   {fmtMoney(r.pl)}
                 </td>

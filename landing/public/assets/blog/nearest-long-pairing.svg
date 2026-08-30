@@ -1,0 +1,63 @@
+<svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Left: legs paired to the nearest long form the two spreads actually traded. Right: first-match pairing invents a 10-wide spread and strands two legs.">
+  <rect width="720" height="340" fill="#FFFFFF"/>
+
+  <!-- left panel: what you traded -->
+  <rect x="16" y="16" width="336" height="308" rx="10" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="36" y="44" font-size="12.5" font-weight="600" fill="#2E8B5F">Nearest protective long — what you traded</text>
+
+  <!-- strike guides -->
+  <g font-size="11" fill="#767B8E">
+    <text x="36" y="96">105</text><line x1="60" y1="92" x2="332" y2="92" stroke="#E2E5EE" stroke-dasharray="2 4"/>
+    <text x="36" y="166">100</text><line x1="60" y1="162" x2="332" y2="162" stroke="#E2E5EE" stroke-dasharray="2 4"/>
+    <text x="36" y="236">95</text><line x1="60" y1="232" x2="332" y2="232" stroke="#E2E5EE" stroke-dasharray="2 4"/>
+  </g>
+
+  <!-- legs -->
+  <g font-size="11.5">
+    <rect x="68" y="78" width="96" height="26" rx="6" fill="#FFFFFF" stroke="#4B4F60"/>
+    <text x="116" y="95" text-anchor="middle" fill="#14151C">Short 105 put</text>
+    <rect x="222" y="148" width="96" height="26" rx="6" fill="#FFFFFF" stroke="#4B4F60"/>
+    <text x="270" y="165" text-anchor="middle" fill="#14151C">Long 100 put</text>
+    <rect x="68" y="148" width="96" height="26" rx="6" fill="#FFFFFF" stroke="#4B4F60"/>
+    <text x="116" y="165" text-anchor="middle" fill="#14151C">Short 100 put</text>
+    <rect x="222" y="218" width="96" height="26" rx="6" fill="#FFFFFF" stroke="#4B4F60"/>
+    <text x="270" y="235" text-anchor="middle" fill="#14151C">Long 95 put</text>
+  </g>
+
+  <!-- correct pairings -->
+  <path d="M164 91 C 196 91, 196 161, 222 161" fill="none" stroke="#2E8B5F" stroke-width="2"/>
+  <text x="196" y="120" font-size="11" font-weight="500" fill="#2E8B5F">$5 wide</text>
+  <path d="M164 161 C 196 161, 196 231, 222 231" fill="none" stroke="#2E8B5F" stroke-width="2"/>
+  <text x="196" y="190" font-size="11" font-weight="500" fill="#2E8B5F">$5 wide</text>
+
+  <text x="36" y="300" font-size="11" fill="#4B4F60">Two spreads, max loss $500 each less credit.</text>
+
+  <!-- right panel: what a guesser records -->
+  <rect x="368" y="16" width="336" height="308" rx="10" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="388" y="44" font-size="12.5" font-weight="600" fill="#B4485C">First long found — what a guesser records</text>
+
+  <g font-size="11" fill="#767B8E">
+    <text x="388" y="96">105</text><line x1="412" y1="92" x2="684" y2="92" stroke="#E2E5EE" stroke-dasharray="2 4"/>
+    <text x="388" y="166">100</text><line x1="412" y1="162" x2="684" y2="162" stroke="#E2E5EE" stroke-dasharray="2 4"/>
+    <text x="388" y="236">95</text><line x1="412" y1="232" x2="684" y2="232" stroke="#E2E5EE" stroke-dasharray="2 4"/>
+  </g>
+
+  <g font-size="11.5">
+    <rect x="420" y="78" width="96" height="26" rx="6" fill="#FFFFFF" stroke="#4B4F60"/>
+    <text x="468" y="95" text-anchor="middle" fill="#14151C">Short 105 put</text>
+    <rect x="574" y="148" width="96" height="26" rx="6" fill="#FFFFFF" stroke="#767B8E" stroke-dasharray="4 3"/>
+    <text x="622" y="165" text-anchor="middle" fill="#767B8E">Long 100 put</text>
+    <rect x="420" y="148" width="96" height="26" rx="6" fill="#FBE7EB" stroke="#B4485C" stroke-dasharray="4 3"/>
+    <text x="468" y="165" text-anchor="middle" fill="#B4485C">Short 100 put</text>
+    <rect x="574" y="218" width="96" height="26" rx="6" fill="#FFFFFF" stroke="#4B4F60"/>
+    <text x="622" y="235" text-anchor="middle" fill="#14151C">Long 95 put</text>
+  </g>
+
+  <!-- wrong pairing -->
+  <path d="M516 91 C 552 91, 552 231, 574 231" fill="none" stroke="#B4485C" stroke-width="2"/>
+  <text x="545" y="114" font-size="11" font-weight="500" fill="#B4485C">$10 wide —</text>
+  <text x="545" y="128" font-size="11" font-weight="500" fill="#B4485C">never traded</text>
+
+  <text x="388" y="288" font-size="11" fill="#B4485C">Short 100: shown naked. Long 100: cost dropped.</text>
+  <text x="388" y="304" font-size="11" fill="#4B4F60">Book shows a max loss over double the real one.</text>
+</svg>
