@@ -65,8 +65,8 @@ export default function Register() {
       const { error } = await supabase.auth.resend({ type: "signup", email });
       if (error) throw error;
       toast({
-        title: "Code sent",
-        description: "Check your email for the new code.",
+        title: "Sent",
+        description: "Check your email for the confirmation link.",
       });
     } catch (err) {
       setError(err.message || "Failed to resend code");
@@ -77,14 +77,27 @@ export default function Register() {
     return (
       <AuthLayout
         icon={Mail}
-        title="Verify your email"
-        subtitle={`We sent a code to ${email}`}
+        title="Check your email"
+        subtitle={`We sent a confirmation to ${email}`}
       >
+        {/* The link is the instruction, because the link is what actually
+            arrives. Supabase's stock confirmation template carries a link and
+            no {{ .Token }}, so a screen that only offered six boxes left every
+            new user waiting for a code that was never sent. The boxes stay,
+            below, for whenever the template does send one — nothing here needs
+            changing back on the day it does. */}
+        <p className="text-center text-sm text-muted-foreground mb-6">
+          Open it and click the confirmation link to finish setting up your account.
+          You can close this tab.
+        </p>
         {error && (
           <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
             {error}
           </div>
         )}
+        <p className="text-center text-xs text-muted-foreground mb-3">
+          Or, if your email contains a 6-digit code, enter it here:
+        </p>
         <div className="flex justify-center mb-6">
           <InputOTP
             maxLength={6}
@@ -118,9 +131,9 @@ export default function Register() {
           )}
         </Button>
         <p className="text-center text-sm text-muted-foreground mt-4">
-          Didn't receive the code?{" "}
+          Nothing arrived?{" "}
           <button onClick={handleResend} className="text-primary font-medium hover:underline">
-            Resend
+            Send it again
           </button>
         </p>
       </AuthLayout>
