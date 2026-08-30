@@ -80,14 +80,41 @@ async function findExisting(admin, userId, { accountId, accountNumber, isPaper }
 
   const { data: unidentified } = await admin
     .from("trading_accounts")
-    .select("id")
+    .select("id, trades_synced_at")
     .eq("user_id", userId)
     .eq("is_paper", isPaper)
     .eq("is_oauth", true)
     .is("broker_account_id", null)
     .is("broker_account_number", null);
 
-  return unidentified?.length === 1 ? unidentified[0] : null;
+  if (unidentified?.length !== 1) return null;
+  const candidate = unidentified[0];
+
+  // Adoption is a guess -- a good one, but a guess -- and a guess is only
+  // acceptable while there is nothing to get wrong. A row that already carries
+  // synced history is a row whose trades belong to some brokerage account, and
+  // if this is not that account the token would put one person's positions
+  // under another account's P/L and the next sync would rewrite the history to
+  // match. An empty row has nothing to corrupt, so that is the only kind
+  // adopted; anything else falls through to a new row, which is recoverable.
+  if (candidate.trades_synced_at) return null;
+  if (await hasStoredHistory(admin, candidate.id)) return null;
+  return { id: candidate.id };
+}
+
+// Whether an account already holds reconstructed history. Counts only -- the
+// rows themselves are not needed and not read.
+async function hasStoredHistory(admin, accountId) {
+  for (const table of ["trade_records", "stock_lots"]) {
+    const { count, error } = await admin
+      .from(table)
+      .select("id", { count: "exact", head: true })
+      .eq("account_id", accountId);
+    // A failed count is not an empty account. Refusing to adopt on an error
+    // costs a duplicate row; assuming empty costs someone else's history.
+    if (error || (count ?? 1) > 0) return true;
+  }
+  return false;
 }
 
 Deno.serve(async (req) => {

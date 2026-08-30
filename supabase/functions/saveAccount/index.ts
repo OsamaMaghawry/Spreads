@@ -131,11 +131,38 @@ Deno.serve(async (req) => {
       // merely hidden in the form — the browser is not where that is enforced.
       const { data: existing } = await admin
         .from("trading_accounts")
-        .select("oauth_access_token")
+        .select("oauth_access_token, broker_account_id, broker_account_number")
         .eq("id", id)
         .eq("user_id", user.id)
         .maybeSingle();
       if (existing?.oauth_access_token) delete fields.is_paper;
+
+      // Re-keying a row to a different brokerage account.
+      //
+      // The unique index catches the case where the other account is also
+      // connected here. It cannot catch this one: the row keeps its id, its
+      // name and every trade under it, and the next sync rebuilds that history
+      // from a different broker -- so one account's P/L is silently replaced by
+      // another's, under a name that still says otherwise. Rotated keys for the
+      // same account resolve to the same broker id and pass; a different
+      // account is a different account, and belongs in its own row.
+      const mismatch =
+        (existing?.broker_account_id &&
+          fields.broker_account_id &&
+          existing.broker_account_id !== fields.broker_account_id) ||
+        (existing?.broker_account_number &&
+          fields.broker_account_number &&
+          existing.broker_account_number !== fields.broker_account_number);
+      if (mismatch) {
+        return jsonResponse(
+          {
+            error:
+              "Those keys are for a different brokerage account than this one. " +
+              "Add it as a new account — re-keying this one would replace its history with the other account's."
+          },
+          409
+        );
+      }
 
       // The admin client bypasses RLS, so matching user_id here is what scopes
       // the update to the caller's own account.
