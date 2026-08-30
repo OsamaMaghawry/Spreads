@@ -114,7 +114,7 @@ async function fetchBrokerData(account, base) {
   let activities: any[] = [];
   let pageToken = null;
   for (let i = 0; i < 100; i++) {
-    const url = `${base}/account/activities?activity_types=FILL,OPEXP,OPASN,OPEXC&direction=desc&page_size=100` +
+    const url = `${base}/account/activities?activity_types=FILL,OPEXP,OPASN,OPEXC,OPCSH&direction=desc&page_size=100` +
       (pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : "");
     const page = await alpacaFetch(url, account);
     if (!Array.isArray(page) || page.length === 0) break;
@@ -251,7 +251,8 @@ Deno.serve(async (req) => {
     // it is the tool that found these defects, not a control a reader needs.
     if (preview) {
       const { orderStrategy, activities } = await fetchBrokerData(account, base);
-      const { records, stockLots, orphanedStockPL } = reconstruct(activities, orderStrategy, accountId);
+      const { records, stockLots, orphanedStockPL, settlementChecks } =
+        reconstruct(activities, orderStrategy, accountId);
       const stored = await fetchTrades(admin, accountId, false);
       const storedByKey: any = {};
       stored.forEach((r: any) => { storedByKey[r.trade_key] = r; });
@@ -279,6 +280,12 @@ Deno.serve(async (req) => {
           // Non-zero means an option that produced shares was not itself
           // reconstructed. A defect to look at, not a figure to display.
           orphanedStockPL,
+          // Cash settlements the broker reported, beside what the positions
+          // say they must have paid. Anything other than "agrees" wants a
+          // person: Alpaca's paper index settlement has a reported defect
+          // crediting out-of-the-money shorts instead of expiring them.
+          settlementChecks,
+          settlementsDisagreeing: (settlementChecks || []).filter((c) => c.status !== "agrees").length,
           sharesStillHeld: stockLots.filter((l: any) => !l.disposed_date).length
         },
         activities: includeRaw ? activities : undefined,

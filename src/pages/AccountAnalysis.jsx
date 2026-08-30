@@ -146,6 +146,7 @@ export default function AccountAnalysis() {
               targetRef={reportRef}
               title={data?.account ? `${data.account.name} — Performance Analysis` : "Performance Analysis"}
               subtitle={`${stats.firstDate} → ${stats.lastDate}${range.from || range.to ? " (filtered)" : ""} · ${strategy === "all" ? "All strategies" : strategyLabel(strategy)} · equity ${equity ? `$${equity.toLocaleString()}` : "n/a"} · generated ${new Date().toLocaleString()}`}
+              isPaper={!!data?.account?.is_paper}
             />
           )}
         </div>
@@ -164,6 +165,14 @@ export default function AccountAnalysis() {
         <>
           <StrategyTabs trades={trades} active={strategy} onChange={setStrategy} />
           <div ref={reportRef} className="space-y-5 bg-white">
+            {/* Inside reportRef so it is captured in the export as well. A
+                simulated account must not produce a document that reads like
+                a record of real money. */}
+            {data?.account?.is_paper && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-800">
+                Paper account &mdash; every figure below is simulated, not real money.
+              </div>
+            )}
             {comparison.length > 1 && <StrategyComparison rows={comparison} />}
             <StatCards stats={stats} />
             <CaptureBreakdown trades={subset} />

@@ -207,6 +207,12 @@ export default function AccountHistory() {
             ))}
           </div>
 
+          {data?.account?.is_paper && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-800">
+              Paper account &mdash; every figure below is simulated, not real money.
+            </div>
+          )}
+
           {/* What these figures are, said where the figures are. The terms of
               service say the product gives no tax advice, but that page is not
               reachable from this one, and "Realized P/L" is a term of art a
