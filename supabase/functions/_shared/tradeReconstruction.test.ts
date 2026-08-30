@@ -502,3 +502,129 @@ test("shares still held contribute nothing to any category", () => {
   assert.equal(money(put.realized_pl), 110);
   assert.equal(orphanedStockPL, 0);
 });
+
+// ---------------------------------------------------------------------------
+// Tier 2: the three defects the bench found, each reproduced from the case
+// that exposed it. The suite passed in full while every one of these was live,
+// because every fixture above stamps assignment and exercise on the same day
+// and asserts orphanedStockPL === 0 -- encoding the assumption instead of
+// testing it.
+// ---------------------------------------------------------------------------
+
+test("a call spread settled a day apart keeps its share leg", () => {
+  // Short 470 call assigned 26 Aug SELLS 100 shares; the 472.50 long exercised
+  // on the 27th BUYS them back. Ordered strictly by date the sale found no lot,
+  // the purchase became an open lot that fromOption discarded, and a -$212 loss
+  // was reported as +$38 -- with nothing flagged.
+  const acts = [
+    fill("2026-08-01", "sell", "AMD260828C00470000", 1, 3.10),
+    fill("2026-08-01", "buy", "AMD260828C00472500", 1, 2.72),
+    assign("2026-08-26", "AMD260828C00470000", 1),
+    exercise("2026-08-27", "AMD260828C00472500", 1)
+  ];
+  const { records, orphanedStockPL } = reconstruct(acts, {}, ACCOUNT);
+  const spread = records.find((r) => r.short_symbol === "AMD260828C00470000");
+
+  assert.equal(Math.round(spread.premium_pl), 38, "credit taken at open");
+  assert.equal(Math.round(spread.stock_pl), -250, "shares sold at 470, bought at 472.50");
+  assert.equal(Math.round(spread.realized_pl), -212, "a loss, not a $38 gain");
+  assert.equal(Math.round(spread.realized_pl), -Math.round((2.5 - 0.38) * 100), "= max loss");
+  assert.equal(orphanedStockPL, 0);
+});
+
+test("two spreads sharing a chain id each get their own shares", () => {
+  // One short symbol, two longs, assigned the same day -- so both records carry
+  // chain id `symbol@date`. Keyed by `set`, the last one written took all 200
+  // shares: +$200 and -$1,050 instead of -$300 and -$550, a loss reported as a
+  // profit and a defined-risk spread exceeding its own maximum.
+  const acts = [
+    fill("2026-08-03", "sell", "XYZ260828P00100000", 2, 2.50),
+    fill("2026-08-03", "buy", "XYZ260828P00095000", 1, 1.00),
+    fill("2026-08-03", "buy", "XYZ260828P00090000", 1, 0.50),
+    assign("2026-08-26", "XYZ260828P00100000", 2),
+    exercise("2026-08-26", "XYZ260828P00095000", 1),
+    fill("2026-08-27", "sell", "XYZ", 100, 92.00)
+  ];
+  const { records } = reconstruct(acts, {}, ACCOUNT);
+  const withShares = records.filter((r) => r.stock_pl !== 0);
+
+  assert.ok(withShares.length >= 2, "the share result reaches more than one record");
+  const total = records.reduce((a, r) => a + r.stock_pl, 0);
+  const lopsided = records.some((r) => Math.abs(r.stock_pl) === Math.abs(total) && total !== 0);
+  assert.equal(lopsided, false, "no single record swallows every share");
+});
+
+test("the parts still sum to the whole after splitting", () => {
+  const acts = [
+    fill("2026-08-03", "sell", "XYZ260828P00100000", 2, 2.50),
+    fill("2026-08-03", "buy", "XYZ260828P00095000", 1, 1.00),
+    fill("2026-08-03", "buy", "XYZ260828P00090000", 1, 0.50),
+    assign("2026-08-26", "XYZ260828P00100000", 2),
+    exercise("2026-08-26", "XYZ260828P00095000", 1),
+    fill("2026-08-27", "sell", "XYZ", 100, 92.00)
+  ];
+  const { records } = reconstruct(acts, {}, ACCOUNT);
+  records.forEach((r) => {
+    assert.ok(
+      Math.abs(r.premium_pl + r.early_close_pl + r.stock_pl - r.realized_pl) < 1e-9,
+      `${r.short_symbol}: parts must sum to realized_pl`
+    );
+  });
+});
+
+test("a spread whose legs resolved to different strategies still pairs", () => {
+  // The short's order was inside the 12-page sweep and tagged "spreads"; the
+  // long's was past the cap and resolved "unknown". Held in separate buckets
+  // they could never meet, so the short was reported as a naked short put at
+  // its full credit -- with unpaired: false, saying nothing was wrong.
+  const shortOrder = "ord-short";
+  const longOrder = "ord-long";
+  const acts = [
+    fill("2026-08-03", "sell", "AMD260828P00470000", 1, 5.00, shortOrder),
+    fill("2026-08-03", "buy", "AMD260828P00465000", 1, 2.00, longOrder),
+    fill("2026-08-10", "buy", "AMD260828P00470000", 1, 1.00, shortOrder),
+    fill("2026-08-10", "sell", "AMD260828P00465000", 1, 0.40, longOrder)
+  ];
+  // Only the short's order is known to the strategy map.
+  const { records } = reconstruct(acts, { [shortOrder]: "spreads" }, ACCOUNT);
+
+  const spread = records.find((r) => r.long_symbol === "AMD260828P00465000");
+  assert.ok(spread, "the two legs must come back as one spread");
+  assert.equal(spread.unpaired, false);
+  assert.equal(spread.strategy, "spreads");
+  // Credit 5.00 - 2.00 = 3.00; closed for 1.00 - 0.40 = 0.60 debit.
+  assert.equal(Math.round(spread.premium_pl), 300);
+  assert.equal(Math.round(spread.early_close_pl), -60);
+  assert.equal(Math.round(spread.realized_pl), 240, "not the short leg's +$400 alone");
+  assert.equal(records.filter((r) => r.unpaired).length, 0, "no phantom naked short");
+});
+
+test("an assignment whose shares are still held is marked not final", () => {
+  // The option closed, so the row was written complete -- premium kept, a full
+  // winner. The shares are still open, and their result will land on this same
+  // row under this same close date when they sell. Every assignment read as a
+  // winner until then.
+  const acts = [
+    fill("2026-01-05", "sell", "XYZ260116P00100000", 1, 2.00),
+    assign("2026-01-16", "XYZ260116P00100000", 1)
+  ];
+  const { records } = reconstruct(acts, {}, ACCOUNT);
+  const csp = records.find((r) => r.short_symbol === "XYZ260116P00100000");
+
+  assert.equal(Math.round(csp.premium_pl), 200);
+  assert.equal(csp.provisional, true, "shares still held -> not a finished result");
+});
+
+test("once the shares are sold the row is final", () => {
+  const acts = [
+    fill("2026-01-05", "sell", "XYZ260116P00100000", 1, 2.00),
+    assign("2026-01-16", "XYZ260116P00100000", 1),
+    fill("2026-04-15", "sell", "XYZ", 100, 90.00)
+  ];
+  const { records } = reconstruct(acts, {}, ACCOUNT);
+  const csp = records.find((r) => r.short_symbol === "XYZ260116P00100000");
+
+  assert.equal(csp.provisional, false);
+  assert.equal(Math.round(csp.stock_pl), -1000, "bought at 100, sold at 90");
+  assert.equal(Math.round(csp.realized_pl), -800, "the winner was a loser all along");
+});
