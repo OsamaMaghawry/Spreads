@@ -13,12 +13,19 @@ name: Apply Supabase auth config
 #
 # Uses the same SUPABASE_ACCESS_TOKEN the function deploy already needs.
 
+# Manual only, and deliberately so.
+#
+# The SUPABASE_ACCESS_TOKEN the function deploy uses came back 403 from the
+# auth endpoint: it does not carry the account privileges the Management API
+# wants for this. Left on push, this failed on every change to these files and
+# mailed a failure notice each time, which is noise about a step that cannot
+# succeed yet.
+#
+# Add a Supabase personal access token with account privileges as
+# SUPABASE_MANAGEMENT_TOKEN, switch the secret below, and this becomes a real
+# deploy step again. Until then the two settings are applied by hand, and the
+# files here are what to paste.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'supabase/auth/**'
-      - '.github/workflows/auth-config.yml'
   workflow_dispatch:
 
 concurrency:
