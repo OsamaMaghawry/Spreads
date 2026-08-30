@@ -753,3 +753,58 @@ test("cashAmountOf reads a total, and refuses what it cannot read", () => {
   assert.equal(cashAmountOf({ price: "0", qty: "1" }), null);
   assert.equal(cashAmountOf({ price: "5185", qty: "1" }), null);
 });
+
+// ---------------------------------------------------------------------------
+// The defect that reported a loss larger than the spread's defined maximum
+// ---------------------------------------------------------------------------
+
+test("two spreads on one short strike at different widths each carry their own long", () => {
+  // Same short, two different longs, both assigned and exercised the same day.
+  // The two spreads share a chain id, so their share lots pool; splitting that
+  // pool by contract count gave each half of -$1,500. That is the whole defect:
+  // the 150/145 spread, whose maximum loss is $350, reported -$600.
+  //
+  // Each long closed its own shares. 145 disposed 100 at -$500, 140 disposed
+  // 100 at -$1,000, and the lots say so in disposed_price.
+  const acts = [
+    fill("2026-08-03", "sell", "AMD260828P00150000", 2, 2.5),
+    fill("2026-08-03", "buy", "AMD260828P00145000", 1, 1.0),
+    fill("2026-08-03", "buy", "AMD260828P00140000", 1, 0.5),
+    assign("2026-08-26", "AMD260828P00150000", 2),
+    exercise("2026-08-26", "AMD260828P00145000", 1),
+    exercise("2026-08-26", "AMD260828P00140000", 1)
+  ];
+  const { records } = reconstruct(acts, {}, ACCOUNT);
+
+  const narrow = find(records, "AMD260828P00150000", "AMD260828P00145000");
+  const wide = find(records, "AMD260828P00150000", "AMD260828P00140000");
+  assert.ok(narrow && wide, "both spreads reconstructed");
+
+  // The share result each spread's own long produced, not a share of the pool.
+  assert.equal(money(narrow.stock_pl), -500, "the 145 long closed 100 shares at -$500");
+  assert.equal(money(wide.stock_pl), -1000, "the 140 long closed 100 shares at -$1,000");
+
+  // Credit $150 and $200; the results are each spread's defined maximum loss.
+  assert.equal(money(narrow.realized_pl), -350);
+  assert.equal(money(wide.realized_pl), -800);
+
+  // The property that matters to a user reading the row: a defined-risk spread
+  // never reports a loss it could not have taken.
+  const maxLoss = (r) => (r.short_strike - r.long_strike) * 100 * (r.contracts || 1) - r.premium_pl;
+  [narrow, wide].forEach((r) => {
+    assert.ok(
+      r.realized_pl >= -maxLoss(r) - 1e-6,
+      `${r.long_symbol}: ${r.realized_pl} exceeds its own maximum ${-maxLoss(r)}`
+    );
+  });
+
+  // And the account is unchanged by the attribution: -$1,500 of shares against
+  // $350 of credit.
+  assert.equal(money(records.reduce((a, r) => a + r.realized_pl, 0)), -1150);
+  records.forEach((r) =>
+    assert.ok(
+      Math.abs(r.premium_pl + r.early_close_pl + r.stock_pl - r.realized_pl) < 1e-9,
+      `${r.long_symbol}: parts must sum to realized_pl`
+    )
+  );
+});

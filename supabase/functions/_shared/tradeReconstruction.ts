@@ -781,13 +781,41 @@ export function attributeStockPL(records, stockLots) {
 
   let orphaned = 0;
 
-  const share = (owners, amount) => {
+  // Which of a chain's owners a particular lot belongs to.
+  //
+  // Splitting by contract count was right for the acquisition -- one
+  // assignment delivering shares to every assigned contract -- and wrong for
+  // the disposal, which is spread-specific: two put spreads sharing a short
+  // strike, 150/145 and 150/140, each exercise their OWN long. The lots come
+  // out at -$500 and -$1,000; splitting evenly reported -$750 each, so the
+  // 150/145 spread showed a loss larger than its own $300 maximum.
+  //
+  // The lot already says which long closed it -- disposed_price is that
+  // long's strike -- so the owner is identifiable rather than a matter of
+  // apportionment. Same on the acquisition side against the short strike.
+  // Proportional splitting stays as the fallback for when nothing identifies
+  // an owner, which is a genuine tie rather than a guess.
+  const ownerOf = (owners, lot) => {
+    const near = (a, b) => a !== null && a !== undefined && Math.abs(Number(a) - Number(b)) < 1e-6;
+    const byLong = owners.filter((o) => o.long_symbol && near(lot.disposed_price, o.long_strike));
+    if (byLong.length === 1) return byLong[0];
+    const byShort = owners.filter((o) => near(lot.acquired_price, o.short_strike));
+    if (byShort.length === 1) return byShort[0];
+    return null;
+  };
+
+  const share = (owners, amount, lot) => {
     if (owners.length === 1) {
       owners[0].stock_pl += amount;
       return;
     }
+    const identified = ownerOf(owners, lot);
+    if (identified) {
+      identified.stock_pl += amount;
+      return;
+    }
     const totalQty = owners.reduce((a, o) => a + (o.qty || 0), 0);
-    // Equal split when quantities cannot decide it, rather than dropping the
+    // Equal split when nothing identifies an owner, rather than dropping the
     // amount or handing it to whichever came first.
     let assigned = 0;
     owners.forEach((o, i) => {
@@ -809,7 +837,7 @@ export function attributeStockPL(records, stockLots) {
       (lot.disposed_chain_id && byChain.get(lot.disposed_chain_id)) ||
       (lot.acquired_chain_id && byChain.get(lot.acquired_chain_id)) ||
       null;
-    if (owners && owners.length) share(owners, lot.realized_pl);
+    if (owners && owners.length) share(owners, lot.realized_pl, lot);
     else orphaned += lot.realized_pl;
   });
 
