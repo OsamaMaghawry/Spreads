@@ -2,6 +2,7 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { SAFE_ACCOUNT_COLUMNS } from "../_shared/accounts.ts";
 import { encryptSecret } from "../_shared/crypto.ts";
+import { MAX_AUTO_DELETE_FLOOR } from "../_shared/writeGuards.ts";
 
 // One token, two endpoints.
 //
@@ -90,31 +91,49 @@ async function findExisting(admin, userId, { accountId, accountNumber, isPaper }
   if (unidentified?.length !== 1) return null;
   const candidate = unidentified[0];
 
-  // Adoption is a guess -- a good one, but a guess -- and a guess is only
-  // acceptable while there is nothing to get wrong. A row that already carries
-  // synced history is a row whose trades belong to some brokerage account, and
-  // if this is not that account the token would put one person's positions
-  // under another account's P/L and the next sync would rewrite the history to
-  // match. An empty row has nothing to corrupt, so that is the only kind
-  // adopted; anything else falls through to a new row, which is recoverable.
+  // Adoption is a guess -- a good one, but a guess -- so the question is what
+  // a wrong guess costs, and that is not the same at every size.
+  //
+  // Refusing to adopt any row holding history was the wrong trade. Every row
+  // predating the identity column holds history and carries no identity, and
+  // 0014 was written on the premise that a reconnect fills it in. Refusing
+  // guarantees a duplicate for each of those accounts on its next connect --
+  // the old row keeping every trade and a dead token, the new one syncing a
+  // second copy under the same name. That is the state 0014 exists to end.
+  //
+  // What makes adoption survivable on a row with real history is the sync's
+  // own mass-delete guard. A token for a different brokerage account
+  // reconstructs an entirely different set of trade keys, so every stored row
+  // goes stale at once -- far past MAX_AUTO_DELETE_SHARE -- and the sync
+  // refuses before writing anything. The history survives, the page says the
+  // refresh failed, and a person sorts it out.
+  //
+  // That protection has a floor: MAX_AUTO_DELETE_FLOOR rows or fewer are
+  // removed without complaint. So the line is drawn there. Above it the guard
+  // is watching and adoption is safe. At or below it the guard is not, and a
+  // duplicate holding a handful of trades is much the cheaper mistake.
+  if (await guardedByMassDelete(admin, candidate.id)) return { id: candidate.id };
   if (candidate.trades_synced_at) return null;
-  if (await hasStoredHistory(admin, candidate.id)) return null;
-  return { id: candidate.id };
+  const trades = await countRows(admin, "trade_records", candidate.id);
+  const lots = await countRows(admin, "stock_lots", candidate.id);
+  return trades === 0 && lots === 0 ? { id: candidate.id } : null;
 }
 
-// Whether an account already holds reconstructed history. Counts only -- the
-// rows themselves are not needed and not read.
-async function hasStoredHistory(admin, accountId) {
-  for (const table of ["trade_records", "stock_lots"]) {
-    const { count, error } = await admin
-      .from(table)
-      .select("id", { count: "exact", head: true })
-      .eq("account_id", accountId);
-    // A failed count is not an empty account. Refusing to adopt on an error
-    // costs a duplicate row; assuming empty costs someone else's history.
-    if (error || (count ?? 1) > 0) return true;
-  }
-  return false;
+// A failed count is not an empty account: null means "unknown", and both
+// callers treat unknown as the answer that refuses.
+async function countRows(admin, table, accountId) {
+  const { count, error } = await admin
+    .from(table)
+    .select("id", { count: "exact", head: true })
+    .eq("account_id", accountId);
+  return error ? null : (count ?? 0);
+}
+
+// Whether this account holds enough history that a sync from the wrong
+// brokerage account would be refused rather than written.
+async function guardedByMassDelete(admin, accountId) {
+  const count = await countRows(admin, "trade_records", accountId);
+  return count !== null && count > MAX_AUTO_DELETE_FLOOR;
 }
 
 Deno.serve(async (req) => {

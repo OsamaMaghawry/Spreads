@@ -32,8 +32,12 @@ async function preflight(account, legs, expectedSpot, allowItmShort) {
   // one arrives, refusing is the only honest answer.
   const adjusted = parsed.find((l: any) => l.occ.adjusted);
   if (adjusted) {
-    return `${adjusted.symbol} is an adjusted contract — what it delivers is not 100 shares ` +
-      `of ${adjusted.occ.ticker}, so this order cannot be checked against the market. Place it with your broker.`;
+    // No "place it with your broker": a refusal made on safety grounds should
+    // not end by pointing at the exit, and the width and maximum loss still on
+    // screen are wrong for this contract.
+    return `${adjusted.symbol} is an adjusted contract — a corporate action changed what it ` +
+      `delivers, so it is no longer 100 shares of ${adjusted.occ.underlying} at the strike, and the ` +
+      `width and maximum loss shown for this trade are not right for it.`;
   }
 
   const ticker = parsed[0].occ.ticker;

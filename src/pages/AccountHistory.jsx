@@ -329,7 +329,8 @@ export default function AccountHistory() {
               {adjustedCount} position{adjustedCount === 1 ? "" : "s"} use an adjusted contract, written before a
               corporate action changed what it delivers. Its figures here are worked out as 100 shares at the
               strike, which is no longer what it settles into &mdash; check {adjustedCount === 1 ? "it" : "them"} against
-              your broker.
+              your broker. Shares from {adjustedCount === 1 ? "it" : "them"} are listed under the adjusted symbol
+              rather than the plain ticker, so they stay separate from your ordinary holdings in that stock.
             </div>
           )}
 

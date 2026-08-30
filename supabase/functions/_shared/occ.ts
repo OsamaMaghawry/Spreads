@@ -25,18 +25,27 @@ export function parseOCCSymbol(symbol) {
   if (!match) return null;
   const raw = match[2];
   const root = match[1];
-  // The underlying is the root without the adjustment digit: the shares an
-  // adjusted contract delivers are still ordinary AAPL shares, and the share
-  // ledger has to be able to find them.
-  const ticker = root.replace(/\d+$/, "") || root;
+  // The underlying without the adjustment digit, for the places that need to
+  // know what stock this is about -- a price lookup, a label.
+  const underlying = root.replace(/\d+$/, "") || root;
   return {
-    ticker,
+    // `ticker` is the root as written, adjustment digit included, and that is
+    // deliberate: it is the key the share ledger runs FIFO on. Stripping the
+    // digit put a fabricated "100 shares at the strike" lot -- fabricated
+    // because an adjusted contract no longer delivers that -- into the same
+    // queue as the account's real AAPL shares, where it consumed correct lots
+    // and rewrote rows that carry no adjusted marking. Keeping the root keeps
+    // an approximation confined to the position it is an approximation of,
+    // which is also what stops a short AAPL 150P and a long AAPL1 145P pairing
+    // into a spread with a width neither of them has.
+    ticker: root,
+    underlying,
     root,
     // What the contract delivers is no longer 100 shares of the underlying at
     // the strike, and the symbol alone does not say what it is instead. Every
     // figure derived from strike x 100 is a guess on these, which is why the
     // flag travels with the parse rather than being inferred later.
-    adjusted: root !== ticker,
+    adjusted: root !== underlying,
     expiry: raw,
     expiryFormatted: `20${raw.substring(0, 2)}-${raw.substring(2, 4)}-${raw.substring(4, 6)}`,
     type: match[3],

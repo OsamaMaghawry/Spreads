@@ -838,7 +838,10 @@ test("an adjusted contract is reconstructed, not booked as a stock", () => {
   const { records, stockLots } = reconstruct(acts, {}, ACCOUNT);
 
   assert.equal(records.length, 1, "one spread, not zero");
-  assert.equal(records[0].ticker, "AAPL", "the shares it delivers are ordinary AAPL shares");
+  // The root as written, adjustment digit and all: what it delivers is not
+  // 100 ordinary AAPL shares, so its share lots stay in their own book rather
+  // than consuming the account's real AAPL lots FIFO.
+  assert.equal(records[0].ticker, "AAPL1");
   assert.equal(money(records[0].realized_pl), 150);
   assert.equal(stockLots.length, 0, "no option symbol reaches the share ledger");
 });
@@ -853,7 +856,7 @@ test("an adjusted contract keeps its adjustment digit in the symbol", () => {
     ACCOUNT
   );
   assert.equal(records[0].short_symbol, "T1260828P00015000");
-  assert.equal(records[0].ticker, "T");
+  assert.equal(records[0].ticker, "T1");
   assert.equal(records[0].short_strike, 15);
 });
 
@@ -931,4 +934,22 @@ test("a stored lot carries no field the stock_lots table has no column for", () 
     assert.equal("acquired_option" in l, false);
     assert.equal("disposed_option" in l, false);
   });
+});
+
+test("an adjusted contract's shares do not consume the account's ordinary lots", () => {
+  // 100 real AAPL shares bought on the market, then an adjusted call assigned.
+  // Keyed by a stripped ticker, the fabricated "sold 100 AAPL at 100" move
+  // matched the real purchase FIFO and reported a result on shares the option
+  // never touched -- on a row carrying no adjusted marking, because the
+  // marking travels with the option symbol and this lot has the plain ticker.
+  const acts = [
+    fill("2026-07-01", "buy", "AAPL", 100, 210.0),
+    fill("2026-08-03", "sell", "AAPL1260828C00100000", 1, 2.5),
+    assign("2026-08-26", "AAPL1260828C00100000", 1)
+  ];
+  const { stockLots } = reconstruct(acts, {}, ACCOUNT);
+
+  const touched = stockLots.filter((l) => l.acquired_price === 210);
+  assert.equal(touched.length, 0, "the 210 purchase is nobody's basis here");
+  stockLots.forEach((l) => assert.equal(l.ticker, "AAPL1", "adjusted lots keep their own book"));
 });
