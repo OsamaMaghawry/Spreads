@@ -254,6 +254,38 @@ export function buildStockLedger(moves) {
     const events = byTicker[ticker]
       .slice()
       .sort((a, b) => a.date.localeCompare(b.date) || (a.side === b.side ? 0 : a.side === "buy" ? -1 : 1));
+
+    // Settlement can straddle midnight. On a call spread the short's
+    // assignment SELLS the shares and the long's exercise BUYS them, and the
+    // broker may stamp the two a day apart -- the same skew `closesTogether`
+    // already allows when pairing the legs. Ordering strictly by date then put
+    // the sale first with nothing open to draw on: it emitted a null-basis lot
+    // that attribution skips, the next day's purchase became an open lot that
+    // `fromOption` discards, and a -$212 loss was reported as a +$38 gain with
+    // orphanedStockPL still reading zero. Nothing flagged it.
+    //
+    // So an option-settled buy is pulled ahead of an option-settled sell it is
+    // covering, when the two are within a day and no lot is open to satisfy
+    // the sale. Trades on the market are untouched: only assignment and
+    // exercise settle as one event across two stamps.
+    const optionSettled = (m) => m.source === "assignment" || m.source === "exercise";
+    for (let i = 0; i < events.length; i++) {
+      const sell = events[i];
+      if (sell.side !== "sell" || !optionSettled(sell)) continue;
+      const boughtBefore = events
+        .slice(0, i)
+        .reduce((n, m) => n + (m.side === "buy" ? m.qty : -m.qty), 0);
+      if (boughtBefore >= sell.qty) continue;
+      const j = events.findIndex(
+        (m, k) =>
+          k > i &&
+          m.side === "buy" &&
+          optionSettled(m) &&
+          Math.abs(Date.parse(m.date) - Date.parse(sell.date)) <= 86400000
+      );
+      if (j > -1) events.splice(i, 0, events.splice(j, 1)[0]);
+    }
+
     let open = [];
 
     events.forEach((m) => {
@@ -461,8 +493,27 @@ export function buildTrades(closedLots, sharesHeldAt, accountId) {
     close_reason: l.closeReason
   });
 
-  ["spreads", "wheel", "unknown"].forEach((strategy) => {
-    const lots = closedLots.filter((l) => l.strategy === strategy);
+  // Pair first, classify after.
+  //
+  // Pairing used to run *inside* each strategy bucket, so two legs of one
+  // spread could only find each other if both had resolved to the same
+  // strategy. They often do not: `orderStrategy` is filled from a 12-page
+  // order sweep that is shallower than the activity feed, and legs opened by
+  // separate orders resolve independently -- so one leg said "spreads" while
+  // its partner, past the cap, said "unknown", and they were held in different
+  // buckets where no amount of matching could bring them together. The
+  // reported result was a naked short at +$500 instead of a 5-wide spread at
+  // +$200, marked `unpaired: false` -- the flag that exists to catch exactly
+  // this saying nothing was wrong.
+  //
+  // "spreads" and "unknown" are therefore one pool: an unknown leg is a leg
+  // whose order we could not read, not a leg that belongs to nothing. "wheel"
+  // stays apart because it is an explicit instruction from the order prefix
+  // that these are single-leg positions, and pairing them would invent
+  // spreads the trader never put on.
+  [["spreads", "unknown"], ["wheel"]].forEach((bucket) => {
+    const strategy = bucket[0];
+    const lots = closedLots.filter((l) => bucket.includes(l.strategy));
     const shorts = lots.filter((l) => l.short).map((l) => ({ ...l, left: l.qty }));
     const longs = lots.filter((l) => !l.short).map((l) => ({ ...l, left: l.qty }));
     const pairSpreads = strategy !== "wheel";
@@ -594,27 +645,81 @@ export function mergeAndPrice(trades) {
 // produced it was not reconstructed, which is a defect worth seeing rather than
 // a number to display. It is returned for the caller to notice.
 export function attributeStockPL(records, stockLots) {
+  // A chain id is `symbol@date`, so every record built from one short symbol
+  // assigned on one day shares it. Keyed by `set`, the last record written won
+  // and took *all* the shares: two put spreads on the same short strike came
+  // out $500 wrong in opposite directions, one loss reported as a profit, and
+  // one spread showing a loss larger than its own defined maximum. The account
+  // total stayed right, so nothing reconciled it away.
+  //
+  // The owners of a chain are therefore a list, and a lot is split across them
+  // in proportion to contracts — which is what the assignment did: one event
+  // delivering shares to every contract that was assigned.
   const byChain = new Map();
   records.forEach((r) => {
-    if (r.chain_id) byChain.set(r.chain_id, r);
+    if (!r.chain_id) return;
+    const owners = byChain.get(r.chain_id) || [];
+    owners.push(r);
+    byChain.set(r.chain_id, owners);
   });
 
   let orphaned = 0;
 
+  const share = (owners, amount) => {
+    if (owners.length === 1) {
+      owners[0].stock_pl += amount;
+      return;
+    }
+    const totalQty = owners.reduce((a, o) => a + (o.qty || 0), 0);
+    // Equal split when quantities cannot decide it, rather than dropping the
+    // amount or handing it to whichever came first.
+    let assigned = 0;
+    owners.forEach((o, i) => {
+      const cut =
+        i === owners.length - 1
+          ? amount - assigned // the remainder, so the parts still sum exactly
+          : totalQty > 0
+            ? (amount * (o.qty || 0)) / totalQty
+            : amount / owners.length;
+      o.stock_pl += cut;
+      assigned += cut;
+    });
+  };
+
   stockLots.forEach((lot) => {
     // A lot still held has a null result. Unrealised is not a result.
     if (lot.realized_pl === null || lot.realized_pl === undefined) return;
-    const owner =
+    const owners =
       (lot.disposed_chain_id && byChain.get(lot.disposed_chain_id)) ||
       (lot.acquired_chain_id && byChain.get(lot.acquired_chain_id)) ||
       null;
-    if (owner) owner.stock_pl += lot.realized_pl;
+    if (owners && owners.length) share(owners, lot.realized_pl);
     else orphaned += lot.realized_pl;
+  });
+
+  // An assignment whose shares are still held is not a finished trade.
+  //
+  // The option closed, so the row was written as complete -- premium kept, a
+  // full winner, dated to the assignment. Months later the shares sell, the
+  // share result lands on that same row under that same date, and a January
+  // win becomes a January loss in April. Every figure computed from close
+  // dates moves with it: the equity curve, win rate, profit factor, streaks,
+  // the monthly breakdown, and any date filter that contained it. Nothing on
+  // screen said a closed row could change.
+  //
+  // It still cannot be dated forward -- the premium genuinely was realised
+  // when the option closed -- so the honest answer is to say the row is not
+  // final yet, and let the reader see which ones are.
+  const undisposedChains = new Set();
+  stockLots.forEach((lot) => {
+    if (lot.disposed_date) return;
+    if (lot.acquired_chain_id) undisposedChains.add(lot.acquired_chain_id);
   });
 
   records.forEach((r) => {
     r.stock_pl = noNegZero(r.stock_pl);
     r.realized_pl = noNegZero(r.premium_pl + r.early_close_pl + r.stock_pl);
+    r.provisional = !!(r.chain_id && undisposedChains.has(r.chain_id));
   });
 
   return orphaned;

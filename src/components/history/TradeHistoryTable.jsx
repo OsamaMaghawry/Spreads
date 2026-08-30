@@ -70,6 +70,19 @@ export default function TradeHistoryTable({ trades }) {
                       title="This leg has no counterpart — check it against your broker"
                     />
                   )}
+                  {t.provisional && (
+                    <span
+                      className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200"
+                      // The option closed but the shares it delivered are still
+                      // open, so this row's result is not final: when the shares
+                      // are sold their result lands here, under this same close
+                      // date. Without saying so, every assignment reads as a
+                      // full-premium winner until the shares go.
+                      title="Shares from this assignment are still held — this result will change when they are sold"
+                    >
+                      not final
+                    </span>
+                  )}
                 </span>
               </td>
               <td className={td}>

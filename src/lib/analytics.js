@@ -38,7 +38,14 @@ export function computeStats(trades, equity = 0) {
     events.push({ date: t.open_date || t.close_date, delta: risk });
     events.push({ date: t.close_date, delta: -risk, close: true });
   });
-  events.sort((a, b) => a.date.localeCompare(b.date) || (a.close ? -1 : 1));
+  // Opens before closes when they fall on the same date. Reading the closes
+  // first pretends collateral was released before the position needing it was
+  // put on, which understates the peak and — on real data — drove the running
+  // total to -$61,440, a negative amount of capital at risk. It also gave a
+  // trade opened and closed the same day a peak contribution of zero, however
+  // much it tied up. The tie-break is the whole of the bug: on 99 real trades
+  // it reported $119,014 against a true $162,678.
+  events.sort((a, b) => a.date.localeCompare(b.date) || (a.close ? 1 : -1));
   let openRisk = 0, peakRisk = 0;
   events.forEach((e) => {
     openRisk += e.delta;

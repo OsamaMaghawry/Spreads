@@ -154,6 +154,10 @@ async function writeResults(admin, accountId, userId, records, stockLots) {
         Number(e.stock_pl) !== r.stock_pl ||
         e.close_reason !== r.close_reason ||
         e.unpaired !== r.unpaired ||
+        // A row that stops being provisional has changed, even when every
+        // figure on it is identical: its shares were disposed of and its
+        // result is final now.
+        !!e.provisional !== !!r.provisional ||
         e.chain_id !== r.chain_id
       );
     })
