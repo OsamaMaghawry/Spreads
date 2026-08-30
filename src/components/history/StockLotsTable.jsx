@@ -45,6 +45,12 @@ export default function StockLotsTable({ lots }) {
           above against the option that sold the shares — this is the same money in detail, not more
           of it.
         </p>
+        <p className="text-xs text-slate-500">
+          Strike paid and strike received are the option&rsquo;s strike price. They are not your tax
+          basis: premium on a short put reduces the basis of shares put to you, and premium on a short
+          call is added to the proceeds when shares are called away. Lots are matched
+          first-in-first-out, which may not be the method your broker used.
+        </p>
       </div>
 
       <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
@@ -54,10 +60,15 @@ export default function StockLotsTable({ lots }) {
               <th className={th}>Ticker</th>
               <th className={`${th} text-right`}>Shares</th>
               <th className={th}>Acquired</th>
-              <th className={`${th} text-right`}>Cost</th>
+              {/* Not "Cost" and "Proceeds". Those are Form 8949's own column
+                  names -- "Cost or other basis" and "Proceeds" -- and these are
+                  not those figures: an assignment records the bare strike, with
+                  the option's premium kept as a separate record. Naming them
+                  after the tax form invites the reader to copy them onto it. */}
+              <th className={`${th} text-right`}>Strike paid</th>
               <th className={th}>Via</th>
               <th className={th}>Disposed</th>
-              <th className={`${th} text-right`}>Proceeds</th>
+              <th className={`${th} text-right`}>Strike received</th>
               <th className={th}>Via</th>
               <th className={`${th} text-right`}>Realized P/L</th>
             </tr>

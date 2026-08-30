@@ -19,6 +19,30 @@ import { parseOCCSymbol } from "./occ.ts";
 
 export const CONTRACT_SIZE = 100;
 
+// Broad-based index options are cash-settled: exercise and assignment pay a
+// difference in cash and no shares ever change hands.
+//
+// The reconstruction assumed every option delivers stock, so an assigned SPX
+// spread produced a 100-share "SPX" lot with the strike as its cost -- a
+// securities position that does not exist, carrying a basis that never
+// existed. While the ledger dropped it as a null-basis lot the damage was
+// invisible; once settlement day-skew was handled the legs paired, the
+// fabricated lot resolved to a real number, and it began flowing into
+// stock_pl, the record total, the equity curve and the exported report.
+//
+// These are also Section 1256 contracts -- 60/40 treatment and a year-end
+// mark to market -- so they are not merely shareless, they are a different
+// tax regime. Recording them as equity assignments is wrong twice over.
+//
+// Alpaca added SPX, SPXW, VIX, VIXW, DJX and XSP to the trading API in July
+// 2026, paper-only at first, and this product syncs paper accounts.
+export const CASH_SETTLED_ROOTS = new Set([
+  "SPX", "SPXW", "XSP", "NDX", "NDXP", "RUT", "RUTW", "VIX", "VIXW", "DJX", "MRUT", "NANOS"
+]);
+
+export const isCashSettled = (ticker: string) =>
+  CASH_SETTLED_ROOTS.has(String(ticker || "").toUpperCase());
+
 // Assignment and exercise both move shares at the option's strike. Which
 // direction depends only on whether the leg was short and whether it was a
 // call — the activity type is redundant (you are assigned on a short, you
@@ -96,15 +120,19 @@ export function reconstructOptionLots(activities, orderStrategy = {}) {
         const q = Math.min(lot.qty, remaining);
         const chainKey = chainKeyFor(symbol, date);
         push({ ...lot, qty: q }, 0, date, reason, chainKey);
-        shareMoves.push({
-          ticker: parsed.ticker,
-          date,
-          side: shareSide(lot.short, parsed.type === "C"),
-          qty: q * CONTRACT_SIZE,
-          price: parsed.strike,
-          source: lot.short ? "assignment" : "exercise",
-          chainKey
-        });
+        // Cash-settled contracts deliver no shares. Emitting a move here
+        // invented a stock position, a basis and a result for it.
+        if (!isCashSettled(parsed.ticker)) {
+          shareMoves.push({
+            ticker: parsed.ticker,
+            date,
+            side: shareSide(lot.short, parsed.type === "C"),
+            qty: q * CONTRACT_SIZE,
+            price: parsed.strike,
+            source: lot.short ? "assignment" : "exercise",
+            chainKey
+          });
+        }
         lot.qty -= q;
         remaining -= q;
         position += lot.short ? q : -q;

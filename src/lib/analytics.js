@@ -23,8 +23,16 @@ export function computeStats(trades, equity = 0) {
 
   const creditCollected = sorted.reduce((a, t) => a + (t.net_credit || 0) * (t.qty || 0) * 100, 0);
   const riskOf = (t) => {
+    const qty = t.qty || 0;
+    // A leg with no short is a long option, and the most it can lose is what
+    // was paid for it. The width formula read its strike as if it were a
+    // spread's: a lone 470 long came out at (470 + 2.72) x 100 = $47,272 of
+    // "capital at risk" for a position whose max loss is the $272 premium.
+    // That inflated total risk, average risk and the peak the whole return-on-
+    // risk figure divides by.
+    if (!t.short_symbol) return Math.max(0, -(t.net_credit || 0) * qty * 100);
     const width = t.long_symbol ? Math.abs((t.short_strike || 0) - (t.long_strike || 0)) : t.short_strike || 0;
-    return Math.max(0, (width - (t.net_credit || 0)) * (t.qty || 0) * 100);
+    return Math.max(0, (width - (t.net_credit || 0)) * qty * 100);
   };
   const totalRisk = sorted.reduce((a, t) => a + riskOf(t), 0);
   const avgRisk = totalRisk / sorted.length;
@@ -45,7 +53,7 @@ export function computeStats(trades, equity = 0) {
   // trade opened and closed the same day a peak contribution of zero, however
   // much it tied up. The tie-break is the whole of the bug: on 99 real trades
   // it reported $119,014 against a true $162,678.
-  events.sort((a, b) => a.date.localeCompare(b.date) || (a.close ? 1 : -1));
+  events.sort((a, b) => a.date.localeCompare(b.date) || (a.close ? 1 : 0) - (b.close ? 1 : 0));
   let openRisk = 0, peakRisk = 0;
   events.forEach((e) => {
     openRisk += e.delta;

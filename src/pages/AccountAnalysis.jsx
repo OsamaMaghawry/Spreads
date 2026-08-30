@@ -70,10 +70,18 @@ export default function AccountAnalysis() {
     [allTrades, range]
   );
 
-  const { stats, comparison, subset } = useMemo(() => {
+  const { stats, comparison, subset, provisionalCount } = useMemo(() => {
     const subset = strategy === "all" ? trades : trades.filter((t) => strategyOf(t) === strategy);
-    const share = trades.length ? subset.length / trades.length : 0;
-    const s = computeStats(subset, equity * (strategy === "all" ? 1 : share));
+    // Equity belongs to the account, not to a strategy, and it was being split
+    // between them by *trade count*: cash-secured puts with 44 trades and
+    // $1.36M of collateral got 44% of equity while spreads with 55 trades and
+    // $20k got 56% — denominators inverted against the capital actually used,
+    // with CAGR exponential in the invented number and the whole thing landing
+    // in the exported report. There is no honest share to use, so a filtered
+    // view withholds return on equity rather than inventing one. Return on
+    // risk, which divides by collateral the strategy really tied up, still
+    // answers the question for a single strategy.
+    const s = computeStats(subset, strategy === "all" ? equity : 0);
     // Built from the shared category list, so a category added there appears
     // here without a second place needing to know the names.
     const rows = [{ label: "All strategies", trades }]
@@ -83,12 +91,17 @@ export default function AccountAnalysis() {
           trades: trades.filter((t) => strategyOf(t) === s.key)
         })).filter((r) => r.trades.length > 0)
       )
-      .map((r) => {
-        const eq = equity * (trades.length ? r.trades.length / trades.length : 0);
-        return { label: r.label, stats: computeStats(r.trades, r.label === "All strategies" ? equity : eq) };
-      })
+      .map((r) => ({
+        label: r.label,
+        stats: computeStats(r.trades, r.label === "All strategies" ? equity : 0)
+      }))
       .filter((r) => r.stats);
-    return { stats: s, comparison: rows, subset };
+    return {
+      stats: s,
+      comparison: rows,
+      subset,
+      provisionalCount: subset.filter((t) => t.provisional).length
+    };
   }, [trades, strategy, equity]);
 
   if (loading) {
@@ -158,6 +171,26 @@ export default function AccountAnalysis() {
             <div className="grid gap-4 lg:grid-cols-2">
               <BreakdownTable title="By month" keyLabel="Month" keyField="month" rows={stats.byMonth} />
               <BreakdownTable title="By ticker" keyLabel="Ticker" keyField="ticker" rows={stats.byTicker} />
+            </div>
+
+            {/* Inside reportRef on purpose. The site-wide disclaimer sits in
+                Layout, outside the captured element, so the exported PDF left
+                here carrying an account name, a date range and a table of
+                monthly realized P/L — a document shaped exactly like a tax
+                schedule, saying nothing about what it is. This is the page a
+                user forwards to their accountant in March. */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] leading-relaxed text-slate-600">
+              <span className="font-semibold text-slate-700">DeltaMint — economic performance report. Not a tax document.</span>{" "}
+              Figures cover only positions an option opened or closed and exclude the rest of this
+              account. Realized P/L here is not taxable gain or loss: wash sales, straddle rules,
+              Section 1256 treatment and cost-basis adjustments on assignment are not applied.
+              {provisionalCount > 0 && (
+                <> {provisionalCount} position{provisionalCount === 1 ? "" : "s"} closed by assignment
+                {provisionalCount === 1 ? " still has" : " still have"} shares held, so
+                {provisionalCount === 1 ? " its result is" : " their results are"} not final and
+                {provisionalCount === 1 ? " is" : " are"} included in every figure above.</>
+              )}{" "}
+              Reconcile against your broker&rsquo;s Form 1099-B before using any figure for a return.
             </div>
           </div>
         </>

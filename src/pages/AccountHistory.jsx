@@ -112,8 +112,17 @@ export default function AccountHistory() {
   const premiumPL = sumBy(trades, "premium_pl");
   const earlyClosePL = sumBy(trades, "early_close_pl");
   const stockPL = sumBy(trades, "stock_pl");
-  const totalPL = premiumPL + earlyClosePL + stockPL;
+  // The total comes from realized_pl, not from adding the three parts.
+  //
+  // Rows written before the components existed carry null in all three, and
+  // sumBy reads null as zero — so the header showed Total $0.00 above a table
+  // whose own footer said −$992.00. The parts still sum to the whole on every
+  // row the current code wrote; the header must not claim otherwise for rows
+  // it did not.
+  const totalPL = sumBy(trades, "realized_pl");
+  const componentsMissing = trades.some((t) => t.premium_pl === null || t.premium_pl === undefined);
   const unpairedCount = trades.filter((t) => t.unpaired).length;
+  const provisionalCount = trades.filter((t) => t.provisional).length;
 
   return (
     <div className="space-y-5">
@@ -197,6 +206,36 @@ export default function AccountHistory() {
               </div>
             ))}
           </div>
+
+          {/* What these figures are, said where the figures are. The terms of
+              service say the product gives no tax advice, but that page is not
+              reachable from this one, and "Realized P/L" is a term of art a
+              reader will carry straight to their return. */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-600">
+            These figures are an economic record of what your strategies produced. They are not a tax
+            record and will not match your broker&rsquo;s 1099-B. Premium on an assigned position is shown
+            on the assignment date; for tax it adjusts the basis or proceeds of the shares instead. Wash
+            sales, straddle and offsetting-position rules, and holding-period adjustments are not
+            calculated. Only positions an option opened or closed appear here. Your broker&rsquo;s records
+            govern.
+          </div>
+
+          {provisionalCount > 0 && (
+            <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+              {provisionalCount} position{provisionalCount === 1 ? "" : "s"} closed by assignment
+              {provisionalCount === 1 ? " still has" : " still have"} shares held, and
+              {provisionalCount === 1 ? " its result" : " their results"} will change when those shares are
+              sold &mdash; under the close date shown, not the date of the sale. Marked
+              &ldquo;not final&rdquo; below and included in the totals above.
+            </div>
+          )}
+
+          {componentsMissing && (
+            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
+              Some rows predate the premium / early-close / assignment split, so those three figures cover
+              only part of the book. The total is taken from each row&rsquo;s own result and is complete.
+            </div>
+          )}
 
           {unpairedCount > 0 && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
