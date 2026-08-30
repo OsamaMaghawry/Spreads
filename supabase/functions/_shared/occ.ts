@@ -18,6 +18,14 @@
 //
 // The root is anchored to at most six characters and the trailing 15 are
 // fixed, so a numeric root digit cannot swallow the expiry.
+//
+// Checked against the symbology rather than assumed, because openPosition
+// refuses orders on this test: under OSI a numeric suffix designates a
+// non-standard option and a root without one almost always designates a
+// standard one. A 3-for-2 split turns one $90 contract into one $60 contract
+// delivering 150 shares -- which is why nothing here derives shares from the
+// strike -- while the premium multiplier stays 100, which is why the premium
+// on these is exact and is kept.
 const OCC = /^([A-Z][A-Z0-9]{0,5})(\d{6})([CP])(\d{8})$/;
 
 export function parseOCCSymbol(symbol) {

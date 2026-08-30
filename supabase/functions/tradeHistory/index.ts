@@ -293,13 +293,31 @@ async function writeResultsInner(admin, accountId, userId, records, stockLots) {
 
   const freshLotByKey: any = {};
   stockLots.forEach((l: any) => { freshLotByKey[l.lot_key] = l; });
+  // The chain ids belong in here. They are what attributes a lot's result to
+  // an option, so a lot whose chain changed is a lot whose money moved to a
+  // different trade -- a change worth a snapshot even when every price on it
+  // is identical.
   const changedFields = (before: any, after: any) =>
     ["qty", "acquired_date", "acquired_price", "acquired_source",
-     "disposed_date", "disposed_price", "disposed_source", "realized_pl"]
+     "disposed_date", "disposed_price", "disposed_source", "realized_pl",
+     "acquired_chain_id", "disposed_chain_id", "chain_id"]
       .some((f) => String(before[f] ?? "") !== String(after[f] ?? ""));
   const updatedLotsBefore = existingLots.filter(
     (l: any) => freshLotByKey[l.lot_key] && changedFields(l, freshLotByKey[l.lot_key])
   );
+
+  // Rewrites in place have no cap -- refuseMassDelete counts deletions -- and
+  // an uncapped rewrite that tells nobody is how a whole account's figures
+  // change with no trace outside the snapshot. Capping it would fail the first
+  // sync of any account whose rows predate this code, which is every account
+  // today, so this says so rather than refusing: the snapshot holds the before
+  // image and this is the line that sends someone to look for it.
+  if (toUpdate.length > 0 || updatedLotsBefore.length > 0) {
+    console.error(
+      `tradeHistory rewrite: account=${accountId} trades=${toUpdate.length}/${existing.length} ` +
+        `lots=${updatedLotsBefore.length}/${optionLots.length} removed=${stale.length}`
+    );
+  }
 
   await snapshot(admin, accountId, userId, "sync", {
     deleted: stale,

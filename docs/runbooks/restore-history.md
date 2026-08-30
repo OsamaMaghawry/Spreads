@@ -60,7 +60,27 @@ POST /functions/v1/tradeHistory  { "accountId": "<uuid>", "snapshots": true }
 POST /functions/v1/tradeHistory  { "accountId": "<uuid>", "snapshotId": "<uuid>" }
 ```
 
-**3. Put the rows back.**
+**3. Snapshot what you are about to overwrite.**
+
+A restore is a destructive write like any other, and it is the only one in the
+system that does not take its own snapshot — the code paths that do are not the
+one you are using here. Take one by hand first, so the state you are replacing
+is recoverable if the restore turns out to be the mistake:
+
+```sql
+insert into history_snapshots (user_id, account_id, reason, deleted_trades, updated_trades_before, deleted_lots)
+select a.user_id, a.id, 'pre-restore',
+       coalesce((select jsonb_agg(to_jsonb(t)) from trade_records t where t.account_id = a.id), '[]'::jsonb),
+       '[]'::jsonb,
+       coalesce((select jsonb_agg(to_jsonb(l)) from stock_lots l where l.account_id = a.id), '[]'::jsonb)
+  from trading_accounts a
+ where a.id = '<account uuid>';
+```
+
+Note the id it returns. Together with the snapshot you are restoring from, that
+is the whole custody trail: what was there, what you put back, and when.
+
+**4. Put the rows back.**
 
 Upsert each payload into its table: `deleted_trades` and `updated_trades_before`
 into `trade_records`, `deleted_lots` and `updated_lots_before` into
@@ -69,7 +89,7 @@ into `trade_records`, `deleted_lots` and `updated_lots_before` into
 whether or not something is standing in its place. Keep the `id` and `user_id`
 in the payload; they are the original values.
 
-**4. Remove what the bad sync added.**
+**5. Remove what the bad sync added.**
 
 An upsert restores what was changed. It cannot remove a row the sync *created* —
 and a sync that reclassified a position writes a new `trade_key` rather than
@@ -85,9 +105,11 @@ select id, trade_key, close_date, realized_pl
 ```
 
 Everything that appears there and is not in the snapshot was written by the sync
-you are undoing. Read the list before deleting from it.
+you are undoing. Read the list before deleting from it, and keep the list — the
+pre-restore snapshot in step 3 holds those rows, so it is the record of what you
+removed.
 
-**5. Check the figures, then reconnect.**
+**6. Check the figures, then reconnect.**
 
 Look at the restored history and confirm it is what you expected — the account
 is still detached, so nothing is racing you.
