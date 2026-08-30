@@ -4,6 +4,7 @@ import { tradingBase, alpacaFetch, loadAccount } from "../_shared/alpaca.ts";
 import { awaitUpTo } from "../_shared/background.ts";
 import { reconstruct } from "../_shared/tradeReconstruction.ts";
 import { refuseMassDelete, lotFromOption } from "../_shared/writeGuards.ts";
+import { isAdminUser } from "../_shared/admin.ts";
 
 // Closed trade history, rebuilt from the broker's activity feed.
 //
@@ -70,6 +71,45 @@ async function snapshot(admin, accountId, userId, reason, { deleted, updatedBefo
   if (error) throw new Error(`Snapshot failed, nothing written: ${error.message}`);
 }
 
+
+// The snapshots taken before writes, listed newest first.
+//
+// The table had one insert and no readers: rows were being copied out before
+// every destructive sync and nothing could ever look at them, which is a
+// backup only in the sense that the data is somewhere. Listing is metadata
+// only -- how many rows a snapshot holds, not the rows -- so an operator can
+// find the one they want before pulling it.
+async function listSnapshots(admin, accountId) {
+  const { data, error } = await admin
+    .from("history_snapshots")
+    .select("id, taken_at, reason, deleted_trades, updated_trades_before, deleted_lots")
+    .eq("account_id", accountId)
+    .order("taken_at", { ascending: false })
+    .limit(20);
+  if (error) throw new Error(error.message);
+  return (data || []).map((s: any) => ({
+    id: s.id,
+    taken_at: s.taken_at,
+    reason: s.reason,
+    deletedTrades: (s.deleted_trades || []).length,
+    updatedTrades: (s.updated_trades_before || []).length,
+    deletedLots: (s.deleted_lots || []).length
+  }));
+}
+
+// One snapshot in full, for download. Scoped to the account the caller already
+// proved they own.
+async function readSnapshot(admin, accountId, snapshotId) {
+  const { data, error } = await admin
+    .from("history_snapshots")
+    .select("*")
+    .eq("account_id", accountId)
+    .eq("id", snapshotId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  return data;
+}
 
 // The broker feed, in full. Two loops, both bounded, both stopping early on a
 // short page.
@@ -266,7 +306,8 @@ Deno.serve(async (req) => {
     const user = await requireUser(req);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-    const { accountId, preview = false, includeRaw = false } = await req.json();
+    const { accountId, preview = false, includeRaw = false, snapshots = false, snapshotId = null } =
+      await req.json();
     if (!accountId) return jsonResponse({ error: "accountId is required" }, 400);
 
     const admin = adminClient();
@@ -274,6 +315,28 @@ Deno.serve(async (req) => {
     const base = tradingBase(account);
 
     const accountInfo = { id: account.id, name: account.name, is_paper: account.is_paper };
+
+    // What a sync destroyed, before it destroyed it. Admin-only on the server,
+    // not merely in the interface: these payloads are the operator's copy of
+    // rows a person has already been shown, and nothing in the product needs
+    // to read them.
+    //
+    // Reading is all this does. Writing rows back in place is deliberately not
+    // offered here: the next sync recomputes the whole account from the broker
+    // feed and would overwrite a restore within the quarter hour, so a restore
+    // button would promise something it cannot keep. The procedure that does
+    // work -- pull the payload, stop the account syncing, put the rows back --
+    // is written down in docs/runbooks/restore-history.md.
+    if (snapshots || snapshotId) {
+      const { isAdmin } = await isAdminUser(user, admin);
+      if (!isAdmin) return jsonResponse({ error: "Not permitted" }, 403);
+      if (snapshotId) {
+        const found = await readSnapshot(admin, accountId, snapshotId);
+        if (!found) return jsonResponse({ error: "Snapshot not found" }, 404);
+        return jsonResponse({ account: accountInfo, snapshot: found });
+      }
+      return jsonResponse({ account: accountInfo, snapshots: await listSnapshots(admin, accountId) });
+    }
 
     // Audit mode: compute everything, write nothing, and hand back the broker's
     // own activities beside what this code made of them. Admin-only in the UI —

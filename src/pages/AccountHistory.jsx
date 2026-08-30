@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
 import { invokeFunction } from "@/lib/functions";
-import { RefreshCw, ArrowLeft, History, BarChart3, FileSearch } from "lucide-react";
+import { RefreshCw, ArrowLeft, History, BarChart3, FileSearch, Archive } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import { sumBy, strategyOf } from "@/lib/strategies";
 import TradeHistoryTable from "@/components/history/TradeHistoryTable";
@@ -20,6 +20,7 @@ export default function AccountHistory() {
   const [refreshing, setRefreshing] = useState(false);
   const [strategy, setStrategy] = useState("all");
   const [preview, setPreview] = useState(null);
+  const [snapshots, setSnapshots] = useState(null);
 
   // No sync button. The function serves what it has and refreshes itself when
   // that is stale, the same way the dashboard has always worked. When a refresh
@@ -56,6 +57,41 @@ export default function AccountHistory() {
       setError(e.message);
     } finally {
       setRefreshing(false);
+    }
+  }, [id]);
+
+  // What a sync destroyed before it destroyed it. The rows were being copied
+  // out before every destructive write and nothing could read them back, which
+  // is a backup only in the sense that the data is somewhere.
+  const loadSnapshots = useCallback(async () => {
+    setRefreshing(true);
+    setError(null);
+    try {
+      const res = await invokeFunction("tradeHistory", { accountId: id, snapshots: true });
+      if (res.data?.error) throw new Error(res.data.error);
+      setSnapshots(res.data.snapshots || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [id]);
+
+  const downloadSnapshot = useCallback(async (snapshotId) => {
+    setError(null);
+    try {
+      const res = await invokeFunction("tradeHistory", { accountId: id, snapshotId });
+      if (res.data?.error) throw new Error(res.data.error);
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(res.data.snapshot, null, 2)], { type: "application/json" })
+      );
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `deltamint-snapshot-${snapshotId.slice(0, 8)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e.message);
     }
   }, [id]);
 
@@ -169,7 +205,57 @@ export default function AccountHistory() {
             <FileSearch className="h-4 w-4" /> {refreshing && !preview ? "Checking…" : "Audit against broker feed"}
           </button>
         )}
+        {isAdmin && (
+          <button
+            onClick={loadSnapshots}
+            disabled={refreshing}
+            className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+          >
+            <Archive className="h-4 w-4" /> Snapshots
+          </button>
+        )}
       </div>
+
+      {snapshots && (
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
+          <div className="flex items-baseline gap-3">
+            <span className="text-sm font-semibold text-slate-900">Before each sync</span>
+            <button onClick={() => setSnapshots(null)} className="ml-auto text-slate-400 hover:text-slate-700">
+              Close
+            </button>
+          </div>
+          {snapshots.length === 0 ? (
+            <p className="mt-2">
+              No sync has removed or rewritten a stored row on this account.
+            </p>
+          ) : (
+            <>
+              <p className="mt-2">
+                Rows as they stood immediately before a sync changed them. Putting them back is a
+                procedure, not a button: the next sync recomputes the account and would overwrite a
+                restore within the quarter hour. See docs/runbooks/restore-history.md.
+              </p>
+              <ul className="mt-2 space-y-1">
+                {snapshots.map((s) => (
+                  <li key={s.id} className="flex flex-wrap items-baseline gap-x-3 tabular-nums">
+                    <span className="text-slate-900">{new Date(s.taken_at).toLocaleString()}</span>
+                    <span className="text-slate-500">{s.reason}</span>
+                    <span>
+                      {s.deletedTrades} removed · {s.updatedTrades} rewritten · {s.deletedLots} lots
+                    </span>
+                    <button
+                      onClick={() => downloadSnapshot(s.id)}
+                      className="text-slate-500 underline hover:text-slate-900"
+                    >
+                      Download
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
 
       {preview && (
         <RebuildPreview
