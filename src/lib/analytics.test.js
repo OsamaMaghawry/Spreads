@@ -16,6 +16,7 @@ const trade = ({ open, close, credit = 0.5, pl = 0, width = 5, qty = 1 }) => ({
   qty,
   short_strike: 100,
   long_strike: 100 - width,
+  short_symbol: "S",
   long_symbol: "L",
   ticker: "X",
   close_reason: "closed"
@@ -69,4 +70,17 @@ test("and shown once the sample supports them", () => {
   const s = computeStats(trades, 10000);
   assert.equal(s.annualizable, true);
   assert.ok(s.annualized !== null && s.cagr !== null);
+});
+
+test("a lone long option risks only what was paid for it", () => {
+  // short_strike 0 with a long_symbol read as a 470-wide spread:
+  // (470 + 2.72) x 100 = $47,272 of risk for a $272 position.
+  const orphanLong = {
+    open_date: "2026-03-01", close_date: "2026-03-10", realized_pl: -100,
+    net_credit: -2.72, qty: 1, short_strike: 0, long_strike: 470,
+    short_symbol: "", long_symbol: "AMD260828C00470000", ticker: "AMD", close_reason: "closed"
+  };
+  const s = computeStats([orphanLong], 10000);
+  assert.equal(s.totalRisk, 272, "the premium paid, not the strike");
+  assert.equal(s.peakRisk, 272);
 });
