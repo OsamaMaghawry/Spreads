@@ -80,14 +80,47 @@ async function findExisting(admin, userId, { accountId, accountNumber, isPaper }
 
   const { data: unidentified } = await admin
     .from("trading_accounts")
-    .select("id")
+    .select("id, trades_synced_at")
     .eq("user_id", userId)
     .eq("is_paper", isPaper)
     .eq("is_oauth", true)
     .is("broker_account_id", null)
     .is("broker_account_number", null);
 
-  return unidentified?.length === 1 ? unidentified[0] : null;
+  if (unidentified?.length !== 1) return null;
+  const candidate = unidentified[0];
+
+  // Adoption only takes a row with nothing in it.
+  //
+  // This was widened once, on the reasoning that a wrong token reconstructs
+  // entirely different trade keys and the mass-delete guard refuses before
+  // writing. Two things are wrong with that. The guard caps deletions and not
+  // in-place rewrites, so it does not cover the path it was invoked to cover;
+  // and adoption does not only rebind history. It rewrites the row's access
+  // token, and openPosition and closeSpread load their credentials from that
+  // row -- so a wrong guess routes live orders to a different brokerage
+  // account under a name that still says otherwise. That is not a mistake a
+  // history guard can catch.
+  //
+  // The cost of refusing is a duplicate row for a legacy account whose next
+  // reconnect can no longer fill in its identity. That cost was checked rather
+  // than argued: every OAuth row in production already carries an account
+  // number, so path 2 above matches them and this path is not reached. A
+  // duplicate is recoverable in a way a misrouted order is not.
+  if (candidate.trades_synced_at) return null;
+  const trades = await countRows(admin, "trade_records", candidate.id);
+  const lots = await countRows(admin, "stock_lots", candidate.id);
+  return trades === 0 && lots === 0 ? { id: candidate.id } : null;
+}
+
+// A failed count is not an empty account: null means "unknown", and unknown
+// is the answer that refuses.
+async function countRows(admin, table, accountId) {
+  const { count, error } = await admin
+    .from(table)
+    .select("id", { count: "exact", head: true })
+    .eq("account_id", accountId);
+  return error ? null : (count ?? 0);
 }
 
 Deno.serve(async (req) => {

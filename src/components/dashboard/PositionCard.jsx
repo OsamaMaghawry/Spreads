@@ -13,9 +13,15 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
     { label: "Qty", value: s.qty },
     {
       label: "Break-Even",
-      value: s.breakEvenHigh != null ? `${fmtMoney(s.breakEven)} – ${fmtMoney(s.breakEvenHigh)}` : fmtMoney(s.breakEven)
+      value: s.adjusted
+        ? "—"
+        : s.breakEvenHigh != null
+          ? `${fmtMoney(s.breakEven)} – ${fmtMoney(s.breakEvenHigh)}`
+          : fmtMoney(s.breakEven)
     },
-    { label: "Max Risk", value: fmtMoney(s.maxRisk), tone: "text-rose-600" },
+    // Withheld on an adjusted contract: the width it is derived from is not
+    // what the contract delivers any more.
+    { label: "Max Risk", value: s.adjusted ? "—" : fmtMoney(s.maxRisk), tone: "text-rose-600" },
     { label: "Net Credit", value: fmtMoney(s.totalCredit), tone: "text-emerald-600" },
     { label: "Expiry", value: s.expiryFormatted }
   ];
@@ -30,10 +36,15 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
           {s.type === "put_spread" && <span className={`${badge} border-violet-200 bg-violet-100 text-violet-700`}>Put</span>}
           <span
             className={`${badge} ${
-              s.moneyness === "ITM" ? "border-rose-200 bg-rose-50 text-rose-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"
+              s.moneyness === "ITM"
+                ? "border-rose-200 bg-rose-50 text-rose-700"
+                : s.moneyness === "OTM"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  // No price to judge against, so no verdict to paint.
+                  : "border-slate-200 bg-slate-50 text-slate-500"
             }`}
           >
-            {s.moneyness}
+            {s.moneyness || "—"}
           </span>
           {s.openOrders?.length > 0 && <span className={`${badge} border-amber-200 bg-amber-100 text-amber-700`}>Open order</span>}
         </div>

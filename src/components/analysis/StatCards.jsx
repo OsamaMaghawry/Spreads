@@ -16,7 +16,7 @@ export default function StatCards({ stats }) {
         { label: "Annualized (simple)", value: pct(stats.annualized), sub: stats.annualizable ? `ROE × 365 ÷ ${stats.spanDays} days` : "Needs 30 closed trades and 90 days of history", tone: stats.annualized === null ? undefined : stats.annualized >= 0 ? "pos" : "neg" },
         { label: "Annualized (CAGR)", value: pct(stats.cagr), sub: stats.annualizable ? "Compounded over the same span" : "Needs 30 closed trades and 90 days of history", tone: stats.cagr === null ? undefined : stats.cagr >= 0 ? "pos" : "neg" },
         { label: "Return on risk", value: pct(stats.returnOnRisk), sub: `vs ${fmtMoney(stats.peakRisk)} peak capital at risk` },
-        { label: "Avg return / trade", value: pct(stats.avgTradeRoR, 2), sub: "Each trade's P/L ÷ its own collateral" },
+        { label: "Avg return / trade", value: pct(stats.avgTradeRoR, 2), sub: "Each trade's P/L ÷ its own collateral, settled trades" },
         { label: "Credit collected", value: fmtMoney(stats.creditCollected) },
         { label: "Credit capture", value: pct(stats.captureRate), sub: "Kept share of premium sold" }
       ]
@@ -24,20 +24,33 @@ export default function StatCards({ stats }) {
     {
       title: "Consistency",
       items: [
-        { label: "Win rate", value: pct(stats.winRate), sub: `${stats.wins}W / ${stats.losses}L${stats.scratches ? ` / ${stats.scratches} flat` : ""}` },
-        { label: "Profit factor", value: num(stats.profitFactor), sub: "Gross wins ÷ gross losses" },
-        { label: "Expectancy / trade", value: fmtMoney(stats.avgPL), tone: stats.avgPL >= 0 ? "pos" : "neg" },
-        { label: "Payoff ratio", value: num(stats.payoffRatio), sub: "Avg win ÷ avg loss" },
-        { label: "Avg win", value: fmtMoney(stats.avgWin), tone: "pos" },
-        { label: "Avg loss", value: fmtMoney(stats.avgLoss), tone: "neg" }
+        // Every figure in this group is measured over settled trades only: a
+        // position whose shares are still held has a partial result, and
+        // counting it as a win would flatter the page and then correct itself
+        // downwards. The sub says how many were left out rather than leaving
+        // the reader to wonder why the counts do not add up to Trades.
+        {
+          label: "Win rate",
+          value: pct(stats.winRate),
+          sub: `${stats.wins}W / ${stats.losses}L${stats.scratches ? ` / ${stats.scratches} flat` : ""}${
+            stats.provisionalTrades ? ` · ${stats.provisionalTrades} not final, excluded` : ""
+          }`
+        },
+        { label: "Profit factor", value: num(stats.profitFactor), sub: "Gross wins ÷ gross losses, settled trades" },
+        { label: "Expectancy / trade", value: fmtMoney(stats.avgPL), sub: "Over settled trades", tone: stats.avgPL === null || stats.avgPL === undefined ? undefined : stats.avgPL >= 0 ? "pos" : "neg" },
+        { label: "Payoff ratio", value: num(stats.payoffRatio), sub: "Avg win ÷ avg loss, settled trades" },
+        // A dash is not a positive number. Painting it green said "no settled
+        // wins yet" in the colour reserved for winning.
+        { label: "Avg win", value: fmtMoney(stats.avgWin), sub: "Settled trades", tone: stats.avgWin === null ? undefined : "pos" },
+        { label: "Avg loss", value: fmtMoney(stats.avgLoss), sub: "Settled trades", tone: stats.avgLoss === null ? undefined : "neg" }
       ]
     },
     {
       title: "Risk & activity",
       items: [
         { label: "Max drawdown", value: fmtMoney(stats.maxDrawdown ? -stats.maxDrawdown : 0), sub: "Peak-to-trough realized", tone: "neg" },
-        { label: "Largest win", value: fmtMoney(stats.largestWin), tone: "pos" },
-        { label: "Largest loss", value: fmtMoney(stats.largestLoss), tone: "neg" },
+        { label: "Largest win", value: fmtMoney(stats.largestWin), sub: "Settled trades", tone: stats.largestWin === null ? undefined : "pos" },
+        { label: "Largest loss", value: fmtMoney(stats.largestLoss), sub: "Settled trades", tone: stats.largestLoss === null ? undefined : "neg" },
         { label: "Avg risk / trade", value: fmtMoney(stats.avgRisk) },
         { label: "Trades", value: `${stats.trades}`, sub: `${stats.contracts} contracts · ${stats.expiredCount} expired worthless` },
         { label: "Avg hold", value: `${num(stats.avgHoldDays, 1)} days` }
@@ -46,7 +59,11 @@ export default function StatCards({ stats }) {
     {
       title: "By trading day",
       items: [
-        { label: "Green days", value: pct(stats.dayWinRate), sub: `${stats.tradingDays} closing days` },
+        // Days, not trades: a green day is a day that booked money, and money
+        // booked includes a position whose shares are still open. Said here
+        // because it is the one figure in this group that reads like a win
+        // rate and is not measured like one.
+        { label: "Green days", value: pct(stats.dayWinRate), sub: `${stats.tradingDays} closing days · cash booked, all rows` },
         { label: "Avg per day", value: fmtMoney(stats.avgDayPL), sub: `${pct(stats.avgDayReturn, 3)} of equity`, tone: stats.avgDayPL >= 0 ? "pos" : "neg" },
         { label: "Median per day", value: fmtMoney(stats.medianDayPL), sub: `${pct(stats.medianDayReturn, 3)} of equity`, tone: stats.medianDayPL >= 0 ? "pos" : "neg" },
         { label: "Avg return / day", value: pct(stats.avgDayReturn, 3), sub: `${pct(stats.avgDayRiskReturn, 2)} of capital at risk`, tone: stats.avgDayReturn === null ? undefined : stats.avgDayReturn >= 0 ? "pos" : "neg" },

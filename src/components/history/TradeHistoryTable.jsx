@@ -1,6 +1,7 @@
 import { fmtMoney } from "@/lib/format";
 import { AlertTriangle } from "lucide-react";
 import { strategyOf, strategyLabel, strategyBadge, sumBy } from "@/lib/strategies";
+import { isAdjustedTrade } from "@/lib/occ";
 
 const th = "px-2.5 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
 const td = "px-2.5 py-2.5 whitespace-nowrap tabular-nums";
@@ -69,6 +70,18 @@ export default function TradeHistoryTable({ trades }) {
                       // naked and dropped an unpaired long's cost entirely.
                       title="This leg has no counterpart — check it against your broker"
                     />
+                  )}
+                  {isAdjustedTrade(t) && (
+                    <span
+                      className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200"
+                      // A corporate action changed what this contract delivers,
+                      // and the symbol does not say what it delivers instead.
+                      // Every figure here is derived from strike x 100 shares,
+                      // so on this row that is an assumption, not a fact.
+                      title="Adjusted contract — what it delivers is not 100 shares at the strike, so these figures are approximate"
+                    >
+                      adjusted
+                    </span>
                   )}
                   {t.provisional && (
                     <span

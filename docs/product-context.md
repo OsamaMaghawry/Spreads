@@ -96,7 +96,7 @@ revoked from the browser role entirely.
 - **user_crm** — user_id, status, tags, updated_at
 - **stock_lots** — id, user_id, account_id, lot_key, chain_id, ticker, qty, acquired_date, acquired_price, acquired_source, disposed_date, disposed_price, disposed_source, realized_pl, created_at, backed_up_at, disposed_chain_id
 - **app_settings** — key, value, updated_at, updated_by
-- **history_snapshots** — id, user_id, account_id, taken_at, reason, deleted_trades, updated_trades_before, deleted_lots, trades_sync_attempted_at
+- **history_snapshots** — id, user_id, account_id, taken_at, reason, deleted_trades, updated_trades_before, deleted_lots, trades_sync_attempted_at, updated_lots_before
 
 ## Analytics vocabulary
 
@@ -105,7 +105,7 @@ being premium-seller specific rather than generic profit and loss: credit
 capture is the kept share of premium sold, and return on risk is measured
 against peak *concurrent* collateral rather than the sum of every trade.
 
-`totalPL` · `trades` · `contracts` · `winRate` · `wins` · `losses` · `scratches` · `avgPL` · `avgWin` · `avgLoss` · `profitFactor` · `payoffRatio` · `largestWin` · `largestLoss` · `expiredCount` · `creditCollected` · `captureRate` · `totalRisk` · `avgRisk` · `peakRisk` · `returnOnRisk` · `avgTradeRoR` · `roe` · `annualizable` · `annualized` · `cagr` · `maxDrawdown` · `avgHoldDays` · `tradingDays` · `dayWinRate` · `avgDayPL` · `medianDayPL` · `avgDayReturn` · `medianDayReturn` · `avgDayRiskReturn` · `medianDayRiskReturn` · `bestDay` · `worstDay` · `bestStreak` · `worstStreak` · `firstDate` · `lastDate` · `spanDays` · `curve` · `byDay` · `byMonth`
+`totalPL` · `trades` · `contracts` · `settledTrades` · `provisionalTrades` · `winRate` · `wins` · `losses` · `scratches` · `avgPL` · `avgWin` · `avgLoss` · `profitFactor` · `payoffRatio` · `largestWin` · `largestLoss` · `expiredCount` · `creditCollected` · `captureRate` · `totalRisk` · `avgRisk` · `peakRisk` · `returnOnRisk` · `avgTradeRoR` · `roe` · `annualizable` · `annualized` · `cagr` · `maxDrawdown` · `avgHoldDays` · `tradingDays` · `dayWinRate` · `avgDayPL` · `medianDayPL` · `avgDayReturn` · `medianDayReturn` · `avgDayRiskReturn` · `medianDayRiskReturn` · `bestDay` · `worstDay` · `bestStreak` · `worstStreak` · `firstDate` · `lastDate` · `spanDays` · `curve` · `byDay` · `byMonth`
 
 ## Known gaps
 

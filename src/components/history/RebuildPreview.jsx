@@ -67,6 +67,43 @@ export default function RebuildPreview({ preview, onCancel, onExportRaw, busy })
         </div>
       ) : null}
 
+      {/* What the broker said a cash settlement paid, against what the position
+          says it must have paid. Two doubtful numbers: Alpaca's paper index
+          settlement has a reported defect crediting out-of-the-money shorts,
+          and this code derives its own figure from a share round-trip that
+          never happened. Agreement is reassuring; a disagreement is for a
+          person to look at, which is what this screen is for. */}
+      {totals.settlementFeed === "unavailable" ? (
+        <p className="text-xs text-slate-500">
+          The broker would not return cash settlements, so nothing here has been checked against them.
+          That is silence, not agreement.
+        </p>
+      ) : totals.settlementsDisagreeing > 0 ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900">
+          {totals.settlementsDisagreeing} cash settlement
+          {totals.settlementsDisagreeing === 1 ? "" : "s"} the broker reported
+          {totals.settlementsDisagreeing === 1 ? " does" : " do"} not match what the position says it
+          must have paid:
+          <ul className="mt-1.5 space-y-0.5">
+            {(totals.settlementChecks || [])
+              .filter((c) => c.status !== "agrees")
+              .map((c) => (
+                <li key={`${c.symbol || c.ticker}-${c.date}`} className="tabular-nums">
+                  {c.ticker || c.symbol} {c.date} — broker{" "}
+                  {c.reported === null || c.reported === undefined ? "unreadable" : fmtMoney(c.reported)}, this
+                  code {c.computed === null || c.computed === undefined ? "no matching position" : fmtMoney(c.computed)}{" "}
+                  ({c.status.replace(/-/g, " ")})
+                </li>
+              ))}
+          </ul>
+        </div>
+      ) : (totals.settlementChecks || []).length > 0 ? (
+        <p className="text-xs text-slate-500">
+          {totals.settlementChecks.length} cash settlement
+          {totals.settlementChecks.length === 1 ? "" : "s"} match what the positions say they paid.
+        </p>
+      ) : null}
+
       {totals.sharesStillHeld > 0 && (
         <p className="text-xs text-slate-500">
           {totals.sharesStillHeld} share lot{totals.sharesStillHeld === 1 ? "" : "s"} still held and therefore

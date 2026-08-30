@@ -173,37 +173,6 @@ Rules that keep that from coming back:
 
 Tests: `marketPrice.test.ts` and `optionScan.test.ts`, both runnable under Node.
 
-## Trade reconstruction
-
-The logic that turns a broker activity feed into closed trades lives in
-`supabase/functions/_shared/tradeReconstruction.ts` as pure functions, and
-`tradeHistory/index.ts` is only the I/O around it. Keep it that way: every
-defect this code has had was invisible until it met a real position, and the
-fixtures in `tradeReconstruction.test.ts` *are* those positions — an assigned
-AMD call spread, a TSLA pair that mis-matched by strike, an orphaned KO call
-with no shares behind it.
-
-    node --experimental-strip-types --test supabase/functions/_shared/tradeReconstruction.test.ts
-
-Three properties are load-bearing and easy to break by accident:
-
-- **A short pairs to the nearest protective long, never the first one found.**
-  Taking the first match invents spreads that were never traded and orphans
-  real ones.
-- **Premium and shares are separate rows linked by `chain_id`.** An assigned
-  short keeps its full premium; the result lands on the stock. Merging the two
-  hides which half of a wheel cycle worked, and the merge cannot be undone.
-- **Nothing unmatched is dropped.** An unpaired leg is written down and
-  flagged. Dropping is what previously hid a long leg's entire cost.
-
-Wheel versus spread is decided by shape only when the order carries no strategy
-prefix: an orphaned short put is a cash-secured put, an orphaned short call is a
-broken pair *unless* 100+ shares were held that day.
-
-A normal sync only revisits the window it just recomputed, so it cannot correct
-rows written by older logic. Use the rebuild path on the trade-history page for
-that; it snapshots to `trade_records_backup` before deleting.
-
 ## Admin access
 
 The first operator account is created in the Supabase dashboard, not by signing
@@ -259,6 +228,53 @@ may quietly relax:
   rewrites closed trades whether or not a rebuild button is pressed.
 - **An approval covers what was described when it was given.** If the branch
   carries more than that, the scope question goes back to the owner.
+
+## Never put a prompt on the owner's screen
+
+**Ask in text. Never with an interactive picker.**
+
+A choice rendered as clickable options appears without warning, on top of
+whatever the owner is doing. It arrived mid-sentence while he was typing
+somewhere else, took a stray keystroke as an answer, and that "answer" deleted
+files. He never read the question.
+
+An answer collected that way is not consent, and work done on it has to be
+undone. A question written as a sentence waits for a real reply and costs the
+owner nothing if he ignores it.
+
+So: no `AskUserQuestion`, no menus, no numbered choices demanding a selection.
+Put the options in a paragraph, say which you would pick, and wait. If a
+decision matters enough to interrupt for, it matters enough to be readable in
+his own time.
+
+This applies to every agent in `.claude/agents/` as well. An agent that wants a
+decision returns the question to whoever commissioned it; it does not surface
+one to the owner directly.
+
+## Staging first, every time
+
+**Merge to `staging`, let it deploy, exercise the change there against real
+data, and only then merge to `main`.**
+
+Not because it is tidy. Because on 30 Aug a release that had been through five
+adversarial review rounds went branch to `main` directly, and staging — which
+was never consulted — held 187 trade records including the exact spread that
+broke it. Two defects reached production that staging would have caught in
+seconds:
+
+- a merge resolved line by line produced a syntax error, and the deploy died
+  after three functions had already shipped
+- an invariant refused a real, already-verified result and stopped an account's
+  history from ever writing
+
+Both were visible the moment the code met real data. Neither was visible in a
+test, a lint, or a review.
+
+Exercising it means running the thing itself: sync the staging account, open the
+page, confirm records were written. A green deploy is not verification.
+
+No exceptions for "small", "urgent", "already reviewed" or "the fix for the last
+deploy". That release was all four.
 
 ## Nothing touches production without approval
 

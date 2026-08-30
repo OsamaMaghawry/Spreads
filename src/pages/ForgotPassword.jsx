@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Mail, ArrowLeft, Loader2 } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
+import { appUrl } from "@/lib/appUrl";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -17,7 +18,7 @@ export default function ForgotPassword() {
     setLoading(true);
     try {
       await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
+        redirectTo: appUrl("/reset-password")
       });
     } catch {
       // Always show success regardless

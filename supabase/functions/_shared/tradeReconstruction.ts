@@ -120,6 +120,8 @@ export function reconstructOptionLots(activities, orderStrategy = {}) {
   const closedLots = [];
   const shareMoves = [];
   const cashSettlements = [];
+  // Share legs this code will not invent a figure for.
+  const unreconstructable = [];
 
   Object.keys(bySymbol).forEach((symbol) => {
     const parsed = parseOCCSymbol(symbol);
@@ -178,6 +180,37 @@ export function reconstructOptionLots(activities, orderStrategy = {}) {
         // a share position that never existed, in an instrument under a
         // different tax regime -- and financially right, which is the safer of
         // the two.
+        // An adjusted contract's deliverable is unknown, so there is no share
+        // move to derive.
+        //
+        // Both previous attempts asserted something instead of nothing. Keyed
+        // by the plain underlying, a fabricated "100 shares at the strike"
+        // consumed the account's real lots FIFO. Keyed by the adjusted root it
+        // stopped doing that and started something worse: the assignment
+        // booked under AAPL1, the broker's real sale arrived under AAPL, the
+        // two books never met, and a position that lost $700 reported +$300 --
+        // premium only, permanently, with a share lot that could never be
+        // disposed and a `provisional` flag that could never clear.
+        //
+        // So nothing is derived. The premium is real and stays; the share leg
+        // is recorded as unreconstructable and raised to operators, which is
+        // what "we do not know" looks like when the alternative is a number
+        // that is wrong in the user's favour.
+        if (parsed.adjusted) {
+          unreconstructable.push({
+            symbol,
+            ticker: parsed.ticker,
+            date,
+            qty: q,
+            reason: "adjusted contract — deliverable unknown"
+          });
+          lot.qty -= q;
+          remaining -= q;
+          position += lot.short ? q : -q;
+          if (lot.qty === 0) openLots.shift();
+          continue;
+        }
+
         shareMoves.push({
           ticker: parsed.ticker,
           date,
@@ -185,7 +218,12 @@ export function reconstructOptionLots(activities, orderStrategy = {}) {
           qty: q * CONTRACT_SIZE,
           price: parsed.strike,
           source: lot.short ? "assignment" : "exercise",
-          chainKey
+          chainKey,
+          // Which contract moved these shares. Attribution needs to know that
+          // and cannot recover it later: the chain id is rewritten when a
+          // pair's two legs are merged into one chain, which is precisely the
+          // case that needs telling apart.
+          option: symbol
         });
         lot.qty -= q;
         remaining -= q;
@@ -221,11 +259,12 @@ export function reconstructOptionLots(activities, orderStrategy = {}) {
       // which are verified. What arrives here is the broker's stated cash
       // amount, kept for reconciliation only.
       //
-      // Nothing consumes it on the write path yet, and OPCSH is deliberately
-      // not requested in tradeHistory's activity_types, so this is dormant
-      // until one real payload confirms the field names and the sign
-      // convention -- neither of which appears in any documentation reachable
-      // from here. A settlement sign read backwards is a two-way error.
+      // Nothing consumes it on the write path. tradeHistory requests OPCSH in
+      // its own request, so what arrives here reaches the audit comparison and
+      // nothing else -- which is the whole point while the field names and the
+      // sign convention are unconfirmed by any documentation reachable from
+      // here. A settlement sign read backwards is a two-way error, so it is
+      // shown to a person rather than added to anything.
       if (type === "OPCSH") {
         cashSettlements.push({
           symbol,
@@ -246,6 +285,13 @@ export function reconstructOptionLots(activities, orderStrategy = {}) {
         closeSome(contracts, a.date || dayOf(a), type === "OPASN" ? "assigned" : "exercised");
         return;
       }
+
+      // Only a fill opens or closes a lot. Everything above returns, and this
+      // used to take whatever was left -- so any activity type added to the
+      // request later, or invented by the broker, would be read as a trade at
+      // parseFloat(undefined) and open a lot of NaN contracts that poisons
+      // every figure derived from it. An unrecognised event is not a trade.
+      if (type !== "FILL") return;
 
       const qty = Math.abs(parseFloat(a.qty));
       const price = parseFloat(a.price);
@@ -275,7 +321,7 @@ export function reconstructOptionLots(activities, orderStrategy = {}) {
     });
   });
 
-  return { closedLots, shareMoves, cashSettlements };
+  return { closedLots, shareMoves, cashSettlements, unreconstructable };
 }
 
 // ---------------------------------------------------------------------------
@@ -295,7 +341,9 @@ export function stockFillMoves(activities) {
       qty: Math.abs(parseFloat(a.qty)),
       price: parseFloat(a.price),
       source: "trade",
-      chainKey: null
+      chainKey: null,
+      // A trade on the market was moved by nobody's contract.
+      option: null
     }))
     .filter((m) => Number.isFinite(m.qty) && Number.isFinite(m.price) && m.qty > 0);
 }
@@ -425,9 +473,11 @@ export function buildStockLedger(moves) {
           acquired_date: lot.date,
           acquired_price: lot.price,
           acquired_source: lot.source,
+          acquired_option: lot.option || null,
           disposed_date: m.date,
           disposed_price: m.price,
           disposed_source: m.source,
+          disposed_option: m.option || null,
           realized_pl: (m.price - lot.price) * q
         });
         lot.qty -= q;
@@ -444,9 +494,11 @@ export function buildStockLedger(moves) {
           acquired_date: null,
           acquired_price: null,
           acquired_source: null,
+          acquired_option: null,
           disposed_date: m.date,
           disposed_price: m.price,
           disposed_source: m.source,
+          disposed_option: m.option || null,
           realized_pl: null
         });
       }
@@ -462,9 +514,11 @@ export function buildStockLedger(moves) {
         acquired_date: lot.date,
         acquired_price: lot.price,
         acquired_source: lot.source,
+        acquired_option: lot.option || null,
         disposed_date: null,
         disposed_price: null,
         disposed_source: null,
+        disposed_option: null,
         realized_pl: null
       })
     );
@@ -781,35 +835,129 @@ export function attributeStockPL(records, stockLots) {
 
   let orphaned = 0;
 
-  const share = (owners, amount) => {
+  // Which of a chain's owners a particular lot belongs to.
+  //
+  // Splitting by contract count is right for what a single assignment did --
+  // one event delivering shares to every assigned contract -- and wrong for
+  // the leg that is spread-specific: two put spreads sharing a short strike,
+  // 150/145 and 150/140, each exercise their OWN long. The lots come out at
+  // -$500 and -$1,000; splitting evenly reported -$750 each, so the 150/145
+  // spread showed a loss larger than its own $350 maximum.
+  //
+  // Matching the lot's price against a strike looked like it identified the
+  // owner and did not. Two ways it was wrong, both reproduced:
+  //
+  //   A market sale carries a traded price, and limit prices sit on round
+  //   numbers exactly where strikes do. Shares sold at 145 after both longs
+  //   expired handed the entire -$1,000 to the 150/145 spread -- -$850 against
+  //   a $350 maximum -- and turned the 150/140 spread's -$300 into +$200. Both
+  //   rows were right before that matching existed.
+  //
+  //   On a call spread the directions mirror: the short's assignment SELLS at
+  //   the short strike and the long's exercise BUYS at the long. Neither test
+  //   could ever match, so no call spread was identified at all and the
+  //   defect this was written to fix was untouched on half the book.
+  //
+  // The contract that moved the shares is recorded on the lot, so identity
+  // does not have to be inferred from a number that other things can equal.
+  // The long leg is what distinguishes two records sharing a short, and it is
+  // on the acquisition side for calls and the disposal side for puts -- so
+  // either side identifies an owner, and a market sale (no contract) matches
+  // nothing. Proportional splitting stays for a genuine tie: a shared
+  // assignment disposed of on the market is exactly that.
+  const ownerOf = (owners, lot) => {
+    const moved = [lot.acquired_option, lot.disposed_option].filter(Boolean);
+    if (moved.length === 0) return null;
+    const byLong = owners.filter((o) => o.long_symbol && moved.includes(o.long_symbol));
+    if (byLong.length === 1) return byLong[0];
+    const byShort = owners.filter((o) => o.short_symbol && moved.includes(o.short_symbol));
+    if (byShort.length === 1) return byShort[0];
+    return null;
+  };
+
+  // How many shares each record is still owed.
+  //
+  // Identifying one lot and splitting the next was worse than splitting both.
+  // Two spreads on a shared short, one long exercised and one expired, the
+  // remaining 100 shares sold on the market: the exercised long's lot was
+  // identified and went whole to its own record -- correctly -- and then the
+  // market sale, which nothing identifies, was split down the middle across
+  // both. The record that had already taken its 100 shares took another 50,
+  // reporting -$750 against a maximum of -$400, while the record that
+  // actually held the sold shares understated by $350.
+  //
+  // A record owns qty x 100 shares and no more. Identified lots are assigned
+  // first and spend that allowance; what is left over is split across what
+  // remains, so the second lot lands where the shares actually were. This is
+  // the arithmetic the earlier versions were reaching for by other means.
+  const owed = new Map();
+  const capacityOf = (o) => (owed.has(o) ? owed.get(o) : (o.qty || 0) * CONTRACT_SIZE);
+  const spend = (o, qty) => owed.set(o, Math.max(0, capacityOf(o) - qty));
+
+  const credit = (owners, amount, lot) => {
+    const qty = Number(lot.qty) || 0;
     if (owners.length === 1) {
       owners[0].stock_pl += amount;
+      spend(owners[0], qty);
       return;
     }
-    const totalQty = owners.reduce((a, o) => a + (o.qty || 0), 0);
-    // Equal split when quantities cannot decide it, rather than dropping the
-    // amount or handing it to whichever came first.
+    const identified = ownerOf(owners, lot);
+    if (identified) {
+      identified.stock_pl += amount;
+      spend(identified, qty);
+      return;
+    }
+    // Split across the records that can still be owed shares, in proportion
+    // to what each is owed. Falls back to contract count only when every
+    // allowance is spent, which means the ledger and the records disagree
+    // about how many shares existed -- worth splitting evenly rather than
+    // dropping.
+    const withRoom = owners.filter((o) => capacityOf(o) > 0);
+    const pool = withRoom.length ? withRoom : owners;
+    const weightOf = (o) => (withRoom.length ? capacityOf(o) : o.qty || 0);
+    const total = pool.reduce((a, o) => a + weightOf(o), 0);
     let assigned = 0;
-    owners.forEach((o, i) => {
+    pool.forEach((o, i) => {
       const cut =
-        i === owners.length - 1
+        i === pool.length - 1
           ? amount - assigned // the remainder, so the parts still sum exactly
-          : totalQty > 0
-            ? (amount * (o.qty || 0)) / totalQty
-            : amount / owners.length;
+          : total > 0
+            ? (amount * weightOf(o)) / total
+            : amount / pool.length;
       o.stock_pl += cut;
       assigned += cut;
+      spend(o, total > 0 ? (qty * weightOf(o)) / total : qty / pool.length);
     });
   };
 
-  stockLots.forEach((lot) => {
-    // A lot still held has a null result. Unrealised is not a result.
-    if (lot.realized_pl === null || lot.realized_pl === undefined) return;
-    const owners =
-      (lot.disposed_chain_id && byChain.get(lot.disposed_chain_id)) ||
-      (lot.acquired_chain_id && byChain.get(lot.acquired_chain_id)) ||
-      null;
-    if (owners && owners.length) share(owners, lot.realized_pl);
+  // Lots that name their contract are assigned before lots that do not: an
+  // allowance can only be spent correctly if the certain claims go first.
+  const ownersOf = (lot) =>
+    (lot.disposed_chain_id && byChain.get(lot.disposed_chain_id)) ||
+    (lot.acquired_chain_id && byChain.get(lot.acquired_chain_id)) ||
+    null;
+
+  const identifiedFirst = stockLots
+    .slice()
+    .sort((a, b) => {
+      const known = (l) => (l.acquired_option || l.disposed_option ? 0 : 1);
+      return known(a) - known(b);
+    });
+
+  identifiedFirst.forEach((lot) => {
+    const owners = ownersOf(lot);
+    // A lot still held has no result to credit, but it has still consumed the
+    // shares its record was owed -- otherwise a later lot would be allocated
+    // as though those shares were free.
+    if (lot.realized_pl === null || lot.realized_pl === undefined) {
+      if (owners && owners.length === 1) spend(owners[0], Number(lot.qty) || 0);
+      else if (owners && owners.length) {
+        const identified = ownerOf(owners, lot);
+        if (identified) spend(identified, Number(lot.qty) || 0);
+      }
+      return;
+    }
+    if (owners && owners.length) credit(owners, lot.realized_pl, lot);
     else orphaned += lot.realized_pl;
   });
 
@@ -838,7 +986,45 @@ export function attributeStockPL(records, stockLots) {
     r.provisional = !!(r.chain_id && undisposedChains.has(r.chain_id));
   });
 
-  return orphaned;
+  // The invariant every attribution defect so far has broken.
+  //
+  // A credit spread cannot lose more than its width less the credit taken, and
+  // a reader is entitled to that without checking. Three separate versions of
+  // this function reported a loss past that line -- by keying on `set`, by
+  // splitting proportionally, by matching a price against a strike -- and each
+  // time the account total stayed right, so nothing reconciled it away and
+  // nothing flagged it. Arithmetic that cannot happen is worth refusing to
+  // publish, not worth displaying with a caveat.
+  const breaches = [];
+  records.forEach((r) => {
+    if (!r.short_symbol || !r.long_symbol) return; // only a defined-risk pair has a maximum
+    // A position that was bought back has no arithmetic maximum. Width less
+    // the credit is what the STRIKES can do to you -- it holds at expiry, at
+    // assignment, at exercise. Buying back means paying whatever the market
+    // asks, and a spread closed a cent or two through parity costs slightly
+    // more than its width, which is ordinary and correct.
+    //
+    // Applied to those rows the check refused a real, already-verified result:
+    // an ARKK 81/83 call spread bought back for $178 against a $176 "maximum"
+    // failed the whole account's sync over $2 that the trader genuinely paid.
+    // The invariant exists to catch attribution inventing losses, and
+    // attribution only touches rows the strikes closed.
+    if (r.close_reason === "closed" || r.early_close_pl) return;
+    const width = Math.abs((r.short_strike || 0) - (r.long_strike || 0));
+    if (!(width > 0)) return;
+    const maxLoss = width * CONTRACT_SIZE * (r.qty || 1) - r.premium_pl;
+    if (r.realized_pl < -maxLoss - 0.01) {
+      breaches.push({
+        short_symbol: r.short_symbol,
+        long_symbol: r.long_symbol,
+        close_date: r.close_date,
+        realized_pl: r.realized_pl,
+        max_loss: -maxLoss
+      });
+    }
+  });
+
+  return { orphaned, breaches };
 }
 
 // ---------------------------------------------------------------------------
@@ -848,13 +1034,14 @@ export function attributeStockPL(records, stockLots) {
 // ---------------------------------------------------------------------------
 
 export function reconstruct(activities, orderStrategy, accountId) {
-  const { closedLots, shareMoves, cashSettlements } = reconstructOptionLots(activities, orderStrategy);
+  const { closedLots, shareMoves, cashSettlements, unreconstructable } =
+    reconstructOptionLots(activities, orderStrategy);
   const moves = mergeShareMoves(shareMoves, stockFillMoves(activities));
   const { lots, sharesHeldAt } = buildStockLedger(moves);
   const { trades, chainRemap } = buildTrades(closedLots, sharesHeldAt, accountId);
 
   const remap = (chain) => (chain && chainRemap.get(chain)) || chain || null;
-  const stockLots = lots.map((l) => ({
+  const attributable = lots.map((l) => ({
     ...l,
     account_id: accountId,
     acquired_chain_id: remap(l.acquired_chain_id),
@@ -862,11 +1049,51 @@ export function reconstruct(activities, orderStrategy, accountId) {
     chain_id: remap(l.chain_id)
   }));
 
-  const records = mergeAndPrice(trades);
-  const orphanedStockPL = attributeStockPL(records, stockLots);
+  const all = mergeAndPrice(trades);
+
+  // A position closed by assignment or exercise on an adjusted contract has a
+  // share leg this code refuses to invent, so what is left of it is premium
+  // only -- and premium only, on a position that was assigned, is the
+  // flattering half of the answer. +$300 on a trade that lost $700 is not
+  // improved by being labelled. It is withheld from the figures entirely and
+  // reported as a position that could not be reconstructed.
+  //
+  // An adjusted contract that expired worthless or was bought back has no
+  // deliverable question, so its premium is exactly right and its record
+  // stays.
+  const unreconstructedSymbols = new Set(unreconstructable.map((u) => u.symbol));
+  const withheld = all.filter(
+    (r) =>
+      unreconstructedSymbols.has(r.short_symbol) || unreconstructedSymbols.has(r.long_symbol)
+  );
+  const records = all.filter((r) => !withheld.includes(r));
+  const { orphaned: orphanedStockPL, breaches } = attributeStockPL(records, attributable);
+
+  // The contract that moved each lot is what attribution runs on, and it is
+  // not a column on stock_lots -- every field here is written to that table
+  // verbatim, so an extra one would fail the insert. It is derivable from the
+  // chain ids anyway, up until the point where a merged pair rewrites them,
+  // which is why it travels this far and no further.
+  const stockLots = attributable.map(({ acquired_option, disposed_option, ...rest }) => rest);
   const settlementChecks = reconcileCashSettlements(records, cashSettlements);
 
-  return { records, stockLots, orphanedStockPL, cashSettlements, settlementChecks };
+  return {
+    records,
+    stockLots,
+    orphanedStockPL,
+    cashSettlements,
+    settlementChecks,
+    breaches,
+    // What was left out, and why. Every entry is a real position: the option
+    // fills happened, the premium was real, and the shares it settled into
+    // cannot be derived from the symbol.
+    unreconstructable: unreconstructable.map((u) => {
+      const record = withheld.find(
+        (r) => r.short_symbol === u.symbol || r.long_symbol === u.symbol
+      );
+      return { ...u, premium_pl: record ? record.premium_pl : null };
+    })
+  };
 }
 
 // What the broker said a cash settlement paid, against what the position says
@@ -891,8 +1118,17 @@ export function reconcileCashSettlements(records, cashSettlements) {
   // summed and the sum is what gets checked.
   const groups = new Map();
   cashSettlements.forEach((s) => {
+    // Within a day, not on the day. Index settlement is exactly where this
+    // file already allows a one-day skew -- the cash is stamped when it
+    // settles and the position when it closed, and the two straddle midnight
+    // often enough that an exact match would report every real settlement as
+    // "no matching position" and the comparison would be noise.
     const owner = records.find(
-      (r) => (r.short_symbol === s.symbol || r.long_symbol === s.symbol) && r.close_date === s.date
+      (r) =>
+        (r.short_symbol === s.symbol || r.long_symbol === s.symbol) &&
+        r.close_date &&
+        s.date &&
+        Math.abs(Date.parse(r.close_date) - Date.parse(s.date)) <= 86400000
     );
     const key = owner ? `${owner.short_symbol}|${owner.long_symbol}|${owner.close_date}` : `?${s.symbol}@${s.date}`;
     const g = groups.get(key) || { owner, legs: [], date: s.date, ticker: s.ticker };

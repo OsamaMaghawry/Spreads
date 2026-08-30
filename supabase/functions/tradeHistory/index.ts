@@ -4,6 +4,7 @@ import { tradingBase, alpacaFetch, loadAccount } from "../_shared/alpaca.ts";
 import { awaitUpTo } from "../_shared/background.ts";
 import { reconstruct } from "../_shared/tradeReconstruction.ts";
 import { refuseMassDelete, lotFromOption } from "../_shared/writeGuards.ts";
+import { isAdminUser } from "../_shared/admin.ts";
 
 // Closed trade history, rebuilt from the broker's activity feed.
 //
@@ -57,19 +58,77 @@ async function fetchStockLots(admin, accountId) {
 // destroys the old ones exactly as thoroughly as removing the row.
 //
 // Throwing here stops the write. That is the point: no snapshot, no deletion.
-async function snapshot(admin, accountId, userId, reason, { deleted, updatedBefore, deletedLots }) {
-  if (deleted.length === 0 && updatedBefore.length === 0 && deletedLots.length === 0) return;
+async function snapshot(
+  admin,
+  accountId,
+  userId,
+  reason,
+  { deleted, updatedBefore, deletedLots, updatedLotsBefore = [] }
+) {
+  if (
+    deleted.length === 0 &&
+    updatedBefore.length === 0 &&
+    deletedLots.length === 0 &&
+    updatedLotsBefore.length === 0
+  ) {
+    return;
+  }
   const { error } = await admin.from("history_snapshots").insert({
     account_id: accountId,
     user_id: userId,
     reason,
     deleted_trades: deleted,
     updated_trades_before: updatedBefore,
-    deleted_lots: deletedLots
+    deleted_lots: deletedLots,
+    // Share lots are upserted in place on (account_id, lot_key), so a lot
+    // keeps its key while its basis, disposal price and result are replaced.
+    // Without this the one case that leaves no trace at all was the one the
+    // snapshot did not cover.
+    updated_lots_before: updatedLotsBefore
   });
   if (error) throw new Error(`Snapshot failed, nothing written: ${error.message}`);
 }
 
+
+// The snapshots taken before writes, listed newest first.
+//
+// The table had one insert and no readers: rows were being copied out before
+// every destructive sync and nothing could ever look at them, which is a
+// backup only in the sense that the data is somewhere. Listing is metadata
+// only -- how many rows a snapshot holds, not the rows -- so an operator can
+// find the one they want before pulling it.
+async function listSnapshots(admin, accountId) {
+  const { data, error } = await admin
+    .from("history_snapshots")
+    .select("id, taken_at, reason, deleted_trades, updated_trades_before, deleted_lots, updated_lots_before")
+    .eq("account_id", accountId)
+    .order("taken_at", { ascending: false })
+    .limit(20);
+  if (error) throw new Error(error.message);
+  return (data || []).map((s: any) => ({
+    id: s.id,
+    taken_at: s.taken_at,
+    reason: s.reason,
+    deletedTrades: (s.deleted_trades || []).length,
+    updatedTrades: (s.updated_trades_before || []).length,
+    deletedLots: (s.deleted_lots || []).length,
+    updatedLots: (s.updated_lots_before || []).length
+  }));
+}
+
+// One snapshot in full, for download. Scoped to the account the caller already
+// proved they own.
+async function readSnapshot(admin, accountId, snapshotId) {
+  const { data, error } = await admin
+    .from("history_snapshots")
+    .select("*")
+    .eq("account_id", accountId)
+    .eq("id", snapshotId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  return data;
+}
 
 // The broker feed, in full. Two loops, both bounded, both stopping early on a
 // short page.
@@ -123,12 +182,61 @@ async function fetchBrokerData(account, base) {
     pageToken = page[page.length - 1].id;
   }
 
-  return { orderStrategy, activities };
+  // Cash settlements, fetched separately and allowed to fail.
+  //
+  // OPCSH is what an index option pays instead of delivering shares, and the
+  // reconciliation that compares it against what the position says it must
+  // have paid is worth having: Alpaca's paper index settlement has a reported
+  // defect crediting out-of-the-money shorts. But this is the only activity
+  // type here whose name could not be checked against documentation from this
+  // environment, and a type the API rejects would take the whole activity
+  // request down with it -- every account's history, for a comparison that is
+  // an audit aid. So it travels in its own request, and a failure costs the
+  // comparison and nothing else.
+  let settlementFeed = "ok";
+  try {
+    let token = null;
+    for (let i = 0; i < 20; i++) {
+      const url = `${base}/account/activities?activity_types=OPCSH&direction=desc&page_size=100` +
+        (token ? `&page_token=${encodeURIComponent(token)}` : "");
+      const page = await alpacaFetch(url, account);
+      if (!Array.isArray(page) || page.length === 0) break;
+      // By id, so that adding OPCSH to the main request one day cannot double
+      // every settlement silently. Cheap here, invisible if it ever matters.
+      const already = new Set(activities.map((a: any) => a.id));
+      activities = activities.concat(page.filter((a: any) => !already.has(a.id)));
+      if (page.length < 100) break;
+      token = page[page.length - 1].id;
+    }
+  } catch {
+    // Recorded, not raised: the caller says so rather than showing an audit
+    // that silently had nothing to check.
+    settlementFeed = "unavailable";
+  }
+
+  return { orderStrategy, activities, settlementFeed };
 }
 
 // Reconcile what the broker says against what is stored. The reconstruction is
 // deterministic over the whole feed, so the fresh set is authoritative.
-async function writeResults(admin, accountId, userId, records, stockLots) {
+async function writeResults(admin, accountId, userId, records, stockLots, breaches = []) {
+  // A spread reporting a loss beyond its own arithmetic maximum is not a
+  // figure to store and explain later. The sync fails, the page says the
+  // refresh failed, and the stored history is left exactly as it was --
+  // the same posture as refuseMassDelete, for the same reason.
+  if (breaches.length > 0) {
+    const first = breaches[0];
+    throw new Error(
+      `Refusing to store an impossible result: ${first.short_symbol}/${first.long_symbol} closed ` +
+        `${first.close_date} computes to ${first.realized_pl.toFixed(2)} against a maximum loss of ` +
+        `${first.max_loss.toFixed(2)}${breaches.length > 1 ? ` (and ${breaches.length - 1} more)` : ""}. ` +
+        `Nothing was changed.`
+    );
+  }
+  return writeResultsInner(admin, accountId, userId, records, stockLots);
+}
+
+async function writeResultsInner(admin, accountId, userId, records, stockLots) {
   const existing = await fetchTrades(admin, accountId, false);
   const existingByKey: any = {};
   existing.forEach((r: any) => { existingByKey[r.trade_key] = r; });
@@ -183,10 +291,39 @@ async function writeResults(admin, accountId, userId, records, stockLots) {
     refuseMassDelete("share lots", staleLots.length, optionLots.length);
   if (refusal) throw new Error(refusal);
 
+  const freshLotByKey: any = {};
+  stockLots.forEach((l: any) => { freshLotByKey[l.lot_key] = l; });
+  // The chain ids belong in here. They are what attributes a lot's result to
+  // an option, so a lot whose chain changed is a lot whose money moved to a
+  // different trade -- a change worth a snapshot even when every price on it
+  // is identical.
+  const changedFields = (before: any, after: any) =>
+    ["qty", "acquired_date", "acquired_price", "acquired_source",
+     "disposed_date", "disposed_price", "disposed_source", "realized_pl",
+     "acquired_chain_id", "disposed_chain_id", "chain_id"]
+      .some((f) => String(before[f] ?? "") !== String(after[f] ?? ""));
+  const updatedLotsBefore = existingLots.filter(
+    (l: any) => freshLotByKey[l.lot_key] && changedFields(l, freshLotByKey[l.lot_key])
+  );
+
+  // Rewrites in place have no cap -- refuseMassDelete counts deletions -- and
+  // an uncapped rewrite that tells nobody is how a whole account's figures
+  // change with no trace outside the snapshot. Capping it would fail the first
+  // sync of any account whose rows predate this code, which is every account
+  // today, so this says so rather than refusing: the snapshot holds the before
+  // image and this is the line that sends someone to look for it.
+  if (toUpdate.length > 0 || updatedLotsBefore.length > 0) {
+    console.error(
+      `tradeHistory rewrite: account=${accountId} trades=${toUpdate.length}/${existing.length} ` +
+        `lots=${updatedLotsBefore.length}/${optionLots.length} removed=${stale.length}`
+    );
+  }
+
   await snapshot(admin, accountId, userId, "sync", {
     deleted: stale,
     updatedBefore: toUpdate.map((r: any) => existingByKey[r.trade_key]),
-    deletedLots: staleLots
+    deletedLots: staleLots,
+    updatedLotsBefore
   });
 
   for (const r of stale) {
@@ -237,7 +374,8 @@ Deno.serve(async (req) => {
     const user = await requireUser(req);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-    const { accountId, preview = false, includeRaw = false } = await req.json();
+    const { accountId, preview = false, includeRaw = false, snapshots = false, snapshotId = null } =
+      await req.json();
     if (!accountId) return jsonResponse({ error: "accountId is required" }, 400);
 
     const admin = adminClient();
@@ -246,12 +384,34 @@ Deno.serve(async (req) => {
 
     const accountInfo = { id: account.id, name: account.name, is_paper: account.is_paper };
 
+    // What a sync destroyed, before it destroyed it. Admin-only on the server,
+    // not merely in the interface: these payloads are the operator's copy of
+    // rows a person has already been shown, and nothing in the product needs
+    // to read them.
+    //
+    // Reading is all this does. Writing rows back in place is deliberately not
+    // offered here: the next sync recomputes the whole account from the broker
+    // feed and would overwrite a restore within the quarter hour, so a restore
+    // button would promise something it cannot keep. The procedure that does
+    // work -- pull the payload, stop the account syncing, put the rows back --
+    // is written down in docs/runbooks/restore-history.md.
+    if (snapshots || snapshotId) {
+      const { isAdmin } = await isAdminUser(user, admin);
+      if (!isAdmin) return jsonResponse({ error: "Not permitted" }, 403);
+      if (snapshotId) {
+        const found = await readSnapshot(admin, accountId, snapshotId);
+        if (!found) return jsonResponse({ error: "Snapshot not found" }, 404);
+        return jsonResponse({ account: accountInfo, snapshot: found });
+      }
+      return jsonResponse({ account: accountInfo, snapshots: await listSnapshots(admin, accountId) });
+    }
+
     // Audit mode: compute everything, write nothing, and hand back the broker's
     // own activities beside what this code made of them. Admin-only in the UI —
     // it is the tool that found these defects, not a control a reader needs.
     if (preview) {
-      const { orderStrategy, activities } = await fetchBrokerData(account, base);
-      const { records, stockLots, orphanedStockPL, settlementChecks } =
+      const { orderStrategy, activities, settlementFeed } = await fetchBrokerData(account, base);
+      const { records, stockLots, orphanedStockPL, settlementChecks, breaches } =
         reconstruct(activities, orderStrategy, accountId);
       const stored = await fetchTrades(admin, accountId, false);
       const storedByKey: any = {};
@@ -280,12 +440,19 @@ Deno.serve(async (req) => {
           // Non-zero means an option that produced shares was not itself
           // reconstructed. A defect to look at, not a figure to display.
           orphanedStockPL,
+          // Records whose result is beyond what the position could lose. A
+          // sync refuses to store these; the audit shows them so the defect
+          // can be found rather than only blocked.
+          breaches,
           // Cash settlements the broker reported, beside what the positions
           // say they must have paid. Anything other than "agrees" wants a
           // person: Alpaca's paper index settlement has a reported defect
           // crediting out-of-the-money shorts instead of expiring them.
           settlementChecks,
           settlementsDisagreeing: (settlementChecks || []).filter((c) => c.status !== "agrees").length,
+          // "unavailable" means the broker refused the settlement feed, so an
+          // empty check list is silence rather than agreement.
+          settlementFeed,
           sharesStillHeld: stockLots.filter((l: any) => !l.disposed_date).length
         },
         activities: includeRaw ? activities : undefined,
@@ -315,8 +482,8 @@ Deno.serve(async (req) => {
 
       const work = (async () => {
         const { orderStrategy, activities } = await fetchBrokerData(account, base);
-        const { records, stockLots } = reconstruct(activities, orderStrategy, accountId);
-        return writeResults(admin, accountId, user.id, records, stockLots);
+        const { records, stockLots, breaches } = reconstruct(activities, orderStrategy, accountId);
+        return writeResults(admin, accountId, user.id, records, stockLots, breaches);
       })().catch(async (err) => {
         // The failure has to land somewhere a person can see. Previously it was
         // caught by inBackground's `work.catch(() => {})`, so a sync that wrote

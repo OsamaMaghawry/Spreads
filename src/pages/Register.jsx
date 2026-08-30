@@ -9,6 +9,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import AuthLayout from "@/components/AuthLayout";
 import { toast } from "@/components/ui/use-toast";
 import { safeReturnTo } from "@/lib/authReturnTo";
+import { appUrl } from "@/lib/appUrl";
 
 export default function Register() {
   const [email, setEmail] = useState("");
@@ -28,7 +29,13 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({ email, password });
+      // Without emailRedirectTo, Supabase falls back to the project's Site URL,
+      // and the confirmation link goes wherever that happens to point.
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: appUrl("/") }
+      });
       if (error) throw error;
       setShowOtp(true);
     } catch (err) {
