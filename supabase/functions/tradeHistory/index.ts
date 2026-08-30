@@ -123,7 +123,36 @@ async function fetchBrokerData(account, base) {
     pageToken = page[page.length - 1].id;
   }
 
-  return { orderStrategy, activities };
+  // Cash settlements, fetched separately and allowed to fail.
+  //
+  // OPCSH is what an index option pays instead of delivering shares, and the
+  // reconciliation that compares it against what the position says it must
+  // have paid is worth having: Alpaca's paper index settlement has a reported
+  // defect crediting out-of-the-money shorts. But this is the only activity
+  // type here whose name could not be checked against documentation from this
+  // environment, and a type the API rejects would take the whole activity
+  // request down with it -- every account's history, for a comparison that is
+  // an audit aid. So it travels in its own request, and a failure costs the
+  // comparison and nothing else.
+  let settlementFeed = "ok";
+  try {
+    let token = null;
+    for (let i = 0; i < 20; i++) {
+      const url = `${base}/account/activities?activity_types=OPCSH&direction=desc&page_size=100` +
+        (token ? `&page_token=${encodeURIComponent(token)}` : "");
+      const page = await alpacaFetch(url, account);
+      if (!Array.isArray(page) || page.length === 0) break;
+      activities = activities.concat(page);
+      if (page.length < 100) break;
+      token = page[page.length - 1].id;
+    }
+  } catch {
+    // Recorded, not raised: the caller says so rather than showing an audit
+    // that silently had nothing to check.
+    settlementFeed = "unavailable";
+  }
+
+  return { orderStrategy, activities, settlementFeed };
 }
 
 // Reconcile what the broker says against what is stored. The reconstruction is
@@ -250,7 +279,7 @@ Deno.serve(async (req) => {
     // own activities beside what this code made of them. Admin-only in the UI —
     // it is the tool that found these defects, not a control a reader needs.
     if (preview) {
-      const { orderStrategy, activities } = await fetchBrokerData(account, base);
+      const { orderStrategy, activities, settlementFeed } = await fetchBrokerData(account, base);
       const { records, stockLots, orphanedStockPL, settlementChecks } =
         reconstruct(activities, orderStrategy, accountId);
       const stored = await fetchTrades(admin, accountId, false);
@@ -286,6 +315,9 @@ Deno.serve(async (req) => {
           // crediting out-of-the-money shorts instead of expiring them.
           settlementChecks,
           settlementsDisagreeing: (settlementChecks || []).filter((c) => c.status !== "agrees").length,
+          // "unavailable" means the broker refused the settlement feed, so an
+          // empty check list is silence rather than agreement.
+          settlementFeed,
           sharesStillHeld: stockLots.filter((l: any) => !l.disposed_date).length
         },
         activities: includeRaw ? activities : undefined,

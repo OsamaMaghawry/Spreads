@@ -221,11 +221,12 @@ export function reconstructOptionLots(activities, orderStrategy = {}) {
       // which are verified. What arrives here is the broker's stated cash
       // amount, kept for reconciliation only.
       //
-      // Nothing consumes it on the write path yet, and OPCSH is deliberately
-      // not requested in tradeHistory's activity_types, so this is dormant
-      // until one real payload confirms the field names and the sign
-      // convention -- neither of which appears in any documentation reachable
-      // from here. A settlement sign read backwards is a two-way error.
+      // Nothing consumes it on the write path. tradeHistory requests OPCSH in
+      // its own request, so what arrives here reaches the audit comparison and
+      // nothing else -- which is the whole point while the field names and the
+      // sign convention are unconfirmed by any documentation reachable from
+      // here. A settlement sign read backwards is a two-way error, so it is
+      // shown to a person rather than added to anything.
       if (type === "OPCSH") {
         cashSettlements.push({
           symbol,
@@ -246,6 +247,13 @@ export function reconstructOptionLots(activities, orderStrategy = {}) {
         closeSome(contracts, a.date || dayOf(a), type === "OPASN" ? "assigned" : "exercised");
         return;
       }
+
+      // Only a fill opens or closes a lot. Everything above returns, and this
+      // used to take whatever was left -- so any activity type added to the
+      // request later, or invented by the broker, would be read as a trade at
+      // parseFloat(undefined) and open a lot of NaN contracts that poisons
+      // every figure derived from it. An unrecognised event is not a trade.
+      if (type !== "FILL") return;
 
       const qty = Math.abs(parseFloat(a.qty));
       const price = parseFloat(a.price);
