@@ -24,9 +24,20 @@ export default function StatCards({ stats }) {
     {
       title: "Consistency",
       items: [
-        { label: "Win rate", value: pct(stats.winRate), sub: `${stats.wins}W / ${stats.losses}L${stats.scratches ? ` / ${stats.scratches} flat` : ""}` },
-        { label: "Profit factor", value: num(stats.profitFactor), sub: "Gross wins ÷ gross losses" },
-        { label: "Expectancy / trade", value: fmtMoney(stats.avgPL), tone: stats.avgPL >= 0 ? "pos" : "neg" },
+        // Every figure in this group is measured over settled trades only: a
+        // position whose shares are still held has a partial result, and
+        // counting it as a win would flatter the page and then correct itself
+        // downwards. The sub says how many were left out rather than leaving
+        // the reader to wonder why the counts do not add up to Trades.
+        {
+          label: "Win rate",
+          value: pct(stats.winRate),
+          sub: `${stats.wins}W / ${stats.losses}L${stats.scratches ? ` / ${stats.scratches} flat` : ""}${
+            stats.provisionalTrades ? ` · ${stats.provisionalTrades} not final, excluded` : ""
+          }`
+        },
+        { label: "Profit factor", value: num(stats.profitFactor), sub: "Gross wins ÷ gross losses, settled trades" },
+        { label: "Expectancy / trade", value: fmtMoney(stats.avgPL), sub: "Over settled trades", tone: stats.avgPL === null || stats.avgPL === undefined ? undefined : stats.avgPL >= 0 ? "pos" : "neg" },
         { label: "Payoff ratio", value: num(stats.payoffRatio), sub: "Avg win ÷ avg loss" },
         { label: "Avg win", value: fmtMoney(stats.avgWin), tone: "pos" },
         { label: "Avg loss", value: fmtMoney(stats.avgLoss), tone: "neg" }

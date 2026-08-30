@@ -14,8 +14,24 @@ export function computeStats(trades, equity = 0) {
 
   const sorted = rows.slice().sort((a, b) => a.close_date.localeCompare(b.close_date));
   const pls = sorted.map((t) => t.realized_pl || 0);
-  const wins = sorted.filter((t) => (t.realized_pl || 0) > 0);
-  const losses = sorted.filter((t) => (t.realized_pl || 0) < 0);
+
+  // A position closed by assignment whose shares are still held has a result so
+  // far, not a result. Its option leg is booked and the shares that decide the
+  // rest of it are still open, so it is almost always sitting at a partial
+  // figure — usually the premium, positive, before a loss on the shares lands
+  // on the same row.
+  //
+  // Money aggregates keep it: the cash from the option really did move, and a
+  // total that quietly dropped it would not match the account. Outcome
+  // statistics do not, because they ask a question it cannot yet answer. A win
+  // rate that counts unfinished positions as wins is the single most flattering
+  // thing this page could do, and it would correct itself downwards later,
+  // which is the worst possible order to learn it in.
+  const settled = sorted.filter((t) => !t.provisional);
+  const settledPLs = settled.map((t) => t.realized_pl || 0);
+  const provisionalCount = sorted.length - settled.length;
+  const wins = settled.filter((t) => (t.realized_pl || 0) > 0);
+  const losses = settled.filter((t) => (t.realized_pl || 0) < 0);
 
   const totalPL = pls.reduce((a, v) => a + v, 0);
   const grossWin = wins.reduce((a, t) => a + t.realized_pl, 0);
@@ -114,9 +130,10 @@ export function computeStats(trades, equity = 0) {
   });
   const byTicker = Object.values(byTickerMap).sort((a, b) => b.pl - a.pl);
 
-  // Streaks (chronological).
+  // Streaks (chronological), over settled results only: a run of wins that
+  // includes a position still waiting on its shares is not a run of wins.
   let streak = 0, bestStreak = 0, worstStreak = 0;
-  pls.forEach((v) => {
+  settledPLs.forEach((v) => {
     if (v > 0) streak = streak > 0 ? streak + 1 : 1;
     else if (v < 0) streak = streak < 0 ? streak - 1 : -1;
     bestStreak = Math.max(bestStreak, streak);
@@ -135,17 +152,21 @@ export function computeStats(trades, equity = 0) {
     totalPL,
     trades: sorted.length,
     contracts: sorted.reduce((a, t) => a + (t.qty || 0), 0),
-    winRate: wins.length / sorted.length,
+    // Everything from here to largestLoss is measured over settled trades
+    // only, and settledTrades says how many that was.
+    settledTrades: settled.length,
+    provisionalTrades: provisionalCount,
+    winRate: settled.length ? wins.length / settled.length : null,
     wins: wins.length,
     losses: losses.length,
-    scratches: sorted.length - wins.length - losses.length,
-    avgPL: totalPL / sorted.length,
+    scratches: settled.length - wins.length - losses.length,
+    avgPL: settled.length ? settledPLs.reduce((a, v) => a + v, 0) / settled.length : null,
     avgWin: wins.length ? grossWin / wins.length : 0,
     avgLoss: losses.length ? -grossLoss / losses.length : 0,
     profitFactor: grossLoss > 0 ? grossWin / grossLoss : null,
     payoffRatio: wins.length && losses.length ? (grossWin / wins.length) / (grossLoss / losses.length) : null,
-    largestWin: Math.max(...pls, 0),
-    largestLoss: Math.min(...pls, 0),
+    largestWin: Math.max(...settledPLs, 0),
+    largestLoss: Math.min(...settledPLs, 0),
     expiredCount: sorted.filter((t) => t.close_reason === 'expired').length,
     creditCollected,
     captureRate: creditCollected > 0 ? totalPL / creditCollected : null,

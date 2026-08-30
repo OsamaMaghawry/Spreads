@@ -84,3 +84,34 @@ test("a lone long option risks only what was paid for it", () => {
   assert.equal(s.totalRisk, 272, "the premium paid, not the strike");
   assert.equal(s.peakRisk, 272);
 });
+
+test("a position still holding its shares is in the totals but not the win rate", () => {
+  // The option leg is booked at +$150 of premium; the shares that will decide
+  // the rest of the row are still open, and on an assignment they usually
+  // decide it downwards. Counted as a win, the page reads 100% and then
+  // corrects itself later -- the worst possible order to learn it in.
+  const settledWin = trade({ open: "2026-03-01", close: "2026-03-10", pl: 200 });
+  const settledLoss = trade({ open: "2026-03-02", close: "2026-03-11", pl: -100 });
+  const notFinal = { ...trade({ open: "2026-03-03", close: "2026-03-12", pl: 150 }), provisional: true };
+
+  const s = computeStats([settledWin, settledLoss, notFinal], 10000);
+
+  assert.equal(s.totalPL, 250, "the cash already booked stays in the total");
+  assert.equal(s.trades, 3, "and the position is still a position");
+  assert.equal(s.settledTrades, 2);
+  assert.equal(s.provisionalTrades, 1);
+  assert.equal(s.winRate, 0.5, "one settled win of two, not two of three");
+  assert.equal(s.wins, 1);
+  assert.equal(s.avgPL, 50, "expectancy over settled results only");
+  assert.equal(s.profitFactor, 2);
+  assert.equal(s.largestWin, 200, "not the unfinished +$150 row if it were larger");
+  assert.equal(s.bestStreak, 1, "an unfinished row cannot extend a winning streak");
+});
+
+test("with nothing settled yet the outcome figures are withheld, not zero", () => {
+  const notFinal = { ...trade({ open: "2026-03-03", close: "2026-03-12", pl: 150 }), provisional: true };
+  const s = computeStats([notFinal], 10000);
+  assert.equal(s.totalPL, 150);
+  assert.equal(s.winRate, null, "0% would be a claim; there is no settled trade to make it about");
+  assert.equal(s.avgPL, null);
+});

@@ -105,7 +105,7 @@ being premium-seller specific rather than generic profit and loss: credit
 capture is the kept share of premium sold, and return on risk is measured
 against peak *concurrent* collateral rather than the sum of every trade.
 
-`totalPL` · `trades` · `contracts` · `winRate` · `wins` · `losses` · `scratches` · `avgPL` · `avgWin` · `avgLoss` · `profitFactor` · `payoffRatio` · `largestWin` · `largestLoss` · `expiredCount` · `creditCollected` · `captureRate` · `totalRisk` · `avgRisk` · `peakRisk` · `returnOnRisk` · `avgTradeRoR` · `roe` · `annualizable` · `annualized` · `cagr` · `maxDrawdown` · `avgHoldDays` · `tradingDays` · `dayWinRate` · `avgDayPL` · `medianDayPL` · `avgDayReturn` · `medianDayReturn` · `avgDayRiskReturn` · `medianDayRiskReturn` · `bestDay` · `worstDay` · `bestStreak` · `worstStreak` · `firstDate` · `lastDate` · `spanDays` · `curve` · `byDay` · `byMonth`
+`totalPL` · `trades` · `contracts` · `settledTrades` · `provisionalTrades` · `winRate` · `wins` · `losses` · `scratches` · `avgPL` · `avgWin` · `avgLoss` · `profitFactor` · `payoffRatio` · `largestWin` · `largestLoss` · `expiredCount` · `creditCollected` · `captureRate` · `totalRisk` · `avgRisk` · `peakRisk` · `returnOnRisk` · `avgTradeRoR` · `roe` · `annualizable` · `annualized` · `cagr` · `maxDrawdown` · `avgHoldDays` · `tradingDays` · `dayWinRate` · `avgDayPL` · `medianDayPL` · `avgDayReturn` · `medianDayReturn` · `avgDayRiskReturn` · `medianDayRiskReturn` · `bestDay` · `worstDay` · `bestStreak` · `worstStreak` · `firstDate` · `lastDate` · `spanDays` · `curve` · `byDay` · `byMonth`
 
 ## Known gaps
 
