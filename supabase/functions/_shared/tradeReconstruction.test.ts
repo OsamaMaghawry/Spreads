@@ -1059,3 +1059,37 @@ test("an adjusted contract's shares do not consume the account's ordinary lots",
   assert.equal(touched.length, 0, "the 210 purchase is nobody's basis here");
   stockLots.forEach((l) => assert.equal(l.ticker, "AAPL1", "adjusted lots keep their own book"));
 });
+
+test("a spread bought back through parity is not an impossible result", () => {
+  // The real ARKK 81/83 call spread that stopped an account's first sync.
+  // Sold for 0.24, bought back for 2.02 -- two cents through the $2 width,
+  // which is what the market asked. The loss is $178 against a "maximum" of
+  // $176, and both numbers are right: width less credit is what the strikes
+  // can do to you, not what an early exit can cost.
+  const acts = [
+    fill("2026-08-14", "sell", "ARKK260821C00081000", 1, 0.24),
+    fill("2026-08-14", "buy", "ARKK260821C00083000", 1, 0.0),
+    fill("2026-08-19", "buy", "ARKK260821C00081000", 1, 2.02),
+    fill("2026-08-19", "sell", "ARKK260821C00083000", 1, 0.0)
+  ];
+  const { records, breaches } = reconstruct(acts, {}, ACCOUNT);
+  const r = find(records, "ARKK260821C00081000", "ARKK260821C00083000");
+  assert.equal(r.close_reason, "closed");
+  assert.equal(money(r.realized_pl), -178);
+  assert.deepEqual(breaches, [], "an early exit has no arithmetic maximum to breach");
+});
+
+test("the invariant still fires when the strikes decided the outcome", () => {
+  const records = [
+    {
+      short_symbol: "X260828P00150000", long_symbol: "X260828P00145000",
+      short_strike: 150, long_strike: 145, qty: 1, chain_id: "c", close_reason: "assigned",
+      premium_pl: 50, early_close_pl: 0, stock_pl: 0, realized_pl: 0, close_date: "2026-08-26"
+    }
+  ];
+  const lots = [
+    { ticker: "X", qty: 100, chain_id: "c", acquired_chain_id: "c", disposed_chain_id: "c",
+      acquired_price: 150, disposed_price: 130, realized_pl: -2000, disposed_date: "2026-08-27" }
+  ];
+  assert.equal(attributeStockPL(records, lots).breaches.length, 1);
+});

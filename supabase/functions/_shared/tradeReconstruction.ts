@@ -998,6 +998,18 @@ export function attributeStockPL(records, stockLots) {
   const breaches = [];
   records.forEach((r) => {
     if (!r.short_symbol || !r.long_symbol) return; // only a defined-risk pair has a maximum
+    // A position that was bought back has no arithmetic maximum. Width less
+    // the credit is what the STRIKES can do to you -- it holds at expiry, at
+    // assignment, at exercise. Buying back means paying whatever the market
+    // asks, and a spread closed a cent or two through parity costs slightly
+    // more than its width, which is ordinary and correct.
+    //
+    // Applied to those rows the check refused a real, already-verified result:
+    // an ARKK 81/83 call spread bought back for $178 against a $176 "maximum"
+    // failed the whole account's sync over $2 that the trader genuinely paid.
+    // The invariant exists to catch attribution inventing losses, and
+    // attribution only touches rows the strikes closed.
+    if (r.close_reason === "closed" || r.early_close_pl) return;
     const width = Math.abs((r.short_strike || 0) - (r.long_strike || 0));
     if (!(width > 0)) return;
     const maxLoss = width * CONTRACT_SIZE * (r.qty || 1) - r.premium_pl;
