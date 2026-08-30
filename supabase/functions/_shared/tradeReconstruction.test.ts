@@ -758,6 +758,18 @@ test("cashAmountOf reads a total, and refuses what it cannot read", () => {
 // The defect that reported a loss larger than the spread's defined maximum
 // ---------------------------------------------------------------------------
 
+// A credit spread cannot lose more than its width less the credit taken. It is
+// the one property a reader is entitled to assume without checking, and every
+// attribution defect so far has broken it.
+const assertWithinMaxLoss = (r) => {
+  const width = Math.abs((r.short_strike || 0) - (r.long_strike || 0));
+  const maxLoss = width * 100 * (r.qty || 1) - r.premium_pl;
+  assert.ok(
+    r.realized_pl >= -maxLoss - 1e-6,
+    `${r.short_symbol}/${r.long_symbol}: ${r.realized_pl} is beyond its own maximum ${-maxLoss}`
+  );
+};
+
 test("two spreads on one short strike at different widths each carry their own long", () => {
   // Same short, two different longs, both assigned and exercised the same day.
   // The two spreads share a chain id, so their share lots pool; splitting that
@@ -790,13 +802,12 @@ test("two spreads on one short strike at different widths each carry their own l
 
   // The property that matters to a user reading the row: a defined-risk spread
   // never reports a loss it could not have taken.
-  const maxLoss = (r) => (r.short_strike - r.long_strike) * 100 * (r.contracts || 1) - r.premium_pl;
-  [narrow, wide].forEach((r) => {
-    assert.ok(
-      r.realized_pl >= -maxLoss(r) - 1e-6,
-      `${r.long_symbol}: ${r.realized_pl} exceeds its own maximum ${-maxLoss(r)}`
-    );
-  });
+  //
+  // `qty` is the field records carry -- an earlier version of this helper read
+  // `r.contracts`, which is undefined on every record, so the size multiplier
+  // was always 1 and the assertion was weaker than it looked. Math.abs because
+  // a call spread's long strike is above its short.
+  [narrow, wide].forEach((r) => assertWithinMaxLoss(r));
 
   // And the account is unchanged by the attribution: -$1,500 of shares against
   // $350 of credit.
@@ -844,4 +855,80 @@ test("an adjusted contract keeps its adjustment digit in the symbol", () => {
   assert.equal(records[0].short_symbol, "T1260828P00015000");
   assert.equal(records[0].ticker, "T");
   assert.equal(records[0].short_strike, 15);
+});
+
+test("shares sold on the market are not attributed by a price that equals a strike", () => {
+  // Both longs expire worthless and the shares are sold at 145 -- a limit
+  // price, sitting exactly where a strike sits, because both are round
+  // numbers. Reading that sale price as the 145 long's strike handed the whole
+  // -$1,000 to the 150/145 spread (-$850, against a $350 maximum) and turned
+  // the 150/140 spread's -$300 loss into a +$200 profit. Both rows were
+  // correct before any of this attribution existed.
+  //
+  // Nothing identifies an owner here: one assignment delivered shares to both
+  // spreads and one sale disposed of them. That is a genuine tie, and the
+  // even split is the right answer to it.
+  const acts = [
+    fill("2026-08-03", "sell", "AMD260828P00150000", 2, 2.5),
+    fill("2026-08-03", "buy", "AMD260828P00145000", 1, 1.0),
+    fill("2026-08-03", "buy", "AMD260828P00140000", 1, 0.5),
+    assign("2026-08-26", "AMD260828P00150000", 2),
+    expire("2026-08-28", "AMD260828P00145000", 1),
+    expire("2026-08-28", "AMD260828P00140000", 1),
+    fill("2026-08-31", "sell", "AMD", 200, 145.0)
+  ];
+  const { records } = reconstruct(acts, {}, ACCOUNT);
+  const narrow = find(records, "AMD260828P00150000", "AMD260828P00145000");
+  const wide = find(records, "AMD260828P00150000", "AMD260828P00140000");
+
+  assert.equal(money(narrow.stock_pl), -500, "half the shares, not all of them");
+  assert.equal(money(wide.stock_pl), -500);
+  assert.equal(money(narrow.realized_pl), -350);
+  assert.equal(money(wide.realized_pl), -300, "a loss, not a profit");
+  [narrow, wide].forEach((r) => assertWithinMaxLoss(r));
+});
+
+test("a call spread's shares reach the right record too", () => {
+  // The mirror of the put case, and the half that price-matching could never
+  // reach: a short call assigned SELLS at the short strike and a long call
+  // exercised BUYS at the long, so a test looking for the long's strike on the
+  // disposal never matched and every call spread fell through to the even
+  // split -- -$600 on a $350 maximum, with the defect untouched.
+  const acts = [
+    fill("2026-08-03", "sell", "AMD260828C00150000", 2, 2.5),
+    fill("2026-08-03", "buy", "AMD260828C00155000", 1, 1.0),
+    fill("2026-08-03", "buy", "AMD260828C00160000", 1, 0.5),
+    assign("2026-08-26", "AMD260828C00150000", 2),
+    exercise("2026-08-26", "AMD260828C00155000", 1),
+    exercise("2026-08-26", "AMD260828C00160000", 1)
+  ];
+  const { records } = reconstruct(acts, {}, ACCOUNT);
+  const narrow = find(records, "AMD260828C00150000", "AMD260828C00155000");
+  const wide = find(records, "AMD260828C00150000", "AMD260828C00160000");
+
+  assert.equal(money(narrow.stock_pl), -500, "the 155 long bought its own 100 shares");
+  assert.equal(money(wide.stock_pl), -1000);
+  assert.equal(money(narrow.realized_pl), -350);
+  assert.equal(money(wide.realized_pl), -800);
+  [narrow, wide].forEach((r) => assertWithinMaxLoss(r));
+});
+
+test("a stored lot carries no field the stock_lots table has no column for", () => {
+  // Attribution runs on the contract that moved each lot; that is not a column
+  // on stock_lots, and every field on these objects is written to that table
+  // verbatim. An extra one fails the insert for the whole account.
+  const { stockLots } = reconstruct(
+    [
+      fill("2026-08-03", "sell", "AMD260828P00150000", 1, 2.5),
+      assign("2026-08-26", "AMD260828P00150000", 1),
+      fill("2026-08-31", "sell", "AMD", 100, 145.0)
+    ],
+    {},
+    ACCOUNT
+  );
+  assert.ok(stockLots.length > 0);
+  stockLots.forEach((l) => {
+    assert.equal("acquired_option" in l, false);
+    assert.equal("disposed_option" in l, false);
+  });
 });

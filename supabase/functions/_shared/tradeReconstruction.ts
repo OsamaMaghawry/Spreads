@@ -185,7 +185,12 @@ export function reconstructOptionLots(activities, orderStrategy = {}) {
           qty: q * CONTRACT_SIZE,
           price: parsed.strike,
           source: lot.short ? "assignment" : "exercise",
-          chainKey
+          chainKey,
+          // Which contract moved these shares. Attribution needs to know that
+          // and cannot recover it later: the chain id is rewritten when a
+          // pair's two legs are merged into one chain, which is precisely the
+          // case that needs telling apart.
+          option: symbol
         });
         lot.qty -= q;
         remaining -= q;
@@ -303,7 +308,9 @@ export function stockFillMoves(activities) {
       qty: Math.abs(parseFloat(a.qty)),
       price: parseFloat(a.price),
       source: "trade",
-      chainKey: null
+      chainKey: null,
+      // A trade on the market was moved by nobody's contract.
+      option: null
     }))
     .filter((m) => Number.isFinite(m.qty) && Number.isFinite(m.price) && m.qty > 0);
 }
@@ -433,9 +440,11 @@ export function buildStockLedger(moves) {
           acquired_date: lot.date,
           acquired_price: lot.price,
           acquired_source: lot.source,
+          acquired_option: lot.option || null,
           disposed_date: m.date,
           disposed_price: m.price,
           disposed_source: m.source,
+          disposed_option: m.option || null,
           realized_pl: (m.price - lot.price) * q
         });
         lot.qty -= q;
@@ -452,9 +461,11 @@ export function buildStockLedger(moves) {
           acquired_date: null,
           acquired_price: null,
           acquired_source: null,
+          acquired_option: null,
           disposed_date: m.date,
           disposed_price: m.price,
           disposed_source: m.source,
+          disposed_option: m.option || null,
           realized_pl: null
         });
       }
@@ -470,9 +481,11 @@ export function buildStockLedger(moves) {
         acquired_date: lot.date,
         acquired_price: lot.price,
         acquired_source: lot.source,
+        acquired_option: lot.option || null,
         disposed_date: null,
         disposed_price: null,
         disposed_source: null,
+        disposed_option: null,
         realized_pl: null
       })
     );
@@ -791,23 +804,40 @@ export function attributeStockPL(records, stockLots) {
 
   // Which of a chain's owners a particular lot belongs to.
   //
-  // Splitting by contract count was right for the acquisition -- one
-  // assignment delivering shares to every assigned contract -- and wrong for
-  // the disposal, which is spread-specific: two put spreads sharing a short
-  // strike, 150/145 and 150/140, each exercise their OWN long. The lots come
-  // out at -$500 and -$1,000; splitting evenly reported -$750 each, so the
-  // 150/145 spread showed a loss larger than its own $300 maximum.
+  // Splitting by contract count is right for what a single assignment did --
+  // one event delivering shares to every assigned contract -- and wrong for
+  // the leg that is spread-specific: two put spreads sharing a short strike,
+  // 150/145 and 150/140, each exercise their OWN long. The lots come out at
+  // -$500 and -$1,000; splitting evenly reported -$750 each, so the 150/145
+  // spread showed a loss larger than its own $350 maximum.
   //
-  // The lot already says which long closed it -- disposed_price is that
-  // long's strike -- so the owner is identifiable rather than a matter of
-  // apportionment. Same on the acquisition side against the short strike.
-  // Proportional splitting stays as the fallback for when nothing identifies
-  // an owner, which is a genuine tie rather than a guess.
+  // Matching the lot's price against a strike looked like it identified the
+  // owner and did not. Two ways it was wrong, both reproduced:
+  //
+  //   A market sale carries a traded price, and limit prices sit on round
+  //   numbers exactly where strikes do. Shares sold at 145 after both longs
+  //   expired handed the entire -$1,000 to the 150/145 spread -- -$850 against
+  //   a $350 maximum -- and turned the 150/140 spread's -$300 into +$200. Both
+  //   rows were right before that matching existed.
+  //
+  //   On a call spread the directions mirror: the short's assignment SELLS at
+  //   the short strike and the long's exercise BUYS at the long. Neither test
+  //   could ever match, so no call spread was identified at all and the
+  //   defect this was written to fix was untouched on half the book.
+  //
+  // The contract that moved the shares is recorded on the lot, so identity
+  // does not have to be inferred from a number that other things can equal.
+  // The long leg is what distinguishes two records sharing a short, and it is
+  // on the acquisition side for calls and the disposal side for puts -- so
+  // either side identifies an owner, and a market sale (no contract) matches
+  // nothing. Proportional splitting stays for a genuine tie: a shared
+  // assignment disposed of on the market is exactly that.
   const ownerOf = (owners, lot) => {
-    const near = (a, b) => a !== null && a !== undefined && Math.abs(Number(a) - Number(b)) < 1e-6;
-    const byLong = owners.filter((o) => o.long_symbol && near(lot.disposed_price, o.long_strike));
+    const moved = [lot.acquired_option, lot.disposed_option].filter(Boolean);
+    if (moved.length === 0) return null;
+    const byLong = owners.filter((o) => o.long_symbol && moved.includes(o.long_symbol));
     if (byLong.length === 1) return byLong[0];
-    const byShort = owners.filter((o) => near(lot.acquired_price, o.short_strike));
+    const byShort = owners.filter((o) => o.short_symbol && moved.includes(o.short_symbol));
     if (byShort.length === 1) return byShort[0];
     return null;
   };
@@ -890,7 +920,7 @@ export function reconstruct(activities, orderStrategy, accountId) {
   const { trades, chainRemap } = buildTrades(closedLots, sharesHeldAt, accountId);
 
   const remap = (chain) => (chain && chainRemap.get(chain)) || chain || null;
-  const stockLots = lots.map((l) => ({
+  const attributable = lots.map((l) => ({
     ...l,
     account_id: accountId,
     acquired_chain_id: remap(l.acquired_chain_id),
@@ -899,7 +929,14 @@ export function reconstruct(activities, orderStrategy, accountId) {
   }));
 
   const records = mergeAndPrice(trades);
-  const orphanedStockPL = attributeStockPL(records, stockLots);
+  const orphanedStockPL = attributeStockPL(records, attributable);
+
+  // The contract that moved each lot is what attribution runs on, and it is
+  // not a column on stock_lots -- every field here is written to that table
+  // verbatim, so an extra one would fail the insert. It is derivable from the
+  // chain ids anyway, up until the point where a merged pair rewrites them,
+  // which is why it travels this far and no further.
+  const stockLots = attributable.map(({ acquired_option, disposed_option, ...rest }) => rest);
   const settlementChecks = reconcileCashSettlements(records, cashSettlements);
 
   return { records, stockLots, orphanedStockPL, cashSettlements, settlementChecks };
