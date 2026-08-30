@@ -59,6 +59,27 @@ function shareSide(isShort, isCall) {
 
 const dayOf = (a) => (a.transaction_time || "").substring(0, 10) || a.date || "";
 
+// The money on a cash-settlement activity, read defensively.
+//
+// Alpaca's OPCSH payload could not be confirmed: docs.alpaca.markets is
+// unreachable from this environment, so the field carrying the amount is read
+// from the candidates its sibling non-trade activities use, in order of how
+// specific they are. Returning null when none parses is the point -- a
+// settlement whose amount we cannot read must be reported as unknown, never
+// inferred as zero, because zero is a number a reader would believe.
+export function cashAmountOf(a) {
+  for (const field of ["net_amount", "amount", "cash_amount", "settlement_amount"]) {
+    const v = parseFloat(a?.[field]);
+    if (Number.isFinite(v)) return v;
+  }
+  // Per-share and per-contract variants, which need the quantity to become an
+  // amount. Only used when no total was given.
+  const per = parseFloat(a?.per_share_amount ?? a?.price);
+  const qty = Math.abs(parseFloat(a?.qty));
+  if (Number.isFinite(per) && Number.isFinite(qty) && qty > 0) return per * qty * CONTRACT_SIZE;
+  return null;
+}
+
 // A chain id ties an option to the shares its assignment produced. Derived
 // from the symbol and the event date rather than randomly generated, so a
 // re-sync reproduces the same value instead of orphaning the link each time.
@@ -82,6 +103,7 @@ export function reconstructOptionLots(activities, orderStrategy = {}) {
 
   const closedLots = [];
   const shareMoves = [];
+  const cashSettlements = [];
 
   Object.keys(bySymbol).forEach((symbol) => {
     const parsed = parseOCCSymbol(symbol);
@@ -166,6 +188,38 @@ export function reconstructOptionLots(activities, orderStrategy = {}) {
         return;
       }
 
+      // Cash settlement, as the broker reports it.
+      //
+      // Index options pay a difference in cash and deliver nothing, so OPCSH
+      // is what actually closes an SPX or VIX position. It is recorded here
+      // and *checked against* the position rather than believed: Alpaca's
+      // paper index settlement has a reported defect in which out-of-the-money
+      // shorts are credited instead of expiring worthless, so a broker figure
+      // that contradicts the structure is a finding, not an answer.
+      //
+      // The economics still come from the share round-trip below, which for a
+      // spread nets exactly the width and is provably right at maximum loss.
+      // Promoting the broker's number to the source of truth needs the OPCSH
+      // payload confirmed -- its field names and its sign convention are not
+      // in any documentation reachable from here, and a sign read backwards on
+      // a settlement is a two-way error. Recorded now, trusted when verified.
+      if (type === "OPCSH") {
+        const raw = Math.abs(parseFloat(a.qty));
+        const contracts = Number.isFinite(raw) && raw > 0
+          ? raw
+          : openLots.reduce((n, l) => n + l.qty, 0);
+        cashSettlements.push({
+          symbol,
+          ticker: parsed.ticker,
+          date: a.date || dayOf(a),
+          qty: contracts,
+          amount: cashAmountOf(a),
+          raw: a
+        });
+        closeSome(contracts, a.date || dayOf(a), "settled");
+        return;
+      }
+
       if (type === "OPASN" || type === "OPEXC") {
         const raw = Math.abs(parseFloat(a.qty));
         const contracts = Number.isFinite(raw) && raw > 0
@@ -203,7 +257,7 @@ export function reconstructOptionLots(activities, orderStrategy = {}) {
     });
   });
 
-  return { closedLots, shareMoves };
+  return { closedLots, shareMoves, cashSettlements };
 }
 
 // ---------------------------------------------------------------------------
@@ -776,7 +830,7 @@ export function attributeStockPL(records, stockLots) {
 // ---------------------------------------------------------------------------
 
 export function reconstruct(activities, orderStrategy, accountId) {
-  const { closedLots, shareMoves } = reconstructOptionLots(activities, orderStrategy);
+  const { closedLots, shareMoves, cashSettlements } = reconstructOptionLots(activities, orderStrategy);
   const moves = mergeShareMoves(shareMoves, stockFillMoves(activities));
   const { lots, sharesHeldAt } = buildStockLedger(moves);
   const { trades, chainRemap } = buildTrades(closedLots, sharesHeldAt, accountId);
@@ -792,6 +846,66 @@ export function reconstruct(activities, orderStrategy, accountId) {
 
   const records = mergeAndPrice(trades);
   const orphanedStockPL = attributeStockPL(records, stockLots);
+  const settlementChecks = reconcileCashSettlements(records, cashSettlements);
 
-  return { records, stockLots, orphanedStockPL };
+  return { records, stockLots, orphanedStockPL, cashSettlements, settlementChecks };
+}
+
+// What the broker said a cash settlement paid, against what the position says
+// it must have paid.
+//
+// Two independent reasons not to take either number on faith. Alpaca's paper
+// index settlement has a reported defect crediting out-of-the-money shorts
+// instead of expiring them worthless -- an error of thousands on a single
+// account. And this code derives its own figure from a share round-trip that
+// never happened, which is right for a spread and unproven for anything else.
+// When two doubtful numbers agree, the answer is probably right; when they
+// disagree, that is worth a person's attention rather than a silent choice
+// between them.
+//
+// Returns one row per settlement, never throws, and decides nothing.
+export function reconcileCashSettlements(records, cashSettlements) {
+  if (!cashSettlements || cashSettlements.length === 0) return [];
+
+  // Settlements are reported per leg; a spread record holds the net of its
+  // legs. Comparing one leg's cash against the pair's net figure would flag
+  // every correct spread as a disagreement, so the legs of a position are
+  // summed and the sum is what gets checked.
+  const groups = new Map();
+  cashSettlements.forEach((s) => {
+    const owner = records.find(
+      (r) => (r.short_symbol === s.symbol || r.long_symbol === s.symbol) && r.close_date === s.date
+    );
+    const key = owner ? `${owner.short_symbol}|${owner.long_symbol}|${owner.close_date}` : `?${s.symbol}@${s.date}`;
+    const g = groups.get(key) || { owner, legs: [], date: s.date, ticker: s.ticker };
+    g.legs.push(s);
+    groups.set(key, g);
+  });
+
+  return [...groups.values()].map((g) => {
+    const unreadable = g.legs.some((l) => l.amount === null);
+    const reported = unreadable ? null : g.legs.reduce((a, l) => a + l.amount, 0);
+    // What this code booked for the position the settlement closed. The share
+    // round-trip lands in stock_pl; the credit taken at open is separate and
+    // is not part of what settlement paid.
+    const computed = g.owner ? g.owner.stock_pl : null;
+
+    let status;
+    if (unreadable) status = "amount-unreadable";
+    else if (computed === null) status = "no-matching-position";
+    else if (Math.abs(reported - computed) <= 0.01) status = "agrees";
+    else status = "disagrees";
+
+    return {
+      symbols: g.legs.map((l) => l.symbol),
+      symbol: g.legs[0].symbol,
+      ticker: g.ticker,
+      date: g.date,
+      qty: g.legs[0].qty,
+      reported,
+      computed,
+      difference: reported !== null && computed !== null ? reported - computed : null,
+      status
+    };
+  });
 }

@@ -7,7 +7,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { reconstruct, buildStockLedger, mergeShareMoves, stockFillMoves } from "./tradeReconstruction.ts";
+import { reconstruct, buildStockLedger, mergeShareMoves, stockFillMoves, cashAmountOf } from "./tradeReconstruction.ts";
 
 const ACCOUNT = "acct-1";
 
@@ -667,4 +667,73 @@ test("equity options still deliver shares", () => {
   const { stockLots } = reconstruct(acts, {}, ACCOUNT);
   assert.equal(stockLots.length, 1);
   assert.equal(stockLots[0].qty, 100);
+});
+
+// ---------------------------------------------------------------------------
+// Cash settlement, as reported by the broker and as checked against the book.
+// ---------------------------------------------------------------------------
+
+const settle = (date, symbol, qty, netAmount) => ({
+  id: `c${seq++}`,
+  activity_type: "OPCSH",
+  date,
+  symbol,
+  qty: String(qty),
+  net_amount: netAmount === null ? undefined : String(netAmount)
+});
+
+test("a reported settlement that matches the position is marked as agreeing", () => {
+  // SPXW 5200/5190 taken for $4.00, settling fully in the money: the structure
+  // says the shares side must be -$1,000, and the broker says the same.
+  const acts = [
+    fill("2026-08-03", "sell", "SPXW260828P05200000", 1, 12.00),
+    fill("2026-08-03", "buy", "SPXW260828P05190000", 1, 8.00),
+    settle("2026-08-28", "SPXW260828P05200000", 1, -1000),
+    settle("2026-08-28", "SPXW260828P05190000", 1, 0)
+  ];
+  const { records, settlementChecks } = reconstruct(acts, {}, ACCOUNT);
+  const spread = records.find((r) => r.short_symbol === "SPXW260828P05200000");
+
+  assert.equal(Math.round(spread.realized_pl), -600, "still the maximum loss");
+  const shortCheck = settlementChecks.find((c) => c.symbol === "SPXW260828P05200000");
+  assert.equal(shortCheck.reported, -1000);
+  assert.equal(shortCheck.status, "agrees");
+});
+
+test("a settlement contradicting the position is flagged, not believed", () => {
+  // The reported Alpaca paper defect: an out-of-the-money short credited
+  // instead of expiring worthless. The position says the shares side is
+  // -$1,000; the broker claims +$2,400. Neither number is silently adopted.
+  const acts = [
+    fill("2026-08-03", "sell", "SPXW260828P05200000", 1, 12.00),
+    fill("2026-08-03", "buy", "SPXW260828P05190000", 1, 8.00),
+    settle("2026-08-28", "SPXW260828P05200000", 1, 2400),
+    settle("2026-08-28", "SPXW260828P05190000", 1, 0)
+  ];
+  const { settlementChecks } = reconstruct(acts, {}, ACCOUNT);
+  const flagged = settlementChecks.filter((c) => c.status === "disagrees");
+
+  assert.equal(flagged.length, 1, "the disagreement must surface");
+  assert.equal(flagged[0].reported, 2400);
+  assert.equal(flagged[0].computed, -1000);
+  assert.equal(flagged[0].difference, 3400);
+});
+
+test("a settlement whose amount cannot be read is unknown, never zero", () => {
+  const acts = [
+    fill("2026-08-03", "sell", "SPXW260828P05200000", 1, 12.00),
+    settle("2026-08-28", "SPXW260828P05200000", 1, null)
+  ];
+  const { settlementChecks } = reconstruct(acts, {}, ACCOUNT);
+  assert.equal(settlementChecks[0].reported, null);
+  assert.equal(settlementChecks[0].status, "amount-unreadable");
+});
+
+test("cashAmountOf prefers a total and falls back to a per-contract amount", () => {
+  assert.equal(cashAmountOf({ net_amount: "-1000" }), -1000);
+  assert.equal(cashAmountOf({ amount: "250.5" }), 250.5);
+  // per_share_amount x qty x 100
+  assert.equal(cashAmountOf({ per_share_amount: "10", qty: "1" }), 1000);
+  assert.equal(cashAmountOf({}), null);
+  assert.equal(cashAmountOf({ net_amount: "not a number" }), null);
 });
