@@ -85,7 +85,7 @@ encrypted with AES-256-GCM before storage, with the key held in the edge
 function environment rather than the database, and the credential columns are
 revoked from the browser role entirely.
 
-- **trading_accounts** — id, user_id, name, api_key, api_secret, is_paper, spreads_client_prefix, wheel_client_prefix, created_at, oauth_access_token, api_key_hint, is_oauth, broker_account_number, trades_synced_at, trades_sync_error, broker_account_id, trades_pending_review
+- **trading_accounts** — id, user_id, name, api_key, api_secret, is_paper, spreads_client_prefix, wheel_client_prefix, created_at, oauth_access_token, api_key_hint, is_oauth, broker_account_number, trades_synced_at, trades_sync_error, broker_account_id
 - **trade_records** — id, user_id, account_id, strategy, trade_key, ticker, expiry, short_symbol, long_symbol, short_strike, long_strike, qty, open_date, close_date, short_entry, long_entry, net_credit, short_exit, long_exit, close_debit, realized_pl, close_reason, created_at, chain_id, unpaired, premium_pl, early_close_pl, stock_pl, acquired_chain_id, provisional
 - **profiles** — id, role, created_at
 - **earnings_calendar** — symbol, report_date, session, fetched_at

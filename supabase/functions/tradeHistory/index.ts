@@ -219,15 +219,7 @@ async function fetchBrokerData(account, base) {
 
 // Reconcile what the broker says against what is stored. The reconstruction is
 // deterministic over the whole feed, so the fresh set is authoritative.
-// What a sync is allowed to do without being asked.
-//
-// Adding a row is the product working: a spread closed, here it is. Rewriting
-// or removing a row that is already stored is a different act -- the figure was
-// shown to someone, who may have reasoned about it or filed it, and the
-// reconstruction changing its mind is not the same as the trade changing. So
-// additions apply, and everything destructive waits for the person whose money
-// it is. `accept` is that person saying yes.
-async function writeResults(admin, accountId, userId, records, stockLots, accept = false) {
+async function writeResults(admin, accountId, userId, records, stockLots) {
   const existing = await fetchTrades(admin, accountId, false);
   const existingByKey: any = {};
   existing.forEach((r: any) => { existingByKey[r.trade_key] = r; });
@@ -271,7 +263,6 @@ async function writeResults(admin, accountId, userId, records, stockLots, accept
   // Share lots the reconstruction is entitled to remove: option-touched only,
   // and only those it no longer derives.
   const existingLots = await fetchStockLots(admin, accountId);
-  const existingLotKeys = new Set(existingLots.map((l: any) => l.lot_key));
   const freshLotKeys = new Set(stockLots.map((l: any) => l.lot_key));
   const optionLots = existingLots.filter(lotFromOption);
   const staleLots = optionLots.filter((l: any) => !freshLotKeys.has(l.lot_key));
@@ -293,44 +284,7 @@ async function writeResults(admin, accountId, userId, records, stockLots, accept
     (l: any) => freshLotByKey[l.lot_key] && changedFields(l, freshLotByKey[l.lot_key])
   );
 
-  // Nothing destructive on a first sync -- there is nothing stored to destroy
-  // -- so an empty account fills itself and this gate is invisible.
-  const destructive =
-    stale.length + toUpdate.length + staleLots.length + updatedLotsBefore.length;
-
-  if (destructive > 0 && !accept) {
-    const newLots = stockLots.filter((l: any) => !existingLotKeys.has(l.lot_key));
-    await insertNew(admin, accountId, userId, toCreate, newLots);
-    await admin
-      .from("trading_accounts")
-      .update({
-        trades_synced_at: new Date().toISOString(),
-        trades_sync_error: null,
-        trades_pending_review: {
-          removed: stale.length,
-          changed: toUpdate.length,
-          removedLots: staleLots.length,
-          changedLots: updatedLotsBefore.length,
-          at: new Date().toISOString()
-        }
-      })
-      .eq("id", accountId);
-
-    return {
-      created: toCreate.length,
-      updated: 0,
-      removed: 0,
-      removedLots: 0,
-      pending: {
-        removed: stale.length,
-        changed: toUpdate.length,
-        removedLots: staleLots.length,
-        changedLots: updatedLotsBefore.length
-      }
-    };
-  }
-
-  await snapshot(admin, accountId, userId, accept ? "accepted" : "sync", {
+  await snapshot(admin, accountId, userId, "sync", {
     deleted: stale,
     updatedBefore: toUpdate.map((r: any) => existingByKey[r.trade_key]),
     deletedLots: staleLots,
@@ -368,11 +322,7 @@ async function writeResults(admin, accountId, userId, records, stockLots, accept
 
   await admin
     .from("trading_accounts")
-    .update({
-      trades_synced_at: new Date().toISOString(),
-      trades_sync_error: null,
-      trades_pending_review: null
-    })
+    .update({ trades_synced_at: new Date().toISOString(), trades_sync_error: null })
     .eq("id", accountId);
 
   return {
@@ -383,39 +333,14 @@ async function writeResults(admin, accountId, userId, records, stockLots, accept
   };
 }
 
-// The half of a write that never needs asking: rows and lots that are not
-// there yet.
-async function insertNew(admin, accountId, userId, toCreate, newLots) {
-  if (toCreate.length > 0) {
-    const { error } = await admin
-      .from("trade_records")
-      .insert(toCreate.map((r: any) => ({ ...r, user_id: userId })));
-    if (error) throw new Error(error.message);
-  }
-  if (newLots.length > 0) {
-    const { error } = await admin
-      .from("stock_lots")
-      .insert(newLots.map((l: any) => ({ ...l, user_id: userId })));
-    if (error) throw new Error(error.message);
-  }
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const user = await requireUser(req);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-    const {
-      accountId,
-      preview = false,
-      includeRaw = false,
-      snapshots = false,
-      snapshotId = null,
-      // The account's owner saying yes to changes a sync held back. It reaches
-      // here only from a person pressing a button on their own history page.
-      accept = false
-    } = await req.json();
+    const { accountId, preview = false, includeRaw = false, snapshots = false, snapshotId = null } =
+      await req.json();
     if (!accountId) return jsonResponse({ error: "accountId is required" }, 400);
 
     const admin = adminClient();
@@ -506,11 +431,7 @@ Deno.serve(async (req) => {
     // about 112 requests -- forever, silently. Backing off on the *attempt*
     // means a broken sync costs one sweep per interval instead of one per view.
     const dueForRetry = Date.now() - attemptedAt > STALE_AFTER_MS;
-    // Accepting held-back changes re-reads the feed whether or not the stored
-    // figures are stale: the answer being applied has to be the current one,
-    // not a recomputation of whatever was pending an hour ago.
-    const stale =
-      accept || ((!syncedAt || Date.now() - syncedAt > STALE_AFTER_MS) && dueForRetry);
+    const stale = (!syncedAt || Date.now() - syncedAt > STALE_AFTER_MS) && dueForRetry;
 
     let syncError: string | null = account.trades_sync_error || null;
 
@@ -523,7 +444,7 @@ Deno.serve(async (req) => {
       const work = (async () => {
         const { orderStrategy, activities } = await fetchBrokerData(account, base);
         const { records, stockLots } = reconstruct(activities, orderStrategy, accountId);
-        return writeResults(admin, accountId, user.id, records, stockLots, accept);
+        return writeResults(admin, accountId, user.id, records, stockLots);
       })().catch(async (err) => {
         // The failure has to land somewhere a person can see. Previously it was
         // caught by inBackground's `work.catch(() => {})`, so a sync that wrote
@@ -548,7 +469,7 @@ Deno.serve(async (req) => {
       fetchStockLots(admin, accountId),
       admin
         .from("trading_accounts")
-        .select("trades_synced_at, trades_sync_error, trades_pending_review")
+        .select("trades_synced_at, trades_sync_error")
         .eq("id", accountId)
         .maybeSingle()
     ]);
@@ -563,9 +484,6 @@ Deno.serve(async (req) => {
       // Why the figures below may be older than they should be. Null once a
       // sync succeeds; the page says so rather than implying it is current.
       syncError: failed,
-      // Changes the reconstruction wants to make to rows already stored, held
-      // until the account's owner accepts them. Null when nothing is waiting.
-      pendingReview: fresh?.trades_pending_review || account.trades_pending_review || null,
       // True when the refresh outran the wait: the numbers below are the
       // previous ones, and the page should come back for the new set. A failed
       // sync is not "still running" -- coming back would only fail again.

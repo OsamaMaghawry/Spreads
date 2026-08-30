@@ -14,16 +14,6 @@ The snapshot is written before the first destructive statement and the write is
 abandoned if it fails, so "the rows are gone and there is no snapshot" is not a
 state this code can reach.
 
-## When this is needed
-
-A sync no longer rewrites stored rows on its own. New trades are added
-automatically; anything that would rewrite or remove a row already stored is
-held, shown on the history page, and applied only when the account's owner
-presses **Apply these changes**. So the case this runbook covers is narrower
-than it was: changes that were accepted and should not have been, or a write
-that went wrong. The snapshot's `reason` says which — `accepted` for the
-former, `sync` for a row written before this gate existed.
-
 ## Read this before step 1
 
 **Opening the Trade History page runs a sync.** The page calls the function on
@@ -115,5 +105,6 @@ next sync would write and shows it beside what is stored.
   tables today.
 - Snapshots older than the twenty the listing returns. They are still in the
   table; query `history_snapshots` directly by `account_id` and `taken_at`.
-- Rows written before the acceptance gate existed. Their snapshots carry
-  `reason: "sync"` and are restored the same way.
+- Whether a routine sync should be rewriting a user's stored history without
+  asking at all. That is an open product decision, and this document is the
+  repair procedure for it, not an answer to it.

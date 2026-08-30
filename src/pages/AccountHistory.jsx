@@ -60,24 +60,6 @@ export default function AccountHistory() {
     }
   }, [id]);
 
-  // Applying changes the sync held back. It re-reads the broker feed rather
-  // than replaying whatever was pending: the figures being accepted have to be
-  // the ones on screen now.
-  const acceptChanges = useCallback(async () => {
-    setRefreshing(true);
-    setError(null);
-    try {
-      const res = await invokeFunction("tradeHistory", { accountId: id, accept: true });
-      if (res.data?.error) throw new Error(res.data.error);
-      setData(res.data);
-      setPreview(null);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [id]);
-
   // What a sync destroyed before it destroyed it. The rows were being copied
   // out before every destructive write and nothing could read them back, which
   // is a backup only in the sense that the data is somewhere.
@@ -179,15 +161,6 @@ export default function AccountHistory() {
   const unpairedCount = trades.filter((t) => t.unpaired).length;
   const provisionalCount = trades.filter((t) => t.provisional).length;
   const adjustedCount = trades.filter(isAdjustedTrade).length;
-  const pending = data?.pendingReview || null;
-  const pendingParts = pending
-    ? [
-        [pending.changed, "recorded trade", "would be rewritten"],
-        [pending.removed, "recorded trade", "would be removed"],
-        [pending.changedLots, "share lot", "would be rewritten"],
-        [pending.removedLots, "share lot", "would be removed"]
-      ].filter(([n]) => n > 0)
-    : [];
 
   return (
     <div className="space-y-5">
@@ -322,45 +295,6 @@ export default function AccountHistory() {
               </div>
             ))}
           </div>
-
-          {/* The reconstruction has changed its mind about rows already on
-              this page. Nothing has been altered: new trades arrive on their
-              own, but a figure someone has already read is not rewritten
-              underneath them because the code learned something. */}
-          {pendingParts.length > 0 && (
-            <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
-              <p>
-                Reading your broker again produces different figures for some of what is below.{" "}
-                {pendingParts.map(([n, noun, verb], i) => (
-                  <span key={noun + verb}>
-                    {i > 0 && (i === pendingParts.length - 1 ? " and " : ", ")}
-                    {n} {noun}
-                    {n === 1 ? "" : "s"} {verb}
-                  </span>
-                ))}
-                . Nothing has been changed.
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <button
-                  onClick={runPreview}
-                  disabled={refreshing}
-                  className="rounded-lg border border-indigo-300 bg-white px-3 py-1.5 text-xs font-medium text-indigo-800 hover:bg-indigo-100 disabled:opacity-50"
-                >
-                  See what would change
-                </button>
-                <button
-                  onClick={acceptChanges}
-                  disabled={refreshing}
-                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  {refreshing ? "Applying…" : "Apply these changes"}
-                </button>
-                <span className="text-xs text-indigo-700">
-                  Your rows are copied out first and can be restored.
-                </span>
-              </div>
-            </div>
-          )}
 
           {data?.account?.is_paper && (
             <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-800">
