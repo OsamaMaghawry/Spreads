@@ -682,58 +682,74 @@ const settle = (date, symbol, qty, netAmount) => ({
   net_amount: netAmount === null ? undefined : String(netAmount)
 });
 
-test("a reported settlement that matches the position is marked as agreeing", () => {
-  // SPXW 5200/5190 taken for $4.00, settling fully in the money: the structure
-  // says the shares side must be -$1,000, and the broker says the same.
+test("a settlement is recorded but never closes the position", () => {
+  // OPCSH was briefly wired into closeSome, which books a share round-trip at
+  // the strikes -- a maximum-loss outcome. That is only correct because OPASN
+  // and OPEXC mean the broker has already asserted the option finished in the
+  // money. A cash settlement asserts nothing about moneyness.
+  //
+  // The case that proves it: an index settling BETWEEN the strikes. Short ITM
+  // by 5, long worthless. True result: 400 credit less 500 paid = -$100. With
+  // OPCSH closing the position it reported +$400, and every flag read clean.
   const acts = [
     fill("2026-08-03", "sell", "SPXW260828P05200000", 1, 12.00),
     fill("2026-08-03", "buy", "SPXW260828P05190000", 1, 8.00),
-    settle("2026-08-28", "SPXW260828P05200000", 1, -1000),
-    settle("2026-08-28", "SPXW260828P05190000", 1, 0)
+    settle("2026-08-28", "SPXW260828P05200000", 1, -500),
+    expire("2026-08-28", "SPXW260828P05190000", 1)
   ];
-  const { records, settlementChecks } = reconstruct(acts, {}, ACCOUNT);
+  const { records, cashSettlements } = reconstruct(acts, {}, ACCOUNT);
+
+  // The settlement is captured for reconciliation...
+  assert.equal(cashSettlements.length, 1);
+  assert.equal(cashSettlements[0].amount, -500);
+  // ...and closed nothing: the short is still open, so no record claims a
+  // result for it. Reporting nothing beats reporting +$400 on a loss.
+  assert.equal(records.filter((r) => r.short_symbol === "SPXW260828P05200000").length, 0);
+});
+
+test("an index spread closed by assignment and exercise is still correct", () => {
+  // The verified path, unchanged: the broker asserts both legs finished in the
+  // money, and the share round-trip nets the width.
+  const acts = [
+    fill("2026-08-03", "sell", "SPXW260828P05200000", 1, 12.00),
+    fill("2026-08-03", "buy", "SPXW260828P05190000", 1, 8.00),
+    assign("2026-08-28", "SPXW260828P05200000", 1),
+    exercise("2026-08-28", "SPXW260828P05190000", 1)
+  ];
+  const { records } = reconstruct(acts, {}, ACCOUNT);
   const spread = records.find((r) => r.short_symbol === "SPXW260828P05200000");
-
-  assert.equal(Math.round(spread.realized_pl), -600, "still the maximum loss");
-  const shortCheck = settlementChecks.find((c) => c.symbol === "SPXW260828P05200000");
-  assert.equal(shortCheck.reported, -1000);
-  assert.equal(shortCheck.status, "agrees");
+  assert.equal(Math.round(spread.realized_pl), -600, "10-wide less the 4.00 credit");
 });
 
-test("a settlement contradicting the position is flagged, not believed", () => {
-  // The reported Alpaca paper defect: an out-of-the-money short credited
-  // instead of expiring worthless. The position says the shares side is
-  // -$1,000; the broker claims +$2,400. Neither number is silently adopted.
+test("a fully out-of-the-money index spread keeps its credit", () => {
+  // Both legs expire worthless. The maximum win, and the modal outcome of a
+  // credit spread -- which the OPCSH path would have reported as -$600.
   const acts = [
     fill("2026-08-03", "sell", "SPXW260828P05200000", 1, 12.00),
     fill("2026-08-03", "buy", "SPXW260828P05190000", 1, 8.00),
-    settle("2026-08-28", "SPXW260828P05200000", 1, 2400),
-    settle("2026-08-28", "SPXW260828P05190000", 1, 0)
+    expire("2026-08-28", "SPXW260828P05200000", 1),
+    expire("2026-08-28", "SPXW260828P05190000", -1)
   ];
-  const { settlementChecks } = reconstruct(acts, {}, ACCOUNT);
-  const flagged = settlementChecks.filter((c) => c.status === "disagrees");
-
-  assert.equal(flagged.length, 1, "the disagreement must surface");
-  assert.equal(flagged[0].reported, 2400);
-  assert.equal(flagged[0].computed, -1000);
-  assert.equal(flagged[0].difference, 3400);
+  const { records } = reconstruct(acts, {}, ACCOUNT);
+  const spread = records.find((r) => r.short_symbol === "SPXW260828P05200000");
+  assert.equal(Math.round(spread.realized_pl), 400, "the full credit");
 });
 
-test("a settlement whose amount cannot be read is unknown, never zero", () => {
-  const acts = [
-    fill("2026-08-03", "sell", "SPXW260828P05200000", 1, 12.00),
-    settle("2026-08-28", "SPXW260828P05200000", 1, null)
-  ];
-  const { settlementChecks } = reconstruct(acts, {}, ACCOUNT);
-  assert.equal(settlementChecks[0].reported, null);
-  assert.equal(settlementChecks[0].status, "amount-unreadable");
-});
-
-test("cashAmountOf prefers a total and falls back to a per-contract amount", () => {
+test("cashAmountOf reads a total, and refuses what it cannot read", () => {
   assert.equal(cashAmountOf({ net_amount: "-1000" }), -1000);
   assert.equal(cashAmountOf({ amount: "250.5" }), 250.5);
-  // per_share_amount x qty x 100
   assert.equal(cashAmountOf({ per_share_amount: "10", qty: "1" }), 1000);
   assert.equal(cashAmountOf({}), null);
   assert.equal(cashAmountOf({ net_amount: "not a number" }), null);
+
+  // parseFloat("-1,000.00") is -1. A thousands separator must not quietly
+  // turn a $1,000 settlement into a dollar.
+  assert.equal(cashAmountOf({ net_amount: "-1,000.00" }), -1000);
+  assert.equal(cashAmountOf({ net_amount: "$2,400" }), 2400);
+
+  // `price` is not a settlement amount. Every expiry and assignment fixture
+  // carries price "0", which would report a confident $0 on an unreadable
+  // settlement -- and a settlement index level there would read as $518,500.
+  assert.equal(cashAmountOf({ price: "0", qty: "1" }), null);
+  assert.equal(cashAmountOf({ price: "5185", qty: "1" }), null);
 });

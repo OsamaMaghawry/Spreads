@@ -114,7 +114,7 @@ async function fetchBrokerData(account, base) {
   let activities: any[] = [];
   let pageToken = null;
   for (let i = 0; i < 100; i++) {
-    const url = `${base}/account/activities?activity_types=FILL,OPEXP,OPASN,OPEXC,OPCSH&direction=desc&page_size=100` +
+    const url = `${base}/account/activities?activity_types=FILL,OPEXP,OPASN,OPEXC&direction=desc&page_size=100` +
       (pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : "");
     const page = await alpacaFetch(url, account);
     if (!Array.isArray(page) || page.length === 0) break;
