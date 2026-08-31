@@ -11,6 +11,12 @@ import { toast } from "@/components/ui/use-toast";
 import { safeReturnTo } from "@/lib/authReturnTo";
 import { appUrl } from "@/lib/appUrl";
 
+// The confirmation email carries a code only if Supabase's "Confirm signup"
+// template contains {{ .Token }}. It does not today, so offering six boxes
+// asks for something that never arrives. Flip this to true on the day the
+// template is changed; the verify path below is already wired.
+const CODE_IN_EMAIL = false;
+
 export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -95,6 +101,8 @@ export default function Register() {
             {error}
           </div>
         )}
+        {CODE_IN_EMAIL && (
+        <>
         <p className="text-center text-xs text-muted-foreground mb-3">
           Or, if your email contains a 6-digit code, enter it here:
         </p>
@@ -130,6 +138,8 @@ export default function Register() {
             "Verify"
           )}
         </Button>
+        </>
+        )}
         <p className="text-center text-sm text-muted-foreground mt-4">
           Nothing arrived?{" "}
           <button onClick={handleResend} className="text-primary font-medium hover:underline">
