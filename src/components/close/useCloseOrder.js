@@ -94,12 +94,15 @@ export default function useCloseOrder() {
     stopRef.current = false;
     setLog([]);
     setPhase("working");
-    const params = { accountId, ...legParams(spread, legs), qty };
+    // Ties every order in this walk together, so the ladder can be read back as
+    // one sequence when someone asks what the app tried.
+    const runKey = `${accountId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const params = { accountId, ...legParams(spread, legs), qty, runKey, ticker: spread.ticker };
     const key = spreadKey(accountId, spread, legs);
     try {
       if (orderType === "market") {
         addLog("Submitting market order…");
-        const res = await invoke("closeSpread", { ...params, orderType: "market" });
+        const res = await invoke("closeSpread", { ...params, orderType: "market", step: 0 });
         addLog(`Order submitted (${res.orderId})`);
         await sleep(2000);
         const st = await invoke("manageOrder", { accountId, orderId: res.orderId, action: "get" });
@@ -119,7 +122,7 @@ export default function useCloseOrder() {
       let debit = round2(startDebit);
       lastDebits[key] = debit;
       addLog(`Submitting limit order at ${priceLabel(debit)}…`);
-      let res = await invoke("closeSpread", { ...params, orderType: "limit", limitPrice: debit });
+      let res = await invoke("closeSpread", { ...params, orderType: "limit", limitPrice: debit, step: 0 });
       let orderId = res.orderId;
       const start = Date.now();
       let lastWalk = start;
@@ -211,7 +214,10 @@ export default function useCloseOrder() {
                 ...params,
                 qty: remaining,
                 orderType: "limit",
-                limitPrice: debit
+                limitPrice: debit,
+                step,
+                // The market this price was chosen against, stored beside it.
+                quote: q || null
               });
               orderId = res.orderId;
               addLog(

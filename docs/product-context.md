@@ -101,6 +101,7 @@ revoked from the browser role entirely.
 - **alerts** — id, user_id, account_id, rule, severity, symbol, title, detail, dedupe_key, first_seen_at, last_seen_at, emailed_at, resolved_at, created_at
 - **watch_settings** — id, recipient_email, strike_proximity_pct, position_max_pct, earnings_within_days, enabled, updated_at
 - **broker_connection_issues** — id, user_id, broker, environment, status, detail, created_at
+- **order_attempts** — id, user_id, account_id, run_key, intent, step, ticker, legs, qty, order_type, limit_price, quote, broker_order_id, status, filled_qty, filled_avg_price, error, created_at, updated_at
 
 ## Analytics vocabulary
 

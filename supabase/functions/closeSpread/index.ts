@@ -1,6 +1,7 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { tradingBase, alpacaFetch, loadAccount } from "../_shared/alpaca.ts";
+import { recordAttempt } from "../_shared/orderAttempts.ts";
 
 // Submits the closing order for a position: the whole structure by default, or
 // just the legs the caller picked when only one side needs unwinding.
@@ -10,8 +11,12 @@ Deno.serve(async (req) => {
     const user = await requireUser(req);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-    const { accountId, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, putRatio, callRatio, qty, orderType, limitPrice, legs } =
-      await req.json();
+    const { accountId, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, putRatio, callRatio, qty, orderType, limitPrice, legs,
+      // Diagnostics only, and never trusted for anything the order depends on:
+      // runKey groups one walk, step is its position in it, quote is the market
+      // the caller priced against. Without the quote a stored limit price is
+      // just a number — with it, "was this ever marketable?" is answerable.
+      runKey, step, quote, ticker } = await req.json();
     const customLegs = Array.isArray(legs) && legs.length > 0 ? legs : null;
     if (!accountId || !qty || !orderType || (!customLegs && (!shortSymbol || !longSymbol))) {
       return jsonResponse({ error: "Missing required parameters" }, 400);
@@ -64,10 +69,23 @@ Deno.serve(async (req) => {
         const price = customLegs.length === 1 ? Math.abs(limitPrice) : limitPrice;
         legBody.limit_price = String(Math.round(price * 100) / 100);
       }
-      const legOrder = await alpacaFetch(`${tradingBase(account)}/orders`, account, {
-        method: "POST",
-        body: JSON.stringify(legBody)
-      });
+      const attempt = {
+        userId: user.id, accountId, runKey, step, ticker, qty,
+        legs: customLegs, orderType, limitPrice: orderType === "limit" ? limitPrice : null, quote
+      };
+      let legOrder;
+      try {
+        legOrder = await alpacaFetch(`${tradingBase(account)}/orders`, account, {
+          method: "POST",
+          body: JSON.stringify(legBody)
+        });
+      } catch (e) {
+        // A refusal is the most interesting thing that can happen here, so it
+        // is recorded before being re-thrown to the caller.
+        await recordAttempt(admin, { ...attempt, error: String(e?.message || e) });
+        throw e;
+      }
+      await recordAttempt(admin, { ...attempt, brokerOrderId: legOrder.id, status: legOrder.status });
       return jsonResponse({ orderId: legOrder.id, status: legOrder.status });
     }
 
@@ -96,10 +114,22 @@ Deno.serve(async (req) => {
       body.limit_price = String(Math.round(limitPrice * 100) / 100);
     }
 
-    const order = await alpacaFetch(`${tradingBase(account)}/orders`, account, {
-      method: "POST",
-      body: JSON.stringify(body)
-    });
+    const attempt = {
+      userId: user.id, accountId, runKey, step,
+      ticker: ticker || null, qty, legs: body.legs, orderType,
+      limitPrice: orderType === "limit" ? limitPrice : null, quote
+    };
+    let order;
+    try {
+      order = await alpacaFetch(`${tradingBase(account)}/orders`, account, {
+        method: "POST",
+        body: JSON.stringify(body)
+      });
+    } catch (e) {
+      await recordAttempt(admin, { ...attempt, error: String(e?.message || e) });
+      throw e;
+    }
+    await recordAttempt(admin, { ...attempt, brokerOrderId: order.id, status: order.status });
 
     return jsonResponse({ orderId: order.id, status: order.status });
   } catch (error) {
