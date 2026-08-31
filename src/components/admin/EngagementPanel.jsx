@@ -14,8 +14,19 @@ function Funnel({ funnel }) {
   const stages = [
     { key: "signedUp", label: "Signed up" },
     { key: "connected", label: "Connected a broker" },
-    { key: "traded", label: "Placed a trade" },
-    { key: "live", label: "Trading live (not paper)" }
+    {
+      key: "traded",
+      label: "Traded",
+      // "Placed a trade" implied placing it here. These rows are reconstructed
+      // from the broker's own activity feed, so they include trades made
+      // directly in the brokerage, and only appear once a sync has run.
+      hint: "At least one trade in their broker history. Includes trades placed outside DeltaMint, and only counts after a sync."
+    },
+    {
+      key: "live",
+      label: "Traded live (not paper)",
+      hint: "At least one trade on a non-paper account."
+    }
   ];
   const top = Math.max(1, funnel.signedUp);
 
@@ -26,11 +37,22 @@ function Funnel({ funnel }) {
         {stages.map((s, i) => {
           const value = funnel[s.key] ?? 0;
           const prev = i === 0 ? null : funnel[stages[i - 1].key] ?? 0;
-          const conversion = prev ? Math.round((value / prev) * 100) : null;
+          // A stage can never exceed the one above it; every stage here is a
+          // subset of its predecessor. If that is ever violated the honest
+          // thing is to show no ratio rather than a "150% of previous" that
+          // cannot mean anything — which is what this panel used to print.
+          const conversion = prev && value <= prev ? Math.round((value / prev) * 100) : null;
           return (
             <div key={s.key}>
               <div className="flex items-baseline justify-between text-xs">
-                <span className="text-dm-sub">{s.label}</span>
+                <span className="text-dm-sub" title={s.hint || undefined}>
+                  {s.label}
+                  {s.key === "connected" && funnel.liveConnected > 0 && (
+                    <span className="ml-1.5 text-[10px] text-dm-sub/70">
+                      {funnel.liveConnected} live
+                    </span>
+                  )}
+                </span>
                 <span className="tabular-nums text-dm-text">
                   {value}
                   {conversion !== null && (
@@ -74,7 +96,8 @@ export default function EngagementPanel({ engagement }) {
       </div>
 
       <p className="text-[11px] leading-relaxed text-dm-sub">
-        Active means signed in within the period. These figures come from account and trade
+        Active means recorded use of the app within the period, falling back to sign-in for
+        accounts that predate activity tracking. These figures come from account and trade
         records, not from page tracking, so they describe what people did in the product rather
         than how they arrived at it.
       </p>

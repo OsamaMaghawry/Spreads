@@ -1,7 +1,17 @@
-# dashboard.deltamint.app is the authenticated app. Every route behind the
-# login renders empty to a crawler, so there is nothing worth indexing here —
-# and indexing it would compete with deltamint.app for the brand term.
-# Marketing content lives on deltamint.app, which has its own robots.txt.
+# dashboard.deltamint.app is the authenticated app. Nothing here should appear
+# in search results — marketing content lives on deltamint.app.
+#
+# Crawling is deliberately ALLOWED. This file used to say "Disallow: /", which
+# is the wrong tool and had the opposite effect: Disallow stops a crawler
+# FETCHING the page, so it never reads the "noindex" that would remove it. A
+# URL discovered elsewhere — a password-reset email, a shared link — then gets
+# indexed anyway and can never be dropped, because the instruction to drop it
+# sits behind a door robots.txt told the crawler not to open. That is exactly
+# how /forgot-password ended up in Google.
+#
+# The removal signal is "noindex", sent two ways: the X-Robots-Tag header the
+# Worker sets on every response (works for crawlers that never run JavaScript),
+# and the <meta name="robots"> tag in index.html. Both need the page fetched.
 
 User-agent: *
-Disallow: /
+Allow: /

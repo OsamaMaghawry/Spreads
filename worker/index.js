@@ -25,6 +25,19 @@ export default {
       return Response.redirect(url.toString(), 301);
     }
 
-    return env.ASSETS.fetch(request);
+    const response = await env.ASSETS.fetch(request);
+
+    // Nothing on the authenticated app belongs in a search index, and
+    // /forgot-password reaching Google proved the previous defences were the
+    // wrong ones. robots.txt "Disallow" stops a crawler fetching the page, so
+    // it never reads the noindex that would remove it -- and a URL found in a
+    // password-reset email gets indexed regardless. The <meta> tag only helps a
+    // crawler that runs JavaScript and parses the document.
+    //
+    // The header is the signal that always arrives: it needs no rendering, no
+    // parsing, and applies to every response this Worker serves.
+    const out = new Response(response.body, response);
+    out.headers.set("X-Robots-Tag", "noindex, nofollow");
+    return out;
   }
 };

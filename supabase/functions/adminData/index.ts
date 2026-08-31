@@ -22,8 +22,8 @@ import { readSettings, writeSetting, WRITABLE_SETTINGS } from "../_shared/settin
 async function loadUsers(admin: any) {
   const [authUserList, accounts, trades, profiles] = await Promise.all([
     listAllUsers(admin),
-    selectAll(admin, "trading_accounts", "user_id, is_paper, created_at"),
-    selectAll(admin, "trade_records", "user_id, open_date, close_date, realized_pl, created_at"),
+    selectAll(admin, "trading_accounts", "id, user_id, is_paper, created_at"),
+    selectAll(admin, "trade_records", "user_id, account_id, open_date, close_date, realized_pl, created_at"),
     selectAll(admin, "profiles", "id, role, last_active_at")
   ]);
   const authUsers = { users: authUserList };
@@ -53,6 +53,11 @@ async function loadUsers(admin: any) {
       paperAccounts: 0,
       firstAccountAt: null as string | null,
       trades: 0,
+      // Trades on a non-paper account. The funnel's last stage used to be
+      // "has a live account connected", which is not a subset of "has traded"
+      // — so the panel could and did show more people trading live than
+      // trading at all. This counts the thing the label claims.
+      liveTrades: 0,
       lastTradeAt: null as string | null,
       realizedPL: 0
     });
@@ -67,6 +72,10 @@ async function loadUsers(admin: any) {
     u.lastActiveAt = p.last_active_at || null;
   }
 
+  const liveAccountIds = new Set(
+    (accounts || []).filter((a: any) => !a.is_paper).map((a: any) => a.id)
+  );
+
   for (const a of accounts || []) {
     const u = byUser.get(a.user_id);
     if (!u) continue;
@@ -80,6 +89,7 @@ async function loadUsers(admin: any) {
     const u = byUser.get(t.user_id);
     if (!u) continue;
     u.trades += 1;
+    if (liveAccountIds.has(t.account_id)) u.liveTrades += 1;
     u.realizedPL += Number(t.realized_pl || 0);
     const when = t.close_date || t.open_date || t.created_at;
     if (when && (!u.lastTradeAt || when > u.lastTradeAt)) u.lastTradeAt = when;
@@ -95,7 +105,12 @@ function engagement(users: any[]) {
   const signedUp = users.length;
   const connected = users.filter((u) => u.accounts > 0).length;
   const traded = users.filter((u) => u.trades > 0).length;
-  const live = users.filter((u) => u.liveAccounts > 0).length;
+  // Traded on a live account — a genuine subset of `traded`. Reported
+  // separately from `liveConnected`, which is the older figure: connecting a
+  // live account is real progress, it is just not trading, and presenting it
+  // as the final funnel stage is what made the numbers impossible.
+  const live = users.filter((u) => u.liveTrades > 0).length;
+  const liveConnected = users.filter((u) => u.liveAccounts > 0).length;
 
   const day = 86400000;
   const now = Date.now();
@@ -120,7 +135,7 @@ function engagement(users: any[]) {
   }
 
   return {
-    funnel: { signedUp, connected, traded, live },
+    funnel: { signedUp, connected, traded, live, liveConnected },
     active: { day: activeWithin(1), week: activeWithin(7), month: activeWithin(30) },
     totals: {
       trades: users.reduce((n, u) => n + u.trades, 0),
