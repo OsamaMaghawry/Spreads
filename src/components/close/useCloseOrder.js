@@ -43,29 +43,49 @@ export default function useCloseOrder() {
 
   const addLog = (msg) => setLog((l) => [...l, { t: new Date().toLocaleTimeString(), msg }]);
 
-  // Cancels an order and waits until Alpaca confirms it is dead (or filled).
+  // Cancels an order and waits until Alpaca confirms it is dead (or filled),
+  // reporting how many units went through on the way.
+  //
+  // This used to answer "filled" for a partially_filled order. A partial is not
+  // a completed close: cancelling one leaves the unfilled remainder open, and
+  // the caller needs the number to know what is still working.
   async function ensureCanceled(accountId, orderId) {
     await invoke("manageOrder", { accountId, orderId, action: "cancel" }).catch(() => {});
+    let filled = 0;
     for (let i = 0; i < 10; i++) {
       const st = await invoke("manageOrder", { accountId, orderId, action: "get" }).catch(() => null);
       if (st) {
-        if (["filled", "partially_filled"].includes(st.status)) return "filled";
-        if (["canceled", "rejected", "expired", "done_for_day"].includes(st.status)) return "canceled";
+        filled = Math.max(filled, Number(st.filledQty) || 0);
+        if (st.status === "filled") return { outcome: "filled", filled };
+        if (["canceled", "rejected", "expired", "done_for_day"].includes(st.status)) {
+          return { outcome: "canceled", filled };
+        }
       }
       await sleep(1000);
     }
-    return "unknown";
+    return { outcome: "unknown", filled };
   }
 
-  async function finishAsFailed(accountId, orderId) {
+  async function finishAsFailed(accountId, orderId, qty, filledSoFar = 0) {
     addLog("Canceling working order…");
     const result = await ensureCanceled(accountId, orderId);
-    if (result === "filled") {
+    const filled = Math.max(filledSoFar, result.filled);
+
+    if (result.outcome === "filled" || (qty && filled >= qty)) {
       addLog("Order actually filled during cancel");
       setPhase("filled");
       return;
     }
-    if (result === "canceled") addLog("Order canceled — safe to place a new order now.");
+    // The dangerous case to report plainly: some of the position closed and the
+    // rest did not. Treated as a failure rather than a fill, because the user
+    // still holds something and has to decide what to do about it.
+    if (filled > 0) {
+      addLog(`Partially closed: ${filled} of ${qty} filled — ${qty - filled} still open.`);
+      addLog("Close the remainder here or in Alpaca; this was not a completed close.");
+      setPhase("failed");
+      return;
+    }
+    if (result.outcome === "canceled") addLog("Order canceled — safe to place a new order now.");
     else addLog("Could not confirm cancellation — verify in Alpaca before placing a new order.");
     setPhase("failed");
   }
@@ -84,6 +104,13 @@ export default function useCloseOrder() {
         await sleep(2000);
         const st = await invoke("manageOrder", { accountId, orderId: res.orderId, action: "get" });
         addLog(`Status: ${st.status}${st.filledAvgPrice ? ` @ $${st.filledAvgPrice}` : ""}`);
+        const marketFilled = Number(st.filledQty) || 0;
+        if (st.status !== "filled" && marketFilled < qty) {
+          addLog(`Filled ${marketFilled} of ${qty} — ${qty - marketFilled} still open.`);
+          addLog("Not a completed close; check the position before placing another order.");
+          setPhase("failed");
+          return;
+        }
         delete lastDebits[key];
         setPhase("filled");
         return;
@@ -98,6 +125,9 @@ export default function useCloseOrder() {
       let lastWalk = start;
       let steps = 0;
       let lastStatus = null;
+      // Units confirmed done. A close can fill in pieces, and every later
+      // decision — what to resubmit, what to tell the user — depends on it.
+      let filledSoFar = 0;
       // Set while parked at the ask ceiling, so the log says it once rather
       // than every thirty seconds.
       let holding = false;
@@ -105,12 +135,12 @@ export default function useCloseOrder() {
       while (true) {
         if (stopRef.current) {
           addLog("Stopped by user");
-          await finishAsFailed(accountId, orderId);
+          await finishAsFailed(accountId, orderId, qty, filledSoFar);
           return;
         }
         if (Date.now() - start > MAX_TIME) {
           addLog(`Timeout reached (${MAX_TIME / 60000} min) — canceling; the price never became marketable.`);
-          await finishAsFailed(accountId, orderId);
+          await finishAsFailed(accountId, orderId, qty, filledSoFar);
           return;
         }
         const st = await invoke("manageOrder", { accountId, orderId, action: "get" });
@@ -118,7 +148,16 @@ export default function useCloseOrder() {
           addLog(`Status: ${st.status}`);
           lastStatus = st.status;
         }
-        if (["filled", "partially_filled"].includes(st.status)) {
+        const filledNow = Number(st.filledQty) || 0;
+        if (filledNow > filledSoFar) {
+          filledSoFar = filledNow;
+          addLog(`Filled ${filledSoFar} of ${qty}${st.filledAvgPrice ? ` @ $${st.filledAvgPrice}` : ""}`);
+        }
+        // Only a complete fill ends this. `partially_filled` used to return here
+        // announcing "Order filled", which closed the dialog as a success while
+        // the rest of the position was still open — on a spread that can be a
+        // leg left unhedged, reported as done.
+        if (st.status === "filled") {
           addLog(`Order filled${st.filledAvgPrice ? ` @ $${st.filledAvgPrice}` : ""}`);
           delete lastDebits[key];
           setPhase("filled");
@@ -126,7 +165,13 @@ export default function useCloseOrder() {
         }
         if (["rejected", "expired", "canceled"].includes(st.status)) {
           addLog(`Order ${st.status}`);
-          setPhase("failed");
+          // A day order that expires at the bell can already be part done. Say
+          // what is still held rather than only how the order ended — that
+          // remainder is the thing the user has to act on.
+          if (filledSoFar > 0 && filledSoFar < qty) {
+            addLog(`Partially closed: ${filledSoFar} of ${qty} filled — ${qty - filledSoFar} still open.`);
+          }
+          setPhase(filledSoFar >= qty ? "filled" : "failed");
           return;
         }
 
@@ -143,20 +188,35 @@ export default function useCloseOrder() {
             holding = false;
             addLog(`Repricing (step ${steps}): ${priceLabel(debit)} → ${priceLabel(proposed)}`);
             const cancelResult = await ensureCanceled(accountId, orderId);
-            if (cancelResult === "filled") {
+            if (cancelResult.filled > filledSoFar) {
+              filledSoFar = cancelResult.filled;
+              addLog(`Filled ${filledSoFar} of ${qty} before the reprice`);
+            }
+            if (cancelResult.outcome === "filled" || filledSoFar >= qty) {
               addLog("Filled during reprice");
               delete lastDebits[key];
               setPhase("filled");
               return;
             }
-            if (cancelResult === "unknown") {
+            if (cancelResult.outcome === "unknown") {
               addLog("Could not confirm cancel — keeping current order working");
             } else {
+              // Only what is still open. Resubmitting the original quantity
+              // after a partial fill would close more than is held and open a
+              // new position the other way.
+              const remaining = qty - filledSoFar;
               debit = proposed;
               lastDebits[key] = debit;
-              res = await invoke("closeSpread", { ...params, orderType: "limit", limitPrice: debit });
+              res = await invoke("closeSpread", {
+                ...params,
+                qty: remaining,
+                orderType: "limit",
+                limitPrice: debit
+              });
               orderId = res.orderId;
-              addLog(`Resubmitted at ${priceLabel(debit)} (${res.orderId})`);
+              addLog(
+                `Resubmitted ${remaining === qty ? "" : `${remaining} of ${qty} `}at ${priceLabel(debit)} (${res.orderId})`
+              );
               lastStatus = null;
             }
           } else if (!holding) {
