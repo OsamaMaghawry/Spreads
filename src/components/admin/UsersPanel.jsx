@@ -17,6 +17,7 @@ function UserDetail({ user, onClose }) {
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState([]);
   const [crm, setCrm] = useState({ status: "", tags: [] });
+  const [connectionIssues, setConnectionIssues] = useState([]);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmingNote, setConfirmingNote] = useState(null);
@@ -29,6 +30,7 @@ function UserDetail({ user, onClose }) {
     } else {
       setNotes(res.data.notes || []);
       setCrm({ status: res.data.crm?.status || "", tags: res.data.crm?.tags || [] });
+      setConnectionIssues(res.data.connectionIssues || []);
     }
     setLoading(false);
   }, [user.id]);
@@ -105,6 +107,33 @@ function UserDetail({ user, onClose }) {
               />
             </div>
           </div>
+
+          {/* An environment the broker would not hand over during a connect.
+              This used to be discarded, so a refused live account and a
+              paper-only authorization looked identical from here. */}
+          {connectionIssues.length > 0 && (
+            <div>
+              <label className="mb-1.5 block text-xs text-dm-sub">Broker connections not granted</label>
+              <div className="space-y-2">
+                {connectionIssues.map((i) => (
+                  <div
+                    key={i.id}
+                    className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+                  >
+                    <div className="font-medium">
+                      {i.broker} {i.environment} — {i.status ?? "unreachable"}
+                      <span className="ml-2 font-normal text-amber-700">{shortDate(i.created_at)}</span>
+                    </div>
+                    {i.detail && <div className="mt-1 break-words font-mono text-[11px] opacity-80">{i.detail}</div>}
+                  </div>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[11px] text-dm-sub">
+                A 403 here means Alpaca declined this environment for the user's token. That is expected when they
+                only authorized the other one, and a real problem when they meant to connect it.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="mb-1.5 block text-xs text-dm-sub">Notes</label>
@@ -212,7 +241,22 @@ export default function UsersPanel({ users, currentUserId, onRefresh }) {
                   ) : null}
                 </td>
                 <td className={`${td} tabular-nums text-dm-sub`}>{shortDate(u.createdAt)}</td>
-                <td className={`${td} tabular-nums text-dm-sub`}>{shortDate(u.lastSignInAt)}</td>
+                {/* Real recorded use where we have it. Users who predate
+                    activity tracking fall back to sign-in time, marked as such
+                    rather than passed off as the same measurement. */}
+                <td
+                  className={`${td} tabular-nums text-dm-sub`}
+                  title={
+                    u.lastActiveAt
+                      ? "Last recorded use of the app"
+                      : "No activity recorded yet — showing when they last signed in"
+                  }
+                >
+                  {shortDate(u.lastActiveAt || u.lastSignInAt)}
+                  {!u.lastActiveAt && u.lastSignInAt && (
+                    <span className="ml-1 text-[10px] text-dm-sub/70">sign-in</span>
+                  )}
+                </td>
                 <td className={`${td} tabular-nums text-dm-text`}>
                   {u.accounts}
                   {u.accounts > 0 && (

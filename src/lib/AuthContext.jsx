@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { touchLastActive } from '@/lib/activity';
 
 const AuthContext = createContext();
 
@@ -13,12 +14,18 @@ export const AuthProvider = ({ children }) => {
       setUser(session?.user ?? null);
       setIsAuthenticated(!!session?.user);
       setIsLoadingAuth(false);
+      // Opening the app with a valid session is use, and is the case that
+      // never reached last_sign_in_at.
+      if (session?.user) touchLastActive();
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       setIsAuthenticated(!!session?.user);
       setIsLoadingAuth(false);
+      // A fresh sign-in is worth stamping immediately; a background token
+      // refresh is not use, so it goes through the ordinary throttle.
+      if (session?.user) touchLastActive({ force: event === 'SIGNED_IN' });
     });
 
     return () => subscription.unsubscribe();

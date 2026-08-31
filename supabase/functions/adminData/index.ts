@@ -18,19 +18,42 @@ import { readSettings, writeSetting, WRITABLE_SETTINGS } from "../_shared/settin
 // tables runs as its owner and would bypass RLS for anyone able to select it,
 // so it would need its own grants to stay safe. Not worth the extra surface at
 // this size; revisit if the user count reaches the thousands.
-async function loadUsers(admin: any) {
-  const { data: authUsers, error: authError } = await admin.auth.admin.listUsers({ perPage: 1000 });
-  if (authError) throw new Error(authError.message);
+// PostgREST caps an unbounded select at 1000 rows and says nothing about it, so
+// the panel's trade counts and realized P/L quietly stopped growing past the
+// thousandth trade_records row. Paging is not an optimisation here; without it
+// the figures are wrong the moment the product succeeds.
+const PAGE = 1000;
 
-  const [{ data: accounts, error: accErr }, { data: trades, error: trErr }, { data: profiles, error: profErr }] =
-    await Promise.all([
-      admin.from("trading_accounts").select("user_id, is_paper, created_at"),
-      admin.from("trade_records").select("user_id, open_date, close_date, realized_pl, created_at"),
-      admin.from("profiles").select("id, role")
-    ]);
-  if (accErr) throw new Error(accErr.message);
-  if (trErr) throw new Error(trErr.message);
-  if (profErr) throw new Error(profErr.message);
+async function selectAll(admin: any, table: string, columns: string) {
+  const rows: any[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await admin.from(table).range(from, from + PAGE - 1).select(columns);
+    if (error) throw new Error(`${table}: ${error.message}`);
+    rows.push(...(data || []));
+    if (!data || data.length < PAGE) return rows;
+  }
+}
+
+// listUsers pages too, and defaults to far fewer than a thousand.
+async function listAllUsers(admin: any) {
+  const users: any[] = [];
+  for (let page = 1; ; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: PAGE });
+    if (error) throw new Error(error.message);
+    const batch = data?.users || [];
+    users.push(...batch);
+    if (batch.length < PAGE) return users;
+  }
+}
+
+async function loadUsers(admin: any) {
+  const [authUserList, accounts, trades, profiles] = await Promise.all([
+    listAllUsers(admin),
+    selectAll(admin, "trading_accounts", "user_id, is_paper, created_at"),
+    selectAll(admin, "trade_records", "user_id, open_date, close_date, realized_pl, created_at"),
+    selectAll(admin, "profiles", "id, role, last_active_at")
+  ]);
+  const authUsers = { users: authUserList };
 
   const byUser = new Map<string, any>();
   for (const u of authUsers.users) {
@@ -42,7 +65,14 @@ async function loadUsers(admin: any) {
       id: u.id,
       email: u.email,
       createdAt: u.created_at,
+      // Authentication time, not use. GoTrue stamps this only when a user
+      // actually signs in; a live session refreshed for weeks never moves it,
+      // which is why the panel showed a user active today as last seen
+      // whenever they last typed a password. Kept because "when did they last
+      // authenticate" is still a real question — just not this one.
       lastSignInAt: u.last_sign_in_at,
+      // Filled from profiles.last_active_at below: the app stamps it on use.
+      lastActiveAt: null as string | null,
       isOwner: owner,
       role: owner ? "owner" : "user",
       accounts: 0,
@@ -57,9 +87,11 @@ async function loadUsers(admin: any) {
 
   for (const p of profiles || []) {
     const u = byUser.get(p.id);
+    if (!u) continue;
     // Owner outranks whatever the row says; the env grant is what is actually
     // enforced, so it is what gets displayed.
-    if (u && !u.isOwner) u.role = p.role;
+    if (!u.isOwner) u.role = p.role;
+    u.lastActiveAt = p.last_active_at || null;
   }
 
   for (const a of accounts || []) {
@@ -94,9 +126,12 @@ function engagement(users: any[]) {
 
   const day = 86400000;
   const now = Date.now();
+  // Real use first, falling back to authentication and then signup for users
+  // who predate activity tracking — otherwise everyone connected before this
+  // shipped would read as dormant on the day it deployed.
   const activeWithin = (days: number) =>
     users.filter((u) => {
-      const seen = u.lastSignInAt || u.createdAt;
+      const seen = u.lastActiveAt || u.lastSignInAt || u.createdAt;
       return seen && now - new Date(seen).getTime() <= days * day;
     }).length;
 
@@ -174,14 +209,29 @@ Deno.serve(async (req) => {
       }
 
       case "userDetail": {
-        const [{ data: notes, error: nErr }, { data: crm, error: cErr }] = await Promise.all([
-          admin.from("user_notes").select("id, body, created_at, author_id").eq("user_id", payload.userId)
-            .order("created_at", { ascending: false }),
-          admin.from("user_crm").select("status, tags").eq("user_id", payload.userId).maybeSingle()
-        ]);
+        const [{ data: notes, error: nErr }, { data: crm, error: cErr }, { data: issues, error: iErr }] =
+          await Promise.all([
+            admin.from("user_notes").select("id, body, created_at, author_id").eq("user_id", payload.userId)
+              .order("created_at", { ascending: false }),
+            admin.from("user_crm").select("status, tags").eq("user_id", payload.userId).maybeSingle(),
+            // Environments the broker refused during a connect. Without these a
+            // user whose live account was rejected looks identical to one who
+            // only ever authorized paper — which is the support question that
+            // could not be answered before.
+            admin.from("broker_connection_issues")
+              .select("id, broker, environment, status, detail, created_at")
+              .eq("user_id", payload.userId)
+              .order("created_at", { ascending: false })
+              .limit(20)
+          ]);
         if (nErr) throw new Error(nErr.message);
         if (cErr) throw new Error(cErr.message);
-        return jsonResponse({ notes: notes || [], crm: crm || { status: null, tags: [] } });
+        if (iErr) throw new Error(iErr.message);
+        return jsonResponse({
+          notes: notes || [],
+          crm: crm || { status: null, tags: [] },
+          connectionIssues: issues || []
+        });
       }
 
       case "addNote": {

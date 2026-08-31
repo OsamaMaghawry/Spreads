@@ -9,6 +9,7 @@ export default function OAuthCallback() {
   const navigate = useNavigate();
   const [status, setStatus] = useState("connecting"); // connecting | success | error
   const [error, setError] = useState("");
+  const [notGranted, setNotGranted] = useState([]);
   const [connected, setConnected] = useState([]);
   const ran = useRef(false);
 
@@ -51,6 +52,10 @@ export default function OAuthCallback() {
       // the account that was ticked on Alpaca's screen — and a count plus a
       // 1.6-second redirect gave nobody a chance to notice.
       setConnected(res.data?.accounts || []);
+      // An environment Alpaca would not grant. Saying so here is the whole
+      // point: a user who ticked their live account and silently got only
+      // paper had no way to tell, and neither did we.
+      setNotGranted(res.data?.issues || []);
       setStatus("success");
     };
 
@@ -79,6 +84,18 @@ export default function OAuthCallback() {
                 </li>
               ))}
             </ul>
+            {notGranted.length > 0 && (
+              <div className="mx-auto mt-4 max-w-sm rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-left">
+                <p className="text-xs font-medium text-amber-900">
+                  Alpaca did not grant {notGranted.map((i) => i.environment).join(" or ")} access
+                </p>
+                <p className="mt-1 text-[11px] leading-relaxed text-amber-800">
+                  That is normal if you only authorized the account shown above. If you meant to connect it, check
+                  that you ticked it on Alpaca's consent screen and that the account is approved for API trading,
+                  then connect again.
+                </p>
+              </div>
+            )}
             <button
               onClick={() => navigate("/accounts", { replace: true })}
               className="mt-6 text-sm text-dm-accent hover:underline"
