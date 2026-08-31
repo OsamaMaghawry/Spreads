@@ -33,11 +33,19 @@ most important thing to alert on. Every rule reasons per leg.
 
 ## Delivery
 
-New or escalated conditions email the recipient in `watch_settings`
-(`osamamaghawry@gmail.com`) during the 15-minute session cadence; a plain daily
-report goes out after the close whether or not anything fired. Email is sent by
-`_shared/email.ts` via Resend and is a **no-op until `RESEND_API_KEY` is set** —
-the watch still records every alert to the `alerts` table meanwhile.
+The watch runs on two pg_cron jobs (UTC windows cover both EST and EDT):
+
+- `position-watch-session` — `*/15 13-21 * * 1-5`: every 15 minutes through the
+  weekday session. New or escalated conditions email the recipient in
+  `watch_settings` (`osamamaghawry@gmail.com`).
+- `position-watch-daily` — `15 21 * * 1-5`: one plain report after the close,
+  every weekday, whether or not anything fired.
+
+There is deliberately **no hourly/overnight/weekend job** — the owner wants
+monitoring only during the session plus one after-close report (removed in
+`0018_drop_hourly_watch.sql`). Email is sent by `_shared/email.ts` via Resend
+and is a **no-op until `RESEND_API_KEY` is set** — the watch still records every
+alert to the `alerts` table meanwhile.
 
 ## Tuning
 

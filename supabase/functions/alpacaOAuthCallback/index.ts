@@ -14,32 +14,66 @@ import { encryptSecret } from "../_shared/crypto.ts";
 // so a token covering both stored the live account and silently dropped the
 // paper one — the account appeared on the consent screen, could be ticked, and
 // then never showed up. Both are collected now.
+// Every environment this token can actually reach, and — just as important —
+// every one it could not.
+//
+// This used to keep only the successes: `if (res && res.ok)`, with the failure
+// branch empty. A live account Alpaca refused (403) was therefore stored as the
+// exact same outcome as a token that simply has no live account — nothing. The
+// user was told the connection succeeded, only their paper account appeared,
+// and no trace of the refusal reached the user, the logs, or the admin panel.
+//
+// We cannot always tell the two apart: a paper-only authorization also returns
+// 403 from the live endpoint, and Alpaca does not say which case it is. So the
+// honest report is "not granted", with the broker's own status attached, rather
+// than either silence or a false alarm.
 async function detectAccounts(accessToken: string) {
   const found: { isPaper: boolean; accountId: string; accountNumber: string | null }[] = [];
+  const issues: { environment: string; status: number | null; detail: string }[] = [];
+
   for (const [isPaper, base] of [
     [false, "https://api.alpaca.markets/v2"],
     [true, "https://paper-api.alpaca.markets/v2"]
   ] as const) {
-    const res = await fetch(`${base}/account`, {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    }).catch(() => null);
-    if (res && res.ok) {
-      const account = await res.json();
-      // An account with no identifier is not stored at all. Previously
-      // `account_number` was used unchecked, and when it came back absent the
-      // result was a row named "Alpaca Live (null)" whose null identity
-      // matched nothing on the next reconnect -- so every reconnect added
-      // another one. Skipping is the honest outcome: a connection we cannot
-      // name is one we cannot recognise again.
-      if (!account?.id) continue;
-      found.push({
-        isPaper,
-        accountId: String(account.id),
-        accountNumber: account.account_number ? String(account.account_number) : null
+    const environment = isPaper ? "paper" : "live";
+    let res: Response | null = null;
+    try {
+      res = await fetch(`${base}/account`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
       });
+    } catch (e) {
+      issues.push({ environment, status: null, detail: `Could not reach Alpaca: ${e?.message || e}` });
+      continue;
     }
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      issues.push({ environment, status: res.status, detail: body.slice(0, 500) });
+      continue;
+    }
+
+    const account = await res.json().catch(() => null);
+    // An account with no identifier is not stored at all. Previously
+    // `account_number` was used unchecked, and when it came back absent the
+    // result was a row named "Alpaca Live (null)" whose null identity
+    // matched nothing on the next reconnect -- so every reconnect added
+    // another one. Skipping is the honest outcome: a connection we cannot
+    // name is one we cannot recognise again -- but it is recorded now.
+    if (!account?.id) {
+      issues.push({
+        environment,
+        status: res.status,
+        detail: "Alpaca returned an account with no id, so it cannot be recognised on reconnect"
+      });
+      continue;
+    }
+    found.push({
+      isPaper,
+      accountId: String(account.id),
+      accountNumber: account.account_number ? String(account.account_number) : null
+    });
   }
-  return found;
+  return { found, issues };
 }
 
 // Which stored row, if any, is this brokerage account — tried in descending
@@ -161,12 +195,38 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "No access_token in Alpaca response" }, 502);
     }
 
-    const detected = await detectAccounts(accessToken);
-    if (detected.length === 0) {
-      return jsonResponse({ error: "Connected to Alpaca, but couldn't read any authorized account" }, 502);
-    }
+    const { found: detected, issues } = await detectAccounts(accessToken);
 
     const admin = adminClient();
+
+    // Recorded before the early return below, so a connection that reached no
+    // account at all still leaves the reason behind instead of a bare 502.
+    if (issues.length) {
+      for (const i of issues) {
+        console.error(`alpacaOAuth ${user.id} ${i.environment}: ${i.status ?? "unreachable"} ${i.detail}`);
+      }
+      const { error: issueErr } = await admin.from("broker_connection_issues").insert(
+        issues.map((i) => ({
+          user_id: user.id,
+          broker: "alpaca",
+          environment: i.environment,
+          status: i.status,
+          detail: i.detail
+        }))
+      );
+      // Never let bookkeeping sink a connection that otherwise worked.
+      if (issueErr) console.error(`alpacaOAuth: could not record issues: ${issueErr.message}`);
+    }
+
+    if (detected.length === 0) {
+      const why = issues
+        .map((i) => `${i.environment}: ${i.status ?? "unreachable"}${i.detail ? ` ${i.detail}` : ""}`)
+        .join("; ");
+      return jsonResponse(
+        { error: `Connected to Alpaca, but couldn't read any authorized account${why ? ` — ${why}` : ""}`, issues },
+        502
+      );
+    }
     // Encrypted once and shared: it is the same token for every account it
     // covers, and each call would otherwise produce a different ciphertext for
     // an identical secret.
@@ -212,8 +272,11 @@ Deno.serve(async (req) => {
       saved.push(data);
     }
 
-    // `account` stays for any caller still reading a single one.
-    return jsonResponse({ accounts: saved, account: saved[0] });
+    // `account` stays for any caller still reading a single one. `issues` is
+    // what the old code threw away: an environment the broker would not grant,
+    // reported even though the connection as a whole succeeded, so a user whose
+    // live account was refused finds out now rather than wondering where it is.
+    return jsonResponse({ accounts: saved, account: saved[0], issues });
   } catch (error) {
     return jsonResponse({ error: error.message }, 500);
   }
