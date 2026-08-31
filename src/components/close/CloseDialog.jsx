@@ -186,10 +186,10 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
             <p className="text-xs text-slate-500 leading-relaxed">
               {orderType === "limit"
                 ? lastDebit !== null
-                  ? `Limit resumes from your last attempt at ${fmtMoney(lastDebit)} — starting at ${fmtMoney(startDebit)} and walking up $0.02 every 30s (max 10 steps, 10 min timeout).`
+                  ? `Limit resumes from your last attempt at ${fmtMoney(lastDebit)} — starting at ${fmtMoney(startDebit)} and stepping toward the ask every 30s until it fills. Never bids above the ask + $0.05. Stops after 10 min.`
                   : midDebit < 0
                     ? `Limit starts at the mid credit (${fmtMoney(Math.abs(midDebit))}) and concedes $0.02 every 30s (max 10 steps, 10 min timeout).`
-                    : `Limit starts at the mid debit (${fmtMoney(midDebit)}) and walks up $0.02 every 30s (max 10 steps, 10 min timeout).`
+                    : `Limit starts at the mid debit (${fmtMoney(midDebit)}) and steps toward the ask every 30s until it fills — bigger steps on a wider market. Never bids above the ask + $0.05. Stops after 10 min.`
                 : "Market executes immediately at the current best price — may slip toward the ask."}
             </p>
 

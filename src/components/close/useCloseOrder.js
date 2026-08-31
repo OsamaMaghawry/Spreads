@@ -1,9 +1,8 @@
 import { useState, useRef } from "react";
 import { invokeFunction } from "@/lib/functions";
+import { nextLimit } from "@/lib/closeWalk";
 
-const WALK_STEP = 0.02;
 const WALK_INTERVAL = 30000;
-const MAX_STEPS = 10;
 const POLL = 2000;
 const MAX_TIME = 600000;
 
@@ -14,6 +13,7 @@ const invoke = async (fn, payload) => {
   return data;
 };
 const round2 = (v) => Math.round(v * 100) / 100;
+
 // Net price convention (Alpaca mleg): positive = net debit paid, negative = net credit received.
 const priceLabel = (v) => `$${Math.abs(v).toFixed(2)} ${v < 0 ? "credit" : "debit"}`;
 
@@ -98,6 +98,9 @@ export default function useCloseOrder() {
       let lastWalk = start;
       let steps = 0;
       let lastStatus = null;
+      // Set while parked at the ask ceiling, so the log says it once rather
+      // than every thirty seconds.
+      let holding = false;
 
       while (true) {
         if (stopRef.current) {
@@ -106,7 +109,7 @@ export default function useCloseOrder() {
           return;
         }
         if (Date.now() - start > MAX_TIME) {
-          addLog(`Timeout reached (${MAX_TIME / 60000} min)`);
+          addLog(`Timeout reached (${MAX_TIME / 60000} min) — canceling; the price never became marketable.`);
           await finishAsFailed(accountId, orderId);
           return;
         }
@@ -127,14 +130,18 @@ export default function useCloseOrder() {
           return;
         }
 
-        if (steps < MAX_STEPS && Date.now() - lastWalk >= WALK_INTERVAL) {
+        // No step limit: it keeps working the order until it fills, the user
+        // stops it, or the timeout. The old cap of ten stopped the walk after
+        // five minutes and then said nothing for five more, which is what a
+        // user reported as "it just would not close".
+        if (Date.now() - lastWalk >= WALK_INTERVAL) {
           steps += 1;
-          let proposed = round2(debit + WALK_STEP);
           const q = await invoke("spreadQuote", { accountId, ...legParams(spread, legs) }).catch(() => null);
-          if (q && q.askDebit) proposed = Math.max(debit, Math.min(proposed, round2(q.askDebit + 0.05)));
+          const proposed = nextLimit(debit, q);
 
-          if (Math.abs(proposed - debit) >= 0.01) {
-            addLog(`Repricing (${steps}/${MAX_STEPS}): ${priceLabel(debit)} → ${priceLabel(proposed)}`);
+          if (proposed > debit) {
+            holding = false;
+            addLog(`Repricing (step ${steps}): ${priceLabel(debit)} → ${priceLabel(proposed)}`);
             const cancelResult = await ensureCanceled(accountId, orderId);
             if (cancelResult === "filled") {
               addLog("Filled during reprice");
@@ -152,8 +159,9 @@ export default function useCloseOrder() {
               addLog(`Resubmitted at ${priceLabel(debit)} (${res.orderId})`);
               lastStatus = null;
             }
-          } else {
-            addLog("No meaningful price change possible");
+          } else if (!holding) {
+            holding = true;
+            addLog(`At the ask ceiling (${priceLabel(debit)}) — holding here and following the market.`);
           }
           lastWalk = Date.now();
         }
