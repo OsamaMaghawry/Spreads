@@ -71,6 +71,7 @@ so a change to shared code requires redeploying all of them.
 - **migrateCredentials** — Encrypts credentials that are still stored in plaintext, across every user's accounts, without involving those users.
 - **oauthDiag** — Answers one question: does Alpaca recognise this app's OAuth credentials? The authorize page cannot answer it.
 - **openPosition** — How far the stock may have moved since the setup was built before the order is refused.
+- **positionWatch** — The money-safety watch.
 - **refreshEarnings** — Refreshes the cached earnings calendar for the next 90 days from the provider.
 - **saveAccount** — Creating and editing a trading account.
 - **scanEntries** — (no summary comment)
@@ -97,6 +98,8 @@ revoked from the browser role entirely.
 - **stock_lots** — id, user_id, account_id, lot_key, chain_id, ticker, qty, acquired_date, acquired_price, acquired_source, disposed_date, disposed_price, disposed_source, realized_pl, created_at, backed_up_at, disposed_chain_id
 - **app_settings** — key, value, updated_at, updated_by
 - **history_snapshots** — id, user_id, account_id, taken_at, reason, deleted_trades, updated_trades_before, deleted_lots, trades_sync_attempted_at, updated_lots_before
+- **alerts** — id, user_id, account_id, rule, severity, symbol, title, detail, dedupe_key, first_seen_at, last_seen_at, emailed_at, resolved_at, created_at
+- **watch_settings** — id, recipient_email, strike_proximity_pct, position_max_pct, earnings_within_days, enabled, updated_at
 
 ## Analytics vocabulary
 
