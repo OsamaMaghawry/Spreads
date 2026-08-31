@@ -88,7 +88,7 @@ revoked from the browser role entirely.
 
 - **trading_accounts** — id, user_id, name, api_key, api_secret, is_paper, spreads_client_prefix, wheel_client_prefix, created_at, oauth_access_token, api_key_hint, is_oauth, broker_account_number, trades_synced_at, trades_sync_error, broker_account_id
 - **trade_records** — id, user_id, account_id, strategy, trade_key, ticker, expiry, short_symbol, long_symbol, short_strike, long_strike, qty, open_date, close_date, short_entry, long_entry, net_credit, short_exit, long_exit, close_debit, realized_pl, close_reason, created_at, chain_id, unpaired, premium_pl, early_close_pl, stock_pl, acquired_chain_id, provisional
-- **profiles** — id, role, created_at
+- **profiles** — id, role, created_at, last_active_at
 - **earnings_calendar** — symbol, report_date, session, fetched_at
 - **scan_presets** — id, user_id, scope, name, strategy, config, created_at, updated_at
 - **scan_last_used** — user_id, scope, strategy, config, updated_at
@@ -100,6 +100,7 @@ revoked from the browser role entirely.
 - **history_snapshots** — id, user_id, account_id, taken_at, reason, deleted_trades, updated_trades_before, deleted_lots, trades_sync_attempted_at, updated_lots_before
 - **alerts** — id, user_id, account_id, rule, severity, symbol, title, detail, dedupe_key, first_seen_at, last_seen_at, emailed_at, resolved_at, created_at
 - **watch_settings** — id, recipient_email, strike_proximity_pct, position_max_pct, earnings_within_days, enabled, updated_at
+- **broker_connection_issues** — id, user_id, broker, environment, status, detail, created_at
 
 ## Analytics vocabulary
 
