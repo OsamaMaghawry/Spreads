@@ -11,24 +11,35 @@ The allowlist matches **exact hostnames** — an allowed apex whose site 301s to
 
 | Host | Status | Tested | Note |
 | --- | --- | --- | --- |
-| dashboard.deltamint.app | ✅ 200 | 2026-08-31 | Our app — deploys verifiable directly |
-| deltamint.app | ✅ 200 | 2026-08-31 | Landing |
+| **Fetch + real content** | | | Allowlist open AND the site serves us |
+| www.barchart.com | ✅ 200 | 2026-08-31 | Full page — "Options Screener" title returned. Playwright-screenshottable |
+| www.optionstrat.com / optionstrat.com | ✅ 200/301 | 2026-08-31 | |
+| www.marketchameleon.com | ✅ 302 | 2026-08-31 | |
+| www.tastylive.com | ✅ 200 | 2026-08-31 | |
+| www.tastytrade.com | ✅ 301 | 2026-08-31 | |
+| www.unusualwhales.com | ✅ 307 | 2026-08-31 | |
+| www.cboe.com | ✅ 200 | 2026-08-31 | "Cboe Global Markets" returned |
+| www.youtube.com | ✅ 200 | 2026-08-31 | |
+| www.irs.gov | ✅ 200 | 2026-08-31 | |
+| en.wikipedia.org | ✅ 200 | 2026-08-31 | Now reachable (was blocked pre-allowlist) |
+| docs.alpaca.markets / alpaca.markets | ✅ | 2026-08-31 | Broker facts at source |
+| play.google.com | ✅ 302 | 2026-08-31 | App-store listings |
+| apps.apple.com | ✅ (404 on fake path; host answers) | 2026-08-31 | Use a real app URL |
+| **www.sec.gov** | ✅ 200 **with EDGAR UA** | 2026-08-31 | 403 with a normal UA; 200 when the User-Agent is `DeltaMint research osamamaghawry@gmail.com` (SEC EDGAR requires a contact UA). Not a workaround — SEC's stated access rule |
+| **Reached, but the site's own bot-wall refuses (403)** | | | Allowlist is fine; the *origin* blocks datacenter traffic. Not circumventable within the rules — use WebSearch |
+| www.tradersync.com | ❌ 403 (site) | 2026-08-31 | Browser UA does not help |
+| www.reddit.com / old.reddit.com | ❌ 403 (site) | 2026-08-31 | Reddit blocks datacenter IPs regardless of UA. Quote via WebSearch; the owner verifies in a browser. **Do not spoof around it** |
+| www.g2.com | ❌ 403 (site) | 2026-08-31 | Use WebSearch review summaries |
+| www.trustpilot.com | ❌ 403 (site) | 2026-08-31 | " |
+| www.capterra.com | ❌ 403 (site) | 2026-08-31 | " |
+| www.producthunt.com | ❌ 403 (site) | 2026-08-31 | " |
+| www.theocc.com / infomemo.theocc.com | ❌ 403 (site WAF) | 2026-08-31 | Blocks datacenter traffic; WebSearch for OCC symbology/adjustment facts |
+| www.investopedia.com | ⚠️ 402 | 2026-08-31 | Origin answers but gates content; WebSearch is better here |
+| **Ours** | | | |
+| dashboard.deltamint.app / deltamint.app | ✅ 200 | 2026-08-31 | Deploys verifiable directly |
+| www.deltamint.app | ⚠️ 522 | 2026-08-31 | Cloudflare has no origin for the www host — cosmetic; canonical is the apex + dashboard |
 | spreads.osamamaghawry.workers.dev | ✅ 301 → dashboard | 2026-08-31 | Canonical redirect confirmed live |
-| optionstrat.com | ✅ 200 | 2026-08-31 | Full page content |
-| docs.alpaca.markets | ✅ 302 → /us/ | 2026-08-31 | Broker docs at source |
-| barchart.com | ❌ EGRESS_BLOCKED | 2026-08-31 | WebFetch refused at the proxy (earlier curl saw 301 → www; either way unreachable). Barchart teardown done via WebSearch instead |
-| www.barchart.com | ❌ EGRESS_BLOCKED | 2026-08-31 | WebFetch refused at the proxy. Owner to add `www.barchart.com`; until then Barchart facts come from WebSearch, and two owner screenshots are requested in `docs/product/teardowns/barchart-options-screener.md` (`barchart-bull-put-screener-filters.png`, `barchart-premier-pricing.png`) |
-| reddit.com | ⚠️ 301 → www (blocked) | 2026-08-31 | Blocked until the owner adds `www.reddit.com` / `old.reddit.com` to the allowlist. **Do not route around the block with a mismatched `Host:` header** — that circumvents a security control the owner set, and it is not an approved technique here (see the rule below). Until then, Reddit facts come from WebSearch |
-| youtube.com | ⚠️ 301 → www (blocked) | 2026-08-31 | Owner to add `www.youtube.com` |
-| g2.com | ⚠️ 301 → www (blocked) | 2026-08-31 | Owner to add `www.g2.com` |
-| apps.apple.com | ⚠️ 301 | 2026-08-31 | Follow-up hop untested |
-| www.trustpilot.com | ❌ 000 | 2026-08-31 | Owner to add |
-| www.cboe.com | ❌ 000 | 2026-08-31 | Owner to add |
-| infomemo.theocc.com | ❌ 000 | 2026-08-31 | Owner to add |
-| theocc.com | ❌ 403 (their WAF) | 2026-08-31 | Likely blocks datacenter traffic regardless — use WebSearch for OCC facts |
-| www.optionstrat.com | ❌ EGRESS_BLOCKED | 2026-08-30 | Apex works; www not listed |
-| en.wikipedia.org | ❌ EGRESS_BLOCKED | 2026-08-30 | Use WebSearch |
-| www.tradersync.com, optionalpha.com, tastylive.com, unusualwhales.com, marketchameleon.com | untested since allowlist change | — | Re-test on first use, record here |
+
 
 Channels that are not the proxy:
 
