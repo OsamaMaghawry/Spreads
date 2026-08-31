@@ -15,7 +15,7 @@
     "context:check": "node scripts/product-context.mjs --check",
     "site:health": "node scripts/site-health.mjs",
     "content:check": "node scripts/content-check.mjs",
-    "test": "node --test src/lib/*.test.js worker/index.test.js && node --experimental-strip-types --no-warnings --test supabase/functions/_shared/tradeReconstruction.test.ts supabase/functions/_shared/writeGuards.test.ts supabase/functions/_shared/optionScan.test.ts supabase/functions/_shared/marketPrice.test.ts"
+    "test": "node --test src/lib/*.test.js worker/index.test.js && node --experimental-strip-types --no-warnings --test supabase/functions/_shared/tradeReconstruction.test.ts supabase/functions/_shared/writeGuards.test.ts supabase/functions/_shared/optionScan.test.ts supabase/functions/_shared/marketPrice.test.ts supabase/functions/_shared/paging.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

@@ -1,4 +1,5 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { selectAll, listAllUsers } from "../_shared/paging.ts";
 import { requireAdmin, isOwnerEmail } from "../_shared/admin.ts";
 import { readSettings, writeSetting, WRITABLE_SETTINGS } from "../_shared/settings.ts";
 
@@ -18,34 +19,6 @@ import { readSettings, writeSetting, WRITABLE_SETTINGS } from "../_shared/settin
 // tables runs as its owner and would bypass RLS for anyone able to select it,
 // so it would need its own grants to stay safe. Not worth the extra surface at
 // this size; revisit if the user count reaches the thousands.
-// PostgREST caps an unbounded select at 1000 rows and says nothing about it, so
-// the panel's trade counts and realized P/L quietly stopped growing past the
-// thousandth trade_records row. Paging is not an optimisation here; without it
-// the figures are wrong the moment the product succeeds.
-const PAGE = 1000;
-
-async function selectAll(admin: any, table: string, columns: string) {
-  const rows: any[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await admin.from(table).range(from, from + PAGE - 1).select(columns);
-    if (error) throw new Error(`${table}: ${error.message}`);
-    rows.push(...(data || []));
-    if (!data || data.length < PAGE) return rows;
-  }
-}
-
-// listUsers pages too, and defaults to far fewer than a thousand.
-async function listAllUsers(admin: any) {
-  const users: any[] = [];
-  for (let page = 1; ; page++) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: PAGE });
-    if (error) throw new Error(error.message);
-    const batch = data?.users || [];
-    users.push(...batch);
-    if (batch.length < PAGE) return users;
-  }
-}
-
 async function loadUsers(admin: any) {
   const [authUserList, accounts, trades, profiles] = await Promise.all([
     listAllUsers(admin),
