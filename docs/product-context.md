@@ -71,6 +71,7 @@ so a change to shared code requires redeploying all of them.
 - **migrateCredentials** — Encrypts credentials that are still stored in plaintext, across every user's accounts, without involving those users.
 - **oauthDiag** — Answers one question: does Alpaca recognise this app's OAuth credentials? The authorize page cannot answer it.
 - **openPosition** — How far the stock may have moved since the setup was built before the order is refused.
+- **positionWatch** — The money-safety watch.
 - **refreshEarnings** — Refreshes the cached earnings calendar for the next 90 days from the provider.
 - **saveAccount** — Creating and editing a trading account.
 - **scanEntries** — (no summary comment)
@@ -97,6 +98,8 @@ revoked from the browser role entirely.
 - **stock_lots** — id, user_id, account_id, lot_key, chain_id, ticker, qty, acquired_date, acquired_price, acquired_source, disposed_date, disposed_price, disposed_source, realized_pl, created_at, backed_up_at, disposed_chain_id
 - **app_settings** — key, value, updated_at, updated_by
 - **history_snapshots** — id, user_id, account_id, taken_at, reason, deleted_trades, updated_trades_before, deleted_lots, trades_sync_attempted_at, updated_lots_before
+- **alerts** — id, user_id, account_id, rule, severity, symbol, title, detail, dedupe_key, first_seen_at, last_seen_at, emailed_at, resolved_at, created_at
+- **watch_settings** — id, recipient_email, strike_proximity_pct, position_max_pct, earnings_within_days, enabled, updated_at
 
 ## Analytics vocabulary
 
@@ -123,113 +126,69 @@ Deliberately not built yet — see `docs/deferred-work.md`.
 
 # Brand and identity
 
-**This file is the source of truth for how DeltaMint looks and sounds.** Change
-it here and ask for it to be applied — the app (`src/index.css`), the marketing
-site (`landing/public/assets/site.css`) and anything written for either should
-follow this file, not the other way round.
+Owned by `head-of-branding`, accepted by `vp-product`. This is the baseline as
+the product actually is on 31 Aug 2026, recorded so the audit measures drift
+against something. Rules marked **(proposed)** await the owner; everything
+else is observed current practice.
 
-### Name
+### The name
 
-DeltaMint. One word, capital D and M in prose. The wordmark renders lowercase as
-`delta` + `mint`, with `mint` in the mint green.
+- Prose and titles: **DeltaMint** — one word, camel-case.
+- The logotype: **deltamint**, lowercase, with **mint** in the green
+  (`#3FA672`) and **delta** in the text colour, beside the twin-peak mark.
+- Never: "Delta Mint", "Deltamint", "DELTAMINT".
 
-Never "Spread Deck", "OptiFlow" or "Optiflow Trading" — earlier names that still
-surface occasionally in older code and exports.
+### Palette (from `tailwind.config.js`, the `dm` scale)
 
-### Colour
-
-The app carries the full palette; the marketing site uses a subset. Both define
-a dark theme, and every value below is the light-theme value.
-
-| Token | Value | Used for |
+| Token | Hex | Use |
 | --- | --- | --- |
-| Accent | `#534AB7` | Primary actions, links, brand mark outline |
-| Accent dim | `#7F77DD` | Hover and secondary accent |
-| Accent bright | `#3C3489` | Pressed and high-emphasis accent |
-| Mint | `#3FA672` | The `mint` in the wordmark, profit zones |
-| Positive | `#0F6E56` | Gains, filled orders, safe states |
-| Negative | `#993C1D` | Losses, max-loss wings, destructive actions |
-| Ink | `#201B3A` | Primary text |
-| Muted | `#6A6294` | Secondary text and labels |
-| Ground | `#F6F5FB` | Page background |
-| Panel | `#FFFFFF` | Cards and surfaces |
-| Line | `#E1DEF2` | Borders and dividers |
+| accent | `#534AB7` | Primary actions, links, focus |
+| accent-dim / accent-bright | `#7F77DD` / `#3C3489` | Hover and emphasis states |
+| mint | `#3FA672` | The brand green — the "mint" in the logotype |
+| bg / panel | `#F6F5FB` / `#FFFFFF` | Ground and cards |
+| line | `#E1DEF2` | Borders |
+| text / sub | `#201B3A` / `#6A6294` | Body and secondary |
+| positive | `#0F6E56` | Gains — and nothing else |
+| negative | `#993C1D` | Losses and risk — and nothing else |
 
-Green means profit or safety, red-brown means loss or risk, violet means the
-product itself. Never use the profit and loss colours decoratively — in a
-trading interface they carry meaning.
-
-### Typography
-
-| Role | Face | Why |
-| --- | --- | --- |
-| Headings | Bricolage Grotesque, 600–700 | Carries personality without being a default |
-| Body | IBM Plex Sans, 400–600 | Reads well at length |
-| Figures | IBM Plex Mono | Columns of numbers must line up; `tabular-nums` throughout |
-
-Mono is for data, not for atmosphere. Setting the whole interface in monospace —
-as this product originally did — reads as a developer tool rather than a
-trading one.
+**(proposed)** Red/negative and green/positive are semantic, never
+decorative: a green chip means "in your favour", so green may not be used for
+ornament on any money surface. The app additionally uses Tailwind emerald/rose
+for P/L and amber/sky/violet for notices — the audit should decide whether
+those collapse into the `dm` scale or get recorded here as sanctioned.
 
 ### Voice
 
-Write the way a competent colleague explains something, not the way a brochure
-sells it.
+The register is fixed by `growth/playbook.md` and binding: *a trader
+explaining something to another trader* — concrete numbers, admitted
+uncertainty, no adjectives doing the work of evidence, no exclamation marks,
+no emoji in headings. Compliance vocabulary (use/avoid lists) is the floor;
+this book adds consistency on top.
 
-- **Plain over technical.** "We show you the condor", not "structural
-  aggregation of multi-leg positions".
-- **Specific over impressive.** Name the real thing. Avoid "powerful",
-  "seamless", "cutting-edge", "revolutionise".
-- **Short.** A homepage feature is a heading and one sentence. Parameters,
-  intervals and thresholds belong in documentation.
-- **Never promise outcomes.** No performance claims, no implied edge.
-- **Every figure must be checkable.** A number on a marketing page is either
-  rendered by the product itself or arithmetic the reader can do from what is on
-  screen. Never a calculation performed offstage and presented as a product
-  fact — that is how "1,800 structures" reached the homepage.
-- **Never talk the product down.** Being accurate about competitors is an
-  internal discipline, kept in `positioning.md`. It must not leak into public
-  copy as hedging or self-deprecation. A visitor has not heard of our
-  competitors; a homepage that opens by minimising a real capability is not
-  honest, only weak. State plainly what the product does, and show it.
+House habits worth keeping, observed across the app: notices explain *why*
+("unrealized is not a result"), errors state what happened and what was not
+changed, and figures that cannot be trusted render as **—**, never as a
+substitute number.
 
-### What the product is, in one line
+### Feature names — one name each
 
-**Options income you get to keep.** The income is in the repetition — meaningful
-premium selling means running many positions — and so is the risk. DeltaMint
-finds the setups, groups every position back into the structure that was
-actually traded, and keeps what each one risks in plain sight.
+| Canonical | Not |
+| --- | --- |
+| Positions Monitor | dashboard, monitor page |
+| Screener | scanner, finder |
+| Trade History | journal, log |
+| Analysis | analytics, stats, performance page |
+| Accounts / Connect Alpaca | link, sync accounts |
+| Audit against broker feed | rebuild, preview (admin-only surface) |
 
-Neither half stands alone, and copy that leans entirely on one is wrong:
+**(proposed)** "Scanner" appears in some copy where "Screener" is meant; the
+first audit should sweep it.
 
-- **Income without risk control is a pitch.** It promises returns, which the
-  compliance rules forbid and experienced traders discount anyway.
-- **Risk control without income is a warning label.** Nobody buys a tool whose
-  whole message is what might go wrong; it reads as having nothing to offer.
+### Surfaces the audit walks
 
-The four capabilities are one argument, not a feature list: you must run many
-positions to earn (**screener**), which makes them impossible to hold in your
-head (**grouping**), which is how one of them quietly becomes too large
-(**risk warnings**), and the whole point is what you actually kept
-(**statistics**). Return on risk is the hinge — it is simultaneously the return
-metric and the risk metric.
-
-### Language that is not optional
-
-Alpaca's OAuth due diligence questionnaire governs public wording. These are
-compliance constraints, not style preferences — see `compliance.md`.
-
-- Marketing pages use neutral brokerage language: "your brokerage account", not
-  the broker's name. The broker may be named where an integration is genuinely
-  being described, and in the legal pages where accuracy requires it.
-- Never state or imply that DeltaMint is a broker-dealer, holds funds or
-  securities, opens or maintains accounts, or provides brokerage services.
-- Never give investment advice or recommendations. The screener lists what
-  matches the user's own filters; it does not suggest trades. Any mention of a
-  specific security or strategy must be worded so the reader draws their own
-  conclusion.
-- The authorization disclosure shown before connecting a brokerage account is
-  mandated wording and must be reproduced verbatim.
+The app (`src/`), landing (`landing/`), blog (`content/blog/`), auth emails
+(`supabase/auth/`), the exported PDF (`ExportPdfButton.jsx`), and the live
+pages at `deltamint.app` and `dashboard.deltamint.app`.
 
 ---
 

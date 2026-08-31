@@ -276,6 +276,20 @@ page, confirm records were written. A green deploy is not verification.
 No exceptions for "small", "urgent", "already reviewed" or "the fix for the last
 deploy". That release was all four.
 
+## The organisation
+
+`docs/context/org.md` is the chart: sixteen agents, four departments, one
+release gate, and the owner. Three rules from it bind every agent:
+
+1. **Agents report to their head; heads report to the owner.** A question goes
+   up one level, not to the owner's screen. Heads bring decisions to the Friday
+   board pack unless waiting a week costs real money or users.
+2. **WIP caps are binding.** Five open product proposals; three proposals per
+   teardown; one growth play per week; one blocking list per release. A cap
+   ignored is a brief to fix, not a judgement call.
+3. **The owner approves production, spend, pricing, and anything a stranger
+   will see.** No agent, head included, holds that authority.
+
 ## Nothing touches production without approval
 
 **Ask the owner first, every time, before any action that reaches production.**
