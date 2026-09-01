@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, Search, BellRing, StopCircle } from "lucide-react";
@@ -11,6 +11,8 @@ import ConfirmSubmit from "@/components/common/ConfirmSubmit";
 import PreTradeRisk from "@/components/common/PreTradeRisk";
 import ScanPresets from "@/components/common/ScanPresets";
 import { SCOPE, saveLastUsed } from "@/lib/scanPresets";
+import PriceControl from "@/components/common/PriceControl";
+import { netQuote } from "@/lib/priceVerdict";
 
 const DEFAULTS = {
   tickers: "SPY, QQQ",
@@ -42,6 +44,20 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
 
   const isCondor = strategy === "iron_condor";
   const set = (patch) => setCfg((c) => ({ ...c, ...patch }));
+
+  // The credit you are asking for. The scanner's setup.credit is short.bid -
+  // long.ask -- the marketable side -- so it seeds a price that should fill,
+  // and asking for more than that is a deliberate act rather than the default.
+  const [limitCredit, setLimitCredit] = useState(null);
+  const quote = useMemo(() => netQuote(setup?.legs), [setup]);
+  // A different setup is a different price. Reseeding on the setup rather than
+  // on every render is what lets a hand-set credit survive a re-render.
+  useEffect(() => {
+    setLimitCredit(typeof setup?.credit === "number" ? Math.round(setup.credit * 100) / 100 : null);
+  }, [setup]);
+
+  const creditReady = typeof limitCredit === "number" && limitCredit > 0;
+  const sendPrice = orderType === "limit" ? limitCredit : setup?.credit;
 
   // Merged over DEFAULTS so a preset saved before a filter existed still yields
   // a complete config — same reasoning as the screener's applyPreset.
@@ -91,7 +107,7 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
         legs: setup.legs.map((l) => ({ symbol: l.symbol, ratio: l.ratio, side: l.side })),
         qty: Number(qty),
         orderType,
-        limitPrice: setup.credit,
+        limitPrice: sendPrice,
         // The price this setup was built on. The server re-checks it against
         // the market as it is now and refuses if they have parted company — a
         // scan result is a proposal, and it travels here unchanged however long
@@ -197,18 +213,35 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
               </div>
             </div>
 
+            {orderType === "limit" && (
+              <PriceControl
+                price={limitCredit}
+                onChange={setLimitCredit}
+                quote={quote}
+                unit={isCondor ? "condor" : "spread"}
+                qty={Number(qty) || 1}
+                side="credit"
+                id="open-limit-credit"
+              />
+            )}
+
             <p className="text-xs text-slate-500 leading-relaxed">
               {orderType === "limit"
-                ? `Limit order at the quoted net credit of $${setup.credit.toFixed(2)}, good for the day.`
+                ? "The order rests at the credit you set until it fills or you cancel it. The scan's own credit is what the market was bidding when it found this setup."
                 : "Market order executes immediately — the credit received may be lower than quoted."}
             </p>
 
             <ConfirmSubmit
-              label={`Submit — open ${qty} ${isCondor ? "condor" : "spread"}${Number(qty) > 1 ? "s" : ""} (${orderType}) on ${setup.ticker}`}
-              summary={`${orderType === "limit" ? "Limit" : "Market"} order · open ${qty} ${setup.ticker} ${isCondor ? "condor" : "spread"}${Number(qty) > 1 ? "s" : ""} for $${setup.credit.toFixed(2)} credit each on ${account.name}.`}
+              label={
+                orderType === "limit" && !creditReady
+                  ? "Set a credit first"
+                  : `Submit — open ${qty} ${isCondor ? "condor" : "spread"}${Number(qty) > 1 ? "s" : ""} (${orderType}) on ${setup.ticker}`
+              }
+              summary={`${orderType === "limit" ? "Limit" : "Market"} order · open ${qty} ${setup.ticker} ${isCondor ? "condor" : "spread"}${Number(qty) > 1 ? "s" : ""} for $${(sendPrice ?? 0).toFixed(2)} credit each on ${account.name}.`}
               warnings={<PreTradeRisk setup={setup} accountId={account.id} qty={qty} />}
               onConfirm={submit}
               submitting={submitting}
+              disabled={orderType === "limit" && !creditReady}
             />
           </>
         )}

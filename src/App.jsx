@@ -4,6 +4,7 @@ import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import { MarketStreamProvider } from '@/lib/MarketStreamProvider';
 import ScrollToTop from './components/ScrollToTop';
 // Add page imports here
 import Login from './pages/Login';
@@ -64,10 +65,15 @@ function App() {
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
-        <Router>
-          <ScrollToTop />
-          <AuthenticatedApp />
-        </Router>
+        {/* Above the router so the dashboard and an open close-ticket share one
+            market-data connection per account. Alpaca caps them; a socket per
+            component means the second one is refused. */}
+        <MarketStreamProvider>
+          <Router>
+            <ScrollToTop />
+            <AuthenticatedApp />
+          </Router>
+        </MarketStreamProvider>
         <Toaster />
       </QueryClientProvider>
     </AuthProvider>

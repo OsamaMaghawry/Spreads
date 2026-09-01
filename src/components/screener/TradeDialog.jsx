@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import SetupPreview from "@/components/open/SetupPreview";
 import ConfirmSubmit from "@/components/common/ConfirmSubmit";
 import PreTradeRisk from "@/components/common/PreTradeRisk";
+import PriceControl from "@/components/common/PriceControl";
+import { netQuote } from "@/lib/priceVerdict";
 
 const label = "text-xs text-slate-500 block mb-1.5";
 const input = "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500";
@@ -19,6 +21,17 @@ export default function TradeDialog({ setup, accounts, onClose }) {
   const account = accounts.find((a) => a.id === accountId);
   const unit = setup.strategy === "iron_condor" ? "condor" : "spread";
 
+  // Same control as the close ticket, with the sign the other way round: here
+  // the number is a credit you are asking for, so a LOWER one crosses.
+  const [limitCredit, setLimitCredit] = useState(null);
+  const quote = useMemo(() => netQuote(setup?.legs), [setup]);
+  useEffect(() => {
+    setLimitCredit(typeof setup?.credit === "number" ? Math.round(setup.credit * 100) / 100 : null);
+  }, [setup]);
+
+  const creditReady = typeof limitCredit === "number" && limitCredit > 0;
+  const sendPrice = orderType === "limit" ? limitCredit : setup?.credit;
+
   const submit = async () => {
     setSubmitting(true);
     setError(null);
@@ -28,7 +41,12 @@ export default function TradeDialog({ setup, accounts, onClose }) {
         legs: setup.legs.map((l) => ({ symbol: l.symbol, ratio: l.ratio, side: l.side })),
         qty: Number(qty),
         orderType,
-        limitPrice: setup.credit
+        limitPrice: sendPrice,
+        // The spot this scan result was built on. Screener results sit on screen
+        // far longer than the open dialog's do, and now that the credit can be
+        // set by hand the server's drift check is the only thing standing
+        // between a stale row and an order priced against a market that moved.
+        expectedSpot: setup.spot
       });
       if (res.data?.error) setError(res.data.error);
       else setResult(res.data);
@@ -79,15 +97,31 @@ export default function TradeDialog({ setup, accounts, onClose }) {
               </div>
             </div>
 
+            {orderType === "limit" && (
+              <PriceControl
+                price={limitCredit}
+                onChange={setLimitCredit}
+                quote={quote}
+                unit={unit}
+                qty={Number(qty) || 1}
+                side="credit"
+                id="screener-limit-credit"
+              />
+            )}
+
             {error && <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">{error}</div>}
 
             <ConfirmSubmit
-              label={`Submit — open ${qty} ${unit}${Number(qty) > 1 ? "s" : ""} (${orderType}) on ${account?.name || "…"}`}
-              summary={`${orderType === "limit" ? "Limit" : "Market"} order · open ${qty} ${setup.ticker} ${unit}${Number(qty) > 1 ? "s" : ""} for $${setup.credit.toFixed(2)} credit each on ${account?.name || ""}.`}
+              label={
+                orderType === "limit" && !creditReady
+                  ? "Set a credit first"
+                  : `Submit — open ${qty} ${unit}${Number(qty) > 1 ? "s" : ""} (${orderType}) on ${account?.name || "…"}`
+              }
+              summary={`${orderType === "limit" ? "Limit" : "Market"} order · open ${qty} ${setup.ticker} ${unit}${Number(qty) > 1 ? "s" : ""} for $${(sendPrice ?? 0).toFixed(2)} credit each on ${account?.name || ""}.`}
               warnings={<PreTradeRisk setup={setup} accountId={accountId} qty={qty} />}
               onConfirm={submit}
               submitting={submitting}
-              disabled={!accountId}
+              disabled={!accountId || (orderType === "limit" && !creditReady)}
             />
           </>
         )}

@@ -1,34 +1,27 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { invokeFunction } from "@/lib/functions";
 import { RefreshCw, KeyRound } from "lucide-react";
 import MasterSummary from "@/components/dashboard/MasterSummary";
 import AccountSummaryCard from "@/components/dashboard/AccountSummaryCard";
+import useLiveSync from "@/lib/useLiveSync";
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(true);
 
   const load = useCallback(async () => {
-    setRefreshing(true);
     try {
       const res = await invokeFunction("syncAccounts", {});
       setData(res.data);
     } finally {
-      setRefreshing(false);
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
-
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const id = setInterval(load, 60000);
-    return () => clearInterval(id);
-  }, [autoRefresh, load]);
+  // Refreshes continuously in the background rather than on an advertised
+  // sixty-second timer. See lib/useLiveSync.js.
+  const { refreshing, refresh } = useLiveSync(load);
 
   if (loading) {
     return (
@@ -51,12 +44,8 @@ export default function Dashboard() {
           )}
         </div>
         <div className="ml-auto flex items-center gap-3">
-          <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer select-none">
-            <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} className="accent-emerald-500" />
-            Auto-refresh (60s)
-          </label>
           <button
-            onClick={load}
+            onClick={refresh}
             disabled={refreshing}
             className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm hover:bg-emerald-100 transition-colors disabled:opacity-50"
           >

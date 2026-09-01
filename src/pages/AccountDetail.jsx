@@ -1,40 +1,33 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
 import { invokeFunction } from "@/lib/functions";
 import { RefreshCw, ArrowLeft, History, BarChart3, Plus } from "lucide-react";
 import AccountSection from "@/components/dashboard/AccountSection";
 import CloseDialog from "@/components/close/CloseDialog";
 import OpenPositionDialog from "@/components/open/OpenPositionDialog";
+import useLiveSync from "@/lib/useLiveSync";
 
 export default function AccountDetail() {
   const { id } = useParams();
   const [account, setAccount] = useState(null);
   const [syncedAt, setSyncedAt] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(true);
   const [closing, setClosing] = useState(null);
   const [opening, setOpening] = useState(false);
 
   const load = useCallback(async () => {
-    setRefreshing(true);
     try {
       const res = await invokeFunction("syncAccounts", {});
       setAccount((res.data?.accounts || []).find((a) => a.id === id) || null);
       setSyncedAt(res.data?.syncedAt || null);
     } finally {
-      setRefreshing(false);
       setLoading(false);
     }
   }, [id]);
 
-  useEffect(() => { load(); }, [load]);
-
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const t = setInterval(load, 60000);
-    return () => clearInterval(t);
-  }, [autoRefresh, load]);
+  // Refreshes continuously in the background rather than on an advertised
+  // sixty-second timer. See lib/useLiveSync.js.
+  const { refreshing, refresh } = useLiveSync(load);
 
   if (loading) {
     return (
@@ -80,12 +73,8 @@ export default function AccountDetail() {
           >
             <History className="w-4 h-4" /> Trade history
           </Link>
-          <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer select-none">
-            <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} className="accent-emerald-500" />
-            Auto-refresh (60s)
-          </label>
           <button
-            onClick={load}
+            onClick={refresh}
             disabled={refreshing}
             className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm hover:bg-emerald-100 transition-colors disabled:opacity-50"
           >
