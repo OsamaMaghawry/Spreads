@@ -4,7 +4,9 @@ Where DeltaMint sits, and why. Written from public evidence rather than
 ambition — the uncomfortable findings are kept deliberately.
 
 Competitor prices, integrations and feature sets below were checked against
-public sources in August 2026. They age; re-check before planning against them.
+public sources in August 2026, with Tiblio, Puthouse, QuantWheel, Unusual
+Whales and Barchart's screener count re-checked September 2026. They age;
+re-check before planning against them.
 The `market-watch` agent (`.claude/agents/market-watch.md`) exists to do exactly
 that on a schedule and propose edits here — this file is its output, and nobody
 should be planning against a figure it has not re-verified.
@@ -64,9 +66,14 @@ connected broker, and tracks open and closed positions with profit and loss and
 per-strategy win rates. That is screen → order → hold → measure, on our broker,
 already shipping and cheaper than most of the analytics layer.
 
-Its documented limit is the opening: credit and debit spreads must be logged
-**leg by leg**, with alerts configured per component. The tool that will fire the
-spread order for you cannot hold the spread as one object once it fills.
+Its documented limit *was* the opening: its P/L-alerts docs still describe
+credit and debit spreads logged **leg by leg**, with alerts configured per
+component — but its v2 rebuild (launched 1 Apr 2026) says the trade journal
+now "supports stocks, single options, multi-leg spreads, and crypto."
+**Unresolved as of September 2026** — `tiblio.com` is unreachable from this
+environment (see `reachable.md`), so this could not be read directly. Do not
+market the "cannot hold the spread as one object" claim until someone opens
+`tiblio.com/docs/trade-journal/` in a browser.
 
 **But its broker link is a bot, not a button.** Tiblio sends orders to the
 connected broker "every 10 minutes, on your rules" — unattended automation on a
@@ -74,19 +81,26 @@ timer. No screener documented here puts an order control on a ranked row for a
 person to look at and press. That distinction is checkable and it is where the
 "ease" claim actually lives.
 
-**Puthouse** is a second Alpaca-connected options tool, already through Alpaca's
-OAuth compliance review. Two approved competitors on this broker means the
-"first on Alpaca" framing is gone entirely — plan on the assumption that broker
-choice confers no advantage.
+**Puthouse** is a second Alpaca-connected options tool, connecting via Alpaca's
+Trading API (confirmed by Alpaca's own 27 Jul 2026 blog post); its OAuth
+compliance approval status is unknown, per the correction above. Two
+Alpaca-connected competitors either way means the "first on Alpaca" framing is
+gone entirely — plan on the assumption that broker choice confers no
+advantage.
 
-Adjacent: **QuantWheel** routes to tastytrade; **Option Alpha** runs entries,
-exits and rolls through Tradier and TradeStation, free to users who route there;
-**TradeSteward** builds bots for Schwab, tastytrade, Tradier and TradeStation.
+Adjacent: **QuantWheel** has repositioned broker-agnostic across 10+ brokers,
+**read-only by default, not an autotrader** — it sells roll management,
+journaling and automatic assignment detection (cycling cash-secured put →
+covered call), i.e. post-fill portfolio management, not rule-running
+(re-checked September 2026; was "routes to tastytrade" as of August). **Option
+Alpha** runs entries, exits and rolls through Tradier and TradeStation, free to
+users who route there; **TradeSteward** builds bots for Schwab, tastytrade,
+Tradier and TradeStation.
 
-All three, and Tiblio, are **rule runners** — the user configures conditions and
-the software fires on a schedule. DeltaMint is a place the user looks and
-decides. That is a real difference in posture, but it is a preference, not a
-moat; do not plan against it as defensibility.
+Tiblio, Option Alpha and TradeSteward are **rule runners** — the user
+configures conditions and the software fires on a schedule. DeltaMint is a
+place the user looks and decides. That is a real difference in posture, but it
+is a preference, not a moat; do not plan against it as defensibility.
 
 ## What the market rewards
 
@@ -113,7 +127,7 @@ Scored against the above, not against effort spent.
 | Price walking on limit orders | **Table stakes, and that understates it** — Schwab ships WALK LIMIT® as a native order type on thinkorswim, built for multi-leg orders with wide spreads. Not a competitor's feature to be beaten; a broker's order type to be matched |
 | Portfolio statistics | **Conditional** — commodity if it is profit and loss; differentiated only when structure-aware |
 | Constructing candidates from ranges | **Commodity output, better plumbing** — the sweep builds structures from delta and width targets rather than filtering a chain, and prices them at short bid − long ask rather than mid. Real engineering, but Market Chameleon exposes per-leg delta filters over pre-enumerated spreads, so the *customer-visible output* is the same thing: a ranked list of spreads matching delta and width criteria. Do not market this as a differentiator. The executable pricing is the only part a user would feel, and it only shows up as fills matching the screen |
-| Opportunity screening (filtering chains) | **Commodity** — and more so than assumed. Barchart alone gives away ~10 dedicated multi-leg screeners (short and long iron condor, all four verticals) with legs, max profit, max loss and probability of loss; Market Chameleon covers 18 spread types at $69–99/mo |
+| Opportunity screening (filtering chains) | **Commodity** — and more so than assumed. Barchart alone gives away 27 dedicated multi-leg screeners (6 butterfly, 6 condor, 6 horizontal, 4 vertical, 4 straddle/strangle, 1 collar — verified at source September 2026, was undercounted at "~10") with legs, max profit, max loss and probability of loss; Market Chameleon covers 18 spread types at $69–99/mo |
 | Pre-trade return on risk | **Commodity** — a competitor gives this away free |
 
 The through-line: competitors optimise the **single-trade lifecycle** — find,
@@ -133,10 +147,15 @@ links being joined, is already purchasable.
 What survives scrutiny is narrower and better: competitors are strong from
 screen to fill and weak immediately after it. The structural, portfolio-level
 view of many concurrent positions — legs paired by order provenance, statistics
-computed against peak concurrent collateral — is the claim no competitor's own
-documentation contradicts. Marketing should lead with what happens *after* the
-fill, not with the completeness of the chain, because the second claim is
-falsifiable in one search and the first is not.
+computed against peak concurrent collateral — was the claim no competitor's own
+documentation contradicted. **Contested as of September 2026:** QuantWheel and
+Unusual Whales' Portfolio Manager both now ship post-fill position tracking
+across a broker link; neither is yet confirmed to compute structure-aware
+statistics against peak concurrent collateral specifically, so the narrow claim
+may still hold, but the category is no longer empty and this needs a closer
+look before it ships in marketing again. Lead with what happens *after* the
+fill only once that comparison is redone; the completeness-of-the-chain claim
+remains falsifiable in one search.
 
 ## Honest weaknesses
 

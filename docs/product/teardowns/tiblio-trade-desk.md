@@ -7,9 +7,10 @@ proxy — not on the allowlist at all, unlike Barchart's site-side 403 (recorded
 in `docs/context/reachable.md`). Every Tiblio fact below came through
 WebSearch, cross-checked against `docs/context/positioning.md`'s existing
 claims and against `market-watch`'s same-day re-verification of that file
-(commissioned in parallel with this study — see its findings folded into
-part 2). Confidence is graded per claim; the two figures a screenshot would
-settle are named in the closing section.
+(commissioned in parallel with this study; its findings are folded into part 2
+and superseded this study's own first-pass pricing search — see T8).
+Confidence is graded per claim; the one figure a screenshot would still settle
+is named in the closing section.
 
 Tiblio is named in `positioning.md` as **the closest direct competitor** — it
 screens spreads, connects to Alpaca among five brokers, and routes orders —
@@ -44,11 +45,14 @@ capital rules with per-symbol overrides. [T5]
 minutes with a broker connected. [T6]
 
 **Trade journal.** Manual logging for stocks, single options, multi-leg
-spreads and crypto, with strategy labels, notes and partial closes. Complex
-multi-leg positions (iron condors) still have to be **logged as multiple
-individual trades** — the journal does not hold a spread as one object. [T7]
+spreads and crypto, with strategy labels, notes and partial closes. **Unresolved
+whether a spread still holds as one object**: the P/L-alerts docs describe
+per-leg alerts on separately logged legs, but the v2 changelog (1 Apr 2026)
+says the rebuilt journal "supports... multi-leg spreads" — the two pages were
+not reconcilable through WebSearch alone. [T7]
 
-**Pricing.** Two tiers: Basic and Premium. [T8]
+**Pricing.** One paid tier, reported at $34.95/mo or $349.50/yr, with a $1
+seven-day trial. [T8]
 
 ## 2. Evidence table
 
@@ -60,8 +64,8 @@ individual trades** — the journal does not hold a spread as one object. [T7]
 | T4 | Five brokers via OAuth (Schwab, Tradier, TradeStation, tastytrade, Alpaca), no stored passwords | `tiblio.com/docs/brokers/`, `tiblio.com/docs/reference/supported-brokers` via WebSearch — matches `positioning.md`'s existing (pre-this-run) claim | verified (vendor docs, via WebSearch); consistent with prior positioning.md entry |
 | T5 | Roger scans every 10 min, checks profit targets every 5 min, auto-closes winners | Vendor docs + `aichief.com`/`declom.com` reviews via WebSearch — the "every 10 minutes" figure matches `positioning.md`'s prior claim verbatim | verified for the 10-min figure (matches a claim `positioning.md` already carried); 5-min profit-check detail is **reported**, not vendor-primary |
 | T6 | P/L alerts via email/Telegram, 2-minute check interval with broker connected | Vendor docs via WebSearch | verified (vendor docs, via WebSearch) |
-| T7 | Multi-leg positions (iron condors) logged as multiple separate trades, not one spread object | `tiblio.com/docs/trade-journal/` via WebSearch — this is the exact claim `positioning.md` already carries ("logged leg by leg") | verified (vendor docs, via WebSearch); confirms the pre-existing positioning.md claim still holds post-v2 |
-| T8 | Basic $97/mo, Premium $297/mo | Third-party reviews (`aichief.com`) via WebSearch | **reported, not vendor-verified** — materially different from `positioning.md`'s prior "~$35/month" anchor; see closing section, this is the one fact this run could not settle to `verified` |
+| T7 | Whether a multi-leg spread holds as one journal object, or logs as separate legs | `tiblio.com/docs/p-l-alerts/` (per-leg alerts on separately-logged legs) vs. `tiblio.com/changelog/tiblio-v2-launch` ("journal... supports... multi-leg spreads") via WebSearch — the two pages read as contradictory and neither could be opened directly (`tiblio.com` proxy-blocked) | **could not verify** — market-watch attempted the same reconciliation and also came up short; treat "leg by leg" as unconfirmed, not disproven, until a browser opens `/docs/trade-journal/` |
+| T8 | $34.95/mo or $349.50/yr, $1 seven-day trial | `tiblio.com/pricing` via WebSearch, corroborated by `market-watch`'s independent same-day check — matches `positioning.md`'s prior "~$35/month" anchor exactly | verified (vendor pricing page, via WebSearch, cross-checked by a second independent search). **Correction:** this study's own first WebSearch pass returned a stale/wrong $97–297/mo two-tier figure from a third-party review (`aichief.com`); market-watch's vendor-page-sourced number is the one used throughout this file |
 
 ## 3. Our side, from our code
 
@@ -110,9 +114,9 @@ Vol Crush.
 | Broker breadth | 5 brokers via OAuth [T4] | Alpaca only (`compliance.md`) | A trader already on Schwab or tastytrade has to open a new brokerage relationship to use us at all; Tiblio meets them where they already are |
 | Order automation | Roger scans/orders every 10 min, closes winners on a timer, no human click required [T5] | Every order is a user click, re-validated at submit (`TradeDialog.jsx`, `openPosition`) | Tiblio's user can walk away; ours cannot set-and-forget. This is a stated posture difference, not a bug — but it means we are not a substitute for a wheel-strategy trader who wants unattended premium selling |
 | P/L alerting | Email + Telegram, 2-min checks, user-facing, self-serve [T6] | `positionWatch` is an owner-only risk watch, no per-user alert surface | A Tiblio user is told when a position hits target without opening the app; our user must open the app and look — the exact posture we've chosen, but it has a real retention cost we are naming, not building against this run (retention, not activation) |
-| Trade journal | Manual log across stocks/options/crypto, but multi-leg still logged leg-by-leg [T7] | No journal; `tradeHistory` auto-reconstructs closed trades from the broker feed | Tiblio's user does more manual data entry but can annotate; ours does zero entry but cannot add notes/labels. Neither side's gap is evidenced by a user complaint this run |
+| Trade journal | Manual log across stocks/options/crypto; whether multi-leg holds as one object is unresolved [T7] | No journal; `tradeHistory` auto-reconstructs closed trades from the broker feed | Tiblio's user does more manual data entry but can annotate; ours does zero entry but cannot add notes/labels. Neither side's gap is evidenced by a user complaint this run |
 | Screener ranking | Vol Crush: historical-vol percentile + earnings/insider/analyst signals, full S&P 500, nightly batch [T2] | RoR descending only, on-demand, three strategies (`scanCandidates`) | Different jobs: Tiblio's screener finds premium-selling candidates across the whole market; ours ranks candidates the user has already framed as a specific spread. Not a direct substitute either way |
-| Pricing | Basic $97/mo, Premium $297/mo (reported) [T8] | No published price | If T8 holds, Tiblio prices roughly 3–10× above the rest of the analytics layer (`positioning.md`'s $9–99/mo band) — priced as an income-automation tool, not a screener. Weakens any plan to anchor our price against Tiblio's; it is not selling the same job |
+| Pricing | $34.95/mo, $1 trial [T8] | No published price | Tiblio sits inside the analytics layer's normal $9–99/mo band despite being an automation tool, not above it as first assumed — it is a live, working anchor for `pricing.md`, not a weak one |
 
 ## 5. So what
 
@@ -128,24 +132,23 @@ a fourth or fifth backlog slot, is the discipline the cap exists to enforce.
 
 The one item worth flagging outside the backlog: **Tiblio is not the
 activation-funnel competitor Barchart is.** It competes on unattended premium
-income, priced (if T8 holds) well above the analytics layer. That is a
-positioning fact for `head-of-branding`/growth messaging, not a build
-decision, and is handed off rather than investigated further here.
+income at a normal analytics-layer price. That is a positioning fact for
+`head-of-branding`/growth messaging, not a build decision, and is handed off
+rather than investigated further here.
 
 ## What could not be verified, and what would settle it
 
-- **Tiblio's current price** (T8, $97/$297/mo) is third-party-reported only,
-  and materially contradicts `positioning.md`'s prior "~$35/month" anchor —
-  the single most consequential unverified fact in this study, since
-  `pricing.md` could otherwise anchor against a number that's stale by 3–10x.
-  Settled by one screenshot of `tiblio.com/pricing` →
-  `docs/product/research/tiblio-pricing.png`, or by allowlisting
-  `tiblio.com`/`www.tiblio.com` so WebFetch/Playwright can reach it directly
-  (recorded as a hole in `docs/context/reachable.md` this run).
+- **Whether a Tiblio spread still logs leg-by-leg post-v2** (T7) — the P/L
+  alerts docs and the v2 changelog read as contradictory and `tiblio.com` is
+  unreachable from this environment. Settled by one screenshot of
+  `tiblio.com/docs/trade-journal/` → `docs/product/research/tiblio-journal.png`,
+  or by allowlisting `tiblio.com`/`www.tiblio.com`. Already flagged in
+  `positioning.md` as unresolved; do not market DeltaMint's "holds the spread
+  as one object" claim against Tiblio specifically until this is settled.
 - **Whether Roger can trade credit spreads at all**, vs. single-leg
   premium-selling only — T5's sourcing describes single-leg wheel/covered-call
   automation; nothing found confirms or denies multi-leg automated entries.
-  Settled by the same pricing-page screenshot or a Tiblio demo video review.
+  Settled by the same journal-page screenshot or a Tiblio demo video review.
 - **Puthouse's Alpaca approval status** — `positioning.md` already flags this
-  as corrected-to-unknown; `market-watch`'s parallel run this week owns any
-  further check, not duplicated here.
+  as corrected-to-unknown; confirmed again this week by `market-watch`, no
+  change.
