@@ -1,5 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
-import { invokeFunction } from "@/lib/functions";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, Search, BellRing, StopCircle } from "lucide-react";
 import StrategyPicker from "./StrategyPicker";
@@ -11,8 +10,9 @@ import ConfirmSubmit from "@/components/common/ConfirmSubmit";
 import PreTradeRisk from "@/components/common/PreTradeRisk";
 import ScanPresets from "@/components/common/ScanPresets";
 import { SCOPE, saveLastUsed } from "@/lib/scanPresets";
-import PriceControl from "@/components/common/PriceControl";
-import { netQuote } from "@/lib/priceVerdict";
+import OpenPricing, { openingDefaults } from "./OpenPricing";
+import useOpenOrder from "./useOpenOrder";
+import OrderLog from "@/components/close/OrderLog";
 
 const DEFAULTS = {
   tickers: "SPY, QQQ",
@@ -34,30 +34,32 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
   const [strategy, setStrategy] = useState("iron_condor");
   const [cfg, setCfg] = useState(DEFAULTS);
   const [qty, setQty] = useState(1);
-  const [orderType, setOrderType] = useState("limit");
 
   const { running, attempts, nextIn, candidates, skipped, error: scanError, start, stop, setCandidates } = useScanLoop();
   const [setup, setSetup] = useState(null);
   const [error, setError] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState(null);
 
   const isCondor = strategy === "iron_condor";
   const set = (patch) => setCfg((c) => ({ ...c, ...patch }));
 
-  // The credit you are asking for. The scanner's setup.credit is short.bid -
-  // long.ask -- the marketable side -- so it seeds a price that should fill,
-  // and asking for more than that is a deliberate act rather than the default.
+  // Walk is the default here for the same reason it is on the close ticket: it
+  // fills more often than a price left to rest. See OpenPricing for why the
+  // start and floor default where they do.
+  const [priceMode, setPriceMode] = useState("walk");
   const [limitCredit, setLimitCredit] = useState(null);
-  const quote = useMemo(() => netQuote(setup?.legs), [setup]);
+  const [minCredit, setMinCredit] = useState(null);
+  const { phase, log, run, stop: stopOrder, reset } = useOpenOrder();
+
   // A different setup is a different price. Reseeding on the setup rather than
   // on every render is what lets a hand-set credit survive a re-render.
   useEffect(() => {
-    setLimitCredit(typeof setup?.credit === "number" ? Math.round(setup.credit * 100) / 100 : null);
+    const d = openingDefaults(setup);
+    setLimitCredit(d.start);
+    setMinCredit(d.floor);
   }, [setup]);
 
+  const orderType = priceMode === "market" ? "market" : "limit";
   const creditReady = typeof limitCredit === "number" && limitCredit > 0;
-  const sendPrice = orderType === "limit" ? limitCredit : setup?.credit;
 
   // Merged over DEFAULTS so a preset saved before a filter existed still yields
   // a complete config — same reasoning as the screener's applyPreset.
@@ -66,13 +68,11 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
     setCfg({ ...DEFAULTS, ...savedConfig });
     setCandidates(null);
     setSetup(null);
-    setResult(null);
   };
 
   const scan = () => {
     setError(null);
     setSetup(null);
-    setResult(null);
     // Never let recording the parameters block the scan.
     saveLastUsed(SCOPE.OPEN, strategy, cfg).catch(() => {});
     start(
@@ -98,46 +98,51 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
     );
   };
 
-  const submit = async () => {
-    setSubmitting(true);
-    setError(null);
-    try {
-      const res = await invokeFunction("openPosition", {
-        accountId: account.id,
-        legs: setup.legs.map((l) => ({ symbol: l.symbol, ratio: l.ratio, side: l.side })),
-        qty: Number(qty),
-        orderType,
-        limitPrice: sendPrice,
-        // The price this setup was built on. The server re-checks it against
-        // the market as it is now and refuses if they have parted company — a
-        // scan result is a proposal, and it travels here unchanged however long
-        // the dialog has been open.
-        expectedSpot: setup.spot
-      });
-      if (res.data?.error) setError(res.data.error);
-      else setResult(res.data);
-    } catch (e) {
-      setError(e.response?.data?.error || e.message);
-    } finally {
-      setSubmitting(false);
-    }
+  const submit = () =>
+    run({
+      accountId: account.id,
+      setup,
+      qty: Number(qty),
+      orderType,
+      startCredit: limitCredit,
+      minCredit,
+      priceMode
+    });
+
+  // A working order must not be abandoned by a stray click outside the dialog:
+  // dismissing while it walks would leave it running at the broker with nothing
+  // watching it.
+  const handleDismiss = () => {
+    if (phase === "working") return;
+    const done = phase === "filled";
+    reset();
+    if (done) onDone(); else onClose();
   };
+
+  const summary =
+    priceMode === "market"
+      ? `Market order · open ${qty} ${setup?.ticker} ${isCondor ? "condor" : "spread"}${Number(qty) > 1 ? "s" : ""} on ${account.name}.`
+      : priceMode === "walk"
+        ? `Limit order starting at $${(limitCredit ?? 0).toFixed(2)} credit, conceding toward the bid but never below $${(minCredit ?? 0).toFixed(2)} · open ${qty} ${setup?.ticker} ${isCondor ? "condor" : "spread"}${Number(qty) > 1 ? "s" : ""} on ${account.name}.`
+        : `Limit order resting at $${(limitCredit ?? 0).toFixed(2)} credit — not walked · open ${qty} ${setup?.ticker} ${isCondor ? "condor" : "spread"}${Number(qty) > 1 ? "s" : ""} on ${account.name}.`;
 
   const label = "text-xs text-slate-500 block mb-1.5";
   const input = "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500";
 
   return (
-    <Dialog open onOpenChange={(o) => !o && (result ? onDone() : onClose())}>
+    <Dialog open onOpenChange={(o) => !o && handleDismiss()}>
       <DialogContent className="bg-white border-slate-200 text-slate-700 sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-slate-900">Open a position — {account.name}</DialogTitle>
         </DialogHeader>
 
+        {phase === "idle" && (
+          <>
         <ScanPresets scope={SCOPE.OPEN} strategy={strategy} config={cfg} onApply={applyPreset} />
 
         <StrategyPicker
           value={strategy}
-          onChange={(v) => { setStrategy(v); setCandidates(null); setSetup(null); setResult(null); }}
+          onChange={(v) => { setStrategy(v); setCandidates(null); setSetup(null); reset(); }}
         />
 
         <ScanFilters cfg={cfg} set={set} isCondor={isCondor} />
@@ -169,91 +174,87 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
           </button>
         )}
 
-        {candidates?.length > 0 && !result && (
+        {candidates?.length > 0 && phase === "idle" && (
           <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5 text-sm text-emerald-700 font-medium">
             <BellRing className="w-4 h-4" /> {candidates.length} setups found — scan stopped.
           </div>
         )}
 
-        {(error || scanError) && (
+          </>
+        )}
+
+        {(error || scanError) && phase === "idle" && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">{error || scanError}</div>
         )}
 
-        {skipped.length > 0 && !result && (
+        {skipped.length > 0 && phase === "idle" && (
           <div className="text-[11px] text-slate-500 leading-relaxed">
             Skipped: {skipped.map((s) => `${s.ticker} (${s.reason})`).join(" · ")}
           </div>
         )}
 
-        {candidates?.length > 0 && !result && (
+        {candidates?.length > 0 && phase === "idle" && (
           <CandidateList candidates={candidates} selected={setup ? legKey(setup) : null} onSelect={setSetup} />
         )}
 
-        {setup && !result && (
+        {setup && phase === "idle" && (
           <>
             <SetupPreview setup={setup} qty={Number(qty) || 1} />
 
             <PreTradeRisk setup={setup} accountId={account.id} qty={qty} />
 
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <label className={label}>Quantity</label>
-                <input type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} className={input} />
-              </div>
-              <div className="flex-1">
-                <label className={label}>Order type</label>
-                <div className="flex rounded-lg overflow-hidden border border-slate-300">
-                  {["limit", "market"].map((t) => (
-                    <button key={t} onClick={() => setOrderType(t)}
-                      className={`flex-1 py-2 text-sm capitalize transition-colors ${orderType === t ? "bg-emerald-100 text-emerald-700 font-medium" : "bg-white text-slate-500 hover:text-slate-900"}`}>
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            <div>
+              <label className={label}>Quantity</label>
+              <input type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} className={input} />
             </div>
 
-            {orderType === "limit" && (
-              <PriceControl
-                price={limitCredit}
-                onChange={setLimitCredit}
-                quote={quote}
-                unit={isCondor ? "condor" : "spread"}
-                qty={Number(qty) || 1}
-                side="credit"
-                id="open-limit-credit"
-              />
-            )}
-
-            <p className="text-xs text-slate-500 leading-relaxed">
-              {orderType === "limit"
-                ? "The order rests at the credit you set until it fills or you cancel it. The scan's own credit is what the market was bidding when it found this setup."
-                : "Market order executes immediately — the credit received may be lower than quoted."}
-            </p>
+            <OpenPricing
+              setup={setup}
+              qty={Number(qty) || 1}
+              unit={isCondor ? "condor" : "spread"}
+              priceMode={priceMode}
+              onPriceMode={setPriceMode}
+              credit={limitCredit}
+              onCredit={setLimitCredit}
+              minCredit={minCredit}
+              onMinCredit={setMinCredit}
+            />
 
             <ConfirmSubmit
               label={
                 orderType === "limit" && !creditReady
                   ? "Set a credit first"
-                  : `Submit — open ${qty} ${isCondor ? "condor" : "spread"}${Number(qty) > 1 ? "s" : ""} (${orderType}) on ${setup.ticker}`
+                  : `Submit — open ${qty} ${isCondor ? "condor" : "spread"}${Number(qty) > 1 ? "s" : ""} (${priceMode === "market" ? "market" : priceMode === "walk" ? "walk" : "limit"}) on ${setup.ticker}`
               }
-              summary={`${orderType === "limit" ? "Limit" : "Market"} order · open ${qty} ${setup.ticker} ${isCondor ? "condor" : "spread"}${Number(qty) > 1 ? "s" : ""} for $${(sendPrice ?? 0).toFixed(2)} credit each on ${account.name}.`}
+              summary={summary}
               warnings={<PreTradeRisk setup={setup} accountId={account.id} qty={qty} />}
               onConfirm={submit}
-              submitting={submitting}
               disabled={orderType === "limit" && !creditReady}
             />
           </>
         )}
 
-        {result && (
-          <div className="space-y-3">
-            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm text-emerald-700">
-              Order submitted — status <span className="font-medium">{result.status}</span>.
-            </div>
-            <button onClick={onDone} className="w-full py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition-colors">
-              Done — refresh positions
-            </button>
+        {phase !== "idle" && (
+          <div className="space-y-4">
+            <OrderLog log={log} phase={phase} />
+            {phase === "working" ? (
+              <button onClick={stopOrder} className="w-full py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm transition-colors">
+                Stop &amp; cancel order
+              </button>
+            ) : phase === "failed" ? (
+              <div className="flex gap-3">
+                <button onClick={reset} className="flex-1 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-medium hover:bg-emerald-100 transition-colors">
+                  Try again
+                </button>
+                <button onClick={handleDismiss} className="flex-1 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition-colors">
+                  Close
+                </button>
+              </div>
+            ) : (
+              <button onClick={handleDismiss} className="w-full py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition-colors">
+                Done — refresh positions
+              </button>
+            )}
           </div>
         )}
       </DialogContent>
