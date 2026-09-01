@@ -31,9 +31,7 @@
       "Write",
       "Glob",
       "Grep",
-      "mcp__Supabase__apply_migration",
       "mcp__Supabase__execute_sql",
-      "mcp__Supabase__deploy_edge_function",
       "mcp__Supabase__list_tables",
       "mcp__Supabase__list_migrations",
       "mcp__Supabase__get_project",
@@ -68,6 +66,10 @@
       "Bash(git clean -f*)",
       "Bash(git branch -D*)",
       "AskUserQuestion"
+    ],
+    "ask": [
+      "mcp__Supabase__deploy_edge_function",
+      "mcp__Supabase__apply_migration"
     ]
   }
 }

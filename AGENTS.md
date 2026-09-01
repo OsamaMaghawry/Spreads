@@ -253,6 +253,21 @@ one to the owner directly.
 
 ## Staging first, every time
 
+This is now enforced, not trusted. `deploy-functions.yml` refuses to deploy
+unless `supabase/functions` on the commit is byte-identical to the tree
+`origin/staging` holds — production cannot run function code staging never ran.
+The check is on content rather than branch topology, so a merge commit passes
+and a bypass does not.
+
+The other way round the rule was broken was not through git at all: a function
+was deployed straight to the production project over MCP, and the repo was
+edited afterwards to match what was already live. So
+`mcp__Supabase__deploy_edge_function` and `mcp__Supabase__apply_migration` are
+now `ask` rather than `allow` in `.claude/settings.json`. An agent must get the
+owner's explicit approval before either project is touched, and a production
+deploy is never something that happens quietly on the way to something else.
+
+
 **Merge to `staging`, let it deploy, exercise the change there against real
 data, and only then merge to `main`.**
 

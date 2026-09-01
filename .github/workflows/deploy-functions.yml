@@ -31,6 +31,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # merge-base and the staging comparison below need real history.
+          fetch-depth: 0
+
+      # Staging first, enforced rather than written down.
+      #
+      # AGENTS.md has said "staging first, every time" since the 30 Aug
+      # incident, and it was still bypassed — once by a release that went
+      # branch-to-main, and again when a function was deployed straight to the
+      # production project over MCP. A paragraph cannot stop a deploy; this can.
+      #
+      # The test is on CONTENT, not on branch topology: the function tree being
+      # deployed must be byte-identical to the one staging holds. That stays
+      # correct whether main was fast-forwarded or took a merge commit, and it
+      # fails exactly when it should — when production would run code that
+      # staging never ran.
+      - name: Refuse to deploy functions staging has not run
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --quiet origin staging
+          prod_tree=$(git rev-parse "HEAD:supabase/functions")
+          staging_tree=$(git rev-parse "origin/staging:supabase/functions")
+          if [ "$prod_tree" = "$staging_tree" ]; then
+            echo "supabase/functions matches origin/staging ($prod_tree) — staging has run this code."
+            exit 0
+          fi
+          echo "::error title=Staging first::supabase/functions on this commit ($prod_tree) differs from origin/staging ($staging_tree). Merge to staging, let it deploy, exercise it there, then merge to main."
+          echo
+          echo "Differences:"
+          git diff --stat origin/staging HEAD -- supabase/functions
+          exit 1
 
       - uses: actions/setup-node@v4
         with:
