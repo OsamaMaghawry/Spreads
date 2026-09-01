@@ -47,8 +47,19 @@ need `npx wrangler deploy` by hand.
   cause and is already fixed. Confirmation needs his order ladder — that lives in
   Alpaca's order history and the Supabase edge-function logs, NOT in our tables
   (nothing recorded close attempts until migration 0021).
-- **Monday growth Routine produced no commit** — it fired ~14:04 UTC and wrote
-  nothing. Needs `list_triggers` to see the failure.
+- ~~Monday growth Routine produced no commit~~ — **resolved 1 Sep.** It fired
+  14:13:06 UTC, `last_run.status: SUCCEEDED`, and did commit:
+  `growth/plays/2026-W36.md` in `45b771e`. Nothing was wrong with it.
+
+## Reddit (1 Sep) — closed for now
+
+`www.reddit.com` / `old.reddit.com` are already allowlisted, so W36's ask was
+aimed at the wrong thing. The live blocker is Reddit's logged-out bot gate, and
+clearing it needs a Reddit API app + `oauth.reddit.com` allowlisted. The app
+could not be created (Reddit's form rejects with a Responsible Builder Policy
+pointer). **The owner has deprioritised this — do not re-raise it weekly.**
+Details and test results in `docs/context/reachable.md`. Posting the four queued
+replies is unaffected: that is a browser step, no API involved.
 
 ## Permissions note
 
