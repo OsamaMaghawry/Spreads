@@ -51,4 +51,8 @@ jobs:
         env:
           SUPABASE_URL: https://yecfbeohyakuoyczvdbj.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Not a secret -- it is shipped to every browser. Passed so the script
+          # can re-read the posts as the public sees them and fail if a row was
+          # written but is not actually visible.
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: node scripts/publish-blog.mjs

@@ -55,13 +55,20 @@ for (const file of files) {
   rows.push({
     slug: meta.slug,
     title: meta.title,
+    // Load-bearing, and not obvious: the public read policy is
+    // `status = 'published' and published_at <= now()`. A row inserted without
+    // this column is invisible to anon and the blog renders "No posts yet."
+    // with no error anywhere -- the row is in the table, so the table looks
+    // fine. Set it explicitly; never rely on the column default.
+    status: 'published',
     excerpt: meta.excerpt || null,
     body,
     author: meta.author || "DeltaMint",
     meta_description: meta.meta_description || null,
     og_image: meta.og_image || null,
     // Preserve an explicit date so republishing does not reorder the blog;
-    // otherwise the file is live as of now.
+    // otherwise the file is live as of now. A future date is a scheduled post:
+    // the same policy hides it until then, which is intended, not a bug.
     published_at: meta.published_at || new Date().toISOString()
   });
 }
@@ -88,5 +95,25 @@ if (!res.ok) {
   console.error(`publish-blog: ${res.status} ${await res.text()}`);
   process.exit(1);
 }
-for (const r of await res.json()) console.log(`live  ${r.slug}`);
+const written = await res.json();
+for (const r of written) console.log(`live  ${r.slug}  status=${r.status}`);
+
+// Verify as the public sees it rather than trusting the write. The failure
+// this guards against is a row that exists and is still invisible, which a
+// successful insert cannot distinguish from a working blog.
+const anon = process.env.SUPABASE_ANON_KEY;
+if (anon) {
+  const check = await fetch(`${url}/rest/v1/blog_posts?select=slug`, {
+    headers: { apikey: anon, Authorization: `Bearer ${anon}` }
+  });
+  const visible = check.ok ? (await check.json()).map((r) => r.slug) : [];
+  const hidden = written.map((r) => r.slug).filter((s) => !visible.includes(s));
+  if (hidden.length) {
+    console.error(`publish-blog: written but NOT publicly visible: ${hidden.join(", ")}`);
+    process.exit(1);
+  }
+  console.log(`publish-blog: ${visible.length} post(s) visible to the public`);
+} else {
+  console.log("publish-blog: SUPABASE_ANON_KEY not set; skipped the public-visibility check");
+}
 console.log(`publish-blog: ${rows.length} post(s) published`);
