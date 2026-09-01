@@ -54,6 +54,14 @@ activation effect ÷ effort; ties break toward the cheaper test.
 - **Kill criterion:** under 10% of scans over a month touch non-S&P-500
   names — expansion returns to `ideas.md` and this slot frees up.
 - **Cost guess:** hours (a query and a readout).
+- **2026-09-01:** commissioned `funnel-instrumentation` to run the test.
+  Blocked — no service-role/SQL-console access from this environment, and no
+  `adminData` action reads `scan_presets`/`scan_last_used` (only an admin can
+  see those tables in aggregate; the anon key is RLS-scoped to one user).
+  Settled by either someone with the service-role key running the query
+  directly, or a new read-only `adminData` action — the latter is a code
+  change and goes through the normal staging-first path, not a one-off query.
+  Evidence stays constructed; proposal unchanged this week.
 
 ### 3. Probability-of-profit column and sort
 
