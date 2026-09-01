@@ -66,7 +66,7 @@ so a change to shared code requires redeploying all of them.
 - **adminData** — Back-office reads and writes: users and their activity, engagement figures, blog posts, and the internal customer record.
 - **alpacaOAuthCallback** — One token, two endpoints.
 - **closeSpread** — Submits the closing order for a position: the whole structure by default, or just the legs the caller picked when only one side needs unwinding.
-- **diagnoseHistory** — Why a trade-history sync refused to write, answered without a browser.
+- **dumpBrokerFeed** — Captures a broker activity feed so a refused sync can be diagnosed off-box.
 - **findEntry** — Scans the live chain and returns the delta-targeted setup for one strategy.
 - **manageOrder** — Reads the status of a working order, or cancels it.
 - **migrateCredentials** — Encrypts credentials that are still stored in plaintext, across every user's accounts, without involving those users.
