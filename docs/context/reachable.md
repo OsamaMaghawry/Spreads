@@ -77,12 +77,17 @@ Attempted, not finished. What is established:
   buys nothing. Authenticated access is the only path to agent-side scouting.
 - **The sole remaining blocker is credentials** — a Reddit app's client id and
   secret. There is no allowlist ask left to make; do not raise one.
-- Creating a Reddit **script** app was blocked at Reddit's form: submitting
-  returns a pointer to the Responsible Builder Policy with no field-level error
-  and no acknowledgement control. Suspected causes, untested: an app name
-  containing "scraper"; the separate "register to use the API" gate; an
-  unverified account email; a broken captcha token. `support.reddithelp.com` is
-  itself egress-blocked, so the policy text could not be read from here.
-- **The owner has deprioritised this.** Do not re-raise it as a weekly ask and do
-  not build a play that depends on agent-side Reddit reads. Posting the queued
-  replies is a browser step the owner does himself and needs none of this.
+- Creating a Reddit **script** app is blocked at Reddit's own form: submitting
+  returns a pointer to the Responsible Builder Policy, with no field-level error
+  and no acknowledgement control. The owner tried it, including renaming the app
+  away from "scraper" — that made no difference. This is Reddit's access-approval
+  gate, not a form-entry mistake, and it is not something we can fix from our
+  side or predict a date for. `support.reddithelp.com` is itself egress-blocked,
+  so the policy text cannot be read from here either.
+- **Treat agent-side Reddit access as unavailable indefinitely.** It is not a
+  blocker to route around, ask about, or re-test on a cadence.
+- **Do not raise this with the owner again.** He has been through the form and it
+  does not work. No weekly ask, no status check, no "have you had a chance to".
+  Do not write a play that depends on agent-side Reddit reads. Posting the queued
+  replies is a browser step the owner does himself and needs none of this; if
+  Reddit is ever wanted as a channel beyond that, he will say so.
