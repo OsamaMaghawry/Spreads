@@ -35,6 +35,14 @@ export default [
       "unused-imports": pluginUnusedImports,
     },
     rules: {
+      // Spreading pluginJs.configs.recommended above sets `rules`, and this
+      // `rules` key then replaces it wholesale -- so every recommended rule,
+      // no-undef included, was silently switched off. That let
+      // `step` (the variable is `steps`) ship in the close-order walk, where it
+      // threw ReferenceError on the first reprice and left a position open that
+      // the user was trying to close. A typo'd identifier on the money path has
+      // to be a build failure, not a runtime surprise.
+      "no-undef": "error",
       "no-unused-vars": "off",
       "react/jsx-uses-vars": "error",
       "react/jsx-uses-react": "error",

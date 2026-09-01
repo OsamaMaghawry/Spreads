@@ -215,7 +215,7 @@ export default function useCloseOrder() {
                 qty: remaining,
                 orderType: "limit",
                 limitPrice: debit,
-                step,
+                step: steps,
                 // The market this price was chosen against, stored beside it.
                 quote: q || null
               });
