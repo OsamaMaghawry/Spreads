@@ -51,6 +51,73 @@ async function syncOne(account) {
     const openList = Array.isArray(openOrders) ? openOrders : [];
     const orderSymbols = (o: any) => (Array.isArray(o.legs) && o.legs.length ? o.legs.map((l: any) => l.symbol) : [o.symbol]);
 
+    // Orders as their own view, grouped the way they were sent.
+    //
+    // The per-spread openOrders below answers "is something holding these
+    // contracts?" and drops everything else. An orders screen needs the whole
+    // order: its legs, what filled of each, and the ones that ended today --
+    // a rejection or a half-filled close is exactly what a trader needs to see,
+    // and until now it was visible only in the dialog that placed it, until
+    // that dialog was closed.
+    //
+    // Working plus today's finished orders, not the full history: anything
+    // older belongs to Trade History, which reconstructs from the activity
+    // feed rather than the order feed.
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const endedToday = (o: any) => {
+      const at = o.filled_at || o.canceled_at || o.expired_at || o.updated_at;
+      return at ? new Date(at) >= startOfToday : false;
+    };
+    const num = (v: any) => (v === null || v === undefined || v === "" ? null : Number(v));
+
+    const orderView = (o: any) => {
+      const legs = (Array.isArray(o.legs) && o.legs.length ? o.legs : [o]).map((l: any) => ({
+        id: l.id,
+        symbol: l.symbol,
+        side: l.side,
+        // positionIntent distinguishes an opening leg from a closing one, which
+        // side alone cannot: buy_to_close and buy_to_open are both "buy".
+        intent: l.position_intent || null,
+        qty: num(l.qty),
+        filledQty: num(l.filled_qty) || 0,
+        filledAvgPrice: num(l.filled_avg_price),
+        status: l.status
+      }));
+      const totalQty = legs.reduce((a: number, l: any) => a + (l.qty || 0), 0);
+      const filledQty = legs.reduce((a: number, l: any) => a + (l.filledQty || 0), 0);
+      return {
+        id: o.id,
+        clientOrderId: o.client_order_id || null,
+        status: o.status,
+        type: o.type,
+        side: o.side,
+        timeInForce: o.time_in_force,
+        qty: num(o.qty),
+        filledQty: num(o.filled_qty) || 0,
+        limitPrice: num(o.limit_price),
+        filledAvgPrice: num(o.filled_avg_price),
+        submittedAt: o.submitted_at,
+        // Whichever terminal timestamp the order actually has; null while working.
+        endedAt: o.filled_at || o.canceled_at || o.expired_at || null,
+        // Alpaca reports a refusal here rather than as an HTTP error.
+        rejectReason: o.reject_reason || null,
+        // Underlying ticker, read off the OCC symbol so a multi-leg order is
+        // labelled even before it fills.
+        ticker: parseOCCSymbol(legs[0]?.symbol || "")?.ticker || legs[0]?.symbol || null,
+        legs,
+        // The fraction actually done, so a partial reads as a partial rather
+        // than as "working" -- the state that used to be invisible until it had
+        // already opened a position the other way.
+        progress: totalQty > 0 ? filledQty / totalQty : 0
+      };
+    };
+
+    const orders = [
+      ...openList.map(orderView),
+      ...(Array.isArray(filledOrders) ? filledOrders : []).filter(endedToday).map(orderView)
+    ].sort((a, b) => String(b.submittedAt || "").localeCompare(String(a.submittedAt || "")));
+
     // Provenance: legs opened by the same multi-leg order form one structure.
     const spreads = pairSpreads(
       Array.isArray(positions) ? positions : [],
@@ -225,6 +292,7 @@ async function syncOne(account) {
       buyingPower: info ? parseFloat(info.buying_power) : 0,
       optionsBuyingPower: info ? parseFloat(info.options_buying_power || info.buying_power) : 0,
       spreads: rows,
+      orders,
       totals,
       riskPct: equity > 0 ? totals.risk / equity : 0,
       plPct: equity > 0 ? totals.pl / equity : 0
@@ -237,7 +305,7 @@ async function syncOne(account) {
       ok: false,
       error: e.message,
       equity: 0, cash: 0, buyingPower: 0, optionsBuyingPower: 0,
-      spreads: [], totals: { ...empty }, riskPct: 0, plPct: 0
+      spreads: [], orders: [], totals: { ...empty }, riskPct: 0, plPct: 0
     };
   }
 }

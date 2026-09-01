@@ -17,3 +17,25 @@ export function isAdjustedOption(symbol) {
 
 export const isAdjustedTrade = (t) =>
   isAdjustedOption(t?.short_symbol) || isAdjustedOption(t?.long_symbol);
+
+// The readable parts of a contract symbol, for labelling a row.
+//
+// Returns null rather than a partly-filled object when the symbol is not an OCC
+// contract: a caller that falls back to showing the raw symbol is right, and one
+// that renders "undefined undefined" is not.
+//
+// Strike is eight digits in thousandths, so 00757000 is 757 and 00212500 is
+// 212.5 -- printed without trailing zeros because a half-strike matters and a
+// ".000" does not.
+export function parseOCC(symbol) {
+  const match = String(symbol || "").match(OCC);
+  if (!match) return null;
+  const [, root, yymmdd, type, strike8] = match;
+  return {
+    ticker: root,
+    expiry: `${yymmdd.slice(2, 4)}/${yymmdd.slice(4, 6)}`,
+    type,
+    strike: Number(strike8) / 1000,
+    adjusted: /\d$/.test(root)
+  };
+}
