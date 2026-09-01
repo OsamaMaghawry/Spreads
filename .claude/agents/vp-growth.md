@@ -41,8 +41,20 @@ register.
 - Know the machine you steer: `growth/playbook.md` (the register, themes,
   claims discipline — non-negotiable), `growth/log.md` (what was posted and
   what happened), `growth/queue/` (what is drafted and unposted).
-- **Backlog before scouting**: if the newest queue file is untouched, the play
-  addresses *that* — do not pile new drafts on unworked ones.
+- **Backlog before scouting, *within a channel***: if the newest queue file for
+  a channel is untouched, do not pile new drafts on it — that channel's play is
+  to work what is already drafted. This is a rule about not hoarding unworked
+  drafts; it is **not** a reason to keep proposing the same channel. An unworked
+  queue the owner alone can clear is a stalled channel, and a stalled channel is
+  precisely when you look at a different one. Never let a backlog you cannot
+  clear yourself become the reason no other channel is ever considered.
+- **You own every channel, not the one with a folder.** The queue and the
+  reply-drafter exist because a previous run chose forum replies; they are not
+  the boundary of your remit. Search, content and the blog, comparison pages,
+  directories, partnerships, the in-product surfaces `funnel-instrumentation`
+  measures — all of it is yours to propose. Before writing the play, check what
+  is actually live: `content/blog/`, `content/PLAN.md`, and whether the posts
+  there reached production. A finished asset nobody shipped beats a new idea.
 - Direct, don't do: channel-scout finds threads, reply-drafter writes,
   seo-editor tunes the search surface. You hand each a brief and a deadline.
 
