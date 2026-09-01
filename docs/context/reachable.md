@@ -12,8 +12,8 @@ The allowlist matches **exact hostnames** — an allowed apex whose site 301s to
 | Host | Status | Tested | Note |
 | --- | --- | --- | --- |
 | **Fetch + real content** | | | Allowlist open AND the site serves us |
-| www.barchart.com | ✅ 200 | 2026-08-31 | Full page — "Options Screener" title returned. Playwright-screenshottable |
-| www.optionstrat.com / optionstrat.com | ✅ 200/301 | 2026-08-31 | |
+| www.barchart.com | ✅ 200 | 2026-09-01 | Full page. Membership pricing readable without a login at `/membership-comparison` and `/get-barchart-premier`; `/solutions` is the *enterprise* page and carries no consumer prices. `/membership`, `/pricing`, `/premier`, `/subscribe`, `/my/subscribe` all 404 — don't guess the path, follow the `data-ng-href` links off any screener page. **Not** Playwright-screenshottable (see the Chromium row below) |
+| www.optionstrat.com | ⚠️ 301 → dead | 2026-09-01 | `www.` is allowlisted but OptionStrat 301s *every* path to the apex `optionstrat.com`, which is **not** allowlisted → 403 at CONNECT on the hop. Net effect: OptionStrat is unreachable. The 2026-08-31 row read "✅ 200/301" because only the redirect status was checked, not the hop. Fix is one allowlist addition: `optionstrat.com` |
 | www.marketchameleon.com | ✅ 302 | 2026-08-31 | |
 | www.tastylive.com | ✅ 200 | 2026-08-31 | |
 | www.tastytrade.com | ✅ 301 | 2026-08-31 | |
@@ -26,8 +26,13 @@ The allowlist matches **exact hostnames** — an allowed apex whose site 301s to
 | play.google.com | ✅ 302 | 2026-08-31 | App-store listings |
 | apps.apple.com | ✅ (404 on fake path; host answers) | 2026-08-31 | Use a real app URL |
 | **www.sec.gov** | ✅ 200 **with EDGAR UA** | 2026-08-31 | 403 with a normal UA; 200 when the User-Agent is `DeltaMint research osamamaghawry@gmail.com` (SEC EDGAR requires a contact UA). Not a workaround — SEC's stated access rule |
+| **Not on the allowlist — 403 at CONNECT, before the site is ever asked** | | | The gateway refuses the tunnel. Reported, not routed around. Fix is an allowlist addition |
+| tiblio.com / www.tiblio.com | ❌ 403 (policy) | 2026-09-01 | **The closest named competitor** (`docs/context/positioning.md`: screener + Alpaca OAuth + order routing + position tracking, ~$35/mo). A teardown to standard is impossible until this is allowed. Highest-value single addition for vp-product |
+| www.puthouse.com | ❌ 403 (policy) | 2026-09-01 | Second Alpaca-connected competitor named in positioning.md |
+| wingmantracker.com / www.wingmantracker.com | ❌ 403 (policy) | 2026-09-01 | The "Wingman" teardown listed as pending in `docs/product/pricing.md` |
+| optionstrat.com (apex) | ❌ 403 (policy) | 2026-09-01 | See the `www.optionstrat.com` row — the apex is where the content actually lives |
 | **Reached, but the site's own bot-wall refuses (403)** | | | Allowlist is fine; the *origin* blocks datacenter traffic. Not circumventable within the rules — use WebSearch |
-| www.tradersync.com | ❌ 403 (site) | 2026-08-31 | Browser UA does not help |
+| www.tradersync.com | ❌ 403 (site) | 2026-09-01 | Re-tested; unchanged. Browser UA does not help |
 | www.reddit.com / old.reddit.com | ❌ 403 (site) | 2026-08-31 | Reddit blocks datacenter IPs regardless of UA. Quote via WebSearch; the owner verifies in a browser. **Do not spoof around it** |
 | www.g2.com | ❌ 403 (site) | 2026-08-31 | Use WebSearch review summaries |
 | www.trustpilot.com | ❌ 403 (site) | 2026-08-31 | " |
@@ -46,8 +51,24 @@ Channels that are not the proxy:
 - **WebSearch** — always available, runs service-side; returns page substance
   (live pricing figures verified). First resort for anything blocked.
 - **Owner screenshots** — `docs/product/research/`; images are read directly.
-- **Playwright + Chromium** (`/opt/pw-browsers`) — renders and screenshots any
-  reachable host; same allowlist as everything else.
+- **Playwright + Chromium** (`/opt/pw-browsers`) — **does not currently work,
+  for any host.** Tested 2026-09-01 against `www.barchart.com` and
+  `en.wikipedia.org`, both of which `curl` fetches fine: Chromium gets
+  `ERR_CONNECTION_RESET`, and the proxy records
+  `ws_closed_mid_exchange … 1790 B sent, 39 B received` — a TLS handshake the
+  browser aborts. Cause: Chromium does not read `/root/.ccr/ca-bundle.crt`; it
+  wants the CA in an NSS store, and this image has neither `~/.pki/nssdb` nor
+  `certutil`. Launching with `proxy: { server: process.env.HTTPS_PROXY }`
+  changes nothing. Not worked around — `--ignore-certificate-errors*` is
+  weakening TLS verification, which the rules forbid.
+  **What to do instead:** `curl` the HTML (it trusts the bundle correctly) and
+  parse it — a vendor's own page fetched this way is `verified` under the
+  teardown standard, which asks for "the vendor's own docs or pricing page",
+  not specifically an image. For anything that only exists after JavaScript
+  runs, or behind a login, ask the owner for one screenshot into
+  `docs/product/research/` and name the exact screen.
+  Settled by either `certutil` + an NSS store in the image, or the ca-bundle
+  installed where Chromium reads it.
 
 ## The one rule that overrides "find a workaround"
 

@@ -1,14 +1,53 @@
 # Barchart options screener vs our scanner
 
 Study date: 2026-08-31. Author: vp-product.
+**Revised 2026-09-01** — see "Revision" below.
 
-Research route: `barchart.com` and `www.barchart.com` are both EGRESS_BLOCKED
-at the proxy (recorded in `docs/context/reachable.md`, with the workaround).
-Every Barchart fact below therefore came through WebSearch, which returns page
-substance from Barchart's own pages and from third-party reviews. Confidence
-is graded accordingly in the evidence table; the two claims only a screenshot
-would settle are named in the closing section, with exact filenames for the
-owner's drop-box.
+Research route (2026-08-31): `barchart.com` and `www.barchart.com` were both
+EGRESS_BLOCKED at the proxy, so every Barchart fact below came through
+WebSearch, which returns page substance from Barchart's own pages and from
+third-party reviews. Confidence was graded accordingly.
+
+## Revision, 2026-09-01
+
+The owner widened the allowlist after this study was written.
+`www.barchart.com` is now reachable and its membership pages are readable
+without a login, so the pricing question this teardown left open has been
+settled at the source rather than by proxy. Three changes:
+
+- **E6 price is now verified, and the tier structure with it.** Fetched
+  directly from `www.barchart.com/membership-comparison` and
+  `/get-barchart-premier`: Free **$0** (never expires); Plus **$9.99/mo**,
+  annual $99.00 (= $8.25/mo), biennial $179.00 (= $7.46/mo); Premier
+  **$29.95/mo**, annual $239.95 (= $19.95/mo), biennial $419.95 (= $17.49/mo).
+  Both paid tiers carry a **30-day free trial**. The $29.95 figure the
+  third-party reviews reported was correct. Premier-gating of options tools is
+  confirmed in Barchart's own words: a section headed *"Powerful Options Tools
+  — Premier Membership Only"* covering the spread screeners, IV rank and
+  percentile, unusual activity, options flow, time & sales, and historical
+  chains back to 2017. Plus buys **no** options tools.
+- **E7 is corrected in two places.** The comparison table's own figures say
+  saved custom screeners are **1 (Free) / 10 (Plus) / Unlimited (Premier)** —
+  not "5 free" as the education page's prose says; the two vendor pages
+  disagree and the comparison table is the one that governs an account. And
+  the screener-email cadence is stated as *"up to four times each day"*, with
+  watchlist/portfolio emails at "4:45pm CT (free) / up to 5x daily (Premier)".
+  The 12:00 / 3:00 / 4:45pm CT list stands as the published schedule; the
+  count does not.
+- **A new free-tier fact, not previously visible.** Barchart's free membership
+  is capped at **20 uninterrupted page views per day**. Their free tier is a
+  metered demo, not a feature-limited product. Recorded in `../pricing.md`,
+  where it bears directly on what "free paper forever" costs us by comparison.
+
+None of this changes a matrix verdict or a proposal. It moves the price row of
+`../pricing.md` from reported to verified, which was the reason to check.
+
+Attempted and failed: a Playwright screenshot of both pages for
+`../research/`. Chromium cannot complete TLS through the agent proxy in this
+image — cause, evidence and the workaround used instead are recorded in
+`docs/context/reachable.md`. The direct fetch is `verified` under this
+standard's own definition ("the vendor's own docs or pricing page"), so the
+grade is unaffected.
 
 ## 1. Capability inventory (Barchart)
 
@@ -74,8 +113,9 @@ requested. [E6][E7]
 | E3 | Hygiene floors: US options screened only if volume ≥ 100 and OI ≥ 500 (Canada 5 / 25) | Barchart screener education page via WebSearch | verified (vendor docs, via WebSearch) |
 | E4 | Bull-put screener default view: short delta < 0.6, long delta < 0.3, risk/reward 2–5; default sort = descending break-even probability; columns incl. max profit/loss, probability of loss, break-even & max-risk probabilities, net delta, moneyness, Max Annualized Return (formula published) | barchart.com/options/vertical-spreads/bull-put-spread page content via WebSearch | verified (vendor page, via WebSearch) |
 | E5 | Options data delayed (one vendor page: min 15 min, continuous updates; another: ~25–30 min, ~5-min update cycle); no real-time options on the free site | Barchart FAQ/help pages via WebSearch — the two numbers are the vendor's own inconsistency | verified (vendor docs, via WebSearch); exact delay ambiguous |
-| E6 | Options screeners are Premier-only; Premier reported at $29.95/mo, Plus $9.99/mo without options tools | Third-party 2026 reviews (purepowerpicks.com, bullishbears.com, comparebestai.com) via WebSearch; Premier-gating corroborated by Barchart's own education pages ("Barchart Premier subscribers can add or modify different filters") | price: reported; Premier-gating: verified |
-| E7 | CSV export up to 1,000 rows; automatic screener emails (top 10/25/50 + optional CSV) at 12:00pm/3:00pm/4:45pm CT, Premier only; free accounts capped at 5 saved screeners/watchlists/views | Barchart education pages via WebSearch | verified (vendor docs, via WebSearch) |
+| E6 | Options screeners are Premier-only. Free $0; Plus $9.99/mo ($99/yr = $8.25/mo, $179/2yr = $7.46/mo) with **no** options tools; Premier $29.95/mo ($239.95/yr = $19.95/mo, $419.95/2yr = $17.49/mo). 30-day free trial on both paid tiers | **Barchart's own pages, fetched directly 2026-09-01**: `www.barchart.com/membership-comparison` and `/get-barchart-premier`, incl. the section headed "Powerful Options Tools — Premier Membership Only" | **verified (vendor pricing page, direct fetch)** — upgraded from `reported` on 2026-09-01 |
+| E7 | CSV export up to 1,000 rows; automatic screener emails (top 10/25/50 + optional CSV), Premier only, published at 12:00pm/3:00pm/4:45pm CT and described as "up to four times each day" | Barchart education pages via WebSearch; cadence cross-checked against `/membership-comparison` 2026-09-01 | verified (vendor docs); the two vendor pages give different counts |
+| E7b | Saved custom screeners: **1 free / 10 Plus / unlimited Premier**. Watchlists and portfolios the same. Free membership is metered at **20 uninterrupted page views per day** | `www.barchart.com/membership-comparison` comparison table, fetched directly 2026-09-01 | **verified (vendor page, direct fetch)** — supersedes the "5 saved screeners free" figure in the education-page prose |
 | E8 | Universe: optionable US + Canadian stocks, ETFs and indices ($SPX and per-ticker spread pages exist); i.e. the full optionable list, thousands of underlyings | Vendor pages via WebSearch (stocks-by-sector optionable list, $SPX vertical-spread pages, ETF coverage in condor docs); exact count not found | verified for breadth; count inferred |
 | E9 | "Flag Earnings" checkbox marks rows where next earnings ≤ expiration with a green E icon | Barchart bull-put screener page via WebSearch | verified (vendor page, via WebSearch) |
 | E10 | Screener results are not routable to an equity-options broker from Barchart's site; Barchart Trader integrates ~50 futures brokers, futures only | Barchart Trader help pages + broker pages (ampfutures, cannontrading) via WebSearch describe futures routing only; absence of an equities path is inferred from no vendor page describing one | inferred — from futures-only trading docs |
@@ -169,6 +209,16 @@ Every line cites its evidence row(s); our side cites the file.
 Fed to `../backlog.md` (empty before this run; 3 of 5 slots now used).
 Ranked by expected activation effect ÷ effort.
 
+**Where they stood after the 2026-09-01 review** (the backlog is authoritative;
+this note exists so the teardown does not misrepresent it): #1 survived and was
+re-scoped from open interest to quoted bid/ask width, after a real user could
+not close an AMD spread — the mechanism this teardown predicted, arriving on the
+exit side rather than the entry side. #2 was **killed**: its test assumed
+`scan_last_used` recorded a scan history, and it records one overwritten row per
+user. #3 survived with a second kill criterion. Two of three is a normal
+survival rate for a teardown; one of three would also have been fine. Ten
+proposals would not.
+
 1. **Liquidity floor on scan results (OI/volume).** Rests on E3 + the
    absence of any liquidity field in `optionScan.ts`. Barchart refuses to
    show a contract with OI < 500; we happily rank one first. Smallest test:
@@ -197,17 +247,17 @@ evidence). A teardown that generates ten ideas has failed the discipline.
 ## What could not be verified, and what would settle it
 
 - **Barchart's full Premier filter list for the bull-put screener** (the
-  SET FILTERS tab). WebSearch surfaces categories, not the enumerated list.
-  Settled by one owner screenshot of
+  SET FILTERS tab). WebSearch surfaces categories, not the enumerated list;
+  the page is fetchable but the tab's contents render behind a Premier login,
+  and Playwright cannot screenshot from this environment (see
+  `docs/context/reachable.md`). Still needs one owner screenshot of
   `www.barchart.com/options/vertical-spreads/bull-put-spread` with the SET
   FILTERS tab open on a Premier account →
   `docs/product/research/barchart-bull-put-screener-filters.png`.
-- **Current Premier price.** $29.95/mo is from 2026 third-party reviews
-  (E6), not Barchart's own pricing page (site unreachable — see
-  `docs/context/reachable.md`). Settled by one screenshot of Barchart's
-  pricing/subscribe page →
-  `docs/product/research/barchart-premier-pricing.png`. Needed before any
-  `pricing.md` move leans on the number.
+- ~~**Current Premier price.**~~ **Settled 2026-09-01** by direct fetch of
+  Barchart's own membership pages — $29.95/mo confirmed, with the annual and
+  biennial rates and the trial. See "Revision" above; `pricing.md` now leans
+  on the number.
 - **Exact options-data delay** — Barchart's own pages say both "15 min"
   and "25–30 min" (E5). The matrix verdict survives either number, so no
   action needed; noted so the ambiguity is on record.
