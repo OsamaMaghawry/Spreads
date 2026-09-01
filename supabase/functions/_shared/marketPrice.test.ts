@@ -7,7 +7,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { spotFromSnapshot, MAX_PRICE_AGE_MS } from "./marketPrice.ts";
+import { spotFromSnapshot, closingSpotFromSnapshot, MAX_PRICE_AGE_MS } from "./marketPrice.ts";
 
 const NOW = Date.parse("2026-08-27T14:30:00Z");
 const at = (offsetMinutes = 0) => new Date(NOW - offsetMinutes * 60000).toISOString();
@@ -84,4 +84,65 @@ test("no data at all is zero and untrusted, never a silent fallback", () => {
 test("a zero or negative print is not a price", () => {
   const r = spotFromSnapshot(snap({ trade: { p: 0 }, quote: null }), NOW);
   assert.equal(r.source, "dailyBar");
+});
+
+// --- After the close -------------------------------------------------------
+//
+// The daily position report ran 75 minutes past a 20:00 close, so every price
+// failed the 30-minute freshness rule and every short leg came back "price not
+// trusted". Thirteen rows of it, every weekday, and structurally incapable of
+// saying anything else — the through-strike and near-strike rules sit behind
+// the trusted branch and were never reached.
+
+// 21:15 UTC — when the daily cron fires, 75 minutes past a 20:00 close.
+const AFTER_CLOSE = Date.parse("2026-09-01T21:15:00Z");
+// A snapshot as it looks at 21:15 UTC: the last trade is the 20:00 close print.
+const afterClose = ({ trade, quote, bar }: any = {}) => ({
+  latestTrade: trade === null ? undefined : { p: 462.1, t: "2026-09-01T19:59:58Z", ...trade },
+  latestQuote: quote === null ? undefined : { bp: 462.05, ap: 462.15, t: "2026-09-01T19:59:59Z", ...quote },
+  dailyBar: bar === null ? undefined : { c: 462.1, t: "2026-09-01T20:00:00Z", ...bar }
+});
+
+test("the same after-close snapshot: untrusted live, trusted as a close", () => {
+  const d = afterClose();
+  const live = spotFromSnapshot(d, AFTER_CLOSE);
+  assert.equal(live.trusted, false, "the live ladder must keep its 30-minute rule");
+  assert.match(live.reason!, /more than 30 minutes old/);
+
+  const closed = closingSpotFromSnapshot(d, AFTER_CLOSE);
+  assert.equal(closed.trusted, true, "after the bell the close IS the price");
+  assert.equal(closed.price, 462.1);
+  assert.equal(closed.source, "close");
+  assert.equal(closed.reason, null);
+});
+
+test("the close is preferred over a stale print even when they differ", () => {
+  // The last tick and the official close can disagree — late prints, auction.
+  // The bar is the settled number and is what moneyness is judged against.
+  const r = closingSpotFromSnapshot(afterClose({ trade: { p: 999 }, bar: { c: 462.1 } }), AFTER_CLOSE);
+  assert.equal(r.price, 462.1);
+  assert.equal(r.source, "close");
+});
+
+test("no daily bar falls back to the live ladder rather than inventing a close", () => {
+  // Halted, delisted, or a symbol the feed does not carry. Withhold rather than
+  // default — the same rule everywhere else in this file.
+  const r = closingSpotFromSnapshot(afterClose({ bar: null }), AFTER_CLOSE);
+  assert.equal(r.trusted, false);
+  assert.equal(r.source, "trade");
+
+  const nothing = closingSpotFromSnapshot(null, AFTER_CLOSE);
+  assert.equal(nothing.price, 0);
+  assert.equal(nothing.trusted, false);
+});
+
+test("a zero or missing close is not a close", () => {
+  assert.equal(closingSpotFromSnapshot(afterClose({ bar: { c: 0 } }), AFTER_CLOSE).source, "trade");
+});
+
+test("loosening after the close did not loosen the live ladder", () => {
+  // The JPM incident guard, restated against the new export: nothing added here
+  // may make a stale in-session price acceptable to the scanner.
+  const stale = snap({ trade: { t: at(MAX_PRICE_AGE_MS / 60000 + 1) } });
+  assert.equal(spotFromSnapshot(stale, NOW).trusted, false);
 });

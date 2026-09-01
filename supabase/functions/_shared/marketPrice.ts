@@ -91,9 +91,35 @@ export function spotFromSnapshot(d: any, now = Date.now()) {
   return none;
 }
 
+// After the close, the close IS the price.
+//
+// `spotFromSnapshot` above marks anything older than thirty minutes untrusted,
+// and that is right for the scanner and the dashboard: those pick strikes and
+// commit money against a market that is trading. It is wrong for a report
+// written after the bell. The after-close watch used to run at 21:15 UTC, an
+// hour and a quarter past a 20:00 close, so EVERY price was stale by
+// construction and every short leg came back "price not trusted" -- an email
+// that could never say anything else, on any day, about any position.
+//
+// So this is a second, explicitly named judgement rather than a loosening of
+// the first. It prefers the official daily bar, which is the number a trader
+// would judge moneyness against once trading has stopped, and only falls back
+// to the live ladder when no bar exists. Staleness is not a defect here; it is
+// the expected state.
+export function closingSpotFromSnapshot(d: any, now = Date.now()) {
+  const close = d?.dailyBar && d.dailyBar.c > 0 ? d.dailyBar.c : null;
+  if (close !== null) {
+    return { price: close, source: "close", asOf: ms(d.dailyBar.t), trusted: true, reason: null };
+  }
+  // No bar means the name did not trade today at all -- halted, delisted, or a
+  // symbol the feed does not carry. Whatever the live ladder makes of it is
+  // more honest than inventing a close, and it will say so itself.
+  return spotFromSnapshot(d, now);
+}
+
 // Snapshots for several tickers in one request, which is what syncAccounts
 // already did and what a scan across a watchlist wants.
-export async function getSpots(account, tickers: string[]) {
+export async function getSpots(account, tickers: string[], judge = spotFromSnapshot) {
   const out: Record<string, ReturnType<typeof spotFromSnapshot>> = {};
   const list = [...new Set(tickers.filter(Boolean))];
   if (list.length === 0) return out;
@@ -107,9 +133,15 @@ export async function getSpots(account, tickers: string[]) {
       console.error("snapshots fetch failed", chunk.join(","), e?.message || e);
       return null;
     });
-    chunk.forEach((t) => { out[t] = spotFromSnapshot(snap ? snap[t] : null); });
+    chunk.forEach((t) => { out[t] = judge(snap ? snap[t] : null); });
   }
   return out;
+}
+
+// Same request, judged as an after-close reading. Separate name rather than a
+// flag, so a caller cannot reach for it by accident while the market is open.
+export async function getClosingSpots(account, tickers: string[]) {
+  return getSpots(account, tickers, closingSpotFromSnapshot);
 }
 
 export async function getSpot(account, ticker: string) {

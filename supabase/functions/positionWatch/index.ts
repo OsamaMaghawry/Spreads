@@ -2,10 +2,11 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient } from "../_shared/supabaseClients.ts";
 import { tradingBase, alpacaFetch } from "../_shared/alpaca.ts";
 import { decryptSecret } from "../_shared/crypto.ts";
-import { getSpots } from "../_shared/marketPrice.ts";
+import { getSpots, getClosingSpots } from "../_shared/marketPrice.ts";
 import { parseOCCSymbol } from "../_shared/occ.ts";
 import { earningsThrough, daysUntil } from "../_shared/earnings.ts";
 import { sendEmail } from "../_shared/email.ts";
+import { accountFacts, buildDailyReport } from "../_shared/watchReport.ts";
 
 // The money-safety watch.
 //
@@ -49,6 +50,9 @@ const todayKey = () => new Date().toISOString().slice(0, 10);
 // Thresholds come from watch_settings — never a literal here.
 function evaluate(account, positions, spots, earnings, equity, settings) {
   const raised = [];
+  // Parsed once here and handed back, so the report does not re-parse OCC
+  // symbols to say how many legs an account holds.
+  const parsed = [];
   const add = (rule, severity, symbol, title, detail) =>
     raised.push({ rule, severity, symbol, title, detail });
 
@@ -59,6 +63,7 @@ function evaluate(account, positions, spots, earnings, equity, settings) {
     const isShort = qty < 0;
     const isCall = occ.type === "C";
     const spot = spots[occ.ticker];
+    parsed.push({ symbol: p.symbol, occ, qty, marketValue: parseFloat(p.market_value || "0") });
 
     // Rule: a short leg through or near its strike, judged only on a trusted
     // price. An untrusted price is its own alert, not a silent pass.
@@ -106,7 +111,7 @@ function evaluate(account, positions, spots, earnings, equity, settings) {
         { market_value: mv, equity, pct: mv / equity });
     }
   }
-  return raised;
+  return { raised, legs: parsed };
 }
 
 // Persist raised conditions; return the ones that are new or escalated, which
@@ -114,11 +119,13 @@ function evaluate(account, positions, spots, earnings, equity, settings) {
 async function reconcile(admin, account, raised) {
   const day = todayKey();
   const toNotify = [];
-  const seenKeys = new Set();
+  // Matched on the condition itself rather than the dated key, because the same
+  // condition raised yesterday and still true today is ONE condition.
+  const seenConditions = new Set();
 
   for (const r of raised) {
     const dedupe_key = `${account.id}·${r.rule}·${r.symbol || ""}·${day}`;
-    seenKeys.add(dedupe_key);
+    seenConditions.add(`${r.rule}·${r.symbol || ""}`);
     const { data: existing } = await admin
       .from("alerts")
       .select("id, severity, emailed_at")
@@ -150,17 +157,25 @@ async function reconcile(admin, account, raised) {
     }
   }
 
-  // Resolve today's alerts for this account that no longer appear.
+  // Resolve anything for this account that this run did not re-raise --
+  // whatever day its key carries.
+  //
+  // This used to filter on `%·<today>`, so an alert raised yesterday and no
+  // longer true was never resolved, while today's run wrote a fresh row under
+  // today's key. The open set therefore grew by every condition, every weekday,
+  // and the daily report read back all of it: thirteen rows becomes twenty-six
+  // becomes thirty-nine, none of them ever going away.
   const { data: open } = await admin
     .from("alerts")
-    .select("id, dedupe_key")
+    .select("id, rule, symbol")
     .eq("account_id", account.id)
-    .is("resolved_at", null)
-    .like("dedupe_key", `%·${day}`);
-  for (const o of open || []) {
-    if (!seenKeys.has(o.dedupe_key)) {
-      await admin.from("alerts").update({ resolved_at: new Date().toISOString() }).eq("id", o.id);
-    }
+    .is("resolved_at", null);
+  const stale = (open || []).filter((o) => !seenConditions.has(`${o.rule}·${o.symbol || ""}`));
+  if (stale.length) {
+    await admin
+      .from("alerts")
+      .update({ resolved_at: new Date().toISOString() })
+      .in("id", stale.map((o) => o.id));
   }
 
   return toNotify;
@@ -180,22 +195,6 @@ function alertEmail(accountName, items) {
   </div>`;
   const text = items.map((i) => `- ${i.title}`).join("\n");
   return { html, text };
-}
-
-function dailyEmail(perAccount) {
-  const blocks = perAccount.map(({ name, openAlerts }) => {
-    const body = openAlerts.length
-      ? openAlerts.map((a) => `<tr><td style="padding:5px 10px">${sev(a.severity)}</td><td style="padding:5px 10px">${a.title}</td></tr>`).join("")
-      : `<tr><td colspan="2" style="padding:5px 10px;color:#0F6E56">Nothing flagged.</td></tr>`;
-    return `<p style="font-size:14px;font-weight:600;margin:14px 0 4px">${name}</p><table style="border-collapse:collapse;font-size:13px">${body}</table>`;
-  }).join("");
-  const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px">
-    <p style="font-size:15px;font-weight:600">DeltaMint — daily position report</p>
-    <p style="font-size:12px;color:#94a3b8">${todayKey()}</p>
-    ${blocks}
-    <p style="font-size:11px;color:#94a3b8;margin-top:16px">A monitoring summary, not advice. Your broker's records govern.</p>
-  </div>`;
-  return { html, text: `DeltaMint daily report ${todayKey()}` };
 }
 
 Deno.serve(async (req) => {
@@ -221,11 +220,17 @@ Deno.serve(async (req) => {
         const equity = parseFloat(info?.equity || info?.portfolio_value || "0");
         const legs = (Array.isArray(positions) ? positions : []).filter((p) => parseOCCSymbol(p.symbol));
         const tickers = [...new Set(legs.map((p) => parseOCCSymbol(p.symbol).ticker))];
-        const spots = tickers.length ? await getSpots(account, tickers) : {};
+        // After the close, judged on the close. The live ladder marks anything
+        // older than thirty minutes untrusted, which at 21:15 UTC is every
+        // price there is -- so the daily report raised nothing but
+        // "price not trusted" and could never reach the rules that matter.
+        const spots = tickers.length
+          ? await (mode === "daily" ? getClosingSpots(account, tickers) : getSpots(account, tickers))
+          : {};
         const through = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
         const earnings = tickers.length ? await earningsThrough(admin, tickers, through) : {};
 
-        const raised = evaluate(account, legs, spots, earnings, equity, settings);
+        const { raised, legs: parsedLegs } = evaluate(account, legs, spots, earnings, equity, settings);
         const toNotify = await reconcile(admin, account, raised);
 
         if (mode === "watch" && toNotify.length) {
@@ -239,20 +244,37 @@ Deno.serve(async (req) => {
 
         const { data: openAlerts } = await admin
           .from("alerts")
-          .select("severity, title")
+          .select("rule, severity, title")
           .eq("account_id", account.id)
           .is("resolved_at", null)
+          .gte("first_seen_at", `${todayKey()}T00:00:00Z`)
           .order("severity", { ascending: false });
-        perAccount.push({ name: account.name, openAlerts: openAlerts || [] });
+        perAccount.push({
+          name: account.name,
+          alerts: openAlerts || [],
+          // Seven days, not the earnings window: "expiring soon" is about
+          // gamma and assignment, which is a different question from whether a
+          // company reports before expiry.
+          facts: accountFacts(parsedLegs, spots, 7)
+        });
       } catch (e) {
         console.error(`positionWatch ${account.id}: ${e?.message || e}`);
-        perAccount.push({ name: account.name, openAlerts: [{ severity: "warning", title: `Could not read this account: ${e?.message || e}` }] });
+        perAccount.push({
+          name: account.name,
+          // An account we could not read is itself worth a line — it is the one
+          // failure that IS actionable, since nothing about it was checked.
+          alerts: [{ rule: "account_unreadable", severity: "critical", title: `Could not read this account: ${e?.message || e}` }],
+          facts: null
+        });
       }
     }
 
     if (mode === "daily") {
-      const { html, text } = dailyEmail(perAccount);
-      await sendEmail(recipient, `DeltaMint — daily position report ${todayKey()}`, html, text);
+      const { html, text, actionable } = buildDailyReport(perAccount, todayKey());
+      const subject = actionable
+        ? `DeltaMint — ${actionable} to look at · ${todayKey()}`
+        : `DeltaMint — all clear · ${todayKey()}`;
+      await sendEmail(recipient, subject, html, text);
     }
 
     return jsonResponse({ mode, accounts: perAccount.length });
