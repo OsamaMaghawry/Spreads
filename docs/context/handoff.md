@@ -53,11 +53,13 @@ need `npx wrangler deploy` by hand.
 
 ## Reddit (1 Sep) — closed for now
 
-`www.reddit.com` / `old.reddit.com` are already allowlisted, so W36's ask was
-aimed at the wrong thing. The live blocker is Reddit's logged-out bot gate, and
-clearing it needs a Reddit API app + `oauth.reddit.com` allowlisted. The app
-could not be created (Reddit's form rejects with a Responsible Builder Policy
-pointer). **The owner has deprioritised this — do not re-raise it weekly.**
+Every Reddit host we need — `www.reddit.com`, `old.reddit.com`,
+`oauth.reddit.com` — is already allowlisted, so W36's ask was aimed at the wrong
+thing and there is no allowlist ask left to make. The live blocker is Reddit's
+logged-out bot gate, and the only thing still missing is app credentials. The
+app could not be created (Reddit's form rejects with a Responsible Builder
+Policy pointer). **The owner has deprioritised this — do not re-raise it
+weekly.**
 Details and test results in `docs/context/reachable.md`. Posting the four queued
 replies is unaffected: that is a browser step, no API involved.
 

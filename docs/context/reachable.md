@@ -29,7 +29,7 @@ The allowlist matches **exact hostnames** — an allowed apex whose site 301s to
 | **Reached, but the site's own bot-wall refuses (403)** | | | Allowlist is fine; the *origin* blocks datacenter traffic. Not circumventable within the rules — use WebSearch |
 | www.tradersync.com | ❌ 403 (site) | 2026-08-31 | Browser UA does not help |
 | www.reddit.com / old.reddit.com | ✅ allowlisted, ❌ content | 2026-09-01 | **Allowlist is open** — Reddit's edge answers (`server: snooserv`). But logged-out datacenter reads are refused: `old.reddit.com/r/*/new/` 302s to `/login/?reason=lor2`, `www.reddit.com/r/*/new/.json` returns 403 + block page. Do **not** ask for the allowlist again — it is done. Quote via WebSearch; the owner verifies and posts in a browser. **Do not spoof around it** |
-| oauth.reddit.com | ❌ blocked (proxy CONNECT 403) | 2026-09-01 | **Not allowlisted.** This is where every authenticated read goes, so API access needs this host added *and* Reddit app credentials. See the Reddit API note below |
+| oauth.reddit.com | ✅ allowlisted | 2026-09-01 | Proxy CONNECT returns 200; the 403 that follows is Reddit's own (`server: snooserv`) for an unauthenticated call. Reachable — needs only a token. An earlier test this day read as a proxy block and was wrong |
 | www.reddit.com/api/v1/access_token | ✅ 401 | 2026-09-01 | Reachable; 401 = credentials missing, not blocked |
 | www.g2.com | ❌ 403 (site) | 2026-08-31 | Use WebSearch review summaries |
 | www.trustpilot.com | ❌ 403 (site) | 2026-08-31 | " |
@@ -71,9 +71,12 @@ hole records it here as a hole to close and stops; it does not use it.
 
 Attempted, not finished. What is established:
 
-- `www.reddit.com` / `old.reddit.com` are allowlisted; `oauth.reddit.com` is not.
+- `www.reddit.com`, `old.reddit.com` **and** `oauth.reddit.com` are all
+  allowlisted. Nothing on the network side is blocking Reddit.
 - Anonymous reads are refused by Reddit itself (bot gate), so the allowlist alone
   buys nothing. Authenticated access is the only path to agent-side scouting.
+- **The sole remaining blocker is credentials** — a Reddit app's client id and
+  secret. There is no allowlist ask left to make; do not raise one.
 - Creating a Reddit **script** app was blocked at Reddit's form: submitting
   returns a pointer to the Responsible Builder Policy with no field-level error
   and no acknowledgement control. Suspected causes, untested: an app name
