@@ -1093,3 +1093,42 @@ test("the invariant still fires when the strikes decided the outcome", () => {
   ];
   assert.equal(attributeStockPL(records, lots).breaches.length, 1);
 });
+
+test("two spreads sharing a long strike each keep their own share loss", () => {
+  // Reduced from a real account whose sync had been refused for days.
+  //
+  // Two put spreads over the same expiry, written against the SAME long 109:
+  // six at 112/109 and four at 111/109. WMT finished below both shorts, so both
+  // were assigned and the shared long was exercised -- as ONE 10-contract
+  // exercise covering all 1000 shares.
+  //
+  // Reading that single disposal as the owner handed every lot to whichever
+  // spread the exercise happened to be chained to. The 111 record took the
+  // entire -2600 and reported -2370 against a maximum of -570; the 112 record,
+  // which really lost -1800, was reported as a clean +512 winner. The account
+  // total was identical either way, which is exactly why it survived.
+  const activities = [
+    fill("2026-08-17", "sell", "WMT260821P00112000", 6, 1.55),
+    fill("2026-08-17", "buy", "WMT260821P00109000", 6, 0.7),
+    fill("2026-08-17", "sell", "WMT260821P00111000", 4, 1.5),
+    fill("2026-08-17", "buy", "WMT260821P00109000", 4, 0.93),
+    assign("2026-08-21", "WMT260821P00112000", 6),
+    assign("2026-08-21", "WMT260821P00111000", 4),
+    exercise("2026-08-21", "WMT260821P00109000", -10)
+  ];
+
+  const { records, breaches } = run(activities);
+  const wide = find(records, "WMT260821P00112000", "WMT260821P00109000");
+  const narrow = find(records, "WMT260821P00111000", "WMT260821P00109000");
+
+  // Six lots of 100 moved 112 -> 109, four moved 111 -> 109. Each spread wears
+  // its own, and neither wears the other's.
+  assert.equal(money(wide.stock_pl), -1800);
+  assert.equal(money(narrow.stock_pl), -800);
+
+  // Both finished fully through their shorts, so both sit exactly on width
+  // less credit -- the most either could lose, and no more.
+  assert.equal(money(wide.realized_pl), money(wide.premium_pl) - 1800);
+  assert.equal(money(narrow.realized_pl), money(narrow.premium_pl) - 800);
+  assert.equal(breaches.length, 0);
+});
