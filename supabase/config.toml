@@ -1,0 +1,17 @@
+# Per-function deploy settings.
+#
+# Everything not named here keeps the CLI defaults, which includes
+# verify_jwt = true. Only exceptions belong in this file, and each one needs a
+# reason, because switching the gateway's JWT check off moves that check into
+# the function where it is easy to forget.
+
+project_id = "yecfbeohyakuoyczvdbj"
+
+[functions.marketStream]
+# A browser cannot set an Authorization header when opening a WebSocket, so the
+# gateway would reject every connection before the function ran. The caller's
+# token travels in the query string instead and the function verifies it itself
+# — see userFromQuery — and then re-checks that the account belongs to that user
+# before decrypting anything. Turning this off without those two checks would
+# expose one account's prices to any caller.
+verify_jwt = false

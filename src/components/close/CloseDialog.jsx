@@ -11,6 +11,11 @@ import LegPicker from "./LegPicker";
 import { spreadLegs, legLabel } from "@/lib/spreadLegs";
 import LegsQuoteSummary from "./LegsQuoteSummary";
 import PriceControl from "./PriceControl";
+import useMarketStream from "@/lib/useMarketStream";
+
+// Fast enough that a moving market is reflected while someone decides, slow
+// enough not to hammer the quote endpoint with a dialog left open.
+const QUOTE_REFRESH_MS = 5000;
 
 export default function CloseDialog({ account, spread, onClose, onDone }) {
   const [qty, setQty] = useState(1);
@@ -48,7 +53,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
     let active = true;
     setQuote(null);
     setQuoteLoading(true);
-    invokeFunction("spreadQuote", {
+    const body = {
       accountId: account.id,
       ...(customLegs
         ? { legs: customLegs.map((l) => ({ symbol: l.symbol, ratio: l.ratio, action: l.action })) }
@@ -60,12 +65,27 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
             putRatio: spread.putRatio || 1,
             callRatio: spread.callRatio || 1
           })
-    })
-      .then((res) => active && setQuote(res.data?.error ? null : res.data))
-      .catch(() => active && setQuote(null))
-      .finally(() => active && setQuoteLoading(false));
-    return () => { active = false; };
+    };
+    const fetchQuote = () =>
+      invokeFunction("spreadQuote", body)
+        .then((res) => active && setQuote(res.data?.error ? null : res.data))
+        .catch(() => active && setQuote(null))
+        .finally(() => active && setQuoteLoading(false));
+
+    fetchQuote();
+    // Option quotes have no stream here — Alpaca's option feed is a separate
+    // entitlement — so the spread's own bid/ask is re-fetched on a short timer
+    // instead. Without it, the ladder and the marketable/rests verdict would be
+    // judged against a quote from whenever the dialog happened to open.
+    const id = setInterval(fetchQuote, QUOTE_REFRESH_MS);
+    return () => { active = false; clearInterval(id); };
   }, [account.id, spread, mode, legSig]);
+
+  // The underlying, streaming for as long as the ticket is open. A close is
+  // priced against the market as it is now, not as it was when the dialog
+  // opened — and on a wide market that difference is the whole decision.
+  const { prices: streamPrices } = useMarketStream(account.id, spread.ticker ? [spread.ticker] : []);
+  const liveSpot = streamPrices[spread.ticker]?.price || 0;
 
   const midDebit = quote?.midDebit ?? 0;
   const plPerContract = (spread.netCredit - midDebit) * 100;
@@ -116,8 +136,16 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
           </DialogTitle>
         </DialogHeader>
 
-        <div className="text-xs text-slate-500 -mt-2">
-          {account.name} · Expiry {spread.expiryFormatted} · {spread.qty} open {spread.type === "iron_condor" ? (spread.qty > 1 ? "condors" : "condor") : `contract${spread.qty > 1 ? "s" : ""}`}
+        <div className="text-xs text-slate-500 -mt-2 flex items-center gap-2 flex-wrap">
+          <span>
+            {account.name} · Expiry {spread.expiryFormatted} · {spread.qty} open {spread.type === "iron_condor" ? (spread.qty > 1 ? "condors" : "condor") : `contract${spread.qty > 1 ? "s" : ""}`}
+          </span>
+          {liveSpot > 0 && (
+            <span className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 tabular-nums">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              {spread.ticker} {fmtMoney(liveSpot)}
+            </span>
+          )}
         </div>
 
         {phase === "idle" ? (

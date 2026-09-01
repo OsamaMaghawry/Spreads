@@ -69,6 +69,7 @@ so a change to shared code requires redeploying all of them.
 - **dumpBrokerFeed** — Captures a broker activity feed so a refused sync can be diagnosed off-box.
 - **findEntry** — Scans the live chain and returns the delta-targeted setup for one strategy.
 - **manageOrder** — Reads the status of a working order, or cancels it.
+- **marketStream** — Live underlying prices, relayed from Alpaca's stream.
 - **migrateCredentials** — Encrypts credentials that are still stored in plaintext, across every user's accounts, without involving those users.
 - **oauthDiag** — Answers one question: does Alpaca recognise this app's OAuth credentials? The authorize page cannot answer it.
 - **openPosition** — How far the stock may have moved since the setup was built before the order is refused.

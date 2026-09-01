@@ -1,14 +1,43 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { fmtMoney, fmtPct } from "@/lib/format";
 import SpreadTable from "./SpreadTable";
 import PositionCards from "./PositionCards";
 import OrderGroup from "./OrderGroup";
+import useMarketStream from "@/lib/useMarketStream";
 import { AlertTriangle, LayoutGrid, Table2 } from "lucide-react";
+
+// A streamed trade older than this is not a live price any more. Thirty seconds
+// is far inside the 30-minute staleness bound the server's trust ladder uses —
+// the point here is not to re-judge the price but to stop claiming "live" for a
+// tick that arrived before the market went quiet.
+const LIVE_MAX_AGE_MS = 30_000;
 
 export default function AccountSection({ account, onCloseSpread, onOrdersChanged }) {
   const [view, setView] = useState("simple");
   const [tab, setTab] = useState("positions");
   const orders = account.orders || [];
+
+  const tickers = useMemo(
+    () => [...new Set((account.spreads || []).map((s) => s.ticker).filter(Boolean))],
+    [account.spreads]
+  );
+  const { prices, status } = useMarketStream(account.ok ? account.id : null, tickers);
+
+  // Overlay the streamed spot onto each position, so every card, table row and
+  // strike ladder reads the same number without any of them knowing a socket
+  // exists. Only a fresh trade overrides the synced value — a stale tick is left
+  // alone rather than presented as current, which is the same posture the
+  // server takes when it refuses to judge an untrusted price.
+  const spreads = useMemo(() => {
+    if (status !== "live") return account.spreads || [];
+    const now = Date.now();
+    return (account.spreads || []).map((s) => {
+      const live = prices[s.ticker];
+      const at = live?.at ? Date.parse(live.at) : NaN;
+      const fresh = live?.price > 0 && isFinite(at) && now - at < LIVE_MAX_AGE_MS;
+      return fresh ? { ...s, stockPrice: live.price, spotSource: "stream", spotTrusted: true } : s;
+    });
+  }, [account.spreads, prices, status]);
   // Working and partially-filled orders are the ones that can still cost money,
   // so the tab badge counts those rather than everything from today.
   const workingCount = orders.filter(
@@ -50,6 +79,27 @@ export default function AccountSection({ account, onCloseSpread, onOrdersChanged
           >
             {account.type}
           </span>
+          {account.ok && tickers.length > 0 && (
+            <span
+              title={
+                status === "live"
+                  ? "Underlying prices are streaming from the broker."
+                  : "Not streaming — prices come from the periodic refresh instead."
+              }
+              className={`flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                status === "live"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-slate-100 text-slate-500 border-slate-200"
+              }`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  status === "live" ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
+                }`}
+              />
+              {status === "live" ? "Live" : "Polling"}
+            </span>
+          )}
           {tab === "positions" && (
             <div className="ml-1 flex items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-100 p-0.5">
               {[
@@ -135,13 +185,13 @@ export default function AccountSection({ account, onCloseSpread, onOrdersChanged
         <div className="px-5 py-6 text-sm text-slate-500">No open put credit spreads in this account.</div>
       ) : view === "simple" ? (
         <PositionCards
-          spreads={account.spreads}
+          spreads={spreads}
           accountId={account.id}
           onClose={(spread) => onCloseSpread(account, spread)}
         />
       ) : (
         <SpreadTable
-          spreads={account.spreads}
+          spreads={spreads}
           accountId={account.id}
           onClose={(spread) => onCloseSpread(account, spread)}
         />
