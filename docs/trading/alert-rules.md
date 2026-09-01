@@ -43,9 +43,10 @@ The watch runs on two pg_cron jobs (UTC windows cover both EST and EDT):
 
 There is deliberately **no hourly/overnight/weekend job** — the owner wants
 monitoring only during the session plus one after-close report (removed in
-`0018_drop_hourly_watch.sql`). Email is sent by `_shared/email.ts` via Resend
-and is a **no-op until `RESEND_API_KEY` is set** — the watch still records every
-alert to the `alerts` table meanwhile.
+`0018_drop_hourly_watch.sql`). Email is sent by `_shared/email.ts` through **Brevo**, as
+`DeltaMint Agents <agents@deltamint.app>` on the authenticated domain, and is a
+**no-op until `BREVO_API_KEY` is set** — the watch still records every alert to
+the `alerts` table meanwhile.
 
 ## Tuning
 
