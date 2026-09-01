@@ -39,7 +39,11 @@ need `npx wrangler deploy` by hand.
    <support@deltamint.app>`. Values are in `.github/workflows/auth-config.yml`.
 3. `npx wrangler deploy` — the `noindex` fix for the indexed
    `/forgot-password` page is committed but NOT live.
-4. Apply `supabase/migrations/0021_order_attempts.sql` to BOTH projects.
+4. ~~Apply `supabase/migrations/0021_order_attempts.sql` to BOTH projects.~~
+   **Done 1 Sep.** Applied to `Spread Staging` first, verified, then to `Spread`.
+   Both show 19 columns, 4 indexes, RLS on, 1 policy (`own order attempts
+   readable`). Production table is empty, as expected — it fills once the close
+   dialog starts writing to it.
 
 ## Open questions needing database access
 
