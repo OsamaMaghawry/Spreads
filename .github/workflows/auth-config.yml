@@ -38,10 +38,39 @@ jobs:
     env:
       PROJECT_REF: yecfbeohyakuoyczvdbj
       APP_URL: https://dashboard.deltamint.app
+      # Sign-up and password-reset mail goes through Brevo as the brand, not
+      # through Supabase's shared sender. Supabase's built-in mailer is also
+      # rate-limited to a handful of messages an hour, which is a real ceiling
+      # on registrations, not just a cosmetic one.
+      SMTP_HOST: smtp-relay.brevo.com
+      SMTP_PORT: "587"
+      SMTP_SENDER_EMAIL: support@deltamint.app
+      SMTP_SENDER_NAME: DeltaMint
     steps:
       - uses: actions/checkout@v4
 
+      # Refuse rather than send empty credentials. A PATCH with a blank
+      # smtp_pass is accepted and silently breaks every confirmation email —
+      # nobody can register, and nothing says why.
+      - name: Require SMTP credentials
+        env:
+          SMTP_USER: ${{ secrets.BREVO_SMTP_USER }}
+          SMTP_PASS: ${{ secrets.BREVO_SMTP_PASS }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SMTP_USER:-}" ] || [ -z "${SMTP_PASS:-}" ]; then
+            echo "BREVO_SMTP_USER and BREVO_SMTP_PASS must both be set as repository secrets."
+            echo "These are Brevo's SMTP credentials (SMTP & API -> SMTP tab):"
+            echo "  user = the SMTP login, like 9xxxxxx@smtp-brevo.com"
+            echo "  pass = an SMTP key generated on that tab"
+            echo "NOT the xkeysib- REST API key, which is a different credential."
+            exit 1
+          fi
+
       - name: Apply auth configuration
+        env:
+          SMTP_USER: ${{ secrets.BREVO_SMTP_USER }}
+          SMTP_PASS: ${{ secrets.BREVO_SMTP_PASS }}
         run: |
           set -euo pipefail
 
@@ -50,11 +79,23 @@ jobs:
             --arg allow "$APP_URL/**,$APP_URL" \
             --arg subject "Confirm your DeltaMint account" \
             --rawfile confirm supabase/auth/confirm-signup.html \
+            --arg smtp_host "$SMTP_HOST" \
+            --argjson smtp_port "$SMTP_PORT" \
+            --arg smtp_user "$SMTP_USER" \
+            --arg smtp_pass "$SMTP_PASS" \
+            --arg smtp_email "$SMTP_SENDER_EMAIL" \
+            --arg smtp_name "$SMTP_SENDER_NAME" \
             '{
                site_url: $site,
                uri_allow_list: $allow,
                mailer_subjects_confirmation: $subject,
-               mailer_templates_confirmation_content: $confirm
+               mailer_templates_confirmation_content: $confirm,
+               smtp_host: $smtp_host,
+               smtp_port: $smtp_port,
+               smtp_user: $smtp_user,
+               smtp_pass: $smtp_pass,
+               smtp_admin_email: $smtp_email,
+               smtp_sender_name: $smtp_name
              }')
 
           code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' \
@@ -76,5 +117,7 @@ jobs:
           curl -sS "https://api.supabase.com/v1/projects/$PROJECT_REF/config/auth" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_ACCESS_TOKEN }}" \
           | jq '{site_url, uri_allow_list, mailer_subjects_confirmation,
+                 smtp_host, smtp_port, smtp_admin_email, smtp_sender_name,
+                 smtp_pass_set: (.smtp_pass // "" | length > 0),
                  confirmation_template_has_token:
                    (.mailer_templates_confirmation_content // "" | test("\\{\\{ \\.Token \\}\\}"))}'
