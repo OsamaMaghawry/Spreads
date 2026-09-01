@@ -1,0 +1,90 @@
+name: Email the owner what the agents produced
+
+# The delivery half of the weekly cadences.
+#
+# Routine sessions run without MCP tools and without service-role credentials,
+# so an agent cannot call sendDigest itself. Telling it to "remember to email"
+# would add a step that fails silently -- and a silent failure here is exactly
+# how a finished Monday play sat unread for a week while the run reported
+# success.
+#
+# So the email is a consequence of the commit. If the work landed on main, the
+# owner hears about it; if it did not land, there was no work to hear about.
+
+on:
+  push:
+    # Agents do NOT push to main. Each Routine is assigned its own
+    # `claude/*` outcome branch and is forbidden from pushing anywhere else,
+    # so a main-only trigger would never fire for the work it exists to
+    # announce. Watch the branches the agents actually write to.
+    branches:
+      - main
+      - 'claude/**'
+    paths:
+      - 'docs/reality/**'
+      - 'growth/plays/**'
+      - 'docs/product/**'
+      - 'docs/branding/**'
+      - 'docs/trading-audit/**'
+      - 'docs/board/**'
+  workflow_dispatch:
+
+concurrency:
+  group: email-digest
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: an agent run often pushes several commits at once
+          # (the first product run pushed two), and a shallow clone cannot
+          # find the branch point to diff against.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Collect what this push added
+        id: changed
+        run: |
+          set -euo pipefail
+          # On an agent branch, diff against where it left main: one run can
+          # push several commits and HEAD^ would announce only the last one.
+          # On main itself, the previous commit is the right comparison.
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            base=$(git rev-parse HEAD^ 2>/dev/null || git rev-parse HEAD)
+          else
+            base=$(git merge-base origin/main HEAD 2>/dev/null || git rev-parse HEAD^ 2>/dev/null || git rev-parse HEAD)
+          fi
+          echo "Comparing $base..HEAD on ${GITHUB_REF_NAME}"
+          # Added or modified only: a deletion has nothing to mail.
+          files=$(git diff --name-only --diff-filter=AM "$base" HEAD -- \
+            'docs/reality/**' 'growth/plays/**' 'docs/product/**' \
+            'docs/branding/**' 'docs/trading-audit/**' 'docs/board/**' \
+            | grep '\.md$' || true)
+          echo "files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$files" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          if [ -z "$files" ]; then
+            echo "No report files in this push; nothing to email."
+          else
+            echo "Will email:"; echo "$files"
+          fi
+
+      - name: Send
+        if: steps.changed.outputs.files != ''
+        env:
+          SUPABASE_URL: https://yecfbeohyakuoyczvdbj.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_SERVICE_ROLE_KEY}" ]; then
+            echo "SUPABASE_SERVICE_ROLE_KEY is not set; cannot email." >&2
+            exit 1
+          fi
+          # shellcheck disable=SC2046
+          node scripts/email-digest.mjs $(echo "${{ steps.changed.outputs.files }}" | tr '\n' ' ')

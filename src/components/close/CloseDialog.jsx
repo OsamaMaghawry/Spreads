@@ -10,10 +10,19 @@ import ConfirmSubmit from "@/components/common/ConfirmSubmit";
 import LegPicker from "./LegPicker";
 import { spreadLegs, legLabel } from "@/lib/spreadLegs";
 import LegsQuoteSummary from "./LegsQuoteSummary";
+import PriceControl from "./PriceControl";
+import useMarketStream from "@/lib/useMarketStream";
+
+// Fast enough that a moving market is reflected while someone decides, slow
+// enough not to hammer the quote endpoint with a dialog left open.
+const QUOTE_REFRESH_MS = 5000;
 
 export default function CloseDialog({ account, spread, onClose, onDone }) {
   const [qty, setQty] = useState(1);
-  const [orderType, setOrderType] = useState("limit");
+  // Walk stays the default because it fills more often than a price left to
+  // rest. "manual" and "market" are the two ways to override it.
+  const [priceMode, setPriceMode] = useState("walk");
+  const [manualPrice, setManualPrice] = useState(null);
   const [quote, setQuote] = useState(null);
   const [quoteLoading, setQuoteLoading] = useState(true);
   const [mode, setMode] = useState("whole"); // whole | legs
@@ -44,7 +53,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
     let active = true;
     setQuote(null);
     setQuoteLoading(true);
-    invokeFunction("spreadQuote", {
+    const body = {
       accountId: account.id,
       ...(customLegs
         ? { legs: customLegs.map((l) => ({ symbol: l.symbol, ratio: l.ratio, action: l.action })) }
@@ -56,12 +65,27 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
             putRatio: spread.putRatio || 1,
             callRatio: spread.callRatio || 1
           })
-    })
-      .then((res) => active && setQuote(res.data?.error ? null : res.data))
-      .catch(() => active && setQuote(null))
-      .finally(() => active && setQuoteLoading(false));
-    return () => { active = false; };
+    };
+    const fetchQuote = () =>
+      invokeFunction("spreadQuote", body)
+        .then((res) => active && setQuote(res.data?.error ? null : res.data))
+        .catch(() => active && setQuote(null))
+        .finally(() => active && setQuoteLoading(false));
+
+    fetchQuote();
+    // Option quotes have no stream here — Alpaca's option feed is a separate
+    // entitlement — so the spread's own bid/ask is re-fetched on a short timer
+    // instead. Without it, the ladder and the marketable/rests verdict would be
+    // judged against a quote from whenever the dialog happened to open.
+    const id = setInterval(fetchQuote, QUOTE_REFRESH_MS);
+    return () => { active = false; clearInterval(id); };
   }, [account.id, spread, mode, legSig]);
+
+  // The underlying, streaming for as long as the ticket is open. A close is
+  // priced against the market as it is now, not as it was when the dialog
+  // opened — and on a wide market that difference is the whole decision.
+  const { prices: streamPrices } = useMarketStream(account.id, spread.ticker ? [spread.ticker] : []);
+  const liveSpot = streamPrices[spread.ticker]?.price || 0;
 
   const midDebit = quote?.midDebit ?? 0;
   const plPerContract = (spread.netCredit - midDebit) * 100;
@@ -73,7 +97,22 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   );
   const lastDebit = attempts.length ? Math.max(...attempts) : null;
   const baseDebit = quote ? midDebit : 0.3;
-  const startDebit = lastDebit !== null ? Math.max(lastDebit, baseDebit) : baseDebit;
+  const walkStart = lastDebit !== null ? Math.max(lastDebit, baseDebit) : baseDebit;
+  const orderType = priceMode === "market" ? "market" : "limit";
+  // What actually gets sent. Manual uses the number in the stepper; the walk
+  // uses its own resume-aware starting point.
+  const startDebit = priceMode === "manual" && manualPrice !== null ? manualPrice : walkStart;
+
+  // Seed the stepper from the mid once a quote lands, and only then: opening it
+  // at a stale or invented number is how someone ends up resting an order at a
+  // price that was never marketable. Untouched-only, so a live requote never
+  // overwrites a price the user has already set.
+  useEffect(() => {
+    if (manualPrice === null && quote && midDebit > 0) setManualPrice(Math.round(midDebit * 100) / 100);
+  }, [quote, midDebit, manualPrice]);
+
+  // A different position, or a different set of legs, is a different price.
+  useEffect(() => { setManualPrice(null); }, [spread, legSig]);
 
   const handleClose = () => {
     if (phase === "working") return;
@@ -97,8 +136,16 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
           </DialogTitle>
         </DialogHeader>
 
-        <div className="text-xs text-slate-500 -mt-2">
-          {account.name} · Expiry {spread.expiryFormatted} · {spread.qty} open {spread.type === "iron_condor" ? (spread.qty > 1 ? "condors" : "condor") : `contract${spread.qty > 1 ? "s" : ""}`}
+        <div className="text-xs text-slate-500 -mt-2 flex items-center gap-2 flex-wrap">
+          <span>
+            {account.name} · Expiry {spread.expiryFormatted} · {spread.qty} open {spread.type === "iron_condor" ? (spread.qty > 1 ? "condors" : "condor") : `contract${spread.qty > 1 ? "s" : ""}`}
+          </span>
+          {liveSpot > 0 && (
+            <span className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 tabular-nums">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              {spread.ticker} {fmtMoney(liveSpot)}
+            </span>
+          )}
         </div>
 
         {phase === "idle" ? (
@@ -161,17 +208,31 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                   className={inputCls} />
               </div>
               <div className="flex-1">
-                <label className="text-xs text-slate-500 block mb-1.5">Order type</label>
+                <label className="text-xs text-slate-500 block mb-1.5">How to price it</label>
                 <div className="flex rounded-lg overflow-hidden border border-slate-300">
-                  {["limit", "market"].map((t) => (
-                    <button key={t} onClick={() => setOrderType(t)}
-                      className={`flex-1 py-2 text-sm capitalize transition-colors ${orderType === t ? "bg-emerald-100 text-emerald-700 font-medium" : "bg-white text-slate-500 hover:text-slate-900"}`}>
-                      {t}
+                  {[
+                    { id: "walk", label: "Walk" },
+                    { id: "manual", label: "My price" },
+                    { id: "market", label: "Market" }
+                  ].map((t) => (
+                    <button key={t.id} onClick={() => setPriceMode(t.id)}
+                      className={`flex-1 py-2 text-sm transition-colors ${priceMode === t.id ? "bg-emerald-100 text-emerald-700 font-medium" : "bg-white text-slate-500 hover:text-slate-900"}`}>
+                      {t.label}
                     </button>
                   ))}
                 </div>
               </div>
             </div>
+
+            {priceMode === "manual" && (
+              <PriceControl
+                price={manualPrice}
+                onChange={setManualPrice}
+                quote={quote}
+                unit={unit}
+                qty={qty}
+              />
+            )}
 
             {customLegs && (
               <p className="text-xs text-slate-600 leading-relaxed">
@@ -184,7 +245,9 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
             )}
 
             <p className="text-xs text-slate-500 leading-relaxed">
-              {orderType === "limit"
+              {priceMode === "manual"
+                ? null
+                : orderType === "limit"
                 ? lastDebit !== null
                   ? `Limit resumes from your last attempt at ${fmtMoney(lastDebit)} — starting at ${fmtMoney(startDebit)} and stepping toward the ask every 30s until it fills. Never bids above the ask + $0.05. Stops after 10 min.`
                   : midDebit < 0
@@ -202,13 +265,27 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                     ? `Close ${customLegs.length} selected leg${customLegs.length > 1 ? "s" : ""} (${orderType})`
                     : mode === "legs"
                       ? "Select legs to close"
-                      : `Close ${qty} ${unit}${qty > 1 ? "s" : ""} (${orderType})`
+                      : priceMode === "manual"
+                      ? `Close ${qty} ${unit}${qty > 1 ? "s" : ""} at ${fmtMoney(startDebit)}`
+                      : `Close ${qty} ${unit}${qty > 1 ? "s" : ""} (${priceMode === "market" ? "market" : "walk"})`
               }
-              summary={`${orderType === "limit" ? `Limit order starting at ${fmtMoney(startDebit)}` : "Market order at the current best price"} · close ${
+              summary={`${
+                priceMode === "market"
+                  ? "Market order at the current best price"
+                  : priceMode === "manual"
+                    ? `Limit order resting at ${fmtMoney(startDebit)} — not walked`
+                    : `Limit order starting at ${fmtMoney(startDebit)}, walked toward the ask`
+              } · close ${
                 customLegs ? `${customLegs.length} leg${customLegs.length > 1 ? "s" : ""} of` : ""
               } ${qty} ${spread.ticker} ${unit}${qty > 1 ? "s" : ""} on ${account.name}.`}
-              onConfirm={() => run({ accountId: account.id, spread, qty, orderType, startDebit, legs: customLegs })}
-              disabled={openOrders.length > 0 || (mode === "legs" && !customLegs)}
+              onConfirm={() =>
+                run({ accountId: account.id, spread, qty, orderType, startDebit, legs: customLegs, priceMode })
+              }
+              disabled={
+                openOrders.length > 0 ||
+                (mode === "legs" && !customLegs) ||
+                (priceMode === "manual" && !(startDebit > 0))
+              }
             />
           </div>
         ) : (

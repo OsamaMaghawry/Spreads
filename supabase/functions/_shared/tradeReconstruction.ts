@@ -932,10 +932,45 @@ export function attributeStockPL(records, stockLots) {
 
   // Lots that name their contract are assigned before lots that do not: an
   // allowance can only be spent correctly if the certain claims go first.
-  const ownersOf = (lot) =>
-    (lot.disposed_chain_id && byChain.get(lot.disposed_chain_id)) ||
-    (lot.acquired_chain_id && byChain.get(lot.acquired_chain_id)) ||
-    null;
+  // Which position owns a lot's result: normally the disposal, except when the
+  // disposal is the spread's own long leg closing itself out.
+  //
+  // Disposal is right nearly always, and the wheel is why: a put is assigned at
+  // 90, a call written over those shares is assigned at 92, and the $200 belongs
+  // to the CALL that sold them. Crediting the acquiring put would rewrite a
+  // position that closed a week earlier.
+  //
+  // A defined-risk spread breaks that. When a put spread finishes in the money,
+  // the short is assigned and the long is exercised -- two legs of ONE position,
+  // so acquisition and disposal name the same trade and either would do. But two
+  // spreads written against the SAME long strike are closed by a single exercise
+  // of that shared long, and all the shares carry one disposal chain, which is
+  // arbitrarily one of the two spreads.
+  //
+  // That is what was found here: three lots acquired at 112 and two at 111, all
+  // disposed by one exercise of the shared 109 long, every one resolving to the
+  // 111 record. It took the whole -2600 share loss and reported -2370 against a
+  // maximum of -570, while the 112 spread that actually lost -1800 was reported
+  // as a clean +512 winner. The account total was right either way, so nothing
+  // reconciled it away -- the fourth defect in this function to hide behind that
+  // fact.
+  //
+  // So: when the option that disposed the shares is the long leg of the position
+  // that acquired them, the acquisition identifies the owner, because the
+  // exercise was that spread closing its own leg. Everything else -- the wheel,
+  // shares bought on the market and called away -- still follows the disposal.
+  const ownersOf = (lot) => {
+    const acquired = (lot.acquired_chain_id && byChain.get(lot.acquired_chain_id)) || null;
+    const disposed = (lot.disposed_chain_id && byChain.get(lot.disposed_chain_id)) || null;
+    if (
+      acquired &&
+      lot.disposed_option &&
+      acquired.some((o) => o.long_symbol && o.long_symbol === lot.disposed_option)
+    ) {
+      return acquired;
+    }
+    return disposed || acquired || null;
+  };
 
   const identifiedFirst = stockLots
     .slice()

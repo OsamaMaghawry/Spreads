@@ -95,7 +95,11 @@ export default function AccountDetail() {
       </div>
 
       {account ? (
-        <AccountSection account={account} onCloseSpread={(acc, spread) => setClosing({ account: acc, spread })} />
+        <AccountSection
+          account={account}
+          onCloseSpread={(acc, spread) => setClosing({ account: acc, spread })}
+          onOrdersChanged={load}
+        />
       ) : (
         <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-sm text-slate-500">
           This account no longer exists.{" "}

@@ -33,7 +33,9 @@ The allowlist matches **exact hostnames** — an allowed apex whose site 301s to
 | optionstrat.com (apex) | ❌ 403 (policy) | 2026-09-01 | See the `www.optionstrat.com` row — the apex is where the content actually lives |
 | **Reached, but the site's own bot-wall refuses (403)** | | | Allowlist is fine; the *origin* blocks datacenter traffic. Not circumventable within the rules — use WebSearch |
 | www.tradersync.com | ❌ 403 (site) | 2026-09-01 | Re-tested; unchanged. Browser UA does not help |
-| www.reddit.com / old.reddit.com | ❌ 403 (site) | 2026-08-31 | Reddit blocks datacenter IPs regardless of UA. Quote via WebSearch; the owner verifies in a browser. **Do not spoof around it** |
+| www.reddit.com / old.reddit.com | ✅ allowlisted, ❌ content | 2026-09-01 | **Allowlist is open** — Reddit's edge answers (`server: snooserv`). But logged-out datacenter reads are refused: `old.reddit.com/r/*/new/` 302s to `/login/?reason=lor2`, `www.reddit.com/r/*/new/.json` returns 403 + block page. Do **not** ask for the allowlist again — it is done. Quote via WebSearch; the owner verifies and posts in a browser. **Do not spoof around it** |
+| oauth.reddit.com | ✅ allowlisted | 2026-09-01 | Proxy CONNECT returns 200; the 403 that follows is Reddit's own (`server: snooserv`) for an unauthenticated call. Reachable — needs only a token. An earlier test this day read as a proxy block and was wrong |
+| www.reddit.com/api/v1/access_token | ✅ 401 | 2026-09-01 | Reachable; 401 = credentials missing, not blocked |
 | www.g2.com | ❌ 403 (site) | 2026-08-31 | Use WebSearch review summaries |
 | www.trustpilot.com | ❌ 403 (site) | 2026-08-31 | " |
 | www.capterra.com | ❌ 403 (site) | 2026-08-31 | " |
@@ -85,3 +87,28 @@ vp-growth's "a blocker is a finding only with a workaround" rule means
 resourcefulness within the rules — a reachable alternative source, WebSearch,
 an owner screenshot — never circumvention of them. An agent that finds such a
 hole records it here as a hole to close and stops; it does not use it.
+
+## Reddit API — status as of 1 Sep 2026
+
+Attempted, not finished. What is established:
+
+- `www.reddit.com`, `old.reddit.com` **and** `oauth.reddit.com` are all
+  allowlisted. Nothing on the network side is blocking Reddit.
+- Anonymous reads are refused by Reddit itself (bot gate), so the allowlist alone
+  buys nothing. Authenticated access is the only path to agent-side scouting.
+- **The sole remaining blocker is credentials** — a Reddit app's client id and
+  secret. There is no allowlist ask left to make; do not raise one.
+- Creating a Reddit **script** app is blocked at Reddit's own form: submitting
+  returns a pointer to the Responsible Builder Policy, with no field-level error
+  and no acknowledgement control. The owner tried it, including renaming the app
+  away from "scraper" — that made no difference. This is Reddit's access-approval
+  gate, not a form-entry mistake, and it is not something we can fix from our
+  side or predict a date for. `support.reddithelp.com` is itself egress-blocked,
+  so the policy text cannot be read from here either.
+- **Treat agent-side Reddit access as unavailable indefinitely.** It is not a
+  blocker to route around, ask about, or re-test on a cadence.
+- **Do not raise this with the owner again.** He has been through the form and it
+  does not work. No weekly ask, no status check, no "have you had a chance to".
+  Do not write a play that depends on agent-side Reddit reads. Posting the queued
+  replies is a browser step the owner does himself and needs none of this; if
+  Reddit is ever wanted as a channel beyond that, he will say so.

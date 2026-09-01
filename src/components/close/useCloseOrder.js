@@ -90,7 +90,59 @@ export default function useCloseOrder() {
     setPhase("failed");
   }
 
-  async function run({ accountId, spread, qty, orderType, startDebit, legs }) {
+  // Follow an order the user priced themselves, without ever touching it.
+  //
+  // The walk owns its order: it reprices, and cancels what it cannot fill. A
+  // manual order is the opposite — the price is the user's instruction, so this
+  // only reports. Pressing Stop detaches the watcher and deliberately leaves the
+  // order working at the broker; cancelling it is a separate, explicit act on
+  // the Orders tab. Silently pulling a resting order because a dialog closed
+  // would be the app overruling a decision it was asked to carry out.
+  async function watchResting(accountId, orderId, qty, key) {
+    let lastStatus = null;
+    let filledSoFar = 0;
+    while (true) {
+      if (stopRef.current) {
+        addLog("Stopped watching. The order is still working at your price —");
+        addLog("cancel it from the Orders tab if you no longer want it.");
+        setPhase("failed");
+        return;
+      }
+      const st = await invoke("manageOrder", { accountId, orderId, action: "get" });
+      if (st.status !== lastStatus) {
+        addLog(`Status: ${st.status}`);
+        lastStatus = st.status;
+      }
+      const filledNow = Number(st.filledQty) || 0;
+      if (filledNow > filledSoFar) {
+        filledSoFar = filledNow;
+        addLog(`Filled ${filledSoFar} of ${qty}${st.filledAvgPrice ? ` @ $${st.filledAvgPrice}` : ""}`);
+      }
+      if (st.status === "filled") {
+        addLog(`Order filled${st.filledAvgPrice ? ` @ $${st.filledAvgPrice}` : ""}`);
+        delete lastDebits[key];
+        setPhase("filled");
+        return;
+      }
+      if (["rejected", "expired", "canceled", "done_for_day"].includes(st.status)) {
+        addLog(`Order ${st.status}`);
+        if (filledSoFar > 0 && filledSoFar < qty) {
+          addLog(`Partially closed: ${filledSoFar} of ${qty} filled — ${qty - filledSoFar} still open.`);
+        }
+        setPhase(filledSoFar >= qty ? "filled" : "failed");
+        return;
+      }
+      await sleep(POLL);
+    }
+  }
+
+  // priceMode: "walk" steps the limit toward the ask until it fills; "manual"
+  // submits the price the user chose and leaves it there. Manual is not the walk
+  // with the stepping switched off -- it must never cancel, never reprice and
+  // never time out, because a resting order the user set is a decision, not an
+  // attempt that failed. The only thing that ends it is a fill, the broker, or
+  // the user.
+  async function run({ accountId, spread, qty, orderType, startDebit, legs, priceMode = "walk" }) {
     stopRef.current = false;
     setLog([]);
     setPhase("working");
@@ -124,6 +176,13 @@ export default function useCloseOrder() {
       addLog(`Submitting limit order at ${priceLabel(debit)}…`);
       let res = await invoke("closeSpread", { ...params, orderType: "limit", limitPrice: debit, step: 0 });
       let orderId = res.orderId;
+
+      if (priceMode === "manual") {
+        addLog(`Order resting at ${priceLabel(debit)} (${orderId})`);
+        await watchResting(accountId, orderId, qty, key);
+        return;
+      }
+
       const start = Date.now();
       let lastWalk = start;
       let steps = 0;

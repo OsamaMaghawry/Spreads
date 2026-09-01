@@ -66,8 +66,10 @@ so a change to shared code requires redeploying all of them.
 - **adminData** — Back-office reads and writes: users and their activity, engagement figures, blog posts, and the internal customer record.
 - **alpacaOAuthCallback** — One token, two endpoints.
 - **closeSpread** — Submits the closing order for a position: the whole structure by default, or just the legs the caller picked when only one side needs unwinding.
+- **dumpBrokerFeed** — Captures a broker activity feed so a refused sync can be diagnosed off-box.
 - **findEntry** — Scans the live chain and returns the delta-targeted setup for one strategy.
 - **manageOrder** — Reads the status of a working order, or cancels it.
+- **marketStream** — Live underlying prices, relayed from Alpaca's stream.
 - **migrateCredentials** — Encrypts credentials that are still stored in plaintext, across every user's accounts, without involving those users.
 - **oauthDiag** — Answers one question: does Alpaca recognise this app's OAuth credentials? The authorize page cannot answer it.
 - **openPosition** — How far the stock may have moved since the setup was built before the order is refused.
@@ -75,6 +77,7 @@ so a change to shared code requires redeploying all of them.
 - **refreshEarnings** — Refreshes the cached earnings calendar for the next 90 days from the provider.
 - **saveAccount** — Creating and editing a trading account.
 - **scanEntries** — (no summary comment)
+- **sendDigest** — The one way an agent reaches the owner.
 - **spreadQuote** — Prices a position for closing: what the legs are worth right now, plus the highest limit already tried on them so a retry resumes rather than restarts.
 - **syncAccounts** — Rebuilds the live picture for every account the caller owns: positions paired into structures, credit and risk per position, and totals that net a ticker's condors instead of double counting both wings.
 - **tradeHistory** — Closed trade history, rebuilt from the broker's activity feed.
@@ -102,6 +105,7 @@ revoked from the browser role entirely.
 - **watch_settings** — id, recipient_email, strike_proximity_pct, position_max_pct, earnings_within_days, enabled, updated_at
 - **broker_connection_issues** — id, user_id, broker, environment, status, detail, created_at
 - **order_attempts** — id, user_id, account_id, run_key, intent, step, ticker, legs, qty, order_type, limit_price, quote, broker_order_id, status, filled_qty, filled_avg_price, error, created_at, updated_at
+- **digest_sends** — id, subject, created_at
 
 ## Analytics vocabulary
 

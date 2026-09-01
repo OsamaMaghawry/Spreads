@@ -1,0 +1,58 @@
+name: Publish blog posts
+
+# Closes the gap between "a post is written" and "a reader can see it".
+#
+# content-engine writes to content/blog/ and commits. Until now that was the
+# end of the line: the only route into the blog_posts table was a human in the
+# admin panel, so two finished posts sat in the repo while production served an
+# empty blog and five weekly agents reported around it. Publishing is now a
+# consequence of merging.
+#
+# Idempotent (upsert on slug), so a re-run republishes rather than duplicating,
+# and an edit to a merged post updates the live copy.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'content/blog/**'
+      - 'scripts/publish-blog.mjs'
+      - '.github/workflows/publish-blog.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: publish-blog
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Refuse rather than run with an empty key: PostgREST answers an
+      # unauthenticated write with a 401 that reads like a schema problem, and
+      # the failure would be attributed to the post rather than the secret.
+      - name: Require credentials
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_SERVICE_ROLE_KEY}" ]; then
+            echo "SUPABASE_SERVICE_ROLE_KEY is not set; cannot publish." >&2
+            exit 1
+          fi
+
+      - name: Publish
+        env:
+          SUPABASE_URL: https://yecfbeohyakuoyczvdbj.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Not a secret -- it is shipped to every browser. Passed so the script
+          # can re-read the posts as the public sees them and fail if a row was
+          # written but is not actually visible.
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: node scripts/publish-blog.mjs
