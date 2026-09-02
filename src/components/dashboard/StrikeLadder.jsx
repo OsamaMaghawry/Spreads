@@ -72,17 +72,46 @@ function singleGeometry(spread) {
   // A short put profits while the stock stays ABOVE the break-even; a short
   // call -- covered or not -- while it stays BELOW. A long is the mirror of
   // the short on the same side.
+  //
+  // The band between the strike and the break-even is its own zone. On a
+  // short it is where the option is already in the money but the credit still
+  // covers it: profit shrinking toward zero, about to go red. On a long it is
+  // the mirror -- still losing, but less than the whole premium, recovering.
+  // Painting it the same as full profit hid the narrative the card is for.
   const profitAbove = short ? !isCall : isCall;
+  const shrinkTone = short ? "profitLight" : "lossLight";
   return {
     strikes,
     zonesAt: (pos) => {
-      const edge = be !== null ? be : leg.strike;
+      const k = leg.strike;
+      if (be === null || Math.abs(be - k) <= 0.005) {
+        return profitAbove
+          ? [{ tone: "loss", from: 0, to: pos(k) }, { tone: "profit", from: pos(k), to: 100 }]
+          : [{ tone: "profit", from: 0, to: pos(k) }, { tone: "loss", from: pos(k), to: 100 }];
+      }
+      const lo = Math.min(be, k);
+      const hi = Math.max(be, k);
       return profitAbove
-        ? [{ tone: "loss", from: 0, to: pos(edge) }, { tone: "profit", from: pos(edge), to: 100 }]
-        : [{ tone: "profit", from: 0, to: pos(edge) }, { tone: "loss", from: pos(edge), to: 100 }];
+        ? [
+            { tone: "loss", from: 0, to: pos(lo) },
+            { tone: shrinkTone, from: pos(lo), to: pos(hi) },
+            { tone: "profit", from: pos(hi), to: 100 }
+          ]
+        : [
+            { tone: "profit", from: 0, to: pos(lo) },
+            { tone: shrinkTone, from: pos(lo), to: pos(hi) },
+            { tone: "loss", from: pos(hi), to: 100 }
+          ];
     }
   };
 }
+
+const ZONE_TONE = {
+  profit: "bg-emerald-100/60",
+  profitLight: "bg-emerald-50/70",
+  loss: "bg-rose-100/60",
+  lossLight: "bg-rose-50/70"
+};
 
 export default function StrikeLadder({ spread }) {
   const isCondor = spread.type === "iron_condor";
@@ -199,7 +228,7 @@ export default function StrikeLadder({ spread }) {
         {zones.map((z, i) => (
           <div
             key={i}
-            className={`absolute top-8 bottom-0 rounded-sm ${z.tone === "profit" ? "bg-emerald-100/60" : "bg-rose-100/60"}`}
+            className={`absolute top-8 bottom-0 rounded-sm ${ZONE_TONE[z.tone] || ZONE_TONE.loss}`}
             style={{ left: `${z.from}%`, width: `${Math.max(0, z.to - z.from)}%` }}
           />
         ))}

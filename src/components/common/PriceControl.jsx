@@ -108,12 +108,31 @@ export default function PriceControl({ price, onChange, quote, unit, qty, side =
 
       {priced && pos !== null && (
         <div className="mt-3">
+          {/* The track IS the slider. A native range input sits over it, thumb
+              hidden, wired to the same set() the stepper, the chips and the
+              text field call -- so typing, stepping and dragging are one
+              number, not three. The range extends past bid and ask by the
+              8% the track already reserves, so the ticks stay put and a price
+              a little outside the quotes can still be dragged to. */}
           <div className="relative h-6 rounded-md bg-gradient-to-r from-emerald-50 via-slate-100 to-rose-50 border border-slate-200">
             <span className="absolute -top-1 -bottom-1 w-0.5 bg-slate-300 rounded" style={{ left: "8%" }} />
             <span className="absolute -top-1 -bottom-1 w-0.5 bg-slate-300 rounded" style={{ left: "92%" }} />
             <span
-              className="absolute -top-1.5 -bottom-1.5 w-[3px] bg-emerald-600 rounded ring-4 ring-emerald-600/15"
+              className="absolute -top-1.5 -bottom-1.5 w-[3px] bg-emerald-600 rounded ring-4 ring-emerald-600/15 pointer-events-none"
               style={{ left: `${8 + pos * 84}%` }}
+            />
+            <input
+              type="range"
+              aria-label={`Drag to set the ${side === "credit" ? "credit" : "limit"}`}
+              min={round2(bid - Math.max(ask - bid, 0.01) * (8 / 84))}
+              max={round2(ask + Math.max(ask - bid, 0.01) * (8 / 84))}
+              step="0.01"
+              value={empty ? (typeof mid === "number" ? mid : bid) : price}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value);
+                if (isFinite(v)) set(v);
+              }}
+              className="absolute inset-0 w-full h-full cursor-ew-resize opacity-0 [appearance:none] bg-transparent"
             />
           </div>
           <div className="flex justify-between mt-1.5 text-[10px] tabular-nums text-slate-400">

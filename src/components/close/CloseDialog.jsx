@@ -111,7 +111,14 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   const priceQuote = quote
     ? { bid: quote.bidDebit, ask: quote.askDebit, mid: quote.midDebit, last: quote.lastAttemptDebit }
     : null;
-  const plPerContract = (spread.netCredit - midDebit) * 100;
+  // The P/L rows follow the price being chosen, not the mid. The whole point
+  // of "Set my price" is to see what THIS number yields, and a box above it
+  // frozen at the mid contradicts it. Manual with a price -> that price;
+  // anything else -> the mid, as before.
+  const manualReadyForPl = priceMode === "manual" && typeof manualPrice === "number" && manualPrice > 0;
+  const plDebit = manualReadyForPl ? manualPrice : midDebit;
+  const plAt = manualReadyForPl ? `at ${fmtMoney(manualPrice)}` : "(mid)";
+  const plPerContract = (spread.netCredit - plDebit) * 100;
   const unit = spread.type === "iron_condor" ? "condor" : "contract";
   // Resume from the highest price already attempted — either this session's memory
   // or the last limit price Alpaca has on record for this spread.
@@ -217,9 +224,9 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                   <span className="text-slate-500">Entry credit / {unit}</span><span className="text-right">{fmtMoney(spread.netCredit)}</span>
                   <span className="text-slate-500">Mid debit to close</span><span className="text-right">{fmtMoney(midDebit)}</span>
                   <span className="text-slate-500">Bid / Ask debit</span><span className="text-right">{fmtMoney(quote.bidDebit)} / {fmtMoney(quote.askDebit)}</span>
-                  <span className="text-slate-500">P/L per {unit} (mid)</span>
+                  <span className="text-slate-500">P/L per {unit} {plAt}</span>
                   <span className={`text-right font-medium ${plPerContract >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{fmtMoney(plPerContract)}</span>
-                  <span className="text-slate-500">Total P/L for {qty} {unit}{qty > 1 ? "s" : ""}</span>
+                  <span className="text-slate-500">Total P/L for {qty} {unit}{qty > 1 ? "s" : ""} {plAt}</span>
                   <span className={`text-right font-semibold ${plPerContract >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{fmtMoney(plPerContract * qty)}</span>
                 </div>
               ) : (
