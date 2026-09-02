@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import SpreadStructure from "./SpreadStructure";
+import { isSingle, kindOf, riskText, riskIsUnbounded } from "@/lib/positionKind";
 import LegRows from "./LegRows";
 
 const th = "px-2.5 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
@@ -85,6 +86,11 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
                     CALL
                   </span>
                 )}
+                {isSingle(s) && kindOf(s) && (
+                  <span className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full border ${kindOf(s).cls}`} title={kindOf(s).label}>
+                    {kindOf(s).badge.toUpperCase()}
+                  </span>
+                )}
                 {s.openOrders?.length > 0 && (
                   <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
                     OPEN ORDER
@@ -117,10 +123,15 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
                   deliverable an adjusted contract no longer has. A dash is
                   the honest cell; a number here would be arithmetic about a
                   contract that does not exist. */}
-              <td className={`${td} text-right`}>{s.adjusted ? "—" : fmtMoney(s.spreadWidth)}</td>
+              <td className={`${td} text-right`}>{s.adjusted || s.spreadWidth === null ? "—" : fmtMoney(s.spreadWidth)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.netCredit)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.totalCredit)}</td>
-              <td className={`${td} text-right`}>{s.adjusted ? "—" : fmtMoney(s.maxRisk)}</td>
+              {/* "Unlimited" rather than a dash: a naked short call is the one
+                  position here that can lose without bound, and a blank cell
+                  reads as nothing to worry about. */}
+              <td className={`${td} text-right ${riskIsUnbounded(s) ? "font-semibold text-rose-700" : ""}`}>
+                {riskText(s, fmtMoney)}
+              </td>
               <td className={`${td} text-right`}>
                 {s.adjusted ? "—" : fmtMoney(s.breakEven)}
                 {!s.adjusted && s.breakEvenHigh != null && (

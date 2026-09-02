@@ -3,6 +3,7 @@ import { ChevronDown } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import StrikeLadder from "./StrikeLadder";
 import CardLegs from "./CardLegs";
+import { isSingle, kindOf, riskText } from "@/lib/positionKind";
 
 const badge = "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border";
 
@@ -20,10 +21,11 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
           : fmtMoney(s.breakEven)
     },
     // Withheld on an adjusted contract: the width it is derived from is not
-    // what the contract delivers any more.
-    { label: "Max Risk", value: s.adjusted ? "—" : fmtMoney(s.maxRisk), tone: "text-rose-600" },
+    // what the contract delivers any more. On a naked call it is not withheld
+    // but stated -- "Unlimited" is the most important word on the card.
+    { label: "Max Risk", value: riskText(s, fmtMoney), tone: "text-rose-600" },
     { label: "Net Credit", value: fmtMoney(s.totalCredit), tone: "text-emerald-600" },
-    { label: "Expiry", value: s.expiryFormatted }
+    { label: "Expiry", value: s.expiryFormatted || "—" }
   ];
 
   return (
@@ -34,6 +36,9 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
           {s.type === "iron_condor" && <span className={`${badge} border-indigo-200 bg-indigo-100 text-indigo-700`}>IC</span>}
           {s.type === "call_spread" && <span className={`${badge} border-sky-200 bg-sky-100 text-sky-700`}>Call</span>}
           {s.type === "put_spread" && <span className={`${badge} border-violet-200 bg-violet-100 text-violet-700`}>Put</span>}
+          {isSingle(s) && kindOf(s) && (
+            <span className={`${badge} ${kindOf(s).cls}`} title={kindOf(s).label}>{kindOf(s).badge}</span>
+          )}
           <span
             className={`${badge} ${
               s.moneyness === "ITM"
@@ -69,7 +74,11 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
         </div>
       </div>
 
-      <StrikeLadder spread={s} />
+      {/* The ladder plots a profit zone between two strikes. A single leg has
+          one, and shares have none, so it would draw a band from an undefined
+          edge — a picture asserting something about the trade that is not
+          true. Withheld rather than drawn wrong. */}
+      {!isSingle(s) && <StrikeLadder spread={s} />}
 
       <div className="flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
         {footer.map((f) => (

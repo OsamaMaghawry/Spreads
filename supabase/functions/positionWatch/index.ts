@@ -230,7 +230,12 @@ Deno.serve(async (req) => {
         const through = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
         const earnings = tickers.length ? await earningsThrough(admin, tickers, through) : {};
 
-        const { raised, legs: parsedLegs } = evaluate(account, legs, spots, earnings, equity, settings);
+        const allPositions = Array.isArray(positions) ? positions : [];
+        const { raised, legs: parsedLegs } = evaluate(
+          account, legs, spots, earnings, equity, settings,
+          sharesByTicker(allPositions),
+          info?.cash !== undefined ? parseFloat(info.cash) : null
+        );
         const toNotify = await reconcile(admin, account, raised);
 
         if (mode === "watch" && toNotify.length) {

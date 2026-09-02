@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { nextLimit } from "@/lib/closeWalk";
+import { spreadLegs } from "@/lib/spreadLegs";
 
 const WALK_INTERVAL = 30000;
 const POLL = 2000;
@@ -23,14 +24,23 @@ const spreadKey = (accountId, spread, legs) =>
   legs
     ? `${accountId}_${legs.map((l) => l.symbol).join("_")}`
     : `${accountId}_${spread.shortSymbol}_${spread.longSymbol}${spread.callShortSymbol ? `_${spread.callShortSymbol}_${spread.callLongSymbol}` : ""}`;
-const wholeParams = (spread) => ({
-  shortSymbol: spread.shortSymbol,
-  longSymbol: spread.longSymbol,
-  callShortSymbol: spread.callShortSymbol,
-  callLongSymbol: spread.callLongSymbol,
-  putRatio: spread.putRatio || 1,
-  callRatio: spread.callRatio || 1
-});
+const wholeParams = (spread) => {
+  // A single-leg position has no second symbol, and the paired form would send
+  // the broker a multi-leg order with a null leg in it. Its "whole position" IS
+  // one leg, so it takes the explicit-legs path that closeSpread already
+  // handles as a plain single-leg order.
+  if (spread.single) {
+    return { legs: spreadLegs(spread).map((l) => ({ symbol: l.symbol, ratio: l.ratio, action: l.action })) };
+  }
+  return {
+    shortSymbol: spread.shortSymbol,
+    longSymbol: spread.longSymbol,
+    callShortSymbol: spread.callShortSymbol,
+    callLongSymbol: spread.callLongSymbol,
+    putRatio: spread.putRatio || 1,
+    callRatio: spread.callRatio || 1
+  };
+};
 // Either the whole structure, or an explicit subset of legs the user picked.
 const legParams = (spread, legs) =>
   legs ? { legs: legs.map((l) => ({ symbol: l.symbol, ratio: l.ratio || 1, action: l.action })) } : wholeParams(spread);

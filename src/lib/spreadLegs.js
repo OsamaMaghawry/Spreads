@@ -5,6 +5,25 @@ export function spreadLegs(spread) {
   const callRatio = spread.callRatio || 1;
   const legs = [];
 
+  // A single position -- a cash-secured put, a covered call, a naked call, a
+  // leftover long -- has one leg and one symbol. Running it through the pairing
+  // below would emit a second leg with a null symbol, which the broker rejects
+  // and the leg picker renders as an empty row.
+  if (spread.single) {
+    if (spread.shares) return [];
+    const l = spread.legs?.[0];
+    if (!l) return [];
+    const short = l.side === "short";
+    return [{
+      symbol: l.symbol,
+      ratio: l.ratio || 1,
+      action: short ? "buy_to_close" : "sell_to_close",
+      side: l.side,
+      kind: l.kind,
+      strike: l.strike
+    }];
+  }
+
   if (spread.type === "call_spread") {
     legs.push(
       { symbol: spread.shortSymbol, ratio: 1, action: "buy_to_close", side: "short", kind: "call", strike: spread.shortStrike },

@@ -57,7 +57,17 @@ export default function AccountSection({ account, onCloseSpread, onOrdersChanged
     },
     { label: "Cash", value: fmtMoney(account.cash) },
     { label: "Options BP", value: fmtMoney(account.optionsBuyingPower) },
-    { label: "Risk / Equity", value: fmtPct(account.riskPct) },
+    {
+      label: "Risk / Equity",
+      // A naked short call has no maximum loss, so this percentage is a floor
+      // rather than the figure. Marking it is the difference between an
+      // understatement and a lie.
+      value: account.riskComplete === false ? `${fmtPct(account.riskPct)}+` : fmtPct(account.riskPct),
+      title:
+        account.riskComplete === false
+          ? `At least this much — ${(account.totals.undefinedRisk || []).join(", ") || "a position"} can lose without limit, so it cannot be added up.`
+          : undefined
+    },
     {
       label: "P/L / Equity",
       value: fmtPct(account.plPct),
@@ -122,7 +132,7 @@ export default function AccountSection({ account, onCloseSpread, onOrdersChanged
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-2 ml-auto">
           {stats.map((s) => (
-            <div key={s.label}>
+            <div key={s.label} title={s.title}>
               <div className="text-[10px] uppercase tracking-wider text-slate-500">{s.label}</div>
               <div className={`text-sm font-medium tabular-nums ${s.tone || "text-slate-800"}`}>{s.value}</div>
             </div>

@@ -6,6 +6,7 @@
 // spread) and never guessed into an iron condor.
 
 import { parseOCCSymbol } from "./alpaca.ts";
+import { KINDS, classifyLeg, riskOfKind, collateralOfKind, labelOfKind } from "./positionKinds.ts";
 
 const gcd = (a, b) => (b ? gcd(b, a % b) : a);
 
@@ -19,10 +20,30 @@ function buildLegs(positions, activities) {
   });
 
   const legsBySymbol = {};
+  // Shares are positions too. They were dropped outright here, so a wheel's
+  // assigned stock -- and the covering side of every covered call -- never
+  // entered the pipeline at all.
+  const shareLots = {};
   (positions || []).forEach((p) => {
-    if (p.asset_class !== "us_option" && p.symbol.length <= 10) return;
     const parsed = parseOCCSymbol(p.symbol);
-    if (!parsed) return;
+    if (!parsed) {
+      const shareQty = parseFloat(p.qty);
+      if (!Number.isFinite(shareQty) || shareQty === 0) return;
+      const sym = p.symbol;
+      if (!shareLots[sym]) {
+        shareLots[sym] = {
+          symbol: sym, ticker: sym, qty: shareQty,
+          avgEntryPrice: Math.abs(parseFloat(p.avg_entry_price) || 0),
+          currentPrice: Math.abs(parseFloat(p.current_price || p.avg_entry_price) || 0),
+          marketValue: parseFloat(p.market_value || "0"),
+          entryDate: fillDates[sym] || new Date().toISOString().substring(0, 10)
+        };
+      } else {
+        shareLots[sym].qty += shareQty;
+        shareLots[sym].marketValue += parseFloat(p.market_value || "0");
+      }
+      return;
+    }
     const qty = parseInt(p.qty);
     if (!legsBySymbol[p.symbol]) {
       legsBySymbol[p.symbol] = {
@@ -41,7 +62,7 @@ function buildLegs(positions, activities) {
       legsBySymbol[p.symbol].qty += qty;
     }
   });
-  return legsBySymbol;
+  return { legsBySymbol, shareLots };
 }
 
 // Pair shorts with protective longs of the same option type.
@@ -189,8 +210,79 @@ function mergeIdentical(spreads) {
 }
 
 // positions/activities from Alpaca, plus filled historical orders (nested=true).
-export function pairSpreads(positions, activities, filledOrders = []) {
-  const legsBySymbol = buildLegs(positions, activities);
+// One leftover leg or share lot, described as what it is.
+//
+// Everything pairing could not explain arrives here rather than being dropped.
+// The shares pool is consumed as covered calls claim it, so ten short calls
+// against one hundred shares report as naked -- which they overwhelmingly are.
+function toSinglePosition(leg, kind, extra = {}) {
+  const contracts = Math.abs(leg.qty);
+  const short = leg.qty < 0;
+  return {
+    type: kind,
+    kindLabel: labelOfKind(kind),
+    single: true,
+    ticker: leg.ticker,
+    expiry: leg.expiry,
+    expiryFormatted: leg.expiryFormatted,
+    entryDate: leg.entryDate,
+    qty: contracts,
+    legs: [{
+      symbol: leg.symbol,
+      side: short ? "short" : "long",
+      kind: leg.optionType === "C" ? "call" : "put",
+      strike: leg.strike,
+      ratio: 1,
+      entryPrice: leg.avgEntryPrice,
+      currentPrice: leg.currentPrice
+    }],
+    // The close ticket reads shortSymbol/longSymbol; a single leg fills whichever
+    // side it actually is so the existing path can price and close it unchanged.
+    shortSymbol: short ? leg.symbol : null,
+    longSymbol: short ? null : leg.symbol,
+    shortStrike: short ? leg.strike : null,
+    longStrike: short ? null : leg.strike,
+    shortEntryPrice: short ? leg.avgEntryPrice : 0,
+    longEntryPrice: short ? 0 : leg.avgEntryPrice,
+    shortCurrentPrice: short ? leg.currentPrice : 0,
+    longCurrentPrice: short ? 0 : leg.currentPrice,
+    maxRisk: riskOfKind(kind, { ...leg, ...extra }),
+    collateral: collateralOfKind(kind, leg),
+    ...extra
+  };
+}
+
+function toSharePosition(lot) {
+  return {
+    type: KINDS.SHARES,
+    kindLabel: labelOfKind(KINDS.SHARES),
+    single: true,
+    shares: true,
+    ticker: lot.ticker,
+    expiry: null,
+    expiryFormatted: null,
+    entryDate: lot.entryDate,
+    qty: Math.abs(lot.qty),
+    shareQty: lot.qty,
+    legs: [],
+    shortSymbol: null,
+    longSymbol: lot.symbol,
+    shortStrike: null,
+    longStrike: null,
+    shortEntryPrice: 0,
+    longEntryPrice: lot.avgEntryPrice,
+    shortCurrentPrice: 0,
+    longCurrentPrice: lot.currentPrice,
+    marketValue: lot.marketValue,
+    maxRisk: riskOfKind(KINDS.SHARES, lot),
+    collateral: null
+  };
+}
+
+// positions/activities from Alpaca, plus filled historical orders (nested=true).
+// `cash` lets a short put be judged secured or not; without it we do not assume.
+export function pairSpreads(positions, activities, filledOrders = [], { cash = null } = {}) {
+  const { legsBySymbol, shareLots } = buildLegs(positions, activities);
 
   // Oldest orders first so FIFO-style claims match how the positions were built.
   const orders = (Array.isArray(filledOrders) ? filledOrders : [])
@@ -221,5 +313,40 @@ export function pairSpreads(positions, activities, filledOrders = []) {
     loose.push(...pairSide(legs, "P"), ...pairSide(legs, "C"));
   });
 
-  return mergeIdentical([...proven, ...loose].filter((s) => s.qty > 0));
+  // Whatever survived every pairing pass is still real money. It used to be
+  // discarded here, which is why a wheel account showed an empty dashboard and
+  // why a naked short call -- the one position with unbounded loss -- was the
+  // one position guaranteed not to be displayed.
+  const singles = [];
+  // Shares back covered calls first; only what remains is reported as stock.
+  const sharesLeft = {};
+  Object.values(shareLots).forEach((lot) => {
+    sharesLeft[lot.ticker] = (sharesLeft[lot.ticker] || 0) + lot.qty;
+  });
+
+  // Shorts before longs, so a covered call claims its shares before a long leg
+  // in the same name is described.
+  const leftovers = Object.values(legsBySymbol).filter((l) => l.qty !== 0);
+  leftovers.sort((a, b) => a.qty - b.qty);
+  leftovers.forEach((leg) => {
+    const shares = sharesLeft[leg.ticker] || 0;
+    const kind = classifyLeg(leg, { shares, cash });
+    if (!kind) return;
+    let extra = {};
+    if (kind === KINDS.COVERED_CALL) {
+      const claimed = Math.abs(leg.qty) * 100;
+      sharesLeft[leg.ticker] = shares - claimed;
+      const lot = shareLots[leg.ticker];
+      extra = { shareBasis: lot ? lot.avgEntryPrice : 0, coveredBy: lot ? lot.symbol : null };
+    }
+    singles.push(toSinglePosition(leg, kind, extra));
+  });
+
+  Object.values(shareLots).forEach((lot) => {
+    const left = sharesLeft[lot.ticker] || 0;
+    if (Math.abs(left) < 1) return; // fully committed to covered calls
+    singles.push(toSharePosition({ ...lot, qty: left, marketValue: lot.marketValue * (left / lot.qty) }));
+  });
+
+  return [...mergeIdentical([...proven, ...loose].filter((s) => s.qty > 0)), ...singles];
 }

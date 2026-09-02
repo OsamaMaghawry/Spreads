@@ -12,6 +12,7 @@ import { spreadLegs, legLabel } from "@/lib/spreadLegs";
 import LegsQuoteSummary from "./LegsQuoteSummary";
 import PriceControl from "@/components/common/PriceControl";
 import useMarketStream from "@/lib/useMarketStream";
+import { kindOf } from "@/lib/positionKind";
 
 // The spread's own bid/ask, re-read as fast as the broker will answer.
 //
@@ -59,18 +60,26 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
     let active = true;
     setQuote(null);
     setQuoteLoading(true);
+    // A single position is quoted by its one leg. The paired shape would send a
+    // null longSymbol and come back with no quote at all, so the ticket would
+    // show "market may be closed" on a perfectly quotable contract.
+    const wholeLegs = spread.single
+      ? spreadLegs(spread).map((l) => ({ symbol: l.symbol, ratio: l.ratio, action: l.action }))
+      : null;
     const body = {
       accountId: account.id,
       ...(customLegs
         ? { legs: customLegs.map((l) => ({ symbol: l.symbol, ratio: l.ratio, action: l.action })) }
-        : {
-            shortSymbol: spread.shortSymbol,
-            longSymbol: spread.longSymbol,
-            callShortSymbol: spread.callShortSymbol,
-            callLongSymbol: spread.callLongSymbol,
-            putRatio: spread.putRatio || 1,
-            callRatio: spread.callRatio || 1
-          })
+        : wholeLegs
+          ? { legs: wholeLegs }
+          : {
+              shortSymbol: spread.shortSymbol,
+              longSymbol: spread.longSymbol,
+              callShortSymbol: spread.callShortSymbol,
+              callLongSymbol: spread.callLongSymbol,
+              putRatio: spread.putRatio || 1,
+              callRatio: spread.callRatio || 1
+            })
     };
     const fetchQuote = () =>
       invokeFunction("spreadQuote", body)
@@ -146,7 +155,9 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
       <DialogContent className="bg-white border-slate-200 text-slate-700 sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-slate-900">
-            {spread.type === "iron_condor"
+            {spread.single
+              ? `Close ${spread.qty} ${spread.ticker} ${kindOf(spread)?.label || "position"}${spread.legs?.[0] ? ` $${spread.legs[0].strike}${spread.legs[0].kind === "call" ? "C" : "P"}` : ""}`
+              : spread.type === "iron_condor"
               ? `Close ${spread.ticker} ${spread.putRatio > 1 ? `${spread.putRatio}× ` : ""}${spread.longStrike}/${spread.shortStrike}P · ${spread.callRatio > 1 ? `${spread.callRatio}× ` : ""}${spread.callShortStrike}/${spread.callLongStrike}C iron condor`
               : spread.type === "call_spread"
                 ? `Close ${spread.ticker} ${spread.shortStrike}/${spread.longStrike} call spread`

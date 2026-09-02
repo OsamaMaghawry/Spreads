@@ -13,6 +13,7 @@ most important thing to alert on. Every rule reasons per leg.
 
 | Rule | Fires when | Severity | Threshold (`watch_settings`) |
 | --- | --- | --- | --- |
+| `naked_short_call` | a short call with fewer than 100 shares per contract behind it | 🔴 critical | — |
 | `short_through_strike` | a short leg is in the money on a **trusted** spot | 🔴 critical | — |
 | `short_near_strike` | a short leg is within N% of its strike, trusted spot | 🟠 warning | `strike_proximity_pct` (1%) |
 | `price_untrusted` | a short leg cannot be judged because the spot fails the trust ladder | 🟠 warning | — |
@@ -25,6 +26,27 @@ into one line naming the symbols that could not be priced.
 | `position_oversized` | one position's market value exceeds X% of account equity | 🟠 warning | `position_max_pct` (25%) |
 
 ## Principles the rules must keep
+
+- **An unbounded loss is stated, not measured.** `naked_short_call` is the one
+  rule that does not compare a number against a threshold. Every other rule here
+  watches a bounded loss getting larger; a naked call has no bound, so it fires
+  on the shape of the position alone — whatever the price is doing, and whether
+  or not the spot can be judged. `positionKinds.riskOfKind` returns `null` for
+  it rather than a figure, and the dashboard prints "Unlimited"; a blank cell or
+  a zero would read as nothing to worry about. Where any position carries a null
+  risk, the account's Risk / Equity is shown as a floor (`12.4%+`) rather than a
+  total, because a tidy percentage that omits an unlimited liability is worse
+  than no percentage.
+
+- **Every position is shown, whatever we can make of it.** `spreadPairing`
+  returned only structures it could pair a short against a protective long, and
+  silently dropped the rest — so an Options Wheel account (cash-secured puts,
+  covered calls, assigned shares) rendered an empty dashboard beside a complete
+  trade history, and a naked short call was the single position guaranteed not
+  to appear. Unpaired legs and share lots are now classified by
+  `_shared/positionKinds.ts` and shown as what they are. The account's
+  `wheel_client_prefix` only *labels* a strategy, exactly as it does in
+  `tradeHistory`; it never decides whether a position is displayed.
 
 - **Withhold rather than default.** `price_untrusted` exists because the wrong
   answer here is to silently call an unjudgeable position out-of-the-money. An

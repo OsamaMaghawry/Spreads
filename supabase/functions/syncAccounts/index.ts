@@ -2,6 +2,7 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { tradingBase, alpacaFetch, pairSpreads, getOptionQuotes } from "../_shared/alpaca.ts";
 import { getSpots } from "../_shared/marketPrice.ts";
+import { KINDS, totalRisk } from "../_shared/positionKinds.ts";
 import { decryptSecret } from "../_shared/crypto.ts";
 import { parseOCCSymbol } from "../_shared/occ.ts";
 
@@ -38,7 +39,7 @@ Deno.serve(async (req) => {
 
 async function syncOne(account) {
   const base = tradingBase(account);
-  const empty = { credit: 0, risk: 0, closeCost: 0, pl: 0, expirationPL: 0 };
+  const empty = { credit: 0, risk: 0, closeCost: 0, pl: 0, expirationPL: 0, collateral: 0, riskComplete: true, undefinedRisk: [] };
   try {
     const [info, positions, activities, openOrders, filledOrders] = await Promise.all([
       alpacaFetch(`${base}/account`, account),
@@ -119,10 +120,13 @@ async function syncOne(account) {
     ].sort((a, b) => String(b.submittedAt || "").localeCompare(String(a.submittedAt || "")));
 
     // Provenance: legs opened by the same multi-leg order form one structure.
+    // Cash is passed so a short put can be judged secured or not. Without it a
+    // naked short put would be labelled cash-secured on nothing but hope.
     const spreads = pairSpreads(
       Array.isArray(positions) ? positions : [],
       Array.isArray(activities) ? activities : [],
-      (Array.isArray(filledOrders) ? filledOrders : []).filter((o) => o.status === 'filled')
+      (Array.isArray(filledOrders) ? filledOrders : []).filter((o) => o.status === 'filled'),
+      { cash: info ? parseFloat(info.cash) : null }
     );
 
     const tickers = [...new Set(spreads.map((s: any) => s.ticker))];
@@ -137,6 +141,7 @@ async function syncOne(account) {
     const legQuotes = await getOptionQuotes(
       account,
       spreads.flatMap((s: any) => [s.shortSymbol, s.longSymbol, s.callShortSymbol, s.callLongSymbol])
+        .filter((sym: string) => sym && parseOCCSymbol(sym))
     ).catch((e) => {
       console.error("option quotes fetch failed", account.id, e?.message || e);
       return {};
@@ -146,7 +151,73 @@ async function syncOne(account) {
       return q && q.ap > 0 && q.bp >= 0 && q.ap >= q.bp ? (q.bp + q.ap) / 2 : null;
     };
 
+    // A single leg or share lot has no width, so none of the spread arithmetic
+    // below applies to it: (width - credit) on a cash-secured put is a number
+    // about a trade nobody put on. Its risk was already computed by kind in
+    // positionKinds.ts and travels on the position.
+    const singleRow = (s: any) => {
+      const stockPrice = spots[s.ticker]?.price || 0;
+      if (s.type === KINDS.SHARES) {
+        const pl = (s.longCurrentPrice - s.longEntryPrice) * s.shareQty;
+        return {
+          ...s, stockPrice,
+          priceSource: "broker",
+          spotSource: spots[s.ticker]?.source || null,
+          spotTrusted: spots[s.ticker]?.trusted ?? false,
+          moneyness: null,
+          adjusted: false,
+          spreadWidth: null, netCredit: 0, totalCredit: 0,
+          breakEven: s.longEntryPrice, breakEvenHigh: null,
+          // Closing stock is a sale, not a debit, so it contributes nothing to
+          // the account's cost-to-close; the gain is carried on the row itself.
+          closeCost: 0,
+          unrealizedPL: pl,
+          expirationCost: 0,
+          expirationPL: pl,
+          openOrders: []
+        };
+      }
+
+      const leg = s.legs[0];
+      const short = leg.side === "short";
+      const sign = short ? 1 : -1;
+      const mid = midOf(leg.symbol);
+      const mark = mid !== null ? mid : leg.currentPrice;
+      const totalCredit = sign * leg.entryPrice * s.qty * 100;
+      const closeCost = sign * mark * s.qty * 100;
+      const isCall = leg.kind === "call";
+      const intrinsic = stockPrice > 0
+        ? Math.max(isCall ? stockPrice - leg.strike : leg.strike - stockPrice, 0)
+        : 0;
+      const expirationCost = sign * intrinsic * s.qty * 100;
+      const itm = stockPrice > 0 && (isCall ? stockPrice > leg.strike : stockPrice < leg.strike);
+      return {
+        ...s, stockPrice,
+        priceSource: mid !== null ? "quote" : "broker",
+        spotSource: spots[s.ticker]?.source || null,
+        spotTrusted: spots[s.ticker]?.trusted ?? false,
+        moneyness: !(stockPrice > 0) ? null : itm ? "ITM" : "OTM",
+        adjusted: !!parseOCCSymbol(leg.symbol)?.adjusted,
+        spreadWidth: null,
+        netCredit: sign * leg.entryPrice,
+        totalCredit,
+        breakEven: isCall ? leg.strike + leg.entryPrice : leg.strike - leg.entryPrice,
+        breakEvenHigh: null,
+        closeCost,
+        unrealizedPL: totalCredit - closeCost,
+        expirationCost,
+        expirationPL: stockPrice > 0 ? totalCredit - expirationCost : null,
+        openOrders: openList
+          .filter((o: any) => orderSymbols(o).includes(leg.symbol))
+          .map((o: any) => ({
+            id: o.id, type: o.type, qty: o.qty,
+            limitPrice: o.limit_price, status: o.status, submittedAt: o.submitted_at
+          }))
+      };
+    };
+
     const rows = spreads.map((s: any) => {
+      if (s.single) return singleRow(s);
       const stockPrice = spots[s.ticker]?.price || 0;
       const isCondor = s.type === "iron_condor";
       const isCall = s.type === "call_spread";
@@ -264,19 +335,30 @@ async function syncOne(account) {
     // Total max risk: 2-leg spreads sum (a whipsaw can hit both), but iron
     // condors on the same ticker can only lose on ONE side at expiration, so
     // each ticker contributes max(put-side, call-side) of its condors.
-    let nonCondorRisk = 0;
     const condorByTicker = {};
+    const flat = [];
     rows.forEach((r) => {
       if (r.type === 'iron_condor') {
         const t = (condorByTicker[r.ticker] = condorByTicker[r.ticker] || { putSide: 0, callSide: 0 });
         t.putSide += r.putSideRisk;
         t.callSide += r.callSideRisk;
       } else {
-        nonCondorRisk += r.maxRisk;
+        flat.push(r);
       }
     });
-    totals.risk = nonCondorRisk + Object.values(condorByTicker)
+    // A naked short call has no maximum loss, so it carries maxRisk: null and
+    // the total says so rather than adding zero. Summing an unbounded liability
+    // as nothing produces a tidy risk figure that is wrong by the size of the
+    // account -- the worst kind of wrong on a money screen.
+    const flatRisk = totalRisk(flat);
+    totals.risk = flatRisk.risk + Object.values(condorByTicker)
       .reduce((a, t) => a + Math.max(t.putSide, t.callSide), 0);
+    totals.riskComplete = flatRisk.complete;
+    totals.undefinedRisk = flatRisk.undefinedRisk;
+    // Collateral the broker is holding that is NOT loss exposure -- a
+    // cash-secured put ties up the whole strike while risking the strike less
+    // the credit, and a trader needs both numbers to read their own account.
+    totals.collateral = rows.reduce((a, r) => a + (Number(r.collateral) || 0), 0);
 
     const equity = info ? parseFloat(info.equity) : 0;
     return {
@@ -295,6 +377,9 @@ async function syncOne(account) {
       orders,
       totals,
       riskPct: equity > 0 ? totals.risk / equity : 0,
+      // False when any position's loss is unbounded, so the interface can
+      // refuse to present the percentage as the whole picture.
+      riskComplete: totals.riskComplete !== false,
       plPct: equity > 0 ? totals.pl / equity : 0
     };
   } catch (e) {
