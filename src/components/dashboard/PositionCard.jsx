@@ -3,30 +3,43 @@ import { ChevronDown } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import StrikeLadder from "./StrikeLadder";
 import CardLegs from "./CardLegs";
-import { isSingle, kindOf, riskText } from "@/lib/positionKind";
+import { isSingle, kindOf, riskText, riskLabel, isStockRisk, basisNote } from "@/lib/positionKind";
 
 const badge = "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border";
 
 export default function PositionCard({ spread: s, accountId, onClose }) {
   const [open, setOpen] = useState(false);
 
-  const footer = [
-    { label: "Qty", value: s.qty },
-    {
-      label: "Break-Even",
-      value: s.adjusted
-        ? "—"
-        : s.breakEvenHigh != null
-          ? `${fmtMoney(s.breakEven)} – ${fmtMoney(s.breakEvenHigh)}`
-          : fmtMoney(s.breakEven)
-    },
-    // Withheld on an adjusted contract: the width it is derived from is not
-    // what the contract delivers any more. On a naked call it is not withheld
-    // but stated -- "Unlimited" is the most important word on the card.
-    { label: "Max Risk", value: riskText(s, fmtMoney), tone: "text-rose-600" },
-    { label: "Net Credit", value: fmtMoney(s.totalCredit), tone: "text-emerald-600" },
-    { label: "Expiry", value: s.expiryFormatted || "—" }
-  ];
+  const breakEven = {
+    label: "Break-Even",
+    value: s.adjusted
+      ? "—"
+      : s.breakEvenHigh != null
+        ? `${fmtMoney(s.breakEven)} – ${fmtMoney(s.breakEvenHigh)}`
+        : fmtMoney(s.breakEven),
+    title: basisNote(s)
+  };
+  // Withheld on an adjusted contract: the width it is derived from is not
+  // what the contract delivers any more. On a naked call it is not withheld
+  // but stated -- "Unlimited" is the most important word on the card.
+  const risk = { label: riskLabel(s), value: riskText(s, fmtMoney), tone: "text-rose-600" };
+  const footer = isStockRisk(s)
+    // A wheel is run against its break-even, so that leads; the worst case is
+    // the same as owning the stock and sits second with a label saying so.
+    ? [
+        breakEven,
+        { label: "Qty", value: s.type === "shares" ? s.shareQty : s.qty },
+        { label: "Capital tied up", value: s.collateral != null ? fmtMoney(s.collateral) : "—" },
+        risk,
+        { label: "Expiry", value: s.expiryFormatted || "—" }
+      ]
+    : [
+        { label: "Qty", value: s.qty },
+        breakEven,
+        risk,
+        { label: "Net Credit", value: fmtMoney(s.totalCredit), tone: "text-emerald-600" },
+        { label: "Expiry", value: s.expiryFormatted || "—" }
+      ];
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
@@ -67,8 +80,8 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
               was missing. That price is last-trade based and goes stale on thin
               contracts, so say so rather than presenting it as a mark. */}
           {s.priceSource === "broker" && (
-            <div className="text-[10px] text-amber-600" title="No live quote for every leg — priced from the broker's last-trade values">
-              broker mark
+            <div className="text-[10px] text-amber-600" title="No live bid/ask for every leg, so this is priced from the last trade the broker has on record — it may be stale">
+              last trade — no live quote
             </div>
           )}
         </div>
@@ -82,7 +95,7 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
 
       <div className="flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
         {footer.map((f) => (
-          <div key={f.label}>
+          <div key={f.label} title={f.title}>
             <div className="text-[10px] uppercase tracking-wider text-slate-500">{f.label}</div>
             <div className={`text-sm font-medium tabular-nums ${f.tone || "text-slate-900"}`}>{f.value}</div>
           </div>

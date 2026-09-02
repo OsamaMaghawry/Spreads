@@ -57,6 +57,16 @@ export default function AccountSection({ account, onCloseSpread, onOrdersChanged
     },
     { label: "Cash", value: fmtMoney(account.cash) },
     { label: "Options BP", value: fmtMoney(account.optionsBuyingPower) },
+    // The number a wheel trader reads: cash held against short puts plus the
+    // shares backing covered calls. Distinct from max loss, and only shown
+    // when there is any -- a spreads-only account has nothing to add here.
+    ...(account.totals?.collateral > 0
+      ? [{
+          label: "Capital tied up",
+          value: fmtMoney(account.totals.collateral),
+          title: "Cash securing short puts plus shares backing covered calls, at current value."
+        }]
+      : []),
     {
       label: "Risk / Equity",
       // A naked short call has no maximum loss, so this percentage is a floor

@@ -73,6 +73,8 @@ export function riskOfKind(kind: string, p: any): number | null {
     case KINDS.COVERED_CALL:
       // The call is not the risk -- the shares are. Downside to zero on the
       // covered lot, less the premium collected for capping the upside.
+      // shareBasis is the ADJUSTED basis where the wheel's history allows it
+      // (assignment strike less every credit collected), else the broker's.
       return round2(
         (Number(p.shareBasis) || 0) * SHARES_PER_CONTRACT * contracts -
           credit * SHARES_PER_CONTRACT * contracts
@@ -82,7 +84,33 @@ export function riskOfKind(kind: string, p: any): number | null {
     case KINDS.LONG_OPTION:
       return round2(credit * SHARES_PER_CONTRACT * contracts);
     case KINDS.SHARES:
-      return round2(Math.abs(Number(p.marketValue) || 0));
+      // Cost from inception, to match every other row in the column. Market
+      // value is what can still be lost from HERE, which double-counts a drop
+      // already sitting in unrealized P/L against the same row.
+      return round2((Number(p.shareBasis ?? p.avgEntryPrice) || 0) * Math.abs(Number(p.shareQty ?? p.qty) || 0));
+    default:
+      return null;
+  }
+}
+
+// Where the position breaks even, per share -- the number a wheel is run
+// against. OIC: a covered call breaks even at the stock's cost less the call
+// premium; a short put at the strike less its premium.
+export function breakEvenOfKind(kind: string, p: any): number | null {
+  const credit = Math.abs(Number(p.avgEntryPrice) || 0);
+  const strike = Number(p.strike) || 0;
+  switch (kind) {
+    case KINDS.CASH_SECURED_PUT:
+    case KINDS.NAKED_PUT:
+      return round2(strike - credit);
+    case KINDS.COVERED_CALL:
+      return round2((Number(p.shareBasis) || 0) - credit);
+    case KINDS.NAKED_CALL:
+      return round2(strike + credit);
+    case KINDS.LONG_OPTION:
+      return round2(p.optionType === "C" ? strike + credit : strike - credit);
+    case KINDS.SHARES:
+      return round2(Number(p.shareBasis ?? p.avgEntryPrice) || 0);
     default:
       return null;
   }
@@ -95,6 +123,16 @@ export function collateralOfKind(kind: string, p: any): number | null {
   const contracts = Math.abs(Number(p.qty) || 0);
   if (kind === KINDS.CASH_SECURED_PUT) {
     return round2((Number(p.strike) || 0) * SHARES_PER_CONTRACT * contracts);
+  }
+  // A covered call and bare shares tie up the shares themselves, at what they
+  // are worth now -- that is the capital the trader cannot deploy elsewhere.
+  if (kind === KINDS.COVERED_CALL) {
+    const mv = Number(p.shareMarketPrice) || 0;
+    return mv > 0 ? round2(mv * SHARES_PER_CONTRACT * contracts) : null;
+  }
+  if (kind === KINDS.SHARES) {
+    const mv = Math.abs(Number(p.marketValue) || 0);
+    return mv > 0 ? round2(mv) : null;
   }
   return null;
 }

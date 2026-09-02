@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  KINDS, classifyLeg, riskOfKind, collateralOfKind, totalRisk
+  KINDS, classifyLeg, riskOfKind, collateralOfKind, breakEvenOfKind, totalRisk
 } from "./positionKinds.ts";
 
 // An Options Wheel account onboarded with a full history and an empty positions
@@ -68,9 +68,34 @@ test("a covered call's risk is the shares' downside, not a spread width", () => 
   assert.equal(riskOfKind(KINDS.COVERED_CALL, p), 9300);
 });
 
-test("a long option risks only its premium, and shares risk their value", () => {
+test("a long option risks only its premium", () => {
   assert.equal(riskOfKind(KINDS.LONG_OPTION, put(100, 3, 1.5)), 450);
-  assert.equal(riskOfKind(KINDS.SHARES, { qty: 100, marketValue: -4210.5 }), 4210.5);
+});
+
+test("shares risk what they COST, on the same convention as every other row", () => {
+  // Bought at 95, now 80: the $15 drop is already in unrealized P/L. Reporting
+  // market value here would count it twice against the same row.
+  assert.equal(riskOfKind(KINDS.SHARES, { shareQty: 100, avgEntryPrice: 95, marketValue: 8000 }), 9500);
+  assert.equal(riskOfKind(KINDS.SHARES, { shareQty: 100, shareBasis: 91, avgEntryPrice: 95 }), 9100, "adjusted basis wins when present");
+});
+
+test("the adjusted basis lowers a covered call's max loss by exactly the premiums collected", () => {
+  const broker = riskOfKind(KINDS.COVERED_CALL, { ...call(120, -1, 2), shareBasis: 95 });
+  const adjusted = riskOfKind(KINDS.COVERED_CALL, { ...call(120, -1, 2), shareBasis: 90 });
+  assert.equal(broker - adjusted, 500, "$5 of collected premium is $500 less at risk per contract");
+});
+
+test("break-even is the number a wheel is run against", () => {
+  assert.equal(breakEvenOfKind(KINDS.CASH_SECURED_PUT, put(100, -1, 2)), 98);
+  assert.equal(breakEvenOfKind(KINDS.COVERED_CALL, { ...call(120, -1, 2), shareBasis: 95 }), 93, "OIC: stock cost less call premium");
+  assert.equal(breakEvenOfKind(KINDS.NAKED_CALL, call(120, -1, 2)), 122);
+  assert.equal(breakEvenOfKind(KINDS.SHARES, { avgEntryPrice: 95 }), 95);
+});
+
+test("covered calls and shares tie up the shares at what they are worth now", () => {
+  assert.equal(collateralOfKind(KINDS.COVERED_CALL, { ...call(120, -2), shareMarketPrice: 110 }), 22000);
+  assert.equal(collateralOfKind(KINDS.SHARES, { marketValue: -8000 }), 8000);
+  assert.equal(collateralOfKind(KINDS.COVERED_CALL, call(120, -1)), null, "no price, no figure");
 });
 
 // --- Totals ----------------------------------------------------------------

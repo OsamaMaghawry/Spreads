@@ -121,3 +121,29 @@ test("a fully closed leg produces no row", () => {
   assert.deepEqual(pairSpreads([opt(P465, 0)], []), []);
   assert.deepEqual(pairSpreads([], []), []);
 });
+
+// --- Adjusted basis flows through to the position ---------------------------
+
+test("a covered call on assigned shares carries the adjusted basis, and its risk drops by the premiums", () => {
+  const basis = { AMD: { basis: 460, brokerBasis: 465, collected: 500, shares: 100, source: "adjusted" } };
+  const [cc] = pairSpreads([opt(C470, -1, 2), stock("AMD", 100, 465, 46000)], [], [], { basisByTicker: basis });
+  assert.equal(cc.type, KINDS.COVERED_CALL);
+  assert.equal(cc.shareBasis, 460);
+  assert.equal(cc.basisSource, "adjusted");
+  assert.equal(cc.premiumCollected, 500);
+  assert.equal(cc.maxRisk, 460 * 100 - 2 * 100, "not 465*100 - 200");
+  assert.equal(cc.breakEven, 458, "OIC: shares' cost less the call premium");
+});
+
+test("shares with no linkable premiums say broker basis, and use it", () => {
+  const [sh] = pairSpreads([stock("AMD", 100, 465, 46000)], [], [], { basisByTicker: { AMD: { basis: 465, brokerBasis: 465, collected: 0, shares: 100, source: "broker" } } });
+  assert.equal(sh.basisSource, "broker");
+  assert.equal(sh.shareBasis, 465);
+  assert.equal(sh.maxRisk, 46500, "cost from inception, not market value");
+});
+
+test("with no basis map at all every lot is broker basis", () => {
+  const [sh] = pairSpreads([stock("AMD", 100, 95, 9600)], []);
+  assert.equal(sh.basisSource, "broker");
+  assert.equal(sh.premiumCollected, 0);
+});

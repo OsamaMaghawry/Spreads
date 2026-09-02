@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import SpreadStructure from "./SpreadStructure";
-import { isSingle, kindOf, riskText, riskIsUnbounded } from "@/lib/positionKind";
+import { isSingle, kindOf, riskText, riskIsUnbounded, isStockRisk, basisNote } from "@/lib/positionKind";
 import LegRows from "./LegRows";
 
 const th = "px-2.5 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
@@ -129,11 +129,16 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
               {/* "Unlimited" rather than a dash: a naked short call is the one
                   position here that can lose without bound, and a blank cell
                   reads as nothing to worry about. */}
-              <td className={`${td} text-right ${riskIsUnbounded(s) ? "font-semibold text-rose-700" : ""}`}>
+              <td
+                className={`${td} text-right ${riskIsUnbounded(s) ? "font-semibold text-rose-700" : ""}`}
+                title={isStockRisk(s) ? "Max loss with the stock at zero — the same risk as owning the shares, not a defined-risk spread" : undefined}
+              >
                 {riskText(s, fmtMoney)}
+                {isStockRisk(s) && !riskIsUnbounded(s) && <span className="ml-1 text-[10px] text-slate-400">to 0</span>}
               </td>
-              <td className={`${td} text-right`}>
+              <td className={`${td} text-right`} title={basisNote(s)}>
                 {s.adjusted ? "—" : fmtMoney(s.breakEven)}
+                {s.basisSource === "adjusted" && <span className="ml-1 text-[10px] text-emerald-600" title="Premiums collected on this name have been subtracted">adj</span>}
                 {!s.adjusted && s.breakEvenHigh != null && (
                   <span className="text-slate-400"> – {fmtMoney(s.breakEvenHigh)}</span>
                 )}
@@ -145,7 +150,7 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
                 {fmtMoney(s.unrealizedPL)}
                 {/* Still counted in the totals — just not presented as a mark. */}
                 {s.priceSource === "broker" && (
-                  <span className="ml-1 font-normal text-amber-600" title="No live quote for every leg — priced from the broker's last-trade values">
+                  <span className="ml-1 font-normal text-amber-600" title="No live bid/ask for every leg, so this is priced from the last trade the broker has on record — it may be stale">
                     *
                   </span>
                 )}

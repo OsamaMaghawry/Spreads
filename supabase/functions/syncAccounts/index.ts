@@ -3,6 +3,7 @@ import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { tradingBase, alpacaFetch, pairSpreads, getOptionQuotes } from "../_shared/alpaca.ts";
 import { getSpots } from "../_shared/marketPrice.ts";
 import { KINDS, totalRisk } from "../_shared/positionKinds.ts";
+import { basisByTicker } from "../_shared/wheelBasis.ts";
 import { decryptSecret } from "../_shared/crypto.ts";
 import { parseOCCSymbol } from "../_shared/occ.ts";
 
@@ -120,13 +121,33 @@ async function syncOne(account) {
     ].sort((a, b) => String(b.submittedAt || "").localeCompare(String(a.submittedAt || "")));
 
     // Provenance: legs opened by the same multi-leg order form one structure.
+    // What held shares actually cost once the wheel's premiums are counted.
+    // The broker records the assignment strike and books the put premium as a
+    // separate closed trade; the history layer already links the two through
+    // chain_id, so this is a lookup, not new bookkeeping. Best-effort: a
+    // failure here leaves the broker's basis in place, labelled as such.
+    const shareBasis = await (async () => {
+      try {
+        const [{ data: lots }, { data: wheelRecords }] = await Promise.all([
+          admin.from("stock_lots").select("ticker, qty, acquired_price, acquired_date, chain_id, disposed_date")
+            .eq("account_id", account.id).is("disposed_date", null),
+          admin.from("trade_records").select("ticker, strategy, chain_id, net_credit, qty, open_date, close_date")
+            .eq("account_id", account.id).eq("strategy", "wheel")
+        ]);
+        return basisByTicker(lots || [], wheelRecords || []);
+      } catch (e) {
+        console.error("wheel basis lookup failed", account.id, e?.message || e);
+        return {};
+      }
+    })();
+
     // Cash is passed so a short put can be judged secured or not. Without it a
     // naked short put would be labelled cash-secured on nothing but hope.
     const spreads = pairSpreads(
       Array.isArray(positions) ? positions : [],
       Array.isArray(activities) ? activities : [],
       (Array.isArray(filledOrders) ? filledOrders : []).filter((o) => o.status === 'filled'),
-      { cash: info ? parseFloat(info.cash) : null }
+      { cash: info ? parseFloat(info.cash) : null, basisByTicker: shareBasis }
     );
 
     const tickers = [...new Set(spreads.map((s: any) => s.ticker))];
@@ -158,7 +179,10 @@ async function syncOne(account) {
     const singleRow = (s: any) => {
       const stockPrice = spots[s.ticker]?.price || 0;
       if (s.type === KINDS.SHARES) {
-        const pl = (s.longCurrentPrice - s.longEntryPrice) * s.shareQty;
+        // Against the adjusted basis where there is one: the premiums that
+        // lowered it are money already in the account, and a P/L that ignores
+        // them disagrees with the break-even printed beside it.
+        const pl = (s.longCurrentPrice - (s.shareBasis ?? s.longEntryPrice)) * s.shareQty;
         return {
           ...s, stockPrice,
           priceSource: "broker",
@@ -167,7 +191,7 @@ async function syncOne(account) {
           moneyness: null,
           adjusted: false,
           spreadWidth: null, netCredit: 0, totalCredit: 0,
-          breakEven: s.longEntryPrice, breakEvenHigh: null,
+          breakEven: s.breakEven ?? s.longEntryPrice, breakEvenHigh: null,
           // Closing stock is a sale, not a debit, so it contributes nothing to
           // the account's cost-to-close; the gain is carried on the row itself.
           closeCost: 0,
@@ -201,7 +225,9 @@ async function syncOne(account) {
         spreadWidth: null,
         netCredit: sign * leg.entryPrice,
         totalCredit,
-        breakEven: isCall ? leg.strike + leg.entryPrice : leg.strike - leg.entryPrice,
+        // From positionKinds by kind: a covered call breaks even at the shares'
+        // cost less the call premium, not at the strike plus it.
+        breakEven: s.breakEven ?? (isCall ? leg.strike + leg.entryPrice : leg.strike - leg.entryPrice),
         breakEvenHigh: null,
         closeCost,
         unrealizedPL: totalCredit - closeCost,

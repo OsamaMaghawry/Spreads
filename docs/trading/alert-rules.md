@@ -48,6 +48,19 @@ into one line naming the symbols that could not be priced.
   `wheel_client_prefix` only *labels* a strategy, exactly as it does in
   `tradeHistory`; it never decides whether a position is displayed.
 
+- **Held shares are priced at what they actually cost.** The broker records the
+  assignment strike as the entry price and books the put premium as a separate
+  closed trade, so an assigned-then-covered position overstates its max loss,
+  break-even and P/L by every premium the wheel collected. `_shared/wheelBasis.ts`
+  subtracts them — the assigning put through `stock_lots.chain_id`, and every
+  later wheel credit on the name through `trade_records` — which is the
+  definition every wheel tracker uses. Shares whose premiums cannot be linked
+  keep the broker's basis and are labelled **broker basis**, never silently
+  either. A covered call's worst case is the stock at zero, the same as owning
+  it, so the column reads **Max loss (stock to 0)** rather than sharing a label
+  with a spread's defined risk; the break-even leads on those rows because it
+  is the number a wheel is run against.
+
 - **Withhold rather than default.** `price_untrusted` exists because the wrong
   answer here is to silently call an unjudgeable position out-of-the-money. An
   absent or stale price is an alert, not a pass.

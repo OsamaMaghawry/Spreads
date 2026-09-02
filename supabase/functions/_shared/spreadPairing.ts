@@ -6,7 +6,7 @@
 // spread) and never guessed into an iron condor.
 
 import { parseOCCSymbol } from "./alpaca.ts";
-import { KINDS, classifyLeg, riskOfKind, collateralOfKind, labelOfKind } from "./positionKinds.ts";
+import { KINDS, classifyLeg, riskOfKind, collateralOfKind, breakEvenOfKind, labelOfKind } from "./positionKinds.ts";
 
 const gcd = (a, b) => (b ? gcd(b, a % b) : a);
 
@@ -247,7 +247,8 @@ function toSinglePosition(leg, kind, extra = {}) {
     shortCurrentPrice: short ? leg.currentPrice : 0,
     longCurrentPrice: short ? 0 : leg.currentPrice,
     maxRisk: riskOfKind(kind, { ...leg, ...extra }),
-    collateral: collateralOfKind(kind, leg),
+    breakEven: breakEvenOfKind(kind, { ...leg, ...extra }),
+    collateral: collateralOfKind(kind, { ...leg, ...extra }),
     ...extra
   };
 }
@@ -274,15 +275,35 @@ function toSharePosition(lot) {
     shortCurrentPrice: 0,
     longCurrentPrice: lot.currentPrice,
     marketValue: lot.marketValue,
-    maxRisk: riskOfKind(KINDS.SHARES, lot),
-    collateral: null
+    // Adjusted where the wheel's history allows it, else the broker's -- and
+    // the row says which, never silently one or the other.
+    shareBasis: lot.adjustedBasis ?? lot.avgEntryPrice,
+    basisSource: lot.basisSource || "broker",
+    premiumCollected: lot.premiumCollected || 0,
+    maxRisk: riskOfKind(KINDS.SHARES, { ...lot, shareQty: lot.qty, shareBasis: lot.adjustedBasis ?? lot.avgEntryPrice }),
+    breakEven: breakEvenOfKind(KINDS.SHARES, { ...lot, shareBasis: lot.adjustedBasis ?? lot.avgEntryPrice }),
+    collateral: collateralOfKind(KINDS.SHARES, lot)
   };
 }
 
 // positions/activities from Alpaca, plus filled historical orders (nested=true).
 // `cash` lets a short put be judged secured or not; without it we do not assume.
-export function pairSpreads(positions, activities, filledOrders = [], { cash = null } = {}) {
+// basisByTicker: from wheelBasis.basisByTicker -- the adjusted cost of held
+// shares once the wheel's premiums are counted. Optional; without it every
+// share lot carries the broker's basis, labelled as such.
+export function pairSpreads(positions, activities, filledOrders = [], { cash = null, basisByTicker = {} } = {}) {
   const { legsBySymbol, shareLots } = buildLegs(positions, activities);
+  for (const lot of Object.values(shareLots)) {
+    const b = basisByTicker?.[lot.ticker];
+    if (b && b.source === "adjusted") {
+      lot.adjustedBasis = b.basis;
+      lot.basisSource = "adjusted";
+      lot.premiumCollected = b.collected;
+    } else {
+      lot.basisSource = "broker";
+      lot.premiumCollected = 0;
+    }
+  }
 
   // Oldest orders first so FIFO-style claims match how the positions were built.
   const orders = (Array.isArray(filledOrders) ? filledOrders : [])
@@ -337,7 +358,13 @@ export function pairSpreads(positions, activities, filledOrders = [], { cash = n
       const claimed = Math.abs(leg.qty) * 100;
       sharesLeft[leg.ticker] = shares - claimed;
       const lot = shareLots[leg.ticker];
-      extra = { shareBasis: lot ? lot.avgEntryPrice : 0, coveredBy: lot ? lot.symbol : null };
+      extra = {
+        shareBasis: lot ? (lot.adjustedBasis ?? lot.avgEntryPrice) : 0,
+        shareMarketPrice: lot ? lot.currentPrice : 0,
+        basisSource: lot ? lot.basisSource : "broker",
+        premiumCollected: lot ? lot.premiumCollected : 0,
+        coveredBy: lot ? lot.symbol : null
+      };
     }
     singles.push(toSinglePosition(leg, kind, extra));
   });

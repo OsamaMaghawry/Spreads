@@ -30,3 +30,20 @@ export function riskText(s, fmtMoney) {
 }
 
 export const riskIsUnbounded = (s) => s?.type === "naked_call";
+
+// A wheel position's worst case is the stock going to zero -- the same as
+// owning the shares. True, and a different KIND of number from a spread's
+// defined risk, so the label says which.
+export const isStockRisk = (s) => s?.type === "covered_call" || s?.type === "shares"
+  || s?.type === "cash_secured_put" || s?.type === "naked_put";
+export const riskLabel = (s) => (isStockRisk(s) ? "Max loss (stock to 0)" : "Max Risk");
+
+// "Adjusted" means the wheel's premiums have been subtracted from the
+// assignment strike; "broker" means we could not link them and this is what
+// the broker reports. Never silently one or the other.
+export const basisNote = (s) =>
+  s?.basisSource === "adjusted"
+    ? `Adjusted basis — ${s.premiumCollected > 0 ? `$${Number(s.premiumCollected).toFixed(0)} of premium collected on this name` : "premiums counted"}`
+    : s?.basisSource === "broker"
+      ? "Broker basis — premiums could not be linked to these shares"
+      : undefined;
