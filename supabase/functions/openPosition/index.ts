@@ -1,5 +1,6 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
+import { liveAllowedFor, UPGRADE_MESSAGE } from "../_shared/entitlement.ts";
 import { tradingBase, alpacaFetch, loadAccount, parseOCCSymbol } from "../_shared/alpaca.ts";
 import { getSpot } from "../_shared/marketPrice.ts";
 import { earningsCoverage, refreshEarningsWindow } from "../_shared/earnings.ts";
@@ -94,6 +95,14 @@ Deno.serve(async (req) => {
       .catch(() => {});
 
     const account = await loadAccount(admin, accountId, user.id);
+
+    // The one thing a plan gates: opening on a live account. Paper is never
+    // gated, and neither is closing, cancelling or quoting anywhere -- a user
+    // must always be able to get out of what they hold. 402 rather than 403:
+    // the request was allowed, it is the payment that is missing.
+    if (!account.is_paper && !(await liveAllowedFor(admin, user.id))) {
+      return jsonResponse({ error: UPGRADE_MESSAGE, upgradeRequired: true }, 402);
+    }
 
     // Last look before the money leaves. 409 rather than 400: the request was
     // well formed, the market moved out from under it.

@@ -49,6 +49,7 @@ nothing contingent on trading activity.
 - AccountHistory
 - Accounts
 - Admin
+- Billing
 - Dashboard
 - ForgotPassword
 - Login
@@ -65,7 +66,9 @@ so a change to shared code requires redeploying all of them.
 - **accountEquity** — Returns one account's equity and options buying power, for sizing a new order.
 - **adminData** — Back-office reads and writes: users and their activity, engagement figures, blog posts, and the internal customer record.
 - **alpacaOAuthCallback** — One token, two endpoints.
+- **billingPortal** — Opens Stripe's customer portal so a subscriber can change card, switch interval or cancel.
 - **closeSpread** — Submits the closing order for a position: the whole structure by default, or just the legs the caller picked when only one side needs unwinding.
+- **createCheckoutSession** — Starts a Stripe Checkout for the Live plan and returns the page to send the user to.
 - **dumpBrokerFeed** — Captures a broker activity feed so a refused sync can be diagnosed off-box.
 - **findEntry** — Scans the live chain and returns the delta-targeted setup for one strategy.
 - **manageOrder** — Reads the status of a working order, or cancels it.
@@ -79,6 +82,7 @@ so a change to shared code requires redeploying all of them.
 - **scanEntries** — (no summary comment)
 - **sendDigest** — The one way an agent reaches the owner.
 - **spreadQuote** — Prices a position for closing: what the legs are worth right now, plus the highest limit already tried on them so a retry resumes rather than restarts.
+- **stripeWebhook** — Receives Stripe's signed subscription events and keeps one row per user current.
 - **syncAccounts** — Rebuilds the live picture for every account the caller owns: positions paired into structures, credit and risk per position, and totals that net a ticker's condors instead of double counting both wings.
 - **tradeHistory** — Closed trade history, rebuilt from the broker's activity feed.
 
@@ -107,6 +111,7 @@ revoked from the browser role entirely.
 - **order_attempts** — id, user_id, account_id, run_key, intent, step, ticker, legs, qty, order_type, limit_price, quote, broker_order_id, status, filled_qty, filled_avg_price, error, created_at, updated_at
 - **digest_sends** — id, subject, created_at
 - **broker_feed_dumps** — id, account_id, activities, activity_count, created_at
+- **subscriptions** — user_id, stripe_customer_id, stripe_subscription_id, plan, status, current_period_end, cancel_at_period_end, grandfathered_until, created_at, updated_at
 
 ## Analytics vocabulary
 

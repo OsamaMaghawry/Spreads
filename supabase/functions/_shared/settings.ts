@@ -6,11 +6,14 @@ import { adminClient } from "./supabaseClients.ts";
 // database restored without the seed must not silently open something.
 
 export const MANUAL_API_KEYS = "manual_api_keys";
+// Whether a live plan is required to open a position on a live account. Off
+// until the owner flips it; see _shared/entitlement.ts.
+export const BILLING_ENFORCED = "billing_enforced";
 
 // The keys an administrator may set through the panel. An allowlist rather
 // than "whatever key was posted", so the settings table cannot be used as a
 // general-purpose write target by anything holding an admin session.
-export const WRITABLE_SETTINGS = [MANUAL_API_KEYS];
+export const WRITABLE_SETTINGS = [MANUAL_API_KEYS, BILLING_ENFORCED];
 
 type Admin = ReturnType<typeof adminClient>;
 
@@ -22,7 +25,8 @@ export async function readSettings(admin: Admin) {
     // Named in the shape the browser uses, so no caller has to know the
     // database key. Strict === true: anything else, including a missing row,
     // reads as off.
-    manualApiKeys: byKey.get(MANUAL_API_KEYS) === true
+    manualApiKeys: byKey.get(MANUAL_API_KEYS) === true,
+    billingEnforced: byKey.get(BILLING_ENFORCED) === true
   };
 }
 

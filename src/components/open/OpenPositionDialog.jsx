@@ -13,6 +13,7 @@ import { SCOPE, saveLastUsed } from "@/lib/scanPresets";
 import OpenPricing, { openingDefaults } from "./OpenPricing";
 import useOpenOrder from "./useOpenOrder";
 import OrderLog from "@/components/close/OrderLog";
+import UpgradePrompt from "@/components/billing/UpgradePrompt";
 
 const DEFAULTS = {
   tickers: "SPY, QQQ",
@@ -48,7 +49,7 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
   const [priceMode, setPriceMode] = useState("walk");
   const [limitCredit, setLimitCredit] = useState(null);
   const [minCredit, setMinCredit] = useState(null);
-  const { phase, log, run, stop: stopOrder, reset } = useOpenOrder();
+  const { phase, log, upgrade, run, stop: stopOrder, reset } = useOpenOrder();
 
   // A different setup is a different price. Reseeding on the setup rather than
   // on every render is what lets a hand-set credit survive a re-render.
@@ -237,6 +238,7 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
         {phase !== "idle" && (
           <div className="space-y-4">
             <OrderLog log={log} phase={phase} />
+            {phase === "failed" && upgrade && <UpgradePrompt message={upgrade} />}
             {phase === "working" ? (
               <button onClick={stopOrder} className="w-full py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm transition-colors">
                 Stop &amp; cancel order

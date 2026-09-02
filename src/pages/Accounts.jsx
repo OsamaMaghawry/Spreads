@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { invokeFunction } from "@/lib/functions";
+import useSubscription from "@/lib/useSubscription";
 import { SAFE_ACCOUNT_COLUMNS } from "@/lib/accountColumns";
 import { Plus, Pencil, Trash2, KeyRound, Link2 } from "lucide-react";
 import AccountForm from "@/components/accounts/AccountForm";
@@ -9,6 +11,7 @@ import useAdminSettings from "@/lib/useAdminSettings";
 
 export default function Accounts() {
   const [accounts, setAccounts] = useState(null);
+  const { plan } = useSubscription();
   const [editing, setEditing] = useState(null); // null | "new" | account
   const [deleting, setDeleting] = useState(null);
   // startAlpacaOAuth throws when this build cannot possibly complete the round
@@ -217,6 +220,22 @@ export default function Accounts() {
                   }`}>
                     {a.is_paper ? "Paper" : "Live"}
                   </span>
+                  {/* Whether a live plan is in force. Presentation only: the
+                      order function decides, and it also knows whether billing
+                      is being enforced yet. */}
+                  {!a.is_paper && (
+                    <Link
+                      to="/billing"
+                      title={plan === "live" ? "Live plan active" : "No Live plan — opening live positions needs one once billing is enforced"}
+                      className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border transition-colors ${
+                        plan === "live"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                          : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
+                      }`}
+                    >
+                      {plan === "live" ? "Live plan" : "No plan"}
+                    </Link>
+                  )}
                 </div>
                 <div className="text-xs text-slate-500 font-mono mt-1 truncate">
                   {a.is_oauth

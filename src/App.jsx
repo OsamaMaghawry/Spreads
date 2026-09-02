@@ -21,6 +21,7 @@ import AccountAnalysis from './pages/AccountAnalysis';
 import Screener from './pages/Screener';
 import Admin from './pages/Admin';
 import OAuthCallback from './pages/OAuthCallback';
+import Billing from './pages/Billing';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth } = useAuth();
@@ -44,6 +45,7 @@ const AuthenticatedApp = () => {
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/accounts" element={<Accounts />} />
+          <Route path="/billing" element={<Billing />} />
           <Route path="/oauth/callback" element={<OAuthCallback />} />
           <Route path="/screener" element={<Screener />} />
           {/* Admin.jsx redirects a non-admin away, and every request it makes

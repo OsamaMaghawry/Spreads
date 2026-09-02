@@ -33,6 +33,9 @@ async function invoke(fn, payload) {
   if (data?.error) {
     const err = new Error(data.error);
     err.staleSetup = !!data.staleSetup;
+    // The server refused a live order for want of a plan. A stop, never a
+    // retry: the dialogs render the plan prompt instead of "Try again".
+    err.upgradeRequired = !!data.upgradeRequired;
     throw err;
   }
   return data;
@@ -43,6 +46,7 @@ const orderLegs = (setup) => setup.legs.map((l) => ({ symbol: l.symbol, ratio: l
 export default function useOpenOrder() {
   const [phase, setPhase] = useState("idle"); // idle | working | filled | failed
   const [log, setLog] = useState([]);
+  const [upgrade, setUpgrade] = useState(null); // message when a plan is needed
   const stopRef = useRef(false);
 
   const addLog = (msg) => setLog((l) => [...l, { t: new Date().toLocaleTimeString(), msg }]);
@@ -127,6 +131,7 @@ export default function useOpenOrder() {
   async function run({ accountId, setup, qty, orderType, startCredit, minCredit, priceMode = "walk" }) {
     stopRef.current = false;
     setLog([]);
+    setUpgrade(null);
     setPhase("working");
     const base = {
       accountId,
@@ -265,6 +270,7 @@ export default function useOpenOrder() {
                 // this is the guard working, not an error to retry around.
                 addLog(e.staleSetup ? `Stopped: ${e.message}` : `Refused: ${e.message}`);
                 addLog("Nothing further was opened.");
+                if (e.upgradeRequired) setUpgrade(e.message);
                 setPhase("failed");
                 return;
               }
@@ -283,13 +289,18 @@ export default function useOpenOrder() {
         await sleep(POLL);
       }
     } catch (e) {
-      addLog(`Error: ${e.message}`);
+      if (e.upgradeRequired) {
+        addLog(`Stopped: ${e.message}`);
+        setUpgrade(e.message);
+      } else {
+        addLog(`Error: ${e.message}`);
+      }
       setPhase("failed");
     }
   }
 
   const stop = () => { stopRef.current = true; };
-  const reset = () => { setPhase("idle"); setLog([]); stopRef.current = true; };
+  const reset = () => { setPhase("idle"); setLog([]); setUpgrade(null); stopRef.current = true; };
 
-  return { phase, log, run, stop, reset };
+  return { phase, log, upgrade, run, stop, reset };
 }

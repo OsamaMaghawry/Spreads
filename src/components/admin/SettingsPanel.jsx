@@ -17,6 +17,16 @@ const SWITCHES = [
       "Administrators only — customers never see it, whether this is on or off — and saveAccount " +
       "refuses stored credentials while it is off. Keep it off unless you are testing against an " +
       "account the OAuth app can't reach."
+  },
+  {
+    key: "billing_enforced",
+    field: "billingEnforced",
+    label: "Enforce billing",
+    note:
+      "While off, everyone may open positions on a live account and checkout still works. " +
+      "While on, opening a position on a LIVE account needs an active Live plan (or a grandfather date " +
+      "on the user's row); paper orders, closing, cancelling, quoting, history and exports are never " +
+      "affected. Flip it when the broker's live approval lands."
   }
 ];
 

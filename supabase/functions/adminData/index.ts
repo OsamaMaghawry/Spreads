@@ -20,11 +20,12 @@ import { readSettings, writeSetting, WRITABLE_SETTINGS } from "../_shared/settin
 // so it would need its own grants to stay safe. Not worth the extra surface at
 // this size; revisit if the user count reaches the thousands.
 async function loadUsers(admin: any) {
-  const [authUserList, accounts, trades, profiles] = await Promise.all([
+  const [authUserList, accounts, trades, profiles, subscriptions] = await Promise.all([
     listAllUsers(admin),
     selectAll(admin, "trading_accounts", "id, user_id, is_paper, created_at"),
     selectAll(admin, "trade_records", "user_id, account_id, open_date, close_date, realized_pl, created_at"),
-    selectAll(admin, "profiles", "id, role, last_active_at")
+    selectAll(admin, "profiles", "id, role, last_active_at"),
+    selectAll(admin, "subscriptions", "user_id, plan, status, current_period_end, grandfathered_until")
   ]);
   const authUsers = { users: authUserList };
 
@@ -59,8 +60,23 @@ async function loadUsers(admin: any) {
       // trading at all. This counts the thing the label claims.
       liveTrades: 0,
       lastTradeAt: null as string | null,
-      realizedPL: 0
+      realizedPL: 0,
+      // From the subscriptions row the Stripe webhook keeps; null until the
+      // user has ever started a checkout.
+      plan: null as string | null,
+      planStatus: null as string | null,
+      planEndsAt: null as string | null,
+      grandfatheredUntil: null as string | null
     });
+  }
+
+  for (const sub of subscriptions || []) {
+    const u = byUser.get(sub.user_id);
+    if (!u) continue;
+    u.plan = sub.plan || null;
+    u.planStatus = sub.status || null;
+    u.planEndsAt = sub.current_period_end || null;
+    u.grandfatheredUntil = sub.grandfathered_until || null;
   }
 
   for (const p of profiles || []) {

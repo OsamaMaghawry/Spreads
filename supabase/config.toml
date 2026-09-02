@@ -15,3 +15,10 @@ project_id = "yecfbeohyakuoyczvdbj"
 # before decrypting anything. Turning this off without those two checks would
 # expose one account's prices to any caller.
 verify_jwt = false
+
+[functions.stripeWebhook]
+# Stripe holds no Supabase token, so the gateway's JWT check would refuse
+# every delivery. The function authenticates each request itself with the
+# signature Stripe puts on it (STRIPE_WEBHOOK_SECRET) before reading the body,
+# and it is the only writer of the subscriptions table.
+verify_jwt = false

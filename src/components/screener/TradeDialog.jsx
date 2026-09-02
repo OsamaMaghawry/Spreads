@@ -6,6 +6,7 @@ import PreTradeRisk from "@/components/common/PreTradeRisk";
 import OpenPricing, { openingDefaults } from "@/components/open/OpenPricing";
 import useOpenOrder from "@/components/open/useOpenOrder";
 import OrderLog from "@/components/close/OrderLog";
+import UpgradePrompt from "@/components/billing/UpgradePrompt";
 
 const label = "text-xs text-slate-500 block mb-1.5";
 const input = "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500";
@@ -22,7 +23,7 @@ export default function TradeDialog({ setup, accounts, onClose }) {
   // start and floor defaults are explained in OpenPricing.
   const [limitCredit, setLimitCredit] = useState(null);
   const [minCredit, setMinCredit] = useState(null);
-  const { phase, log, run, stop, reset } = useOpenOrder();
+  const { phase, log, upgrade, run, stop, reset } = useOpenOrder();
 
   useEffect(() => {
     const d = openingDefaults(setup);
@@ -119,6 +120,7 @@ export default function TradeDialog({ setup, accounts, onClose }) {
         {phase !== "idle" && (
           <div className="space-y-4">
             <OrderLog log={log} phase={phase} />
+            {phase === "failed" && upgrade && <UpgradePrompt message={upgrade} />}
             {phase === "working" ? (
               <button onClick={stop} className="w-full py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm transition-colors">
                 Stop &amp; cancel order
