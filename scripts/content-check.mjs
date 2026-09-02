@@ -203,11 +203,54 @@ function isIllustrative(text, index) {
   return ILLUSTRATIVE.test(text.slice(Math.max(0, index - 400), index + 200));
 }
 
+// A diagram carries the same exposure as a sentence.
+//
+// compliance-gate had to open the three SVGs by hand to clear a post, because
+// this file only ever read the markdown: a performance claim or a broker's
+// name inside a <text> label would have shipped unread. The captions and
+// labels a reader actually sees are prose, so they go through the same rules
+// as prose, and a failure is reported against the post that embeds them.
+function svgProse(file) {
+  const out = [];
+  const raw = readFileSync(file, "utf8");
+  for (const [, src] of raw.matchAll(/!\[[^\]]*\]\((\/assets\/[\w/.-]+\.svg)\)/g)) {
+    const asset = path.join(root, "landing/public", src);
+    if (!existsSync(asset)) continue;
+    const svg = readFileSync(asset, "utf8");
+    const words = [
+      ...[...svg.matchAll(/<text[^>]*>([\s\S]*?)<\/text>/g)].map((m) => m[1]),
+      ...[...svg.matchAll(/aria-label="([^"]*)"/g)].map((m) => m[1])
+    ];
+    out.push({ src, text: words.join(" ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ") });
+  }
+  return out;
+}
+
 function checkFile(file) {
   const rel = path.relative(root, file);
   const raw = readFileSync(file, "utf8");
   const text = prose(raw, file);
   let clean = true;
+
+  if (rel.startsWith("content/blog") && rel.endsWith(".md")) {
+    for (const { src, text: label } of svgProse(file)) {
+      for (const rule of RULES) {
+        for (const pattern of rule.patterns) {
+          const hit = label.match(pattern);
+          if (!hit || isNegated(label, hit.index)) continue;
+          if (rule.id === "performance" && isIllustrative(label, hit.index)) continue;
+          clean = false;
+          fail(`${rel} · ${rule.id}`, `"${hit[0].trim()}" in ${src} — ${rule.why}`);
+        }
+      }
+      for (const pattern of BROKER_NAMES) {
+        const hit = label.match(pattern);
+        if (!hit || inIntegrationContext(label, hit.index)) continue;
+        clean = false;
+        fail(`${rel} · broker-name`, `"${hit[0]}" in ${src} — a label in a diagram is read like any other line`);
+      }
+    }
+  }
 
   for (const rule of RULES) {
     for (const pattern of rule.patterns) {
