@@ -1,0 +1,69 @@
+name: Merge content and publish
+
+# The daily article pipeline ends on an agent branch: Routine sessions push
+# to their own claude/* branch and are refused on main. Publishing runs on
+# main. This closes the gap without a person in the loop, under one
+# condition -- the push changed ONLY content paths. Anything else in the diff
+# (code, workflows, docs outside content/) means the branch waits for the
+# owner, so the automatic path can never carry a code change into main.
+
+on:
+  push:
+    branches:
+      - 'claude/**'
+    paths:
+      - 'content/blog/**'
+      - 'content/PLAN.md'
+      - 'docs/seo/**'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: content-merge
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Decide whether this push is content-only
+        id: gate
+        run: |
+          set -euo pipefail
+          git fetch origin "${GITHUB_REF_NAME}"
+          head="origin/${GITHUB_REF_NAME}"
+          base=$(git merge-base HEAD "$head")
+          files=$(git diff --name-only "$base" "$head")
+          echo "Changed since main:"; echo "$files"
+          bad=$(echo "$files" | grep -vE '^(content/blog/|content/PLAN\.md$|docs/seo/)' || true)
+          if [ -n "$bad" ]; then
+            echo "Not content-only; leaving the branch for a person to merge:"; echo "$bad"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge into main
+        if: steps.gate.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name "deltamint-content"
+          git config user.email "content@deltamint.app"
+          git merge --no-ff "origin/${GITHUB_REF_NAME}" -m "Publish: $(git log -1 --format=%s "origin/${GITHUB_REF_NAME}")"
+          git push origin HEAD:main
+
+      # A push made with GITHUB_TOKEN does not trigger other workflows, so the
+      # publish is dispatched explicitly -- workflow_dispatch is the one event
+      # that token may raise.
+      - name: Publish
+        if: steps.gate.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run publish-blog.yml --ref main

@@ -92,6 +92,37 @@ function schema() {
   return [...tables].map(([name, cols]) => ({ name, cols: [...cols] }));
 }
 
+/** The kinds a single (non-spread) position can be, from positionKinds.ts — the
+ *  vocabulary the dashboard, the watch and the risk model share. */
+function positionKinds() {
+  const p = "supabase/functions/_shared/positionKinds.ts";
+  if (!existsSync(path.join(root, p))) return [];
+  const src = read(p);
+  const block = src.slice(src.indexOf("export const KINDS"), src.indexOf("} as const", src.indexOf("export const KINDS")));
+  return [...block.matchAll(/\w+:\s*"([a-z_]+)"/g)].map((m) => m[1]);
+}
+
+/** One line per component folder under src/components — what the reader can
+ *  find where. Counts are of .jsx files; the summary is the folder's own
+ *  leading comment where a file carries one. */
+function componentAreas() {
+  return dirs("src/components")
+    .filter((d) => d.isDirectory() && d.name !== "ui")
+    .map((d) => {
+      const files = dirs(path.join("src/components", d.name)).filter((f) => f.name.endsWith(".jsx") || f.name.endsWith(".js"));
+      return { name: d.name, files: files.map((f) => f.name.replace(/\.(jsx|js)$/, "")).sort() };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** The ten most recent lines of docs/ops/shipped.md — what a user can newly
+ *  do. Written by the duty engineer; tracked, so it may be read here. */
+function shipped() {
+  const p = "docs/ops/shipped.md";
+  if (!existsSync(path.join(root, p))) return [];
+  return read(p).split("\n").filter((l) => l.startsWith("- ")).slice(0, 10).map((l) => l.slice(2));
+}
+
 /** The `###` headings of docs/deferred-work.md — what is knowingly not built. */
 function deferred() {
   if (!existsSync(path.join(root, "docs/deferred-work.md"))) return [];
@@ -158,6 +189,25 @@ nothing contingent on trading activity.
 ## Screens
 
 ${screens().map((s) => `- ${s}`).join("\n")}
+
+## Position kinds
+
+Anything the pairing cannot explain as a vertical spread is still shown, as
+one of these (\`supabase/functions/_shared/positionKinds.ts\`). A naked call's
+maximum loss is withheld, not zeroed, and every total carrying one says it is
+incomplete.
+
+${positionKinds().map((k) => `- ${k}`).join("\n")}
+
+## Components, by area
+
+${componentAreas().map((a) => `- **${a.name}** — ${a.files.join(", ")}`).join("\n")}
+
+## Recently shipped
+
+From \`docs/ops/shipped.md\`, newest first.
+
+${shipped().map((l) => `- ${l}`).join("\n") || "_(nothing recorded yet)_"}
 
 ## Server functions
 

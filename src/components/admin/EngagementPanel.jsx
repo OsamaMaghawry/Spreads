@@ -26,6 +26,11 @@ function Funnel({ funnel }) {
       key: "live",
       label: "Traded live (not paper)",
       hint: "At least one trade on a non-paper account."
+    },
+    {
+      key: "paying",
+      label: "Paying",
+      hint: "An active Live subscription, past its first invoice. Trials and grandfathered users do not count. Reads 0 until billing is live."
     }
   ];
   const top = Math.max(1, funnel.signedUp);
@@ -74,11 +79,39 @@ function Funnel({ funnel }) {
   );
 }
 
-export default function EngagementPanel({ engagement }) {
-  const { funnel, active, totals, signupsByDay } = engagement;
+// The quarter's line, from docs/growth/plan-100.md: 100 paying by 31 Dec 2026,
+// counted from the day billing switches on. Until then the target reads as a
+// distance, not a pace.
+const TARGET = { paying: 100, by: "2026-12-31" };
+
+export default function EngagementPanel({ engagement, metrics }) {
+  const { funnel, active, totals, signupsByDay, bySource } = engagement;
+  const search = metrics?.search?.last28;
+  const ga = metrics?.analytics?.last28;
+  const daysLeft = Math.max(0, Math.ceil((new Date(TARGET.by) - new Date()) / 86400000));
+  const sources = Object.entries(bySource || {}).sort((a, b) => b[1] - a[1]).slice(0, 8);
 
   return (
     <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatTile
+          label="Search impressions, 28d"
+          value={search ? search.impressions : "—"}
+          sub={search ? `${search.clicks} clicks · CTR ${(search.ctr * 100).toFixed(1)}%` : metrics?.search?.unavailable || "Search Console not connected"}
+        />
+        <StatTile
+          label="Visitors, 28d"
+          value={ga ? ga.users : "—"}
+          sub={ga ? `${ga.sessions} sessions` : metrics?.analytics?.unavailable || "GA4 not connected"}
+        />
+        <StatTile
+          label="Paying"
+          value={funnel.paying ?? 0}
+          sub={`of ${TARGET.paying} by ${TARGET.by} · ${daysLeft} days left`}
+        />
+        <StatTile label="Signups this month" value={signupsByDay.reduce((a, d) => a + d.count, 0)} sub="last 30 days" />
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile label="Active today" value={active.day} />
         <StatTile label="Active this week" value={active.week} />
@@ -94,6 +127,21 @@ export default function EngagementPanel({ engagement }) {
         <Funnel funnel={funnel} />
         <SignupsChart data={signupsByDay} />
       </div>
+
+      {sources.length > 0 && (
+        <div className="rounded-lg border border-dm-line bg-dm-panel p-4">
+          <h3 className="text-sm font-medium text-dm-text">Where signups came from</h3>
+          <p className="mt-0.5 text-[11px] text-dm-sub">Recorded once at registration from the link the visitor arrived on. "unknown" is everyone who signed up before this was recorded.</p>
+          <ul className="mt-3 space-y-1.5 text-xs">
+            {sources.map(([src, n]) => (
+              <li key={src} className="flex items-baseline justify-between gap-3">
+                <span className="truncate font-mono text-dm-sub">{src}</span>
+                <span className="tabular-nums text-dm-text">{n}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <p className="text-[11px] leading-relaxed text-dm-sub">
         Active means recorded use of the app within the period, falling back to sign-in for

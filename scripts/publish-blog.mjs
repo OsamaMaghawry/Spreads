@@ -38,6 +38,8 @@ function parseFrontMatter(raw) {
   return { meta, body: m[2].trim() };
 }
 
+const CATEGORIES = ["foundations", "income", "hedging", "investing", "managing", "measuring"];
+
 const files = (await readdir(DIR)).filter((f) => f.endsWith(".md"));
 const rows = [];
 const skipped = [];
@@ -50,6 +52,15 @@ for (const file of files) {
   }
   if (!meta.title || !meta.slug || !body) {
     skipped.push(`${file}: missing title, slug or body`);
+    continue;
+  }
+  // Six categories, matching the check constraint on the table. A post with
+  // no category lands in "managing" (the original pillar); a post with a
+  // category outside the six is refused rather than let the insert fail on
+  // the constraint with a message that names nothing.
+  const category = meta.category || "managing";
+  if (!CATEGORIES.includes(category)) {
+    skipped.push(`${file}: category "${category}" is not one of ${CATEGORIES.join(", ")}`);
     continue;
   }
   rows.push({
@@ -66,6 +77,9 @@ for (const file of files) {
     author: meta.author || "DeltaMint",
     meta_description: meta.meta_description || null,
     og_image: meta.og_image || null,
+    category,
+    tags: String(meta.tags || "").split(",").map((t) => t.trim().toLowerCase()).filter(Boolean).slice(0, 5),
+    series_order: meta.series_order ? Number(meta.series_order) || null : null,
     // Preserve an explicit date so republishing does not reorder the blog;
     // otherwise the file is live as of now. A future date is a scheduled post:
     // the same policy hides it until then, which is intended, not a bug.

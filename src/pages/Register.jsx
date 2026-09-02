@@ -17,6 +17,20 @@ import { appUrl } from "@/lib/appUrl";
 // template is changed; the verify path below is already wired.
 const CODE_IN_EMAIL = false;
 
+// "?ref=blog/what-is-an-option" from a post's button, or utm_* from a
+// campaign, else the referrer's host, else nothing. Kept short and plain.
+function signupSource() {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    const ref = q.get("ref");
+    if (ref) return ref.slice(0, 200);
+    const utm = ["utm_source", "utm_medium", "utm_campaign"].map((k) => q.get(k)).filter(Boolean).join("/");
+    if (utm) return utm.slice(0, 200);
+    if (document.referrer) return `referrer:${new URL(document.referrer).host}`.slice(0, 200);
+  } catch { /* no source */ }
+  return null;
+}
+
 export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -40,7 +54,11 @@ export default function Register() {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: appUrl("/") }
+        // Where this signup came from -- a blog post, the pricing page, a
+        // campaign link -- read from the URL the visitor arrived on and stored
+        // once on the profile by the database trigger. Nothing else is
+        // collected.
+        options: { emailRedirectTo: appUrl("/"), data: { signup_source: signupSource() } }
       });
       if (error) throw error;
       setShowOtp(true);

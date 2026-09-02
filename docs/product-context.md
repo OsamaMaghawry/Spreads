@@ -58,6 +58,48 @@ nothing contingent on trading activity.
 - ResetPassword
 - Screener
 
+## Position kinds
+
+Anything the pairing cannot explain as a vertical spread is still shown, as
+one of these (`supabase/functions/_shared/positionKinds.ts`). A naked call's
+maximum loss is withheld, not zeroed, and every total carrying one says it is
+incomplete.
+
+- cash_secured_put
+- covered_call
+- naked_call
+- naked_put
+- long_option
+- shares
+
+## Components, by area
+
+- **accounts** — AccountForm
+- **admin** — AdminMaintenance, BlogPanel, EngagementPanel, SettingsPanel, SignupsChart, StatTile, UsersPanel
+- **analysis** — BreakdownTable, CaptureBreakdown, DateRangeFilter, EquityCurveChart, ExportPdfButton, StatCards, StrategyComparison
+- **billing** — UpgradePrompt
+- **brand** — DeltaMintMark, Wordmark
+- **close** — CloseDialog, LegPicker, LegsQuoteSummary, OpenOrdersPanel, OrderLog, useCloseOrder
+- **common** — ConfirmSubmit, EarningsWarning, NumberField, PreTradeRisk, PriceControl, RiskMeter, ScanPresets
+- **dashboard** — AccountSection, AccountSummaryCard, CardLegs, LegRows, MasterSummary, OrderGroup, PositionCard, PositionCards, SpreadStructure, SpreadTable, StrikeLadder, useLegQuotes
+- **history** — RebuildPreview, StockLotsTable, StrategyTabs, TradeHistoryTable
+- **open** — CandidateList, OpenPositionDialog, OpenPricing, ScanFilters, SetupPreview, StrategyPicker, useOpenOrder, useScanLoop
+- **screener** — ResultsTable, ScreenerConfig, TradeDialog, useMarketScan
+
+## Recently shipped
+
+From `docs/ops/shipped.md`, newest first.
+
+- 2026-09-02 · The watch evaluates every account again and flags a short call with no shares behind it as critical (`a7db799`).
+- 2026-09-02 · You can drag the price in the close ticket, and the P/L rows follow the price you chose; the band between a short's strike and its break-even is shaded as shrinking profit (`3a22207`).
+- 2026-09-02 · Cash-secured puts, covered calls, assigned shares and long options appear on the dashboard as what they are; a naked call is flagged with undefined risk (`e1fc417`).
+- 2026-09-02 · Wheel positions show a cost basis adjusted for every premium collected on the name, labelled adjusted or broker (`b84515d`).
+- 2026-09-02 · Account risk sizes stock-like positions at a 15% adverse move; stock-to-zero is shown separately as Notional (`9217869`).
+- 2026-09-02 · Price walking works on the open as well as the close, with a floor you set that defaults to the credit the scanner showed (`6f6f0a5`).
+- 2026-09-02 · The after-close report reads as a headline, "Needs a look" and "Everything else", judged on closing prices (`f1515e4`).
+- 2026-09-02 · Set your own price on open and close, with bid/mid/ask chips, a stepper and a verdict on whether it crosses (`dc26117`).
+- 2026-09-02 · The dashboard refreshes continuously in the background; the 60-second timer is gone (`dc26117`).
+
 ## Server functions
 
 Each runs as its own bundle carrying a copy of what it imports from `_shared/`,
@@ -76,6 +118,7 @@ so a change to shared code requires redeploying all of them.
 - **migrateCredentials** — Encrypts credentials that are still stored in plaintext, across every user's accounts, without involving those users.
 - **oauthDiag** — Answers one question: does Alpaca recognise this app's OAuth credentials? The authorize page cannot answer it.
 - **openPosition** — How far the stock may have moved since the setup was built before the order is refused.
+- **opsHealth** — Read-only health for the duty engineer: last-24h order errors, alerts, connection issues and the watch's last runs, as counts and messages, never user data.
 - **positionWatch** — The money-safety watch.
 - **refreshEarnings** — Refreshes the cached earnings calendar for the next 90 days from the provider.
 - **saveAccount** — Creating and editing a trading account.
@@ -95,11 +138,11 @@ revoked from the browser role entirely.
 
 - **trading_accounts** — id, user_id, name, api_key, api_secret, is_paper, spreads_client_prefix, wheel_client_prefix, created_at, oauth_access_token, api_key_hint, is_oauth, broker_account_number, trades_synced_at, trades_sync_error, broker_account_id
 - **trade_records** — id, user_id, account_id, strategy, trade_key, ticker, expiry, short_symbol, long_symbol, short_strike, long_strike, qty, open_date, close_date, short_entry, long_entry, net_credit, short_exit, long_exit, close_debit, realized_pl, close_reason, created_at, chain_id, unpaired, premium_pl, early_close_pl, stock_pl, acquired_chain_id, provisional
-- **profiles** — id, role, created_at, last_active_at
+- **profiles** — id, role, created_at, last_active_at, signup_source
 - **earnings_calendar** — symbol, report_date, session, fetched_at
 - **scan_presets** — id, user_id, scope, name, strategy, config, created_at, updated_at
 - **scan_last_used** — user_id, scope, strategy, config, updated_at
-- **blog_posts** — id, slug, title, excerpt, body, author, meta_description, og_image, status, published_at, created_at, updated_at
+- **blog_posts** — id, slug, title, excerpt, body, author, meta_description, og_image, status, published_at, created_at, updated_at, category
 - **user_notes** — id, user_id, author_id, body, created_at
 - **user_crm** — user_id, status, tags, updated_at
 - **stock_lots** — id, user_id, account_id, lot_key, chain_id, ticker, qty, acquired_date, acquired_price, acquired_source, disposed_date, disposed_price, disposed_source, realized_pl, created_at, backed_up_at, disposed_chain_id
@@ -112,6 +155,7 @@ revoked from the browser role entirely.
 - **digest_sends** — id, subject, created_at
 - **broker_feed_dumps** — id, account_id, activities, activity_count, created_at
 - **subscriptions** — user_id, stripe_customer_id, stripe_subscription_id, plan, status, current_period_end, cancel_at_period_end, grandfathered_until, created_at, updated_at
+- **growth_metrics** — day, search, analytics, funnel, created_at
 
 ## Analytics vocabulary
 

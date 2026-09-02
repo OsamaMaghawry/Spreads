@@ -35,9 +35,13 @@ is undifferentiated; a post that teaches the stance or the after-the-fill
 problem is not. Also read `growth/playbook.md` — each post should answer a
 question people actually ask in the scouted subreddits.
 
-Write for someone who already trades spreads and is running more of them than
-they can hold in their head. Not for a beginner, and not for someone being sold
-to.
+Write for a trader, from the first post in the syllabus to the last: the
+foundations posts are for someone who has not traded an option yet, the
+managing and measuring posts for someone running more positions than they
+can hold in their head. The register is the same for both — trader to trader,
+plain, specific — and nobody is being sold to. The syllabus in
+`content/PLAN.md` says which post is next; `docs/seo/keywords.md` says which
+query it targets and what it must answer that the pages ranking today do not.
 
 ## Voice
 
@@ -77,6 +81,9 @@ slug: ...
 excerpt: one sentence, plain
 meta_description: under 160 characters, written for a search result
 author: DeltaMint
+category: one of foundations | income | hedging | investing | managing | measuring
+series_order: the post's number in content/PLAN.md
+tags: comma-separated, lowercase, at most five
 ---
 
 Body in Markdown. 700–1200 words. Subheadings that say something.
