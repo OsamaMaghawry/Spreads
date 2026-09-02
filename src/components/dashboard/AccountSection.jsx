@@ -97,7 +97,7 @@ export default function AccountSection({ account, onCloseSpread, onOrdersChanged
   return (
     <section className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
       <div className="px-5 py-4 flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-slate-200">
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <h2 className="text-base font-semibold text-slate-900">{account.name}</h2>
           <span
             className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
@@ -130,7 +130,7 @@ export default function AccountSection({ account, onCloseSpread, onOrdersChanged
             </span>
           )}
           {tab === "positions" && (
-            <div className="ml-1 flex items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-100 p-0.5">
+            <div className="basis-full sm:basis-auto sm:ml-1 flex items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-100 p-0.5 w-fit">
               {[
                 { id: "simple", label: "Simple", Icon: LayoutGrid },
                 { id: "detailed", label: "Detailed", Icon: Table2 }

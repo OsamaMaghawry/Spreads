@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
     const { accountId, legs, qty, orderType = "limit", limitPrice, expectedSpot, allowItmShort = false } = await req.json();
-    if (!accountId || !Array.isArray(legs) || legs.length < 2 || !qty) {
+    if (!accountId || !Array.isArray(legs) || legs.length < 1 || !qty) {
       return jsonResponse({ error: "accountId, legs and qty are required" }, 400);
     }
     if (orderType === "limit" && (limitPrice === undefined || limitPrice === null)) {

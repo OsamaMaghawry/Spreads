@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, Loader2, X } from "lucide-react";
+import { ChevronRight, Loader2, Pencil, X } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { parseOCC } from "@/lib/occ";
 
@@ -47,21 +47,40 @@ export default function OrderGroup({ accountId, order, onChanged }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  // Changing a resting limit in place. The broker replaces the order under a
+  // new id; the parent refetches and this row is replaced by the new one.
+  const [editing, setEditing] = useState(false);
+  const [price, setPrice] = useState("");
   const state = stateOf(order);
   const live = state.key === "working" || state.key === "partial";
+  const canReprice = live && order.type === "limit";
 
-  const cancel = async () => {
+  const call = async (payload, fallback) => {
     setBusy(true);
     setError(null);
     try {
-      const res = await invokeFunction("manageOrder", { accountId, orderId: order.id, action: "cancel" });
-      if (res?.error) throw new Error(res.error);
+      const { data } = await invokeFunction("manageOrder", { accountId, orderId: order.id, ...payload });
+      if (data?.error) throw new Error(data.error);
       onChanged?.();
+      return true;
     } catch (e) {
-      setError(e.message || "Could not cancel the order.");
+      setError(e.message || fallback);
+      return false;
     } finally {
       setBusy(false);
     }
+  };
+
+  const cancel = () => call({ action: "cancel" }, "Could not cancel the order.");
+
+  const startEdit = () => {
+    setPrice(order.limitPrice != null ? Math.abs(Number(order.limitPrice)).toFixed(2) : "");
+    setEditing(true);
+  };
+  const reprice = async () => {
+    const p = Number(price);
+    if (!(p > 0)) { setError("Enter a price above zero."); return; }
+    if (await call({ action: "replace", limitPrice: p }, "Could not change the price.")) setEditing(false);
   };
 
   return (
@@ -147,13 +166,52 @@ export default function OrderGroup({ accountId, order, onChanged }) {
           )}
 
           {live && (
-            <div className="flex gap-2 mt-3">
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              {canReprice && !editing && (
+                <button
+                  onClick={startEdit}
+                  disabled={busy}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs hover:bg-slate-50 transition-colors disabled:opacity-50"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  Change price
+                </button>
+              )}
+              {canReprice && editing && (
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400 text-xs">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    aria-label="New limit price"
+                    className="w-24 bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-900 tabular-nums focus:outline-none focus:border-emerald-500"
+                  />
+                  <button
+                    onClick={reprice}
+                    disabled={busy}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                  >
+                    {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                    Update
+                  </button>
+                  <button
+                    onClick={() => setEditing(false)}
+                    disabled={busy}
+                    className="px-2 py-1.5 text-xs text-slate-500 hover:text-slate-800"
+                  >
+                    Keep {money(order.limitPrice)}
+                  </button>
+                </div>
+              )}
               <button
                 onClick={cancel}
                 disabled={busy}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 bg-white text-rose-700 text-xs hover:bg-rose-50 transition-colors disabled:opacity-50"
               >
-                {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                {busy && !editing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
                 Cancel order
               </button>
             </div>

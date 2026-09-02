@@ -5,6 +5,8 @@ import ConfirmSubmit from "@/components/common/ConfirmSubmit";
 import PreTradeRisk from "@/components/common/PreTradeRisk";
 import OpenPricing, { openingDefaults } from "@/components/open/OpenPricing";
 import useOpenOrder from "@/components/open/useOpenOrder";
+import useLiveSetup from "@/components/open/useLiveSetup";
+import RestingOrder from "@/components/open/RestingOrder";
 import OrderLog from "@/components/close/OrderLog";
 import UpgradePrompt from "@/components/billing/UpgradePrompt";
 import { unitFor } from "@/lib/setupUnit";
@@ -24,7 +26,11 @@ export default function TradeDialog({ setup, accounts, onClose }) {
   // start and floor defaults are explained in OpenPricing.
   const [limitCredit, setLimitCredit] = useState(null);
   const [minCredit, setMinCredit] = useState(null);
-  const { phase, log, upgrade, run, stop, reset } = useOpenOrder();
+  const { phase, log, upgrade, resting, run, stop, reset, replacePrice } = useOpenOrder();
+
+  // Live under the ticket while it is priced and while a hand-priced order
+  // rests; a screener row can be minutes old by the time it is opened.
+  const live = useLiveSetup(accountId, setup, phase === "idle" || resting);
 
   useEffect(() => {
     const d = openingDefaults(setup);
@@ -35,13 +41,19 @@ export default function TradeDialog({ setup, accounts, onClose }) {
   const orderType = priceMode === "market" ? "market" : "limit";
   const creditReady = typeof limitCredit === "number" && limitCredit > 0;
 
-  // Never dismissed out from under a working order — it would keep walking at
-  // the broker with nothing watching it.
+  // Same rules as Open Position: a walk cannot be dismissed; a resting order
+  // is left working (the log says so); a failure returns to the ticket with
+  // the setup and price kept; filled or detached leaves.
   const handleDismiss = () => {
-    if (phase === "working") return;
+    if (phase === "working") {
+      if (resting) stop();
+      return;
+    }
+    if (phase === "failed") { reset(); return; }
     reset();
     onClose();
   };
+  const closeTicket = () => { reset(); onClose(); };
 
   const summary =
     priceMode === "market"
@@ -72,7 +84,7 @@ export default function TradeDialog({ setup, accounts, onClose }) {
           <DialogTitle className="text-slate-900">Trade {setup.ticker} {unit}</DialogTitle>
         </DialogHeader>
 
-        <SetupPreview setup={setup} qty={Number(qty) || 1} />
+        <SetupPreview setup={setup} qty={Number(qty) || 1} live={live} />
 
         {phase === "idle" && <PreTradeRisk setup={setup} accountId={accountId} qty={qty} />}
 
@@ -102,6 +114,7 @@ export default function TradeDialog({ setup, accounts, onClose }) {
               onCredit={setLimitCredit}
               minCredit={minCredit}
               onMinCredit={setMinCredit}
+              liveQuote={live.quote}
             />
 
             <ConfirmSubmit
@@ -122,19 +135,33 @@ export default function TradeDialog({ setup, accounts, onClose }) {
           <div className="space-y-4">
             <OrderLog log={log} phase={phase} />
             {phase === "failed" && upgrade && <UpgradePrompt message={upgrade} />}
+            {phase === "working" && resting && (
+              <RestingOrder
+                credit={limitCredit}
+                onCredit={setLimitCredit}
+                quote={live.quote}
+                unit={unit}
+                qty={Number(qty) || 1}
+                onUpdate={replacePrice}
+              />
+            )}
             {phase === "working" ? (
               <button onClick={stop} className="w-full py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm transition-colors">
-                Stop &amp; cancel order
+                {resting ? "Stop watching — the order keeps working" : "Stop & cancel order"}
               </button>
             ) : phase === "failed" ? (
               <div className="flex gap-3">
                 <button onClick={reset} className="flex-1 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-medium hover:bg-emerald-100 transition-colors">
-                  Try again
+                  Back to the ticket
                 </button>
-                <button onClick={handleDismiss} className="flex-1 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition-colors">
-                  Close
+                <button onClick={closeTicket} className="flex-1 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition-colors">
+                  Close ticket
                 </button>
               </div>
+            ) : phase === "detached" ? (
+              <button onClick={handleDismiss} className="w-full py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition-colors">
+                Close — the order keeps working
+              </button>
             ) : (
               <button onClick={handleDismiss} className="w-full py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition-colors">
                 Done

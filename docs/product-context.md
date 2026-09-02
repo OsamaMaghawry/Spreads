@@ -83,13 +83,14 @@ incomplete.
 - **common** — ConfirmSubmit, EarningsWarning, NumberField, PreTradeRisk, PriceControl, RiskMeter, ScanPresets
 - **dashboard** — AccountSection, AccountSummaryCard, CardLegs, LegRows, MasterSummary, OrderGroup, PositionCard, PositionCards, SpreadStructure, SpreadTable, StrikeLadder, useLegQuotes
 - **history** — RebuildPreview, StockLotsTable, StrategyTabs, TradeHistoryTable
-- **open** — CandidateList, OpenPositionDialog, OpenPricing, ScanFilters, SetupPreview, StrategyPicker, useOpenOrder, useScanLoop
+- **open** — CandidateList, OpenPositionDialog, OpenPricing, RestingOrder, ScanFilters, SetupPreview, StrategyPicker, useLiveSetup, useOpenOrder, useScanLoop
 - **screener** — ResultsTable, ScreenerConfig, TradeDialog, useMarketScan
 
 ## Recently shipped
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-02 · (staging) A cash-secured put or covered call opens from the ticket (the last gate wanted two legs); a refused order returns you to the ticket with the setup kept; a resting order can be repriced from the ticket or the Orders tab and left working when you close the dialog; the close ticket scrolls on a phone; Simple/Detailed shows on a phone; the open ticket streams the spot, large, and requotes the legs every second.
 - 2026-09-02 · (staging) The nav says "positions", matching the name the page itself uses, not "dashboard" — the word `brand.md` forbids (`2514c1b`).
 - 2026-09-02 · (staging) The watch no longer flags the short leg of a call credit spread or iron condor as naked; only what a long or shares do not cover counts, and it says how many contracts are still uncovered (`616c203`).
 - 2026-09-02 · (staging) The blog groups posts into six categories with hub pages, breadcrumbs, related and read-next posts, and an RSS feed; a new article publishes automatically each day from a fixed topic list (`de4f8d6`).
@@ -99,7 +100,6 @@ From `docs/ops/shipped.md`, newest first.
 - 2026-09-02 · (staging) Billing: Stripe checkout, a billing screen, a plan on every live account, and a switch in Admin that gates opening live positions — off until flipped.
 - 2026-09-02 · The watch evaluates every account again and flags a short call with no shares behind it as critical (`a7db799`).
 - 2026-09-02 · You can drag the price in the close ticket, and the P/L rows follow the price you chose; the band between a short's strike and its break-even is shaded as shrinking profit (`3a22207`).
-- 2026-09-02 · Cash-secured puts, covered calls, assigned shares and long options appear on the dashboard as what they are; a naked call is flagged with undefined risk (`e1fc417`).
 
 ## Server functions
 
@@ -114,7 +114,7 @@ so a change to shared code requires redeploying all of them.
 - **createCheckoutSession** — Starts a Stripe Checkout for the Live plan and returns the page to send the user to.
 - **dumpBrokerFeed** — Captures a broker activity feed so a refused sync can be diagnosed off-box.
 - **findEntry** — Scans the live chain and returns the delta-targeted setup for one strategy.
-- **manageOrder** — Reads the status of a working order, or cancels it.
+- **manageOrder** — Reads the status of a working order, cancels it, or replaces its price or size.
 - **marketStream** — Live underlying prices, relayed from Alpaca's stream.
 - **migrateCredentials** — Encrypts credentials that are still stored in plaintext, across every user's accounts, without involving those users.
 - **oauthDiag** — Answers one question: does Alpaca recognise this app's OAuth credentials? The authorize page cannot answer it.

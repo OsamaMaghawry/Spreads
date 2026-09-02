@@ -12,6 +12,8 @@ import ScanPresets from "@/components/common/ScanPresets";
 import { SCOPE, saveLastUsed } from "@/lib/scanPresets";
 import OpenPricing, { openingDefaults } from "./OpenPricing";
 import useOpenOrder from "./useOpenOrder";
+import useLiveSetup from "./useLiveSetup";
+import RestingOrder from "./RestingOrder";
 import OrderLog from "@/components/close/OrderLog";
 import UpgradePrompt from "@/components/billing/UpgradePrompt";
 import { unitFor, isSingle } from "@/lib/setupUnit";
@@ -52,7 +54,12 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
   const [priceMode, setPriceMode] = useState("walk");
   const [limitCredit, setLimitCredit] = useState(null);
   const [minCredit, setMinCredit] = useState(null);
-  const { phase, log, upgrade, run, stop: stopOrder, reset } = useOpenOrder();
+  const { phase, log, upgrade, resting, run, stop: stopOrder, reset, replacePrice } = useOpenOrder();
+
+  // The market under the chosen setup, live while the ticket is being priced
+  // and while a hand-priced order rests (so its price can be changed against
+  // the quote as it is now). Off during a walk: the walk requotes itself.
+  const live = useLiveSetup(account.id, setup, !!setup && (phase === "idle" || resting));
 
   // A different setup is a different price. Reseeding on the setup rather than
   // on every render is what lets a hand-set credit survive a re-render.
@@ -113,15 +120,26 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
       priceMode
     });
 
-  // A working order must not be abandoned by a stray click outside the dialog:
-  // dismissing while it walks would leave it running at the broker with nothing
-  // watching it.
+  // What the X and a click outside the dialog do depends on where the order is:
+  //   walking   -- nothing. Dismissing would leave it running at the broker with
+  //                nothing watching it.
+  //   resting   -- stop watching. The order keeps working; the log says so and
+  //                the next click leaves.
+  //   failed    -- back to the ticket, setup and price kept. Nothing was sent,
+  //                and losing the setup over a refused order is what sent the
+  //                user back to the account page with nothing to retry.
+  //   filled / detached -- leave and refresh.
   const handleDismiss = () => {
-    if (phase === "working") return;
-    const done = phase === "filled";
+    if (phase === "working") {
+      if (resting) stopOrder();
+      return;
+    }
+    if (phase === "failed") { reset(); return; }
+    const refresh = phase === "filled" || phase === "detached";
     reset();
-    if (done) onDone(); else onClose();
+    if (refresh) onDone(); else onClose();
   };
+  const closeTicket = () => { reset(); onClose(); };
 
   const summary =
     priceMode === "market"
@@ -203,7 +221,7 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
 
         {setup && phase === "idle" && (
           <>
-            <SetupPreview setup={setup} qty={Number(qty) || 1} />
+            <SetupPreview setup={setup} qty={Number(qty) || 1} live={live} />
 
             <PreTradeRisk setup={setup} accountId={account.id} qty={qty} />
 
@@ -222,6 +240,7 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
               onCredit={setLimitCredit}
               minCredit={minCredit}
               onMinCredit={setMinCredit}
+              liveQuote={live.quote}
             />
 
             <ConfirmSubmit
@@ -242,19 +261,33 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
           <div className="space-y-4">
             <OrderLog log={log} phase={phase} />
             {phase === "failed" && upgrade && <UpgradePrompt message={upgrade} />}
+            {phase === "working" && resting && setup && (
+              <RestingOrder
+                credit={limitCredit}
+                onCredit={setLimitCredit}
+                quote={live.quote}
+                unit={unit}
+                qty={Number(qty) || 1}
+                onUpdate={replacePrice}
+              />
+            )}
             {phase === "working" ? (
               <button onClick={stopOrder} className="w-full py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm transition-colors">
-                Stop &amp; cancel order
+                {resting ? "Stop watching — the order keeps working" : "Stop & cancel order"}
               </button>
             ) : phase === "failed" ? (
               <div className="flex gap-3">
                 <button onClick={reset} className="flex-1 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-medium hover:bg-emerald-100 transition-colors">
-                  Try again
+                  Back to the ticket
                 </button>
-                <button onClick={handleDismiss} className="flex-1 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition-colors">
-                  Close
+                <button onClick={closeTicket} className="flex-1 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition-colors">
+                  Close ticket
                 </button>
               </div>
+            ) : phase === "detached" ? (
+              <button onClick={handleDismiss} className="w-full py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition-colors">
+                Close — the order keeps working
+              </button>
             ) : (
               <button onClick={handleDismiss} className="w-full py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition-colors">
                 Done — refresh positions

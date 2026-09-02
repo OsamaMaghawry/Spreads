@@ -41,9 +41,13 @@ export default function OpenPricing({
   setup, qty, unit,
   priceMode, onPriceMode,
   credit, onCredit,
-  minCredit, onMinCredit
+  minCredit, onMinCredit,
+  liveQuote = null
 }) {
-  const { quote } = useMemo(() => openingDefaults(setup), [setup]);
+  const { quote: scanQuote } = useMemo(() => openingDefaults(setup), [setup]);
+  // The live quote, when the ticket has one, is what the verdict and the chips
+  // are measured against: "crosses now" means now, not at scan time.
+  const quote = liveQuote || scanQuote;
   const bounds = useMemo(() => walkBounds(credit, quote, minCredit), [credit, quote, minCredit]);
 
   const label = "text-xs text-slate-500 block mb-1.5";

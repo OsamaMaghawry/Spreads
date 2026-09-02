@@ -159,7 +159,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
 
   return (
     <Dialog open onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="bg-white border-slate-200 text-slate-700 sm:max-w-lg">
+      <DialogContent className="bg-white border-slate-200 text-slate-700 sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-slate-900">
             {spread.single
@@ -336,7 +336,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
             <OrderLog log={log} phase={phase} />
             {phase === "working" ? (
               <button onClick={stop} className="w-full py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm transition-colors">
-                Stop & cancel order
+                {priceMode === "manual" ? "Stop watching — the order keeps working" : "Stop & cancel order"}
               </button>
             ) : phase === "failed" ? (
               <div className="flex gap-3">

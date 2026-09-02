@@ -44,10 +44,20 @@ async function invoke(fn, payload) {
 const orderLegs = (setup) => setup.legs.map((l) => ({ symbol: l.symbol, ratio: l.ratio, side: l.side }));
 
 export default function useOpenOrder() {
-  const [phase, setPhase] = useState("idle"); // idle | working | filled | failed
+  // detached: the user stopped watching a resting order; it is still working
+  // at the broker and nothing here is following it any more.
+  const [phase, setPhase] = useState("idle"); // idle | working | filled | failed | detached
   const [log, setLog] = useState([]);
   const [upgrade, setUpgrade] = useState(null); // message when a plan is needed
+  const [resting, setResting] = useState(false); // a hand-priced order is resting and being watched
   const stopRef = useRef(false);
+  // Which order the resting watcher follows. A replace swaps the id under the
+  // loop, so the loop reads it fresh on every poll rather than closing over it.
+  const restingRef = useRef(null);
+  // Bumped by run() and reset(). A watcher that wakes after a reset compares
+  // its generation and goes quiet instead of writing "failed" over a ticket
+  // that has already moved on.
+  const genRef = useRef(0);
 
   const addLog = (msg) => setLog((l) => [...l, { t: new Date().toLocaleTimeString(), msg }]);
 
@@ -94,16 +104,25 @@ export default function useOpenOrder() {
   // rule as the close ticket: a resting price is an instruction, so Stop detaches
   // the watcher and leaves the order working rather than cancelling it.
   async function watchResting(accountId, orderId, qty) {
+    const gen = genRef.current;
+    restingRef.current = { accountId, orderId, qty };
+    setResting(true);
     let lastStatus = null;
     let filledSoFar = 0;
+    try {
     while (true) {
       if (stopRef.current) {
+        if (gen !== genRef.current) return;
         addLog("Stopped watching. The order is still working at your credit —");
         addLog("cancel it from the Orders tab if you no longer want it.");
-        setPhase("failed");
+        setPhase("detached");
         return;
       }
-      const st = await invoke("manageOrder", { accountId, orderId, action: "get" });
+      const id = restingRef.current?.orderId || orderId;
+      const st = await invoke("manageOrder", { accountId, orderId: id, action: "get" });
+      // Replaced while this poll was in flight: the answer is about an order
+      // that no longer exists. Skip it; the next poll asks about the new one.
+      if (id !== (restingRef.current?.orderId || orderId)) { await sleep(POLL); continue; }
       if (st.status !== lastStatus) { addLog(`Status: ${st.status}`); lastStatus = st.status; }
       const filledNow = Number(st.filledQty) || 0;
       if (filledNow > filledSoFar) {
@@ -123,6 +142,31 @@ export default function useOpenOrder() {
       }
       await sleep(POLL);
     }
+    } finally {
+      if (gen === genRef.current) {
+        restingRef.current = null;
+        setResting(false);
+      }
+    }
+  }
+
+  // Changes the credit of the resting order. The broker retires the old order
+  // and answers with a new one; from here on the watcher follows that id. Only
+  // meaningful while a hand-priced order rests -- the walk reprices itself.
+  async function replacePrice(credit) {
+    const r = restingRef.current;
+    if (!r) throw new Error("There is no resting order to change.");
+    const price = round2(Number(credit));
+    if (!(price > 0)) throw new Error("Enter a credit above zero.");
+    try {
+      const res = await invoke("manageOrder", { accountId: r.accountId, orderId: r.orderId, action: "replace", limitPrice: price });
+      restingRef.current = { ...r, orderId: res.orderId };
+      addLog(`Price changed to ${money(price)} credit — now working as ${res.orderId}`);
+      return res;
+    } catch (e) {
+      addLog(`Could not change the price: ${e.message}`);
+      throw e;
+    }
   }
 
   // priceMode: "walk" concedes the credit toward the bid until it fills;
@@ -130,6 +174,7 @@ export default function useOpenOrder() {
   // takes whatever the book gives.
   async function run({ accountId, setup, qty, orderType, startCredit, minCredit, priceMode = "walk" }) {
     stopRef.current = false;
+    genRef.current += 1;
     setLog([]);
     setUpgrade(null);
     setPhase("working");
@@ -300,7 +345,15 @@ export default function useOpenOrder() {
   }
 
   const stop = () => { stopRef.current = true; };
-  const reset = () => { setPhase("idle"); setLog([]); setUpgrade(null); stopRef.current = true; };
+  const reset = () => {
+    genRef.current += 1;
+    stopRef.current = true;
+    restingRef.current = null;
+    setResting(false);
+    setPhase("idle");
+    setLog([]);
+    setUpgrade(null);
+  };
 
-  return { phase, log, upgrade, run, stop, reset };
+  return { phase, log, upgrade, resting, run, stop, reset, replacePrice };
 }
