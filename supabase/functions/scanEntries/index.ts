@@ -2,6 +2,7 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { loadAccount } from "../_shared/alpaca.ts";
 import { scanCandidates } from "../_shared/optionScan.ts";
+import { heldShares } from "../_shared/heldShares.ts";
 import {
   earningsThrough, daysUntil, earningsCoverage,
   refreshEarningsThrough, refreshEarningsWindow
@@ -26,13 +27,25 @@ Deno.serve(async (req) => {
     if (!accountId || !Array.isArray(tickers) || tickers.length === 0 || !strategy) {
       return jsonResponse({ error: "accountId, tickers[] and strategy are required" }, 400);
     }
-    if (!["put_spread", "call_spread", "iron_condor"].includes(strategy)) {
+    if (!["put_spread", "call_spread", "iron_condor", "cash_secured_put", "covered_call"].includes(strategy)) {
       return jsonResponse({ error: "Unsupported strategy" }, 400);
     }
 
     const admin = adminClient();
     const account = await loadAccount(admin, accountId, user.id);
-    const result = await scanCandidates(account, body);
+
+    // A covered call is written on shares the account already holds, so its
+    // universe is the account, not the request. A cash-secured put scans the
+    // requested tickers like a spread does.
+    let params = body;
+    if (strategy === "covered_call") {
+      const held = await heldShares(admin, account);
+      if (held.tickers.length === 0) {
+        return jsonResponse({ ok: false, candidates: [], skipped: [], reason: "This account holds no 100-share lots to write a covered call on." });
+      }
+      params = { ...body, tickers: held.tickers, sharesByTicker: held.shares, basisByTicker: held.basis };
+    }
+    const result = await scanCandidates(account, params);
 
     // Annotate rather than filter: an earnings release inside the holding
     // period is a risk the trader should see and decide on, not one the

@@ -7,6 +7,7 @@ import OpenPricing, { openingDefaults } from "@/components/open/OpenPricing";
 import useOpenOrder from "@/components/open/useOpenOrder";
 import OrderLog from "@/components/close/OrderLog";
 import UpgradePrompt from "@/components/billing/UpgradePrompt";
+import { unitFor } from "@/lib/setupUnit";
 
 const label = "text-xs text-slate-500 block mb-1.5";
 const input = "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500";
@@ -17,7 +18,7 @@ export default function TradeDialog({ setup, accounts, onClose }) {
   const [priceMode, setPriceMode] = useState("walk");
 
   const account = accounts.find((a) => a.id === accountId);
-  const unit = setup.strategy === "iron_condor" ? "condor" : "spread";
+  const unit = unitFor(setup.strategy);
 
   // Walk by default, exactly as on the close ticket and Open Position. The
   // start and floor defaults are explained in OpenPricing.
@@ -87,7 +88,7 @@ export default function TradeDialog({ setup, accounts, onClose }) {
             </div>
 
             <div>
-              <label className={label}>Quantity</label>
+              <label className={label}>Quantity{setup.maxContracts ? ` — up to ${setup.maxContracts} on ${setup.sharesHeld} shares` : ""}</label>
               <input type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} className={input} />
             </div>
 

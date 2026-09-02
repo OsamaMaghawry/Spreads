@@ -5,7 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildSetup, impliedSpotFromParity } from "./optionScan.ts";
+import { buildSetup, buildSingle, impliedSpotFromParity } from "./optionScan.ts";
 
 const EXPIRY = "2026-08-28";
 
@@ -103,4 +103,64 @@ test("parity is skipped when only one side of the chain was fetched", () => {
   assert.equal(impliedSpotFromParity(PUTS, [], EXPIRY), null);
   const r: any = buildSetup({ ...base, spot: 360, puts: PUTS, targetDelta: 0.18 });
   assert.equal(r.ok, true);
+});
+
+// ---------- the wheel's halves ----------
+
+const callOpt = (strike, bid, ask, delta) => ({
+  symbol: `JPM260828C00${String(strike * 1000).padStart(8, "0")}`,
+  strike, bid, ask, mid: (bid + ask) / 2, delta
+});
+const CALLS = [callOpt(355.0, 3.2, 3.6, 0.48), callOpt(360.0, 1.4, 1.7, 0.27), callOpt(365.0, 0.55, 0.75, 0.13)];
+
+test("a cash-secured put risks the strike less the credit, and ranks by that", () => {
+  const r: any = buildSingle({ ticker: "JPM", expiry: EXPIRY, strategy: "cash_secured_put", spot: 358, puts: PUTS, calls: [], targetDelta: 0.18 });
+  assert.equal(r.ok, true);
+  const s = r.setup;
+  assert.equal(s.legs.length, 1);
+  assert.equal(s.legs[0].strike, 352.5);
+  assert.equal(s.credit, 1.06);
+  assert.equal(s.collateral, 35250);
+  assert.equal(Math.round(s.maxRisk), 35144);
+  assert.equal(Math.round(s.breakEvenLow * 100) / 100, 351.44);
+  assert.equal(s.width, null);
+  assert.ok(Math.abs(s.returnOnCollateral - 1.06 / 352.5) < 1e-9);
+});
+
+test("a cash-secured put through the money is refused like any short", () => {
+  const r: any = buildSingle({ ticker: "JPM", expiry: EXPIRY, strategy: "cash_secured_put", spot: 354.33, puts: PUTS, calls: [], targetDelta: 0.26 });
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /through the spot/i);
+});
+
+test("a covered call uses the shares' adjusted basis, not the spot", () => {
+  const basis = { basis: 350.5, brokerBasis: 352.5, collected: 200, shares: 300, source: "adjusted" };
+  const r: any = buildSingle({ ticker: "JPM", expiry: EXPIRY, strategy: "covered_call", spot: 358, puts: [], calls: CALLS, targetDelta: 0.27, basis, shares: 300 });
+  assert.equal(r.ok, true);
+  const s = r.setup;
+  assert.equal(s.legs[0].strike, 360);
+  assert.equal(s.credit, 1.4);
+  assert.equal(s.basis, 350.5);
+  assert.equal(s.basisSource, "adjusted");
+  assert.equal(Math.round(s.maxRisk), 34910);            // (350.5 - 1.4) x 100
+  assert.equal(Math.round(s.breakEvenLow * 100) / 100, 349.1);
+  assert.equal(Math.round(s.ifCalled), 1090);            // (360 - 350.5 + 1.4) x 100
+  assert.equal(s.maxContracts, 3);
+  assert.equal(s.sharesHeld, 300);
+});
+
+test("a covered call needs a hundred shares and a basis on record", () => {
+  const none: any = buildSingle({ ticker: "JPM", expiry: EXPIRY, strategy: "covered_call", spot: 358, puts: [], calls: CALLS, targetDelta: 0.27, basis: { basis: 350 }, shares: 40 });
+  assert.equal(none.ok, false);
+  assert.match(none.reason, /100 per contract/);
+  const noBasis: any = buildSingle({ ticker: "JPM", expiry: EXPIRY, strategy: "covered_call", spot: 358, puts: [], calls: CALLS, targetDelta: 0.27, basis: null, shares: 300 });
+  assert.equal(noBasis.ok, false);
+  assert.match(noBasis.reason, /basis/);
+});
+
+test("return on risk means the same thing for a single leg as for a spread", () => {
+  const r: any = buildSingle({ ticker: "JPM", expiry: EXPIRY, strategy: "cash_secured_put", spot: 358, puts: PUTS, calls: [], targetDelta: 0.18 });
+  const s = r.setup;
+  const ror = (s.credit * 100) / s.maxRisk;
+  assert.ok(ror > 0 && ror < 0.01);
 });

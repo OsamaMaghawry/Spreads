@@ -14,6 +14,7 @@ import OpenPricing, { openingDefaults } from "./OpenPricing";
 import useOpenOrder from "./useOpenOrder";
 import OrderLog from "@/components/close/OrderLog";
 import UpgradePrompt from "@/components/billing/UpgradePrompt";
+import { unitFor, isSingle } from "@/lib/setupUnit";
 
 const DEFAULTS = {
   tickers: "SPY, QQQ",
@@ -41,6 +42,8 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
   const [error, setError] = useState(null);
 
   const isCondor = strategy === "iron_condor";
+  const single = isSingle(strategy);
+  const unit = unitFor(strategy);
   const set = (patch) => setCfg((c) => ({ ...c, ...patch }));
 
   // Walk is the default here for the same reason it is on the close ticket: it
@@ -122,10 +125,10 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
 
   const summary =
     priceMode === "market"
-      ? `Market order · open ${qty} ${setup?.ticker} ${isCondor ? "condor" : "spread"}${Number(qty) > 1 ? "s" : ""} on ${account.name}.`
+      ? `Market order · open ${qty} ${setup?.ticker} ${unit}${Number(qty) > 1 ? "s" : ""} on ${account.name}.`
       : priceMode === "walk"
-        ? `Limit order starting at $${(limitCredit ?? 0).toFixed(2)} credit, conceding toward the bid but never below $${(minCredit ?? 0).toFixed(2)} · open ${qty} ${setup?.ticker} ${isCondor ? "condor" : "spread"}${Number(qty) > 1 ? "s" : ""} on ${account.name}.`
-        : `Limit order resting at $${(limitCredit ?? 0).toFixed(2)} credit — not walked · open ${qty} ${setup?.ticker} ${isCondor ? "condor" : "spread"}${Number(qty) > 1 ? "s" : ""} on ${account.name}.`;
+        ? `Limit order starting at $${(limitCredit ?? 0).toFixed(2)} credit, conceding toward the bid but never below $${(minCredit ?? 0).toFixed(2)} · open ${qty} ${setup?.ticker} ${unit}${Number(qty) > 1 ? "s" : ""} on ${account.name}.`
+        : `Limit order resting at $${(limitCredit ?? 0).toFixed(2)} credit — not walked · open ${qty} ${setup?.ticker} ${unit}${Number(qty) > 1 ? "s" : ""} on ${account.name}.`;
 
   const label = "text-xs text-slate-500 block mb-1.5";
   const input = "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500";
@@ -146,7 +149,7 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
           onChange={(v) => { setStrategy(v); setCandidates(null); setSetup(null); reset(); }}
         />
 
-        <ScanFilters cfg={cfg} set={set} isCondor={isCondor} />
+        <ScanFilters cfg={cfg} set={set} isCondor={isCondor} single={single} strategy={strategy} />
 
         {running ? (
           <div className="space-y-2">
@@ -205,14 +208,14 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
             <PreTradeRisk setup={setup} accountId={account.id} qty={qty} />
 
             <div>
-              <label className={label}>Quantity</label>
-              <input type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} className={input} />
+              <label className={label}>Quantity{setup.maxContracts ? ` — up to ${setup.maxContracts} on ${setup.sharesHeld} shares` : ""}</label>
+              <input type="number" min={1} max={setup.maxContracts || undefined} value={qty} onChange={(e) => setQty(e.target.value)} className={input} />
             </div>
 
             <OpenPricing
               setup={setup}
               qty={Number(qty) || 1}
-              unit={isCondor ? "condor" : "spread"}
+              unit={unit}
               priceMode={priceMode}
               onPriceMode={setPriceMode}
               credit={limitCredit}
@@ -225,7 +228,7 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
               label={
                 orderType === "limit" && !creditReady
                   ? "Set a credit first"
-                  : `Submit — open ${qty} ${isCondor ? "condor" : "spread"}${Number(qty) > 1 ? "s" : ""} (${priceMode === "market" ? "market" : priceMode === "walk" ? "walk" : "limit"}) on ${setup.ticker}`
+                  : `Submit — open ${qty} ${unit}${Number(qty) > 1 ? "s" : ""} (${priceMode === "market" ? "market" : priceMode === "walk" ? "walk" : "limit"}) on ${setup.ticker}`
               }
               summary={summary}
               warnings={<PreTradeRisk setup={setup} accountId={account.id} qty={qty} />}

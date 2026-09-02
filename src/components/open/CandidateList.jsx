@@ -1,5 +1,6 @@
 import { fmtMoney } from "@/lib/format";
 import EarningsWarning from "@/components/common/EarningsWarning";
+import { structureLabel, isSingle } from "@/lib/setupUnit";
 
 // Ranked scan results inside the account's own open-position dialog.
 //
@@ -35,12 +36,12 @@ export default function CandidateList({ candidates, selected, onSelect }) {
                   was requested. Showing the requested one here put "width $1.00"
                   next to a risk figure derived from a real $2.50 spread. */}
               <span>
-                {c.expiry} · Δ {c.targetDelta} · width {fmtMoney(c.width)}
+                {c.expiry} · {structureLabel(c)} · Δ {c.targetDelta}{isSingle(c.strategy) ? ` · collateral ${fmtMoney(c.collateral)}` : ` · width ${fmtMoney(c.width)}`}
               </span>
               {/* Per contract, matching SetupPreview — a row saying $0.93 above a
                   preview saying $93.00 for the same trade reads as a bug. */}
               <span>
-                credit {fmtMoney(c.credit * 100)} · risk {fmtMoney(c.maxRisk)}
+                credit {fmtMoney(c.credit * 100)} · {isSingle(c.strategy) ? "max loss" : "risk"} {fmtMoney(c.maxRisk)}
               </span>
             </div>
           </button>

@@ -137,7 +137,8 @@ function pickWing(opts, shortStrike, width, isCall) {
 export async function findSetup(account, params) {
   const {
     ticker, strategy, dte = 2, targetDelta = 0.18, wingWidth = 1,
-    minCredit = 0.2, maxCredit = 4, putRatio = 1, callRatio = 1
+    minCredit = 0.2, maxCredit = 4, putRatio = 1, callRatio = 1,
+    sharesByTicker = {}, basisByTicker = {}
   } = params;
 
   const spot = await getSpot(account, ticker);
@@ -147,14 +148,16 @@ export async function findSetup(account, params) {
   const expiry = await findExpiry(account, ticker, dte);
   if (!expiry) return { ok: false, reason: `No expiry found for ${ticker} within ${dte} days.` };
 
-  const needPuts = strategy === "put_spread" || strategy === "iron_condor";
-  const needCalls = strategy === "call_spread" || strategy === "iron_condor";
+  const needPuts = strategy === "put_spread" || strategy === "iron_condor" || strategy === "cash_secured_put";
+  const needCalls = strategy === "call_spread" || strategy === "iron_condor" || strategy === "covered_call";
   const puts = needPuts ? await scanChain(account, ticker, expiry, "put", spot.price) : [];
   const calls = needCalls ? await scanChain(account, ticker, expiry, "call", spot.price) : [];
   if (needPuts && puts.length === 0) return { ok: false, reason: `No priced put chain for ${ticker} ${expiry}.` };
   if (needCalls && calls.length === 0) return { ok: false, reason: `No priced call chain for ${ticker} ${expiry}.` };
 
-  const built = buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio, callRatio });
+  const built = isSingleStrategy(strategy)
+    ? buildSingle({ ticker, expiry, spot, strategy, puts, calls, targetDelta, basis: basisByTicker[ticker] || null, shares: sharesByTicker[ticker] || 0 })
+    : buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio, callRatio });
   if (!built.ok) return built;
   return validate(built.setup, minCredit, maxCredit);
 }
@@ -269,6 +272,95 @@ export function buildSetup({ ticker, expiry, spot, strategy, puts, calls, target
   return { ok: true, setup };
 }
 
+// ---------- single-leg setups: the wheel's two halves ----------
+//
+// A cash-secured put and a covered call are one short leg each. Their risk
+// is not (width - credit): a put risks the strike less the credit with the
+// stock at zero, and a call over held shares risks the shares' basis less the
+// credit -- the same per-position definitions positionKinds.ts uses on the
+// dashboard, so a candidate and the position it becomes read the same.
+//
+// returnOnRisk is credit / maxRisk for these too, so the ranking, the sort
+// keys and the RoR column keep one meaning across every strategy.
+export const SINGLE_STRATEGIES = ["cash_secured_put", "covered_call"];
+export const isSingleStrategy = (s) => SINGLE_STRATEGIES.includes(s);
+
+export function buildSingle({ ticker, expiry, spot, strategy, puts, calls, targetDelta, allowItmShort = false, basis = null, shares = 0 }: any) {
+  const px = typeof spot === "number" ? spot : spot?.price;
+  const base = {
+    ticker, expiry, strategy, targetDelta, wingWidth: null,
+    spot: px,
+    spotSource: typeof spot === "number" ? null : spot?.source ?? null,
+    spotAsOf: typeof spot === "number" ? null : spot?.asOf ?? null
+  };
+  const implied = impliedSpotFromParity(puts, calls, expiry);
+  if (implied !== null && px > 0 && Math.abs(implied - px) / px > MAX_SOURCE_DIVERGENCE_PCT) {
+    return {
+      ok: false,
+      reason: `The option chain implies a spot of $${implied.toFixed(2)}, not $${px.toFixed(2)} — ` +
+        `the stock price feed disagrees with the options market.`
+    };
+  }
+
+  if (strategy === "cash_secured_put") {
+    if (!puts?.length) return { ok: false, reason: "No priced put chain." };
+    const short: any = nearestDelta(puts, targetDelta);
+    if (!allowItmShort) {
+      const bad = itmShortReason(short, px, false);
+      if (bad) return { ok: false, reason: bad };
+    }
+    const credit = short.bid;
+    const collateral = short.strike * 100;
+    const maxRisk = (short.strike - credit) * 100;
+    return {
+      ok: true,
+      setup: {
+        ...base, putRatio: 1, callRatio: 1, credit, width: null,
+        collateral, maxRisk,
+        breakEvenLow: short.strike - credit,
+        breakEvenHigh: null,
+        returnOnCollateral: credit / short.strike,
+        otmPct: px > 0 ? (px - short.strike) / px : null,
+        legs: [{ role: "short_put", ...short, ratio: 1, side: "sell" }]
+      }
+    };
+  }
+
+  if (strategy === "covered_call") {
+    if (!calls?.length) return { ok: false, reason: "No priced call chain." };
+    const held = Number(shares) || 0;
+    if (held < 100) return { ok: false, reason: `Holds ${held} shares of ${ticker} — a covered call needs 100 per contract.` };
+    // The shares' basis, never the spot: what the position risks is what was
+    // paid for it, and a call written on that basis is what the wheel measures.
+    const b = basis && Number(basis.basis) > 0 ? Number(basis.basis) : null;
+    if (b === null) return { ok: false, reason: `No cost basis on record for ${ticker} shares — sync the account first.` };
+    const short: any = nearestDelta(calls, targetDelta);
+    if (!allowItmShort) {
+      const bad = itmShortReason(short, px, true);
+      if (bad) return { ok: false, reason: bad };
+    }
+    const credit = short.bid;
+    const maxRisk = (b - credit) * 100;
+    return {
+      ok: true,
+      setup: {
+        ...base, putRatio: 1, callRatio: 1, credit, width: null,
+        collateral: b * 100, maxRisk,
+        breakEvenLow: b - credit,
+        breakEvenHigh: null,
+        returnOnCollateral: credit / b,
+        otmPct: px > 0 ? (short.strike - px) / px : null,
+        basis: b, basisSource: basis.source || "broker", brokerBasis: basis.brokerBasis ?? null,
+        ifCalled: (short.strike - b + credit) * 100,
+        sharesHeld: held, maxContracts: Math.floor(held / 100),
+        legs: [{ role: "short_call", ...short, ratio: 1, side: "sell" }]
+      }
+    };
+  }
+
+  return { ok: false, reason: `Unsupported single-leg strategy ${strategy}.` };
+}
+
 // Granularity of the sweep inside each requested range. This is an engine
 // detail, not a trading parameter: the caller says "deltas 0.12 to 0.22" and
 // this decides how finely to sample that range.
@@ -297,13 +389,18 @@ export async function scanCandidates(account, params) {
     tickers = [], strategy, dteMin = 0, dteMax = 3,
     deltaMin = 0.12, deltaMax = 0.22, deltaStep = DELTA_SWEEP_STEP,
     widthMin = 1, widthMax = 3, widthStep = WIDTH_SWEEP_STEP,
-    minCredit = 0, maxCredit = 1000, putRatio = 1, callRatio = 1, maxRisk = null
+    minCredit = 0, maxCredit = 1000, putRatio = 1, callRatio = 1, maxRisk = null,
+    // For the wheel's halves: shares held and their basis per ticker, looked
+    // up by the caller from the account. Absent for spreads.
+    sharesByTicker = {}, basisByTicker = {}
   } = params;
 
+  const single = isSingleStrategy(strategy);
   const deltas = steps(deltaMin, deltaMax, deltaStep);
-  const widths = steps(widthMin, widthMax, widthStep);
-  const needPuts = strategy === "put_spread" || strategy === "iron_condor";
-  const needCalls = strategy === "call_spread" || strategy === "iron_condor";
+  // A single leg has no wing: one pass, not a width sweep.
+  const widths = single ? [0] : steps(widthMin, widthMax, widthStep);
+  const needPuts = strategy === "put_spread" || strategy === "iron_condor" || strategy === "cash_secured_put";
+  const needCalls = strategy === "call_spread" || strategy === "iron_condor" || strategy === "covered_call";
 
   const candidates = [];
   const skipped = [];
@@ -334,7 +431,10 @@ export async function scanCandidates(account, params) {
         const seen = new Set();
         for (const targetDelta of deltas) {
           for (const wingWidth of widths) {
-            const built = buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio, callRatio });
+            const built = single
+              ? buildSingle({ ticker, expiry, spot, strategy, puts, calls, targetDelta,
+                  basis: basisByTicker[ticker] || null, shares: sharesByTicker[ticker] || 0 })
+              : buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio, callRatio });
             if (!built.ok) { reasons.add(built.reason); continue; }
             const s = built.setup;
             const key = s.legs.map((l) => l.symbol).join("|");
@@ -342,8 +442,14 @@ export async function scanCandidates(account, params) {
             seen.add(key);
             const checked = validate(s, minCredit, maxCredit);
             if (!checked.ok) { reasons.add(checked.reason); continue; }
-            if (maxRisk && s.maxRisk > maxRisk) {
-              reasons.add(`Max risk $${s.maxRisk.toFixed(0)} exceeds the $${maxRisk} limit.`);
+            // For a single leg the cap is on collateral -- the cash a put ties
+            // up, the shares' cost a call sits on -- which is what the screen
+            // labels it. For a spread it stays the maximum loss.
+            const capped = single ? s.collateral : s.maxRisk;
+            if (maxRisk && capped > maxRisk) {
+              reasons.add(single
+                ? `Collateral $${capped.toFixed(0)} exceeds the $${maxRisk} limit.`
+                : `Max risk $${capped.toFixed(0)} exceeds the $${maxRisk} limit.`);
               continue;
             }
             candidates.push({ ...s, returnOnRisk: (s.credit * 100) / s.maxRisk });
@@ -371,7 +477,7 @@ function validate(setup, minCredit, maxCredit) {
     return { ok: false, reason: `Credit $${setup.credit.toFixed(2)} is above the $${maxCredit} maximum.`, setup };
   }
   if (setup.maxRisk <= 0) {
-    return { ok: false, reason: "Credit exceeds the spread width — quote looks stale.", setup };
+    return { ok: false, reason: setup.width === null ? "Credit exceeds the strike — quote looks stale." : "Credit exceeds the spread width — quote looks stale.", setup };
   }
   return { ok: true, setup };
 }

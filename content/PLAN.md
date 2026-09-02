@@ -134,9 +134,9 @@ Full list in `docs/context/compliance.md`; these are the ones that bite:
 - No return figures, real or illustrative, and nothing "typical". Hypothetical
   numbers are for mechanics, never for outcome.
 - The broker is not named unless the post is genuinely about the integration.
-- No feature that does not exist. Automation is **not built**; the wheel's
-  order placement is **not built** yet (the monitor reads it; the ticket does
-  not place it).
+- No feature that does not exist. Automation is **not built**. The wheel's
+  scanner and order placement are on staging as of 2 Sep; say "the wheel"
+  only once they are live.
 - Every post ends with a plain line saying it is not investment advice.
 - Every post links to its category hub and to at least one earlier post it
   builds on; the earlier post gets a "Read next" back to it.

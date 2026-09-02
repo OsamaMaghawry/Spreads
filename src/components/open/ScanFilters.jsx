@@ -30,7 +30,7 @@ function Range({ title, min, max, onChange, fieldStep }) {
   );
 }
 
-export default function ScanFilters({ cfg, set, isCondor }) {
+export default function ScanFilters({ cfg, set, isCondor, single = false, strategy = "" }) {
   return (
     <div className="space-y-3">
       <div>
@@ -47,13 +47,22 @@ export default function ScanFilters({ cfg, set, isCondor }) {
         min={cfg.deltaMin} max={cfg.deltaMax}
         onChange={(v) => set({ deltaMin: v.min ?? cfg.deltaMin, deltaMax: v.max ?? cfg.deltaMax })} />
 
-      <Range title="Wing width ($)" fieldStep={STEP.width}
-        min={cfg.widthMin} max={cfg.widthMax}
-        onChange={(v) => set({ widthMin: v.min ?? cfg.widthMin, widthMax: v.max ?? cfg.widthMax })} />
-      <p className="text-[11px] text-slate-400 -mt-1.5 leading-relaxed">
-        Only spreads whose strikes are exactly this far apart are returned — a chain with no
-        strike at that distance is skipped rather than widened.
-      </p>
+      {!single && (
+        <>
+          <Range title="Wing width ($)" fieldStep={STEP.width}
+            min={cfg.widthMin} max={cfg.widthMax}
+            onChange={(v) => set({ widthMin: v.min ?? cfg.widthMin, widthMax: v.max ?? cfg.widthMax })} />
+          <p className="text-[11px] text-slate-400 -mt-1.5 leading-relaxed">
+            Only spreads whose strikes are exactly this far apart are returned — a chain with no
+            strike at that distance is skipped rather than widened.
+          </p>
+        </>
+      )}
+      {strategy === "covered_call" && (
+        <p className="text-[11px] text-slate-400 leading-relaxed">
+          Scans the shares this account holds, 100 or more, at their cost basis — the tickers above are ignored.
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -61,7 +70,7 @@ export default function ScanFilters({ cfg, set, isCondor }) {
           <NumberField value={cfg.minCredit} onChange={(v) => set({ minCredit: v })} step={STEP.credit} min={0} ariaLabel="Minimum credit" />
         </div>
         <div>
-          <label className={label}>Max risk / unit ($, optional)</label>
+          <label className={label}>{single ? "Max collateral / contract ($, optional)" : "Max risk / unit ($, optional)"}</label>
           <NumberField value={cfg.maxRisk} onChange={(v) => set({ maxRisk: v })} step={STEP.risk} min={0} placeholder="any" ariaLabel="Maximum risk per unit" />
         </div>
         {isCondor && (

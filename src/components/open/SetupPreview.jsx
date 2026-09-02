@@ -1,4 +1,5 @@
 import { fmtMoney } from "@/lib/format";
+import { unitFor, isSingle } from "@/lib/setupUnit";
 
 const ROLE_LABEL = {
   short_put: "Short put",
@@ -8,7 +9,9 @@ const ROLE_LABEL = {
 };
 
 export default function SetupPreview({ setup, qty }) {
-  const unit = setup.strategy === "iron_condor" ? "condor" : "spread";
+  const unit = unitFor(setup.strategy);
+  const single = isSingle(setup.strategy);
+  const cc = setup.strategy === "covered_call";
   return (
     <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-3 text-sm">
       <div className="flex items-center justify-between text-xs text-slate-500">
@@ -48,13 +51,32 @@ export default function SetupPreview({ setup, qty }) {
             reads as a mistake even when the arithmetic behind it is right. */}
         <span className="text-slate-500">Credit / {unit}</span>
         <span className="text-right text-emerald-600 font-medium">{fmtMoney(setup.credit * 100)}</span>
-        <span className="text-slate-500">Widest side width</span>
-        <span className="text-right">{fmtMoney(setup.width * 100)}</span>
-        <span className="text-slate-500">Max risk / {unit}</span>
-        <span className="text-right">{fmtMoney(setup.maxRisk)}</span>
+        {single ? (
+          <>
+            <span className="text-slate-500">{cc ? "Shares at basis" : "Collateral"} / {unit}</span>
+            <span className="text-right">{fmtMoney(setup.collateral)}</span>
+            {cc && (
+              <>
+                <span className="text-slate-500">Basis / share ({setup.basisSource === "adjusted" ? "adjusted for premiums" : "broker"})</span>
+                <span className="text-right">{fmtMoney(setup.basis)}</span>
+                <span className="text-slate-500">If called away</span>
+                <span className={`text-right ${setup.ifCalled >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{fmtMoney(setup.ifCalled)}</span>
+              </>
+            )}
+            <span className="text-slate-500">Max loss / {unit} (stock to 0)</span>
+            <span className="text-right">{fmtMoney(setup.maxRisk)}</span>
+          </>
+        ) : (
+          <>
+            <span className="text-slate-500">Widest side width</span>
+            <span className="text-right">{fmtMoney(setup.width * 100)}</span>
+            <span className="text-slate-500">Max risk / {unit}</span>
+            <span className="text-right">{fmtMoney(setup.maxRisk)}</span>
+          </>
+        )}
         <span className="text-slate-500">Total credit ({qty} {unit}{qty > 1 ? "s" : ""})</span>
         <span className="text-right text-emerald-600 font-semibold">{fmtMoney(setup.credit * qty * 100)}</span>
-        <span className="text-slate-500">Total max risk</span>
+        <span className="text-slate-500">{single ? "Total max loss (stock to 0)" : "Total max risk"}</span>
         <span className="text-right font-semibold">{fmtMoney(setup.maxRisk * qty)}</span>
         <span className="text-slate-500">Break-even</span>
         <span className="text-right">

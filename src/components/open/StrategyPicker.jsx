@@ -1,13 +1,22 @@
-const OPTIONS = [
-  { value: "put_spread", label: "Put spread", hint: "Bullish / neutral" },
-  { value: "call_spread", label: "Call spread", hint: "Bearish / neutral" },
-  { value: "iron_condor", label: "Iron condor", hint: "Neutral, 4 legs" }
-];
+import { STRATEGY_LABEL } from "@/lib/setupUnit";
 
-export default function StrategyPicker({ value, onChange }) {
+// Five ways to sell premium, plus -- on the screener only -- the wheel, which
+// is the last two run together: puts on the universe, calls on the shares
+// this account holds.
+const OPTIONS = [
+  { value: "put_spread", label: STRATEGY_LABEL.put_spread, hint: "Bullish / neutral" },
+  { value: "call_spread", label: STRATEGY_LABEL.call_spread, hint: "Bearish / neutral" },
+  { value: "iron_condor", label: STRATEGY_LABEL.iron_condor, hint: "Neutral, 4 legs" },
+  { value: "cash_secured_put", label: STRATEGY_LABEL.cash_secured_put, hint: "Sell a put, hold the cash" },
+  { value: "covered_call", label: STRATEGY_LABEL.covered_call, hint: "Sell a call on shares you hold" }
+];
+const WHEEL = { value: "wheel", label: "Wheel", hint: "Both, on this account" };
+
+export default function StrategyPicker({ value, onChange, withWheel = false }) {
+  const options = withWheel ? [...OPTIONS, WHEEL] : OPTIONS;
   return (
     <div className="grid grid-cols-3 gap-2">
-      {OPTIONS.map((o) => (
+      {options.map((o) => (
         <button
           key={o.value}
           onClick={() => onChange(o.value)}

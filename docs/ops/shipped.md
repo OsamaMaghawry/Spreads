@@ -3,6 +3,8 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-02 · (staging) The scanner finds cash-secured puts on any universe and covered calls on the shares an account holds, priced at the adjusted basis; a Wheel scan runs both; single-leg orders go to the broker as plain option orders under the wheel prefix.
+- 2026-09-02 · (staging) Billing: Stripe checkout, a billing screen, a plan on every live account, and a switch in Admin that gates opening live positions — off until flipped.
 - 2026-09-02 · The watch evaluates every account again and flags a short call with no shares behind it as critical (`a7db799`).
 - 2026-09-02 · You can drag the price in the close ticket, and the P/L rows follow the price you chose; the band between a short's strike and its break-even is shaded as shrinking profit (`3a22207`).
 - 2026-09-02 · Cash-secured puts, covered calls, assigned shares and long options appear on the dashboard as what they are; a naked call is flagged with undefined risk (`e1fc417`).

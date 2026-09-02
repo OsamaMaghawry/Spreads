@@ -1,6 +1,7 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { liveAllowedFor, UPGRADE_MESSAGE } from "../_shared/entitlement.ts";
+import { heldShares } from "../_shared/heldShares.ts";
 import { tradingBase, alpacaFetch, loadAccount, parseOCCSymbol } from "../_shared/alpaca.ts";
 import { getSpot } from "../_shared/marketPrice.ts";
 import { earningsCoverage, refreshEarningsWindow } from "../_shared/earnings.ts";
@@ -108,6 +109,41 @@ Deno.serve(async (req) => {
     // well formed, the market moved out from under it.
     const stale = await preflight(account, legs, Number(expectedSpot) || 0, allowItmShort);
     if (stale) return jsonResponse({ error: stale, staleSetup: true }, 409);
+
+    // One leg is the wheel's half -- a cash-secured put or a covered call. It
+    // goes to the broker as a plain option order, not a multi-leg one: no
+    // order_class, a positive limit price (the negative-credit convention is
+    // multi-leg only), and the wheel prefix so the history files it under the
+    // wheel where one is configured.
+    if (legs.length === 1) {
+      const leg = legs[0];
+      const occ = parseOCCSymbol(leg.symbol);
+      if (leg.side === "sell" && occ?.type === "C") {
+        // A short call must be covered by shares this account holds, contract
+        // for contract. Refusing here says why in one sentence; the broker's
+        // rejection would not.
+        const held = await heldShares(admin, account);
+        const have = held.shares[occ.ticker] || 0;
+        if (have < Number(qty) * 100) {
+          return jsonResponse({
+            error: `${account.name} holds ${have} shares of ${occ.ticker}; ${qty} covered call${Number(qty) > 1 ? "s" : ""} need${Number(qty) > 1 ? "" : "s"} ${Number(qty) * 100}. Nothing was sent.`
+          }, 409);
+        }
+      }
+      const singlePrefix = (account.wheel_client_prefix || account.spreads_client_prefix || "APP_OPEN").trim();
+      const single: any = {
+        symbol: leg.symbol,
+        qty: String(qty),
+        side: leg.side,
+        type: orderType,
+        time_in_force: "day",
+        position_intent: leg.side === "sell" ? "sell_to_open" : "buy_to_open",
+        client_order_id: `${singlePrefix}_OPEN_${Date.now()}`
+      };
+      if (orderType === "limit") single.limit_price = String(Math.abs(Math.round(limitPrice * 100) / 100));
+      const order = await alpacaFetch(`${tradingBase(account)}/orders`, account, { method: "POST", body: JSON.stringify(single) });
+      return jsonResponse({ orderId: order.id, status: order.status });
+    }
 
     const prefix = (account.spreads_client_prefix || "APP_OPEN").trim();
 
