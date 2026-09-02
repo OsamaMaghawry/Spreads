@@ -46,6 +46,7 @@ The allowlist matches **exact hostnames** — an allowed apex whose site 301s to
 | dashboard.deltamint.app / deltamint.app | ❌ 403 at CONNECT (was ✅ 200) | 2026-09-02 | Regression: both `curl` and WebFetch to `deltamint.app/blog` now die at the proxy tunnel (`CONNECT tunnel failed, response 403`), where 2026-08-31 had it reachable. Nothing changed on our side that would explain it (no allowlist edit is in this repo's history). Could not run the seo-editor site check (structured data on `/blog`, a category hub, one post, `/sitemap.xml`, `/blog/feed.xml`) this run. Owner to check whether the allowlist entry was removed or the proxy policy changed |
 | www.deltamint.app | ⚠️ 522 | 2026-08-31 | Cloudflare has no origin for the www host — cosmetic; canonical is the apex + dashboard |
 | spreads.osamamaghawry.workers.dev | ✅ 301 → dashboard | 2026-08-31 | Canonical redirect confirmed live |
+| yecfbeohyakuoyczvdbj.supabase.co | ❌ 403 at CONNECT | 2026-09-02 | Same regression as the `deltamint.app` row, same run: `curl -X POST .../functions/v1/sendDigest` died with `CONNECT tunnel failed, response 403` (agent-proxy status confirms `connect_rejected` for this host). This is the **production** Supabase project — the one `sendDigest` (the agent-to-owner email path) lives on. The weekly digest for 2026-09-02 could not be sent for this reason; not attempted around, per the rule above. Owner to check the egress policy for both this host and `deltamint.app` together — the timing suggests one change, not two |
 
 
 Channels that are not the proxy:

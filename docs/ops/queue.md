@@ -16,6 +16,7 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 - [needs owner] 2026-09-02 · duty-engineer · Confirm migration `0024_broker_feed_dumps.sql` is applied on the **production** Supabase project (`yecfbeohyakuoyczvdbj`) — it shipped to `main` and was said to be "applied by hand on 2 Sep," but duty-engineer has no production database access to verify and never touches production. Owner (or whoever ran it) to confirm.
 
 - [needs owner] 2026-09-02 · seo-editor · `deltamint.app` and `dashboard.deltamint.app` now 403 at CONNECT for both `curl` and WebFetch (`docs/context/reachable.md`), regressed from ✅ 200 on 2026-08-31. Blocked this run's site check (structured data on `/blog`, a category hub, one post, `/sitemap.xml`, `/blog/feed.xml`). Please confirm whether the allowlist entry was removed or the proxy policy changed.
+- [needs owner] 2026-09-02 · seo-editor · **The production Supabase project (`yecfbeohyakuoyczvdbj.supabase.co`) is also 403 at CONNECT** — same regression, same run, confirmed by the agent-proxy status endpoint. This is the host `sendDigest` lives on, the only path an agent has to email you, so this week's growth report could not be sent. Nothing was routed around it. Once the egress policy is fixed (probably the same fix as the `deltamint.app` row above), this run's report is in `docs/seo/keywords.md` and this file, on branch `claude/vibrant-ride-ccifzm`.
 
 ## Escalated
 
