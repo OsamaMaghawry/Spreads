@@ -118,8 +118,8 @@ function evaluate(account, positions, spots, earnings, equity, settings, shares 
   // fires whatever the price is doing -- a naked call is critical at any spot.
   for (const n of nakedShortCalls(parsed, shares, cash)) {
     add("naked_short_call", "critical", n.symbol,
-      `${n.occ.ticker} ${n.occ.strike}C: short ${n.contracts} with ${n.shares} shares behind it — uncovered`,
-      { contracts: n.contracts, shares: n.shares });
+      `${n.occ.ticker} ${n.occ.strike}C: ${n.uncovered} of ${n.contracts} short uncovered — no long call and ${n.shares} shares behind it`,
+      { contracts: n.contracts, uncovered: n.uncovered, shares: n.shares, coveredByLongs: n.coveredByLongs });
   }
   return { raised, legs: parsed };
 }
