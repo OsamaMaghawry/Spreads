@@ -39,6 +39,12 @@ Deno.serve(async (req) => {
 });
 
 async function syncOne(account) {
+  // The wheel-basis and stress-move lookups below read the database, and this
+  // function is called per account without the request handler's client. A
+  // free `admin` here bundled cleanly and took every account down with
+  // "admin is not defined" -- the same class of error as the step/steps
+  // incident: invisible to the bundler, visible only at runtime.
+  const admin = adminClient();
   const base = tradingBase(account);
   const empty = { credit: 0, risk: 0, closeCost: 0, pl: 0, expirationPL: 0, collateral: 0, notional: 0, stressMove: 0.15, riskComplete: true, undefinedRisk: [] };
   try {
