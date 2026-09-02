@@ -1,0 +1,49 @@
+<svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Expiration payoff of a hypothetical put credit spread: flat at plus $120 above the 100 short strike, sloping down through break-even at 98.80, and flat at minus $380 below the 95 long strike.">
+  <rect width="720" height="340" fill="#FFFFFF"/>
+
+  <text x="24" y="30" font-size="13.5" font-weight="600" fill="#14151C">Hypothetical: short the 100 put, long the 95 put, $1.20 credit, one contract</text>
+  <text x="24" y="50" font-size="11.5" fill="#767B8E">Profit and loss at expiration</text>
+
+  <!-- strike guides -->
+  <line x1="279" y1="56" x2="279" y2="242" stroke="#E2E5EE" stroke-width="1" stroke-dasharray="2 4"/>
+  <line x1="448" y1="56" x2="448" y2="242" stroke="#E2E5EE" stroke-width="1" stroke-dasharray="2 4"/>
+
+  <!-- shaded regions -->
+  <path d="M110 214 L279 214 L407 100 L110 100 Z" fill="#FBE7EB"/>
+  <path d="M407 100 L448 64 L650 64 L650 100 Z" fill="#DFF1E7"/>
+
+  <!-- zero line -->
+  <line x1="100" y1="100" x2="670" y2="100" stroke="#C9CEDC" stroke-width="1" stroke-dasharray="2 4"/>
+  <text x="92" y="104" font-size="11" text-anchor="end" fill="#767B8E">$0</text>
+
+  <!-- payoff -->
+  <path d="M110 214 L279 214 L407 100" fill="none" stroke="#B4485C" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M407 100 L448 64 L650 64" fill="none" stroke="#2E8B5F" stroke-width="2.5" stroke-linejoin="round"/>
+
+  <!-- break-even -->
+  <circle cx="407" cy="100" r="3.6" fill="#FFFFFF" stroke="#14151C" stroke-width="1.4"/>
+  <text x="416" y="124" font-size="11" fill="#4B4F60">Break-even 98.80</text>
+  <text x="416" y="138" font-size="11" fill="#767B8E">short strike less the credit</text>
+
+  <!-- gain callout -->
+  <text x="650" y="52" font-size="11.5" font-weight="500" text-anchor="end" fill="#2E8B5F">Max gain $120 — the credit, kept</text>
+
+  <!-- loss callout -->
+  <text x="118" y="190" font-size="11.5" font-weight="500" fill="#B4485C">Max loss $380</text>
+  <text x="118" y="205" font-size="11.5" font-weight="500" fill="#B4485C">= ($5.00 width − $1.20 credit) × 100</text>
+
+  <!-- width bracket -->
+  <line x1="279" y1="246" x2="448" y2="246" stroke="#767B8E" stroke-width="1"/>
+  <line x1="279" y1="241" x2="279" y2="251" stroke="#767B8E" stroke-width="1"/>
+  <line x1="448" y1="241" x2="448" y2="251" stroke="#767B8E" stroke-width="1"/>
+  <text x="363" y="239" font-size="11" text-anchor="middle" fill="#767B8E">$5.00 width</text>
+
+  <!-- price axis -->
+  <text x="279" y="268" font-size="11" text-anchor="middle" fill="#14151C">95</text>
+  <text x="279" y="282" font-size="10.5" text-anchor="middle" fill="#767B8E">long put</text>
+  <text x="448" y="268" font-size="11" text-anchor="middle" fill="#14151C">100</text>
+  <text x="448" y="282" font-size="10.5" text-anchor="middle" fill="#767B8E">short put</text>
+  <text x="650" y="282" font-size="11" text-anchor="end" fill="#767B8E">Underlying price at expiration →</text>
+
+  <text x="24" y="322" font-size="11" fill="#767B8E">Hypothetical figures, for the arithmetic only. Fees are not included, and nothing here is a view about any underlying.</text>
+</svg>
