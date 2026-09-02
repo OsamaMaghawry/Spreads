@@ -7,6 +7,7 @@ import { parseOCCSymbol } from "../_shared/occ.ts";
 import { earningsThrough, daysUntil } from "../_shared/earnings.ts";
 import { sendEmail } from "../_shared/email.ts";
 import { accountFacts, buildDailyReport } from "../_shared/watchReport.ts";
+import { sharesByTicker, nakedShortCalls } from "../_shared/watchRules.ts";
 
 // The money-safety watch.
 //
@@ -48,7 +49,7 @@ const todayKey = () => new Date().toISOString().slice(0, 10);
 
 // The rules. Each returns zero or more raised conditions for one account.
 // Thresholds come from watch_settings — never a literal here.
-function evaluate(account, positions, spots, earnings, equity, settings) {
+function evaluate(account, positions, spots, earnings, equity, settings, shares = {}, cash = null) {
   const raised = [];
   // Parsed once here and handed back, so the report does not re-parse OCC
   // symbols to say how many legs an account holds.
@@ -110,6 +111,15 @@ function evaluate(account, positions, spots, earnings, equity, settings) {
         `${occ.ticker} ${occ.strike}${occ.type} is ${((mv / equity) * 100).toFixed(0)}% of account equity`,
         { market_value: mv, equity, pct: mv / equity });
     }
+  }
+
+  // Rule: a short call the shares in this account do not cover. Unlimited
+  // risk, and exactly the position the dashboard's pairing used to hide. It
+  // fires whatever the price is doing -- a naked call is critical at any spot.
+  for (const n of nakedShortCalls(parsed, shares, cash)) {
+    add("naked_short_call", "critical", n.symbol,
+      `${n.occ.ticker} ${n.occ.strike}C: short ${n.contracts} with ${n.shares} shares behind it — uncovered`,
+      { contracts: n.contracts, shares: n.shares });
   }
   return { raised, legs: parsed };
 }
