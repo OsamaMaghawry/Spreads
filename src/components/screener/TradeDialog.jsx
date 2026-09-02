@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import SetupPreview from "@/components/open/SetupPreview";
 import ConfirmSubmit from "@/components/common/ConfirmSubmit";
 import PreTradeRisk from "@/components/common/PreTradeRisk";
+import NumberField from "@/components/common/NumberField";
 import OpenPricing, { openingDefaults } from "@/components/open/OpenPricing";
 import useOpenOrder from "@/components/open/useOpenOrder";
 import useLiveSetup from "@/components/open/useLiveSetup";
@@ -101,7 +102,7 @@ export default function TradeDialog({ setup, accounts, onClose }) {
 
             <div>
               <label className={label}>Quantity{setup.maxContracts ? ` — up to ${setup.maxContracts} on ${setup.sharesHeld} shares` : ""}</label>
-              <input type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} className={input} />
+              <NumberField value={qty} onChange={setQty} step={1} min={1} max={setup.maxContracts || undefined} ariaLabel="Quantity" />
             </div>
 
             <OpenPricing

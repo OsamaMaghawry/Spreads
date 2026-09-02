@@ -162,11 +162,23 @@ async function syncOne(account) {
       { cash: info ? parseFloat(info.cash) : null, basisByTicker: shareBasis }
     );
 
-    const tickers = [...new Set(spreads.map((s: any) => s.ticker))];
+    // Orders are in the list too: an opening order can name a ticker no
+    // position holds yet, and the Orders tab shows the same spot and the same
+    // move as the cards. One snapshot request either way.
+    const tickers = [...new Set([
+      ...spreads.map((s: any) => s.ticker),
+      ...orders.map((o: any) => o.ticker)
+    ].filter(Boolean))];
     // The same helper the scanner uses. These were separate implementations
     // with opposite field priorities, so the dashboard and the trade dialog
     // could show a $9 difference for one stock at one moment.
     const spots = await getSpots(account, tickers);
+
+    for (const o of orders) {
+      const sp = o.ticker ? spots[o.ticker] : null;
+      o.spot = sp?.price ?? null;
+      o.prevClose = sp?.prevClose ?? null;
+    }
 
     // Every option leg across every position, priced in one request. Marking
     // each leg from the broker's stale per-position price and subtracting is
@@ -200,6 +212,9 @@ async function syncOne(account) {
           priceSource: "broker",
           spotSource: spots[s.ticker]?.source || null,
           spotTrusted: spots[s.ticker]?.trusted ?? false,
+          // Yesterday's close, so the screens can show today's move against the
+        // streaming price rather than the one frozen at sync time.
+        prevClose: spots[s.ticker]?.prevClose ?? null,
           moneyness: null,
           adjusted: false,
           spreadWidth: null, netCredit: 0, totalCredit: 0,
@@ -237,6 +252,9 @@ async function syncOne(account) {
         priceSource: mid !== null ? "quote" : "broker",
         spotSource: spots[s.ticker]?.source || null,
         spotTrusted: spots[s.ticker]?.trusted ?? false,
+        // Yesterday's close, so the screens can show today's move against the
+        // streaming price rather than the one frozen at sync time.
+        prevClose: spots[s.ticker]?.prevClose ?? null,
         moneyness: !(stockPrice > 0) ? null : itm ? "ITM" : "OTM",
         adjusted: !!parseOCCSymbol(leg.symbol)?.adjusted,
         spreadWidth: null,
@@ -330,6 +348,9 @@ async function syncOne(account) {
         priceSource: quoted ? "quote" : "broker",
         spotSource: spots[s.ticker]?.source || null,
         spotTrusted: spots[s.ticker]?.trusted ?? false,
+        // Yesterday's close, so the screens can show today's move against the
+        // streaming price rather than the one frozen at sync time.
+        prevClose: spots[s.ticker]?.prevClose ?? null,
         // Null when there is no price to judge against, rather than "OTM".
         //
         // `stockPrice > 0 && itm ? "ITM" : "OTM"` reads as a ternary on

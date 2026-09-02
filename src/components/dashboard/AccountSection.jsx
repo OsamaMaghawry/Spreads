@@ -35,6 +35,8 @@ export default function AccountSection({ account, onCloseSpread, onOrdersChanged
       const live = prices[s.ticker];
       const at = live?.at ? Date.parse(live.at) : NaN;
       const fresh = live?.price > 0 && isFinite(at) && now - at < LIVE_MAX_AGE_MS;
+      // prevClose rides along untouched, so today's move is recomputed against
+      // the tick rather than frozen at the last sync.
       return fresh ? { ...s, stockPrice: live.price, spotSource: "stream", spotTrusted: true } : s;
     });
   }, [account.spreads, prices, status]);

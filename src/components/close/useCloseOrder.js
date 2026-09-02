@@ -47,9 +47,20 @@ const legParams = (spread, legs) =>
 export const getLastDebit = (accountId, spread, legs) => lastDebits[spreadKey(accountId, spread, legs)] ?? null;
 
 export default function useCloseOrder() {
-  const [phase, setPhase] = useState("idle"); // idle | working | filled | failed
+  // detached: the user stopped watching a hand-priced order. It is still
+  // working at the broker and nothing here follows it any more -- which is a
+  // different thing from "failed", and must never offer to try again. Placing
+  // a second closing order over a live one is how a position gets closed twice.
+  const [phase, setPhase] = useState("idle"); // idle | working | filled | failed | detached
   const [log, setLog] = useState([]);
+  const [resting, setResting] = useState(false); // a hand-priced order rests and is being watched
   const stopRef = useRef(false);
+  // Which order the resting watcher follows. A replace swaps the id underneath
+  // it, so the loop reads this fresh on every pass rather than closing over it.
+  const restingRef = useRef(null);
+  // Bumped by run() and reset(). A watcher waking after a reset compares its
+  // generation and goes quiet instead of writing over a ticket that moved on.
+  const genRef = useRef(0);
 
   const addLog = (msg) => setLog((l) => [...l, { t: new Date().toLocaleTimeString(), msg }]);
 
@@ -109,16 +120,25 @@ export default function useCloseOrder() {
   // the Orders tab. Silently pulling a resting order because a dialog closed
   // would be the app overruling a decision it was asked to carry out.
   async function watchResting(accountId, orderId, qty, key) {
+    const gen = genRef.current;
+    restingRef.current = { accountId, orderId, qty };
+    setResting(true);
     let lastStatus = null;
     let filledSoFar = 0;
+    try {
     while (true) {
       if (stopRef.current) {
+        if (gen !== genRef.current) return;
         addLog("Stopped watching. The order is still working at your price —");
         addLog("cancel it from the Orders tab if you no longer want it.");
-        setPhase("failed");
+        setPhase("detached");
         return;
       }
-      const st = await invoke("manageOrder", { accountId, orderId, action: "get" });
+      const id = restingRef.current?.orderId || orderId;
+      const st = await invoke("manageOrder", { accountId, orderId: id, action: "get" });
+      // Replaced while this poll was in flight: the answer describes an order
+      // that no longer exists. Skip it; the next pass asks about the new one.
+      if (id !== (restingRef.current?.orderId || orderId)) { await sleep(POLL); continue; }
       if (st.status !== lastStatus) {
         addLog(`Status: ${st.status}`);
         lastStatus = st.status;
@@ -144,6 +164,31 @@ export default function useCloseOrder() {
       }
       await sleep(POLL);
     }
+    } finally {
+      if (gen === genRef.current) {
+        restingRef.current = null;
+        setResting(false);
+      }
+    }
+  }
+
+  // Changes the price of the resting order. The broker retires the old one and
+  // answers with a new id; the watcher follows that from here on. Only the
+  // hand-priced order can be repriced this way -- the walk owns its own price.
+  async function replacePrice(price) {
+    const r = restingRef.current;
+    if (!r) throw new Error("There is no resting order to change.");
+    const next = round2(Number(price));
+    if (!(next > 0)) throw new Error("Enter a price above zero.");
+    try {
+      const res = await invoke("manageOrder", { accountId: r.accountId, orderId: r.orderId, action: "replace", limitPrice: next });
+      restingRef.current = { ...r, orderId: res.orderId };
+      addLog(`Price changed to ${priceLabel(next)} — now working as ${res.orderId}`);
+      return res;
+    } catch (e) {
+      addLog(`Could not change the price: ${e.message}`);
+      throw e;
+    }
   }
 
   // priceMode: "walk" steps the limit toward the ask until it fills; "manual"
@@ -154,6 +199,7 @@ export default function useCloseOrder() {
   // the user.
   async function run({ accountId, spread, qty, orderType, startDebit, legs, priceMode = "walk" }) {
     stopRef.current = false;
+    genRef.current += 1;
     setLog([]);
     setPhase("working");
     // Ties every order in this walk together, so the ladder can be read back as
@@ -309,7 +355,14 @@ export default function useCloseOrder() {
   }
 
   const stop = () => { stopRef.current = true; };
-  const reset = () => { setPhase("idle"); setLog([]); stopRef.current = true; };
+  const reset = () => {
+    genRef.current += 1;
+    stopRef.current = true;
+    restingRef.current = null;
+    setResting(false);
+    setPhase("idle");
+    setLog([]);
+  };
 
-  return { phase, log, run, stop, reset };
+  return { phase, log, resting, run, stop, reset, replacePrice };
 }

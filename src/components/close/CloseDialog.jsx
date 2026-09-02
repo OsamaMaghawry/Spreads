@@ -11,8 +11,10 @@ import LegPicker from "./LegPicker";
 import { spreadLegs, legLabel } from "@/lib/spreadLegs";
 import LegsQuoteSummary from "./LegsQuoteSummary";
 import PriceControl from "@/components/common/PriceControl";
+import NumberField from "@/components/common/NumberField";
 import useMarketStream from "@/lib/useMarketStream";
 import { kindOf } from "@/lib/positionKind";
+import RestingOrder from "@/components/open/RestingOrder";
 
 // The spread's own bid/ask, re-read as fast as the broker will answer.
 //
@@ -25,7 +27,9 @@ import { kindOf } from "@/lib/positionKind";
 const QUOTE_REFRESH_MS = 1000;
 
 export default function CloseDialog({ account, spread, onClose, onDone }) {
-  const [qty, setQty] = useState(1);
+  // Held as typed, clamped where it is used. Clamping inside onChange meant a
+  // half-typed number was rewritten under the cursor.
+  const [qtyInput, setQtyInput] = useState("1");
   // Walk stays the default because it fills more often than a price left to
   // rest. "manual" and "market" are the two ways to override it.
   const [priceMode, setPriceMode] = useState("walk");
@@ -35,7 +39,11 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   const [mode, setMode] = useState("whole"); // whole | legs
   const [selected, setSelected] = useState([]);
   const [openOrders, setOpenOrders] = useState(spread.openOrders || []);
-  const { phase, log, run, stop, reset } = useCloseOrder();
+  const { phase, log, resting, run, stop, reset, replacePrice } = useCloseOrder();
+
+  // The clamp the input no longer does: never below one, never more than the
+  // position holds, and a half-typed field reads as one rather than NaN.
+  const qty = Math.max(1, Math.min(spread.qty, parseInt(qtyInput, 10) || 1));
 
   const allLegs = spreadLegs(spread);
   const pickedLegs = allLegs.filter((l) => selected.includes(l.symbol));
@@ -43,7 +51,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   const legSig = customLegs ? customLegs.map((l) => l.symbol).join(",") : "";
 
   useEffect(() => {
-    setQty(spread.qty);
+    setQtyInput(String(spread.qty));
     setOpenOrders(spread.openOrders || []);
     setMode(spread.presetLegSymbol ? "legs" : "whole");
     setSelected(spread.presetLegSymbol ? [spread.presetLegSymbol] : []);
@@ -148,10 +156,19 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   // A different position, or a different set of legs, is a different price.
   useEffect(() => { setManualPrice(null); }, [spread, legSig]);
 
+  // What the X and a click outside do depends on where the order is:
+  //   walking  -- nothing. Dismissing would leave it repricing at the broker
+  //               with nothing watching it.
+  //   resting  -- stop watching. The price is the user's instruction, so the
+  //               order stays working; the log says so and the next click leaves.
+  //   filled / detached -- leave and refresh the positions behind.
   const handleClose = () => {
-    if (phase === "working") return;
+    if (phase === "working") {
+      if (resting) stop();
+      return;
+    }
     reset();
-    if (phase === "filled") onDone();
+    if (phase === "filled" || phase === "detached") onDone();
     else onClose();
   };
 
@@ -238,9 +255,8 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
               <label className="text-xs text-slate-500 block mb-1.5">
                 {mode === "legs" ? "Units to close" : "Quantity"} (max {spread.qty})
               </label>
-              <input type="number" min={1} max={spread.qty} value={qty}
-                onChange={(e) => setQty(Math.max(1, Math.min(spread.qty, parseInt(e.target.value) || 1)))}
-                className={inputCls} />
+              <NumberField value={qtyInput} onChange={setQtyInput} step={1} min={1} max={spread.qty}
+                ariaLabel={mode === "legs" ? "Units to close" : "Quantity"} />
             </div>
 
             {/* Its own full-width row: this is the decision that sets what the
@@ -334,9 +350,26 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
         ) : (
           <div className="space-y-4">
             <OrderLog log={log} phase={phase} />
+            {phase === "working" && resting && (
+              <RestingOrder
+                credit={manualPrice}
+                onCredit={setManualPrice}
+                quote={priceQuote}
+                unit={unit}
+                qty={qty}
+                side="debit"
+                onUpdate={replacePrice}
+              />
+            )}
             {phase === "working" ? (
               <button onClick={stop} className="w-full py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm transition-colors">
-                {priceMode === "manual" ? "Stop watching — the order keeps working" : "Stop & cancel order"}
+                {resting ? "Stop watching — the order keeps working" : "Stop & cancel order"}
+              </button>
+            ) : phase === "detached" ? (
+              // Never "Try again" here: the order is live at the broker, and a
+              // second one would close the position twice.
+              <button onClick={handleClose} className="w-full py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition-colors">
+                Close — the order keeps working
               </button>
             ) : phase === "failed" ? (
               <div className="flex gap-3">

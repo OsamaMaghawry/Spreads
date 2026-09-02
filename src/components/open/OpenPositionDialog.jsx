@@ -9,6 +9,7 @@ import useScanLoop from "./useScanLoop";
 import ConfirmSubmit from "@/components/common/ConfirmSubmit";
 import PreTradeRisk from "@/components/common/PreTradeRisk";
 import ScanPresets from "@/components/common/ScanPresets";
+import NumberField from "@/components/common/NumberField";
 import { SCOPE, saveLastUsed } from "@/lib/scanPresets";
 import OpenPricing, { openingDefaults } from "./OpenPricing";
 import useOpenOrder from "./useOpenOrder";
@@ -227,7 +228,7 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
 
             <div>
               <label className={label}>Quantity{setup.maxContracts ? ` — up to ${setup.maxContracts} on ${setup.sharesHeld} shares` : ""}</label>
-              <input type="number" min={1} max={setup.maxContracts || undefined} value={qty} onChange={(e) => setQty(e.target.value)} className={input} />
+              <NumberField value={qty} onChange={setQty} step={1} min={1} max={setup.maxContracts || undefined} ariaLabel="Quantity" />
             </div>
 
             <OpenPricing

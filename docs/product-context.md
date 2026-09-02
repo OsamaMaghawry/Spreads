@@ -90,6 +90,7 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-02 · (staging) A close order you priced yourself no longer traps the ticket: the X leaves it working, and the panel never offers to place a second one; its price can be changed from the ticket or the Orders tab, where the underlying, the market now and your limit sit above the box; quantity has −/+ buttons that work on a phone; cards, rows and orders show the underlying's move today.
 - 2026-09-02 · (staging) A scan row shows the delta of the contract it found, not the delta the scan asked for — the same number the ticket and the Screener table show; and a short leg outside the delta band you set is refused, saying what the nearest strike was.
 - 2026-09-02 · (staging) A cash-secured put or covered call opens from the ticket (the last gate wanted two legs); a refused order returns you to the ticket with the setup kept; a resting order can be repriced from the ticket or the Orders tab and left working when you close the dialog; the close ticket scrolls on a phone; Simple/Detailed shows on a phone; the open ticket streams the spot, large, and requotes the legs every second.
 - 2026-09-02 · (staging) The nav says "positions", matching the name the page itself uses, not "dashboard" — the word `brand.md` forbids (`2514c1b`).
@@ -99,7 +100,6 @@ From `docs/ops/shipped.md`, newest first.
 - 2026-09-02 · (staging) The pricing page no longer claims Paper lacks cash-secured puts, covered calls, adjusted basis, streaming or the Orders tab — both accounts get every feature; only opening a position on a live account needs a paid plan (`e982774`).
 - 2026-09-02 · (staging) The scanner finds cash-secured puts on any universe and covered calls on the shares an account holds, priced at the adjusted basis; a Wheel scan runs both; single-leg orders go to the broker as plain option orders under the wheel prefix.
 - 2026-09-02 · (staging) Billing: Stripe checkout, a billing screen, a plan on every live account, and a switch in Admin that gates opening live positions — off until flipped.
-- 2026-09-02 · The watch evaluates every account again and flags a short call with no shares behind it as critical (`a7db799`).
 
 ## Server functions
 

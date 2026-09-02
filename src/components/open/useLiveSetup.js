@@ -60,7 +60,12 @@ export default function useLiveSetup(accountId, setup, enabled = true) {
           if (!d || d.error) return;
           const perLeg = {};
           for (const l of d.legs || []) perLeg[l.symbol] = { bid: l.bid, ask: l.ask };
-          setQuote({ net: creditQuote(d), legs: perLeg, at: Date.now() });
+          const bidDebit = Number(d.bidDebit);
+          const askDebit = Number(d.askDebit);
+          const debit = Number.isFinite(bidDebit) && Number.isFinite(askDebit)
+            ? { bid: round2(bidDebit), ask: round2(askDebit), mid: round2((bidDebit + askDebit) / 2) }
+            : null;
+          setQuote({ net: creditQuote(d), debit, legs: perLeg, at: Date.now() });
         })
         .catch(() => {});
     const loop = () => {
@@ -83,6 +88,10 @@ export default function useLiveSetup(accountId, setup, enabled = true) {
 
   return {
     quote: quote?.net || null,
+    // The same numbers before the credit convention is applied: a closing
+    // order is a debit, and negating it would show a resting $0.01 buy-back
+    // as -$0.01.
+    debitQuote: quote?.debit || null,
     legQuotes: quote?.legs || null,
     quoteAt: quote?.at || null,
     spot: streaming ? tick.price : null,

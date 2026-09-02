@@ -3,6 +3,7 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-02 · (staging) A close order you priced yourself no longer traps the ticket: the X leaves it working, and the panel never offers to place a second one; its price can be changed from the ticket or the Orders tab, where the underlying, the market now and your limit sit above the box; quantity has −/+ buttons that work on a phone; cards, rows and orders show the underlying's move today.
 - 2026-09-02 · (staging) A scan row shows the delta of the contract it found, not the delta the scan asked for — the same number the ticket and the Screener table show; and a short leg outside the delta band you set is refused, saying what the nearest strike was.
 - 2026-09-02 · (staging) A cash-secured put or covered call opens from the ticket (the last gate wanted two legs); a refused order returns you to the ticket with the setup kept; a resting order can be repriced from the ticket or the Orders tab and left working when you close the dialog; the close ticket scrolls on a phone; Simple/Detailed shows on a phone; the open ticket streams the spot, large, and requotes the legs every second.
 - 2026-09-02 · (staging) The nav says "positions", matching the name the page itself uses, not "dashboard" — the word `brand.md` forbids (`2514c1b`).

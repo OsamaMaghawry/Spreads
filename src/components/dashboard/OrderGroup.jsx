@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronRight, Loader2, Pencil, X } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { parseOCC } from "@/lib/occ";
+import { dayChange, dayChangeLabel } from "@/lib/dayChange";
+import useLiveSetup from "@/components/open/useLiveSetup";
+import { fmtMoney } from "@/lib/format";
 
 // One broker order, with the legs it was sent as.
 //
@@ -55,6 +58,33 @@ export default function OrderGroup({ accountId, order, onChanged }) {
   const live = state.key === "working" || state.key === "partial";
   const canReprice = live && order.type === "limit";
 
+  // A price is chosen against something. While the editor is open the order's
+  // own legs are requoted every second and the underlying streams, so the
+  // number being typed sits beside the market it has to beat -- a bare $ box
+  // asked the trader to guess. Off unless the editor is open: one socket and
+  // one quote loop per order row is not a cost to pay for a closed panel.
+  const asSetup = useMemo(
+    () => ({
+      ticker: order.ticker,
+      legs: (order.legs || []).map((l) => ({
+        symbol: l.symbol,
+        // Legs of a multi-leg order carry their own quantity; the ratio is
+        // what each contributes to one unit of the order.
+        ratio: order.qty > 0 && l.qty > 0 ? l.qty / order.qty : 1,
+        side: String(l.side || "").startsWith("sell") ? "sell" : "buy"
+      }))
+    }),
+    [order.ticker, order.legs, order.qty]
+  );
+  const market = useLiveSetup(accountId, asSetup, editing);
+  // The underlying's move today, from the previous close syncAccounts carries.
+  const change = dayChange(market.spot || order.spot, order.prevClose);
+  // spreadQuote answers in debits. A closing order pays one; an opening credit
+  // order shows negative, and is named as the credit it is.
+  const netNow = market.debitQuote?.mid ?? null;
+  const marketLabel =
+    netNow === null ? null : `${fmtMoney(netNow)} ${netNow < 0 ? "credit" : "debit"}`;
+
   const call = async (payload, fallback) => {
     setBusy(true);
     setError(null);
@@ -93,6 +123,14 @@ export default function OrderGroup({ accountId, order, onChanged }) {
         <ChevronRight className={`w-4 h-4 shrink-0 text-slate-400 transition-transform ${open ? "rotate-90" : ""}`} />
         <div className="flex items-center gap-2.5 flex-wrap min-w-0">
           <span className="font-semibold text-slate-900">{order.ticker || "—"}</span>
+          {change && (
+            <span
+              title={`${order.ticker} today, against yesterday's close of ${fmtMoney(order.prevClose)}`}
+              className={`text-xs font-semibold tabular-nums ${change.up ? "text-emerald-600" : "text-rose-600"}`}
+            >
+              {dayChangeLabel(change)} <span className="font-normal text-slate-400">today</span>
+            </span>
+          )}
           <span className="text-sm text-slate-500">
             {order.legs.length > 1 ? `${order.legs.length} legs` : "single leg"} · {order.type}
           </span>
@@ -178,6 +216,23 @@ export default function OrderGroup({ accountId, order, onChanged }) {
                 </button>
               )}
               {canReprice && editing && (
+                <div className="w-full space-y-2">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs tabular-nums">
+                    <span className="text-slate-500">
+                      {order.ticker}{" "}
+                      <span className={`font-semibold ${market.streaming ? "text-slate-900" : "text-slate-600"}`}>
+                        {fmtMoney(market.spot || order.spot || 0)}
+                      </span>
+                      {market.streaming && <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 align-middle animate-pulse" />}
+                    </span>
+                    <span className="text-slate-500">
+                      Market now{" "}
+                      <span className="font-semibold text-slate-900">{marketLabel || "—"}</span>
+                    </span>
+                    <span className="text-slate-500">
+                      Your limit <span className="font-semibold text-slate-900">{money(order.limitPrice)}</span>
+                    </span>
+                  </div>
                 <div className="flex items-center gap-2">
                   <span className="text-slate-400 text-xs">$</span>
                   <input
@@ -204,6 +259,7 @@ export default function OrderGroup({ accountId, order, onChanged }) {
                   >
                     Keep {money(order.limitPrice)}
                   </button>
+                </div>
                 </div>
               )}
               <button
