@@ -5,7 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildSetup, buildSingle, impliedSpotFromParity } from "./optionScan.ts";
+import { buildSetup, buildSingle, impliedSpotFromParity, outsideBand } from "./optionScan.ts";
 
 const EXPIRY = "2026-08-28";
 
@@ -163,4 +163,46 @@ test("return on risk means the same thing for a single leg as for a spread", () 
   const s = r.setup;
   const ror = (s.credit * 100) / s.maxRisk;
   assert.ok(ror > 0 && ror < 0.01);
+});
+
+// The delta band the user set is a statement about risk, not a search hint.
+// nearestDelta always returns the closest contract on the chain, so without
+// this a scan for 0.12-0.22 handed back a 0.24 short put on a 0DTE NVDA chain
+// and the row showed 0.16 -- the delta that had been asked for.
+test("a short leg outside the requested delta band is refused, with the reason", () => {
+  const csp = { legs: [{ role: "short_put", side: "sell", delta: -0.2437, strike: 225 }] };
+  const why = outsideBand(csp, 0.12, 0.22);
+  assert.match(why, /Nearest short put to your 0.12-0.22 delta band is 0.24/);
+  assert.match(why, /no strike in the band/);
+});
+
+test("a short leg inside the band passes, either sign", () => {
+  assert.equal(outsideBand({ legs: [{ role: "short_put", side: "sell", delta: -0.18 }] }, 0.12, 0.22), null);
+  assert.equal(outsideBand({ legs: [{ role: "short_call", side: "sell", delta: 0.18 }] }, 0.12, 0.22), null);
+});
+
+test("what displays inside the band is never refused for an invisible digit", () => {
+  // Reads as 0.22 on every screen; refusing it would be unexplainable.
+  assert.equal(outsideBand({ legs: [{ role: "short_put", side: "sell", delta: -0.2242 }] }, 0.12, 0.22), null);
+  // Reads as 0.23 — outside, and says so.
+  assert.match(outsideBand({ legs: [{ role: "short_put", side: "sell", delta: -0.2262 }] }, 0.12, 0.22), /is 0.23/);
+});
+
+test("both shorts of a condor are held to the band", () => {
+  const condor = { legs: [
+    { role: "short_put", side: "sell", delta: -0.18 },
+    { role: "long_put", side: "buy", delta: -0.09 },
+    { role: "short_call", side: "sell", delta: 0.31 },
+    { role: "long_call", side: "buy", delta: 0.2 }
+  ] };
+  assert.match(outsideBand(condor, 0.12, 0.22), /short call .* is 0.31/);
+  // The long legs are free to sit anywhere -- they are the protection.
+  assert.equal(outsideBand({ legs: [
+    { role: "short_put", side: "sell", delta: -0.18 },
+    { role: "long_put", side: "buy", delta: -0.02 }
+  ] }, 0.12, 0.22), null);
+});
+
+test("a leg with no delta is not judged", () => {
+  assert.equal(outsideBand({ legs: [{ role: "short_put", side: "sell", delta: null }] }, 0.12, 0.22), null);
 });

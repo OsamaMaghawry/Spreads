@@ -59,7 +59,10 @@ export default function SetupPreview({ setup, qty, live = null }) {
               </span>
               <span className={isLive ? "text-slate-900" : "text-slate-700"}>
                 {fmtMoney(isLive ? q.bid : l.bid)} / {fmtMoney(isLive ? q.ask : l.ask)}
-                <span className="text-slate-400 ml-2">Δ {l.delta.toFixed(2)}</span>
+                {/* Unsigned, matching the rows this ticket was opened from --
+                    the line already says Sell / Short put, so the minus sign
+                    added nothing but a second number for the same trade. */}
+                <span className="text-slate-400 ml-2">Δ {Math.abs(l.delta).toFixed(2)}</span>
               </span>
             </div>
           );

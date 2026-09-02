@@ -2,7 +2,7 @@ import { useState } from "react";
 import { fmtMoney } from "@/lib/format";
 import { ArrowDown } from "lucide-react";
 import EarningsWarning from "@/components/common/EarningsWarning";
-import { structureLabel, isSingle } from "@/lib/setupUnit";
+import { structureLabel, isSingle, shortDelta } from "@/lib/setupUnit";
 
 const th = "px-2.5 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
 const td = "px-2.5 py-2.5 whitespace-nowrap tabular-nums";
@@ -62,7 +62,6 @@ export default function ResultsTable({ candidates, onTrade }) {
         </thead>
         <tbody>
           {sorted.map((c, i) => {
-            const shortLeg = c.legs.find((l) => l.side === "sell");
             return (
               <tr key={c.legs.map((l) => l.symbol).join("|")} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                 <td className={`${td} text-slate-400`}>{i + 1}</td>
@@ -75,7 +74,7 @@ export default function ResultsTable({ candidates, onTrade }) {
                 <td className={`${td} text-slate-500`}>{c.expiry}</td>
                 <td className={td}>{structureLabel(c)}</td>
                 <td className={`${td} text-right`}>{fmtMoney(c.spot)}</td>
-                <td className={`${td} text-right`}>{Math.abs(shortLeg?.delta ?? 0).toFixed(2)}</td>
+                <td className={`${td} text-right`}>{shortDelta(c) ?? "—"}</td>
                 {/* Actual strike distance, not the requested wing width — these
                     are the same now that the scan enforces the request, and
                     showing the real one keeps it that way visibly. */}

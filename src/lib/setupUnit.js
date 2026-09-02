@@ -24,6 +24,32 @@ export const STRATEGY_LABEL = {
   covered_call: "Covered call"
 };
 
+// The legs being sold -- one for a wheel half, one per side of a spread, two
+// on a condor.
+export const shortLegs = (c) => (c?.legs || []).filter((l) => l.side === "sell");
+
+// The delta of the short leg, as a trader says it: unsigned, two decimals.
+// A put's delta is negative and a call's positive, but the row already says
+// which it is, so the sign only makes the same trade look like two numbers.
+//
+// This is the delta of the contract that was CHOSEN. The candidate also
+// carries `targetDelta` -- what the sweep asked for on the pass that produced
+// it -- and the two are not the same number: the engine takes the nearest
+// strike on the chain, which on a wide or same-day chain can be far away.
+// Nothing on screen may show the request in place of the trade.
+//
+// A condor has two shorts; the larger delta is the one that decides how close
+// the position is to trouble, so that is the one reported.
+export function shortDelta(c) {
+  const deltas = shortLegs(c)
+    // Guarded before Number(), which turns null and "" into 0 -- and a missing
+    // delta shown as "0.00" would read as a short leg with no exposure at all.
+    .filter((l) => l.delta !== null && l.delta !== undefined && l.delta !== "")
+    .map((l) => Math.abs(Number(l.delta)))
+    .filter((d) => Number.isFinite(d));
+  return deltas.length ? Math.max(...deltas).toFixed(2) : null;
+}
+
 // "352.5/350P" for a spread side, "352.5P · CSP" for a lone put, "360C on
 // 300 sh" for a call over shares. The same words in the results table and
 // the dialog's list.

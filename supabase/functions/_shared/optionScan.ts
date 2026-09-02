@@ -442,6 +442,9 @@ export async function scanCandidates(account, params) {
             seen.add(key);
             const checked = validate(s, minCredit, maxCredit);
             if (!checked.ok) { reasons.add(checked.reason); continue; }
+            // What the chain actually offered, against what was asked for.
+            const offBand = outsideBand(s, deltaMin, deltaMax);
+            if (offBand) { reasons.add(offBand); continue; }
             // For a single leg the cap is on collateral -- the cash a put ties
             // up, the shares' cost a call sits on -- which is what the screen
             // labels it. For a spread it stays the maximum loss.
@@ -467,6 +470,35 @@ export async function scanCandidates(account, params) {
 
   candidates.sort((a: any, b: any) => b.returnOnRisk - a.returnOnRisk);
   return { ok: candidates.length > 0, candidates: candidates.slice(0, 25), skipped };
+}
+
+// The short leg's delta against the band the user asked for.
+//
+// deltaMin/deltaMax used to seed the sweep's targets and nothing more:
+// nearestDelta returns the closest contract on the chain however far off it
+// is, so a scan for 0.12-0.22 could hand back a 0.24 short put. The filter is
+// labelled "Short delta MIN / MAX" and a trader reads that as a bound on the
+// position's risk, not as a hint -- so it is enforced here.
+//
+// The tolerance is half of what the screens display: a contract that READS as
+// 0.22 is never refused for a digit nobody can see.
+const DELTA_BAND_TOLERANCE = 0.005;
+
+export function outsideBand(setup, deltaMin, deltaMax) {
+  const shorts = (setup.legs || []).filter((l: any) => l.side === "sell");
+  for (const l of shorts) {
+    // Number(null) is 0, which is finite and would fail the band -- so a leg
+    // whose delta never arrived is left alone rather than refused as a
+    // zero-delta short.
+    if (l.delta === null || l.delta === undefined || l.delta === "") continue;
+    const d = Math.abs(Number(l.delta));
+    if (!Number.isFinite(d)) continue;
+    if (d < deltaMin - DELTA_BAND_TOLERANCE || d > deltaMax + DELTA_BAND_TOLERANCE) {
+      const kind = String(l.role || "").endsWith("_call") ? "call" : "put";
+      return `Nearest short ${kind} to your ${deltaMin}-${deltaMax} delta band is ${d.toFixed(2)} — no strike in the band on this chain.`;
+    }
+  }
+  return null;
 }
 
 function validate(setup, minCredit, maxCredit) {
