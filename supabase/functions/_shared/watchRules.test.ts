@@ -7,9 +7,9 @@ import { sharesByTicker, nakedShortCalls } from "./watchRules.ts";
 // call to a helper that did not exist; every account then failed as
 // "unreadable". These tests pin the helper and the rule down.
 
-const occ = (ticker: string, strike: number, type: string) => ({ ticker, strike, type, expiryFormatted: "2026-09-18" });
-const leg = (ticker: string, strike: number, type: string, qty: number) =>
-  ({ symbol: `${ticker}${strike}${type}`, occ: occ(ticker, strike, type), qty });
+const occ = (ticker: string, strike: number, type: string, expiry = "2026-09-18") => ({ ticker, strike, type, expiryFormatted: expiry });
+const leg = (ticker: string, strike: number, type: string, qty: number, expiry?: string) =>
+  ({ symbol: `${ticker}${strike}${type}${expiry ? expiry.slice(5) : ""}`, occ: occ(ticker, strike, type, expiry), qty });
 
 test("sharesByTicker counts long share positions and ignores option contracts", () => {
   const positions = [
@@ -39,10 +39,34 @@ test("a short call with no shares behind it is naked", () => {
   assert.equal(out[0].shares, 0);
 });
 
-test("a partially covered short call is reported as naked", () => {
+test("a partially covered short call is reported as naked, with how much is uncovered", () => {
   const out = nakedShortCalls([leg("AAPL", 200, "C", -3)], { AAPL: 200 });
   assert.equal(out.length, 1);
   assert.equal(out[0].shares, 200);
+  assert.equal(out[0].uncovered, 1);
+  assert.equal(out[0].coveredByShares, 2);
+});
+
+test("the short call of a call credit spread is covered by its long, not naked", () => {
+  // The production incident: six call spreads on one account, six false criticals.
+  const out = nakedShortCalls([leg("MSFT", 512.5, "C", -2), leg("MSFT", 520, "C", 2)], {});
+  assert.deepEqual(out, []);
+});
+
+test("a long call expiring later still covers; one expiring earlier does not", () => {
+  const later = nakedShortCalls([leg("NVDA", 230, "C", -3, "2026-09-04"), leg("NVDA", 240, "C", 3, "2026-09-18")], {});
+  assert.deepEqual(later, []);
+  const earlier = nakedShortCalls([leg("NVDA", 230, "C", -3, "2026-09-18"), leg("NVDA", 240, "C", 3, "2026-09-04")], {});
+  assert.equal(earlier.length, 1);
+  assert.equal(earlier[0].uncovered, 3);
+});
+
+test("longs and shares combine, and each long covers only one short contract", () => {
+  const out = nakedShortCalls([leg("AAPL", 200, "C", -3), leg("AAPL", 210, "C", 1)], { AAPL: 100 });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].coveredByLongs, 1);
+  assert.equal(out[0].coveredByShares, 1);
+  assert.equal(out[0].uncovered, 1);
 });
 
 test("shares are claimed by the first covered call, so a second short call on the same name is naked", () => {

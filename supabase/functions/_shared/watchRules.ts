@@ -8,7 +8,6 @@
 // call to a function that did not exist, and nothing caught it before it
 // reached production.
 import { parseOCCSymbol } from "./occ.ts";
-import { classifyLeg, KINDS } from "./positionKinds.ts";
 
 const SHARES_PER_CONTRACT = 100;
 
@@ -27,25 +26,51 @@ export function sharesByTicker(positions: any[]) {
   return out;
 }
 
-// Short calls the account's shares do not cover. `legs` are the watch's parsed
-// option legs ({ symbol, occ: { ticker, strike, type }, qty }); `shares` is
-// sharesByTicker's result. Shares are claimed by covered calls in the order
-// the legs arrive, the same rule spreadPairing applies, and a partially
-// covered short call is reported as naked -- classifyLeg's call, since the
-// uncovered contracts are the whole story.
+// Short calls nothing in the account covers. `legs` are the watch's parsed
+// option legs ({ symbol, occ: { ticker, strike, type, expiryFormatted }, qty }),
+// signed; `shares` is sharesByTicker's result.
+//
+// The watch reads RAW positions, before pairing, so the short call of a call
+// credit spread or an iron condor arrives here beside its long. A long call on
+// the same name expiring on or after the short covers it contract for
+// contract -- that is a defined-risk spread, not a naked call -- and shares
+// cover what the longs do not, a hundred per contract. Only what is left is
+// naked, and a partially covered leg is reported with how much is uncovered.
+// The first version of this rule counted shares alone and raised six false
+// criticals on one account of call spreads.
 export function nakedShortCalls(legs: any[], shares: Record<string, number>, cash: number | null = null) {
-  const left: Record<string, number> = { ...(shares || {}) };
-  const out: any[] = [];
+  void cash;
+  const sharesLeft: Record<string, number> = { ...(shares || {}) };
+  // Long calls by ticker: { expiry, contracts } with contracts still unclaimed.
+  const longs: Record<string, { expiry: string; left: number }[]> = {};
   for (const leg of legs || []) {
-    if (!leg?.occ || leg.occ.type !== "C" || !(leg.qty < 0)) continue;
+    if (!leg?.occ || leg.occ.type !== "C" || !(leg.qty > 0)) continue;
+    (longs[leg.occ.ticker] = longs[leg.occ.ticker] || []).push({ expiry: String(leg.occ.expiryFormatted || ""), left: leg.qty });
+  }
+  const shorts = (legs || []).filter((l) => l?.occ && l.occ.type === "C" && l.qty < 0)
+    // Nearest expiry first, so a long that can cover only the nearest short is
+    // not spent on a later one.
+    .sort((a, b) => String(a.occ.expiryFormatted || "").localeCompare(String(b.occ.expiryFormatted || "")));
+
+  const out: any[] = [];
+  for (const leg of shorts) {
     const ticker = leg.occ.ticker;
-    const have = left[ticker] || 0;
-    const contracts = Math.abs(leg.qty);
-    const kind = classifyLeg({ qty: leg.qty, optionType: "C" }, { shares: have, cash });
-    if (kind === KINDS.NAKED_CALL) {
-      out.push({ symbol: leg.symbol, occ: leg.occ, contracts, shares: have });
-    } else {
-      left[ticker] = have - contracts * SHARES_PER_CONTRACT;
+    const expiry = String(leg.occ.expiryFormatted || "");
+    let uncovered = Math.abs(leg.qty);
+    // Longs on the same name expiring on or after this short, nearest first.
+    const eligible = (longs[ticker] || []).filter((l) => l.left > 0 && l.expiry >= expiry).sort((a, b) => a.expiry.localeCompare(b.expiry));
+    let byLongs = 0;
+    for (const l of eligible) {
+      if (uncovered === 0) break;
+      const take = Math.min(l.left, uncovered);
+      l.left -= take; uncovered -= take; byLongs += take;
+    }
+    const have = sharesLeft[ticker] || 0;
+    const byShares = Math.min(uncovered, Math.floor(have / SHARES_PER_CONTRACT));
+    sharesLeft[ticker] = have - byShares * SHARES_PER_CONTRACT;
+    uncovered -= byShares;
+    if (uncovered > 0) {
+      out.push({ symbol: leg.symbol, occ: leg.occ, contracts: Math.abs(leg.qty), uncovered, coveredByLongs: byLongs, coveredByShares: byShares, shares: have });
     }
   }
   return out;
