@@ -32,5 +32,42 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 18 | Put credit spread | put credit spread explained | credit spread | tastylive, Investopedia | width, credit and the executable price |
 | 19 | Call credit spread | call credit spread explained | credit spread | tastylive | the mirror, and what is different about upside |
 | 20 | Iron condor | iron condor explained | iron condor | Investopedia, tastylive, OptionStrat | two spreads, one risk, per-side netting |
+| M48 | What a credit spread actually risks | credit spread max loss before expiration | credit spread max loss | tastytrade (short put vertical), moomoo, Schwab, broker learn hubs; TradingView chart-idea pages padding the tail | max loss is the expiration number — what the collateral holds, what the mark does, and what assignment changes in between |
 
 Rows 21–65 are added by the Wednesday run as their turn approaches.
+
+## Off-syllabus rows
+
+`M48` is not a syllabus number. That post is not in the numbered list in
+`content/PLAN.md`; it is `managing` / `series_order: 48`, so the row is keyed
+by category and series order instead. Any future off-syllabus post gets the
+same treatment rather than a made-up integer that collides with the syllabus.
+
+## Reading for M48 — credit spread max loss (read 2 Sep 2026)
+
+Results pages read that day, not measured. There is no rank tracker, no
+volume tool and no Search Console connection here, so this records **which
+domains surface**, not positions and not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| credit spread max loss | Schwab, moomoo, Nasdaq, broker learn hubs | **hard** — head-ish; belongs to the `income` hub, not a post |
+| how much can you lose on a credit spread | Schwab (twice), moomoo, Nasdaq, OptionsPlay, small affiliate blogs | hard-ish; every result stops at the formula |
+| credit spread max loss before expiration | tastytrade short-put-vertical page, moomoo, a broker learn page, then TradingView chart ideas | **winnable** — chart-idea pages in the tail means nothing is answering it |
+| can you lose more than max loss on a credit spread | a YouTube video, moomoo, Schwab, two small affiliate blogs | **winnable** — a video ranking is a text-coverage gap |
+| why is my credit spread showing a loss before expiration | Quora, Fidelity, tastytrade support article | **winnable** — forum ranking is winnable intent |
+| credit spread collateral / buying power held until expiration | Quora, a broker help-centre article, Wikipedia | **winnable**, thin |
+| credit spread expires between the strikes | a Medium post, Fidelity, Schaeffer's, Wikipedia | winnable, but this is post 51/52's ground, not M48's |
+| credit spread risk (no "options", no "max loss") | wallstreetmojo, risk.net, study.com, peakframeworks — **all fixed income** | **do not target**: the unqualified phrase means bond spreads |
+
+**The gap.** Every page that ranks gives `width − credit` and stops at
+expiration. None of them says the collateral does not shrink as the position
+wins, that the mark before expiration can sit well past the credit against
+you, or that assignment leaves the cap intact while destroying the shape of
+the position. That gap is the angle the title and meta carry.
+
+**Could not establish:** search volume, difficulty, and current positions for
+any phrasing above; whether these results are personalised or localised; and
+whether a distinct query exists for "defined risk is less defined than it
+looks" — searches for it returned only generic spread explainers, so the post
+owns the idea but there is no phrasing to target with it.

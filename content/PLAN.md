@@ -147,4 +147,4 @@ Full list in `docs/context/compliance.md`; these are the ones that bite:
 | --- | --- | --- | --- |
 | 2026-08-29 | `return-on-risk-vs-return-on-capital` | measuring · 59 | live |
 | 2026-08-29 | `options-journal-splits-spreads-into-legs` | managing · 50 | live |
-| 2026-09-02 | `what-a-credit-spread-actually-risks` | managing · 48 | draft in `content/blog/`; rewrite of the rejected staging stub, not yet through the review chain |
+| 2026-09-02 | `credit-spread-max-loss` | managing · 48 | on staging. Rewritten 2 Sep from a 150-word stub; desk-editor, investment-analyst, seo-editor and compliance-gate findings applied |
