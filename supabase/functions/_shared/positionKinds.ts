@@ -47,13 +47,71 @@ export function classifyLeg(leg: any, { shares = 0, cash = null }: any = {}) {
     // whole story, so a partially covered holding is reported as naked.
     return shares >= contracts * SHARES_PER_CONTRACT ? KINDS.COVERED_CALL : KINDS.NAKED_CALL;
   }
-  // A short put is "cash secured" only if the cash to buy the stock is actually
-  // there. Without knowing cash we do NOT get to assume it is -- an unsecured
-  // short put is margin risk, not a wheel position.
-  if (cash === null) return KINDS.NAKED_PUT;
-  const needed = contracts * leg.strike * SHARES_PER_CONTRACT;
-  return cash >= needed ? KINDS.CASH_SECURED_PUT : KINDS.NAKED_PUT;
+  // A lone short put on Alpaca is cash-secured by construction. Alpaca offers
+  // options levels 1-3 only: level 2 is covered calls and cash-secured puts,
+  // level 3 is spreads. The industry's uncovered tier is level 4, which Alpaca
+  // does not have -- so if the broker let the order through, the collateral
+  // was there. Testing `cash >= strike x 100` here was wrong on a margin
+  // account, where cash is legitimately below the strike while buying power
+  // still covers it; it labelled a real CSP "uncovered". NAKED_PUT stays in
+  // the enum for a broker that permits one; nothing reaches it today.
+  void cash;
+  void contracts;
+  return KINDS.CASH_SECURED_PUT;
 }
+
+// What the position loses if the underlying moves against it by `move`
+// (0.15 = fifteen percent). This is the OCC TIMS shock behind every
+// portfolio-margin engine, and it is the number that belongs in an ACCOUNT
+// total for stock-like exposure. Stock-to-zero is true for one position and
+// meaningless summed across a book -- by that logic the whole market's max
+// risk is its market cap. Returns 0 when the move does not reach the position
+// ("survives a 15% drop"), null when there is no spot to shock.
+export function stressLossOfKind(kind: string, p: any, move = 0.15): number | null {
+  const contracts = Math.abs(Number(p.qty) || 0);
+  const credit = Math.abs(Number(p.avgEntryPrice) || 0);
+  const strike = Number(p.strike) || 0;
+  const spot = Number(p.stockPrice ?? p.spot) || 0;
+  if (!(spot > 0)) return null;
+
+  const down = spot * (1 - move);
+  const up = spot * (1 + move);
+  switch (kind) {
+    case KINDS.CASH_SECURED_PUT:
+    case KINDS.NAKED_PUT: {
+      const intrinsic = Math.max(strike - down, 0);
+      return round2(Math.max(0, (intrinsic - credit) * SHARES_PER_CONTRACT * contracts));
+    }
+    case KINDS.COVERED_CALL: {
+      // The shares fall; the call can only help. Per contract, 100 shares.
+      const drop = (spot - down) * SHARES_PER_CONTRACT * contracts;
+      return round2(Math.max(0, drop - credit * SHARES_PER_CONTRACT * contracts));
+    }
+    case KINDS.NAKED_CALL: {
+      // Unbounded to the upside, but a loss AT a defined move still exists and
+      // is what a margin engine would charge. The kind stays flagged unbounded.
+      const intrinsic = Math.max(up - strike, 0);
+      return round2(Math.max(0, (intrinsic - credit) * SHARES_PER_CONTRACT * contracts));
+    }
+    case KINDS.LONG_OPTION: {
+      // Can never lose more than the premium; at a 15% adverse move a short-dated
+      // long is roughly worthless, so the premium is the honest shock figure.
+      return round2(credit * SHARES_PER_CONTRACT * contracts);
+    }
+    case KINDS.SHARES: {
+      const shares = Math.abs(Number(p.shareQty ?? p.qty) || 0);
+      return round2(shares * (spot - down));
+    }
+    default:
+      return null;
+  }
+}
+
+// Stock-like kinds carry the stock's risk; a spread carries its own defined
+// loss. The account total treats the two differently, so the split lives here.
+export const STOCK_LIKE = new Set<string>([
+  KINDS.CASH_SECURED_PUT, KINDS.NAKED_PUT, KINDS.COVERED_CALL, KINDS.NAKED_CALL, KINDS.LONG_OPTION, KINDS.SHARES
+]);
 
 // Maximum loss, in dollars, for one classified position.
 //

@@ -29,6 +29,24 @@ export function riskText(s, fmtMoney) {
   return fmtMoney(s.maxRisk);
 }
 
+// The stress figure, for stock-like rows: what the position loses if the
+// underlying moves against it by the configured shock. This is what rolls
+// into the account. Stock-to-zero stays available as the tooltip.
+export const movePct = (s) => Math.round(((s?.stressMove ?? 0.15) * 100));
+export const stressLabel = (s) => `Loss at −${movePct(s)}%`;
+export function stressText(s, fmtMoney) {
+  if (s.stressLoss === null || s.stressLoss === undefined) return "—";
+  if (s.stressLoss === 0) return "survives";
+  return fmtMoney(s.stressLoss);
+}
+export function stressNote(s, fmtMoney) {
+  const zero = s.notionalRisk ?? s.maxRisk;
+  const base = `Loss if the stock moves ${movePct(s)}% against this position — the shock clearing and margin engines use.`;
+  if (s.type === "naked_call") return `${base} The loss has no upper bound.`;
+  if (zero === null || zero === undefined) return base;
+  return `${base} Worst case with the stock at zero: ${fmtMoney(zero)} — the same as owning the shares.`;
+}
+
 export const riskIsUnbounded = (s) => s?.type === "naked_call";
 
 // A wheel position's worst case is the stock going to zero -- the same as

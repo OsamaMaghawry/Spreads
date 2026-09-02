@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  KINDS, classifyLeg, riskOfKind, collateralOfKind, breakEvenOfKind, totalRisk
+  KINDS, classifyLeg, riskOfKind, collateralOfKind, breakEvenOfKind, stressLossOfKind, totalRisk, STOCK_LIKE
 } from "./positionKinds.ts";
 
 // An Options Wheel account onboarded with a full history and an empty positions
@@ -19,11 +19,61 @@ test("a lone short put is a position, not nothing", () => {
   assert.equal(classifyLeg(put(100, -1), { cash: 10000 }), KINDS.CASH_SECURED_PUT);
 });
 
-test("a short put is only cash-secured when the cash is actually there", () => {
+test("a lone short put is cash-secured whatever the cash balance says", () => {
+  // Alpaca has no uncovered tier: if the order went through, the collateral was
+  // there. On a margin account cash sits below the strike while buying power
+  // covers it -- the old cash test called a real CSP "uncovered".
   assert.equal(classifyLeg(put(100, -1), { cash: 10000 }), KINDS.CASH_SECURED_PUT);
-  assert.equal(classifyLeg(put(100, -1), { cash: 9999 }), KINDS.NAKED_PUT);
-  // Not knowing is not the same as being secured. Withhold rather than default.
-  assert.equal(classifyLeg(put(100, -1), {}), KINDS.NAKED_PUT);
+  assert.equal(classifyLeg(put(100, -1), { cash: 9999 }), KINDS.CASH_SECURED_PUT);
+  assert.equal(classifyLeg(put(100, -1), {}), KINDS.CASH_SECURED_PUT);
+});
+
+// --- Stress loss: the number that rolls into the account ---------------------
+
+test("the JNJ card: stock-to-zero is $25,520, the 15% shock is about $3,400", () => {
+  // Spot 260, 257.20 strike, $2 credit. The full strike is what one position
+  // can lose; it is not what a portfolio risks, and it is not what a margin
+  // engine charges.
+  const p = { ...put(257.2, -1, 2), stockPrice: 260 };
+  assert.equal(riskOfKind(KINDS.CASH_SECURED_PUT, p), 25520);
+  const stress = stressLossOfKind(KINDS.CASH_SECURED_PUT, p, 0.15);
+  // 260 * 0.85 = 221; intrinsic 36.20; less $2 credit = 34.20 * 100
+  assert.equal(stress, 3420);
+});
+
+test("a short put the move does not reach survives it", () => {
+  const p = { ...put(200, -1, 2), stockPrice: 260 }; // 23% OTM
+  assert.equal(stressLossOfKind(KINDS.CASH_SECURED_PUT, p, 0.15), 0);
+});
+
+test("a covered call's shock is the shares' drop less its credit", () => {
+  const p = { ...call(120, -1, 2), stockPrice: 100, shareBasis: 95 };
+  assert.equal(stressLossOfKind(KINDS.COVERED_CALL, p, 0.15), 1300, "100 shares * $15 - $200");
+});
+
+test("shares lose the move, no more", () => {
+  assert.equal(stressLossOfKind(KINDS.SHARES, { shareQty: 100, stockPrice: 100 }, 0.15), 1500);
+});
+
+test("a naked call still has no max loss, but has a loss at the defined move", () => {
+  const p = { ...call(105, -1, 2), stockPrice: 100 };
+  assert.equal(riskOfKind(KINDS.NAKED_CALL, p), null);
+  assert.equal(stressLossOfKind(KINDS.NAKED_CALL, p, 0.15), 800, "115 - 105 = 10, less $2 credit");
+});
+
+test("no spot means no shock figure, not a zero", () => {
+  assert.equal(stressLossOfKind(KINDS.CASH_SECURED_PUT, put(100, -1), 0.15), null);
+});
+
+test("the move is a parameter, not a constant", () => {
+  const p = { ...put(257.2, -1, 2), stockPrice: 260 };
+  assert.ok(stressLossOfKind(KINDS.CASH_SECURED_PUT, p, 0.25)! > stressLossOfKind(KINDS.CASH_SECURED_PUT, p, 0.15)!);
+});
+
+test("spreads are not stock-like; every single kind is", () => {
+  for (const k of Object.values(KINDS)) assert.ok(STOCK_LIKE.has(k), k);
+  assert.equal(STOCK_LIKE.has("put_spread"), false);
+  assert.equal(STOCK_LIKE.has("iron_condor"), false);
 });
 
 test("shares cover a call; missing shares make it naked", () => {

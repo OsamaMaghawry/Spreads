@@ -58,9 +58,12 @@ test("a lone short put appears instead of vanishing", () => {
   assert.equal(out[0].collateral, 465 * 100 * 2);
 });
 
-test("without the cash to secure it, a short put is not called cash-secured", () => {
+test("a lone short put is cash-secured even when cash reads below the strike", () => {
+  // Margin account: cash sits below the strike while buying power covers it.
+  // Alpaca has no uncovered tier, so if the order went through it was secured.
   const out = pairSpreads([opt(P465, -1, 3)], [], [], { cash: 100 });
-  assert.equal(out[0].type, KINDS.NAKED_PUT);
+  assert.equal(out[0].type, KINDS.CASH_SECURED_PUT);
+  assert.equal(out[0].collateral, 46500, "and the collateral is therefore known");
 });
 
 test("shares survive buildLegs and are reported", () => {

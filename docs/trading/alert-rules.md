@@ -48,6 +48,25 @@ into one line naming the symbols that could not be priced.
   `wheel_client_prefix` only *labels* a strategy, exactly as it does in
   `tradeHistory`; it never decides whether a position is displayed.
 
+- **Two definitions of risk, two jobs.** A defined-risk spread's max loss —
+  width less credit — is real: it *will* lose that if it expires through the
+  long, so it rolls straight into the account total. A stock-like position's
+  textbook max loss is the stock at zero. True for one position, meaningless
+  summed across a book: by that logic the whole market's max risk is its market
+  cap. Those roll in at the **loss from a defined adverse move** instead —
+  `watch_settings.stress_move_pct`, default 15%, the OCC TIMS single-stock
+  shock behind every portfolio-margin engine — and the stock-to-zero figure is
+  kept, added up, and named **Notional**, because that is what it is. On a
+  wheel card the shock leads ("Loss at −15%"), with stock-to-zero in its
+  tooltip; a position the move does not reach reads "survives".
+
+- **A lone short put on Alpaca is cash-secured by construction.** Alpaca offers
+  option levels 1–3 only — level 2 is covered calls and cash-secured puts,
+  level 3 is spreads — and the industry's uncovered tier is level 4, which it
+  does not have. If the broker let the order through, the collateral was there.
+  Testing `cash ≥ strike × 100` on the client side was wrong on a margin
+  account, where cash sits below the strike while buying power still covers it.
+
 - **Held shares are priced at what they actually cost.** The broker records the
   assignment strike as the entry price and books the put premium as a separate
   closed trade, so an assigned-then-covered position overstates its max loss,

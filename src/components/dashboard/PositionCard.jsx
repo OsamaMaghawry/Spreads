@@ -3,7 +3,7 @@ import { ChevronDown } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import StrikeLadder from "./StrikeLadder";
 import CardLegs from "./CardLegs";
-import { isSingle, kindOf, riskText, riskLabel, isStockRisk, basisNote } from "@/lib/positionKind";
+import { isSingle, kindOf, riskText, riskLabel, isStockRisk, basisNote, stressLabel, stressText, stressNote } from "@/lib/positionKind";
 
 const badge = "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border";
 
@@ -23,14 +23,22 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
   // what the contract delivers any more. On a naked call it is not withheld
   // but stated -- "Unlimited" is the most important word on the card.
   const risk = { label: riskLabel(s), value: riskText(s, fmtMoney), tone: "text-rose-600" };
+  // Stock-like rows headline the loss at a defined adverse move -- the figure
+  // that rolls into the account -- with stock-to-zero in the tooltip. Summing
+  // stock-to-zero across a book is notional, not risk.
+  const stress = {
+    label: stressLabel(s),
+    value: s.type === "naked_call" ? `Unlimited · ${stressText(s, fmtMoney)}` : stressText(s, fmtMoney),
+    tone: s.stressLoss === 0 ? "text-emerald-600" : "text-rose-600",
+    title: stressNote(s, fmtMoney)
+  };
   const footer = isStockRisk(s)
-    // A wheel is run against its break-even, so that leads; the worst case is
-    // the same as owning the stock and sits second with a label saying so.
+    // A wheel is run against its break-even, so that leads.
     ? [
         breakEven,
         { label: "Qty", value: s.type === "shares" ? s.shareQty : s.qty },
         { label: "Capital tied up", value: s.collateral != null ? fmtMoney(s.collateral) : "—" },
-        risk,
+        stress,
         { label: "Expiry", value: s.expiryFormatted || "—" }
       ]
     : [
@@ -87,11 +95,7 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
         </div>
       </div>
 
-      {/* The ladder plots a profit zone between two strikes. A single leg has
-          one, and shares have none, so it would draw a band from an undefined
-          edge — a picture asserting something about the trade that is not
-          true. Withheld rather than drawn wrong. */}
-      {!isSingle(s) && <StrikeLadder spread={s} />}
+      <StrikeLadder spread={s} />
 
       <div className="flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
         {footer.map((f) => (

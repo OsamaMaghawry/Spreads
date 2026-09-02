@@ -44,11 +44,55 @@ const PRICE_ROW_H = 20;
 const PRICE_ROW_GAP = 4;
 const BOTTOM_PAD = 34;
 
+// A single position -- one leg, or shares -- has one strike and a break-even,
+// and that is a perfectly clear picture: profit on one side of the break-even,
+// loss on the other. The first build withheld the ladder for these on the
+// grounds that it plots between TWO strikes; that left a wheel card poorer than
+// the spread cards beside it. Both points are marked, and the zones split at
+// the break-even, which is where the P/L actually changes sign.
+function singleGeometry(spread) {
+  const leg = spread.legs?.[0];
+  const be = typeof spread.breakEven === "number" ? spread.breakEven : null;
+  if (spread.type === "shares") {
+    return {
+      strikes: be !== null ? [{ label: "Break-even", value: be }] : [],
+      // Long stock: loses below what it cost, gains above.
+      zonesAt: (pos) => (be === null ? [] : [
+        { tone: "loss", from: 0, to: pos(be) },
+        { tone: "profit", from: pos(be), to: 100 }
+      ])
+    };
+  }
+  if (!leg) return { strikes: [], zonesAt: () => [] };
+  const short = leg.side === "short";
+  const isCall = leg.kind === "call";
+  const strikeLabel = `${short ? "Short" : "Long"} ${isCall ? "Call" : "Put"}`;
+  const strikes = [{ label: strikeLabel, value: leg.strike }];
+  if (be !== null && Math.abs(be - leg.strike) > 0.005) strikes.push({ label: "Break-even", value: be });
+  // A short put profits while the stock stays ABOVE the break-even; a short
+  // call -- covered or not -- while it stays BELOW. A long is the mirror of
+  // the short on the same side.
+  const profitAbove = short ? !isCall : isCall;
+  return {
+    strikes,
+    zonesAt: (pos) => {
+      const edge = be !== null ? be : leg.strike;
+      return profitAbove
+        ? [{ tone: "loss", from: 0, to: pos(edge) }, { tone: "profit", from: pos(edge), to: 100 }]
+        : [{ tone: "profit", from: 0, to: pos(edge) }, { tone: "loss", from: pos(edge), to: 100 }];
+    }
+  };
+}
+
 export default function StrikeLadder({ spread }) {
   const isCondor = spread.type === "iron_condor";
   const isCall = spread.type === "call_spread";
+  const single = !!spread.single;
+  const singleGeo = single ? singleGeometry(spread) : null;
 
-  const strikes = isCondor
+  const strikes = single
+    ? singleGeo.strikes
+    : isCondor
     ? [
         { label: "Long Put", value: spread.longStrike },
         { label: "Short Put", value: spread.shortStrike },
@@ -117,7 +161,7 @@ export default function StrikeLadder({ spread }) {
     ro.observe(container);
     return () => ro.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spread.type, spread.longStrike, spread.shortStrike, spread.callShortStrike, spread.callLongStrike, spread.stockPrice]);
+  }, [spread.type, spread.longStrike, spread.shortStrike, spread.callShortStrike, spread.callLongStrike, spread.stockPrice, spread.breakEven, spread.single]);
 
   if (values.length === 0) return null;
 
@@ -135,7 +179,9 @@ export default function StrikeLadder({ spread }) {
 
   // Profit region (emerald) and max-loss wings (rose).
   const zones = [];
-  if (isCondor) {
+  if (single) {
+    zones.push(...singleGeo.zonesAt(pos));
+  } else if (isCondor) {
     zones.push({ tone: "loss", from: 0, to: pos(spread.longStrike) });
     zones.push({ tone: "profit", from: pos(spread.shortStrike), to: pos(spread.callShortStrike) });
     zones.push({ tone: "loss", from: pos(spread.callLongStrike), to: 100 });

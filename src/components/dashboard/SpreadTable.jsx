@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import SpreadStructure from "./SpreadStructure";
-import { isSingle, kindOf, riskText, riskIsUnbounded, isStockRisk, basisNote } from "@/lib/positionKind";
+import { isSingle, kindOf, riskText, riskIsUnbounded, isStockRisk, basisNote, stressText, stressNote, movePct } from "@/lib/positionKind";
 import LegRows from "./LegRows";
 
 const th = "px-2.5 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
@@ -131,10 +131,15 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
                   reads as nothing to worry about. */}
               <td
                 className={`${td} text-right ${riskIsUnbounded(s) ? "font-semibold text-rose-700" : ""}`}
-                title={isStockRisk(s) ? "Max loss with the stock at zero — the same risk as owning the shares, not a defined-risk spread" : undefined}
+                title={isStockRisk(s) ? stressNote(s, fmtMoney) : undefined}
               >
-                {riskText(s, fmtMoney)}
-                {isStockRisk(s) && !riskIsUnbounded(s) && <span className="ml-1 text-[10px] text-slate-400">to 0</span>}
+                {isStockRisk(s)
+                  ? <>
+                      {riskIsUnbounded(s) && <span className="mr-1">Unlimited ·</span>}
+                      <span className={s.stressLoss === 0 ? "text-emerald-600" : ""}>{stressText(s, fmtMoney)}</span>
+                      <span className="ml-1 text-[10px] text-slate-400">−{movePct(s)}%</span>
+                    </>
+                  : riskText(s, fmtMoney)}
               </td>
               <td className={`${td} text-right`} title={basisNote(s)}>
                 {s.adjusted ? "—" : fmtMoney(s.breakEven)}

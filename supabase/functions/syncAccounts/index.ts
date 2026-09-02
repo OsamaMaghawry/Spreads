@@ -2,7 +2,7 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { tradingBase, alpacaFetch, pairSpreads, getOptionQuotes } from "../_shared/alpaca.ts";
 import { getSpots } from "../_shared/marketPrice.ts";
-import { KINDS, totalRisk } from "../_shared/positionKinds.ts";
+import { KINDS, STOCK_LIKE, stressLossOfKind, totalRisk } from "../_shared/positionKinds.ts";
 import { basisByTicker } from "../_shared/wheelBasis.ts";
 import { decryptSecret } from "../_shared/crypto.ts";
 import { parseOCCSymbol } from "../_shared/occ.ts";
@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
 
 async function syncOne(account) {
   const base = tradingBase(account);
-  const empty = { credit: 0, risk: 0, closeCost: 0, pl: 0, expirationPL: 0, collateral: 0, riskComplete: true, undefinedRisk: [] };
+  const empty = { credit: 0, risk: 0, closeCost: 0, pl: 0, expirationPL: 0, collateral: 0, notional: 0, stressMove: 0.15, riskComplete: true, undefinedRisk: [] };
   try {
     const [info, positions, activities, openOrders, filledOrders] = await Promise.all([
       alpacaFetch(`${base}/account`, account),
@@ -121,6 +121,12 @@ async function syncOne(account) {
     ].sort((a, b) => String(b.submittedAt || "").localeCompare(String(a.submittedAt || "")));
 
     // Provenance: legs opened by the same multi-leg order form one structure.
+    // The adverse move stock-like risk is sized at. From watch_settings, like
+    // every other threshold; 15% is the OCC single-stock shock if unset.
+    const stressMove = await admin.from("watch_settings").select("stress_move_pct").eq("id", true).maybeSingle()
+      .then(({ data }) => (data && Number(data.stress_move_pct) > 0 ? Number(data.stress_move_pct) : 0.15))
+      .catch(() => 0.15);
+
     // What held shares actually cost once the wheel's premiums are counted.
     // The broker records the assignment strike and books the put premium as a
     // separate closed trade; the history layer already links the two through
@@ -198,6 +204,11 @@ async function syncOne(account) {
           unrealizedPL: pl,
           expirationCost: 0,
           expirationPL: pl,
+          // Stock-to-zero stays on the row as the per-position worst case; the
+          // shock at a defined move is what the account total uses.
+          notionalRisk: s.maxRisk,
+          stressLoss: stressLossOfKind(KINDS.SHARES, { ...s, stockPrice }, stressMove),
+          stressMove,
           openOrders: []
         };
       }
@@ -233,6 +244,13 @@ async function syncOne(account) {
         unrealizedPL: totalCredit - closeCost,
         expirationCost,
         expirationPL: stockPrice > 0 ? totalCredit - expirationCost : null,
+        notionalRisk: s.maxRisk,
+        stressLoss: stressLossOfKind(
+          s.type,
+          { qty: s.qty, avgEntryPrice: leg.entryPrice, strike: leg.strike, stockPrice, shareBasis: s.shareBasis },
+          stressMove
+        ),
+        stressMove,
         openOrders: openList
           .filter((o: any) => orderSymbols(o).includes(leg.symbol))
           .map((o: any) => ({
@@ -363,24 +381,35 @@ async function syncOne(account) {
     // each ticker contributes max(put-side, call-side) of its condors.
     const condorByTicker = {};
     const flat = [];
+    // Stock-like positions do not sum at stock-to-zero. That figure is the
+    // notional -- true for one position, and summed across a book it says the
+    // whole market's max risk is its market cap. They roll in at the loss from
+    // a defined adverse move, the way clearing and margin engines size them.
+    const stockLike = [];
     rows.forEach((r) => {
       if (r.type === 'iron_condor') {
         const t = (condorByTicker[r.ticker] = condorByTicker[r.ticker] || { putSide: 0, callSide: 0 });
         t.putSide += r.putSideRisk;
         t.callSide += r.callSideRisk;
+      } else if (STOCK_LIKE.has(r.type)) {
+        stockLike.push(r);
       } else {
         flat.push(r);
       }
     });
-    // A naked short call has no maximum loss, so it carries maxRisk: null and
-    // the total says so rather than adding zero. Summing an unbounded liability
-    // as nothing produces a tidy risk figure that is wrong by the size of the
-    // account -- the worst kind of wrong on a money screen.
     const flatRisk = totalRisk(flat);
-    totals.risk = flatRisk.risk + Object.values(condorByTicker)
+    // Stress losses sum; a null one (no spot to shock) leaves the total
+    // incomplete rather than adding zero. A naked call is ALSO unbounded and
+    // is named as such even though it has a figure at the move.
+    const stressed = totalRisk(stockLike.map((r) => ({ ticker: r.ticker, maxRisk: r.stressLoss })));
+    const unbounded = stockLike.filter((r) => r.type === KINDS.NAKED_CALL).map((r) => r.ticker);
+    totals.risk = flatRisk.risk + stressed.risk + Object.values(condorByTicker)
       .reduce((a, t) => a + Math.max(t.putSide, t.callSide), 0);
-    totals.riskComplete = flatRisk.complete;
-    totals.undefinedRisk = flatRisk.undefinedRisk;
+    totals.riskComplete = flatRisk.complete && stressed.complete && unbounded.length === 0;
+    totals.undefinedRisk = [...new Set([...flatRisk.undefinedRisk, ...stressed.undefinedRisk, ...unbounded])];
+    totals.stressMove = stressMove;
+    // The number the owner questioned, kept and named for what it is.
+    totals.notional = stockLike.reduce((a, r) => a + (Number(r.notionalRisk) || 0), 0);
     // Collateral the broker is holding that is NOT loss exposure -- a
     // cash-secured put ties up the whole strike while risking the strike less
     // the credit, and a trader needs both numbers to read their own account.

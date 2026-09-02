@@ -75,9 +75,18 @@ export default function AccountSection({ account, onCloseSpread, onOrdersChanged
       value: account.riskComplete === false ? `${fmtPct(account.riskPct)}+` : fmtPct(account.riskPct),
       title:
         account.riskComplete === false
-          ? `At least this much — ${(account.totals.undefinedRisk || []).join(", ") || "a position"} can lose without limit, so it cannot be added up.`
-          : undefined
+          ? `At least this much — ${(account.totals.undefinedRisk || []).join(", ") || "a position"} cannot be fully sized, so the total is a floor.`
+          : `Spreads at their defined max loss; stock-like positions at a ${Math.round((account.totals?.stressMove ?? 0.15) * 100)}% adverse move — the shock clearing and margin engines use. Stock-to-zero is shown separately as Notional.`
     },
+    // Stock-to-zero across every stock-like position. True for each one, and
+    // not risk when summed -- so it gets its own honest name.
+    ...(account.totals?.notional > 0
+      ? [{
+          label: "Notional",
+          value: fmtMoney(account.totals.notional),
+          title: "What every stock-like position would lose with its stock at zero, added up. Exposure, not a loss estimate."
+        }]
+      : []),
     {
       label: "P/L / Equity",
       value: fmtPct(account.plPct),
