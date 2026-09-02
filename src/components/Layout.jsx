@@ -12,7 +12,7 @@ export default function Layout() {
   // redirects and the edge function refuses a non-admin token either way.
   const { isAdmin } = useIsAdmin();
   const links = [
-    { to: "/", label: "dashboard", Icon: LayoutDashboard },
+    { to: "/", label: "positions", Icon: LayoutDashboard },
     { to: "/screener", label: "screener", Icon: Radar },
     { to: "/accounts", label: "accounts", Icon: KeyRound },
     { to: "/billing", label: "billing", Icon: CreditCard },

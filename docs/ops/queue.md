@@ -13,14 +13,16 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 - [needs owner] 2026-09-02 · Allowlist for the research environment: `tiblio.com`, `optionstrat.com`, `optionalpha.com`, `quantwheel.com`, and our own `deltamint.app` / `dashboard.deltamint.app` (403 at CONNECT since 31 Aug).
 - [needs owner] 2026-09-02 · Metrics: create a GA4 property, verify Search Console for `deltamint.app`, create a Google Cloud service account with read on both, store its JSON as the GitHub secret `GOOGLE_METRICS_SA`, and set `GA_MEASUREMENT_ID` as a variable on the landing Worker. Nothing is pulled until these exist.
 - [needs owner] 2026-09-02 · Ops health token: set `OPS_TOKEN` as a function secret on both Supabase projects and `DELTAMINT_OPS_TOKEN` on the Claude environment, so the hourly duty engineer can read order errors and alerts. Until then its runs are code-and-site only.
+- [needs owner] 2026-09-02 · duty-engineer · Confirm migration `0024_broker_feed_dumps.sql` is applied on the **production** Supabase project (`yecfbeohyakuoyczvdbj`) — it shipped to `main` and was said to be "applied by hand on 2 Sep," but duty-engineer has no production database access to verify and never touches production. Owner (or whoever ran it) to confirm.
+
+## Escalated
+
+- [escalated 2026-09-02] duty-engineer · `oauthDiag` (`supabase/functions/oauthDiag/index.ts`) is gated only by `requireUser` — any signed-in user, not just admins, can trigger a live Alpaca OAuth token exchange using the app's own client id/secret (the secret itself is never returned, only the client id — already public — and Alpaca's response). Exposure is a probing/rate-limit risk against our own Alpaca app credentials, not a credential leak. Outside duty-engineer's plain-bug authority (touches OAuth credentials) — systems-engineer to judge whether it needs admin-gating or is fine as a diagnostic any signed-in user can run. Proposed patch if gating is wanted: apply the same admin check `adminData`'s handler uses before the `requireUser` call.
+- [escalated 2026-09-02] duty-engineer · `openPosition` (`supabase/functions/openPosition/index.ts`) never calls `recordAttempt` — `closeSpread/index.ts` writes an `order_attempts` row on every close (success and failure alike), opens write none, so the audit trail is one-sided. No test harness covers either function's `Deno.serve` handler (only `_shared/` modules are unit tested), so duty-engineer could not reproduce-first per its mandate; it also touches the order-submission path, which duty-engineer escalates rather than fixes on its own judgment. Proposed patch (mirrors `closeSpread` exactly, reusing the existing, already-tested, error-swallowing `recordAttempt` helper — no new dependency or schema): import `recordAttempt` from `../_shared/orderAttempts.ts`; wrap both the single-leg (around line 144) and multi-leg (around line 169) `alpacaFetch` calls in try/catch, recording `intent: "open"` with the error on failure and the `brokerOrderId`/`status` on success — the same shape `closeSpread/index.ts` lines 76-89 and 122-132 already use.
 
 ## Open
 
-- [open] 2026-09-02 · vp-product · `Layout.jsx` nav says "dashboard" while the page H1 says "Positions Monitor" — the word `brand.md` forbids. head-of-branding to rule; one-line fix.
-- [open] 2026-09-02 · vp-product · `oauthDiag` is reachable by any signed-in user, not admin-gated. systems-engineer to judge exposure.
-- [open] 2026-09-02 · vp-product · `openPosition` writes no `order_attempts` row; closes do. The audit trail is half.
-- [open] 2026-09-02 · 0024 `broker_feed_dumps` migration is on `main` now; confirm applied on production (it was applied by hand on 2 Sep).
-
 ## Fixed
 
+- [fixed <pending>] 2026-09-02 · duty-engineer · `Layout.jsx` nav said "dashboard" while the page H1 says "Positions Monitor" — the word `brand.md` forbids (canonical name: Positions Monitor). Nav label changed to "positions", matching the single-word style of the other tabs. Lint and build green; no component test harness exists in this repo to unit-test the JSX label.
 - [fixed a7db799] 2026-09-02 · vp-product found · `positionWatch` called `sharesByTicker`, which did not exist; every account would have been reported unreadable. Written, tested, shipped to production 12:25 UTC.
