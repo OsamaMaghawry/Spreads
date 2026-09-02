@@ -3,7 +3,7 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
-- 2026-09-02 · (staging) The nav says "positions", matching the name the page itself uses, not "dashboard" — the word `brand.md` forbids.
+- 2026-09-02 · (staging) The nav says "positions", matching the name the page itself uses, not "dashboard" — the word `brand.md` forbids (`2514c1b`).
 - 2026-09-02 · (staging) The watch no longer flags the short leg of a call credit spread or iron condor as naked; only what a long or shares do not cover counts, and it says how many contracts are still uncovered (`616c203`).
 - 2026-09-02 · (staging) The blog groups posts into six categories with hub pages, breadcrumbs, related and read-next posts, and an RSS feed; a new article publishes automatically each day from a fixed topic list (`de4f8d6`).
 - 2026-09-02 · (staging) Admin → Engagement is now a KPI panel: traffic, paying users against the 100-user target, and where each week's signups came from; sign-ups record where they arrived from (`de4f8d6`).
