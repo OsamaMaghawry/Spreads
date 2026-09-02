@@ -43,7 +43,7 @@ The allowlist matches **exact hostnames** — an allowed apex whose site 301s to
 | www.theocc.com / infomemo.theocc.com | ❌ 403 (site WAF) | 2026-08-31 | Blocks datacenter traffic; WebSearch for OCC symbology/adjustment facts |
 | www.investopedia.com | ⚠️ 402 | 2026-08-31 | Origin answers but gates content; WebSearch is better here |
 | **Ours** | | | |
-| dashboard.deltamint.app / deltamint.app | ✅ 200 | 2026-08-31 | Deploys verifiable directly |
+| dashboard.deltamint.app / deltamint.app | ❌ 403 at CONNECT (was ✅ 200) | 2026-09-02 | Regression: both `curl` and WebFetch to `deltamint.app/blog` now die at the proxy tunnel (`CONNECT tunnel failed, response 403`), where 2026-08-31 had it reachable. Nothing changed on our side that would explain it (no allowlist edit is in this repo's history). Could not run the seo-editor site check (structured data on `/blog`, a category hub, one post, `/sitemap.xml`, `/blog/feed.xml`) this run. Owner to check whether the allowlist entry was removed or the proxy policy changed |
 | www.deltamint.app | ⚠️ 522 | 2026-08-31 | Cloudflare has no origin for the www host — cosmetic; canonical is the apex + dashboard |
 | spreads.osamamaghawry.workers.dev | ✅ 301 → dashboard | 2026-08-31 | Canonical redirect confirmed live |
 
