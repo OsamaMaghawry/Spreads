@@ -2,8 +2,11 @@
 title: Why your options journal splits spreads into legs
 slug: options-journal-splits-spreads-into-legs
 excerpt: A spread is one position, not two legs — but if a tool rebuilds it by matching strikes instead of reading the order it came from, it will eventually invent one.
-meta_description: Your broker's fill feed doesn't say which legs were one order. Why syncs split spreads into legs, and what strike-guessing invents after rolls and partial closes.
+meta_description: Your broker's fill feed doesn't say which legs were one order. Why syncs split spreads, and what strike-guessing invents after a roll.
 author: DeltaMint
+category: managing
+series_order: 50
+tags: spread pairing, journaling, broker feed, rolls, partial closes
 ---
 
 You sent one order — a credit spread. The broker filled it as several

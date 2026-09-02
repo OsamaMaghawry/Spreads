@@ -4,6 +4,9 @@ slug: return-on-risk-vs-return-on-capital
 excerpt: Premium collected tells you the size of the credit and nothing about what was posted behind it.
 meta_description: Return on capital moves with your margin agreement; return on risk is fixed at the fill. Which one ranks credit spreads, shown on a $1 and a $5 width.
 author: DeltaMint
+category: measuring
+series_order: 59
+tags: return on risk, credit spreads, position sizing, max loss, ranking
 ---
 
 Premium collected, return on capital, return on risk — three ways to rank a
