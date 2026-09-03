@@ -25,6 +25,13 @@
     // carry the same id inline, because run_worker_first above means the
     // Worker never runs for them. Set here and NOT in wrangler.staging.jsonc
     // on purpose: staging traffic must not land in the property.
-    "GA_MEASUREMENT_ID": "G-TJLVFXVFL6"
+    "GA_MEASUREMENT_ID": "G-TJLVFXVFL6",
+    // Hotjar, on exactly the same terms and absent from staging for the same
+    // reason — a recorded session from dev-landing is not a customer. Note
+    // this covers the marketing site and blog only; the dashboard is a
+    // separate Worker and is deliberately never given a site id, because
+    // replaying a page that shows someone's positions is not something we
+    // want a third party holding.
+    "HOTJAR_SITE_ID": "6773356"
   }
 }
