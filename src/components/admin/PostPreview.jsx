@@ -16,7 +16,7 @@ import { markdown } from "../../../landing/src/render.js";
 // so they are rewritten to VITE_SITE_URL to load. A figure whose file has not
 // been deployed yet will show its caption and a broken image — which is the
 // truth about that post, not a defect in the preview.
-export default function PostPreview({ post, site }) {
+export default function PostPreview({ post, site, chrome = true }) {
   const html = useMemo(() => {
     const rendered = markdown(post.body || "");
     return site ? rendered.replace(/src="\/assets\//g, `src="${site}/assets/`) : rendered;
@@ -26,12 +26,14 @@ export default function PostPreview({ post, site }) {
 
   return (
     <div className="rounded-lg border border-dm-line bg-white">
-      <div className="flex items-center gap-2 border-b border-dm-line px-4 py-2 text-[11px] text-dm-sub">
-        <span className="rounded-full border border-dm-line bg-dm-bg px-1.5 py-0.5 font-semibold uppercase tracking-wider">
-          Preview
-        </span>
-        <span>rendered with the blog&rsquo;s own renderer — this is what publishing produces</span>
-      </div>
+      {chrome && (
+        <div className="flex items-center gap-2 border-b border-dm-line px-4 py-2 text-[11px] text-dm-sub">
+          <span className="rounded-full border border-dm-line bg-dm-bg px-1.5 py-0.5 font-semibold uppercase tracking-wider">
+            Preview
+          </span>
+          <span>rendered with the blog&rsquo;s own renderer — this is what publishing produces</span>
+        </div>
+      )}
 
       {/* The blog's own measure and rhythm, so line length and heading weight
           read as they will on the page rather than as dashboard chrome. */}

@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { toast } from "@/components/ui/use-toast";
-import { Trash2, ExternalLink, Eye, PenLine } from "lucide-react";
-import PostPreview from "./PostPreview";
+import { Trash2, ExternalLink, Eye } from "lucide-react";
 
 // Per-environment, so the staging admin links to the staging blog rather than
 // sending you to production. Set in .env.production / .env.staging.
@@ -44,11 +43,6 @@ export default function BlogPanel() {
   };
 
   useEffect(() => { load(); }, []);
-
-  // Preview is a view of the draft being edited, not a separate saved thing:
-  // it renders whatever is in the form right now, so it answers "what will
-  // publishing produce" rather than "what did I last save".
-  const [preview, setPreview] = useState(false);
 
   const save = async (status) => {
     if (saving) return;
@@ -133,24 +127,25 @@ export default function BlogPanel() {
               <label className={`${label} mb-0`}>
                 Body <span className="text-dm-sub/70">Markdown: ## heading, **bold**, - list, [text](https://url)</span>
               </label>
-              <button
-                type="button"
-                onClick={() => setPreview((v) => !v)}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-dm-line px-2.5 py-1 text-xs text-dm-sub transition-colors hover:text-dm-text"
-              >
-                {preview ? <PenLine className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                {preview ? "Back to editing" : "Preview"}
-              </button>
+              {editing.slug && (
+                // Opens the saved draft, not the unsaved form: the preview page
+                // reads the row back through adminData, so save first and the
+                // tab shows exactly what is stored.
+                <a
+                  href={`/blog-preview/${editing.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-dm-line px-2.5 py-1 text-xs text-dm-sub transition-colors hover:text-dm-text"
+                >
+                  <Eye className="h-3.5 w-3.5" /> Preview saved draft
+                </a>
+              )}
             </div>
-            {preview ? (
-              <PostPreview post={editing} site={SITE} />
-            ) : (
-              <textarea
-                className={`${input} min-h-[320px] resize-y font-mono text-[13px]`}
-                value={editing.body}
-                onChange={(e) => setEditing({ ...editing, body: e.target.value })}
-              />
-            )}
+            <textarea
+              className={`${input} min-h-[320px] resize-y font-mono text-[13px]`}
+              value={editing.body}
+              onChange={(e) => setEditing({ ...editing, body: e.target.value })}
+            />
           </div>
         </div>
 
@@ -232,13 +227,15 @@ export default function BlogPanel() {
                 // A draft has no URL to open -- the blog only serves published
                 // rows -- so the way to read one is to open it in the editor
                 // on its preview.
-                <button
-                  onClick={() => { setEditing({ ...EMPTY, ...p }); setPreview(true); }}
+                <a
+                  href={`/blog-preview/${p.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   aria-label="Preview draft"
                   className="text-dm-sub transition-colors hover:text-dm-accent"
                 >
                   <Eye className="h-3.5 w-3.5" />
-                </button>
+                </a>
               )}
               <button
                 onClick={() => setEditing({ ...EMPTY, ...p })}
