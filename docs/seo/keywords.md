@@ -12,7 +12,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 
 | # | Topic | Target query (long tail) | Head term (hub) | Competing today | Our angle |
 | --- | --- | --- | --- | --- | --- |
-| 1 | What an option actually is | what is an options contract | options | Investopedia, broker education hubs | what is in your account after the fill, not a definition |
+| 1 | What an option actually is | what is an options contract | options | Option Alpha, Fidelity/Schwab/IBKR education pages, finance dictionaries (Investopedia not currently surfacing, read 3 Sep 2026) | what is in your account after the fill, not a definition |
 | 2 | Calls and puts | call vs put option explained | call option, put option | Investopedia, NerdWallet | both sides of the same contract, seller included |
 | 3 | Strike, expiry, premium | option strike price expiration premium | strike price | Investopedia | the three numbers on one real-looking chain row |
 | 4 | Intrinsic and time value | intrinsic vs extrinsic value options | time value | Investopedia, tastylive | why the same strike costs different amounts on different days |

@@ -1,0 +1,46 @@
+<svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Buying one call debits $250 cash and reduces buying power by $250, with no shares appearing. Selling one cash-secured put credits $180 cash but holds $9,000 of buying power as collateral for the obligation.">
+  <rect width="720" height="340" fill="#FFFFFF"/>
+
+  <!-- left panel: buy a call -->
+  <rect x="16" y="16" width="336" height="308" rx="10" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="40" y="44" font-size="12.5" font-weight="600" fill="#14151C">Buy 1 call — 100 strike, $2.50 premium</text>
+
+  <rect x="40" y="62" width="150" height="26" rx="6" fill="#FBE7EB" stroke="#B4485C"/>
+  <text x="115" y="79" font-size="11.5" font-weight="500" text-anchor="middle" fill="#B4485C">$250 cash paid</text>
+
+  <rect x="40" y="100" width="200" height="26" rx="6" fill="#FBE7EB" stroke="#B4485C"/>
+  <text x="140" y="117" font-size="11.5" font-weight="500" text-anchor="middle" fill="#B4485C">$250 buying power used</text>
+
+  <text x="40" y="152" font-size="11.5" fill="#4B4F60">No shares appear. The 100-share</text>
+  <text x="40" y="168" font-size="11.5" fill="#4B4F60">multiplier is priced into the premium,</text>
+  <text x="40" y="184" font-size="11.5" fill="#4B4F60">not owned outright.</text>
+
+  <text x="40" y="216" font-size="11.5" fill="#4B4F60">Max loss if the call expires worthless:</text>
+  <text x="40" y="232" font-size="11.5" fill="#4B4F60">the $250 already paid — and already spent.</text>
+
+  <text x="40" y="272" font-size="11" fill="#767B8E">A right: it can be let go worthless and</text>
+  <text x="40" y="288" font-size="11" fill="#767B8E">nothing more than the premium is owed.</text>
+
+  <!-- right panel: sell a put -->
+  <rect x="368" y="16" width="336" height="308" rx="10" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="392" y="44" font-size="12.5" font-weight="600" fill="#14151C">Sell 1 put — 90 strike, $1.80 premium, cash-secured</text>
+
+  <rect x="392" y="62" width="168" height="26" rx="6" fill="#E3F1E9" stroke="#2E8B5F"/>
+  <text x="476" y="79" font-size="11.5" font-weight="500" text-anchor="middle" fill="#2E8B5F">$180 cash received</text>
+
+  <rect x="392" y="100" width="208" height="26" rx="6" fill="#FFFFFF" stroke="#4B4F60"/>
+  <text x="496" y="117" font-size="11.5" font-weight="500" text-anchor="middle" fill="#14151C">$9,000 buying power held</text>
+
+  <text x="392" y="152" font-size="11.5" fill="#4B4F60">The strike times 100 shares is held</text>
+  <text x="392" y="168" font-size="11.5" fill="#4B4F60">back regardless of the premium — $9,000,</text>
+  <text x="392" y="184" font-size="11.5" fill="#4B4F60">not $9,000 minus the $180.</text>
+
+  <text x="392" y="216" font-size="11.5" fill="#4B4F60">Obligation, not right: if assigned, 100</text>
+  <text x="392" y="232" font-size="11.5" fill="#4B4F60">shares arrive at $90 no matter where</text>
+  <text x="392" y="248" font-size="11.5" fill="#4B4F60">the stock is trading.</text>
+
+  <text x="392" y="272" font-size="11" fill="#767B8E">The $180 sits in the account either way;</text>
+  <text x="392" y="288" font-size="11" fill="#767B8E">the $9,000 is not spent, only held.</text>
+
+  <text x="24" y="326" font-size="11" fill="#767B8E">Hypothetical figures, for the arithmetic only. Collateral treatment for a written put varies by account type.</text>
+</svg>
