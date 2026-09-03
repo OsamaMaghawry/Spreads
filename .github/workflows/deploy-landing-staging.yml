@@ -1,0 +1,51 @@
+name: Deploy landing site (staging)
+
+# Mirrors deploy-landing.yml but targets the staging branch and the separate
+# deltamint-landing-staging Worker on dev-landing.deltamint.app, which carries
+# NOINDEX, points at the staging Supabase project, and deliberately has no
+# GA_MEASUREMENT_ID — staging traffic must never land in the analytics property.
+#
+# Uses the same CLOUDFLARE_API_TOKEN as production, because Cloudflare's token
+# model has no per-Worker scope: Workers Scripts:Edit is account-wide, so a
+# second token would grant exactly the same access and only look safer. This is
+# the one place the two-token pattern used for Supabase cannot be honoured.
+#
+# No staging-first gate here: this IS staging.
+
+on:
+  push:
+    branches: [staging]
+    paths:
+      - 'landing/**'
+      - '.github/workflows/deploy-landing-staging.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-landing-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run content:check
+      - run: node --test landing/src/blog.test.js
+
+      - name: Deploy to dev-landing.deltamint.app
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::notice title=Deploy skipped::CLOUDFLARE_API_TOKEN is not set."
+            exit 0
+          fi
+          npx --yes wrangler@4 deploy --config landing/wrangler.staging.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
