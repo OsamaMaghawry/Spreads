@@ -338,9 +338,19 @@ There are two environments, each with its own Supabase project and its own pair 
 
 **The flow is one-directional, with a checkpoint, not a copy:**
 
-1. Push code changes to the `staging` branch only. This deploys automatically to the two `dev-*.deltamint.app` URLs and to the staging Supabase project's edge functions (`.github/workflows/deploy-functions-staging.yml`).
+1. Push code changes to the `staging` branch only. This deploys automatically to the two `dev-*.deltamint.app` URLs and to the staging Supabase project's edge functions (`.github/workflows/deploy-functions-staging.yml`, `.github/workflows/deploy-landing-staging.yml`).
 2. Actually check the change on the `dev-*` URLs (or verify it another way — a build passing, a function log) before doing anything else.
-3. Only after that checks out, merge `staging` into `main`. That merge is what deploys to production (Cloudflare Workers Build promotes `main` pushes automatically; `.github/workflows/deploy-functions.yml` does the same for edge functions).
+3. Only after that checks out, merge `staging` into `main`. That merge is what deploys to production (`.github/workflows/deploy-functions.yml` for edge functions, `.github/workflows/deploy-landing.yml` for the landing site, Cloudflare Workers Builds for the app Worker).
+
+**A merged commit is not evidence that anything is live.** This section used to say Cloudflare "promotes `main` pushes automatically" for both Workers, and that was never true of the landing site: until 3 Sep nothing deployed `landing/` at all, and the sentence above is what made a merged Google Analytics tag look shipped while `deltamint.app` carried no tag for a day. Read the deploy path, not the paragraph:
+
+| What | Deployed by | Live when |
+|---|---|---|
+| Edge functions | `deploy-functions{,-staging}.yml` | the Actions run is green |
+| Landing site | `deploy-landing{,-staging}.yml` | the Actions run is green |
+| App Worker | Cloudflare Workers Builds (dashboard-side, not in this repo) | **unverified** — its build runs `wrangler versions upload`, which uploads a *preview* version and does not move production traffic. Whether something else promotes it is an open question; see `docs/ops/queue.md`. |
+
+Both landing workflows skip with a notice, rather than fail, until the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repository secrets exist. A green run that says "Deploy skipped" has deployed nothing — check the step, not the tick.
 
 **Never push a change to `main` and `staging` in the same step.** Landing both at once is not staging, it's just copying the same untested change to two places — it defeats the entire point of having a staging environment. If a fix is trivial and low-risk (a typo, a comment), say so and ask before skipping the staging checkpoint — don't skip it by default.
 
@@ -350,4 +360,5 @@ A nightly GitHub Actions job (`nightly-backup.yml`) `pg_dump`s the **production*
 
 ## Operations
 
+- `docs/ops/access.md` says what a session can actually do — which hosts the proxy blocks, which connectors can write as opposed to only read, and which credential ships which target. **Read it before asking the owner for any credential**, along with the "Needs owner" list in `queue.md`, which may already record the request. Asking twice for something already written down is the failure it exists to prevent.
 - `docs/ops/queue.md` is the ticket queue and `docs/ops/shipped.md` the ledger of what reached `main`. A finding on the money path is fixed on `staging` within a working hour or escalated the same run, never only reported. The hourly `duty-engineer` drains the queue; see `docs/ops/README.md`.

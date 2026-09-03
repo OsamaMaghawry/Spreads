@@ -20,6 +20,11 @@
     // browser bundle. RLS on blog_posts is what actually restricts this key,
     // limiting it to posts that are published and past their publish date.
     "SUPABASE_URL": "https://yecfbeohyakuoyczvdbj.supabase.co",
-    "SUPABASE_ANON_KEY": "sb_publishable_bq8zUxWfrWn6vbyv_NLtsA_62xhUV7U"
+    "SUPABASE_ANON_KEY": "sb_publishable_bq8zUxWfrWn6vbyv_NLtsA_62xhUV7U",
+    // GA4 for the blog pages, which the Worker renders. The static pages
+    // carry the same id inline, because run_worker_first above means the
+    // Worker never runs for them. Set here and NOT in wrangler.staging.jsonc
+    // on purpose: staging traffic must not land in the property.
+    "GA_MEASUREMENT_ID": "G-TJLVFXVFL6"
   }
 }

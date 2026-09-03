@@ -1,0 +1,101 @@
+name: Deploy landing site
+
+# The marketing site — deltamint.app — is a Cloudflare Worker serving static
+# HTML out of landing/public/ plus a server-rendered blog. Until now it was the
+# only deployable thing in this repo with no CI: every change to the homepage,
+# the pricing page, a blog asset or the GA tag needed someone to run
+# `npx wrangler deploy` from a laptop, and a commit sitting on main was not
+# evidence that anything was live. That gap is what let the Google Analytics
+# tag sit merged and unpublished.
+#
+# Requires two repository secrets:
+#   CLOUDFLARE_API_TOKEN   Cloudflare dashboard -> My Profile -> API Tokens ->
+#                          Create Token -> "Edit Cloudflare Workers" template.
+#   CLOUDFLARE_ACCOUNT_ID  Cloudflare dashboard -> Workers & Pages -> right rail.
+#
+# Note on blast radius, since it is not obvious: Cloudflare's token model has
+# no per-Worker scope. Workers Scripts:Edit is account-wide, so this one token
+# can write every Worker in the account — both landing Workers and both
+# dashboard ones. Unlike the two Supabase tokens above it, there is no way to
+# split it per environment. Rotate it from the same page if it ever leaks.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'landing/**'
+      - '.github/workflows/deploy-landing.yml'
+  # Lets a deploy be re-run from the Actions tab without an empty commit.
+  workflow_dispatch:
+
+# Never let two deploys of the same site overlap.
+concurrency:
+  group: deploy-landing
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The staging comparison below needs real history.
+          fetch-depth: 0
+
+      # Staging first, enforced rather than written down — the same gate
+      # deploy-functions.yml applies to edge functions, for the same reason.
+      # The test is on CONTENT, not branch topology: the landing tree being
+      # deployed must be byte-identical to the one staging holds, so it stays
+      # correct whether main was fast-forwarded or took a merge commit.
+      - name: Refuse to deploy a landing site staging has not served
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --quiet origin staging
+          prod_tree=$(git rev-parse "HEAD:landing")
+          staging_tree=$(git rev-parse "origin/staging:landing")
+          if [ "$prod_tree" = "$staging_tree" ]; then
+            echo "landing/ matches origin/staging ($prod_tree) — staging has served this."
+            exit 0
+          fi
+          echo "::error title=Staging first::landing/ on this commit ($prod_tree) differs from origin/staging ($staging_tree). Merge to staging, read it on dev-landing.deltamint.app, then merge to main."
+          echo
+          echo "Differences:"
+          git diff --stat origin/staging HEAD -- landing
+          exit 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # A compliance failure in published copy is a regulatory problem, and it
+      # should stop a deploy on its own terms rather than be discovered by a
+      # reader. site-health.yml runs this too, but on its own schedule — this
+      # is the run that actually gates the publish.
+      - run: npm run content:check
+
+      # The Worker's own request-handling tests (routing, canonical tags,
+      # X-Robots-Tag, blog rendering) — cheap, and they run against the exact
+      # source about to be uploaded.
+      - run: node --test landing/src/blog.test.js
+
+      # Skips rather than fails when the token is absent, so this workflow can
+      # live on main before the secret exists, and so forks — which never
+      # receive secrets — do not report a red build for a deploy they were
+      # never going to perform.
+      #
+      # wrangler is not a dependency of this repo (nothing else needs it), so
+      # it is fetched here, pinned to a major so a breaking release cannot
+      # change what a deploy means without a commit.
+      - name: Deploy to deltamint.app
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::notice title=Deploy skipped::CLOUDFLARE_API_TOKEN is not set, so there is nothing to authenticate with. Add it under Settings → Secrets and variables → Actions and re-run."
+            exit 0
+          fi
+          npx --yes wrangler@4 deploy --config landing/wrangler.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
