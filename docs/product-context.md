@@ -50,6 +50,7 @@ nothing contingent on trading activity.
 - Accounts
 - Admin
 - Billing
+- BlogPreview
 - Dashboard
 - ForgotPassword
 - Login
@@ -75,7 +76,7 @@ incomplete.
 ## Components, by area
 
 - **accounts** — AccountForm
-- **admin** — AdminMaintenance, BlogPanel, EngagementPanel, SettingsPanel, SignupsChart, StatTile, UsersPanel
+- **admin** — AdminMaintenance, BlogPanel, EngagementPanel, PostPreview, SettingsPanel, SignupsChart, StatTile, UsersPanel
 - **analysis** — BreakdownTable, CaptureBreakdown, DateRangeFilter, EquityCurveChart, ExportPdfButton, StatCards, StrategyComparison
 - **billing** — UpgradePrompt
 - **brand** — DeltaMintMark, Wordmark
@@ -121,6 +122,7 @@ so a change to shared code requires redeploying all of them.
 - **openPosition** — How far the stock may have moved since the setup was built before the order is refused.
 - **opsHealth** — Read-only health for the duty engineer: last-24h order errors, alerts, connection issues and the watch's last runs, as counts and messages, never user data.
 - **positionWatch** — The money-safety watch.
+- **publicConfig** — The operator switches a signed-in customer's browser legitimately needs.
 - **refreshEarnings** — Refreshes the cached earnings calendar for the next 90 days from the provider.
 - **saveAccount** — Creating and editing a trading account.
 - **scanEntries** — (no summary comment)

@@ -19,6 +19,17 @@ const SWITCHES = [
       "account the OAuth app can't reach."
   },
   {
+    key: "billing_visible",
+    field: "billingVisible",
+    label: "Show the payment page",
+    note:
+      "While off, there is no payment surface at all: the Billing entry disappears from the nav, " +
+      "/billing says plans are not open yet, and the server refuses to start a checkout or open the " +
+      "customer portal even if someone reaches the endpoint directly. Nothing about existing " +
+      "subscriptions changes. Keep it off until the broker approves live trading — taking a card for " +
+      "something that cannot yet be delivered is the one thing we should not do."
+  },
+  {
     key: "billing_enforced",
     field: "billingEnforced",
     label: "Enforce billing",

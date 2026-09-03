@@ -7,6 +7,7 @@ author: DeltaMint
 category: managing
 series_order: 48
 tags: credit spread, max loss, assignment, defined risk, collateral
+draft: true
 ---
 
 The max loss on a vertical credit spread is the width between the strikes,

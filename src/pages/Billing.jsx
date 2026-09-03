@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { CreditCard, Loader2, CheckCircle2 } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import useSubscription from "@/lib/useSubscription";
+import useBillingVisible from "@/lib/useBillingVisible";
 
 // The billing screen. Two buttons that send the user to Stripe's hosted
 // Checkout, and once they are back, the plan as the webhook recorded it and a
@@ -25,6 +26,7 @@ const STATUS_LABEL = {
 export default function Billing() {
   const [params] = useSearchParams();
   const { subscription: sub, plan, loading, grandfathered } = useSubscription();
+  const { billingVisible, loading: billingLoading } = useBillingVisible();
   const [interval, setInterval] = useState(params.get("plan") === "annual" ? "annual" : "monthly");
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
@@ -46,6 +48,25 @@ export default function Billing() {
 
   const hasStripe = !!sub?.stripe_customer_id;
   const live = plan === "live";
+
+  // Reachable by typing the URL even with the nav entry hidden, so the page
+  // answers for itself. createCheckoutSession refuses at 403 regardless.
+  if (billingLoading) return null;
+  if (!billingVisible) {
+    return (
+      <div className="max-w-3xl space-y-5">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Billing</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Not open yet.</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
+          Plans are not open yet. Everything in the product is available on a paper account in the
+          meantime, and nothing you hold is affected. There is nothing to pay for and no card to
+          enter.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl space-y-5">

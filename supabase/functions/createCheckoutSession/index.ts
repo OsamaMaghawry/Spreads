@@ -2,6 +2,7 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { stripeClient, appUrl, customerFor } from "../_shared/stripe.ts";
+import { readSettings } from "../_shared/settings.ts";
 
 // The card is entered on Stripe's hosted page, never on ours. What this
 // function decides is only which price and which customer; the amount lives
@@ -11,6 +12,12 @@ Deno.serve(async (req) => {
   try {
     const user = await requireUser(req);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+
+    // No card is taken while the payment surface is off. Checked here rather
+    // than only in the browser, because a hidden button is not a control.
+    if (!(await readSettings(adminClient())).billingVisible) {
+      return jsonResponse({ error: "Plans are not open yet." }, 403);
+    }
 
     const { interval } = await req.json().catch(() => ({}));
     const price = interval === "annual" ? Deno.env.get("STRIPE_PRICE_ANNUAL") : Deno.env.get("STRIPE_PRICE_MONTHLY");
