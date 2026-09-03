@@ -3,6 +3,8 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-03 · Billing is hidden end to end until the owner flips `billing_visible`: no Billing entry in the nav, `/billing` says plans aren't open yet, a refused live order's upgrade prompt drops its button, and checkout/portal both refuse with 403 — off by default (`b85c13b`, `20581e9`).
+- 2026-09-03 · A draft blog post can be read before it's published: the admin's post list has an eye that opens the draft at `/blog-preview/<slug>` in its own tab, rendered with the blog's own renderer, no dashboard chrome (`f6c481f`, `d650266`).
 - 2026-09-02 · (staging) A close order you priced yourself no longer traps the ticket: the X leaves it working, and the panel never offers to place a second one; its price can be changed from the ticket or the Orders tab, where the underlying, the market now and your limit sit above the box; quantity has −/+ buttons that work on a phone; cards, rows and orders show the underlying's move today.
 - 2026-09-02 · (staging) A scan row shows the delta of the contract it found, not the delta the scan asked for — the same number the ticket and the Screener table show; and a short leg outside the delta band you set is refused, saying what the nearest strike was.
 - 2026-09-02 · (staging) A cash-secured put or covered call opens from the ticket (the last gate wanted two legs); a refused order returns you to the ticket with the setup kept; a resting order can be repriced from the ticket or the Orders tab and left working when you close the dialog; the close ticket scrolls on a phone; Simple/Detailed shows on a phone; the open ticket streams the spot, large, and requotes the legs every second.
