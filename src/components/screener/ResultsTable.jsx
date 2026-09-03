@@ -2,27 +2,20 @@ import { useState } from "react";
 import { fmtMoney } from "@/lib/format";
 import { ArrowDown } from "lucide-react";
 import EarningsWarning from "@/components/common/EarningsWarning";
+import { structureLabel, isSingle, shortDelta } from "@/lib/setupUnit";
 
 const th = "px-2.5 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
 const td = "px-2.5 py-2.5 whitespace-nowrap tabular-nums";
-
-function structureLabel(c) {
-  const put = c.legs.filter((l) => l.role.endsWith("_put"));
-  const call = c.legs.filter((l) => l.role.endsWith("_call"));
-  const side = (legs, suffix) => {
-    if (legs.length === 0) return null;
-    const short = legs.find((l) => l.side === "sell");
-    const long = legs.find((l) => l.side === "buy");
-    const ratio = short?.ratio > 1 ? `${short.ratio}× ` : "";
-    return `${ratio}${short.strike}/${long.strike}${suffix}`;
-  };
-  return [side(put, "P"), side(call, "C")].filter(Boolean).join(" · ");
-}
 
 const SORTS = [
   { key: "returnOnRisk", label: "RoR" },
   { key: "credit", label: "Credit" },
   { key: "maxRisk", label: "Max Risk" }
+];
+const SORTS_SINGLE = [
+  { key: "returnOnRisk", label: "RoR" },
+  { key: "credit", label: "Credit" },
+  { key: "maxRisk", label: "Max Loss" }
 ];
 
 // Ranked scan results for the screener.
@@ -31,6 +24,8 @@ const SORTS = [
 // objects inside the account's own open-position dialog. What a candidate row
 // tells a trader has to match in both — change one, change the other.
 export default function ResultsTable({ candidates, onTrade }) {
+  // Singles carry no width; the column reads collateral for them instead.
+  const single = candidates.length > 0 && candidates.every((c) => isSingle(c.strategy));
   const [sortKey, setSortKey] = useState("returnOnRisk");
   const [asc, setAsc] = useState(false);
 
@@ -60,14 +55,13 @@ export default function ResultsTable({ candidates, onTrade }) {
             <th className={th}>Structure</th>
             <th className={`${th} text-right`}>Spot</th>
             <th className={`${th} text-right`}>Short Δ</th>
-            <th className={`${th} text-right`}>Width</th>
-            {SORTS.map((s) => sortableTh(s.key, s.label))}
+            <th className={`${th} text-right`}>{single ? "Collateral" : "Width"}</th>
+            {(single ? SORTS_SINGLE : SORTS).map((s) => sortableTh(s.key, s.label))}
             <th className={th}></th>
           </tr>
         </thead>
         <tbody>
           {sorted.map((c, i) => {
-            const shortLeg = c.legs.find((l) => l.side === "sell");
             return (
               <tr key={c.legs.map((l) => l.symbol).join("|")} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                 <td className={`${td} text-slate-400`}>{i + 1}</td>
@@ -80,11 +74,11 @@ export default function ResultsTable({ candidates, onTrade }) {
                 <td className={`${td} text-slate-500`}>{c.expiry}</td>
                 <td className={td}>{structureLabel(c)}</td>
                 <td className={`${td} text-right`}>{fmtMoney(c.spot)}</td>
-                <td className={`${td} text-right`}>{Math.abs(shortLeg?.delta ?? 0).toFixed(2)}</td>
+                <td className={`${td} text-right`}>{shortDelta(c) ?? "—"}</td>
                 {/* Actual strike distance, not the requested wing width — these
                     are the same now that the scan enforces the request, and
                     showing the real one keeps it that way visibly. */}
-                <td className={`${td} text-right`}>{fmtMoney(c.width)}</td>
+                <td className={`${td} text-right`}>{isSingle(c.strategy) ? fmtMoney(c.collateral) : fmtMoney(c.width)}</td>
                 <td className={`${td} text-right font-semibold text-emerald-600`}>{(c.returnOnRisk * 100).toFixed(1)}%</td>
                 {/* Per contract, so it sits in the same unit as Max Risk beside
                     it and as the preview this row opens. Sorting uses the raw

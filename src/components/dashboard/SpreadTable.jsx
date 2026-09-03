@@ -4,6 +4,7 @@ import { fmtMoney } from "@/lib/format";
 import SpreadStructure from "./SpreadStructure";
 import { isSingle, kindOf, riskText, riskIsUnbounded, isStockRisk, basisNote, stressText, stressNote, movePct } from "@/lib/positionKind";
 import LegRows from "./LegRows";
+import { dayChange, dayChangeLabel } from "@/lib/dayChange";
 
 const th = "px-2.5 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
 const td = "px-2.5 py-4 whitespace-nowrap tabular-nums";
@@ -100,7 +101,15 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
               <td className={td}><SpreadStructure spread={s} /></td>
               <td className={`${td} text-slate-500`}>{s.entryDate}</td>
               <td className={`${td} text-slate-500`}>{s.expiryFormatted}</td>
-              <td className={`${td} text-right`}>{s.stockPrice ? fmtMoney(s.stockPrice) : "—"}</td>
+              <td className={`${td} text-right`}>
+                {s.stockPrice ? fmtMoney(s.stockPrice) : "—"}
+                {/* Same figure as the card, so Simple and Detailed agree. */}
+                {dayChange(s.stockPrice, s.prevClose) && (
+                  <span className={`ml-1.5 text-[11px] tabular-nums ${dayChange(s.stockPrice, s.prevClose).up ? "text-emerald-600" : "text-rose-600"}`}>
+                    {dayChangeLabel(dayChange(s.stockPrice, s.prevClose))}
+                  </span>
+                )}
+              </td>
               <td className={`${td} text-center`}>
                 <span
                   className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${

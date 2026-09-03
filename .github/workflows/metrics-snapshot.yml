@@ -1,0 +1,46 @@
+name: Metrics snapshot
+
+# Search Console, GA4 and the product funnel, once a day, into the repo and
+# the growth_metrics table. The Google service account lives only here, as a
+# secret; agents read the committed files. Any source that is not configured
+# is written as "not configured", never as zero.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: metrics-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Snapshot
+        env:
+          GOOGLE_METRICS_SA: ${{ secrets.GOOGLE_METRICS_SA }}
+          GA4_PROPERTY_ID: ${{ vars.GA4_PROPERTY_ID }}
+          GSC_SITE_URL: ${{ vars.GSC_SITE_URL }}
+          SUPABASE_URL: https://yecfbeohyakuoyczvdbj.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/metrics-snapshot.mjs
+      - name: Commit
+        run: |
+          set -euo pipefail
+          git config user.name "deltamint-metrics"
+          git config user.email "metrics@deltamint.app"
+          git add docs/growth/metrics
+          git diff --cached --quiet && { echo "nothing changed"; exit 0; }
+          git commit -m "Metrics snapshot $(date -u +%F)"
+          git push origin HEAD:main

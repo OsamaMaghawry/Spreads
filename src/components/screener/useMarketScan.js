@@ -19,37 +19,50 @@ export default function useMarketScan() {
 
   const stop = () => { stopped.current = true; setRunning(false); };
 
-  const start = async (accountId, tickers, filters) => {
+  // One sweep is one or more jobs: { tickers, filters }. The wheel is two --
+  // puts on the universe, then calls on the account's own shares (a single
+  // call, the server picks the tickers) -- and their results share one list.
+  const start = async (accountId, tickersOrJobs, filters) => {
+    const jobs = Array.isArray(tickersOrJobs) && tickersOrJobs.length > 0 && typeof tickersOrJobs[0] === "object"
+      ? tickersOrJobs
+      : [{ tickers: tickersOrJobs, filters }];
     stopped.current = false;
     setRunning(true);
     setError(null);
     setCandidates([]);
     setSkippedCount(0);
-    setProgress({ done: 0, total: tickers.length });
+    const total = jobs.reduce((n, j) => n + j.tickers.length, 0);
+    setProgress({ done: 0, total });
 
     let all = [];
     const seen = new Set();
-    for (let i = 0; i < tickers.length; i += BATCH) {
-      if (stopped.current) return;
-      const batch = tickers.slice(i, i + BATCH);
-      try {
-        const res = await invokeFunction("scanEntries", { accountId, tickers: batch, ...filters });
+    let done = 0;
+    for (const job of jobs) {
+      const { tickers } = job;
+      for (let i = 0; i < tickers.length; i += BATCH) {
         if (stopped.current) return;
-        const data = res.data || {};
-        if (data.error) throw new Error(data.error);
-        for (const c of data.candidates || []) {
-          const k = legKey(c);
-          if (!seen.has(k)) { seen.add(k); all.push(c); }
+        const batch = tickers.slice(i, i + BATCH);
+        try {
+          const res = await invokeFunction("scanEntries", { accountId, tickers: batch, ...job.filters });
+          if (stopped.current) return;
+          const data = res.data || {};
+          if (data.error) throw new Error(data.error);
+          if (data.reason && !(data.candidates || []).length) setError(data.reason);
+          for (const c of data.candidates || []) {
+            const k = legKey(c);
+            if (!seen.has(k)) { seen.add(k); all.push(c); }
+          }
+          all.sort((a, b) => b.returnOnRisk - a.returnOnRisk);
+          all = all.slice(0, 100);
+          setCandidates([...all]);
+          setSkippedCount((n) => n + (data.skipped?.length || 0));
+        } catch (e) {
+          if (stopped.current) return;
+          setError(e.message); // a failed batch shouldn't kill the sweep
         }
-        all.sort((a, b) => b.returnOnRisk - a.returnOnRisk);
-        all = all.slice(0, 100);
-        setCandidates([...all]);
-        setSkippedCount((n) => n + (data.skipped?.length || 0));
-      } catch (e) {
-        if (stopped.current) return;
-        setError(e.message); // a failed batch shouldn't kill the sweep
+        done += batch.length;
+        setProgress({ done, total });
       }
-      setProgress({ done: Math.min(i + BATCH, tickers.length), total: tickers.length });
     }
     setRunning(false);
     if (all.length > 0) playAlert();

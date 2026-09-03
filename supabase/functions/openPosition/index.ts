@@ -1,5 +1,7 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
+import { liveAllowedFor, UPGRADE_MESSAGE } from "../_shared/entitlement.ts";
+import { heldShares } from "../_shared/heldShares.ts";
 import { tradingBase, alpacaFetch, loadAccount, parseOCCSymbol } from "../_shared/alpaca.ts";
 import { getSpot } from "../_shared/marketPrice.ts";
 import { earningsCoverage, refreshEarningsWindow } from "../_shared/earnings.ts";
@@ -74,7 +76,7 @@ Deno.serve(async (req) => {
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
     const { accountId, legs, qty, orderType = "limit", limitPrice, expectedSpot, allowItmShort = false } = await req.json();
-    if (!accountId || !Array.isArray(legs) || legs.length < 2 || !qty) {
+    if (!accountId || !Array.isArray(legs) || legs.length < 1 || !qty) {
       return jsonResponse({ error: "accountId, legs and qty are required" }, 400);
     }
     if (orderType === "limit" && (limitPrice === undefined || limitPrice === null)) {
@@ -95,10 +97,53 @@ Deno.serve(async (req) => {
 
     const account = await loadAccount(admin, accountId, user.id);
 
+    // The one thing a plan gates: opening on a live account. Paper is never
+    // gated, and neither is closing, cancelling or quoting anywhere -- a user
+    // must always be able to get out of what they hold. 402 rather than 403:
+    // the request was allowed, it is the payment that is missing.
+    if (!account.is_paper && !(await liveAllowedFor(admin, user.id))) {
+      return jsonResponse({ error: UPGRADE_MESSAGE, upgradeRequired: true }, 402);
+    }
+
     // Last look before the money leaves. 409 rather than 400: the request was
     // well formed, the market moved out from under it.
     const stale = await preflight(account, legs, Number(expectedSpot) || 0, allowItmShort);
     if (stale) return jsonResponse({ error: stale, staleSetup: true }, 409);
+
+    // One leg is the wheel's half -- a cash-secured put or a covered call. It
+    // goes to the broker as a plain option order, not a multi-leg one: no
+    // order_class, a positive limit price (the negative-credit convention is
+    // multi-leg only), and the wheel prefix so the history files it under the
+    // wheel where one is configured.
+    if (legs.length === 1) {
+      const leg = legs[0];
+      const occ = parseOCCSymbol(leg.symbol);
+      if (leg.side === "sell" && occ?.type === "C") {
+        // A short call must be covered by shares this account holds, contract
+        // for contract. Refusing here says why in one sentence; the broker's
+        // rejection would not.
+        const held = await heldShares(admin, account);
+        const have = held.shares[occ.ticker] || 0;
+        if (have < Number(qty) * 100) {
+          return jsonResponse({
+            error: `${account.name} holds ${have} shares of ${occ.ticker}; ${qty} covered call${Number(qty) > 1 ? "s" : ""} need${Number(qty) > 1 ? "" : "s"} ${Number(qty) * 100}. Nothing was sent.`
+          }, 409);
+        }
+      }
+      const singlePrefix = (account.wheel_client_prefix || account.spreads_client_prefix || "APP_OPEN").trim();
+      const single: any = {
+        symbol: leg.symbol,
+        qty: String(qty),
+        side: leg.side,
+        type: orderType,
+        time_in_force: "day",
+        position_intent: leg.side === "sell" ? "sell_to_open" : "buy_to_open",
+        client_order_id: `${singlePrefix}_OPEN_${Date.now()}`
+      };
+      if (orderType === "limit") single.limit_price = String(Math.abs(Math.round(limitPrice * 100) / 100));
+      const order = await alpacaFetch(`${tradingBase(account)}/orders`, account, { method: "POST", body: JSON.stringify(single) });
+      return jsonResponse({ orderId: order.id, status: order.status });
+    }
 
     const prefix = (account.spreads_client_prefix || "APP_OPEN").trim();
 

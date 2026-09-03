@@ -10,6 +10,7 @@ import ScanPresets from "@/components/common/ScanPresets";
 import { SCOPE, saveLastUsed } from "@/lib/scanPresets";
 import { SP500, TOP50 } from "@/lib/sp500";
 import { SAFE_ACCOUNT_COLUMNS } from "@/lib/accountColumns";
+import { isSingle, STRATEGY_LABEL } from "@/lib/setupUnit";
 
 export default function Screener() {
   const [accounts, setAccounts] = useState([]);
@@ -26,6 +27,8 @@ export default function Screener() {
   }, []);
 
   const isCondor = strategy === "iron_condor";
+  const wheel = strategy === "wheel";
+  const single = wheel || isSingle(strategy);
   const set = (patch) => setCfg((c) => ({ ...c, ...patch }));
 
   const tickers =
@@ -43,26 +46,40 @@ export default function Screener() {
     setCfg({ ...SCREENER_DEFAULTS, ...savedConfig });
   };
 
+  const filtersFor = (strat) => ({
+    strategy: strat,
+    dteMin: Number(cfg.dteMin),
+    dteMax: Number(cfg.dteMax),
+    // No step values: how finely the scan samples inside these ranges is the
+    // engine's call (see DELTA_SWEEP_STEP / WIDTH_SWEEP_STEP in optionScan.ts),
+    // not a trading parameter worth putting in front of the trader.
+    deltaMin: Number(cfg.deltaMin),
+    deltaMax: Number(cfg.deltaMax),
+    widthMin: Number(cfg.widthMin),
+    widthMax: Number(cfg.widthMax),
+    minCredit: Number(cfg.minCredit),
+    maxCredit: 1000,
+    maxRisk: cfg.maxRisk === "" ? null : Number(cfg.maxRisk),
+    putRatio: isCondor ? Number(cfg.putRatio) : 1,
+    callRatio: isCondor ? Number(cfg.callRatio) : 1
+  });
+
+  // A covered call is scanned on the account's own shares: one call, the
+  // server picks the tickers, so the batch is a placeholder. The wheel is the
+  // put scan on the universe followed by that call scan.
+  const jobs = () => {
+    if (strategy === "covered_call") return [{ tickers: ["HELD"], filters: filtersFor("covered_call") }];
+    if (wheel) return [
+      { tickers, filters: filtersFor("cash_secured_put") },
+      { tickers: ["HELD"], filters: filtersFor("covered_call") }
+    ];
+    return [{ tickers, filters: filtersFor(strategy) }];
+  };
+
   const run = () => {
     // Recording what was scanned must never be able to stop the scan itself.
     saveLastUsed(SCOPE.SCREENER, strategy, cfg).catch(() => {});
-    start(accounts[0].id, tickers, {
-      strategy,
-      dteMin: Number(cfg.dteMin),
-      dteMax: Number(cfg.dteMax),
-      // No step values: how finely the scan samples inside these ranges is the
-      // engine's call (see DELTA_SWEEP_STEP / WIDTH_SWEEP_STEP in optionScan.ts),
-      // not a trading parameter worth putting in front of the trader.
-      deltaMin: Number(cfg.deltaMin),
-      deltaMax: Number(cfg.deltaMax),
-      widthMin: Number(cfg.widthMin),
-      widthMax: Number(cfg.widthMax),
-      minCredit: Number(cfg.minCredit),
-      maxCredit: 1000,
-      maxRisk: cfg.maxRisk === "" ? null : Number(cfg.maxRisk),
-      putRatio: isCondor ? Number(cfg.putRatio) : 1,
-      callRatio: isCondor ? Number(cfg.callRatio) : 1
-    });
+    start(accounts[0].id, jobs());
   };
 
   const minRoR = Number(cfg.minRoR) || 0;
@@ -83,8 +100,8 @@ export default function Screener() {
       <div className="grid lg:grid-cols-[340px_1fr] gap-5 items-start">
         <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
           <ScanPresets scope={SCOPE.SCREENER} strategy={strategy} config={cfg} onApply={applyPreset} />
-          <StrategyPicker value={strategy} onChange={setStrategy} />
-          <ScreenerConfig cfg={cfg} set={set} isCondor={isCondor} />
+          <StrategyPicker value={strategy} onChange={setStrategy} withWheel />
+          <ScreenerConfig cfg={cfg} set={set} isCondor={isCondor} single={single} strategy={strategy} />
 
           {running ? (
             <button
@@ -96,10 +113,11 @@ export default function Screener() {
           ) : (
             <button
               onClick={run}
-              disabled={accounts.length === 0 || tickers.length === 0}
+              disabled={accounts.length === 0 || (strategy !== "covered_call" && tickers.length === 0)}
               className="w-full py-2.5 rounded-lg bg-emerald-500/90 hover:bg-emerald-500 text-white font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              <Radar className="w-4 h-4" /> Scan {tickers.length} tickers
+              <Radar className="w-4 h-4" />{" "}
+              {strategy === "covered_call" ? "Scan shares held" : wheel ? `Scan ${tickers.length} tickers and shares held` : `Scan ${tickers.length} tickers`}
             </button>
           )}
 
@@ -126,7 +144,25 @@ export default function Screener() {
             </div>
           )}
 
-          {shown.length > 0 ? (
+          {shown.length > 0 && wheel ? (
+            <div>
+              {["cash_secured_put", "covered_call"].map((strat) => {
+                const rows = shown.filter((c) => c.strategy === strat);
+                return (
+                  <section key={strat}>
+                    <div className="px-4 py-2 text-[11px] uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-200">
+                      {strat === "cash_secured_put" ? "Puts to sell" : "Calls on shares you hold"} · {rows.length}
+                    </div>
+                    {rows.length > 0 ? (
+                      <ResultsTable candidates={rows} onTrade={setTradeSetup} />
+                    ) : (
+                      <div className="px-4 py-6 text-xs text-slate-400">{running ? "Scanning…" : `No ${STRATEGY_LABEL[strat].toLowerCase()} matched.`}</div>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
+          ) : shown.length > 0 ? (
             <ResultsTable candidates={shown} onTrade={setTradeSetup} />
           ) : (
             <div className="px-4 py-16 text-center text-sm text-slate-400">

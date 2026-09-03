@@ -1,0 +1,67 @@
+<svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="The same put credit spread marked with time still to run: a smooth curve that stays strictly inside the expiration payoff, showing a mark worse than the credit received at prices where expiration has not yet decided anything, and a flat point today near 102.5.">
+  <rect width="720" height="340" fill="#FFFFFF"/>
+
+  <text x="24" y="30" font-size="13.5" font-weight="600" fill="#14151C">The same spread before expiration — short 100 put, long 95 put, $1.20 credit</text>
+  <text x="24" y="50" font-size="11.5" fill="#767B8E">Profit and loss, one contract. Illustrative marks, not a forecast.</text>
+
+  <!-- strike guides -->
+  <line x1="279" y1="56" x2="279" y2="242" stroke="#E2E5EE" stroke-width="1" stroke-dasharray="2 4"/>
+  <line x1="448" y1="56" x2="448" y2="242" stroke="#E2E5EE" stroke-width="1" stroke-dasharray="2 4"/>
+
+  <!-- zero line -->
+  <line x1="100" y1="100" x2="670" y2="100" stroke="#C9CEDC" stroke-width="1" stroke-dasharray="2 4"/>
+  <text x="92" y="104" font-size="11" text-anchor="end" fill="#767B8E">$0</text>
+
+  <!-- legend -->
+  <line x1="118" y1="64" x2="146" y2="64" stroke="#A7AEC2" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="153" y="68" font-size="11" fill="#767B8E">At expiration: the plateaus, $120 up and $380 down</text>
+  <line x1="118" y1="84" x2="132" y2="84" stroke="#B4485C" stroke-width="2.5"/>
+  <line x1="132" y1="84" x2="146" y2="84" stroke="#2E8B5F" stroke-width="2.5"/>
+  <text x="153" y="88" font-size="11" fill="#767B8E">Marked today, with time still to run</text>
+
+  <!-- expiration payoff, for reference -->
+  <path d="M110 214 L279 214 L448 64 L650 64" fill="none" stroke="#A7AEC2" stroke-width="1.5" stroke-dasharray="5 4" stroke-linejoin="round"/>
+
+  <!-- mark to market curve, two-tone at the zero crossing -->
+  <path d="M110 191 C 145 186, 210 168, 279 159 C 310 154, 337 147, 363 139 C 395 130, 420 125, 448 120 C 478 114, 508 105, 532 101" fill="none" stroke="#B4485C" stroke-width="2.5"/>
+  <path d="M532 101 C 560 96, 592 90, 616 87 L650 83" fill="none" stroke="#2E8B5F" stroke-width="2.5"/>
+
+  <!-- the gap at the long strike -->
+  <circle cx="279" cy="159" r="3.4" fill="#FFFFFF" stroke="#B4485C" stroke-width="1.4"/>
+  <circle cx="279" cy="214" r="3.4" fill="#FFFFFF" stroke="#A7AEC2" stroke-width="1.4"/>
+  <line x1="279" y1="164" x2="279" y2="209" stroke="#767B8E" stroke-width="1"/>
+  <line x1="275" y1="169" x2="279" y2="164" stroke="#767B8E" stroke-width="1"/>
+  <line x1="283" y1="169" x2="279" y2="164" stroke="#767B8E" stroke-width="1"/>
+  <line x1="275" y1="204" x2="279" y2="209" stroke="#767B8E" stroke-width="1"/>
+  <line x1="283" y1="204" x2="279" y2="209" stroke="#767B8E" stroke-width="1"/>
+  <text x="270" y="150" font-size="11" text-anchor="end" fill="#B4485C">about −$198 marked</text>
+  <text x="270" y="224" font-size="11" text-anchor="end" fill="#767B8E">−$380 at expiration</text>
+  <text x="118" y="243" font-size="11" fill="#4B4F60">At the long strike the mark is already worse than the credit — and nothing has been decided.</text>
+
+  <!-- the zero crossing: flat today, at about 102.5 -->
+  <line x1="532" y1="106" x2="532" y2="188" stroke="#C9CEDC" stroke-width="1" stroke-dasharray="2 4"/>
+  <circle cx="532" cy="100" r="3.4" fill="#FFFFFF" stroke="#14151C" stroke-width="1.4"/>
+  <text x="344" y="200" font-size="11" fill="#4B4F60">Flat today only at about 102.5 —</text>
+  <text x="344" y="214" font-size="11" fill="#767B8E">a price at which expiration would pay the full $120.</text>
+
+  <!-- what leaving would cost, up at 105 -->
+  <circle cx="617" cy="87" r="3.2" fill="#FFFFFF" stroke="#2E8B5F" stroke-width="1.4"/>
+  <line x1="617" y1="91" x2="617" y2="107" stroke="#767B8E" stroke-width="1"/>
+  <text x="545" y="120" font-size="11" fill="#4B4F60">At 105 it would still cost</text>
+  <text x="545" y="134" font-size="11" fill="#4B4F60">about $0.75 to buy back —</text>
+  <text x="545" y="148" font-size="11" fill="#767B8E">the obligation is open</text>
+
+  <!-- price axis -->
+  <text x="110" y="268" font-size="11" text-anchor="middle" fill="#767B8E">90</text>
+  <text x="279" y="268" font-size="11" text-anchor="middle" fill="#14151C">95</text>
+  <text x="279" y="282" font-size="10.5" text-anchor="middle" fill="#767B8E">long put</text>
+  <text x="448" y="268" font-size="11" text-anchor="middle" fill="#14151C">100</text>
+  <text x="448" y="282" font-size="10.5" text-anchor="middle" fill="#767B8E">short put</text>
+  <text x="532" y="268" font-size="11" text-anchor="middle" fill="#14151C">102.5</text>
+  <text x="532" y="282" font-size="10.5" text-anchor="middle" fill="#767B8E">flat today</text>
+  <text x="617" y="268" font-size="11" text-anchor="middle" fill="#767B8E">105</text>
+  <text x="690" y="282" font-size="11" text-anchor="end" fill="#767B8E">Underlying price →</text>
+
+  <text x="24" y="306" font-size="11" fill="#767B8E">Hypothetical figures. Fees are not included.</text>
+  <text x="24" y="322" font-size="11" fill="#767B8E">Where the curve sits depends on the price it was sold at, the time left and the volatility priced in.</text>
+</svg>

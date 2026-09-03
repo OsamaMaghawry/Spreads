@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { toast } from "@/components/ui/use-toast";
-import { Trash2, ExternalLink } from "lucide-react";
+import { Trash2, ExternalLink, Eye } from "lucide-react";
 
 // Per-environment, so the staging admin links to the staging blog rather than
 // sending you to production. Set in .env.production / .env.staging.
@@ -123,9 +123,24 @@ export default function BlogPanel() {
           </div>
 
           <div className="sm:col-span-2">
-            <label className={label}>
-              Body <span className="text-dm-sub/70">Markdown: ## heading, **bold**, - list, [text](https://url)</span>
-            </label>
+            <div className="mb-1.5 flex items-end justify-between gap-3">
+              <label className={`${label} mb-0`}>
+                Body <span className="text-dm-sub/70">Markdown: ## heading, **bold**, - list, [text](https://url)</span>
+              </label>
+              {editing.slug && (
+                // Opens the saved draft, not the unsaved form: the preview page
+                // reads the row back through adminData, so save first and the
+                // tab shows exactly what is stored.
+                <a
+                  href={`/blog-preview/${editing.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-dm-line px-2.5 py-1 text-xs text-dm-sub transition-colors hover:text-dm-text"
+                >
+                  <Eye className="h-3.5 w-3.5" /> Preview saved draft
+                </a>
+              )}
+            </div>
             <textarea
               className={`${input} min-h-[320px] resize-y font-mono text-[13px]`}
               value={editing.body}
@@ -198,7 +213,7 @@ export default function BlogPanel() {
                 <div className="mt-0.5 truncate font-mono text-[11px] text-dm-sub">/blog/{p.slug}</div>
               </div>
 
-              {p.status === "published" && (
+              {p.status === "published" ? (
                 <a
                   href={`${SITE}/blog/${p.slug}`}
                   target="_blank"
@@ -207,6 +222,19 @@ export default function BlogPanel() {
                   className="text-dm-sub transition-colors hover:text-dm-accent"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              ) : (
+                // A draft has no URL to open -- the blog only serves published
+                // rows -- so the way to read one is to open it in the editor
+                // on its preview.
+                <a
+                  href={`/blog-preview/${p.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Preview draft"
+                  className="text-dm-sub transition-colors hover:text-dm-accent"
+                >
+                  <Eye className="h-3.5 w-3.5" />
                 </a>
               )}
               <button

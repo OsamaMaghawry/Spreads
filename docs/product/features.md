@@ -22,7 +22,7 @@ rows, and the watch on `main` threw on every account (fixed the same day,
 | --- | --- | --- | --- | --- |
 | S1 | Sweep a universe for credit setups, four tickers a batch, results streaming in ranked | `src/pages/Screener.jsx`, `screener/useMarketScan.js`, `scanEntries/index.ts`, `_shared/optionScan.ts` | main | FREE |
 | S2 | Universe: top 50 mega caps, ~500 S&P names, or a custom list. No ETFs or indices | `src/lib/sp500.js`, `screener/ScreenerConfig.jsx` | main | FREE |
-| S3 | Exactly three strategies — put spread, call spread, iron condor — whitelisted server-side | `scanEntries`, `findEntry`, `open/StrategyPicker.jsx` | main | FREE |
+| S3 | Five strategies — put spread, call spread, iron condor, cash-secured put, covered call — and a Wheel scan that runs the last two together; covered calls scan the shares the account holds at their cost basis | `scanEntries`, `findEntry`, `_shared/optionScan.ts` `buildSingle()`, `_shared/heldShares.ts`, `open/StrategyPicker.jsx` | staging | FREE |
 | S4 | Filters: DTE, short delta, wing width, min credit, max risk per unit, min return on risk, put/call ratio. No volume, OI, bid-ask or IV filter | `ScreenerConfig.jsx`, `ScanFilters.jsx` | main | FREE |
 | S5 | Exact wing width or skip — never a wider spread than asked | `optionScan.ts` `pickWing()` | main | FREE |
 | S6 | One ranking metric, return on risk, top 25; client re-sort by RoR / credit / max risk | `optionScan.ts`, `ResultsTable.jsx` | main | FREE |
@@ -40,7 +40,7 @@ rows, and the watch on `main` threw on every account (fixed the same day,
 
 | # | What the user gets | Where | Live | Call |
 | --- | --- | --- | --- | --- |
-| T1 | Trade a ranked row directly, or build a setup by hand | `ResultsTable.jsx`, `screener/TradeDialog.jsx`, `open/OpenPositionDialog.jsx` | main | PAID on live |
+| T1 | Trade a ranked row directly, or build a setup by hand — spreads, condors, and now a single short put or a covered call sent as a plain option order under the wheel prefix | `ResultsTable.jsx`, `screener/TradeDialog.jsx`, `open/OpenPositionDialog.jsx`, `openPosition/index.ts` | staging | PAID on live |
 | T2 | Server preflight on every open and every walk resubmit: adjusted contracts, no or untrusted price, spot drift, short leg through the strike | `openPosition/index.ts` `preflight()` | main | PAID on live |
 | T3 | Market or limit on open | `openPosition`, `open/OpenPricing.jsx` | main | PAID on live |
 | T4 | Price walking on the open: 34 % of the remaining gap toward the bid every 30 s, never past the floor, requoted each step, resubmits only the unfilled remainder | `src/lib/openWalk.js`, `open/useOpenOrder.js` | main | PAID on live |

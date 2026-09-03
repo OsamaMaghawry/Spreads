@@ -219,6 +219,7 @@ export default function UsersPanel({ users, currentUserId, onRefresh }) {
               <th className={th}>Accounts</th>
               <th className={th}>Trades</th>
               <th className={th}>Last trade</th>
+              <th className={th}>Plan</th>
               <th className={th}></th>
             </tr>
           </thead>
@@ -267,6 +268,28 @@ export default function UsersPanel({ users, currentUserId, onRefresh }) {
                 </td>
                 <td className={`${td} tabular-nums text-dm-text`}>{u.trades}</td>
                 <td className={`${td} tabular-nums text-dm-sub`}>{shortDate(u.lastTradeAt)}</td>
+                {/* What the Stripe webhook last recorded. "—" means no checkout
+                    was ever started; the switch in Settings decides whether that
+                    matters. */}
+                <td className={`${td} text-dm-sub`} title={u.planEndsAt ? `Period ends ${shortDate(u.planEndsAt)}` : undefined}>
+                  {u.planStatus ? (
+                    <span className={`rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                      ["active", "trialing"].includes(u.planStatus)
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : u.planStatus === "past_due"
+                          ? "border-amber-300 bg-amber-50 text-amber-700"
+                          : "border-dm-line bg-dm-bg text-dm-sub"
+                    }`}>
+                      {u.plan || "live"} · {u.planStatus.replace("_", " ")}
+                    </span>
+                  ) : u.grandfatheredUntil && new Date(u.grandfatheredUntil) > new Date() ? (
+                    <span className="rounded-full border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sky-700">
+                      free until {shortDate(u.grandfatheredUntil)}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td className={td}>
                   <div className="flex items-center justify-end gap-2">
                     <button

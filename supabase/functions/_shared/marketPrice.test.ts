@@ -146,3 +146,25 @@ test("loosening after the close did not loosen the live ladder", () => {
   const stale = snap({ trade: { t: at(MAX_PRICE_AGE_MS / 60000 + 1) } });
   assert.equal(spotFromSnapshot(stale, NOW).trusted, false);
 });
+
+// Yesterday's close travels with every reading so the screens can show today's
+// move. It rides along rather than being turned into a percentage here: the
+// dashboard overlays a streaming price and recomputes the move against it.
+test("the previous close is carried on every verdict, and only when it is real", () => {
+  const withPrev = { ...snap(), prevDailyBar: { c: 349.15, t: at(1440) } };
+  assert.equal(spotFromSnapshot(withPrev, NOW).prevClose, 349.15);
+
+  // Untrusted readings carry it too -- the price is doubted, not the close.
+  const stale = { ...snap({ trade: { t: at(120) }, quote: null }), prevDailyBar: { c: 349.15 } };
+  const r: any = spotFromSnapshot(stale, NOW);
+  assert.equal(r.trusted, false);
+  assert.equal(r.prevClose, 349.15);
+
+  // After the bell, judged as a close, it is still there.
+  assert.equal(closingSpotFromSnapshot(withPrev, NOW).prevClose, 349.15);
+
+  // Absent, zero or no snapshot at all reads as null, never as a price.
+  assert.equal(spotFromSnapshot(snap(), NOW).prevClose, null);
+  assert.equal(spotFromSnapshot({ ...snap(), prevDailyBar: { c: 0 } }, NOW).prevClose, null);
+  assert.equal(spotFromSnapshot(null, NOW).prevClose, null);
+});

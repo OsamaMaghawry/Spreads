@@ -1,9 +1,10 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { LayoutDashboard, KeyRound, LogOut, Radar, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, KeyRound, LogOut, Radar, ShieldCheck, CreditCard } from "lucide-react";
 import Wordmark from "@/components/brand/Wordmark";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
 import useIsAdmin from "@/lib/useIsAdmin";
+import useBillingVisible from "@/lib/useBillingVisible";
 
 export default function Layout() {
   const { pathname } = useLocation();
@@ -11,10 +12,14 @@ export default function Layout() {
   // Hides the link for everyone else. Not a security boundary — /admin
   // redirects and the edge function refuses a non-admin token either way.
   const { isAdmin } = useIsAdmin();
+  // Off until the broker approves live trading, so there is no entry to a
+  // payment page for something that cannot be delivered yet.
+  const { billingVisible } = useBillingVisible();
   const links = [
-    { to: "/", label: "dashboard", Icon: LayoutDashboard },
+    { to: "/", label: "positions", Icon: LayoutDashboard },
     { to: "/screener", label: "screener", Icon: Radar },
     { to: "/accounts", label: "accounts", Icon: KeyRound },
+    ...(billingVisible ? [{ to: "/billing", label: "billing", Icon: CreditCard }] : []),
     ...(isAdmin ? [{ to: "/admin", label: "admin", Icon: ShieldCheck }] : [])
   ];
   const linkCls = (active) =>

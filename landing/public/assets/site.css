@@ -438,6 +438,17 @@ p { margin: 0; }
 .compare tr:last-child td { border-bottom: none; }
 .fine-print { margin-top: 1.75rem; font-size: 0.85rem; line-height: 1.6; color: var(--ink-mute); }
 
+/* Two tiers, not three: the grid is capped at two columns and the cards keep
+ * a readable width instead of stretching across the page. */
+.tiers.tiers-2 { max-width: 52rem; }
+@media (min-width: 62rem) { .tiers.tiers-2 { grid-template-columns: repeat(2, 1fr); } }
+.tier-alt { margin-top: 0.7rem; font-size: 0.85rem; text-align: center; }
+.tier-alt a { color: var(--ink-soft); }
+.tier-alt a:hover { color: var(--brand); }
+.soon { margin-top: 1rem; max-width: 52rem; padding: 1.25rem 1.5rem; box-shadow: none; }
+.soon h3 { margin-top: 0.35rem; }
+.soon p { font-size: 0.92rem; color: var(--ink-soft); }
+
 /* ---------- legal documents ---------- */
 
 .doc { max-width: 44rem; margin: 0 auto; padding: 2.5rem 0 4rem; }

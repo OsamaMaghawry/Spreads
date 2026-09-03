@@ -347,3 +347,7 @@ There are two environments, each with its own Supabase project and its own pair 
 Config note: `wrangler.staging.jsonc` (app) and `landing/wrangler.staging.jsonc` (landing site) are separate files from their production `wrangler.jsonc` counterparts specifically so staging deploys under different Worker names (`spreads-staging`, `deltamint-landing-staging`) and never collide with production. `.env.staging` points frontend builds at the staging Supabase project; keep it out of sync with `.env.production` only where the environment genuinely differs (it should not share `CREDENTIAL_ENCRYPTION_KEY` with production, for instance).
 
 A nightly GitHub Actions job (`nightly-backup.yml`) `pg_dump`s the **production** database and keeps 30 days of it as workflow artifacts — the only backup that exists, since the Supabase project is on the free plan (no PITR).
+
+## Operations
+
+- `docs/ops/queue.md` is the ticket queue and `docs/ops/shipped.md` the ledger of what reached `main`. A finding on the money path is fixed on `staging` within a working hour or escalated the same run, never only reported. The hourly `duty-engineer` drains the queue; see `docs/ops/README.md`.

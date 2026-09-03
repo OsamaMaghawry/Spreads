@@ -147,6 +147,28 @@ ${head}
   .doc figure img { width: 100%; height: auto; display: block; border: 1px solid var(--line);
                     border-radius: 12px; background: #FFFFFF; }
   .doc figcaption { margin-top: 8px; font-size: 12px; color: var(--ink-mute); line-height: 1.5; }
+  .doc .lede { font-size: 16px; color: var(--ink-soft); margin: 4px 0 28px; }
+  .doc .crumbs { font-size: 12px; color: var(--ink-mute); margin-bottom: 14px; }
+  .doc .crumbs a { color: var(--ink-mute); text-decoration: none; }
+  .doc .cat { padding: 22px 0; border-top: 1px solid var(--line-soft); }
+  .doc .cat h2 { margin: 0 0 4px; }
+  .doc .cat h2 a { color: var(--ink); text-decoration: none; }
+  .doc .cat-intro { font-size: 14px; color: var(--ink-mute); margin-bottom: 10px; }
+  .doc .cat ul { list-style: none; padding: 0; margin: 0; }
+  .doc .cat li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line-soft); }
+  .doc .cat li .when { font-size: 12px; color: var(--ink-mute); white-space: nowrap; }
+  .doc .more { font-size: 13px; margin-top: 8px; }
+  .doc ol.series { padding-left: 22px; }
+  .doc ol.series li { margin: 12px 0; }
+  .doc ol.series li p { margin: 2px 0 0; font-size: 13px; color: var(--ink-mute); line-height: 1.5; }
+  .doc .readnext { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 36px 0 0; }
+  .doc .readnext a { display: block; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; text-decoration: none; color: var(--ink); font-size: 14px; }
+  .doc .readnext a span { display: block; font-size: 11px; color: var(--ink-mute); margin-bottom: 3px; }
+  .doc .readnext a.next { text-align: right; }
+  .doc .related { margin-top: 32px; }
+  .doc .related h2 { font-size: 15px; margin-bottom: 6px; }
+  .doc .related ul { padding-left: 18px; }
+  .doc .startfree { margin-top: 28px; }
   .doc .tablewrap { overflow-x: auto; margin: 20px 0; }
   .doc table { border-collapse: collapse; width: 100%; font-size: 13px; }
   .doc th { text-align: left; font-weight: 500; color: var(--ink-mute); font-size: 12px;

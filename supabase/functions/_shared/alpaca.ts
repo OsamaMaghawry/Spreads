@@ -144,5 +144,8 @@ export async function getLegsQuote(account, legs) {
       bidDebit += r * (q.bp || 0);
     }
   });
-  return { askDebit, bidDebit, midDebit: (askDebit + bidDebit) / 2 };
+  // Per-leg bid and ask ride along so a ticket can show each contract moving,
+  // not only the net. Same quotes, no extra call.
+  const perLeg = legs.map((l) => ({ symbol: l.symbol, bid: quotes[l.symbol].bp ?? null, ask: quotes[l.symbol].ap ?? null }));
+  return { askDebit, bidDebit, midDebit: (askDebit + bidDebit) / 2, legs: perLeg };
 }

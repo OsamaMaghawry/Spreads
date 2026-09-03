@@ -14,6 +14,10 @@ disagree, this file wins and the brief gets fixed.
               (release gate on anything touching money; keeps its
                five rules and its veto; assembles the board pack)
                                   │
+                          duty-engineer
+              (hourly; fixes plain bugs on staging, opens PRs,
+               never merges; escalates what changes meaning)
+                                  │
    ┌───────────────┬──────────────┴───────────┬────────────────────┐
    │               │                          │                    │
 head-of-        vp-product              vp-growth             desk-editor
@@ -27,7 +31,7 @@ tax-accountant head-of-branding         seo-editor
      by whichever head owns the question being asked.
 ```
 
-Sixteen agents and one human. The human is the only one who approves anything
+Seventeen agents and one human. The human is the only one who approves anything
 that reaches production, spends money, sets a price, or faces the public.
 
 ## Boundaries — the one question each agent owns
@@ -85,24 +89,42 @@ Any head may propose hiring an agent. A proposal states: what it would do that
 no existing agent can, its cost per run, and what is retired to pay for it.
 The owner approves. Standing agenda item at the Friday board.
 
-## The weekly rhythm
+## The rhythm — run the company daily, decide weekly
 
-Times are America/Los_Angeles.
+Times are UTC.
 
-| Day 07:00 | Who | Produces |
+**Daily — operations.**
+
+| When | Who | Does |
 | --- | --- | --- |
-| Mon | vp-growth | The week's play + directives; the reply queue |
-| Tue | vp-product | Ranked backlog (≤5), kills, pricing when it moves |
-| Wed (biweekly) | head-of-branding | Consistency audit |
-| Thu | head-of-trading | Standing audit of the market-facing path |
-| **Fri 08:00** | **agent-manager** | **The board pack — one document** |
+| 13:00–20:00, hourly, weekdays | duty-engineer | Reads commits, the ops health endpoint, the live site and the ticket queue; fixes plain bugs on `staging` with tests and opens a PR to `main`; escalates what changes a number's meaning. Ledger in `docs/ops/`. |
+| 11:00, every day | content-engine → seo-editor → desk-editor → compliance-gate | One article from the syllabus in `content/PLAN.md`, reviewed in the same session, committed; merged and published automatically when the diff is content-only. |
+| 20:30, weekdays | vp-product (end of day) | Reads `docs/ops/shipped.md` and the day's commits; reconciles the backlog and the positioning against what shipped. No email unless positioning changed. |
+| 06:00, every day | CI | Metrics snapshot: Search Console, GA4 and the product funnel into `docs/growth/metrics/` and the KPI panel. |
 
-The board pack is the only thing the owner must read: each head's headline, the
-decisions needed from him, hiring proposals, and what changed since last week.
+**Weekly — strategy.**
+
+| Day | Who | Produces |
+| --- | --- | --- |
+| Mon 13:00 | reality check | Claims vs reality; findings to the queue |
+| Mon 14:00 | vp-growth | The week's play, against `docs/growth/plan-100.md` |
+| Tue 14:00 | vp-product | Ranked backlog (≤5), kills, pricing when it moves — after reconciling against what shipped |
+| Wed 14:00 (biweekly) | head-of-branding | Consistency audit |
+| Wed 15:00 | seo-editor | Keyword map, competitor coverage, title/meta fixes as tickets, the growth report |
+| Thu 14:00 | head-of-trading | Standing audit of the market-facing path; findings to the queue |
+| **Fri 15:00** | **agent-manager** | **The board pack — one document, with metrics against target and the decisions needed** |
+
+The board pack is the strategy meeting: each head's headline, what shipped,
+the numbers against `plan-100.md`, and the decisions needed from the owner.
 Everything else lives in the repo for reference.
 
-Cost discipline: five scheduled runs a week. A head whose output stops being
-worth reading gets its cadence cut, not defended.
+**The rule that makes the daily loop real:** a finding on the money path is
+fixed on `staging` within a working hour of being seen, or escalated the
+same run. It is never only reported. Findings from any audit go to
+`docs/ops/queue.md` as tickets, not only into a report.
+
+Cost discipline: about sixty scheduled runs a week. A cadence whose output
+stops being worth reading gets cut, not defended.
 
 ## Research doctrine
 

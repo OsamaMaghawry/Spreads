@@ -20,11 +20,12 @@ import { readSettings, writeSetting, WRITABLE_SETTINGS } from "../_shared/settin
 // so it would need its own grants to stay safe. Not worth the extra surface at
 // this size; revisit if the user count reaches the thousands.
 async function loadUsers(admin: any) {
-  const [authUserList, accounts, trades, profiles] = await Promise.all([
+  const [authUserList, accounts, trades, profiles, subscriptions] = await Promise.all([
     listAllUsers(admin),
     selectAll(admin, "trading_accounts", "id, user_id, is_paper, created_at"),
     selectAll(admin, "trade_records", "user_id, account_id, open_date, close_date, realized_pl, created_at"),
-    selectAll(admin, "profiles", "id, role, last_active_at")
+    selectAll(admin, "profiles", "id, role, last_active_at, signup_source"),
+    selectAll(admin, "subscriptions", "user_id, plan, status, current_period_end, grandfathered_until")
   ]);
   const authUsers = { users: authUserList };
 
@@ -59,8 +60,24 @@ async function loadUsers(admin: any) {
       // trading at all. This counts the thing the label claims.
       liveTrades: 0,
       lastTradeAt: null as string | null,
-      realizedPL: 0
+      realizedPL: 0,
+      // From the subscriptions row the Stripe webhook keeps; null until the
+      // user has ever started a checkout.
+      signupSource: null as string | null,
+      plan: null as string | null,
+      planStatus: null as string | null,
+      planEndsAt: null as string | null,
+      grandfatheredUntil: null as string | null
     });
+  }
+
+  for (const sub of subscriptions || []) {
+    const u = byUser.get(sub.user_id);
+    if (!u) continue;
+    u.plan = sub.plan || null;
+    u.planStatus = sub.status || null;
+    u.planEndsAt = sub.current_period_end || null;
+    u.grandfatheredUntil = sub.grandfathered_until || null;
   }
 
   for (const p of profiles || []) {
@@ -70,6 +87,7 @@ async function loadUsers(admin: any) {
     // enforced, so it is what gets displayed.
     if (!u.isOwner) u.role = p.role;
     u.lastActiveAt = p.last_active_at || null;
+    u.signupSource = p.signup_source || null;
   }
 
   const liveAccountIds = new Set(
@@ -111,6 +129,11 @@ function engagement(users: any[]) {
   // as the final funnel stage is what made the numbers impossible.
   const live = users.filter((u) => u.liveTrades > 0).length;
   const liveConnected = users.filter((u) => u.liveAccounts > 0).length;
+  // Paying = an active Live subscription, the definition in
+  // docs/product/pricing.md. Trials and grandfathered users are not paying.
+  const paying = users.filter((u) => u.planStatus === "active").length;
+  const bySource: Record<string, number> = {};
+  for (const u of users) bySource[u.signupSource || "unknown"] = (bySource[u.signupSource || "unknown"] || 0) + 1;
 
   const day = 86400000;
   const now = Date.now();
@@ -135,7 +158,8 @@ function engagement(users: any[]) {
   }
 
   return {
-    funnel: { signedUp, connected, traded, live, liveConnected },
+    funnel: { signedUp, connected, traded, live, liveConnected, paying },
+    bySource,
     active: { day: activeWithin(1), week: activeWithin(7), month: activeWithin(30) },
     totals: {
       trades: users.reduce((n, u) => n + u.trades, 0),
@@ -193,7 +217,10 @@ Deno.serve(async (req) => {
 
       case "overview": {
         const users = await loadUsers(admin);
-        return jsonResponse({ users, engagement: engagement(users) });
+        // The latest daily snapshot (Search Console, GA4) written by CI, when
+        // the owner has connected those sources. Null until then.
+        const { data: metrics } = await admin.from("growth_metrics").select("day, search, analytics").order("day", { ascending: false }).limit(1).maybeSingle();
+        return jsonResponse({ users, engagement: engagement(users), metrics: metrics || null });
       }
 
       case "userDetail": {

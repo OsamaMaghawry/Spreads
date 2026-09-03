@@ -35,9 +35,13 @@ is undifferentiated; a post that teaches the stance or the after-the-fill
 problem is not. Also read `growth/playbook.md` — each post should answer a
 question people actually ask in the scouted subreddits.
 
-Write for someone who already trades spreads and is running more of them than
-they can hold in their head. Not for a beginner, and not for someone being sold
-to.
+Write for a trader, from the first post in the syllabus to the last: the
+foundations posts are for someone who has not traded an option yet, the
+managing and measuring posts for someone running more positions than they
+can hold in their head. The register is the same for both — trader to trader,
+plain, specific — and nobody is being sold to. The syllabus in
+`content/PLAN.md` says which post is next; `docs/seo/keywords.md` says which
+query it targets and what it must answer that the pages ranking today do not.
 
 ## Voice
 
@@ -77,10 +81,57 @@ slug: ...
 excerpt: one sentence, plain
 meta_description: under 160 characters, written for a search result
 author: DeltaMint
+category: one of foundations | income | hedging | investing | managing | measuring
+series_order: the post's number in content/PLAN.md
+tags: comma-separated, lowercase, at most five
 ---
-
-Body in Markdown. 700–1200 words. Subheadings that say something.
 ```
+
+## The shape of a DeltaMint post
+
+This is the house standard, and it is enforced: `npm run content:check`
+fails a post that does not meet it. The two posts already published are the
+reference — read them before writing, not as inspiration but as the spec:
+
+- `content/blog/return-on-risk-vs-return-on-capital.md` — 1,279 words, five
+  sections, one diagram, one table
+- `content/blog/options-journal-splits-spreads-into-legs.md` — 1,207 words,
+  five sections, two diagrams
+
+Every post carries:
+
+1. **1,200–1,600 words**, and never under 1,000 of prose — the check counts
+   prose only, so subheadings and table cells cannot pad a thin post. The two
+   reference posts are 1,038 and 1,088 and that is the floor, not the target.
+   A reader who searched for this question wants it answered completely
+   enough that they do not need a second page.
+2. **Four to six `##` sections**, each one a claim, not a label. "Width sets
+   the risk" is a section; "Overview" is not.
+3. **At least one original diagram**, authored by you as an SVG at
+   `landing/public/assets/blog/<name>.svg` and referenced in the body as
+   `![full sentence caption](/assets/blog/<name>.svg)` alone on its own line
+   — that is the only image form the renderer accepts. The caption is a
+   sentence that stands on its own, because a reader who skims reads only
+   captions. Match the existing files: `viewBox="0 0 720 N"`, IBM Plex Sans,
+   white ground, `#14151C` text, `#767B8E` labels, `#2E8B5F` for credit or
+   gain, `#B4485C` for risk or loss, and a `role="img"` with an `aria-label`
+   that describes what the picture shows. Draw the mechanism, never
+   decoration: the shape of a payoff, two cases side by side, what a feed
+   does to a position. A picture that only repeats a sentence is not worth
+   the file.
+4. **At least one more visual element** — a second diagram, or a pipe table
+   comparing the cases the post turns on. Tables render; use them where the
+   point is a comparison.
+5. **One worked example with numbers**, plainly hypothetical, about
+   mechanics and never about outcome or return.
+6. **Internal links**: to the post's category hub (`/blog/<category>`) and
+   to at least one earlier post it builds on.
+7. **The closing line** stating it is not investment advice.
+
+The renderer (`landing/src/render.js`) supports headings, paragraphs, pipe
+tables, bullet and numbered lists, blockquotes, four-space code blocks,
+`code`, **bold**, *italics*, root-relative links and the figure form above.
+Anything else you write will render as literal text, so do not use it.
 
 End every post with a plain line stating it is not investment advice.
 

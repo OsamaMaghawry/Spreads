@@ -2,6 +2,7 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { loadAccount } from "../_shared/alpaca.ts";
 import { findSetup } from "../_shared/optionScan.ts";
+import { heldShares } from "../_shared/heldShares.ts";
 
 // Scans the live chain and returns the delta-targeted setup for one strategy.
 Deno.serve(async (req) => {
@@ -15,13 +16,18 @@ Deno.serve(async (req) => {
     if (!accountId || !ticker || !strategy) {
       return jsonResponse({ error: "accountId, ticker and strategy are required" }, 400);
     }
-    if (!["put_spread", "call_spread", "iron_condor"].includes(strategy)) {
+    if (!["put_spread", "call_spread", "iron_condor", "cash_secured_put", "covered_call"].includes(strategy)) {
       return jsonResponse({ error: "Unsupported strategy" }, 400);
     }
 
     const admin = adminClient();
     const account = await loadAccount(admin, accountId, user.id);
-    const result = await findSetup(account, { ...body, ticker: ticker.trim().toUpperCase() });
+    let params = { ...body, ticker: ticker.trim().toUpperCase() };
+    if (strategy === "covered_call") {
+      const held = await heldShares(admin, account);
+      params = { ...params, sharesByTicker: held.shares, basisByTicker: held.basis };
+    }
+    const result = await findSetup(account, params);
     return jsonResponse(result);
   } catch (error) {
     return jsonResponse({ error: error.message }, 500);

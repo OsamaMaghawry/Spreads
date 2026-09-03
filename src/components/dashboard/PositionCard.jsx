@@ -4,11 +4,15 @@ import { fmtMoney } from "@/lib/format";
 import StrikeLadder from "./StrikeLadder";
 import CardLegs from "./CardLegs";
 import { isSingle, kindOf, riskText, riskLabel, isStockRisk, basisNote, stressLabel, stressText, stressNote } from "@/lib/positionKind";
+import { dayChange, dayChangeLabel } from "@/lib/dayChange";
 
 const badge = "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border";
 
 export default function PositionCard({ spread: s, accountId, onClose }) {
   const [open, setOpen] = useState(false);
+  // The UNDERLYING's move today -- not this position's return, which is the
+  // unrealized P/L on the other side of the header. Labelled for that reason.
+  const change = dayChange(s.stockPrice, s.prevClose);
 
   const breakEven = {
     label: "Break-Even",
@@ -54,6 +58,14 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
       <div className="flex items-start justify-between gap-4 px-6 pt-5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xl font-bold tracking-tight text-slate-900">{s.ticker}</span>
+          {change && (
+            <span
+              title={`${s.ticker} today, against yesterday's close of ${fmtMoney(s.prevClose)}`}
+              className={`text-xs font-semibold tabular-nums ${change.up ? "text-emerald-600" : "text-rose-600"}`}
+            >
+              {dayChangeLabel(change)} <span className="font-normal text-slate-400">today</span>
+            </span>
+          )}
           {s.type === "iron_condor" && <span className={`${badge} border-indigo-200 bg-indigo-100 text-indigo-700`}>IC</span>}
           {s.type === "call_spread" && <span className={`${badge} border-sky-200 bg-sky-100 text-sky-700`}>Call</span>}
           {s.type === "put_spread" && <span className={`${badge} border-violet-200 bg-violet-100 text-violet-700`}>Put</span>}

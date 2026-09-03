@@ -49,6 +49,8 @@ nothing contingent on trading activity.
 - AccountHistory
 - Accounts
 - Admin
+- Billing
+- BlogPreview
 - Dashboard
 - ForgotPassword
 - Login
@@ -56,6 +58,49 @@ nothing contingent on trading activity.
 - Register
 - ResetPassword
 - Screener
+
+## Position kinds
+
+Anything the pairing cannot explain as a vertical spread is still shown, as
+one of these (`supabase/functions/_shared/positionKinds.ts`). A naked call's
+maximum loss is withheld, not zeroed, and every total carrying one says it is
+incomplete.
+
+- cash_secured_put
+- covered_call
+- naked_call
+- naked_put
+- long_option
+- shares
+
+## Components, by area
+
+- **accounts** — AccountForm
+- **admin** — AdminMaintenance, BlogPanel, EngagementPanel, PostPreview, SettingsPanel, SignupsChart, StatTile, UsersPanel
+- **analysis** — BreakdownTable, CaptureBreakdown, DateRangeFilter, EquityCurveChart, ExportPdfButton, StatCards, StrategyComparison
+- **billing** — UpgradePrompt
+- **brand** — DeltaMintMark, Wordmark
+- **close** — CloseDialog, LegPicker, LegsQuoteSummary, OpenOrdersPanel, OrderLog, useCloseOrder
+- **common** — ConfirmSubmit, EarningsWarning, NumberField, PreTradeRisk, PriceControl, RiskMeter, ScanPresets
+- **dashboard** — AccountSection, AccountSummaryCard, CardLegs, LegRows, MasterSummary, OrderGroup, PositionCard, PositionCards, SpreadStructure, SpreadTable, StrikeLadder, useLegQuotes
+- **history** — RebuildPreview, StockLotsTable, StrategyTabs, TradeHistoryTable
+- **open** — CandidateList, OpenPositionDialog, OpenPricing, RestingOrder, ScanFilters, SetupPreview, StrategyPicker, useLiveSetup, useOpenOrder, useScanLoop
+- **screener** — ResultsTable, ScreenerConfig, TradeDialog, useMarketScan
+
+## Recently shipped
+
+From `docs/ops/shipped.md`, newest first.
+
+- 2026-09-02 · (staging) A close order you priced yourself no longer traps the ticket: the X leaves it working, and the panel never offers to place a second one; its price can be changed from the ticket or the Orders tab, where the underlying, the market now and your limit sit above the box; quantity has −/+ buttons that work on a phone; cards, rows and orders show the underlying's move today.
+- 2026-09-02 · (staging) A scan row shows the delta of the contract it found, not the delta the scan asked for — the same number the ticket and the Screener table show; and a short leg outside the delta band you set is refused, saying what the nearest strike was.
+- 2026-09-02 · (staging) A cash-secured put or covered call opens from the ticket (the last gate wanted two legs); a refused order returns you to the ticket with the setup kept; a resting order can be repriced from the ticket or the Orders tab and left working when you close the dialog; the close ticket scrolls on a phone; Simple/Detailed shows on a phone; the open ticket streams the spot, large, and requotes the legs every second.
+- 2026-09-02 · (staging) The nav says "positions", matching the name the page itself uses, not "dashboard" — the word `brand.md` forbids (`2514c1b`).
+- 2026-09-02 · The watch no longer flags the short leg of a call credit spread or iron condor as naked; only what a long or shares do not cover counts, and it says how many contracts are still uncovered (`616c203` on staging, cherry-picked to `main` as `c680972` via `hotfix/watch-long-calls`, PR #3).
+- 2026-09-02 · (staging) The blog groups posts into six categories with hub pages, breadcrumbs, related and read-next posts, and an RSS feed; a new article publishes automatically each day from a fixed topic list (`de4f8d6`).
+- 2026-09-02 · (staging) Admin → Engagement is now a KPI panel: traffic, paying users against the 100-user target, and where each week's signups came from; sign-ups record where they arrived from (`de4f8d6`).
+- 2026-09-02 · (staging) The pricing page no longer claims Paper lacks cash-secured puts, covered calls, adjusted basis, streaming or the Orders tab — both accounts get every feature; only opening a position on a live account needs a paid plan (`e982774`).
+- 2026-09-02 · (staging) The scanner finds cash-secured puts on any universe and covered calls on the shares an account holds, priced at the adjusted basis; a Wheel scan runs both; single-leg orders go to the broker as plain option orders under the wheel prefix.
+- 2026-09-02 · (staging) Billing: Stripe checkout, a billing screen, a plan on every live account, and a switch in Admin that gates opening live positions — off until flipped.
 
 ## Server functions
 
@@ -65,20 +110,25 @@ so a change to shared code requires redeploying all of them.
 - **accountEquity** — Returns one account's equity and options buying power, for sizing a new order.
 - **adminData** — Back-office reads and writes: users and their activity, engagement figures, blog posts, and the internal customer record.
 - **alpacaOAuthCallback** — One token, two endpoints.
+- **billingPortal** — Opens Stripe's customer portal so a subscriber can change card, switch interval or cancel.
 - **closeSpread** — Submits the closing order for a position: the whole structure by default, or just the legs the caller picked when only one side needs unwinding.
+- **createCheckoutSession** — Starts a Stripe Checkout for the Live plan and returns the page to send the user to.
 - **dumpBrokerFeed** — Captures a broker activity feed so a refused sync can be diagnosed off-box.
 - **findEntry** — Scans the live chain and returns the delta-targeted setup for one strategy.
-- **manageOrder** — Reads the status of a working order, or cancels it.
+- **manageOrder** — Reads the status of a working order, cancels it, or replaces its price or size.
 - **marketStream** — Live underlying prices, relayed from Alpaca's stream.
 - **migrateCredentials** — Encrypts credentials that are still stored in plaintext, across every user's accounts, without involving those users.
 - **oauthDiag** — Answers one question: does Alpaca recognise this app's OAuth credentials? The authorize page cannot answer it.
 - **openPosition** — How far the stock may have moved since the setup was built before the order is refused.
+- **opsHealth** — Read-only health for the duty engineer: last-24h order errors, alerts, connection issues and the watch's last runs, as counts and messages, never user data.
 - **positionWatch** — The money-safety watch.
+- **publicConfig** — The operator switches a signed-in customer's browser legitimately needs.
 - **refreshEarnings** — Refreshes the cached earnings calendar for the next 90 days from the provider.
 - **saveAccount** — Creating and editing a trading account.
 - **scanEntries** — (no summary comment)
 - **sendDigest** — The one way an agent reaches the owner.
 - **spreadQuote** — Prices a position for closing: what the legs are worth right now, plus the highest limit already tried on them so a retry resumes rather than restarts.
+- **stripeWebhook** — Receives Stripe's signed subscription events and keeps one row per user current.
 - **syncAccounts** — Rebuilds the live picture for every account the caller owns: positions paired into structures, credit and risk per position, and totals that net a ticker's condors instead of double counting both wings.
 - **tradeHistory** — Closed trade history, rebuilt from the broker's activity feed.
 
@@ -91,11 +141,11 @@ revoked from the browser role entirely.
 
 - **trading_accounts** — id, user_id, name, api_key, api_secret, is_paper, spreads_client_prefix, wheel_client_prefix, created_at, oauth_access_token, api_key_hint, is_oauth, broker_account_number, trades_synced_at, trades_sync_error, broker_account_id
 - **trade_records** — id, user_id, account_id, strategy, trade_key, ticker, expiry, short_symbol, long_symbol, short_strike, long_strike, qty, open_date, close_date, short_entry, long_entry, net_credit, short_exit, long_exit, close_debit, realized_pl, close_reason, created_at, chain_id, unpaired, premium_pl, early_close_pl, stock_pl, acquired_chain_id, provisional
-- **profiles** — id, role, created_at, last_active_at
+- **profiles** — id, role, created_at, last_active_at, signup_source
 - **earnings_calendar** — symbol, report_date, session, fetched_at
 - **scan_presets** — id, user_id, scope, name, strategy, config, created_at, updated_at
 - **scan_last_used** — user_id, scope, strategy, config, updated_at
-- **blog_posts** — id, slug, title, excerpt, body, author, meta_description, og_image, status, published_at, created_at, updated_at
+- **blog_posts** — id, slug, title, excerpt, body, author, meta_description, og_image, status, published_at, created_at, updated_at, category
 - **user_notes** — id, user_id, author_id, body, created_at
 - **user_crm** — user_id, status, tags, updated_at
 - **stock_lots** — id, user_id, account_id, lot_key, chain_id, ticker, qty, acquired_date, acquired_price, acquired_source, disposed_date, disposed_price, disposed_source, realized_pl, created_at, backed_up_at, disposed_chain_id
@@ -107,6 +157,8 @@ revoked from the browser role entirely.
 - **order_attempts** — id, user_id, account_id, run_key, intent, step, ticker, legs, qty, order_type, limit_price, quote, broker_order_id, status, filled_qty, filled_avg_price, error, created_at, updated_at
 - **digest_sends** — id, subject, created_at
 - **broker_feed_dumps** — id, account_id, activities, activity_count, created_at
+- **subscriptions** — user_id, stripe_customer_id, stripe_subscription_id, plan, status, current_period_end, cancel_at_period_end, grandfathered_until, created_at, updated_at
+- **growth_metrics** — day, search, analytics, funnel, created_at
 
 ## Analytics vocabulary
 

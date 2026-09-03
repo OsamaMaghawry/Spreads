@@ -19,8 +19,10 @@ import AccountDetail from './pages/AccountDetail';
 import AccountHistory from './pages/AccountHistory';
 import AccountAnalysis from './pages/AccountAnalysis';
 import Screener from './pages/Screener';
+import BlogPreview from './pages/BlogPreview';
 import Admin from './pages/Admin';
 import OAuthCallback from './pages/OAuthCallback';
+import Billing from './pages/Billing';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth } = useAuth();
@@ -41,9 +43,13 @@ const AuthenticatedApp = () => {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
+        {/* Outside Layout on purpose: a preview has to read like the blog page
+            it will become, not like a dashboard screen. */}
+        <Route path="/blog-preview/:slug" element={<BlogPreview />} />
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/accounts" element={<Accounts />} />
+          <Route path="/billing" element={<Billing />} />
           <Route path="/oauth/callback" element={<OAuthCallback />} />
           <Route path="/screener" element={<Screener />} />
           {/* Admin.jsx redirects a non-admin away, and every request it makes

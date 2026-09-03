@@ -37,6 +37,17 @@ const BROKER_ALLOWED = [/landing\/public\/privacy\//, /landing\/public\/terms\//
 // Each rule is a construction that changes what the product legally is. The
 // note says why, because a failure with no reason gets suppressed rather than
 // fixed.
+// The shape of a post. Numbers taken from the two posts we are happy with:
+// 1,038 and 1,088 words of PROSE (headings, captions and table cells do not
+// count -- they are structure, and counting them lets a thin post pad itself
+// with subheadings), five sections each, three diagrams and a table between
+// them. The floor sits just under the pair so they define it rather than
+// fail it; the target in the brief is higher.
+const MIN_WORDS = 1000;
+const MIN_SECTIONS = 4;
+const MIN_VISUALS = 2;
+const FRONT_MATTER = ["title", "slug", "excerpt", "meta_description", "author", "category", "series_order", "tags"];
+
 const RULES = [
   {
     id: "advice",
@@ -192,11 +203,54 @@ function isIllustrative(text, index) {
   return ILLUSTRATIVE.test(text.slice(Math.max(0, index - 400), index + 200));
 }
 
+// A diagram carries the same exposure as a sentence.
+//
+// compliance-gate had to open the three SVGs by hand to clear a post, because
+// this file only ever read the markdown: a performance claim or a broker's
+// name inside a <text> label would have shipped unread. The captions and
+// labels a reader actually sees are prose, so they go through the same rules
+// as prose, and a failure is reported against the post that embeds them.
+function svgProse(file) {
+  const out = [];
+  const raw = readFileSync(file, "utf8");
+  for (const [, src] of raw.matchAll(/!\[[^\]]*\]\((\/assets\/[\w/.-]+\.svg)\)/g)) {
+    const asset = path.join(root, "landing/public", src);
+    if (!existsSync(asset)) continue;
+    const svg = readFileSync(asset, "utf8");
+    const words = [
+      ...[...svg.matchAll(/<text[^>]*>([\s\S]*?)<\/text>/g)].map((m) => m[1]),
+      ...[...svg.matchAll(/aria-label="([^"]*)"/g)].map((m) => m[1])
+    ];
+    out.push({ src, text: words.join(" ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ") });
+  }
+  return out;
+}
+
 function checkFile(file) {
   const rel = path.relative(root, file);
   const raw = readFileSync(file, "utf8");
   const text = prose(raw, file);
   let clean = true;
+
+  if (rel.startsWith("content/blog") && rel.endsWith(".md")) {
+    for (const { src, text: label } of svgProse(file)) {
+      for (const rule of RULES) {
+        for (const pattern of rule.patterns) {
+          const hit = label.match(pattern);
+          if (!hit || isNegated(label, hit.index)) continue;
+          if (rule.id === "performance" && isIllustrative(label, hit.index)) continue;
+          clean = false;
+          fail(`${rel} · ${rule.id}`, `"${hit[0].trim()}" in ${src} — ${rule.why}`);
+        }
+      }
+      for (const pattern of BROKER_NAMES) {
+        const hit = label.match(pattern);
+        if (!hit || inIntegrationContext(label, hit.index)) continue;
+        clean = false;
+        fail(`${rel} · broker-name`, `"${hit[0]}" in ${src} — a label in a diagram is read like any other line`);
+      }
+    }
+  }
 
   for (const rule of RULES) {
     for (const pattern of rule.patterns) {
@@ -238,6 +292,77 @@ function checkFile(file) {
   if (rel.startsWith("content/blog") && !/not\s+(investment\s+)?advice/i.test(text)) {
     clean = false;
     fail(`${rel} · disclaimer`, "no 'not investment advice' line; every published post carries one");
+  }
+
+  // The shape of a post, enforced.
+  //
+  // The brief used to say "700-1200 words, subheadings that say something"
+  // and nothing else, so a 150-word note with two headings and no picture
+  // passed every gate and reached the blog. The two posts we are happy with
+  // are 1,207 and 1,279 words with three diagrams and a table between them;
+  // that is the standard, and a standard nobody can fail is not one.
+  if (rel.startsWith("content/blog") && rel.endsWith(".md")) {
+    const body = raw.replace(/^---\n[\s\S]*?\n---\n/, "");
+    const structural = /^\s*(#|!\[|\||[-*>]\s|\d+\.\s|    )/;
+    const words = body
+      .split("\n")
+      .filter((l) => !structural.test(l))
+      .join(" ")
+      .split(/\s+/)
+      .filter(Boolean).length;
+    if (words < MIN_WORDS) {
+      clean = false;
+      fail(`${rel} · length`, `${words} words of prose; a post is at least ${MIN_WORDS} — below that it reads as a note`);
+    }
+
+    const sections = body.split("\n").filter((l) => /^##\s+\S/.test(l)).length;
+    if (sections < MIN_SECTIONS) {
+      clean = false;
+      fail(`${rel} · sections`, `${sections} '##' sections; a post has at least ${MIN_SECTIONS}, each one a claim rather than a label`);
+    }
+
+    // Only the figure form the renderer actually turns into an <img>, and
+    // only if the file is really there -- a caption pointing at a missing
+    // asset renders as a broken image on the live blog.
+    const figures = [...body.matchAll(/^!\[([^\]]*)\]\((\/assets\/[\w/.-]+)\)$/gm)];
+    for (const [, caption, src] of figures) {
+      if (!existsSync(path.join(root, "landing/public", src))) {
+        clean = false;
+        fail(`${rel} · figure`, `${src} is referenced but not in landing/public${src.replace(/[^/]+$/, "")} — it would render as a broken image`);
+      }
+      if (caption.trim().split(/\s+/).length < 6) {
+        clean = false;
+        fail(`${rel} · figure`, `"${caption}" — a caption is a sentence that stands on its own; a skimming reader reads only captions`);
+      }
+    }
+    if (figures.length < 1) {
+      clean = false;
+      fail(`${rel} · figure`, "no diagram; every post carries at least one original SVG in landing/public/assets/blog/");
+    }
+
+    const tables = body.split("\n\n").filter((b) => {
+      const lines = b.trim().split("\n");
+      return lines.length >= 2 && lines.every((l) => /^\s*\|.*\|\s*$/.test(l)) && /^\s*\|[\s:|-]+\|\s*$/.test(lines[1]);
+    }).length;
+    if (figures.length + tables < MIN_VISUALS) {
+      clean = false;
+      fail(
+        `${rel} · visuals`,
+        `${figures.length} figure(s) and ${tables} table(s); a post carries at least ${MIN_VISUALS} between them`
+      );
+    }
+
+    for (const key of FRONT_MATTER) {
+      if (!new RegExp(`^${key}:\\s*\\S`, "m").test(raw)) {
+        clean = false;
+        fail(`${rel} · front-matter`, `no '${key}:' — publish-blog.mjs needs it to file the post under the right hub`);
+      }
+    }
+    const meta = raw.match(/^meta_description:\s*(.+)$/m);
+    if (meta && meta[1].trim().length > 160) {
+      clean = false;
+      fail(`${rel} · front-matter`, `meta_description is ${meta[1].trim().length} characters; a search result shows about 160`);
+    }
   }
 
   if (clean) ok(rel);

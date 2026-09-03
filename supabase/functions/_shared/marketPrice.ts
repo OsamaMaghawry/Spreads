@@ -41,8 +41,15 @@ const ms = (t) => {
 // Pure so it can be tested against recorded snapshot payloads — see
 // marketPrice.test.ts, which includes the shape that caused the incident.
 export function spotFromSnapshot(d: any, now = Date.now()) {
-  const none = { price: 0, source: "none", asOf: null, trusted: false, reason: "No price data." };
+  const none = { price: 0, source: "none", asOf: null, trusted: false, reason: "No price data.", prevClose: null };
   if (!d) return none;
+
+  // Yesterday's official close, carried so the screens can say how far the
+  // name has moved today. It travels raw rather than as a percentage because
+  // the dashboard overlays a streaming price on top of this one, and the move
+  // has to be recomputed against it -- a percentage fixed at sync time would
+  // sit still while the price beside it moved.
+  const prevClose = d.prevDailyBar && d.prevDailyBar.c > 0 ? d.prevDailyBar.c : null;
 
   const trade = d.latestTrade;
   const tradePrice = trade && trade.p > 0 ? trade.p : null;
@@ -61,8 +68,8 @@ export function spotFromSnapshot(d: any, now = Date.now()) {
   const fresh = (at) => at === null || now - at <= MAX_PRICE_AGE_MS;
   const aged = (price, source, asOf) =>
     fresh(asOf)
-      ? { price, source, asOf, trusted: true, reason: null }
-      : { price, source, asOf, trusted: false, reason: `Last ${source} is more than ${Math.round(MAX_PRICE_AGE_MS / 60000)} minutes old.` };
+      ? { price, source, asOf, trusted: true, reason: null, prevClose }
+      : { price, source, asOf, trusted: false, reason: `Last ${source} is more than ${Math.round(MAX_PRICE_AGE_MS / 60000)} minutes old.`, prevClose };
 
   if (tradePrice !== null && quoteUsable) {
     const divergence = Math.abs(quoteMid - tradePrice) / tradePrice;
@@ -75,7 +82,8 @@ export function spotFromSnapshot(d: any, now = Date.now()) {
         source: "trade",
         asOf: tradeAt,
         trusted: false,
-        reason: `Last trade $${tradePrice.toFixed(2)} and quote mid $${quoteMid.toFixed(2)} disagree by ${(divergence * 100).toFixed(1)}%.`
+        reason: `Last trade $${tradePrice.toFixed(2)} and quote mid $${quoteMid.toFixed(2)} disagree by ${(divergence * 100).toFixed(1)}%.`,
+        prevClose
       };
     }
     return aged(tradePrice, "trade", tradeAt);
@@ -86,7 +94,7 @@ export function spotFromSnapshot(d: any, now = Date.now()) {
 
   const close = d.dailyBar && d.dailyBar.c > 0 ? d.dailyBar.c : null;
   if (close !== null) {
-    return { price: close, source: "dailyBar", asOf: ms(d.dailyBar.t), trusted: false, reason: "Only a daily bar is available; no live trade or usable quote." };
+    return { price: close, source: "dailyBar", asOf: ms(d.dailyBar.t), trusted: false, reason: "Only a daily bar is available; no live trade or usable quote.", prevClose };
   }
   return none;
 }
@@ -109,7 +117,7 @@ export function spotFromSnapshot(d: any, now = Date.now()) {
 export function closingSpotFromSnapshot(d: any, now = Date.now()) {
   const close = d?.dailyBar && d.dailyBar.c > 0 ? d.dailyBar.c : null;
   if (close !== null) {
-    return { price: close, source: "close", asOf: ms(d.dailyBar.t), trusted: true, reason: null };
+    return { price: close, source: "close", asOf: ms(d.dailyBar.t), trusted: true, reason: null, prevClose: d?.prevDailyBar?.c > 0 ? d.prevDailyBar.c : null };
   }
   // No bar means the name did not trade today at all -- halted, delisted, or a
   // symbol the feed does not carry. Whatever the live ladder makes of it is

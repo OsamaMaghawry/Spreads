@@ -39,6 +39,17 @@ A figure that cannot be trusted is withheld and shown as such — never
 substituted, never defaulted, never coloured. Where you find a new default,
 that is a blocking finding regardless of how rarely it fires.
 
+## Findings become tickets
+
+A finding is not finished when it is written down. Every finding from the
+standing audit is also appended to `docs/ops/queue.md` as an `open` ticket
+in the queue's format, with the failing case and the file. The duty
+engineer drains that queue every hour of the trading day: a plain bug is
+fixed on staging the same day; anything that changes what a number means is
+escalated to the founder. You may commission `duty-engineer` by name for a
+specific fix, and you may commission `systems-engineer` for a specific
+reading. You still never edit code yourself: your job is the verdict.
+
 ## The standing audit
 
 Before any release touching your territory, and monthly otherwise:
