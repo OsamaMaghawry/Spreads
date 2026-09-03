@@ -40,6 +40,23 @@ function analyticsTag(env) {
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${id}',{anonymize_ip:true});</script>`;
 }
 
+// Hotjar: heatmaps and session replay, same scope as the GA tag and the same
+// absence of one on the dashboard, where positions and balances are on screen.
+//
+// The id is validated as digits before it reaches the template. Both ids are
+// interpolated into inline script, so a malformed value from a future config
+// edit would be script injection into every page rather than a broken tag —
+// the guard is what keeps that impossible, not a formality.
+function hotjarTag(env) {
+  const id = env.HOTJAR_SITE_ID;
+  if (!id || !/^[0-9]+$/.test(String(id))) return "";
+  return `<script>(function(h,o,t,j,a,r){h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};h._hjSettings={hjid:${id},hjsv:6};a=o.getElementsByTagName('head')[0];r=o.createElement('script');r.async=1;r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv;a.appendChild(r);})(window,document,'https://static.hotjar.com/c/hotjar-','.js?sv=');</script>`;
+}
+
+// Every page the Worker renders gets both tags from one place, so a third
+// one is added here and nowhere else.
+const trackingTags = (env) => `${analyticsTag(env)}${hotjarTag(env)}`;
+
 async function fetchPosts(env, { slug = null } = {}) {
   const url = new URL(`${env.SUPABASE_URL}/rest/v1/blog_posts`);
   url.searchParams.set("select", POST_FIELDS);
@@ -118,7 +135,7 @@ ${g.posts
     title: "Blog — DeltaMint",
     description: "Options, explained from the first contract to the last position — for people who trade through their own account.",
     canonical: `${site}/blog`,
-    head: `${robotsMeta(noindex)}${analyticsTag(env)}<meta property="og:type" content="website" />
+    head: `${robotsMeta(noindex)}${trackingTags(env)}<meta property="og:type" content="website" />
 <meta property="og:site_name" content="DeltaMint" />
 <meta property="og:url" content="${site}/blog" />
 <meta property="og:title" content="DeltaMint blog" />
@@ -151,7 +168,7 @@ function renderCategory(posts, cat, site, noindex, env = {}) {
     title: `${cat.title} — DeltaMint`,
     description: cat.intro,
     canonical: url,
-    head: `${robotsMeta(noindex)}${analyticsTag(env)}<meta property="og:type" content="website" />
+    head: `${robotsMeta(noindex)}${trackingTags(env)}<meta property="og:type" content="website" />
 <meta property="og:site_name" content="DeltaMint" />
 <meta property="og:url" content="${esc(url)}" />
 <meta property="og:title" content="${esc(cat.title)}" />
@@ -212,7 +229,7 @@ function renderPost(post, site, noindex, env = {}, all = []) {
     title: `${post.title} — DeltaMint`,
     description,
     canonical: url,
-    head: `${robotsMeta(noindex)}${analyticsTag(env)}<meta property="og:type" content="article" />
+    head: `${robotsMeta(noindex)}${trackingTags(env)}<meta property="og:type" content="article" />
 <meta property="og:site_name" content="DeltaMint" />
 <meta property="og:url" content="${esc(url)}" />
 <meta property="og:title" content="${esc(post.title)}" />
@@ -278,16 +295,28 @@ export default {
     }
 
     const isBlogPath = path === "/blog" || path.startsWith("/blog/") || path === "/sitemap.xml";
-    // The home and pricing pages are static assets; the analytics tag for
-    // them is injected below on the way out when a measurement id is set.
+    // The home and pricing pages are static assets; their tracking tags are
+    // injected below on the way out, for any that the page does not already
+    // carry itself.
     if (!isBlogPath) {
       // Anything else is a static asset. On production the Worker is not even
       // invoked for these; on staging it is, purely to stamp the header.
       let asset = await env.ASSETS.fetch(request);
-      const tag = analyticsTag(env);
-      if (tag && (asset.headers.get("content-type") || "").includes("text/html")) {
+      if ((asset.headers.get("content-type") || "").includes("text/html")) {
         const text = await asset.text();
-        asset = new Response(text.replace("</head>", `${tag}\n</head>`), asset);
+        // Those four pages carry their own hostname-guarded GA and Hotjar
+        // snippets inline, precisely because production's run_worker_first
+        // means this branch never runs for them. Should that config ever be
+        // widened to `true`, injecting again here would double-count every
+        // page view and record every session twice — so a tag whose id is
+        // already on the page is not added a second time. Cheap, and it makes
+        // the two halves safe to hold at once.
+        const already = (mark) => mark && text.includes(mark);
+        const tag =
+          (already(env.GA_MEASUREMENT_ID) ? "" : analyticsTag(env)) +
+          (already(`hjid:${env.HOTJAR_SITE_ID}`) ? "" : hotjarTag(env));
+        if (tag) asset = new Response(text.replace("</head>", `${tag}\n</head>`), asset);
+        else asset = new Response(text, asset);
       }
       return noindex ? withNoIndexHeader(asset) : asset;
     }

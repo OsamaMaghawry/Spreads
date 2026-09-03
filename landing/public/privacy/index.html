@@ -59,6 +59,37 @@
       gtag('config', 'G-TJLVFXVFL6');
     }
   </script>
+
+  <!-- Hotjar: heatmaps and session replay, marketing pages and blog only.
+
+       Deliberately NOT on dashboard.deltamint.app. That is a separate Worker
+       and it stays untracked: it is where positions, order tickets and account
+       balances are on screen, and none of that belongs in a replay held by a
+       third party. Hotjar sees the pages a stranger reads before signing up,
+       and nothing after.
+
+       Inline here for the same reason as the GA tag above: production's
+       run_worker_first lists only /blog, /blog/* and /sitemap.xml, so the
+       Worker never runs for this page. The blog's copy is injected by
+       hotjarTag() in landing/src/index.js from HOTJAR_SITE_ID.
+
+       Same hostname guard as the GA tag, and for the same reason: this
+       public/ directory is also served by the staging Worker at
+       dev-landing.deltamint.app, so without it every dev page view would
+       become a recorded session in the account. HOTJAR_SITE_ID is likewise
+       set only in wrangler.jsonc, never in wrangler.staging.jsonc. -->
+  <script>
+    if (location.hostname === 'deltamint.app' || location.hostname === 'www.deltamint.app') {
+      (function(h,o,t,j,a,r){
+          h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};
+          h._hjSettings={hjid:6773356,hjsv:6};
+          a=o.getElementsByTagName('head')[0];
+          r=o.createElement('script');r.async=1;
+          r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv;
+          a.appendChild(r);
+      })(window,document,'https://static.hotjar.com/c/hotjar-','.js?sv=');
+    }
+  </script>
 </head>
 <body>
 
@@ -105,12 +136,14 @@
     <li><strong>Your broker</strong> — to place orders and retrieve account and market data on your behalf, using the authorization you granted through the broker's own connection flow.</li>
     <li><strong>Our payment processor</strong> — to bill paid subscriptions. Your card details go directly to the processor; we never receive or store your card number.</li>
     <li><strong>Our infrastructure providers</strong> (database and authentication, hosting, source control and backup storage) — to run the Service. These providers do not use your data for their own purposes.</li>
+    <li><strong>Our website analytics providers</strong> — to understand how this public website is used, so we can improve it. These run on our marketing pages and blog <em>only</em>. They are not present in the application itself, so your positions, orders, balances and trade history are never seen by them. What they receive is ordinary website measurement: pages visited, approximate location from IP, device and browser, referring link, and — on these public pages — a recording of on-page activity such as scrolling, mouse movement and clicks, used in aggregate to see which parts of a page people read.</li>
   </ul>
   <p>We identify these by category rather than by name. The current list of named providers is maintained internally and is available on request to a customer, counterparty, or regulator.</p>
   <p>We do not sell or rent your personal information to third parties.</p>
 
   <h2>5. Your choices</h2>
   <p>You can disconnect a brokerage account at any time from the Accounts page, which removes the stored token. You can request deletion of your DeltaMint account and associated data by contacting us.</p>
+  <p>The website analytics described in section 4 can be blocked by any standard content or tracking blocker, and we do not attempt to detect or work around one. Nothing about the Service depends on them: blocking them changes what we can measure, not what you can do.</p>
 
   <h2>6. Data retention</h2>
   <p>We retain your data for as long as your account is active, or as needed to provide the Service. Trade history may be retained for your own recordkeeping purposes even after an account is disconnected, until you request deletion. When data is deleted it is removed from the live Service immediately; copies held in routine backups age out within 30 days.</p>
