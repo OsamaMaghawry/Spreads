@@ -3,6 +3,7 @@ import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { loadAccount } from "../_shared/alpaca.ts";
 import { scanCandidates } from "../_shared/optionScan.ts";
 import { heldShares } from "../_shared/heldShares.ts";
+import { judgeOnLivePrices } from "../_shared/watchRules.ts";
 import {
   earningsThrough, daysUntil, earningsCoverage,
   refreshEarningsThrough, refreshEarningsWindow
@@ -45,7 +46,11 @@ Deno.serve(async (req) => {
       }
       params = { ...body, tickers: held.tickers, sharesByTicker: held.shares, basisByTicker: held.basis };
     }
-    const result = await scanCandidates(account, params);
+    // Options do not trade outside 09:30-16:00 ET, so outside the session
+    // the chain is still quoted at the previous close while the stock has
+    // moved on. The scan says that rather than reporting the two sources as
+    // disagreeing, which reads as a fault.
+    const result = await scanCandidates(account, { ...params, marketOpen: judgeOnLivePrices() });
 
     // Annotate rather than filter: an earnings release inside the holding
     // period is a risk the trader should see and decide on, not one the
