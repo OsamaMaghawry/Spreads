@@ -5,6 +5,7 @@ import { invokeFunction } from "@/lib/functions";
 import useSubscription from "@/lib/useSubscription";
 import { SAFE_ACCOUNT_COLUMNS } from "@/lib/accountColumns";
 import { Plus, Pencil, Trash2, KeyRound, Link2 } from "lucide-react";
+import ConfirmDeleteAccount from "@/components/common/ConfirmDeleteAccount";
 import AccountForm from "@/components/accounts/AccountForm";
 import { startAlpacaOAuth, describeOAuthConfig } from "@/lib/alpacaOAuth";
 import useAdminSettings from "@/lib/useAdminSettings";
@@ -254,15 +255,18 @@ export default function Accounts() {
                 <button onClick={() => setEditing(a)} className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors">
                   <Pencil className="w-4 h-4" />
                 </button>
-                {deleting === a.id ? (
-                  <button onClick={() => remove(a)} className="px-3 py-1.5 rounded-lg text-xs bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
-                    Confirm delete
-                  </button>
-                ) : (
-                  <button onClick={() => setDeleting(a.id)} className="p-2 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
+                {/* One click opens a dialog that names the account and says
+                    what is lost. The old two-step turned the trash icon into
+                    "Confirm delete" in the same position, so a second click
+                    landing where the first did completed an irreversible,
+                    cascading delete. */}
+                <button
+                  onClick={() => setDeleting(a)}
+                  aria-label={`Remove ${a.name}`}
+                  className="p-2 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             </div>
           ))}
@@ -294,6 +298,14 @@ export default function Accounts() {
           </dl>
           <button onClick={() => setConnectError(null)} className="mt-3 text-xs underline">Dismiss</button>
         </div>
+      )}
+
+      {deleting && (
+        <ConfirmDeleteAccount
+          account={deleting}
+          onCancel={() => setDeleting(null)}
+          onConfirm={remove}
+        />
       )}
     </div>
   );

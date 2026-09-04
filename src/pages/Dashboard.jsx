@@ -5,15 +5,32 @@ import { RefreshCw, KeyRound } from "lucide-react";
 import MasterSummary from "@/components/dashboard/MasterSummary";
 import AccountSummaryCard from "@/components/dashboard/AccountSummaryCard";
 import useLiveSync from "@/lib/useLiveSync";
+import StaleDataNotice from "@/components/common/StaleDataNotice";
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [staleReason, setStaleReason] = useState(null);
 
   const load = useCallback(async () => {
     try {
       const res = await invokeFunction("syncAccounts", {});
-      setData(res.data);
+      // A good view is never replaced by an empty one.
+      //
+      // This used to be `setData(res.data)` unconditionally, so any refresh
+      // that came back without accounts -- a cold start, a dropped connection,
+      // a 500 from the broker -- wrote undefined over a working dashboard and
+      // rendered "No trading accounts yet. Link a brokerage account" on top of
+      // accounts that were connected the entire time. It cleared on the next
+      // successful poll, which is exactly why it looked like a flicker.
+      if (Array.isArray(res?.data?.accounts)) {
+        setData(res.data);
+        setStaleReason(null);
+      } else {
+        setStaleReason(res?.data?.error || "The last refresh did not come back");
+      }
+    } catch (e) {
+      setStaleReason(e?.message || "The last refresh did not come back");
     } finally {
       setLoading(false);
     }
@@ -53,6 +70,8 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      <StaleDataNotice message={staleReason} since={data?.syncedAt} />
 
       {accounts.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-xl p-12 flex flex-col items-center text-center gap-3">

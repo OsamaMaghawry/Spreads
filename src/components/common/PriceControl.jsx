@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Minus, Plus } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import { verdictFor, markPosition, round2 } from "@/lib/priceVerdict";
@@ -17,7 +18,21 @@ import { verdictFor, markPosition, round2 } from "@/lib/priceVerdict";
 
 const STEP = 0.01;
 
-export default function PriceControl({ price, onChange, quote, unit, qty, side = "debit", id = "limit-price" }) {
+export default function PriceControl({
+  price, onChange, quote, unit, qty, side = "debit", id = "limit-price",
+  // Contracts deliver 100 shares; a share delivers one. Passed in rather than
+  // assumed, because the total below was multiplying a share price by 100 and
+  // telling the user that closing 10 TSLA at $3.02 would cost $3,020.
+  multiplier = 100
+}) {
+  // What the box is showing while it is being typed into.
+  //
+  // The value used to be `price.toFixed(2)` on every render, so every keystroke
+  // reformatted the field: typing "3" made it "3.00" and the caret landed after
+  // the decimals, which made "300" impossible to type -- the only way to reach a
+  // price near a $396 stock was to click the Bid/Mid/Ask chips. A draft is held
+  // while the field has focus and formatted once, on blur.
+  const [draft, setDraft] = useState(null);
   const bid = quote?.bid;
   const ask = quote?.ask;
   const mid = quote?.mid;
@@ -67,11 +82,19 @@ export default function PriceControl({ price, onChange, quote, unit, qty, side =
             step="0.01"
             min="0.01"
             placeholder="—"
-            value={empty ? "" : price.toFixed(2)}
+            value={draft !== null ? draft : empty ? "" : price.toFixed(2)}
+            onFocus={() => setDraft(empty ? "" : String(price))}
+            onBlur={() => setDraft(null)}
             onChange={(e) => {
-              const v = parseFloat(e.target.value);
-              if (isFinite(v)) set(v);
-              else onChange(null);
+              const v = e.target.value;
+              // Permissive while typing: "3", "30", "300", "300." and "" are all
+              // valid part-way states. The value is only interpreted as a price
+              // once it parses, and the box keeps showing exactly what was typed
+              // until focus leaves it.
+              setDraft(v);
+              if (v === "") { onChange(null); return; }
+              const n = parseFloat(v);
+              if (isFinite(n)) set(n);
             }}
             className="w-24 py-2.5 text-lg tabular-nums text-slate-900 text-center bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           />
@@ -165,7 +188,7 @@ export default function PriceControl({ price, onChange, quote, unit, qty, side =
         {!empty && (
           <>
             {" "}
-            Total {fmtMoney(price * 100 * (Number(qty) || 1))} to {side === "credit" ? "collect on" : "close"}{" "}
+            Total {fmtMoney(price * multiplier * (Number(qty) || 1))} to {side === "credit" ? "collect on" : "close"}{" "}
             {Number(qty) || 1} {unit}
             {(Number(qty) || 1) > 1 ? "s" : ""}.
           </>

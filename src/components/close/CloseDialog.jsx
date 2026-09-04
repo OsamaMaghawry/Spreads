@@ -194,16 +194,19 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   // What the X and a click outside do depends on where the order is:
   //   walking  -- nothing. Dismissing would leave it repricing at the broker
   //               with nothing watching it.
-  //   resting  -- stop watching. The price is the user's instruction, so the
-  //               order stays working; the log says so and the next click leaves.
+  //   resting  -- leave, in ONE action. The order keeps working.
   //   filled / detached -- leave and refresh the positions behind.
+  //
+  // Resting used to take two clicks that read almost identically: "Stop
+  // watching — the order keeps working" put the ticket into `detached`, which
+  // then offered "Close — the order keeps working". Two buttons, nearly the
+  // same sentence, for what is one decision — leave it alone. Stopping the
+  // watcher and closing the ticket now happen together.
   const handleClose = () => {
-    if (phase === "working") {
-      if (resting) stop();
-      return;
-    }
+    if (phase === "working" && !resting) return;
+    if (resting) stop();
     reset();
-    if (phase === "filled" || phase === "detached") onDone();
+    if (phase === "filled" || phase === "detached" || resting) onDone();
     else onClose();
   };
 
@@ -275,7 +278,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
               ) : quoteLoading ? (
                 <div className="flex items-center gap-2 text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Fetching live quote…</div>
               ) : quote && customLegs ? (
-                <LegsQuoteSummary quote={quote} qty={qty} />
+                <LegsQuoteSummary quote={quote} qty={qty} multiplier={multiplier} />
               ) : quote ? (
                 <div className="grid grid-cols-2 gap-y-1.5 tabular-nums">
                   <span className="text-slate-500">Entry credit / {unit}</span><span className="text-right">{fmtMoney(spread.netCredit)}</span>
@@ -331,6 +334,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                 quote={priceQuote}
                 unit={unit}
                 qty={qty}
+                multiplier={multiplier}
                 side="debit"
                 id="close-limit-debit"
               />
@@ -401,20 +405,38 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
         ) : (
           <div className="space-y-4">
             <OrderLog log={log} phase={phase} />
-            {phase === "working" && resting && (
+            {/* Repricing in place is offered only where the broker actually
+                supports it. Alpaca refuses to replace an equity order once it
+                reaches `accepted` — "cannot replace order in accepted status",
+                code 42210000 — which is the state a share order is in almost
+                immediately, so the button was guaranteed to fail on shares. It
+                is not shown there; the honest instruction is below instead. */}
+            {phase === "working" && resting && !isShares && (
               <RestingOrder
                 credit={manualPrice}
                 onCredit={setManualPrice}
                 quote={priceQuote}
                 unit={unit}
                 qty={qty}
+                multiplier={multiplier}
                 side="debit"
                 onUpdate={replacePrice}
               />
             )}
+            {phase === "working" && resting && isShares && (
+              <p className="text-xs text-slate-600 leading-relaxed border border-slate-200 rounded-lg p-3">
+                Your order is working at the broker and stays there until it fills or you
+                cancel it. A share order cannot be repriced once the broker has accepted
+                it — to trade at a different price, cancel this one from the{" "}
+                <span className="font-medium">Orders</span> tab and place another.
+              </p>
+            )}
             {phase === "working" ? (
-              <button onClick={stop} className="w-full py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm transition-colors">
-                {resting ? "Stop watching — the order keeps working" : "Stop & cancel order"}
+              <button
+                onClick={resting ? handleClose : stop}
+                className="w-full py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm transition-colors"
+              >
+                {resting ? "Done — the order keeps working" : "Stop & cancel order"}
               </button>
             ) : phase === "detached" ? (
               // Never "Try again" here: the order is live at the broker, and a
