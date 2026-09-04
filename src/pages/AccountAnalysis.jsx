@@ -84,18 +84,28 @@ export default function AccountAnalysis() {
     const s = computeStats(subset, strategy === "all" ? equity : 0);
     // Built from the shared category list, so a category added there appears
     // here without a second place needing to know the names.
-    const rows = [{ label: "All strategies", trades }]
-      .concat(
-        STRATEGIES.map((s) => ({
-          label: s.label,
-          trades: trades.filter((t) => strategyOf(t) === s.key)
-        })).filter((r) => r.trades.length > 0)
-      )
-      .map((r) => ({
-        label: r.label,
-        stats: computeStats(r.trades, r.label === "All strategies" ? equity : 0)
-      }))
-      .filter((r) => r.stats);
+    //
+    // Only when looking at everything. Filtering to one strategy and then
+    // printing a table of all of them contradicts the filter -- on screen it is
+    // merely odd, but the PDF is the artifact that gets sent to someone, and a
+    // report headed "Cash-secured puts" that lists every other strategy
+    // underneath is not the report that was asked for. With one strategy
+    // selected there is also nothing to compare it against.
+    const rows =
+      strategy !== "all"
+        ? []
+        : [{ label: "All strategies", trades }]
+            .concat(
+              STRATEGIES.map((s) => ({
+                label: s.label,
+                trades: trades.filter((t) => strategyOf(t) === s.key)
+              })).filter((r) => r.trades.length > 0)
+            )
+            .map((r) => ({
+              label: r.label,
+              stats: computeStats(r.trades, r.label === "All strategies" ? equity : 0)
+            }))
+            .filter((r) => r.stats);
     return {
       stats: s,
       comparison: rows,

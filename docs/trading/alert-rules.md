@@ -16,12 +16,34 @@ most important thing to alert on. Every rule reasons per leg.
 | `naked_short_call` | a short call with fewer than 100 shares per contract behind it | 🔴 critical | — |
 | `short_through_strike` | a short leg is in the money on a **trusted** spot | 🔴 critical | — |
 | `short_near_strike` | a short leg is within N% of its strike, trusted spot | 🟠 warning | `strike_proximity_pct` (1%) |
-| `price_untrusted` | a short leg cannot be judged because the spot fails the trust ladder | 🟠 warning | — |
+| `price_untrusted` | a **ticker** cannot be judged because the spot fails the trust ladder | ⚪ info | — |
 
 `price_untrusted` is a **liveness** rule — "I am watching and cannot see". It
 belongs to the in-session watch and never appears as a row in the after-close
 report, where nothing is trading and nobody can act on it; there it collapses
 into one line naming the symbols that could not be priced.
+
+Three things about it are deliberate, and all three were wrong until 4 Sep:
+
+- **Info, not warning, and never emailed.** The session email carries
+  conditions about positions only. This one is not actionable in a broker, and
+  mailing it is what filled the inbox: of twelve emails on 2 Sep, most carried
+  nothing else. It is recorded, and it is in the daily report.
+- **One per ticker, not per leg, and it states the reason.** Four short MSFT
+  contracts are one price problem; they sent four identical lines, none of
+  which said why.
+- **It never resolves what it could not judge.** When a spot goes untrusted the
+  leg takes this branch, so `short_through_strike` is not re-raised — and
+  reconciliation used to read that absence as "resolved" and close a critical
+  that was still true. Four in-the-money criticals were closed that way on
+  2 Sep while still being seen hours later, which is also why they were missing
+  from that evening's report. Price-dependent rules on an unjudged ticker are
+  now left open.
+
+Related: which price the watch judges on is decided by the **clock**, not by
+the mode. Outside 13:30–20:00 UTC it uses the closing price, because the live
+ladder marks everything older than thirty minutes untrusted and after the bell
+that is every price there is. See `sessionPhase` in `_shared/watchRules.ts`.
 | `earnings_before_expiry` | the underlying reports before the contract expires, within D days | 🟠 warning | `earnings_within_days` (3) |
 | `position_oversized` | one position's market value exceeds X% of account equity | 🟠 warning | `position_max_pct` (25%) |
 

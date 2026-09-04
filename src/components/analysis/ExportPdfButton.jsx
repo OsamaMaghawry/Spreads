@@ -26,12 +26,32 @@ export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = 
         import("html2canvas"),
         import("jspdf")
       ]);
-      const canvas = await html2canvas(targetRef.current, {
-        scale: 2,
-        backgroundColor: "#ffffff",
-        useCORS: true,
-        windowWidth: 1400
-      });
+      // Each top-level section of the report is rendered on its own, rather
+      // than the whole page as one tall image.
+      //
+      // The old way captured everything into a single canvas and cut it at a
+      // fixed pixel height per page, which put the page break wherever it
+      // happened to land -- straight through the equity curve, or through a
+      // table's header row. Rendering per section means a break can only ever
+      // fall between sections: a block that does not fit in what is left of a
+      // page moves to the next one whole.
+      //
+      // A section taller than a whole page is still sliced, because it has to
+      // be, but that is now the exception rather than what happens to every
+      // page boundary.
+      const root = targetRef.current;
+      const blocks = Array.from(root.children).filter((el) => el.offsetHeight > 0);
+      const canvases = [];
+      for (const el of blocks.length ? blocks : [root]) {
+        canvases.push(
+          await html2canvas(el, {
+            scale: 2,
+            backgroundColor: "#ffffff",
+            useCORS: true,
+            windowWidth: 1400
+          })
+        );
+      }
 
       const pdf = new jsPDF({ unit: "pt", format: "a4" });
       const pw = pdf.internal.pageSize.getWidth();
@@ -49,7 +69,6 @@ export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = 
         "substantial risk of loss and is not suitable for every investor. Trades are placed through your own " +
         "brokerage account, under that broker's terms; DeltaMint never holds your funds or securities.";
       const imgW = pw - margin * 2;
-      const scale = imgW / canvas.width;
 
       // Measured, not assumed. The footer used to draw the first three wrapped
       // lines and drop the rest -- silently, in the change whose point was that
@@ -120,29 +139,68 @@ export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = 
         disclaimerLines.forEach((line, i) => pdf.text(line, margin, top + i * 8));
       };
 
-      let offset = 0; // in canvas px
+      // The report flows block by block. A page is started, blocks are placed
+      // down it, and the moment one does not fit it moves to the next page
+      // rather than being cut.
+      const GAP = 10; // the space-y between sections, kept in the export
       let page = 0;
-      while (offset < canvas.height) {
-        const usable = page === 0 ? usableFirst : usableRest;
-        const sliceH = Math.min(canvas.height - offset, usable / scale);
-        const slice = document.createElement("canvas");
-        slice.width = canvas.width;
-        slice.height = sliceH;
-        slice.getContext("2d").drawImage(canvas, 0, -offset);
+      let cursor = 0; // pt used on the current page, below its header
+      const pageTop = () => margin + (page === 0 ? headerH : bannerH);
+      const pageUsable = () => (page === 0 ? usableFirst : usableRest);
+
+      const startPage = () => {
         if (page > 0) pdf.addPage();
         if (page === 0) drawHeader();
         else drawBanner(margin + 10);
-        pdf.addImage(
-          slice.toDataURL("image/jpeg", 0.92),
-          "JPEG",
-          margin,
-          margin + (page === 0 ? headerH : bannerH),
-          imgW,
-          sliceH * scale
-        );
         drawFooter(page + 1);
-        offset += sliceH;
-        page += 1;
+        cursor = 0;
+      };
+      startPage();
+
+      for (const c of canvases) {
+        const scale = imgW / c.width;
+        const h = c.height * scale;
+        const remaining = pageUsable() - cursor;
+
+        // Fits where we are: place it.
+        if (h <= remaining) {
+          pdf.addImage(c.toDataURL("image/jpeg", 0.92), "JPEG", margin, pageTop() + cursor, imgW, h);
+          cursor += h + GAP;
+          continue;
+        }
+
+        // Does not fit, but would fit on a page of its own: move it whole.
+        // This is the case that used to cut a chart in half.
+        if (h <= usableRest) {
+          page += 1;
+          startPage();
+          pdf.addImage(c.toDataURL("image/jpeg", 0.92), "JPEG", margin, pageTop() + cursor, imgW, h);
+          cursor += h + GAP;
+          continue;
+        }
+
+        // Taller than any page, so it has to be split. Only a long table
+        // reaches this, and a table survives a break between rows.
+        if (cursor > 0) {
+          page += 1;
+          startPage();
+        }
+        let offset = 0; // canvas px
+        while (offset < c.height) {
+          const sliceH = Math.min(c.height - offset, (pageUsable() - cursor) / scale);
+          const slice = document.createElement("canvas");
+          slice.width = c.width;
+          slice.height = sliceH;
+          slice.getContext("2d").drawImage(c, 0, -offset);
+          pdf.addImage(slice.toDataURL("image/jpeg", 0.92), "JPEG", margin, pageTop() + cursor, imgW, sliceH * scale);
+          offset += sliceH;
+          cursor += sliceH * scale;
+          if (offset < c.height) {
+            page += 1;
+            startPage();
+          }
+        }
+        cursor += GAP;
       }
 
       const safe = `${isPaper ? "paper-" : ""}${title || "analysis"}`
