@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import SpreadStructure from "./SpreadStructure";
-import { isSingle, kindOf, riskText, riskIsUnbounded, isStockRisk, basisNote, stressText, stressNote, movePct } from "@/lib/positionKind";
+import { isSingle, kindOf, riskText, riskIsUnbounded, isStockRisk, basisNote, stressText, stressNote, movePct, showsStress } from "@/lib/positionKind";
 import LegRows from "./LegRows";
 import { dayChange, dayChangeLabel } from "@/lib/dayChange";
 
@@ -142,7 +142,10 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
                 className={`${td} text-right ${riskIsUnbounded(s) ? "font-semibold text-rose-700" : ""}`}
                 title={isStockRisk(s) ? stressNote(s, fmtMoney) : undefined}
               >
-                {isStockRisk(s)
+                {/* Same rule as the card: the shock figure is for genuinely
+                    uncovered positions. A CSP or covered call shows its max
+                    loss, with the capital committed in its own column. */}
+                {isStockRisk(s) && showsStress(s)
                   ? <>
                       {riskIsUnbounded(s) && <span className="mr-1">Unlimited ·</span>}
                       <span className={s.stressLoss === 0 ? "text-emerald-600" : ""}>{stressText(s, fmtMoney)}</span>
@@ -164,7 +167,7 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
                 {fmtMoney(s.unrealizedPL)}
                 {/* Still counted in the totals — just not presented as a mark. */}
                 {s.priceSource === "broker" && (
-                  <span className="ml-1 font-normal text-amber-600" title="No live bid/ask for every leg, so this is priced from the last trade the broker has on record — it may be stale">
+                  <span className="ml-1 font-normal text-amber-600" title="Estimated: nobody is currently quoting a bid and ask on every leg, so this is valued at the price each last traded. On a thin contract that trade can be hours old, which makes this figure approximate.">
                     *
                   </span>
                 )}

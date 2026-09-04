@@ -32,7 +32,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   const [qtyInput, setQtyInput] = useState("1");
   // Walk stays the default because it fills more often than a price left to
   // rest. "manual" and "market" are the two ways to override it.
-  const [priceMode, setPriceMode] = useState("walk");
+  const [priceMode, setPriceMode] = useState(spread.shares ? "manual" : "walk");
   const [manualPrice, setManualPrice] = useState(null);
   const [quote, setQuote] = useState(null);
   const [quoteLoading, setQuoteLoading] = useState(true);
@@ -71,13 +71,20 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
     // A single position is quoted by its one leg. The paired shape would send a
     // null longSymbol and come back with no quote at all, so the ticket would
     // show "market may be closed" on a perfectly quotable contract.
-    const wholeLegs = spread.single
-      ? spreadLegs(spread).map((l) => ({ symbol: l.symbol, ratio: l.ratio, action: l.action }))
-      : null;
+    // assetClass rides along so a share lot is quoted on the stocks endpoint.
+    // Without it the plain ticker went to the options endpoint, came back with
+    // nothing, and the ticket fell through to the invented $0.30 below.
+    const wire = (l) => ({
+      symbol: l.symbol,
+      ratio: l.ratio,
+      action: l.action,
+      ...(l.assetClass ? { assetClass: l.assetClass } : {})
+    });
+    const wholeLegs = spread.single ? spreadLegs(spread).map(wire) : null;
     const body = {
       accountId: account.id,
       ...(customLegs
-        ? { legs: customLegs.map((l) => ({ symbol: l.symbol, ratio: l.ratio, action: l.action })) }
+        ? { legs: customLegs.map(wire) }
         : wholeLegs
           ? { legs: wholeLegs }
           : {
@@ -116,8 +123,20 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   // The shared control speaks bid/ask/mid/last; spreadQuote speaks in debits.
   // Mapped here rather than teaching the control about spreads, so the open
   // ticket can use the same component with a credit.
+  // Selling shares is quoted as a negative debit — money received — but a share
+  // price on screen and on an equity order is a positive number of dollars.
+  // Negating also swaps the two sides: the ask-debit is built from the bid.
   const priceQuote = quote
-    ? { bid: quote.bidDebit, ask: quote.askDebit, mid: quote.midDebit, last: quote.lastAttemptDebit }
+    ? spread.shares
+      ? {
+          bid: Math.abs(quote.askDebit),
+          ask: Math.abs(quote.bidDebit),
+          mid: Math.abs(quote.midDebit),
+          last: quote.lastAttemptDebit === null || quote.lastAttemptDebit === undefined
+            ? null
+            : Math.abs(quote.lastAttemptDebit)
+        }
+      : { bid: quote.bidDebit, ask: quote.askDebit, mid: quote.midDebit, last: quote.lastAttemptDebit }
     : null;
   // The P/L rows follow the price being chosen, not the mid. The whole point
   // of "Set my price" is to see what THIS number yields, and a box above it
@@ -126,15 +145,27 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   const manualReadyForPl = priceMode === "manual" && typeof manualPrice === "number" && manualPrice > 0;
   const plDebit = manualReadyForPl ? manualPrice : midDebit;
   const plAt = manualReadyForPl ? `at ${fmtMoney(manualPrice)}` : "(mid)";
-  const plPerContract = (spread.netCredit - plDebit) * 100;
-  const unit = spread.type === "iron_condor" ? "condor" : "contract";
+  // Shares are not contracts: one unit is one share, so the 100x option
+  // multiplier does not apply, and the result of selling them is measured
+  // against the basis rather than against a credit that was never received.
+  // Using the option arithmetic here would have overstated a share close by
+  // exactly 100x on a real position.
+  const isShares = !!spread.shares;
+  const multiplier = isShares ? 1 : 100;
+  const plPerContract = isShares
+    ? (Math.abs(plDebit) - (spread.shareBasis ?? spread.longEntryPrice ?? 0)) * multiplier
+    : (spread.netCredit - plDebit) * multiplier;
+  const unit = isShares ? "share" : spread.type === "iron_condor" ? "condor" : "contract";
   // Resume from the highest price already attempted — either this session's memory
   // or the last limit price Alpaca has on record for this spread.
   const attempts = [getLastDebit(account.id, spread, customLegs), quote?.lastAttemptDebit].filter(
     (v) => typeof v === "number" && isFinite(v)
   );
   const lastDebit = attempts.length ? Math.max(...attempts) : null;
-  const baseDebit = quote ? midDebit : 0.3;
+  // $0.30 is a plausible opening bid to close a cheap contract and a nonsense
+  // price for a share, so the fallback is options-only. Shares price manually
+  // and refuse to submit without a real number rather than invent one.
+  const baseDebit = quote ? midDebit : isShares ? null : 0.3;
   const walkStart = lastDebit !== null ? Math.max(lastDebit, baseDebit) : baseDebit;
   const orderType = priceMode === "market" ? "market" : "limit";
   // What actually gets sent. Manual uses the number in the stepper; the walk
@@ -150,8 +181,12 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   // price that was never marketable. Untouched-only, so a live requote never
   // overwrites a price the user has already set.
   useEffect(() => {
-    if (manualPrice === null && quote && midDebit > 0) setManualPrice(Math.round(midDebit * 100) / 100);
-  }, [quote, midDebit, manualPrice]);
+    if (manualPrice !== null || !quote) return;
+    // A share sale quotes as a negative debit, so the options guard (> 0) never
+    // fired and the stepper stayed empty on every share position.
+    const seed = spread.shares ? Math.abs(midDebit) : midDebit;
+    if (seed > 0) setManualPrice(Math.round(seed * 100) / 100);
+  }, [quote, midDebit, manualPrice, spread.shares]);
 
   // A different position, or a different set of legs, is a different price.
   useEffect(() => { setManualPrice(null); }, [spread, legSig]);
@@ -191,7 +226,12 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
 
         <div className="text-xs text-slate-500 -mt-2 flex items-center gap-2 flex-wrap">
           <span>
-            {account.name} · Expiry {spread.expiryFormatted} · {spread.qty} open {spread.type === "iron_condor" ? (spread.qty > 1 ? "condors" : "condor") : `contract${spread.qty > 1 ? "s" : ""}`}
+            {account.name}
+            {/* Shares have no expiry and are not contracts; the options subtitle
+                read "Expiry undefined · 1000 open contracts" on a share lot. */}
+            {isShares
+              ? ` · ${spread.qty} share${spread.qty > 1 ? "s" : ""} held`
+              : ` · Expiry ${spread.expiryFormatted} · ${spread.qty} open ${spread.type === "iron_condor" ? (spread.qty > 1 ? "condors" : "condor") : `contract${spread.qty > 1 ? "s" : ""}`}`}
           </span>
           {liveSpot > 0 && (
             <span className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 tabular-nums">
@@ -267,7 +307,12 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
               <label className="text-xs text-slate-500 block mb-1.5">How to price it</label>
               <div className="flex rounded-lg overflow-hidden border border-slate-300">
                 {[
-                  { id: "walk", label: "Walk to fill" },
+                  // The walk concedes by paying more to close a short option.
+                  // Selling shares concedes in the opposite direction, so
+                  // offering the same walk here would move the price the wrong
+                  // way on every step. Shares get a price you set, or the
+                  // market, until the walk learns which way it is going.
+                  ...(isShares ? [] : [{ id: "walk", label: "Walk to fill" }]),
                   { id: "manual", label: "Set my price" },
                   { id: "market", label: "Market" }
                 ].map((t) => (
@@ -295,7 +340,13 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
               <p className="text-xs text-slate-600 leading-relaxed">
                 Closes{" "}
                 {customLegs
-                  .map((l) => `${qty * (l.ratio || 1)} contract${qty * (l.ratio || 1) > 1 ? "s" : ""} of ${legLabel(l)}`)
+                  .map((l) =>
+                    // legLabel already reads "1000 shares" for an equity leg, so
+                    // prefixing a contract count would say it twice and wrongly.
+                    l.assetClass === "equity"
+                      ? legLabel(l)
+                      : `${qty * (l.ratio || 1)} contract${qty * (l.ratio || 1) > 1 ? "s" : ""} of ${legLabel(l)}`
+                  )
                   .join(", ")}
                 .
               </p>

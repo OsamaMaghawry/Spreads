@@ -26,6 +26,15 @@ function stateOf(order) {
   if (s === "rejected") return { key: "rejected", label: "Rejected", cls: "bg-rose-50 text-rose-700 border-rose-200" };
   if (s === "canceled" || s === "cancelled") return { key: "canceled", label: "Cancelled", cls: "bg-slate-100 text-slate-600 border-slate-200" };
   if (s === "expired") return { key: "expired", label: "Expired", cls: "bg-slate-100 text-slate-600 border-slate-200" };
+  // Changing the price of a working order retires it at the broker and opens a
+  // new one in its place. Without this case the retired order fell through to
+  // "Working" below, so one live order showed as two — and both offered Cancel
+  // and Change price, on an id that no longer exists.
+  if (s === "replaced") return { key: "replaced", label: "Replaced", cls: "bg-slate-100 text-slate-600 border-slate-200" };
+  // Terminal states that are neither a fill nor a refusal. Each one used to
+  // read as "Working" on an order that had stopped working.
+  if (s === "done_for_day") return { key: "done", label: "Done for day", cls: "bg-slate-100 text-slate-600 border-slate-200" };
+  if (s === "stopped" || s === "suspended") return { key: "halted", label: "Halted", cls: "bg-amber-50 text-amber-800 border-amber-200" };
   if (order.progress > 0 && order.progress < 1) {
     return { key: "partial", label: `Partial ${order.filledQty} of ${order.qty}`, cls: "bg-amber-50 text-amber-800 border-amber-200" };
   }

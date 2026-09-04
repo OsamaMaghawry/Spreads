@@ -32,7 +32,24 @@ Deno.serve(async (req) => {
     if (customLegs) {
       const clientId = `APP_CLOSE_${orderType.toUpperCase()}_${Date.now()}`;
       let legBody: any;
-      if (customLegs.length === 1) {
+      if (customLegs.length === 1 && customLegs[0].assetClass === "equity") {
+        // Shares, not a contract. Three things differ from the option branch and
+        // each one is a rejection on its own: the quantity is shares rather than
+        // contracts times a ratio, the limit price is dollars per share rather
+        // than a per-contract net, and `position_intent` is an options concept
+        // the equity endpoint does not want. Side alone says what this does --
+        // sell what is held long, buy back what is held short.
+        const l = customLegs[0];
+        const isBuy = (l.action || "sell_to_close") === "buy_to_close";
+        legBody = {
+          symbol: l.symbol,
+          qty: String(qty),
+          side: isBuy ? "buy" : "sell",
+          type: orderType,
+          time_in_force: "day",
+          client_order_id: clientId
+        };
+      } else if (customLegs.length === 1) {
         const l = customLegs[0];
         const isBuy = (l.action || "buy_to_close") === "buy_to_close";
         legBody = {

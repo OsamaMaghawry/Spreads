@@ -3,7 +3,7 @@ import { ChevronDown } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import StrikeLadder from "./StrikeLadder";
 import CardLegs from "./CardLegs";
-import { isSingle, kindOf, riskText, riskLabel, isStockRisk, basisNote, stressLabel, stressText, stressNote } from "@/lib/positionKind";
+import { isSingle, kindOf, riskText, riskLabel, isStockRisk, basisNote, stressLabel, stressText, stressNote, showsStress } from "@/lib/positionKind";
 import { dayChange, dayChangeLabel } from "@/lib/dayChange";
 
 const badge = "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border";
@@ -37,12 +37,14 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
     title: stressNote(s, fmtMoney)
   };
   const footer = isStockRisk(s)
-    // A wheel is run against its break-even, so that leads.
+    // A wheel is run against its break-even, so that leads. The stress figure
+    // only appears where the position is genuinely uncovered; on a CSP or a
+    // covered call the capital tied up is the whole story.
     ? [
         breakEven,
         { label: "Qty", value: s.type === "shares" ? s.shareQty : s.qty },
         { label: "Capital tied up", value: s.collateral != null ? fmtMoney(s.collateral) : "—" },
-        stress,
+        ...(showsStress(s) ? [stress] : []),
         { label: "Expiry", value: s.expiryFormatted || "—" }
       ]
     : [
@@ -100,8 +102,8 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
               was missing. That price is last-trade based and goes stale on thin
               contracts, so say so rather than presenting it as a mark. */}
           {s.priceSource === "broker" && (
-            <div className="text-[10px] text-amber-600" title="No live bid/ask for every leg, so this is priced from the last trade the broker has on record — it may be stale">
-              last trade — no live quote
+            <div className="text-[10px] text-amber-600" title="Nobody is currently quoting a bid and ask on every leg, so this is valued at the price each last traded. On a thin contract that trade can be hours old, which makes this figure approximate.">
+              estimated — priced from the last trade
             </div>
           )}
         </div>

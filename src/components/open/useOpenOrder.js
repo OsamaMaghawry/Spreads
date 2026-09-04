@@ -328,6 +328,14 @@ export default function useOpenOrder() {
           } else if (!holding) {
             holding = true;
             addLog(`At your floor (${money(credit)}) — resting here and following the market.`);
+            // The walk is finished conceding: from here the order simply rests
+            // at this limit. That is the same state a hand-priced order is in,
+            // so it must be leavable the same way. Until this, `resting` stayed
+            // false once the walk ran out of steps, handleDismiss took the
+            // "walking" branch and returned, and the X did nothing at all — the
+            // ticket could only be escaped by cancelling a good resting order.
+            restingRef.current = { accountId, orderId, qty };
+            setResting(true);
           }
           lastWalk = Date.now();
         }
