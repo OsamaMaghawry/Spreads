@@ -135,4 +135,9 @@ falls before expiration are separate questions and have to be asked separately.
 What return on risk does is make two positions comparable at all. That is a
 smaller claim than "rank by this and do well", and it is the true one.
 
+For the vocabulary this ratio assumes — what a contract actually fixes at the
+fill, and why the premium paid is not the same figure as the collateral held
+— start with [what an option actually
+is](/blog/what-is-an-options-contract).
+
 This post is educational and is not investment advice.

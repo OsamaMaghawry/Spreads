@@ -12,7 +12,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 
 | # | Topic | Target query (long tail) | Head term (hub) | Competing today | Our angle |
 | --- | --- | --- | --- | --- | --- |
-| 1 | What an option actually is | what is an options contract | options | Investopedia, broker education hubs | what is in your account after the fill, not a definition |
+| 1 | What an option actually is | why is an option contract 100 shares (title carries the definition term; entry is via H2 tails — read 4 Sep 2026) | what is an options contract (foundations hub) | Head: Option Alpha, Fidelity, StoneX, optionseducation.org, plus contract-law pages (Cornell LII, FindLaw, LawInsider) on the singular form. Tail: Quora, Zerodha support, TradingView chart ideas, small affiliate blogs | the premium moved once at the fill and is not a deposit; collateral is a different figure |
 | 2 | Calls and puts | call vs put option explained | call option, put option | Investopedia, NerdWallet | both sides of the same contract, seller included |
 | 3 | Strike, expiry, premium | option strike price expiration premium | strike price | Investopedia | the three numbers on one real-looking chain row |
 | 4 | Intrinsic and time value | intrinsic vs extrinsic value options | time value | Investopedia, tastylive | why the same strike costs different amounts on different days |
@@ -71,3 +71,27 @@ any phrasing above; whether these results are personalised or localised; and
 whether a distinct query exists for "defined risk is less defined than it
 looks" — searches for it returned only generic spread explainers, so the post
 owns the idea but there is no phrasing to target with it.
+
+## Reading for row 1 — what an options contract actually is (read 4 Sep 2026)
+
+Results pages read that day, not measured. No rank tracker, no volume tool,
+no Search Console connection.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| what is an options contract | Option Alpha, Fidelity, StoneX, InvestingAnswers, optionseducation.org — plus contract-law pages: Cornell LII, FindLaw, LawInsider, a Louisiana statute | **hard**, and semantically split. The singular "option contract" is a contract-law term; the plural "options contract" is what disambiguates to finance |
+| what is an option in stock trading (beginners) | Ally, SoFi, heygotrade, TradingView chart ideas | hard — broker education hubs |
+| why is an option contract 100 shares | Quora, TradingView chart ideas, a Substack, Bitget wiki, Pomegra, Achievable (Series 7 cram) | **winnable** — forum and chart-idea padding means nothing owns it |
+| do you get the option premium back if it expires worthless | Quora, Zerodha support (Indian market), optiontradingpedia, a small affiliate blog | **winnable** |
+| where does the premium go when you buy an option | SoFi, daytrading.com, TradingView chart ideas | winnable-ish |
+| option buyer right vs seller obligation | strike.money, moomoo, share.market, CliffsNotes, TradingView | covered, mostly non-US aggregators; generic phrasing, low differentiation |
+
+**The gap.** Every ranking page defines right-vs-obligation and stops. None
+traces the $200 as a cash flow that moves once at the fill, and none
+separates premium from collateral. The post owns both, via the H2-level tail
+phrasings rather than the head term, which the title carries for
+disambiguation but cannot win outright against Investopedia-tier hubs and
+contract-law pages.
+
+**Could not establish:** search volume, difficulty, and current positions for
+any phrasing above; whether these results are personalised or localised.
