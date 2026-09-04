@@ -43,7 +43,7 @@ The allowlist matches **exact hostnames** — an allowed apex whose site 301s to
 | www.theocc.com / infomemo.theocc.com | ❌ 403 (site WAF) | 2026-08-31 | Blocks datacenter traffic; WebSearch for OCC symbology/adjustment facts |
 | www.investopedia.com | ⚠️ 402 | 2026-08-31 | Origin answers but gates content; WebSearch is better here |
 | **Ours** | | | |
-| dashboard.deltamint.app / deltamint.app | ✅ 200 | 2026-08-31 | Deploys verifiable directly |
+| dashboard.deltamint.app / deltamint.app | ❌ 403 (policy, at CONNECT) | 2026-09-04 | Was ✅ 200 on 2026-08-31; blocked since 31 Aug per `docs/ops/queue.md`'s 2026-09-02 allowlist item (already open, not re-escalated here). Re-tested 04 Sep: `/`, `/blog`, `/pricing` and `dashboard.deltamint.app` all 403 at the proxy CONNECT, same failure mode as the other allowlist rows above — not a site-side issue |
 | www.deltamint.app | ⚠️ 522 | 2026-08-31 | Cloudflare has no origin for the www host — cosmetic; canonical is the apex + dashboard |
 | spreads.osamamaghawry.workers.dev | ✅ 301 → dashboard | 2026-08-31 | Canonical redirect confirmed live |
 
