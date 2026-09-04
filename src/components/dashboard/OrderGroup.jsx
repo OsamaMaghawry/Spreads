@@ -4,6 +4,7 @@ import { invokeFunction } from "@/lib/functions";
 import { parseOCC } from "@/lib/occ";
 import { dayChange, dayChangeLabel } from "@/lib/dayChange";
 import useLiveSetup from "@/components/open/useLiveSetup";
+import NumberField from "@/components/common/NumberField";
 import { fmtMoney } from "@/lib/format";
 
 // One broker order, with the legs it was sent as.
@@ -55,6 +56,20 @@ function legDescription(symbol) {
   return `${occ.ticker} ${occ.expiry} ${occ.strike}${occ.type}`;
 }
 
+// An order is equity when none of what it was sent as parses as an OCC
+// contract. A share order has one plain ticker; every option order, single or
+// multi-leg, has symbols that parse.
+//
+// This decides three things that were all wrong on a share order: the words
+// used to describe it ("single leg", "LEG"), the quote endpoint the price
+// editor asks — which is why "Market now" was a dash on a stock that trades
+// every second — and the multiplier on the total.
+function isEquityOrder(order) {
+  const symbols = (order.legs || []).map((l) => l.symbol).filter(Boolean);
+  const all = symbols.length ? symbols : [order.symbol].filter(Boolean);
+  return all.length > 0 && all.every((s) => !parseOCC(s));
+}
+
 export default function OrderGroup({ accountId, order, onChanged }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -72,6 +87,7 @@ export default function OrderGroup({ accountId, order, onChanged }) {
   // number being typed sits beside the market it has to beat -- a bare $ box
   // asked the trader to guess. Off unless the editor is open: one socket and
   // one quote loop per order row is not a cost to pay for a closed panel.
+  const isEquity = isEquityOrder(order);
   const asSetup = useMemo(
     () => ({
       ticker: order.ticker,
@@ -80,10 +96,14 @@ export default function OrderGroup({ accountId, order, onChanged }) {
         // Legs of a multi-leg order carry their own quantity; the ratio is
         // what each contributes to one unit of the order.
         ratio: order.qty > 0 && l.qty > 0 ? l.qty / order.qty : 1,
-        side: String(l.side || "").startsWith("sell") ? "sell" : "buy"
+        side: String(l.side || "").startsWith("sell") ? "sell" : "buy",
+        // Without this the plain ticker was quoted on the options endpoint,
+        // which answers nothing for a stock — so the editor showed
+        // "Market now —" on TSLA while it was trading normally.
+        ...(isEquity ? { assetClass: "equity" } : {})
       }))
     }),
-    [order.ticker, order.legs, order.qty]
+    [order.ticker, order.legs, order.qty, isEquity]
   );
   const market = useLiveSetup(accountId, asSetup, editing);
   // The underlying's move today, from the previous close syncAccounts carries.
@@ -92,7 +112,13 @@ export default function OrderGroup({ accountId, order, onChanged }) {
   // order shows negative, and is named as the credit it is.
   const netNow = market.debitQuote?.mid ?? null;
   const marketLabel =
-    netNow === null ? null : `${fmtMoney(netNow)} ${netNow < 0 ? "credit" : "debit"}`;
+    netNow === null
+      ? null
+      // A share has a price, not a net debit or credit. Selling stock quotes as
+      // a negative debit, so the sign is dropped and the word with it.
+      : isEquity
+        ? fmtMoney(Math.abs(netNow))
+        : `${fmtMoney(netNow)} ${netNow < 0 ? "credit" : "debit"}`;
 
   const call = async (payload, fallback) => {
     setBusy(true);
@@ -141,7 +167,13 @@ export default function OrderGroup({ accountId, order, onChanged }) {
             </span>
           )}
           <span className="text-sm text-slate-500">
-            {order.legs.length > 1 ? `${order.legs.length} legs` : "single leg"} · {order.type}
+            {/* A share order has no legs. "single leg · limit" on 5 shares of
+                TSLA is options vocabulary applied to stock. */}
+            {isEquity
+              ? `${order.qty ?? ""} ${Math.abs(Number(order.qty)) === 1 ? "share" : "shares"}`.trim()
+              : order.legs.length > 1
+                ? `${order.legs.length} legs`
+                : "single leg"} · {order.type}
           </span>
           <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border ${state.cls}`}>
             {state.label}
@@ -166,7 +198,7 @@ export default function OrderGroup({ accountId, order, onChanged }) {
       {open && (
         <div className="border-t border-slate-100 bg-slate-50/60 px-3.5 pb-3">
           <div className="grid grid-cols-[minmax(0,1fr)_56px_72px_80px] gap-3 py-2 text-[10px] uppercase tracking-wide text-slate-400">
-            <span>Leg</span>
+            <span>{isEquity ? "Shares" : "Leg"}</span>
             <span className="text-right">Qty</span>
             <span className="text-right">Filled</span>
             <span className="text-right">Avg</span>
@@ -242,16 +274,19 @@ export default function OrderGroup({ accountId, order, onChanged }) {
                       Your limit <span className="font-semibold text-slate-900">{money(order.limitPrice)}</span>
                     </span>
                   </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-slate-400 text-xs">$</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
+                  {/* The same −/+ control every other price field uses. A bare
+                      number input renders no spinner at all on iOS Safari, so
+                      on a phone the only way to move the price was to retype
+                      the whole thing. */}
+                  <NumberField
                     value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    aria-label="New limit price"
-                    className="w-24 bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-900 tabular-nums focus:outline-none focus:border-emerald-500"
+                    onChange={setPrice}
+                    step={0.01}
+                    min={0.01}
+                    ariaLabel="New limit price"
+                    className="w-32"
                   />
                   <button
                     onClick={reprice}
@@ -261,12 +296,16 @@ export default function OrderGroup({ accountId, order, onChanged }) {
                     {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
                     Update
                   </button>
+                  {/* "Keep $396.01" read as a second price to choose, sitting
+                      beside a box holding that same number — and as plain text
+                      it did not look clickable at all. It is one thing: leave
+                      the order alone. */}
                   <button
                     onClick={() => setEditing(false)}
                     disabled={busy}
-                    className="px-2 py-1.5 text-xs text-slate-500 hover:text-slate-800"
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-transparent text-slate-600 text-xs hover:bg-slate-100 hover:text-slate-900 transition-colors disabled:opacity-50"
                   >
-                    Keep {money(order.limitPrice)}
+                    Don&rsquo;t change
                   </button>
                 </div>
                 </div>
