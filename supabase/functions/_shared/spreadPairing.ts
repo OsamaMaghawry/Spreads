@@ -30,9 +30,21 @@ function buildLegs(positions, activities) {
       const shareQty = parseFloat(p.qty);
       if (!Number.isFinite(shareQty) || shareQty === 0) return;
       const sym = p.symbol;
+      // How many of these shares are actually free to sell.
+      //
+      // Alpaca holds shares behind a working sell order and reports what is
+      // left as `qty_available`. Without it the close ticket offered the whole
+      // position -- "Quantity (max 10)" on a lot where five were already
+      // committed to a resting order -- and the broker refused the order with
+      // "qty available for order (requested: 10, available: 5)". The position
+      // knows; we were not reading it.
+      const availableQty = p.qty_available === undefined || p.qty_available === null
+        ? shareQty
+        : parseFloat(p.qty_available);
       if (!shareLots[sym]) {
         shareLots[sym] = {
           symbol: sym, ticker: sym, qty: shareQty,
+          qtyAvailable: Number.isFinite(availableQty) ? availableQty : shareQty,
           avgEntryPrice: Math.abs(parseFloat(p.avg_entry_price) || 0),
           currentPrice: Math.abs(parseFloat(p.current_price || p.avg_entry_price) || 0),
           marketValue: parseFloat(p.market_value || "0"),
@@ -40,6 +52,7 @@ function buildLegs(positions, activities) {
         };
       } else {
         shareLots[sym].qty += shareQty;
+        shareLots[sym].qtyAvailable += Number.isFinite(availableQty) ? availableQty : shareQty;
         shareLots[sym].marketValue += parseFloat(p.market_value || "0");
       }
       return;
@@ -265,6 +278,9 @@ function toSharePosition(lot) {
     entryDate: lot.entryDate,
     qty: Math.abs(lot.qty),
     shareQty: lot.qty,
+    // What the broker will actually accept a sell order for right now: the
+    // holding minus whatever a working order already has spoken for.
+    qtyAvailable: Math.abs(lot.qtyAvailable ?? lot.qty),
     legs: [],
     shortSymbol: null,
     longSymbol: lot.symbol,

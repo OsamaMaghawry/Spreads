@@ -20,6 +20,9 @@ const STEP = 0.01;
 
 export default function PriceControl({
   price, onChange, quote, unit, qty, side = "debit", id = "limit-price",
+  // "Limit debit" and "Limit credit" are options words. Selling shares has
+  // neither: there is just a price per share.
+  noun: nounOverride = null,
   // Contracts deliver 100 shares; a share delivers one. Passed in rather than
   // assumed, because the total below was multiplying a share price by 100 and
   // telling the user that closing 10 TSLA at $3.02 would cost $3,020.
@@ -57,7 +60,7 @@ export default function PriceControl({
 
   const pos = markPosition({ price, bid, ask });
   const verdict = verdictFor({ price, bid, ask, side });
-  const noun = side === "credit" ? "Limit credit" : "Limit debit";
+  const noun = nounOverride || (side === "credit" ? "Limit credit" : "Limit debit");
 
   return (
     <div>

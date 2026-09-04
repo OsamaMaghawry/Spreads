@@ -43,7 +43,16 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
 
   // The clamp the input no longer does: never below one, never more than the
   // position holds, and a half-typed field reads as one rather than NaN.
-  const qty = Math.max(1, Math.min(spread.qty, parseInt(qtyInput, 10) || 1));
+  // What the broker will actually accept right now.
+  //
+  // Shares behind a working sell order are not free to sell again: Alpaca
+  // reports the rest as qty_available and refuses anything more with
+  // "qty available for order (requested: 10, available: 5)". The ticket used to
+  // offer the whole holding, so the only way to discover the five already
+  // committed was to have the order rejected.
+  const maxQty = Math.max(1, Number(spread.qtyAvailable ?? spread.qty) || spread.qty);
+  const heldForOrders = Math.max(0, Number(spread.qty) - Number(spread.qtyAvailable ?? spread.qty));
+  const qty = Math.max(1, Math.min(maxQty, parseInt(qtyInput, 10) || 1));
 
   const allLegs = spreadLegs(spread);
   const pickedLegs = allLegs.filter((l) => selected.includes(l.symbol));
@@ -51,7 +60,8 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   const legSig = customLegs ? customLegs.map((l) => l.symbol).join(",") : "";
 
   useEffect(() => {
-    setQtyInput(String(spread.qty));
+    // Defaults to what can actually be sold, not to the whole holding.
+    setQtyInput(String(Math.max(1, Number(spread.qtyAvailable ?? spread.qty) || spread.qty)));
     setOpenOrders(spread.openOrders || []);
     setMode(spread.presetLegSymbol ? "legs" : "whole");
     setSelected(spread.presetLegSymbol ? [spread.presetLegSymbol] : []);
@@ -217,7 +227,14 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
       <DialogContent className="bg-white border-slate-200 text-slate-700 sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-slate-900">
-            {spread.single
+            {/* A share close is a sale, and saying so is clearer than "Close 10
+                TSLA Shares" above a line that also says "10 shares held" — the
+                same number twice, meaning two different things (what is being
+                sold, and what is owned). The title now names the action; the
+                quantity lives in the field that sets it. */}
+            {isShares
+              ? `Sell ${spread.ticker} shares`
+              : spread.single
               ? `Close ${spread.qty} ${spread.ticker} ${kindOf(spread)?.label || "position"}${spread.legs?.[0] ? ` $${spread.legs[0].strike}${spread.legs[0].kind === "call" ? "C" : "P"}` : ""}`
               : spread.type === "iron_condor"
               ? `Close ${spread.ticker} ${spread.putRatio > 1 ? `${spread.putRatio}× ` : ""}${spread.longStrike}/${spread.shortStrike}P · ${spread.callRatio > 1 ? `${spread.callRatio}× ` : ""}${spread.callShortStrike}/${spread.callLongStrike}C iron condor`
@@ -249,17 +266,22 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
             {openOrders.length > 0 && (
               <OpenOrdersPanel accountId={account.id} orders={openOrders} onChange={setOpenOrders} />
             )}
-            <div>
-              <label className="text-xs text-slate-500 block mb-1.5">What to close</label>
-              <div className="flex rounded-lg overflow-hidden border border-slate-300">
-                {[["whole", "Whole position"], ["legs", "Individual legs"]].map(([m, l]) => (
-                  <button key={m} onClick={() => setMode(m)}
-                    className={`flex-1 py-2 text-sm transition-colors ${mode === m ? "bg-emerald-100 text-emerald-700 font-medium" : "bg-white text-slate-500 hover:text-slate-900"}`}>
-                    {l}
-                  </button>
-                ))}
+            {/* Shares have no legs to pick between, so "Whole position /
+                Individual legs" offered a choice that does not exist — the
+                quantity field is the only thing that decides how much is sold. */}
+            {!isShares && (
+              <div>
+                <label className="text-xs text-slate-500 block mb-1.5">What to close</label>
+                <div className="flex rounded-lg overflow-hidden border border-slate-300">
+                  {[["whole", "Whole position"], ["legs", "Individual legs"]].map(([m, l]) => (
+                    <button key={m} onClick={() => setMode(m)}
+                      className={`flex-1 py-2 text-sm transition-colors ${mode === m ? "bg-emerald-100 text-emerald-700 font-medium" : "bg-white text-slate-500 hover:text-slate-900"}`}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {mode === "legs" && (
               <LegPicker
@@ -281,9 +303,29 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                 <LegsQuoteSummary quote={quote} qty={qty} multiplier={multiplier} />
               ) : quote ? (
                 <div className="grid grid-cols-2 gap-y-1.5 tabular-nums">
-                  <span className="text-slate-500">Entry credit / {unit}</span><span className="text-right">{fmtMoney(spread.netCredit)}</span>
-                  <span className="text-slate-500">Mid debit to close</span><span className="text-right">{fmtMoney(midDebit)}</span>
-                  <span className="text-slate-500">Bid / Ask debit</span><span className="text-right">{fmtMoney(quote.bidDebit)} / {fmtMoney(quote.askDebit)}</span>
+                  {/* Shares are described in the words that fit them. The
+                      options rows read "Entry credit / share $0.00" on stock
+                      that was never sold for a credit, and quoted the market as
+                      a NEGATIVE debit — "-$380.88" — because selling is a
+                      negative debit in the options convention. On a share
+                      position none of that means anything: there is a price you
+                      paid and a price the market is showing. */}
+                  {isShares ? (
+                    <>
+                      <span className="text-slate-500">Your cost / share</span>
+                      <span className="text-right">{fmtMoney(spread.shareBasis ?? spread.longEntryPrice ?? 0)}</span>
+                      <span className="text-slate-500">Market now (mid)</span>
+                      <span className="text-right">{fmtMoney(Math.abs(midDebit))}</span>
+                      <span className="text-slate-500">Bid / Ask</span>
+                      <span className="text-right">{fmtMoney(Math.abs(quote.askDebit))} / {fmtMoney(Math.abs(quote.bidDebit))}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-slate-500">Entry credit / {unit}</span><span className="text-right">{fmtMoney(spread.netCredit)}</span>
+                      <span className="text-slate-500">Mid debit to close</span><span className="text-right">{fmtMoney(midDebit)}</span>
+                      <span className="text-slate-500">Bid / Ask debit</span><span className="text-right">{fmtMoney(quote.bidDebit)} / {fmtMoney(quote.askDebit)}</span>
+                    </>
+                  )}
                   <span className="text-slate-500">P/L per {unit} {plAt}</span>
                   <span className={`text-right font-medium ${plPerContract >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{fmtMoney(plPerContract)}</span>
                   <span className="text-slate-500">Total P/L for {qty} {unit}{qty > 1 ? "s" : ""} {plAt}</span>
@@ -296,10 +338,17 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
 
             <div>
               <label className="text-xs text-slate-500 block mb-1.5">
-                {mode === "legs" ? "Units to close" : "Quantity"} (max {spread.qty})
+                {mode === "legs" ? "Units to close" : "Quantity"} (max {maxQty})
               </label>
-              <NumberField value={qtyInput} onChange={setQtyInput} step={1} min={1} max={spread.qty}
+              <NumberField value={qtyInput} onChange={setQtyInput} step={1} min={1} max={maxQty}
                 ariaLabel={mode === "legs" ? "Units to close" : "Quantity"} />
+              {heldForOrders > 0 && (
+                <p className="mt-1.5 text-xs text-amber-700">
+                  {heldForOrders} of your {spread.qty} {isShares ? "shares are" : "contracts are"} already
+                  committed to a working order, so {maxQty} {maxQty === 1 ? "is" : "are"} free to close here.
+                  Cancel that order from the <span className="font-medium">Orders</span> tab to free the rest.
+                </p>
+              )}
             </div>
 
             {/* Its own full-width row: this is the decision that sets what the
@@ -335,6 +384,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                 unit={unit}
                 qty={qty}
                 multiplier={multiplier}
+                noun={isShares ? "Limit price" : null}
                 side="debit"
                 id="close-limit-debit"
               />
@@ -379,9 +429,11 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                       ? "Select legs to close"
                       : priceMode === "manual"
                       ? manualReady
-                        ? `Close ${qty} ${unit}${qty > 1 ? "s" : ""} at ${fmtMoney(startDebit)}`
+                        // "Sell" on shares: it is what the order does, and
+                        // "Close 10 shares" reads like closing an account.
+                        ? `${isShares ? "Sell" : "Close"} ${qty} ${unit}${qty > 1 ? "s" : ""} at ${fmtMoney(startDebit)}`
                         : "Set a price first"
-                      : `Close ${qty} ${unit}${qty > 1 ? "s" : ""} (${priceMode === "market" ? "market" : "walk"})`
+                      : `${isShares ? "Sell" : "Close"} ${qty} ${unit}${qty > 1 ? "s" : ""} (${priceMode === "market" ? "market" : "walk"})`
               }
               summary={`${
                 priceMode === "market"
