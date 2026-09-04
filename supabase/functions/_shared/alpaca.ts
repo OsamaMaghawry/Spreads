@@ -80,6 +80,28 @@ export async function getOptionQuotes(account, symbols) {
   return out;
 }
 
+// Latest NBBO for equity symbols. Same shape as getOptionQuotes (bp/ap per
+// symbol) so a caller can mix the two without special-casing the reply.
+//
+// Held shares are a real position -- assignment from a cash-secured put leaves
+// you with stock -- and closing one is an equity order priced in dollars per
+// share, not an option net. Before this the shares path had no quote source at
+// all and fell through the options endpoint, which returns nothing for a plain
+// ticker.
+export async function getStockQuotes(account, symbols) {
+  const list = [...new Set((symbols || []).filter(Boolean))];
+  const out = {};
+  for (let i = 0; i < list.length; i += 100) {
+    const chunk = list.slice(i, i + 100);
+    const data = await alpacaFetch(
+      `https://data.alpaca.markets/v2/stocks/quotes/latest?symbols=${chunk.join(",")}`,
+      account
+    );
+    Object.assign(out, (data && data.quotes) || {});
+  }
+  return out;
+}
+
 // Latest option quotes for all legs -> combined debit (cost to close) per unit.
 // Pass callShortSymbol/callLongSymbol too for iron condors; bids/asks are summed
 // per side, weighted by putRatio/callRatio for unbalanced condors.
@@ -129,7 +151,17 @@ export async function loadAccount(admin, accountId, userId) {
 // Result is the net debit per unit (negative = net credit received).
 export async function getLegsQuote(account, legs) {
   const syms = legs.map((l) => l.symbol);
-  const quotes = await getOptionQuotes(account, syms);
+  // Equity legs are quoted on the stocks endpoint, option legs on the options
+  // one. A shares position is a single equity leg; a spread is all options.
+  // Splitting here keeps every caller -- the close ticket, the resting-order
+  // editor -- on one quote function whatever it holds.
+  const equitySyms = legs.filter((l) => l.assetClass === "equity").map((l) => l.symbol);
+  const optionSyms = legs.filter((l) => l.assetClass !== "equity").map((l) => l.symbol);
+  const [optionQuotes, stockQuotes] = await Promise.all([
+    optionSyms.length ? getOptionQuotes(account, optionSyms) : Promise.resolve({}),
+    equitySyms.length ? getStockQuotes(account, equitySyms) : Promise.resolve({})
+  ]);
+  const quotes = { ...optionQuotes, ...stockQuotes };
   if (syms.some((sym) => !quotes[sym])) return null;
   let askDebit = 0;
   let bidDebit = 0;

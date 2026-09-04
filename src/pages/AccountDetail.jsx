@@ -6,6 +6,7 @@ import AccountSection from "@/components/dashboard/AccountSection";
 import CloseDialog from "@/components/close/CloseDialog";
 import OpenPositionDialog from "@/components/open/OpenPositionDialog";
 import useLiveSync from "@/lib/useLiveSync";
+import StaleDataNotice from "@/components/common/StaleDataNotice";
 
 export default function AccountDetail() {
   const { id } = useParams();
@@ -14,12 +15,30 @@ export default function AccountDetail() {
   const [loading, setLoading] = useState(true);
   const [closing, setClosing] = useState(null);
   const [opening, setOpening] = useState(false);
+  const [staleReason, setStaleReason] = useState(null);
 
   const load = useCallback(async () => {
     try {
       const res = await invokeFunction("syncAccounts", {});
-      setAccount((res.data?.accounts || []).find((a) => a.id === id) || null);
-      setSyncedAt(res.data?.syncedAt || null);
+      const list = res?.data?.accounts;
+      // Only a refresh that actually answered may change what is on screen.
+      //
+      // `|| null` used to run on every failure, so one dropped request replaced
+      // a live account with "Account not found" -- the whole page emptying for
+      // a second and coming back. An account is gone when the user deletes it,
+      // not when a poll times out. A refresh that did not answer leaves the
+      // last good view in place and says so.
+      if (Array.isArray(list)) {
+        const found = list.find((a) => a.id === id);
+        // Present in a good response but not in the list: genuinely gone.
+        setAccount(found || null);
+        setSyncedAt(res.data?.syncedAt || null);
+        setStaleReason(null);
+      } else {
+        setStaleReason(res?.data?.error || "The last refresh did not come back");
+      }
+    } catch (e) {
+      setStaleReason(e?.message || "The last refresh did not come back");
     } finally {
       setLoading(false);
     }
@@ -82,6 +101,8 @@ export default function AccountDetail() {
           </button>
         </div>
       </div>
+
+      <StaleDataNotice message={staleReason} since={syncedAt} />
 
       {account ? (
         <AccountSection

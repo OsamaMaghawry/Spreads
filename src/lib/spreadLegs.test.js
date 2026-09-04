@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spreadLegs } from "./spreadLegs.js";
+import { spreadLegs, legLabel } from "./spreadLegs.js";
 
 // A single position has one symbol. Run through the pairing below and it emits
 // a second leg with symbol: null — which the broker rejects and the leg picker
@@ -46,4 +46,43 @@ test("an iron condor still yields four legs with its ratios", () => {
   });
   assert.equal(legs.length, 4);
   assert.deepEqual(legs.map((l) => l.ratio), [2, 2, 1, 1]);
+});
+
+// Held shares are a closable position. This returned [] until 4 Sep, so the
+// close ticket sent closeSpread a request with neither legs nor symbols and got
+// "Missing required parameters" — an assigned lot could be seen and not sold.
+test("a long share lot yields one equity leg, sold to close", () => {
+  const legs = spreadLegs({
+    single: true, shares: true, type: "shares",
+    longSymbol: "SH", shareQty: 1000, qty: 1000
+  });
+  assert.equal(legs.length, 1);
+  assert.equal(legs[0].symbol, "SH");
+  assert.equal(legs[0].qty, 1000);
+  assert.equal(legs[0].action, "sell_to_close");
+  // The server reads this to pick the stocks quote endpoint and to build a
+  // plain equity order rather than an option one.
+  assert.equal(legs[0].assetClass, "equity");
+  assert.equal(legs[0].strike, null);
+});
+
+test("a short share lot is bought back, not sold again", () => {
+  const legs = spreadLegs({
+    single: true, shares: true, type: "shares",
+    longSymbol: "SH", shareQty: -400, qty: 400
+  });
+  assert.equal(legs[0].action, "buy_to_close");
+  assert.equal(legs[0].side, "short");
+  assert.equal(legs[0].qty, 400, "quantity is always positive; direction is the action");
+});
+
+test("a share lot with no symbol or no quantity yields nothing to close", () => {
+  assert.deepEqual(spreadLegs({ single: true, shares: true, longSymbol: null, shareQty: 100 }), []);
+  assert.deepEqual(spreadLegs({ single: true, shares: true, longSymbol: "SH", shareQty: 0, qty: 0 }), []);
+});
+
+test("legLabel names shares without inventing a strike", () => {
+  const [leg] = spreadLegs({ single: true, shares: true, longSymbol: "SH", shareQty: 1000, qty: 1000 });
+  assert.equal(legLabel(leg), "1000 shares");
+  assert.ok(!legLabel(leg).includes("null"));
 });

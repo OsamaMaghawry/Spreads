@@ -106,8 +106,13 @@ async function syncOne(account) {
         limitPrice: num(o.limit_price),
         filledAvgPrice: num(o.filled_avg_price),
         submittedAt: o.submitted_at,
-        // Whichever terminal timestamp the order actually has; null while working.
-        endedAt: o.filled_at || o.canceled_at || o.expired_at || null,
+        // Whichever terminal timestamp the order actually has; null while
+        // working. replaced_at belongs here: a repriced order is finished, and
+        // leaving it out gave it a null endedAt, which reads as "still working"
+        // on an order the broker had already retired.
+        endedAt: o.filled_at || o.canceled_at || o.expired_at || o.replaced_at || null,
+        // The order that superseded this one, when the price was changed.
+        replacedBy: o.replaced_by || null,
         // Alpaca reports a refusal here rather than as an HTTP error.
         rejectReason: o.reject_reason || null,
         // Underlying ticker, read off the OCC symbol so a multi-leg order is

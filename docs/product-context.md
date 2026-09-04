@@ -81,7 +81,7 @@ incomplete.
 - **billing** — UpgradePrompt
 - **brand** — DeltaMintMark, Wordmark
 - **close** — CloseDialog, LegPicker, LegsQuoteSummary, OpenOrdersPanel, OrderLog, useCloseOrder
-- **common** — ConfirmSubmit, EarningsWarning, NumberField, PreTradeRisk, PriceControl, RiskMeter, ScanPresets
+- **common** — ConfirmDeleteAccount, ConfirmSubmit, EarningsWarning, NumberField, PreTradeRisk, PriceControl, RiskMeter, ScanPresets, StaleDataNotice
 - **dashboard** — AccountSection, AccountSummaryCard, CardLegs, LegRows, MasterSummary, OrderGroup, PositionCard, PositionCards, SpreadStructure, SpreadTable, StrikeLadder, useLegQuotes
 - **history** — RebuildPreview, StockLotsTable, StrategyTabs, TradeHistoryTable
 - **open** — CandidateList, OpenPositionDialog, OpenPricing, RestingOrder, ScanFilters, SetupPreview, StrategyPicker, useLiveSetup, useOpenOrder, useScanLoop

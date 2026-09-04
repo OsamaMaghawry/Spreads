@@ -110,25 +110,21 @@ export default function AccountSection({ account, onCloseSpread, onOrdersChanged
           >
             {account.type}
           </span>
-          {account.ok && tickers.length > 0 && (
+          {/* Only when prices are NOT streaming.
+              This badge used to read "Live" whenever the stream was healthy,
+              sitting immediately beside the account-type badge that also reads
+              "Live" on a live account — two green pills, same word, different
+              meanings, which is no signal at all. Streaming is the normal state
+              and needs no announcement; the case worth a badge is the other
+              one, where the numbers on screen are refreshed periodically rather
+              than tick by tick. */}
+          {account.ok && tickers.length > 0 && status !== "live" && (
             <span
-              title={
-                status === "live"
-                  ? "Underlying prices are streaming from the broker."
-                  : "Not streaming — prices come from the periodic refresh instead."
-              }
-              className={`flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                status === "live"
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                  : "bg-slate-100 text-slate-500 border-slate-200"
-              }`}
+              title="Not streaming — prices come from the periodic refresh instead, so they update every few seconds rather than tick by tick."
+              className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border bg-slate-100 text-slate-500 border-slate-200"
             >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  status === "live" ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
-                }`}
-              />
-              {status === "live" ? "Live" : "Polling"}
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+              Polling
             </span>
           )}
           {tab === "positions" && (

@@ -47,7 +47,10 @@ export default function useLiveSetup(accountId, setup, enabled = true) {
       legs: legs.map((l) => ({
         symbol: l.symbol,
         ratio: l.ratio,
-        action: l.side === "sell" ? "sell_to_close" : "buy_to_close"
+        action: l.side === "sell" ? "sell_to_close" : "buy_to_close",
+        // Equity legs are quoted on the stocks endpoint; without this a plain
+        // ticker goes to the options one and comes back with no quote at all.
+        ...(l.assetClass ? { assetClass: l.assetClass } : {})
       }))
     };
     const fetchQuote = () =>

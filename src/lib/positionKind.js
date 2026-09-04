@@ -49,6 +49,19 @@ export function stressNote(s, fmtMoney) {
 
 export const riskIsUnbounded = (s) => s?.type === "naked_call";
 
+// Whether the stress figure earns its place on the row.
+//
+// On a cash-secured put or a covered call it does not. Both are fully
+// collateralised by construction -- cash set aside for the put, shares already
+// held for the call -- so the number that matters is the capital committed, and
+// it is on the row already. A second, smaller figure derived from an arbitrary
+// 15% shock reads as a new risk the position does not have, and invites the
+// question "15% of what, and why 15?" every time it is seen.
+//
+// It stays for an uncovered position, where the loss is genuinely open-ended
+// and a shock figure is the only way to put a number near it at all.
+export const showsStress = (s) => s?.type === "naked_call" || s?.type === "naked_put";
+
 // A wheel position's worst case is the stock going to zero -- the same as
 // owning the shares. True, and a different KIND of number from a spread's
 // defined risk, so the label says which.

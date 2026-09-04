@@ -75,3 +75,33 @@ export function nakedShortCalls(legs: any[], shares: Record<string, number>, cas
   }
   return out;
 }
+
+// Where the clock is relative to the US regular session, in UTC.
+//
+// The session watch fires every 15 minutes from 13:00 to 21:59 UTC, and the
+// regular session is 13:30 to 20:00 — so ten of the thirty-six runs each day
+// happen when the market is shut. Judging those runs on live prices is what
+// produced the "price not trusted" mail: once trading stops, the last trade
+// ages past the staleness rule and EVERY leg goes untrusted at once. The
+// timestamps showed it exactly — a batch at 13:00 and 13:15 that resolved at
+// 13:30 when the bell rang, and another first appearing at 20:30, half an hour
+// after the close.
+//
+// alert-rules.md already describes the cure ("staleness after the bell is the
+// expected state, not a defect") but it was only ever applied to the daily
+// report. The phase, not the mode, should decide which price to judge on.
+//
+// Weekends are "closed" for the same reason: nothing has traded since Friday.
+// Holidays are not modelled — on a holiday this returns "open" and the closing
+// price is used anyway, because getClosingSpots is what a shut market wants.
+export function sessionPhase(now: Date = new Date()): "pre" | "open" | "post" | "closed" {
+  const day = now.getUTCDay();
+  if (day === 0 || day === 6) return "closed";
+  const mins = now.getUTCHours() * 60 + now.getUTCMinutes();
+  if (mins < 13 * 60 + 30) return "pre";
+  if (mins >= 20 * 60) return "post";
+  return "open";
+}
+
+// Live prices are only worth judging while the market is actually trading.
+export const judgeOnLivePrices = (now: Date = new Date()) => sessionPhase(now) === "open";

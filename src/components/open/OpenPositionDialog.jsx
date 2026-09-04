@@ -122,10 +122,13 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
     });
 
   // What the X and a click outside the dialog do depends on where the order is:
-  //   walking   -- nothing. Dismissing would leave it running at the broker with
-  //                nothing watching it.
+  //   walking   -- nothing, while it is still conceding. Dismissing would leave
+  //                it stepping the price at the broker with nothing watching it.
   //   resting   -- stop watching. The order keeps working; the log says so and
-  //                the next click leaves.
+  //                the next click leaves. A walk that has reached its floor is
+  //                in this state too: it has stopped conceding and is simply
+  //                sitting at that limit, so it must be leavable like any other
+  //                resting order rather than trapping the ticket.
   //   failed    -- back to the ticket, setup and price kept. Nothing was sent,
   //                and losing the setup over a refused order is what sent the
   //                user back to the account page with nothing to retry.

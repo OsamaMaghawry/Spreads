@@ -76,7 +76,14 @@ export default function OpenPricing({
         </div>
       </div>
 
-      {priceMode !== "market" && (
+      {/* Only "Set my price" gets a price control. The walk chooses its own
+          starting credit from the ask side of the structure and concedes from
+          there, so a slider next to it invited the user to set a number the
+          walk was going to move anyway — and made an automatic mechanism look
+          like a manual one. What the user actually controls on a walk is the
+          floor, which is the input below. Matches the close ticket, where the
+          walk has never had a slider. */}
+      {priceMode === "manual" && (
         <PriceControl
           price={credit}
           onChange={onCredit}

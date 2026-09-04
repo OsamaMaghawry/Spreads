@@ -7,7 +7,7 @@ import { parseOCCSymbol } from "../_shared/occ.ts";
 import { earningsThrough, daysUntil } from "../_shared/earnings.ts";
 import { sendEmail } from "../_shared/email.ts";
 import { accountFacts, buildDailyReport } from "../_shared/watchReport.ts";
-import { sharesByTicker, nakedShortCalls } from "../_shared/watchRules.ts";
+import { sharesByTicker, nakedShortCalls, judgeOnLivePrices } from "../_shared/watchRules.ts";
 
 // The money-safety watch.
 //
@@ -54,6 +54,10 @@ function evaluate(account, positions, spots, earnings, equity, settings, shares 
   // Parsed once here and handed back, so the report does not re-parse OCC
   // symbols to say how many legs an account holds.
   const parsed = [];
+  // Tickers whose price could not be judged this run, with why. Collected
+  // rather than raised per leg, and handed back so reconcile knows which
+  // conditions were never actually evaluated.
+  const unjudged = new Map();
   const add = (rule, severity, symbol, title, detail) =>
     raised.push({ rule, severity, symbol, title, detail });
 
@@ -70,13 +74,12 @@ function evaluate(account, positions, spots, earnings, equity, settings, shares 
     // price. An untrusted price is its own alert, not a silent pass.
     if (isShort) {
       if (!spot || !(spot.price > 0)) {
-        add("price_untrusted", "warning", p.symbol,
-          `Can't judge ${occ.ticker} ${occ.strike}${occ.type} — no usable price`,
-          { reason: spot?.reason || "no price" });
+        // One note per TICKER, not per leg, and recorded rather than raised
+        // here -- four short MSFT contracts are one price problem, and used to
+        // send four identical lines.
+        unjudged.set(occ.ticker, { reason: spot?.reason || "no price", price: null });
       } else if (!spot.trusted) {
-        add("price_untrusted", "warning", p.symbol,
-          `${occ.ticker} price not trusted — ${occ.strike}${occ.type} unjudged`,
-          { price: spot.price, reason: spot.reason });
+        unjudged.set(occ.ticker, { reason: spot.reason, price: spot.price });
       } else {
         const through = isCall ? spot.price >= occ.strike : spot.price <= occ.strike;
         const near = Math.abs(spot.price - occ.strike) / occ.strike <= settings.strike_proximity_pct;
@@ -121,12 +124,28 @@ function evaluate(account, positions, spots, earnings, equity, settings, shares 
       `${n.occ.ticker} ${n.occ.strike}C: ${n.uncovered} of ${n.contracts} short uncovered — no long call and ${n.shares} shares behind it`,
       { contracts: n.contracts, uncovered: n.uncovered, shares: n.shares, coveredByLongs: n.coveredByLongs });
   }
-  return { raised, legs: parsed };
+  // One liveness note per ticker, at info severity, carrying the reason.
+  //
+  // This is not something the owner can act on in a broker: it says "I am
+  // watching and cannot currently see", which belongs in the daily report and
+  // not in the inbox. The session email sends only conditions about positions,
+  // so a run that raises nothing but these sends nothing at all. The reason was
+  // being stored and never shown, which is why the mail could not be understood
+  // by the person receiving it.
+  for (const [ticker, info] of unjudged) {
+    add("price_untrusted", "info", ticker,
+      info.price
+        ? `Can't judge ${ticker} — ${info.reason}; last seen $${Number(info.price).toFixed(2)}`
+        : `Can't judge ${ticker} — ${info.reason}`,
+      { price: info.price, reason: info.reason });
+  }
+
+  return { raised, legs: parsed, unjudged: new Set(unjudged.keys()) };
 }
 
 // Persist raised conditions; return the ones that are new or escalated, which
 // are the only ones worth an email.
-async function reconcile(admin, account, raised) {
+async function reconcile(admin, account, raised, unjudged = new Set()) {
   const day = todayKey();
   const toNotify = [];
   // Matched on the condition itself rather than the dated key, because the same
@@ -138,7 +157,7 @@ async function reconcile(admin, account, raised) {
     seenConditions.add(`${r.rule}·${r.symbol || ""}`);
     const { data: existing } = await admin
       .from("alerts")
-      .select("id, severity, emailed_at")
+      .select("id, severity, emailed_at, resolved_at")
       .eq("dedupe_key", dedupe_key)
       .maybeSingle();
 
@@ -157,13 +176,25 @@ async function reconcile(admin, account, raised) {
       toNotify.push({ ...r, id: ins?.id });
     } else {
       const escalated = sevRank[r.severity] > sevRank[existing.severity];
+      // A condition that comes back is open again. Without clearing this, a row
+      // resolved earlier in the day kept resolved_at set while last_seen_at
+      // went on advancing: invisible in the open list, and never notified
+      // again. Twelve of one day's rows were in exactly that state.
+      const returning = !!existing.resolved_at;
       await admin.from("alerts").update({
         last_seen_at: new Date().toISOString(),
         severity: escalated ? r.severity : existing.severity,
         title: r.title,
-        detail: r.detail
+        detail: r.detail,
+        resolved_at: null,
+        // A critical that returns must reach the owner, so the day-keyed
+        // dedupe is cleared for it. A warning that flaps must not, or a
+        // borderline strike would mail on every fifteen-minute pass.
+        ...(returning && r.severity === "critical" ? { emailed_at: null } : {})
       }).eq("id", existing.id);
-      if (escalated || !existing.emailed_at) toNotify.push({ ...r, id: existing.id });
+      if (escalated || !existing.emailed_at || (returning && r.severity === "critical")) {
+        toNotify.push({ ...r, id: existing.id });
+      }
     }
   }
 
@@ -180,7 +211,26 @@ async function reconcile(admin, account, raised) {
     .select("id, rule, symbol")
     .eq("account_id", account.id)
     .is("resolved_at", null);
-  const stale = (open || []).filter((o) => !seenConditions.has(`${o.rule}·${o.symbol || ""}`));
+  // Rules whose answer depends on a price we may not have had this run.
+  const PRICE_DEPENDENT = new Set(["short_through_strike", "short_near_strike"]);
+  const stale = (open || []).filter((o) => {
+    if (seenConditions.has(`${o.rule}·${o.symbol || ""}`)) return false;
+    // Unknown is not resolved.
+    //
+    // When a spot went untrusted the leg fell into the price_untrusted branch,
+    // so short_through_strike was never re-raised, so it was not in
+    // seenConditions, so it was marked resolved -- while still true. Four ITM
+    // criticals were closed that way in a single day (NFLX 82C, NVDA 222.5C,
+    // NVDA 225P, MU 950C), every one of them still being seen hours later, and
+    // because the daily report reads open alerts as resolved_at is null, all
+    // four were missing from the report that evening. "I could not look" was
+    // being recorded as "it is gone".
+    if (PRICE_DEPENDENT.has(o.rule)) {
+      const ticker = parseOCCSymbol(o.symbol || "")?.ticker || o.symbol;
+      if (unjudged.has(ticker)) return false;
+    }
+    return true;
+  });
   if (stale.length) {
     await admin
       .from("alerts")
@@ -230,29 +280,44 @@ Deno.serve(async (req) => {
         const equity = parseFloat(info?.equity || info?.portfolio_value || "0");
         const legs = (Array.isArray(positions) ? positions : []).filter((p) => parseOCCSymbol(p.symbol));
         const tickers = [...new Set(legs.map((p) => parseOCCSymbol(p.symbol).ticker))];
-        // After the close, judged on the close. The live ladder marks anything
-        // older than thirty minutes untrusted, which at 21:15 UTC is every
-        // price there is -- so the daily report raised nothing but
-        // "price not trusted" and could never reach the rules that matter.
+        // Judged on the close whenever the market is shut — decided by the
+        // clock, not by the mode.
+        //
+        // The live ladder marks anything older than thirty minutes untrusted,
+        // which outside the session is every price there is. That cure was
+        // written for `daily` only, so the session watch walked into the same
+        // wall twice a day: the ten runs it makes between 13:00 and 13:30 and
+        // between 20:00 and 21:59 UTC judged live prices on a market that was
+        // not trading. Those runs raised nothing but "price not trusted" and
+        // never reached the rules that matter.
+        const live = judgeOnLivePrices();
         const spots = tickers.length
-          ? await (mode === "daily" ? getClosingSpots(account, tickers) : getSpots(account, tickers))
+          ? await (mode === "daily" || !live ? getClosingSpots(account, tickers) : getSpots(account, tickers))
           : {};
         const through = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
         const earnings = tickers.length ? await earningsThrough(admin, tickers, through) : {};
 
         const allPositions = Array.isArray(positions) ? positions : [];
-        const { raised, legs: parsedLegs } = evaluate(
+        const { raised, legs: parsedLegs, unjudged } = evaluate(
           account, legs, spots, earnings, equity, settings,
           sharesByTicker(allPositions),
           info?.cash !== undefined ? parseFloat(info.cash) : null
         );
-        const toNotify = await reconcile(admin, account, raised);
+        const toNotify = await reconcile(admin, account, raised, unjudged);
 
-        if (mode === "watch" && toNotify.length) {
-          const { html, text } = alertEmail(account.name, toNotify);
+        // The session email carries conditions about POSITIONS only.
+        //
+        // Liveness notes are recorded and shown in the daily report, but they
+        // are not something the owner can act on in a broker, and mailing them
+        // is what filled the inbox: of one day's twelve emails, most carried
+        // nothing but "price not trusted". A run that raises only info now
+        // sends nothing at all.
+        const mailable = toNotify.filter((t) => t.severity !== "info");
+        if (mode === "watch" && mailable.length) {
+          const { html, text } = alertEmail(account.name, mailable);
           const r = await sendEmail(recipient, `DeltaMint alert — ${account.name}`, html, text);
           if (r.sent) {
-            const ids = toNotify.map((t) => t.id).filter(Boolean);
+            const ids = mailable.map((t) => t.id).filter(Boolean);
             if (ids.length) await admin.from("alerts").update({ emailed_at: new Date().toISOString() }).in("id", ids);
           }
         }

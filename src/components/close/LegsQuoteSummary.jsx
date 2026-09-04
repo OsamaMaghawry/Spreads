@@ -2,10 +2,12 @@ import { fmtMoney } from "@/lib/format";
 
 // Legs-mode quote readout. Backend returns a signed net debit per unit:
 // negative = credit received (selling a long leg), positive = debit paid.
-export default function LegsQuoteSummary({ quote, qty }) {
+// `multiplier` is 100 for contracts and 1 for shares. Assuming 100 here priced
+// a share close at a hundred times what it costs.
+export default function LegsQuoteSummary({ quote, qty, multiplier = 100 }) {
   const midDebit = quote.midDebit ?? 0;
   const isCredit = midDebit < 0;
-  const cash = -midDebit * qty * 100;
+  const cash = -midDebit * qty * multiplier;
   const lo = Math.min(quote.bidDebit, quote.askDebit);
   const hi = Math.max(quote.bidDebit, quote.askDebit);
 

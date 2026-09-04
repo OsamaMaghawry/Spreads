@@ -24,13 +24,22 @@ const spreadKey = (accountId, spread, legs) =>
   legs
     ? `${accountId}_${legs.map((l) => l.symbol).join("_")}`
     : `${accountId}_${spread.shortSymbol}_${spread.longSymbol}${spread.callShortSymbol ? `_${spread.callShortSymbol}_${spread.callLongSymbol}` : ""}`;
+// The wire shape of one leg. `assetClass` must survive the trip: without it the
+// server quotes a plain ticker on the options endpoint and prices a share lot
+// as a contract.
+const legWire = (l) => ({
+  symbol: l.symbol,
+  ratio: l.ratio || 1,
+  action: l.action,
+  ...(l.assetClass ? { assetClass: l.assetClass } : {})
+});
 const wholeParams = (spread) => {
   // A single-leg position has no second symbol, and the paired form would send
   // the broker a multi-leg order with a null leg in it. Its "whole position" IS
   // one leg, so it takes the explicit-legs path that closeSpread already
   // handles as a plain single-leg order.
   if (spread.single) {
-    return { legs: spreadLegs(spread).map((l) => ({ symbol: l.symbol, ratio: l.ratio, action: l.action })) };
+    return { legs: spreadLegs(spread).map(legWire) };
   }
   return {
     shortSymbol: spread.shortSymbol,
@@ -43,7 +52,7 @@ const wholeParams = (spread) => {
 };
 // Either the whole structure, or an explicit subset of legs the user picked.
 const legParams = (spread, legs) =>
-  legs ? { legs: legs.map((l) => ({ symbol: l.symbol, ratio: l.ratio || 1, action: l.action })) } : wholeParams(spread);
+  legs ? { legs: legs.map(legWire) } : wholeParams(spread);
 export const getLastDebit = (accountId, spread, legs) => lastDebits[spreadKey(accountId, spread, legs)] ?? null;
 
 export default function useCloseOrder() {

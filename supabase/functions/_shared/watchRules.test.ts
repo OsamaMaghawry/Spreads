@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { sharesByTicker, nakedShortCalls } from "./watchRules.ts";
+import { sharesByTicker, nakedShortCalls, sessionPhase, judgeOnLivePrices } from "./watchRules.ts";
 
 // A naked short call is the one position with no maximum loss, and the one
 // the dashboard's pairing used to hide. The watch's rule for it shipped as a
@@ -78,4 +78,38 @@ test("shares are claimed by the first covered call, so a second short call on th
 test("short puts, long calls and share legs are never naked calls", () => {
   const out = nakedShortCalls([leg("AAPL", 180, "P", -1), leg("AAPL", 220, "C", 1), { symbol: "AAPL", qty: 100 }], {});
   assert.deepEqual(out, []);
+});
+
+// The session clock. Ten of the session watch's thirty-six daily runs fall
+// outside 13:30–20:00 UTC, and judging those on live prices is what produced
+// the "price not trusted" mail — so which side of the bell we are on decides
+// which price the watch believes.
+test("sessionPhase: the bell, from both sides", () => {
+  const at = (h: number, m: number, day = 4) => {
+    // 2026-09-03 is a Thursday; 05/06 Sep are Sat/Sun.
+    const d = new Date(Date.UTC(2026, 8, day, h, m, 0));
+    return sessionPhase(d);
+  };
+  assert.equal(at(12, 59), "pre", "before the pre-open runs even start");
+  assert.equal(at(13, 0), "pre", "the 13:00 run — the market has not opened");
+  assert.equal(at(13, 15), "pre", "the 13:15 run, the other half of the morning batch");
+  assert.equal(at(13, 29), "pre");
+  assert.equal(at(13, 30), "open", "the bell");
+  assert.equal(at(16, 0), "open");
+  assert.equal(at(19, 59), "open", "the last minute of the session");
+  assert.equal(at(20, 0), "post", "the close — everything after here is stale by design");
+  assert.equal(at(20, 30), "post", "the batch that actually reached the inbox");
+  assert.equal(at(21, 45), "post");
+});
+
+test("sessionPhase: nothing has traded over a weekend", () => {
+  assert.equal(sessionPhase(new Date(Date.UTC(2026, 8, 5, 16, 0))), "closed", "Saturday midday");
+  assert.equal(sessionPhase(new Date(Date.UTC(2026, 8, 6, 16, 0))), "closed", "Sunday midday");
+});
+
+test("judgeOnLivePrices only inside the session", () => {
+  assert.equal(judgeOnLivePrices(new Date(Date.UTC(2026, 8, 3, 16, 0))), true);
+  assert.equal(judgeOnLivePrices(new Date(Date.UTC(2026, 8, 3, 13, 0))), false, "pre-open");
+  assert.equal(judgeOnLivePrices(new Date(Date.UTC(2026, 8, 3, 20, 30))), false, "after the close");
+  assert.equal(judgeOnLivePrices(new Date(Date.UTC(2026, 8, 5, 16, 0))), false, "weekend");
 });
