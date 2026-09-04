@@ -3,6 +3,7 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-04 · The scanner tells "options market is shut for the day" apart from "the stock and options feeds disagree" — pre/post-market it says the chain is stale at yesterday's close instead of blaming a data fault, and the open-position scan loop backs off to a minute between passes outside market hours instead of retrying every 20 seconds (`228fea9`).
 - 2026-09-04 · Shares held by an already-working sell order no longer show as free to sell again (`d1c3262`).
 - 2026-09-04 · The orders row and the close ticket no longer call a share order a "leg", the price editor gets working +/- arrows on a phone, and closing an account explains what is and isn't kept (`fc9598f`, `08b1fe5`).
 - 2026-09-04 · A share position closes from the same ticket as an option, the price walk can be left running without trapping the order, and repricing a resting order updates that order instead of opening a second one (`326ce67`).

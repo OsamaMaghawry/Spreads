@@ -91,6 +91,7 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-04 · The scanner tells "options market is shut for the day" apart from "the stock and options feeds disagree" — pre/post-market it says the chain is stale at yesterday's close instead of blaming a data fault, and the open-position scan loop backs off to a minute between passes outside market hours instead of retrying every 20 seconds (`228fea9`).
 - 2026-09-04 · Shares held by an already-working sell order no longer show as free to sell again (`d1c3262`).
 - 2026-09-04 · The orders row and the close ticket no longer call a share order a "leg", the price editor gets working +/- arrows on a phone, and closing an account explains what is and isn't kept (`fc9598f`, `08b1fe5`).
 - 2026-09-04 · A share position closes from the same ticket as an option, the price walk can be left running without trapping the order, and repricing a resting order updates that order instead of opening a second one (`326ce67`).
@@ -100,7 +101,6 @@ From `docs/ops/shipped.md`, newest first.
 - 2026-09-03 · A draft blog post can be read before it's published: the admin's post list has an eye that opens the draft at `/blog-preview/<slug>` in its own tab, rendered with the blog's own renderer, no dashboard chrome (`f6c481f`, `d650266`).
 - 2026-09-03 · (staging) A merge to `main` now deploys the landing site instead of sitting on it: two GitHub Actions workflows deploy `landing/` to its production and staging Cloudflare Workers, skipping with a notice until `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID` are set (`f2d8369`).
 - 2026-09-03 · (staging) Google Analytics is wired into the production landing pages (home, pricing, privacy, terms) and deliberately left out of the staging Worker and localhost (`7304eb1`).
-- 2026-09-02 · (staging) A close order you priced yourself no longer traps the ticket: the X leaves it working, and the panel never offers to place a second one; its price can be changed from the ticket or the Orders tab, where the underlying, the market now and your limit sit above the box; quantity has −/+ buttons that work on a phone; cards, rows and orders show the underlying's move today.
 
 ## Server functions
 
