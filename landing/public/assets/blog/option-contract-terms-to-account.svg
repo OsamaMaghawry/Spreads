@@ -1,0 +1,60 @@
+<svg viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="One options contract: six terms fixed by the contract specification, one premium set by the trade, multiplied by 100 shares and the number of contracts to give the cash debited, the position and the cost basis recorded in the account.">
+  <rect width="720" height="320" fill="#FFFFFF"/>
+
+  <text x="24" y="34" font-size="13.5" font-weight="600" fill="#14151C">One contract: what is fixed, what is negotiated, and what the account records</text>
+
+  <!-- panel A: fixed terms -->
+  <rect x="24" y="64" width="236" height="196" rx="6" fill="#FFFFFF" stroke="#E2E5EE" stroke-width="1"/>
+  <text x="40" y="88" font-size="11.5" fill="#767B8E">Fixed by the specification</text>
+  <line x1="40" y1="98" x2="244" y2="98" stroke="#E2E5EE" stroke-width="1"/>
+
+  <text x="40" y="122" font-size="11.5" fill="#4B4F60">Underlying</text>
+  <text x="244" y="122" font-size="11.5" text-anchor="end" fill="#14151C">one stock</text>
+  <text x="40" y="148" font-size="11.5" fill="#4B4F60">Type</text>
+  <text x="244" y="148" font-size="11.5" text-anchor="end" fill="#14151C">call</text>
+  <text x="40" y="174" font-size="11.5" fill="#4B4F60">Strike</text>
+  <text x="244" y="174" font-size="11.5" text-anchor="end" fill="#14151C">105</text>
+  <text x="40" y="200" font-size="11.5" fill="#4B4F60">Expiration</text>
+  <text x="244" y="200" font-size="11.5" text-anchor="end" fill="#14151C">a stated date</text>
+  <text x="40" y="226" font-size="11.5" fill="#4B4F60">Deliverable</text>
+  <text x="244" y="226" font-size="11.5" text-anchor="end" fill="#14151C">100 shares</text>
+  <text x="40" y="252" font-size="11.5" fill="#4B4F60">Exercise style</text>
+  <text x="244" y="252" font-size="11.5" text-anchor="end" fill="#14151C">American</text>
+
+  <!-- arrow A to B -->
+  <line x1="264" y1="162" x2="278" y2="162" stroke="#767B8E" stroke-width="1.2"/>
+  <path d="M278 158 L286 162 L278 166 Z" fill="#767B8E"/>
+
+  <!-- panel B: the negotiated number -->
+  <rect x="292" y="64" width="136" height="196" rx="6" fill="#FFFFFF" stroke="#E2E5EE" stroke-width="1"/>
+  <text x="306" y="88" font-size="11.5" fill="#767B8E">Set by the trade</text>
+  <line x1="306" y1="98" x2="414" y2="98" stroke="#E2E5EE" stroke-width="1"/>
+
+  <text x="360" y="146" font-size="26" font-weight="600" text-anchor="middle" fill="#14151C">$2.15</text>
+  <text x="360" y="166" font-size="11.5" text-anchor="middle" fill="#767B8E">premium, per share</text>
+
+  <text x="360" y="200" font-size="11.5" text-anchor="middle" fill="#4B4F60">× 100 shares</text>
+  <text x="360" y="218" font-size="11.5" text-anchor="middle" fill="#4B4F60">× 1 contract</text>
+  <line x1="316" y1="228" x2="404" y2="228" stroke="#E2E5EE" stroke-width="1"/>
+  <text x="360" y="250" font-size="15" font-weight="600" text-anchor="middle" fill="#B4485C">= $215</text>
+
+  <!-- arrow B to C -->
+  <line x1="432" y1="162" x2="446" y2="162" stroke="#767B8E" stroke-width="1.2"/>
+  <path d="M446 158 L454 162 L446 166 Z" fill="#767B8E"/>
+
+  <!-- panel C: the account -->
+  <rect x="460" y="64" width="236" height="196" rx="6" fill="#FBFBFD" stroke="#E2E5EE" stroke-width="1"/>
+  <text x="476" y="88" font-size="11.5" fill="#767B8E">What the account records</text>
+  <line x1="476" y1="98" x2="680" y2="98" stroke="#E2E5EE" stroke-width="1"/>
+
+  <text x="476" y="130" font-size="11.5" fill="#4B4F60">Cash</text>
+  <text x="680" y="130" font-size="12.5" font-weight="500" text-anchor="end" fill="#B4485C">− $215</text>
+  <text x="476" y="164" font-size="11.5" fill="#4B4F60">Option positions</text>
+  <text x="680" y="164" font-size="12.5" font-weight="500" text-anchor="end" fill="#14151C">+1 contract</text>
+  <text x="476" y="198" font-size="11.5" fill="#4B4F60">Shares of the stock</text>
+  <text x="680" y="198" font-size="12.5" font-weight="500" text-anchor="end" fill="#14151C">none</text>
+  <text x="476" y="232" font-size="11.5" fill="#4B4F60">Cost basis</text>
+  <text x="680" y="232" font-size="12.5" font-weight="500" text-anchor="end" fill="#14151C">$215</text>
+
+  <text x="24" y="296" font-size="11" fill="#767B8E">Hypothetical figures, for the mechanics only. Every term but the premium is identical for anyone holding this contract.</text>
+</svg>

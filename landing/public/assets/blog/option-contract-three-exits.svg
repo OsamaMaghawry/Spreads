@@ -1,0 +1,39 @@
+<svg viewBox="0 0 720 336" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Three ways a long option position leaves the account: sold to close for whatever it trades at, exercised into 100 shares at the strike, or held to expiration where an out-of-the-money contract lapses and the premium paid is not returned.">
+  <rect width="720" height="336" fill="#FFFFFF"/>
+
+  <text x="24" y="34" font-size="13.5" font-weight="600" fill="#14151C">Three ways the contract leaves the account, and two of them are the holder's choice</text>
+
+  <!-- the position -->
+  <rect x="24" y="138" width="196" height="72" rx="6" fill="#FFFFFF" stroke="#14151C" stroke-width="1.4"/>
+  <text x="40" y="164" font-size="12.5" font-weight="600" fill="#14151C">Long 1 contract</text>
+  <text x="40" y="184" font-size="11.5" fill="#767B8E">105 call, cost basis $215</text>
+  <text x="40" y="200" font-size="11.5" fill="#767B8E">no shares, no collateral</text>
+
+  <!-- connectors -->
+  <path d="M220 174 H262 V90 H304" fill="none" stroke="#767B8E" stroke-width="1.2"/>
+  <path d="M304 86 L312 90 L304 94 Z" fill="#767B8E"/>
+  <path d="M220 174 H304" fill="none" stroke="#767B8E" stroke-width="1.2"/>
+  <path d="M304 170 L312 174 L304 178 Z" fill="#767B8E"/>
+  <path d="M220 174 H262 V258 H304" fill="none" stroke="#767B8E" stroke-width="1.2"/>
+  <path d="M304 254 L312 258 L304 262 Z" fill="#767B8E"/>
+
+  <!-- exit 1: sell to close -->
+  <rect x="316" y="54" width="380" height="72" rx="6" fill="#FFFFFF" stroke="#2E8B5F" stroke-width="1.2"/>
+  <text x="334" y="78" font-size="12.5" font-weight="600" fill="#2E8B5F">Sell to close</text>
+  <text x="334" y="98" font-size="11.5" fill="#4B4F60">One order the other way. The contract passes to</text>
+  <text x="334" y="114" font-size="11.5" fill="#4B4F60">another buyer and cash arrives at the traded price.</text>
+
+  <!-- exit 2: exercise -->
+  <rect x="316" y="138" width="380" height="72" rx="6" fill="#FFFFFF" stroke="#C9CEDC" stroke-width="1.2"/>
+  <text x="334" y="162" font-size="12.5" font-weight="600" fill="#14151C">Exercise</text>
+  <text x="334" y="182" font-size="11.5" fill="#4B4F60">The right is used. The contract is gone and 100 shares</text>
+  <text x="334" y="198" font-size="11.5" fill="#4B4F60">appear at 105 — a $10,500 debit the account must fund.</text>
+
+  <!-- exit 3: expiration -->
+  <rect x="316" y="222" width="380" height="72" rx="6" fill="#FFFFFF" stroke="#B4485C" stroke-width="1.2"/>
+  <text x="334" y="246" font-size="12.5" font-weight="600" fill="#B4485C">Hold to expiration</text>
+  <text x="334" y="266" font-size="11.5" fill="#4B4F60">Nothing is done. Out of the money the contract lapses,</text>
+  <text x="334" y="282" font-size="11.5" fill="#4B4F60">the row disappears, the $215 paid is not returned.</text>
+
+  <text x="24" y="322" font-size="11" fill="#767B8E">Hypothetical figures, for the mechanics only. In the money at expiration, exercise happens unless the holder opts out.</text>
+</svg>
