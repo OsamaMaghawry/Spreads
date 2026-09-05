@@ -7,7 +7,6 @@ author: DeltaMint
 category: foundations
 series_order: 1
 tags: options contract, multiplier, cost basis, expiration, 100 shares
-draft: true
 ---
 
 An options contract is an agreement about a future transaction in a specific
@@ -35,9 +34,14 @@ underlying at a set price, a put the right to sell it. The **strike** is that
 price. The **expiration** is the date after which the right no longer exists.
 The **deliverable** is what actually changes hands if the right is used, which
 for a standard equity contract is 100 shares. And the **exercise style** says
-when the right may be used — American style, meaning any business day up to
-expiration, for ordinary listed equity options; European style, meaning at
-expiration only, for most broad-based index options.
+when the right may be used — American style, meaning any business day up to and
+including the expiration date, subject to your broker's cut-off, for ordinary
+listed equity options; European style, meaning at expiration only, for most
+broad-based index options.
+
+None of the six is something you set either. What you choose is which listed
+series to trade — this underlying, this strike, this expiration, out of the
+ones the exchange has already defined — not the terms written into it.
 
 The seventh number is the premium, and it is the only one either side of the
 trade has any say over. It is what you pay or receive for the contract, and it
@@ -99,25 +103,28 @@ a share of the underlying. It pays no dividend, carries no vote, cannot be
 lent out, and moves in price for reasons that are related to the stock but are
 not the stock.
 
-**Cost basis.** $215, which is premium × 100 × contracts. That is the figure
-every later number is measured against, and for a purchased option it is also
-the entire amount at stake: a buyer holds a right and can decline to use it, so
-the premium paid is the whole of the downside and it is known before the order
-goes in.
+**Cost basis.** $215 of premium — premium × 100 × contracts — is the number the
+position is built from, but it is not quite what gets recorded. Your broker adds
+the commission from the cash line into the basis it keeps and reports, so the
+basis of record is $215 plus whatever the fill cost you, not $215 alone. Either
+way it is also the entire amount at stake for a purchased option: a buyer holds
+a right and can decline to use it, so the premium paid is the whole of the
+downside and it is known before the order goes in.
 
 **Buying power.** For a long option paid for in full, the cash is spent rather
 than held, and no collateral is set aside for as long as you hold it. That is
-specific to owning the right. Whoever sold you this contract took on an
-obligation instead, and their account holds collateral against it until the
-contract is closed or expires — which is the whole subject of the next post in
-this series.
+specific to owning the right. Somewhere in the market someone is short this
+exact contract — not necessarily the person who filled your order, since the
+clearing house stands between you both — and that account holds collateral
+against the obligation until it is closed or expires. What that collateral
+looks like is the whole subject of the next post in this series.
 
 | | Before the order | After the fill |
 | --- | --- | --- |
 | Cash | unchanged | − $215, plus fees |
 | Option positions | none | long 1 contract, 105 call |
 | Shares of the underlying | none | still none |
-| Cost basis of record | — | $215 |
+| Cost basis of record | — | $215 plus commission |
 | Collateral held against it | none | none, for the buyer of the right |
 | Marked value on screen | — | whatever the contract trades for now, which is not the cost basis |
 
@@ -129,15 +136,18 @@ them is settled.
 
 ## Three ways the position ends, and two of them are your choice
 
-A contract is not a thing you hold indefinitely. It has a date on it, and there
-are exactly three ways the row leaves the account.
+A contract is not a thing you hold indefinitely. It has a date on it, and —
+setting aside the corporate-action adjustments above, which are rare and change
+the terms rather than end the position — there are three ways the row leaves
+the account.
 
 ![Three ways a long option position leaves the account: sold to close, exercised into shares at the strike, or held to expiration where an out-of-the-money contract lapses.](/assets/blog/option-contract-three-exits.svg)
 
-**Sell to close** is the ordinary one. You send an order the opposite way, the
-contract goes to whoever bought it, and your position nets to zero. Cash arrives
-at whatever price the contract traded for. No shares are involved at any point,
-which is why most contracts never result in anyone delivering anything.
+**Sell to close** is the ordinary one. You send an order the opposite way, your
+long is offset against the clearing house, and the row disappears from your
+account. Cash arrives at whatever price the contract traded for. No shares are
+involved at any point, which is why most contracts never result in anyone
+delivering anything.
 
 **Exercise** uses the right. For the hypothetical call above, that means paying
 $10,500 and receiving 100 shares — a real transaction the account has to fund or
@@ -172,11 +182,13 @@ which is why
 [ranking by return on risk rather than premium](/blog/return-on-risk-vs-return-on-capital)
 is the habit the rest of this series keeps returning to.
 
-DeltaMint is built around that second half — grouping the legs of an order back
-into the position you actually put on, and showing the max loss and the share of
-account equity beside it. None of that is a view on whether any contract is
-worth trading. It is the arithmetic on this page, kept current across more rows
-than one person can hold in their head.
+DeltaMint is built around that second half — grouping the legs back into the
+position you actually put on, by the order that created them wherever that
+order can still be traced, and per side, never guessed into a wider structure,
+when it cannot. Each position carries its own max loss, and the book shows its
+total risk as a share of account equity. None of that is a view on whether any
+contract is worth trading. It is the arithmetic on this page, kept current
+across more rows than one person can hold in their head.
 
 The rest of this series starts at
 [Options, from the start](/blog/foundations).
