@@ -64,7 +64,7 @@ Below 95, both puts are in the money. The one you sold takes shares in at 100;
 the one you bought sends them out at 95. The pair settles for exactly the width
 — $500 — however far below 95 the underlying went. Against the $120 already
 received, that is $380 gone: five dollars of width, less a dollar twenty of
-credit, times a hundred shares per contract.
+credit, [times a hundred shares per contract](/blog/what-is-an-options-contract).
 
 Between the strikes the result slides between those two, passing through zero at
 the short strike less the credit — 98.80.

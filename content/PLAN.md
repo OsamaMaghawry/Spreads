@@ -148,4 +148,4 @@ Full list in `docs/context/compliance.md`; these are the ones that bite:
 | 2026-08-29 | `return-on-risk-vs-return-on-capital` | measuring · 59 | live |
 | 2026-08-29 | `options-journal-splits-spreads-into-legs` | managing · 50 | live |
 | 2026-09-02 | `credit-spread-max-loss` | managing · 48 | on staging. Rewritten 2 Sep from a 150-word stub; desk-editor, investment-analyst, seo-editor and compliance-gate findings applied |
-| 2026-09-05 | `what-an-option-actually-is` | foundations · 1 | draft, `draft: true`. Targets "what is an options contract"; angle is what the account holds after the fill. Review chain not yet run — desk-editor, then seo-editor, then compliance-gate |
+| 2026-09-05 | `what-is-an-options-contract` | foundations · 1 | draft, `draft: true`. Targets "what is an options contract"; angle is what the account holds after the fill. seo-editor pass applied (slug, two headings, meta, tags). desk-editor and compliance-gate still to run |

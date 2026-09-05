@@ -1,12 +1,12 @@
 ---
 title: What an options contract actually is
-slug: what-an-option-actually-is
+slug: what-is-an-options-contract
 excerpt: The definition fits in a sentence; what a filled contract does to your cash, your positions and your cost basis is the part nobody writes down.
-meta_description: An options contract is six fixed terms and one negotiated price. What happens in your account when one fills — cash debited, a position, a cost basis.
+meta_description: An options contract is six fixed terms and one negotiated price, on 100 shares. What one fill does to your cash, your positions and your cost basis.
 author: DeltaMint
 category: foundations
 series_order: 1
-tags: options contract, multiplier, cost basis, expiration, foundations
+tags: options contract, multiplier, cost basis, expiration, 100 shares
 draft: true
 ---
 
@@ -54,7 +54,7 @@ offsetting positions cancel in your account. That is why a position can be
 opened and closed in the same minute by two strangers who will never know each
 other's names.
 
-## The quote is per share and the contract is for a hundred of them
+## The quote is per share, and one contract is 100 shares
 
 An option quoted at $2.15 does not cost $2.15. Option premiums are quoted per
 share of the deliverable, and one standard contract carries 100 shares, so
@@ -127,7 +127,7 @@ contract could be traded for at this moment — and it moves every day the marke
 is open. They are different numbers measuring different things, and only one of
 them is settled.
 
-## The position ends in one of three ways, and two of them are your choice
+## Three ways the position ends, and two of them are your choice
 
 A contract is not a thing you hold indefinitely. It has a date on it, and there
 are exactly three ways the row leaves the account.
