@@ -1,5 +1,5 @@
 ---
-title: What an options contract actually is
+title: What an options contract is, and what one does to your account
 slug: what-is-an-options-contract
 excerpt: The definition fits in a sentence; what a filled contract does to your cash, your positions and your cost basis is the part nobody writes down.
 meta_description: An options contract is six fixed terms and one negotiated price, on 100 shares. What one fill does to your cash, your positions and your cost basis.
@@ -9,10 +9,12 @@ series_order: 1
 tags: options contract, multiplier, cost basis, expiration, 100 shares
 ---
 
-An options contract is an agreement about a future transaction in a specific
-security, on terms fixed before you ever saw it. That is the definition, and
-it is close to the least useful true thing anyone can tell you — it doesn't
-say what you're holding, what it cost, or what has to happen for it to end.
+An options contract gives one side the right, without the obligation, to buy
+or sell a specific security at a set price by a set date, and obliges whoever
+sold it to take the other side of that. For a standard listed equity contract
+it covers 100 shares. That is the definition, and it is close to the least
+useful true thing anyone can tell you — it doesn't say what you're holding,
+what it cost, or what has to happen for it to end.
 
 The concrete version is harder to find written down. You send an order for one
 contract, it fills, and something specific happens: cash leaves the account, a
@@ -55,7 +57,7 @@ the opposite way with anyone at all, and the two offsetting positions cancel
 in your account. That is why a position can open and close in the same minute
 between two strangers who never know each other's names.
 
-## The quote is per share, and one contract is 100 shares
+## Why one contract costs 100 times the quoted price
 
 An option quoted at $2.15 does not cost $2.15. Premiums are quoted per share
 of the deliverable, and one standard contract carries 100 shares, so $2.15 is
@@ -184,7 +186,8 @@ total risk as a share of account equity. None of that is a view on whether any
 contract is worth trading. It is the arithmetic on this page, kept current
 across more rows than one person can hold in their head.
 
-The rest of this series starts at
-[Options, from the start](/blog/foundations).
+This is the first post in
+[Options, from the start](/blog/foundations); the rest of the series follows
+from there.
 
 This post is educational and is not investment advice.

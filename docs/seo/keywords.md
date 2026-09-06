@@ -12,7 +12,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 
 | # | Topic | Target query (long tail) | Head term (hub) | Competing today | Our angle |
 | --- | --- | --- | --- | --- | --- |
-| 1 | What an option actually is | what is an options contract | options | Investopedia, broker education hubs | what is in your account after the fill, not a definition |
+| 1 | What an option actually is | what is an options contract (mixed intent — see reading, 6 Sep) | options | contract-law pages (Cornell LII, FindLaw, LawInsider) share page one with Option Alpha, StoneX; broker hubs own the "in stocks" variant | the four account lines after the fill — cash, position row, cost basis of record, collateral — not a definition |
 | 2 | Calls and puts | call vs put option explained | call option, put option | Investopedia, NerdWallet | both sides of the same contract, seller included |
 | 3 | Strike, expiry, premium | option strike price expiration premium | strike price | Investopedia | the three numbers on one real-looking chain row |
 | 4 | Intrinsic and time value | intrinsic vs extrinsic value options | time value | Investopedia, tastylive | why the same strike costs different amounts on different days |
@@ -71,3 +71,38 @@ any phrasing above; whether these results are personalised or localised; and
 whether a distinct query exists for "defined risk is less defined than it
 looks" — searches for it returned only generic spread explainers, so the post
 owns the idea but there is no phrasing to target with it.
+
+## Reading for post 1 — what is an options contract (read 6 Sep 2026)
+
+Results pages read that day, not measured. No rank tracker, no volume tool,
+no Search Console: this records **which domains surface**, not positions and
+not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| what is an options contract | Cornell LII, FindLaw, LawInsider, a state statute — then Option Alpha, StoneX, InvestingAnswers | **hard, and half of it is the wrong intent** — see the ambiguity note below |
+| what is an options contract in stocks / for beginners | SoFi, Ally, Yahoo Finance, LuxAlgo | hard-ish; disambiguated but owned by money-site education hubs |
+| how does an options contract work (example, 100 shares) | tastytrade, Schwab, Desjardins, Longbridge, TradingView chart ideas padding the tail | hard-ish head; the tail padding says the long form is thin |
+| how much does one options contract cost / contract multiplier | optionstrading.org, optionspilot.app, Longbridge, protraderdashboard, Zacks, Option Alpha | **winnable** — small affiliate and app blogs, no authority page |
+| cost basis of an option premium plus commission | QuantWheel, SmartAsset, budgeting.thenest.com, great-option-trading-strategies.com | **winnable** — thin and old; note QuantWheel is a named competitor |
+| does buying a call reduce buying power / hold collateral | a DeFi protocol's research page, Quora, a broker help-centre article, TradingView chart ideas | **winnable**, and the ranked answers disagree with each other |
+| what do you actually own when you buy an option | TradingView chart-idea pages, the same one in ten locales | **wide open** — nothing is answering it in text |
+
+**The ambiguity.** Unqualified, "option contract" is a contract-law doctrine
+(an offer held open for consideration), and half of page one is legal
+reference. Same shape as M48's "credit spread risk" meaning bond spreads. The
+consequence is not to drop the phrase — it is the topic and the slug — but
+that the title, first paragraph and headings must carry finance tokens
+(right/obligation, 100 shares, premium, account) early enough that neither a
+searcher nor a crawler has to guess which contract is meant.
+
+**The gap.** Every finance page that ranks stops in the same place: right not
+obligation, premium × 100, one P/L example. None of them says what the fill
+leaves behind — the cash debit, a position row that is not a share, the cost
+basis of record including commission, and whether anything is held as
+collateral. That gap is the angle the title and meta carry.
+
+**Could not establish:** volume, difficulty and positions for every phrasing
+above; whether these results are personalised or localised; and whether the
+"what do you actually own" intent has a phrasing with real demand behind it
+or is simply an unasked question.
