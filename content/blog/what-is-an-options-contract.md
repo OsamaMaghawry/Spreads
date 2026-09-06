@@ -108,11 +108,11 @@ a right and can decline to use it, so the premium paid is the whole of the
 downside and it is known before the order goes in.
 
 **Buying power.** For a long option paid for in full, the cash is spent rather
-than held — no collateral is set aside for as long as you hold it, since that
-applies only to owning the right. Somewhere in the market someone is short
-this exact contract — not necessarily whoever filled your order, since the
-clearing house stands between you both — and that account holds collateral
-against the obligation until it closes or expires. What that collateral looks
+than held — no collateral is set aside for as long as you hold it, because
+collateral secures an obligation and the buyer of a right has none. Somewhere
+in the market someone is short this exact contract — not necessarily whoever
+filled your order, since the clearing house stands between you both — and that
+account holds collateral against the obligation until it closes or expires. What that collateral looks
 like is the subject of the next post.
 
 | | Before the order | After the fill |
@@ -181,9 +181,10 @@ is the habit the rest of this series keeps returning to.
 DeltaMint is built around that second half — grouping the legs back into the
 position you actually put on, by the order that created them wherever that
 order can still be traced, and per side, never guessed into a wider structure,
-when it cannot. Each position carries its own max loss, and the book shows its
-total risk as a share of account equity. None of that is a view on whether any
-contract is worth trading. It is the arithmetic on this page, kept current
+when it cannot. Each position carries its own max loss where the structure
+defines one — an uncovered short call does not, and the row says so instead of
+printing a number — and the book shows total risk as a share of account equity.
+None of that is a view on whether any contract is worth trading. It is the arithmetic on this page, kept current
 across more rows than one person can hold in their head.
 
 This is the first post in
