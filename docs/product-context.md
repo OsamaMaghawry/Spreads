@@ -91,16 +91,16 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-07 · (staging) The owner's digest email is a card per report — what it
+- 2026-09-07 · (staging) Blog posts read at 17px on a 780px column instead of
+- 2026-09-07 · (staging) On a phone, Blog and Pricing (and Log in) move behind
+- 2026-09-07 · (staging) The homepage's looping Market Screener replay no
 - 2026-09-07 · (staging) A blog draft the merge gate had been silently refusing — it counted a post's own diagrams under `landing/public/assets/blog/` as "not content-only" — now lands somewhere a person can read it before strangers do: the content gate merges a post's branch to `staging` instead of `main`, a new `publish-blog-staging.yml` writes it into the staging project so it renders at `dev-landing.deltamint.app/blog` (noindex), and the owner gets an email naming the post and linking to it. Going to `main`, and the live blog, is still the owner's own merge. Needs the owner to set `SUPABASE_SERVICE_ROLE_KEY_STAGING`; without it the workflow refuses loudly rather than half-publishing (`0053b90`).
 - 2026-09-07 · The homepage is rebuilt from the product itself: a hero wipes between the broker's raw rows and DeltaMint's position cards (with a phone toggle and flip-to-legs cards), a looping Market Screener replay and trade-ticket replay with the real defaults, an individual-legs section, the Analysis tiles and capture table, and a "Start for free" close; the screener and ticket replicas no longer carry a copy of the app's own top nav, and the broker logo in the connect card is smaller (`f55ef60`, `fa8726c`, `204b853`).
 - 2026-09-04 · (staging) The scanner tells "options market is shut for the day" apart from "the stock and options feeds disagree" — pre/post-market it says the chain is stale at yesterday's close instead of blaming a data fault, and the open-position scan loop backs off to a minute between passes outside market hours instead of retrying every 20 seconds (`228fea9`). Not yet on `main` — no PR exists for it; corrected from an earlier ledger entry that omitted the `(staging)` tag.
 - 2026-09-04 · Shares held by an already-working sell order no longer show as free to sell again (`d1c3262`).
 - 2026-09-04 · The orders row and the close ticket no longer call a share order a "leg", the price editor gets working +/- arrows on a phone, and closing an account explains what is and isn't kept (`fc9598f`, `08b1fe5`).
 - 2026-09-04 · A share position closes from the same ticket as an option, the price walk can be left running without trapping the order, and repricing a resting order updates that order instead of opening a second one (`326ce67`).
-- 2026-09-04 · The position watch stops emailing several identical lines for one price problem — one note per ticker with the reason and last price shown — and a run that finds nothing about positions sends no email at all (`f0710c8`).
-- 2026-09-03 · Hotjar session replay runs on deltamint.app's public pages, on the same hostname-gated terms as Google Analytics and never in the app; the privacy policy now discloses both under a website-analytics section (`cc855e7`, `b453a9f`).
-- 2026-09-03 · Billing is hidden end to end until the owner flips `billing_visible`: no Billing entry in the nav, `/billing` says plans aren't open yet, a refused live order's upgrade prompt drops its button, and checkout/portal both refuse with 403 — off by default (`b85c13b`, `20581e9`).
-- 2026-09-03 · A draft blog post can be read before it's published: the admin's post list has an eye that opens the draft at `/blog-preview/<slug>` in its own tab, rendered with the blog's own renderer, no dashboard chrome (`f6c481f`, `d650266`).
 
 ## Server functions
 
