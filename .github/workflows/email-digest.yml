@@ -28,6 +28,16 @@ on:
       - 'docs/trading-audit/**'
       - 'docs/board/**'
   workflow_dispatch:
+    inputs:
+      files:
+        description: >-
+          Report paths to send, space separated (e.g.
+          "docs/board/2026-W36.md growth/plays/2026-W37.md"). Leave empty to
+          use whatever the last push changed. Exists so a report can be
+          re-sent after the template changes, without a commit made only to
+          trigger an email.
+        required: false
+        default: ""
 
 concurrency:
   group: email-digest
@@ -52,6 +62,18 @@ jobs:
         id: changed
         run: |
           set -euo pipefail
+          # An explicit list wins over the diff: a manual dispatch is someone
+          # asking for these files, not for whatever the last commit touched.
+          if [ -n "${{ github.event.inputs.files }}" ]; then
+            files="${{ github.event.inputs.files }}"
+            echo "Sending the files named in the dispatch:"; echo "$files"
+            {
+              echo "files<<EOF"
+              echo "$files" | tr ' ' '\n'
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           # On an agent branch, diff against where it left main: one run can
           # push several commits and HEAD^ would announce only the last one.
           # On main itself, the previous commit is the right comparison.
