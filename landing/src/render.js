@@ -83,14 +83,25 @@ export function markdown(src) {
         return `<div class="tablewrap"><table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
       }
 
-      if (lines.every((l) => /^\s*[-*]\s+/.test(l))) {
-        const items = lines.map((l) => `<li>${inline(l.replace(/^\s*[-*]\s+/, ""))}</li>`).join("");
-        return `<ul>${items}</ul>`;
-      }
-      if (lines.every((l) => /^\s*\d+\.\s+/.test(l))) {
-        const items = lines.map((l) => `<li>${inline(l.replace(/^\s*\d+\.\s+/, ""))}</li>`).join("");
-        return `<ol>${items}</ol>`;
-      }
+      // A list is recognised by its FIRST line, and a line without a marker
+      // continues the item above it.
+      //
+      // This used to require every line to carry a marker, which meant an
+      // item wrapped onto a second line — the normal way to write markdown in
+      // an 80-column file — silently rendered as a paragraph with literal
+      // dashes in it. Worse, it failed silently in the direction nobody
+      // checks: content:check reads the source, counted the block as a list,
+      // and passed a post that rendered as a wall of prose.
+      const items = (marker) => {
+        const out = [];
+        for (const l of lines) {
+          if (marker.test(l)) out.push(l.replace(marker, ""));
+          else if (out.length) out[out.length - 1] += " " + l.trim();
+        }
+        return out.map((i) => `<li>${inline(i.trim())}</li>`).join("");
+      };
+      if (/^\s*[-*]\s+/.test(lines[0])) return `<ul>${items(/^\s*[-*]\s+/)}</ul>`;
+      if (/^\s*\d+\.\s+/.test(lines[0])) return `<ol>${items(/^\s*\d+\.\s+/)}</ol>`;
       if (lines.every((l) => /^\s*&gt;\s?/.test(l))) {
         return `<blockquote>${inline(lines.map((l) => l.replace(/^\s*&gt;\s?/, "")).join(" "))}</blockquote>`;
       }

@@ -29,23 +29,26 @@ An options contract is not something you negotiate with a counterparty. It is a
 product an exchange has listed, the way a shoe size is listed: you take one off
 the shelf or you do not.
 
-Six things are settled before you look at it. The **underlying** — the stock or
-index the contract references. The **contract size**, essentially always 100
-shares for a US equity option. The **expiration date**, a calendar day the
-exchange chose. The **strike price**, one of a listed set spaced at intervals
-the exchange sets — commonly $1, $2.50 or $5 apart, depending on the stock and
-how close the strike sits to the money. The **type**, call or put. And the
-**exercise style**,
-American or European, which decides whether the holder can act before expiration
-or only at it.
+Six things are settled before you look at it:
 
-That leaves the premium, and the premium is the whole of the trading. Two people
-transacting an option agree on one number and inherit six others from the
-listing. That sameness is what lets an option be quoted at all: your 50-strike
-December call is the identical instrument to everyone else's, so it is fungible
-and a market can exist in it. And once a trade clears, the clearing house stands
-between the two sides as counterparty to each — you are not tied to whoever took
-the other side of your fill, and never need to find them again to get out.
+- **Underlying** — the stock or index the contract references.
+- **Contract size** — essentially always 100 shares for a US equity option.
+- **Expiration date** — a calendar day the exchange chose.
+- **Strike price** — one of a listed set, spaced commonly $1, $2.50 or $5
+  apart depending on the stock and how close the strike sits to the money.
+- **Type** — call or put.
+- **Exercise style** — American or European, which decides whether the holder
+  can act before expiration or only at it.
+
+That leaves the premium, and the premium is the whole of the trading. Two
+people transacting an option agree on one number and inherit six others from
+the listing.
+
+Two things follow from that sameness. Your 50-strike December call is the
+identical instrument to everyone else's, so it is fungible and a market can
+exist in it. And once a trade clears, the clearing house stands between the two
+sides as counterparty to each — you are not tied to whoever took the other side
+of your fill, and never need to find them again to get out.
 
 ![A single listed contract broken into four of the fields the exchange fixes and the one field the market sets, with the 100 multiplier turning a per-share quote into dollars per contract.](/assets/blog/options-contract-fixed-fields.svg)
 
@@ -142,22 +145,21 @@ instead of leaving you to do it in your head.
 Whatever happens in between, an option position ends one of three ways, and
 knowing the list is short removes a lot of anxiety.
 
-**You close it.** You trade the identical contract in the opposite direction —
-sell what you bought, buy back what you sold — and the rows net to nothing.
-Because contracts are fungible you close against whoever is willing rather than
-against your original counterparty.
+- **You close it.** You trade the identical contract in the opposite direction
+  — sell what you bought, buy back what you sold — and the rows net to
+  nothing. Because contracts are fungible you close against whoever is
+  willing, not against your original counterparty.
+- **It expires.** Expiration arrives with the strike on the wrong side for the
+  holder, nobody exercises, and the line disappears. The buyer's debit is
+  spent; the seller keeps the credit and the collateral is released.
+- **It is exercised or assigned.** The holder uses the right and 100 shares
+  per contract change hands at the strike — or, on a cash-settled index
+  option, a cash difference is paid instead of shares moving.
 
-**It expires.** Expiration arrives with the strike on the wrong side for the
-holder, nobody exercises, and the line disappears. The buyer's debit is spent;
-the seller keeps the credit and the collateral is released.
-
-**It is exercised or assigned.** For an equity option the holder uses the right
-and 100 shares per contract change hands at the strike; a cash-settled index
-option pays a cash difference instead of moving shares. On a stock option the
-line vanishes and a stock position appears — or disappears — in its place. This
-is the exit that surprises people, because what replaces the option is a
-different instrument, with its own collateral requirement and no expiration
-date at all.
+The third one surprises people, and it is worth being precise about why. On a
+stock option the line vanishes and a stock position appears, or disappears, in
+its place. What replaces the option is a different instrument, with its own
+collateral requirement and no expiration date at all.
 
 Which exit is likely, and what each costs, are separate questions with separate
 posts. The set itself never gets longer than three.

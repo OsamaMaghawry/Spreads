@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CATEGORIES, groupByCategory, postsInCategory, neighbours, related, renderFeed } from "./blog.js";
+import { markdown } from "./render.js";
 
 const P = (slug, category, series_order, published_at = "2026-09-01T00:00:00Z") => ({ slug, category, series_order, published_at, title: slug, excerpt: `about ${slug}` });
 const posts = [
@@ -44,4 +45,19 @@ test("the feed is newest first, escapes markup, and carries the category", () =>
   assert.ok(xml.indexOf("<title>a&lt;b</title>") < xml.indexOf("<title>delta</title>"));
   assert.match(xml, /<category>income<\/category>/);
   assert.ok(!xml.includes("<title>a<b"));
+});
+
+// A list item wrapped onto a second line is the normal way to write markdown
+// in an 80-column file. It used to render as a paragraph with literal dashes
+// in it, and content:check could not see the difference because it reads the
+// source, not the output.
+test("a wrapped list item folds into one <li>", () => {
+  const out = markdown("- **One.** wrapped item that continues\n  onto a second line\n- **Two.** short");
+  assert.match(out, /^<ul>/);
+  assert.match(out, /<li><strong>One\.<\/strong> wrapped item that continues onto a second line<\/li>/);
+  assert.equal(out.match(/<li>/g).length, 2);
+});
+
+test("a paragraph containing a dash is not a list", () => {
+  assert.match(markdown("Just a paragraph with a - dash inside it."), /^<p>/);
 });

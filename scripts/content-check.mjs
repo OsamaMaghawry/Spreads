@@ -43,9 +43,18 @@ const BROKER_ALLOWED = [/landing\/public\/privacy\//, /landing\/public\/terms\//
 // with subheadings), five sections each, three diagrams and a table between
 // them. The floor sits just under the pair so they define it rather than
 // fail it; the target in the brief is higher.
-const MIN_WORDS = 1000;
+const MIN_WORDS = 700;
 const MIN_SECTIONS = 4;
 const MIN_VISUALS = 2;
+// A post is read on a phone, mostly by someone scanning for one answer. The
+// prose floor above used to be 1,000, which a writer meets most easily by
+// running paragraphs longer -- and long unbroken paragraphs are the thing
+// readers skip. So the floor comes down and two shape rules take its place:
+// a post breaks into lists at least twice, and no single paragraph runs past
+// MAX_PARAGRAPH_WORDS. Length is no longer a proxy for thoroughness; the
+// diagrams, the table, the sections and the worked example still are.
+const MIN_LISTS = 2;
+const MAX_PARAGRAPH_WORDS = 110;
 const FRONT_MATTER = ["title", "slug", "excerpt", "meta_description", "author", "category", "series_order", "tags"];
 
 const RULES = [
@@ -315,7 +324,39 @@ function checkFile(file) {
       fail(`${rel} · length`, `${words} words of prose; a post is at least ${MIN_WORDS} — below that it reads as a note`);
     }
 
-    const sections = body.split("\n").filter((l) => /^##\s+\S/.test(l)).length;
+    // Lists, counted as blocks rather than items: three bullets in a row are
+    // one list, and one list in a post of six sections is a garnish.
+    const lines = body.split("\n");
+    const isItem = (l) => /^\s*([-*]|\d+\.)\s+\S/.test(l);
+    let lists = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (isItem(lines[i]) && !lines.slice(0, i).reverse().slice(0, 1).some(isItem)) lists++;
+    }
+    if (lists < MIN_LISTS) {
+      clean = false;
+      fail(
+        `${rel} · lists`,
+        `${lists} list${lists === 1 ? "" : "s"}; a post breaks into points at least ${MIN_LISTS} times — solid prose is what readers skip`
+      );
+    }
+
+    // Paragraphs, measured where the reader meets them. A block with no
+    // markup at the start of its lines is prose; anything longer than the
+    // cap is a wall, whatever it says.
+    for (const block of body.split(/\n{2,}/)) {
+      const b = block.trim();
+      if (!b || structural.test(b.split("\n")[0])) continue;
+      const n = b.split(/\s+/).filter(Boolean).length;
+      if (n > MAX_PARAGRAPH_WORDS) {
+        clean = false;
+        fail(
+          `${rel} · paragraph`,
+          `${n} words in one paragraph (cap ${MAX_PARAGRAPH_WORDS}) starting "${b.split(/\s+/).slice(0, 7).join(" ")}…" — split it, or turn it into points`
+        );
+      }
+    }
+
+    const sections = lines.filter((l) => /^##\s+\S/.test(l)).length;
     if (sections < MIN_SECTIONS) {
       clean = false;
       fail(`${rel} · sections`, `${sections} '##' sections; a post has at least ${MIN_SECTIONS}, each one a claim rather than a label`);

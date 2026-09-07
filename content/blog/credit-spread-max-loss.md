@@ -71,14 +71,18 @@ the short strike less the credit — 98.80.
 
 ![The payoff of a hypothetical $5-wide put credit spread at expiration: $120 kept above the short strike, the $380 max loss below the long strike, and a break-even at 98.80.](/assets/blog/credit-spread-expiration-payoff.svg)
 
-The formula is not a rule to memorise; it is the bottom plateau of that picture.
-Max loss is (width − credit) × 100 per contract because below the long strike
-the legs settle against each other for the full width and the credit is the only
-thing offsetting it. Which is why the same credit on a different width is a
-different position: $0.35 on a $1-wide spread puts the plateau at $65, and the
-same $0.35 on a $2.50-wide spread puts it at $215 — more than three times as far
-down for identical income. Ranking positions on that basis is its own subject,
-and
+The formula is not a rule to memorise; it is the bottom plateau of that
+picture. Max loss is (width − credit) × 100 per contract because below the long
+strike the legs settle against each other for the full width, and the credit is
+the only thing offsetting it.
+
+Which is why the same credit on a different width is a different position:
+
+- **$0.35 on a $1-wide spread** — the plateau sits at $65.
+- **$0.35 on a $2.50-wide spread** — the plateau sits at $215, more than three
+  times as far down, for identical income.
+
+Ranking positions on that basis is its own subject, and
 [return on risk against return on capital](/blog/return-on-risk-vs-return-on-capital)
 is where it is worked through.
 
@@ -129,28 +133,35 @@ price where expiration has decided nothing.
 
 ![The same hypothetical $5-wide put credit spread marked with time still to run: already worse than the $120 credit near the 95 long strike, never the full credit at the top, and flat today only at about 102.5.](/assets/blog/credit-spread-mark-vs-expiration.svg)
 
-Three consequences follow from that curve. The mark moves on implied volatility
-as well as price, so a spread can be marked worse on a volatility expansion with
-the underlying unchanged. The price at which the position is flat today is not
-the break-even at expiration — with time left it sits above the short strike, at
-about 102.5 on the curve above, and walks toward 98.80 only as that time passes.
-And the mark is not the exit price: closing pays the ask on the leg bought back
-and takes the bid on the leg sold, so a thin long wing costs real money to leave
-that no mid-price mark shows.
+Three consequences follow from that curve:
+
+- **Volatility moves the mark, not just price.** A spread can be marked worse
+  on a volatility expansion with the underlying unchanged.
+- **Flat today is not break-even at expiration.** With time left, the price at
+  which the position is flat sits above the short strike — about 102.5 on the
+  curve above — and walks toward 98.80 only as that time passes.
+- **The mark is not the exit price.** Closing pays the ask on the leg bought
+  back and takes the bid on the leg sold, so a thin long wing costs real money
+  to leave that no mid-price mark shows.
 
 ## Early assignment turns a defined-risk position into a stock position overnight
 
 The cap is an arithmetic property of the two legs. It is not a mechanism that
 steps in when the short leg is exercised.
 
-Assignment on the short 100 put means buying 100 shares at 100 — a $10,000 debit
-in this hypothetical — while the long 95 put stays where it is. The capped
-figure survives: shares plus the right to sell them at 95 cannot be worth less
-than $9,500, so the worst case is still the $500 gap less the $120 credit. What
-does not survive is the shape of the position. It is stock now, and a $10,000
-stock position is a different call on the account than $380 of collateral was.
-The settlement has to be funded or margined; short of that, the broker can issue
-a margin call and may liquidate to meet it, on its timing rather than yours.
+Assignment on the short 100 put means buying 100 shares at 100 — a $10,000
+debit in this hypothetical — while the long 95 put stays where it is. Two
+things happen at once:
+
+- **The cap survives.** Shares plus the right to sell them at 95 cannot be
+  worth less than $9,500, so the worst case is still the $500 gap less the
+  $120 credit.
+- **The shape does not.** It is stock now, and a $10,000 stock position is a
+  different call on the account than $380 of collateral was.
+
+The settlement has to be funded or margined. Short of that, the broker can
+issue a margin call and may liquidate to meet it, on its timing rather than
+yours.
 
 ![Early assignment on the short put, before and after: two option legs against a $500 width held, then 100 shares bought at the strike for a $10,000 debit the account must fund or margin, with the long put still outstanding.](/assets/blog/credit-spread-early-assignment.svg)
 
@@ -221,15 +232,21 @@ account but in the record kept of it:
 can report a max loss belonging to no trade anyone made.
 
 Those risk figures — the max loss, and what it is a share of — are what
-DeltaMint puts on the screen. Candidates are ranked by return on risk with the
-max loss beside it; before an order is sent, that max loss appears as a share
-of account equity, with bands at 10, 25, 50 and 70 percent; after the fill the
-grouped position carries its max loss in dollars and the account total is
-netted condor-aware — because the failure that actually happens on a book of
-defined-risk trades is a dozen small max losses that were each fine and never
-got added up. None of that is a view on whether a spread is worth putting on.
-It is the arithmetic on this page, kept current while you are looking at
-something else.
+DeltaMint puts on the screen, at three moments:
+
+- **Choosing.** Candidates are ranked by return on risk, with the max loss
+  beside it.
+- **Before sending.** That max loss appears as a share of account equity, with
+  bands at 10, 25, 50 and 70 percent.
+- **After the fill.** The grouped position carries its max loss in dollars,
+  and the account total is netted condor-aware.
+
+The last one exists because of the failure that actually happens on a book of
+defined-risk trades: a dozen small max losses that were each fine and never got
+added up.
+
+None of that is a view on whether a spread is worth putting on. It is the
+arithmetic on this page, kept current while you are looking at something else.
 
 The rest of the series on holding positions after they fill is in
 [After the fill](/blog/managing).
