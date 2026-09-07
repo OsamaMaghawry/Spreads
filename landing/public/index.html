@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>DeltaMint — Options income, with risk in plain sight</title>
-<meta name="description" content="DeltaMint finds credit-spread and condor setups, groups every position back into the structure you traded, and shows exactly what each one risks — before and after you trade." />
+<title>DeltaMint — Find, Trade &amp; Track Options Positions</title>
+<meta name="description" content="A scanner that finds trades based on your rules, orders that work to a fill with your broker, and a book that&#39;s really easy to understand and evaluate." />
 <link rel="canonical" href="https://deltamint.app/" />
 
 <link rel="icon" href="/favicon.ico" sizes="any">
@@ -14,14 +14,14 @@
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="DeltaMint" />
 <meta property="og:url" content="https://deltamint.app/" />
-<meta property="og:title" content="DeltaMint — Options income, with risk in plain sight" />
-<meta property="og:description" content="Track every credit spread and condor you sell, and see exactly how much of your account is at risk — before and after you trade." />
+<meta property="og:title" content="DeltaMint — Find, Trade &amp; Track Options Positions" />
+<meta property="og:description" content="A scanner that finds trades based on your rules, orders that work to a fill with your broker, and a book that&#39;s really easy to understand and evaluate." />
 <meta property="og:image" content="https://deltamint.app/assets/og-card.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="DeltaMint — Options income, with risk in plain sight" />
-<meta name="twitter:description" content="Track every credit spread and condor you sell, and see exactly how much of your account is at risk — before and after you trade." />
+<meta name="twitter:title" content="DeltaMint — Find, Trade &amp; Track Options Positions" />
+<meta name="twitter:description" content="A scanner that finds trades based on your rules, orders that work to a fill with your broker, and a book that&#39;s really easy to understand and evaluate." />
 <meta name="twitter:image" content="https://deltamint.app/assets/og-card.png" />
 
 <script type="application/ld+json">
@@ -49,8 +49,10 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="/assets/site.css" rel="stylesheet">
+<link href="/assets/home.css" rel="stylesheet">
+<script src="/assets/home.js" defer></script>
   <!-- Google Analytics 4.
        Inline here because the Worker does not run for these pages on
        production: wrangler.jsonc lists only /blog, /blog/* and /sitemap.xml
@@ -125,176 +127,564 @@
   </nav>
 </div>
 
-<div class="wrap">
-  <section class="hero">
-    <div class="hero-grid">
-      <div>
-        <h1>Generate income from options. Keep the risk controlled.</h1>
-        <p class="sub">Track every credit spread and condor you sell, and see exactly how much of your account is at risk &mdash; before and after you trade.</p>
-        <div class="actions">
-          <a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=home">Start free on paper</a>
-          <a class="btn btn-ghost" href="#find">How it works</a>
-        </div>
-      </div>
-
-      <div class="hero-art">
-        <div class="book book-hero">
-          <div class="panel mini">
-            <div class="mt"><span class="mtk">SPY</span><span class="mkd">condor</span></div>
-            <div class="lad"><div class="lad-bar"><i class="l"></i><i class="p"></i><i class="l"></i></div></div>
-            <div class="mini-nums"><span>Credit $412</span><span>At risk $588</span></div>
-            <div class="pl up">+$164</div>
-          </div>
-          <div class="panel mini">
-            <div class="mt"><span class="mtk">AAPL</span><span class="mkd">put spread</span></div>
-            <div class="lad"><div class="lad-bar"><i class="l" style="flex:.6"></i><i class="p"></i></div></div>
-            <div class="mini-nums"><span>Credit $210</span><span>At risk $290</span></div>
-            <div class="pl up">+$96</div>
-          </div>
-          <div class="panel mini">
-            <div class="mt"><span class="mtk">NVDA</span><span class="mkd">condor</span></div>
-            <div class="lad"><div class="lad-bar"><i class="l" style="flex:1.8"></i><i class="p" style="flex:1.6"></i><i class="l"></i></div></div>
-            <div class="mini-nums"><span>Credit $148</span><span>At risk $352</span></div>
-            <div class="pl dn">&minus;$22</div>
-          </div>
-          <div class="panel mini">
-            <div class="mt"><span class="mtk">MSFT</span><span class="mkd">call spread</span></div>
-            <div class="lad"><div class="lad-bar"><i class="p"></i><i class="l" style="flex:.5"></i></div></div>
-            <div class="mini-nums"><span>Credit $186</span><span>At risk $314</span></div>
-            <div class="pl up">+$41</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-</div>
-
-<div class="wrap">
-  <section id="income">
-    <p class="eyebrow">Income generation</p>
-    <h2>Every trade, and what it earned.</h2>
-    <p class="cap">Built from your broker&rsquo;s own fill history. Nothing to type in.</p>
-    <p class="cap">Example figures, shown to illustrate what the screen reports. They are not results, not a forecast, and not typical of anything &mdash; your own numbers come from your own fills.</p>
-
-    <div class="tiles">
-      <div class="tile"><div class="tv up">68%</div><div class="tl">Credit kept</div></div>
-      <div class="tile"><div class="tv">31%</div><div class="tl">Return on risk</div></div>
-      <div class="tile"><div class="tv">1.9&times;</div><div class="tl">Profit factor</div></div>
-      <div class="tile"><div class="tv">$1,240</div><div class="tl">Worst drawdown</div></div>
-    </div>
-  </section>
-</div>
-
-<section class="band">
+<main class="home">
+<!-- Hero: the Positions Monitor itself, as the trades were placed. -->
+<section class="hero">
   <div class="wrap">
-    <section id="find">
-      <p class="eyebrow">Finding opportunities</p>
-      <h2>Screen the market. One tap to trade it.</h2>
-      <p class="cap">Ranked by return on risk. Flagged if earnings land before expiry.</p>
+    <div class="hero-top">
+      <h1>Find, Trade &amp; Track Options Positions</h1>
+      <p class="dek">A scanner that finds trades based on your rules, orders that work to a fill with your broker, and a book that's really easy to understand &amp; evaluate.</p>
+      <a class="h-btn h-btn-brand" href="https://dashboard.deltamint.app/register?ref=home">Connect your broker for free</a>
+    </div>
 
-      <div class="panel scanlist">
-        <div class="srow srow-1">
-          <span class="stk">SPY</span>
-          <span class="sstruct">605/600P &middot; 655/660C</span>
-          <span class="sror">30.9%</span>
-          <span class="tradebtn">Trade</span>
+    <div class="screen wipe" id="wipe">
+      <div class="layer brk" aria-label="The same positions as a brokerage lists them">
+        <div class="brk-bar"><span>Positions</span><span>9 rows</span></div>
+        <div class="brk-sum"><span>Equity 86,420.00</span><span>Buying power 52,310.00</span><span>Cash 31,205.00</span></div>
+        <table class="brk-t">
+          <thead><tr><th>Symbol</th><th class="r">Qty</th><th class="r">Avg entry</th><th class="r">Current</th></tr></thead>
+          <tbody>
+            <tr><td>NVDA260918P00165000</td><td class="r">2</td><td class="r">2.55</td><td class="r">1.48</td></tr>
+            <tr><td>NVDA260918P00170000</td><td class="r">-2</td><td class="r">3.40</td><td class="r">2.05</td></tr>
+            <tr><td>NVDA260918C00195000</td><td class="r">-2</td><td class="r">2.90</td><td class="r">1.60</td></tr>
+            <tr><td>NVDA260918C00200000</td><td class="r">2</td><td class="r">2.05</td><td class="r">1.05</td></tr>
+            <tr><td>MSFT260911P00490000</td><td class="r">3</td><td class="r">2.72</td><td class="r">1.86</td></tr>
+            <tr><td>MSFT260911P00500000</td><td class="r">-3</td><td class="r">4.10</td><td class="r">2.61</td></tr>
+            <tr><td>PLTR260918P00160000</td><td class="r">-2</td><td class="r">2.35</td><td class="r">1.42</td></tr>
+            <tr><td>AMD</td><td class="r">100</td><td class="r">142.00</td><td class="r">142.18</td></tr>
+            <tr><td>AMD260918C00145000</td><td class="r">-1</td><td class="r">0.86</td><td class="r">0.61</td></tr>
+          </tbody>
+        </table>
+        <div class="brk-foot"><span>9 positions</span><span></span></div>
+      </div>
+      <div class="layer dm">
+      <div class="screen-bar">
+        <span><b>Main account</b> <span class="badge b-live">Live</span> &nbsp;·&nbsp; 4 positions &nbsp;·&nbsp; 1 open order</span>
+        <span class="live"><i></i>streaming</span>
+      </div>
+      <div class="summary">
+        <div class="sum"><div class="l">Equity</div><div class="v num">$86,420</div></div>
+        <div class="sum"><div class="l">Cash</div><div class="v num">$31,205</div></div>
+        <div class="sum"><div class="l">Options BP</div><div class="v num">$52,310</div></div>
+        <div class="sum"><div class="l">Positions</div><div class="v num">4</div></div>
+        <div class="sum"><div class="l">Total credit</div><div class="v num">$1,310</div></div>
+        <div class="sum"><div class="l">Total max risk</div><div class="v num">$3,246</div><div class="s num">3.8% of equity</div></div>
+        <div class="sum"><div class="l">Unrealized P/L</div><div class="v num up">+$947</div><div class="s num">1.1% of equity</div></div>
+      </div>
+
+      <div class="cards">
+
+        <div class="card" data-live="nvda" data-spot="181.42" data-min="158.7" data-range="47.6" data-pl="116" data-sens="0">
+          <div class="card-h">
+            <div class="tk"><span class="sym">NVDA</span><span class="chg up num">+1.24% <small>today</small></span><span class="badge b-ic">IC</span><span class="badge b-otm">OTM</span></div>
+            <div class="pl-box"><div class="l">Unrealized P/L</div><div class="v up num" data-plv>+$116.00</div></div>
+          </div>
+          <div class="ladder">
+            <div class="zone z-loss" style="left:0;width:13.2%"></div><div class="zone z-profit" style="left:23.7%;width:52.6%"></div><div class="zone z-loss" style="left:86.8%;width:13.2%"></div>
+            <div class="axis"></div>
+            <div class="spot" style="left:47.7%" data-spotel><i></i><b class="num" data-spotv>$181.42</b></div>
+            <div class="strike v2" style="left:13.2%"><span class="lab">Long Put</span><span class="tick"></span><span class="val num">$165</span></div>
+            <div class="strike r2" style="left:23.7%"><span class="lab">Short Put</span><span class="tick"></span><span class="val num">$170</span></div>
+            <div class="strike r2" style="left:76.3%"><span class="lab">Short Call</span><span class="tick"></span><span class="val num">$195</span></div>
+            <div class="strike v2" style="left:86.8%"><span class="lab">Long Call</span><span class="tick"></span><span class="val num">$200</span></div>
+          </div>
+          <div class="card-f">
+            <div class="met"><div class="l">Qty</div><div class="v num">2</div></div>
+            <div class="met"><div class="l">Break-even</div><div class="v num">$168.30 – $196.70</div></div>
+            <div class="met"><div class="l">Max risk</div><div class="v num down">$660.00</div></div>
+            <div class="met"><div class="l">Net credit</div><div class="v num up">$340.00</div></div>
+            <div class="met"><div class="l">Expiry</div><div class="v">Sep 18</div></div>
+            <div class="acts"><button class="btn-legs" aria-expanded="false">Legs ▾</button><button class="btn-close">Close</button></div>
+          </div>
         </div>
-        <div class="srow">
-          <span class="stk">NVDA <em class="echip">earnings</em></span>
-          <span class="sstruct">118/113P</span>
-          <span class="sror">26.6%</span>
-          <span class="tradebtn ghost">Trade</span>
+
+        <div class="card" data-live="msft" data-spot="511.30" data-min="486.166" data-range="28.968" data-pl="189" data-sens="1">
+          <div class="card-h">
+            <div class="tk"><span class="sym">MSFT</span><span class="chg down num">−0.41% <small>today</small></span><span class="badge b-put">Put</span><span class="badge b-otm">OTM</span><span class="badge b-order">Open order</span></div>
+            <div class="pl-box"><div class="l">Unrealized P/L</div><div class="v up num" data-plv>+$189.00</div></div>
+          </div>
+          <div class="ladder">
+            <div class="zone z-loss" style="left:0;width:13.2%"></div><div class="zone z-profit" style="left:47.75%;width:52.25%"></div>
+            <div class="axis"></div>
+            <div class="spot" style="left:86.8%" data-spotel><i></i><b class="num" data-spotv>$511.30</b></div>
+            <div class="strike" style="left:13.2%"><span class="lab">Long Put</span><span class="tick"></span><span class="val num">$490</span></div>
+            <div class="strike" style="left:47.75%"><span class="lab">Short Put</span><span class="tick"></span><span class="val num">$500</span></div>
+          </div>
+          <div class="card-f">
+            <div class="met"><div class="l">Qty</div><div class="v num">3</div></div>
+            <div class="met"><div class="l">Break-even</div><div class="v num">$498.62</div></div>
+            <div class="met"><div class="l">Max risk</div><div class="v num down">$2,586.00</div></div>
+            <div class="met"><div class="l">Net credit</div><div class="v num up">$414.00</div></div>
+            <div class="met"><div class="l">Expiry</div><div class="v">Sep 11</div></div>
+            <div class="acts"><button class="btn-legs" aria-expanded="false">Legs ▾</button><button class="btn-close">Close</button></div>
+          </div>
         </div>
-        <div class="srow">
-          <span class="stk">AAPL</span>
-          <span class="sstruct">230/235C</span>
-          <span class="sror">22.5%</span>
-          <span class="tradebtn ghost">Trade</span>
+
+        <div class="card" data-live="pltr" data-spot="168.40" data-min="155.715" data-range="14.62" data-pl="186" data-sens="1">
+          <div class="card-h">
+            <div class="tk"><span class="sym">PLTR</span><span class="chg up num">+2.10% <small>today</small></span><span class="badge b-csp">CSP</span><span class="badge b-otm">OTM</span></div>
+            <div class="pl-box"><div class="l">Unrealized P/L</div><div class="v up num" data-plv>+$186.00</div></div>
+          </div>
+          <div class="ladder">
+            <div class="zone z-loss" style="left:0;width:13.2%"></div><div class="zone z-light" style="left:13.2%;width:16.1%"></div><div class="zone z-profit" style="left:29.3%;width:70.7%"></div>
+            <div class="axis"></div>
+            <div class="spot" style="left:86.8%" data-spotel><i></i><b class="num" data-spotv>$168.40</b></div>
+            <div class="strike" style="left:13.2%"><span class="lab">Break-even</span><span class="tick"></span><span class="val num">$157.65</span></div>
+            <div class="strike r2" style="left:29.3%"><span class="lab">Short Put</span><span class="tick"></span><span class="val num">$160</span></div>
+          </div>
+          <div class="card-f">
+            <div class="met"><div class="l">Break-even</div><div class="v num">$157.65</div></div>
+            <div class="met"><div class="l">Qty</div><div class="v num">2</div></div>
+            <div class="met"><div class="l">Capital tied up</div><div class="v num">$32,000.00</div></div>
+            <div class="met"><div class="l">Expiry</div><div class="v">Sep 18</div></div>
+            <div class="acts"><button class="btn-legs" aria-expanded="false">Legs ▾</button><button class="btn-close">Close</button></div>
+          </div>
+        </div>
+
+        <div class="card" data-live="amd" data-spot="142.18" data-min="135.572" data-range="10.866" data-pl="456" data-sens="1">
+          <div class="card-h">
+            <div class="tk"><span class="sym">AMD</span><span class="chg up num">+0.88% <small>today</small></span><span class="badge b-cc">CC</span><span class="badge b-adj">Basis adjusted</span><span class="badge b-otm">OTM</span></div>
+            <div class="pl-box"><div class="l">Unrealized P/L</div><div class="v up num" data-plv>+$456.00</div></div>
+          </div>
+          <div class="ladder">
+            <div class="zone z-loss" style="left:0;width:13.2%"></div><div class="zone z-profit" style="left:13.2%;width:73.6%"></div><div class="zone z-light" style="left:86.8%;width:13.2%"></div>
+            <div class="axis"></div>
+            <div class="spot" style="left:60.8%" data-spotel><i></i><b class="num" data-spotv>$142.18</b></div>
+            <div class="strike" style="left:13.2%"><span class="lab">Break-even</span><span class="tick"></span><span class="val num">$137.01</span></div>
+            <div class="strike" style="left:86.8%"><span class="lab">Short Call</span><span class="tick"></span><span class="val num">$145</span></div>
+          </div>
+          <div class="card-f">
+            <div class="met"><div class="l">Break-even</div><div class="v num">$137.01</div></div>
+            <div class="met"><div class="l">Shares</div><div class="v num">100</div></div>
+            <div class="met"><div class="l">Capital tied up</div><div class="v num">$13,787.00</div></div>
+            <div class="met"><div class="l">Expiry</div><div class="v">Sep 18</div></div>
+            <div class="acts"><button class="btn-legs" aria-expanded="false">Legs ▾</button><button class="btn-close">Close</button></div>
+          </div>
         </div>
       </div>
-    </section>
+      </div>
+      <div class="handle" aria-hidden="true"><span>◂▸</span></div>
+      <span class="wipe-lab l">Your broker</span><span class="wipe-lab r">DeltaMint</span>
+      <input type="range" class="wipe-range" id="wipeRange" min="0" max="100" value="50" aria-label="Drag to compare your broker's list with DeltaMint">
+    </div>
+    <p class="wipe-hint">Drag the handle — left is the broker's list, right is the same account in DeltaMint.</p>
+<div class="hero-mobile">
+  <div class="screen">
+    <div class="seg" role="group"><button class="seg-b" data-view="brk" aria-pressed="true">Broker View</button><button class="seg-b" data-view="dm" aria-pressed="false">DeltaMint View</button></div>
+    <div class="panes">
+      <div class="pane in" data-pane="brk"><div class="brk"><div class="brk-bar"><span>Positions</span><span>9 rows</span></div><div class="brk-row hd"><span>Symbol</span><span>Qty</span><span>Avg entry</span></div><div class="brk-row"><span>NVDA260918P00165000</span><span>2</span><span>2.55</span></div><div class="brk-row"><span>NVDA260918P00170000</span><span>-2</span><span>3.40</span></div><div class="brk-row"><span>NVDA260918C00195000</span><span>-2</span><span>2.90</span></div><div class="brk-row"><span>NVDA260918C00200000</span><span>2</span><span>2.05</span></div><div class="brk-row"><span>MSFT260911P00490000</span><span>3</span><span>2.72</span></div><div class="brk-row"><span>MSFT260911P00500000</span><span>-3</span><span>4.10</span></div><div class="brk-row"><span>PLTR260918P00160000</span><span>-2</span><span>2.35</span></div><div class="brk-row"><span>AMD</span><span>100</span><span>142.00</span></div><div class="brk-row"><span>AMD260918C00145000</span><span>-1</span><span>0.86</span></div></div></div>
+      <div class="pane out" data-pane="dm">
+        <div class="screen-bar" style="margin-bottom:8px"><span><b>Main account</b> <span class="badge b-live">Live</span> · 4 positions</span><span class="live"><i></i>streaming</span></div>
+        <div class="msum"><div><div class="l">Equity</div><div class="v num">$86,420</div></div><div><div class="l">Max risk</div><div class="v num">$3,246</div></div><div><div class="l">Unrlzd P/L</div><div class="v num up">+$947</div></div></div>
+        <div class="flip" id="m1"><div class="flip-in">
+  <div class="face front card">
+    <div class="card-h"><div class="tk"><span class="sym">NVDA</span><span class="chg up num">+1.24% <small>today</small></span><span class="badge b-ic">IC</span><span class="badge b-otm">OTM</span></div><div class="pl-box"><div class="l">Unrealized P/L</div><div class="v up num">+$116.00</div></div></div>
+    <div class="ladder"><div class="zone z-loss" style="left:0;width:13.2%"></div><div class="zone z-profit" style="left:23.7%;width:52.6%"></div><div class="zone z-loss" style="left:86.8%;width:13.2%"></div><div class="axis"></div><div class="spot" style="left:47.7%"><i></i><b class="num">$181.42</b></div><div class="strike v2" style="left:13.2%"><span class="lab">Long Put</span><span class="tick"></span><span class="val num">$165</span></div><div class="strike r2" style="left:23.7%"><span class="lab">Short Put</span><span class="tick"></span><span class="val num">$170</span></div><div class="strike r2" style="left:76.3%"><span class="lab">Short Call</span><span class="tick"></span><span class="val num">$195</span></div><div class="strike v2" style="left:86.8%"><span class="lab">Long Call</span><span class="tick"></span><span class="val num">$200</span></div></div>
+    <div class="card-f"><button class="chip" data-flip="m1">4 legs</button><div class="met"><div class="l">Max risk</div><div class="v num down">$660</div></div><div class="met"><div class="l">Credit</div><div class="v num up">$340</div></div><div class="acts"><button class="btn-close">Close</button></div></div>
+  </div>
+  <div class="face back">
+    <div class="bt">Individual legs · 4 legs</div>
+    <div class="mleg"><div><span class="short">Short $170</span> <span class="kind">put</span><div class="h-sub num">2× · entry 3.40 · now 2.05</div></div><b class="up num">+$270</b><button class="mleg-btn">Close leg</button></div><div class="mleg"><div><span class="long">Long $165</span> <span class="kind">put</span><div class="h-sub num">2× · entry 2.55 · now 1.48</div></div><b class="down num">−$214</b><button class="mleg-btn">Close leg</button></div><div class="mleg"><div><span class="short">Short $195</span> <span class="kind">call</span><div class="h-sub num">2× · entry 2.90 · now 1.60</div></div><b class="up num">+$260</b><button class="mleg-btn">Close leg</button></div><div class="mleg"><div><span class="long">Long $200</span> <span class="kind">call</span><div class="h-sub num">2× · entry 2.05 · now 1.05</div></div><b class="down num">−$200</b><button class="mleg-btn">Close leg</button></div>
+    <div class="pair"><b>One iron condor.</b> Close any leg on its own; the other three stay at the broker.</div>
+    <button class="chip" data-flip="m1">back to the card</button>
+  </div>
+</div></div><div class="flip" id="m2"><div class="flip-in">
+  <div class="face front card">
+    <div class="card-h"><div class="tk"><span class="sym">MSFT</span><span class="chg down num">−0.41% <small>today</small></span><span class="badge b-put">Put</span><span class="badge b-otm">OTM</span></div><div class="pl-box"><div class="l">Unrealized P/L</div><div class="v up num">+$189.00</div></div></div>
+    <div class="ladder"><div class="zone z-loss" style="left:0;width:13.2%"></div><div class="zone z-profit" style="left:47.75%;width:52.25%"></div><div class="axis"></div><div class="spot" style="left:86.8%"><i></i><b class="num">$511.30</b></div><div class="strike" style="left:13.2%"><span class="lab">Long Put</span><span class="tick"></span><span class="val num">$490</span></div><div class="strike" style="left:47.75%"><span class="lab">Short Put</span><span class="tick"></span><span class="val num">$500</span></div></div>
+    <div class="card-f"><button class="chip" data-flip="m2">2 legs</button><div class="met"><div class="l">Max risk</div><div class="v num down">$2,586</div></div><div class="met"><div class="l">Credit</div><div class="v num up">$414</div></div><div class="acts"><button class="btn-close">Close</button></div></div>
+  </div>
+  <div class="face back">
+    <div class="bt">Individual legs · 2 legs</div>
+    <div class="mleg"><div><span class="short">Short $500</span> <span class="kind">put</span><div class="h-sub num">3× · entry 4.10 · now 2.61</div></div><b class="up num">+$447</b><button class="mleg-btn">Close leg</button></div><div class="mleg"><div><span class="long">Long $490</span> <span class="kind">put</span><div class="h-sub num">3× · entry 2.72 · now 1.86</div></div><b class="down num">−$258</b><button class="mleg-btn">Close leg</button></div>
+    <div class="pair"><b>One put spread.</b> Buy back the short and the long stays as a hedge — or close both.</div>
+    <button class="chip" data-flip="m2">back to the card</button>
+  </div>
+</div></div><div class="flip" id="m3"><div class="flip-in">
+  <div class="face front card">
+    <div class="card-h"><div class="tk"><span class="sym">PLTR</span><span class="chg up num">+2.10% <small>today</small></span><span class="badge b-csp">CSP</span><span class="badge b-otm">OTM</span></div><div class="pl-box"><div class="l">Unrealized P/L</div><div class="v up num">+$186.00</div></div></div>
+    <div class="ladder"><div class="zone z-loss" style="left:0;width:13.2%"></div><div class="zone z-light" style="left:13.2%;width:16.1%"></div><div class="zone z-profit" style="left:29.3%;width:70.7%"></div><div class="axis"></div><div class="spot" style="left:86.8%"><i></i><b class="num">$168.40</b></div><div class="strike" style="left:13.2%"><span class="lab">Break-even</span><span class="tick"></span><span class="val num">$157.65</span></div><div class="strike r2" style="left:29.3%"><span class="lab">Short Put</span><span class="tick"></span><span class="val num">$160</span></div></div>
+    <div class="card-f"><button class="chip" data-flip="m3">1 leg</button><div class="met"><div class="l">Break-even</div><div class="v num">$157.65</div></div><div class="met"><div class="l">Tied up</div><div class="v num">$32,000</div></div><div class="acts"><button class="btn-close">Close</button></div></div>
+  </div>
+  <div class="face back">
+    <div class="bt">Individual legs · 1 leg</div>
+    <div class="mleg"><div><span class="short">Short $160</span> <span class="kind">put</span><div class="h-sub num">2× · entry 2.35 · now 1.42</div></div><b class="up num">+$186</b><button class="mleg-btn">Close leg</button></div>
+    <div class="pair"><b>One cash-secured put.</b> $32,000 held against it until it expires or you close.</div>
+    <button class="chip" data-flip="m3">back to the card</button>
+  </div>
+</div></div><div class="flip" id="m4"><div class="flip-in">
+  <div class="face front card">
+    <div class="card-h"><div class="tk"><span class="sym">AMD</span><span class="chg up num">+0.88% <small>today</small></span><span class="badge b-cc">CC</span><span class="badge b-adj">Basis adjusted</span></div><div class="pl-box"><div class="l">Unrealized P/L</div><div class="v up num">+$456.00</div></div></div>
+    <div class="ladder"><div class="zone z-loss" style="left:0;width:13.2%"></div><div class="zone z-profit" style="left:13.2%;width:73.6%"></div><div class="zone z-light" style="left:86.8%;width:13.2%"></div><div class="axis"></div><div class="spot" style="left:60.8%"><i></i><b class="num">$142.18</b></div><div class="strike" style="left:13.2%"><span class="lab">Break-even</span><span class="tick"></span><span class="val num">$137.01</span></div><div class="strike" style="left:86.8%"><span class="lab">Short Call</span><span class="tick"></span><span class="val num">$145</span></div></div>
+    <div class="card-f"><button class="chip" data-flip="m4">2 legs</button><div class="met"><div class="l">Break-even</div><div class="v num">$137.01</div></div><div class="met"><div class="l">If called</div><div class="v num up">+$801</div></div><div class="acts"><button class="btn-close">Close</button></div></div>
+  </div>
+  <div class="face back">
+    <div class="bt">Individual legs · 2 legs</div>
+    <div class="mleg"><div><span class="short">Short $145</span> <span class="kind">call</span><div class="h-sub num">1× · entry 0.86 · now 0.61</div></div><b class="up num">+$25</b><button class="mleg-btn">Close leg</button></div><div class="mleg"><div><span class="long">Long 100 sh</span> <span class="kind">assigned Aug 21</span><div class="h-sub num">basis $137.87 adj. · entry broker $142.00 · now now 142.18</div></div><b class="up num">+$431</b><button class="mleg-btn">Sell shares</button></div>
+    <div class="pair"><b>One covered call.</b> Basis is the $142 assignment less three premiums since — the broker still says $142.</div>
+    <button class="chip" data-flip="m4">back to the card</button>
+  </div>
+</div></div>
+      </div>
+    </div>
+  </div>
+  <p class="wipe-hint">Tap a card's legs chip to see each leg on its own.</p>
+</div>
   </div>
 </section>
 
-<div class="wrap">
-  <section id="ops">
-    <p class="eyebrow">Operational strengths</p>
-    <h2>Set it up once. Let it work.</h2>
-
-    <div class="findgrid">
-      <div>
-        <div class="bar"></div>
-        <h3>Every leg, one order.</h3>
-        <p>Four legs go in together, and the fill price walks toward the market on its own &mdash; never past it.</p>
-      </div>
-      <div>
-        <div class="bar"></div>
-        <h3>Scales with you.</h3>
-        <p>Three positions or thirty, the book reads the same way: grouped, priced, sized.</p>
-      </div>
-      <div>
-        <div class="bar"></div>
-        <h3>One-tap from a scan.</h3>
-        <p>Find a setup, trade it, and it lands in your book already grouped &mdash; no extra step.</p>
-      </div>
-    </div>
-  </section>
-</div>
-
-<section class="band">
+<!-- BROKER -->
+<section class="broker">
   <div class="wrap">
-    <section id="risk">
-      <p class="eyebrow">Risk management</p>
-      <h2>Know before it&rsquo;s a problem.</h2>
-      <p class="cap">Every order shows its share of your account. Every scan flags earnings before you&rsquo;re exposed to them.</p>
-
-      <div class="guard">
-        <div class="panel gcard">
-          <div class="gt">Share of account at risk</div>
-          <div class="gtop"><span class="gpct">31.4%</span><span class="gband">Elevated</span></div>
-          <div class="gmeter">
-            <i class="gfill" style="--fillw:44.9%"></i>
-            <span style="left:14.3%"></span><span style="left:35.7%"></span><span style="left:71.4%"></span>
-          </div>
-          <div class="gscale"><span style="left:14.3%">10%</span><span style="left:35.7%">25%</span><span style="left:71.4%">50%</span></div>
-        </div>
-
-        <div class="panel gcard warn">
-          <div class="gwarn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M12 14v3"/></svg>
-            <span>NVDA reports earnings before the open on 18 Sep.</span>
-          </div>
-          <p class="gnote">Held through the announcement &mdash; typically the largest single-day move the underlying makes. We tell you. You decide.</p>
-        </div>
-      </div>
-    </section>
+    <div class="eyebrow">Connect your broker</div>
+    <h2>Keep your broker. Just connect.</h2>
+    <p class="line">Your money and your positions stay where they are. DeltaMint reads them and works your orders there.</p>
+    <div class="h-brokercard">
+      <svg class="alpaca" viewBox="0 0 400 100" role="img" aria-label="Alpaca">
+        <circle cx="50" cy="50" r="48" fill="#FFD43B"/>
+        <path fill="#fff" d="M36 98 L36 62 C36 54 33 50 27 48 L20 46 C17 45 17 41 21 40 L30 38 C32 30 37 25 44 23 L42 14 L49 20 L53 12 L56 22 C64 25 69 32 69 42 L69 98 Z"/>
+        <circle cx="41" cy="40" r="2.6" fill="#FFD43B"/>
+        <text x="112" y="80" font-family="'Bricolage Grotesque','IBM Plex Sans',system-ui,sans-serif" font-size="80" font-weight="700" fill="#111" textLength="278" lengthAdjust="spacingAndGlyphs">Alpaca</text>
+      </svg>
+      <span class="tag">Live now</span>
+    </div>
+    <div class="broker-pts"><span>Sign in with your brokerage login</span><span>Paper and live accounts both come across</span><span>Disconnect any time</span></div>
+    <a class="h-btn h-btn-brand broker-cta" href="https://dashboard.deltamint.app/register?ref=home">Connect your Alpaca account now — free</a>
   </div>
 </section>
 
-<div class="wrap">
-  <section id="broker">
-    <p class="eyebrow">Connect your broker</p>
-    <p class="broker-line">Works with the brokerage you already use.</p>
-    <div class="broker-row">
-      <div class="panel brokercard">
-        <svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="12" fill="#FFC94D"/><path d="M9 17.5 L11.5 8.5 L14.5 8.5 L17 17.5 L14.6 17.5 L14.1 15.3 L11.9 15.3 L11.4 17.5 Z" fill="#111"/></svg>
-        <span class="brokername">Alpaca</span>
-        <span class="brokertag">Live now</span>
-      </div>
-    </div>
-  </section>
-</div>
-
-<section class="cta-band">
+<!-- SCREENER (animated replica of the real page) -->
+<section>
   <div class="wrap">
-    <h2>Try it on paper.</h2>
-    <p class="sub">Free, and nothing at stake while you find out.</p>
-    <div class="actions">
-      <a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=home">Create an account</a>
-      <a class="btn btn-ghost" href="/pricing">See pricing</a>
+    <div class="head">
+      <div class="eyebrow">Screener</div>
+      <h2>Set your rules once. Scan the market. Trade from the row.</h2>
+      <details class="more"><summary>What's on the screen</summary>
+        <ul><li>Default filters: put spreads, 0–5 DTE, delta 0.12–0.22, $1–$3 wings</li><li>Scans the universe in batches of four, results stream in</li><li>Every row priced at the side that actually trades</li><li>Ranked by return on risk; sortable</li><li><b>Trade</b> opens the ticket for that row</li></ul>
+      </details>
+    </div>
+
+    <div class="app" id="scApp">
+      <div class="app-h">
+        <span class="wm"><i></i>delta<b>mint</b></span>
+        <div class="app-nav"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg> positions</span><span class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/></svg> screener</span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg> accounts</span></div>
+        <span class="out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg> log_out</span>
+      </div>
+      <button class="replay sc-replay" id="scReplay">Replay</button>
+      <div class="app-m">
+        <h1><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/></svg> Market Screener</h1>
+        <p class="h-sub">Sweep the market for setups that clear your credit-to-risk rules, then trade the row you pick on any account.</p>
+
+        <div class="sc-grid">
+          <div class="sc-left">
+            <div class="presets"><span style="display:inline-flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg> Presets</span><span class="chp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Last scan</span><span class="chp em">0DTE tight <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;color:#6ee7b7"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></span><span class="chp dash">+ Save current</span></div>
+            <div class="strat">
+              <div class="on"><div class="n">Put spread</div><div class="h">Bullish / neutral</div></div>
+              <div><div class="n">Call spread</div><div class="h">Bearish / neutral</div></div>
+              <div><div class="n">Iron condor</div><div class="h">Neutral, 4 legs</div></div>
+              <div><div class="n">Cash-secured put</div><div class="h">Sell a put, hold the cash</div></div>
+              <div><div class="n">Covered call</div><div class="h">Sell a call on shares you hold</div></div>
+              <div><div class="n">Wheel</div><div class="h">Both, on this account</div></div>
+            </div>
+            <div class="cfg">
+              <div><span class="lbl">Universe</span><div class="sel"><span>Top 50 most liquid (fast)</span></div></div>
+              <div><span class="lbl">Days to expiry</span><div class="two"><div><span class="h-cap">Min</span><div class="nf"><span>−</span><b class="">0</b><span>+</span></div></div><div><span class="h-cap">Max</span><div class="nf"><span>−</span><b class="">5</b><span>+</span></div></div></div></div>
+              <div><span class="lbl">Short delta</span><div class="two"><div><span class="h-cap">Min</span><div class="nf"><span>−</span><b class="">0.12</b><span>+</span></div></div><div><span class="h-cap">Max</span><div class="nf"><span>−</span><b class="">0.22</b><span>+</span></div></div></div></div>
+              <div><span class="lbl">Wing width ($)</span><div class="two"><div><span class="h-cap">Min</span><div class="nf"><span>−</span><b class="">1</b><span>+</span></div></div><div><span class="h-cap">Max</span><div class="nf"><span>−</span><b class="">3</b><span>+</span></div></div></div></div>
+              <p class="note">Only spreads whose strikes are exactly this far apart are returned. A ticker whose chain has no strike at that distance is listed as skipped rather than widened.</p>
+              <div class="two g3">
+                <div><span class="lbl">Min credit ($)</span><div class="nf"><span>−</span><b class="">0.2</b><span>+</span></div></div>
+                <div><span class="lbl">Max risk / unit ($)</span><div class="nf"><span>−</span><b class="ph">any</b><span>+</span></div></div>
+                <div><span class="lbl">Min return on risk (%)</span><div class="nf"><span>−</span><b class="">15</b><span>+</span></div></div>
+              </div>
+            </div>
+            <button class="scan-btn" id="scanBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/></svg> <span id="scanLbl">Scan 50 tickers</span></button>
+          </div>
+
+          <div class="sc-right">
+            <div class="prog" id="scProg" hidden>
+              <div class="l1"><span><i class="spin" id="scSpin"></i><span id="scStatus">Scanning — 0/50 tickers</span></span><span id="scCount">0 setups ≥ 15% RoR</span></div>
+              <div class="pbar"><i id="scBar"></i></div>
+            </div>
+            <div class="empty" id="scEmpty">Configure your filters and start a scan.</div>
+            <div class="rt-wrap" id="scTableWrap" hidden><table class="rt">
+              <thead><tr><th>#</th><th>Ticker</th><th>Expiry</th><th>Structure</th><th class="r">Spot</th><th class="r">Short Δ</th><th class="r">Width</th><th class="r s">RoR <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;vertical-align:-1px"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg></th><th class="r">Credit</th><th class="r">Max Risk</th><th></th></tr></thead>
+              <tbody id="scRows"></tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+      <div class="cursor" id="scCursor" style="left:60%;top:70%;opacity:0"><svg viewBox="0 0 22 28"><path d="M2 2 L2 22 L7.5 17 L11 25 L14.5 23.5 L11 15.5 L18 15.5 Z" fill="#fff" stroke="#111" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+      <div class="ring" id="scRing"></div>
     </div>
   </div>
 </section>
+
+<!-- OPEN TICKET (animated replica of TradeDialog) -->
+<section>
+  <div class="wrap">
+    <div class="head">
+      <div class="eyebrow">Opening a trade</div>
+      <h2>Press Trade. Read the ticket. Confirm it yourself.</h2>
+      <details class="more"><summary>What's on the ticket</summary>
+        <ul><li>Underlying and every leg quoted live</li><li>Earnings warning if held through a report</li><li>Risk meter: the order as a share of your account</li><li>Account, quantity, and how to price it</li><li><b>Walk to fill</b> concedes toward the bid, never below your floor</li><li>Confirmed twice; every broker step logged</li></ul>
+      </details>
+    </div>
+
+    <div class="app tk-app" id="tkApp">
+      <div class="app-h">
+        <span class="wm"><i></i>delta<b>mint</b></span>
+        <div class="app-nav"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg> positions</span><span class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/></svg> screener</span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg> accounts</span></div>
+        <span class="out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg> log_out</span>
+      </div>
+      <button class="replay sc-replay" id="tkReplay">Replay</button>
+      <div class="app-m">
+        <h1><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/></svg> Market Screener</h1>
+        <p class="h-sub">Sweep the market for setups that clear your credit-to-risk rules, then trade the row you pick on any account.</p>
+        <div class="sc-grid">
+          <div class="sc-left" style="min-height:420px">
+            <div class="presets"><span style="display:inline-flex;align-items:center;gap:6px">Presets</span><span class="chp">Last scan</span><span class="chp em">0DTE tight</span><span class="chp dash">+ Save current</span></div>
+            <div class="strat"><div class="on"><div class="n">Put spread</div><div class="h">Bullish / neutral</div></div><div><div class="n">Call spread</div><div class="h">Bearish / neutral</div></div><div><div class="n">Iron condor</div><div class="h">Neutral, 4 legs</div></div><div><div class="n">Cash-secured put</div><div class="h">Sell a put, hold the cash</div></div><div><div class="n">Covered call</div><div class="h">Sell a call on shares you hold</div></div><div><div class="n">Wheel</div><div class="h">Both, on this account</div></div></div>
+            <div class="cfg"><div><span class="lbl">Universe</span><div class="sel"><span>Top 50 most liquid (fast)</span></div></div></div>
+            <button class="scan-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/></svg> <span>Scan 50 tickers</span></button>
+          </div>
+          <div class="sc-right">
+            <div class="prog"><div class="l1"><span><span>Scan complete — 50/50 tickers</span></span><span>10 setups ≥ 15% RoR</span></div><div class="pbar"><i style="width:100%"></i></div></div>
+            <div class="rt-wrap"><table class="rt"><thead><tr><th>#</th><th>Ticker</th><th>Expiry</th><th>Structure</th><th class="r">Spot</th><th class="r">Short Δ</th><th class="r">Width</th><th class="r s">RoR ↓</th><th class="r">Credit</th><th class="r">Max Risk</th><th></th></tr></thead><tbody><tr><td class="i">1</td><td class="t">AVGO <span class="earn"><svg style="width:12px;height:12px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h5"/><path d="M17.5 17.5 16 16.3V14"/><circle cx="16" cy="16" r="6"/></svg> Earnings</span></td><td class="e">2026-09-11</td><td>335/332.5P</td><td class="r">$348.60</td><td class="r">0.20</td><td class="r">$2.50</td><td class="r ror">28.2%</td><td class="r">$55.00</td><td class="r">$195.00</td><td><button class="tr-btn">Trade</button></td></tr><tr><td class="i">2</td><td class="t">NVDA</td><td class="e">2026-09-11</td><td>175/172.5P</td><td class="r">$181.42</td><td class="r">0.19</td><td class="r">$2.50</td><td class="r ror">23.8%</td><td class="r">$48.00</td><td class="r">$202.00</td><td><button class="tr-btn">Trade</button></td></tr><tr><td class="i">3</td><td class="t">TSLA</td><td class="e">2026-09-11</td><td>330/327.5P</td><td class="r">$336.20</td><td class="r">0.21</td><td class="r">$2.50</td><td class="r ror">22.5%</td><td class="r">$46.00</td><td class="r">$204.00</td><td><button class="tr-btn">Trade</button></td></tr><tr><td class="i">4</td><td class="t">AMD</td><td class="e">2026-09-11</td><td>137/135P</td><td class="r">$142.18</td><td class="r">0.18</td><td class="r">$2.00</td><td class="r ror">22.0%</td><td class="r">$36.00</td><td class="r">$164.00</td><td><button class="tr-btn">Trade</button></td></tr><tr><td class="i">5</td><td class="t">META</td><td class="e">2026-09-11</td><td>735/732P</td><td class="r">$742.32</td><td class="r">0.17</td><td class="r">$3.00</td><td class="r ror">21.0%</td><td class="r">$52.00</td><td class="r">$248.00</td><td><button class="tr-btn">Trade</button></td></tr><tr><td class="i">6</td><td class="t">AAPL</td><td class="e">2026-09-11</td><td>240/238P</td><td class="r">$246.10</td><td class="r">0.16</td><td class="r">$2.00</td><td class="r ror">19.0%</td><td class="r">$32.00</td><td class="r">$168.00</td><td><button class="tr-btn">Trade</button></td></tr></tbody></table></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ovl" id="tkOvl"></div>
+      <div class="dlg" id="tkDlg" role="dialog" aria-label="Trade AVGO spread">
+        <span class="x"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+        <h2>Trade AVGO spread</h2>
+
+        <div class="sp">
+          <div class="top"><span style="padding-top:4px">AVGO · Expiry 2026-09-11</span><span><span class="spot-big" id="tkSpot">$348.60</span><span class="spot-sub"><i></i>live <span id="tkClock">2:05:12 PM</span></span></span></div>
+          <div style="display:grid;gap:4px">
+            <div class="legrow"><span>Sell 1× Short put $335.00</span><span><span id="tkS">$2.12 / $2.20</span><span class="dl">Δ 0.20</span></span></div>
+            <div class="legrow"><span>Buy 1× Long put $332.50</span><span><span id="tkL">$1.57 / $1.65</span><span class="dl">Δ 0.16</span></span></div>
+            <div class="netq"><span>Net credit now (bid / ask) · <span id="tkClock2">2:05:12 PM</span></span><span id="tkNet">$0.47 / $0.63</span></div>
+          </div>
+          <div class="grid">
+            <span>Credit / spread (scan)</span><span class="em">$55.00</span>
+            <span>Widest side width</span><span>$250.00</span>
+            <span>Max risk / spread</span><span>$195.00</span>
+            <span>Total credit (<span id="tkQ1">1</span> spread<span id="tkQ1s"></span>)</span><span class="em2" id="tkTotC">$55.00</span>
+            <span>Total max risk</span><span class="bold" id="tkTotR">$195.00</span>
+            <span>Break-even</span><span>$334.45</span>
+          </div>
+        </div>
+
+        <div id="tkIdle" style="display:grid;gap:16px">
+          <div class="h-warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h5"/><path d="M17.5 17.5 16 16.3V14"/><circle cx="16" cy="16" r="6"/></svg><div><b>AVGO reports earnings after the close on 2026-09-10 — in 3 days.</b><div class="h-sub">This position would be held through the announcement, which is typically the largest one-day move the underlying makes.</div></div></div>
+          <div class="rm contained" id="tkRm"><div class="r1"><span>Share of account at risk</span><span class="pct" data-pct>1.3%</span></div><div class="track2"><i data-bar style="width:1.9%"></i><s style="left:14.3%"></s><s style="left:35.7%"></s><s style="left:71.4%"></s></div><div class="r3"><span class="band" data-band>Contained</span><span data-of>$195.00 of $15,000.00</span></div><div class="note" data-note>Under a tenth of the account.</div></div>
+          <div class="fld"><span class="lbl">Trade on account</span><div class="tk-sel"><span>Paper account (Paper)</span></div></div>
+          <div class="fld"><span class="lbl">Quantity</span><div class="nf" id="tkQty"><span>−</span><b id="tkQtyV">1</b><span id="tkPlus">+</span></div></div>
+          <div class="fld"><span class="lbl">How to price it</span><div class="modes3"><span class="on">Walk to fill</span><span>Set my price</span><span>Market</span></div></div>
+          <div class="fld"><span class="lbl">Never accept less than</span><div class="floor"><span class="d">$</span><span class="inp">0.55</span></div>
+            <p class="help">Starts at $0.63 and concedes toward the bid every 30s until it fills — never below $0.55. Bigger steps on a wider market. An open that never fills costs nothing; conceding credit raises your maximum loss, which is why the floor is yours to set.</p></div>
+          <button class="submit" id="tkSubmit">Submit — open 1 spread (walk) on Paper account</button>
+          <div class="confirm" id="tkConfirm" hidden>
+            <div class="c1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><div><b>Confirm this order — it will be sent to the broker.</b><div class="h-sub" id="tkSummary">Limit order starting at $0.63 credit, conceding toward the bid but never below $0.55 · open 1 AVGO spread on Paper account.</div></div></div>
+            <div style="display:grid;gap:8px"><div class="h-warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h5"/><path d="M17.5 17.5 16 16.3V14"/><circle cx="16" cy="16" r="6"/></svg><div><b>AVGO reports earnings after the close on 2026-09-10 — in 3 days.</b><div class="h-sub">This position would be held through the announcement, which is typically the largest one-day move the underlying makes.</div></div></div><div class="rm contained" id="tkRm2"><div class="r1"><span>Share of account at risk</span><span class="pct" data-pct>1.3%</span></div><div class="track2"><i data-bar style="width:1.9%"></i><s style="left:14.3%"></s><s style="left:35.7%"></s><s style="left:71.4%"></s></div><div class="r3"><span class="band" data-band>Contained</span><span data-of>$195.00 of $15,000.00</span></div><div class="note" data-note>Under a tenth of the account.</div></div></div>
+            <div class="btns"><button class="cancel">Cancel</button><button class="yes" id="tkYes">Yes, submit</button></div>
+          </div>
+        </div>
+
+        <div id="tkWork" hidden style="display:grid;gap:16px">
+          <div class="olog"><div class="st" id="tkSt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin .8s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span>Working order…</span></div><div class="lines" id="tkLines"></div></div>
+          <button class="stopbtn" id="tkStop">Stop &amp; cancel order</button>
+        </div>
+      </div>
+
+      <div class="cursor tk-cursor" id="tkCursor" style="left:50%;top:60%;opacity:0"><svg viewBox="0 0 22 28"><path d="M2 2 L2 22 L7.5 17 L11 25 L14.5 23.5 L11 15.5 L18 15.5 Z" fill="#fff" stroke="#111" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+      <div class="ring tk-ring" id="tkRing"></div>
+    </div>
+  </div>
+</section>
+
+<!-- LEGS -->
+<section>
+  <div class="wrap">
+    <div class="head">
+      <div class="eyebrow">Individual legs</div>
+      <h2>Open any card. Close any leg on its own.</h2>
+      <details class="more"><summary>How legs work</summary>
+        <ul><li>Each leg: entry, current, live bid/ask, its own P/L</li><li><b>Close leg</b> closes that contract only</li><li>The rest of the position stays at the broker</li><li>Assigned shares are a leg too, at adjusted basis</li></ul>
+      </details>
+    </div>
+
+    <div class="screen">
+      <div class="legs-grid">
+        <div class="card">
+          <div class="card-h">
+            <div class="tk"><span class="sym">NVDA</span><span class="chg up num">+1.24% <small>today</small></span><span class="badge b-ic">IC</span><span class="badge b-otm">OTM</span></div>
+            <div class="pl-box"><div class="l">Unrealized P/L</div><div class="v up num">+$116.00</div></div>
+          </div>
+          <div class="card-f">
+            <div class="met"><div class="l">Qty</div><div class="v num">2</div></div>
+            <div class="met"><div class="l">Break-even</div><div class="v num">$168.30 – $196.70</div></div>
+            <div class="met"><div class="l">Max risk</div><div class="v num down">$660.00</div></div>
+            <div class="met"><div class="l">Net credit</div><div class="v num up">$340.00</div></div>
+            <div class="acts"><button class="btn-legs" aria-expanded="true">Legs ▴</button><button class="btn-close">Close</button></div>
+          </div>
+          <div class="h-legs">
+            <div class="h-cap">Individual legs</div>
+            <div class="h-leg">
+              <div><div class="k">Leg</div><span class="short">Short $170.00</span> <span class="kind">put</span></div>
+              <div><div class="k">Qty</div>2</div>
+              <div class="hide-s"><div class="k">Entry</div><span class="num">$3.40</span></div>
+              <div><div class="k">Current</div><span class="num">$2.05</span></div>
+              <div class="hide-s"><div class="k">Bid / Ask</div><span class="num" style="color:var(--ink-mute)">$2.02 / $2.08</span></div>
+              <div><div class="k">Unrlzd P/L</div><b class="up num">+$270</b></div>
+              <button class="btn-leg" aria-pressed="true">Close leg</button>
+            </div>
+            <div class="h-leg">
+              <div><div class="k">Leg</div><span class="long">Long $165.00</span> <span class="kind">put</span></div>
+              <div><div class="k">Qty</div>2</div>
+              <div class="hide-s"><div class="k">Entry</div><span class="num">$2.55</span></div>
+              <div><div class="k">Current</div><span class="num">$1.48</span></div>
+              <div class="hide-s"><div class="k">Bid / Ask</div><span class="num" style="color:var(--ink-mute)">$1.45 / $1.51</span></div>
+              <div><div class="k">Unrlzd P/L</div><b class="down num">−$214</b></div>
+              <button class="btn-leg" aria-pressed="false">Close leg</button>
+            </div>
+            <div class="h-leg">
+              <div><div class="k">Leg</div><span class="short">Short $195.00</span> <span class="kind">call</span></div>
+              <div><div class="k">Qty</div>2</div>
+              <div class="hide-s"><div class="k">Entry</div><span class="num">$2.90</span></div>
+              <div><div class="k">Current</div><span class="num">$1.60</span></div>
+              <div class="hide-s"><div class="k">Bid / Ask</div><span class="num" style="color:var(--ink-mute)">$1.57 / $1.63</span></div>
+              <div><div class="k">Unrlzd P/L</div><b class="up num">+$260</b></div>
+              <button class="btn-leg" aria-pressed="false">Close leg</button>
+            </div>
+            <div class="h-leg">
+              <div><div class="k">Leg</div><span class="long">Long $200.00</span> <span class="kind">call</span></div>
+              <div><div class="k">Qty</div>2</div>
+              <div class="hide-s"><div class="k">Entry</div><span class="num">$2.05</span></div>
+              <div><div class="k">Current</div><span class="num">$1.05</span></div>
+              <div class="hide-s"><div class="k">Bid / Ask</div><span class="num" style="color:var(--ink-mute)">$1.02 / $1.08</span></div>
+              <div><div class="k">Unrlzd P/L</div><b class="down num">−$200</b></div>
+              <button class="btn-leg" aria-pressed="false">Close leg</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="ticket">
+          <div class="tt"><b>Buy to close 2× NVDA Sep 18 $170 put</b><span class="badge b-otm">This leg only</span></div>
+          <div class="modes"><span class="on">Walk to fill</span><span>Set my price</span><span>Market</span></div>
+          <div class="row"><span>Market now</span><b class="num">$2.02 / $2.08 · mid $2.05</b></div>
+          <div class="row"><span>Walk</span><b class="num">starts $2.05, climbs toward the ask, stops at $2.13</b></div>
+          <div class="row"><span>Cost to close</span><b class="num">≈ $410 for 2</b></div>
+          <div class="keep">$165 put, $195 call, $200 call <b>stay open</b>.</div>
+          <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn-legs">Back</button><button class="btn-submit">Submit</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+
+
+
+<!-- ANALYSIS -->
+<section>
+  <div class="wrap">
+    <div class="head">
+      <div class="eyebrow">Analysis</div>
+      <h2>Results measured against the capital they tied up.</h2>
+      <details class="more"><summary>How the figures are built</summary>
+        <ul><li>Every closed trade rebuilt from the broker's fills</li><li>Measured against the capital each trade tied up</li><li>Assigned shares included where they belong</li><li>Annualized figures withheld under 30 trades / 90 days</li></ul>
+      </details>
+    </div>
+
+    <div class="screen">
+      <div class="sample-note">Sample account, for illustration only. Not a forecast, not a typical result.</div>
+      <div class="sg"><h3>Returns</h3>
+        <div class="tiles">
+          <div class="h-tile pos"><div class="l">Realized P/L</div><div class="v num">$8,412</div><div class="s">49 settled trades · since Mar 2</div></div>
+          <div class="h-tile pos"><div class="l">Return on risk</div><div class="v num">24.8%</div><div class="s">vs $33,900 peak capital at risk</div></div>
+          <div class="h-tile"><div class="l">Credit collected</div><div class="v num">$19,640</div><div class="s">118 contracts sold</div></div>
+          <div class="h-tile"><div class="l">Credit capture</div><div class="v num">42.8%</div><div class="s">kept share of premium sold</div></div>
+        </div>
+      </div>
+      <div class="sg"><h3>Consistency</h3>
+        <div class="tiles">
+          <div class="h-tile"><div class="l">Win rate</div><div class="v num">71.4%</div><div class="s">35W / 14L · 2 not final, excluded</div></div>
+          <div class="h-tile"><div class="l">Profit factor</div><div class="v num">2.31</div><div class="s">gross wins ÷ gross losses</div></div>
+          <div class="h-tile"><div class="l">Payoff ratio</div><div class="v num">0.92</div><div class="s">avg win $423.80 ÷ avg loss $458.64</div></div>
+          <div class="h-tile pos"><div class="l">Expectancy / trade</div><div class="v num">$171.67</div><div class="s">settled trades</div></div>
+        </div>
+      </div>
+      <div class="sg"><h3>Risk &amp; activity</h3>
+        <div class="tiles">
+          <div class="h-tile neg"><div class="l">Max drawdown</div><div class="v num">−$1,486</div><div class="s">peak-to-trough realized</div></div>
+          <div class="h-tile neg"><div class="l">Largest loss</div><div class="v num">−$1,174</div><div class="s">MU 950/955 call spread · Jun</div></div>
+          <div class="h-tile"><div class="l">Avg risk / trade</div><div class="v num">$1,312</div><div class="s">collateral at open</div></div>
+          <div class="h-tile"><div class="l">Avg hold</div><div class="v num">11.4 days</div><div class="s">22 expired worthless</div></div>
+        </div>
+      </div>
+
+      <div class="twocol">
+        <div class="panel">
+          <div class="ph"><b>Credit capture on early exits</b><span style="color:var(--ink-mute);font-size:.76rem">option result only</span></div>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th></th><th class="r">Trades</th><th class="r">Credit sold</th><th class="r">Kept</th><th class="r">Capture</th></tr></thead>
+            <tbody>
+              <tr><td>Held to expiry</td><td class="r num">27</td><td class="r num">$9,480</td><td class="r num">$6,190</td><td class="r num">65.3%</td></tr>
+              <tr><td>Closed early</td><td class="r num">22</td><td class="r num">$10,160</td><td class="r num">$2,222</td><td class="r num">21.9%</td></tr>
+              <tr><td>All trades</td><td class="r num">49</td><td class="r num">$19,640</td><td class="r num">$8,412</td><td class="r num">42.8%</td></tr>
+            </tbody>
+          </table></div>
+        </div>
+        <div class="panel curve">
+          <div class="ph"><b>Realized equity</b><span style="color:var(--ink-mute);font-size:.76rem">Mar 2 – Sep 4</span></div>
+          <svg viewBox="0 0 520 190" role="img" aria-label="Realized P/L rising from zero to $8,412 with a $1,486 drawdown in June">
+            <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--mint)" stop-opacity=".22"/><stop offset="1" stop-color="var(--mint)" stop-opacity="0"/></linearGradient></defs>
+            <g stroke="var(--line)" stroke-width="1"><line x1="44" y1="20" x2="44" y2="160"/><line x1="44" y1="160" x2="510" y2="160"/><line x1="44" y1="90" x2="510" y2="90" stroke-dasharray="3 4"/><line x1="44" y1="20" x2="510" y2="20" stroke-dasharray="3 4"/></g>
+            <g fill="var(--ink-mute)" font-family="IBM Plex Mono, monospace" font-size="10"><text x="38" y="164" text-anchor="end">$0</text><text x="38" y="94" text-anchor="end">$4k</text><text x="38" y="24" text-anchor="end">$8k</text><text x="44" y="180">Mar</text><text x="200" y="180">May</text><text x="356" y="180">Jul</text><text x="500" y="180" text-anchor="end">Sep</text></g>
+            <path fill="url(#g)" d="M44,160 L70,150 L96,148 L122,138 L148,134 L174,121 L200,118 L226,104 L252,100 L278,110 L304,126 L330,112 L356,96 L382,84 L408,74 L434,62 L460,50 L486,38 L510,29 L510,160 Z"/>
+            <path fill="none" stroke="var(--mint)" stroke-width="2.2" stroke-linejoin="round" d="M44,160 L70,150 L96,148 L122,138 L148,134 L174,121 L200,118 L226,104 L252,100 L278,110 L304,126 L330,112 L356,96 L382,84 L408,74 L434,62 L460,50 L486,38 L510,29"/>
+            <g><circle cx="304" cy="126" r="4" fill="var(--rose)"/><text x="304" y="144" text-anchor="middle" fill="var(--rose)" font-family="IBM Plex Mono, monospace" font-size="10">−$1,486</text></g>
+            <g><circle cx="510" cy="29" r="4.5" fill="var(--mint)"/><text x="504" y="14" text-anchor="end" fill="var(--mint)" font-family="IBM Plex Sans, sans-serif" font-size="12" font-weight="600">$8,412</text></g>
+          </svg>
+        </div>
+      </div>
+
+      <div class="honest"><b>One sample account, not a forecast.</b> A 71% win rate beside an average loss bigger than the average win: both shown, neither hidden. Your own figures will differ.</div>
+    </div>
+  </div>
+</section>
+
+
+<!-- FAQ -->
+<section>
+  <div class="wrap">
+    <div class="head">
+      <div class="eyebrow">Questions</div>
+      <h2>Straight answers.</h2>
+    </div>
+    <div class="faq">
+      <details><summary>Do you hold my money or my positions?</summary><p>No. Everything stays at your broker. DeltaMint signs in with your login, reads your account, and sends only the orders you confirm. It never holds funds or securities.</p></details>
+      <details><summary>Does it trade on its own?</summary><p>No. Nothing reaches the broker until you press Submit and confirm it. The walk reprices an order you placed, inside limits you set, and you can stop it at any time.</p></details>
+      <details><summary>Is this investment advice?</summary><p>No. The screener lists what matches the filters you set and shows the numbers behind it. Nothing is recommended. The decision is yours.</p></details>
+      <details><summary>Which brokers work?</summary><p>The brokerage shown above, live and paper accounts. Sign in with your brokerage login and disconnect any time from the Accounts page.</p></details>
+      <details><summary>Where do the prices come from?</summary><p>Live quotes from your broker's market data. Every setup is priced at the side that actually trades and cross-checked against the stock. If the two disagree, it says so rather than showing a number it can't stand behind.</p></details>
+      <details><summary>What if I close the ticket while an order is working?</summary><p>The order keeps working at the broker. Change its price or cancel it from the Orders tab whenever you like.</p></details>
+      <details><summary>What does it cost?</summary><p>Paper accounts are free with no time limit. Live accounts are a flat monthly subscription. Nothing per trade, nothing on results, and you can always close a position on any plan.</p></details>
+      <details><summary>Can I try it without risking anything?</summary><p>Yes. Connect a paper account and use every screen with paper money for as long as you want.</p></details>
+    </div>
+  </div>
+</section>
+<section class="cta">
+  <div class="wrap">
+    <h2>Take control of your options trading.</h2>
+    <a class="h-btn h-btn-brand" href="https://dashboard.deltamint.app/register?ref=home">Start for free</a>
+  </div>
+</section>
+</main>
 
 <footer class="site">
   <div class="wrap">
