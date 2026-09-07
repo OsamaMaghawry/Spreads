@@ -93,21 +93,31 @@ This is the house standard, and it is enforced: `npm run content:check`
 fails a post that does not meet it. The two posts already published are the
 reference — read them before writing, not as inspiration but as the spec:
 
-- `content/blog/return-on-risk-vs-return-on-capital.md` — 1,279 words, five
-  sections, one diagram, one table
-- `content/blog/options-journal-splits-spreads-into-legs.md` — 1,207 words,
-  five sections, two diagrams
+- `content/blog/what-is-an-options-contract.md` — the shape to copy: lists
+  carrying the enumerations, prose carrying the argument between them
+- `content/blog/credit-spread-max-loss.md` — the same, with a worked example
+  and three diagrams
 
 Every post carries:
 
-1. **1,200–1,600 words**, and never under 1,000 of prose — the check counts
-   prose only, so subheadings and table cells cannot pad a thin post. The two
-   reference posts are 1,038 and 1,088 and that is the floor, not the target.
-   A reader who searched for this question wants it answered completely
-   enough that they do not need a second page.
-2. **Four to six `##` sections**, each one a claim, not a label. "Width sets
+1. **900–1,400 words**, and never under 700 of prose — the check counts prose
+   only, so subheadings, list items and table cells cannot pad a thin post.
+   Length is not the measure of a good post and the floor came down on
+   purpose: the owner's verdict on the first four was "the text is too much".
+   A reader who searched for this question wants it answered completely, not
+   at length.
+2. **Points over prose, everywhere they fit.** This is the rule that was
+   missing and it is now enforced: at least two lists per post, and **no
+   paragraph over 110 words**. Whenever a paragraph enumerates — reasons,
+   consequences, cases, steps, things that break — it is a list, and the
+   check will fail it if you leave it as prose. Write each item as a bolded
+   lead-in and then the explanation: `- **The cap survives.** Shares plus the
+   right to sell them at 95…`. The lead-ins alone should tell a skimmer what
+   the section says. Prose still carries the argument between the lists; it
+   just stops carrying six things at once.
+3. **Four to six `##` sections**, each one a claim, not a label. "Width sets
    the risk" is a section; "Overview" is not.
-3. **At least one original diagram**, authored by you as an SVG at
+4. **At least one original diagram**, authored by you as an SVG at
    `landing/public/assets/blog/<name>.svg` and referenced in the body as
    `![full sentence caption](/assets/blog/<name>.svg)` alone on its own line
    — that is the only image form the renderer accepts. The caption is a
@@ -119,14 +129,14 @@ Every post carries:
    decoration: the shape of a payoff, two cases side by side, what a feed
    does to a position. A picture that only repeats a sentence is not worth
    the file.
-4. **At least one more visual element** — a second diagram, or a pipe table
+5. **At least one more visual element** — a second diagram, or a pipe table
    comparing the cases the post turns on. Tables render; use them where the
    point is a comparison.
-5. **One worked example with numbers**, plainly hypothetical, about
+6. **One worked example with numbers**, plainly hypothetical, about
    mechanics and never about outcome or return.
-6. **Internal links**: to the post's category hub (`/blog/<category>`) and
+7. **Internal links**: to the post's category hub (`/blog/<category>`) and
    to at least one earlier post it builds on.
-7. **The closing line** stating it is not investment advice.
+8. **The closing line** stating it is not investment advice.
 
 The renderer (`landing/src/render.js`) supports headings, paragraphs, pipe
 tables, bullet and numbered lists, blockquotes, four-space code blocks,
