@@ -37,8 +37,9 @@ or take the premium — is parked, and another way under portfolio margin. Nothi
 changed. The denominator did.
 
 **Return on risk** divides the credit by the most the structure can lose. For a
-vertical credit spread that is the distance between the strikes, times 100,
-minus the credit received. It is fixed at the moment of the fill and it does not
+vertical credit spread that is the distance between the strikes, times the [100
+shares every listed contract covers](/blog/what-is-an-options-contract), minus
+the credit received. It is fixed at the moment of the fill and it does not
 move again for the life of the trade. No margin treatment alters it, no broker
 policy revises it, and it is the number that describes what happens if the
 underlying goes fully against the short strike and stays there.

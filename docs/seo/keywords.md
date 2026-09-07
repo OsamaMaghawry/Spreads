@@ -12,7 +12,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 
 | # | Topic | Target query (long tail) | Head term (hub) | Competing today | Our angle |
 | --- | --- | --- | --- | --- | --- |
-| 1 | What an option actually is | what is an options contract | options | Investopedia, broker education hubs | what is in your account after the fill, not a definition |
+| 1 | What an option actually is | what is an options contract | options | contract-law pages (Cornell LII, FindLaw, LawInsider), Option Alpha, FINRA, US News — see reading below | what is in your account after the fill, not a definition |
 | 2 | Calls and puts | call vs put option explained | call option, put option | Investopedia, NerdWallet | both sides of the same contract, seller included |
 | 3 | Strike, expiry, premium | option strike price expiration premium | strike price | Investopedia | the three numbers on one real-looking chain row |
 | 4 | Intrinsic and time value | intrinsic vs extrinsic value options | time value | Investopedia, tastylive | why the same strike costs different amounts on different days |
@@ -42,6 +42,45 @@ Rows 21–65 are added by the Wednesday run as their turn approaches.
 `content/PLAN.md`; it is `managing` / `series_order: 48`, so the row is keyed
 by category and series order instead. Any future off-syllabus post gets the
 same treatment rather than a made-up integer that collides with the syllabus.
+
+## Reading for post 1 — what is an options contract (read 7 Sep 2026)
+
+Results pages read that day, not measured. No rank tracker, no volume tool,
+no Search Console here: this records **which domains surface**, not positions
+and not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| what is an options contract | Cornell LII (Wex), FindLaw, LawInsider, a Louisiana statute page, alongside Option Alpha, StoneX, InvestingAnswers | **hard and mixed-intent** — half the page is contract-law "option contract" (an irrevocable offer, a real-estate option), not a listed derivative |
+| what is an options contract in stocks | US News, FINRA, Option Alpha, InvestingAnswers, ScienceDirect; LawInsider still present | hard-ish, but the "in stocks" qualifier is what clears most of the legal results |
+| what is a contract in options trading (beginners) | moomoo, b2broker, small affiliate blogs (seventrading, novaforge, cgaa), TradingView chart ideas padding the tail | **winnable** — chart-idea pages in the tail means nothing authoritative is answering it |
+| how much does one options contract cost | Option Alpha, optionstrading.org, Fidelity Viewpoints, longbridge, FINRA exam-prep pages | **winnable** — every result stops at "premium × 100" |
+| why is one options contract 100 shares | Option Alpha (twice), Wealthsimple, longbridge, pomegra, optionspilot, a Bitget wiki page, CBOE on Nanos | winnable, thin; answered historically (round lots, 1973) rather than practically |
+| buying vs selling an options contract, collateral held | Robinhood help centre (four locale variants), Quora (twice), Wealthsimple help, Kotak, Elite Trader forum | **winnable** — broker help pages and forums only; no editorial page owns it |
+| options position negative quantity / what −1 means | Wikipedia, Zerodha TradingQnA, Investors Alley, TradingView support | **winnable** but thin, and the forum results are India-market flavoured |
+| what happens after you buy an option (close / expire / assigned) | Options Playbook, Schwab, Robinhood, Public, VectorVest | hard-ish — well covered, and it is post 10/12's ground more than post 1's |
+
+**The gap.** Every page that ranks defines the instrument — right not
+obligation, strike, expiry, premium, 100 shares — and stops at the legal
+description. None of them says what the position is once it exists: the sign
+on the quantity, that a long option can never become a liability so nothing
+further is held, that a short one has collateral removed from spendable cash
+for the life of the trade, and that the mark is a quote rather than a result.
+That gap is the angle the title and meta carry.
+
+**The correction to row 1.** The row said "Investopedia, broker education
+hubs". Investopedia did not surface in any read of the head phrasing;
+contract-law dictionaries did. The practical consequence is the same as M48's
+"credit spread risk" trap in reverse — the unqualified phrase is ambiguous, so
+the title and first paragraph have to carry a finance signal ("100 shares",
+"in your account") rather than the bare query, or the page competes for the
+wrong intent.
+
+**Could not establish:** search volume, difficulty and current positions for
+every phrasing above; whether these results are personalised or localised; and
+whether the account-side phrasings ("what does −1 mean on my options
+position") carry enough demand to be worth a heading of their own — the SERP
+is winnable but that says nothing about how many people ask it.
 
 ## Reading for M48 — credit spread max loss (read 2 Sep 2026)
 
