@@ -90,7 +90,15 @@ if (!sections.length) {
 const label = labelFor(files[0]);
 const subject = files.length === 1 ? `${label} — ${basename(files[0], ".md")}` : `${label} and ${files.length - 1} more`;
 
-const html = `<div style="margin:0;padding:0;background:#f4f6f5;"><div style="max-width:660px;margin:0 auto;padding:28px 18px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1d2b26;"><div style="font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:#7c8b85;font-weight:600;">DeltaMint</div><div style="background:#fff;border-radius:8px;border:1px solid #e3e9e6;padding:22px 24px;margin-top:14px;">${sections.join("")}</div><div style="margin:20px 0 0;font-size:12px;color:#8a9993;">Sent automatically when this was committed to main.</div></div></div>`;
+// A blog post is sent to be reviewed, not filed, so the mail has to say where
+// it can be read. REVIEW_URL is set by the staging publish workflow; without
+// it the footer stays the plain "this was committed" line the reports use.
+const reviewUrl = process.env.REVIEW_URL;
+const footer = reviewUrl
+  ? `Drafted on the staging blog, not live. Read it at <a href="${esc(reviewUrl)}" style="color:#1d6b53;">${esc(reviewUrl)}</a>, then say the word to publish it.`
+  : "Sent automatically when this was committed.";
+
+const html = `<div style="margin:0;padding:0;background:#f4f6f5;"><div style="max-width:660px;margin:0 auto;padding:28px 18px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1d2b26;"><div style="font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:#7c8b85;font-weight:600;">DeltaMint</div><div style="background:#fff;border-radius:8px;border:1px solid #e3e9e6;padding:22px 24px;margin-top:14px;">${sections.join("")}</div><div style="margin:20px 0 0;font-size:12px;color:#8a9993;">${footer}</div></div></div>`;
 
 const res = await fetch(`${url}/functions/v1/sendDigest`, {
   method: "POST",

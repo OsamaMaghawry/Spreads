@@ -1,11 +1,20 @@
-name: Merge content and publish
+name: Merge content to staging for review
 
 # The daily article pipeline ends on an agent branch: Routine sessions push
-# to their own claude/* branch and are refused on main. Publishing runs on
-# main. This closes the gap without a person in the loop, under one
-# condition -- the push changed ONLY content paths. Anything else in the diff
-# (code, workflows, docs outside content/) means the branch waits for the
-# owner, so the automatic path can never carry a code change into main.
+# to their own claude/* branch and are refused on main. This carries that
+# branch as far as it can go without a person -- onto `staging`, where the
+# post renders on the staging blog and the owner can read it as a reader
+# would -- and no further. Production publication stays a decision.
+#
+# It used to merge into `main`, which publishes to the live blog, so the
+# owner's review had no place to happen. It also refused any branch carrying
+# a diagram, because the allowlist covered content/blog/ but not the SVGs the
+# posts embed under landing/public/assets/blog/. Every post the content agent
+# wrote between 3 and 7 Sep carried diagrams, so every one of them was
+# refused, and the next day's session found no post and wrote it again. Five
+# rewrites of one article, none of them anywhere a reader could see. Both
+# faults are fixed here: staging is the destination, and the diagrams a post
+# needs count as part of the post.
 
 on:
   push:
@@ -15,6 +24,7 @@ on:
       - 'content/blog/**'
       - 'content/PLAN.md'
       - 'docs/seo/**'
+      - 'landing/public/assets/blog/**'
 
 permissions:
   contents: write
@@ -31,7 +41,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: main
+          ref: staging
 
       - name: Decide whether this push is content-only
         id: gate
@@ -41,8 +51,8 @@ jobs:
           head="origin/${GITHUB_REF_NAME}"
           base=$(git merge-base HEAD "$head")
           files=$(git diff --name-only "$base" "$head")
-          echo "Changed since main:"; echo "$files"
-          bad=$(echo "$files" | grep -vE '^(content/blog/|content/PLAN\.md$|docs/seo/)' || true)
+          echo "Changed since staging:"; echo "$files"
+          bad=$(echo "$files" | grep -vE '^(content/blog/|content/PLAN\.md$|docs/seo/|landing/public/assets/blog/)' || true)
           if [ -n "$bad" ]; then
             echo "Not content-only; leaving the branch for a person to merge:"; echo "$bad"
             echo "ok=false" >> "$GITHUB_OUTPUT"
@@ -50,20 +60,20 @@ jobs:
             echo "ok=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Merge into main
+      - name: Merge into staging
         if: steps.gate.outputs.ok == 'true'
         run: |
           set -euo pipefail
           git config user.name "deltamint-content"
           git config user.email "content@deltamint.app"
-          git merge --no-ff "origin/${GITHUB_REF_NAME}" -m "Publish: $(git log -1 --format=%s "origin/${GITHUB_REF_NAME}")"
-          git push origin HEAD:main
+          git merge --no-ff "origin/${GITHUB_REF_NAME}" -m "Draft for review: $(git log -1 --format=%s "origin/${GITHUB_REF_NAME}")"
+          git push origin HEAD:staging
 
       # A push made with GITHUB_TOKEN does not trigger other workflows, so the
-      # publish is dispatched explicitly -- workflow_dispatch is the one event
-      # that token may raise.
-      - name: Publish
+      # staging publish is dispatched explicitly -- workflow_dispatch is the one
+      # event that token may raise.
+      - name: Publish to the staging blog
         if: steps.gate.outputs.ok == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run publish-blog.yml --ref main
+        run: gh workflow run publish-blog-staging.yml --ref staging

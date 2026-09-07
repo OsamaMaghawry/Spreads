@@ -1,0 +1,90 @@
+name: Publish blog posts to staging for review
+
+# The review step the pipeline never had.
+#
+# A finished post used to go from an agent branch straight to the live blog,
+# so there was nowhere for the owner to read it first and nothing to approve.
+# Now a post lands here: written into the staging project, rendered by the
+# staging Worker at dev-landing.deltamint.app/blog, which is noindex, so
+# "published on staging" means "drafted where a human can read it" and
+# nothing more. Production publication happens when the owner merges the post
+# from staging into main, and not before.
+#
+# Idempotent (upsert on slug), so a revision republishes rather than
+# duplicating.
+
+on:
+  push:
+    branches: [staging]
+    paths:
+      - 'content/blog/**'
+      - 'scripts/publish-blog.mjs'
+      - '.github/workflows/publish-blog-staging.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: publish-blog-staging
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Refuse rather than run with an empty key: PostgREST answers an
+      # unauthenticated write with a 401 that reads like a schema problem, and
+      # the failure would be attributed to the post rather than the secret.
+      - name: Require credentials
+        env:
+          KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_STAGING }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEY}" ]; then
+            echo "SUPABASE_SERVICE_ROLE_KEY_STAGING is not set; cannot publish to staging." >&2
+            exit 1
+          fi
+
+      - name: Publish to staging
+        env:
+          SUPABASE_URL: https://wpwaomzgpbozzghohwmf.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_STAGING }}
+        run: node scripts/publish-blog.mjs
+
+      # Which posts this push touched, so the mail names them rather than
+      # saying "something changed".
+      - name: Collect what this push added
+        id: changed
+        run: |
+          set -euo pipefail
+          base=$(git rev-parse HEAD^ 2>/dev/null || git rev-parse HEAD)
+          files=$(git diff --name-only --diff-filter=AM "$base" HEAD -- 'content/blog/**' | grep '\.md$' || true)
+          # A manual dispatch has no meaningful diff; announce nothing rather
+          # than announce the wrong thing.
+          echo "files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$files" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      # The mail itself is sent by the production project, because that is
+      # where sendDigest and the owner's address live. Only the post is on
+      # staging; the notification is not staging's job.
+      - name: Tell the owner it is ready to read
+        if: steps.changed.outputs.files != ''
+        env:
+          SUPABASE_URL: https://yecfbeohyakuoyczvdbj.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          REVIEW_URL: https://dev-landing.deltamint.app/blog
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_SERVICE_ROLE_KEY}" ]; then
+            echo "SUPABASE_SERVICE_ROLE_KEY is not set; the post is on staging but nobody was told." >&2
+            exit 1
+          fi
+          # shellcheck disable=SC2046
+          node scripts/email-digest.mjs $(echo "${{ steps.changed.outputs.files }}" | tr '\n' ' ')
