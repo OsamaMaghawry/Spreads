@@ -129,16 +129,26 @@ export function page({ title, description, canonical, head = "", body }) {
 <link href="/assets/site.css" rel="stylesheet">
 ${head}
 <style>
-  .doc { padding: 48px 56px 80px; max-width: 760px; }
-  .doc h1 { font-size: 30px; line-height: 1.25; }
-  .doc .meta { margin: 12px 0 36px; font-size: 12px; color: var(--ink-mute); }
-  .doc h2 { font-size: 19px; margin: 36px 0 12px; }
-  .doc h3 { font-size: 15px; margin: 28px 0 10px; }
-  .doc p, .doc li { font-size: 14px; line-height: 1.8; color: var(--ink-soft); }
-  .doc ul, .doc ol { padding-left: 22px; margin: 10px 0; }
-  .doc li { margin: 4px 0; }
+  /* Reading size. The blog was set at 14px, which is a UI size, not a
+     reading size -- fine for a table of numbers, tiring for two thousand
+     words. 17px on a 780px column puts roughly 70 characters on a line,
+     which is the width prose is comfortable at. Everything else in this
+     block is scaled from that so the hierarchy still reads as a hierarchy. */
+  .doc { padding: 48px 56px 80px; max-width: 780px; }
+  .doc h1 { font-size: 36px; line-height: 1.18; }
+  .doc .meta { margin: 12px 0 36px; font-size: 13px; color: var(--ink-mute); }
+  .doc h2 { font-size: 24px; margin: 42px 0 14px; }
+  .doc h3 { font-size: 18px; margin: 30px 0 10px; }
+  .doc p, .doc li { font-size: 17px; line-height: 1.68; color: var(--ink-soft); }
+  .doc ul, .doc ol { padding-left: 24px; margin: 14px 0; }
+  /* Posts lead with lists now, so a list is a structure to read rather than
+     an aside: the items get room between them, and a bolded lead-in sits in
+     the body colour so the eye lands on it first. */
+  .doc li { margin: 9px 0; padding-left: 2px; }
+  .doc li::marker { color: var(--ink-mute); }
+  .doc li > strong:first-child { color: var(--ink); }
   .doc pre { background: var(--line-soft); border: 1px solid var(--line); border-radius: 8px;
-             padding: 14px 16px; overflow-x: auto; font-size: 13px; }
+             padding: 14px 16px; overflow-x: auto; font-size: 14.5px; }
   .doc code { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .92em; }
   .doc blockquote { margin: 16px 0; padding: 4px 0 4px 16px; border-left: 3px solid var(--line);
                     color: var(--ink-mute); }
@@ -146,42 +156,42 @@ ${head}
   .doc figure { margin: 28px 0; }
   .doc figure img { width: 100%; height: auto; display: block; border: 1px solid var(--line);
                     border-radius: 12px; background: #FFFFFF; }
-  .doc figcaption { margin-top: 8px; font-size: 12px; color: var(--ink-mute); line-height: 1.5; }
-  .doc .lede { font-size: 16px; color: var(--ink-soft); margin: 4px 0 28px; }
-  .doc .crumbs { font-size: 12px; color: var(--ink-mute); margin-bottom: 14px; }
+  .doc figcaption { margin-top: 8px; font-size: 13px; color: var(--ink-mute); line-height: 1.5; }
+  .doc .lede { font-size: 19px; color: var(--ink-soft); margin: 4px 0 28px; }
+  .doc .crumbs { font-size: 13px; color: var(--ink-mute); margin-bottom: 14px; }
   .doc .crumbs a { color: var(--ink-mute); text-decoration: none; }
   .doc .cat { padding: 22px 0; border-top: 1px solid var(--line-soft); }
   .doc .cat h2 { margin: 0 0 4px; }
   .doc .cat h2 a { color: var(--ink); text-decoration: none; }
-  .doc .cat-intro { font-size: 14px; color: var(--ink-mute); margin-bottom: 10px; }
+  .doc .cat-intro { font-size: 15px; color: var(--ink-mute); margin-bottom: 10px; }
   .doc .cat ul { list-style: none; padding: 0; margin: 0; }
   .doc .cat li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line-soft); }
-  .doc .cat li .when { font-size: 12px; color: var(--ink-mute); white-space: nowrap; }
-  .doc .more { font-size: 13px; margin-top: 8px; }
+  .doc .cat li .when { font-size: 13px; color: var(--ink-mute); white-space: nowrap; }
+  .doc .more { font-size: 14px; margin-top: 8px; }
   .doc ol.series { padding-left: 22px; }
   .doc ol.series li { margin: 12px 0; }
-  .doc ol.series li p { margin: 2px 0 0; font-size: 13px; color: var(--ink-mute); line-height: 1.5; }
+  .doc ol.series li p { margin: 2px 0 0; font-size: 14.5px; color: var(--ink-mute); line-height: 1.5; }
   .doc .readnext { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 36px 0 0; }
-  .doc .readnext a { display: block; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; text-decoration: none; color: var(--ink); font-size: 14px; }
-  .doc .readnext a span { display: block; font-size: 11px; color: var(--ink-mute); margin-bottom: 3px; }
+  .doc .readnext a { display: block; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; text-decoration: none; color: var(--ink); font-size: 15px; }
+  .doc .readnext a span { display: block; font-size: 12px; color: var(--ink-mute); margin-bottom: 3px; }
   .doc .readnext a.next { text-align: right; }
   .doc .related { margin-top: 32px; }
-  .doc .related h2 { font-size: 15px; margin-bottom: 6px; }
+  .doc .related h2 { font-size: 17px; margin-bottom: 6px; }
   .doc .related ul { padding-left: 18px; }
   .doc .startfree { margin-top: 28px; }
   .doc .tablewrap { overflow-x: auto; margin: 20px 0; }
-  .doc table { border-collapse: collapse; width: 100%; font-size: 13px; }
-  .doc th { text-align: left; font-weight: 500; color: var(--ink-mute); font-size: 12px;
+  .doc table { border-collapse: collapse; width: 100%; font-size: 15px; }
+  .doc th { text-align: left; font-weight: 500; color: var(--ink-mute); font-size: 13px;
             border-bottom: 1px solid var(--line); padding: 8px 14px 8px 0; white-space: nowrap; }
   .doc td { border-bottom: 1px solid var(--line-soft); padding: 9px 14px 9px 0;
             color: var(--ink-soft); line-height: 1.5; }
   .doc td:first-child, .doc th:first-child { padding-left: 0; }
   .postlist { list-style: none; padding: 0; margin: 28px 0 0; }
   .postlist li { margin: 0 0 26px; }
-  .postlist h2 { font-size: 18px; margin: 0 0 6px; }
+  .postlist h2 { font-size: 21px; margin: 0 0 6px; }
   .postlist h2 a { color: var(--ink); text-decoration: none; }
   .postlist h2 a:hover { color: var(--brand); }
-  .postlist .when { font-size: 12px; color: var(--ink-mute); }
+  .postlist .when { font-size: 13px; color: var(--ink-mute); }
   .postlist p { margin: 6px 0 0; }
   @media (max-width: 860px) { .doc { padding-left: 24px; padding-right: 24px; } }
 </style>
