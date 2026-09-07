@@ -5,8 +5,6 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Needs owner
 
-- [needs owner] 2026-09-02 · GitHub → Settings → Secrets and variables → Actions: add `SUPABASE_SERVICE_ROLE_KEY` (production service-role key from the Supabase dashboard). Both `publish-blog.yml` and `email-digest.yml` fail without it (run 33629729594: "SUPABASE_SERVICE_ROLE_KEY is not set; cannot email").
-- [needs owner] 2026-09-07 · duty-engineer · GitHub → Settings → Secrets and variables → Actions: add `SUPABASE_SERVICE_ROLE_KEY_STAGING` (the **staging** project's service-role key, `wpwaomzgpbozzghohwmf`, distinct from the production key above). `publish-blog-staging.yml` (added in `0053b90`) refuses loudly and cannot publish a blog draft to staging without it — see the workflow's own check at line 46-50.
 - [needs owner] 2026-09-02 · Stripe, test mode first: create the product "DeltaMint Live" with two prices ($29 monthly, $290 yearly); set on the **staging** Supabase project the function secrets `STRIPE_SECRET_KEY` (test), `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_MONTHLY`, `STRIPE_PRICE_ANNUAL`, `APP_URL=https://dev-dash.deltamint.app`; add a webhook endpoint in Stripe pointing at `https://wpwaomzgpbozzghohwmf.supabase.co/functions/v1/stripeWebhook` for events `customer.subscription.*`. Repeat with live keys on production on the day billing goes live.
 - [needs owner] 2026-09-02 · Decide who the watch emails (decision 8 in `docs/product/pricing.md`). Until then "alerts" stays off the pricing page.
 - [needs owner] 2026-09-02 · Options Wheel staging account has no `wheel_client_prefix`, so its adjusted basis reads "broker basis".
@@ -29,6 +27,9 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 ## Open
 
 ## Fixed
+
+- [fixed 2026-09-07] 2026-09-07 · owner · Added `SUPABASE_SERVICE_ROLE_KEY` as a GitHub Actions secret. Verified: email-digest run 34131321857 sent the first digest that has ever left this repo.
+- [fixed 2026-09-07] 2026-09-07 · owner · Added `SUPABASE_SERVICE_ROLE_KEY_STAGING` as a GitHub Actions secret. Verified: publish-blog-staging.yml run 34141439632 re-ran green and published four posts to the staging blog.
 
 - [fixed 8bd2168] 2026-09-03 · The landing site had no CI, so `landing/` changes reached `main` and never went live — which is how the Google Analytics tag sat merged and invisible for a day. `deploy-landing.yml` and `deploy-landing-staging.yml` added (f2d8369); owner set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Verified on staging first — run 33800093983's deploy step ran 20:04:35→20:04:46 UTC and Cloudflare reports `deltamint-landing-staging` modified at 20:04:46.565Z — then production run 33800417948, all steps green including the staging-first tree gate, deploy step 20:07:51→20:08:04 against `deltamint-landing` modified 20:08:03.954Z. The deployed bundle carries `analyticsTag(env)` reading `GA_MEASUREMENT_ID`, confirmed by reading the live Worker code. Also supersedes the 2026-09-02 "set `GA_MEASUREMENT_ID` as a variable on the landing Worker" half of the metrics item: it is set in `landing/wrangler.jsonc` and deployed. `deltamint.app` itself could not be fetched to see the rendered tag — the domain is 403 at CONNECT from a session (allowlist item above still open).
 
