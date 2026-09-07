@@ -49,6 +49,21 @@ Two levers change this by more than any channel does:
   promise are there to push 15 % toward 25 %. At 25 %, 400 live connections
   suffice.
 
+## Weekly check — 7 Sep 2026
+
+No benchmark below changes this week: all three metrics sources still read
+"not configured" in every one of the five daily snapshots taken so far
+(`docs/growth/metrics/2026-09-03.json` through `-07.json` on `main` —
+Search Console, GA4 and the Supabase funnel are all unconnected). There is no
+measured rate anywhere yet to replace a benchmark with.
+
+The bigger finding isn't which rate to trust — it's that the content channel
+below is currently producing zero live output. `publish-blog.yml` has failed
+on both of its two runs ever (missing `SUPABASE_SERVICE_ROLE_KEY`), so the
+posts finished and sitting on `main` since 30 Aug have never gone live, and
+no new article has been committed since 2 Sep. Detail and the play in
+`growth/plays/2026-W37.md`.
+
 ## Where 760 visitors a day come from
 
 Organic search from a domain this young, with ~100 posts by December,
