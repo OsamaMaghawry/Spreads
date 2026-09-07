@@ -56,7 +56,16 @@ const inline = (t) =>
   esc(t)
     .replace(/`([^`]+)`/g, "$1")
     .replace(/\*\*([^*]+)\*\*/g, "<strong style=\"color:#12241e;\">$1</strong>")
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1");
+    // Single-asterisk italics are dropped rather than rendered: the point is a
+    // scannable line, and a stray `*` surviving into the mail (which is what
+    // happened on the first branding digest) reads as a typo.
+    .replace(/\*([^*\n]+)\*/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    // Clipping happens before this runs, so a long item can lose the closing
+    // marker of a pair and leave its opener stranded — which is exactly how
+    // `*"No emoji anywhere…` reached the inbox. Anything still standing here
+    // has no partner and is punctuation the reader never wrote.
+    .replace(/\*+/g, "");
 
 const clip = (s, n) => {
   const t = String(s).replace(/\s+/g, " ").trim();
@@ -83,12 +92,19 @@ function digest(md) {
   const blocks = md.replace(/\r\n/g, "\n").split(/\n{2,}/).map((b) => b.trim()).filter(Boolean);
   let title = null;
   let summary = null;
+  let fallbackSummary = null;
+  let seenHeading = false;
+  let summaryUnderHeading = false;
   const points = [];
 
   for (const b of blocks) {
     const h = b.match(/^(#{1,4})\s+(.*)$/s);
     if (h) {
       if (!title && h[1].length === 1) title = h[2].trim();
+      // Everything before the first ## is preamble — scope, cadence, who
+      // adjudicates what. The findings start under the first heading, so a
+      // paragraph there outranks anything above it.
+      if (h[1].length > 1) seenHeading = true;
       continue;
     }
     if (/^\s*[-*]\s+/.test(b.split("\n")[0])) {
@@ -114,9 +130,21 @@ function digest(md) {
       continue;
     }
     if (/^\s*\|/.test(b)) continue; // a table does not survive a summary
-    if (!summary) summary = b.replace(/\n/g, " ");
+    // Reports often open with process metadata — "Cadence: biweekly…",
+    // "Scope walked: …" — which is the least useful sentence in the file and
+    // was what the first digest led with. A paragraph opening with a short
+    // Label: is skipped in favour of the next one that actually says
+    // something; if the whole document is like that, the first is used
+    // rather than sending a card with no summary at all.
+    const flat = b.replace(/\n/g, " ");
+    const meta = /^[A-Z][A-Za-z]*(\s+[a-z]+){0,2}:\s/.test(b);
+    if (!meta && (!summary || (seenHeading && !summaryUnderHeading))) {
+      summary = flat;
+      if (seenHeading) summaryUnderHeading = true;
+    }
+    if (!fallbackSummary) fallbackSummary = flat;
   }
-  return { title, summary, points };
+  return { title, summary: summary || fallbackSummary, points };
 }
 
 const cards = [];
@@ -181,8 +209,17 @@ if (!cards.length) {
 
 const label = labelFor(files[0]);
 const firstTitle = textParts[0].split("\n")[0].replace(/^[^:]+:\s*/, "");
+// "Branding audit — Branding consistency audit — 2026-W36" is what prefixing
+// blindly produces. When the title already carries the label's own words, the
+// title alone is the subject.
+const labelWord = label.split(" ")[0].toLowerCase();
+const titleSaysIt = firstTitle.toLowerCase().includes(labelWord);
 const subject =
-  cards.length === 1 ? `${label} — ${clip(firstTitle, 60)}` : `${cards.length} updates — ${label} and ${cards.length - 1} more`;
+  cards.length === 1
+    ? titleSaysIt
+      ? clip(firstTitle, 70)
+      : `${label} — ${clip(firstTitle, 60)}`
+    : `${cards.length} updates — ${label} and ${cards.length - 1} more`;
 
 const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric" });
 const count = `${cards.length} ${cards.length === 1 ? "item" : "items"} · ${esc(today)}`;
