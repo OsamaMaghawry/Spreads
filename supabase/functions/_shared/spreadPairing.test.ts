@@ -73,12 +73,22 @@ test("shares survive buildLegs and are reported", () => {
   assert.equal(out[0].shareQty, 100);
 });
 
-test("a short call against shares is covered; the shares are then not double-counted", () => {
+test("a short call against shares is covered, and the shares still show in full", () => {
+  // The covering shares used to be removed from the output entirely — at
+  // exact cover a trader holding 100 shares saw no stock row at all. They are
+  // reported now, whole, with the encumbrance named, and the call carries no
+  // risk of its own so nothing is counted twice.
   const out = pairSpreads([opt(C470, -1, 2), stock("AMD", 100, 95, 9600)], []);
-  assert.equal(out.length, 1, "the covering shares must not also appear as a separate row");
-  assert.equal(out[0].type, KINDS.COVERED_CALL);
-  assert.equal(out[0].shareBasis, 95);
-  assert.equal(out[0].maxRisk, 95 * 100 - 2 * 100);
+  assert.equal(out.length, 2);
+  const cc = out.find((o) => o.type === KINDS.COVERED_CALL);
+  const sh = out.find((o) => o.type === KINDS.SHARES);
+  assert.equal(cc.shareBasis, 95);
+  assert.equal(cc.maxRisk, 0, "the call adds no loss; the shares carry it");
+  assert.equal(sh.shareQty, 100, "the holding is the holding");
+  assert.equal(sh.encumberedQty, 100);
+  assert.equal(sh.freeQty, 0);
+  assert.equal(sh.qtyAvailable, 0, "none of it is free to sell");
+  assert.equal(sh.maxRisk, 95 * 100 - 2 * 100, "cost, less the premium written against it");
 });
 
 test("a short call with no shares is NAKED and carries no risk number", () => {
@@ -92,7 +102,9 @@ test("surplus shares beyond the covered calls still show as stock", () => {
   const kinds = out.map((o) => o.type).sort();
   assert.deepEqual(kinds, [KINDS.COVERED_CALL, KINDS.SHARES].sort());
   const shares = out.find((o) => o.type === KINDS.SHARES);
-  assert.equal(shares.shareQty, 200, "100 of the 300 back the call");
+  assert.equal(shares.shareQty, 300, "the trader owns 300, whatever is written against them");
+  assert.equal(shares.encumberedQty, 100, "100 of the 300 back the call");
+  assert.equal(shares.freeQty, 200);
 });
 
 test("a whole wheel book renders, where today it renders nothing", () => {
@@ -100,8 +112,11 @@ test("a whole wheel book renders, where today it renders nothing", () => {
     [opt(P465, -1, 3), opt(C470, -1, 2), stock("AMD", 100, 95, 9600)],
     [], [], { cash: 100000 }
   );
-  assert.equal(out.length, 2);
-  assert.deepEqual(out.map((o) => o.type).sort(), [KINDS.CASH_SECURED_PUT, KINDS.COVERED_CALL].sort());
+  assert.equal(out.length, 3, "the covering shares are a position too");
+  assert.deepEqual(
+    out.map((o) => o.type).sort(),
+    [KINDS.CASH_SECURED_PUT, KINDS.COVERED_CALL, KINDS.SHARES].sort()
+  );
 });
 
 test("a leftover leg from a half-closed spread is not lost either", () => {
@@ -129,13 +144,16 @@ test("a fully closed leg produces no row", () => {
 
 test("a covered call on assigned shares carries the adjusted basis, and its risk drops by the premiums", () => {
   const basis = { AMD: { basis: 460, brokerBasis: 465, collected: 500, shares: 100, source: "adjusted" } };
-  const [cc] = pairSpreads([opt(C470, -1, 2), stock("AMD", 100, 465, 46000)], [], [], { basisByTicker: basis });
-  assert.equal(cc.type, KINDS.COVERED_CALL);
+  const out = pairSpreads([opt(C470, -1, 2), stock("AMD", 100, 465, 46000)], [], [], { basisByTicker: basis });
+  const cc = out.find((o) => o.type === KINDS.COVERED_CALL);
+  const sh = out.find((o) => o.type === KINDS.SHARES);
   assert.equal(cc.shareBasis, 460);
   assert.equal(cc.basisSource, "adjusted");
   assert.equal(cc.premiumCollected, 500);
-  assert.equal(cc.maxRisk, 460 * 100 - 2 * 100, "not 465*100 - 200");
   assert.equal(cc.breakEven, 458, "OIC: shares' cost less the call premium");
+  // The risk moved to the shares, and the adjusted basis still drives it.
+  assert.equal(sh.shareBasis, 460);
+  assert.equal(sh.maxRisk, 460 * 100 - 2 * 100, "not 465*100 - 200");
 });
 
 test("shares with no linkable premiums say broker basis, and use it", () => {
@@ -220,9 +238,53 @@ test("a partly written share lot never offers more than it holds", () => {
   const out = pairSpreads(positions, [], [], { cash: 0 });
   const shares = out.find((p) => p.type === "shares" && p.ticker === "TSLA");
   assert.ok(shares, "the free shares must still be reported");
-  assert.equal(shares.qty, 10);
+  assert.equal(shares.qty, 210, "the row reports the whole holding");
+  assert.equal(shares.encumberedQty, 200);
+  assert.equal(shares.freeQty, 10);
   assert.ok(
-    shares.qtyAvailable <= shares.qty,
-    `offered ${shares.qtyAvailable} on a row holding ${shares.qty}`
+    shares.qtyAvailable <= shares.freeQty,
+    `offered ${shares.qtyAvailable} when only ${shares.freeQty} are free to sell`
   );
+});
+
+// A long call covers a short call, and the strike does not decide it.
+//
+// classifyLeg counted only shares, so a short 375 call sitting behind a long
+// 352.50 call read NAKED with unbounded risk — on a live book, while
+// watchRules.nakedShortCalls read the same account and correctly raised
+// nothing. Two engines, one repo, opposite answers.
+test("a long call covers a short call whatever its strike", () => {
+  const positions = [
+    { symbol: "TSLA260918C00352500", qty: "1", avg_entry_price: "13.57", current_price: "17.85" },
+    { symbol: "TSLA260911C00375000", qty: "-1", avg_entry_price: "2.26", current_price: "2.99" }
+  ];
+  const out = pairSpreads(positions, [], [], { cash: 0 });
+  const short = out.find((o) => o.shortSymbol === "TSLA260911C00375000");
+  assert.equal(short.type, KINDS.COVERED_CALL, "a bounded loss is not a naked call");
+  assert.notEqual(short.maxRisk, null);
+});
+
+// ...but only if it outlives it. A long that expires first leaves the short
+// bare for the rest of its life, and no broker margins that as a spread.
+test("a long call expiring before the short does not cover it", () => {
+  const positions = [
+    { symbol: "TSLA260911C00352500", qty: "1", avg_entry_price: "13.57", current_price: "17.85" },
+    { symbol: "TSLA260918C00375000", qty: "-1", avg_entry_price: "2.26", current_price: "2.99" }
+  ];
+  const out = pairSpreads(positions, [], [], { cash: 0 });
+  const short = out.find((o) => o.shortSymbol === "TSLA260918C00375000");
+  assert.equal(short.type, KINDS.NAKED_CALL);
+  assert.equal(short.maxRisk, null, "unbounded loss must never render as a figure");
+});
+
+// One long covers one short. Two shorts behind one long is the ratio-naked
+// family and the second one is genuinely uncovered.
+test("one long call cannot cover two short calls", () => {
+  const positions = [
+    { symbol: "TSLA260918C00352500", qty: "1", avg_entry_price: "13.57", current_price: "17.85" },
+    { symbol: "TSLA260918C00362500", qty: "-2", avg_entry_price: "8.69", current_price: "12.10" }
+  ];
+  const out = pairSpreads(positions, [], [], { cash: 0 });
+  const short = out.find((o) => o.shortSymbol === "TSLA260918C00362500");
+  assert.equal(short.type, KINDS.NAKED_CALL, "one of the two has nothing behind it");
 });

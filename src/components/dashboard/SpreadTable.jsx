@@ -125,7 +125,12 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
                   {s.moneyness || "—"}
                 </span>
               </td>
-              <td className={`${td} text-right`}>{s.qty}</td>
+              <td className={`${td} text-right`}>
+                {s.qty}
+                {s.encumberedQty > 0 && (
+                  <span className="block text-[11px] text-slate-400">{s.freeQty} free</span>
+                )}
+              </td>
               <td className={`${td} text-right`}>{fmtMoney(s.shortEntryPrice)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.longEntryPrice)}</td>
               {/* Width, risk and break-even are all computed from a

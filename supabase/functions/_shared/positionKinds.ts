@@ -129,14 +129,18 @@ export function riskOfKind(kind: string, p: any): number | null {
       // Assigned at the strike with the stock at zero, less what was collected.
       return round2((strike - credit) * SHARES_PER_CONTRACT * contracts);
     case KINDS.COVERED_CALL:
-      // The call is not the risk -- the shares are. Downside to zero on the
-      // covered lot, less the premium collected for capping the upside.
-      // shareBasis is the ADJUSTED basis where the wheel's history allows it
-      // (assignment strike less every credit collected), else the broker's.
-      return round2(
-        (Number(p.shareBasis) || 0) * SHARES_PER_CONTRACT * contracts -
-          credit * SHARES_PER_CONTRACT * contracts
-      );
+      // Nothing. The call caps the upside on cover the trader already holds;
+      // it adds no loss of its own.
+      //
+      // This used to return the SHARES' downside-to-zero, which is why the
+      // share row had to be shrunk by the covered quantity to stop the
+      // account total counting the same stock twice. That made every
+      // attribution false to keep one total honest: a trader holding 210
+      // shares read "10 shares", and the 200 he could not see were inside a
+      // call's max-risk figure. The stock's dollars belong in the stock's
+      // row, so they live there now, net of the premium written against them,
+      // and the share row reports what he actually owns.
+      return 0;
     case KINDS.NAKED_CALL:
       return null; // unbounded, and saying so is the point
     case KINDS.LONG_OPTION:
@@ -145,7 +149,16 @@ export function riskOfKind(kind: string, p: any): number | null {
       // Cost from inception, to match every other row in the column. Market
       // value is what can still be lost from HERE, which double-counts a drop
       // already sitting in unrealized P/L against the same row.
-      return round2((Number(p.shareBasis ?? p.avgEntryPrice) || 0) * Math.abs(Number(p.shareQty ?? p.qty) || 0));
+      //
+      // premiumWritten is the credit taken on calls written against this lot.
+      // It is money already received against exactly these shares, so the most
+      // they can still cost is their basis less that credit — and it is
+      // subtracted here because this row now carries the whole holding,
+      // encumbered shares included.
+      return round2(
+        (Number(p.shareBasis ?? p.avgEntryPrice) || 0) * Math.abs(Number(p.shareQty ?? p.qty) || 0) -
+          (Number(p.premiumWritten) || 0)
+      );
     default:
       return null;
   }
@@ -182,12 +195,11 @@ export function collateralOfKind(kind: string, p: any): number | null {
   if (kind === KINDS.CASH_SECURED_PUT) {
     return round2((Number(p.strike) || 0) * SHARES_PER_CONTRACT * contracts);
   }
-  // A covered call and bare shares tie up the shares themselves, at what they
-  // are worth now -- that is the capital the trader cannot deploy elsewhere.
-  if (kind === KINDS.COVERED_CALL) {
-    const mv = Number(p.shareMarketPrice) || 0;
-    return mv > 0 ? round2(mv * SHARES_PER_CONTRACT * contracts) : null;
-  }
+  // A covered call ties up no capital of its own: the shares behind it are
+  // reported in full on their own row and that row already counts them. This
+  // returned the covered shares' market value while the share row returned
+  // the rest, which added to the right total out of two wrong halves.
+  if (kind === KINDS.COVERED_CALL) return 0;
   if (kind === KINDS.SHARES) {
     const mv = Math.abs(Number(p.marketValue) || 0);
     return mv > 0 ? round2(mv) : null;

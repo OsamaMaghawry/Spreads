@@ -42,7 +42,18 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
     // covered call the capital tied up is the whole story.
     ? [
         breakEven,
-        { label: "Qty", value: s.type === "shares" ? s.shareQty : s.qty },
+        {
+          label: "Qty",
+          // The whole holding, with what is written against it named beside
+          // it. The row used to show only the free shares, so a trader with
+          // 210 read 10 and could not reconcile the screen against his broker.
+          value:
+            s.type === "shares"
+              ? s.encumberedQty > 0
+                ? `${s.shareQty} (${s.freeQty} free)`
+                : s.shareQty
+              : s.qty
+        },
         { label: "Capital tied up", value: s.collateral != null ? fmtMoney(s.collateral) : "—" },
         ...(showsStress(s) ? [stress] : []),
         { label: "Expiry", value: s.expiryFormatted || "—" }

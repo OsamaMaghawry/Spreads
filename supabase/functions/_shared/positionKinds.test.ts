@@ -112,10 +112,14 @@ test("a cash-secured put risks the strike less the credit, and ties up the strik
   assert.equal(collateralOfKind(KINDS.CASH_SECURED_PUT, p), 20000, "the broker holds the full strike");
 });
 
-test("a covered call's risk is the shares' downside, not a spread width", () => {
-  // Basis $95, one contract, $2 collected: 95*100 - 2*100.
+test("a covered call adds no risk of its own — the shares carry it", () => {
+  // It used to return the SHARES' downside (95*100 - 2*100 = 9300), which
+  // forced the share row to be shrunk by the covered quantity so the account
+  // total would not count the same stock twice. That bought one honest total
+  // with a false quantity on every row: a trader holding 210 shares read 10.
+  // The stock's dollars belong to the stock's row.
   const p = { ...call(120, -1, 2), shareBasis: 95 };
-  assert.equal(riskOfKind(KINDS.COVERED_CALL, p), 9300);
+  assert.equal(riskOfKind(KINDS.COVERED_CALL, p), 0);
 });
 
 test("a long option risks only its premium", () => {
@@ -129,10 +133,19 @@ test("shares risk what they COST, on the same convention as every other row", ()
   assert.equal(riskOfKind(KINDS.SHARES, { shareQty: 100, shareBasis: 91, avgEntryPrice: 95 }), 9100, "adjusted basis wins when present");
 });
 
-test("the adjusted basis lowers a covered call's max loss by exactly the premiums collected", () => {
-  const broker = riskOfKind(KINDS.COVERED_CALL, { ...call(120, -1, 2), shareBasis: 95 });
-  const adjusted = riskOfKind(KINDS.COVERED_CALL, { ...call(120, -1, 2), shareBasis: 90 });
+test("the adjusted basis lowers the SHARE row's max loss by exactly the premiums collected", () => {
+  // The comparison moved with the dollars: it is the share row that carries a
+  // lot's downside, so it is the share row the adjusted basis works on.
+  const broker = riskOfKind(KINDS.SHARES, { shareQty: 100, shareBasis: 95 });
+  const adjusted = riskOfKind(KINDS.SHARES, { shareQty: 100, shareBasis: 90 });
   assert.equal(broker - adjusted, 500, "$5 of collected premium is $500 less at risk per contract");
+});
+
+test("premium written against a lot comes off what the lot can still cost", () => {
+  // 210 shares at 364.3057 is $76,504.20 of cost; $1,095 was collected on the
+  // calls written against them, so that is the most they can still lose.
+  const risk = riskOfKind(KINDS.SHARES, { shareQty: 210, shareBasis: 364.305714, premiumWritten: 1095 });
+  assert.equal(risk, 75409.2);
 });
 
 test("break-even is the number a wheel is run against", () => {
@@ -142,10 +155,13 @@ test("break-even is the number a wheel is run against", () => {
   assert.equal(breakEvenOfKind(KINDS.SHARES, { avgEntryPrice: 95 }), 95);
 });
 
-test("covered calls and shares tie up the shares at what they are worth now", () => {
-  assert.equal(collateralOfKind(KINDS.COVERED_CALL, { ...call(120, -2), shareMarketPrice: 110 }), 22000);
+test("shares tie up capital; the call written on them ties up none of its own", () => {
+  // The share row reports the whole holding and its market value, so a
+  // covered call returning the covered shares' value as well added the right
+  // total out of two overlapping halves.
   assert.equal(collateralOfKind(KINDS.SHARES, { marketValue: -8000 }), 8000);
-  assert.equal(collateralOfKind(KINDS.COVERED_CALL, call(120, -1)), null, "no price, no figure");
+  assert.equal(collateralOfKind(KINDS.COVERED_CALL, { ...call(120, -2), shareMarketPrice: 110 }), 0);
+  assert.equal(collateralOfKind(KINDS.COVERED_CALL, call(120, -1)), 0);
 });
 
 // --- Totals ----------------------------------------------------------------

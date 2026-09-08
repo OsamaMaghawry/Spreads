@@ -388,25 +388,89 @@ export function pairSpreads(positions, activities, filledOrders = [], { cash = n
     sharesLeft[lot.ticker] = (sharesLeft[lot.ticker] || 0) + lot.qty;
   });
 
-  // Shorts before longs, so a covered call claims its shares before a long leg
-  // in the same name is described.
+  // Cover is allocated across a ticker's short calls before any of them is
+  // named, because a short call is only naked once every cover in the account
+  // has been offered to it and refused.
+  //
+  // Two covers count, not one:
+  //   - 100 shares per contract, and
+  //   - one long call per contract, expiring ON OR AFTER the short.
+  //
+  // The long's strike does not decide whether the loss is bounded, only how
+  // big the bound is: long 352.50 against short 375 is a spread, and above
+  // 375 the long gains what the short loses. Counting only shares is what put
+  // "Naked call · Unlimited" on a book that held a long call covering it —
+  // while watchRules.nakedShortCalls, reading the same account, correctly
+  // raised nothing.
+  //
+  // Shortest-dated short first: the one that runs out of time soonest has the
+  // first claim, which is the order a trader would cover them in and the
+  // order the watch already uses.
   const leftovers = Object.values(legsBySymbol).filter((l) => l.qty !== 0);
+  const shortCalls = leftovers
+    .filter((l) => l.optionType === "C" && l.qty < 0)
+    .sort((a, b) => String(a.expiry).localeCompare(String(b.expiry)));
+  const longCallPool = leftovers
+    .filter((l) => l.optionType === "C" && l.qty > 0)
+    .map((l) => ({ leg: l, left: l.qty }));
+
+  const coverage = {};
+  shortCalls.forEach((leg) => {
+    const need = Math.abs(leg.qty);
+    const bySharesAvailable = Math.floor((sharesLeft[leg.ticker] || 0) / 100);
+    const fromShares = Math.max(0, Math.min(need, bySharesAvailable));
+    sharesLeft[leg.ticker] = (sharesLeft[leg.ticker] || 0) - fromShares * 100;
+
+    let still = need - fromShares;
+    const byLongs = [];
+    for (const c of longCallPool) {
+      if (still <= 0) break;
+      if (c.leg.ticker !== leg.ticker || c.left <= 0) continue;
+      // A long that dies before the short leaves it bare for the rest of its
+      // life; no broker margins that as a spread, and neither do we.
+      if (String(c.leg.expiry) < String(leg.expiry)) continue;
+      const take = Math.min(still, c.left);
+      c.left -= take;
+      still -= take;
+      byLongs.push({ symbol: c.leg.symbol, qty: take, strike: c.leg.strike, expiry: c.leg.expiry });
+    }
+    coverage[leg.symbol] = { need, fromShares, byLongs, uncovered: still };
+  });
+
+  // Premium written against the shares rides with the lot, because the share
+  // row now carries the whole holding and its risk.
+  const writtenAgainstShares = {};
+  shortCalls.forEach((leg) => {
+    const c = coverage[leg.symbol];
+    if (!c || !c.fromShares) return;
+    writtenAgainstShares[leg.ticker] =
+      (writtenAgainstShares[leg.ticker] || 0) + Math.abs(leg.avgEntryPrice || 0) * 100 * c.fromShares;
+  });
+
   leftovers.sort((a, b) => a.qty - b.qty);
   leftovers.forEach((leg) => {
-    const shares = sharesLeft[leg.ticker] || 0;
-    const kind = classifyLeg(leg, { shares, cash });
+    const cover = coverage[leg.symbol];
+    const kind =
+      cover && leg.optionType === "C" && leg.qty < 0
+        ? cover.uncovered > 0
+          ? KINDS.NAKED_CALL
+          : KINDS.COVERED_CALL
+        : classifyLeg(leg, { shares: 0, cash });
     if (!kind) return;
     let extra = {};
     if (kind === KINDS.COVERED_CALL) {
-      const claimed = Math.abs(leg.qty) * 100;
-      sharesLeft[leg.ticker] = shares - claimed;
       const lot = shareLots[leg.ticker];
+      const bySharesOnly = cover.byLongs.length === 0;
       extra = {
         shareBasis: lot ? (lot.adjustedBasis ?? lot.avgEntryPrice) : 0,
         shareMarketPrice: lot ? lot.currentPrice : 0,
         basisSource: lot ? lot.basisSource : "broker",
         premiumCollected: lot ? lot.premiumCollected : 0,
-        coveredBy: lot ? lot.symbol : null
+        // What is actually behind it, named, so the card can say so instead of
+        // leaving the trader to work out which cover was claimed.
+        coveredBy: bySharesOnly && lot ? lot.symbol : null,
+        coverShares: cover.fromShares * 100,
+        coverLongs: cover.byLongs
       };
     }
     singles.push(toSinglePosition(leg, kind, extra));
@@ -414,7 +478,17 @@ export function pairSpreads(positions, activities, filledOrders = [], { cash = n
 
   Object.values(shareLots).forEach((lot) => {
     const left = sharesLeft[lot.ticker] || 0;
-    if (Math.abs(left) < 1) return; // fully committed to covered calls
+    // The row reports the WHOLE holding, always.
+    //
+    // It used to report only what was left after covered calls claimed their
+    // shares, so a trader holding 210 read "10 shares" — and at exact cover
+    // the stock row disappeared from the screen entirely. No such lot exists
+    // anywhere: not at the broker, not in a tax lot, not on a sell ticket.
+    // The encumbrance is stated beside the quantity instead, and the risk
+    // column carries the whole lot net of the premium written against it,
+    // which is why the covered call's own risk is now zero rather than the
+    // stock's.
+    const encumbered = Math.max(0, Math.abs(lot.qty) - Math.abs(left));
     // qtyAvailable must be re-cut to this row too.
     //
     // It was carried through from the parent lot, so a row reporting 10 free
@@ -422,18 +496,20 @@ export function pairSpreads(positions, activities, filledOrders = [], { cash = n
     // defaults to qtyAvailable. On a live account that is one confirm away
     // from selling the whole holding and turning two covered calls naked. The
     // row may only ever offer what the row says it is.
+    // Free to sell is what the broker allows AND what is not written against.
     const available = Math.min(
       Math.abs(lot.qtyAvailable ?? lot.qty),
       Math.abs(left)
     );
-    singles.push(
-      toSharePosition({
-        ...lot,
-        qty: left,
-        qtyAvailable: available,
-        marketValue: lot.marketValue * (left / lot.qty)
-      })
-    );
+    const premiumWritten = Math.round((writtenAgainstShares[lot.ticker] || 0) * 100) / 100;
+    singles.push({
+      // premiumWritten goes IN, not on afterwards: riskOfKind reads it to net
+      // the written credit off the lot's downside, and it runs inside here.
+      ...toSharePosition({ ...lot, qtyAvailable: available, premiumWritten }),
+      encumberedQty: encumbered,
+      freeQty: Math.abs(left),
+      premiumWritten
+    });
   });
 
   return [...mergeIdentical([...proven, ...loose].filter((s) => s.qty > 0)), ...singles];
