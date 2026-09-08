@@ -26,6 +26,75 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Open
 
+Seven findings from head-of-trading's 2026-09-08 audit of the live TSLA stock
+repair. Three pairing/model defects from that same audit are already fixed
+(`92a78ed`, `c642dcc`, `dcb5f5f`); these are the ones that were left because
+each changes what a number means, which is not a duty-engineer fix. Ordered
+worst first.
+
+- [open] 2026-09-08 · head-of-trading · **Blocking. `totals.notional` counts an
+  unbounded position as zero and says nothing.** `syncAccounts/index.ts:444`
+  is `stockLike.reduce((a, r) => a + (Number(r.notionalRisk) || 0), 0)`. A naked
+  call's `notionalRisk` is null (no bound), so `|| 0` adds nothing and the
+  account's "Stock to zero" total reads as if that position did not exist —
+  the one case where the figure is most wrong is the case it silently drops.
+  Twelve lines above, `totals.risk` handles exactly this correctly: it carries
+  `riskComplete` and an `undefinedRisk` ticker list. Fix is the same shape —
+  a `notionalComplete` flag plus the tickers, and a dashboard total that says
+  "incomplete" rather than printing a number that is short by an unbounded
+  amount.
+- [open] 2026-09-08 · head-of-trading · **The account stress total adds a −15%
+  and a +15% shock on the same underlying.** `syncAccounts/index.ts:436` sums
+  `r.stressLoss` across every stock-like row. `stressLossOfKind`
+  (`positionKinds.ts:70`) shocks shares and puts *down* and naked calls *up*
+  — deliberately, each is that position's adverse direction. Summed, one
+  ticker holding both is charged for two moves that cannot both happen, so
+  the total overstates. A margin engine shocks the underlying once and sums
+  the P/L of every position at that price. Fix: group stock-like rows by
+  ticker, evaluate each group at the down move and at the up move, take the
+  worse of the two, then sum across tickers.
+- [open] 2026-09-08 · head-of-trading · **`classifyLeg` is all-or-nothing per
+  symbol, and disagrees with the watch on the same book.**
+  `positionKinds.ts:48` returns `COVERED_CALL` only when shares cover *every*
+  contract, else `NAKED_CALL` for the whole row — so ten short calls against
+  100 shares report as ten naked, and `riskOfKind` then returns null
+  (unbounded) for all ten when only nine are. `watchRules.nakedShortCalls`
+  (`watchRules.ts:41`) already does this properly: it allocates shares and
+  long calls contract by contract and reports the uncovered remainder. Two
+  engines, one book, different answers. Fix: split the row, or return a
+  covered/uncovered contract count `riskOfKind` can read.
+- [open] 2026-09-08 · head-of-trading · **`pairSide` cannot name a ratio or a
+  long-below-short structure, so the owner's stock repair is still shown
+  decomposed.** `spreadPairing.ts:101` requires the long strike above the
+  short (calls) and `:102` requires an identical expiry, so long 1 lower call
+  vs short 2 higher calls never pairs, and no diagonal ever pairs. The legs
+  are no longer lost (`92a78ed`) and the shorts are no longer called naked
+  (`dcb5f5f`), but the app still describes the position as a covered call plus
+  a loose long call rather than the repair it is. Fix is a named structure
+  with its own risk arithmetic, not a loosened strike test — a ratio's risk is
+  not a vertical's.
+- [open] 2026-09-08 · head-of-trading · **An adjusted contract reads as naked in
+  both engines.** A post-split or post-merger OCC symbol carries a
+  non-standard deliverable, so "100 shares per contract" is false for it;
+  `classifyLeg` and `nakedShortCalls` both assume 100. `positionWatch` can
+  therefore raise a false critical on a fully covered position. `parseOCCSymbol`
+  already flags adjusted contracts (that is `B12`, fixed 2 Sep) — the flag just
+  is not read here. Fix: refuse to judge coverage on an adjusted contract and
+  say so, rather than assuming the standard deliverable.
+- [open] 2026-09-08 · head-of-trading · **`tradeReconstruction` labels a closed
+  half by a different rule than `classifyLeg` labels the open one.**
+  `tradeReconstruction.ts:602-610` decides `cash_secured_put` / `covered_call`
+  from the contract type and the shares held at reconstruction time;
+  `classifyLeg` decides from shares held now. The same trade can appear as a
+  covered call while open and something else once closed, which moves it
+  between Trade History's strategy tabs. Fix: one classifier, called from both.
+- [open] 2026-09-08 · head-of-trading · **`docs/trading/alert-rules.md:16` is
+  stale.** The `naked_short_call` row still reads "a short call with fewer than
+  100 shares per contract behind it". Since `dcb5f5f` a long call of the same
+  name expiring on or after the short also covers it (`watchRules.ts:61`), and
+  the doc is what the rule is judged against. Doc-only, but it is the rule of
+  record.
+
 ## Fixed
 
 - [fixed 2026-09-07] 2026-09-07 · owner · Added `SUPABASE_SERVICE_ROLE_KEY` as a GitHub Actions secret. Verified: email-digest run 34131321857 sent the first digest that has ever left this repo (landed on `main` in `ad3eb33`/`a7cea26`/`1ac077a`; mirrored here from `main`'s queue.md, which this branch's `docs/ops/2026-09-07.md` runs had not yet seen).
