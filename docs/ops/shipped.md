@@ -3,6 +3,8 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-08 · (staging) When a live account's broker positions don't match what DeltaMint shows, support can now settle it: the hourly broker feed capture also records the account's raw open positions and open orders (not just its activity feed), so a report like "there's a position DeltaMint doesn't show" can be checked against what the broker actually sent instead of staying unprovable (`dcd6b34`, migration 0028).
+
 - 2026-09-07 · The blog is live in production: two more posts join the two
   already there ("What is an options contract", "Credit spread max loss"),
   all four restructured to lead with points instead of long paragraphs; body

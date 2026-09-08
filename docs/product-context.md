@@ -91,6 +91,7 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-08 · (staging) When a live account's broker positions don't match what DeltaMint shows, support can now settle it: the hourly broker feed capture also records the account's raw open positions and open orders (not just its activity feed), so a report like "there's a position DeltaMint doesn't show" can be checked against what the broker actually sent instead of staying unprovable (`dcd6b34`, migration 0028).
 - 2026-09-07 · The blog is live in production: two more posts join the two
 - 2026-09-07 · (staging) The owner's digest email is a card per report — what it
 - 2026-09-07 · (staging) Blog posts read at 17px on a 780px column instead of
@@ -100,7 +101,6 @@ From `docs/ops/shipped.md`, newest first.
 - 2026-09-07 · The homepage is rebuilt from the product itself: a hero wipes between the broker's raw rows and DeltaMint's position cards (with a phone toggle and flip-to-legs cards), a looping Market Screener replay and trade-ticket replay with the real defaults, an individual-legs section, the Analysis tiles and capture table, and a "Start for free" close; the screener and ticket replicas no longer carry a copy of the app's own top nav, and the broker logo in the connect card is smaller (`f55ef60`, `fa8726c`, `204b853`).
 - 2026-09-04 · (staging) The scanner tells "options market is shut for the day" apart from "the stock and options feeds disagree" — pre/post-market it says the chain is stale at yesterday's close instead of blaming a data fault, and the open-position scan loop backs off to a minute between passes outside market hours instead of retrying every 20 seconds (`228fea9`). Not yet on `main` — no PR exists for it; corrected from an earlier ledger entry that omitted the `(staging)` tag.
 - 2026-09-04 · Shares held by an already-working sell order no longer show as free to sell again (`d1c3262`).
-- 2026-09-04 · The orders row and the close ticket no longer call a share order a "leg", the price editor gets working +/- arrows on a phone, and closing an account explains what is and isn't kept (`fc9598f`, `08b1fe5`).
 
 ## Server functions
 
