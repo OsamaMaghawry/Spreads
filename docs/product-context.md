@@ -156,7 +156,7 @@ revoked from the browser role entirely.
 - **broker_connection_issues** — id, user_id, broker, environment, status, detail, created_at
 - **order_attempts** — id, user_id, account_id, run_key, intent, step, ticker, legs, qty, order_type, limit_price, quote, broker_order_id, status, filled_qty, filled_avg_price, error, created_at, updated_at
 - **digest_sends** — id, subject, created_at
-- **broker_feed_dumps** — id, account_id, activities, activity_count, created_at
+- **broker_feed_dumps** — id, account_id, activities, activity_count, created_at, positions
 - **subscriptions** — user_id, stripe_customer_id, stripe_subscription_id, plan, status, current_period_end, cancel_at_period_end, grandfathered_until, created_at, updated_at
 - **growth_metrics** — day, search, analytics, funnel, created_at
 
