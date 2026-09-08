@@ -92,6 +92,7 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-08 · (staging) An account's total risk figure no longer silently drops an unbounded position — a naked call's contribution is now flagged as unknown instead of counted as zero — and the account stress total no longer charges the same ticker for a crash and a rally at once (or double-counts a covered call's shares); the dashboard and the position watch now agree on what "covered" means, judging it per contract instead of per whole leg and withholding judgment on a contract that isn't 100 shares each; a debit call spread bought as two separate fills is now recognized as a debit vertical instead of two unrelated legs, with its risk, break-even and moneyness read the right direction; and cover is now allocated to long options before shares, so a lot the owner holds outright is never capped below what the broker actually lets him sell (`df1f997`).
 - 2026-09-08 · (staging) A share row can no longer offer more shares to sell than it actually holds: the close ticket now clamps its default and its input to the row's own free-share count instead of the parent lot's full quantity, closing a bug where confirming a ticket that read "10 shares" could have sold all 210 and stripped the cover off two live short calls (`c642dcc`).
 - 2026-09-08 · (staging) The dashboard now shows a stock position's true broker quantity with the shares tied up by covered calls named alongside it ("210 (10 free)") instead of silently shrinking the row — and a short call backed by a longer-dated long call of any strike is now correctly shown as covered rather than "Naked call · Unlimited" (`dcb5f5f`).
 - 2026-09-08 · (staging) Fixed a case where two option legs a broker reported could vanish from the Positions Monitor entirely because the pairing engine claimed them for a spread shape they didn't fit (a 1x2 stock-repair ratio, not a vertical) and never gave them back — which had also been making an unrelated covered call misreport as far more shares than it actually held (`92a78ed`).
@@ -101,7 +102,6 @@ From `docs/ops/shipped.md`, newest first.
 - 2026-09-07 · (staging) Blog posts read at 17px on a 780px column instead of
 - 2026-09-07 · (staging) On a phone, Blog and Pricing (and Log in) move behind
 - 2026-09-07 · (staging) The homepage's looping Market Screener replay no
-- 2026-09-07 · (staging) A blog draft the merge gate had been silently refusing — it counted a post's own diagrams under `landing/public/assets/blog/` as "not content-only" — now lands somewhere a person can read it before strangers do: the content gate merges a post's branch to `staging` instead of `main`, a new `publish-blog-staging.yml` writes it into the staging project so it renders at `dev-landing.deltamint.app/blog` (noindex), and the owner gets an email naming the post and linking to it. Going to `main`, and the live blog, is still the owner's own merge. Needs the owner to set `SUPABASE_SERVICE_ROLE_KEY_STAGING`; without it the workflow refuses loudly rather than half-publishing (`0053b90`).
 
 ## Server functions
 
