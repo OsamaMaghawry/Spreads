@@ -48,7 +48,15 @@ export function spreadLegs(spread) {
     }];
   }
 
-  if (spread.type === "call_spread") {
+  // A ratio is the one structure whose two legs are not one-for-one, so the
+  // ratios travel to the broker instead of a hard-coded 1. Closing a 1x2 with
+  // 1x1 would leave a naked short behind and call it done.
+  if (spread.type === "call_ratio_spread") {
+    legs.push(
+      { symbol: spread.shortSymbol, ratio: spread.shortRatio || 1, action: "buy_to_close", side: "short", kind: "call", strike: spread.shortStrike },
+      { symbol: spread.longSymbol, ratio: spread.longRatio || 1, action: "sell_to_close", side: "long", kind: "call", strike: spread.longStrike }
+    );
+  } else if (spread.type === "call_spread") {
     legs.push(
       { symbol: spread.shortSymbol, ratio: 1, action: "buy_to_close", side: "short", kind: "call", strike: spread.shortStrike },
       { symbol: spread.longSymbol, ratio: 1, action: "sell_to_close", side: "long", kind: "call", strike: spread.longStrike }

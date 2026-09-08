@@ -88,6 +88,11 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
           )}
           {s.type === "iron_condor" && <span className={`${badge} border-indigo-200 bg-indigo-100 text-indigo-700`}>IC</span>}
           {s.type === "call_spread" && <span className={`${badge} border-sky-200 bg-sky-100 text-sky-700`}>Call</span>}
+          {s.type === "call_ratio_spread" && (
+            <span className={`${badge} border-sky-200 bg-sky-100 text-sky-700`} title="More short calls than long ones — a ratio.">
+              {s.longRatio}×{s.shortRatio} Call
+            </span>
+          )}
           {s.type === "put_spread" && <span className={`${badge} border-violet-200 bg-violet-100 text-violet-700`}>Put</span>}
           {isSingle(s) && kindOf(s) && (
             <span className={`${badge} ${kindOf(s).cls}`} title={kindOf(s).label}>{kindOf(s).badge}</span>

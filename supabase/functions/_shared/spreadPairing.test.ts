@@ -201,8 +201,16 @@ test("legs an order claims but cannot pair are still described", () => {
   const symbols = JSON.stringify(out);
   assert.ok(symbols.includes("TSLA260918C00352500"), "the long call must not vanish");
   assert.ok(symbols.includes("TSLA260918C00362500"), "the short calls must not vanish");
-  // Nothing pairs, so both are described on their own.
-  assert.equal(out.length, 2);
+  // One order, one long, two shorts: that is a 1x2 ratio and it is one
+  // position. It used to be nothing at all (both legs deducted and neither
+  // emitted), then two loose legs, then — worse — a spread plus a covered
+  // call, which split two contracts sold in a single trade across two cards.
+  assert.equal(out.length, 1);
+  assert.equal(out[0].type, "call_ratio_spread");
+  assert.equal(out[0].longRatio, 1);
+  assert.equal(out[0].shortRatio, 2);
+  assert.equal(out[0].qty, 1);
+  assert.equal(out[0].excessShorts, 1);
 });
 
 // The same order, the right way round: long 365 above short 360 is a real
@@ -312,29 +320,49 @@ test("one long call covers one of two short calls, and the other is named naked"
 // The live stock repair, read the way the owner holds it
 // ---------------------------------------------------------------------------
 
-test("a stock repair: the long call covers a short before the shares are asked", () => {
-  // 210 shares, one long 352.50 call, two short 375s. Cover used to be
-  // allocated shares-first, so both shorts took 100 shares each and the row
-  // read "210 (10 free)" — with a long call sitting right there, unused,
-  // covering one of them. A long is the cheaper cover and the one a trader
-  // means to use, so it goes first, and 110 shares are left doing nothing.
+test("a stock repair placed by hand is one position, not three", () => {
+  // 210 shares, one long 352.50 call, two short 375s, no order behind them —
+  // the owner placed the legs himself. It read as two covered calls plus a
+  // loose long call, and the share row said "210 (10 free)" because cover was
+  // offered shares-first while the long call sat unused beside it.
+  //
+  // It is a 1x2 call ratio over stock. One row for the ratio, one for the
+  // shares, both tagged as the one trade they are; the extra short takes 100
+  // shares, so 110 are doing nothing and all 210 are still sellable.
   const positions = [
     { symbol: "TSLA", qty: "210", qty_available: "210", avg_entry_price: "364.31", current_price: "367.77", market_value: "77232" },
     { symbol: "TSLA260918C00352500", qty: "1", avg_entry_price: "13.57", current_price: "17.85" },
     { symbol: "TSLA260918C00375000", qty: "-2", avg_entry_price: "8.69", current_price: "12.10" }
   ];
   const out = pairSpreads(positions, [], [], { cash: 0 });
+  assert.equal(out.length, 2);
+
+  const ratio = out.find((o) => o.type === "call_ratio_spread");
   const shares = out.find((o) => o.type === KINDS.SHARES);
-  const cc = out.find((o) => o.type === KINDS.COVERED_CALL);
+  assert.ok(ratio && shares);
+  assert.equal(ratio.longRatio, 1);
+  assert.equal(ratio.shortRatio, 2);
+  assert.equal(ratio.coverShares, 100, "the extra short is on the stock");
+  assert.equal(ratio.ratioCovered, true);
 
   assert.equal(shares.shareQty, 210);
-  assert.equal(shares.encumberedQty, 100, "one short is on the long call, not on the stock");
+  assert.equal(shares.encumberedQty, 100);
   assert.equal(shares.freeQty, 110);
   assert.equal(shares.qtyAvailable, 210, "and all 210 can still be sold");
-  assert.equal(cc.qty, 2, "neither short is naked");
-  assert.equal(out.find((o) => o.type === KINDS.NAKED_CALL), undefined);
-  // The three rows are one trade, and say so.
   for (const r of out) assert.equal(r.structure, "stock_repair");
+});
+
+test("a ratio in an account holding no stock is not claimed as a repair", () => {
+  // Without the shares the same two legs could be anything, so the pairing
+  // does not guess: they go through the cover rule and come out as what can
+  // actually be established — one short covered by the long, one naked.
+  const positions = [
+    { symbol: "TSLA260918C00352500", qty: "1", avg_entry_price: "13.57", current_price: "17.85" },
+    { symbol: "TSLA260918C00375000", qty: "-2", avg_entry_price: "8.69", current_price: "12.10" }
+  ];
+  const out = pairSpreads(positions, [], [], { cash: 0 });
+  assert.equal(out.find((o) => o.type === "call_ratio_spread"), undefined);
+  assert.ok(out.some((o) => o.type === KINDS.NAKED_CALL));
 });
 
 test("an adjusted short call is not judged covered or naked", () => {

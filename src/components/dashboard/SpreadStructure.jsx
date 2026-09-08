@@ -38,6 +38,20 @@ export default function SpreadStructure({ spread: s }) {
       </span>
     );
   }
+  // A ratio's identity IS its two counts, so it leads with them rather than
+  // reading as an ordinary vertical between the same two strikes.
+  if (s.type === "call_ratio_spread") {
+    return (
+      <span className="text-xs text-slate-600">
+        <span className="text-slate-400">{s.longRatio}× </span>
+        {fmtMoney(s.longStrike)} <span className="text-slate-400">C long</span>
+        <span className="text-slate-300 mx-1">·</span>
+        <span className="text-slate-400">{s.shortRatio}× </span>
+        {fmtMoney(s.shortStrike)} <span className="text-slate-400">C short</span>
+      </span>
+    );
+  }
+
   return (
     <span className="text-xs text-slate-600">
       {strikes(s.shortStrike, s.longStrike)}{" "}

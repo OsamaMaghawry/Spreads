@@ -305,9 +305,14 @@ async function syncOne(account) {
       if (s.single) return singleRow(s);
       const stockPrice = spots[s.ticker]?.price || 0;
       const isCondor = s.type === "iron_condor";
-      const isCall = s.type === "call_spread";
+      const isRatio = s.type === "call_ratio_spread";
+      const isCall = s.type === "call_spread" || isRatio;
       const putRatio = s.putRatio || 1;
       const callRatio = s.callRatio || 1;
+      // A ratio is not one short against one long, so every figure that
+      // assumed it was has to carry both counts instead.
+      const nLong = isRatio ? s.longRatio || 1 : 1;
+      const nShort = isRatio ? s.shortRatio || 1 : 1;
       // A DEBIT vertical -- long below the short on calls, above it on puts --
       // is the same two legs the other way round, and every figure below has
       // to know which it is. Nothing paid it before because the pairing could
@@ -322,17 +327,27 @@ async function syncOne(account) {
         ? Math.abs(s.callLongStrike - s.callShortStrike) * callRatio
         : isCall ? Math.abs(s.longStrike - s.shortStrike) : 0;
       const spreadWidth = Math.max(putWidth, callWidth);
-      const netCredit = s.shortEntryPrice - s.longEntryPrice;
+      const netCredit = nShort * s.shortEntryPrice - nLong * s.longEntryPrice;
       const totalCredit = netCredit * s.qty * 100;
+      // A ratio's worst case, once its excess short is covered by stock, is at
+      // the bottom: every option expires worthless and what it cost is lost.
+      // Above the short strike the extra contract does lose without bound, but
+      // the shares behind it gain faster -- and those shares are a row of
+      // their own, carrying their own downside, so putting that here would
+      // count the same stock twice. Uncovered, there is nothing above it and
+      // no honest figure to print.
+      //
       // A debit spread cannot lose more than it cost: netCredit is negative
       // there, so this is the premium paid. A credit spread loses the width
       // less what it took in.
-      const maxRisk = (isDebit ? -netCredit : spreadWidth - netCredit) * s.qty * 100;
+      const maxRisk = isRatio
+        ? s.ratioCovered ? Math.max(0, -netCredit) * s.qty * 100 : null
+        : (isDebit ? -netCredit : spreadWidth - netCredit) * s.qty * 100;
       // Cost to close, from live NBBO mids across every leg at one instant.
       // Signs follow the position: a short leg is bought back, a long leg sold.
       const legs = [
-        { sym: s.shortSymbol, sign: 1, ratio: isCondor ? putRatio : 1 },
-        { sym: s.longSymbol, sign: -1, ratio: isCondor ? putRatio : 1 },
+        { sym: s.shortSymbol, sign: 1, ratio: isCondor ? putRatio : nShort },
+        { sym: s.longSymbol, sign: -1, ratio: isCondor ? putRatio : nLong },
         { sym: s.callShortSymbol, sign: 1, ratio: callRatio },
         { sym: s.callLongSymbol, sign: -1, ratio: callRatio }
       ].filter((l) => l.sym);
@@ -346,12 +361,16 @@ async function syncOne(account) {
       const clamp = (v, cap) => Math.min(Math.max(v, 0), cap);
       const rawCost = quoted
         ? mids.reduce((a, l) => a + l.sign * l.ratio * l.mid, 0)
-        : s.shortCurrentPrice - s.longCurrentPrice;
+        : nShort * s.shortCurrentPrice - nLong * s.longCurrentPrice;
       // Net-short value lives in [0, width]; net-long value in [-width, 0].
       // Bounding to the wrong side of zero is what would make a debit spread
-      // read as free to close.
+      // read as free to close. A ratio has no such bound -- the extra short
+      // can be worth any amount -- so it is left unclamped rather than
+      // squeezed into a range it does not have.
       const cap = putWidth + callWidth;
-      const closeCost = (isDebit ? Math.min(Math.max(rawCost, -cap), 0) : clamp(rawCost, cap)) * s.qty * 100;
+      const closeCost = (isRatio
+        ? rawCost
+        : isDebit ? Math.min(Math.max(rawCost, -cap), 0) : clamp(rawCost, cap)) * s.qty * 100;
       // Expiration scenario: what the spread would settle for if it expired right
       // now at the current stock price — intrinsic value only, no time premium.
       //
@@ -368,7 +387,7 @@ async function syncOne(account) {
         if (isCondor) {
           intrinsic += (itv(stockPrice - s.callShortStrike) - itv(stockPrice - s.callLongStrike)) * callRatio;
         } else if (isCall) {
-          intrinsic += itv(stockPrice - s.shortStrike) - itv(stockPrice - s.longStrike);
+          intrinsic += nShort * itv(stockPrice - s.shortStrike) - nLong * itv(stockPrice - s.longStrike);
         }
       }
       const expirationCost = intrinsic * s.qty * 100;
@@ -416,7 +435,11 @@ async function syncOne(account) {
         // width, the risk and the break-even are all computed from a
         // deliverable it no longer has. Withheld rather than shown wrong.
         adjusted: isAdjusted,
-        direction: isDebit ? "debit" : "credit",
+        // A ratio's direction is whichever way the premium went, since its
+        // strikes do not say: 1x2 can be opened for a credit or a debit.
+        direction: isRatio ? (netCredit < 0 ? "debit" : "credit") : isDebit ? "debit" : "credit",
+        longRatio: nLong,
+        shortRatio: nShort,
         spreadWidth,
         // Per-side worst case (used for directional condor aggregation).
         putSideRisk: (putWidth - netCredit) * s.qty * 100,
@@ -428,10 +451,24 @@ async function syncOne(account) {
         // took in. A debit spread breaks even at the LONG strike, moved by
         // what it cost — and netCredit is negative there, so both directions
         // come out of the same sign.
-        breakEven: isDebit
-          ? isCall ? s.longStrike - netCredit : s.longStrike + netCredit
-          : isCall ? s.shortStrike + netCredit : s.shortStrike - netCredit / putRatio,
-        breakEvenHigh: isCondor ? s.callShortStrike + netCredit / callRatio : null,
+        // A ratio can have two break-evens, or only one.
+        //
+        // Below the long strike its P/L is flat at whatever the premium was:
+        // opened for a CREDIT it is profitable all the way down and there is
+        // no lower break-even to name, so the field is null rather than a
+        // number below the strike that nothing crosses. Opened for a debit,
+        // the lower break-even is the long strike plus what it cost. The
+        // upper one always exists — above the short strike the extra contract
+        // drags the position back down — and it is the edge that matters on a
+        // repair.
+        breakEven: isRatio
+          ? netCredit >= 0 ? null : s.longStrike - netCredit / nLong
+          : isDebit
+            ? isCall ? s.longStrike - netCredit : s.longStrike + netCredit
+            : isCall ? s.shortStrike + netCredit : s.shortStrike - netCredit / putRatio,
+        breakEvenHigh: isRatio
+          ? (nShort * s.shortStrike - nLong * s.longStrike + netCredit) / (nShort - nLong)
+          : isCondor ? s.callShortStrike + netCredit / callRatio : null,
         closeCost,
         unrealizedPL: totalCredit - closeCost,
         expirationCost,

@@ -161,6 +161,95 @@ function pairSide(legs, optionType, { allowDebit = false } = {}) {
   return out;
 }
 
+// A CALL RATIO: more short calls than long ones, at one strike each, filled by
+// one order. Long 1 at 352.50 against short 2 at 362.50 over stock you already
+// hold is a stock repair, and it is one position, not two.
+//
+// It was being taken apart every way the code knew how. First the vertical
+// pairing could only see a long ABOVE a short, so the whole thing fell through
+// to the leftovers and read as two covered calls plus a loose long. Then, once
+// the vertical pairing learned the debit direction, it did something worse: it
+// paired one long with one short and left the other short to be covered by
+// shares, so the two identical contracts the owner sold in one trade appeared
+// on two different cards, one of them a "spread" and one of them a "covered
+// call". A trader who put on 1x2 should see 1x2.
+//
+// So the ratio is matched BEFORE the verticals and consumes all of its legs.
+// What it does not do is invent a risk figure spanning stock and options: the
+// extra short is offered the account's shares by the same allocator every
+// other short call goes through, and the stock's dollars stay on the stock's
+// row. Covered, the ratio can lose only what it cost; uncovered, it is
+// unbounded and says so.
+//
+// Deliberately narrow: one long strike, one short strike, one expiry, more
+// shorts than longs, calls only. Anything else stays with the pairing that
+// already handles it rather than being guessed into a structure. Puts are
+// excluded because an excess short put is cash-secured by construction on this
+// broker, and the leftover pass already names it exactly that.
+function pairRatios(legs) {
+  const out = [];
+  const calls = legs.filter((l) => l.optionType === "C");
+  const byExpiry = {};
+  calls.forEach((l) => {
+    if (l.qty === 0) return;
+    (byExpiry[l.expiry] = byExpiry[l.expiry] || []).push(l);
+  });
+
+  Object.values(byExpiry).forEach((group) => {
+    const longs = group.filter((l) => l.qty > 0);
+    const shorts = group.filter((l) => l.qty < 0);
+    if (longs.length !== 1 || shorts.length !== 1) return;
+    const long = longs[0];
+    const short = shorts[0];
+    const longQty = long.qty;
+    const shortQty = Math.abs(short.qty);
+    if (!(shortQty > longQty) || longQty < 1) return;
+
+    const units = gcd(longQty, shortQty);
+    const longRatio = longQty / units;
+    const shortRatio = shortQty / units;
+    const legOf = (leg, side, ratio) => ({
+      symbol: leg.symbol,
+      side,
+      kind: "call",
+      strike: leg.strike,
+      ratio,
+      entryPrice: leg.avgEntryPrice,
+      currentPrice: leg.currentPrice
+    });
+
+    out.push({
+      type: "call_ratio_spread",
+      ratio: true,
+      legs: [legOf(short, "short", shortRatio), legOf(long, "long", longRatio)],
+      ticker: short.ticker,
+      expiry: short.expiry,
+      expiryFormatted: short.expiryFormatted,
+      entryDate: short.entryDate < long.entryDate ? short.entryDate : long.entryDate,
+      shortSymbol: short.symbol,
+      longSymbol: long.symbol,
+      shortStrike: short.strike,
+      longStrike: long.strike,
+      qty: units,
+      longRatio,
+      shortRatio,
+      // The shorts nothing inside the structure offsets. These are what the
+      // account's shares have to cover for the ratio to be bounded at all.
+      excessShorts: (shortRatio - longRatio) * units,
+      adjusted: !!(short.adjusted || long.adjusted),
+      shortEntryPrice: short.avgEntryPrice,
+      longEntryPrice: long.avgEntryPrice,
+      shortCurrentPrice: short.currentPrice,
+      longCurrentPrice: long.currentPrice
+    });
+
+    long.qty -= longQty;
+    short.qty += shortQty;
+  });
+
+  return out;
+}
+
 // Combine a put spread and a call spread that were opened by the SAME order
 // into an iron condor. Ratios come from the leg quantities via GCD.
 function toCondor(p, c) {
@@ -255,7 +344,9 @@ function mergeIdentical(spreads) {
     const key = [
       s.type, s.ticker, s.expiry,
       s.shortStrike, s.longStrike, s.callShortStrike, s.callLongStrike,
-      s.putRatio || 1, s.callRatio || 1
+      s.putRatio || 1, s.callRatio || 1,
+      // Two 1x2s merge; a 1x2 and a 1x3 are different positions.
+      s.longRatio || 1, s.shortRatio || 1
     ].join("|");
     const existing = byKey[key];
     if (!existing) {
@@ -268,6 +359,12 @@ function mergeIdentical(spreads) {
     existing.shortEntryPrice = avg(existing.shortEntryPrice, s.shortEntryPrice);
     existing.longEntryPrice = avg(existing.longEntryPrice, s.longEntryPrice);
     existing.qty = total;
+    // A ratio's cover is counted in contracts and shares, not averaged: two
+    // 1x2s covered by 100 shares each are two excess shorts and 200 shares,
+    // and both are only covered if both were.
+    if (s.excessShorts) existing.excessShorts = (existing.excessShorts || 0) + s.excessShorts;
+    if (s.coverShares) existing.coverShares = (existing.coverShares || 0) + s.coverShares;
+    if (s.ratioCovered !== undefined) existing.ratioCovered = !!existing.ratioCovered && !!s.ratioCovered;
     if (s.entryDate < existing.entryDate) existing.entryDate = s.entryDate;
   });
   return merged;
@@ -381,6 +478,10 @@ export function pairSpreads(positions, activities, filledOrders = [], { cash = n
   orders.forEach((o) => {
     const claimed = claimOrderLegs(o, legsBySymbol);
     if (!claimed) return;
+    // A ratio is matched first, because the vertical pairing would otherwise
+    // take one of its shorts and leave the other looking like a covered call
+    // on its own card.
+    proven.push(...pairRatios(claimed));
     // One order filled these legs together, so a long on the far side of a
     // short is a debit vertical this order put on, not a coincidence.
     const puts = pairSide(claimed, "P", { allowDebit: true });
@@ -403,6 +504,12 @@ export function pairSpreads(positions, activities, filledOrders = [], { cash = n
     commitClaims(claimed);
   });
 
+  // Shares back short calls, so the pool is built before anything is named.
+  const sharesLeft = {};
+  Object.values(shareLots).forEach((lot) => {
+    sharesLeft[lot.ticker] = (sharesLeft[lot.ticker] || 0) + lot.qty;
+  });
+
   // Anything left is untraceable: pair per side only, never guess a condor.
   const remaining = {};
   Object.values(legsBySymbol).forEach((leg) => {
@@ -410,7 +517,18 @@ export function pairSpreads(positions, activities, filledOrders = [], { cash = n
     (remaining[leg.ticker] = remaining[leg.ticker] || []).push(leg);
   });
   const loose = [];
-  Object.values(remaining).forEach((legs) => {
+  Object.entries(remaining).forEach(([ticker, legs]) => {
+    // A ratio is claimed without an order behind it only when the STOCK is
+    // there. That is what removes the ambiguity: a long call, more short
+    // calls above it at the same expiry, and a hundred shares or more on the
+    // same name is a repair and nothing else — the shares are the reason the
+    // extra short was sold. In an account holding no stock the same two legs
+    // could be anything, so they go to the per-side pairing as before.
+    //
+    // Repairs are placed by hand, leg by leg, as often as they are placed as
+    // one order. Requiring provenance would have named this one on Monday and
+    // not on Tuesday depending on how the owner clicked.
+    if (Math.abs(sharesLeft[ticker] || 0) >= 100) loose.push(...pairRatios(legs));
     loose.push(...pairSide(legs, "P"), ...pairSide(legs, "C"));
   });
 
@@ -419,11 +537,6 @@ export function pairSpreads(positions, activities, filledOrders = [], { cash = n
   // why a naked short call -- the one position with unbounded loss -- was the
   // one position guaranteed not to be displayed.
   const singles = [];
-  // Shares back covered calls first; only what remains is reported as stock.
-  const sharesLeft = {};
-  Object.values(shareLots).forEach((lot) => {
-    sharesLeft[lot.ticker] = (sharesLeft[lot.ticker] || 0) + lot.qty;
-  });
 
   // Cover is allocated across a ticker's short calls before any of them is
   // named, because a short call is only naked once every cover in the account
@@ -431,13 +544,41 @@ export function pairSpreads(positions, activities, filledOrders = [], { cash = n
   // callCover.ts, which the watch reads too -- it was written twice, the two
   // copies disagreed about a live account, and one of them had to go.
   const leftovers = Object.values(legsBySymbol).filter((l) => l.qty !== 0);
+  // A ratio's excess shorts queue for cover beside every other short call,
+  // through the same allocator and in the same expiry order. They are passed
+  // as one synthetic leg rather than given a private rule, so a ratio and a
+  // covered call on one ticker cannot both claim the same hundred shares.
+  const ratios = [...proven, ...loose].filter((p) => p.type === "call_ratio_spread" && p.excessShorts > 0);
+  const ratioLegs = ratios.map((r, i) => ({
+    symbol: `${r.shortSymbol}~ratio${i}`,
+    ticker: r.ticker,
+    type: "C",
+    qty: -r.excessShorts,
+    expiry: r.expiry,
+    strike: r.shortStrike,
+    adjusted: r.adjusted
+  }));
   const { bySymbol: coverage } = allocateCallCover(
-    leftovers.map((l) => ({
-      symbol: l.symbol, ticker: l.ticker, type: l.optionType,
-      qty: l.qty, expiry: l.expiry, strike: l.strike, adjusted: l.adjusted
-    })),
+    [
+      ...leftovers.map((l) => ({
+        symbol: l.symbol, ticker: l.ticker, type: l.optionType,
+        qty: l.qty, expiry: l.expiry, strike: l.strike, adjusted: l.adjusted
+      })),
+      ...ratioLegs
+    ],
     sharesLeft
   );
+  ratios.forEach((r, i) => {
+    const c = coverage[ratioLegs[i].symbol];
+    if (!c) return;
+    r.coverShares = c.judged ? c.fromShares * 100 : 0;
+    r.coverLongs = c.byLongs;
+    // Covered, the ratio can lose only what it cost. Uncovered, the extra
+    // short has nothing above it and the loss has no bound -- and an adjusted
+    // contract is neither, so it is not claimed as covered either.
+    r.ratioCovered = c.judged && c.uncovered === 0;
+    r.coverJudged = c.judged;
+  });
   // The allocator returns what it consumed; the pool here has to follow it,
   // because the share row's encumbrance is read off this object below.
   Object.values(coverage).forEach((c) => {
@@ -453,6 +594,14 @@ export function pairSpreads(positions, activities, filledOrders = [], { cash = n
     if (!c || !c.judged || !c.fromShares) return;
     writtenAgainstShares[leg.ticker] =
       (writtenAgainstShares[leg.ticker] || 0) + Math.abs(leg.avgEntryPrice || 0) * 100 * c.fromShares;
+  });
+  // A ratio's excess short is premium written against the same stock, so it
+  // lowers the share row's downside exactly as a covered call's does.
+  ratios.forEach((r, i) => {
+    const c = coverage[ratioLegs[i].symbol];
+    if (!c || !c.judged || !c.fromShares) return;
+    writtenAgainstShares[r.ticker] =
+      (writtenAgainstShares[r.ticker] || 0) + Math.abs(r.shortEntryPrice || 0) * 100 * c.fromShares;
   });
 
   // A short call that is PART covered is two positions, and is emitted as two.
@@ -551,24 +700,19 @@ export function pairSpreads(positions, activities, filledOrders = [], { cash = n
   return tagStructures([...mergeIdentical([...proven, ...loose].filter((s) => s.qty > 0)), ...singles]);
 }
 
-// Name the shape the trader put on, without inventing arithmetic for it.
+// Name the trade the owner put on, across the rows it is made of.
 //
-// A stock repair -- hold the shares, buy one call near the money, sell two
-// above it to pay for it -- arrives here as three correct rows that never
-// mention each other: a share lot, a covered call, a long call. Every figure
-// on them is right, and the owner still had to reassemble his own position by
-// eye, because nothing on the screen said the three were one trade.
+// A stock repair is a call ratio over stock: hold the shares, buy one call
+// near the money, sell two above it to pay for it. The ratio itself is one
+// row now (pairRatios), but the shares that make its extra short bounded are
+// a row of their own, and have to be -- fusing them would put stock dollars
+// inside an options figure, which is the double count that moving the shares'
+// downside back onto the share row removed. So the two rows keep their own
+// honest numbers and carry a tag saying they are one trade.
 //
-// The temptation is to fuse them into a single "ratio spread" row with a risk
-// figure of its own. That figure would have to span stock and options, which
-// is exactly the double count that putting the shares' dollars back on the
-// share row removed. So the rows stay as they are, each bounded by its own
-// honest number, and they carry a tag that lets the screen group them under
-// one heading. The sum is unchanged; only the reading improves.
-//
-// The shape is only claimed when all of it is present on one ticker and one
-// expiry: shares, a long call, and short calls above it that the shares are
-// covering. Anything less is left unnamed.
+// Only claimed when the whole shape is there: a call ratio whose excess short
+// is actually covered by this ticker's shares. A ratio in an account holding
+// no stock is a ratio, not a repair, and is left named as what it is.
 function tagStructures(rows) {
   const byTicker = {};
   rows.forEach((r) => {
@@ -578,25 +722,11 @@ function tagStructures(rows) {
   Object.values(byTicker).forEach((group) => {
     const shares = group.find((r) => r.type === KINDS.SHARES && Math.abs(r.qty) >= 100);
     if (!shares) return;
-    const longCalls = group.filter(
-      (r) => r.type === KINDS.LONG_OPTION && r.legs?.[0]?.kind === "call"
-    );
-    if (!longCalls.length) return;
-
-    longCalls.forEach((long) => {
-      const strike = long.legs[0].strike;
-      const shorts = group.filter(
-        (r) =>
-          r.type === KINDS.COVERED_CALL &&
-          r.expiry === long.expiry &&
-          r.legs?.[0]?.strike > strike &&
-          r.coverShares > 0
-      );
-      if (!shorts.length) return;
-      [shares, long, ...shorts].forEach((r) => {
-        r.structure = "stock_repair";
-        r.structureLabel = "Stock repair";
-      });
+    const repairs = group.filter((r) => r.type === "call_ratio_spread" && r.coverShares > 0);
+    if (!repairs.length) return;
+    [shares, ...repairs].forEach((r) => {
+      r.structure = "stock_repair";
+      r.structureLabel = "Stock repair";
     });
   });
 

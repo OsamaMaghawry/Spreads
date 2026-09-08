@@ -87,6 +87,14 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
                     CALL
                   </span>
                 )}
+                {s.type === "call_ratio_spread" && (
+                  <span
+                    className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 border border-sky-200"
+                    title="More short calls than long ones — a ratio."
+                  >
+                    {s.longRatio}×{s.shortRatio} CALL
+                  </span>
+                )}
                 {isSingle(s) && kindOf(s) && (
                   <span className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full border ${kindOf(s).cls}`} title={kindOf(s).label}>
                     {kindOf(s).badge.toUpperCase()}

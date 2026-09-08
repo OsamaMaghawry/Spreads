@@ -29,6 +29,26 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Fixed
 
+- [fixed 2026-09-08] 2026-09-08 · owner found · **The stock repair was shown in
+  pieces.** Long 1x 352.50 call against short 2x 362.50 over 210 shares is one
+  trade the owner placed. It read as two covered calls plus a loose long call;
+  then, once the vertical pairing learned the debit direction, as a
+  352.50/362.50 call spread plus a covered call — which split two contracts
+  sold in a single trade across two cards, and was worse. New `pairRatios`
+  matches a call ratio (one long strike, one short strike, one expiry, more
+  shorts than longs) before the verticals and emits it as one
+  `call_ratio_spread` row, 1x2 on its badge. Claimed on provenance when an
+  order proves it, and without provenance only when the ticker holds 100+
+  shares — the stock is what makes the shape unambiguous, and repairs are
+  placed leg by leg as often as in one order.
+  Its excess short queues for cover through the same allocator every other
+  short call uses, so the ratio and a covered call cannot both claim the same
+  hundred shares. Covered, its max risk is what it cost; uncovered, null.
+  Risk, both break-evens, close cost, expiration value and the strike ladder
+  all carry the two leg counts; the ladder marks the upside break-even, which
+  is the number that matters on a repair and sits outside both strikes. The
+  ratio and the share row are tagged one **Stock repair**.
+
 - [fixed 2026-09-08] 2026-09-08 · All seven remaining findings from
   head-of-trading's audit of the live TSLA stock repair, plus two the owner
   found while they were being fixed. One commit, tests on each.

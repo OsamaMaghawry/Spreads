@@ -255,6 +255,8 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
               ? `Close ${spread.qty} ${spread.ticker} ${kindOf(spread)?.label || "position"}${spread.legs?.[0] ? ` $${spread.legs[0].strike}${spread.legs[0].kind === "call" ? "C" : "P"}` : ""}`
               : spread.type === "iron_condor"
               ? `Close ${spread.ticker} ${spread.putRatio > 1 ? `${spread.putRatio}× ` : ""}${spread.longStrike}/${spread.shortStrike}P · ${spread.callRatio > 1 ? `${spread.callRatio}× ` : ""}${spread.callShortStrike}/${spread.callLongStrike}C iron condor`
+              : spread.type === "call_ratio_spread"
+              ? `Close ${spread.ticker} ${spread.longRatio}×${spread.longStrike} / ${spread.shortRatio}×${spread.shortStrike} call ratio`
               : spread.type === "call_spread"
                 ? `Close ${spread.ticker} ${spread.shortStrike}/${spread.longStrike} call spread`
                 : `Close ${spread.ticker} ${spread.shortStrike}/${spread.longStrike} put spread`}

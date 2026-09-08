@@ -115,7 +115,11 @@ const ZONE_TONE = {
 
 export default function StrikeLadder({ spread }) {
   const isCondor = spread.type === "iron_condor";
-  const isCall = spread.type === "call_spread";
+  // A ratio's strikes sit the same way a call spread's do — long low, short
+  // high — so it takes the same two rungs; only the counts beside them differ,
+  // and those live on the card, not the ladder.
+  const isRatio = spread.type === "call_ratio_spread";
+  const isCall = spread.type === "call_spread" || isRatio;
   const single = !!spread.single;
   const singleGeo = single ? singleGeometry(spread) : null;
 
@@ -128,15 +132,27 @@ export default function StrikeLadder({ spread }) {
         { label: "Short Call", value: spread.callShortStrike },
         { label: "Long Call", value: spread.callLongStrike }
       ]
-    : isCall
+    : isRatio
       ? [
+          { label: "Long Call", value: spread.longStrike },
           { label: "Short Call", value: spread.shortStrike },
-          { label: "Long Call", value: spread.longStrike }
+          // The number that actually matters on a repair: above this the
+          // extra short is losing faster than the long is gaining. It sits
+          // outside both strikes, so it has to be in the scale or the ladder
+          // would run off the end of the picture.
+          ...(typeof spread.breakEvenHigh === "number"
+            ? [{ label: "Break-even", value: spread.breakEvenHigh }]
+            : [])
         ]
-      : [
-          { label: "Long Put", value: spread.longStrike },
-          { label: "Short Put", value: spread.shortStrike }
-        ];
+      : isCall
+        ? [
+            { label: "Short Call", value: spread.shortStrike },
+            { label: "Long Call", value: spread.longStrike }
+          ]
+        : [
+            { label: "Long Put", value: spread.longStrike },
+            { label: "Short Put", value: spread.shortStrike }
+          ];
 
   const values = strikes.map((s) => s.value).filter((v) => typeof v === "number");
   const price = spread.stockPrice || 0;
@@ -190,7 +206,7 @@ export default function StrikeLadder({ spread }) {
     ro.observe(container);
     return () => ro.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spread.type, spread.longStrike, spread.shortStrike, spread.callShortStrike, spread.callLongStrike, spread.stockPrice, spread.breakEven, spread.single]);
+  }, [spread.type, spread.longStrike, spread.shortStrike, spread.callShortStrike, spread.callLongStrike, spread.stockPrice, spread.breakEven, spread.breakEvenHigh, spread.single]);
 
   if (values.length === 0) return null;
 
@@ -214,12 +230,28 @@ export default function StrikeLadder({ spread }) {
     zones.push({ tone: "loss", from: 0, to: pos(spread.longStrike) });
     zones.push({ tone: "profit", from: pos(spread.shortStrike), to: pos(spread.callShortStrike) });
     zones.push({ tone: "loss", from: pos(spread.callLongStrike), to: 100 });
+  } else if (isRatio) {
+    // A ratio's edges are its break-evens, not its strikes: below the long
+    // strike the P/L is flat at whatever the premium was, and it only turns
+    // against you once the extra short outruns the long — which is above the
+    // short strike, not at it.
+    const beHigh = typeof spread.breakEvenHigh === "number" ? pos(spread.breakEvenHigh) : 100;
+    const beLow = typeof spread.breakEven === "number" ? pos(spread.breakEven) : 0;
+    if (beLow > 0) zones.push({ tone: "loss", from: 0, to: beLow });
+    zones.push({ tone: "profit", from: beLow, to: beHigh });
+    zones.push({ tone: "loss", from: beHigh, to: 100 });
   } else if (isCall) {
-    zones.push({ tone: "profit", from: 0, to: pos(spread.shortStrike) });
-    zones.push({ tone: "loss", from: pos(spread.longStrike), to: 100 });
+    // Which side is the losing side depends on which leg is the long one. A
+    // debit call spread loses BELOW its long strike and profits above the
+    // short; a credit call spread is the other way round. Painting every call
+    // spread as a credit one put the loss wing over the profit region.
+    const debit = spread.direction === "debit";
+    zones.push({ tone: debit ? "loss" : "profit", from: 0, to: pos(debit ? spread.longStrike : spread.shortStrike) });
+    zones.push({ tone: debit ? "profit" : "loss", from: pos(debit ? spread.shortStrike : spread.longStrike), to: 100 });
   } else {
-    zones.push({ tone: "loss", from: 0, to: pos(spread.longStrike) });
-    zones.push({ tone: "profit", from: pos(spread.shortStrike), to: 100 });
+    const debit = spread.direction === "debit";
+    zones.push({ tone: debit ? "profit" : "loss", from: 0, to: pos(debit ? spread.shortStrike : spread.longStrike) });
+    zones.push({ tone: debit ? "loss" : "profit", from: pos(debit ? spread.longStrike : spread.shortStrike), to: 100 });
   }
 
   return (
