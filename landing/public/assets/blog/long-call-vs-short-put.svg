@@ -1,0 +1,49 @@
+<svg viewBox="0 0 720 348" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Two expiration payoffs side by side: a bought 50 call sits flat at minus $200 below the strike and rises above a break-even of 52, while a sold 50 put sits flat at plus $200 above the strike and falls below a break-even of 48 toward a $4,800 max loss on shares taken in at 50.">
+  <rect width="720" height="348" fill="#FFFFFF"/>
+
+  <text x="24" y="26" font-size="13.5" font-weight="600" fill="#14151C">Both do better as the shares rise, and they are not the same position</text>
+  <text x="24" y="46" font-size="11.5" fill="#767B8E">Hypothetical: XYZ 50 strike, each side quoted $2.00, one contract — profit and loss at expiration</text>
+
+  <line x1="360" y1="60" x2="360" y2="300" stroke="#E2E5EE" stroke-width="1"/>
+
+  <text x="24" y="76" font-size="12" font-weight="600" fill="#14151C">Bought the 50 call — paid $200</text>
+  <text x="396" y="76" font-size="12" font-weight="600" fill="#14151C">Sold the 50 put — received $200</text>
+
+  <!-- strike guides -->
+  <line x1="202" y1="86" x2="202" y2="268" stroke="#E2E5EE" stroke-width="1" stroke-dasharray="2 4"/>
+  <line x1="554" y1="86" x2="554" y2="268" stroke="#E2E5EE" stroke-width="1" stroke-dasharray="2 4"/>
+
+  <!-- zero lines -->
+  <line x1="60" y1="170" x2="344" y2="170" stroke="#C9CEDC" stroke-width="1" stroke-dasharray="2 4"/>
+  <text x="52" y="174" font-size="11" text-anchor="end" fill="#767B8E">$0</text>
+  <line x1="412" y1="170" x2="696" y2="170" stroke="#C9CEDC" stroke-width="1" stroke-dasharray="2 4"/>
+  <text x="404" y="174" font-size="11" text-anchor="end" fill="#767B8E">$0</text>
+
+  <!-- long call payoff -->
+  <path d="M60 210 L202 210 L249 170" fill="none" stroke="#B4485C" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M249 170 L344 90" fill="none" stroke="#2E8B5F" stroke-width="2.5" stroke-linejoin="round"/>
+  <circle cx="249" cy="170" r="3.6" fill="#FFFFFF" stroke="#14151C" stroke-width="1.4"/>
+  <text x="256" y="192" font-size="11" fill="#4B4F60">Break-even 52</text>
+  <text x="66" y="230" font-size="11.5" font-weight="500" fill="#B4485C">Floor at the $200 paid</text>
+  <text x="344" y="86" font-size="11.5" font-weight="500" fill="#2E8B5F" text-anchor="end">Tracks the shares above 50</text>
+
+  <!-- short put payoff -->
+  <path d="M696 130 L554 130 L507 170" fill="none" stroke="#2E8B5F" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M507 170 L409 258" fill="none" stroke="#B4485C" stroke-width="2.5" stroke-linejoin="round"/>
+  <circle cx="507" cy="170" r="3.6" fill="#FFFFFF" stroke="#14151C" stroke-width="1.4"/>
+  <text x="499" y="192" font-size="11" fill="#4B4F60" text-anchor="end">Break-even 48</text>
+  <text x="696" y="118" font-size="11.5" font-weight="500" fill="#2E8B5F" text-anchor="end">Ceiling at the $200 received</text>
+  <text x="418" y="240" font-size="11.5" font-weight="500" fill="#B4485C">Assigned, shares come in at 50 regardless —</text>
+  <text x="418" y="255" font-size="11.5" font-weight="500" fill="#B4485C">a $5,000 debit against a $4,800 max loss</text>
+
+  <!-- price axes -->
+  <text x="202" y="286" font-size="11" text-anchor="middle" fill="#14151C">50</text>
+  <text x="202" y="299" font-size="10.5" text-anchor="middle" fill="#767B8E">strike</text>
+  <text x="554" y="286" font-size="11" text-anchor="middle" fill="#14151C">50</text>
+  <text x="554" y="299" font-size="10.5" text-anchor="middle" fill="#767B8E">strike</text>
+  <text x="344" y="299" font-size="10.5" text-anchor="end" fill="#767B8E">share price at expiration &#8594;</text>
+  <text x="696" y="299" font-size="10.5" text-anchor="end" fill="#767B8E">share price at expiration &#8594;</text>
+
+  <text x="24" y="322" font-size="11" fill="#767B8E">Hypothetical figures, for the shape only. Fees are not included and nothing here is a view about any underlying.</text>
+  <text x="24" y="338" font-size="11" fill="#767B8E">The bought call reserves nothing beyond the debit; the sold put holds collateral until the position is gone.</text>
+</svg>

@@ -36,6 +36,30 @@ results, not a metric. Never dress reading a results page up as volume data.
 
 Rows 21–65 are added by the Wednesday run as their turn approaches.
 
+## Reading for row 2 — call vs put option explained (read 8 Sep 2026)
+
+Results pages read that day, not measured. No rank tracker, no volume tool,
+no Search Console connection.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| call vs put option explained | SmartAsset, Chase, SoFi, moomoo, Motley Fool, Groww | **hard** — retail-finance brands, head-ish |
+| difference between call and put options | Chase, GoCardless, SoFi, moomoo, Fool, plus TradingView chart-idea padding | hard; tail padding says coverage is shallow, not open |
+| long call vs short put difference | Macroption, projectfinance, Quora (twice), steadyoptions | **winnable** — forum ranking |
+| four option positions long/short call/put | Macroption, TradeStation help, Optiver, Robinhood, Zerodha | **winnable** — help-centre pages, no real explainer |
+| who is on the other side when I buy a call | Quora (twice), CFI, TradingView chart pages | **winnable**, thin |
+| buying vs selling options collateral/margin | Wealthsimple help, SoFi, optiontradingpedia, TradingView | winnable, but this is post 13's ground |
+
+**The gap.** Every ranking page gives right-to-buy / right-to-sell, sorts the
+four positions into bullish and bearish, and stops. None says the seller's
+side is a consequence rather than a mirror, that collateral sits behind the
+row for its life, or that assignment produces a dated stock position — the
+angle this post owns. The winnable intent is the seller-side long tails, not
+the head term the title leads with.
+
+**Could not establish:** search volume, difficulty, and current positions for
+any phrasing above.
+
 ## Off-syllabus rows
 
 `M48` is not a syllabus number. That post is not in the numbered list in
