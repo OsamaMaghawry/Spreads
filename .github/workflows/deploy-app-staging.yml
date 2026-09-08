@@ -1,0 +1,73 @@
+name: Deploy app (staging)
+
+# The dashboard — dev-dash.deltamint.app — built and deployed from this repo.
+#
+# Why this workflow exists: the app was the last deployable thing here with no
+# CI. It relied on Cloudflare's Workers Build integration, which runs
+# `wrangler versions upload`. That is a PREVIEW publish: the version reaches the
+# account and never reaches traffic, and Cloudflare's own build log says so —
+# "To deploy this version to production traffic use the command
+# `wrangler versions deploy`". Nothing ran it. So front-end work could be
+# merged, green, and invisible on dev-dash, which is exactly what happened on
+# 8 Sep: four commits of dashboard changes landed and the owner opened the page
+# and saw none of them.
+#
+# `wrangler deploy` here publishes AND routes, in one step. Same pattern, same
+# secrets and the same account-wide token caveat as deploy-landing-staging.yml.
+#
+# Every VITE_* value this build needs is committed in .env.staging and is
+# public by construction — the Supabase URL, its publishable key, the OAuth
+# client id. There is no build secret to supply.
+#
+# No staging-first gate here: this IS staging.
+
+on:
+  push:
+    branches: [staging]
+    paths:
+      - 'src/**'
+      - 'worker/**'
+      - 'index.html'
+      - 'vite.config.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.env.staging'
+      - 'wrangler.staging.jsonc'
+      - '.github/workflows/deploy-app-staging.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-app-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+      # The money-path modules the dashboard reads its numbers from. A broken
+      # payoff or pairing figure should stop the deploy, not reach the screen.
+      - run: npm test
+
+      # --mode staging picks up .env.staging, so the bundle points at the
+      # staging Supabase project rather than production's.
+      - run: npm run build:staging
+
+      - name: Deploy to dev-dash.deltamint.app
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::notice title=Deploy skipped::CLOUDFLARE_API_TOKEN is not set."
+            exit 0
+          fi
+          npx --yes wrangler@4 deploy --config wrangler.staging.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

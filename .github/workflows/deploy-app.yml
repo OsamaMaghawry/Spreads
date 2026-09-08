@@ -1,0 +1,83 @@
+name: Deploy app
+
+# The dashboard — dashboard.deltamint.app. See deploy-app-staging.yml for why
+# this exists rather than leaning on Cloudflare's Workers Build integration:
+# that integration only ever uploaded a preview version, so production traffic
+# could be served by code older than main for as long as nobody noticed.
+#
+# This is the money path. The staging-first gate below is the same one
+# deploy-functions.yml and deploy-landing.yml apply, and it is enforced on
+# CONTENT rather than branch topology, so it holds whether main was
+# fast-forwarded or took a merge commit.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'worker/**'
+      - 'index.html'
+      - 'vite.config.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.env.production'
+      - 'wrangler.jsonc'
+      - '.github/workflows/deploy-app.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-app
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The staging comparison below needs real history.
+          fetch-depth: 0
+
+      - name: Refuse to deploy an app staging has not served
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --quiet origin staging
+          # The app is not one directory, so the identity is every tree and
+          # blob the bundle is built from. Any of them differing means dev-dash
+          # has not served this exact application.
+          fingerprint() {
+            git rev-parse "$1:src" "$1:worker" \
+              "$1:index.html" "$1:vite.config.js" "$1:package.json" "$1:wrangler.jsonc"
+          }
+          prod=$(fingerprint HEAD)
+          staged=$(fingerprint origin/staging)
+          if [ "$prod" = "$staged" ]; then
+            echo "The app on this commit is byte-identical to origin/staging — staging has served it."
+            exit 0
+          fi
+          echo "::error title=Staging first::The app on this commit differs from origin/staging. Merge to staging, read it on dev-dash.deltamint.app, then merge to main."
+          echo
+          echo "Differences:"
+          git diff --stat origin/staging HEAD -- src worker index.html vite.config.js package.json wrangler.jsonc
+          exit 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+      - name: Deploy to dashboard.deltamint.app
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::notice title=Deploy skipped::CLOUDFLARE_API_TOKEN is not set."
+            exit 0
+          fi
+          npx --yes wrangler@4 deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
