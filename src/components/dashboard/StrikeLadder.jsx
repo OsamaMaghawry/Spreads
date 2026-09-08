@@ -141,7 +141,10 @@ export default function StrikeLadder({ spread }) {
           // outside both strikes, so it has to be in the scale or the ladder
           // would run off the end of the picture.
           ...(typeof spread.breakEvenHigh === "number"
-            ? [{ label: "Break-even", value: spread.breakEvenHigh }]
+            // "Options break-even", not "break-even": on a repair the shares
+            // are still climbing past this point, and a bare label here would
+            // read as the whole position turning over when only the calls do.
+            ? [{ label: "Options break-even", value: spread.breakEvenHigh }]
             : [])
         ]
       : isCall
