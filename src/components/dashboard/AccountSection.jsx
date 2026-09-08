@@ -85,8 +85,17 @@ export default function AccountSection({ account, onCloseSpread, onOrdersChanged
     ...(account.totals?.notional > 0
       ? [{
           label: "Notional",
-          value: fmtMoney(account.totals.notional),
-          title: "What every stock-like position would lose with its stock at zero, added up. Exposure, not a loss estimate."
+          // A naked call has no stock-to-zero figure, because there is no
+          // bound to reach. It used to be added as a zero, so this total was
+          // silently short by the one position it could not size — the same
+          // understatement Risk / Equity has always marked, on the tile that
+          // never marked it.
+          value: account.totals.notionalComplete === false
+            ? `${fmtMoney(account.totals.notional)}+`
+            : fmtMoney(account.totals.notional),
+          title: account.totals.notionalComplete === false
+            ? `At least this much — ${(account.totals.notionalUndefined || []).join(", ") || "a position"} has no stock-to-zero figure, so this total leaves it out.`
+            : "What every stock-like position would lose with its stock at zero, added up. Exposure, not a loss estimate."
         }]
       : []),
     {

@@ -50,15 +50,20 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   // "qty available for order (requested: 10, available: 5)". The ticket used to
   // offer the whole holding, so the only way to discover the five already
   // committed was to have the order rejected.
-  // Never offer more than the row itself says it holds. qtyAvailable is the
-  // broker's "free to sell" figure, and on a share lot partly written against
-  // covered calls it used to arrive as the WHOLE holding on a row showing the
-  // uncommitted remainder — 210 offered on a row reading 10. The ticket is
-  // the last thing between a misread field and a sold position, so it clamps
-  // here as well as at the source.
+  // The cap is the BROKER's, and only the broker's.
+  //
+  // Shares backing a covered call are not restricted: sell them and the call
+  // becomes naked, which is the owner's call to make about his own stock. For
+  // a while this clamped to the unencumbered remainder as well, so a holding
+  // of 210 with two covered calls written against it offered a maximum of 10.
+  // That is the app overruling the owner, not protecting him. What it owes
+  // him is the consequence, stated before he confirms — which is the warning
+  // under the field, not a lower number in it.
   const rowQty = Math.abs(Number(spread.qty)) || 1;
   const maxQty = Math.max(1, Math.min(rowQty, Number(spread.qtyAvailable ?? spread.qty) || rowQty));
   const heldForOrders = Math.max(0, Number(spread.qty) - Number(spread.qtyAvailable ?? spread.qty));
+  // How many short calls this sale would leave without shares behind them.
+  const freeShares = Number(spread.freeQty ?? spread.qty);
   const qty = Math.max(1, Math.min(maxQty, parseInt(qtyInput, 10) || 1));
 
   const allLegs = spreadLegs(spread);
@@ -359,6 +364,17 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                   {heldForOrders} of your {spread.qty} {isShares ? "shares are" : "contracts are"} already
                   committed to a working order, so {maxQty} {maxQty === 1 ? "is" : "are"} free to close here.
                   Cancel that order from the <span className="font-medium">Orders</span> tab to free the rest.
+                </p>
+              )}
+              {/* Selling shares that back a covered call is allowed — it just
+                  turns the call naked, and that is worth knowing one line
+                  before confirming rather than one line after. */}
+              {isShares && qty > freeShares && (
+                <p className="mt-1.5 text-xs text-amber-700">
+                  {spread.encumberedQty} of these shares are backing short calls. Selling {qty} leaves{" "}
+                  {Math.ceil((qty - freeShares) / 100)} of them without shares behind{" "}
+                  {Math.ceil((qty - freeShares) / 100) === 1 ? "it" : "them"} — the broker will accept the
+                  order, and those calls become naked.
                 </p>
               )}
             </div>

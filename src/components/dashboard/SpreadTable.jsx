@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import SpreadStructure from "./SpreadStructure";
-import { isSingle, kindOf, riskText, riskIsUnbounded, isStockRisk, basisNote, stressText, stressNote, movePct, showsStress } from "@/lib/positionKind";
+import { isSingle, kindOf, riskText, riskIsUnbounded, isStockRisk, basisNote, stressText, stressNote, movePct, showsStress, moneynessCell, moneynessNote } from "@/lib/positionKind";
 import LegRows from "./LegRows";
 import { dayChange, dayChangeLabel } from "@/lib/dayChange";
 
@@ -112,15 +112,8 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
               </td>
               <td className={`${td} text-center`}>
                 <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    s.moneyness === "ITM"
-                      ? "bg-rose-100 text-rose-700"
-                      : s.moneyness === "OTM"
-                        ? "bg-emerald-100 text-emerald-700"
-                        // No price to judge against. Green here would be an
-                        // answer; this is the absence of one.
-                        : "bg-slate-100 text-slate-500"
-                  }`}
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${moneynessCell(s)}`}
+                  title={moneynessNote(s)}
                 >
                   {s.moneyness || "—"}
                 </span>
@@ -128,7 +121,9 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
               <td className={`${td} text-right`}>
                 {s.qty}
                 {s.encumberedQty > 0 && (
-                  <span className="block text-[11px] text-slate-400">{s.freeQty} free</span>
+                  // What they are doing, not what you are forbidden to do
+                  // with them. See the note in PositionCard.
+                  <span className="block text-[11px] text-slate-400">{s.encumberedQty} backing calls</span>
                 )}
               </td>
               <td className={`${td} text-right`}>{fmtMoney(s.shortEntryPrice)}</td>

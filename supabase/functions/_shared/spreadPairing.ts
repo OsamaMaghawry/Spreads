@@ -7,6 +7,7 @@
 
 import { parseOCCSymbol } from "./alpaca.ts";
 import { KINDS, classifyLeg, riskOfKind, collateralOfKind, breakEvenOfKind, labelOfKind } from "./positionKinds.ts";
+import { allocateCallCover } from "./callCover.ts";
 
 const gcd = (a, b) => (b ? gcd(b, a % b) : a);
 
@@ -68,6 +69,10 @@ function buildLegs(positions, activities) {
         entryDate: fillDates[p.symbol] || new Date().toISOString().substring(0, 10),
         strike: parsed.strike,
         qty,
+        // A corporate action changed what this contract delivers, so no share
+        // count decides whether it is covered. The flag travels with the leg
+        // because the cover allocator has to refuse to judge it.
+        adjusted: !!parsed.adjusted,
         avgEntryPrice: Math.abs(parseFloat(p.avg_entry_price)),
         currentPrice: Math.abs(parseFloat(p.current_price || p.avg_entry_price))
       };
@@ -78,8 +83,7 @@ function buildLegs(positions, activities) {
   return { legsBySymbol, shareLots };
 }
 
-// Pair shorts with protective longs of the same option type.
-// Puts: long strike below short. Calls: long strike above short.
+// Pair shorts with longs of the same option type and expiry.
 // Mutates the qty of the legs it consumes.
 //
 // Each short takes the NEAREST eligible long, not the first one the
@@ -87,7 +91,21 @@ function buildLegs(positions, activities) {
 // 100 short / 95 long, first-match in ascending-strike order bolted the
 // 105 short onto the 95 long — a 10-wide never traded — and left the 100
 // short looking naked. Same rule as tradeReconstruction's nearestLong.
-function pairSide(legs, optionType) {
+//
+// `allowDebit` decides whether the long may sit on the OTHER side of the
+// short — long below short on calls, long above short on puts. That is a
+// debit vertical: a real, bounded, extremely common structure that this
+// function refused to see for its whole life, so every one of them was
+// broken into a loose short and a loose long. It is off by default and on
+// only where an order proves the two legs were filled together.
+//
+// The reason for that asymmetry is not caution about the arithmetic, which is
+// settled either way. It is that without provenance the shape is ambiguous: a
+// long 352.50 call bought in June and a short 375 call sold in September on a
+// name whose shares you hold is a repair, not a debit spread, and pairing them
+// would take the shares' cover away and rename a position the owner
+// recognises. With one order behind them there is nothing to guess.
+function pairSide(legs, optionType, { allowDebit = false } = {}) {
   const isCall = optionType === "C";
   const shorts = legs.filter((l) => l.optionType === optionType && l.qty < 0);
   const longs = legs.filter((l) => l.optionType === optionType && l.qty > 0);
@@ -98,7 +116,9 @@ function pairSide(legs, optionType) {
       .slice()
       .sort((a, b) => Math.abs(a.strike - s.strike) - Math.abs(b.strike - s.strike));
     byDistance.forEach((l) => {
-      const strikeOk = isCall ? l.strike > s.strike : l.strike < s.strike;
+      const credit = isCall ? l.strike > s.strike : l.strike < s.strike;
+      const debit = isCall ? l.strike < s.strike : l.strike > s.strike;
+      const strikeOk = credit || (allowDebit && debit);
       if (remaining > 0 && strikeOk && l.expiry === s.expiry && l.qty > 0) {
         const q = Math.min(remaining, l.qty);
         const legOf = (leg, side) => ({
@@ -112,6 +132,11 @@ function pairSide(legs, optionType) {
         });
         out.push({
           type: isCall ? "call_spread" : "put_spread",
+          // Which way round the strikes sit decides the whole arithmetic
+          // downstream -- max risk, break-even, what the close can cost -- so
+          // it is stated on the structure rather than re-derived from the
+          // strikes in four different places.
+          direction: credit ? "credit" : "debit",
           legs: [legOf(s, "short"), legOf(l, "long")],
           ticker: s.ticker,
           expiry: s.expiry,
@@ -356,11 +381,23 @@ export function pairSpreads(positions, activities, filledOrders = [], { cash = n
   orders.forEach((o) => {
     const claimed = claimOrderLegs(o, legsBySymbol);
     if (!claimed) return;
-    const puts = pairSide(claimed, "P");
-    const calls = pairSide(claimed, "C");
-    // Within one order, a put spread + call spread IS an iron condor.
-    while (puts.length && calls.length) {
-      proven.push(toCondor(puts.shift(), calls.shift()));
+    // One order filled these legs together, so a long on the far side of a
+    // short is a debit vertical this order put on, not a coincidence.
+    const puts = pairSide(claimed, "P", { allowDebit: true });
+    const calls = pairSide(claimed, "C", { allowDebit: true });
+    // Within one order, a put spread + call spread IS an iron condor -- but
+    // only when both sides are credit verticals. Two DEBIT verticals are a
+    // reverse condor, whose risk is the debit paid and not the width less a
+    // credit, and the condor arithmetic downstream would read it upside down.
+    // They stay as the two spreads they are.
+    const creditPuts = puts.filter((s) => s.direction !== "debit");
+    const creditCalls = calls.filter((s) => s.direction !== "debit");
+    while (creditPuts.length && creditCalls.length) {
+      const p = creditPuts.shift();
+      const c = creditCalls.shift();
+      puts.splice(puts.indexOf(p), 1);
+      calls.splice(calls.indexOf(c), 1);
+      proven.push(toCondor(p, c));
     }
     proven.push(...puts, ...calls);
     commitClaims(claimed);
@@ -390,90 +427,84 @@ export function pairSpreads(positions, activities, filledOrders = [], { cash = n
 
   // Cover is allocated across a ticker's short calls before any of them is
   // named, because a short call is only naked once every cover in the account
-  // has been offered to it and refused.
-  //
-  // Two covers count, not one:
-  //   - 100 shares per contract, and
-  //   - one long call per contract, expiring ON OR AFTER the short.
-  //
-  // The long's strike does not decide whether the loss is bounded, only how
-  // big the bound is: long 352.50 against short 375 is a spread, and above
-  // 375 the long gains what the short loses. Counting only shares is what put
-  // "Naked call · Unlimited" on a book that held a long call covering it —
-  // while watchRules.nakedShortCalls, reading the same account, correctly
-  // raised nothing.
-  //
-  // Shortest-dated short first: the one that runs out of time soonest has the
-  // first claim, which is the order a trader would cover them in and the
-  // order the watch already uses.
+  // has been offered to it and refused. The allocation itself lives in
+  // callCover.ts, which the watch reads too -- it was written twice, the two
+  // copies disagreed about a live account, and one of them had to go.
   const leftovers = Object.values(legsBySymbol).filter((l) => l.qty !== 0);
-  const shortCalls = leftovers
-    .filter((l) => l.optionType === "C" && l.qty < 0)
-    .sort((a, b) => String(a.expiry).localeCompare(String(b.expiry)));
-  const longCallPool = leftovers
-    .filter((l) => l.optionType === "C" && l.qty > 0)
-    .map((l) => ({ leg: l, left: l.qty }));
-
-  const coverage = {};
-  shortCalls.forEach((leg) => {
-    const need = Math.abs(leg.qty);
-    const bySharesAvailable = Math.floor((sharesLeft[leg.ticker] || 0) / 100);
-    const fromShares = Math.max(0, Math.min(need, bySharesAvailable));
-    sharesLeft[leg.ticker] = (sharesLeft[leg.ticker] || 0) - fromShares * 100;
-
-    let still = need - fromShares;
-    const byLongs = [];
-    for (const c of longCallPool) {
-      if (still <= 0) break;
-      if (c.leg.ticker !== leg.ticker || c.left <= 0) continue;
-      // A long that dies before the short leaves it bare for the rest of its
-      // life; no broker margins that as a spread, and neither do we.
-      if (String(c.leg.expiry) < String(leg.expiry)) continue;
-      const take = Math.min(still, c.left);
-      c.left -= take;
-      still -= take;
-      byLongs.push({ symbol: c.leg.symbol, qty: take, strike: c.leg.strike, expiry: c.leg.expiry });
-    }
-    coverage[leg.symbol] = { need, fromShares, byLongs, uncovered: still };
+  const { bySymbol: coverage } = allocateCallCover(
+    leftovers.map((l) => ({
+      symbol: l.symbol, ticker: l.ticker, type: l.optionType,
+      qty: l.qty, expiry: l.expiry, strike: l.strike, adjusted: l.adjusted
+    })),
+    sharesLeft
+  );
+  // The allocator returns what it consumed; the pool here has to follow it,
+  // because the share row's encumbrance is read off this object below.
+  Object.values(coverage).forEach((c) => {
+    if (!c.judged || !c.fromShares) return;
+    sharesLeft[c.ticker] = (sharesLeft[c.ticker] || 0) - c.fromShares * 100;
   });
 
   // Premium written against the shares rides with the lot, because the share
   // row now carries the whole holding and its risk.
   const writtenAgainstShares = {};
-  shortCalls.forEach((leg) => {
+  leftovers.forEach((leg) => {
     const c = coverage[leg.symbol];
-    if (!c || !c.fromShares) return;
+    if (!c || !c.judged || !c.fromShares) return;
     writtenAgainstShares[leg.ticker] =
       (writtenAgainstShares[leg.ticker] || 0) + Math.abs(leg.avgEntryPrice || 0) * 100 * c.fromShares;
   });
 
+  // A short call that is PART covered is two positions, and is emitted as two.
+  //
+  // It used to be one, named by whether anything was left over: ten short
+  // calls against a hundred shares reported as ten naked calls, so riskOfKind
+  // returned null for all ten and the account's total risk went unbounded on
+  // account of nine contracts while the tenth -- genuinely covered, genuinely
+  // bounded -- was swallowed by the same label. Naming it the other way is no
+  // better: it would hide nine unbounded contracts behind one covered one.
+  // The position is a covered call and a naked call, so the screen shows a
+  // covered call and a naked call.
+  const coverExtra = (leg, cover) => {
+    const lot = shareLots[leg.ticker];
+    return {
+      shareBasis: lot ? (lot.adjustedBasis ?? lot.avgEntryPrice) : 0,
+      shareMarketPrice: lot ? lot.currentPrice : 0,
+      basisSource: lot ? lot.basisSource : "broker",
+      premiumCollected: lot ? lot.premiumCollected : 0,
+      // What is actually behind it, named, so the card can say so instead of
+      // leaving the trader to work out which cover was claimed.
+      coveredBy: cover.byLongs.length === 0 && lot ? lot.symbol : null,
+      coverShares: cover.fromShares * 100,
+      coverLongs: cover.byLongs
+    };
+  };
+
   leftovers.sort((a, b) => a.qty - b.qty);
   leftovers.forEach((leg) => {
     const cover = coverage[leg.symbol];
+    const isShortCall = leg.optionType === "C" && leg.qty < 0;
+
+    if (isShortCall && cover && !cover.judged) {
+      // Adjusted: neither covered nor naked, and said so on the row.
+      singles.push(toSinglePosition(leg, KINDS.SHORT_CALL_UNJUDGED, { adjusted: true }));
+      return;
+    }
+
+    if (isShortCall && cover && cover.covered > 0 && cover.uncovered > 0) {
+      singles.push(toSinglePosition({ ...leg, qty: -cover.covered }, KINDS.COVERED_CALL, coverExtra(leg, cover)));
+      singles.push(toSinglePosition({ ...leg, qty: -cover.uncovered }, KINDS.NAKED_CALL, {}));
+      return;
+    }
+
     const kind =
-      cover && leg.optionType === "C" && leg.qty < 0
+      isShortCall && cover
         ? cover.uncovered > 0
           ? KINDS.NAKED_CALL
           : KINDS.COVERED_CALL
         : classifyLeg(leg, { shares: 0, cash });
     if (!kind) return;
-    let extra = {};
-    if (kind === KINDS.COVERED_CALL) {
-      const lot = shareLots[leg.ticker];
-      const bySharesOnly = cover.byLongs.length === 0;
-      extra = {
-        shareBasis: lot ? (lot.adjustedBasis ?? lot.avgEntryPrice) : 0,
-        shareMarketPrice: lot ? lot.currentPrice : 0,
-        basisSource: lot ? lot.basisSource : "broker",
-        premiumCollected: lot ? lot.premiumCollected : 0,
-        // What is actually behind it, named, so the card can say so instead of
-        // leaving the trader to work out which cover was claimed.
-        coveredBy: bySharesOnly && lot ? lot.symbol : null,
-        coverShares: cover.fromShares * 100,
-        coverLongs: cover.byLongs
-      };
-    }
-    singles.push(toSinglePosition(leg, kind, extra));
+    singles.push(toSinglePosition(leg, kind, kind === KINDS.COVERED_CALL ? coverExtra(leg, cover) : {}));
   });
 
   Object.values(shareLots).forEach((lot) => {
@@ -489,18 +520,23 @@ export function pairSpreads(positions, activities, filledOrders = [], { cash = n
     // which is why the covered call's own risk is now zero rather than the
     // stock's.
     const encumbered = Math.max(0, Math.abs(lot.qty) - Math.abs(left));
-    // qtyAvailable must be re-cut to this row too.
+    // qtyAvailable is the BROKER's number and nothing else.
     //
-    // It was carried through from the parent lot, so a row reporting 10 free
-    // shares handed the close ticket the broker's 210 — and the ticket
-    // defaults to qtyAvailable. On a live account that is one confirm away
-    // from selling the whole holding and turning two covered calls naked. The
-    // row may only ever offer what the row says it is.
-    // Free to sell is what the broker allows AND what is not written against.
-    const available = Math.min(
-      Math.abs(lot.qtyAvailable ?? lot.qty),
-      Math.abs(left)
-    );
+    // It briefly became `min(broker available, unencumbered)`, which turned a
+    // piece of our own bookkeeping into a hard cap on what the owner could
+    // sell: a holding of 210 shares with two covered calls written against it
+    // offered a maximum of 10 on the close ticket. No such limit exists. The
+    // broker will sell all 210 — the covered calls simply become naked, which
+    // is the owner's decision to make, on his own stock, and ours only to
+    // warn about. Capping it was the app substituting its opinion for his
+    // authority over his own position.
+    //
+    // So the two numbers are kept apart and mean what they say: qtyAvailable
+    // is what the broker will accept an order for (the holding, less anything
+    // a working sell order already claims), and encumberedQty is how much of
+    // it is currently backing short calls -- shown as a note, enforced
+    // nowhere.
+    const available = Math.abs(lot.qtyAvailable ?? lot.qty);
     const premiumWritten = Math.round((writtenAgainstShares[lot.ticker] || 0) * 100) / 100;
     singles.push({
       // premiumWritten goes IN, not on afterwards: riskOfKind reads it to net
@@ -512,5 +548,57 @@ export function pairSpreads(positions, activities, filledOrders = [], { cash = n
     });
   });
 
-  return [...mergeIdentical([...proven, ...loose].filter((s) => s.qty > 0)), ...singles];
+  return tagStructures([...mergeIdentical([...proven, ...loose].filter((s) => s.qty > 0)), ...singles]);
+}
+
+// Name the shape the trader put on, without inventing arithmetic for it.
+//
+// A stock repair -- hold the shares, buy one call near the money, sell two
+// above it to pay for it -- arrives here as three correct rows that never
+// mention each other: a share lot, a covered call, a long call. Every figure
+// on them is right, and the owner still had to reassemble his own position by
+// eye, because nothing on the screen said the three were one trade.
+//
+// The temptation is to fuse them into a single "ratio spread" row with a risk
+// figure of its own. That figure would have to span stock and options, which
+// is exactly the double count that putting the shares' dollars back on the
+// share row removed. So the rows stay as they are, each bounded by its own
+// honest number, and they carry a tag that lets the screen group them under
+// one heading. The sum is unchanged; only the reading improves.
+//
+// The shape is only claimed when all of it is present on one ticker and one
+// expiry: shares, a long call, and short calls above it that the shares are
+// covering. Anything less is left unnamed.
+function tagStructures(rows) {
+  const byTicker = {};
+  rows.forEach((r) => {
+    (byTicker[r.ticker] = byTicker[r.ticker] || []).push(r);
+  });
+
+  Object.values(byTicker).forEach((group) => {
+    const shares = group.find((r) => r.type === KINDS.SHARES && Math.abs(r.qty) >= 100);
+    if (!shares) return;
+    const longCalls = group.filter(
+      (r) => r.type === KINDS.LONG_OPTION && r.legs?.[0]?.kind === "call"
+    );
+    if (!longCalls.length) return;
+
+    longCalls.forEach((long) => {
+      const strike = long.legs[0].strike;
+      const shorts = group.filter(
+        (r) =>
+          r.type === KINDS.COVERED_CALL &&
+          r.expiry === long.expiry &&
+          r.legs?.[0]?.strike > strike &&
+          r.coverShares > 0
+      );
+      if (!shorts.length) return;
+      [shares, long, ...shorts].forEach((r) => {
+        r.structure = "stock_repair";
+        r.structureLabel = "Stock repair";
+      });
+    });
+  });
+
+  return rows;
 }

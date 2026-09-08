@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { sharesByTicker, nakedShortCalls, sessionPhase, judgeOnLivePrices } from "./watchRules.ts";
+import { sharesByTicker, nakedShortCalls, unjudgedShortCalls, sessionPhase, judgeOnLivePrices } from "./watchRules.ts";
 
 // A naked short call is the one position with no maximum loss, and the one
 // the dashboard's pairing used to hide. The watch's rule for it shipped as a
@@ -112,4 +112,43 @@ test("judgeOnLivePrices only inside the session", () => {
   assert.equal(judgeOnLivePrices(new Date(Date.UTC(2026, 8, 3, 13, 0))), false, "pre-open");
   assert.equal(judgeOnLivePrices(new Date(Date.UTC(2026, 8, 3, 20, 30))), false, "after the close");
   assert.equal(judgeOnLivePrices(new Date(Date.UTC(2026, 8, 5, 16, 0))), false, "weekend");
+});
+
+// --- Adjusted contracts: the watch refuses to judge them --------------------
+
+const adjustedLeg = (ticker: string, strike: number, qty: number, expiry = "2026-09-18") => ({
+  symbol: `${ticker}${strike}C-adj`,
+  occ: { ticker, strike, type: "C", expiryFormatted: expiry, adjusted: true },
+  qty
+});
+
+test("an adjusted short call raises no naked critical", () => {
+  // 100 shares behind one adjusted contract answers nothing: the contract no
+  // longer delivers 100 shares. Running the arithmetic anyway answers in the
+  // alarming direction and pages the owner about a position that may be
+  // perfectly covered.
+  const legs = [adjustedLeg("AAPL", 250, -1)];
+  assert.deepEqual(nakedShortCalls(legs, { AAPL: 0 }), []);
+  assert.deepEqual(nakedShortCalls(legs, { AAPL: 100 }), []);
+});
+
+test("an adjusted short call is reported as unjudged instead", () => {
+  const out = unjudgedShortCalls([adjustedLeg("AAPL", 250, -2)], {});
+  assert.equal(out.length, 1);
+  assert.equal(out[0].contracts, 2);
+  assert.equal(out[0].occ.ticker, "AAPL");
+});
+
+test("a plain short call is still judged, and still fires", () => {
+  const out = nakedShortCalls([leg("NVDA", 220, "C", -1)], {});
+  assert.equal(out.length, 1);
+  assert.equal(out[0].uncovered, 1);
+  assert.deepEqual(unjudgedShortCalls([leg("NVDA", 220, "C", -1)], {}), []);
+});
+
+test("the watch and the dashboard allocate cover the same way", () => {
+  // Both read allocateCallCover now. This is the case that made them
+  // disagree on a live account: a long call below a short one.
+  const legs = [leg("TSLA", 352.5, "C", 1), leg("TSLA", 375, "C", -1)];
+  assert.deepEqual(nakedShortCalls(legs, {}), []);
 });

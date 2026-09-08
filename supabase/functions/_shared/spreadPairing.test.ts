@@ -87,7 +87,12 @@ test("a short call against shares is covered, and the shares still show in full"
   assert.equal(sh.shareQty, 100, "the holding is the holding");
   assert.equal(sh.encumberedQty, 100);
   assert.equal(sh.freeQty, 0);
-  assert.equal(sh.qtyAvailable, 0, "none of it is free to sell");
+  // The broker's number, and only the broker's. Writing a call against your
+  // own shares does not stop you selling them -- it makes the call naked if
+  // you do, which is the owner's decision and our job to warn about, not to
+  // veto. Clamping this to the unencumbered remainder offered a maximum of
+  // zero on a hundred shares he owns outright.
+  assert.equal(sh.qtyAvailable, 100, "the broker will sell all of them");
   assert.equal(sh.maxRisk, 95 * 100 - 2 * 100, "cost, less the premium written against it");
 });
 
@@ -230,7 +235,7 @@ test("a genuine vertical from one order still pairs", () => {
 // 210 offered on a row reading 10. The close ticket defaults to qtyAvailable,
 // so that was one confirm from selling the entire position and turning two
 // covered calls naked.
-test("a partly written share lot never offers more than it holds", () => {
+test("a partly written share lot offers what the broker offers, and says what is backing calls", () => {
   const positions = [
     { symbol: "TSLA", qty: "210", qty_available: "210", avg_entry_price: "364.31", current_price: "364.80", market_value: "76608" },
     { symbol: "TSLA260918C00362500", qty: "-2", avg_entry_price: "8.69", current_price: "12.10" }
@@ -241,9 +246,9 @@ test("a partly written share lot never offers more than it holds", () => {
   assert.equal(shares.qty, 210, "the row reports the whole holding");
   assert.equal(shares.encumberedQty, 200);
   assert.equal(shares.freeQty, 10);
-  assert.ok(
-    shares.qtyAvailable <= shares.freeQty,
-    `offered ${shares.qtyAvailable} when only ${shares.freeQty} are free to sell`
+  assert.equal(
+    shares.qtyAvailable, 210,
+    "210 shares he owns, 210 the broker will sell — the two covered calls are a warning, not a lock"
   );
 });
 
@@ -279,12 +284,117 @@ test("a long call expiring before the short does not cover it", () => {
 
 // One long covers one short. Two shorts behind one long is the ratio-naked
 // family and the second one is genuinely uncovered.
-test("one long call cannot cover two short calls", () => {
+test("one long call covers one of two short calls, and the other is named naked", () => {
+  // The whole leg used to take the name of its worst part: two shorts against
+  // one long reported as one naked call for both contracts, so the covered
+  // one vanished and the account's risk went unbounded on account of a
+  // contract that was not. It is one of each, and it is shown as one of each.
   const positions = [
     { symbol: "TSLA260918C00352500", qty: "1", avg_entry_price: "13.57", current_price: "17.85" },
     { symbol: "TSLA260918C00362500", qty: "-2", avg_entry_price: "8.69", current_price: "12.10" }
   ];
   const out = pairSpreads(positions, [], [], { cash: 0 });
-  const short = out.find((o) => o.shortSymbol === "TSLA260918C00362500");
-  assert.equal(short.type, KINDS.NAKED_CALL, "one of the two has nothing behind it");
+  const rows = out.filter((o) => o.shortSymbol === "TSLA260918C00362500");
+  assert.equal(rows.length, 2);
+  const covered = rows.find((r) => r.type === KINDS.COVERED_CALL);
+  const naked = rows.find((r) => r.type === KINDS.NAKED_CALL);
+  assert.ok(covered && naked, "one covered by the long, one with nothing behind it");
+  assert.equal(covered.qty, 1);
+  assert.equal(naked.qty, 1);
+  assert.equal(naked.maxRisk, null, "the uncovered one is still unbounded");
+  // The long sits BELOW the short, so the pair cannot lose more than the long
+  // cost — and that cost is carried on the long's own row.
+  assert.equal(covered.maxRisk, 0);
+  assert.equal(covered.coverLongs[0].symbol, "TSLA260918C00352500");
+});
+
+// ---------------------------------------------------------------------------
+// The live stock repair, read the way the owner holds it
+// ---------------------------------------------------------------------------
+
+test("a stock repair: the long call covers a short before the shares are asked", () => {
+  // 210 shares, one long 352.50 call, two short 375s. Cover used to be
+  // allocated shares-first, so both shorts took 100 shares each and the row
+  // read "210 (10 free)" — with a long call sitting right there, unused,
+  // covering one of them. A long is the cheaper cover and the one a trader
+  // means to use, so it goes first, and 110 shares are left doing nothing.
+  const positions = [
+    { symbol: "TSLA", qty: "210", qty_available: "210", avg_entry_price: "364.31", current_price: "367.77", market_value: "77232" },
+    { symbol: "TSLA260918C00352500", qty: "1", avg_entry_price: "13.57", current_price: "17.85" },
+    { symbol: "TSLA260918C00375000", qty: "-2", avg_entry_price: "8.69", current_price: "12.10" }
+  ];
+  const out = pairSpreads(positions, [], [], { cash: 0 });
+  const shares = out.find((o) => o.type === KINDS.SHARES);
+  const cc = out.find((o) => o.type === KINDS.COVERED_CALL);
+
+  assert.equal(shares.shareQty, 210);
+  assert.equal(shares.encumberedQty, 100, "one short is on the long call, not on the stock");
+  assert.equal(shares.freeQty, 110);
+  assert.equal(shares.qtyAvailable, 210, "and all 210 can still be sold");
+  assert.equal(cc.qty, 2, "neither short is naked");
+  assert.equal(out.find((o) => o.type === KINDS.NAKED_CALL), undefined);
+  // The three rows are one trade, and say so.
+  for (const r of out) assert.equal(r.structure, "stock_repair");
+});
+
+test("an adjusted short call is not judged covered or naked", () => {
+  // AAPL1 is a post-corporate-action root: the contract no longer delivers
+  // 100 AAPL shares, so counting shares against it answers a question about a
+  // deliverable it does not have — and answered it in the alarming direction,
+  // which is a critical alert on a position that may be perfectly covered.
+  const positions = [
+    { symbol: "AAPL1260918C00250000", qty: "-1", avg_entry_price: "3.10", current_price: "4.00" }
+  ];
+  const out = pairSpreads(positions, [], [], { cash: 0 });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].type, KINDS.SHORT_CALL_UNJUDGED);
+  assert.equal(out[0].maxRisk, null, "not unlimited — unknown");
+});
+
+test("an adjusted contract leaves the shares for the contracts that can use them", () => {
+  const positions = [
+    { symbol: "AAPL", qty: "100", qty_available: "100", avg_entry_price: "200", current_price: "210", market_value: "21000" },
+    { symbol: "AAPL1260918C00250000", qty: "-1", avg_entry_price: "3.10", current_price: "4.00" },
+    { symbol: "AAPL260918C00260000", qty: "-1", avg_entry_price: "2.00", current_price: "2.50" }
+  ];
+  const out = pairSpreads(positions, [], [], { cash: 0 });
+  const plain = out.find((o) => o.shortSymbol === "AAPL260918C00260000");
+  assert.equal(plain.type, KINDS.COVERED_CALL, "the hundred shares went where they could be used");
+  assert.equal(out.find((o) => o.shortSymbol === "AAPL1260918C00250000").type, KINDS.SHORT_CALL_UNJUDGED);
+});
+
+test("an order that filled a debit vertical is one, not two loose legs", () => {
+  // Long below short on calls is a debit spread. pairSide could only see the
+  // credit direction, so every one of these was broken into an orphan short
+  // and an orphan long. With the order behind them there is nothing to guess.
+  const positions = [
+    { symbol: "NVDA260918C00200000", qty: "1", avg_entry_price: "12.00", current_price: "14.00" },
+    { symbol: "NVDA260918C00220000", qty: "-1", avg_entry_price: "5.00", current_price: "6.00" }
+  ];
+  const orders = [{
+    filled_at: "2026-09-01T14:00:00Z",
+    legs: [
+      { symbol: "NVDA260918C00200000", side: "buy", filled_qty: "1" },
+      { symbol: "NVDA260918C00220000", side: "sell", filled_qty: "1" }
+    ]
+  }];
+  const out = pairSpreads(positions, [], orders, { cash: 0 });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].type, "call_spread");
+  assert.equal(out[0].direction, "debit");
+  assert.equal(out[0].longStrike, 200);
+  assert.equal(out[0].shortStrike, 220);
+});
+
+test("without an order behind them, a long below a short is left to the cover rule", () => {
+  // The same two legs with no provenance could equally be a repair against
+  // stock the owner holds. Pairing them would take the shares' cover away and
+  // rename a position he recognises, so the loose pass does not guess.
+  const positions = [
+    { symbol: "NVDA260918C00200000", qty: "1", avg_entry_price: "12.00", current_price: "14.00" },
+    { symbol: "NVDA260918C00220000", qty: "-1", avg_entry_price: "5.00", current_price: "6.00" }
+  ];
+  const out = pairSpreads(positions, [], [], { cash: 0 });
+  assert.equal(out.find((o) => o.type === "call_spread"), undefined);
+  assert.equal(out.find((o) => o.shortSymbol === "NVDA260918C00220000").type, KINDS.COVERED_CALL);
 });

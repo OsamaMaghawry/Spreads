@@ -72,6 +72,7 @@ incomplete.
 - naked_put
 - long_option
 - shares
+- short_call_unjudged
 
 ## Components, by area
 

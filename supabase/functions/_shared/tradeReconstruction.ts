@@ -16,6 +16,7 @@
 //      real shorts into "naked" losses, and dropped the leftover long's cost.
 
 import { parseOCCSymbol } from "./occ.ts";
+import { coveredByShares } from "./callCover.ts";
 
 export const CONTRACT_SIZE = 100;
 
@@ -601,14 +602,47 @@ function combineReasons(shortReason, longReason) {
 // only says "wheel": which half it is, is the option's own business.
 const wheelHalf = (lot) => (lot.parsed.type === "P" ? "cash_secured_put" : "covered_call");
 
+// How many contracts of an orphaned short call the shares actually covered,
+// using callCover's arithmetic rather than a second copy of it. The live
+// classifier and this one asked the same question in two places and could
+// answer it differently; now the question has one implementation and this
+// caller supplies the one input it has (a share balance as of a date — the
+// long calls held that day are not in the ledger this reads).
+function coveredContractsAt(lot, sharesHeldAt) {
+  return coveredByShares(lot.qty, sharesHeldAt(lot.parsed.ticker, lot.openDate));
+}
+
 function classifyOrphanShort(lot, sharesHeldAt) {
   if (lot.strategy === "wheel") return { strategy: wheelHalf(lot), unpaired: false };
   if (lot.strategy === "spreads") return { strategy: "spreads", unpaired: true };
   if (lot.parsed.type === "P") return { strategy: "cash_secured_put", unpaired: false };
-  const held = sharesHeldAt(lot.parsed.ticker, lot.openDate);
-  return held >= lot.qty * CONTRACT_SIZE
+  return coveredContractsAt(lot, sharesHeldAt) === lot.qty
     ? { strategy: "covered_call", unpaired: false }
     : { strategy: "spreads", unpaired: true };
+}
+
+// An orphaned short call split by what the shares actually covered.
+//
+// The live dashboard reports three short calls against 100 shares as one
+// covered call and two naked ones. This used to report the same three, once
+// closed, as a single "spreads · unpaired" record — so a covered call the
+// trader watched all week under one heading landed in a different tab the day
+// it expired, and the covered contract's premium was filed as a broken spread
+// leg. The two screens now split the same position the same way.
+//
+// A lot with no partial cover comes back as one record, exactly as before.
+function splitOrphanShort(lot, sharesHeldAt) {
+  if (lot.strategy === "wheel" || lot.strategy === "spreads" || lot.parsed.type === "P") {
+    return [{ lot, ...classifyOrphanShort(lot, sharesHeldAt) }];
+  }
+  const covered = coveredContractsAt(lot, sharesHeldAt);
+  if (covered === 0 || covered === lot.qty) {
+    return [{ lot, ...classifyOrphanShort(lot, sharesHeldAt) }];
+  }
+  return [
+    { lot: { ...lot, qty: covered }, strategy: "covered_call", unpaired: false },
+    { lot: { ...lot, qty: lot.qty - covered }, strategy: "spreads", unpaired: true }
+  ];
 }
 
 export function buildTrades(closedLots, sharesHeldAt, accountId) {
@@ -727,9 +761,9 @@ export function buildTrades(closedLots, sharesHeldAt, accountId) {
     shorts
       .filter((s) => s.left > 0)
       .forEach((s) => {
-        const lot = { ...s, qty: s.left };
-        const { strategy: resolved, unpaired } = classifyOrphanShort(lot, sharesHeldAt);
-        trades.push(shortLeg(lot, resolved, unpaired));
+        for (const part of splitOrphanShort({ ...s, qty: s.left }, sharesHeldAt)) {
+          trades.push(shortLeg(part.lot, part.strategy, part.unpaired));
+        }
       });
 
     longs.filter((l) => l.left > 0).forEach((l) => trades.push(longLeg({ ...l, qty: l.left })));

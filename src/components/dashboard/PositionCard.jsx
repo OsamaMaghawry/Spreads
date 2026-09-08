@@ -3,7 +3,7 @@ import { ChevronDown } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import StrikeLadder from "./StrikeLadder";
 import CardLegs from "./CardLegs";
-import { isSingle, kindOf, riskText, riskLabel, isStockRisk, basisNote, stressLabel, stressText, stressNote, showsStress } from "@/lib/positionKind";
+import { isSingle, kindOf, riskText, riskLabel, isStockRisk, basisNote, stressLabel, stressText, stressNote, showsStress, moneynessTone, moneynessNote } from "@/lib/positionKind";
 import { dayChange, dayChangeLabel } from "@/lib/dayChange";
 
 const badge = "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border";
@@ -47,10 +47,17 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
           // The whole holding, with what is written against it named beside
           // it. The row used to show only the free shares, so a trader with
           // 210 read 10 and could not reconcile the screen against his broker.
+          //
+          // "(10 free)" was the next version of the same mistake. Nothing is
+          // stopping those 200 shares being sold — the broker will take the
+          // order, and the covered calls become naked — so calling them
+          // unfree stated a restriction that does not exist and made the
+          // owner's own stock read as somebody else's. What is true is what
+          // they are DOING: backing two short calls.
           value:
             s.type === "shares"
               ? s.encumberedQty > 0
-                ? `${s.shareQty} (${s.freeQty} free)`
+                ? `${s.shareQty} · ${s.encumberedQty} backing calls`
                 : s.shareQty
               : s.qty
         },
@@ -85,16 +92,17 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
           {isSingle(s) && kindOf(s) && (
             <span className={`${badge} ${kindOf(s).cls}`} title={kindOf(s).label}>{kindOf(s).badge}</span>
           )}
-          <span
-            className={`${badge} ${
-              s.moneyness === "ITM"
-                ? "border-rose-200 bg-rose-50 text-rose-700"
-                : s.moneyness === "OTM"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  // No price to judge against, so no verdict to paint.
-                  : "border-slate-200 bg-slate-50 text-slate-500"
-            }`}
-          >
+          {s.direction === "debit" && (
+            <span className={`${badge} border-slate-200 bg-slate-100 text-slate-600`} title="Bought, not sold — the most it can lose is what it cost.">
+              Debit
+            </span>
+          )}
+          {s.structureLabel && (
+            <span className={`${badge} border-teal-200 bg-teal-100 text-teal-700`} title="Part of one structure with the other rows on this ticker.">
+              {s.structureLabel}
+            </span>
+          )}
+          <span className={`${badge} ${moneynessTone(s)}`} title={moneynessNote(s)}>
             {s.moneyness || "—"}
           </span>
           {s.openOrders?.length > 0 && <span className={`${badge} border-amber-200 bg-amber-100 text-amber-700`}>Open order</span>}

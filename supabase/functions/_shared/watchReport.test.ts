@@ -132,9 +132,12 @@ test("every account appears, including the empty ones", () => {
   for (const n of names) assert.ok(r.text.includes(n), `${n} missing from the report`);
 });
 
-test("price_untrusted is the liveness rule, and it is the only one suppressed", () => {
+test("the liveness rules are the ones about our own blindness, and only those", () => {
   assert.ok(LIVENESS_RULES.has("price_untrusted"));
-  for (const r of ["short_through_strike", "short_near_strike", "earnings_before_expiry", "position_oversized"]) {
+  // An adjusted contract cannot be judged covered or naked from a share
+  // count. That is a statement about what we can read, not about the book.
+  assert.ok(LIVENESS_RULES.has("cover_unjudged"));
+  for (const r of ["short_through_strike", "short_near_strike", "earnings_before_expiry", "position_oversized", "naked_short_call"]) {
     assert.equal(LIVENESS_RULES.has(r), false, `${r} must still reach the email`);
   }
 });

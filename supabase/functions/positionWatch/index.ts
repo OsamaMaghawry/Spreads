@@ -7,7 +7,7 @@ import { parseOCCSymbol } from "../_shared/occ.ts";
 import { earningsThrough, daysUntil } from "../_shared/earnings.ts";
 import { sendEmail } from "../_shared/email.ts";
 import { accountFacts, buildDailyReport } from "../_shared/watchReport.ts";
-import { sharesByTicker, nakedShortCalls, judgeOnLivePrices } from "../_shared/watchRules.ts";
+import { sharesByTicker, nakedShortCalls, unjudgedShortCalls, judgeOnLivePrices } from "../_shared/watchRules.ts";
 
 // The money-safety watch.
 //
@@ -123,6 +123,17 @@ function evaluate(account, positions, spots, earnings, equity, settings, shares 
     add("naked_short_call", "critical", n.symbol,
       `${n.occ.ticker} ${n.occ.strike}C: ${n.uncovered} of ${n.contracts} short uncovered — no long call and ${n.shares} shares behind it`,
       { contracts: n.contracts, uncovered: n.uncovered, shares: n.shares, coveredByLongs: n.coveredByLongs });
+  }
+  // Rule: a short call on an ADJUSTED contract, which the rule above cannot
+  // judge. After a split or a merger the contract does not deliver 100 shares,
+  // so counting shares against it answers a question about a deliverable it no
+  // longer has -- and answers it wrongly in the alarming direction, raising a
+  // critical on a position that may be fully covered. Info, so it appears in
+  // the daily report and never in the inbox.
+  for (const u of unjudgedShortCalls(parsed, shares)) {
+    add("cover_unjudged", "info", u.symbol,
+      `${u.occ?.ticker ?? u.symbol} ${u.contracts} short: adjusted contract, so cover cannot be judged from a share count`,
+      { contracts: u.contracts });
   }
   // One liveness note per ticker, at info severity, carrying the reason.
   //

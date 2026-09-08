@@ -2,7 +2,7 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { tradingBase, alpacaFetch, pairSpreads, getOptionQuotes } from "../_shared/alpaca.ts";
 import { getSpots } from "../_shared/marketPrice.ts";
-import { KINDS, STOCK_LIKE, stressLossOfKind, totalRisk } from "../_shared/positionKinds.ts";
+import { KINDS, STOCK_LIKE, stressLossOfKind, stressTotal, totalRisk } from "../_shared/positionKinds.ts";
 import { basisByTicker } from "../_shared/wheelBasis.ts";
 import { decryptSecret } from "../_shared/crypto.ts";
 import { parseOCCSymbol } from "../_shared/occ.ts";
@@ -234,6 +234,10 @@ async function syncOne(account) {
           // shock at a defined move is what the account total uses.
           notionalRisk: s.maxRisk,
           stressLoss: stressLossOfKind(KINDS.SHARES, { ...s, stockPrice }, stressMove),
+          // What the account total needs to price this row at an arbitrary
+          // underlying price. Carried explicitly because the figures it wants
+          // live inside the position's legs, not on the row.
+          stressInput: { shareQty: s.shareQty, stockPrice },
           stressMove,
           openOrders: []
         };
@@ -279,6 +283,14 @@ async function syncOne(account) {
           { qty: s.qty, avgEntryPrice: leg.entryPrice, strike: leg.strike, stockPrice, shareBasis: s.shareBasis },
           stressMove
         ),
+        stressInput: {
+          qty: s.qty,
+          avgEntryPrice: leg.entryPrice,
+          strike: leg.strike,
+          optionType: isCall ? "C" : "P",
+          stockPrice,
+          shareBasis: s.shareBasis
+        },
         stressMove,
         openOrders: openList
           .filter((o: any) => orderSymbols(o).includes(leg.symbol))
@@ -296,13 +308,26 @@ async function syncOne(account) {
       const isCall = s.type === "call_spread";
       const putRatio = s.putRatio || 1;
       const callRatio = s.callRatio || 1;
-      // Widths are per condor unit: ratio × strike width per side.
-      const putWidth = isCall ? 0 : (s.shortStrike - s.longStrike) * putRatio;
-      const callWidth = isCondor ? (s.callLongStrike - s.callShortStrike) * callRatio : isCall ? s.longStrike - s.shortStrike : 0;
+      // A DEBIT vertical -- long below the short on calls, above it on puts --
+      // is the same two legs the other way round, and every figure below has
+      // to know which it is. Nothing paid it before because the pairing could
+      // not produce one; now that it can, the arithmetic follows.
+      const isDebit = s.direction === "debit";
+      // Widths are per condor unit: ratio × strike width per side. Absolute,
+      // because a debit spread's strikes are the other way round and a
+      // negative width silently poisons the cap on every figure below it. For
+      // a credit spread and a condor this changes nothing.
+      const putWidth = isCall ? 0 : Math.abs(s.shortStrike - s.longStrike) * putRatio;
+      const callWidth = isCondor
+        ? Math.abs(s.callLongStrike - s.callShortStrike) * callRatio
+        : isCall ? Math.abs(s.longStrike - s.shortStrike) : 0;
       const spreadWidth = Math.max(putWidth, callWidth);
       const netCredit = s.shortEntryPrice - s.longEntryPrice;
       const totalCredit = netCredit * s.qty * 100;
-      const maxRisk = (spreadWidth - netCredit) * s.qty * 100;
+      // A debit spread cannot lose more than it cost: netCredit is negative
+      // there, so this is the premium paid. A credit spread loses the width
+      // less what it took in.
+      const maxRisk = (isDebit ? -netCredit : spreadWidth - netCredit) * s.qty * 100;
       // Cost to close, from live NBBO mids across every leg at one instant.
       // Signs follow the position: a short leg is bought back, a long leg sold.
       const legs = [
@@ -322,26 +347,45 @@ async function syncOne(account) {
       const rawCost = quoted
         ? mids.reduce((a, l) => a + l.sign * l.ratio * l.mid, 0)
         : s.shortCurrentPrice - s.longCurrentPrice;
-      const closeCost = clamp(rawCost, putWidth + callWidth) * s.qty * 100;
+      // Net-short value lives in [0, width]; net-long value in [-width, 0].
+      // Bounding to the wrong side of zero is what would make a debit spread
+      // read as free to close.
+      const cap = putWidth + callWidth;
+      const closeCost = (isDebit ? Math.min(Math.max(rawCost, -cap), 0) : clamp(rawCost, cap)) * s.qty * 100;
       // Expiration scenario: what the spread would settle for if it expired right
       // now at the current stock price — intrinsic value only, no time premium.
+      //
+      // Written as the difference of the two legs' intrinsics rather than as a
+      // clamp against the width: the difference is self-bounding and comes out
+      // right whichever side the long sits on, where the clamp needed the
+      // strikes in credit order to mean anything.
+      const itv = (n) => Math.max(n, 0);
       let intrinsic = 0;
       if (stockPrice > 0) {
         if (!isCall) {
-          intrinsic += clamp(s.shortStrike - stockPrice, s.shortStrike - s.longStrike) * putRatio;
+          intrinsic += (itv(s.shortStrike - stockPrice) - itv(s.longStrike - stockPrice)) * putRatio;
         }
         if (isCondor) {
-          intrinsic += clamp(stockPrice - s.callShortStrike, s.callLongStrike - s.callShortStrike) * callRatio;
+          intrinsic += (itv(stockPrice - s.callShortStrike) - itv(stockPrice - s.callLongStrike)) * callRatio;
         } else if (isCall) {
-          intrinsic += clamp(stockPrice - s.shortStrike, s.longStrike - s.shortStrike);
+          intrinsic += itv(stockPrice - s.shortStrike) - itv(stockPrice - s.longStrike);
         }
       }
       const expirationCost = intrinsic * s.qty * 100;
+      // On a credit spread this asks "is the short leg through its strike",
+      // which is the thing that hurts. On a DEBIT spread the short leg being
+      // through its strike is maximum profit, and the leg worth watching is
+      // the long one — it has to be in the money for the position to be worth
+      // anything at all. So the question changes with the structure, and
+      // `moneynessLeg` says which one was asked, because a screen that paints
+      // ITM as danger must not paint a debit spread's best case red.
       const itm = isCondor
         ? stockPrice < s.shortStrike || stockPrice > s.callShortStrike
-        : isCall
-          ? stockPrice > s.shortStrike
-          : stockPrice < s.shortStrike;
+        : isDebit
+          ? isCall ? stockPrice > s.longStrike : stockPrice < s.longStrike
+          : isCall
+            ? stockPrice > s.shortStrike
+            : stockPrice < s.shortStrike;
       const mySymbols = [s.shortSymbol, s.longSymbol, s.callShortSymbol, s.callLongSymbol].filter(Boolean);
       const isAdjusted = mySymbols.some((sym) => parseOCCSymbol(sym)?.adjusted);
       return {
@@ -367,10 +411,12 @@ async function syncOne(account) {
         // sitting through the strike. A quote outage does the same to ordinary
         // positions.
         moneyness: !(stockPrice > 0) ? null : itm ? "ITM" : "OTM",
+        moneynessLeg: isDebit && !isCondor ? "long" : "short",
         // A corporate action changed what this contract delivers, so the
         // width, the risk and the break-even are all computed from a
         // deliverable it no longer has. Withheld rather than shown wrong.
         adjusted: isAdjusted,
+        direction: isDebit ? "debit" : "credit",
         spreadWidth,
         // Per-side worst case (used for directional condor aggregation).
         putSideRisk: (putWidth - netCredit) * s.qty * 100,
@@ -378,7 +424,13 @@ async function syncOne(account) {
         netCredit,
         totalCredit,
         maxRisk,
-        breakEven: isCall ? s.shortStrike + netCredit : s.shortStrike - netCredit / putRatio,
+        // A credit spread breaks even at the short strike, moved by what it
+        // took in. A debit spread breaks even at the LONG strike, moved by
+        // what it cost — and netCredit is negative there, so both directions
+        // come out of the same sign.
+        breakEven: isDebit
+          ? isCall ? s.longStrike - netCredit : s.longStrike + netCredit
+          : isCall ? s.shortStrike + netCredit : s.shortStrike - netCredit / putRatio,
         breakEvenHigh: isCondor ? s.callShortStrike + netCredit / callRatio : null,
         closeCost,
         unrealizedPL: totalCredit - closeCost,
@@ -430,18 +482,49 @@ async function syncOne(account) {
       }
     });
     const flatRisk = totalRisk(flat);
-    // Stress losses sum; a null one (no spot to shock) leaves the total
-    // incomplete rather than adding zero. A naked call is ALSO unbounded and
-    // is named as such even though it has a figure at the move.
-    const stressed = totalRisk(stockLike.map((r) => ({ ticker: r.ticker, maxRisk: r.stressLoss })));
+    // One shock per ticker, not one per row.
+    //
+    // This used to sum each row's own stressLoss, and each row's stressLoss is
+    // computed in that row's own adverse direction: shares and short puts at
+    // a 15% FALL, short calls at a 15% RISE. Summing them charged an account
+    // for a crash and a rally on the same name at the same instant, and
+    // counted a covered call's shares twice — once on the share row, once
+    // inside the call's figure. stressTotal prices every row on a ticker at
+    // one underlying price, takes the worse of the two shocks, and only then
+    // adds the tickers together, which is what a margin engine does.
+    const stressed = stressTotal(stockLike, stressMove);
     const unbounded = stockLike.filter((r) => r.type === KINDS.NAKED_CALL).map((r) => r.ticker);
     totals.risk = flatRisk.risk + stressed.risk + Object.values(condorByTicker)
       .reduce((a, t) => a + Math.max(t.putSide, t.callSide), 0);
     totals.riskComplete = flatRisk.complete && stressed.complete && unbounded.length === 0;
     totals.undefinedRisk = [...new Set([...flatRisk.undefinedRisk, ...stressed.undefinedRisk, ...unbounded])];
     totals.stressMove = stressMove;
-    // The number the owner questioned, kept and named for what it is.
-    totals.notional = stockLike.reduce((a, r) => a + (Number(r.notionalRisk) || 0), 0);
+    // The number the owner questioned, kept and named for what it is — and no
+    // longer quietly short.
+    //
+    // This was `Number(r.notionalRisk) || 0`. A naked call has no notional
+    // bound, so its notionalRisk is null, so `|| 0` added nothing and the
+    // total printed as though the one position with unlimited downside were
+    // not in the account. The row where the figure matters most was the row
+    // it dropped. It now carries the same completeness flag and ticker list
+    // that totals.risk has carried all along, and the screen says "at least"
+    // rather than stating a number it knows is short.
+    const notional = stockLike.reduce(
+      (acc, r) => {
+        const n = Number(r.notionalRisk);
+        if (r.notionalRisk === null || r.notionalRisk === undefined || !Number.isFinite(n)) {
+          acc.complete = false;
+          if (r.ticker) acc.undefined.push(r.ticker);
+          return acc;
+        }
+        acc.sum += n;
+        return acc;
+      },
+      { sum: 0, complete: true, undefined: [] }
+    );
+    totals.notional = notional.sum;
+    totals.notionalComplete = notional.complete;
+    totals.notionalUndefined = [...new Set(notional.undefined)];
     // Collateral the broker is holding that is NOT loss exposure -- a
     // cash-secured put ties up the whole strike while risking the strike less
     // the credit, and a trader needs both numbers to read their own account.
