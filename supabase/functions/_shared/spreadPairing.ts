@@ -189,9 +189,35 @@ function claimOrderLegs(order, legsBySymbol) {
     claims.push({ pos, take, wantShort });
   }
 
-  return claims.map(({ pos, take, wantShort }) => {
-    pos.qty += wantShort ? take : -take;
-    return { ...pos, qty: wantShort ? -take : take };
+  // The claim is NOT committed here.
+  //
+  // It used to be: this deducted from legsBySymbol and handed the copies to
+  // pairSide. When pairSide could not pair them -- a call order whose long
+  // sits BELOW its short is a ratio spread, not a vertical, and fails the
+  // strike test -- nothing was emitted and the legs had already been removed
+  // from the pool, so they never reached the leftovers pass that describes an
+  // unpaired leg on its own. Two real TSLA legs vanished off a live dashboard
+  // that way, and the shares behind them were then miscounted, because the
+  // covered call that should have claimed them was one of the two.
+  //
+  // So the caller commits only what the pairing actually consumed. `source`
+  // is the leg in the pool; `claimedQty` is what this order asked for.
+  return claims.map(({ pos, take, wantShort }) => ({
+    ...pos,
+    qty: wantShort ? -take : take,
+    source: pos,
+    claimedQty: wantShort ? -take : take
+  }));
+}
+
+// Give back whatever the pairing did not use. pairSide moves a claimed leg's
+// qty toward zero as it consumes it, so the difference between what was
+// claimed and what is left is what actually became a spread.
+function commitClaims(claimed) {
+  claimed.forEach((c) => {
+    const consumed = Math.abs(c.claimedQty) - Math.abs(c.qty);
+    if (consumed <= 0) return;
+    c.source.qty += c.source.qty < 0 ? consumed : -consumed;
   });
 }
 
@@ -337,6 +363,7 @@ export function pairSpreads(positions, activities, filledOrders = [], { cash = n
       proven.push(toCondor(puts.shift(), calls.shift()));
     }
     proven.push(...puts, ...calls);
+    commitClaims(claimed);
   });
 
   // Anything left is untraceable: pair per side only, never guess a condor.

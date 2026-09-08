@@ -150,3 +150,57 @@ test("with no basis map at all every lot is broker basis", () => {
   assert.equal(sh.basisSource, "broker");
   assert.equal(sh.premiumCollected, 0);
 });
+
+// A ratio spread sent as one order: long 1x 352.50 call against short 2x
+// 362.50 calls, both expiring the same day. pairSide will not pair them --
+// for a call the long has to sit ABOVE the short -- and the order-claim used
+// to deduct both legs from the pool before finding that out, so both
+// disappeared off the dashboard entirely. Reported on a live account holding
+// exactly this, where the missing short calls also freed 200 shares that were
+// then miscounted against a different call.
+test("legs an order claims but cannot pair are still described", () => {
+  const positions = [
+    { symbol: "TSLA260918C00352500", qty: "1", avg_entry_price: "13.57", current_price: "17.85" },
+    { symbol: "TSLA260918C00362500", qty: "-2", avg_entry_price: "8.69", current_price: "12.10" }
+  ];
+  const orders = [
+    {
+      status: "filled",
+      filled_at: "2026-09-08T13:30:00Z",
+      legs: [
+        { symbol: "TSLA260918C00352500", side: "buy", filled_qty: "1" },
+        { symbol: "TSLA260918C00362500", side: "sell", filled_qty: "2" }
+      ]
+    }
+  ];
+
+  const out = pairSpreads(positions, [], orders, { cash: 0 });
+  const symbols = JSON.stringify(out);
+  assert.ok(symbols.includes("TSLA260918C00352500"), "the long call must not vanish");
+  assert.ok(symbols.includes("TSLA260918C00362500"), "the short calls must not vanish");
+  // Nothing pairs, so both are described on their own.
+  assert.equal(out.length, 2);
+});
+
+// The same order, the right way round: long 365 above short 360 is a real
+// call spread and must still pair into one position rather than two singles.
+test("a genuine vertical from one order still pairs", () => {
+  const positions = [
+    { symbol: "TSLA260918C00365000", qty: "1", avg_entry_price: "2.00", current_price: "2.50" },
+    { symbol: "TSLA260918C00360000", qty: "-1", avg_entry_price: "4.00", current_price: "4.50" }
+  ];
+  const orders = [
+    {
+      status: "filled",
+      filled_at: "2026-09-08T13:30:00Z",
+      legs: [
+        { symbol: "TSLA260918C00365000", side: "buy", filled_qty: "1" },
+        { symbol: "TSLA260918C00360000", side: "sell", filled_qty: "1" }
+      ]
+    }
+  ];
+  const out = pairSpreads(positions, [], orders, { cash: 0 });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].type, "call_spread");
+  assert.equal(out[0].qty, 1);
+});
