@@ -103,13 +103,32 @@ Deno.serve(async (req) => {
       pageToken = page[page.length - 1].id;
     }
 
+    // Positions and working orders, captured beside the activities.
+    //
+    // The dashboard reads positions live on every load and stores nothing, so
+    // when a trader reports a position the broker shows and the app does not,
+    // there was no way to tell whether the broker sent it. Now there is.
+    // Failures here do not lose the activity capture, which is what this
+    // function existed for first.
+    const positions = await get(`${base}/positions`, account).catch(() => null);
+    const openOrders = await get(`${base}/orders?status=open&nested=true&limit=100`, account).catch(() => null);
+
     await admin.from("broker_feed_dumps").insert({
       account_id: accountId,
       activities,
-      activity_count: activities.length
+      activity_count: activities.length,
+      positions,
+      position_count: Array.isArray(positions) ? positions.length : null,
+      open_orders: openOrders
     });
 
-    return jsonResponse({ ok: true, accountId, activityCount: activities.length });
+    return jsonResponse({
+      ok: true,
+      accountId,
+      activityCount: activities.length,
+      positionCount: Array.isArray(positions) ? positions.length : null,
+      openOrderCount: Array.isArray(openOrders) ? openOrders.length : null
+    });
   } catch (error) {
     console.error("dumpBrokerFeed failed", error?.message || error);
     return jsonResponse({ error: String(error?.message || error) }, 500);
