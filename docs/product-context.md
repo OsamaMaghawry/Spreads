@@ -92,6 +92,8 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-08 · (staging) The app now deploys from this repo instead of relying on Cloudflare's own build, which only ever published a preview version that never reached traffic — four commits of dashboard work had gone unseen at dev-dash with no signal anywhere that they hadn't shipped. New `deploy-app.yml`/`deploy-app-staging.yml` run lint, tests and a real `wrangler deploy` on merge, gated the same staging-first way the landing site is (`9183b42`).
+- 2026-09-08 · (staging) A ticker with more than one open position (a repair, a wheel) gets a P/L-at-a-price curve that sums every position on that name at the same underlying price and sweeps it across a range, showing where the whole thing — not just one card — stops losing money (`fbd520e`).
 - 2026-09-08 · (staging) A stock repair (a long call bought against more short calls of a higher strike over 100+ shares) now shows as one position instead of being split across two or three cards with no card saying they're the same trade — a new `call_ratio_spread` shape claims it, covers its extra short from the same share allocator every covered call uses, and carries its own max risk, close cost and break-evens; the strike ladder labels that break-even "Options break-even" so it doesn't read as the whole position (shares included) turning over (`6770ae4`, `5bd85f7`).
 - 2026-09-08 · (staging) An account's total risk figure no longer silently drops an unbounded position — a naked call's contribution is now flagged as unknown instead of counted as zero — and the account stress total no longer charges the same ticker for a crash and a rally at once (or double-counts a covered call's shares); the dashboard and the position watch now agree on what "covered" means, judging it per contract instead of per whole leg and withholding judgment on a contract that isn't 100 shares each; a debit call spread bought as two separate fills is now recognized as a debit vertical instead of two unrelated legs, with its risk, break-even and moneyness read the right direction; and cover is now allocated to long options before shares, so a lot the owner holds outright is never capped below what the broker actually lets him sell (`df1f997`).
 - 2026-09-08 · (staging) A share row can no longer offer more shares to sell than it actually holds: the close ticket now clamps its default and its input to the row's own free-share count instead of the parent lot's full quantity, closing a bug where confirming a ticket that read "10 shares" could have sold all 210 and stripped the cover off two live short calls (`c642dcc`).
@@ -100,8 +102,6 @@ From `docs/ops/shipped.md`, newest first.
 - 2026-09-08 · (staging) When a live account's broker positions don't match what DeltaMint shows, support can now settle it: the hourly broker feed capture also records the account's raw open positions and open orders (not just its activity feed), so a report like "there's a position DeltaMint doesn't show" can be checked against what the broker actually sent instead of staying unprovable (`dcd6b34`, migration 0028).
 - 2026-09-07 · The blog is live in production: two more posts join the two
 - 2026-09-07 · (staging) The owner's digest email is a card per report — what it
-- 2026-09-07 · (staging) Blog posts read at 17px on a 780px column instead of
-- 2026-09-07 · (staging) On a phone, Blog and Pricing (and Log in) move behind
 
 ## Server functions
 
