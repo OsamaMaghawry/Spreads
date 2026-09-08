@@ -329,19 +329,29 @@ async function syncOne(account) {
       const spreadWidth = Math.max(putWidth, callWidth);
       const netCredit = nShort * s.shortEntryPrice - nLong * s.longEntryPrice;
       const totalCredit = netCredit * s.qty * 100;
-      // A ratio's worst case, once its excess short is covered by stock, is at
-      // the bottom: every option expires worthless and what it cost is lost.
-      // Above the short strike the extra contract does lose without bound, but
-      // the shares behind it gain faster -- and those shares are a row of
-      // their own, carrying their own downside, so putting that here would
-      // count the same stock twice. Uncovered, there is nothing above it and
-      // no honest figure to print.
+      // A ratio's max loss is NULL, always, and this row printed $0.00.
+      //
+      // The reasoning that produced the zero contradicted itself: it correctly
+      // refused to net the shares into this row -- they are a row of their own
+      // and counting them twice is the bug that started all of this -- and
+      // then printed a figure that is only true if you DO net them in. On the
+      // options alone the extra short is unbounded above. With TSLA at 400 the
+      // 1x2 loses $2,369; at 450, $7,369. The same card printed MAX RISK
+      // $0.00 beside a break-even of $376.31: it named the price past which it
+      // loses and then said it could not lose.
+      //
+      // Worse, zero is FINITE, so it summed into the account's total risk with
+      // complete: true -- a total that quietly omitted an unbounded exposure
+      // while claiming to be whole. null propagates, the row prints a dash,
+      // and Risk / Equity marks itself a floor. The bounded truth for this
+      // position exists, but it spans the stock, so it lives on the ticker
+      // panel where the shares are counted once.
       //
       // A debit spread cannot lose more than it cost: netCredit is negative
       // there, so this is the premium paid. A credit spread loses the width
       // less what it took in.
       const maxRisk = isRatio
-        ? s.ratioCovered ? Math.max(0, -netCredit) * s.qty * 100 : null
+        ? null
         : (isDebit ? -netCredit : spreadWidth - netCredit) * s.qty * 100;
       // Cost to close, from live NBBO mids across every leg at one instant.
       // Signs follow the position: a short leg is bought back, a long leg sold.

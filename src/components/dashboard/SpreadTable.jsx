@@ -24,15 +24,23 @@ export default function SpreadTable({ spreads: allSpreads, accountId, onClose, o
     .sort((a, b) => b.n - a.n || a.ticker.localeCompare(b.ticker));
   const spreads = filter ? allSpreads.filter((s) => s.ticker === filter) : allSpreads;
 
+  // `|| 0` on maxRisk is the same swallow the account totals had: a naked
+  // call and a ratio both carry null because their loss has no bound, and
+  // adding them as nothing prints a tidy total that omits the only rows worth
+  // worrying about. Counted instead, and the cell says the total is a floor.
   const totals = spreads.reduce(
-    (a, s) => ({
-      totalCredit: a.totalCredit + (s.totalCredit || 0),
-      maxRisk: a.maxRisk + (s.adjusted ? 0 : s.maxRisk || 0),
-      closeCost: a.closeCost + (s.closeCost || 0),
-      unrealizedPL: a.unrealizedPL + (s.unrealizedPL || 0),
-      expirationPL: a.expirationPL + (s.expirationPL || 0)
-    }),
-    { totalCredit: 0, maxRisk: 0, closeCost: 0, unrealizedPL: 0, expirationPL: 0 }
+    (a, s) => {
+      const bounded = !s.adjusted && typeof s.maxRisk === "number" && Number.isFinite(s.maxRisk);
+      return {
+        totalCredit: a.totalCredit + (s.totalCredit || 0),
+        maxRisk: a.maxRisk + (bounded ? s.maxRisk : 0),
+        riskComplete: a.riskComplete && (bounded || !!s.adjusted),
+        closeCost: a.closeCost + (s.closeCost || 0),
+        unrealizedPL: a.unrealizedPL + (s.unrealizedPL || 0),
+        expirationPL: a.expirationPL + (s.expirationPL || 0)
+      };
+    },
+    { totalCredit: 0, maxRisk: 0, riskComplete: true, closeCost: 0, unrealizedPL: 0, expirationPL: 0 }
   );
 
   return (
@@ -222,9 +230,16 @@ export default function SpreadTable({ spreads: allSpreads, accountId, onClose, o
                   : riskText(s, fmtMoney)}
               </td>
               <td className={`${td} text-right`} title={basisNote(s)}>
-                {s.adjusted ? "—" : fmtMoney(s.breakEven)}
+                {/* Same as the card: a null lower break-even on a structure
+                    that HAS an upper one means there is none below, not that
+                    it is unknown. "— – $376.31" said the wrong thing. */}
+                {s.adjusted
+                  ? "—"
+                  : s.breakEven == null && s.breakEvenHigh != null
+                    ? `Below ${fmtMoney(s.breakEvenHigh)}`
+                    : fmtMoney(s.breakEven)}
                 {s.basisSource === "adjusted" && <span className="ml-1 text-[10px] text-emerald-600" title="Premiums collected on this name have been subtracted">adj</span>}
-                {!s.adjusted && s.breakEvenHigh != null && (
+                {!s.adjusted && s.breakEven != null && s.breakEvenHigh != null && (
                   <span className="text-slate-400"> – {fmtMoney(s.breakEvenHigh)}</span>
                 )}
               </td>
@@ -268,7 +283,12 @@ export default function SpreadTable({ spreads: allSpreads, accountId, onClose, o
               <td className={`${td} text-[11px] uppercase tracking-wider text-slate-500`}>Totals</td>
               <td className={td} colSpan={10}></td>
               <td className={`${td} text-right`}>{fmtMoney(totals.totalCredit)}</td>
-              <td className={`${td} text-right`}>{fmtMoney(totals.maxRisk)}</td>
+              <td
+                className={`${td} text-right`}
+                title={totals.riskComplete ? undefined : "At least this much — a position here has no maximum loss, so it is not in this total."}
+              >
+                {fmtMoney(totals.maxRisk)}{totals.riskComplete ? "" : "+"}
+              </td>
               <td className={td} colSpan={3}></td>
               <td className={`${td} text-right`}>{fmtMoney(totals.closeCost)}</td>
               <td className={`${td} text-right ${totals.unrealizedPL > 0 ? "text-emerald-600" : totals.unrealizedPL < 0 ? "text-rose-600" : ""}`}>

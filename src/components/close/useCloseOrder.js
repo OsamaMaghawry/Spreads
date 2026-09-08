@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { nextLimit } from "@/lib/closeWalk";
-import { spreadLegs } from "@/lib/spreadLegs";
+import { spreadLegs, needsExplicitLegs } from "@/lib/spreadLegs";
 
 const WALK_INTERVAL = 30000;
 const POLL = 2000;
@@ -34,11 +34,7 @@ const legWire = (l) => ({
   ...(l.assetClass ? { assetClass: l.assetClass } : {})
 });
 const wholeParams = (spread) => {
-  // A single-leg position has no second symbol, and the paired form would send
-  // the broker a multi-leg order with a null leg in it. Its "whole position" IS
-  // one leg, so it takes the explicit-legs path that closeSpread already
-  // handles as a plain single-leg order.
-  if (spread.single) {
+  if (needsExplicitLegs(spread)) {
     return { legs: spreadLegs(spread).map(legWire) };
   }
   return {
@@ -188,7 +184,8 @@ export default function useCloseOrder() {
     const r = restingRef.current;
     if (!r) throw new Error("There is no resting order to change.");
     const next = round2(Number(price));
-    if (!(next > 0)) throw new Error("Enter a price above zero.");
+    // Zero is not a price; a negative one is a credit, which is legitimate.
+    if (!Number.isFinite(next) || next === 0) throw new Error("Enter a price.");
     try {
       const res = await invoke("manageOrder", { accountId: r.accountId, orderId: r.orderId, action: "replace", limitPrice: next });
       restingRef.current = { ...r, orderId: res.orderId };

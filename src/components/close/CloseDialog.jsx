@@ -8,11 +8,12 @@ import OrderLog from "./OrderLog";
 import OpenOrdersPanel from "./OpenOrdersPanel";
 import ConfirmSubmit from "@/components/common/ConfirmSubmit";
 import LegPicker from "./LegPicker";
-import { spreadLegs, legLabel } from "@/lib/spreadLegs";
+import { spreadLegs, legLabel, needsExplicitLegs } from "@/lib/spreadLegs";
 import LegsQuoteSummary from "./LegsQuoteSummary";
 import PriceControl from "@/components/common/PriceControl";
 import NumberField from "@/components/common/NumberField";
 import useMarketStream from "@/lib/useMarketStream";
+import { walkStart as walkStartPrice } from "@/lib/closeWalk";
 import { kindOf } from "@/lib/positionKind";
 import RestingOrder from "@/components/open/RestingOrder";
 
@@ -107,7 +108,12 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
       action: l.action,
       ...(l.assetClass ? { assetClass: l.assetClass } : {})
     });
-    const wholeLegs = spread.single ? spreadLegs(spread).map(wire) : null;
+    // The same routing decision useCloseOrder makes for the order itself: a
+    // structure the paired form cannot describe is QUOTED as explicit legs
+    // too, or the ticket prices one position and closes another. That is what
+    // put "+$1,053.00" on a screen for a position worth -$319.50 -- the quote
+    // was of a 1x1 the account does not hold.
+    const wholeLegs = needsExplicitLegs(spread) ? spreadLegs(spread).map(wire) : null;
     const body = {
       accountId: account.id,
       ...(customLegs
@@ -178,11 +184,24 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   // Using the option arithmetic here would have overstated a share close by
   // exactly 100x on a real position.
   const isShares = !!spread.shares;
+  // Closing this structure PAYS the account rather than costing it. True of a
+  // debit vertical, a ratio whose long is worth more than its shorts, and any
+  // net-long position -- and the whole-position readout had no word for it.
+  const closeIsCredit = !isShares && midDebit < 0;
+
   const multiplier = isShares ? 1 : 100;
   const plPerContract = isShares
     ? (Math.abs(plDebit) - (spread.shareBasis ?? spread.longEntryPrice ?? 0)) * multiplier
     : (spread.netCredit - plDebit) * multiplier;
-  const unit = isShares ? "share" : spread.type === "iron_condor" ? "condor" : "contract";
+  // What ONE of the thing being closed is. A ratio's unit is three contracts,
+  // so "Total P/L for 1 contract" was wrong in the noun as well as the number.
+  const unit = isShares
+    ? "share"
+    : spread.type === "iron_condor"
+      ? "condor"
+      : spread.type === "call_ratio_spread"
+        ? "ratio"
+        : "contract";
   // Resume from the highest price already attempted — either this session's memory
   // or the last limit price Alpaca has on record for this spread.
   const attempts = [getLastDebit(account.id, spread, customLegs), quote?.lastAttemptDebit].filter(
@@ -193,15 +212,21 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   // price for a share, so the fallback is options-only. Shares price manually
   // and refuse to submit without a real number rather than invent one.
   const baseDebit = quote ? midDebit : isShares ? null : 0.3;
-  const walkStart = lastDebit !== null ? Math.max(lastDebit, baseDebit) : baseDebit;
+  // Clamped to the same ceiling every later step obeys. Taking the max of the
+  // resumed price and the mid, unclamped, is what let a stale $9.89 start a
+  // walk on a structure quoted at -7.01/-6.43: above the ceiling from the
+  // first step, so nextLimit returned it unchanged and the ticket sat there
+  // promising "never bids above the ask + $0.05" while breaching it by $16.
+  const startFromWalk = walkStartPrice(baseDebit, lastDebit, quote);
+  const clamped = lastDebit !== null && startFromWalk !== null && startFromWalk < lastDebit;
   const orderType = priceMode === "market" ? "market" : "limit";
   // What actually gets sent. Manual uses the number in the stepper; the walk
   // uses its own resume-aware starting point.
   // In manual mode the price is the user's instruction and nothing else may
   // stand in for it. Falling back to walkStart here would arm the submit button
   // at an invented $0.30 whenever no quote had arrived to seed the stepper.
-  const startDebit = priceMode === "manual" ? manualPrice : walkStart;
-  const manualReady = typeof manualPrice === "number" && manualPrice > 0;
+  const startDebit = priceMode === "manual" ? manualPrice : startFromWalk;
+  const manualReady = typeof manualPrice === "number" && Number.isFinite(manualPrice) && manualPrice !== 0;
 
   // Seed the stepper from the mid once a quote lands, and only then: opening it
   // at a stale or invented number is how someone ends up resting an order at a
@@ -211,8 +236,13 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
     if (manualPrice !== null || !quote) return;
     // A share sale quotes as a negative debit, so the options guard (> 0) never
     // fired and the stepper stayed empty on every share position.
+    // A credit-to-close structure seeds NEGATIVE, and the old `> 0` guard
+    // dropped it: no seed, no chips, and a stepper that clamped anything the
+    // user typed to $0.01. Manual close of a debit vertical was impossible,
+    // or -- if they typed the magnitude on screen -- submitted with the
+    // opposite sign, paying what they should have been paid.
     const seed = spread.shares ? Math.abs(midDebit) : midDebit;
-    if (seed > 0) setManualPrice(Math.round(seed * 100) / 100);
+    if (Number.isFinite(seed) && seed !== 0) setManualPrice(Math.round(seed * 100) / 100);
   }, [quote, midDebit, manualPrice, spread.shares]);
 
   // A different position, or a different set of legs, is a different price.
@@ -340,9 +370,29 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                     </>
                   ) : (
                     <>
-                      <span className="text-slate-500">Entry credit / {unit}</span><span className="text-right">{fmtMoney(spread.netCredit)}</span>
-                      <span className="text-slate-500">Mid debit to close</span><span className="text-right">{fmtMoney(midDebit)}</span>
-                      <span className="text-slate-500">Bid / Ask debit</span><span className="text-right">{fmtMoney(quote.bidDebit)} / {fmtMoney(quote.askDebit)}</span>
+                      {/* Credit-aware, the way LegsQuoteSummary already was.
+                          The same quantity was labelled "Mid debit to close
+                          -$6.72" on this tab and "Mid credit" on that one --
+                          two readouts of one number in one dialog, one of them
+                          telling the reader to pay what they would receive. */}
+                      <span className="text-slate-500">
+                        {spread.netCredit < 0 ? "Entry debit" : "Entry credit"} / {unit}
+                      </span>
+                      <span className="text-right">{fmtMoney(Math.abs(spread.netCredit))}</span>
+                      <span className="text-slate-500">
+                        {closeIsCredit ? "Mid credit to close" : "Mid debit to close"}
+                      </span>
+                      <span className={`text-right ${closeIsCredit ? "text-emerald-600" : ""}`}>
+                        {fmtMoney(Math.abs(midDebit))}
+                      </span>
+                      <span className="text-slate-500">
+                        {closeIsCredit ? "Credit range (bid / ask)" : "Bid / Ask debit"}
+                      </span>
+                      <span className="text-right">
+                        {closeIsCredit
+                          ? `${fmtMoney(Math.abs(quote.askDebit))} / ${fmtMoney(Math.abs(quote.bidDebit))}`
+                          : `${fmtMoney(quote.bidDebit)} / ${fmtMoney(quote.askDebit)}`}
+                      </span>
                     </>
                   )}
                   <span className="text-slate-500">P/L per {unit} {plAt}</span>
@@ -441,9 +491,16 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                 ? null
                 : orderType === "limit"
                 ? lastDebit !== null
-                  ? `Limit resumes from your last attempt at ${fmtMoney(lastDebit)} — starting at ${fmtMoney(startDebit)} and stepping toward the ask every 30s until it fills. Never bids above the ask + $0.05. Stops after 10 min.`
-                  : midDebit < 0
-                    ? `Limit starts at the mid credit (${fmtMoney(Math.abs(midDebit))}) and concedes $0.02 every 30s (max 10 steps, 10 min timeout).`
+                  ? clamped
+                    // Said out loud rather than silently applied: the resumed
+                    // price was past the ceiling, so the walk does not start
+                    // there. The version of this sentence that claimed the
+                    // ceiling while displaying a start above it is what made
+                    // $9.89 look deliberate.
+                    ? `Your last attempt was ${fmtMoney(lastDebit)}, which is past what the market will bear — starting at ${fmtMoney(startDebit)} instead and stepping every 30s until it fills. Never bids above the ask + $0.05. Stops after 10 min.`
+                    : `Limit resumes from your last attempt at ${fmtMoney(lastDebit)} — starting at ${fmtMoney(startDebit)} and stepping toward the ask every 30s until it fills. Never bids above the ask + $0.05. Stops after 10 min.`
+                  : closeIsCredit
+                    ? `Closing this PAYS you. The limit starts at the mid credit (${fmtMoney(Math.abs(midDebit))}) and gives up a little every 30s until it fills. Never concedes past the bid − $0.05. Stops after 10 min.`
                     : `Limit starts at the mid debit (${fmtMoney(midDebit)}) and steps toward the ask every 30s until it fills — bigger steps on a wider market. Never bids above the ask + $0.05. Stops after 10 min.`
                 : "Market executes immediately at the current best price — may slip toward the ask."}
             </p>
@@ -454,7 +511,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                 openOrders.length > 0
                   ? "Cancel the open order first"
                   : customLegs
-                    ? `Close ${customLegs.length} selected leg${customLegs.length > 1 ? "s" : ""} (${orderType})`
+                    ? `Close ${customLegs.length} selected leg${customLegs.length > 1 ? "s" : ""} (${priceMode === "market" ? "market" : priceMode === "manual" ? "limit" : "walk"})`
                     : mode === "legs"
                       ? "Select legs to close"
                       : priceMode === "manual"

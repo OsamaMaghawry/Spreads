@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nextLimit, ASK_BUFFER, MIN_STEP, BLIND_STEP } from "./closeWalk.js";
+import { nextLimit, ASK_BUFFER, MIN_STEP, BLIND_STEP, walkStart, walkCeiling } from "./closeWalk.js";
 
 // Walk a market to completion the way the dialog does, so the assertions are
 // about the behaviour a trader actually gets rather than one arithmetic step.
@@ -78,4 +78,42 @@ test("prices stay at two decimals, which is all an exchange accepts", () => {
   for (const p of walk(0.07, 0.93)) {
     assert.equal(p, Math.round(p * 100) / 100, `${p} is not a round cent`);
   }
+});
+
+// --- The start of the walk, which nothing used to check -------------------
+
+test("a resumed price never starts the walk above the ceiling", () => {
+  // The live case: a stale $9.89 single-leg limit resumed onto a structure
+  // quoted at -7.01 / -6.43. Unclamped it started above ask + 0.05, so
+  // nextLimit returned it unchanged forever and the order would have paid
+  // $989 to close a position the market would have PAID $643 to close.
+  const quote = { bidDebit: -7.01, askDebit: -6.43 };
+  assert.equal(walkStart(-6.72, 9.89, quote), -6.38, "clamped to ask + 0.05");
+  assert.equal(nextLimit(walkStart(-6.72, 9.89, quote), quote), -6.38, "and it is already there");
+});
+
+test("a resumed price inside the ceiling still carries the walk forward", () => {
+  const quote = { bidDebit: 6.64, askDebit: 7.37 };
+  assert.equal(walkStart(7.0, 7.2, quote), 7.2, "resume from where the last attempt got to");
+  assert.equal(walkStart(7.0, null, quote), 7.0, "no prior attempt: the mid");
+});
+
+test("a credit-to-close structure walks from its own side of the market", () => {
+  // Every figure is negative; "further along" still means giving up more.
+  const quote = { bidDebit: -8.4, askDebit: -8.0 };
+  assert.equal(walkStart(-8.2, null, quote), -8.2);
+  assert.equal(walkStart(-8.2, -8.1, quote), -8.1);
+  assert.equal(walkStart(-8.2, 3.0, quote), -7.95, "a stale debit cannot drag a credit close upward");
+});
+
+test("with no quote there is no ceiling, and the walk still starts somewhere", () => {
+  assert.equal(walkStart(0.3, null, null), 0.3);
+  assert.equal(walkStart(0.3, 1.2, null), 1.2);
+  assert.equal(walkStart(null, null, null), null);
+});
+
+test("walkCeiling is the promise the ticket makes, in one place", () => {
+  assert.equal(walkCeiling({ askDebit: 7.37 }), 7.42);
+  assert.equal(walkCeiling({ askDebit: -6.43 }), -6.38);
+  assert.equal(walkCeiling(null), null);
 });

@@ -1,3 +1,21 @@
+// Structures the shortSymbol/longSymbol/putRatio form cannot describe, which
+// therefore go to the broker as explicit legs.
+//
+//   single      -- one leg, and the paired form would send a null second leg.
+//   call ratio  -- more shorts than longs. The paired form carries ONE ratio
+//                  for both legs, so a 1x2 was quoted and ORDERED as 1x1: the
+//                  ticket said "Close 1x352.50 / 2x362.50", sent buy 1 / sell
+//                  1, reported "filled", and left a short 362.50 open with
+//                  $581 of intrinsic in it. Naming the position correctly on
+//                  the card and then describing a different one on the wire is
+//                  the worst of both.
+//
+// spreadLegs already emits both legs with their real ratios, and closeSpread
+// already accepts an explicit leg list, so this is a routing decision rather
+// than a new wire format to get right in four places.
+export const needsExplicitLegs = (spread) => !!spread.single || spread.type === "call_ratio_spread";
+
+
 // Breaks a paired spread/condor back into its individual option legs so a user
 // can close any single leg or subset instead of the whole structure.
 export function spreadLegs(spread) {

@@ -49,14 +49,27 @@ export default function PriceControl({
 
   // Stepping from nothing needs a starting point, and the mid is the honest one.
   const from = () => (empty ? (typeof mid === "number" ? mid : typeof bid === "number" ? bid : 0.01) : price);
-  const set = (v) => onChange(Math.max(0.01, round2(v)));
+  // A close that PAYS the account is a negative number here, and clamping to a
+  // cent floor made one impossible to express: no seed, no chips, and anything
+  // typed rewritten to $0.01. Someone reading "mid credit $8.00" off the screen
+  // and typing 8 would submit an $800 DEBIT -- paying what they were owed, a
+  // $1,600 swing per contract. The floor now follows the side of the market the
+  // quote is on, and zero is still refused because zero is not a price.
+  const credit = typeof mid === "number" ? mid < 0 : side === "credit";
+  const set = (v) => {
+    const n = round2(v);
+    if (!Number.isFinite(n)) return;
+    onChange(credit ? Math.min(-0.01, n) : Math.max(0.01, n));
+  };
 
   const chips = [
     { label: "Bid", value: bid },
     { label: "Mid", value: mid },
     { label: "Ask", value: ask },
     { label: "Last", value: last }
-  ].filter((c) => typeof c.value === "number" && isFinite(c.value) && c.value > 0);
+    // Non-zero rather than positive: on a credit-to-close structure every one
+    // of these is negative and the whole row used to disappear.
+  ].filter((c) => typeof c.value === "number" && isFinite(c.value) && c.value !== 0);
 
   const pos = markPosition({ price, bid, ask });
   const verdict = verdictFor({ price, bid, ask, side });

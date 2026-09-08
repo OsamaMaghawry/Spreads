@@ -19,7 +19,13 @@ export default function PositionCard({ spread: s, accountId, onClose, onTicker }
     value: s.adjusted
       ? "—"
       : s.breakEvenHigh != null
-        ? `${fmtMoney(s.breakEven)} – ${fmtMoney(s.breakEvenHigh)}`
+        // A credit ratio has no LOWER break-even: it is profitable all the way
+        // down. The null was correct and the range render turned it into an em
+        // dash, which everywhere else on this card means "withheld" — so it
+        // read as unknown risk below, where there is none. Said plainly.
+        ? s.breakEven == null
+          ? `Below ${fmtMoney(s.breakEvenHigh)}`
+          : `${fmtMoney(s.breakEven)} – ${fmtMoney(s.breakEvenHigh)}`
         : fmtMoney(s.breakEven),
     title: basisNote(s)
   };
@@ -69,7 +75,13 @@ export default function PositionCard({ spread: s, accountId, onClose, onTicker }
         { label: "Qty", value: s.qty },
         breakEven,
         risk,
-        { label: "Net Credit", value: fmtMoney(s.totalCredit), tone: "text-emerald-600" },
+                // A debit spread's totalCredit is negative, and this printed
+        // "NET CREDIT −$300.00" in green. Money paid is not a credit.
+        {
+          label: s.totalCredit < 0 ? "Net Debit" : "Net Credit",
+          value: fmtMoney(Math.abs(s.totalCredit)),
+          tone: s.totalCredit < 0 ? "text-rose-600" : "text-emerald-600"
+        },
         { label: "Expiry", value: s.expiryFormatted || "—" }
       ];
 

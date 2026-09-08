@@ -4,6 +4,12 @@
 //
 //   deno test --allow-env supabase/functions/_shared/crypto.test.ts
 //
+// DENO ONLY, and deliberately absent from `npm test`: the module under test
+// imports from a jsr: URL, which node's ESM loader refuses outright. Head-of-
+// trading flagged this file as an uncollected test on 8 Sep — it is, but it
+// cannot be collected by that runner, and adding it makes the suite red rather
+// than more thorough. It runs in the Supabase deploy path, which is Deno.
+//
 // Each case imports a fresh module instance via a cache-busting query string,
 // because keys are cached at module scope after first use.
 
