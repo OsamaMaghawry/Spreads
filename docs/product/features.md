@@ -1,10 +1,17 @@
-# Every feature, and what it is worth — 2026-09-02
+# Every feature, and what it is worth — 2026-09-02, daily-patched 2026-09-08
 
 Owned by `vp-product`. Read from the code on `main` at `3a22207` plus the
 `staging` delta (`git diff --stat main staging` = one migration and the
 generated context file; everything shipped on 2 Sep is on `main`). This is the
 inventory the pricing page, the Alpaca fee schedule and the Tuesday product
 run read. Categories use the canonical names in `docs/context/brand.md`.
+
+**2026-09-08 EOD note:** `staging` has pulled well ahead of this table —
+`git diff --stat origin/main origin/staging` now touches 73 files, most of it
+Positions Monitor correctness work and one new feature (P18 below). Rows below
+are still labelled `main`/`staging` per what each one is actually built on;
+this note flags that the gap is now large enough that the next Tuesday run
+should re-walk the whole table against `staging`, not just the delta.
 
 Calls: **FREE** — needed for activation or trust, never gated. **PAID on
 live** — worth money, gated by the live-account line. **NOT YET** — built
@@ -71,6 +78,7 @@ rows, and the watch on `main` threw on every account (fixed the same day,
 | P4 | Live streaming underlying prices, server-side relay, read-only by construction | `marketStream/index.ts`, `src/lib/marketStreamRegistry.js` | main | PAID on live |
 | P5 | Provenance-based leg pairing; unpaired legs never guessed into a condor | `_shared/spreadPairing.ts` | main | FREE |
 | P6 | Single-leg positions: cash-secured puts, covered calls, shares from assignment, long options, naked calls flagged | `_shared/positionKinds.ts`, `src/lib/positionKind.js` | main | PAID on live |
+| P6b | Stock repair (a long call bought against more short calls of a higher strike, over 100+ shares) reads as one `call_ratio_spread` position with its own max risk, close cost and break-evens, instead of splitting across two or three unrelated-looking cards | `_shared/spreadPairing.ts` `pairRatios()`, `_shared/positionKinds.ts` | staging | PAID on live |
 | P7 | Risk that refuses to lie: a naked call's max loss is null and the account reads "X %+" | `positionKinds.ts` `totalRisk()`, `AccountSection.jsx` | main | FREE |
 | P8 | Wheel adjusted cost basis: assignment strike minus every credit collected on the name, labelled adjusted or broker | `_shared/wheelBasis.ts` | main | PAID on live |
 | P9 | Stress-loss risk model: stock-like positions at a 15 % adverse move; stock-to-zero shown separately as Notional | `positionKinds.ts` `stressLossOfKind()`, migration 0023 | main | PAID on live |
@@ -82,6 +90,7 @@ rows, and the watch on `main` threw on every account (fixed the same day,
 | P15 | Moneyness withheld without a trusted price; adjusted contracts withhold width, risk and break-even | `syncAccounts/index.ts` | main | FREE |
 | P16 | Equity at expiration | `syncAccounts/index.ts` | main | FREE |
 | P17 | Condor-aware risk netting per ticker | `syncAccounts/index.ts` | main | FREE |
+| P18 | Per-ticker combined view: every open position on one name priced at the same underlying and summed into a single P/L-at-price curve, swept across a range, so a repair or a wheel shows where the whole name — not just one card — stops losing money | `dashboard/TickerPanel.jsx`, `dashboard/PayoffChart.jsx`, `src/lib/tickerBook.js` | staging | PAID on live |
 
 ## Trade History
 
@@ -150,7 +159,10 @@ Admin with server re-authorisation; activation funnel (signed up → connected
 signups chart; users table with CRM notes, status, tags and connection
 issues; role management; blog CMS and the publish workflow; operator
 switches; credential migration and key rotation; earnings refresh; broker-feed
-dump (`dumpBrokerFeed`, migration 0024 on staging); last-active stamping via
+dump (`dumpBrokerFeed`, migration 0024 on staging), which as of 2026-09-08
+(migration 0028, staging) also captures an account's raw open positions and
+orders alongside its activity feed, so a "DeltaMint is missing a position"
+report can be checked against what the broker actually sent; last-active stamping via
 a security-definer RPC. `oauthDiag` is reachable by any signed-in user —
 handed to systems-engineer.
 
