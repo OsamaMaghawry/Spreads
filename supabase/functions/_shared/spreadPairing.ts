@@ -415,7 +415,25 @@ export function pairSpreads(positions, activities, filledOrders = [], { cash = n
   Object.values(shareLots).forEach((lot) => {
     const left = sharesLeft[lot.ticker] || 0;
     if (Math.abs(left) < 1) return; // fully committed to covered calls
-    singles.push(toSharePosition({ ...lot, qty: left, marketValue: lot.marketValue * (left / lot.qty) }));
+    // qtyAvailable must be re-cut to this row too.
+    //
+    // It was carried through from the parent lot, so a row reporting 10 free
+    // shares handed the close ticket the broker's 210 — and the ticket
+    // defaults to qtyAvailable. On a live account that is one confirm away
+    // from selling the whole holding and turning two covered calls naked. The
+    // row may only ever offer what the row says it is.
+    const available = Math.min(
+      Math.abs(lot.qtyAvailable ?? lot.qty),
+      Math.abs(left)
+    );
+    singles.push(
+      toSharePosition({
+        ...lot,
+        qty: left,
+        qtyAvailable: available,
+        marketValue: lot.marketValue * (left / lot.qty)
+      })
+    );
   });
 
   return [...mergeIdentical([...proven, ...loose].filter((s) => s.qty > 0)), ...singles];

@@ -50,7 +50,14 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   // "qty available for order (requested: 10, available: 5)". The ticket used to
   // offer the whole holding, so the only way to discover the five already
   // committed was to have the order rejected.
-  const maxQty = Math.max(1, Number(spread.qtyAvailable ?? spread.qty) || spread.qty);
+  // Never offer more than the row itself says it holds. qtyAvailable is the
+  // broker's "free to sell" figure, and on a share lot partly written against
+  // covered calls it used to arrive as the WHOLE holding on a row showing the
+  // uncommitted remainder — 210 offered on a row reading 10. The ticket is
+  // the last thing between a misread field and a sold position, so it clamps
+  // here as well as at the source.
+  const rowQty = Math.abs(Number(spread.qty)) || 1;
+  const maxQty = Math.max(1, Math.min(rowQty, Number(spread.qtyAvailable ?? spread.qty) || rowQty));
   const heldForOrders = Math.max(0, Number(spread.qty) - Number(spread.qtyAvailable ?? spread.qty));
   const qty = Math.max(1, Math.min(maxQty, parseInt(qtyInput, 10) || 1));
 
@@ -61,7 +68,12 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
 
   useEffect(() => {
     // Defaults to what can actually be sold, not to the whole holding.
-    setQtyInput(String(Math.max(1, Number(spread.qtyAvailable ?? spread.qty) || spread.qty)));
+    setQtyInput(String(
+      Math.max(1, Math.min(
+        Math.abs(Number(spread.qty)) || 1,
+        Number(spread.qtyAvailable ?? spread.qty) || Math.abs(Number(spread.qty)) || 1
+      ))
+    ));
     setOpenOrders(spread.openOrders || []);
     setMode(spread.presetLegSymbol ? "legs" : "whole");
     setSelected(spread.presetLegSymbol ? [spread.presetLegSymbol] : []);

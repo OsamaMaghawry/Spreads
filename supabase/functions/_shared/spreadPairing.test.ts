@@ -204,3 +204,25 @@ test("a genuine vertical from one order still pairs", () => {
   assert.equal(out[0].type, "call_spread");
   assert.equal(out[0].qty, 1);
 });
+
+// The share row must never offer more than it says it holds.
+//
+// qtyAvailable was carried from the parent lot, so a row reporting the
+// uncommitted remainder handed the close ticket the broker's whole holding —
+// 210 offered on a row reading 10. The close ticket defaults to qtyAvailable,
+// so that was one confirm from selling the entire position and turning two
+// covered calls naked.
+test("a partly written share lot never offers more than it holds", () => {
+  const positions = [
+    { symbol: "TSLA", qty: "210", qty_available: "210", avg_entry_price: "364.31", current_price: "364.80", market_value: "76608" },
+    { symbol: "TSLA260918C00362500", qty: "-2", avg_entry_price: "8.69", current_price: "12.10" }
+  ];
+  const out = pairSpreads(positions, [], [], { cash: 0 });
+  const shares = out.find((p) => p.type === "shares" && p.ticker === "TSLA");
+  assert.ok(shares, "the free shares must still be reported");
+  assert.equal(shares.qty, 10);
+  assert.ok(
+    shares.qtyAvailable <= shares.qty,
+    `offered ${shares.qtyAvailable} on a row holding ${shares.qty}`
+  );
+});
