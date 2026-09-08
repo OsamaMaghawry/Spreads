@@ -10,14 +10,26 @@ why, is in §3.
 
 ## 1. Current state
 
-- **No billing exists.** No Stripe code, no plan column, no subscription
-  table. (Being built on staging, 2 Sep — see `docs/ops/queue.md`.)
-- **A pricing page is published** at `/pricing` with Paper $0 / Pro $39 /
-  Desk $99 and a nine-row matrix of which at least seven rows are false
-  against the code: position caps, account caps, condors Pro-only,
-  single-leg closing Pro-only, risk aggregation Desk-only, PDF Desk-only,
-  "60-second auto-refresh". All three buttons go to `/register`. It is
-  replaced by the two-tier page below at the Stripe switch.
+- **Billing is built, and switched off.** Stripe checkout, the billing
+  portal and the webhook handler (`supabase/functions/createCheckoutSession`,
+  `billingPortal`, `stripeWebhook`, `_shared/stripe.ts`) exist and are wired
+  end to end — corrected 2026-09-08; this section previously said "no
+  billing exists," which stopped being true once that code shipped and went
+  uncorrected for five days (flagged by `docs/reality/2026-W37.md`).
+  `_shared/entitlement.ts` gates every live-order path behind
+  `app_settings.billing_enforced`, seeded `false` in migration `0025`; the
+  Billing screen itself is further hidden behind `billing_visible`, also
+  `false` (migration `0027`). Nothing is charged, gated, or shown to a user
+  until the owner flips both. Stripe test-mode setup (products, prices,
+  webhook secret) is still an open `needs owner` ticket in
+  `docs/ops/queue.md` — the code is ready; the account isn't.
+- **The pricing page is already correct.** `/pricing` now reads "Paper is
+  free. Live is $29 a month, flat," with $290/yr and the first-30-days-free
+  line — matching this file's §2 exactly (verified against
+  `landing/public/pricing/index.html` 2026-09-08). The nine-row
+  false-matrix this section used to describe (Pro $39/Desk $99, condors
+  Pro-only, etc.) is gone; that page shipped 2026-09-02 and the homepage
+  around it was rebuilt from the product itself 2026-09-07.
 - Pre-revenue; Alpaca live-trading approval pending. Paper is free by design.
 - Our marginal cost per free user is Supabase invocations, not broker data:
   every broker call runs on the user's own token or keys, and the price
@@ -74,6 +86,21 @@ buys the cash without teaching the first cohort that list price is soft.
 One line on the page, no price, no date. See §4.
 
 ## 3. Why $29, and what moved since the $19 case
+
+**Reconciliation, 2026-09-08:** a second, independent ground-up pricing pass
+(`docs/product/positioning-independent.md`, written 2026-09-01, explicitly
+without reading this file) reached $19/mo, one tier, switched on only after
+25 live activations. The Friday board pack (`docs/board/2026-W36.md`,
+decision 1) flagged the two as disagreeing and unresolved. They are not two
+live proposals — `positioning-independent.md` is dated the same day as, and
+makes the same case as, "the 1 Sep pitch" this section already names and
+supersedes below. Its own text was written before the 1–2 Sep shipments
+(wheel, adjusted basis, stress model, Orders tab) landed, so it under-counts
+the product by the same margin the table below corrects for. No new
+evidence has arrived since 2 Sep that reopens $19; the $29/$290 decision
+stands, per this run's instruction not to reopen a decided line without new
+evidence. `positioning-independent.md` is left in place as a record of the
+independent method the owner asked for, not as a competing live number.
 
 | 1 Sep claim | Today |
 | --- | --- |
@@ -157,7 +184,9 @@ accounts. A $59 subscriber counts once.
 ## 6. Decisions for the owner
 
 1. Replace the live pricing page at the Stripe switch, or reduce it now to
-   one line. Not leave it.
+   one line. Not leave it. **Done** — the page already reads Paper $0 / Live
+   $29–$290, verified against the repo 2026-09-08; only the Stripe
+   test-mode setup (item 3) and the enforcement flip remain.
 2. Live at $29 / $290, held for 60 days.
 3. Charge from the first live connection after the switch date; 30 days
    free on Live; everyone connected before the switch free for 90 days.

@@ -8,7 +8,9 @@ recorded below, as prominently as additions.
 Every entry carries: the user problem in the user's words, its evidence, the
 smallest test that could disprove it, the kill criterion, and a cost guess.
 
-Last run: **2026-09-01** (vp-product, Tuesday cadence).
+Last run: **2026-09-08** (vp-product, Tuesday cadence). Previous run
+2026-09-01; reconciled against every daily note in `docs/product/daily/`
+(02/03/04 Sep) plus `docs/ops/shipped.md` through 07 Sep.
 
 ## Open proposals
 
@@ -16,7 +18,20 @@ Last run: **2026-09-01** (vp-product, Tuesday cadence).
 proposal and found that a second's test rested on data that does not exist, so
 the honest state is fewer, better-tested entries, not five.
 
-What changed this run, in one line each:
+**Reconciliation, 2026-09-08 — none of the three shipped or half-shipped.**
+Checked directly, not assumed: `git log` on `_shared/optionScan.ts`,
+`ResultsTable.jsx`, `scanEntries/`, `findEntry/` shows no commit since
+2026-09-01; `supabase/migrations/` has no `scan_runs` table (proposal #3's
+own smallest version); `ResultsTable.jsx`'s only `width` column is spread
+strike width (`c.width`), not the quoted bid/ask executable width proposal
+#1 asks for. The week's real shipments — six bug/robustness fixes on
+2026-09-04 (share-order wording, watch dedup, close-ticket trap), Hotjar
+going live, and a full landing-homepage rebuild on 2026-09-07 — all touch
+already-shipped surfaces or marketing, not scanner ranking, columns or
+logging. All three proposals stand exactly as scoped 2026-09-01; no kill
+criterion has new evidence for or against it this week.
+
+What changed last run (2026-09-01), for reference:
 
 - **#1 re-scoped and strengthened.** It now has a *real user*, not a
   constructed one, and the mechanism moved from open interest to quoted
