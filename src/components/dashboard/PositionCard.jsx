@@ -8,7 +8,7 @@ import { dayChange, dayChangeLabel } from "@/lib/dayChange";
 
 const badge = "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border";
 
-export default function PositionCard({ spread: s, accountId, onClose }) {
+export default function PositionCard({ spread: s, accountId, onClose, onTicker }) {
   const [open, setOpen] = useState(false);
   // The UNDERLYING's move today -- not this position's return, which is the
   // unrealized P/L on the other side of the header. Labelled for that reason.
@@ -77,7 +77,17 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
       <div className="flex items-start justify-between gap-4 px-6 pt-5">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xl font-bold tracking-tight text-slate-900">{s.ticker}</span>
+          {onTicker ? (
+            <button
+              onClick={() => onTicker(s.ticker)}
+              className="text-xl font-bold tracking-tight text-slate-900 underline decoration-slate-300 underline-offset-4 hover:decoration-slate-900"
+              title={`Everything on ${s.ticker}, combined`}
+            >
+              {s.ticker}
+            </button>
+          ) : (
+            <span className="text-xl font-bold tracking-tight text-slate-900">{s.ticker}</span>
+          )}
           {change && (
             <span
               title={`${s.ticker} today, against yesterday's close of ${fmtMoney(s.prevClose)}`}

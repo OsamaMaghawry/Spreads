@@ -11,9 +11,19 @@ const td = "px-2.5 py-4 whitespace-nowrap tabular-nums";
 
 const COL_COUNT = 21;
 
-export default function SpreadTable({ spreads, accountId, onClose }) {
+export default function SpreadTable({ spreads: allSpreads, accountId, onClose, onTicker }) {
   const [expanded, setExpanded] = useState({});
+  const [filter, setFilter] = useState(null);
   const toggle = (key) => setExpanded((e) => ({ ...e, [key]: !e[key] }));
+
+  // One chip per ticker, with how many rows it has. An account holding one
+  // name does not need a filter, and a row of chips that never changes
+  // anything is furniture.
+  const byTicker = [...new Set(allSpreads.map((s) => s.ticker).filter(Boolean))]
+    .map((t) => ({ ticker: t, n: allSpreads.filter((s) => s.ticker === t).length }))
+    .sort((a, b) => b.n - a.n || a.ticker.localeCompare(b.ticker));
+  const spreads = filter ? allSpreads.filter((s) => s.ticker === filter) : allSpreads;
+
   const totals = spreads.reduce(
     (a, s) => ({
       totalCredit: a.totalCredit + (s.totalCredit || 0),
@@ -26,6 +36,46 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
   );
 
   return (
+    <>
+      {byTicker.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1.5 px-4 py-3 border-b border-slate-100">
+          <button
+            onClick={() => setFilter(null)}
+            className={`text-xs font-medium rounded-full px-2.5 py-1 border transition-colors ${
+              filter === null
+                ? "border-slate-300 bg-slate-100 text-slate-900"
+                : "border-slate-200 text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            All
+          </button>
+          {byTicker.map((t) => (
+            <button
+              key={t.ticker}
+              onClick={() => setFilter(filter === t.ticker ? null : t.ticker)}
+              className={`text-xs font-medium rounded-full px-2.5 py-1 border transition-colors ${
+                filter === t.ticker
+                  ? "border-slate-300 bg-slate-100 text-slate-900"
+                  : "border-slate-200 text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              {t.ticker} <span className="tabular-nums text-slate-400">{t.n}</span>
+            </button>
+          ))}
+          {/* Filtering shows the pieces; this adds them up. The columns here
+              are per-structure — a share row's net credit beside a ratio's
+              means nothing added together — so the combined view is its own
+              screen rather than a totals row that would lie. */}
+          {filter && onTicker && (
+            <button
+              onClick={() => onTicker(filter)}
+              className="ml-1 text-xs font-medium rounded-full px-2.5 py-1 border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+            >
+              {filter} combined →
+            </button>
+          )}
+        </div>
+      )}
     <div className="overflow-x-auto">
       <table className="w-full text-sm text-slate-700">
         <thead>
@@ -76,7 +126,17 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
                 </button>
               </td>
               <td className={`${td} font-semibold text-slate-900`}>
-                {s.ticker}
+                {onTicker ? (
+                  <button
+                    onClick={() => onTicker(s.ticker)}
+                    className="underline decoration-slate-300 underline-offset-4 hover:decoration-slate-900"
+                    title={`Everything on ${s.ticker}, combined`}
+                  >
+                    {s.ticker}
+                  </button>
+                ) : (
+                  s.ticker
+                )}
                 {s.type === "iron_condor" && (
                   <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
                     IC
@@ -223,5 +283,6 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
         </tbody>
       </table>
     </div>
+    </>
   );
 }

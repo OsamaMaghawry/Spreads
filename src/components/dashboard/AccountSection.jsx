@@ -4,6 +4,7 @@ import SpreadTable from "./SpreadTable";
 import PositionCards from "./PositionCards";
 import OrderGroup from "./OrderGroup";
 import useMarketStream from "@/lib/useMarketStream";
+import TickerPanel from "./TickerPanel";
 import { AlertTriangle, LayoutGrid, Table2 } from "lucide-react";
 
 // A streamed trade older than this is not a live price any more. Thirty seconds
@@ -15,6 +16,8 @@ const LIVE_MAX_AGE_MS = 30_000;
 export default function AccountSection({ account, onCloseSpread, onOrdersChanged }) {
   const [view, setView] = useState("simple");
   const [tab, setTab] = useState("positions");
+  // Which name the combined view is open on. Null is closed.
+  const [ticker, setTicker] = useState(null);
   const orders = account.orders || [];
 
   const tickers = useMemo(
@@ -224,14 +227,25 @@ export default function AccountSection({ account, onCloseSpread, onOrdersChanged
           spreads={spreads}
           accountId={account.id}
           onClose={(spread) => onCloseSpread(account, spread)}
+          onTicker={setTicker}
         />
       ) : (
         <SpreadTable
           spreads={spreads}
           accountId={account.id}
           onClose={(spread) => onCloseSpread(account, spread)}
+          onTicker={setTicker}
         />
       )}
+
+      {/* Reads the SAME overlaid rows the cards do, so the combined curve
+          moves with the stream rather than sitting on the last sync. */}
+      <TickerPanel
+        ticker={ticker}
+        spreads={spreads}
+        open={!!ticker}
+        onOpenChange={(v) => !v && setTicker(null)}
+      />
     </section>
   );
 }
