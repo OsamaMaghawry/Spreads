@@ -3,6 +3,14 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-07 · The blog is live in production: two more posts join the two
+  already there ("What is an options contract", "Credit spread max loss"),
+  all four restructured to lead with points instead of long paragraphs; body
+  text now reads at 17px on a 780px column instead of a 14px UI size; a list
+  item that wraps onto a second line renders as a list instead of a
+  paragraph with stray dashes; the credit-spread post's stale `draft: true`
+  flag (set 3 September, when the file was a 150-word stub) is gone so the
+  2,100-word article it has carried since actually publishes (`fcfefbd`).
 - 2026-09-07 · (staging) The owner's digest email is a card per report — what it
   is, one sentence, up to five points, a button to the full document — instead
   of the whole report pasted into the mail; a stray unclosed asterisk no
