@@ -3,6 +3,9 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-08 · (staging) A share row can no longer offer more shares to sell than it actually holds: the close ticket now clamps its default and its input to the row's own free-share count instead of the parent lot's full quantity, closing a bug where confirming a ticket that read "10 shares" could have sold all 210 and stripped the cover off two live short calls (`c642dcc`).
+- 2026-09-08 · (staging) The dashboard now shows a stock position's true broker quantity with the shares tied up by covered calls named alongside it ("210 (10 free)") instead of silently shrinking the row — and a short call backed by a longer-dated long call of any strike is now correctly shown as covered rather than "Naked call · Unlimited" (`dcb5f5f`).
+- 2026-09-08 · (staging) Fixed a case where two option legs a broker reported could vanish from the Positions Monitor entirely because the pairing engine claimed them for a spread shape they didn't fit (a 1x2 stock-repair ratio, not a vertical) and never gave them back — which had also been making an unrelated covered call misreport as far more shares than it actually held (`92a78ed`).
 - 2026-09-08 · (staging) When a live account's broker positions don't match what DeltaMint shows, support can now settle it: the hourly broker feed capture also records the account's raw open positions and open orders (not just its activity feed), so a report like "there's a position DeltaMint doesn't show" can be checked against what the broker actually sent instead of staying unprovable (`dcd6b34`, migration 0028).
 
 - 2026-09-07 · The blog is live in production: two more posts join the two
