@@ -19,6 +19,33 @@ test("an ordinary market prices", () => {
   assert.equal(quotesRefusal(["X"], { X: { bp: 1.2, ap: 1.4 } }), null);
 });
 
+test("the MIRROR of it: a share with no bid, which head-of-trading found", () => {
+  // The same defect with the sides swapped. bid >= 0 is right for a contract
+  // and wrong for a listed equity: a $746 stock with no bid is a missing side,
+  // not a worthless asset. Priced through the option rule it read as a $373.02
+  // market and armed a sell at $373.03 into a $746.05 offer.
+  const spy = { bp: 0, ap: 746.05 };
+  assert.equal(twoSided(spy, false), true, "as an OPTION this is a real market");
+  assert.equal(twoSided(spy, true), false, "as an EQUITY it is not");
+  assert.equal(midOf(spy, true), null);
+  assert.match(String(quotesRefusal([{ symbol: "SPY", assetClass: "equity" }], { SPY: spy })), /no bid/);
+  // And the asset class must actually travel: judged as a bare symbol it prices.
+  assert.equal(quotesRefusal(["SPY"], { SPY: spy }), null, "which is why callers must pass legs, not symbols");
+});
+
+test("an explicitly null bid is not a bid of zero", () => {
+  // Number(null) === 0, so this passed the finite check and priced as a real
+  // zero bid on an option leg.
+  assert.equal(twoSided({ bp: null, ap: 1.2 }), false);
+  assert.equal(midOf({ bp: null, ap: 1.2 }), null);
+  assert.equal(twoSided({ bp: 1.2, ap: undefined }), false);
+});
+
+test("a locked market is real and crossable", () => {
+  assert.equal(twoSided({ bp: 1.2, ap: 1.2 }), true);
+  assert.equal(twoSided({ bp: 1.2, ap: 1.2 }, true), true);
+});
+
 test("a zero BID is a real market and must stay closable", () => {
   // A deep out-of-the-money contract nobody wants. This is exactly the position
   // a trader most needs to be able to close, so the rule must not refuse it.

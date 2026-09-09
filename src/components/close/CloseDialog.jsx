@@ -37,6 +37,9 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   const [manualPrice, setManualPrice] = useState(null);
   const [quote, setQuote] = useState(null);
   const [quoteLoading, setQuoteLoading] = useState(true);
+  // Why there is no quote, in the server's own words. Null when there is one,
+  // or when the request failed for a reason nobody phrased.
+  const [quoteError, setQuoteError] = useState(null);
   const [mode, setMode] = useState("whole"); // whole | legs
   const [selected, setSelected] = useState([]);
   const [openOrders, setOpenOrders] = useState(spread.openOrders || []);
@@ -131,8 +134,21 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
     };
     const fetchQuote = () =>
       invokeFunction("spreadQuote", body)
-        .then((res) => active && setQuote(res.data?.error ? null : res.data))
-        .catch(() => active && setQuote(null))
+        .then((res) => {
+          if (!active) return;
+          // Keep the REASON, not just the absence. The server names the leg
+          // with no market — "C has no offer right now — bid 3, no ask" — and
+          // mapping every error to null threw that away, leaving the screen to
+          // say "market may be closed", which on a live mid-session SPY quote
+          // with a $746 bid was simply false.
+          setQuote(res.data?.error ? null : res.data);
+          setQuoteError(res.data?.error || null);
+        })
+        .catch(() => {
+          if (!active) return;
+          setQuote(null);
+          setQuoteError(null);
+        })
         .finally(() => active && setQuoteLoading(false));
 
     let timer = null;
@@ -223,10 +239,15 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
     (v) => typeof v === "number" && isFinite(v)
   );
   const lastDebit = attempts.length ? Math.max(...attempts) : null;
-  // $0.30 is a plausible opening bid to close a cheap contract and a nonsense
-  // price for a share, so the fallback is options-only. Shares price manually
-  // and refuse to submit without a real number rather than invent one.
-  const baseDebit = quote ? midDebit : isShares ? null : 0.3;
+  // No quote, no invented start.
+  //
+  // This was `quote ? midDebit : isShares ? null : 0.3` — $0.30 as a plausible
+  // opening bid on a cheap contract. It stopped being defensible once the
+  // server began refusing one-sided markets: the ticket now says in words that
+  // the walk has nothing to start from, and $0.30 is a number reaching an order
+  // underneath that sentence. Options price by hand too when there is no
+  // market, exactly as shares always have.
+  const baseDebit = quote ? midDebit : null;
   // Clamped to the same ceiling every later step obeys. Taking the max of the
   // resumed price and the mid, unclamped, is what let a stale $9.89 start a
   // walk on a structure quoted at -7.01/-6.43: above the ceiling from the
@@ -424,7 +445,9 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                   </span>
                 </div>
               ) : (
-                <span className="text-amber-600">Live quote unavailable — market may be closed.</span>
+                <span className="text-amber-600">
+                  {quoteError || "Live quote unavailable — market may be closed."}
+                </span>
               )}
             </div>
 
@@ -562,7 +585,14 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
               disabled={
                 openOrders.length > 0 ||
                 (mode === "legs" && !customLegs) ||
-                (priceMode === "manual" && !manualReady)
+                (priceMode === "manual" && !manualReady) ||
+                // A walk with no starting price is not a walk. walkStart now
+                // returns null when there is no market to build a ceiling from,
+                // and this is what stops that null reaching an order: without
+                // it the button stayed live and submitted an invented $0.30
+                // underneath a sentence saying the walk had nothing to start
+                // from.
+                (priceMode !== "manual" && orderType === "limit" && startDebit === null)
               }
             />
           </div>

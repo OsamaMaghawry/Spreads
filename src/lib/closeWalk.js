@@ -16,7 +16,6 @@
 export const WALK_FRACTION = 0.34; // share of the remaining gap closed per step
 export const MIN_STEP = 0.01;      // always move a cent, or a tight market stalls
 export const ASK_BUFFER = 0.05;    // never offer more than the ask plus this
-export const BLIND_STEP = 0.02;    // no usable quote: crawl, as a fallback
 
 const round2 = (v) => Math.round(v * 100) / 100;
 
@@ -31,7 +30,13 @@ export function walkCeiling(quote) {
 
 export function nextLimit(debit, quote) {
   const ceiling = walkCeiling(quote);
-  if (ceiling === null) return round2(debit + BLIND_STEP);
+  // No ceiling, no step. This used to blind-step upward by a fixed $0.02, so a
+  // quote that vanished mid-walk turned the ceiling off and let the walk keep
+  // conceding -- twenty steps in ten minutes, unbounded, while the ticket went
+  // on promising "never bids above the ask + $0.05". Holding is the honest
+  // move: the market came back or it did not, and either way the price should
+  // not climb on its own with nothing to measure it against.
+  if (ceiling === null) return round2(debit);
   if (debit >= ceiling) return round2(debit); // already as aggressive as we go
   return round2(Math.min(ceiling, debit + Math.max(MIN_STEP, (ceiling - debit) * WALK_FRACTION)));
 }
@@ -56,6 +61,19 @@ export function walkStart(base, resumed, quote) {
   // resumes at 3.00 rather than restarting at the mid. On a credit-to-close
   // structure every figure is negative and "upward" still means "giving up
   // more", so the same max is right in both directions.
+  // NO CEILING, NO WALK.
+  //
+  // `ceiling === null ? round2(start) : ...` handed back the resumed price
+  // unclamped in exactly the case the clamp exists for. Once the quote gate
+  // began refusing a one-sided market, `quote` arrives null far more often, and
+  // a resumed $6.40 came straight back out while the ticket printed "never bids
+  // above the ask + $0.05" -- the same incident this function was written to
+  // end, restored by a different route.
+  //
+  // A walk is a promise to concede toward a market. With no market there is
+  // nothing to concede toward and nothing to stop at, so the answer is that
+  // this cannot be walked: set a price by hand instead.
+  if (ceiling === null) return null;
   const start = Math.max(...from);
-  return ceiling === null ? round2(start) : round2(Math.min(start, ceiling));
+  return round2(Math.min(start, ceiling));
 }

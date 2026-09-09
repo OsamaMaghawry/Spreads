@@ -130,7 +130,11 @@ Deno.serve(async (req) => {
         throw e;
       }
       await recordAttempt(admin, { ...attempt, brokerOrderId: legOrder.id, status: legOrder.status });
-      return jsonResponse({ orderId: legOrder.id, status: legOrder.status });
+      // The quantity and price AS SENT, because the mleg rescale can change both.
+      // Without these the client keeps comparing the broker's fills (in strategy
+      // units of the rescaled order) against its own pre-scale qty, and a half
+      // filled close reports as filled with the rest still open.
+      return jsonResponse({ orderId: legOrder.id, status: legOrder.status, sentQty, sentLimitPrice: sentPrice });
     }
 
     const body: any = {
@@ -197,7 +201,7 @@ Deno.serve(async (req) => {
     }
     await recordAttempt(admin, { ...attempt, brokerOrderId: order.id, status: order.status });
 
-    return jsonResponse({ orderId: order.id, status: order.status });
+    return jsonResponse({ orderId: order.id, status: order.status, sentQty: whole.qty, sentLimitPrice: whole.limitPrice });
   } catch (error) {
     return jsonResponse({ error: error.message }, 500);
   }

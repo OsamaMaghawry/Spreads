@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nextLimit, ASK_BUFFER, MIN_STEP, BLIND_STEP, walkStart, walkCeiling } from "./closeWalk.js";
+import { nextLimit, ASK_BUFFER, MIN_STEP, walkStart, walkCeiling } from "./closeWalk.js";
 
 // Walk a market to completion the way the dialog does, so the assertions are
 // about the behaviour a trader actually gets rather than one arithmetic step.
@@ -67,11 +67,16 @@ test("a tight market still moves by at least the minimum step", () => {
   assert.ok(next <= 0.85 + 1e-9);
 });
 
-test("with no usable quote it falls back to a small fixed step", () => {
-  assert.equal(nextLimit(0.50, null), 0.52);
-  assert.equal(nextLimit(0.50, { askDebit: null }), 0.52);
-  assert.equal(nextLimit(0.50, { askDebit: NaN }), round(0.50 + BLIND_STEP));
-  function round(v) { return Math.round(v * 100) / 100; }
+test("with no usable quote the walk HOLDS rather than stepping blind", () => {
+  // This used to step by a fixed $0.02 with no ceiling to stop it. Once the quote
+  // gate began refusing one-sided markets, `quote` arrives null far more often,
+  // and twenty blind steps in ten minutes is an unbounded concession made while
+  // the ticket promises "never bids above the ask + $0.05" — a promise it
+  // cannot compute. Holding is the honest move: nothing to measure against,
+  // nothing to concede.
+  assert.equal(nextLimit(0.50, null), 0.50);
+  assert.equal(nextLimit(0.50, { askDebit: null }), 0.50);
+  assert.equal(nextLimit(0.50, { askDebit: NaN }), 0.50);
 });
 
 test("prices stay at two decimals, which is all an exchange accepts", () => {
@@ -106,10 +111,20 @@ test("a credit-to-close structure walks from its own side of the market", () => 
   assert.equal(walkStart(-8.2, 3.0, quote), -7.95, "a stale debit cannot drag a credit close upward");
 });
 
-test("with no quote there is no ceiling, and the walk still starts somewhere", () => {
-  assert.equal(walkStart(0.3, null, null), 0.3);
-  assert.equal(walkStart(0.3, 1.2, null), 1.2);
+test("with no quote there is no ceiling, so there is no walk", () => {
+  // The clamp exists to stop a resumed price starting the walk above the
+  // ceiling. Returning the resumed price unclamped when the ceiling is null
+  // disabled it in exactly the case it was written for: walkStart(0.3, 6.40,
+  // null) handed back 6.40 while the ticket printed "never bids above the ask
+  // + $0.05". On a structure quoted -7.01/-6.43 that pays $640 to close a
+  // position that should pay $643 — the incident this function ended, back by
+  // another route.
+  assert.equal(walkStart(0.3, null, null), null);
+  assert.equal(walkStart(0.3, 1.2, null), null);
+  assert.equal(walkStart(0.3, 6.40, null), null, "the resumed price is not a licence to walk blind");
   assert.equal(walkStart(null, null, null), null);
+  // With a market, it behaves exactly as before.
+  assert.equal(walkStart(0.3, 1.2, { askDebit: 0.8 }), 0.85);
 });
 
 test("walkCeiling is the promise the ticket makes, in one place", () => {

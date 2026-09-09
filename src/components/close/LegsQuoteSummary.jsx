@@ -5,7 +5,20 @@ import { fmtMoney } from "@/lib/format";
 // `multiplier` is 100 for contracts and 1 for shares. Assuming 100 here priced
 // a share close at a hundred times what it costs.
 export default function LegsQuoteSummary({ quote, qty, multiplier = 100 }) {
-  const midDebit = quote.midDebit ?? 0;
+  // `?? 0` here said a missing mid was a mid of nothing, under a rendered price
+  // and an "Estimated cash paid" — the same expression that put a fabricated
+  // $373.01 and a -$5,210 P/L on the whole-position tab. Latent today only
+  // because the server nulls the quote before this renders, which is not a
+  // reason to leave it.
+  const midDebit = quote?.midDebit;
+  const haveMid = typeof midDebit === "number" && Number.isFinite(midDebit);
+  if (!haveMid) {
+    return (
+      <div className="text-amber-600">
+        No two-sided market for these legs right now, so there is no mid to price against.
+      </div>
+    );
+  }
   const isCredit = midDebit < 0;
   const cash = -midDebit * qty * multiplier;
   const lo = Math.min(quote.bidDebit, quote.askDebit);

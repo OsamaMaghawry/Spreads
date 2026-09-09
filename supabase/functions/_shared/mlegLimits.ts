@@ -104,9 +104,20 @@ export function normalizeMleg<T extends CloseLeg>(
   const g = gcdAll(ratios);
   if (g <= 1) return keep;
   const priced = limitPrice !== null && limitPrice !== undefined && Number.isFinite(Number(limitPrice));
+  // Floor toward "never overpay" -- but a cent is the smallest price there is,
+  // and flooring past it produces $0.00, which is not a cheaper order but a
+  // different one: rejected outright, or accepted as something that can never
+  // fill while the ticket still says $0.01. Buying back a near-worthless
+  // subset for a penny is routine, so this case is reached in ordinary use.
+  //
+  // Rescaling is a convenience; when it cannot be done without destroying the
+  // price, the original is kept and the broker's own ratio rule decides. Never
+  // silently send a price that is not the one on screen.
+  const scaled = priced ? Math.floor((Number(limitPrice) / g) * 100) / 100 : null;
+  if (priced && !(Math.abs(scaled as number) >= 0.01)) return keep;
   return {
     qty: n * g,
     legs: ls.map((l, i) => ({ ...l, ratio: ratios[i] / g })),
-    limitPrice: priced ? Math.floor((Number(limitPrice) / g) * 100) / 100 : limitPrice
+    limitPrice: priced ? (scaled as number) : limitPrice
   };
 }

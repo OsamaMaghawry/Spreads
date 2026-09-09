@@ -175,7 +175,10 @@ export async function getLegsQuote(account, legs) {
   // of $373.01, a fabricated -$5,210 P/L, and a seeded limit that would have
   // sold into a $746 bid at half price. The refusal carries WHICH leg, because
   // "no quote" with four legs on screen is not something a trader can act on.
-  const refusal = quotesRefusal(syms, quotes);
+  // LEGS, not symbols: an equity leg is judged by a different rule than an
+  // option leg, and this function is the one place that handles both. Passing
+  // bare symbols here priced SPY bid $0 / ask $746.05 as a $373.02 market.
+  const refusal = quotesRefusal(legs.map((l) => ({ symbol: l.symbol, assetClass: l.assetClass })), quotes);
   if (refusal) return { unpriceable: refusal, legs: legs.map((l) => ({ symbol: l.symbol, bid: quotes[l.symbol]?.bp ?? null, ask: quotes[l.symbol]?.ap ?? null })) };
   let askDebit = 0;
   let bidDebit = 0;

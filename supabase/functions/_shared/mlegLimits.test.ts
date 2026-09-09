@@ -106,3 +106,34 @@ test("a 1x2 repair passes both the cap and the ratio rule", () => {
   assert.equal(mlegRefusal(legs), null);
   assert.equal(normalizeMleg(1, legs).qty, 1, "1:2 is already in lowest terms");
 });
+
+test("a rescale that would floor the price below a cent is not done at all", () => {
+  // Buying back a near-worthless subset for a penny is routine. Flooring
+  // 0.01 / 2 gives 0.00, which is not a cheaper order but a different one:
+  // rejected, or accepted and unfillable while the ticket still says $0.01.
+  const legs = [leg("A", 2), leg("B", 2)];
+  const after = normalizeMleg(1, legs, 0.01);
+  assert.equal(after.qty, 1, "left alone rather than sent at zero");
+  assert.equal(after.limitPrice, 0.01);
+  assert.equal(after.legs, legs);
+
+  const deep = normalizeMleg(1, [leg("A", 10), leg("B", 10)], 0.05);
+  assert.equal(deep.limitPrice, 0.05);
+  assert.equal(deep.qty, 1);
+});
+
+test("a credit can never floor to zero, so the guard only ever bites a debit", () => {
+  // Flooring a negative number moves it AWAY from zero, so -0.01 / 2 = -0.005
+  // floors to -0.01 rather than to 0.00. The rescale therefore proceeds, and
+  // the result demands slightly more credit per unit -- the safe direction.
+  const after = normalizeMleg(1, [leg("A", 2), leg("B", 2)], -0.01);
+  assert.equal(after.qty, 2);
+  assert.equal(after.limitPrice, -0.01);
+  assert.ok(after.qty * (after.limitPrice as number) <= 1 * -0.01, "never accepts less credit than intended");
+});
+
+test("a rescale that stays at or above a cent still happens", () => {
+  const after = normalizeMleg(1, [leg("A", 2), leg("B", 2)], 0.02);
+  assert.equal(after.qty, 2);
+  assert.equal(after.limitPrice, 0.01);
+});
