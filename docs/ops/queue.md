@@ -26,6 +26,12 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Open
 
+- [open] 2026-09-09 · head-of-branding · Landing homepage hero/meta calls the product "a scanner" while the app, pricing page, and the homepage's own mockup section all call it "Screener" (`landing/public/index.html:7,18,24,136` vs. `:360,370,432`; `src/pages/Screener.jsx:93`) · Replace "scanner" with "Screener" in the four homepage hero/meta strings; brand.md line 52 already flags this exact drift as unswept.
+- [open] 2026-09-09 · head-of-branding · Positions Monitor nav label still doesn't match its own page: `Layout.jsx:19` reads "positions" (lowercase) while `Dashboard.jsx:58` and pricing (`landing/public/pricing/index.html:125,165`) correctly read "Positions Monitor" · Change `Layout.jsx:19` to "Positions Monitor"; separately drop "Market" from "Market Screener" at `Screener.jsx:93` and `landing/public/index.html:370,432` so it matches the canonical "Screener."
+- [open] 2026-09-09 · head-of-branding · Red/loss renders in ≥5 colors incl. the exported PDF: `dm-negative` #993C1D (1 site) vs. app `rose-600/700` (83 sites) vs. landing `--rose` #B4485C (`landing/public/assets/site.css:20,42`) vs. PDF hardcoded `rgb(180,72,92)` (`ExportPdfButton.jsx:100,111`) vs. shadcn `--destructive` (`src/index.css:23`) · Collapse all loss/risk/warning usage to `dm-negative`/`dm-warning` across app, landing and PDF.
+- [open] 2026-09-09 · head-of-branding · Green used both semantically (P/L gains) and decoratively (buttons, progress bar, status dots, and now landing's "Live now" broker badge at `landing/public/assets/site.css:381`) on the same screens, e.g. `CloseDialog.jsx:228` (semantic) vs. `:343` (decorative) four pixels apart · Reserve mint/emerald for P/L and connection truth only; move decorative uses to `dm-accent` or neutral.
+- [open] 2026-09-09 · head-of-branding · Analysis feature still exports as "Performance Analysis"/"economic performance report" despite on-screen H1 correctly reading "Analysis" (`AccountAnalysis.jsx:157,202`; `ExportPdfButton.jsx:126`) · Change PDF title prop to `` `${name} — Analysis` `` and both footer strings to "Analysis"; wording choice for the disclosure phrase itself flagged to desk-editor/compliance-gate first.
+
 ## Fixed
 
 - [fixed 2026-09-07] 2026-09-07 · owner · Added `SUPABASE_SERVICE_ROLE_KEY` as a GitHub Actions secret. Verified: email-digest run 34131321857 sent the first digest that has ever left this repo.
