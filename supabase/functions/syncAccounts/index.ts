@@ -7,6 +7,8 @@ import { basisByTicker } from "../_shared/wheelBasis.ts";
 import { decryptSecret } from "../_shared/crypto.ts";
 import { parseOCCSymbol } from "../_shared/occ.ts";
 import { brokerView, coverageGaps } from "../_shared/brokerView.ts";
+import { bookRiskByTicker, bookRiskTotal } from "../_shared/bookRisk.ts";
+import { legsOf } from "../_shared/positionLegs.ts";
 
 // Rebuilds the live picture for every account the caller owns: positions paired
 // into structures, credit and risk per position, and totals that net a ticker's
@@ -39,6 +41,27 @@ Deno.serve(async (req) => {
   }
 });
 
+// Every symbol a paired row holds, however many legs it has.
+//
+// Both callers below used to enumerate four named fields -- shortSymbol,
+// longSymbol, callShortSymbol, callLongSymbol -- which is the whole vocabulary
+// of a vertical and a condor and nothing else. A butterfly, a ladder or a
+// repair carrying a fifth contract had that contract quoted by nobody, so it
+// was marked from the broker's stale per-position price (the exact defect the
+// quote fetch exists to prevent), and an adjusted leg sitting outside those
+// four was never noticed, so the position was judged as though its deliverable
+// were standard.
+//
+// legsOf is the one leg reader; the four names are unioned in behind it so
+// this can only ever be a superset of what was fetched before, never less.
+const symbolsOf = (s: any): string[] => [
+  ...new Set(
+    [...legsOf(s).map((l: any) => l.symbol), s.shortSymbol, s.longSymbol, s.callShortSymbol, s.callLongSymbol].filter(
+      Boolean
+    )
+  )
+];
+
 async function syncOne(account) {
   // The wheel-basis and stress-move lookups below read the database, and this
   // function is called per account without the request handler's client. A
@@ -47,7 +70,7 @@ async function syncOne(account) {
   // incident: invisible to the bundler, visible only at runtime.
   const admin = adminClient();
   const base = tradingBase(account);
-  const empty = { credit: 0, risk: 0, closeCost: 0, pl: 0, expirationPL: 0, collateral: 0, notional: 0, stressMove: 0.15, riskComplete: true, undefinedRisk: [] };
+  const empty = { credit: 0, risk: 0, closeCost: 0, pl: 0, expirationPL: 0, collateral: 0, notional: 0, stressMove: 0.15, riskComplete: true, undefinedRisk: [], books: [], bookRisk: { risk: 0, complete: true, unpriceable: [], unbounded: [] } };
   try {
     const [info, positions, activities, openOrders, filledOrders] = await Promise.all([
       alpacaFetch(`${base}/account`, account),
@@ -191,8 +214,7 @@ async function syncOne(account) {
     // what produced an $85 loss on a spread that was near break-even.
     const legQuotes = await getOptionQuotes(
       account,
-      spreads.flatMap((s: any) => [s.shortSymbol, s.longSymbol, s.callShortSymbol, s.callLongSymbol])
-        .filter((sym: string) => sym && parseOCCSymbol(sym))
+      spreads.flatMap(symbolsOf).filter((sym: string) => sym && parseOCCSymbol(sym))
     ).catch((e) => {
       console.error("option quotes fetch failed", account.id, e?.message || e);
       return {};
@@ -416,8 +438,8 @@ async function syncOne(account) {
           : isCall
             ? stockPrice > s.shortStrike
             : stockPrice < s.shortStrike;
-      const mySymbols = [s.shortSymbol, s.longSymbol, s.callShortSymbol, s.callLongSymbol].filter(Boolean);
-      const isAdjusted = mySymbols.some((sym) => parseOCCSymbol(sym)?.adjusted);
+      const mySymbols = symbolsOf(s);
+      const isAdjusted = mySymbols.some((sym: string) => parseOCCSymbol(sym)?.adjusted);
       return {
         ...s,
         stockPrice,
@@ -577,6 +599,27 @@ async function syncOne(account) {
     // cash-secured put ties up the whole strike while risking the strike less
     // the credit, and a trader needs both numbers to read their own account.
     totals.collateral = rows.reduce((a, r) => a + (Number(r.collateral) || 0), 0);
+
+    // The same question answered from the legs, per ticker, beside the answer
+    // above rather than instead of it.
+    //
+    // Everything above this line reaches its total by recognising the shape of
+    // each row first -- condors maxed per ticker, stock-like rows shocked,
+    // everything else summed -- and a shape nobody enumerated falls through
+    // all three branches. bookRisk asks none of that: it evaluates a ticker's
+    // whole book at zero and at every strike and reads one slope, which is
+    // exact for any structure that can be built from calls, puts and stock.
+    //
+    // It ships as a SHADOW on purpose. The two figures are not interchangeable
+    // yet and one of the differences is by design: a book holding shares
+    // floors at the stock going to zero, so its exact expiry loss is the
+    // notional, while totals.risk deliberately shocks stock by a defined move
+    // instead. Running both on live accounts is how that difference gets
+    // separated from a real disagreement before anything on screen changes.
+    // Nothing reads these fields for a displayed figure today.
+    const books = bookRiskByTicker(rows);
+    totals.books = books;
+    totals.bookRisk = bookRiskTotal(books);
 
     const equity = info ? parseFloat(info.equity) : 0;
     return {
