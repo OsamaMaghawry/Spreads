@@ -181,4 +181,7 @@ post gets to it. That is the property the later material on ranking positions
 and managing a book rests on. Both take "what a contract is" as given, which is
 why this one comes first.
 
+Next in this series: [the two rights inside every listing, call and put, and
+what each one's seller actually carries](/blog/call-vs-put-option-explained).
+
 This post is educational and is not investment advice.

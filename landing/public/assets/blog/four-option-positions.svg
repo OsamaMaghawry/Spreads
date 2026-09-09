@@ -1,0 +1,50 @@
+<svg viewBox="0 0 720 400" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Four positions built from one hypothetical 50 strike: a long call and long put each pay a premium once with quantity plus one and a loss bounded by that premium; a short call and short put each receive a premium with quantity minus one, the short call's loss unbounded above the strike and the short put's bounded only by the underlying reaching zero.">
+  <rect width="720" height="400" fill="#FFFFFF"/>
+  <text x="24" y="30" font-size="13.5" font-weight="600" fill="#14151C">Four positions, one hypothetical 50 strike</text>
+
+  <!-- Long Call -->
+  <rect x="16" y="46" width="336" height="150" rx="10" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="36" y="70" font-size="12.5" font-weight="600" fill="#14151C">Long call</text>
+  <text x="332" y="70" font-size="12.5" font-weight="600" fill="#14151C" text-anchor="end">+1</text>
+  <rect x="36" y="82" width="90" height="24" rx="4" fill="#FBE7EB" stroke="#B4485C"/>
+  <text x="81" y="99" font-size="11.5" font-weight="500" fill="#B4485C" text-anchor="middle">&#8722;$120</text>
+  <text x="136" y="99" font-size="11" fill="#767B8E">paid at the fill</text>
+  <text x="36" y="128" font-size="11.5" fill="#4B4F60">Right to buy 100 shares at 50.</text>
+  <text x="36" y="148" font-size="11.5" fill="#4B4F60">Max loss: the $120 paid. No more.</text>
+  <text x="36" y="176" font-size="11.5" font-weight="500" fill="#14151C">You decide whether to exercise.</text>
+
+  <!-- Short Call -->
+  <rect x="368" y="46" width="336" height="150" rx="10" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="388" y="70" font-size="12.5" font-weight="600" fill="#14151C">Short call, uncovered</text>
+  <text x="684" y="70" font-size="12.5" font-weight="600" fill="#14151C" text-anchor="end">&#8722;1</text>
+  <rect x="388" y="82" width="90" height="24" rx="4" fill="#DFF1E7" stroke="#2E8B5F"/>
+  <text x="433" y="99" font-size="11.5" font-weight="500" fill="#2E8B5F" text-anchor="middle">+$120</text>
+  <text x="488" y="99" font-size="11" fill="#767B8E">received at the fill</text>
+  <text x="388" y="128" font-size="11.5" fill="#4B4F60">Obligation to sell 100 shares at 50.</text>
+  <text x="388" y="148" font-size="11.5" font-weight="500" fill="#B4485C">Max loss: unbounded above 50.</text>
+  <text x="388" y="176" font-size="11.5" font-weight="500" fill="#14151C">The holder decides; you find out after.</text>
+
+  <!-- Long Put -->
+  <rect x="16" y="212" width="336" height="150" rx="10" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="36" y="236" font-size="12.5" font-weight="600" fill="#14151C">Long put</text>
+  <text x="332" y="236" font-size="12.5" font-weight="600" fill="#14151C" text-anchor="end">+1</text>
+  <rect x="36" y="248" width="90" height="24" rx="4" fill="#FBE7EB" stroke="#B4485C"/>
+  <text x="81" y="265" font-size="11.5" font-weight="500" fill="#B4485C" text-anchor="middle">&#8722;$90</text>
+  <text x="136" y="265" font-size="11" fill="#767B8E">paid at the fill</text>
+  <text x="36" y="294" font-size="11.5" fill="#4B4F60">Right to sell 100 shares at 50.</text>
+  <text x="36" y="314" font-size="11.5" fill="#4B4F60">Max loss: the $90 paid. No more.</text>
+  <text x="36" y="342" font-size="11.5" font-weight="500" fill="#14151C">You decide whether to exercise.</text>
+
+  <!-- Short Put -->
+  <rect x="368" y="212" width="336" height="150" rx="10" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="388" y="236" font-size="12.5" font-weight="600" fill="#14151C">Short put, cash-secured</text>
+  <text x="684" y="236" font-size="12.5" font-weight="600" fill="#14151C" text-anchor="end">&#8722;1</text>
+  <rect x="388" y="248" width="90" height="24" rx="4" fill="#DFF1E7" stroke="#2E8B5F"/>
+  <text x="433" y="265" font-size="11.5" font-weight="500" fill="#2E8B5F" text-anchor="middle">+$90</text>
+  <text x="488" y="265" font-size="11" fill="#767B8E">received; $5,000 held</text>
+  <text x="388" y="294" font-size="11.5" fill="#4B4F60">Obligation to buy 100 shares at 50.</text>
+  <text x="388" y="314" font-size="11.5" font-weight="500" fill="#B4485C">Max loss: bounded by 0, not by 50.</text>
+  <text x="388" y="342" font-size="11.5" font-weight="500" fill="#14151C">The holder decides; you find out after.</text>
+
+  <text x="16" y="388" font-size="11" fill="#767B8E">Hypothetical strike and premiums, shown for the arithmetic only.</text>
+</svg>
