@@ -171,6 +171,12 @@ export default function BrokerTable({ rows, coverage, onClose, onCloseMany }) {
           <span className="text-sm font-medium text-slate-900">
             {picked.length} selected
           </span>
+          {(rows || []).some((r) => picked.includes(r.symbol) && Math.abs(r.qtyAvailable ?? r.qty) < Math.abs(r.qty)) && (
+            <span className="basis-full text-xs text-amber-700">
+              Some of what you ticked is held by a working order, so this closes only the free part of
+              those lines. The rest stays open.
+            </span>
+          )}
           <span className="text-xs text-slate-500">
             {plan.atomic
               ? "One order — all legs fill together."

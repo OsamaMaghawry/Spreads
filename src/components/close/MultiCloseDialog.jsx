@@ -127,9 +127,14 @@ export default function MultiCloseDialog({ account, selected, brokerRows = [], o
                     <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 border-b border-slate-200">
                       <span className="tabular-nums">{i + 1}</span>
                       <ArrowRight className="h-3 w-3" />
+                      {/* The ticker, because books interleave across tiers: a
+                          plan can read "2 option legs / Shares / 3 option legs"
+                          with no way to tell which name each belongs to. */}
                       <span>
-                        {o.kind === "equity" ? "Shares" : `${o.legs.length} option leg${o.legs.length > 1 ? "s" : ""}`}
+                        <span className="text-slate-900">{o.ticker}</span>{" "}
+                        {o.kind === "equity" ? "shares" : `${o.legs.length} option leg${o.legs.length > 1 ? "s" : ""}`}
                         {o.qty > 1 && o.kind !== "equity" ? ` · ${o.qty} units` : ""}
+                        {o.adjusted ? " · adjusted" : ""}
                       </span>
                       <span className="ml-auto tabular-nums">
                         {net === null ? (
@@ -137,9 +142,13 @@ export default function MultiCloseDialog({ account, selected, brokerRows = [], o
                         ) : net.error ? (
                           <span className="text-amber-600">no market</span>
                         ) : (
+                          // Per unit AND in total. A unit of a 3:5:7:2 book is
+                          // seventeen contracts, so "$22.50 / unit" is $2,250
+                          // of cash — and the screen never multiplied it.
                           <span className={net.mid < 0 ? "text-emerald-600" : "text-slate-700"}>
                             {net.mid < 0 ? "receive " : "pay "}
-                            {fmtMoney(Math.abs(net.mid))} / unit
+                            <strong>{fmtMoney(Math.abs(net.mid) * o.qty * (o.kind === "equity" ? 1 : 100))}</strong>
+                            <span className="text-slate-400"> · {fmtMoney(Math.abs(net.mid))}/unit</span>
                           </span>
                         )}
                       </span>

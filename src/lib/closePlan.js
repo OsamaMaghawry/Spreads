@@ -84,11 +84,25 @@ const chunk = (arr, n) => {
 
 // 0 = only reduces risk, 1 = self-contained (fills whole or not at all),
 // 2 = only increases risk. The sort key, and the whole safety property.
-const tierOf = (order) => {
+export const tierOf = (order) => {
   const acts = new Set(order.legs.map((l) => l.action));
   if (acts.size > 1) return 1;
   return acts.has("buy_to_close") ? 0 : 2;
 };
+
+// Within the SALES tier, sell the stock before the options.
+//
+// The tier vocabulary above models "a long covers a short" and has no
+// representation for "a long put covers long stock" -- so a married put put both
+// sales in tier 2, kept the per-book order (options before equity), and sold the
+// PUT first, leaving 100 shares unhedged while the second order worked. Whether
+// it ever filled was up to the market.
+//
+// Selling the stock first is strictly safer in every tier-2 pairing: the
+// residual is a fully-paid long option, which carries no obligation and whose
+// worst case is the premium already spent. Selling the option first leaves the
+// stock, which has neither of those properties.
+const sellStockFirst = (order) => (tierOf(order) === 2 && order.kind === "equity" ? 0 : 1);
 
 export function closePlan(selected) {
   const legs = (selected || []).filter((l) => l && l.symbol && Math.abs(Number(l.qty) || 0) > 0);
@@ -138,7 +152,12 @@ export function closePlan(selected) {
 
   // THE ORDERING. Stable within a tier, so the per-book grouping above is
   // preserved and only the risk direction moves anything.
-  const orders = raw.map((o, i) => ({ o, i, t: tierOf(o) })).sort((a, b) => a.t - b.t || a.i - b.i).map((x) => x.o);
+  const orders = raw
+    .map((o, i) => ({ o, i, t: tierOf(o), e: sellStockFirst(o) }))
+    // Tier first, then stock-before-options inside the sales tier, then the
+    // original index so the per-book grouping is otherwise untouched.
+    .sort((a, b) => a.t - b.t || a.e - b.e || a.i - b.i)
+    .map((x) => x.o);
 
   const atomic = orders.length === 1;
   if (!atomic) {
@@ -152,9 +171,19 @@ export function closePlan(selected) {
     warnings.push(
       `This cannot go as one order — ${reasons.join("; ") || "it needs more than one"}. It will be sent as ${orders.length} orders, one after another, each waiting for the one before it to fill.`
     );
-    if (orders.some((o) => tierOf(o) === 2)) {
+    const hasBuyBacks = orders.some((o) => tierOf(o) === 0);
+    const hasSales = orders.some((o) => tierOf(o) === 2);
+    if (hasBuyBacks && hasSales) {
       warnings.push(
         "Everything that only buys back a short is sent before anything that sells, so cover is never removed before the position it covers is closed. If a later order does not fill, you are left holding the covering legs — never a bare short."
+      );
+    } else if (hasSales) {
+      // Said instead of the sentence above, not alongside it. Printing "cover
+      // is never removed first" over a plan containing no buy-backs at all is
+      // vacuously true and reads as a guarantee the plan cannot make -- the
+      // same defect as the ordering bug it was written to describe.
+      warnings.push(
+        "These orders all sell. Stock is sold before options, so what is left between fills is a fully-paid long contract rather than an open stock position — but until the last one fills you still hold part of this position."
       );
     }
   }
@@ -172,27 +201,87 @@ export function closePlan(selected) {
 // It is a warning, not a veto. Selling cover may be exactly what the owner
 // intends -- that is his stock and his call to make. What he is owed is the
 // consequence, stated before he confirms.
+//
+// THREE THINGS THE FIRST VERSION GOT WRONG, all found by the bench:
+//
+//   1. It compared SYMBOL MEMBERSHIP, not quantity. Meanwhile the leg builder
+//      had just started capping at `qtyAvailable`, so a short line that was
+//      ticked but only partly free counted as fully handled. Executed: 210
+//      shares + 3 short calls with 1 free, both ticked -> buys back 1, sells
+//      210 shares, leaves TWO NAKED CALLS, and says nothing. Two fixes that
+//      were each correct alone, blinding each other.
+//   2. It ignored the RIGHT. Selling a long call warned about an open short
+//      PUT, which a long call does not cover -- so on a busy book almost every
+//      sale warned, and a warning that always fires is not read.
+//   3. It was blind to ADJUSTED contracts, whose ticker is "TSLA1" and never
+//      matched "TSLA".
+
+// "TSLA1" and "TSLA2" are the same underlying as "TSLA" for the purpose of
+// cover; they are different only for the purpose of an order. Ordinary US
+// equity tickers do not end in digits, so the trailing strip is safe here --
+// and this feeds a warning, never a gate.
+const baseTicker = (t) => String(t || "").replace(/\d+$/, "");
+
+// Does a long leg of this kind cover a short leg of that kind?
+//
+//   long stock  covers  short calls
+//   long call   covers  short calls, short stock
+//   long put    covers  short puts
+//
+// A long put does NOT cover a short call, and a long call does not cover a
+// short put, which is the distinction the first version was missing.
+const covers = (long, short) => {
+  const lk = long.assetClass === "equity" ? "S" : long.optionType === "P" ? "P" : "C";
+  const sk = short.assetClass === "equity" ? "S" : short.optionType === "P" ? "P" : "C";
+  if (lk === "S") return sk === "C";
+  if (lk === "C") return sk === "C" || sk === "S";
+  return sk === "P";
+};
+
 export function coverLeftBehind(selected, allRows) {
-  const picked = new Set((selected || []).map((l) => l.symbol));
+  const sel = selected || [];
+  // How much of each symbol this close actually retires. Quantity, because a
+  // partly-free line is partly closed and the rest stays open.
+  const selQty = {};
+  for (const l of sel) selQty[l.symbol] = (selQty[l.symbol] || 0) + Math.abs(Number(l.qty) || 0);
+
   const out = [];
-  const byTicker = {};
-  for (const r of allRows || []) {
-    const t = r?.ticker;
-    if (!t) continue;
-    (byTicker[t] = byTicker[t] || []).push(r);
+  for (const l of sel) {
+    if (l.side !== "long") continue; // only selling can strip cover
+    const base = baseTicker(l.ticker);
+    const stranded = (allRows || [])
+      .filter((r) => r && r.qty < 0 && baseTicker(r.ticker) === base && covers(l, r))
+      .map((r) => ({ symbol: r.symbol, open: Math.abs(r.qty) - (selQty[r.symbol] || 0) }))
+      .filter((r) => r.open > 0);
+    if (!stranded.length) continue;
+    const n = stranded.reduce((a, r) => a + r.open, 0);
+    out.push({
+      selling: l.symbol,
+      ticker: l.ticker,
+      leaves: stranded.map((r) => r.symbol),
+      text: `Selling ${l.ticker} ${l.assetClass === "equity" ? "shares" : l.symbol} leaves ${n} short ${base} contract${n > 1 ? "s" : ""} open that this close does not cover${stranded.some((r) => (selQty[r.symbol] || 0) > 0) ? " — some of them are only partly closable right now" : ""}. Check what is behind them before you send this.`
+    });
   }
-  for (const l of selected || []) {
-    // Only SELLING can strip cover; buying a short back never does.
-    if (l.side !== "long") continue;
-    const rest = (byTicker[l.ticker] || []).filter((r) => !picked.has(r.symbol) && r.qty < 0);
-    if (rest.length) {
-      out.push({
-        selling: l.symbol,
-        ticker: l.ticker,
-        leaves: rest.map((r) => r.symbol),
-        text: `Selling ${l.ticker} ${l.assetClass === "equity" ? "shares" : l.symbol} leaves ${rest.length} short ${l.ticker} position${rest.length > 1 ? "s" : ""} that you have not selected. Check what is covering them before you send this.`
-      });
-    }
+
+  // A long put is protection for long stock, not cover for a short. Selling it
+  // while the stock stays leaves the stock unhedged -- the married-put case,
+  // which the ordering above now handles and which the user should still be
+  // told about, because the ordering only helps if BOTH orders fill.
+  for (const l of sel) {
+    if (l.side !== "long" || l.assetClass === "equity" || l.optionType !== "P") continue;
+    const base = baseTicker(l.ticker);
+    const shares = (allRows || [])
+      .filter((r) => r && r.assetClass === "equity" && r.qty > 0 && baseTicker(r.ticker) === base)
+      .map((r) => ({ symbol: r.symbol, open: r.qty - (selQty[r.symbol] || 0) }))
+      .filter((r) => r.open > 0);
+    if (!shares.length) continue;
+    const n = shares.reduce((a, r) => a + r.open, 0);
+    out.push({
+      selling: `${l.symbol}__protect`,
+      ticker: l.ticker,
+      leaves: shares.map((r) => r.symbol),
+      text: `Selling this ${base} put leaves ${n} ${base} share${n > 1 ? "s" : ""} without the downside protection it was providing.`
+    });
   }
   return out;
 }

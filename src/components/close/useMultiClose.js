@@ -138,15 +138,38 @@ export default function useMultiClose() {
     const began = Date.now();
 
     while (true) {
-      if (stopRef.current) {
-        addLog(`${label}: stopped by you — canceling.`);
-        await ensureCanceled(accountId, orderId);
-        throw new Error("stopped");
-      }
-      if (Date.now() - began > MAX_TIME) {
-        addLog(`${label}: 10 minutes without a fill — canceling.`);
-        await ensureCanceled(accountId, orderId);
-        throw new Error("timeout");
+      // Both exits go through the same reporting, because both discard an order
+      // that may have done something on its way out.
+      //
+      // The first version awaited ensureCanceled and THREW AWAY its answer, so
+      // an order that FILLED during the timeout cancel was reported "did not
+      // complete (timeout)" -- the position closed, the screen saying it was
+      // not, and the sequence halted with the user deciding by hand from a
+      // false statement. That is the one signal F3 exists to respect, dropped
+      // in a different branch. useCloseOrder.finishAsFailed has said all three
+      // of these things since the single ticket was written.
+      if (stopRef.current || Date.now() - began > MAX_TIME) {
+        const why = stopRef.current ? "stopped" : "timeout";
+        addLog(
+          why === "stopped"
+            ? `${label}: stopped by you — canceling.`
+            : `${label}: 10 minutes without a fill — canceling.`
+        );
+        const cancel = await ensureCanceled(accountId, orderId);
+        const total = closedTotal + Math.max(thisOrder, cancel.filled);
+        if (cancel.outcome === "filled" || total >= unit) {
+          addLog(`${label}: it actually filled while being canceled — this order is complete.`);
+          return { filled: true, orderId };
+        }
+        if (total > 0) {
+          addLog(`${label}: partially closed — ${total} of ${unit} filled, ${unit - total} still open.`);
+        }
+        if (cancel.outcome === "unknown") {
+          addLog(
+            `${label}: could not confirm the cancel. The order may still be working — check the Orders tab before placing another.`
+          );
+        }
+        throw new Error(why);
       }
 
       const st = await invoke("manageOrder", { accountId, orderId, action: "get" });
@@ -185,7 +208,9 @@ export default function useMultiClose() {
           if (cancel.outcome === "unknown") {
             // Never resubmit over an order whose fate is unknown -- that is how
             // a position gets closed twice.
-            addLog(`${label}: could not confirm the cancel. Stopping rather than risking a second order.`);
+            addLog(
+              `${label}: could not confirm the cancel. Stopping rather than risking a second order — the original may still be working, so check the Orders tab before placing another.`
+            );
             throw new Error("cancel unconfirmed");
           }
           const remaining = unit - closedTotal;

@@ -84,15 +84,20 @@ test("the owner's TSLA book: six option legs and 210 shares", () => {
     opt("C375", "short", 1)
   ]);
   assert.equal(plan.atomic, false);
-  // Buy-backs: 3 short option legs -> one order. Sales: 2 long option legs ->
-  // one order. Shares -> one order. Three in total, in that order.
-  assert.deepEqual(plan.orders.map((o) => o.kind), ["options", "options", "equity"]);
+  // Three orders: the 3 short legs bought back, then the shares, then the 2
+  // long legs sold.
+  //
+  // The share sale is no longer LAST, and that is deliberate. By the time it
+  // runs, order 1 has retired every short — so nothing is uncovered by it. What
+  // remains after it is a fully-paid long call and long put: defined risk, no
+  // obligation, worth at most the premium already spent. Selling the longs
+  // first would instead leave 210 shares — roughly $77,000 of directional
+  // exposure — waiting on a fill. Within the sales tier the stock goes first
+  // because the residual is smaller, not because shares matter less.
+  assert.deepEqual(plan.orders.map((o) => o.kind), ["options", "equity", "options"]);
   assert.deepEqual(plan.orders[0].legs.map((l) => l.action), ["buy_to_close", "buy_to_close", "buy_to_close"]);
-  assert.deepEqual(plan.orders[1].legs.map((l) => l.action), ["sell_to_close", "sell_to_close"]);
-  assert.equal(plan.orders[2].legs[0].action, "sell_to_close");
-  // The share sale is last, so the calls written against those shares are
-  // already bought back by the time the cover goes.
-  assert.equal(plan.orders.at(-1).kind, "equity");
+  assert.equal(plan.orders[1].legs[0].action, "sell_to_close");
+  assert.deepEqual(plan.orders[2].legs.map((l) => l.action), ["sell_to_close", "sell_to_close"]);
   assert.equal(plan.warnings.length, 2);
 });
 
@@ -198,27 +203,95 @@ test("tiering: buy-backs, then self-contained, then sales", () => {
   assert.deepEqual(tiers, [0, 1, 2]);
 });
 
-test("F1b: coverLeftBehind names the shorts a sale would strip", () => {
-  const rows = [
-    { symbol: "TSLA", ticker: "TSLA", qty: 210 },
-    { symbol: "TSLA_C375", ticker: "TSLA", qty: -1 },
-    { symbol: "TSLA_C362", ticker: "TSLA", qty: -2 },
-    { symbol: "AAPL", ticker: "AAPL", qty: 100 }
-  ];
-  // Selling the shares while both short calls stay open.
+// ---------------------------------------------------------------------------
+// Re-audit findings. Two of these were created BY the first round of fixes.
+// ---------------------------------------------------------------------------
+
+const row = (symbol, qty, o = {}) => ({ symbol, qty, ticker: o.ticker ?? "TSLA", assetClass: o.assetClass ?? "us_option", optionType: o.optionType ?? "C" });
+const shareRow = (ticker, qty) => ({ symbol: ticker, ticker, qty, assetClass: "equity" });
+
+test("coverLeftBehind names shorts a sale would strip", () => {
+  const rows = [shareRow("TSLA", 210), row("TSLA_C375", -1), row("TSLA_C362", -2), shareRow("AAPL", 100)];
   const warn = coverLeftBehind([stk("TSLA", "long", 210)], rows);
   assert.equal(warn.length, 1);
-  assert.equal(warn[0].leaves.length, 2);
-  assert.match(warn[0].text, /2 short TSLA positions/);
+  assert.match(warn[0].text, /3 short TSLA contracts/);
 
   // Selecting the shorts too leaves nothing behind.
-  assert.deepEqual(
-    coverLeftBehind(
-      [stk("TSLA", "long", 210), opt("TSLA_C375", "short", 1), opt("TSLA_C362", "short", 2)],
-      rows
-    ),
-    []
-  );
+  const all = [
+    stk("TSLA", "long", 210),
+    { symbol: "TSLA_C375", side: "short", qty: 1, ticker: "TSLA", assetClass: "us_option", optionType: "C" },
+    { symbol: "TSLA_C362", side: "short", qty: 2, ticker: "TSLA", assetClass: "us_option", optionType: "C" }
+  ];
+  assert.deepEqual(coverLeftBehind(all, rows), []);
   // Buying a short back never strips cover.
-  assert.deepEqual(coverLeftBehind([opt("TSLA_C375", "short", 1)], rows), []);
+  assert.deepEqual(coverLeftBehind([all[1]], rows), []);
+});
+
+test("RE-1: a PARTLY FREE short still counts as left behind", () => {
+  // The bench's repro, and the interaction between two of my own fixes: asLeg
+  // caps at qtyAvailable, coverLeftBehind compared symbol MEMBERSHIP, so a
+  // ticked-but-partly-free short read as fully handled. 1 of 3 bought back,
+  // 210 shares sold, TWO NAKED CALLS, and nothing said so.
+  const rows = [shareRow("TSLA", 210), row("TSLA_C420", -3)];
+  const selected = [
+    stk("TSLA", "long", 210),
+    { symbol: "TSLA_C420", side: "short", qty: 1, ticker: "TSLA", assetClass: "us_option", optionType: "C" }
+  ];
+  const warn = coverLeftBehind(selected, rows);
+  assert.equal(warn.length, 1, "two of the three calls are still open");
+  assert.match(warn[0].text, /2 short TSLA contracts/);
+  assert.match(warn[0].text, /partly closable/);
+});
+
+test("RE-6: cover is matched by RIGHT, so a long call ignores an open short put", () => {
+  const rows = [row("TSLA_P300", -5, { optionType: "P" })];
+  const sellCall = { symbol: "TSLA_C400", side: "long", qty: 1, ticker: "TSLA", assetClass: "us_option", optionType: "C" };
+  assert.deepEqual(coverLeftBehind([sellCall], rows), [], "a long call does not cover a short put");
+  const sellPut = { symbol: "TSLA_P350", side: "long", qty: 1, ticker: "TSLA", assetClass: "us_option", optionType: "P" };
+  assert.equal(coverLeftBehind([sellPut], rows).length, 1, "a long put does cover a short put");
+});
+
+test("RE-7: an adjusted short is seen despite its TSLA1 ticker", () => {
+  const rows = [row("TSLA1_C400", -2, { ticker: "TSLA1" })];
+  const warn = coverLeftBehind([stk("TSLA", "long", 100)], rows);
+  assert.equal(warn.length, 1, "TSLA1 is the same underlying for cover, different only for an order");
+});
+
+test("RE-2: the protective put is NOT sold before the stock it protects", () => {
+  // Both are sales, so both are tier 2 — and the first version kept the
+  // per-book order (options then equity), selling the put first and leaving
+  // 100 shares unhedged while the second order worked.
+  const plan = closePlan([
+    stk("TSLA", "long", 100),
+    { symbol: "TSLA_P380", side: "long", qty: 1, ticker: "TSLA", assetClass: "us_option", optionType: "P" }
+  ]);
+  assert.equal(plan.orders[0].kind, "equity", "the shares go first; the residual is a fully-paid long put");
+  assert.equal(plan.orders[1].kind, "options");
+});
+
+test("RE-2: the buy-backs-first sentence is not printed over a plan with none", () => {
+  const allSales = closePlan([
+    stk("TSLA", "long", 100),
+    { symbol: "TSLA_P380", side: "long", qty: 1, ticker: "TSLA", assetClass: "us_option", optionType: "P" }
+  ]);
+  assert.ok(
+    !allSales.warnings.some((w) => /cover is never removed/.test(w)),
+    "vacuously true, and reads as a guarantee this plan cannot make"
+  );
+  assert.ok(allSales.warnings.some((w) => /These orders all sell/.test(w)));
+
+  // With a real buy-back present, the sentence is earned and appears.
+  const mixed = closePlan([
+    stk("TSLA", "long", 100),
+    { symbol: "TSLA_C400", side: "short", qty: 1, ticker: "TSLA", assetClass: "us_option", optionType: "C" }
+  ]);
+  assert.ok(mixed.warnings.some((w) => /cover is never removed/.test(w)));
+});
+
+test("RE-2: selling a protective put warns that the shares lose their hedge", () => {
+  const rows = [shareRow("TSLA", 210)];
+  const sellPut = { symbol: "TSLA_P380", side: "long", qty: 2, ticker: "TSLA", assetClass: "us_option", optionType: "P" };
+  const warn = coverLeftBehind([sellPut], rows);
+  assert.equal(warn.length, 1);
+  assert.match(warn[0].text, /without the downside protection/);
 });
