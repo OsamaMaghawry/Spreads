@@ -4,9 +4,16 @@ import {
   payoffAt, kinks, slopeAbove, maxLoss, maxProfit, breakEvens, netPremium, structureRisk, priceable
 } from "./legMath.ts";
 
-const call = (strike: number, qty: number, entry: number) => ({ type: "C" as const, strike, qty, entryPrice: entry });
-const put = (strike: number, qty: number, entry: number) => ({ type: "P" as const, strike, qty, entryPrice: entry });
-const stock = (qty: number, basis: number) => ({ type: "S" as const, qty, entryPrice: basis });
+// Every option leg carries an expiry and an underlying, because the gate now
+// requires both: a book spanning two expiries or two names is refused rather
+// than flattened into one that reads risk-free.
+const E = "260918";
+const call = (strike: number, qty: number, entry: number, expiry = E) =>
+  ({ type: "C" as const, strike, qty, entryPrice: entry, expiry, underlying: "X" });
+const put = (strike: number, qty: number, entry: number, expiry = E) =>
+  ({ type: "P" as const, strike, qty, entryPrice: entry, expiry, underlying: "X" });
+const stock = (qty: number, basis: number) =>
+  ({ type: "S" as const, qty, entryPrice: basis, underlying: "X" });
 
 // The point of this file: every one of these is answered by the SAME code,
 // and none of them is recognised by name. The structures are only here to
@@ -131,12 +138,47 @@ test("a call ladder: one long, two shorts at different strikes", () => {
   assert.equal(maxProfit(legs).profit, 600, "$10 of width plus the $4 net credit... at 110");
 });
 
-test("a calendar's two expiries are not modelled, and the near leg is what expires", () => {
-  // Deliberate limitation, stated: this file values everything at ONE expiry.
-  // A calendar therefore reads as the near-dated structure, which understates
-  // the long. Named so nobody mistakes the answer for a full one.
-  const legs = [call(100, -1, 3, ), call(100, 1, 6)];
-  assert.equal(maxLoss(legs).loss, 300, "the net debit, as if both expired together");
+test("two expiries are refused, not flattened", () => {
+  // This was a stated limitation and head-of-trading refused to accept it, in
+  // both directions. Flattening a LONG calendar understates the long, which
+  // overstates the loss — annoying. Flattening a REVERSE calendar reports
+  // maxLoss $0 on a position that becomes a naked short call the day the near
+  // leg dies, and being finite it summed into the account total as complete.
+  // Same sentence as "MAX RISK $0.00", one layer down.
+  const longCal = [call(100, -1, 3, "260918"), call(100, 1, 6, "261017")];
+  assert.equal(maxLoss(longCal).loss, null);
+  assert.match(maxLoss(longCal).reason!, /expiry/);
+
+  const reverseCal = [call(400, 1, 8, "260918"), call(400, -1, 20, "261219")];
+  assert.equal(maxLoss(reverseCal).loss, null, "not $0 — unpriced");
+  assert.equal(maxLoss(reverseCal).unbounded, null);
+  assert.equal(structureRisk(reverseCal).unpriceable, true);
+});
+
+test("the gate refuses everything it cannot value, and says which", () => {
+  const why = (legs: any[]) => maxLoss(legs).reason;
+  assert.match(why([{ type: "C", strike: 100, qty: 1, expiry: E }])!, /entry price/, "a free long call cannot lose");
+  assert.match(why([{ type: "x", strike: 100, qty: 1, entryPrice: 1, expiry: E }])!, /unknown leg type/);
+  assert.match(why([{ type: "C", strike: null, qty: 1, entryPrice: 1, expiry: E }])!, /strike/);
+  assert.match(why([{ type: "C", strike: 0, qty: 1, entryPrice: 1, expiry: E }])!, /strike/);
+  assert.match(why([{ type: "C", strike: 100, qty: 1, entryPrice: 1 }])!, /expiry/);
+  assert.match(
+    why([
+      { type: "P", strike: 180, qty: -1, entryPrice: 2, expiry: E, underlying: "AAPL" },
+      { type: "P", strike: 340, qty: 1, entryPrice: 5, expiry: E, underlying: "TSLA" }
+    ])!,
+    /underlying/,
+    "two names is not a spread"
+  );
+  assert.match(why([{ type: "C", strike: 100, qty: 1, entryPrice: 1, expiry: E, multiplier: 0 }])!, /multiplier/);
+});
+
+test("netPremium withholds on the same terms as everything else", () => {
+  // It used to answer -$300 for a structure whose every other figure withheld.
+  const adjusted = [call(100, 1, 6), { ...call(110, -1, 3), adjusted: true }];
+  assert.equal(netPremium(adjusted), null);
+  assert.equal(structureRisk(adjusted).netPremium, null);
+  assert.match(structureRisk(adjusted).unpriceableReason!, /adjusted/);
 });
 
 test("a jelly roll, a box, and anything else made of these parts still answers", () => {
@@ -153,7 +195,7 @@ test("an adjusted contract makes the whole structure unpriceable, not partly pri
   const legs = [call(100, 1, 6), { type: "C" as const, strike: 105, qty: -1, entryPrice: 3, adjusted: true }];
   assert.equal(priceable(legs), false);
   assert.equal(maxLoss(legs).loss, null);
-  assert.equal(maxLoss(legs).reason, "unpriceable");
+  assert.match(maxLoss(legs).reason!, /adjusted/);
   assert.equal(payoffAt(legs, 100), null);
   assert.deepEqual(breakEvens(legs), []);
 });
@@ -185,7 +227,9 @@ test("a swept minimum never beats the kink minimum, on a hundred random books", 
         type,
         strike: type === "S" ? null : Math.round(80 + rnd() * 60),
         qty: (rnd() < 0.5 ? -1 : 1) * (1 + Math.floor(rnd() * 3)) * (type === "S" ? 100 : 1),
-        entryPrice: type === "S" ? 100 : round2(rnd() * 12)
+        entryPrice: type === "S" ? 100 : round2(rnd() * 12) + 0.01,
+        expiry: E,
+        underlying: "X"
       });
     }
     const viaKinks = maxLoss(legs);
