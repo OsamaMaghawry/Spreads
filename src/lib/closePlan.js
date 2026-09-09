@@ -106,7 +106,7 @@ const sellStockFirst = (order) => (tierOf(order) === 2 && order.kind === "equity
 
 export function closePlan(selected) {
   const legs = (selected || []).filter((l) => l && l.symbol && Math.abs(Number(l.qty) || 0) > 0);
-  if (!legs.length) return { orders: [], atomic: false, warnings: [] };
+  if (!legs.length) return { orders: [], atomic: false, allOrNone: false, warnings: [] };
 
   const warnings = [];
   const books = {};
@@ -160,6 +160,14 @@ export function closePlan(selected) {
     .map((x) => x.o);
 
   const atomic = orders.length === 1;
+  // "One order" and "fills together or not at all" are different claims, and
+  // only the second is worth a green box. A multi-leg OPTION order is filled
+  // as one net price by the broker; a single-leg option order and an equity
+  // order both partial-fill routinely. Select 210 shares on their own and the
+  // screen used to promise all-or-none over an order that can fill 40 and
+  // stop. Callers render off this, not off `atomic`.
+  const allOrNone =
+    atomic && orders[0].kind !== "equity" && orders[0].legs.length > 1;
   if (!atomic) {
     const reasons = [];
     if (Object.keys(books).length > 1) reasons.push("legs on more than one underlying can never share an order");
@@ -178,8 +186,16 @@ export function closePlan(selected) {
     const hasBuyBacks = orders.some((o) => tierOf(o) === 0);
     const hasSales = orders.some((o) => tierOf(o) === 2);
     if (hasBuyBacks && hasSales) {
+      // Scoped to the plan, deliberately. head-of-trading, on the RE-1 book:
+      // 210 free shares plus 3 short calls with 1 available, both ticked --
+      // the plan COMPLETES and leaves two naked calls, because only 1 of the 3
+      // shorts could be bought back. The unqualified promise was false on the
+      // success path, where "stops part-way" does not save it, and it rendered
+      // in the calm slate box directly above the amber warning that said the
+      // opposite. Whatever this sentence claims, it can only claim it about
+      // the positions in this plan.
       warnings.push(
-        "The sequence is deliberate: everything that buys back a short goes first, everything that sells goes last. That way cover is never removed before the short it covers is closed, so a sequence that stops part-way leaves you holding the covering legs — never a bare short."
+        "The sequence is deliberate: everything that buys back a short goes first, everything that sells goes last, so among the positions in this plan cover is never removed before the short it covers is closed. Any warning below is about a short that is NOT in this plan — read those separately."
       );
     } else if (hasSales) {
       // Said instead of the sentence above, not alongside it. Printing "cover
@@ -194,7 +210,32 @@ export function closePlan(selected) {
       "If an order does not fill inside its ten minutes, the sequence stops there and the orders after it are never sent. The log below names the one it stopped on."
     );
   }
-  return { orders, atomic, warnings };
+  return { orders, atomic, allOrNone, warnings };
+}
+
+// The one-line version of the plan, in ONE place.
+//
+// Three screens wrote their own and two of them printed "Buy-backs first,
+// sales last" over plans containing no buy-backs at all -- the same vacuity
+// that was fixed inside `closePlan`'s own warnings and missed in its callers.
+// A guarantee about an ordering that does not exist in this plan reads as a
+// guarantee, and the user cannot tell which sentences are load-bearing.
+export function planSummary(plan) {
+  const orders = plan?.orders || [];
+  if (!orders.length) return "Nothing to close.";
+  if (orders.length === 1) {
+    return plan.allOrNone
+      ? "One order — every leg fills together at one net price, or none of them."
+      : "One order — it can fill in part.";
+  }
+  const buyBacks = orders.some((o) => tierOf(o) === 0);
+  const sales = orders.some((o) => tierOf(o) === 2);
+  const how = buyBacks && sales
+    ? " Buy-backs first, sales last."
+    : sales
+      ? " Shares first, then contracts."
+      : "";
+  return `${orders.length} orders, sent one at a time.${how}`;
 }
 
 // What the SELECTION leaves behind.
@@ -258,15 +299,28 @@ export function coverLeftBehind(selected, allRows) {
     const base = baseTicker(l.ticker);
     const stranded = (allRows || [])
       .filter((r) => r && r.qty < 0 && baseTicker(r.ticker) === base && covers(l, r))
-      .map((r) => ({ symbol: r.symbol, open: Math.abs(r.qty) - (selQty[r.symbol] || 0) }))
+      .map((r) => ({
+        symbol: r.symbol,
+        equity: r.assetClass === "equity",
+        open: Math.abs(r.qty) - (selQty[r.symbol] || 0)
+      }))
       .filter((r) => r.open > 0);
     if (!stranded.length) continue;
-    const n = stranded.reduce((a, r) => a + r.open, 0);
+    // Shares and contracts counted SEPARATELY. `covers()` already returns true
+    // for a long call over SHORT STOCK, and the noun was hard-coded: hold -100
+    // shares, sell the long call, and the screen read "leaves 100 short
+    // contracts open" -- a hundredfold overstatement of the exposure, on the
+    // one line whose job is to state the exposure.
+    const shares = stranded.filter((r) => r.equity).reduce((a, r) => a + r.open, 0);
+    const contracts = stranded.filter((r) => !r.equity).reduce((a, r) => a + r.open, 0);
+    const parts = [];
+    if (contracts) parts.push(`${contracts} short ${base} contract${contracts > 1 ? "s" : ""}`);
+    if (shares) parts.push(`${shares} short ${base} share${shares > 1 ? "s" : ""}`);
     out.push({
       selling: l.symbol,
       ticker: l.ticker,
       leaves: stranded.map((r) => r.symbol),
-      text: `Selling ${l.ticker} ${l.assetClass === "equity" ? "shares" : l.symbol} leaves ${n} short ${base} contract${n > 1 ? "s" : ""} open that this close does not cover${stranded.some((r) => (selQty[r.symbol] || 0) > 0) ? " — some of them are only partly closable right now" : ""}. Check what is behind them before you send this.`
+      text: `Selling ${l.ticker} ${l.assetClass === "equity" ? "shares" : l.symbol} leaves ${parts.join(" and ")} open that this close does not cover${stranded.some((r) => (selQty[r.symbol] || 0) > 0) ? " — some of them are only partly closable right now" : ""}. Check what is behind them before you send this.`
     });
   }
 

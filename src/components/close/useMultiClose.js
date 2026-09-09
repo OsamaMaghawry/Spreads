@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { nextLimit, walkStart } from "@/lib/closeWalk";
-import { closePlan, orderLegs } from "@/lib/closePlan";
+import { closePlan, orderLegs, planSummary } from "@/lib/closePlan";
 
 // Closing several positions in one act, in an order that is safe at every step.
 //
@@ -108,6 +108,11 @@ export default function useMultiClose() {
 
     let debit = round2(start);
     let steps = 0;
+    // Last look before an order leaves. Stop is pressed while the PREVIOUS
+    // order is being polled, so the flag can already be set by the time this
+    // one is reached -- and the first check inside the poll loop below happens
+    // only AFTER a submit. Without this, "Stop" sent one more order.
+    if (stopRef.current) throw new Error("stopped");
     addLog(`${label}: submitting at ${priceLabel(debit)}…`);
     let res = await invoke("closeSpread", {
       accountId, legs, qty: order.qty, orderType: "limit", limitPrice: debit,
@@ -253,19 +258,30 @@ export default function useMultiClose() {
     const plan = closePlan(selected);
     if (!plan.orders.length) { setPhase("failed"); addLog("Nothing selected to close."); return; }
 
-    addLog(
-      plan.atomic
-        ? "One order — every leg fills together or not at all."
-        : `${plan.orders.length} orders, sent one at a time. Buy-backs first, sales last.`
-    );
+    addLog(planSummary(plan));
+
+    // Stop is checked at the top of every iteration AND immediately after each
+    // order returns, because an order can complete on the way out of a cancel:
+    // press Stop during order 1, the cancel loses the race, walkOne reports
+    // filled, and the loop used to advance and submit order 2 -- the sale of
+    // the cover order 1 had just bought back. The button said it would send
+    // nothing further and then sent something.
+    const stopped = () => {
+      if (!stopRef.current) return false;
+      addLog("Stopped by you. Nothing further was sent.");
+      setPhase("stopped");
+      return true;
+    };
 
     for (let i = 0; i < plan.orders.length; i++) {
       if (gen !== genRef.current) return;
+      if (stopped()) return;
       setStep(i);
       try {
         await walkOne(accountId, plan.orders[i], i, plan.orders.length, runKey);
         if (gen !== genRef.current) return;
         setDone((d) => [...d, i]);
+        if (stopped()) return;
       } catch (e) {
         if (gen !== genRef.current) return;
         const why = String(e?.message || e);

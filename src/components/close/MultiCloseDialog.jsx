@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { fmtMoney } from "@/lib/format";
 import { invokeFunction } from "@/lib/functions";
 import { AlertTriangle, ArrowRight, Check, Info, Loader2 } from "lucide-react";
-import { closePlan, orderLegs, coverLeftBehind } from "@/lib/closePlan";
+import { closePlan, orderLegs, coverLeftBehind, planSummary } from "@/lib/closePlan";
 import useMultiClose from "./useMultiClose";
 import ConfirmSubmit from "@/components/common/ConfirmSubmit";
 import OrderLog from "./OrderLog";
@@ -153,8 +153,14 @@ export default function MultiCloseDialog({ account, selected, brokerRows = [], h
               </div>
             ))}
             {plan.atomic && (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900">
-                One order — every leg fills together or not at all.
+              <div className={`rounded-lg border px-3 py-2.5 text-xs ${
+                plan.allOrNone
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                  : "border-slate-200 bg-slate-50 text-slate-600"
+              }`}>
+                {plan.allOrNone
+                  ? "One order — the broker fills every leg together at one net price, or none of them."
+                  : "One order — but it can fill in part. A single line fills as the market takes it, so you may end up closing some of it and holding the rest."}
               </div>
             )}
 
@@ -184,10 +190,27 @@ export default function MultiCloseDialog({ account, selected, brokerRows = [], h
                           // Per unit AND in total. A unit of a 3:5:7:2 book is
                           // seventeen contracts, so "$22.50 / unit" is $2,250
                           // of cash — and the screen never multiplied it.
+                          // An adjusted contract gets its own order precisely
+                          // BECAUSE a corporate action changed what it
+                          // delivers -- so the 100 multiplier that turns a
+                          // per-unit price into dollars is the one number we
+                          // do not have for it. Showing the per-unit price and
+                          // withholding the total is the honest pair; the old
+                          // code printed a confident dollar figure two elements
+                          // away from the word "adjusted".
                           <span className={net.mid < 0 ? "text-emerald-600" : "text-slate-700"}>
                             {net.mid < 0 ? "receive " : "pay "}
-                            <strong>{fmtMoney(Math.abs(net.mid) * o.qty * (o.kind === "equity" ? 1 : 100))}</strong>
-                            <span className="text-slate-400"> · {fmtMoney(Math.abs(net.mid))}/unit</span>
+                            {o.adjusted ? (
+                              <>
+                                <strong>{fmtMoney(Math.abs(net.mid))}</strong>
+                                <span className="text-slate-400">/unit · total unknown, this contract is adjusted</span>
+                              </>
+                            ) : (
+                              <>
+                                <strong>{fmtMoney(Math.abs(net.mid) * o.qty * (o.kind === "equity" ? 1 : 100))}</strong>
+                                <span className="text-slate-400"> · {fmtMoney(Math.abs(net.mid))}/unit</span>
+                              </>
+                            )}
                           </span>
                         )}
                       </span>
@@ -230,9 +253,9 @@ export default function MultiCloseDialog({ account, selected, brokerRows = [], h
               tone="rose"
               label={`Close ${selected.length} position${selected.length > 1 ? "s" : ""} in ${plan.orders.length} order${plan.orders.length > 1 ? "s" : ""}`}
               summary={
-                plan.atomic
-                  ? "One order, all legs together."
-                  : `${plan.orders.length} orders, one at a time. If any does not fill, the rest are not sent.`
+                plan.orders.length === 1
+                  ? planSummary(plan)
+                  : `${planSummary(plan)} If any does not fill, the rest are not sent.`
               }
               onConfirm={() => run({ accountId: account.id, selected })}
               disabled={!plan.orders.length || anyUnpriceable || stillPricing}
