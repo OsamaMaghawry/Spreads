@@ -1132,3 +1132,29 @@ test("two spreads sharing a long strike each keep their own share loss", () => {
   assert.equal(money(narrow.realized_pl), money(narrow.premium_pl) - 800);
   assert.equal(breaches.length, 0);
 });
+
+test("a partly covered short call splits, the way the live dashboard splits it", () => {
+  // Three calls sold against 100 shares. The dashboard reports one covered
+  // call and two naked ones; history reported all three as a single "spreads
+  // · unpaired" record, so a position the owner watched all week under one
+  // heading moved to a different tab the day it expired. One rule, two
+  // screens, same split.
+  const activities = [
+    fill("2026-08-03", "buy", "KO", 100, 88.0),
+    fill("2026-08-14", "sell", "KO260821C00090000", 3, 0.6),
+    expire("2026-08-21", "KO260821C00090000", 3)
+  ];
+
+  const { records } = run(activities);
+  const rows = records.filter((r) => r.short_symbol === "KO260821C00090000");
+  assert.equal(rows.length, 2);
+
+  const covered = rows.find((r) => r.strategy === "covered_call");
+  const rest = rows.find((r) => r.strategy === "spreads");
+  assert.ok(covered && rest);
+  assert.equal(covered.qty, 1, "the hundred shares cover exactly one");
+  assert.equal(covered.unpaired, false);
+  assert.equal(rest.qty, 2);
+  assert.equal(rest.unpaired, true, "and the other two are still flagged");
+  assert.equal(money(covered.realized_pl) + money(rest.realized_pl), 180, "3 x $0.60, whichever way it is filed");
+});

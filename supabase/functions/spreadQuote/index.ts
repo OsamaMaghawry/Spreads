@@ -1,27 +1,21 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { resumableLimit } from "../_shared/resumeLimit.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { getSpreadQuote, getLegsQuote, loadAccount, tradingBase, alpacaFetch } from "../_shared/alpaca.ts";
 
 // Prices a position for closing: what the legs are worth right now, plus the
 // highest limit already tried on them so a retry resumes rather than restarts.
-// Highest limit price we already tried on this spread (from Alpaca order history),
-// so a retry can resume from where the last attempt left off.
+// Which limit price a retry may resume from. The rule itself is in
+// _shared/resumeLimit.ts, pure and tested: it lives there because "the highest
+// limit on any order that touched any of these symbols" is not the same
+// sentence as "the last price tried on this structure", and the difference
+// resumed a single-leg $9.89 onto a two-leg net quoted at -7.01 / -6.43.
 async function lastAttemptDebit(account, symbols) {
   const orders = await alpacaFetch(
     `${tradingBase(account)}/orders?status=all&nested=true&limit=100&direction=desc`,
     account
   ).catch(() => []);
-  if (!Array.isArray(orders)) return null;
-  let best = null;
-  for (const o of orders as any[]) {
-    const syms = Array.isArray(o.legs) && o.legs.length ? o.legs.map((l: any) => l.symbol) : [o.symbol];
-    if (!syms.some((sym: string) => symbols.includes(sym))) continue;
-    const price = parseFloat(o.limit_price);
-    if (!isFinite(price)) continue;
-    if (o.status === "filled") break; // position was already closed/reopened after this
-    if (best === null || price > best) best = price;
-  }
-  return best;
+  return resumableLimit(orders as any[], symbols);
 }
 
 Deno.serve(async (req) => {
@@ -48,6 +42,13 @@ Deno.serve(async (req) => {
       lastAttemptDebit(account, symbols)
     ]);
     if (!quote) return jsonResponse({ error: "No quote available for these contracts" }, 404);
+    // A leg with no offer is not a quote, and must not reach the ticket as one:
+    // downstream, `quote?.midDebit ?? 0` would turn its absent mid into $0.00
+    // and seed the limit price with it. The reason names the contract, so the
+    // ticket can say why instead of going blank.
+    if ((quote as any).unpriceable) {
+      return jsonResponse({ error: (quote as any).unpriceable, unpriceable: true, legs: (quote as any).legs ?? null }, 404);
+    }
     return jsonResponse({ ...quote, lastAttemptDebit: lastDebit });
   } catch (error) {
     return jsonResponse({ error: error.message }, 500);

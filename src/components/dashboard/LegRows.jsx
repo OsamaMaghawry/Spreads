@@ -38,8 +38,23 @@ export default function LegRows({ spread, colSpan, onCloseLeg }) {
           {legs.map((l) => {
             const qty = (l.ratio || 1) * spread.qty;
             const dir = l.side === "short" ? 1 : -1;
-            const pl = (l.entryPrice - l.currentPrice) * dir * qty * 100;
             const q = quotes ? quotes[l.symbol] : null;
+            // The NBBO mid when there is one, the broker's stored price only
+            // when there is not.
+            //
+            // This row printed Alpaca's last-trade `current_price` under the
+            // heading "Current" and computed the P/L from it, immediately
+            // beside a live bid/ask on the SAME row that contradicted it: the
+            // TSLA 352.50 call read $638 at 19.95 next to 20.23 / 20.66, where
+            // the mid gives $687.50. Meanwhile the card above added its total
+            // from mids. One contract, two prices, one screen — the exact
+            // failure the card's own pricing comment says was fixed and never
+            // was here.
+            const mid = q && Number.isFinite(q.bidDebit) && Number.isFinite(q.askDebit)
+              ? (q.bidDebit + q.askDebit) / 2
+              : null;
+            const mark = mid ?? l.currentPrice;
+            const pl = (l.entryPrice - mark) * dir * qty * 100;
             return (
               <div
                 key={l.symbol}
@@ -53,7 +68,10 @@ export default function LegRows({ spread, colSpan, onCloseLeg }) {
                 </span>
                 <span className="text-right">{qty}</span>
                 <span className="text-right">{fmtMoney(l.entryPrice)}</span>
-                <span className="text-right">{fmtMoney(l.currentPrice)}</span>
+                <span className="text-right" title={mid === null ? "Broker's last trade — nobody is quoting this contract right now." : "NBBO mid"}>
+                  {fmtMoney(mark)}
+                  {mid === null && <span className="text-amber-600"> *</span>}
+                </span>
                 <span className="text-right text-slate-500">
                   {loading ? "…" : q ? `${fmtMoney(q.bidDebit)} / ${fmtMoney(q.askDebit)}` : "—"}
                 </span>

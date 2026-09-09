@@ -1,8 +1,14 @@
 import { useRef, useState, useEffect } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { playAlert } from "@/lib/beep";
+import { marketIsOpen } from "@/lib/marketSession";
 
 const RETRY_MS = 20000;
+// Outside 09:30-16:00 ET there are no option quotes to refresh, so a 20-second
+// retry asks the same dead chain the same question 180 times an hour and gets
+// the same skip. The loop keeps running -- so a scan left open pre-market picks
+// up on its own at the bell -- but it waits a minute between passes instead.
+const CLOSED_RETRY_MS = 60000;
 
 // Keeps scanning on an interval until at least one setup matches, or the user stops.
 export default function useScanLoop() {
@@ -25,7 +31,7 @@ export default function useScanLoop() {
   };
 
   const countdown = (onDone) => {
-    let left = RETRY_MS / 1000;
+    let left = (marketIsOpen() ? RETRY_MS : CLOSED_RETRY_MS) / 1000;
     setNextIn(left);
     const tick = () => {
       if (stopped.current) return;
@@ -80,5 +86,7 @@ export default function useScanLoop() {
     attempt();
   };
 
-  return { running, attempts, nextIn, candidates, skipped, error, start, stop, setCandidates };
+  // The UI says "waiting for the open" rather than counting down to a pass that
+  // cannot find anything.
+  return { running, attempts, nextIn, candidates, skipped, error, start, stop, setCandidates, marketOpen: marketIsOpen() };
 }

@@ -21,7 +21,12 @@
 // an alert at 14:30 and is meaningless at 21:15, when nothing is trading and
 // nobody can act. It never becomes a row in the digest -- it collapses into one
 // line naming the symbols.
-export const LIVENESS_RULES = new Set(["price_untrusted"]);
+// cover_unjudged is the same kind of statement about a different blindness:
+// an adjusted contract's deliverable is not 100 shares, so no share count
+// says whether the short call is covered. It belongs beside price_untrusted
+// rather than in the inbox — there is nothing to do about it at a broker, and
+// it stays true, unchanged, until the contract expires.
+export const LIVENESS_RULES = new Set(["price_untrusted", "cover_unjudged"]);
 
 const money = (n: number) =>
   `$${Math.round(n).toLocaleString("en-US")}`;

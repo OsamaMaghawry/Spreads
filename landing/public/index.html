@@ -53,6 +53,32 @@
 <link href="/assets/site.css" rel="stylesheet">
 <link href="/assets/home.css" rel="stylesheet">
 <script src="/assets/home.js" defer></script>
+  <!-- Non-essential analytics do not run for visitors in the EEA, the UK or
+       Switzerland, where consent is required BEFORE a tracker loads and an
+       opt-out in the privacy policy is not enough. The country comes from
+       Cloudflare's own /cdn-cgi/trace on this origin — no third party is
+       contacted to decide, which would be the same problem one step earlier.
+
+       It fails CLOSED: if the lookup fails, or returns a country we cannot
+       read, nothing loads. An unknown visitor is treated as a protected one.
+
+       This wraps the hostname guard rather than replacing it — staging still
+       records nothing, for the reason each tag's own comment gives below. -->
+  <script>
+    window.dmAnalyticsAllowed = function (start) {
+      if (location.hostname !== 'deltamint.app' && location.hostname !== 'www.deltamint.app') return;
+      var GATED = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV',
+                   'LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','GB','IS','LI','NO','CH','GI','JE','GG','IM'];
+      fetch('/cdn-cgi/trace')
+        .then(function (r) { return r.text(); })
+        .then(function (t) {
+          var m = /(?:^|\n)loc=([A-Z]{2})/.exec(t);
+          if (m && GATED.indexOf(m[1]) === -1) start();
+        })
+        .catch(function () {});
+    };
+  </script>
+
   <!-- Google Analytics 4.
        Inline here because the Worker does not run for these pages on
        production: wrangler.jsonc lists only /blog, /blog/* and /sitemap.xml
@@ -70,14 +96,14 @@
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
-    if (location.hostname === 'deltamint.app' || location.hostname === 'www.deltamint.app') {
+    window.dmAnalyticsAllowed(function () {
       var gaScript = document.createElement('script');
       gaScript.async = true;
       gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-TJLVFXVFL6';
       document.head.appendChild(gaScript);
       gtag('js', new Date());
       gtag('config', 'G-TJLVFXVFL6');
-    }
+    });
   </script>
 
   <!-- Hotjar: heatmaps and session replay, marketing pages and blog only.
@@ -99,7 +125,7 @@
        become a recorded session in the account. HOTJAR_SITE_ID is likewise
        set only in wrangler.jsonc, never in wrangler.staging.jsonc. -->
   <script>
-    if (location.hostname === 'deltamint.app' || location.hostname === 'www.deltamint.app') {
+    window.dmAnalyticsAllowed(function () {
       (function(h,o,t,j,a,r){
           h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};
           h._hjSettings={hjid:6773356,hjsv:6};
@@ -108,7 +134,7 @@
           r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv;
           a.appendChild(r);
       })(window,document,'https://static.hotjar.com/c/hotjar-','.js?sv=');
-    }
+    });
   </script>
 </head>
 <body>
@@ -120,9 +146,15 @@
       <span>DeltaMint</span>
     </a>
     <div class="right">
-      <a class="plain" href="/blog">Blog</a>
-      <a class="plain" href="/pricing">Pricing</a>
-      <a class="btn btn-ghost" href="https://dashboard.deltamint.app/login">Log in</a>
+      <div class="navlinks" id="navmenu">
+        <a class="plain" href="/blog">Blog</a>
+        <a class="plain" href="/pricing">Pricing</a>
+        <a class="btn btn-ghost" href="https://dashboard.deltamint.app/login">Log in</a>
+      </div>
+      <button class="burger" type="button" aria-label="Menu" aria-expanded="false" aria-controls="navmenu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+      </button>
+      <noscript><style>@media (max-width:40rem){.nav .navlinks{display:flex;position:static;flex-direction:row;min-width:0;padding:0;border:0;background:none;box-shadow:none}.burger{display:none}}</style></noscript>
     </div>
   </nav>
 </div>
@@ -694,5 +726,6 @@
 </footer>
 
 
+<script src="/assets/site.js" defer></script>
 </body>
 </html>

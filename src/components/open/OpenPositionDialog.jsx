@@ -40,7 +40,7 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
   const [cfg, setCfg] = useState(DEFAULTS);
   const [qty, setQty] = useState(1);
 
-  const { running, attempts, nextIn, candidates, skipped, error: scanError, start, stop, setCandidates } = useScanLoop();
+  const { running, attempts, nextIn, candidates, skipped, error: scanError, start, stop, setCandidates, marketOpen } = useScanLoop();
   const [setup, setSetup] = useState(null);
   const [error, setError] = useState(null);
 
@@ -178,8 +178,12 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
             <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-700">
               <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
               <span>
-                Scanning continuously — pass {attempts}
-                {nextIn > 0 ? ` · retrying in ${nextIn}s` : "…"}
+                {/* Outside the session there is nothing for a pass to find:
+                    options do not trade, so the chain cannot move. Counting
+                    down to the next attempt implies otherwise. */}
+                {marketOpen
+                  ? `Scanning continuously — pass ${attempts}${nextIn > 0 ? ` · retrying in ${nextIn}s` : "…"}`
+                  : `Options open at 09:30 ET — scanning resumes then (pass ${attempts})`}
               </span>
             </div>
             <button

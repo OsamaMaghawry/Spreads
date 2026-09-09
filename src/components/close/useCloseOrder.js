@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { nextLimit } from "@/lib/closeWalk";
-import { spreadLegs } from "@/lib/spreadLegs";
+import { spreadLegs, needsExplicitLegs } from "@/lib/spreadLegs";
 
 const WALK_INTERVAL = 30000;
 const POLL = 2000;
@@ -34,11 +34,7 @@ const legWire = (l) => ({
   ...(l.assetClass ? { assetClass: l.assetClass } : {})
 });
 const wholeParams = (spread) => {
-  // A single-leg position has no second symbol, and the paired form would send
-  // the broker a multi-leg order with a null leg in it. Its "whole position" IS
-  // one leg, so it takes the explicit-legs path that closeSpread already
-  // handles as a plain single-leg order.
-  if (spread.single) {
+  if (needsExplicitLegs(spread)) {
     return { legs: spreadLegs(spread).map(legWire) };
   }
   return {
@@ -188,7 +184,8 @@ export default function useCloseOrder() {
     const r = restingRef.current;
     if (!r) throw new Error("There is no resting order to change.");
     const next = round2(Number(price));
-    if (!(next > 0)) throw new Error("Enter a price above zero.");
+    // Zero is not a price; a negative one is a credit, which is legitimate.
+    if (!Number.isFinite(next) || next === 0) throw new Error("Enter a price.");
     try {
       const res = await invoke("manageOrder", { accountId: r.accountId, orderId: r.orderId, action: "replace", limitPrice: next });
       restingRef.current = { ...r, orderId: res.orderId };
@@ -206,7 +203,26 @@ export default function useCloseOrder() {
   // never time out, because a resting order the user set is a decision, not an
   // attempt that failed. The only thing that ends it is a fill, the broker, or
   // the user.
-  async function run({ accountId, spread, qty, orderType, startDebit, legs, priceMode = "walk" }) {
+  async function run({ accountId, spread, qty: askedQty, orderType, startDebit, legs, priceMode = "walk" }) {
+    // MUTABLE, because the server can send a different quantity than was asked
+    // for. An mleg order with an unreduced leg ratio (a 2:1 condor's put side
+    // closed on its own restores a common factor the pairing had removed) is
+    // rescaled to qty x g with ratios / g -- the same contracts, a different
+    // unit. Alpaca then reports fills in units of THAT order. Comparing them
+    // against the pre-scale number marks a half-filled close as filled and
+    // leaves the rest of the position open with nothing watching it.
+    //
+    // adopt() is called on every submit, so the comparison below is always
+    // against the order that actually exists at the broker.
+    let qty = askedQty;
+    const adopt = (res) => {
+      const sent = Number(res?.sentQty);
+      if (Number.isFinite(sent) && sent > 0 && sent !== qty) {
+        addLog(`Broker unit differs — working ${sent} where ${qty} was asked (same contracts).`);
+        qty = sent;
+      }
+      return res;
+    };
     stopRef.current = false;
     genRef.current += 1;
     setLog([]);
@@ -219,7 +235,7 @@ export default function useCloseOrder() {
     try {
       if (orderType === "market") {
         addLog("Submitting market order…");
-        const res = await invoke("closeSpread", { ...params, orderType: "market", step: 0 });
+        const res = adopt(await invoke("closeSpread", { ...params, orderType: "market", step: 0 }));
         addLog(`Order submitted (${res.orderId})`);
         await sleep(2000);
         const st = await invoke("manageOrder", { accountId, orderId: res.orderId, action: "get" });
@@ -239,7 +255,7 @@ export default function useCloseOrder() {
       let debit = round2(startDebit);
       lastDebits[key] = debit;
       addLog(`Submitting limit order at ${priceLabel(debit)}…`);
-      let res = await invoke("closeSpread", { ...params, orderType: "limit", limitPrice: debit, step: 0 });
+      let res = adopt(await invoke("closeSpread", { ...params, orderType: "limit", limitPrice: debit, step: 0 }));
       let orderId = res.orderId;
 
       if (priceMode === "manual") {
@@ -334,7 +350,7 @@ export default function useCloseOrder() {
               const remaining = qty - filledSoFar;
               debit = proposed;
               lastDebits[key] = debit;
-              res = await invoke("closeSpread", {
+              res = adopt(await invoke("closeSpread", {
                 ...params,
                 qty: remaining,
                 orderType: "limit",
@@ -342,7 +358,7 @@ export default function useCloseOrder() {
                 step: steps,
                 // The market this price was chosen against, stored beside it.
                 quote: q || null
-              });
+              }));
               orderId = res.orderId;
               addLog(
                 `Resubmitted ${remaining === qty ? "" : `${remaining} of ${qty} `}at ${priceLabel(debit)} (${res.orderId})`

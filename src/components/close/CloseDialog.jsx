@@ -8,11 +8,12 @@ import OrderLog from "./OrderLog";
 import OpenOrdersPanel from "./OpenOrdersPanel";
 import ConfirmSubmit from "@/components/common/ConfirmSubmit";
 import LegPicker from "./LegPicker";
-import { spreadLegs, legLabel } from "@/lib/spreadLegs";
+import { spreadLegs, legLabel, needsExplicitLegs } from "@/lib/spreadLegs";
 import LegsQuoteSummary from "./LegsQuoteSummary";
 import PriceControl from "@/components/common/PriceControl";
 import NumberField from "@/components/common/NumberField";
 import useMarketStream from "@/lib/useMarketStream";
+import { walkStart as walkStartPrice } from "@/lib/closeWalk";
 import { kindOf } from "@/lib/positionKind";
 import RestingOrder from "@/components/open/RestingOrder";
 
@@ -36,6 +37,9 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   const [manualPrice, setManualPrice] = useState(null);
   const [quote, setQuote] = useState(null);
   const [quoteLoading, setQuoteLoading] = useState(true);
+  // Why there is no quote, in the server's own words. Null when there is one,
+  // or when the request failed for a reason nobody phrased.
+  const [quoteError, setQuoteError] = useState(null);
   const [mode, setMode] = useState("whole"); // whole | legs
   const [selected, setSelected] = useState([]);
   const [openOrders, setOpenOrders] = useState(spread.openOrders || []);
@@ -50,8 +54,20 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   // "qty available for order (requested: 10, available: 5)". The ticket used to
   // offer the whole holding, so the only way to discover the five already
   // committed was to have the order rejected.
-  const maxQty = Math.max(1, Number(spread.qtyAvailable ?? spread.qty) || spread.qty);
+  // The cap is the BROKER's, and only the broker's.
+  //
+  // Shares backing a covered call are not restricted: sell them and the call
+  // becomes naked, which is the owner's call to make about his own stock. For
+  // a while this clamped to the unencumbered remainder as well, so a holding
+  // of 210 with two covered calls written against it offered a maximum of 10.
+  // That is the app overruling the owner, not protecting him. What it owes
+  // him is the consequence, stated before he confirms — which is the warning
+  // under the field, not a lower number in it.
+  const rowQty = Math.abs(Number(spread.qty)) || 1;
+  const maxQty = Math.max(1, Math.min(rowQty, Number(spread.qtyAvailable ?? spread.qty) || rowQty));
   const heldForOrders = Math.max(0, Number(spread.qty) - Number(spread.qtyAvailable ?? spread.qty));
+  // How many short calls this sale would leave without shares behind them.
+  const freeShares = Number(spread.freeQty ?? spread.qty);
   const qty = Math.max(1, Math.min(maxQty, parseInt(qtyInput, 10) || 1));
 
   const allLegs = spreadLegs(spread);
@@ -61,7 +77,12 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
 
   useEffect(() => {
     // Defaults to what can actually be sold, not to the whole holding.
-    setQtyInput(String(Math.max(1, Number(spread.qtyAvailable ?? spread.qty) || spread.qty)));
+    setQtyInput(String(
+      Math.max(1, Math.min(
+        Math.abs(Number(spread.qty)) || 1,
+        Number(spread.qtyAvailable ?? spread.qty) || Math.abs(Number(spread.qty)) || 1
+      ))
+    ));
     setOpenOrders(spread.openOrders || []);
     setMode(spread.presetLegSymbol ? "legs" : "whole");
     setSelected(spread.presetLegSymbol ? [spread.presetLegSymbol] : []);
@@ -90,7 +111,12 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
       action: l.action,
       ...(l.assetClass ? { assetClass: l.assetClass } : {})
     });
-    const wholeLegs = spread.single ? spreadLegs(spread).map(wire) : null;
+    // The same routing decision useCloseOrder makes for the order itself: a
+    // structure the paired form cannot describe is QUOTED as explicit legs
+    // too, or the ticket prices one position and closes another. That is what
+    // put "+$1,053.00" on a screen for a position worth -$319.50 -- the quote
+    // was of a 1x1 the account does not hold.
+    const wholeLegs = needsExplicitLegs(spread) ? spreadLegs(spread).map(wire) : null;
     const body = {
       accountId: account.id,
       ...(customLegs
@@ -108,8 +134,21 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
     };
     const fetchQuote = () =>
       invokeFunction("spreadQuote", body)
-        .then((res) => active && setQuote(res.data?.error ? null : res.data))
-        .catch(() => active && setQuote(null))
+        .then((res) => {
+          if (!active) return;
+          // Keep the REASON, not just the absence. The server names the leg
+          // with no market — "C has no offer right now — bid 3, no ask" — and
+          // mapping every error to null threw that away, leaving the screen to
+          // say "market may be closed", which on a live mid-session SPY quote
+          // with a $746 bid was simply false.
+          setQuote(res.data?.error ? null : res.data);
+          setQuoteError(res.data?.error || null);
+        })
+        .catch(() => {
+          if (!active) return;
+          setQuote(null);
+          setQuoteError(null);
+        })
         .finally(() => active && setQuoteLoading(false));
 
     let timer = null;
@@ -129,7 +168,17 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   const { prices: streamPrices } = useMarketStream(account.id, spread.ticker ? [spread.ticker] : []);
   const liveSpot = streamPrices[spread.ticker]?.price || 0;
 
-  const midDebit = quote?.midDebit ?? 0;
+  // NULL, not zero, when there is no market.
+  //
+  // `?? 0` said "the mid is nothing" whenever the quote was missing a side, and
+  // every figure below then measured against that nothing: on a SPY share
+  // position quoted bid $746.01 with no ask, the ticket read "Market now (mid)
+  // $373.01" and "Total P/L -$5,210.35", and armed a sell button at $373.01
+  // into a $746 bid. The server now refuses a one-sided market outright; this
+  // is the second half of the same rule, because a screen that turns an absent
+  // price into $0.00 fabricates a P/L just as confidently.
+  const midDebit = quote?.midDebit ?? null;
+  const haveMid = typeof midDebit === "number" && Number.isFinite(midDebit);
   // The shared control speaks bid/ask/mid/last; spreadQuote speaks in debits.
   // Mapped here rather than teaching the control about spreads, so the open
   // ticket can use the same component with a credit.
@@ -153,7 +202,10 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   // frozen at the mid contradicts it. Manual with a price -> that price;
   // anything else -> the mid, as before.
   const manualReadyForPl = priceMode === "manual" && typeof manualPrice === "number" && manualPrice > 0;
-  const plDebit = manualReadyForPl ? manualPrice : midDebit;
+  // Null when there is neither a price the user chose nor a market to fall back
+  // on. Every P/L below is then withheld rather than computed against zero.
+  const plDebit = manualReadyForPl ? manualPrice : haveMid ? midDebit : null;
+  const havePl = plDebit !== null;
   const plAt = manualReadyForPl ? `at ${fmtMoney(manualPrice)}` : "(mid)";
   // Shares are not contracts: one unit is one share, so the 100x option
   // multiplier does not apply, and the result of selling them is measured
@@ -161,30 +213,56 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   // Using the option arithmetic here would have overstated a share close by
   // exactly 100x on a real position.
   const isShares = !!spread.shares;
+  // Closing this structure PAYS the account rather than costing it. True of a
+  // debit vertical, a ratio whose long is worth more than its shorts, and any
+  // net-long position -- and the whole-position readout had no word for it.
+  const closeIsCredit = !isShares && haveMid && midDebit < 0;
+
   const multiplier = isShares ? 1 : 100;
-  const plPerContract = isShares
-    ? (Math.abs(plDebit) - (spread.shareBasis ?? spread.longEntryPrice ?? 0)) * multiplier
-    : (spread.netCredit - plDebit) * multiplier;
-  const unit = isShares ? "share" : spread.type === "iron_condor" ? "condor" : "contract";
+  const plPerContract = !havePl
+    ? null
+    : isShares
+      ? (Math.abs(plDebit) - (spread.shareBasis ?? spread.longEntryPrice ?? 0)) * multiplier
+      : (spread.netCredit - plDebit) * multiplier;
+  // What ONE of the thing being closed is. A ratio's unit is three contracts,
+  // so "Total P/L for 1 contract" was wrong in the noun as well as the number.
+  const unit = isShares
+    ? "share"
+    : spread.type === "iron_condor"
+      ? "condor"
+      : spread.type === "call_ratio_spread"
+        ? "ratio"
+        : "contract";
   // Resume from the highest price already attempted — either this session's memory
   // or the last limit price Alpaca has on record for this spread.
   const attempts = [getLastDebit(account.id, spread, customLegs), quote?.lastAttemptDebit].filter(
     (v) => typeof v === "number" && isFinite(v)
   );
   const lastDebit = attempts.length ? Math.max(...attempts) : null;
-  // $0.30 is a plausible opening bid to close a cheap contract and a nonsense
-  // price for a share, so the fallback is options-only. Shares price manually
-  // and refuse to submit without a real number rather than invent one.
-  const baseDebit = quote ? midDebit : isShares ? null : 0.3;
-  const walkStart = lastDebit !== null ? Math.max(lastDebit, baseDebit) : baseDebit;
+  // No quote, no invented start.
+  //
+  // This was `quote ? midDebit : isShares ? null : 0.3` — $0.30 as a plausible
+  // opening bid on a cheap contract. It stopped being defensible once the
+  // server began refusing one-sided markets: the ticket now says in words that
+  // the walk has nothing to start from, and $0.30 is a number reaching an order
+  // underneath that sentence. Options price by hand too when there is no
+  // market, exactly as shares always have.
+  const baseDebit = quote ? midDebit : null;
+  // Clamped to the same ceiling every later step obeys. Taking the max of the
+  // resumed price and the mid, unclamped, is what let a stale $9.89 start a
+  // walk on a structure quoted at -7.01/-6.43: above the ceiling from the
+  // first step, so nextLimit returned it unchanged and the ticket sat there
+  // promising "never bids above the ask + $0.05" while breaching it by $16.
+  const startFromWalk = walkStartPrice(baseDebit, lastDebit, quote);
+  const clamped = lastDebit !== null && startFromWalk !== null && startFromWalk < lastDebit;
   const orderType = priceMode === "market" ? "market" : "limit";
   // What actually gets sent. Manual uses the number in the stepper; the walk
   // uses its own resume-aware starting point.
   // In manual mode the price is the user's instruction and nothing else may
   // stand in for it. Falling back to walkStart here would arm the submit button
   // at an invented $0.30 whenever no quote had arrived to seed the stepper.
-  const startDebit = priceMode === "manual" ? manualPrice : walkStart;
-  const manualReady = typeof manualPrice === "number" && manualPrice > 0;
+  const startDebit = priceMode === "manual" ? manualPrice : startFromWalk;
+  const manualReady = typeof manualPrice === "number" && Number.isFinite(manualPrice) && manualPrice !== 0;
 
   // Seed the stepper from the mid once a quote lands, and only then: opening it
   // at a stale or invented number is how someone ends up resting an order at a
@@ -194,8 +272,13 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
     if (manualPrice !== null || !quote) return;
     // A share sale quotes as a negative debit, so the options guard (> 0) never
     // fired and the stepper stayed empty on every share position.
+    // A credit-to-close structure seeds NEGATIVE, and the old `> 0` guard
+    // dropped it: no seed, no chips, and a stepper that clamped anything the
+    // user typed to $0.01. Manual close of a debit vertical was impossible,
+    // or -- if they typed the magnitude on screen -- submitted with the
+    // opposite sign, paying what they should have been paid.
     const seed = spread.shares ? Math.abs(midDebit) : midDebit;
-    if (seed > 0) setManualPrice(Math.round(seed * 100) / 100);
+    if (Number.isFinite(seed) && seed !== 0) setManualPrice(Math.round(seed * 100) / 100);
   }, [quote, midDebit, manualPrice, spread.shares]);
 
   // A different position, or a different set of legs, is a different price.
@@ -238,6 +321,8 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
               ? `Close ${spread.qty} ${spread.ticker} ${kindOf(spread)?.label || "position"}${spread.legs?.[0] ? ` $${spread.legs[0].strike}${spread.legs[0].kind === "call" ? "C" : "P"}` : ""}`
               : spread.type === "iron_condor"
               ? `Close ${spread.ticker} ${spread.putRatio > 1 ? `${spread.putRatio}× ` : ""}${spread.longStrike}/${spread.shortStrike}P · ${spread.callRatio > 1 ? `${spread.callRatio}× ` : ""}${spread.callShortStrike}/${spread.callLongStrike}C iron condor`
+              : spread.type === "call_ratio_spread"
+              ? `Close ${spread.ticker} ${spread.longRatio}×${spread.longStrike} / ${spread.shortRatio}×${spread.shortStrike} call ratio`
               : spread.type === "call_spread"
                 ? `Close ${spread.ticker} ${spread.shortStrike}/${spread.longStrike} call spread`
                 : `Close ${spread.ticker} ${spread.shortStrike}/${spread.longStrike} put spread`}
@@ -315,24 +400,54 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                       <span className="text-slate-500">Your cost / share</span>
                       <span className="text-right">{fmtMoney(spread.shareBasis ?? spread.longEntryPrice ?? 0)}</span>
                       <span className="text-slate-500">Market now (mid)</span>
-                      <span className="text-right">{fmtMoney(Math.abs(midDebit))}</span>
+                      <span className="text-right">{haveMid ? fmtMoney(Math.abs(midDebit)) : "—"}</span>
                       <span className="text-slate-500">Bid / Ask</span>
                       <span className="text-right">{fmtMoney(Math.abs(quote.askDebit))} / {fmtMoney(Math.abs(quote.bidDebit))}</span>
                     </>
                   ) : (
                     <>
-                      <span className="text-slate-500">Entry credit / {unit}</span><span className="text-right">{fmtMoney(spread.netCredit)}</span>
-                      <span className="text-slate-500">Mid debit to close</span><span className="text-right">{fmtMoney(midDebit)}</span>
-                      <span className="text-slate-500">Bid / Ask debit</span><span className="text-right">{fmtMoney(quote.bidDebit)} / {fmtMoney(quote.askDebit)}</span>
+                      {/* Credit-aware, the way LegsQuoteSummary already was.
+                          The same quantity was labelled "Mid debit to close
+                          -$6.72" on this tab and "Mid credit" on that one --
+                          two readouts of one number in one dialog, one of them
+                          telling the reader to pay what they would receive. */}
+                      <span className="text-slate-500">
+                        {spread.netCredit < 0 ? "Entry debit" : "Entry credit"} / {unit}
+                      </span>
+                      <span className="text-right">{fmtMoney(Math.abs(spread.netCredit))}</span>
+                      <span className="text-slate-500">
+                        {closeIsCredit ? "Mid credit to close" : "Mid debit to close"}
+                      </span>
+                      <span className={`text-right ${closeIsCredit ? "text-emerald-600" : ""}`}>
+                        {haveMid ? fmtMoney(Math.abs(midDebit)) : "—"}
+                      </span>
+                      <span className="text-slate-500">
+                        {closeIsCredit ? "Credit range (bid / ask)" : "Bid / Ask debit"}
+                      </span>
+                      <span className="text-right">
+                        {closeIsCredit
+                          ? `${fmtMoney(Math.abs(quote.askDebit))} / ${fmtMoney(Math.abs(quote.bidDebit))}`
+                          : `${fmtMoney(quote.bidDebit)} / ${fmtMoney(quote.askDebit)}`}
+                      </span>
                     </>
                   )}
-                  <span className="text-slate-500">P/L per {unit} {plAt}</span>
-                  <span className={`text-right font-medium ${plPerContract >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{fmtMoney(plPerContract)}</span>
-                  <span className="text-slate-500">Total P/L for {qty} {unit}{qty > 1 ? "s" : ""} {plAt}</span>
-                  <span className={`text-right font-semibold ${plPerContract >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{fmtMoney(plPerContract * qty)}</span>
+                  {/* Withheld rather than computed against nothing. A P/L needs
+                      a price, and when the market is one-sided and the user has
+                      not set one there is no price -- printing $0.00 there is
+                      how "-$5,210.35" appeared under a mid that did not exist. */}
+                  <span className="text-slate-500">P/L per {unit} {havePl ? plAt : ""}</span>
+                  <span className={`text-right font-medium ${!havePl ? "text-slate-400" : plPerContract >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                    {havePl ? fmtMoney(plPerContract) : "— set a price"}
+                  </span>
+                  <span className="text-slate-500">Total P/L for {qty} {unit}{qty > 1 ? "s" : ""} {havePl ? plAt : ""}</span>
+                  <span className={`text-right font-semibold ${!havePl ? "text-slate-400" : plPerContract >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                    {havePl ? fmtMoney(plPerContract * qty) : "—"}
+                  </span>
                 </div>
               ) : (
-                <span className="text-amber-600">Live quote unavailable — market may be closed.</span>
+                <span className="text-amber-600">
+                  {quoteError || "Live quote unavailable — market may be closed."}
+                </span>
               )}
             </div>
 
@@ -345,8 +460,19 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
               {heldForOrders > 0 && (
                 <p className="mt-1.5 text-xs text-amber-700">
                   {heldForOrders} of your {spread.qty} {isShares ? "shares are" : "contracts are"} already
-                  committed to a working order, so {maxQty} {maxQty === 1 ? "is" : "are"} free to close here.
-                  Cancel that order from the <span className="font-medium">Orders</span> tab to free the rest.
+                  committed to a working order, so {maxQty} {maxQty === 1 ? "is" : "are"} available to close here.
+                  Cancel that order from the <span className="font-medium">Orders</span> tab to release the rest.
+                </p>
+              )}
+              {/* Selling shares that back a covered call is allowed — it just
+                  turns the call naked, and that is worth knowing one line
+                  before confirming rather than one line after. */}
+              {isShares && qty > freeShares && (
+                <p className="mt-1.5 text-xs text-amber-700">
+                  {spread.encumberedQty} of these shares are backing short calls. Selling {qty} leaves{" "}
+                  {Math.ceil((qty - freeShares) / 100)} of them without shares behind{" "}
+                  {Math.ceil((qty - freeShares) / 100) === 1 ? "it" : "them"} — the broker will accept the
+                  order, and those calls become naked.
                 </p>
               )}
             </div>
@@ -411,10 +537,19 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                 ? null
                 : orderType === "limit"
                 ? lastDebit !== null
-                  ? `Limit resumes from your last attempt at ${fmtMoney(lastDebit)} — starting at ${fmtMoney(startDebit)} and stepping toward the ask every 30s until it fills. Never bids above the ask + $0.05. Stops after 10 min.`
-                  : midDebit < 0
-                    ? `Limit starts at the mid credit (${fmtMoney(Math.abs(midDebit))}) and concedes $0.02 every 30s (max 10 steps, 10 min timeout).`
-                    : `Limit starts at the mid debit (${fmtMoney(midDebit)}) and steps toward the ask every 30s until it fills — bigger steps on a wider market. Never bids above the ask + $0.05. Stops after 10 min.`
+                  ? clamped
+                    // Said out loud rather than silently applied: the resumed
+                    // price was past the ceiling, so the walk does not start
+                    // there. The version of this sentence that claimed the
+                    // ceiling while displaying a start above it is what made
+                    // $9.89 look deliberate.
+                    ? `Your last attempt was ${fmtMoney(lastDebit)}, which is past what the market will bear — starting at ${fmtMoney(startDebit)} instead and stepping every 30s until it fills. Never bids above the ask + $0.05. Stops after 10 min.`
+                    : `Limit resumes from your last attempt at ${fmtMoney(lastDebit)} — starting at ${fmtMoney(startDebit)} and stepping toward the ask every 30s until it fills. Never bids above the ask + $0.05. Stops after 10 min.`
+                  : !haveMid
+                    ? "There is no two-sided market for these legs right now, so the walk has nothing to start from. Set a price yourself, or wait for the market to open."
+                    : closeIsCredit
+                      ? `Closing this PAYS you. The limit starts at the mid credit (${fmtMoney(Math.abs(midDebit))}) and gives up a little every 30s until it fills. Never concedes past the bid − $0.05. Stops after 10 min.`
+                      : `Limit starts at the mid debit (${fmtMoney(midDebit)}) and steps toward the ask every 30s until it fills — bigger steps on a wider market. Never bids above the ask + $0.05. Stops after 10 min.`
                 : "Market executes immediately at the current best price — may slip toward the ask."}
             </p>
 
@@ -424,7 +559,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                 openOrders.length > 0
                   ? "Cancel the open order first"
                   : customLegs
-                    ? `Close ${customLegs.length} selected leg${customLegs.length > 1 ? "s" : ""} (${orderType})`
+                    ? `Close ${customLegs.length} selected leg${customLegs.length > 1 ? "s" : ""} (${priceMode === "market" ? "market" : priceMode === "manual" ? "limit" : "walk"})`
                     : mode === "legs"
                       ? "Select legs to close"
                       : priceMode === "manual"
@@ -450,7 +585,14 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
               disabled={
                 openOrders.length > 0 ||
                 (mode === "legs" && !customLegs) ||
-                (priceMode === "manual" && !manualReady)
+                (priceMode === "manual" && !manualReady) ||
+                // A walk with no starting price is not a walk. walkStart now
+                // returns null when there is no market to build a ceiling from,
+                // and this is what stops that null reaching an order: without
+                // it the button stayed live and submitted an invented $0.30
+                // underneath a sentence saying the walk had nothing to start
+                // from.
+                (priceMode !== "manual" && orderType === "limit" && startDebit === null)
               }
             />
           </div>
@@ -460,7 +602,11 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
             {/* Repricing in place is offered only where the broker actually
                 supports it. Alpaca refuses to replace an equity order once it
                 reaches `accepted` — "cannot replace order in accepted status",
-                code 42210000 — which is the state a share order is in almost
+                code 42210000. That was recorded here as a share-order quirk and
+                it is not: a resting TSLA put hit the same refusal on a live
+                account on 9 Sep. manageOrder now falls back to a confirmed
+                cancel plus a new order, so the button works either way; shares
+                stay hidden only because a share order reaches `accepted` almost
                 immediately, so the button was guaranteed to fail on shares. It
                 is not shown there; the honest instruction is below instead. */}
             {phase === "working" && resting && !isShares && (

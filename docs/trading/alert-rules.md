@@ -13,10 +13,39 @@ most important thing to alert on. Every rule reasons per leg.
 
 | Rule | Fires when | Severity | Threshold (`watch_settings`) |
 | --- | --- | --- | --- |
-| `naked_short_call` | a short call with fewer than 100 shares per contract behind it | 🔴 critical | — |
+| `naked_short_call` | short call contracts nothing in the account covers | 🔴 critical | — |
 | `short_through_strike` | a short leg is in the money on a **trusted** spot | 🔴 critical | — |
 | `short_near_strike` | a short leg is within N% of its strike, trusted spot | 🟠 warning | `strike_proximity_pct` (1%) |
 | `price_untrusted` | a **ticker** cannot be judged because the spot fails the trust ladder | ⚪ info | — |
+| `cover_unjudged` | a short call on an **adjusted** contract, whose cover no share count can decide | ⚪ info | — |
+
+### What covers a short call
+
+The allocation is `allocateCallCover` in `_shared/callCover.ts`, and both the
+watch and the dashboard's pairing read it — it was implemented twice, the two
+copies drifted, and on 8 Sep they gave opposite answers about the same live
+TSLA book on the same afternoon. Cover is offered to a ticker's shorts
+shortest-dated first, and it is counted **per contract**, never per symbol:
+
+1. **Long calls**, one per contract, expiring **on or after** the short.
+   Strike is irrelevant — long 352.50 against short 375 is still a spread,
+   because above 375 the long gains what the short loses. This row used to
+   read "fewer than 100 shares per contract behind it", which counted shares
+   alone and called a defined-risk spread naked.
+2. **Shares**, a hundred per contract, for whatever the longs did not cover.
+3. **Nothing else.** What is still uncovered is what the rule fires on, and
+   the alert says how many of how many.
+
+Partial cover is two answers, not one: three short calls against 100 shares
+are one covered call and two naked ones, and the dashboard shows both rows.
+
+`cover_unjudged` is the refusal case. After a split or a merger an adjusted
+contract no longer delivers 100 shares of anything, so every step above is
+arithmetic about a deliverable it does not have — and running it anyway
+answered in the alarming direction, raising a critical on a position that may
+be perfectly covered. Such a contract is reported unjudged, consumes no cover
+(leaving the shares for contracts that *can* be judged), and carries a null
+risk on the dashboard rather than "Unlimited": not unbounded, unknown.
 
 `price_untrusted` is a **liveness** rule — "I am watching and cannot see". It
 belongs to the in-session watch and never appears as a row in the after-close

@@ -4,6 +4,8 @@ import SpreadTable from "./SpreadTable";
 import PositionCards from "./PositionCards";
 import OrderGroup from "./OrderGroup";
 import useMarketStream from "@/lib/useMarketStream";
+import TickerPanel from "./TickerPanel";
+import BrokerTable from "./BrokerTable";
 import { AlertTriangle, LayoutGrid, Table2 } from "lucide-react";
 
 // A streamed trade older than this is not a live price any more. Thirty seconds
@@ -12,9 +14,11 @@ import { AlertTriangle, LayoutGrid, Table2 } from "lucide-react";
 // tick that arrived before the market went quiet.
 const LIVE_MAX_AGE_MS = 30_000;
 
-export default function AccountSection({ account, onCloseSpread, onOrdersChanged }) {
+export default function AccountSection({ account, onCloseSpread, onCloseMany, onOrdersChanged }) {
   const [view, setView] = useState("simple");
   const [tab, setTab] = useState("positions");
+  // Which name the combined view is open on. Null is closed.
+  const [ticker, setTicker] = useState(null);
   const orders = account.orders || [];
 
   const tickers = useMemo(
@@ -85,8 +89,17 @@ export default function AccountSection({ account, onCloseSpread, onOrdersChanged
     ...(account.totals?.notional > 0
       ? [{
           label: "Notional",
-          value: fmtMoney(account.totals.notional),
-          title: "What every stock-like position would lose with its stock at zero, added up. Exposure, not a loss estimate."
+          // A naked call has no stock-to-zero figure, because there is no
+          // bound to reach. It used to be added as a zero, so this total was
+          // silently short by the one position it could not size — the same
+          // understatement Risk / Equity has always marked, on the tile that
+          // never marked it.
+          value: account.totals.notionalComplete === false
+            ? `${fmtMoney(account.totals.notional)}+`
+            : fmtMoney(account.totals.notional),
+          title: account.totals.notionalComplete === false
+            ? `At least this much — ${(account.totals.notionalUndefined || []).join(", ") || "a position"} has no stock-to-zero figure, so this total leaves it out.`
+            : "What every stock-like position would lose with its stock at zero, added up. Exposure, not a loss estimate."
         }]
       : []),
     {
@@ -160,7 +173,16 @@ export default function AccountSection({ account, onCloseSpread, onOrdersChanged
         <div className="flex gap-1 px-5 border-b border-slate-200" role="tablist">
           {[
             { id: "positions", label: "Positions", n: account.spreads.length, tone: "bg-slate-100 text-slate-600" },
-            { id: "orders", label: "Orders", n: workingCount, tone: "bg-emerald-100 text-emerald-700" }
+            { id: "orders", label: "Orders", n: workingCount, tone: "bg-emerald-100 text-emerald-700" },
+            // The broker's own list, uninterpreted. Its badge counts the
+            // contracts our view does NOT account for, because that is the
+            // only number on this tab worth noticing from across the room.
+            {
+              id: "broker",
+              label: "Broker",
+              n: (account.coverage || []).length,
+              tone: "bg-amber-100 text-amber-700"
+            }
           ].map((t) => (
             <button
               key={t.id}
@@ -195,6 +217,13 @@ export default function AccountSection({ account, onCloseSpread, onOrdersChanged
             ? "Alpaca is rate-limiting this account right now — data will reappear on the next refresh."
             : `Connection failed — check the API keys for this account. (${account.error})`}
         </div>
+      ) : tab === "broker" ? (
+        <BrokerTable
+          rows={account.broker || []}
+          coverage={account.coverage || []}
+          onClose={(spread) => onCloseSpread(account, spread)}
+          onCloseMany={(legs, held) => onCloseMany?.(account, legs, account.broker || [], held)}
+        />
       ) : tab === "orders" ? (
         orders.length === 0 ? (
           <div className="px-5 py-6 text-sm text-slate-500">
@@ -215,14 +244,25 @@ export default function AccountSection({ account, onCloseSpread, onOrdersChanged
           spreads={spreads}
           accountId={account.id}
           onClose={(spread) => onCloseSpread(account, spread)}
+          onTicker={setTicker}
         />
       ) : (
         <SpreadTable
           spreads={spreads}
           accountId={account.id}
           onClose={(spread) => onCloseSpread(account, spread)}
+          onTicker={setTicker}
         />
       )}
+
+      {/* Reads the SAME overlaid rows the cards do, so the combined curve
+          moves with the stream rather than sitting on the last sync. */}
+      <TickerPanel
+        ticker={ticker}
+        spreads={spreads}
+        open={!!ticker}
+        onOpenChange={(v) => !v && setTicker(null)}
+      />
     </section>
   );
 }

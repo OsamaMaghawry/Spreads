@@ -138,7 +138,10 @@ export async function findSetup(account, params) {
   const {
     ticker, strategy, dte = 2, targetDelta = 0.18, wingWidth = 1,
     minCredit = 0.2, maxCredit = 4, putRatio = 1, callRatio = 1,
-    sharesByTicker = {}, basisByTicker = {}
+    sharesByTicker = {}, basisByTicker = {},
+    // Whether the options market is trading right now. Decided by the caller,
+    // which knows the clock; this module stays pure and testable.
+    marketOpen = true
   } = params;
 
   const spot = await getSpot(account, ticker);
@@ -156,8 +159,8 @@ export async function findSetup(account, params) {
   if (needCalls && calls.length === 0) return { ok: false, reason: `No priced call chain for ${ticker} ${expiry}.` };
 
   const built = isSingleStrategy(strategy)
-    ? buildSingle({ ticker, expiry, spot, strategy, puts, calls, targetDelta, basis: basisByTicker[ticker] || null, shares: sharesByTicker[ticker] || 0 })
-    : buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio, callRatio });
+    ? buildSingle({ ticker, expiry, spot, strategy, puts, calls, targetDelta, basis: basisByTicker[ticker] || null, shares: sharesByTicker[ticker] || 0, marketOpen })
+    : buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio, callRatio, marketOpen });
   if (!built.ok) return built;
   return validate(built.setup, minCredit, maxCredit);
 }
@@ -195,7 +198,7 @@ export function impliedSpotFromParity(puts, calls, expiry, r = 0.04) {
 }
 
 // Pure setup construction from already-priced chains, so a sweep can reuse one fetch.
-export function buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio = 1, callRatio = 1, allowItmShort = false }: any) {
+export function buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio = 1, callRatio = 1, allowItmShort = false, marketOpen = true }: any) {
   // Accepts either a bare number or the { price, source, asOf } result from
   // marketPrice.getSpot, so callers and tests need not unwrap it.
   const px = typeof spot === "number" ? spot : spot?.price;
@@ -210,8 +213,13 @@ export function buildSetup({ ticker, expiry, spot, strategy, puts, calls, target
   if (implied !== null && px > 0 && Math.abs(implied - px) / px > MAX_SOURCE_DIVERGENCE_PCT) {
     return {
       ok: false,
-      reason: `The option chain implies a spot of $${implied.toFixed(2)}, not $${px.toFixed(2)} — ` +
-        `the stock price feed disagrees with the options market.`
+      reason: marketOpen
+        ? `Chain implies $${implied.toFixed(2)}, stock says $${px.toFixed(2)} — sources disagree.`
+        // Outside 09:30–16:00 ET there is no options session, so the chain is
+        // still quoted at yesterday's close while the stock has moved since.
+        // Saying the sources "disagree" reads as a data fault; they are simply
+        // describing different moments.
+        : `Options closed until 09:30 ET — chain is at yesterday's close.`
     };
   }
 
@@ -285,7 +293,7 @@ export function buildSetup({ ticker, expiry, spot, strategy, puts, calls, target
 export const SINGLE_STRATEGIES = ["cash_secured_put", "covered_call"];
 export const isSingleStrategy = (s) => SINGLE_STRATEGIES.includes(s);
 
-export function buildSingle({ ticker, expiry, spot, strategy, puts, calls, targetDelta, allowItmShort = false, basis = null, shares = 0 }: any) {
+export function buildSingle({ ticker, expiry, spot, strategy, puts, calls, targetDelta, allowItmShort = false, basis = null, shares = 0, marketOpen = true }: any) {
   const px = typeof spot === "number" ? spot : spot?.price;
   const base = {
     ticker, expiry, strategy, targetDelta, wingWidth: null,
@@ -297,8 +305,13 @@ export function buildSingle({ ticker, expiry, spot, strategy, puts, calls, targe
   if (implied !== null && px > 0 && Math.abs(implied - px) / px > MAX_SOURCE_DIVERGENCE_PCT) {
     return {
       ok: false,
-      reason: `The option chain implies a spot of $${implied.toFixed(2)}, not $${px.toFixed(2)} — ` +
-        `the stock price feed disagrees with the options market.`
+      reason: marketOpen
+        ? `Chain implies $${implied.toFixed(2)}, stock says $${px.toFixed(2)} — sources disagree.`
+        // Outside 09:30–16:00 ET there is no options session, so the chain is
+        // still quoted at yesterday's close while the stock has moved since.
+        // Saying the sources "disagree" reads as a data fault; they are simply
+        // describing different moments.
+        : `Options closed until 09:30 ET — chain is at yesterday's close.`
     };
   }
 
@@ -392,7 +405,10 @@ export async function scanCandidates(account, params) {
     minCredit = 0, maxCredit = 1000, putRatio = 1, callRatio = 1, maxRisk = null,
     // For the wheel's halves: shares held and their basis per ticker, looked
     // up by the caller from the account. Absent for spreads.
-    sharesByTicker = {}, basisByTicker = {}
+    sharesByTicker = {}, basisByTicker = {},
+    // Whether the options market is trading right now. Decided by the caller,
+    // which knows the clock; this module stays pure and testable.
+    marketOpen = true
   } = params;
 
   const single = isSingleStrategy(strategy);
@@ -433,8 +449,8 @@ export async function scanCandidates(account, params) {
           for (const wingWidth of widths) {
             const built = single
               ? buildSingle({ ticker, expiry, spot, strategy, puts, calls, targetDelta,
-                  basis: basisByTicker[ticker] || null, shares: sharesByTicker[ticker] || 0 })
-              : buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio, callRatio });
+                  basis: basisByTicker[ticker] || null, shares: sharesByTicker[ticker] || 0, marketOpen })
+              : buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio, callRatio, marketOpen });
             if (!built.ok) { reasons.add(built.reason); continue; }
             const s = built.setup;
             const key = s.legs.map((l) => l.symbol).join("|");

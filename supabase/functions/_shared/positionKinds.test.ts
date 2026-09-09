@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  KINDS, classifyLeg, riskOfKind, collateralOfKind, breakEvenOfKind, stressLossOfKind, totalRisk, STOCK_LIKE
+  KINDS, classifyLeg, riskOfKind, collateralOfKind, breakEvenOfKind, stressLossOfKind, stressPL, stressTotal, totalRisk, STOCK_LIKE
 } from "./positionKinds.ts";
 
 // An Options Wheel account onboarded with a full history and an empty positions
@@ -112,10 +112,14 @@ test("a cash-secured put risks the strike less the credit, and ties up the strik
   assert.equal(collateralOfKind(KINDS.CASH_SECURED_PUT, p), 20000, "the broker holds the full strike");
 });
 
-test("a covered call's risk is the shares' downside, not a spread width", () => {
-  // Basis $95, one contract, $2 collected: 95*100 - 2*100.
+test("a covered call adds no risk of its own — the shares carry it", () => {
+  // It used to return the SHARES' downside (95*100 - 2*100 = 9300), which
+  // forced the share row to be shrunk by the covered quantity so the account
+  // total would not count the same stock twice. That bought one honest total
+  // with a false quantity on every row: a trader holding 210 shares read 10.
+  // The stock's dollars belong to the stock's row.
   const p = { ...call(120, -1, 2), shareBasis: 95 };
-  assert.equal(riskOfKind(KINDS.COVERED_CALL, p), 9300);
+  assert.equal(riskOfKind(KINDS.COVERED_CALL, p), 0);
 });
 
 test("a long option risks only its premium", () => {
@@ -129,10 +133,19 @@ test("shares risk what they COST, on the same convention as every other row", ()
   assert.equal(riskOfKind(KINDS.SHARES, { shareQty: 100, shareBasis: 91, avgEntryPrice: 95 }), 9100, "adjusted basis wins when present");
 });
 
-test("the adjusted basis lowers a covered call's max loss by exactly the premiums collected", () => {
-  const broker = riskOfKind(KINDS.COVERED_CALL, { ...call(120, -1, 2), shareBasis: 95 });
-  const adjusted = riskOfKind(KINDS.COVERED_CALL, { ...call(120, -1, 2), shareBasis: 90 });
+test("the adjusted basis lowers the SHARE row's max loss by exactly the premiums collected", () => {
+  // The comparison moved with the dollars: it is the share row that carries a
+  // lot's downside, so it is the share row the adjusted basis works on.
+  const broker = riskOfKind(KINDS.SHARES, { shareQty: 100, shareBasis: 95 });
+  const adjusted = riskOfKind(KINDS.SHARES, { shareQty: 100, shareBasis: 90 });
   assert.equal(broker - adjusted, 500, "$5 of collected premium is $500 less at risk per contract");
+});
+
+test("premium written against a lot comes off what the lot can still cost", () => {
+  // 210 shares at 364.3057 is $76,504.20 of cost; $1,095 was collected on the
+  // calls written against them, so that is the most they can still lose.
+  const risk = riskOfKind(KINDS.SHARES, { shareQty: 210, shareBasis: 364.305714, premiumWritten: 1095 });
+  assert.equal(risk, 75409.2);
 });
 
 test("break-even is the number a wheel is run against", () => {
@@ -142,10 +155,13 @@ test("break-even is the number a wheel is run against", () => {
   assert.equal(breakEvenOfKind(KINDS.SHARES, { avgEntryPrice: 95 }), 95);
 });
 
-test("covered calls and shares tie up the shares at what they are worth now", () => {
-  assert.equal(collateralOfKind(KINDS.COVERED_CALL, { ...call(120, -2), shareMarketPrice: 110 }), 22000);
+test("shares tie up capital; the call written on them ties up none of its own", () => {
+  // The share row reports the whole holding and its market value, so a
+  // covered call returning the covered shares' value as well added the right
+  // total out of two overlapping halves.
   assert.equal(collateralOfKind(KINDS.SHARES, { marketValue: -8000 }), 8000);
-  assert.equal(collateralOfKind(KINDS.COVERED_CALL, call(120, -1)), null, "no price, no figure");
+  assert.equal(collateralOfKind(KINDS.COVERED_CALL, { ...call(120, -2), shareMarketPrice: 110 }), 0);
+  assert.equal(collateralOfKind(KINDS.COVERED_CALL, call(120, -1)), 0);
 });
 
 // --- Totals ----------------------------------------------------------------
@@ -169,4 +185,90 @@ test("NaN and undefined are treated as unknown, not as zero", () => {
   assert.equal(totalRisk([{ ticker: "A", maxRisk: NaN }]).complete, false);
   assert.equal(totalRisk([{ ticker: "A" }]).complete, false);
   assert.equal(totalRisk([]).complete, true);
+});
+
+// ---------------------------------------------------------------------------
+// The account total: one shock per ticker, not one per row
+// ---------------------------------------------------------------------------
+
+test("an adjusted short call is unjudged, and every figure on it withholds", () => {
+  const p = call(120, -3);
+  assert.equal(classifyLeg({ ...p, adjusted: true }, { shares: 1000 }), KINDS.SHORT_CALL_UNJUDGED);
+  assert.equal(riskOfKind(KINDS.SHORT_CALL_UNJUDGED, p), null, "not unlimited — unknown");
+  assert.equal(breakEvenOfKind(KINDS.SHORT_CALL_UNJUDGED, p), null);
+  assert.equal(collateralOfKind(KINDS.SHORT_CALL_UNJUDGED, p), null);
+  assert.equal(stressPL(KINDS.SHORT_CALL_UNJUDGED, p, 100), null);
+  assert.ok(STOCK_LIKE.has(KINDS.SHORT_CALL_UNJUDGED));
+});
+
+test("stressPL prices a position at a given underlying, signed", () => {
+  // A short put taken in for $2 with the stock at 100: at 90 it is $8 down.
+  assert.equal(stressPL(KINDS.CASH_SECURED_PUT, put(100, -1, 2), 90), -800);
+  // Above the strike it keeps the credit and nothing else happens.
+  assert.equal(stressPL(KINDS.CASH_SECURED_PUT, put(100, -1, 2), 110), 200);
+  // A short call is the mirror image.
+  assert.equal(stressPL(KINDS.NAKED_CALL, call(105, -1, 2), 115), -800);
+  assert.equal(stressPL(KINDS.SHARES, { shareQty: 100, stockPrice: 100 }, 85), -1500);
+});
+
+test("a ticker is shocked once, so a crash and a rally are not billed together", () => {
+  // 100 shares at $100 and one naked $105 call. The old total summed the
+  // shares' loss at -15% ($1,500) and the call's loss at +15% ($800) as if
+  // both happened at once, and charged $2,300 for a book whose worst single
+  // outcome is $1,300.
+  const rows = [
+    { ticker: "X", type: KINDS.SHARES, stockPrice: 100, stressInput: { shareQty: 100, stockPrice: 100 } },
+    { ticker: "X", type: KINDS.NAKED_CALL, stockPrice: 100, stressInput: { qty: -1, strike: 105, avgEntryPrice: 2, stockPrice: 100 } }
+  ];
+  const t = stressTotal(rows, 0.15);
+  // Down: shares -1500, call +200 => -1300. Up: shares +1500, call -800 => +700.
+  assert.equal(t.risk, 1300);
+  assert.equal(t.complete, true);
+});
+
+test("a covered call's shares are counted once, on the share row", () => {
+  // 100 shares at $100 with a $105 call written for $2. At -15% the shares
+  // lose $1,500 and the call keeps its $200. Summing each row's own worst
+  // case counted the same hundred shares twice and produced $2,800.
+  const rows = [
+    { ticker: "X", type: KINDS.SHARES, stockPrice: 100, stressInput: { shareQty: 100, stockPrice: 100 } },
+    { ticker: "X", type: KINDS.COVERED_CALL, stockPrice: 100, stressInput: { qty: -1, strike: 105, avgEntryPrice: 2, stockPrice: 100 } }
+  ];
+  assert.equal(stressTotal(rows, 0.15).risk, 1300);
+});
+
+test("a position that survives both shocks contributes nothing, and never a gain", () => {
+  const rows = [
+    { ticker: "X", type: KINDS.CASH_SECURED_PUT, stockPrice: 100, stressInput: { qty: -1, strike: 50, avgEntryPrice: 1, stockPrice: 100 } }
+  ];
+  assert.equal(stressTotal(rows, 0.15).risk, 0);
+});
+
+test("tickers still sum, because they can move against each other at once", () => {
+  const rows = [
+    { ticker: "X", type: KINDS.SHARES, stockPrice: 100, stressInput: { shareQty: 100, stockPrice: 100 } },
+    { ticker: "Y", type: KINDS.SHARES, stockPrice: 50, stressInput: { shareQty: 100, stockPrice: 50 } }
+  ];
+  assert.equal(stressTotal(rows, 0.15).risk, 2250, "1500 on X plus 750 on Y");
+});
+
+test("a row with nothing to price names its ticker rather than adding a zero", () => {
+  const rows = [
+    { ticker: "X", type: KINDS.SHARES, stockPrice: 100, stressInput: { shareQty: 100, stockPrice: 100 } },
+    { ticker: "Z", type: KINDS.SHARES, stockPrice: 0, stressInput: { shareQty: 100, stockPrice: 0 } }
+  ];
+  const t = stressTotal(rows, 0.15);
+  assert.equal(t.complete, false);
+  assert.deepEqual(t.undefinedRisk, ["Z"]);
+  assert.equal(t.risk, 1500, "what could be priced is still priced");
+});
+
+test("an unjudgeable row makes its whole ticker incomplete", () => {
+  const rows = [
+    { ticker: "X", type: KINDS.SHARES, stockPrice: 100, stressInput: { shareQty: 100, stockPrice: 100 } },
+    { ticker: "X", type: KINDS.SHORT_CALL_UNJUDGED, stockPrice: 100, stressInput: { qty: -1, strike: 105, avgEntryPrice: 2, stockPrice: 100 } }
+  ];
+  const t = stressTotal(rows, 0.15);
+  assert.equal(t.complete, false);
+  assert.deepEqual(t.undefinedRisk, ["X"]);
 });

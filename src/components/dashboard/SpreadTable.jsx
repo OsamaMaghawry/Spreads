@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import SpreadStructure from "./SpreadStructure";
-import { isSingle, kindOf, riskText, riskIsUnbounded, isStockRisk, basisNote, stressText, stressNote, movePct, showsStress } from "@/lib/positionKind";
+import { isSingle, kindOf, riskText, riskIsUnbounded, isStockRisk, basisNote, stressText, stressNote, movePct, showsStress, moneynessCell, moneynessNote } from "@/lib/positionKind";
 import LegRows from "./LegRows";
 import { dayChange, dayChangeLabel } from "@/lib/dayChange";
 
@@ -11,21 +11,79 @@ const td = "px-2.5 py-4 whitespace-nowrap tabular-nums";
 
 const COL_COUNT = 21;
 
-export default function SpreadTable({ spreads, accountId, onClose }) {
+export default function SpreadTable({ spreads: allSpreads, accountId, onClose, onTicker }) {
   const [expanded, setExpanded] = useState({});
+  const [filter, setFilter] = useState(null);
   const toggle = (key) => setExpanded((e) => ({ ...e, [key]: !e[key] }));
+
+  // One chip per ticker, with how many rows it has. An account holding one
+  // name does not need a filter, and a row of chips that never changes
+  // anything is furniture.
+  const byTicker = [...new Set(allSpreads.map((s) => s.ticker).filter(Boolean))]
+    .map((t) => ({ ticker: t, n: allSpreads.filter((s) => s.ticker === t).length }))
+    .sort((a, b) => b.n - a.n || a.ticker.localeCompare(b.ticker));
+  const spreads = filter ? allSpreads.filter((s) => s.ticker === filter) : allSpreads;
+
+  // `|| 0` on maxRisk is the same swallow the account totals had: a naked
+  // call and a ratio both carry null because their loss has no bound, and
+  // adding them as nothing prints a tidy total that omits the only rows worth
+  // worrying about. Counted instead, and the cell says the total is a floor.
   const totals = spreads.reduce(
-    (a, s) => ({
-      totalCredit: a.totalCredit + (s.totalCredit || 0),
-      maxRisk: a.maxRisk + (s.adjusted ? 0 : s.maxRisk || 0),
-      closeCost: a.closeCost + (s.closeCost || 0),
-      unrealizedPL: a.unrealizedPL + (s.unrealizedPL || 0),
-      expirationPL: a.expirationPL + (s.expirationPL || 0)
-    }),
-    { totalCredit: 0, maxRisk: 0, closeCost: 0, unrealizedPL: 0, expirationPL: 0 }
+    (a, s) => {
+      const bounded = !s.adjusted && typeof s.maxRisk === "number" && Number.isFinite(s.maxRisk);
+      return {
+        totalCredit: a.totalCredit + (s.totalCredit || 0),
+        maxRisk: a.maxRisk + (bounded ? s.maxRisk : 0),
+        riskComplete: a.riskComplete && (bounded || !!s.adjusted),
+        closeCost: a.closeCost + (s.closeCost || 0),
+        unrealizedPL: a.unrealizedPL + (s.unrealizedPL || 0),
+        expirationPL: a.expirationPL + (s.expirationPL || 0)
+      };
+    },
+    { totalCredit: 0, maxRisk: 0, riskComplete: true, closeCost: 0, unrealizedPL: 0, expirationPL: 0 }
   );
 
   return (
+    <>
+      {byTicker.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1.5 px-4 py-3 border-b border-slate-100">
+          <button
+            onClick={() => setFilter(null)}
+            className={`text-xs font-medium rounded-full px-2.5 py-1 border transition-colors ${
+              filter === null
+                ? "border-slate-300 bg-slate-100 text-slate-900"
+                : "border-slate-200 text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            All
+          </button>
+          {byTicker.map((t) => (
+            <button
+              key={t.ticker}
+              onClick={() => setFilter(filter === t.ticker ? null : t.ticker)}
+              className={`text-xs font-medium rounded-full px-2.5 py-1 border transition-colors ${
+                filter === t.ticker
+                  ? "border-slate-300 bg-slate-100 text-slate-900"
+                  : "border-slate-200 text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              {t.ticker} <span className="tabular-nums text-slate-400">{t.n}</span>
+            </button>
+          ))}
+          {/* Filtering shows the pieces; this adds them up. The columns here
+              are per-structure — a share row's net credit beside a ratio's
+              means nothing added together — so the combined view is its own
+              screen rather than a totals row that would lie. */}
+          {filter && onTicker && (
+            <button
+              onClick={() => onTicker(filter)}
+              className="ml-1 text-xs font-medium rounded-full px-2.5 py-1 border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+            >
+              {filter} combined →
+            </button>
+          )}
+        </div>
+      )}
     <div className="overflow-x-auto">
       <table className="w-full text-sm text-slate-700">
         <thead>
@@ -76,7 +134,17 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
                 </button>
               </td>
               <td className={`${td} font-semibold text-slate-900`}>
-                {s.ticker}
+                {onTicker ? (
+                  <button
+                    onClick={() => onTicker(s.ticker)}
+                    className="underline decoration-slate-300 underline-offset-4 hover:decoration-slate-900"
+                    title={`Everything on ${s.ticker}, combined`}
+                  >
+                    {s.ticker}
+                  </button>
+                ) : (
+                  s.ticker
+                )}
                 {s.type === "iron_condor" && (
                   <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
                     IC
@@ -85,6 +153,14 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
                 {s.type === "call_spread" && (
                   <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 border border-sky-200">
                     CALL
+                  </span>
+                )}
+                {s.type === "call_ratio_spread" && (
+                  <span
+                    className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 border border-sky-200"
+                    title="More short calls than long ones — a ratio."
+                  >
+                    {s.longRatio}×{s.shortRatio} CALL
                   </span>
                 )}
                 {isSingle(s) && kindOf(s) && (
@@ -112,20 +188,20 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
               </td>
               <td className={`${td} text-center`}>
                 <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    s.moneyness === "ITM"
-                      ? "bg-rose-100 text-rose-700"
-                      : s.moneyness === "OTM"
-                        ? "bg-emerald-100 text-emerald-700"
-                        // No price to judge against. Green here would be an
-                        // answer; this is the absence of one.
-                        : "bg-slate-100 text-slate-500"
-                  }`}
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${moneynessCell(s)}`}
+                  title={moneynessNote(s)}
                 >
                   {s.moneyness || "—"}
                 </span>
               </td>
-              <td className={`${td} text-right`}>{s.qty}</td>
+              <td className={`${td} text-right`}>
+                {s.qty}
+                {s.encumberedQty > 0 && (
+                  // What they are doing, not what you are forbidden to do
+                  // with them. See the note in PositionCard.
+                  <span className="block text-[11px] text-slate-400">{s.encumberedQty} backing calls</span>
+                )}
+              </td>
               <td className={`${td} text-right`}>{fmtMoney(s.shortEntryPrice)}</td>
               <td className={`${td} text-right`}>{fmtMoney(s.longEntryPrice)}</td>
               {/* Width, risk and break-even are all computed from a
@@ -154,9 +230,16 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
                   : riskText(s, fmtMoney)}
               </td>
               <td className={`${td} text-right`} title={basisNote(s)}>
-                {s.adjusted ? "—" : fmtMoney(s.breakEven)}
+                {/* Same as the card: a null lower break-even on a structure
+                    that HAS an upper one means there is none below, not that
+                    it is unknown. "— – $376.31" said the wrong thing. */}
+                {s.adjusted
+                  ? "—"
+                  : s.breakEven == null && s.breakEvenHigh != null
+                    ? `Below ${fmtMoney(s.breakEvenHigh)}`
+                    : fmtMoney(s.breakEven)}
                 {s.basisSource === "adjusted" && <span className="ml-1 text-[10px] text-emerald-600" title="Premiums collected on this name have been subtracted">adj</span>}
-                {!s.adjusted && s.breakEvenHigh != null && (
+                {!s.adjusted && s.breakEven != null && s.breakEvenHigh != null && (
                   <span className="text-slate-400"> – {fmtMoney(s.breakEvenHigh)}</span>
                 )}
               </td>
@@ -200,7 +283,12 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
               <td className={`${td} text-[11px] uppercase tracking-wider text-slate-500`}>Totals</td>
               <td className={td} colSpan={10}></td>
               <td className={`${td} text-right`}>{fmtMoney(totals.totalCredit)}</td>
-              <td className={`${td} text-right`}>{fmtMoney(totals.maxRisk)}</td>
+              <td
+                className={`${td} text-right`}
+                title={totals.riskComplete ? undefined : "At least this much — a position here has no maximum loss, so it is not in this total."}
+              >
+                {fmtMoney(totals.maxRisk)}{totals.riskComplete ? "" : "+"}
+              </td>
               <td className={td} colSpan={3}></td>
               <td className={`${td} text-right`}>{fmtMoney(totals.closeCost)}</td>
               <td className={`${td} text-right ${totals.unrealizedPL > 0 ? "text-emerald-600" : totals.unrealizedPL < 0 ? "text-rose-600" : ""}`}>
@@ -215,5 +303,6 @@ export default function SpreadTable({ spreads, accountId, onClose }) {
         </tbody>
       </table>
     </div>
+    </>
   );
 }

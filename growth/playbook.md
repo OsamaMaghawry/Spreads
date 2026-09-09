@@ -68,7 +68,11 @@ defined risk · premium seller · the book · fills
 income" · "signals" / "picks" / "alerts you what to trade" · "beat the
 market" · "risk-free" · emoji in a headline · exclamation marks
 
-**Register:** a trader explaining something to another trader. Concrete
+**Register:** plain and short — see `docs/context/brand.md` for the blog's
+Investopedia shape, its 900-1,200 word ceiling and the 15-word diagram cap.
+The phrase "a trader explaining something to another trader" was withdrawn on
+9 Sep: agents wrote to it and produced 2,000-word literary posts nobody has
+time to read. Concrete
 numbers, admitted uncertainty, no adjectives doing the work of evidence. This
 audience has been marketed at by a thousand scams and has antibodies.
 

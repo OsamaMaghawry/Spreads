@@ -126,9 +126,58 @@ p { margin: 0; }
 }
 .nav .right { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; }
 /* Secondary links are hidden on phones rather than wrapped into a second row. */
-.nav a.plain { display: none; color: var(--ink-soft); text-decoration: none; font-size: 0.95rem; padding: 0.5rem 0.65rem; }
+.nav a.plain { display: inline-block; color: var(--ink-soft); text-decoration: none; font-size: 0.95rem; padding: 0.5rem 0.65rem; }
 .nav a.plain:hover { color: var(--brand); }
-@media (min-width: 40rem) { .nav a.plain { display: inline-block; } }
+.nav .navlinks { display: flex; align-items: center; gap: 0.25rem; }
+.nav .navlinks .btn { margin-left: 0.4rem; }
+.burger { display: none; }
+
+/* On a phone these links used to be display:none, which left the header with
+   a logo, a Log in button, and no route into the blog or the pricing page at
+   all — the only links to either were in the footer, past the whole page.
+   They move behind a menu button rather than being dropped: Log in stays in
+   the bar, because signing in is what a returning reader opens the header
+   for. */
+@media (max-width: 40rem) {
+  .nav { position: relative; gap: 0.5rem; }
+  .nav .right { gap: 0.4rem; }
+  .nav .btn { padding: 0.45rem 0.75rem; font-size: 0.9rem; }
+
+  .burger {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 2.3rem; height: 2.3rem; padding: 0;
+    border: 1px solid var(--line); border-radius: 9px;
+    background: var(--surface); color: var(--ink); cursor: pointer;
+  }
+  .burger svg { width: 1.1rem; height: 1.1rem; display: block; }
+  .burger:hover { border-color: var(--brand); color: var(--brand); }
+
+  /* The panel is closed by default and opened by a data attribute on the nav,
+     rather than by the `hidden` attribute — `hidden` would also hide the
+     links on a wide screen, where they are simply part of the bar. */
+  .nav .navlinks {
+    display: none;
+    position: absolute; top: calc(100% - 0.35rem); right: 0; z-index: 40;
+    flex-direction: column; align-items: stretch; gap: 0.1rem;
+    min-width: 11rem; padding: 0.35rem;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; box-shadow: var(--shadow);
+  }
+  .nav[data-open] .navlinks { display: flex; }
+  .nav .navlinks a.plain { display: block; padding: 0.62rem 0.7rem; border-radius: 8px; }
+  .nav .navlinks a.plain:hover { background: var(--line-soft); }
+  /* Log in sits in the panel too, and is the one thing in it a returning
+     reader came for — so it keeps its button shape rather than becoming a
+     third line of text, and takes the full width under a rule. */
+  .nav .navlinks .btn {
+    display: block; width: 100%; text-align: center;
+    margin: 0.35rem 0 0; padding-top: 0.55rem; padding-bottom: 0.55rem;
+  }
+  .nav .navlinks .btn::before {
+    content: ""; display: block; height: 1px; margin: -0.35rem -0.35rem 0.35rem;
+    background: var(--line);
+  }
+}
 
 /* ---------- buttons ---------- */
 

@@ -13,15 +13,24 @@
 // of them.
 //
 // Returns counts only. The feed goes to broker_feed_dumps, which is revoked
-// from anon and authenticated, so nothing sensitive crosses the wire even
-// though any valid project key can trigger a capture.
+// from anon and authenticated, so nothing sensitive crosses the wire.
+//
+// WHO MAY CAPTURE. Until this check existed, any valid project key could name
+// any account id and this function would decrypt that account's credentials
+// and pull its whole trade history -- the one function on the money path that
+// reached trading_accounts without a user_id filter. The caller must now be
+// signed in, and must either own the account or be an administrator; an
+// administrator is allowed because a support capture on someone else's account
+// is the reason the function exists, and that access is already the one the
+// back-office holds.
 //
 // The Alpaca calls are inlined rather than imported from _shared/alpaca.ts:
 // that module re-exports the OCC parser and the spread pairer, which would drag
 // the whole reconstruction chain into a function that only needs one
 // authenticated GET.
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
-import { adminClient } from "../_shared/supabaseClients.ts";
+import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
+import { isAdminUser } from "../_shared/admin.ts";
 import { decryptSecret } from "../_shared/crypto.ts";
 
 const tradingBase = (account: any) =>
@@ -70,6 +79,9 @@ Deno.serve(async (req) => {
     const { accountId } = await req.json().catch(() => ({}));
     if (!accountId) return jsonResponse({ error: "accountId is required" }, 400);
 
+    const user = await requireUser(req);
+    if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+
     const admin = adminClient();
     const { data, error } = await admin
       .from("trading_accounts")
@@ -77,6 +89,12 @@ Deno.serve(async (req) => {
       .eq("id", accountId)
       .maybeSingle();
     if (error) throw new Error(error.message);
+    // Same answer for "no such account" and "not yours" — which of the two it
+    // is would tell an unauthorised caller that the id is real.
+    const owned = !!data && data.user_id === user.id;
+    if (!owned && !(data && (await isAdminUser(user, admin)).isAdmin)) {
+      return jsonResponse({ error: "account not found" }, 404);
+    }
     if (!data) return jsonResponse({ error: "account not found" }, 404);
 
     const account = {
@@ -103,13 +121,49 @@ Deno.serve(async (req) => {
       pageToken = page[page.length - 1].id;
     }
 
+    // Positions and working orders, captured beside the activities.
+    //
+    // The dashboard reads positions live on every load and stores nothing, so
+    // when a trader reports a position the broker shows and the app does not,
+    // there was no way to tell whether the broker sent it. Now there is.
+    // Failures here do not lose the activity capture, which is what this
+    // function existed for first.
+    const positions = await get(`${base}/positions`, account).catch(() => null);
+    const openOrders = await get(`${base}/orders?status=open&nested=true&limit=100`, account).catch(() => null);
+
+    // The filled orders, byte for byte the request syncAccounts makes.
+    //
+    // This is the PROVENANCE, not another view of the same holdings: the
+    // pairing groups legs by the ticket that filled them, so a dump without it
+    // regroups by shape and produces a grouping production never produced.
+    // Replaying such a fixture debugs the capture rather than the account. The
+    // query string is kept identical to syncAccounts on purpose — a different
+    // limit or direction is a different set of orders and therefore a
+    // different grouping.
+    const filledOrders = await get(
+      `${base}/orders?status=closed&nested=true&limit=200&direction=desc`,
+      account
+    ).catch(() => null);
+
     await admin.from("broker_feed_dumps").insert({
       account_id: accountId,
       activities,
-      activity_count: activities.length
+      activity_count: activities.length,
+      positions,
+      position_count: Array.isArray(positions) ? positions.length : null,
+      open_orders: openOrders,
+      filled_orders: filledOrders,
+      filled_order_count: Array.isArray(filledOrders) ? filledOrders.length : null
     });
 
-    return jsonResponse({ ok: true, accountId, activityCount: activities.length });
+    return jsonResponse({
+      ok: true,
+      accountId,
+      activityCount: activities.length,
+      positionCount: Array.isArray(positions) ? positions.length : null,
+      openOrderCount: Array.isArray(openOrders) ? openOrders.length : null,
+      filledOrderCount: Array.isArray(filledOrders) ? filledOrders.length : null
+    });
   } catch (error) {
     console.error("dumpBrokerFeed failed", error?.message || error);
     return jsonResponse({ error: String(error?.message || error) }, 500);

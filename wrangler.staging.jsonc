@@ -1,4 +1,16 @@
 {
+  // The dashboard's staging deployment, on dev-dash.deltamint.app.
+  //
+  // This file exists because the app was the only deployable thing in the repo
+  // still relying on Cloudflare's own Workers Build integration, which runs
+  // `wrangler versions upload` — a PREVIEW publish. A preview version is
+  // uploaded and never promoted, so a merged front-end change could sit in the
+  // account, apparently deployed, while dev-dash kept serving older code. The
+  // build log even says so: "To deploy this version to production traffic use
+  // the command `wrangler versions deploy`". Nothing ran it.
+  //
+  // The landing site solved this on 3 Sep by moving to a workflow in this repo
+  // that runs a real `wrangler deploy`. This is the same move for the app.
   "name": "spreads-staging",
   "compatibility_date": "2025-06-05",
   "main": "./worker/index.js",
@@ -12,6 +24,8 @@
     ]
   },
   "vars": {
+    // Matches VITE_APP_URL in .env.staging. A mismatch here sends every
+    // request into a redirect loop against the host the bundle was built for.
     "CANONICAL_HOST": "dev-dash.deltamint.app"
   }
 }

@@ -171,7 +171,8 @@ The listing does not say whether $1.20 is a fair price for that call, how
 probable a breach of the strike is, or what the premium does as expiration
 approaches. Those are questions about pricing and probability rather than about
 the contract, and the rest of the [foundations
-series](/blog/foundations) takes them one at a time.
+series](/blog/foundations) takes them one at a time, starting with [calls and
+puts and what each side owes](/blog/call-vs-put-option-explained).
 
 What the contract does give you is exactness. Because every field but one is
 fixed, the most a defined-risk structure can lose at expiration is an

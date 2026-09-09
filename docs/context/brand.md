@@ -33,11 +33,56 @@ those collapse into the `dm` scale or get recorded here as sanctioned.
 
 ## Voice
 
-The register is fixed by `growth/playbook.md` and binding: *a trader
-explaining something to another trader* — concrete numbers, admitted
-uncertainty, no adjectives doing the work of evidence, no exclamation marks,
-no emoji in headings. Compliance vocabulary (use/avoid lists) is the floor;
-this book adds consistency on top.
+**Plain, and short.** Concrete numbers, admitted uncertainty, no adjectives
+doing the work of evidence, no exclamation marks, no emoji in headings.
+Compliance vocabulary (use/avoid lists) is the floor; this book adds
+consistency on top.
+
+The register used to read *"a trader explaining something to another trader"*,
+and agents wrote to it — literary, argument-shaped, 2,000-word posts that
+opened with atmosphere and built to a point. The owner's correction, 9 Sep:
+he never asked for that, and **"even traders don't have time to go through
+these heavy articles."** He is right, and the phrase is withdrawn. Expertise
+was never the problem; length and density were.
+
+### Blog articles: the Investopedia shape
+
+Binding for every post, foundations first and the rest as they are rewritten.
+
+- **Definition in the first sentence.** The term, bolded, defined plainly. No
+  preamble, no scene-setting. A reader who reads only sentence one has the
+  definition.
+- **Key Takeaways** near the top: 3–5 standalone bullets. A reader who reads
+  only the box gets the article.
+- **Plain question headings** — "How does a call option work?" Not clever.
+- **Paragraphs of 2–3 sentences.** Split anything longer.
+- **One worked example**, labelled, with arithmetic the reader can check.
+- **A table** wherever two things are compared.
+- **FAQ** (3–4 real beginner questions) and **The Bottom Line** to close.
+- **900–1,200 words**, hard ceiling 1,300. If it will not fit, it is two
+  posts. For scale, the 2,143-word `credit-spread-max-loss` is what this rule
+  exists to prevent.
+- Define every term the first time it appears, in the same sentence.
+
+### Diagrams
+
+Diagrams beat text when they are done right — and ours were not. The eight
+SVGs written before 9 Sep carry **53 to 149 words each**; one holds 138 words
+across 23 text nodes. That is a paragraph rendered as a picture, and it made
+the articles harder, not easier.
+
+- **Hard cap: 15 words inside the frame.** Labels only — a noun, a number,
+  what an arrow means.
+- Any sentence belongs in the prose underneath, where it can be skipped.
+- One idea per diagram. Two ideas means two diagrams, or one fewer.
+- Legible on a phone at a glance: large type, few elements, generous space.
+- The full description goes in the `alt` attribute and does not count.
+- Test: cover the prose. If the diagram still lands one clear idea it works;
+  if it reads like a slide someone talked over, it fails.
+
+What does **not** change: the compliance rules, and the honesty — say plainly
+what a thing does not do and where a figure stops being true. Investopedia's
+shape, our accuracy. Simple is not condescending.
 
 House habits worth keeping, observed across the app: notices explain *why*
 ("unrealized is not a result"), errors state what happened and what was not
@@ -57,6 +102,24 @@ substitute number.
 
 **(proposed)** "Scanner" appears in some copy where "Screener" is meant; the
 first audit should sweep it.
+
+### Quantity a broker will not release
+
+| Canonical | Not |
+| --- | --- |
+| Available to close | free, unencumbered, releasable |
+| Collateral for a short / committed to a working order | held, locked, tied up, unfree |
+
+The owner, 9 Sep, reading a multi-close panel on his own live account: *"It
+shouldn't be called free. This is so confusing. Just now I realized what you
+meant."* **Free** is an engineer's word for `qty_available` and it reads as
+free of charge. Say what the number lets him do — close this line — and say
+the reason as the broker's, not the app's.
+
+Two rules on top of the words. **"To close", not "for sale"**: closing a short
+is a buy, and half the rows on the Broker tab are shorts. And never guess which
+reason applies — `qty_available` does not say whether it is collateral or a
+working order, so the copy names both and picks neither.
 
 ## Surfaces the audit walks
 

@@ -10,6 +10,15 @@ export const SINGLE_KINDS = {
   naked_put: { badge: "Short put", label: "Short put (uncovered)", cls: "border-amber-200 bg-amber-100 text-amber-800" },
   covered_call: { badge: "CC", label: "Covered call", cls: "border-sky-200 bg-sky-100 text-sky-700" },
   naked_call: { badge: "Naked call", label: "Naked call", cls: "border-rose-200 bg-rose-100 text-rose-700" },
+  // Amber, not rose: this is not a naked call, it is a call we decline to
+  // judge. A corporate action changed the deliverable, so no share count
+  // answers whether it is covered — and answering anyway, in either
+  // direction, is a guess about the trader's money.
+  short_call_unjudged: {
+    badge: "Adjusted",
+    label: "Short call — adjusted contract",
+    cls: "border-amber-200 bg-amber-100 text-amber-800"
+  },
   long_option: { badge: "Long", label: "Long option", cls: "border-slate-200 bg-slate-100 text-slate-700" },
   shares: { badge: "Shares", label: "Shares", cls: "border-slate-200 bg-slate-100 text-slate-700" }
 };
@@ -25,6 +34,9 @@ export const kindOf = (s) => SINGLE_KINDS[s?.type] || null;
 export function riskText(s, fmtMoney) {
   if (s.adjusted) return "—";
   if (s.type === "naked_call") return "Unlimited";
+  // Not "Unlimited" — unknown. It may be perfectly covered; the deliverable
+  // this contract carries is what we cannot read.
+  if (s.type === "short_call_unjudged") return "—";
   if (s.maxRisk === null || s.maxRisk === undefined) return "—";
   return fmtMoney(s.maxRisk);
 }
@@ -48,6 +60,42 @@ export function stressNote(s, fmtMoney) {
 }
 
 export const riskIsUnbounded = (s) => s?.type === "naked_call";
+
+// What colour "in the money" deserves, which is not the same question as
+// whether it is in the money.
+//
+// On a credit spread ITM is the short leg through its strike: the thing that
+// costs money, painted red. On a DEBIT spread the leg being judged is the
+// LONG one, and it being in the money is the position working — the same word
+// meaning the opposite outcome. `moneynessLeg` comes from the server saying
+// which leg it asked about, so the colour follows the meaning rather than the
+// label.
+export const moneynessIsGood = (s) => s?.moneynessLeg === "long";
+export function moneynessTone(s) {
+  const good = "border-emerald-200 bg-emerald-50 text-emerald-700";
+  const bad = "border-rose-200 bg-rose-50 text-rose-700";
+  // No price to judge against, so no verdict to paint.
+  if (s?.moneyness !== "ITM" && s?.moneyness !== "OTM") return "border-slate-200 bg-slate-50 text-slate-500";
+  const itm = s.moneyness === "ITM";
+  return itm === moneynessIsGood(s) ? good : bad;
+}
+// The same verdict in the detailed table, which draws its chips without a
+// border. Both read from moneynessIsGood so Simple and Detailed cannot come
+// to different conclusions about the same row.
+export function moneynessCell(s) {
+  if (s?.moneyness !== "ITM" && s?.moneyness !== "OTM") {
+    // No price to judge against. Green here would be an answer; this is the
+    // absence of one.
+    return "bg-slate-100 text-slate-500";
+  }
+  return (s.moneyness === "ITM") === moneynessIsGood(s)
+    ? "bg-emerald-100 text-emerald-700"
+    : "bg-rose-100 text-rose-700";
+}
+export const moneynessNote = (s) =>
+  s?.moneynessLeg === "long"
+    ? "The long leg — a debit spread has to be in the money to be worth anything."
+    : "The short leg — the one that costs money through its strike.";
 
 // Whether the stress figure earns its place on the row.
 //

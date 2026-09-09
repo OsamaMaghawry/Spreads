@@ -1,5 +1,5 @@
 ---
-title: "Credit spread max loss: what it covers and what it doesn't"
+title: "Credit spread max loss before expiration: what it covers"
 slug: credit-spread-max-loss
 excerpt: Max loss is an exact figure that describes one moment; the collateral, the mark and an assignment notice each behave differently from it.
 meta_description: Credit spread max loss is width minus credit, times 100 — the expiration number. What the collateral holds and what the mark does in the weeks before it.
@@ -117,9 +117,12 @@ The payoff diagram describes one instant — the last one. Every day until then,
 what your screen shows is a mark: what it would cost, right now, to buy the
 spread back.
 
-A mark is not a realisation. A spread marked against you by more than the credit
-has lost nothing yet: finish above the short strike and it still pays the whole
-$120, and the intervening mark leaves no trace in the record. What the mark
+A mark is not a realisation. Part of what it prices is
+[extrinsic value](/blog/intrinsic-vs-extrinsic-value-options) — the portion of a
+premium not backed by anything today, which is zero at expiration. A spread
+marked against you by more than the credit has lost nothing yet: finish above
+the short strike and it still pays the whole $120, and the intervening mark
+leaves no trace in the record. What the mark
 settles is only what leaving right now would cost.
 
 The bound on that mark is real. A vertical's value cannot fall below zero or

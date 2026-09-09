@@ -1,0 +1,38 @@
+<svg viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Two small charts side by side showing value AT EXPIRATION. On the left, a call: at expiration its value is zero for every stock price below the 55 strike, then rises in a straight line above it. On the right, a put: its value rises in a straight line for every stock price below the 45 strike, then is flat at zero above it. Each hinges at its own strike.">
+  <rect width="720" height="320" fill="#FFFFFF"/>
+
+  <!-- LEFT: call -->
+  <text x="48" y="52" font-size="20" font-weight="600" fill="#14151C">Call</text>
+  <text x="48" y="24" font-size="15" fill="#767B8E">at expiration</text>
+
+  <!-- baseline and value axis -->
+  <line x1="48" y1="232" x2="330" y2="232" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="48" y1="72" x2="48" y2="232" stroke="#C9CEDC" stroke-width="1.5"/>
+  <text x="40" y="86" font-size="15" text-anchor="end" fill="#767B8E">value</text>
+
+  <!-- strike guide -->
+  <line x1="186" y1="88" x2="186" y2="240" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="186" y="264" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">55</text>
+
+  <!-- the line -->
+  <path d="M56 232 L186 232" fill="none" stroke="#C9CEDC" stroke-width="4" stroke-linecap="round"/>
+  <path d="M186 232 L322 96" fill="none" stroke="#2E8B5F" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="186" cy="232" r="5" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+
+  <!-- RIGHT: put -->
+  <text x="398" y="52" font-size="20" font-weight="600" fill="#14151C">Put</text>
+
+  <line x1="398" y1="232" x2="680" y2="232" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="398" y1="72" x2="398" y2="232" stroke="#C9CEDC" stroke-width="1.5"/>
+  <text x="390" y="86" font-size="15" text-anchor="end" fill="#767B8E">value</text>
+
+  <line x1="542" y1="88" x2="542" y2="240" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="542" y="264" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">45</text>
+
+  <path d="M406 96 L542 232" fill="none" stroke="#2E8B5F" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M542 232 L672 232" fill="none" stroke="#C9CEDC" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="542" cy="232" r="5" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+
+  <!-- shared axis label -->
+  <text x="360" y="302" font-size="15" text-anchor="middle" fill="#767B8E">stock price</text>
+</svg>

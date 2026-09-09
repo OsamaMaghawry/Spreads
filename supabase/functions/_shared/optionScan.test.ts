@@ -94,7 +94,35 @@ test("a feed price the option chain contradicts is refused", () => {
     ...base, strategy: "iron_condor", spot: 400, puts, calls, targetDelta: 0.3, wingWidth: 2.5
   });
   assert.equal(r.ok, false);
-  assert.match(r.reason, /option chain implies a spot of/);
+  // While the market is open a divergence is a genuine disagreement between two
+  // live sources, and the reason names both numbers.
+  assert.match(r.reason, /Chain implies \$/);
+  assert.match(r.reason, /sources disagree/);
+});
+
+// Outside 09:30-16:00 ET options do not trade at all, so the chain is still
+// quoted at the previous close while the stock has moved on. The two are not
+// disagreeing; they are describing different moments, and saying "the stock
+// price feed disagrees with the options market" reads as a data fault -- which
+// is exactly how it was read.
+test("outside the session the skip says the options market is shut", () => {
+  const calls = [
+    { strike: 355, mid: 5.0, bid: 4.9, ask: 5.1, delta: 0.5, symbol: "x" },
+    { strike: 357.5, mid: 3.9, bid: 3.8, ask: 4.0, delta: 0.4, symbol: "y" },
+    { strike: 360, mid: 3.0, bid: 2.9, ask: 3.1, delta: 0.3, symbol: "z" }
+  ];
+  const puts = [
+    { strike: 355, mid: 3.8, bid: 3.7, ask: 3.9, delta: -0.2, symbol: "a" },
+    { strike: 357.5, mid: 2.9, bid: 2.8, ask: 3.0, delta: -0.3, symbol: "b" },
+    { strike: 360, mid: 2.0, bid: 1.9, ask: 2.1, delta: -0.4, symbol: "c" }
+  ];
+  const r: any = buildSetup({
+    ...base, strategy: "iron_condor", spot: 400, puts, calls, targetDelta: 0.3, wingWidth: 2.5,
+    marketOpen: false
+  });
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /Options closed until 09:30 ET/);
+  assert.ok(!/disagree/.test(r.reason), "never blames the feeds when the market is simply shut");
 });
 
 test("parity is skipped when only one side of the chain was fetched", () => {

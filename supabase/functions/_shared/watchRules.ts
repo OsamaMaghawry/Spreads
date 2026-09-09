@@ -8,8 +8,7 @@
 // call to a function that did not exist, and nothing caught it before it
 // reached production.
 import { parseOCCSymbol } from "./occ.ts";
-
-const SHARES_PER_CONTRACT = 100;
+import { allocateCallCover } from "./callCover.ts";
 
 // Net long shares per ticker from the raw broker positions. A share position
 // is one whose symbol is not an OCC contract. A short share position covers
@@ -38,42 +37,63 @@ export function sharesByTicker(positions: any[]) {
 // naked, and a partially covered leg is reported with how much is uncovered.
 // The first version of this rule counted shares alone and raised six false
 // criticals on one account of call spreads.
+// The allocation itself is callCover.allocateCallCover, shared with the
+// dashboard's pairing. It used to be a second implementation living here, and
+// on 8 Sep the two disagreed about the same live TSLA book on the same
+// afternoon -- this one right, the dashboard's wrong. One rule, read twice, is
+// the only arrangement in which that cannot recur.
+function coverOf(legs: any[], shares: Record<string, number>) {
+  return allocateCallCover(
+    (legs || [])
+      .filter((l) => l?.occ)
+      .map((l) => ({
+        symbol: l.symbol,
+        ticker: l.occ.ticker,
+        type: l.occ.type,
+        qty: l.qty,
+        expiry: String(l.occ.expiryFormatted || ""),
+        strike: l.occ.strike,
+        adjusted: !!l.occ.adjusted
+      })),
+    shares
+  ).bySymbol;
+}
+
 export function nakedShortCalls(legs: any[], shares: Record<string, number>, cash: number | null = null) {
   void cash;
-  const sharesLeft: Record<string, number> = { ...(shares || {}) };
-  // Long calls by ticker: { expiry, contracts } with contracts still unclaimed.
-  const longs: Record<string, { expiry: string; left: number }[]> = {};
-  for (const leg of legs || []) {
-    if (!leg?.occ || leg.occ.type !== "C" || !(leg.qty > 0)) continue;
-    (longs[leg.occ.ticker] = longs[leg.occ.ticker] || []).push({ expiry: String(leg.occ.expiryFormatted || ""), left: leg.qty });
-  }
-  const shorts = (legs || []).filter((l) => l?.occ && l.occ.type === "C" && l.qty < 0)
-    // Nearest expiry first, so a long that can cover only the nearest short is
-    // not spent on a later one.
-    .sort((a, b) => String(a.occ.expiryFormatted || "").localeCompare(String(b.occ.expiryFormatted || "")));
-
+  const cover = coverOf(legs, shares);
+  const bySymbol = new Map((legs || []).map((l) => [l.symbol, l]));
   const out: any[] = [];
-  for (const leg of shorts) {
-    const ticker = leg.occ.ticker;
-    const expiry = String(leg.occ.expiryFormatted || "");
-    let uncovered = Math.abs(leg.qty);
-    // Longs on the same name expiring on or after this short, nearest first.
-    const eligible = (longs[ticker] || []).filter((l) => l.left > 0 && l.expiry >= expiry).sort((a, b) => a.expiry.localeCompare(b.expiry));
-    let byLongs = 0;
-    for (const l of eligible) {
-      if (uncovered === 0) break;
-      const take = Math.min(l.left, uncovered);
-      l.left -= take; uncovered -= take; byLongs += take;
-    }
-    const have = sharesLeft[ticker] || 0;
-    const byShares = Math.min(uncovered, Math.floor(have / SHARES_PER_CONTRACT));
-    sharesLeft[ticker] = have - byShares * SHARES_PER_CONTRACT;
-    uncovered -= byShares;
-    if (uncovered > 0) {
-      out.push({ symbol: leg.symbol, occ: leg.occ, contracts: Math.abs(leg.qty), uncovered, coveredByLongs: byLongs, coveredByShares: byShares, shares: have });
-    }
+  for (const c of Object.values(cover)) {
+    // An adjusted contract is reported by unjudgedShortCalls instead: it is
+    // not naked, it is unreadable, and raising a critical on it was raising a
+    // critical on arithmetic we had no right to run.
+    if (!c.judged || c.uncovered <= 0) continue;
+    out.push({
+      symbol: c.symbol,
+      occ: bySymbol.get(c.symbol)?.occ,
+      contracts: c.contracts,
+      uncovered: c.uncovered,
+      coveredByLongs: c.coveredByLongs,
+      coveredByShares: c.fromShares,
+      shares: shares?.[c.ticker] || 0
+    });
   }
   return out;
+}
+
+// Short calls on contracts a corporate action changed, which no share count
+// can judge. A split or a merger leaves the contract delivering something
+// other than a hundred shares, so both "covered" and "naked" are claims about
+// a deliverable it no longer has. They are surfaced as a liveness note -- "I
+// am watching this and cannot read it" -- rather than a critical nobody can
+// act on, which is what the old shares-only arithmetic produced.
+export function unjudgedShortCalls(legs: any[], shares: Record<string, number>) {
+  const cover = coverOf(legs, shares);
+  const bySymbol = new Map((legs || []).map((l) => [l.symbol, l]));
+  return Object.values(cover)
+    .filter((c) => !c.judged)
+    .map((c) => ({ symbol: c.symbol, occ: bySymbol.get(c.symbol)?.occ, contracts: c.contracts }));
 }
 
 // Where the clock is relative to the US regular session, in UTC.

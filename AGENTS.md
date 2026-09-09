@@ -217,6 +217,28 @@ never deploy.
 | `tax-accountant` | Records defensible at tax time; the line between reporting and tax advice |
 | `desk-editor` | Technical truth of anything published — text and diagrams |
 
+## Publishing anything a stranger reads
+
+**Every article, without exception, passes three reviews before it is
+published: `desk-editor`, then `seo-editor`, then `compliance-gate`.** This is
+not a per-article decision and it is never a question to put to the owner —
+he has said so twice. A post that has not passed all three does not go to the
+database, and "it is only a small change" is not an exemption.
+
+The order matters. desk-editor settles what is TRUE (arithmetic, mechanics,
+product claims). seo-editor settles how it is FOUND (title, slug, meta,
+headings, links) and must not be allowed to bend a fact to reach a query.
+compliance-gate is last because it judges the finished words, and its findings
+are binding rather than advisory.
+
+It earns its cost. On the three Options 101 posts, desk-editor found a call
+described as worthless below its strike in a Key Takeaways box — contradicted
+by the next post in the same series — and an expiry dated to a Saturday three
+lines after the article said options expire on a Friday.
+
+The same three run on marketing copy, landing pages and emails. Anything a
+stranger reads.
+
 Route through `agent-manager` before any production deploy touching orders,
 positions, P/L, risk or stored records. Three rules it enforces and nobody
 may quietly relax:

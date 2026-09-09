@@ -3,12 +3,12 @@ import { ChevronDown } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import StrikeLadder from "./StrikeLadder";
 import CardLegs from "./CardLegs";
-import { isSingle, kindOf, riskText, riskLabel, isStockRisk, basisNote, stressLabel, stressText, stressNote, showsStress } from "@/lib/positionKind";
+import { isSingle, kindOf, riskText, riskLabel, isStockRisk, basisNote, stressLabel, stressText, stressNote, showsStress, moneynessTone, moneynessNote } from "@/lib/positionKind";
 import { dayChange, dayChangeLabel } from "@/lib/dayChange";
 
 const badge = "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border";
 
-export default function PositionCard({ spread: s, accountId, onClose }) {
+export default function PositionCard({ spread: s, accountId, onClose, onTicker }) {
   const [open, setOpen] = useState(false);
   // The UNDERLYING's move today -- not this position's return, which is the
   // unrealized P/L on the other side of the header. Labelled for that reason.
@@ -19,7 +19,13 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
     value: s.adjusted
       ? "—"
       : s.breakEvenHigh != null
-        ? `${fmtMoney(s.breakEven)} – ${fmtMoney(s.breakEvenHigh)}`
+        // A credit ratio has no LOWER break-even: it is profitable all the way
+        // down. The null was correct and the range render turned it into an em
+        // dash, which everywhere else on this card means "withheld" — so it
+        // read as unknown risk below, where there is none. Said plainly.
+        ? s.breakEven == null
+          ? `Below ${fmtMoney(s.breakEvenHigh)}`
+          : `${fmtMoney(s.breakEven)} – ${fmtMoney(s.breakEvenHigh)}`
         : fmtMoney(s.breakEven),
     title: basisNote(s)
   };
@@ -42,7 +48,25 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
     // covered call the capital tied up is the whole story.
     ? [
         breakEven,
-        { label: "Qty", value: s.type === "shares" ? s.shareQty : s.qty },
+        {
+          label: "Qty",
+          // The whole holding, with what is written against it named beside
+          // it. The row used to show only the free shares, so a trader with
+          // 210 read 10 and could not reconcile the screen against his broker.
+          //
+          // "(10 free)" was the next version of the same mistake. Nothing is
+          // stopping those 200 shares being sold — the broker will take the
+          // order, and the covered calls become naked — so calling them
+          // unfree stated a restriction that does not exist and made the
+          // owner's own stock read as somebody else's. What is true is what
+          // they are DOING: backing two short calls.
+          value:
+            s.type === "shares"
+              ? s.encumberedQty > 0
+                ? `${s.shareQty} · ${s.encumberedQty} backing calls`
+                : s.shareQty
+              : s.qty
+        },
         { label: "Capital tied up", value: s.collateral != null ? fmtMoney(s.collateral) : "—" },
         ...(showsStress(s) ? [stress] : []),
         { label: "Expiry", value: s.expiryFormatted || "—" }
@@ -51,7 +75,13 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
         { label: "Qty", value: s.qty },
         breakEven,
         risk,
-        { label: "Net Credit", value: fmtMoney(s.totalCredit), tone: "text-emerald-600" },
+                // A debit spread's totalCredit is negative, and this printed
+        // "NET CREDIT −$300.00" in green. Money paid is not a credit.
+        {
+          label: s.totalCredit < 0 ? "Net Debit" : "Net Credit",
+          value: fmtMoney(Math.abs(s.totalCredit)),
+          tone: s.totalCredit < 0 ? "text-rose-600" : "text-emerald-600"
+        },
         { label: "Expiry", value: s.expiryFormatted || "—" }
       ];
 
@@ -59,7 +89,17 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
       <div className="flex items-start justify-between gap-4 px-6 pt-5">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xl font-bold tracking-tight text-slate-900">{s.ticker}</span>
+          {onTicker ? (
+            <button
+              onClick={() => onTicker(s.ticker)}
+              className="text-xl font-bold tracking-tight text-slate-900 underline decoration-slate-300 underline-offset-4 hover:decoration-slate-900"
+              title={`Everything on ${s.ticker}, combined`}
+            >
+              {s.ticker}
+            </button>
+          ) : (
+            <span className="text-xl font-bold tracking-tight text-slate-900">{s.ticker}</span>
+          )}
           {change && (
             <span
               title={`${s.ticker} today, against yesterday's close of ${fmtMoney(s.prevClose)}`}
@@ -70,20 +110,26 @@ export default function PositionCard({ spread: s, accountId, onClose }) {
           )}
           {s.type === "iron_condor" && <span className={`${badge} border-indigo-200 bg-indigo-100 text-indigo-700`}>IC</span>}
           {s.type === "call_spread" && <span className={`${badge} border-sky-200 bg-sky-100 text-sky-700`}>Call</span>}
+          {s.type === "call_ratio_spread" && (
+            <span className={`${badge} border-sky-200 bg-sky-100 text-sky-700`} title="More short calls than long ones — a ratio.">
+              {s.longRatio}×{s.shortRatio} Call
+            </span>
+          )}
           {s.type === "put_spread" && <span className={`${badge} border-violet-200 bg-violet-100 text-violet-700`}>Put</span>}
           {isSingle(s) && kindOf(s) && (
             <span className={`${badge} ${kindOf(s).cls}`} title={kindOf(s).label}>{kindOf(s).badge}</span>
           )}
-          <span
-            className={`${badge} ${
-              s.moneyness === "ITM"
-                ? "border-rose-200 bg-rose-50 text-rose-700"
-                : s.moneyness === "OTM"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  // No price to judge against, so no verdict to paint.
-                  : "border-slate-200 bg-slate-50 text-slate-500"
-            }`}
-          >
+          {s.direction === "debit" && (
+            <span className={`${badge} border-slate-200 bg-slate-100 text-slate-600`} title="Bought, not sold — the most it can lose is what it cost.">
+              Debit
+            </span>
+          )}
+          {s.structureLabel && (
+            <span className={`${badge} border-teal-200 bg-teal-100 text-teal-700`} title="Part of one structure with the other rows on this ticker.">
+              {s.structureLabel}
+            </span>
+          )}
+          <span className={`${badge} ${moneynessTone(s)}`} title={moneynessNote(s)}>
             {s.moneyness || "—"}
           </span>
           {s.openOrders?.length > 0 && <span className={`${badge} border-amber-200 bg-amber-100 text-amber-700`}>Open order</span>}

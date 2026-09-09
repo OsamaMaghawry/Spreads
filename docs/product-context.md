@@ -72,6 +72,7 @@ incomplete.
 - naked_put
 - long_option
 - shares
+- short_call_unjudged
 
 ## Components, by area
 
@@ -80,9 +81,9 @@ incomplete.
 - **analysis** — BreakdownTable, CaptureBreakdown, DateRangeFilter, EquityCurveChart, ExportPdfButton, StatCards, StrategyComparison
 - **billing** — UpgradePrompt
 - **brand** — DeltaMintMark, Wordmark
-- **close** — CloseDialog, LegPicker, LegsQuoteSummary, OpenOrdersPanel, OrderLog, useCloseOrder
+- **close** — CloseDialog, LegPicker, LegsQuoteSummary, MultiCloseDialog, OpenOrdersPanel, OrderLog, useCloseOrder, useMultiClose
 - **common** — ConfirmDeleteAccount, ConfirmSubmit, EarningsWarning, NumberField, PreTradeRisk, PriceControl, RiskMeter, ScanPresets, StaleDataNotice
-- **dashboard** — AccountSection, AccountSummaryCard, CardLegs, LegRows, MasterSummary, OrderGroup, PositionCard, PositionCards, SpreadStructure, SpreadTable, StrikeLadder, useLegQuotes
+- **dashboard** — AccountSection, AccountSummaryCard, BrokerTable, CardLegs, LegRows, MasterSummary, OrderGroup, PayoffChart, PositionCard, PositionCards, SpreadStructure, SpreadTable, StrikeLadder, TickerPanel, useLegQuotes
 - **history** — RebuildPreview, StockLotsTable, StrategyTabs, TradeHistoryTable
 - **open** — CandidateList, OpenPositionDialog, OpenPricing, RestingOrder, ScanFilters, SetupPreview, StrategyPicker, useLiveSetup, useOpenOrder, useScanLoop
 - **screener** — ResultsTable, ScreenerConfig, TradeDialog, useMarketScan
@@ -91,16 +92,16 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
-- 2026-09-07 · (staging) A blog draft the merge gate had been silently refusing — it counted a post's own diagrams under `landing/public/assets/blog/` as "not content-only" — now lands somewhere a person can read it before strangers do: the content gate merges a post's branch to `staging` instead of `main`, a new `publish-blog-staging.yml` writes it into the staging project so it renders at `dev-landing.deltamint.app/blog` (noindex), and the owner gets an email naming the post and linking to it. Going to `main`, and the live blog, is still the owner's own merge. Needs the owner to set `SUPABASE_SERVICE_ROLE_KEY_STAGING`; without it the workflow refuses loudly rather than half-publishing (`0053b90`).
-- 2026-09-07 · The homepage is rebuilt from the product itself: a hero wipes between the broker's raw rows and DeltaMint's position cards (with a phone toggle and flip-to-legs cards), a looping Market Screener replay and trade-ticket replay with the real defaults, an individual-legs section, the Analysis tiles and capture table, and a "Start for free" close; the screener and ticket replicas no longer carry a copy of the app's own top nav, and the broker logo in the connect card is smaller (`f55ef60`, `fa8726c`, `204b853`).
-- 2026-09-04 · (staging) The scanner tells "options market is shut for the day" apart from "the stock and options feeds disagree" — pre/post-market it says the chain is stale at yesterday's close instead of blaming a data fault, and the open-position scan loop backs off to a minute between passes outside market hours instead of retrying every 20 seconds (`228fea9`). Not yet on `main` — no PR exists for it; corrected from an earlier ledger entry that omitted the `(staging)` tag.
-- 2026-09-04 · Shares held by an already-working sell order no longer show as free to sell again (`d1c3262`).
-- 2026-09-04 · The orders row and the close ticket no longer call a share order a "leg", the price editor gets working +/- arrows on a phone, and closing an account explains what is and isn't kept (`fc9598f`, `08b1fe5`).
-- 2026-09-04 · A share position closes from the same ticket as an option, the price walk can be left running without trapping the order, and repricing a resting order updates that order instead of opening a second one (`326ce67`).
-- 2026-09-04 · The position watch stops emailing several identical lines for one price problem — one note per ticker with the reason and last price shown — and a run that finds nothing about positions sends no email at all (`f0710c8`).
-- 2026-09-03 · Hotjar session replay runs on deltamint.app's public pages, on the same hostname-gated terms as Google Analytics and never in the app; the privacy policy now discloses both under a website-analytics section (`cc855e7`, `b453a9f`).
-- 2026-09-03 · Billing is hidden end to end until the owner flips `billing_visible`: no Billing entry in the nav, `/billing` says plans aren't open yet, a refused live order's upgrade prompt drops its button, and checkout/portal both refuse with 403 — off by default (`b85c13b`, `20581e9`).
-- 2026-09-03 · A draft blog post can be read before it's published: the admin's post list has an eye that opens the draft at `/blog-preview/<slug>` in its own tab, rendered with the blog's own renderer, no dashboard chrome (`f6c481f`, `d650266`).
+- 2026-09-09 · (staging) Repricing a resting option order that the broker refuses to replace directly (Alpaca won't PATCH an order once it reaches "accepted") now cancels the order, confirms the cancel, and resubmits at the new price automatically instead of showing the raw broker error with no way forward; if the original filled — or partially filled — while being cancelled, nothing extra is sent and the ticket says what actually happened (`85c64ca`).
+- 2026-09-09 · (staging) The live blog no longer prints a spurious "part 48" under a post's byline (that number is only the post's slot in the internal syllabus), and page titles no longer have "— DeltaMint" appended, which was eating 12 characters off a 60-character search-result budget (`c72b562`, `dc92fac`).
+- 2026-09-09 · (staging) A new Broker tab shows exactly what Alpaca reports you hold — one row per broker position, with a Close on every line that sends the broker's own quantity with no pairing logic involved — plus a multi-select close across several rows at once: buy-backs are always sent before sales (never the reverse), so an in-progress multi-order close can never leave the rest of the book more exposed than before it started, it respects Alpaca's four-legs-per-order cap, and it refuses to send a second order when a cancel can't be confirmed rather than risk closing more than intended (`4b523bc`, `91cc0f2`, `8f0e7fa`, `d520b22`).
+- 2026-09-09 · (staging) The scanner can now scan the whole market instead of just the S&P 500: a cheap first pass prices every listed name and filters on price, volume, quote width and capital-per-contract (a floor that keeps a small account out of illiquid names it could get stuck in) before the slow per-ticker options-chain fetch runs on the survivors; the results panel reports how many names were priced and how many passed (`dcf0f17`).
+- 2026-09-09 · (staging) The close ticket no longer treats a missing bid or ask as a price of zero: a one-sided quote (seen live on an SPY share close, bid $746.01 / ask $0.00) now refuses to show a price, a P/L or an armed "Sell" button instead of pricing the trade at half the real value; a price walk that resumes after a refused quote no longer loses its ceiling and walks past what the market will bear; and a close spanning more than Alpaca's four-leg limit is now capped, split and rescaled correctly instead of being sent as an order the broker would reject (`2b9ccf7`, `3aee291`).
+- 2026-09-09 · (staging) Closed a security hole in the broker-feed diagnostic function: any caller holding the app's public project key — not just a signed-in account owner — could name any account and have its broker credentials decrypted and its full position/order history fetched. The caller must now be signed in and either own the account or be an admin; the function also now captures filled orders, not just account activity, so a "position mismatch" report can be checked against the exact data the broker sent. **This fix is on `staging` only — the same hole is still open in production `main` until this is merged** (`af75776`).
+- 2026-09-09 · (staging) A stock-repair or other ratio position (1 long against 2 or 3 short) now closes correctly from the ticket: it quotes and orders the true leg counts instead of misreading a 1x2 as a 1x1, a cancelled reprice resumes at the correct per-leg limit instead of the wrong net price, its max risk shows as unbounded rather than a false $0.00, and the ticket now refuses rather than guesses when it doesn't recognize a structure's legs (`619b0b7`, `1ee4e8f`).
+- 2026-09-08 · (staging) The app now deploys from this repo instead of relying on Cloudflare's own build, which only ever published a preview version that never reached traffic — four commits of dashboard work had gone unseen at dev-dash with no signal anywhere that they hadn't shipped. New `deploy-app.yml`/`deploy-app-staging.yml` run lint, tests and a real `wrangler deploy` on merge, gated the same staging-first way the landing site is (`9183b42`).
+- 2026-09-08 · (staging) A ticker with more than one open position (a repair, a wheel) gets a P/L-at-a-price curve that sums every position on that name at the same underlying price and sweeps it across a range, showing where the whole thing — not just one card — stops losing money (`fbd520e`).
+- 2026-09-08 · (staging) A stock repair (a long call bought against more short calls of a higher strike over 100+ shares) now shows as one position instead of being split across two or three cards with no card saying they're the same trade — a new `call_ratio_spread` shape claims it, covers its extra short from the same share allocator every covered call uses, and carries its own max risk, close cost and break-evens; the strike ladder labels that break-even "Options break-even" so it doesn't read as the whole position (shares included) turning over (`6770ae4`, `5bd85f7`).
 
 ## Server functions
 
@@ -126,6 +127,7 @@ so a change to shared code requires redeploying all of them.
 - **refreshEarnings** — Refreshes the cached earnings calendar for the next 90 days from the provider.
 - **saveAccount** — Creating and editing a trading account.
 - **scanEntries** — (no summary comment)
+- **scanUniverse** — Which tickers are worth scanning, out of the whole market.
 - **sendDigest** — The one way an agent reaches the owner.
 - **spreadQuote** — Prices a position for closing: what the legs are worth right now, plus the highest limit already tried on them so a retry resumes rather than restarts.
 - **stripeWebhook** — Receives Stripe's signed subscription events and keeps one row per user current.
@@ -156,7 +158,7 @@ revoked from the browser role entirely.
 - **broker_connection_issues** — id, user_id, broker, environment, status, detail, created_at
 - **order_attempts** — id, user_id, account_id, run_key, intent, step, ticker, legs, qty, order_type, limit_price, quote, broker_order_id, status, filled_qty, filled_avg_price, error, created_at, updated_at
 - **digest_sends** — id, subject, created_at
-- **broker_feed_dumps** — id, account_id, activities, activity_count, created_at
+- **broker_feed_dumps** — id, account_id, activities, activity_count, created_at, positions, filled_orders
 - **subscriptions** — user_id, stripe_customer_id, stripe_subscription_id, plan, status, current_period_end, cancel_at_period_end, grandfathered_until, created_at, updated_at
 - **growth_metrics** — day, search, analytics, funnel, created_at
 
@@ -218,11 +220,56 @@ those collapse into the `dm` scale or get recorded here as sanctioned.
 
 ### Voice
 
-The register is fixed by `growth/playbook.md` and binding: *a trader
-explaining something to another trader* — concrete numbers, admitted
-uncertainty, no adjectives doing the work of evidence, no exclamation marks,
-no emoji in headings. Compliance vocabulary (use/avoid lists) is the floor;
-this book adds consistency on top.
+**Plain, and short.** Concrete numbers, admitted uncertainty, no adjectives
+doing the work of evidence, no exclamation marks, no emoji in headings.
+Compliance vocabulary (use/avoid lists) is the floor; this book adds
+consistency on top.
+
+The register used to read *"a trader explaining something to another trader"*,
+and agents wrote to it — literary, argument-shaped, 2,000-word posts that
+opened with atmosphere and built to a point. The owner's correction, 9 Sep:
+he never asked for that, and **"even traders don't have time to go through
+these heavy articles."** He is right, and the phrase is withdrawn. Expertise
+was never the problem; length and density were.
+
+#### Blog articles: the Investopedia shape
+
+Binding for every post, foundations first and the rest as they are rewritten.
+
+- **Definition in the first sentence.** The term, bolded, defined plainly. No
+  preamble, no scene-setting. A reader who reads only sentence one has the
+  definition.
+- **Key Takeaways** near the top: 3–5 standalone bullets. A reader who reads
+  only the box gets the article.
+- **Plain question headings** — "How does a call option work?" Not clever.
+- **Paragraphs of 2–3 sentences.** Split anything longer.
+- **One worked example**, labelled, with arithmetic the reader can check.
+- **A table** wherever two things are compared.
+- **FAQ** (3–4 real beginner questions) and **The Bottom Line** to close.
+- **900–1,200 words**, hard ceiling 1,300. If it will not fit, it is two
+  posts. For scale, the 2,143-word `credit-spread-max-loss` is what this rule
+  exists to prevent.
+- Define every term the first time it appears, in the same sentence.
+
+#### Diagrams
+
+Diagrams beat text when they are done right — and ours were not. The eight
+SVGs written before 9 Sep carry **53 to 149 words each**; one holds 138 words
+across 23 text nodes. That is a paragraph rendered as a picture, and it made
+the articles harder, not easier.
+
+- **Hard cap: 15 words inside the frame.** Labels only — a noun, a number,
+  what an arrow means.
+- Any sentence belongs in the prose underneath, where it can be skipped.
+- One idea per diagram. Two ideas means two diagrams, or one fewer.
+- Legible on a phone at a glance: large type, few elements, generous space.
+- The full description goes in the `alt` attribute and does not count.
+- Test: cover the prose. If the diagram still lands one clear idea it works;
+  if it reads like a slide someone talked over, it fails.
+
+What does **not** change: the compliance rules, and the honesty — say plainly
+what a thing does not do and where a figure stops being true. Investopedia's
+shape, our accuracy. Simple is not condescending.
 
 House habits worth keeping, observed across the app: notices explain *why*
 ("unrealized is not a result"), errors state what happened and what was not
@@ -242,6 +289,24 @@ substitute number.
 
 **(proposed)** "Scanner" appears in some copy where "Screener" is meant; the
 first audit should sweep it.
+
+#### Quantity a broker will not release
+
+| Canonical | Not |
+| --- | --- |
+| Available to close | free, unencumbered, releasable |
+| Collateral for a short / committed to a working order | held, locked, tied up, unfree |
+
+The owner, 9 Sep, reading a multi-close panel on his own live account: *"It
+shouldn't be called free. This is so confusing. Just now I realized what you
+meant."* **Free** is an engineer's word for `qty_available` and it reads as
+free of charge. Say what the number lets him do — close this line — and say
+the reason as the broker's, not the app's.
+
+Two rules on top of the words. **"To close", not "for sale"**: closing a short
+is a buy, and half the rows on the Broker tab are shorts. And never guess which
+reason applies — `qty_available` does not say whether it is collateral or a
+working order, so the copy names both and picks neither.
 
 ### Surfaces the audit walks
 

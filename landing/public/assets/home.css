@@ -393,7 +393,16 @@
   .home .scan-btn.hover { background: #10b981; }
   .home .scan-btn.press { transform: scale(.98); }
   .home .scan-btn.stop { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
-  .home .sc-right { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; min-height: 420px; }
+  /* Reserve the tallest state, not the shortest.
+     The scan streams ten rows in batches of four, so this panel grew
+     420 → 488 → 535 → 582 and dropped back to 420 on every loop. Everything
+     below it — the ticket, the legs, the analysis, the FAQ — moved 162px up
+     and down while the reader was trying to read it. Measured across the
+     whole replay: 582 on a phone, 567 on a desktop, the 15px being the
+     Earnings chip wrapping under the ticker on the narrower table. The rows
+     never wrap to the viewport (the cells are nowrap inside a horizontal
+     scroller), so this figure does not change with screen width. */
+  .home .sc-right { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; min-height: 582px; }
   .home .prog { padding: 12px 16px; border-bottom: 1px solid #e2e8f0; display: grid; gap: 8px; }
   .home .prog .l1 { display: flex; justify-content: space-between; font-size: 12px; color: #64748b; }
   .home .prog .l1 span:first-child { display: inline-flex; align-items: center; gap: 8px; }

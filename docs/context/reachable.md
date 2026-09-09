@@ -46,6 +46,7 @@ The allowlist matches **exact hostnames** — an allowed apex whose site 301s to
 | dashboard.deltamint.app / deltamint.app | ❌ 403 (policy, at CONNECT) | 2026-09-04 | Was ✅ 200 on 2026-08-31; blocked since 31 Aug per `docs/ops/queue.md`'s 2026-09-02 allowlist item (already open, not re-escalated here). Re-tested 04 Sep: `/`, `/blog`, `/pricing` and `dashboard.deltamint.app` all 403 at the proxy CONNECT, same failure mode as the other allowlist rows above — not a site-side issue |
 | www.deltamint.app | ⚠️ 522 | 2026-08-31 | Cloudflare has no origin for the www host — cosmetic; canonical is the apex + dashboard |
 | spreads.osamamaghawry.workers.dev | ✅ 301 → dashboard | 2026-08-31 | Canonical redirect confirmed live |
+| yecfbeohyakuoyczvdbj.supabase.co (production project, edge functions incl. `sendDigest`) | ❌ 403 (policy, at CONNECT) | 2026-09-09 | duty-engineer tried to email the owner via `sendDigest` per its brief (`.claude/agents/duty-engineer.md`) over a live production security finding and got `CONNECT tunnel failed, response 403` — same failure mode as `deltamint.app`. Not tested before; needs an allowlist addition alongside the `dashboard.deltamint.app` item already open in `docs/ops/queue.md` if the duty-engineer email step is meant to work from this environment. Worked around by using `PushNotification` to reach the owner directly instead — recorded, not routed around |
 
 
 Channels that are not the proxy:
