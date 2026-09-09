@@ -1,0 +1,28 @@
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Three horizontal bars showing the premium of the same 50-strike call at three stock prices, each split into intrinsic and extrinsic value. With the stock at 48 the premium is 1.20 and all of it is extrinsic. At 52 the premium is 3.40, of which 2.00 is intrinsic and 1.40 extrinsic. At 56 the premium is 6.70, of which 6.00 is intrinsic and only 0.70 extrinsic. The intrinsic part grows as the stock rises while the extrinsic part shrinks.">
+  <rect width="720" height="300" fill="#FFFFFF"/>
+
+  <!-- legend -->
+  <rect x="40" y="26" width="18" height="18" rx="3" fill="#2E8B5F"/>
+  <text x="66" y="41" font-size="15" fill="#14151C">intrinsic</text>
+  <rect x="176" y="26" width="18" height="18" rx="3" fill="#DFF1E7" stroke="#2E8B5F" stroke-width="1.5"/>
+  <text x="202" y="41" font-size="15" fill="#14151C">extrinsic</text>
+
+  <text x="128" y="84" font-size="15" text-anchor="end" fill="#767B8E">stock</text>
+
+  <!-- stock at 48: premium 1.20, all extrinsic -->
+  <text x="128" y="126" font-size="18" font-weight="600" text-anchor="end" fill="#767B8E">$48</text>
+  <rect x="144" y="106" width="84" height="28" rx="4" fill="#DFF1E7" stroke="#2E8B5F" stroke-width="1.5"/>
+  <text x="244" y="126" font-size="18" font-weight="600" fill="#14151C">1.20</text>
+
+  <!-- stock at 52: premium 3.40 = 2.00 intrinsic + 1.40 extrinsic -->
+  <text x="128" y="186" font-size="18" font-weight="600" text-anchor="end" fill="#767B8E">$52</text>
+  <rect x="144" y="166" width="140" height="28" rx="4" fill="#2E8B5F"/>
+  <rect x="284" y="166" width="98" height="28" rx="4" fill="#DFF1E7" stroke="#2E8B5F" stroke-width="1.5"/>
+  <text x="398" y="186" font-size="18" font-weight="600" fill="#14151C">3.40</text>
+
+  <!-- stock at 56: premium 6.70 = 6.00 intrinsic + 0.70 extrinsic -->
+  <text x="128" y="246" font-size="18" font-weight="600" text-anchor="end" fill="#767B8E">$56</text>
+  <rect x="144" y="226" width="420" height="28" rx="4" fill="#2E8B5F"/>
+  <rect x="564" y="226" width="49" height="28" rx="4" fill="#DFF1E7" stroke="#2E8B5F" stroke-width="1.5"/>
+  <text x="629" y="246" font-size="18" font-weight="600" fill="#14151C">6.70</text>
+</svg>

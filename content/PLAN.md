@@ -150,3 +150,6 @@ Full list in `docs/context/compliance.md`; these are the ones that bite:
 | 2026-08-29 | `return-on-risk-vs-return-on-capital` | measuring · 59 | live |
 | 2026-08-29 | `options-journal-splits-spreads-into-legs` | managing · 50 | live |
 | 2026-09-02 | `credit-spread-max-loss` | managing · 48 | on staging. Rewritten 2 Sep from a 150-word stub; desk-editor, investment-analyst, seo-editor and compliance-gate findings applied |
+| 2026-09-09 | `call-vs-put-option-explained` | foundations · 2 | draft. Options 101 shape: definition first sentence, key takeaways, question headings, worked example, FAQ, bottom line. Unreviewed — desk-editor, seo-editor, compliance-gate all outstanding |
+| 2026-09-09 | `option-strike-price-expiration-premium` | foundations · 3 | draft, same shape. Unreviewed — desk-editor, seo-editor, compliance-gate all outstanding |
+| 2026-09-09 | `intrinsic-vs-extrinsic-value-options` | foundations · 4 | draft, same shape. Unreviewed — desk-editor, seo-editor, compliance-gate all outstanding |
