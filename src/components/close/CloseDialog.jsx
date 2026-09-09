@@ -152,7 +152,17 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   const { prices: streamPrices } = useMarketStream(account.id, spread.ticker ? [spread.ticker] : []);
   const liveSpot = streamPrices[spread.ticker]?.price || 0;
 
-  const midDebit = quote?.midDebit ?? 0;
+  // NULL, not zero, when there is no market.
+  //
+  // `?? 0` said "the mid is nothing" whenever the quote was missing a side, and
+  // every figure below then measured against that nothing: on a SPY share
+  // position quoted bid $746.01 with no ask, the ticket read "Market now (mid)
+  // $373.01" and "Total P/L -$5,210.35", and armed a sell button at $373.01
+  // into a $746 bid. The server now refuses a one-sided market outright; this
+  // is the second half of the same rule, because a screen that turns an absent
+  // price into $0.00 fabricates a P/L just as confidently.
+  const midDebit = quote?.midDebit ?? null;
+  const haveMid = typeof midDebit === "number" && Number.isFinite(midDebit);
   // The shared control speaks bid/ask/mid/last; spreadQuote speaks in debits.
   // Mapped here rather than teaching the control about spreads, so the open
   // ticket can use the same component with a credit.
@@ -176,7 +186,10 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   // frozen at the mid contradicts it. Manual with a price -> that price;
   // anything else -> the mid, as before.
   const manualReadyForPl = priceMode === "manual" && typeof manualPrice === "number" && manualPrice > 0;
-  const plDebit = manualReadyForPl ? manualPrice : midDebit;
+  // Null when there is neither a price the user chose nor a market to fall back
+  // on. Every P/L below is then withheld rather than computed against zero.
+  const plDebit = manualReadyForPl ? manualPrice : haveMid ? midDebit : null;
+  const havePl = plDebit !== null;
   const plAt = manualReadyForPl ? `at ${fmtMoney(manualPrice)}` : "(mid)";
   // Shares are not contracts: one unit is one share, so the 100x option
   // multiplier does not apply, and the result of selling them is measured
@@ -187,12 +200,14 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   // Closing this structure PAYS the account rather than costing it. True of a
   // debit vertical, a ratio whose long is worth more than its shorts, and any
   // net-long position -- and the whole-position readout had no word for it.
-  const closeIsCredit = !isShares && midDebit < 0;
+  const closeIsCredit = !isShares && haveMid && midDebit < 0;
 
   const multiplier = isShares ? 1 : 100;
-  const plPerContract = isShares
-    ? (Math.abs(plDebit) - (spread.shareBasis ?? spread.longEntryPrice ?? 0)) * multiplier
-    : (spread.netCredit - plDebit) * multiplier;
+  const plPerContract = !havePl
+    ? null
+    : isShares
+      ? (Math.abs(plDebit) - (spread.shareBasis ?? spread.longEntryPrice ?? 0)) * multiplier
+      : (spread.netCredit - plDebit) * multiplier;
   // What ONE of the thing being closed is. A ratio's unit is three contracts,
   // so "Total P/L for 1 contract" was wrong in the noun as well as the number.
   const unit = isShares
@@ -364,7 +379,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                       <span className="text-slate-500">Your cost / share</span>
                       <span className="text-right">{fmtMoney(spread.shareBasis ?? spread.longEntryPrice ?? 0)}</span>
                       <span className="text-slate-500">Market now (mid)</span>
-                      <span className="text-right">{fmtMoney(Math.abs(midDebit))}</span>
+                      <span className="text-right">{haveMid ? fmtMoney(Math.abs(midDebit)) : "—"}</span>
                       <span className="text-slate-500">Bid / Ask</span>
                       <span className="text-right">{fmtMoney(Math.abs(quote.askDebit))} / {fmtMoney(Math.abs(quote.bidDebit))}</span>
                     </>
@@ -383,7 +398,7 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                         {closeIsCredit ? "Mid credit to close" : "Mid debit to close"}
                       </span>
                       <span className={`text-right ${closeIsCredit ? "text-emerald-600" : ""}`}>
-                        {fmtMoney(Math.abs(midDebit))}
+                        {haveMid ? fmtMoney(Math.abs(midDebit)) : "—"}
                       </span>
                       <span className="text-slate-500">
                         {closeIsCredit ? "Credit range (bid / ask)" : "Bid / Ask debit"}
@@ -395,10 +410,18 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                       </span>
                     </>
                   )}
-                  <span className="text-slate-500">P/L per {unit} {plAt}</span>
-                  <span className={`text-right font-medium ${plPerContract >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{fmtMoney(plPerContract)}</span>
-                  <span className="text-slate-500">Total P/L for {qty} {unit}{qty > 1 ? "s" : ""} {plAt}</span>
-                  <span className={`text-right font-semibold ${plPerContract >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{fmtMoney(plPerContract * qty)}</span>
+                  {/* Withheld rather than computed against nothing. A P/L needs
+                      a price, and when the market is one-sided and the user has
+                      not set one there is no price -- printing $0.00 there is
+                      how "-$5,210.35" appeared under a mid that did not exist. */}
+                  <span className="text-slate-500">P/L per {unit} {havePl ? plAt : ""}</span>
+                  <span className={`text-right font-medium ${!havePl ? "text-slate-400" : plPerContract >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                    {havePl ? fmtMoney(plPerContract) : "— set a price"}
+                  </span>
+                  <span className="text-slate-500">Total P/L for {qty} {unit}{qty > 1 ? "s" : ""} {havePl ? plAt : ""}</span>
+                  <span className={`text-right font-semibold ${!havePl ? "text-slate-400" : plPerContract >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                    {havePl ? fmtMoney(plPerContract * qty) : "—"}
+                  </span>
                 </div>
               ) : (
                 <span className="text-amber-600">Live quote unavailable — market may be closed.</span>
@@ -499,9 +522,11 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                     // $9.89 look deliberate.
                     ? `Your last attempt was ${fmtMoney(lastDebit)}, which is past what the market will bear — starting at ${fmtMoney(startDebit)} instead and stepping every 30s until it fills. Never bids above the ask + $0.05. Stops after 10 min.`
                     : `Limit resumes from your last attempt at ${fmtMoney(lastDebit)} — starting at ${fmtMoney(startDebit)} and stepping toward the ask every 30s until it fills. Never bids above the ask + $0.05. Stops after 10 min.`
-                  : closeIsCredit
-                    ? `Closing this PAYS you. The limit starts at the mid credit (${fmtMoney(Math.abs(midDebit))}) and gives up a little every 30s until it fills. Never concedes past the bid − $0.05. Stops after 10 min.`
-                    : `Limit starts at the mid debit (${fmtMoney(midDebit)}) and steps toward the ask every 30s until it fills — bigger steps on a wider market. Never bids above the ask + $0.05. Stops after 10 min.`
+                  : !haveMid
+                    ? "There is no two-sided market for these legs right now, so the walk has nothing to start from. Set a price yourself, or wait for the market to open."
+                    : closeIsCredit
+                      ? `Closing this PAYS you. The limit starts at the mid credit (${fmtMoney(Math.abs(midDebit))}) and gives up a little every 30s until it fills. Never concedes past the bid − $0.05. Stops after 10 min.`
+                      : `Limit starts at the mid debit (${fmtMoney(midDebit)}) and steps toward the ask every 30s until it fills — bigger steps on a wider market. Never bids above the ask + $0.05. Stops after 10 min.`
                 : "Market executes immediately at the current best price — may slip toward the ask."}
             </p>
 

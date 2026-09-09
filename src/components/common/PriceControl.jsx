@@ -48,14 +48,21 @@ export default function PriceControl({
   const empty = typeof price !== "number" || !Number.isFinite(price);
 
   // Stepping from nothing needs a starting point, and the mid is the honest one.
-  const from = () => (empty ? (typeof mid === "number" ? mid : typeof bid === "number" ? bid : 0.01) : price);
+  // Only a real market may seed a starting point. Without the `priced` guard a
+  // one-sided quote's fabricated mid became the number the stepper opened on.
+  const from = () =>
+    empty ? (priced && typeof mid === "number" ? mid : priced && typeof bid === "number" ? bid : 0.01) : price;
   // A close that PAYS the account is a negative number here, and clamping to a
   // cent floor made one impossible to express: no seed, no chips, and anything
   // typed rewritten to $0.01. Someone reading "mid credit $8.00" off the screen
   // and typing 8 would submit an $800 DEBIT -- paying what they were owed, a
   // $1,600 swing per contract. The floor now follows the side of the market the
   // quote is on, and zero is still refused because zero is not a price.
-  const credit = typeof mid === "number" ? mid < 0 : side === "credit";
+  // Which side of zero the price lives on. Read from the mid when there is a
+  // real market, and from the caller's declared side otherwise -- a mid built
+  // out of a missing quote must not decide whether a number is a debit or a
+  // credit, because that decision flips the sign of what gets submitted.
+  const credit = priced && typeof mid === "number" ? mid < 0 : side === "credit";
   const set = (v) => {
     const n = round2(v);
     if (!Number.isFinite(n)) return;
@@ -63,9 +70,15 @@ export default function PriceControl({
   };
 
   const chips = [
-    { label: "Bid", value: bid },
-    { label: "Mid", value: mid },
-    { label: "Ask", value: ask },
+    // Bid, Mid and Ask describe a market. When `priced` is false there ISN'T
+    // one -- the two sides are missing or crossed -- and offering them as
+    // one-tap prices is the component contradicting its own warning three
+    // inches below. It did exactly that on a SPY share close: it printed "No
+    // live quote, so there is nothing to judge your price against" and, above
+    // it, a MID chip reading $373.01, derived from a bid of $746.01 and an ask
+    // of nothing. Last stays: it is a price that really was tried, and it is
+    // true whether or not there is a market now.
+    ...(priced ? [{ label: "Bid", value: bid }, { label: "Mid", value: mid }, { label: "Ask", value: ask }] : []),
     { label: "Last", value: last }
     // Non-zero rather than positive: on a credit-to-close structure every one
     // of these is negative and the whole row used to disappear.

@@ -42,6 +42,13 @@ Deno.serve(async (req) => {
       lastAttemptDebit(account, symbols)
     ]);
     if (!quote) return jsonResponse({ error: "No quote available for these contracts" }, 404);
+    // A leg with no offer is not a quote, and must not reach the ticket as one:
+    // downstream, `quote?.midDebit ?? 0` would turn its absent mid into $0.00
+    // and seed the limit price with it. The reason names the contract, so the
+    // ticket can say why instead of going blank.
+    if ((quote as any).unpriceable) {
+      return jsonResponse({ error: (quote as any).unpriceable, unpriceable: true, legs: (quote as any).legs ?? null }, 404);
+    }
     return jsonResponse({ ...quote, lastAttemptDebit: lastDebit });
   } catch (error) {
     return jsonResponse({ error: error.message }, 500);

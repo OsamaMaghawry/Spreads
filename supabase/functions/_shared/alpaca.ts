@@ -1,6 +1,7 @@
 // Shared Alpaca helpers: fetch with retry, OCC parsing, spread pairing, quotes.
 
 import { decryptSecret } from "./crypto.ts";
+import { quotesRefusal } from "./quoteSanity.ts";
 
 export function tradingBase(account) {
   return account.is_paper ? "https://paper-api.alpaca.markets/v2" : "https://api.alpaca.markets/v2";
@@ -111,6 +112,11 @@ export async function getSpreadQuote(account, shortSymbol, longSymbol, callShort
   const allSyms = [...shortLegs, ...longLegs].map(([s]) => s);
   const quotes = await getOptionQuotes(account, allSyms);
   if (allSyms.some((sym) => !quotes[sym as string])) return null;
+  // The same rule as the custom-leg path above, and for the same reason: `||
+  // 0` below cannot tell a missing offer from an offer of nothing, and a
+  // four-leg condor with one dead leg would price confidently off three.
+  const refusal = quotesRefusal(allSyms as string[], quotes);
+  if (refusal) return { unpriceable: refusal };
   const sum = (legs, field) => legs.reduce((a, [sym, r]) => a + (r as number) * (quotes[sym as string][field] || 0), 0);
   const shortBid = sum(shortLegs, "bp"), shortAsk = sum(shortLegs, "ap");
   const longBid = sum(longLegs, "bp"), longAsk = sum(longLegs, "ap");
@@ -163,6 +169,14 @@ export async function getLegsQuote(account, legs) {
   ]);
   const quotes = { ...optionQuotes, ...stockQuotes };
   if (syms.some((sym) => !quotes[sym])) return null;
+  // Every leg must have a two-sided market before any of these numbers mean
+  // anything. Without this, a missing offer came through as `q.ap || 0` -- a
+  // real price of zero -- and SPY quoted bid $746.01 / no ask produced a "mid"
+  // of $373.01, a fabricated -$5,210 P/L, and a seeded limit that would have
+  // sold into a $746 bid at half price. The refusal carries WHICH leg, because
+  // "no quote" with four legs on screen is not something a trader can act on.
+  const refusal = quotesRefusal(syms, quotes);
+  if (refusal) return { unpriceable: refusal, legs: legs.map((l) => ({ symbol: l.symbol, bid: quotes[l.symbol]?.bp ?? null, ask: quotes[l.symbol]?.ap ?? null })) };
   let askDebit = 0;
   let bidDebit = 0;
   legs.forEach((l) => {
