@@ -129,17 +129,17 @@ export default function MultiCloseDialog({ account, selected, brokerRows = [], h
                 <div className="flex gap-2">
                   <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                   <span>
-                    The broker is holding part of {held.length === 1 ? "one line" : `${held.length} lines`} you picked —
-                    as collateral for a short, or against an order already working. This close cannot reach that part:
+                    Part of {held.length === 1 ? "one line" : `${held.length} lines`} you picked is not available to
+                    close — held as collateral for a short, or committed to an order already working:
                   </span>
                 </div>
                 <ul className="mt-1.5 ml-6 space-y-0.5 tabular-nums">
                   {held.map((h) => (
                     <li key={h.symbol}>
                       <span className="font-medium">{h.name}</span> —{" "}
-                      {h.free === 0
-                        ? `none of the ${h.total} is free, so it is not in the plan below at all`
-                        : `${h.free} of ${h.total} ${h.unit}${h.total > 1 ? "s" : ""} free; the other ${h.total - h.free} stays open`}
+                      {h.available === 0
+                        ? `0 of ${h.total} available to close, so it is not in the plan below at all`
+                        : `${h.available} of ${h.total} ${h.unit}${h.total > 1 ? "s" : ""} available to close; the other ${h.total - h.available} stays open`}
                     </li>
                   ))}
                 </ul>

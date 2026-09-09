@@ -460,8 +460,8 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
               {heldForOrders > 0 && (
                 <p className="mt-1.5 text-xs text-amber-700">
                   {heldForOrders} of your {spread.qty} {isShares ? "shares are" : "contracts are"} already
-                  committed to a working order, so {maxQty} {maxQty === 1 ? "is" : "are"} free to close here.
-                  Cancel that order from the <span className="font-medium">Orders</span> tab to free the rest.
+                  committed to a working order, so {maxQty} {maxQty === 1 ? "is" : "are"} available to close here.
+                  Cancel that order from the <span className="font-medium">Orders</span> tab to release the rest.
                 </p>
               )}
               {/* Selling shares that back a covered call is allowed — it just

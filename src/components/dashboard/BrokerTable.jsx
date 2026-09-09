@@ -109,14 +109,19 @@ const asLeg = (r) => ({
   adjusted: !!r.adjusted
 });
 
-// Rows the broker reports but which have nothing free to close.
-const nothingFree = (r) => !(Math.abs(r.qtyAvailable ?? r.qty) > 0);
+// Rows the broker reports but where none of the line can be closed right now.
+const noneAvailable = (r) => !(Math.abs(r.qtyAvailable ?? r.qty) > 0);
+
+// Why a line is not fully available. The broker's qty_available does not say
+// which of the two it is, so neither do we -- naming one would be a guess the
+// user would act on.
+const WHY_HELD = "held as collateral for a short, or committed to an order already working";
 
 export default function BrokerTable({ rows, coverage, onClose, onCloseMany }) {
   const [picked, setPicked] = useState([]);
 
   const selected = useMemo(
-    () => (rows || []).filter((r) => picked.includes(r.symbol) && !nothingFree(r)).map(asLeg),
+    () => (rows || []).filter((r) => picked.includes(r.symbol) && !noneAvailable(r)).map(asLeg),
     [rows, picked]
   );
   // Lines the broker will not let this close in full, NAMED.
@@ -124,9 +129,9 @@ export default function BrokerTable({ rows, coverage, onClose, onCloseMany }) {
   // The old notice said "some of what you ticked is held by a working order"
   // and stopped there. On the live TSLA book that sentence was the only thing
   // on screen about a 200-share line that then did not close -- true, and
-  // useless, because it named neither the line nor how much of it was free.
-  // A row with nothing free is dropped from `selected` entirely, so without
-  // this it disappears from the plan with no trace at all.
+  // useless, because it named neither the line nor the quantity. A line with
+  // nothing available is dropped from `selected` entirely, so without this it
+  // disappears from the plan with no trace at all.
   const held = useMemo(
     () =>
       (rows || [])
@@ -135,7 +140,7 @@ export default function BrokerTable({ rows, coverage, onClose, onCloseMany }) {
           symbol: r.symbol,
           name: r.assetClass === "equity" ? `${r.ticker || r.symbol} shares` : r.symbol,
           unit: r.assetClass === "equity" ? "share" : "contract",
-          free: Math.abs(r.qtyAvailable ?? r.qty),
+          available: Math.abs(r.qtyAvailable ?? r.qty),
           total: Math.abs(r.qty)
         })),
     [rows, picked]
@@ -197,17 +202,16 @@ export default function BrokerTable({ rows, coverage, onClose, onCloseMany }) {
               <div className="flex gap-1.5">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                 <span>
-                  The broker is holding part of {held.length === 1 ? "this line" : "these lines"} — as collateral for a
-                  short, or against an order already working — so this close cannot reach all of it:
+                  Part of {held.length === 1 ? "this line is" : "these lines are"} not available to close — {WHY_HELD}:
                 </span>
               </div>
               <ul className="mt-1 ml-5 space-y-0.5 tabular-nums">
                 {held.map((h) => (
                   <li key={h.symbol}>
                     <span className="font-medium">{h.name}</span> —{" "}
-                    {h.free === 0
-                      ? `none of the ${h.total} is free, so this line will not be closed at all`
-                      : `${h.free} of ${h.total} ${h.unit}${h.total > 1 ? "s" : ""} free; the other ${h.total - h.free} stays open`}
+                    {h.available === 0
+                      ? `0 of ${h.total} available to close, so this line is not included at all`
+                      : `${h.available} of ${h.total} ${h.unit}${h.total > 1 ? "s" : ""} available to close; the other ${h.total - h.available} stays open`}
                   </li>
                 ))}
               </ul>
@@ -254,7 +258,12 @@ export default function BrokerTable({ rows, coverage, onClose, onCloseMany }) {
               </th>
               <th className={th}>Position</th>
               <th className={`${th} text-right`}>Qty</th>
-              <th className={`${th} text-right`}>Free</th>
+              <th
+                className={`${th} text-right`}
+                title="How much of this line the broker will let you close right now. The rest is collateral for a short, or committed to an order already working."
+              >
+                Available to close
+              </th>
               <th className={`${th} text-right`}>Avg entry</th>
               <th className={`${th} text-right`}>Current</th>
               <th className={`${th} text-right`}>Market value</th>
@@ -277,8 +286,8 @@ export default function BrokerTable({ rows, coverage, onClose, onCloseMany }) {
                     type="checkbox"
                     checked={picked.includes(r.symbol)}
                     onChange={() => toggle(r.symbol)}
-                    disabled={nothingFree(r)}
-                    title={nothingFree(r) ? "Every contract on this line is held by a working order." : undefined}
+                    disabled={noneAvailable(r)}
+                    title={noneAvailable(r) ? `None of this line is available to close — ${WHY_HELD}.` : undefined}
                     aria-label={`Select ${label(r)} for closing`}
                     className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                   />
