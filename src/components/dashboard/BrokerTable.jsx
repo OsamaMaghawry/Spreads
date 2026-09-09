@@ -1,5 +1,7 @@
+import { useState, useMemo } from "react";
 import { fmtMoney } from "@/lib/format";
 import { AlertTriangle } from "lucide-react";
+import { closePlan } from "@/lib/closePlan";
 
 // What the broker says you hold, line for line, with a close on every row.
 //
@@ -83,7 +85,33 @@ const label = (r) =>
     ? `${r.ticker} shares`
     : `${r.ticker} ${fmtMoney(r.strike)}${r.optionType} ${r.expiry ?? ""}`.trim();
 
-export default function BrokerTable({ rows, coverage, onClose }) {
+// One broker line as a leg the close planner understands. Quantity is the whole
+// line; partial multi-closes are a later refinement, and offering a quantity box
+// per row before the sequence itself is proven would be two new things at once
+// on a path that places real orders.
+const asLeg = (r) => ({
+  symbol: r.symbol,
+  assetClass: r.assetClass,
+  side: r.qty < 0 ? "short" : "long",
+  qty: Math.abs(r.qty),
+  ticker: r.ticker,
+  strike: r.strike,
+  optionType: r.optionType,
+  expiry: r.expiry
+});
+
+export default function BrokerTable({ rows, coverage, onClose, onCloseMany }) {
+  const [picked, setPicked] = useState([]);
+
+  const selected = useMemo(
+    () => (rows || []).filter((r) => picked.includes(r.symbol)).map(asLeg),
+    [rows, picked]
+  );
+  // Planned as the user picks, so the order count and the split are visible
+  // before the ticket opens rather than as a surprise inside it.
+  const plan = useMemo(() => closePlan(selected), [selected]);
+  const toggle = (sym) => setPicked((p) => (p.includes(sym) ? p.filter((s) => s !== sym) : [...p, sym]));
+
   if (!rows?.length) {
     return <div className="px-5 py-6 text-sm text-slate-500">The broker reports no open positions in this account.</div>;
   }
@@ -115,10 +143,47 @@ export default function BrokerTable({ rows, coverage, onClose }) {
         </div>
       )}
 
+      {/* The selection bar. Present only once something is picked, so the tab
+          reads the same as before until the user starts a multi-close.
+
+          It states the ORDER COUNT up front. A selection of six option legs
+          plus a share lot cannot be one order — the broker caps a multi-leg
+          order at four legs and never mixes shares with contracts — and finding
+          that out inside the ticket, after committing, is the wrong moment. */}
+      {picked.length > 0 && (
+        <div className="mx-4 mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-slate-300 bg-slate-50 px-4 py-3">
+          <span className="text-sm font-medium text-slate-900">
+            {picked.length} selected
+          </span>
+          <span className="text-xs text-slate-500">
+            {plan.atomic
+              ? "One order — all legs fill together."
+              : `${plan.orders.length} orders, sent one at a time. Buy-backs first, sales last.`}
+          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => setPicked([])}
+              className="text-xs font-medium rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              Clear
+            </button>
+            <button
+              onClick={() => onCloseMany?.(selected)}
+              className="text-xs font-medium rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-rose-700 hover:bg-rose-100 transition-colors"
+            >
+              Close selected at a limit
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="overflow-x-auto">
         <table className="w-full text-sm text-slate-700">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left">
+              <th className={`${th} w-8`}>
+                <span className="sr-only">Select</span>
+              </th>
               <th className={th}>Position</th>
               <th className={`${th} text-right`}>Qty</th>
               <th className={`${th} text-right`}>Free</th>
@@ -133,7 +198,21 @@ export default function BrokerTable({ rows, coverage, onClose }) {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.symbol} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+              <tr
+                key={r.symbol}
+                className={`border-b border-slate-100 transition-colors ${
+                  picked.includes(r.symbol) ? "bg-emerald-50/60" : "hover:bg-slate-50"
+                }`}
+              >
+                <td className={td}>
+                  <input
+                    type="checkbox"
+                    checked={picked.includes(r.symbol)}
+                    onChange={() => toggle(r.symbol)}
+                    aria-label={`Select ${label(r)} for closing`}
+                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                  />
+                </td>
                 <td className={`${td} font-medium text-slate-900`}>
                   {label(r)}
                   <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${

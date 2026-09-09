@@ -4,6 +4,7 @@ import { invokeFunction } from "@/lib/functions";
 import { RefreshCw, ArrowLeft, History, BarChart3, Plus } from "lucide-react";
 import AccountSection from "@/components/dashboard/AccountSection";
 import CloseDialog from "@/components/close/CloseDialog";
+import MultiCloseDialog from "@/components/close/MultiCloseDialog";
 import OpenPositionDialog from "@/components/open/OpenPositionDialog";
 import useLiveSync from "@/lib/useLiveSync";
 import StaleDataNotice from "@/components/common/StaleDataNotice";
@@ -14,6 +15,10 @@ export default function AccountDetail() {
   const [syncedAt, setSyncedAt] = useState(null);
   const [loading, setLoading] = useState(true);
   const [closing, setClosing] = useState(null);
+  // A multi-position close, from the Broker tab. Held separately from `closing`
+  // because it is a SEQUENCE of orders rather than one, and the two tickets
+  // must never be open at the same time against the same legs.
+  const [closingMany, setClosingMany] = useState(null);
   const [opening, setOpening] = useState(false);
   const [staleReason, setStaleReason] = useState(null);
 
@@ -108,6 +113,7 @@ export default function AccountDetail() {
         <AccountSection
           account={account}
           onCloseSpread={(acc, spread) => setClosing({ account: acc, spread })}
+          onCloseMany={(acc, legs) => setClosingMany({ account: acc, legs })}
           onOrdersChanged={load}
         />
       ) : (
@@ -122,6 +128,15 @@ export default function AccountDetail() {
           account={account}
           onClose={() => setOpening(false)}
           onDone={() => { setOpening(false); load(); }}
+        />
+      )}
+
+      {closingMany && (
+        <MultiCloseDialog
+          account={closingMany.account}
+          selected={closingMany.legs}
+          onClose={() => setClosingMany(null)}
+          onDone={() => { setClosingMany(null); load(); }}
         />
       )}
 

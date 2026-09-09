@@ -14,7 +14,7 @@ import { AlertTriangle, LayoutGrid, Table2 } from "lucide-react";
 // tick that arrived before the market went quiet.
 const LIVE_MAX_AGE_MS = 30_000;
 
-export default function AccountSection({ account, onCloseSpread, onOrdersChanged }) {
+export default function AccountSection({ account, onCloseSpread, onCloseMany, onOrdersChanged }) {
   const [view, setView] = useState("simple");
   const [tab, setTab] = useState("positions");
   // Which name the combined view is open on. Null is closed.
@@ -222,6 +222,7 @@ export default function AccountSection({ account, onCloseSpread, onOrdersChanged
           rows={account.broker || []}
           coverage={account.coverage || []}
           onClose={(spread) => onCloseSpread(account, spread)}
+          onCloseMany={(legs) => onCloseMany?.(account, legs)}
         />
       ) : tab === "orders" ? (
         orders.length === 0 ? (
