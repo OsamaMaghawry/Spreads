@@ -113,7 +113,7 @@ export default function AccountDetail() {
         <AccountSection
           account={account}
           onCloseSpread={(acc, spread) => setClosing({ account: acc, spread })}
-          onCloseMany={(acc, legs, brokerRows) => setClosingMany({ account: acc, legs, brokerRows })}
+          onCloseMany={(acc, legs, brokerRows, held) => setClosingMany({ account: acc, legs, brokerRows, held })}
           onOrdersChanged={load}
         />
       ) : (
@@ -136,6 +136,7 @@ export default function AccountDetail() {
           account={closingMany.account}
           selected={closingMany.legs}
           brokerRows={closingMany.brokerRows}
+          held={closingMany.held}
           onClose={() => setClosingMany(null)}
           onDone={() => { setClosingMany(null); load(); }}
         />

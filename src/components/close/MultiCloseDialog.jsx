@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { fmtMoney } from "@/lib/format";
 import { invokeFunction } from "@/lib/functions";
-import { AlertTriangle, ArrowRight, Check, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, Info, Loader2 } from "lucide-react";
 import { closePlan, orderLegs, coverLeftBehind } from "@/lib/closePlan";
 import useMultiClose from "./useMultiClose";
 import ConfirmSubmit from "@/components/common/ConfirmSubmit";
@@ -27,7 +27,7 @@ const label = (l) =>
     ? `${Math.abs(l.qty)} ${l.ticker || l.symbol} shares`
     : `${Math.abs(l.qty)}× ${l.ticker || ""} ${fmtMoney(l.strike)}${l.optionType || ""} ${l.expiry || ""}`.replace(/\s+/g, " ").trim();
 
-export default function MultiCloseDialog({ account, selected, brokerRows = [], onClose, onDone }) {
+export default function MultiCloseDialog({ account, selected, brokerRows = [], held = [], onClose, onDone }) {
   const { phase, log, step, done, run, stop, reset } = useMultiClose();
   const [quotes, setQuotes] = useState({});
   const plan = useMemo(() => closePlan(selected), [selected]);
@@ -101,12 +101,51 @@ export default function MultiCloseDialog({ account, selected, brokerRows = [], o
 
         {phase === "idle" ? (
           <div className="space-y-4">
-            {plan.warnings.map((w, i) => (
-              <div key={i} className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900 leading-relaxed">
-                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                <span>{w}</span>
+            {/* How it will be sent. This is the PLAN, not a problem, and it
+                used to render in the same amber-with-a-triangle box as the
+                cover warnings below -- so the owner read the whole panel as a
+                refusal and was then surprised when it closed everything. What
+                needs a decision is amber; what is merely true is not. */}
+            {plan.warnings.length > 0 && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-600 leading-relaxed">
+                <div className="flex items-center gap-1.5 font-medium text-slate-900 mb-1.5">
+                  <Info className="h-3.5 w-3.5 shrink-0" />
+                  How this will be sent
+                </div>
+                <ul className="space-y-1.5">
+                  {plan.warnings.map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
+                </ul>
               </div>
-            ))}
+            )}
+
+            {/* Repeated here because a line the broker will not release is the
+                single most likely reason the user ends up holding something
+                they thought they had just closed -- and the selection bar that
+                said so is two clicks behind them. */}
+            {held.length > 0 && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-900 leading-relaxed">
+                <div className="flex gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>
+                    The broker is holding part of {held.length === 1 ? "one line" : `${held.length} lines`} you picked —
+                    as collateral for a short, or against an order already working. This close cannot reach that part:
+                  </span>
+                </div>
+                <ul className="mt-1.5 ml-6 space-y-0.5 tabular-nums">
+                  {held.map((h) => (
+                    <li key={h.symbol}>
+                      <span className="font-medium">{h.name}</span> —{" "}
+                      {h.free === 0
+                        ? `none of the ${h.total} is free, so it is not in the plan below at all`
+                        : `${h.free} of ${h.total} ${h.unit}${h.total > 1 ? "s" : ""} free; the other ${h.total - h.free} stays open`}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {stranded.map((w) => (
               <div key={w.selling} className="flex gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-900 leading-relaxed">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />

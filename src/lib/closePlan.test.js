@@ -98,13 +98,19 @@ test("the owner's TSLA book: six option legs and 210 shares", () => {
   assert.deepEqual(plan.orders[0].legs.map((l) => l.action), ["buy_to_close", "buy_to_close", "buy_to_close"]);
   assert.equal(plan.orders[1].legs[0].action, "sell_to_close");
   assert.deepEqual(plan.orders[2].legs.map((l) => l.action), ["sell_to_close", "sell_to_close"]);
-  assert.equal(plan.warnings.length, 2);
+  // The split, the ordering guarantee, and what happens if one does not fill.
+  assert.equal(plan.warnings.length, 3);
+  assert.match(plan.warnings[0], /^All 6 of these will be closed\./);
 });
 
-test("a selection of only buy-backs warns about splitting but not about cover", () => {
+test("a selection of only buy-backs explains the split but claims nothing about cover", () => {
   const legs = [1, 2, 3, 4, 5].map((i) => opt(`S${i}`, "short", 1));
   const plan = closePlan(legs);
-  assert.equal(plan.warnings.length, 1, "nothing is being sold, so no cover can be removed");
+  assert.equal(plan.warnings.length, 2, "nothing is being sold, so no cover can be removed");
+  assert.ok(
+    !plan.warnings.some((w) => /cover is never removed/.test(w)),
+    "a guarantee about cover over a plan that sells nothing is vacuous"
+  );
 });
 
 test("empty and junk selections produce no orders", () => {

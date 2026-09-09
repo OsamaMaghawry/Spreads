@@ -168,14 +168,18 @@ export function closePlan(selected) {
     if (Object.values(books).some((b) => b.filter((l) => !isEquity(l) && !isAdjusted(l)).length > MAX_MLEG_LEGS)) {
       reasons.push(`the broker takes at most ${MAX_MLEG_LEGS} option legs per order`);
     }
+    // Leads with what WILL happen, not with what cannot. The first version
+    // opened "This cannot go as one order", in an amber box with a warning
+    // triangle -- and the owner read the whole panel as a refusal, then watched
+    // it close everything anyway. It was never a warning; it is the plan.
     warnings.push(
-      `This cannot go as one order — ${reasons.join("; ") || "it needs more than one"}. It will be sent as ${orders.length} orders, one after another, each waiting for the one before it to fill.`
+      `All ${legs.length} of these will be closed. The broker cannot take them as a single order — ${reasons.join("; ") || "there are too many for one"} — so they go as ${orders.length} orders in the order listed below, each sent once the one before it has filled.`
     );
     const hasBuyBacks = orders.some((o) => tierOf(o) === 0);
     const hasSales = orders.some((o) => tierOf(o) === 2);
     if (hasBuyBacks && hasSales) {
       warnings.push(
-        "Everything that only buys back a short is sent before anything that sells, so cover is never removed before the position it covers is closed. If a later order does not fill, you are left holding the covering legs — never a bare short."
+        "The sequence is deliberate: everything that buys back a short goes first, everything that sells goes last. That way cover is never removed before the short it covers is closed, so a sequence that stops part-way leaves you holding the covering legs — never a bare short."
       );
     } else if (hasSales) {
       // Said instead of the sentence above, not alongside it. Printing "cover
@@ -183,9 +187,12 @@ export function closePlan(selected) {
       // vacuously true and reads as a guarantee the plan cannot make -- the
       // same defect as the ordering bug it was written to describe.
       warnings.push(
-        "These orders all sell. Stock is sold before options, so what is left between fills is a fully-paid long contract rather than an open stock position — but until the last one fills you still hold part of this position."
+        "These orders all sell, shares before contracts. If the sequence stops part-way, what you are left holding is a fully-paid long contract rather than an open stock position — but until the last order fills, part of this position is still open."
       );
     }
+    warnings.push(
+      "If an order does not fill inside its ten minutes, the sequence stops there and the orders after it are never sent. The log below names the one it stopped on."
+    );
   }
   return { orders, atomic, warnings };
 }

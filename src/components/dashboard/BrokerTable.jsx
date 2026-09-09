@@ -119,6 +119,27 @@ export default function BrokerTable({ rows, coverage, onClose, onCloseMany }) {
     () => (rows || []).filter((r) => picked.includes(r.symbol) && !nothingFree(r)).map(asLeg),
     [rows, picked]
   );
+  // Lines the broker will not let this close in full, NAMED.
+  //
+  // The old notice said "some of what you ticked is held by a working order"
+  // and stopped there. On the live TSLA book that sentence was the only thing
+  // on screen about a 200-share line that then did not close -- true, and
+  // useless, because it named neither the line nor how much of it was free.
+  // A row with nothing free is dropped from `selected` entirely, so without
+  // this it disappears from the plan with no trace at all.
+  const held = useMemo(
+    () =>
+      (rows || [])
+        .filter((r) => picked.includes(r.symbol) && Math.abs(r.qtyAvailable ?? r.qty) < Math.abs(r.qty))
+        .map((r) => ({
+          symbol: r.symbol,
+          name: r.assetClass === "equity" ? `${r.ticker || r.symbol} shares` : r.symbol,
+          unit: r.assetClass === "equity" ? "share" : "contract",
+          free: Math.abs(r.qtyAvailable ?? r.qty),
+          total: Math.abs(r.qty)
+        })),
+    [rows, picked]
+  );
   // What the SELECTION leaves behind, judged against the whole account rather
   // than against the picked legs — closePlan cannot see a short that was never
   // selected, and that is exactly the one a sale would strip the cover from.
@@ -171,11 +192,26 @@ export default function BrokerTable({ rows, coverage, onClose, onCloseMany }) {
           <span className="text-sm font-medium text-slate-900">
             {picked.length} selected
           </span>
-          {(rows || []).some((r) => picked.includes(r.symbol) && Math.abs(r.qtyAvailable ?? r.qty) < Math.abs(r.qty)) && (
-            <span className="basis-full text-xs text-amber-700">
-              Some of what you ticked is held by a working order, so this closes only the free part of
-              those lines. The rest stays open.
-            </span>
+          {held.length > 0 && (
+            <div className="basis-full text-xs text-amber-700">
+              <div className="flex gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span>
+                  The broker is holding part of {held.length === 1 ? "this line" : "these lines"} — as collateral for a
+                  short, or against an order already working — so this close cannot reach all of it:
+                </span>
+              </div>
+              <ul className="mt-1 ml-5 space-y-0.5 tabular-nums">
+                {held.map((h) => (
+                  <li key={h.symbol}>
+                    <span className="font-medium">{h.name}</span> —{" "}
+                    {h.free === 0
+                      ? `none of the ${h.total} is free, so this line will not be closed at all`
+                      : `${h.free} of ${h.total} ${h.unit}${h.total > 1 ? "s" : ""} free; the other ${h.total - h.free} stays open`}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
           <span className="text-xs text-slate-500">
             {plan.atomic
@@ -200,7 +236,7 @@ export default function BrokerTable({ rows, coverage, onClose, onCloseMany }) {
               Clear
             </button>
             <button
-              onClick={() => onCloseMany?.(selected)}
+              onClick={() => onCloseMany?.(selected, held)}
               className="text-xs font-medium rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-rose-700 hover:bg-rose-100 transition-colors"
             >
               Close selected at a limit
