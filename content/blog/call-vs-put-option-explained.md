@@ -1,16 +1,16 @@
 ---
-title: Calls and puts, from both sides of the contract
+title: Call vs put options, from both sides of the contract
 slug: call-vs-put-option-explained
 excerpt: A call is the right to buy and a put is the right to sell, but every contract also has a seller on the other side carrying the matching obligation.
-meta_description: A call is the right to buy, a put the right to sell — and each one has a seller taking on the opposite obligation. Both sides, explained plainly.
+meta_description: Call vs put is only half of it: long vs short is the other. What each of the four positions pays, who decides on exercise, and which one has no cap.
 author: DeltaMint
 category: foundations
 series_order: 2
 tags: calls, puts, option buyer, option seller, foundations
 ---
 
-Every explanation of options opens with the same four words: a call is the
-right to buy, a put is the right to sell. That is accurate, and it stops one
+Every explanation of options opens with the same four words: a call option is
+the right to buy, a put option is the right to sell. That is accurate, and it stops one
 sentence short of complete — a right needs a counterparty willing to carry
 the matching obligation, and most explanations never name who that is. "Buy"
 and "sell" describe what the contract is about. They say nothing about which
@@ -29,7 +29,10 @@ questions and four positions exist. Only two of them behave the way
 A listed call gives its holder the right to buy 100 shares of the underlying
 at the strike, on or before expiration. A listed put gives its holder the
 right to sell 100 shares at the strike, on the same terms. Both rights are
-one-directional: buy for a call, sell for a put, and never the reverse.
+one-directional: buy for a call, sell for a put, and never the reverse. That
+fits the common American-style equity option; a European-style index option
+like SPX exercises only at expiration and settles in cash, but the right
+sits on the same side either way.
 
 Neither right exists without someone else agreeing to the opposite
 obligation. The seller of a call is obligated to deliver 100 shares at the
@@ -52,14 +55,23 @@ buy a put — and leave the two short ones as an afterthought, if they mention
 them at all. They are not an afterthought in an account: every option anyone
 owns was sold by someone, and every option anyone sold is owned by someone.
 
-## Buying either side costs once, at the fill, and that is the entire risk
+Doing nothing is itself a choice for a long holder — right up to expiration,
+where an option finishing in the money is exercised automatically unless the
+holder instructs otherwise, exactly as [the first post in this
+series](/blog/what-is-an-options-contract) describes.
+
+## Buying a call or a put costs once, at the fill, and that is the entire risk
 
 Buy a call or buy a put and the mechanics are identical regardless of which
 one it is. Cash leaves the account at the fill — the premium, paid in full —
-and a position with a positive quantity appears. Nothing further is ever
-asked of you: an option you own can only expire, get exercised at your
-choice, or get sold, and none of those creates a bill beyond what you already
-paid.
+and a position with a positive quantity appears. From there an option you
+own can only expire, get sold, or get exercised.
+
+Only the last of those asks for more money. Exercising a call means paying
+the full strike, in cash, for the shares — a separate bill from the premium
+already spent. The premium caps the loss, not every cash flow the position
+can produce, which is why most holders sell the option rather than exercise
+it.
 
 That is why a long call and a long put have the same risk shape even though
 they profit in opposite directions. A long call gains as the underlying
@@ -74,7 +86,7 @@ ceiling. A long put's gain is large but bounded, because a stock's price
 cannot fall below zero — the most a put can ever be worth is the strike
 itself, on 100 shares.
 
-## Selling either side means the obligation is yours, not the choice
+## Selling a call or a put: the obligation is yours, and the choice is not
 
 Sell a call or sell a put and the cash direction reverses: the premium
 arrives at the fill instead of leaving, and the position that appears has a
@@ -91,18 +103,20 @@ The two short positions are not symmetric with each other:
   ceiling, so every dollar it rises past the strike is a dollar the seller
   owes, with no fixed edge to the loss.
 
-That gap is why an uncovered short call carries a warning most brokers put
-in front of the order, and most sellers avoid the position entirely.
+That gap is why brokers gate uncovered short calls behind their highest
+options-approval tier, and most retail accounts cannot place the order at
+all without clearing it first.
 
-Collateral follows the same asymmetry. A cash-secured put holds the strike's
-worth of cash, enough to buy the shares if assigned. A covered call holds the
-shares themselves, ready to deliver. An uncovered call holds a margin
-requirement calculated against a risk with no fixed edge — larger, and
-recalculated as the market moves. What gets held for which structure is its
-own subject; the point here is only that something is always held, whether
-or not the position looks quiet.
+Collateral follows the same asymmetry. A cash-secured put in a cash account
+holds the strike's worth of cash, enough to buy the shares if assigned. A
+covered call holds the shares themselves, ready to deliver. An uncovered
+call holds a margin requirement computed from a formula on the underlying's
+price, recalculated daily — finite day to day, with no ceiling to match the
+position's own risk. What gets held for which
+structure is its own subject; the point here is only that something is
+always held, whether or not the position looks quiet.
 
-## "In the money" points toward the strike from opposite directions
+## "In the money" means above the strike for a call, below it for a put
 
 For a call, "in the money" means the underlying is trading above the strike
 — the right to buy at a lower price than the market is worth something. For
@@ -111,8 +125,8 @@ right to sell at a higher price than the market is worth something. Same
 word, same strike, opposite side of it.
 
 Take a hypothetical: XYZ trading at 52, a 50 strike listed both ways. The 50
-call is in the money by 2 — the intrinsic value a holder could realize by
-exercising and immediately selling at the market. The 50 put, same strike,
+call is in the money by 2 — the amount by which the strike beats the market,
+which is what "intrinsic value" means. The 50 put, same strike,
 same stock price, is out of the money: nobody would exercise the right to
 sell at 50 what the market already pays 52 for. Move XYZ down to 48 instead,
 and the two positions swap places — the call goes out of the money, the put
@@ -120,13 +134,12 @@ goes in.
 
 ![A hypothetical strike at 50 marked against the underlying price: the call's in-the-money region sits above the strike, the put's sits below it, and the two swap which one is "in" as the price crosses.](/assets/blog/call-put-moneyness-direction.svg)
 
-Nothing about which side is "in the money" says anything about who holds it.
-A call that is deep in the money is valuable to its buyer and costly, if
-assigned, to its seller — the direction of the strike relationship is fixed
-by call-vs-put, and the direction of the consequence is fixed separately by
-long-vs-short.
+Nothing about which side is "in the money" says who holds it. A call deep
+in the money is valuable to its buyer and costly, if assigned, to its
+seller — the strike relationship is fixed by call-vs-put; the consequence
+is fixed separately by long-vs-short.
 
-## Four positions on the same underlying, four different rows in an account
+## Long call, short call, long put, short put — four rows in one account
 
 Put all four together and the account view is four rows that look almost
 identical except for a sign and a number — but that plus/minus sign and that
@@ -146,24 +159,25 @@ expiration, call premium 1.20, put premium 0.90 — both invented for the
 arithmetic, not quoted from any real chain. Four separate contracts, four
 separate fills:
 
-- **Long the call for 1.20.** $120 leaves the account. At or below 50, the
-  right expires worthless and the $120 is the whole cost. Above 50, the
-  right is worth the difference between the price and 50, times 100.
-- **Short the call for 1.20, uncovered.** $120 arrives. Below 50, nothing is
-  owed back. Above 50, the position owes the difference between the price
-  and 50, times 100 — with no cap on how high that difference can go.
-- **Long the put for 0.90.** $90 leaves the account. At or above 50, the
-  right expires worthless. Below 50, the right is worth the difference
+- **Long the call for 1.20.** $120 leaves the account. At expiration, at or
+  below 50 the right expires worthless and the $120 is the whole cost; above
+  50 it is worth the difference between the price and 50, times 100.
+- **Short the call for 1.20, uncovered.** $120 arrives. Before expiration,
+  nothing is owed unless the holder exercises. At expiration, below 50
+  nothing is owed back; above 50 the position owes the difference between
+  the price and 50, times 100 — with no cap on how high that difference can
+  go.
+- **Long the put for 0.90.** $90 leaves the account. At expiration, at or
+  above 50 the right expires worthless; below 50 it is worth the difference
   between 50 and the price, times 100.
-- **Short the put for 0.90, cash-secured.** $90 arrives, and $5,000 of cash
-  sits reserved against the obligation to buy at 50. At or above 50, the
-  obligation lapses and the reservation is released. Below 50, the position
-  is on the hook for the difference between 50 and the price, times 100,
-  bounded by the price reaching zero.
+- **Short the put for 0.90, cash-secured.** $90 arrives, and in a cash
+  account $5,000 of cash sits reserved against the obligation to buy at 50.
+  At expiration, at or above 50 the obligation lapses and the reservation is
+  released; below 50 the position is on the hook for the difference between
+  50 and the price, times 100, bounded by the price reaching zero.
 
-Same underlying, same strike, same expiration, four contracts that cost or
-paid four different amounts and expose the account to four different
-things.
+Same underlying, same strike, same expiration — four contracts, four
+different costs, four different exposures.
 
 ## "Bullish" and "bearish" describe direction, not what each side actually risks
 

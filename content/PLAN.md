@@ -148,3 +148,5 @@ Full list in `docs/context/compliance.md`; these are the ones that bite:
 | 2026-08-29 | `return-on-risk-vs-return-on-capital` | measuring · 59 | live |
 | 2026-08-29 | `options-journal-splits-spreads-into-legs` | managing · 50 | live |
 | 2026-09-02 | `credit-spread-max-loss` | managing · 48 | on staging. Rewritten 2 Sep from a 150-word stub; desk-editor, investment-analyst, seo-editor and compliance-gate findings applied |
+| 2026-09-07 | `what-is-an-options-contract` | foundations · 1 | live. Row backfilled 9 Sep — the post existed in content/blog/ but this table had never recorded it |
+| 2026-09-09 | `call-vs-put-option-explained` | foundations · 2 | content-engine → desk-editor → seo-editor → compliance-gate all run this session; findings applied; content:check clean |

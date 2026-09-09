@@ -43,7 +43,7 @@
   <text x="433" y="265" font-size="11.5" font-weight="500" fill="#2E8B5F" text-anchor="middle">+$90</text>
   <text x="488" y="265" font-size="11" fill="#767B8E">received; $5,000 held</text>
   <text x="388" y="294" font-size="11.5" fill="#4B4F60">Obligation to buy 100 shares at 50.</text>
-  <text x="388" y="314" font-size="11.5" font-weight="500" fill="#B4485C">Max loss: bounded by 0, not by 50.</text>
+  <text x="388" y="314" font-size="11.5" font-weight="500" fill="#B4485C">Max loss: $4,910, with XYZ at 0.</text>
   <text x="388" y="342" font-size="11.5" font-weight="500" fill="#14151C">The holder decides; you find out after.</text>
 
   <text x="16" y="388" font-size="11" fill="#767B8E">Hypothetical strike and premiums, shown for the arithmetic only.</text>

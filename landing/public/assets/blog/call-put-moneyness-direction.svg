@@ -8,25 +8,25 @@
   <text x="360" y="188" font-size="11.5" fill="#14151C" text-anchor="middle" font-weight="500">50 — the strike</text>
 
   <!-- call zone arrow, above line, pointing right -->
-  <line x1="368" y1="112" x2="656" y2="112" stroke="#4B4F60" stroke-width="1.5"/>
-  <path d="M656 108 L664 112 L656 116 Z" fill="#4B4F60"/>
-  <text x="368" y="98" font-size="12" font-weight="600" fill="#14151C">Call in the money here — underlying above 50</text>
+  <line x1="368" y1="102" x2="656" y2="102" stroke="#4B4F60" stroke-width="1.5"/>
+  <path d="M656 98 L664 102 L656 106 Z" fill="#4B4F60"/>
+  <text x="368" y="88" font-size="12" font-weight="600" fill="#14151C">Call in the money here — underlying above 50</text>
 
   <!-- put zone arrow, below line, pointing left -->
-  <line x1="352" y1="210" x2="64" y2="210" stroke="#4B4F60" stroke-width="1.5"/>
-  <path d="M64 206 L56 210 L64 214 Z" fill="#4B4F60"/>
-  <text x="352" y="230" font-size="12" font-weight="600" fill="#14151C" text-anchor="end">Put in the money here — underlying below 50</text>
+  <line x1="352" y1="218" x2="64" y2="218" stroke="#4B4F60" stroke-width="1.5"/>
+  <path d="M64 214 L56 218 L64 222 Z" fill="#4B4F60"/>
+  <text x="352" y="240" font-size="12" font-weight="600" fill="#14151C" text-anchor="end">Put in the money here — underlying below 50</text>
 
   <!-- marker at 52: call ITM, put OTM -->
   <circle cx="460" cy="150" r="4" fill="#14151C"/>
-  <line x1="460" y1="150" x2="460" y2="132" stroke="#A7AEC2" stroke-width="1" stroke-dasharray="3 3"/>
-  <text x="460" y="122" font-size="11" fill="#14151C" text-anchor="middle" font-weight="500">XYZ at 52</text>
+  <line x1="460" y1="150" x2="460" y2="134" stroke="#A7AEC2" stroke-width="1" stroke-dasharray="3 3"/>
+  <text x="460" y="128" font-size="11" fill="#14151C" text-anchor="middle" font-weight="500">XYZ at 52</text>
   <text x="460" y="66" font-size="10.5" fill="#767B8E" text-anchor="middle">call ITM by 2, put OTM</text>
 
   <!-- marker at 48: call OTM, put ITM -->
   <circle cx="260" cy="150" r="4" fill="#14151C"/>
-  <line x1="260" y1="150" x2="260" y2="132" stroke="#A7AEC2" stroke-width="1" stroke-dasharray="3 3"/>
-  <text x="260" y="122" font-size="11" fill="#14151C" text-anchor="middle" font-weight="500">XYZ at 48</text>
+  <line x1="260" y1="150" x2="260" y2="134" stroke="#A7AEC2" stroke-width="1" stroke-dasharray="3 3"/>
+  <text x="260" y="128" font-size="11" fill="#14151C" text-anchor="middle" font-weight="500">XYZ at 48</text>
   <text x="260" y="66" font-size="10.5" fill="#767B8E" text-anchor="middle">call OTM, put ITM by 2</text>
 
   <text x="24" y="250" font-size="10.5" fill="#767B8E">Hypothetical strike and prices, shown for the definition only.</text>

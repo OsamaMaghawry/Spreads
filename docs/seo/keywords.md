@@ -13,7 +13,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | # | Topic | Target query (long tail) | Head term (hub) | Competing today | Our angle |
 | --- | --- | --- | --- | --- | --- |
 | 1 | What an option actually is | what is an options contract | options | Investopedia, broker education hubs | what is in your account after the fill, not a definition |
-| 2 | Calls and puts | call vs put option explained | call option, put option | Investopedia, NerdWallet | both sides of the same contract, seller included |
+| 2 | Calls and puts | call vs put option explained | call option, put option | SmartAsset, Chase, SoFi, Motley Fool, Vanguard, NerdWallet | both sides of the same contract, seller included |
 | 3 | Strike, expiry, premium | option strike price expiration premium | strike price | Investopedia | the three numbers on one real-looking chain row |
 | 4 | Intrinsic and time value | intrinsic vs extrinsic value options | time value | Investopedia, tastylive | why the same strike costs different amounts on different days |
 | 5 | Bid-ask on options | options bid ask spread | bid ask spread | forums, broker pages | what the spread costs a seller at the executable price |
@@ -71,3 +71,31 @@ any phrasing above; whether these results are personalised or localised; and
 whether a distinct query exists for "defined risk is less defined than it
 looks" — searches for it returned only generic spread explainers, so the post
 owns the idea but there is no phrasing to target with it.
+
+## Reading for row 2 — call vs put options (read 9 Sep 2026)
+
+Results pages read that day, not measured. There is no rank tracker, no
+volume tool and no Search Console connection here, so this records **which
+domains surface**, not positions and not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| call vs put option explained | SmartAsset, Chase, SoFi, Motley Fool, moomoo, Groww, TradingView chart-idea pages | **hard** — big personal-finance publishers and banks, harder than this row previously recorded |
+| difference between call and put options for beginners | SoFi, Vanguard, Motley Fool, NerdWallet, GOBankingRates, a Substack | hard; every result stops at "right to buy / right to sell" plus bullish/bearish |
+| what happens to the seller of a call option | Fidelity, NerdWallet, Wikipedia, CorporateFinanceInstitute, theoptionsguide.com, wallstreetzen | **winnable** — a glossary page and a small blog holding page one is a coverage gap |
+| long call short call long put short put | Macroption, TradeStation help, OIC, a homework-answers site, a fund blog | **winnable** — no authoritative publisher owns the four-position frame |
+| is selling a put bullish or bearish | Piranha Profits, bullishbears, two Substacks, TradingView chart ideas | **winnable** — no major publisher present |
+| call vs put in the money / option moneyness | CME, Britannica Money, SoFi, Robinhood, Schwab | hard-ish; all correct and all abstract |
+| who is on the other side of my option trade | Law Insider, a dictionary, glossary pages, Wikipedia | **winnable**, thin — nothing answers it as a trader would ask it |
+| buying options vs selling options which is riskier | strike.money, unofficed, moneysukh and other India-focused F&O sites | **do not target**: geography-skewed, and the framing ("selling is better") is recommendation-shaped |
+
+**The gap.** Every page on page one covers the two long positions and treats
+the seller as a footnote or a warning. None of them names the seller's
+obligation as the mirror of the buyer's right on the same contract, shows the
+four positions as four account rows with a sign and a decision-owner, or says
+the choice to exercise belongs to someone else on their schedule. That gap is
+the angle the title and meta carry.
+
+**Could not establish:** search volume, difficulty, or any current position
+for any phrasing above; whether these results are personalised or localised;
+whether "call vs put" traffic skews options-curious versus already-trading.
