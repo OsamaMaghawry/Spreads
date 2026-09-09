@@ -4,6 +4,7 @@ import { tradingBase, alpacaFetch, loadAccount } from "../_shared/alpaca.ts";
 import { recordAttempt, updateAttempt } from "../_shared/orderAttempts.ts";
 import { replaceBody } from "../_shared/orderReplace.ts";
 import { parseOCCSymbol } from "../_shared/occ.ts";
+import { filledUnits } from "../_shared/filledUnits.ts";
 
 // Reads the status of a working order, cancels it, or replaces its price or
 // size. Used by the client while it walks a limit price, to decide whether to
@@ -33,7 +34,7 @@ const CANNOT_REPLACE = /cannot replace order|42210000/i;
 async function ensureCanceled(base: string, account: any, orderId: string) {
   await alpacaFetch(`${base}/orders/${orderId}`, account, { method: "DELETE" }).catch(() => {});
   for (let i = 0; i < 10; i++) {
-    const st = await alpacaFetch(`${base}/orders/${orderId}`, account).catch(() => null);
+    const st = await alpacaFetch(`${base}/orders/${orderId}?nested=true`, account).catch(() => null);
     if (st) {
       if (st.status === "filled") return { outcome: "filled", order: st };
       if (["canceled", "rejected", "expired", "done_for_day"].includes(st.status)) {
@@ -106,7 +107,7 @@ Deno.serve(async (req) => {
     // must watch from here on. The old attempt row is closed out and the new
     // order gets its own row, so the audit trail shows both prices.
     if (action === "replace") {
-      const current = await alpacaFetch(`${base}/orders/${orderId}`, account);
+      const current = await alpacaFetch(`${base}/orders/${orderId}?nested=true`, account);
       const patch = replaceBody({ order: current, limitPrice, qty });
       if (!patch) return jsonResponse({ error: "A positive limit price or a whole-number quantity is required to change a limit order" }, 400);
       let replaced: any;
@@ -133,6 +134,19 @@ Deno.serve(async (req) => {
           }, 409);
         }
         const filled = Number(cancel.order?.filled_qty) || 0;
+        // A multi-leg parent that came back without its legs is a READ that
+        // failed, not a single-leg order. `resubmitBody`'s else-branch would
+        // send `{ symbol: current.symbol }`, and an mleg parent's symbol is
+        // null -- an order nobody planned, on a spread, after the original was
+        // already cancelled. Every list endpoint in this codebase passes
+        // nested=true; these three single-order reads did not until now, so
+        // this guard is the belt to that fix's braces.
+        if (current.order_class === "mleg" && !(Array.isArray(current.legs) && current.legs.length)) {
+          return jsonResponse({
+            error:
+              "The broker would not change the price, and it did not return this order's legs, so the replacement could not be built. The original order was canceled and nothing new was sent — place it again from the Orders tab."
+          }, 409);
+        }
         const body = resubmitBody(current, patch, filled);
         if (!body) {
           await updateAttempt(admin, orderId, "filled", cancel.order?.filled_qty, cancel.order?.filled_avg_price);
@@ -176,13 +190,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    const order = await alpacaFetch(`${base}/orders/${orderId}`, account);
+    const order = await alpacaFetch(`${base}/orders/${orderId}?nested=true`, account);
     // Recorded here rather than trusting the browser to report the ending: this
     // is what still captures the outcome when a tab is closed mid-walk.
     await updateAttempt(admin, orderId, order.status, order.filled_qty, order.filled_avg_price);
     return jsonResponse({
       status: order.status,
-      filledQty: order.filled_qty,
+      // Derived from the LEGS, which are unambiguously in contracts, rather
+      // than relayed from the parent, whose unit nobody has ever established.
+      // The walk compares this against the units it asked for, so the two must
+      // be the same kind of number -- see _shared/filledUnits.ts. The parent's
+      // own value still travels, unchanged, for anything that wants it.
+      filledQty: filledUnits(order),
+      brokerFilledQty: order.filled_qty,
       filledAvgPrice: order.filled_avg_price
     });
   } catch (error) {

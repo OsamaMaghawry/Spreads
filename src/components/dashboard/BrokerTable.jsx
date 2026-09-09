@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { fmtMoney } from "@/lib/format";
 import { AlertTriangle } from "lucide-react";
-import { closePlan, coverLeftBehind } from "@/lib/closePlan";
+import { closePlan, coverLeftBehind, planSummary } from "@/lib/closePlan";
 
 // What the broker says you hold, line for line, with a close on every row.
 //
@@ -218,9 +218,7 @@ export default function BrokerTable({ rows, coverage, onClose, onCloseMany }) {
             </div>
           )}
           <span className="text-xs text-slate-500">
-            {plan.atomic
-              ? "One order — all legs fill together."
-              : `${plan.orders.length} orders, sent one at a time. Buy-backs first, sales last.`}
+            {planSummary(plan)}
           </span>
           {stranded.length > 0 && (
             <ul className="basis-full space-y-1 text-xs text-amber-700">

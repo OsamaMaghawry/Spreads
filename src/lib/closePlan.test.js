@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { closePlan, deriveUnit, closeAction, coverLeftBehind, MAX_MLEG_LEGS } from "./closePlan.js";
+import { closePlan, deriveUnit, closeAction, coverLeftBehind, planSummary, MAX_MLEG_LEGS } from "./closePlan.js";
 
 const opt = (symbol, side, qty, ticker = "TSLA") => ({ symbol, side, qty, ticker, assetClass: "us_option" });
 const stk = (symbol, side, qty) => ({ symbol, side, qty, ticker: symbol, assetClass: "equity" });
@@ -300,4 +300,70 @@ test("RE-2: selling a protective put warns that the shares lose their hedge", ()
   const warn = coverLeftBehind([sellPut], rows);
   assert.equal(warn.length, 1);
   assert.match(warn[0].text, /without the downside protection/);
+});
+
+// --- head-of-trading and systems-engineer, 2026-09-09 bench run ---
+
+test("the ordering guarantee is scoped to the plan, because it is false outside it", () => {
+  // The RE-1 book: 210 free shares, 3 short calls with only 1 available. The
+  // plan COMPLETES and leaves two naked calls, so an unqualified "never a bare
+  // short" is false on the success path — where "if it stops part-way" cannot
+  // rescue it.
+  const plan = closePlan([
+    { symbol: "TSLA", assetClass: "equity", side: "long", qty: 210, ticker: "TSLA" },
+    { symbol: "TSLA_C420", assetClass: "option", side: "short", qty: 1, ticker: "TSLA", optionType: "C", strike: 420 }
+  ]);
+  const guarantee = plan.warnings.find((w) => /cover is never removed/.test(w));
+  assert.ok(guarantee, "the ordering is still explained");
+  assert.match(guarantee, /among the positions in this plan/);
+  assert.match(guarantee, /NOT in this plan/, "points at the warnings below rather than overriding them");
+});
+
+test("short SHARES are counted as shares, not as contracts", () => {
+  // covers() returns true for a long call over short stock. The noun was
+  // hard-coded, so 100 short shares read as "100 short contracts" — a
+  // hundredfold overstatement, on the line whose only job is to state size.
+  const rows = [
+    { symbol: "NVDA", assetClass: "equity", qty: -100, ticker: "NVDA" },
+    { symbol: "NVDA_C200", assetClass: "option", qty: 1, ticker: "NVDA", optionType: "C", strike: 200 }
+  ];
+  const selling = [{ symbol: "NVDA_C200", assetClass: "option", side: "long", qty: 1, ticker: "NVDA", optionType: "C", strike: 200 }];
+  const out = coverLeftBehind(selling, rows);
+  assert.equal(out.length, 1);
+  assert.match(out[0].text, /100 short NVDA shares/);
+  assert.doesNotMatch(out[0].text, /contract/);
+});
+
+test("allOrNone is about the FILL, not about the order count", () => {
+  // A lone equity order is one order and partial-fills routinely; a green
+  // all-or-none box over it is a promise the broker never made.
+  const shares = closePlan([{ symbol: "TSLA", assetClass: "equity", side: "long", qty: 210, ticker: "TSLA" }]);
+  assert.equal(shares.atomic, true);
+  assert.equal(shares.allOrNone, false);
+
+  const oneLeg = closePlan([{ symbol: "T_C1", assetClass: "option", side: "short", qty: 2, ticker: "T", optionType: "C", strike: 1 }]);
+  assert.equal(oneLeg.atomic, true);
+  assert.equal(oneLeg.allOrNone, false, "a single option leg fills as the market takes it");
+
+  const vertical = closePlan([
+    { symbol: "T_C1", assetClass: "option", side: "short", qty: 1, ticker: "T", optionType: "C", strike: 1 },
+    { symbol: "T_C2", assetClass: "option", side: "long", qty: 1, ticker: "T", optionType: "C", strike: 2 }
+  ]);
+  assert.equal(vertical.allOrNone, true, "a multi-leg option order IS filled at one net price");
+});
+
+test("planSummary never claims an ordering the plan does not contain", () => {
+  const salesOnly = closePlan([
+    { symbol: "AAA", assetClass: "equity", side: "long", qty: 100, ticker: "AAA" },
+    { symbol: "BBB_C1", assetClass: "option", side: "long", qty: 1, ticker: "BBB", optionType: "C", strike: 1 }
+  ]);
+  assert.ok(salesOnly.orders.length > 1);
+  assert.doesNotMatch(planSummary(salesOnly), /Buy-backs first/);
+
+  const mixed = closePlan([
+    { symbol: "AAA", assetClass: "equity", side: "long", qty: 100, ticker: "AAA" },
+    { symbol: "AAA_C1", assetClass: "option", side: "short", qty: 1, ticker: "AAA", optionType: "C", strike: 1 }
+  ]);
+  assert.match(planSummary(mixed), /Buy-backs first, sales last/);
+  assert.equal(planSummary(closePlan([])), "Nothing to close.");
 });
