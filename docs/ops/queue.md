@@ -31,6 +31,27 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Open
 
+- 2026-09-09 · owner found on the live account · **The multi-close reads
+  availability once, when the selection is made.** Closing a TSLA book: every
+  order went through except the sale of the main share line. The shares were
+  encumbered at selection time — collateral for the short calls, or an order
+  already working — so `asLeg` capped the line to its free quantity and
+  `nothingFree` dropped it from the plan entirely. But the sequence's own
+  buy-backs retire those shorts before the share order's turn comes, so by the
+  time it would have been sent the shares were free. The plan is built against
+  a snapshot of a state the plan itself then changes.
+
+  What is fixed (`0d48c92`): the screen now names every held line and how much
+  of it is free, in the selection bar and again in the ticket, instead of one
+  unattributed sentence about "a working order".
+
+  What is not: each order should re-read `qty_available` for its own symbols
+  immediately before it is sent, and close what is free *then* — with the
+  ticket saying which lines are expected to be released by an earlier order
+  rather than silently omitting them. Needs head-of-trading before it is
+  built: re-reading availability mid-sequence is a second place the sequence
+  can decide to send more than the user authorised.
+
 Two bench reviews of the leg-first rebuild, 2026-09-09. head-of-trading returned
 **STOP** on the risk engine; systems-engineer returned **FIX FIRST** on the
 wiring plan. They converged independently on the same two defects. The gate
