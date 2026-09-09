@@ -14,13 +14,40 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 - [needs owner] 2026-09-02 · Allowlist for the research environment: `tiblio.com`, `optionstrat.com`, `optionalpha.com`, `quantwheel.com`, and our own `deltamint.app` / `dashboard.deltamint.app` (403 at CONNECT since 31 Aug).
 - [needs owner] 2026-09-02 · Metrics: create a GA4 property, verify Search Console for `deltamint.app`, create a Google Cloud service account with read on both, store its JSON as the GitHub secret `GOOGLE_METRICS_SA`, and set `GA_MEASUREMENT_ID` as a variable on the landing Worker. Nothing is pulled until these exist.
 - [needs owner] 2026-09-02 · Ops health token: set `OPS_TOKEN` as a function secret on both Supabase projects and `DELTAMINT_OPS_TOKEN` on the Claude environment, so the hourly duty engineer can read order errors and alerts. Until then its runs are code-and-site only.
-- [needs owner] 2026-09-02 · duty-engineer · Confirm migration `0024_broker_feed_dumps.sql` is applied on the **production** Supabase project (`yecfbeohyakuoyczvdbj`) — it shipped to `main` and was said to be "applied by hand on 2 Sep," but duty-engineer has no production database access to verify and never touches production. Owner (or whoever ran it) to confirm.
+- [fixed 2026-09-09] 2026-09-02 · duty-engineer · Confirm migration `0024_broker_feed_dumps.sql` is applied on the **production** Supabase project (`yecfbeohyakuoyczvdbj`). **Confirmed by listing production's migration history**, not by trusting the branch: `broker_feed_dumps` appears twice — `20260901181705` (the hand-run of 2 Sep) and `20260902084446` (the migration file catching the repo up). The table exists and the code that writes it has been live since. Same run applied the two that were still missing, on the owner's word: `0028_broker_feed_positions` and `0029_broker_feed_filled_orders`, both `add column if not exists`, verified afterwards by reading `information_schema` — `positions`, `position_count`, `open_orders`, `filled_orders`, `filled_order_count` all present. Production's schema is now ahead of `main`'s code, which is the order AGENTS.md requires.
 
 - [fixed 2026-09-08] 2026-09-03 · **The app Worker never reached traffic, and it cost a whole afternoon.** Supersedes the 3 Sep owner item below. Cloudflare's Workers Build integration runs `wrangler versions upload`, which publishes a PREVIEW version and never routes it — its own log says "To deploy this version to production traffic use the command `wrangler versions deploy`", and nothing ran that. So four commits of dashboard work landed green on 8 Sep and the owner opened dev-dash and saw none of it. New `deploy-app-staging.yml` and `deploy-app.yml` run a real `wrangler deploy`, the same move the landing site made on 3 Sep (`f2d8369`), using the same two secrets, plus a new root `wrangler.staging.jsonc` for `spreads-staging` on dev-dash. Production carries the staging-first gate, fingerprinted across every tree and blob the bundle is built from rather than one directory. **Owner:** the Cloudflare-side build for `spreads` / `spreads-staging` is now redundant and should be turned off in Workers & Pages → the project → Settings → Builds, or two things will publish the same worker and the dashboard's Deployments tab will be confusing to read.
 
 - [needs owner] 2026-09-07 · duty-engineer · `228fea9` (the scanner's market-hours message and scan-loop backoff, on `staging` since 2026-09-04) has never been on `main` and no PR for it exists — `git merge-base --is-ancestor 228fea9 origin/main` fails, and `git diff origin/main origin/staging -- src/lib/marketSession.js src/components/open/useScanLoop.js supabase/functions/_shared/optionScan.ts` shows the file is entirely missing from `main` and the loop/scan changes are absent there. Three days of ledger entries logged it as shipped without the `(staging)` tag it needed. Not a duty-engineer fix (not a bug, and not this run's change) — flagging so the owner can open/merge a PR if it was just missed, or say if it's being held back deliberately.
 
-- [needs owner] 2026-09-03 · **Decide whether EU/UK visitors need a consent banner before analytics run.** Raised by compliance-gate reviewing cc855e7, severity high, and explicitly not fixable by privacy-policy wording. Google Analytics and Hotjar both fire unconditionally for every visitor to `deltamint.app` — the hostname guard keeps staging out of the data, it is not a consent gate. The policy's remedy is opt-out ("use a blocker"), whereas ePrivacy/GDPR expectations for non-essential cookies, and for session recording in particular, generally call for consent *before* the script runs. Hotjar raises the stakes because it keeps an individual replay of a visit, not only aggregate heatmaps. Note the exposure predates Hotjar: GA has run unconsented since 3 Sep. Options are (a) accept the risk while traffic is small and mostly US, (b) add a consent banner for all visitors, (c) geo-gate the scripts for EU/UK only — Cloudflare gives `request.cf.country` in the landing Worker, so (c) is a small change to `trackingTags(env)` plus the inline snippets. Needs the owner's decision, not an engineer's.
+- [fixed 7ed6ee8+] 2026-09-03 · **EU/UK consent before analytics run.** Raised by
+  compliance-gate on cc855e7 at high severity: Google Analytics fired for every
+  visitor to `deltamint.app` from 3 Sep and Hotjar from 8 Sep, both before any
+  consent, with the privacy policy offering "use a blocker" — an opt-out where
+  ePrivacy expects consent *before* a non-essential tracker loads. Hotjar was
+  the sharper end: an individual replay, not an aggregate.
+
+  **Owner's decision, 9 Sep: do it.** Option (c), geo-gate, was implemented.
+
+  Not gated at the edge, as originally scoped — that scoping was wrong. The
+  home, pricing, privacy and terms pages carry their own inline snippets and
+  are static assets (`run_worker_first` covers only `/blog`, `/blog/*` and
+  `/sitemap.xml`), so a `request.cf.country` test in the Worker would have
+  gated the blog and left those four tracking unchanged; and the blog
+  responses live in `caches.default`, where a country-varying body serves one
+  visitor's variant to the next. So the gate runs in the browser, defined
+  identically in both halves, reading Cloudflare's own `/cdn-cgi/trace` on our
+  origin. Fails closed. Privacy policy section 5 rewritten.
+
+  compliance-gate re-reviewed and returned four findings; three applied in the
+  follow-up commit — the Worker's copy of the gate was missing the hostname
+  guard the inline copies carry (staging was excluded only because
+  `wrangler.staging.jsonc` omits the two ids, which is a config accident, not
+  a protection); GI, JE, GG and IM added, being GDPR-aligned and reported
+  separately from GB; and "no third party is contacted" softened to "no
+  additional third party", since Cloudflare is itself a disclosed third-party
+  infrastructure provider. Its fourth finding was this queue entry, which said
+  the decision was still the owner's after the code had already made it.
 
 ## Escalated
 

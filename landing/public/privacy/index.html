@@ -48,7 +48,7 @@
     window.dmAnalyticsAllowed = function (start) {
       if (location.hostname !== 'deltamint.app' && location.hostname !== 'www.deltamint.app') return;
       var GATED = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV',
-                   'LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','GB','IS','LI','NO','CH'];
+                   'LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','GB','IS','LI','NO','CH','GI','JE','GG','IM'];
       fetch('/cdn-cgi/trace')
         .then(function (r) { return r.text(); })
         .then(function (t) {
@@ -177,7 +177,7 @@
 
   <h2>5. Your choices</h2>
   <p>You can disconnect a brokerage account at any time from the Accounts page, which removes the stored token. You can request deletion of your DeltaMint account and associated data by contacting us.</p>
-  <p><strong>If you are visiting from the European Economic Area, the United Kingdom or Switzerland, the website analytics described in section 4 do not run at all.</strong> Neither Google Analytics nor Hotjar is loaded, no analytics cookie or identifier is set, and no session is recorded. We determine your country from the network request itself, at our own edge — no third party is contacted to make that decision. If the country cannot be determined, the analytics do not run.</p>
+  <p><strong>If you are visiting from the European Economic Area, the United Kingdom, Switzerland, Gibraltar, Jersey, Guernsey or the Isle of Man, the website analytics described in section 4 do not run at all.</strong> Neither Google Analytics nor Hotjar is loaded, no analytics cookie or identifier is set, and no session is recorded. We determine your country from the network request itself, at the edge of our own site — no additional third party is contacted to make that decision. If the country cannot be determined, the analytics do not run.</p>
   <p>Everywhere else, those analytics can be blocked by any standard content or tracking blocker, and we do not attempt to detect or work around one. Nothing about the Service depends on them: blocking them changes what we can measure, not what you can do.</p>
 
   <h2>6. Data retention</h2>

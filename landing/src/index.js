@@ -42,7 +42,21 @@ const isNoIndex = (env) => env.NOINDEX === "1";
 // same way on both halves.
 //
 // Fails CLOSED: an unreadable country loads nothing.
-const CONSENT_GATE = `<script>window.dmAnalyticsAllowed=function(start){var G=['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','GB','IS','LI','NO','CH'];fetch('/cdn-cgi/trace').then(function(r){return r.text();}).then(function(t){var m=/(?:^|\\n)loc=([A-Z]{2})/.exec(t);if(m&&G.indexOf(m[1])===-1)start();}).catch(function(){});};</script>`;
+// The hostname guard is part of the gate, not an accident of config.
+//
+// compliance-gate, reviewing the first version: this copy had no hostname
+// check, and staging was excluded from the analytics property only because
+// `wrangler.staging.jsonc` happens not to set GA_MEASUREMENT_ID or
+// HOTJAR_SITE_ID. Anyone setting those for one test would have filed every
+// dev page view as a customer -- the exact bug the inline guard was written
+// to make impossible. A protection resting on a config omission is not a
+// protection.
+//
+// Beyond the EEA-27, the list carries GB, IS, LI, NO, CH, and -- also
+// compliance-gate -- GI, JE, GG and IM, which Cloudflare reports separately
+// from GB and which are none of "the EEA, the UK or Switzerland" as the
+// privacy policy defines them, while running GDPR-aligned regimes of their own.
+const CONSENT_GATE = `<script>window.dmAnalyticsAllowed=function(start){if(location.hostname!=='deltamint.app'&&location.hostname!=='www.deltamint.app')return;var G=['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','GB','IS','LI','NO','CH','GI','JE','GG','IM'];fetch('/cdn-cgi/trace').then(function(r){return r.text();}).then(function(t){var m=/(?:^|\\n)loc=([A-Z]{2})/.exec(t);if(m&&G.indexOf(m[1])===-1)start();}).catch(function(){});};</script>`;
 
 // Analytics on the marketing site and blog only, and only where the
 // deployment carries a measurement id. The dashboard stays untracked.
