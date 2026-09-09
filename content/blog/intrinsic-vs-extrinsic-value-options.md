@@ -9,7 +9,7 @@ series_order: 4
 tags: intrinsic value, extrinsic value, time value, premium, foundations
 ---
 
-**Intrinsic value** is the part of an option's premium that comes from the
+**Intrinsic value** is the part of an option's premium backed by the gap between the stock price and the strike — what the contract would be worth if it expired right now. It comes from the
 strike price alone — what the contract would be worth if it expired right now.
 **Extrinsic value**, also called time value, is the whole of the rest.
 
@@ -19,9 +19,9 @@ market is charging for the time still left.
 
 ## Key takeaways
 
-- Intrinsic value is the difference between the stock price and the strike, and it is never less than zero.
+- Intrinsic value is the gap between the stock price and the strike in the direction the option points, and it is never less than zero.
 - Extrinsic value is the premium minus the intrinsic value — what is paid on top of what the contract is worth today.
-- At expiration, extrinsic value is zero. The option is worth exactly its intrinsic value, and usually nothing.
+- At expiration, extrinsic value is zero. The option is worth exactly its intrinsic value,.
 - The buyer pays the extrinsic value and the seller receives it. That is the part of the premium that can be lost while the stock does nothing at all.
 
 ## What is intrinsic value?
@@ -60,7 +60,7 @@ Take a hypothetical 50-strike call with 30 days left. The stock price changes;
 the strike and the expiration do not. Each premium below splits into the two
 parts by subtraction.
 
-![The same call's premium at three stock prices, with the intrinsic part growing and the extrinsic part shrinking as the stock rises.](/assets/blog/intrinsic-extrinsic-split.svg)
+![The same call's premium at three stock prices: intrinsic grows as the stock rises, while extrinsic is largest near the strike and small once the option is deep in the money.](/assets/blog/intrinsic-extrinsic-split.svg)
 
 | Stock price | Premium | Intrinsic | Extrinsic |
 | --- | --- | --- | --- |
@@ -77,9 +77,9 @@ buy at $50 is worth nothing today, so the entire $1.20 is a payment for the
 month that remains.
 
 The bottom row is the one people find surprising. Six dollars in the money, the
-contract still carries $0.70 of extrinsic value — but far less than the
-at-the-money row above it, because most of what that premium buys is already
-banked as intrinsic.
+contract still carries $0.70 of extrinsic value — but far less than either
+row above it, because most of what that premium buys is already banked as
+intrinsic.
 
 ## What happens to extrinsic value at expiration?
 

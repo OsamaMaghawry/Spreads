@@ -1,8 +1,9 @@
-<svg viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Two small charts side by side. On the left, a call: its value is flat at zero for every stock price below the 55 strike, then rises in a straight line above it. On the right, a put: its value rises in a straight line for every stock price below the 45 strike, then is flat at zero above it. Each hinges at its own strike.">
+<svg viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Two small charts side by side showing value AT EXPIRATION. On the left, a call: at expiration its value is zero for every stock price below the 55 strike, then rises in a straight line above it. On the right, a put: its value rises in a straight line for every stock price below the 45 strike, then is flat at zero above it. Each hinges at its own strike.">
   <rect width="720" height="320" fill="#FFFFFF"/>
 
   <!-- LEFT: call -->
   <text x="48" y="52" font-size="20" font-weight="600" fill="#14151C">Call</text>
+  <text x="48" y="24" font-size="15" fill="#767B8E">at expiration</text>
 
   <!-- baseline and value axis -->
   <line x1="48" y1="232" x2="330" y2="232" stroke="#C9CEDC" stroke-width="1.5"/>

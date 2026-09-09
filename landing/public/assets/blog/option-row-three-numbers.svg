@@ -25,7 +25,7 @@
   <line x1="360" y1="138" x2="360" y2="198" stroke="#E1DEF2" stroke-width="1.5"/>
   <line x1="440" y1="138" x2="440" y2="198" stroke="#E1DEF2" stroke-width="1.5"/>
 
-  <text x="120" y="177" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">Dec 19</text>
+  <text x="120" y="177" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">Dec 18</text>
   <text x="280" y="177" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">50</text>
   <text x="400" y="177" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">Call</text>
   <text x="500" y="177" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">2.10</text>

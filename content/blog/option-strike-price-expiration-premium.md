@@ -64,14 +64,14 @@ There are two premiums on screen at any moment, not one. The **bid** is the
 highest price someone is currently willing to pay for the contract; the **ask**
 is the lowest price someone is willing to sell it at.
 
-Buying takes the ask and selling takes the bid, so the two are what a trade can
-actually be done at. The midpoint between them is a useful reference and is not
-a price anyone has offered.
+Buying at the ask and selling at the bid trade immediately. A limit order
+placed between the two may fill and may not — that is the trade-off. The
+midpoint is a reference, not a price anyone has offered.
 
 ## Example: one row of an option chain
 
 Below is a single hypothetical row. XYZ trades at $50, and this is a 50-strike
-call expiring on 19 December, bid 2.10 and ask 2.30.
+call expiring on 18 December, bid 2.10 and ask 2.30.
 
 ![One option chain row with three numbers marked: the expiration date, the strike price, and the bid and ask that make up the premium.](/assets/blog/option-row-three-numbers.svg)
 

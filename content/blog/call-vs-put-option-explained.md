@@ -22,7 +22,7 @@ matching obligation.
 
 - A call is the right to buy 100 shares at the strike price. A put is the right to sell 100 shares at the strike price.
 - The buyer pays the premium and decides whether to use the right. The seller receives the premium and does not get a say.
-- A call is worth something only above its strike. A put is worth something only below its strike.
+- **At expiration**, a call is worth something only above its strike, and a put only below its strike. Before expiration both can be worth something anywhere.
 - Buying an option risks the premium paid and nothing more. Selling one creates an obligation the account has to cover.
 
 ## How does a call option work?
@@ -42,7 +42,7 @@ nothing at expiration and the $100 is spent.
 ## How does a put option work?
 
 A put lets its owner sell 100 shares at the strike price, up to and including
-expiration. It is the mirror of a call, not the opposite trade — both are
+expiration. It is the mirror of a call — both are
 rights, and both are bought from somebody who sold them.
 
 On the same hypothetical stock at $50, a put with a 45 strike expiring in one
@@ -52,7 +52,7 @@ to sell 100 shares at $45.
 That right is worth something only below $45. With XYZ at $42, selling at $45
 what trades at $42 is worth $3 a share, or $300 for the contract.
 
-![A call is worth nothing below its strike and rises above it; a put is worth nothing above its strike and rises below it.](/assets/blog/call-put-value-at-expiration.svg)
+![At expiration, a call is worth nothing below its strike and rises above it; a put is worth nothing above its strike and rises below it.](/assets/blog/call-put-value-at-expiration.svg)
 
 ## What is the difference between a call and a put?
 
@@ -65,10 +65,6 @@ single difference sets everything else in the table below.
 | Worth something when | The stock is above the strike | The stock is below the strike |
 | Worth nothing when | The stock finishes at or below the strike | The stock finishes at or above the strike |
 | If it is used, the seller must | Deliver 100 shares at the strike | Buy 100 shares at the strike |
-
-Note what is not in the table. Neither contract pays a dividend, neither
-carries a vote, and neither gives its owner any stake in the company. An option
-is a claim on a price, not on a business.
 
 ## Example: what all four positions settle for
 
@@ -91,7 +87,7 @@ settlement values gives the four positions, before fees.
 
 Every column nets to zero across the two sides of each contract. One side's
 $200 is the other side's $200, which is the plainest way to see that an option
-is an agreement between two people rather than an instrument that produces
+is a transfer between the two sides of a contract rather than an instrument that produces
 anything on its own.
 
 The table also hides the worst case for one row. A stock has no ceiling, so the
@@ -102,23 +98,22 @@ call seller's obligation has no ceiling either; at $80 that row settles at
 
 Selling an option is not buying one in reverse. Cash arrives at the fill
 instead of leaving, and the credit received is not the limit of what the
-position can cost.
-
-Because a sold option can be worth more later than it was when sold, the
-account holds collateral behind it — cash, shares, or another option — for as
-long as the position stays open. That money is not spent. It has stopped being
-spendable.
+position can cost. Because a sold option can be worth more later than it was
+when sold, the account holds collateral behind it for as long as the position
+stays open.
 
 The second asymmetry is about who decides. The buyer chooses whether to
 exercise. The seller learns about it afterwards, through **assignment** — the
 notice that the obligation has been used and 100 shares have changed hands at
-the strike.
+the strike. Assignment is allocated at random among everyone short that
+contract. It is not sent by the buyer who exercised, and the two sides are
+never paired to each other.
 
 ## Frequently asked questions
 
 - **Can an option buyer lose more than the premium paid?** No. A bought option is paid for in full at the fill, and that is the entire amount the position can cost.
 - **Is selling a call the same as buying a put?** No. Both positions gain when the stock falls, but one is an obligation with collateral held against it and the other is a right that was paid for upfront.
-- **What happens if I do nothing on expiration day?** An option that finishes in the money by a cent or more is exercised automatically unless the owner instructs otherwise. One that finishes out of the money expires and the row disappears.
+- **What happens if I do nothing on expiration day?** An option that finishes in the money by a cent or more is exercised automatically unless the owner instructs otherwise. For a call that means buying 100 shares at the strike — $5,500 on the 55 call — which the account has to fund. Selling the contract before the close realises the same value as cash instead. One that finishes out of the money expires and the row disappears.
 - **Do I have to own the shares to sell a call?** No. Without them the obligation is uncovered, and delivering 100 shares at the strike means buying them first at whatever the market is asking.
 
 ## The bottom line
