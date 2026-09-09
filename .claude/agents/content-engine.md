@@ -157,3 +157,11 @@ Then:
 3. Add the post to `content/PLAN.md` under what has been written.
 
 Stop there. Merging the file and pressing Publish are decisions for a person.
+
+## The review chain is not optional
+
+Every draft you write goes to `desk-editor`, then `seo-editor`, then
+`compliance-gate` before publication. All three, every article, no exceptions
+and no per-article judgement about whether a post is "simple enough" to skip
+one. Say so in your hand-off, and never describe a draft as finished or
+ready — it is finished when the three have passed it.
