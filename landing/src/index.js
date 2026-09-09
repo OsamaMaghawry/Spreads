@@ -31,13 +31,25 @@ const siteUrl = (request, env) => env.SITE_URL || new URL(request.url).origin;
 // indexed normally.
 const isNoIndex = (env) => env.NOINDEX === "1";
 
+// The same EEA/UK/Swiss gate the static pages carry, in one place.
+//
+// It has to run in the BROWSER rather than off `request.cf.country` here,
+// for two reasons. The blog responses are held in `caches.default`, so a
+// country-varying body would serve one visitor's variant to the next. And on
+// production `run_worker_first` means this Worker never renders the home or
+// pricing pages at all -- they are static assets with their own inline copy
+// of this gate. A decision made in the browser is the only one that lands the
+// same way on both halves.
+//
+// Fails CLOSED: an unreadable country loads nothing.
+const CONSENT_GATE = `<script>window.dmAnalyticsAllowed=function(start){var G=['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','GB','IS','LI','NO','CH'];fetch('/cdn-cgi/trace').then(function(r){return r.text();}).then(function(t){var m=/(?:^|\\n)loc=([A-Z]{2})/.exec(t);if(m&&G.indexOf(m[1])===-1)start();}).catch(function(){});};</script>`;
+
 // Analytics on the marketing site and blog only, and only where the
 // deployment carries a measurement id. The dashboard stays untracked.
 function analyticsTag(env) {
   const id = env.GA_MEASUREMENT_ID;
   if (!id || !/^G-[A-Z0-9]+$/.test(id)) return "";
-  return `<script async src="https://www.googletagmanager.com/gtag/js?id=${id}"></script>
-<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${id}',{anonymize_ip:true});</script>`;
+  return `<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}window.dmAnalyticsAllowed(function(){var s=document.createElement('script');s.async=true;s.src='https://www.googletagmanager.com/gtag/js?id=${id}';document.head.appendChild(s);gtag('js',new Date());gtag('config','${id}',{anonymize_ip:true});});</script>`;
 }
 
 // Hotjar: heatmaps and session replay, same scope as the GA tag and the same
@@ -50,12 +62,17 @@ function analyticsTag(env) {
 function hotjarTag(env) {
   const id = env.HOTJAR_SITE_ID;
   if (!id || !/^[0-9]+$/.test(String(id))) return "";
-  return `<script>(function(h,o,t,j,a,r){h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};h._hjSettings={hjid:${id},hjsv:6};a=o.getElementsByTagName('head')[0];r=o.createElement('script');r.async=1;r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv;a.appendChild(r);})(window,document,'https://static.hotjar.com/c/hotjar-','.js?sv=');</script>`;
+  return `<script>window.dmAnalyticsAllowed(function(){(function(h,o,t,j,a,r){h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};h._hjSettings={hjid:${id},hjsv:6};a=o.getElementsByTagName('head')[0];r=o.createElement('script');r.async=1;r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv;a.appendChild(r);})(window,document,'https://static.hotjar.com/c/hotjar-','.js?sv=');});</script>`;
 }
 
 // Every page the Worker renders gets both tags from one place, so a third
-// one is added here and nowhere else.
-const trackingTags = (env) => `${analyticsTag(env)}${hotjarTag(env)}`;
+// one is added here and nowhere else. The gate is first: both tags call it,
+// and a tag that ran before it was defined would throw and load nothing --
+// which fails safe, but silently, and would look like the tag was broken.
+const trackingTags = (env) => {
+  const tags = `${analyticsTag(env)}${hotjarTag(env)}`;
+  return tags ? `${CONSENT_GATE}${tags}` : "";
+};
 
 async function fetchPosts(env, { slug = null } = {}) {
   const url = new URL(`${env.SUPABASE_URL}/rest/v1/blog_posts`);
@@ -321,7 +338,12 @@ export default {
         const tag =
           (already(env.GA_MEASUREMENT_ID) ? "" : analyticsTag(env)) +
           (already(`hjid:${env.HOTJAR_SITE_ID}`) ? "" : hotjarTag(env));
-        if (tag) asset = new Response(text.replace("</head>", `${tag}\n</head>`), asset);
+        // Both tags call dmAnalyticsAllowed. The four hand-written pages
+        // define it themselves; any other asset would not, so it travels with
+        // the tags -- but only if the page has not already defined it, or the
+        // second definition would shadow the first mid-page.
+        const gate = tag && !text.includes("dmAnalyticsAllowed") ? CONSENT_GATE : "";
+        if (tag) asset = new Response(text.replace("</head>", `${gate}${tag}\n</head>`), asset);
         else asset = new Response(text, asset);
       }
       return noindex ? withNoIndexHeader(asset) : asset;
