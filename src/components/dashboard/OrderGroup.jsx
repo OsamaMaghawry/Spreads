@@ -74,6 +74,9 @@ export default function OrderGroup({ accountId, order, onChanged }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  // Not an error: something the user should know about how their instruction
+  // was carried out.
+  const [note, setNote] = useState(null);
   // Changing a resting limit in place. The broker replaces the order under a
   // new id; the parent refetches and this row is replaced by the new one.
   const [editing, setEditing] = useState(false);
@@ -123,9 +126,23 @@ export default function OrderGroup({ accountId, order, onChanged }) {
   const call = async (payload, fallback) => {
     setBusy(true);
     setError(null);
+    setNote(null);
     try {
       const { data } = await invokeFunction("manageOrder", { accountId, orderId: order.id, ...payload });
       if (data?.error) throw new Error(data.error);
+      // The broker would not change the price in place, so the server cancelled
+      // and sent a new order instead. That is a different act from a replace --
+      // there is a moment where no order exists, and if part of the original
+      // filled first the new one is smaller. Both are said out loud rather than
+      // presented as an ordinary reprice.
+      if (data?.viaCancel) {
+        setNote(
+          data.filledBefore > 0
+            ? `The broker would not change the price in place, so the order was cancelled and replaced. ${data.filledBefore} filled before that, and the new order covers only the rest.`
+            : "The broker would not change the price in place, so the order was cancelled and a new one sent at your price."
+        );
+      }
+      if (data?.note) setNote(data.note);
       onChanged?.();
       return true;
     } catch (e) {
@@ -242,6 +259,10 @@ export default function OrderGroup({ accountId, order, onChanged }) {
 
           {error && (
             <p className="mt-2.5 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{error}</p>
+          )}
+
+          {note && (
+            <p className="mt-2.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">{note}</p>
           )}
 
           {live && (

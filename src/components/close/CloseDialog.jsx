@@ -602,7 +602,11 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
             {/* Repricing in place is offered only where the broker actually
                 supports it. Alpaca refuses to replace an equity order once it
                 reaches `accepted` — "cannot replace order in accepted status",
-                code 42210000 — which is the state a share order is in almost
+                code 42210000. That was recorded here as a share-order quirk and
+                it is not: a resting TSLA put hit the same refusal on a live
+                account on 9 Sep. manageOrder now falls back to a confirmed
+                cancel plus a new order, so the button works either way; shares
+                stay hidden only because a share order reaches `accepted` almost
                 immediately, so the button was guaranteed to fail on shares. It
                 is not shown there; the honest instruction is below instead. */}
             {phase === "working" && resting && !isShares && (
