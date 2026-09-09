@@ -147,7 +147,44 @@ function digest(md) {
   return { title, summary: summary || fallbackSummary, points };
 }
 
+// What is waiting on the owner, read from the same file the agents write it
+// to. This is the half the digest was missing: it announced what happened and
+// never what he still had to do, so the queue lived in a file on a branch and
+// he could not see it. Capped, because a list of twelve is the same wall this
+// mail exists to stop being.
+async function ownerQueue() {
+  let raw;
+  try {
+    raw = await readFile("docs/ops/queue.md", "utf8");
+  } catch {
+    return [];
+  }
+  const section = raw.split(/^## /m).find((s) => /^Needs owner/i.test(s));
+  if (!section) return [];
+  const items = [];
+  let current = null;
+  for (const line of section.split("\n").slice(1)) {
+    if (/^\s*-\s+/.test(line)) {
+      if (current) items.push(current);
+      current = line.replace(/^\s*-\s+/, "").trim();
+    } else if (current && line.trim()) {
+      current += " " + line.trim();
+    } else if (current) {
+      items.push(current);
+      current = null;
+    }
+  }
+  if (current) items.push(current);
+  // Strip the bookkeeping prefix — "[needs owner] 2026-09-02 · duty-engineer ·"
+  // is for the file, not for the person reading it on a phone.
+  return items.map((i) =>
+    i.replace(/^\[needs owner\]\s*/i, "").replace(/^\d{4}-\d{2}-\d{2}\s*·\s*/, "").replace(/^[a-z-]+\s*·\s*/, "")
+  );
+}
+const pending = await ownerQueue();
+
 const cards = [];
+const rows = [];
 const textParts = [];
 
 for (const f of files) {
@@ -184,6 +221,13 @@ for (const f of files) {
         )
         .join("")}</ul>`
     : "";
+
+  rows.push(
+    `<tr><td style="padding:10px 0;border-bottom:1px solid #eef2f0;">
+        <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#7c8b85;font-weight:700;">${esc(label)}</div>
+        <a href="${esc(href)}" style="font-size:15px;line-height:1.35;font-weight:600;color:#12241e;text-decoration:none;">${esc(clip(title, 70))}</a>
+      </td></tr>`
+  );
 
   cards.push(
     `<div style="border:1px solid #e3e9e6;border-radius:10px;padding:18px 20px;margin:0 0 14px;background:#ffffff;">
@@ -227,18 +271,53 @@ const footer = REVIEW_URL
   ? "Drafted on the staging blog, not live. Say the word and it goes to deltamint.app."
   : "Sent when the work was committed. Nothing here needs a reply.";
 
+// A batch and a single item are different messages and get different shapes.
+//
+// Eleven cards stacked is the wall this template was written to end — the
+// owner's words on the first batch were "I can't understand this batch like
+// this". So from four items up the mail becomes an index: one line each, the
+// title itself the link. One to three items keep their cards, where the
+// summary and the points are worth the room.
+const INDEX_FROM = 4;
+const asIndex = cards.length >= INDEX_FROM;
+
+const PENDING_SHOWN = 5;
+const pendingList = pending.length
+  ? `<div style="border:1px solid #e6ddc8;background:#fdf9ef;border-radius:10px;padding:16px 18px;margin:0 0 16px;">
+      <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a6d2f;font-weight:700;">Waiting on you · ${pending.length}</div>
+      <ul style="margin:10px 0 0;padding-left:18px;">
+        ${pending
+          .slice(0, PENDING_SHOWN)
+          .map((i) => `<li style="margin:7px 0;font-size:14px;line-height:1.5;color:#4a4230;">${inline(clip(i, 130))}</li>`)
+          .join("")}
+      </ul>
+      ${pending.length > PENDING_SHOWN ? `<div style="margin:10px 0 0;font-size:13px;color:#8a6d2f;">and ${pending.length - PENDING_SHOWN} more</div>` : ""}
+      <div style="margin:14px 0 0;"><a href="${REPO_BLOB}docs/ops/queue.md" style="display:inline-block;font-size:13px;font-weight:600;color:#6b551f;border:1px solid #e0d2ae;background:#ffffff;border-radius:7px;padding:8px 14px;text-decoration:none;">See the whole queue</a></div>
+    </div>`
+  : "";
+
+const body = asIndex
+  ? `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e3e9e6;border-radius:10px;background:#ffffff;padding:4px 18px;">${rows.join("")}</table>`
+  : cards.join("\n");
+
 const html = `<div style="margin:0;padding:0;background:#f4f6f5;">
   <div style="max-width:600px;margin:0 auto;padding:26px 16px 34px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
     <div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 4px 14px;">
       <span style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#12241e;font-weight:700;">DeltaMint</span>
       <span style="font-size:12px;color:#8a9993;">${count}</span>
     </div>
-    ${cards.join("\n")}
+    ${asIndex ? pendingList : ""}
+    ${body}
+    ${asIndex ? "" : pendingList}
     <div style="margin:18px 4px 0;font-size:12px;line-height:1.5;color:#8a9993;">${esc(footer)}</div>
   </div>
 </div>`;
 
-const text = `DeltaMint — ${count.replace(" · ", ", ")}\n\n${textParts.join("\n\n---\n\n")}\n\n${footer}`;
+const pendingText = pending.length
+  ? `WAITING ON YOU (${pending.length})\n` + pending.slice(0, PENDING_SHOWN).map((i) => `- ${clip(i, 130)}`).join("\n") +
+    (pending.length > PENDING_SHOWN ? `\n- and ${pending.length - PENDING_SHOWN} more` : "") + "\n\n"
+  : "";
+const text = `DeltaMint — ${count.replace(" · ", ", ")}\n\n${pendingText}${textParts.join("\n\n---\n\n")}\n\n${footer}`;
 
 // A dry run renders the mail and sends nothing, so the layout can be checked
 // without putting a test message in the owner's inbox.

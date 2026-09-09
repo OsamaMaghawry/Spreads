@@ -290,6 +290,24 @@ substitute number.
 **(proposed)** "Scanner" appears in some copy where "Screener" is meant; the
 first audit should sweep it.
 
+#### Quantity a broker will not release
+
+| Canonical | Not |
+| --- | --- |
+| Available to close | free, unencumbered, releasable |
+| Collateral for a short / committed to a working order | held, locked, tied up, unfree |
+
+The owner, 9 Sep, reading a multi-close panel on his own live account: *"It
+shouldn't be called free. This is so confusing. Just now I realized what you
+meant."* **Free** is an engineer's word for `qty_available` and it reads as
+free of charge. Say what the number lets him do — close this line — and say
+the reason as the broker's, not the app's.
+
+Two rules on top of the words. **"To close", not "for sale"**: closing a short
+is a buy, and half the rows on the Broker tab are shorts. And never guess which
+reason applies — `qty_available` does not say whether it is collateral or a
+working order, so the copy names both and picks neither.
+
 ### Surfaces the audit walks
 
 The app (`src/`), landing (`landing/`), blog (`content/blog/`), auth emails
