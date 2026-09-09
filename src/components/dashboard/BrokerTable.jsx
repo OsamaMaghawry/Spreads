@@ -1,0 +1,183 @@
+import { fmtMoney } from "@/lib/format";
+import { AlertTriangle } from "lucide-react";
+
+// What the broker says you hold, line for line, with a close on every row.
+//
+// The escape hatch. Everything else on this dashboard groups, pairs, names and
+// derives, and every one of those steps is a place to be wrong — on 8 Sep two
+// legs of a live position were missing from the Positions tab because the
+// pairing could not name their shape. This tab cannot have that failure,
+// because it does not pair anything: one row per line Alpaca reports, its
+// numbers not ours, and a Close that sends a single symbol and a single
+// quantity. If the grouping is ever wrong again, the position is still here
+// and still closable.
+//
+// The numbers are deliberately the BROKER's. Where its unrealised P/L
+// disagrees with the card on the other tab, this is the one the statement will
+// match — and seeing the disagreement is the point of having the tab.
+
+const th = "px-2.5 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
+const td = "px-2.5 py-3 whitespace-nowrap tabular-nums";
+
+// A single broker line, in the shape the close ticket already understands —
+// the same shape the pairing gives a lone leg or a share lot. Nothing new is
+// invented for it, so the close goes down the path that is already tested.
+export function closeTicketFor(row) {
+  if (row.assetClass === "equity") {
+    return {
+      single: true,
+      shares: true,
+      type: "shares",
+      ticker: row.ticker,
+      qty: Math.abs(row.qty),
+      shareQty: row.qty,
+      qtyAvailable: Math.abs(row.qtyAvailable ?? row.qty),
+      longSymbol: row.symbol,
+      shortSymbol: null,
+      longEntryPrice: row.avgEntryPrice ?? 0,
+      shareBasis: row.avgEntryPrice ?? 0,
+      longCurrentPrice: row.currentPrice ?? 0,
+      shortCurrentPrice: 0,
+      legs: [],
+      openOrders: [],
+      fromBroker: true
+    };
+  }
+  const short = row.qty < 0;
+  const leg = {
+    symbol: row.symbol,
+    side: short ? "short" : "long",
+    kind: row.optionType === "C" ? "call" : "put",
+    strike: row.strike,
+    ratio: 1,
+    entryPrice: Math.abs(row.avgEntryPrice ?? 0),
+    currentPrice: Math.abs(row.currentPrice ?? 0)
+  };
+  return {
+    single: true,
+    // Named for what one contract is, with no claim about cover or structure —
+    // this tab does not know and does not need to.
+    type: short ? "short_option" : "long_option",
+    ticker: row.ticker,
+    expiry: row.expiry,
+    expiryFormatted: row.expiry,
+    qty: Math.abs(row.qty),
+    qtyAvailable: Math.abs(row.qtyAvailable ?? row.qty),
+    legs: [leg],
+    shortSymbol: short ? row.symbol : null,
+    longSymbol: short ? null : row.symbol,
+    shortStrike: short ? row.strike : null,
+    longStrike: short ? null : row.strike,
+    shortEntryPrice: short ? leg.entryPrice : 0,
+    longEntryPrice: short ? 0 : leg.entryPrice,
+    shortCurrentPrice: short ? leg.currentPrice : 0,
+    longCurrentPrice: short ? 0 : leg.currentPrice,
+    adjusted: !!row.adjusted,
+    openOrders: [],
+    fromBroker: true
+  };
+}
+
+const label = (r) =>
+  r.assetClass === "equity"
+    ? `${r.ticker} shares`
+    : `${r.ticker} ${fmtMoney(r.strike)}${r.optionType} ${r.expiry ?? ""}`.trim();
+
+export default function BrokerTable({ rows, coverage, onClose }) {
+  if (!rows?.length) {
+    return <div className="px-5 py-6 text-sm text-slate-500">The broker reports no open positions in this account.</div>;
+  }
+
+  return (
+    <div>
+      {/* The reconciliation. Silence here is the claim that every contract the
+          broker holds is accounted for on the Positions tab; a row here is the
+          8 Sep failure catching itself. */}
+      {coverage?.length > 0 ? (
+        <div className="mx-4 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="flex items-center gap-2 font-medium">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {coverage.length} {coverage.length === 1 ? "contract is" : "contracts are"} not fully accounted for on the
+            Positions tab
+          </div>
+          <ul className="mt-1.5 space-y-0.5 text-xs tabular-nums">
+            {coverage.map((g) => (
+              <li key={g.symbol}>
+                <span className="font-medium">{g.symbol}</span> — broker {g.broker}, shown {g.dashboard}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1.5 text-xs">Close them from here; the rows below go straight to the broker.</p>
+        </div>
+      ) : (
+        <div className="mx-4 mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-500">
+          Every contract the broker reports is accounted for on the Positions tab.
+        </div>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm text-slate-700">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-50 text-left">
+              <th className={th}>Position</th>
+              <th className={`${th} text-right`}>Qty</th>
+              <th className={`${th} text-right`}>Free</th>
+              <th className={`${th} text-right`}>Avg entry</th>
+              <th className={`${th} text-right`}>Current</th>
+              <th className={`${th} text-right`}>Market value</th>
+              <th className={`${th} text-right`} title="The broker's own unrealized P/L for this line — not computed here.">
+                Unrlzd P/L
+              </th>
+              <th className={th}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.symbol} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                <td className={`${td} font-medium text-slate-900`}>
+                  {label(r)}
+                  <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
+                    r.side === "short"
+                      ? "border-rose-200 bg-rose-50 text-rose-700"
+                      : "border-slate-200 bg-slate-100 text-slate-600"
+                  }`}>
+                    {r.side}
+                  </span>
+                  {r.adjusted && (
+                    <span
+                      className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full border border-amber-200 bg-amber-100 text-amber-800"
+                      title="A corporate action changed what this contract delivers. It can still be closed from here."
+                    >
+                      adjusted
+                    </span>
+                  )}
+                  <span className="block text-[11px] text-slate-400">{r.symbol}</span>
+                </td>
+                <td className={`${td} text-right`}>{r.qty}</td>
+                <td className={`${td} text-right text-slate-500`}>{r.qtyAvailable}</td>
+                <td className={`${td} text-right`}>{r.avgEntryPrice != null ? fmtMoney(r.avgEntryPrice) : "—"}</td>
+                <td className={`${td} text-right`}>{r.currentPrice != null ? fmtMoney(r.currentPrice) : "—"}</td>
+                <td className={`${td} text-right`}>{r.marketValue != null ? fmtMoney(r.marketValue) : "—"}</td>
+                <td
+                  className={`${td} text-right font-semibold ${
+                    r.unrealizedPL > 0 ? "text-emerald-600" : r.unrealizedPL < 0 ? "text-rose-600" : ""
+                  }`}
+                >
+                  {r.unrealizedPL != null ? fmtMoney(r.unrealizedPL) : "—"}
+                </td>
+                <td className={`${td} text-right`}>
+                  <button
+                    onClick={() => onClose(closeTicketFor(r))}
+                    className="text-xs font-medium rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-rose-700 hover:bg-rose-100 transition-colors"
+                  >
+                    Close
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

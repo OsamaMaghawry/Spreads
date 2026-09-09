@@ -6,6 +6,7 @@ import { KINDS, STOCK_LIKE, stressLossOfKind, stressTotal, totalRisk } from "../
 import { basisByTicker } from "../_shared/wheelBasis.ts";
 import { decryptSecret } from "../_shared/crypto.ts";
 import { parseOCCSymbol } from "../_shared/occ.ts";
+import { brokerView, coverageGaps } from "../_shared/brokerView.ts";
 
 // Rebuilds the live picture for every account the caller owns: positions paired
 // into structures, credit and risk per position, and totals that net a ticker's
@@ -592,6 +593,12 @@ async function syncOne(account) {
       optionsBuyingPower: info ? parseFloat(info.options_buying_power || info.buying_power) : 0,
       spreads: rows,
       orders,
+      // The broker's own list, uninterpreted, and a line-by-line check that
+      // our view accounts for every contract in it. If the pairing ever hides
+      // a position again -- which it did on 8 Sep -- this is where it shows,
+      // and the broker rows can be closed whatever the pairing thinks.
+      broker: brokerView(positions),
+      coverage: coverageGaps(positions, rows),
       totals,
       riskPct: equity > 0 ? totals.risk / equity : 0,
       // False when any position's loss is unbounded, so the interface can
@@ -607,7 +614,7 @@ async function syncOne(account) {
       ok: false,
       error: e.message,
       equity: 0, cash: 0, buyingPower: 0, optionsBuyingPower: 0,
-      spreads: [], orders: [], totals: { ...empty }, riskPct: 0, plPct: 0
+      spreads: [], orders: [], broker: [], coverage: [], totals: { ...empty }, riskPct: 0, plPct: 0
     };
   }
 }

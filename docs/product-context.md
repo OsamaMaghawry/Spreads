@@ -83,7 +83,7 @@ incomplete.
 - **brand** — DeltaMintMark, Wordmark
 - **close** — CloseDialog, LegPicker, LegsQuoteSummary, OpenOrdersPanel, OrderLog, useCloseOrder
 - **common** — ConfirmDeleteAccount, ConfirmSubmit, EarningsWarning, NumberField, PreTradeRisk, PriceControl, RiskMeter, ScanPresets, StaleDataNotice
-- **dashboard** — AccountSection, AccountSummaryCard, CardLegs, LegRows, MasterSummary, OrderGroup, PayoffChart, PositionCard, PositionCards, SpreadStructure, SpreadTable, StrikeLadder, TickerPanel, useLegQuotes
+- **dashboard** — AccountSection, AccountSummaryCard, BrokerTable, CardLegs, LegRows, MasterSummary, OrderGroup, PayoffChart, PositionCard, PositionCards, SpreadStructure, SpreadTable, StrikeLadder, TickerPanel, useLegQuotes
 - **history** — RebuildPreview, StockLotsTable, StrategyTabs, TradeHistoryTable
 - **open** — CandidateList, OpenPositionDialog, OpenPricing, RestingOrder, ScanFilters, SetupPreview, StrategyPicker, useLiveSetup, useOpenOrder, useScanLoop
 - **screener** — ResultsTable, ScreenerConfig, TradeDialog, useMarketScan

@@ -5,6 +5,7 @@ import PositionCards from "./PositionCards";
 import OrderGroup from "./OrderGroup";
 import useMarketStream from "@/lib/useMarketStream";
 import TickerPanel from "./TickerPanel";
+import BrokerTable from "./BrokerTable";
 import { AlertTriangle, LayoutGrid, Table2 } from "lucide-react";
 
 // A streamed trade older than this is not a live price any more. Thirty seconds
@@ -172,7 +173,16 @@ export default function AccountSection({ account, onCloseSpread, onOrdersChanged
         <div className="flex gap-1 px-5 border-b border-slate-200" role="tablist">
           {[
             { id: "positions", label: "Positions", n: account.spreads.length, tone: "bg-slate-100 text-slate-600" },
-            { id: "orders", label: "Orders", n: workingCount, tone: "bg-emerald-100 text-emerald-700" }
+            { id: "orders", label: "Orders", n: workingCount, tone: "bg-emerald-100 text-emerald-700" },
+            // The broker's own list, uninterpreted. Its badge counts the
+            // contracts our view does NOT account for, because that is the
+            // only number on this tab worth noticing from across the room.
+            {
+              id: "broker",
+              label: "Broker",
+              n: (account.coverage || []).length,
+              tone: "bg-amber-100 text-amber-700"
+            }
           ].map((t) => (
             <button
               key={t.id}
@@ -207,6 +217,12 @@ export default function AccountSection({ account, onCloseSpread, onOrdersChanged
             ? "Alpaca is rate-limiting this account right now — data will reappear on the next refresh."
             : `Connection failed — check the API keys for this account. (${account.error})`}
         </div>
+      ) : tab === "broker" ? (
+        <BrokerTable
+          rows={account.broker || []}
+          coverage={account.coverage || []}
+          onClose={(spread) => onCloseSpread(account, spread)}
+        />
       ) : tab === "orders" ? (
         orders.length === 0 ? (
           <div className="px-5 py-6 text-sm text-slate-500">
