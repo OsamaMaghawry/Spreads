@@ -626,3 +626,69 @@ and more than that dilutes what each link says.
 - A redirect table in the landing Worker is currently absent. Nothing in this
   map needs one, and that is by design — but it is worth building before any
   future slug decision has to be made under pressure.
+
+---
+
+## 6. Addendum — the three foundations head terms, read 9 Sep 2026
+
+Added when `foundations · 2, 3, 4` came up for pre-publication review. Same
+rules as section 1: these are readings of results pages, not metrics. No
+volume figure appears here either.
+
+### The ambiguity test, applied to all three
+
+Section 2 recorded two polluted query spaces (`credit spread` → fixed income,
+`what is an options contract` → contract law). All three of these terms fail
+the same test, and each fails differently:
+
+| Bare phrase | What the results page returns besides options |
+| --- | --- |
+| `what is intrinsic value` | Cambridge Dictionary, Wikipedia (the ethics sense), CFI and Interactive Brokers on **DCF / value investing**, two Goodreads pages of Buffett letters, an EPFL concept graph. The options sense is a minority of page one. |
+| `what does strike price mean` | LTSE and growthequityinterviewguide on **startup employee equity**, LawInsider on **contract drafting**, Wikipedia. Options pages (OIC, SoFi, Robinhood) share the page rather than own it. |
+| `call vs put option explained` | Not polluted by another discipline, but **heavily diluted geographically**: Groww, Zerodha, myespresso and several TradingView chart ideas on TATAMOTORS / AXISBANK / NIFTY. A large share of this query space is Indian retail, and our pages are US-specific (third Friday, 100-share multiplier, US auto-exercise). |
+
+**The rule this produces:** "option" or "options" must sit in the title, the
+slug and the first sentence of posts 3 and 4, not merely in the slug. Post 4's
+title carries it only at character 46; that is the one titling change worth
+making before publication.
+
+### What holds page one
+
+- `call vs put option explained` / `difference between call and put option` —
+  SmartAsset, Chase, SoFi, moomoo, Motley Fool, Vanguard, OIC. **Hard.** The
+  TradingView pages present are Indian-market masterclass posts, not the
+  UGC-on-page-one signal section 1 grades as winnable; do not read them that way.
+- `option strike price expiration premium` — Fidelity ("Selecting a Strike
+  Price and Expiration Date"), Schwab, SoFi, OptionsPlay, plus startup-equity
+  and TradingView India pages. **Hard, and the phrasing is a syllabus label
+  rather than a query** — nobody types all three nouns together. The demand is
+  in the singular terms and the questions underneath them.
+- `intrinsic vs extrinsic value options` — SmartAsset, Nasdaq, TradingBlock,
+  CapMint, Option Samurai, IncomeShares. **Hard at the head, but the softest
+  of the three**: three of the six are small independent sites.
+
+### The long tail underneath them, which is where these three can actually rank
+
+| Phrasing | What holds page one | Read | Which post already answers it |
+| --- | --- | --- | --- |
+| `why is my option losing value when the stock isn't moving` | OptionAlpha, Zerodha support, OIC FAQ, myespresso, an SEO-thin blog, TradingView | **Winnable** | post 4 — but it currently defers the answer instead of stating the endpoint under a heading |
+| `why does a deep in the money option still have extrinsic value` | TradingBlock ×2, legalclarity, quantopia, optionstrading.org, Barchart | **Winnable** — no broker hub, no Investopedia | post 4, as an FAQ bullet |
+| `can you lose more than the premium buying an option` | Robinhood, Vanguard, then thepaymentsbusiness.com and hw.online — **content-farm pages holding page one** | **Winnable** | post 2, as an FAQ bullet |
+| `what happens if my option expires in the money and I don't have the money` | SoFi, Public, Robinhood, Schwab support + LawInsider contract-law pollution | **Mid** — broker support owns it, but generically | post 2, as an FAQ bullet |
+
+All four of those live in the posts as list items inside a `## Frequently asked
+questions` block. A bolded question inside a bullet is weaker snippet-bait than
+a heading with the answer under it; that is the change that turns these three
+from cluster spine into pages that earn something.
+
+### Verdict recorded
+
+Publishing 2, 3 and 4 is not a mistake — they are rung-two cluster spine and
+the curriculum starts at the beginning by the owner's decision. **Expecting the
+three head terms to bring traffic is the mistake.** Judge them on whether the
+long-tail phrasings above pick up anything, and on whether `/blog/foundations`
+starts to move once it has five posts pointing at it.
+
+Slugs for all three are still free: `content/PLAN.md` lists them as drafts, so
+no URL is load-bearing yet and no redirect table is needed. That window closes
+at publication.

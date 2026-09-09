@@ -9,8 +9,7 @@ series_order: 4
 tags: intrinsic value, extrinsic value, time value, premium, foundations
 ---
 
-**Intrinsic value** is the part of an option's premium backed by the gap between the stock price and the strike — what the contract would be worth if it expired right now. It comes from the
-strike price alone — what the contract would be worth if it expired right now.
+**Intrinsic value** is the part of an option's premium backed by the gap between the stock price and the strike — what the contract would be worth if it expired right now.
 **Extrinsic value**, also called time value, is the whole of the rest.
 
 The two always add up to the premium, so any quote can be split in two with
@@ -21,7 +20,7 @@ market is charging for the time still left.
 
 - Intrinsic value is the gap between the stock price and the strike in the direction the option points, and it is never less than zero.
 - Extrinsic value is the premium minus the intrinsic value — what is paid on top of what the contract is worth today.
-- At expiration, extrinsic value is zero. The option is worth exactly its intrinsic value,.
+- At expiration, extrinsic value is zero. The option is worth exactly its intrinsic value.
 - The buyer pays the extrinsic value and the seller receives it. That is the part of the premium that can be lost while the stock does nothing at all.
 
 ## What is intrinsic value?

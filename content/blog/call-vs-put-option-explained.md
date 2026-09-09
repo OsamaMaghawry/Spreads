@@ -85,10 +85,9 @@ settlement values gives the four positions, before fees.
 | Bought the 45 put, paid $100 | +$200 | −$100 | −$100 |
 | Sold the 45 put, received $100 | −$200 | +$100 | +$100 |
 
-Every column nets to zero across the two sides of each contract. One side's
-$200 is the other side's $200, which is the plainest way to see that an option
-is a transfer between the two sides of a contract rather than an instrument that produces
-anything on its own.
+Every column nets to zero. One side's $200 is the other side's $200 — an
+option is a transfer between the two sides of a contract, not an instrument
+that produces anything on its own.
 
 The table also hides the worst case for one row. A stock has no ceiling, so the
 call seller's obligation has no ceiling either; at $80 that row settles at

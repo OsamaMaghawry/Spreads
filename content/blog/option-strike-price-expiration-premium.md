@@ -75,7 +75,7 @@ call expiring on 18 December, bid 2.10 and ask 2.30.
 
 ![One option chain row with three numbers marked: the expiration date, the strike price, and the bid and ask that make up the premium.](/assets/blog/option-row-three-numbers.svg)
 
-Reading it in order: **1** is the expiration, so the contract exists until 19
+Reading it in order: **1** is the expiration, so the contract exists until 18
 December and not a day longer. **2** is the strike, so shares would change hands
 at $50 apiece — $5,000 for the 100 shares one contract covers. **3** is the
 premium.
