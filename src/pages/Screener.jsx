@@ -9,6 +9,7 @@ import useMarketScan from "@/components/screener/useMarketScan";
 import ScanPresets from "@/components/common/ScanPresets";
 import { SCOPE, saveLastUsed } from "@/lib/scanPresets";
 import { SP500, TOP50 } from "@/lib/sp500";
+import { invokeFunction } from "@/lib/functions";
 import { SAFE_ACCOUNT_COLUMNS } from "@/lib/accountColumns";
 import { isSingle, STRATEGY_LABEL } from "@/lib/setupUnit";
 
@@ -17,6 +18,12 @@ export default function Screener() {
   const [strategy, setStrategy] = useState("put_spread");
   const [cfg, setCfg] = useState(SCREENER_DEFAULTS);
   const [tradeSetup, setTradeSetup] = useState(null);
+  // The whole-market pass: what the sieve kept, and where the rest went. Held
+  // here rather than inside the scan hook because it happens BEFORE a scan and
+  // is worth showing on its own — "1,847 priced, 31 passed" is the answer to
+  // "why did my scan return so little", and without it the filters are opaque.
+  const [universe, setUniverse] = useState(null);
+  const [findingUniverse, setFindingUniverse] = useState(false);
   const { running, progress, candidates, skippedCount, error, start, stop } = useMarketScan();
 
   useEffect(() => {
@@ -76,9 +83,37 @@ export default function Screener() {
     return [{ tickers, filters: filtersFor(strategy) }];
   };
 
-  const run = () => {
+  const run = async () => {
     // Recording what was scanned must never be able to stop the scan itself.
     saveLastUsed(SCOPE.SCREENER, strategy, cfg).catch(() => {});
+
+    // Whole-market: price everything first, then scan chains only for what
+    // survives. The sieve is a separate call so its result can be shown and
+    // reasoned about, and so a scan that returns little can say why.
+    if (cfg.universe === "market") {
+      setFindingUniverse(true);
+      setUniverse(null);
+      try {
+        const { data } = await invokeFunction("scanUniverse", {
+          accountId: accounts[0].id,
+          filters: {
+            maxSpot: cfg.maxSpot === "" ? null : Number(cfg.maxSpot),
+            minSpot: cfg.minSpot === "" ? null : Number(cfg.minSpot),
+            minVolume: cfg.minVolume === "" ? null : Number(cfg.minVolume),
+            maxSpreadPct: cfg.maxSpreadPct === "" ? null : Number(cfg.maxSpreadPct) / 100,
+            maxCapitalPct: cfg.maxCapitalPct === "" ? null : Number(cfg.maxCapitalPct) / 100
+          }
+        });
+        setFindingUniverse(false);
+        if (data?.error) return;
+        setUniverse(data);
+        if (!data?.tickers?.length) return;
+        start(accounts[0].id, [{ tickers: data.tickers, filters: filtersFor(strategy) }]);
+      } catch {
+        setFindingUniverse(false);
+      }
+      return;
+    }
     start(accounts[0].id, jobs());
   };
 
@@ -103,6 +138,43 @@ export default function Screener() {
           <StrategyPicker value={strategy} onChange={setStrategy} withWheel />
           <ScreenerConfig cfg={cfg} set={set} isCondor={isCondor} single={single} strategy={strategy} />
 
+          {findingUniverse && (
+            <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-600">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Pricing every listed name to find the ones worth scanning…
+            </div>
+          )}
+
+          {/* Where the universe went.
+              A whole-market scan that returns four setups is indistinguishable
+              from a broken one unless the sieve accounts for the rest. This is
+              that accounting, and it is also how the filters become adjustable
+              by eye rather than by guesswork. */}
+          {universe && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-600 space-y-1.5">
+              <div className="font-medium text-slate-800">
+                {universe.considered.toLocaleString()} names priced · {universe.kept.toLocaleString()} passed the filters
+              </div>
+              {Object.keys(universe.dropped || {}).length > 0 && (
+                <ul className="space-y-0.5 text-slate-500">
+                  {Object.entries(universe.dropped)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([reason, n]) => (
+                      <li key={reason} className="tabular-nums">
+                        {n.toLocaleString()} — {reason}
+                      </li>
+                    ))}
+                </ul>
+              )}
+              {universe.note && <p className="text-amber-600 leading-relaxed">{universe.note}</p>}
+              {universe.kept === 0 && (
+                <p className="text-amber-600 leading-relaxed">
+                  Nothing passed. Raise the price cap, lower the volume floor, or widen the quote limit.
+                </p>
+              )}
+            </div>
+          )}
+
           {running ? (
             <button
               onClick={stop}
@@ -113,11 +185,21 @@ export default function Screener() {
           ) : (
             <button
               onClick={run}
-              disabled={accounts.length === 0 || (strategy !== "covered_call" && tickers.length === 0)}
+              disabled={
+                accounts.length === 0 ||
+                findingUniverse ||
+                (strategy !== "covered_call" && cfg.universe !== "market" && tickers.length === 0)
+              }
               className="w-full py-2.5 rounded-lg bg-emerald-500/90 hover:bg-emerald-500 text-white font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               <Radar className="w-4 h-4" />{" "}
-              {strategy === "covered_call" ? "Scan shares held" : wheel ? `Scan ${tickers.length} tickers and shares held` : `Scan ${tickers.length} tickers`}
+              {strategy === "covered_call"
+                ? "Scan shares held"
+                : cfg.universe === "market"
+                  ? "Scan the entire market"
+                  : wheel
+                    ? `Scan ${tickers.length} tickers and shares held`
+                    : `Scan ${tickers.length} tickers`}
             </button>
           )}
 

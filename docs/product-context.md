@@ -127,6 +127,7 @@ so a change to shared code requires redeploying all of them.
 - **refreshEarnings** — Refreshes the cached earnings calendar for the next 90 days from the provider.
 - **saveAccount** — Creating and editing a trading account.
 - **scanEntries** — (no summary comment)
+- **scanUniverse** — Which tickers are worth scanning, out of the whole market.
 - **sendDigest** — The one way an agent reaches the owner.
 - **spreadQuote** — Prices a position for closing: what the legs are worth right now, plus the highest limit already tried on them so a retry resumes rather than restarts.
 - **stripeWebhook** — Receives Stripe's signed subscription events and keeps one row per user current.
