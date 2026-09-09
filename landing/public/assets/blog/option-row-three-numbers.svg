@@ -1,0 +1,33 @@
+<svg viewBox="0 0 720 240" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A single row from an option chain, drawn as four columns: expiration December 19, strike 50, the word call, and a bid of 2.10 beside an ask of 2.30. Three numbered markers sit above the row — one on the expiration, two on the strike, three on the bid and ask together — marking the three numbers that describe the contract.">
+  <rect width="720" height="240" fill="#FFFFFF"/>
+
+  <!-- badges -->
+  <circle cx="120" cy="46" r="16" fill="#534AB7"/>
+  <text x="120" y="52" font-size="17" font-weight="600" text-anchor="middle" fill="#FFFFFF">1</text>
+  <circle cx="280" cy="46" r="16" fill="#534AB7"/>
+  <text x="280" y="52" font-size="17" font-weight="600" text-anchor="middle" fill="#FFFFFF">2</text>
+  <circle cx="560" cy="46" r="16" fill="#534AB7"/>
+  <text x="560" y="52" font-size="17" font-weight="600" text-anchor="middle" fill="#FFFFFF">3</text>
+
+  <line x1="120" y1="66" x2="120" y2="96" stroke="#534AB7" stroke-width="2"/>
+  <line x1="280" y1="66" x2="280" y2="96" stroke="#534AB7" stroke-width="2"/>
+  <line x1="560" y1="66" x2="560" y2="96" stroke="#534AB7" stroke-width="2"/>
+
+  <!-- column headers -->
+  <text x="120" y="122" font-size="15" text-anchor="middle" fill="#767B8E">Expiration</text>
+  <text x="280" y="122" font-size="15" text-anchor="middle" fill="#767B8E">Strike</text>
+  <text x="500" y="122" font-size="15" text-anchor="middle" fill="#767B8E">Bid</text>
+  <text x="620" y="122" font-size="15" text-anchor="middle" fill="#767B8E">Ask</text>
+
+  <!-- the row -->
+  <rect x="40" y="138" width="640" height="60" rx="8" fill="#F6F5FB" stroke="#E1DEF2" stroke-width="1.5"/>
+  <line x1="200" y1="138" x2="200" y2="198" stroke="#E1DEF2" stroke-width="1.5"/>
+  <line x1="360" y1="138" x2="360" y2="198" stroke="#E1DEF2" stroke-width="1.5"/>
+  <line x1="440" y1="138" x2="440" y2="198" stroke="#E1DEF2" stroke-width="1.5"/>
+
+  <text x="120" y="177" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">Dec 19</text>
+  <text x="280" y="177" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">50</text>
+  <text x="400" y="177" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">Call</text>
+  <text x="500" y="177" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">2.10</text>
+  <text x="620" y="177" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">2.30</text>
+</svg>
