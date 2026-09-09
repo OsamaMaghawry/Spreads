@@ -12,8 +12,10 @@ curriculum that starts at "what is an option" and works through every family
 of strategy — income, hedging, investing — before the after-the-fill material
 that was the original plan. Beginners are the top of the funnel; a reader who
 learns the mechanics here is the reader who later runs more positions than
-they can hold in their head. The register does not change: trader to trader,
-plain, specific, honest about limits. The compliance rules do not change.
+they can hold in their head. The register CHANGED on 9 Sep: the blog is
+written in the Investopedia shape — definition first, Key Takeaways, plain
+question headings, one worked example, FAQ, 900-1,200 words. See
+`docs/context/brand.md`. The compliance rules do not change.
 
 Two pillars still shape every post: **return on risk as the stance** and
 **what happens after the fill**. A foundations post about a covered call

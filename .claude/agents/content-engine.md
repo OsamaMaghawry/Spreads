@@ -38,10 +38,11 @@ question people actually ask in the scouted subreddits.
 Write for a trader, from the first post in the syllabus to the last: the
 foundations posts are for someone who has not traded an option yet, the
 managing and measuring posts for someone running more positions than they
-can hold in their head. The register is the same for both — trader to trader,
-plain, specific — and nobody is being sold to. The syllabus in
-`content/PLAN.md` says which post is next; `docs/seo/keywords.md` says which
-query it targets and what it must answer that the pages ranking today do not.
+can hold in their head. The register for both is the Investopedia shape set
+out in `docs/context/brand.md`: definition in sentence one, Key Takeaways,
+plain question headings, 2-3 sentence paragraphs, one worked example, a table
+for any comparison, FAQ, The Bottom Line, 900-1,200 words, and a hard cap of
+15 words inside any diagram. Read that file before writing.
 
 ## Voice
 
