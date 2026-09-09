@@ -117,9 +117,12 @@ The payoff diagram describes one instant — the last one. Every day until then,
 what your screen shows is a mark: what it would cost, right now, to buy the
 spread back.
 
-A mark is not a realisation. A spread marked against you by more than the credit
-has lost nothing yet: finish above the short strike and it still pays the whole
-$120, and the intervening mark leaves no trace in the record. What the mark
+A mark is not a realisation. Part of what it prices is
+[extrinsic value](/blog/intrinsic-vs-extrinsic-value-options) — the portion of a
+premium not backed by anything today, which is zero at expiration. A spread
+marked against you by more than the credit has lost nothing yet: finish above
+the short strike and it still pays the whole $120, and the intervening mark
+leaves no trace in the record. What the mark
 settles is only what leaving right now would cost.
 
 The bound on that mark is real. A vertical's value cannot fall below zero or

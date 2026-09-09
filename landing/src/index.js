@@ -207,7 +207,10 @@ function renderPost(post, site, noindex, env = {}, all = []) {
     image,
     datePublished: post.published_at,
     dateModified: post.updated_at || post.published_at,
-    author: { "@type": "Person", name: post.author },
+    // Organization, not Person: every post is authored "DeltaMint", and a
+    // Person by that name is an entity mismatch. Name a real author in the
+    // front matter if a byline is ever wanted.
+    author: { "@type": "Organization", name: post.author },
     publisher: { "@type": "Organization", name: "DeltaMint", url: site },
     mainEntityOfPage: { "@type": "WebPage", "@id": url },
     articleSection: cat ? cat.title : undefined,
@@ -226,7 +229,10 @@ function renderPost(post, site, noindex, env = {}, all = []) {
     : null;
 
   return page({
-    title: `${post.title} — DeltaMint`,
+    // No " — DeltaMint" suffix on a post page: it costs 12 characters of a
+    // ~60-character title budget, forever, for a brand nobody searches yet.
+    // og:site_name, the JSON-LD publisher and the breadcrumb all carry it.
+    title: post.title,
     description,
     canonical: url,
     head: `${robotsMeta(noindex)}${trackingTags(env)}<meta property="og:type" content="article" />

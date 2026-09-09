@@ -2,7 +2,7 @@
 title: "Call vs put options: how each one works"
 slug: call-vs-put-option-explained
 excerpt: A call is the right to buy 100 shares at a set price; a put is the right to sell 100 shares at a set price — and each one has a seller carrying the matching obligation.
-meta_description: A call option is the right to buy 100 shares at a set price. A put is the right to sell. What the buyer pays, what the seller owes, with worked numbers.
+meta_description: A call is the right to buy 100 shares at a set price; a put the right to sell. What the buyer pays, what the seller owes, with the numbers.
 author: DeltaMint
 category: foundations
 series_order: 2
@@ -110,9 +110,13 @@ never paired to each other.
 
 ## Frequently asked questions
 
-- **Can an option buyer lose more than the premium paid?** No. A bought option is paid for in full at the fill, and that is the entire amount the position can cost.
+### Can an option buyer lose more than the premium paid?
+
+No. A bought option is paid for in full at the fill, and that is the entire amount the position can cost.
 - **Is selling a call the same as buying a put?** No. Both positions gain when the stock falls, but one is an obligation with collateral held against it and the other is a right that was paid for upfront.
-- **What happens if I do nothing on expiration day?** An option that finishes in the money by a cent or more is exercised automatically unless the owner instructs otherwise. For a call that means buying 100 shares at the strike — $5,500 on the 55 call — which the account has to fund. Selling the contract before the close realises the same value as cash instead. One that finishes out of the money expires and the row disappears.
+### What happens if my option expires in the money?
+
+If you do nothing, an option that finishes in the money by a cent or more is exercised automatically unless the owner instructs otherwise. For a call that means buying 100 shares at the strike — $5,500 on the 55 call — which the account has to fund. Selling the contract before the close realises the same value as cash instead. One that finishes out of the money expires and the row disappears.
 - **Do I have to own the shares to sell a call?** No. Without them the obligation is uncovered, and delivering 100 shares at the strike means buying them first at whatever the market is asking.
 
 ## The bottom line

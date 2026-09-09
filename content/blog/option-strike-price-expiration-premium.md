@@ -1,5 +1,5 @@
 ---
-title: "Option strike price, expiration and premium explained"
+title: "Option strike price, expiration and premium"
 slug: option-strike-price-expiration-premium
 excerpt: Three numbers describe every listed option — the strike shares would change hands at, the last day the contract exists, and the price of the contract itself.
 meta_description: The strike price is where shares change hands, the expiration is the contract's last day, and the premium is its price. What each number fixes, with an example.
@@ -9,10 +9,10 @@ series_order: 3
 tags: strike price, expiration, premium, option chain, foundations
 ---
 
-Every listed option is described by three numbers. The **strike price** is the
-price at which the shares would change hands. The **expiration date** is the
-last day the contract exists. The **premium** is what the contract itself costs
-to buy or pays to sell.
+The **strike price** of an option is the price at which the shares would change
+hands. The **expiration date** is the last day the contract exists, and the
+**premium** is what the contract itself costs to buy or pays to sell. Those
+three numbers describe every listed option.
 
 Two of those three are fixed by the exchange before anyone trades the contract.
 Only the premium is set by the people trading it.

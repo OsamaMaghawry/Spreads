@@ -1,5 +1,5 @@
 ---
-title: "Intrinsic vs extrinsic value: splitting an option premium"
+title: "Intrinsic vs extrinsic value in options"
 slug: intrinsic-vs-extrinsic-value-options
 excerpt: Every option premium splits into intrinsic value, which is pure arithmetic against the strike, and extrinsic value, which is everything the buyer pays on top.
 meta_description: Intrinsic value is what an option would be worth if it expired now. Extrinsic value is the rest of the premium. How to split any quote in two, with numbers.
@@ -90,6 +90,12 @@ For the middle row above, that means the contract settles at $2.00 a share —
 $200 — if the stock is still at $52 on the last day. The $140 of extrinsic
 value that was in the price 30 days earlier is not there to be recovered.
 
+## Why is my option losing value when the stock isn't moving?
+
+Because the part of the premium that is not intrinsic is not backed by anything
+today, and at expiration it is zero. A quiet stock still spends the days between
+now and then.
+
 Between now and then it does not drain evenly. Extrinsic value moves with the
 market's expectations as well as with the calendar, so it can rise on a quiet
 day and fall on a busy one. Its behaviour over time is a subject of its own,
@@ -99,7 +105,9 @@ and this post claims only the endpoint: at expiration, zero.
 
 - **Can intrinsic value be negative?** No. The subtraction can come out negative, but the value floors at zero, because nobody has to use a right that costs them money.
 - **Is extrinsic value the same as time value?** They name the same number. "Time value" is the older term and understates it, since the figure prices expected movement as well as days remaining.
-- **Why does an in-the-money option cost more than its intrinsic value?** Because the contract can still improve before expiration, and the buyer is paying for that. The deeper in the money it goes, the less of the premium that part accounts for.
+### Why does an in-the-money option cost more than its intrinsic value?
+
+Because the contract can still improve before expiration, and the buyer is paying for that. The deeper in the money it goes, the less of the premium that part accounts for.
 - **Who ends up with the extrinsic value?** The buyer pays it at the fill and the seller receives it. Whether the seller keeps it depends on what the stock does, which the split says nothing about.
 
 ## The bottom line
