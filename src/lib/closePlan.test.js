@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { closePlan, deriveUnit, closeAction, MAX_MLEG_LEGS } from "./closePlan.js";
+import { closePlan, deriveUnit, closeAction, coverLeftBehind, MAX_MLEG_LEGS } from "./closePlan.js";
 
-const opt = (symbol, side, qty) => ({ symbol, side, qty, assetClass: "us_option" });
-const stk = (symbol, side, qty) => ({ symbol, side, qty, assetClass: "equity" });
+const opt = (symbol, side, qty, ticker = "TSLA") => ({ symbol, side, qty, ticker, assetClass: "us_option" });
+const stk = (symbol, side, qty) => ({ symbol, side, qty, ticker: symbol, assetClass: "equity" });
 
 test("closing a short is a buy-back; closing a long is a sale", () => {
   assert.equal(closeAction(opt("A", "short", 1)), "buy_to_close");
@@ -123,4 +123,102 @@ test("a four-leg condor stays atomic, mixed directions and all", () => {
   assert.equal(plan.atomic, true);
   assert.equal(plan.orders[0].legs.length, 4);
   assert.deepEqual(plan.warnings, []);
+});
+
+// ---------------------------------------------------------------------------
+// The bench's STOP findings, each as the case that produced it.
+// ---------------------------------------------------------------------------
+
+test("F1: an option SALE never precedes an equity buy-back", () => {
+  // head-of-trading's reproduction. The long call is the only cap on the short
+  // stock's upside; the first version sold it first because it ordered by asset
+  // class (all options, then all equity) while printing a warning saying the
+  // opposite. Between the fills the account was short 100 shares uncapped.
+  const plan = closePlan([stk("TSLA", "short", 100), opt("TSLA260116C00460000", "long", 1)]);
+  assert.equal(plan.orders.length, 2);
+  assert.equal(plan.orders[0].legs[0].action, "buy_to_close", "the stock buy-back goes FIRST");
+  assert.equal(plan.orders[0].kind, "equity");
+  assert.equal(plan.orders[1].legs[0].action, "sell_to_close");
+});
+
+test("F1: long stock + long put sells neither before the other wrongly", () => {
+  // Both are sales, so there is no safe interleaving to get right — but the put
+  // must not be sold while the shares are still held under the old rule, i.e.
+  // ordering must at least be stable and both must be tier 2.
+  const plan = closePlan([stk("TSLA", "long", 100), opt("TSLA260116P00400000", "long", 1)]);
+  assert.ok(plan.orders.every((o) => o.legs.every((l) => l.action === "sell_to_close")));
+});
+
+test("F4: legs on different underlyings are never one order", () => {
+  const plan = closePlan([opt("SPY260116P00600000", "short", 1, "SPY"), opt("TSLA260116C00460000", "short", 1, "TSLA")]);
+  assert.equal(plan.atomic, false);
+  assert.equal(plan.orders.length, 2);
+  assert.deepEqual(plan.orders.map((o) => o.ticker).sort(), ["SPY", "TSLA"]);
+  assert.match(plan.warnings[0], /more than one underlying/);
+});
+
+test("F4/F6: above the cap, chunks never mix underlyings", () => {
+  const legs = [
+    opt("A1", "short", 3, "AAPL"), opt("S1", "short", 5, "SPY"),
+    opt("T1", "short", 7, "TSLA"), opt("T2", "short", 2, "TSLA"),
+    opt("N1", "short", 1, "NVDA")
+  ];
+  const plan = closePlan(legs);
+  for (const o of plan.orders) {
+    const tickers = new Set(o.legs.map((l) => l.ticker));
+    assert.equal(tickers.size, 1, `order mixes ${[...tickers].join("+")}`);
+  }
+  // And no absurd ratio survives, because 3 and 5 are never in one unit now.
+  assert.ok(plan.orders.every((o) => o.legs.every((l) => l.ratio <= 7)));
+});
+
+test("F7: an adjusted contract is closable, alone, and flagged", () => {
+  const adj = { ...opt("TSLA1260116C00400000", "short", 1), adjusted: true };
+  const plan = closePlan([adj, opt("TSLA260116C00460000", "short", 1)]);
+  assert.equal(plan.orders.length, 2, "never netted with a normal contract");
+  const solo = plan.orders.find((o) => o.adjusted);
+  assert.ok(solo, "it is marked as adjusted");
+  assert.equal(solo.legs.length, 1);
+  assert.match(plan.warnings[0], /adjusted contract/);
+});
+
+test("a vertical is still atomic — direction sorts ACROSS orders, not within one", () => {
+  const plan = closePlan([opt("A", "short", 1), opt("B", "long", 1)]);
+  assert.equal(plan.orders.length, 1);
+  assert.equal(plan.atomic, true);
+});
+
+test("tiering: buy-backs, then self-contained, then sales", () => {
+  const plan = closePlan([
+    opt("SELL_ONLY", "long", 1, "AAA"),
+    opt("MIXED_A", "short", 1, "BBB"), opt("MIXED_B", "long", 1, "BBB"),
+    opt("BUY_ONLY", "short", 1, "CCC")
+  ]);
+  const tiers = plan.orders.map((o) => new Set(o.legs.map((l) => l.action)).size > 1 ? 1 : o.legs[0].action === "buy_to_close" ? 0 : 2);
+  assert.deepEqual(tiers, [0, 1, 2]);
+});
+
+test("F1b: coverLeftBehind names the shorts a sale would strip", () => {
+  const rows = [
+    { symbol: "TSLA", ticker: "TSLA", qty: 210 },
+    { symbol: "TSLA_C375", ticker: "TSLA", qty: -1 },
+    { symbol: "TSLA_C362", ticker: "TSLA", qty: -2 },
+    { symbol: "AAPL", ticker: "AAPL", qty: 100 }
+  ];
+  // Selling the shares while both short calls stay open.
+  const warn = coverLeftBehind([stk("TSLA", "long", 210)], rows);
+  assert.equal(warn.length, 1);
+  assert.equal(warn[0].leaves.length, 2);
+  assert.match(warn[0].text, /2 short TSLA positions/);
+
+  // Selecting the shorts too leaves nothing behind.
+  assert.deepEqual(
+    coverLeftBehind(
+      [stk("TSLA", "long", 210), opt("TSLA_C375", "short", 1), opt("TSLA_C362", "short", 2)],
+      rows
+    ),
+    []
+  );
+  // Buying a short back never strips cover.
+  assert.deepEqual(coverLeftBehind([opt("TSLA_C375", "short", 1)], rows), []);
 });

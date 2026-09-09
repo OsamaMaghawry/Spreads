@@ -222,7 +222,7 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
           rows={account.broker || []}
           coverage={account.coverage || []}
           onClose={(spread) => onCloseSpread(account, spread)}
-          onCloseMany={(legs) => onCloseMany?.(account, legs)}
+          onCloseMany={(legs) => onCloseMany?.(account, legs, account.broker || [])}
         />
       ) : tab === "orders" ? (
         orders.length === 0 ? (

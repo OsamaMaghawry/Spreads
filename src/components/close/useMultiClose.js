@@ -66,10 +66,34 @@ export default function useMultiClose() {
     }
   }
 
+  // Cancel, and CONFIRM it. Returns { outcome, filled }.
+  //
+  // The first version wrote `.catch(() => {})` here, which swallows exactly the
+  // 422 Alpaca returns when an order cannot be cancelled BECAUSE IT ALREADY
+  // FILLED -- the one signal that says "do not resubmit". A second order then
+  // went out on top of a completed one. useCloseOrder has had ensureCanceled
+  // for this since the single ticket was written; this reimplemented the walk
+  // and dropped it.
+  async function ensureCanceled(accountId, orderId) {
+    await invoke("manageOrder", { accountId, orderId, action: "cancel" }).catch(() => {});
+    let filled = 0;
+    for (let i = 0; i < 10; i++) {
+      const st = await invoke("manageOrder", { accountId, orderId, action: "get" }).catch(() => null);
+      if (st) {
+        filled = Math.max(filled, Number(st.filledQty) || 0);
+        if (st.status === "filled") return { outcome: "filled", filled };
+        if (["canceled", "rejected", "expired", "done_for_day"].includes(st.status)) {
+          return { outcome: "canceled", filled };
+        }
+      }
+      await sleep(1000);
+    }
+    return { outcome: "unknown", filled };
+  }
+
   // Walk ONE order to a fill. Resolves { filled, orderId } or throws.
-  async function walkOne(accountId, order, index, total) {
+  async function walkOne(accountId, order, index, total, runKey) {
     const legs = orderLegs(order);
-    const qty = order.qty;
     const label = `Order ${index + 1} of ${total}`;
 
     const q0 = await quoteFor(accountId, order);
@@ -83,16 +107,32 @@ export default function useMultiClose() {
     }
 
     let debit = round2(start);
+    let steps = 0;
     addLog(`${label}: submitting at ${priceLabel(debit)}…`);
     let res = await invoke("closeSpread", {
-      accountId, legs, qty, orderType: "limit", limitPrice: debit,
-      ticker: order.legs[0]?.ticker || null, quote: q0 || null
+      accountId, legs, qty: order.qty, orderType: "limit", limitPrice: debit,
+      ticker: order.ticker || null, quote: q0 || null, runKey, step: steps
     });
-    // The server can rescale an unreduced ratio, which changes the unit the
-    // broker reports fills in. Adopt what it says it sent.
-    let unit = Number(res.sentQty) > 0 ? Number(res.sentQty) : qty;
+    // The unit the BROKER is working in, fixed for the life of this walk. The
+    // server can rescale an unreduced ratio on the first submit; deriveUnit
+    // already reduces so it should not, but adopting what it says it sent costs
+    // nothing and is the only honest source for the number fills are counted
+    // against.
+    const unit = Number(res.sentQty) > 0 ? Number(res.sentQty) : order.qty;
     let orderId = res.orderId;
-    let filledSoFar = 0;
+
+    // CUMULATIVE across every order this walk has submitted, not the max of any
+    // one of them.
+    //
+    // The first version tracked a single `filledSoFar` from `st.filledQty` --
+    // but a reprice cancels and REPLACES the order, and the replacement's
+    // filledQty restarts at zero. So the count became the largest single-order
+    // fill rather than the total, `remaining` overstated what was open, and
+    // from the second reprice onward the resubmit bought back MORE than was
+    // held: 9 of 10 contracts closed, and an order for 6 sent against the 1
+    // still open. That opens a position rather than closing one.
+    let closedTotal = 0;
+    let thisOrder = 0;
     let lastStatus = null;
     let lastWalk = Date.now();
     const began = Date.now();
@@ -100,30 +140,31 @@ export default function useMultiClose() {
     while (true) {
       if (stopRef.current) {
         addLog(`${label}: stopped by you — canceling.`);
-        await invoke("manageOrder", { accountId, orderId, action: "cancel" }).catch(() => {});
+        await ensureCanceled(accountId, orderId);
         throw new Error("stopped");
       }
       if (Date.now() - began > MAX_TIME) {
         addLog(`${label}: 10 minutes without a fill — canceling.`);
-        await invoke("manageOrder", { accountId, orderId, action: "cancel" }).catch(() => {});
+        await ensureCanceled(accountId, orderId);
         throw new Error("timeout");
       }
 
       const st = await invoke("manageOrder", { accountId, orderId, action: "get" });
       if (st.status !== lastStatus) { addLog(`${label}: ${st.status}`); lastStatus = st.status; }
       const filledNow = Number(st.filledQty) || 0;
-      if (filledNow > filledSoFar) {
-        filledSoFar = filledNow;
-        addLog(`${label}: filled ${filledSoFar} of ${unit}${st.filledAvgPrice ? ` @ $${st.filledAvgPrice}` : ""}`);
+      if (filledNow > thisOrder) {
+        thisOrder = filledNow;
+        addLog(`${label}: filled ${closedTotal + thisOrder} of ${unit}${st.filledAvgPrice ? ` @ $${st.filledAvgPrice}` : ""}`);
       }
-      if (st.status === "filled" || filledSoFar >= unit) {
+      if (st.status === "filled" || closedTotal + thisOrder >= unit) {
         addLog(`${label}: complete.`);
         return { filled: true, orderId };
       }
       if (["rejected", "expired", "canceled", "done_for_day"].includes(st.status)) {
-        // A partial here is the dangerous state, and it stops the sequence:
-        // the next order assumes this one is done, and it is not.
-        addLog(`${label}: ${st.status}${filledSoFar > 0 ? ` after ${filledSoFar} of ${unit} filled` : ""}.`);
+        // A partial here stops the sequence: the orders after this one assume
+        // it completed, and it did not.
+        const total = closedTotal + thisOrder;
+        addLog(`${label}: ${st.status}${total > 0 ? ` after ${total} of ${unit} filled` : ""}.`);
         throw new Error(st.status);
       }
 
@@ -132,16 +173,33 @@ export default function useMultiClose() {
         const proposed = nextLimit(debit, q);
         if (proposed > debit) {
           addLog(`${label}: repricing ${priceLabel(debit)} → ${priceLabel(proposed)}`);
-          await invoke("manageOrder", { accountId, orderId, action: "cancel" }).catch(() => {});
-          // Only what is still open, or the resubmit closes more than is held.
-          const remaining = unit - filledSoFar;
+          const cancel = await ensureCanceled(accountId, orderId);
+          // Whatever that order achieved is now final; fold it in before any
+          // remainder is computed.
+          closedTotal += Math.max(thisOrder, cancel.filled);
+          thisOrder = 0;
+          if (cancel.outcome === "filled" || closedTotal >= unit) {
+            addLog(`${label}: filled during the reprice.`);
+            return { filled: true, orderId };
+          }
+          if (cancel.outcome === "unknown") {
+            // Never resubmit over an order whose fate is unknown -- that is how
+            // a position gets closed twice.
+            addLog(`${label}: could not confirm the cancel. Stopping rather than risking a second order.`);
+            throw new Error("cancel unconfirmed");
+          }
+          const remaining = unit - closedTotal;
+          if (!(remaining > 0)) {
+            addLog(`${label}: complete.`);
+            return { filled: true, orderId };
+          }
           debit = proposed;
+          steps += 1;
           res = await invoke("closeSpread", {
             accountId, legs, qty: remaining, orderType: "limit", limitPrice: debit,
-            ticker: order.legs[0]?.ticker || null, quote: q || null
+            ticker: order.ticker || null, quote: q || null, runKey, step: steps
           });
           orderId = res.orderId;
-          unit = Number(res.sentQty) > 0 ? Number(res.sentQty) + filledSoFar : unit;
           lastStatus = null;
         }
         lastWalk = Date.now();
@@ -162,6 +220,11 @@ export default function useMultiClose() {
     setStep(0);
     setPhase("working");
 
+    // Ties every order in this sequence together, so the ladder can be read
+    // back as one act when someone asks what the app did. The single ticket has
+    // always written one; this is the path that can leave a half-closed book,
+    // so it is the one where the trail matters most.
+    const runKey = `${accountId}-multi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const plan = closePlan(selected);
     if (!plan.orders.length) { setPhase("failed"); addLog("Nothing selected to close."); return; }
 
@@ -175,7 +238,7 @@ export default function useMultiClose() {
       if (gen !== genRef.current) return;
       setStep(i);
       try {
-        await walkOne(accountId, plan.orders[i], i, plan.orders.length);
+        await walkOne(accountId, plan.orders[i], i, plan.orders.length, runKey);
         if (gen !== genRef.current) return;
         setDone((d) => [...d, i]);
       } catch (e) {

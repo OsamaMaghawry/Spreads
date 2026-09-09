@@ -113,7 +113,7 @@ export default function AccountDetail() {
         <AccountSection
           account={account}
           onCloseSpread={(acc, spread) => setClosing({ account: acc, spread })}
-          onCloseMany={(acc, legs) => setClosingMany({ account: acc, legs })}
+          onCloseMany={(acc, legs, brokerRows) => setClosingMany({ account: acc, legs, brokerRows })}
           onOrdersChanged={load}
         />
       ) : (
@@ -135,6 +135,7 @@ export default function AccountDetail() {
         <MultiCloseDialog
           account={closingMany.account}
           selected={closingMany.legs}
+          brokerRows={closingMany.brokerRows}
           onClose={() => setClosingMany(null)}
           onDone={() => { setClosingMany(null); load(); }}
         />

@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { fmtMoney } from "@/lib/format";
 import { invokeFunction } from "@/lib/functions";
 import { AlertTriangle, ArrowRight, Check, Loader2 } from "lucide-react";
-import { closePlan, orderLegs } from "@/lib/closePlan";
+import { closePlan, orderLegs, coverLeftBehind } from "@/lib/closePlan";
 import useMultiClose from "./useMultiClose";
 import ConfirmSubmit from "@/components/common/ConfirmSubmit";
 import OrderLog from "./OrderLog";
@@ -27,10 +27,15 @@ const label = (l) =>
     ? `${Math.abs(l.qty)} ${l.ticker || l.symbol} shares`
     : `${Math.abs(l.qty)}× ${l.ticker || ""} ${fmtMoney(l.strike)}${l.optionType || ""} ${l.expiry || ""}`.replace(/\s+/g, " ").trim();
 
-export default function MultiCloseDialog({ account, selected, onClose, onDone }) {
+export default function MultiCloseDialog({ account, selected, brokerRows = [], onClose, onDone }) {
   const { phase, log, step, done, run, stop, reset } = useMultiClose();
   const [quotes, setQuotes] = useState({});
   const plan = useMemo(() => closePlan(selected), [selected]);
+  // Repeated at the point of commitment, not only on the tab behind it. The
+  // selection bar states it while picking; this is the last screen before real
+  // orders go out, and a consequence stated once two clicks ago is a
+  // consequence the user has already scrolled past.
+  const stranded = useMemo(() => coverLeftBehind(selected, brokerRows), [selected, brokerRows]);
 
   // A live net price per order, so the user sees what each step would pay or
   // receive before authorising the sequence. Same endpoint the single ticket
@@ -46,7 +51,10 @@ export default function MultiCloseDialog({ account, selected, onClose, onDone })
           legs: orderLegs(plan.orders[i])
         });
         if (!active) return;
-        next[i] = data?.error ? { error: data.error } : data;
+        // A failed request leaves no entry at all under the old code, so netOf
+        // returned null and the row spun forever rather than saying it could
+        // not be priced. Absent and unpriceable must not look the same.
+        next[i] = data?.error ? { error: data.error } : data || { error: "could not price" };
       }
       if (active) setQuotes(next);
     };
@@ -74,6 +82,14 @@ export default function MultiCloseDialog({ account, selected, onClose, onDone })
     return { mid: q.midDebit };
   };
 
+  // Declared AFTER netOf: these call it during render, and as a const arrow it
+  // is in the temporal dead zone until this point. Placed above, it threw.
+  //
+  // Any order that cannot be priced now will refuse at its own step, so the
+  // sequence must not be authorised on the promise that it will run.
+  const anyUnpriceable = plan.orders.some((_, i) => quotes[i] && netOf(i)?.error);
+  const stillPricing = plan.orders.some((_, i) => quotes[i] === undefined);
+
   return (
     <Dialog open onOpenChange={(v) => !v && dismiss()}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -89,6 +105,12 @@ export default function MultiCloseDialog({ account, selected, onClose, onDone })
               <div key={i} className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900 leading-relaxed">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                 <span>{w}</span>
+              </div>
+            ))}
+            {stranded.map((w) => (
+              <div key={w.selling} className="flex gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-900 leading-relaxed">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>{w.text}</span>
               </div>
             ))}
             {plan.atomic && (
@@ -142,10 +164,18 @@ export default function MultiCloseDialog({ account, selected, onClose, onDone })
               })}
             </div>
 
+            {anyUnpriceable && (
+              <p className="text-xs text-amber-600 leading-relaxed">
+                At least one of these has no two-sided market right now, so the walk has nothing to start
+                from and would refuse at that step. Wait for the market, or close that line on its own.
+              </p>
+            )}
+
             <p className="text-xs text-slate-500 leading-relaxed">
               Each order starts at the mid and steps toward the ask every 30 seconds until it fills, never
-              past the ask plus $0.05, and stops after 10 minutes. This is a limit walk, not a market
-              liquidation.
+              past the ask plus $0.05. Ten minutes is the limit <strong>per order</strong>, so a
+              {" "}{plan.orders.length}-order plan can hold live orders for up to{" "}
+              {plan.orders.length * 10} minutes. This is a limit walk, not a market liquidation.
             </p>
 
             <ConfirmSubmit
@@ -157,7 +187,7 @@ export default function MultiCloseDialog({ account, selected, onClose, onDone })
                   : `${plan.orders.length} orders, one at a time. If any does not fill, the rest are not sent.`
               }
               onConfirm={() => run({ accountId: account.id, selected })}
-              disabled={!plan.orders.length}
+              disabled={!plan.orders.length || anyUnpriceable || stillPricing}
             />
           </div>
         ) : (

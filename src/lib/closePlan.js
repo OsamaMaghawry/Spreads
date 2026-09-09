@@ -1,62 +1,71 @@
 // Turning a set of selected positions into orders that are safe to send.
 //
-// The owner's reason for wanting this, in his words: on a book like the TSLA
-// one, "most of them rely on each other by financing each other. So, closing
-// one thing may get refused as other position relying on it." That is exactly
-// right, and it cuts both ways -- the refusal is the GOOD outcome. The bad one
-// is the order that succeeds and leaves the rest of the book naked.
+// The owner's reason for wanting this: on a book like the TSLA one the legs
+// finance each other, so closing one alone can be refused because another
+// position depends on it. That is right, and it cuts both ways -- the refusal
+// is the GOOD outcome. The bad one is the order that succeeds and leaves the
+// rest of the book naked.
 //
-// TWO FACTS THE BROKER IMPOSES, neither of them ours:
+// FOUR FACTS THE BROKER IMPOSES, none of them ours:
 //
-//   1. A multi-leg order carries AT MOST FOUR legs. A six-leg selection cannot
-//      be one order however much we would like it to be.
-//   2. Shares are never a leg of a multi-leg options order. They are a
-//      different endpoint with a different price convention.
+//   1. A multi-leg order carries AT MOST FOUR legs.
+//   2. Every leg of one must be on the SAME UNDERLYING.
+//   3. Shares are never a leg of a multi-leg options order.
+//   4. Leg ratios must be whole numbers whose greatest common divisor is 1.
 //
 // So a selection of any size becomes SEVERAL orders, and the moment there is
-// more than one, they are not simultaneous. Between the first fill and the last
-// the account holds something that was never on screen.
+// more than one they are not simultaneous. Between the first fill and the last
+// the account holds something that was on no screen.
 //
 // THE RULE THAT MAKES THAT SAFE:
 //
-//   Buy-backs first. Sales last.
+//   Every order that only reduces risk goes before every order that increases
+//   it, ACROSS asset classes.
 //
-// Closing a SHORT (buying it back) can only reduce risk: the obligation goes
-// away. Closing a LONG (selling it) can only increase it, because that long may
-// be the cover for a short that is still open -- selling the 210 shares before
-// buying back the calls written against them turns a covered call into a naked
-// one, for as long as it takes the second order to fill.
+// Closing a short (buying it back) removes an obligation. Closing a long
+// (selling it) can only increase risk, because that long may be the cover for a
+// short still open -- selling 210 shares before buying back the calls written
+// against them turns a covered call into a naked one for as long as the second
+// order takes to fill.
 //
-// Ordered this way, every intermediate state is at least as safe as the state
-// before it. That is the strongest property available once atomicity is off the
-// table, and it is why the plan is a SEQUENCE rather than a batch: each order
-// waits for the one before it to fill.
+// The first version of this file got that wrong in a way its own tests missed:
+// it pushed all OPTION orders and then all EQUITY orders, so a selection of
+// "short 100 shares + long 1 call" sold the call -- the only cap on the short's
+// upside -- first, while printing a warning that said the opposite. Ordering is
+// by risk direction now, and asset class decides only which order a leg can
+// share, never when it is sent.
+//
+// A mixed order (a vertical: one buy-back and one sale) is SELF-CONTAINED: it
+// fills as one unit or not at all, so it carries no intermediate state and sits
+// safely between the two. That is why atomicity is preferred wherever the
+// broker allows it, and why direction only sorts ACROSS orders, never within
+// one.
 
-// Alpaca's cap. The server enforces it authoritatively in
-// `_shared/mlegLimits.ts` -- this constant exists so the ticket can PLAN
-// against it and tell the user what will happen before anything is sent, not so
-// the client can be trusted about it.
 export const MAX_MLEG_LEGS = 4;
 
 const gcd2 = (a, b) => (b === 0 ? a : gcd2(b, a % b));
 const gcdAll = (ns) => ns.reduce((g, n) => gcd2(g, Math.abs(n)), 0) || 1;
 
 const isEquity = (l) => l.assetClass === "equity";
-// Closing a short is a buy; closing a long is a sell. One rule, both asset
-// classes, and the same rule that decides the ordering below.
 const isBuyBack = (l) => l.side === "short";
 
-export const closeAction = (l) =>
-  isEquity(l)
-    ? isBuyBack(l) ? "buy_to_close" : "sell_to_close"
-    : isBuyBack(l) ? "buy_to_close" : "sell_to_close";
+export const closeAction = (l) => (isBuyBack(l) ? "buy_to_close" : "sell_to_close");
 
-// The unit of a multi-leg order, and each leg's ratio within it.
+// Which book a leg belongs to. Legs on different underlyings can never share an
+// order, so a missing ticker is its OWN group rather than a shared "unknown"
+// bucket -- guessing them together is how a SPY put and a TSLA call ended up
+// netted into one price that was a price of nothing.
+const bookOf = (l, i) => l.ticker || `__unknown_${l.symbol || i}`;
+
+// An adjusted contract never shares an order.
 //
-// Alpaca wants a quantity and per-leg ratios whose greatest common divisor is
-// 1, not a list of absolute quantities. Selecting one 352.50 call and two
-// 362.50 calls is one unit of a 1:2; selecting two and four is TWO units of a
-// 1:2, not one unit of a 2:4, which the broker rejects.
+// A corporate action changed what it delivers, so its OCC strike no longer
+// describes the deliverable and its price is not comparable with a normal
+// contract's. openPosition refuses to OPEN one for this reason. Closing must
+// stay possible -- that is the whole point of the Broker tab -- but netting one
+// into a per-unit price beside ordinary legs prices a unit that does not exist.
+const isAdjusted = (l) => !!l.adjusted;
+
 export function deriveUnit(legs) {
   const qtys = (legs || []).map((l) => Math.abs(Number(l.qty) || 0));
   if (!qtys.length || qtys.some((q) => !(q > 0))) return null;
@@ -73,71 +82,121 @@ const chunk = (arr, n) => {
   return out;
 };
 
-// The ordered list of orders to send for a selection, and what to warn about.
-//
-// Returns { orders, atomic, warnings }. `atomic` is true only when the whole
-// selection goes as ONE order -- the only case with no intermediate state at
-// all, and the case worth telling the user they are in.
+// 0 = only reduces risk, 1 = self-contained (fills whole or not at all),
+// 2 = only increases risk. The sort key, and the whole safety property.
+const tierOf = (order) => {
+  const acts = new Set(order.legs.map((l) => l.action));
+  if (acts.size > 1) return 1;
+  return acts.has("buy_to_close") ? 0 : 2;
+};
+
 export function closePlan(selected) {
   const legs = (selected || []).filter((l) => l && l.symbol && Math.abs(Number(l.qty) || 0) > 0);
   if (!legs.length) return { orders: [], atomic: false, warnings: [] };
 
   const warnings = [];
+  const books = {};
+  legs.forEach((l, i) => {
+    const k = bookOf(l, i);
+    (books[k] = books[k] || []).push(l);
+  });
 
-  // Shares leave the options group entirely. Not a preference -- an equity leg
-  // in an mleg body is rejected, and its limit price means something different
-  // (dollars per share, not a signed per-unit net).
-  const equity = legs.filter(isEquity);
-  const options = legs.filter((l) => !isEquity(l));
+  const raw = [];
+  for (const key of Object.keys(books).sort()) {
+    const book = books[key];
+    // Adjusted contracts and shares each go alone; neither can be netted.
+    const adjusted = book.filter((l) => !isEquity(l) && isAdjusted(l));
+    const equity = book.filter(isEquity);
+    const options = book.filter((l) => !isEquity(l) && !isAdjusted(l));
 
-  // Buy-backs first, within each asset class. See the header.
-  const buyBacks = options.filter(isBuyBack);
-  const sales = options.filter((l) => !isBuyBack(l));
-
-  const orders = [];
-  // ATOMIC WHENEVER THE BROKER ALLOWS IT.
-  //
-  // If the whole option selection fits in one order, that is strictly the best
-  // outcome available -- one fill, no intermediate state, and the legs priced
-  // against each other as a net rather than separately. An earlier version of
-  // this split by risk direction unconditionally, which turned an ordinary
-  // two-leg vertical into two orders: worse in every respect, and it gave up
-  // the net price that is the whole reason to close a spread as a spread.
-  //
-  // Direction only decides ORDERING once the cap has already forced a split.
-  const groups =
-    options.length <= MAX_MLEG_LEGS
-      ? [options]
-      : // Chunked WITHIN a risk direction rather than across it. Chunking a
-        // mixed list by fours could put a short and the long that covers it in
-        // different orders with the sale going first, which is the one
-        // arrangement this module exists to prevent.
-        [...chunk(buyBacks, MAX_MLEG_LEGS), ...chunk(sales, MAX_MLEG_LEGS)];
-  for (const group of groups) {
-    const unit = deriveUnit(group);
-    if (unit) orders.push({ kind: "options", ...unit });
+    if (options.length) {
+      const groups =
+        options.length <= MAX_MLEG_LEGS
+          ? [options]
+          : // Only once the cap forces a split does direction decide the
+            // grouping, so a short and the long covering it never land in
+            // different orders with the sale going first.
+            [...chunk(options.filter(isBuyBack), MAX_MLEG_LEGS), ...chunk(options.filter((l) => !isBuyBack(l)), MAX_MLEG_LEGS)];
+      for (const g of groups) {
+        const unit = deriveUnit(g);
+        if (unit) raw.push({ kind: "options", ticker: key, ...unit });
+      }
+    }
+    for (const l of [...adjusted, ...equity]) {
+      const unit = deriveUnit([l]);
+      if (unit) {
+        raw.push({
+          kind: isEquity(l) ? "equity" : "options",
+          ticker: key,
+          alone: true,
+          adjusted: isAdjusted(l),
+          ...unit
+        });
+      }
+    }
   }
-  // Equity last among its own kind for the same reason: a share sale is what
-  // removes cover. Each lot is its own order; there is no multi-leg equity.
-  for (const l of [...equity.filter(isBuyBack), ...equity.filter((l) => !isBuyBack(l))]) {
-    orders.push({ kind: "equity", qty: Math.abs(Number(l.qty)), legs: [{ ...l, ratio: 1, action: closeAction(l) }] });
-  }
+
+  // THE ORDERING. Stable within a tier, so the per-book grouping above is
+  // preserved and only the risk direction moves anything.
+  const orders = raw.map((o, i) => ({ o, i, t: tierOf(o) })).sort((a, b) => a.t - b.t || a.i - b.i).map((x) => x.o);
 
   const atomic = orders.length === 1;
   if (!atomic) {
+    const reasons = [];
+    if (Object.keys(books).length > 1) reasons.push("legs on more than one underlying can never share an order");
+    if (legs.some(isEquity)) reasons.push("shares never share an order with contracts");
+    if (legs.some((l) => !isEquity(l) && isAdjusted(l))) reasons.push("an adjusted contract is priced on its own");
+    if (Object.values(books).some((b) => b.filter((l) => !isEquity(l) && !isAdjusted(l)).length > MAX_MLEG_LEGS)) {
+      reasons.push(`the broker takes at most ${MAX_MLEG_LEGS} option legs per order`);
+    }
     warnings.push(
-      `This cannot go as one order — the broker takes at most ${MAX_MLEG_LEGS} option legs per order, and shares never share an order with contracts. It will be sent as ${orders.length} orders, one after another, each waiting for the one before it to fill.`
+      `This cannot go as one order — ${reasons.join("; ") || "it needs more than one"}. It will be sent as ${orders.length} orders, one after another, each waiting for the one before it to fill.`
     );
-    if (sales.length || equity.some((l) => !isBuyBack(l))) {
+    if (orders.some((o) => tierOf(o) === 2)) {
       warnings.push(
-        "Buy-backs are sent first and sales last, so cover is never removed before the position it covers is closed. If a later order does not fill, you are left holding the covering legs — never a bare short."
+        "Everything that only buys back a short is sent before anything that sells, so cover is never removed before the position it covers is closed. If a later order does not fill, you are left holding the covering legs — never a bare short."
       );
     }
   }
   return { orders, atomic, warnings };
 }
 
-// The wire shape closeSpread already understands, per order.
+// What the SELECTION leaves behind.
+//
+// closePlan reasons only about the legs handed to it, which is the right scope
+// for building orders and the wrong one for judging safety: ticking a single
+// long call turns a defined-risk spread into a naked short, and nothing in the
+// plan can see that because the short was never selected. This looks at the
+// whole account.
+//
+// It is a warning, not a veto. Selling cover may be exactly what the owner
+// intends -- that is his stock and his call to make. What he is owed is the
+// consequence, stated before he confirms.
+export function coverLeftBehind(selected, allRows) {
+  const picked = new Set((selected || []).map((l) => l.symbol));
+  const out = [];
+  const byTicker = {};
+  for (const r of allRows || []) {
+    const t = r?.ticker;
+    if (!t) continue;
+    (byTicker[t] = byTicker[t] || []).push(r);
+  }
+  for (const l of selected || []) {
+    // Only SELLING can strip cover; buying a short back never does.
+    if (l.side !== "long") continue;
+    const rest = (byTicker[l.ticker] || []).filter((r) => !picked.has(r.symbol) && r.qty < 0);
+    if (rest.length) {
+      out.push({
+        selling: l.symbol,
+        ticker: l.ticker,
+        leaves: rest.map((r) => r.symbol),
+        text: `Selling ${l.ticker} ${l.assetClass === "equity" ? "shares" : l.symbol} leaves ${rest.length} short ${l.ticker} position${rest.length > 1 ? "s" : ""} that you have not selected. Check what is covering them before you send this.`
+      });
+    }
+  }
+  return out;
+}
+
 export const orderLegs = (order) =>
   order.legs.map((l) => ({
     symbol: l.symbol,

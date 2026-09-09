@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { fmtMoney } from "@/lib/format";
 import { AlertTriangle } from "lucide-react";
-import { closePlan } from "@/lib/closePlan";
+import { closePlan, coverLeftBehind } from "@/lib/closePlan";
 
 // What the broker says you hold, line for line, with a close on every row.
 //
@@ -85,28 +85,44 @@ const label = (r) =>
     ? `${r.ticker} shares`
     : `${r.ticker} ${fmtMoney(r.strike)}${r.optionType} ${r.expiry ?? ""}`.trim();
 
-// One broker line as a leg the close planner understands. Quantity is the whole
-// line; partial multi-closes are a later refinement, and offering a quantity box
-// per row before the sequence itself is proven would be two new things at once
-// on a path that places real orders.
+// One broker line as a leg the close planner understands.
+//
+// Quantity is what the BROKER says is free, not the whole line. Contracts held
+// behind a working order cannot be closed again -- Alpaca refuses with "qty
+// available for order (requested: 3, available: 1)" -- and planning for the
+// full holding turns that into a mid-sequence rejection that strands a
+// half-executed plan. The single ticket has always capped at this number and
+// the table renders it two columns away; only the planner was ignoring it.
+//
+// `adjusted` travels because a corporate action changed what the contract
+// delivers, so it can never be netted into a per-unit price beside ordinary
+// legs. closePlan gives it an order of its own.
 const asLeg = (r) => ({
   symbol: r.symbol,
   assetClass: r.assetClass,
   side: r.qty < 0 ? "short" : "long",
-  qty: Math.abs(r.qty),
+  qty: Math.min(Math.abs(r.qty), Math.abs(r.qtyAvailable ?? r.qty)),
   ticker: r.ticker,
   strike: r.strike,
   optionType: r.optionType,
-  expiry: r.expiry
+  expiry: r.expiry,
+  adjusted: !!r.adjusted
 });
+
+// Rows the broker reports but which have nothing free to close.
+const nothingFree = (r) => !(Math.abs(r.qtyAvailable ?? r.qty) > 0);
 
 export default function BrokerTable({ rows, coverage, onClose, onCloseMany }) {
   const [picked, setPicked] = useState([]);
 
   const selected = useMemo(
-    () => (rows || []).filter((r) => picked.includes(r.symbol)).map(asLeg),
+    () => (rows || []).filter((r) => picked.includes(r.symbol) && !nothingFree(r)).map(asLeg),
     [rows, picked]
   );
+  // What the SELECTION leaves behind, judged against the whole account rather
+  // than against the picked legs — closePlan cannot see a short that was never
+  // selected, and that is exactly the one a sale would strip the cover from.
+  const stranded = useMemo(() => coverLeftBehind(selected, rows || []), [selected, rows]);
   // Planned as the user picks, so the order count and the split are visible
   // before the ticket opens rather than as a surprise inside it.
   const plan = useMemo(() => closePlan(selected), [selected]);
@@ -160,6 +176,16 @@ export default function BrokerTable({ rows, coverage, onClose, onCloseMany }) {
               ? "One order — all legs fill together."
               : `${plan.orders.length} orders, sent one at a time. Buy-backs first, sales last.`}
           </span>
+          {stranded.length > 0 && (
+            <ul className="basis-full space-y-1 text-xs text-amber-700">
+              {stranded.map((w) => (
+                <li key={w.selling} className="flex gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  <span>{w.text}</span>
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="ml-auto flex items-center gap-2">
             <button
               onClick={() => setPicked([])}
@@ -209,8 +235,10 @@ export default function BrokerTable({ rows, coverage, onClose, onCloseMany }) {
                     type="checkbox"
                     checked={picked.includes(r.symbol)}
                     onChange={() => toggle(r.symbol)}
+                    disabled={nothingFree(r)}
+                    title={nothingFree(r) ? "Every contract on this line is held by a working order." : undefined}
                     aria-label={`Select ${label(r)} for closing`}
-                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                   />
                 </td>
                 <td className={`${td} font-medium text-slate-900`}>
