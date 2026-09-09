@@ -243,7 +243,7 @@ function renderPost(post, site, noindex, env = {}, all = []) {
 <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>${crumbs ? `\n<script type="application/ld+json">${JSON.stringify(crumbs)}</script>` : ""}`,
     body: `${cat ? `<p class="crumbs"><a href="/blog">Blog</a> › <a href="/blog/${cat.slug}">${esc(cat.title)}</a></p>` : ""}
 <h1>${esc(post.title)}</h1>
-<div class="meta">${esc(formatDate(post.published_at))}${post.author ? ` · ${esc(post.author)}` : ""}${post.series_order ? ` · part ${post.series_order}` : ""}</div>
+<div class="meta">${esc(formatDate(post.published_at))}${post.author ? ` · ${esc(post.author)}` : ""}</div>
 ${markdown(post.body)}
 ${prev || next ? `<nav class="readnext">${prev ? `<a class="prev" href="/blog/${esc(prev.slug)}"><span>Previous</span>${esc(prev.title)}</a>` : "<span></span>"}${next ? `<a class="next" href="/blog/${esc(next.slug)}"><span>Read next</span>${esc(next.title)}</a>` : ""}</nav>` : ""}
 ${more.length ? `<section class="related"><h2>More to read</h2><ul>${more.map((p) => `<li><a href="/blog/${esc(p.slug)}">${esc(p.title)}</a></li>`).join("")}</ul></section>` : ""}
