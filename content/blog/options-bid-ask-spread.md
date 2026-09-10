@@ -43,12 +43,13 @@ in, because it is the unit the cash moves in.
 
 ## Do you get the bid or the ask?
 
-The one on the side you are trading toward: an order to buy fills at the ask,
-an order to sell fills at the bid. [Strike, expiration and
+The one on the side you are trading toward, if you want the fill now: an order
+to buy immediately fills at the ask, an order to sell immediately fills at the
+bid. [Strike, expiration and
 premium](/blog/option-strike-price-expiration-premium) introduced both
-numbers — selling to open receives the bid, and buying to close later pays the
-ask, so the credit that lands in the account is the bid figure, not the
-friendlier number halfway up.
+numbers — selling to open takes the bid, and buying to close later pays the
+ask, so a credit taken at the quote is the bid figure, not the friendlier
+number halfway up.
 
 The midpoint is the average of the two and a reasonable estimate of what the
 contract is worth. It is not a price anyone has offered, and for a seller it
@@ -87,15 +88,15 @@ fairly. Whoever sits on the other side of the trade has to hedge and carry the
 position, and the harder that is, the further apart the two quotes sit.
 
 - **Volume and open interest.** A contract few people trade attracts few competing quotes, and the gap has nothing pressing it closed.
-- **Distance from the money.** Strikes far from the current stock price trade rarely, and cheap contracts often carry spreads that are large next to the premium itself.
-- **Time to expiration.** A contract expiring in two years is harder to hedge than one expiring on Friday, and it is usually quoted more loosely.
+- **Distance from the money.** Strikes far from the current stock price — deep in the money or far out of it — trade rarely, and cheap out-of-the-money contracts often carry spreads that are large next to the premium itself.
+- **Time to expiration.** A contract expiring in two years is riskier to carry than one expiring on Friday, and it is usually quoted more loosely.
 - **The underlying.** Options on heavily traded large-cap names and major index funds are quoted tightly; options on small, quiet stocks are not.
 
 The same 20 cents also weighs differently depending on what it sits next to. It
 is a small piece of a 6.40 premium and a large piece of a 0.65 one, which is
 why the cheapest contracts on a chain are rarely the cheapest to trade.
 
-| | Actively traded contract | Thinly traded contract |
+| | Liquid contract | Thin contract |
 | --- | --- | --- |
 | Bid | 2.10 | 1.80 |
 | Ask | 2.30 | 2.60 |
@@ -109,19 +110,21 @@ times larger on the right.
 ## Does a limit order avoid the spread?
 
 A limit order names the worst price you will accept, and fills at that price
-or better, or not at all — it does not promise that a fill happens.
+or better, in full, in part, or not at all — it does not promise that a fill
+happens, and a partial fill can leave the rest to chase a quote that has moved.
 
 So the cost is not avoidable, only negotiable, and the negotiation has its own
 cost: a limit priced at the far side of the quote fills about as readily as
-taking what is available, while one resting between the bid and the ask can
-wait while the quote drifts away from it.
+taking what is available, up to the size showing at that price, and does not
+chase the quote if it moves first. One resting between the bid and the ask can
+instead wait while the quote drifts away from it.
 
 ## Frequently asked questions
 
 - **Is the bid-ask spread a fee?** No. It is the difference between the price a contract is bought at and the price it is sold at, and it compensates whoever takes the other side.
-- **Why is the midpoint shown everywhere if nobody has offered it?** Because it is the simplest single-number estimate of what a contract is worth, so quote screens and open-position marks use it. A mark is an estimate; a fill is a fact.
+- **Why is the midpoint shown everywhere if nobody has offered it?** Because it is the simplest single-number estimate of what a contract is worth, so quote screens and open-position marks usually use it. A mark is an estimate; a fill is a fact.
 - **Does a wide spread mean the option is overpriced?** Not on its own. Width measures how thinly a contract is quoted rather than whether the premium is fair — but it does mean entering and exiting costs more.
-- **Do the spreads on a multi-leg order add up?** Broadly. Each leg carries its own bid and ask, and a combination is quoted on the net of them. Filling the legs separately means meeting each spread by itself.
+- **Do the spreads on a multi-leg order add up?** Broadly, but legging in separately means meeting each spread by itself. Quoted as one combination order the same position is often tighter than the sum of the legs, because the price is set on the net risk rather than on two contracts individually.
 
 ## The bottom line
 
