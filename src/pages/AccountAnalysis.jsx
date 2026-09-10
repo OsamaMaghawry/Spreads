@@ -265,8 +265,16 @@ export default function AccountAnalysis() {
                           200 pixels below, which already tells the reader to
                           reconcile against the broker's own 1099-B. One screen
                           must not carry two instructions about a tax filing. */}
-                      <strong>Premium only</strong> — the option legs alone. Answers “what have I
-                      actually banked from selling options?”
+                      {/* "what have I ACTUALLY banked" was compliance-gate's one
+                          binding finding. "Actually" did the same rhetorical
+                          work as the deleted 1099-B clause: it invited the
+                          reader to treat this as the real number and Whole view
+                          as the inflated one. On an assigned wheel lot the
+                          premium counted here reduces the stock basis rather
+                          than standing alone as income -- real cash in, but not
+                          a finished result while the shares are still held. */}
+                      <strong>Premium only</strong> — the option legs alone. Premium collected on
+                      closed option trades, before pricing shares still held.
                       {Math.abs(soldSharesFigure) >= 0.005 && (
                         <>
                           {" "}Shares already sold added{" "}
