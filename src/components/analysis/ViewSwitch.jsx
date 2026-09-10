@@ -6,7 +6,16 @@ import { fmtMoney } from "@/lib/format";
 // what each view is FOR rather than what it technically contains:
 //
 //   Whole view    "How is the strategy doing?"      -> judging performance
-//   Premium only  "What have I actually banked?"    -> reconciling to a 1099-B
+//   Premium only  "What did selling options bank?"  -> the option legs alone
+//
+// PREMIUM ONLY IS NOT A TAX VIEW, and the screen said it was. The first version
+// told the user this was "the view to use against a 1099-B". It is not, in
+// three independent ways: it excludes share sales, which are the largest lines
+// on a wheel trader's 1099-B; on an assigned put the premium is not option
+// income at all, it reduces the stock basis; and no wash sale, straddle or
+// §1256 treatment is applied anywhere in this product. The tax paragraph
+// further down AccountAnalysis already says all of that. A user who followed
+// the deleted clause would have filed short by their share proceeds.
 //
 // WHOLE VIEW IS THE DEFAULT, and the reason is not prudence. A wheel trader who
 // is assigned has not lost: he has been paid a premium and bought stock at a

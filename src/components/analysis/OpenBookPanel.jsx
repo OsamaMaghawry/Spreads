@@ -26,7 +26,13 @@ export default function OpenBookPanel({ book, priced = true }) {
         <Layers className="h-4 w-4 text-slate-400 shrink-0" />
         <h3 className="text-sm font-semibold text-slate-900">Shares still held</h3>
         <span className="text-xs text-slate-500 tabular-nums">
-          {book.lots} lot{book.lots > 1 ? "s" : ""} · {book.shares} shares · {fmtMoney(book.basis)} at cost
+          {book.lots} lot{book.lots > 1 ? "s" : ""} · {book.shares} shares ·{" "}
+          {/* When some shares have no recorded cost, this figure is the cost of
+              the REST of them, and saying "at cost" flat would overstate how
+              much of the book it describes. */}
+          {book.unknownCostShares > 0
+            ? `${fmtMoney(book.basis)} — cost of ${book.shares - book.unknownCostShares} of ${book.shares} shares`
+            : `${fmtMoney(book.basis)} at cost`}
         </span>
         {priced && (
           <span className="ml-auto text-right">
@@ -49,15 +55,36 @@ export default function OpenBookPanel({ book, priced = true }) {
         <div className="flex gap-2 px-5 py-2.5 bg-amber-50 border-b border-amber-200 text-xs text-amber-900 leading-relaxed">
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
           <span>
+            {/* The reason is READ, never assumed. The first version said "no
+                current price" for every case -- including one where the price
+                was present and the acquisition cost was missing, and reported
+                a $0.00 gap against a book that had one. */}
             {book.mismatched.length > 0 ? (
               <>
                 The broker reports a different quantity than this ledger on{" "}
                 <strong>{book.mismatched.join(", ")}</strong>. Until they agree, a total would be a
                 guess with a decimal point.
               </>
+            ) : book.stranded.length > 0 ? (
+              <>
+                The broker holds <strong>{book.stranded.join(", ")}</strong>, which this ledger has no
+                open lot for — most often a recent assignment that has not synced yet. The total is
+                withheld rather than stated over a book that is not all here.
+              </>
+            ) : book.collided.length > 0 ? (
+              <>
+                Two positions report under <strong>{book.collided.join(", ")}</strong> — usually an
+                adjusted contract beside the ordinary one. They cannot be priced as one line.
+              </>
+            ) : book.noCost.length > 0 ? (
+              <>
+                No recorded acquisition cost for <strong>{book.noCost.join(", ")}</strong>
+                {book.unknownCostShares > 0 ? ` (${book.unknownCostShares} shares)` : ""}. There is a
+                current price, but nothing to measure it against.
+              </>
             ) : (
               <>
-                No current price for <strong>{book.unmarked.join(", ")}</strong> —{" "}
+                No current price for <strong>{book.noPrice.join(", ")}</strong> —{" "}
                 {fmtMoney(book.unmarkedBasis)} of {fmtMoney(book.basis)} at cost. The total is withheld
                 rather than shown for part of the book.
               </>
@@ -115,9 +142,8 @@ export default function OpenBookPanel({ book, priced = true }) {
       <p className="px-5 py-3 text-xs text-slate-500 leading-relaxed border-t border-slate-100">
         {priced ? (
           <>
-            Marked at the broker's current price. <strong>Price only</strong> — no dividend is
-            recorded anywhere in this product, so a held position's income is not in this figure.
-            Unrealized money is not booked and can go either way before it is.
+            Marked at the broker's current price. <strong>Price only — dividends received are not
+            included.</strong> Unrealized money is not booked and can go either way before it is.
           </>
         ) : (
           <>

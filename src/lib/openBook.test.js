@@ -168,3 +168,56 @@ test("a row with no close date is in neither view", () => {
   assert.equal(realizedShares([{ stock_pl: 100 }]), 0);
   assert.equal(premiumOnly(null), 0);
 });
+
+// --- the gate's blockers, each as the case that produced it ----------------
+
+test("B2: an unknown acquisition price does not silently shrink the book's cost", () => {
+  // The banner read "No current price for JNJ — $0.00 of $10,900.00 at cost"
+  // when the price was there and the COST was not, and the book's own basis
+  // had quietly dropped the JNJ shares out of both columns.
+  const b = openBook(
+    [lot("JNJ", 100, null, "2026-07-31"), lot("WMT", 100, 109, "2026-08-21")],
+    [eq("JNJ", 100, 260), eq("WMT", 100, 112)]
+  );
+  assert.equal(b.unknownCostShares, 100, "the shares with no cost are counted, not vanished");
+  assert.deepEqual(b.noCost, ["JNJ"]);
+  assert.deepEqual(b.noPrice, [], "the price was never the missing input");
+  assert.equal(b.complete, false);
+  assert.equal(b.unrealized, null);
+});
+
+test("B3: shares the broker holds with no ledger lot withhold the total and are named", () => {
+  // Assignment-to-sync lag. 500 NVDA at the broker appeared nowhere, and the
+  // total published as complete over a book it had not fully read.
+  const b = openBook([lot("TSLA", 100, 320, "2026-07-24")], [eq("TSLA", 100, 375), eq("NVDA", 500, 180)]);
+  assert.deepEqual(b.stranded, ["NVDA"]);
+  assert.equal(b.complete, false, "a confident headline over an unread book is the defect");
+  assert.equal(b.unrealized, null);
+});
+
+test("M2: a fractional quantity difference is not a disagreement", () => {
+  const b = openBook([lot("TSLA", 100, 320, "2026-07-24")], [eq("TSLA", 100.0000001, 375)]);
+  assert.equal(b.tickers[0].qtyMatchesBroker, true);
+  assert.equal(b.complete, true);
+  // And a real difference still is one.
+  const c = openBook([lot("TSLA", 100, 320, "2026-07-24")], [eq("TSLA", 99, 375)]);
+  assert.equal(c.complete, false);
+});
+
+test("M3: two broker symbols collapsing to one ticker withhold rather than pick a winner", () => {
+  // TSLA @375 and the adjusted TSLA1 @10 both key to TSLA. Letting the last
+  // one win published -$31,000 as a COMPLETE total.
+  const b = openBook([lot("TSLA", 100, 320, "2026-07-24")], [eq("TSLA", 100, 375), eq("TSLA1", 100, 10)]);
+  assert.deepEqual(b.collided, ["TSLA"]);
+  assert.equal(b.complete, false);
+  assert.equal(b.unrealized, null);
+});
+
+test("M3: an all-digit ticker keeps its own identity", () => {
+  // Stripping trailing digits without occ.ts's `|| root` fallback keyed every
+  // numeric ticker to the empty string, and they collided with each other.
+  const b = openBook([lot("2330", 100, 50, "2026-08-01")], [eq("2330", 100, 55)]);
+  assert.equal(b.tickers[0].ticker, "2330");
+  assert.equal(b.complete, true);
+  assert.equal(Math.round(b.unrealized), 500);
+});

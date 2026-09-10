@@ -14,7 +14,7 @@ import DateRangeFilter from "@/components/analysis/DateRangeFilter";
 import CaptureBreakdown from "@/components/analysis/CaptureBreakdown";
 import OpenBookPanel from "@/components/analysis/OpenBookPanel";
 import ViewSwitch from "@/components/analysis/ViewSwitch";
-import { openBook, premiumOnly } from "@/lib/openBook";
+import { openBook, premiumOnly, realizedShares } from "@/lib/openBook";
 
 export default function AccountAnalysis() {
   const { id } = useParams();
@@ -133,11 +133,32 @@ export default function AccountAnalysis() {
   // would recreate the defect this was built to fix.
   const book = useMemo(() => openBook(data?.stockLots, broker), [data, broker]);
   const premiumFigure = useMemo(() => premiumOnly(subset), [subset]);
+  // The bridge between the two realized numbers on this page. Premium only is
+  // -$1,686 while StatCards says Realized P/L -$1,244; the $442 difference is
+  // the share result of lots already SOLD, and nothing on screen explained it.
+  // Invisible on a book that has sold nothing, and it appears the moment one
+  // wheel lot is closed.
+  const soldSharesFigure = useMemo(() => realizedShares(subset), [subset]);
   // Realized (option legs AND shares already sold) plus the mark on what is
   // still held. Null -- never a substitute number -- when any lot is unpriced.
+  //
+  // AND ONLY WHEN THE TWO HALVES ANSWER THE SAME QUESTION. `stats.totalPL` is
+  // filtered by the strategy tab and the date range; the book deliberately is
+  // not, because an open position is held today whatever window is being read.
+  // Adding an all-time figure to a windowed one produces a number that answers
+  // nothing: on the covered-call tab it was reporting -$2,221 of covered-call
+  // realized plus the mark on the entire equity book. The panel below stays
+  // visible and unfiltered -- it is the ADDITION that is withheld, the same
+  // discipline return on equity already applies under a strategy filter.
+  const scoped = strategy === "all" && !range.from && !range.to;
   const wholeFigure =
-    stats && book.unrealized !== null ? stats.totalPL + book.unrealized : null;
-  const wholeUnknown = !stats || (book.lots > 0 && book.unrealized === null);
+    stats && scoped && book.unrealized !== null ? stats.totalPL + book.unrealized : null;
+  const wholeUnknown = !stats || !scoped || (book.lots > 0 && book.unrealized === null);
+  const wholeWithheldBecause = !scoped
+    ? "filtered"
+    : book.lots > 0 && book.unrealized === null
+      ? "unpriced"
+      : null;
 
   if (loading) {
     return (
@@ -221,6 +242,13 @@ export default function AccountAnalysis() {
                   wholeUnknown={wholeUnknown}
                 />
                 <p className="text-xs text-slate-500 leading-relaxed max-w-xs">
+                  {/* The switch changes the HEADLINE and nothing else. Without
+                      this line it reads like a global control while every
+                      statistic below it stays realized-only whichever way it
+                      is flipped. */}
+                  <span className="block text-slate-400 mb-1">
+                    Changes the headline only — the statistics below are realized.
+                  </span>
                   {view === "whole" ? (
                     <>
                       <strong>Whole view</strong> — realized money plus the current mark on shares
@@ -228,8 +256,24 @@ export default function AccountAnalysis() {
                     </>
                   ) : (
                     <>
+                      {/* The clause "and is the view to use against a 1099-B"
+                          stood here and is deleted, not softened. Premium only
+                          EXCLUDES share sales, which are the largest lines on a
+                          wheel trader's 1099-B, and on an assigned put the
+                          premium is not option income at all -- it reduces the
+                          stock basis. It also contradicted the tax paragraph
+                          200 pixels below, which already tells the reader to
+                          reconcile against the broker's own 1099-B. One screen
+                          must not carry two instructions about a tax filing. */}
                       <strong>Premium only</strong> — the option legs alone. Answers “what have I
-                      actually banked?”, and is the view to use against a 1099-B.
+                      actually banked from selling options?”
+                      {Math.abs(soldSharesFigure) >= 0.005 && (
+                        <>
+                          {" "}Shares already sold added{" "}
+                          <strong>{soldSharesFigure >= 0 ? "+" : ""}${Math.abs(soldSharesFigure).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>{" "}
+                          on top of this, which is why Realized P/L below differs.
+                        </>
+                      )}
                     </>
                   )}
                 </p>
