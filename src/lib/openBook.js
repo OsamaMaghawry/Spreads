@@ -245,96 +245,18 @@ export function realizedShares(trades) {
   return rows.reduce((a, t) => a + (num(t.stock_pl) || 0), 0);
 }
 
-/**
- * The equity curve FOR A VIEW, so the chart ends where the headline says.
- *
- * The owner, on the built version: "the graph doesn't go with the filter."
- * He was right, and the defect was worse than the switch not driving it. The
- * curve accumulated `realized_pl` and ended at the realized total -- which is
- * NEITHER view's figure. Premium only reported -$751 over a chart ending at
- * +$594, and Whole view reported realized-plus-mark over the same chart. Three
- * numbers on one screen claiming to describe one account.
- *
- * WHAT CANNOT BE DRAWN, and why the shape is what it is. There is no history
- * of unrealized value anywhere in this product: `stock_lots` records what a lot
- * cost and, once sold, what it made, and nothing in between. Reconstructing a
- * mark-to-market path would need a historical price per lot per day, which is
- * a data source this does not have. So Whole view draws the realized path it
- * can prove and then ONE step to today's mark, drawn dashed and dated today
- * rather than smoothed into the line. A curve that implied the book had
- * travelled that path would be an invention.
- *
- * @param trades     the filtered rows the page is showing
- * @param view       "whole" | "premium"
- * @param unrealized book.unrealized, or null when it cannot be priced
- */
-export function viewCurve(trades, view, unrealized) {
-  const rows = (trades || [])
-    .filter((t) => t && t.close_date)
-    .slice()
-    .sort((a, b) => String(a.close_date).localeCompare(String(b.close_date)));
-
-  const valueOf = (t) =>
-    view === "premium"
-      ? (num(t.premium_pl) || 0) + (num(t.early_close_pl) || 0)
-      : num(t.realized_pl) || 0;
-
-  let cum = 0;
-  const points = rows.map((t) => {
-    cum += valueOf(t);
-    return { date: t.close_date, cum, pl: valueOf(t), mark: null };
-  });
-
-  // Premium only ends at the option legs and stops. There is nothing to mark:
-  // the shares it excludes are excluded on purpose.
-  if (view !== "whole" || unrealized === null || unrealized === undefined || !points.length) {
-    return { points, marked: false, realizedEnd: cum, end: cum };
-  }
-
-  // The dashed leg. `mark` is set on the LAST historical point too, or the
-  // dashed series has one end and draws nothing.
-  points[points.length - 1] = { ...points[points.length - 1], mark: cum };
-  const today = new Date().toISOString().slice(0, 10);
-  points.push({ date: today, cum: null, pl: null, mark: cum + unrealized, isMark: true });
-
-  return { points, marked: true, realizedEnd: cum, end: cum + unrealized };
-}
-
-/**
- * Re-bucket the month and ticker tables for the selected view.
- *
- * Same defect as the curve, one layer down: `computeStats` sums `realized_pl`
- * into both tables, so under Premium only every month showed a figure that
- * included share results the view says it excludes -- and the columns never
- * changed when the switch was flipped.
- *
- * Whole view keeps `computeStats`'s own rows untouched, because the mark on
- * shares still held belongs to no month: it is today's price on a position
- * that has not closed, and putting it in September would claim a realization
- * that has not happened. Only Premium only re-buckets.
- */
-export function viewBreakdown(trades, view, rows, keyField) {
-  if (view !== "premium") return rows || [];
-  const map = {};
-  for (const t of trades || []) {
-    if (!t || !t.close_date) continue;
-    const key = keyField === "month" ? String(t.close_date).slice(0, 7) : t.ticker;
-    if (key === undefined || key === null) continue;
-    const b = (map[key] = map[key] || { [keyField]: key, pl: 0, trades: 0, settled: 0, wins: 0 });
-    const v = (num(t.premium_pl) || 0) + (num(t.early_close_pl) || 0);
-    b.pl += v;
-    b.trades += 1;
-    // Win/loss stays measured on the WHOLE row, not on the option legs alone.
-    // A wheel put assigned into a losing stock position has a positive option
-    // leg, and calling that a win because this view hides the shares would be
-    // the flattering half of exactly the defect the switch exists to fix.
-    if (!t.provisional) {
-      b.settled += 1;
-      if ((num(t.realized_pl) || 0) > 0) b.wins += 1;
-    }
-  }
-  const out = Object.values(map);
-  return keyField === "month"
-    ? out.sort((a, b) => String(a.month).localeCompare(String(b.month)))
-    : out.sort((a, b) => b.pl - a.pl);
-}
+// `viewCurve` and `viewBreakdown` used to live here and are gone.
+//
+// `viewCurve` drew the cumulative closed-trade line plus one dashed step to
+// today's mark -- the shape the owner called a pole. It is replaced by
+// `dailySeries` in src/lib/equityCurve.js, which reads the stored daily series
+// `equityHistory` writes: a real mark for every day, so the share appreciation
+// arrives over the weeks it accrued instead of in one vertical line. The
+// strategy-tab fallback that still needs a booked-money line is `bookedCurve`
+// in the same module, and it draws no mark leg at all.
+//
+// `viewBreakdown` re-bucketed the month and ticker tables under Premium only,
+// because `computeStats` summed `realized_pl` whichever view was selected.
+// `computeStats` now takes the view itself and buckets correctly at the source,
+// so a second pass over the same trades to correct the first one is no longer a
+// thing that exists.

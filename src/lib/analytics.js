@@ -8,12 +8,48 @@ const days = (a, b) => Math.max(0, Math.round((new Date(b) - new Date(a)) / 8640
 // would misstate exactly the discipline these figures are meant to measure.
 export const heldToExpiry = (t) => t.close_reason !== 'closed';
 
-export function computeStats(trades, equity = 0) {
+/**
+ * @param trades  closed trade_records
+ * @param equity  account equity, or 0 to withhold return on equity
+ * @param view    "whole" | "premium" — WHICH RESULT EACH TRADE COUNTS AS.
+ * @param extra   { unrealized, dailyPoints }
+ *
+ * THE VIEW DRIVES EVERY FIGURE THIS RETURNS, and that is the change the owner
+ * asked for: *"you put two buttons below… but this doesn't reflect to the upper
+ * numbers. When I say whole view, everything should be whole view."*
+ *
+ * He was right that the switch was cosmetic. Every statistic below read
+ * `realized_pl` whichever way it was flipped, so Premium only reported one
+ * headline over a page of whole-position figures. Now one function decides what
+ * a trade was worth and the other forty-odd outputs follow it:
+ *
+ *   Whole view    the position's whole result — option legs AND the shares it
+ *                 delivered. A wheel put assigned into stock that recovered is
+ *                 a win here, which is what it was.
+ *   Premium only  the option legs alone, signed. A win means the legs made
+ *                 money, whatever the shares did.
+ *
+ * Both are well defined for a CLOSED position, which is why every outcome
+ * statistic can follow the switch. What cannot follow it is the mark on shares
+ * STILL HELD: an open position has no outcome to count, so `extra.unrealized`
+ * joins the money aggregates — total, return on equity, return on risk — and
+ * touches no win rate, streak or payoff. `includesUnrealized` says whether it
+ * did, so the screen never has to guess.
+ */
+export function computeStats(trades, equity = 0, view = "whole", extra = {}) {
   const rows = trades.filter((t) => t.close_date);
   if (rows.length === 0) return null;
 
+  // One definition of "what this trade was worth", read everywhere below.
+  // premium_pl is SIGNED — negative on a net debit — so a bought option that
+  // closed for a gain contributes its gain rather than a phantom credit.
+  const plOf =
+    view === "premium"
+      ? (t) => (t.premium_pl || 0) + (t.early_close_pl || 0)
+      : (t) => t.realized_pl || 0;
+
   const sorted = rows.slice().sort((a, b) => a.close_date.localeCompare(b.close_date));
-  const pls = sorted.map((t) => t.realized_pl || 0);
+  const pls = sorted.map(plOf);
 
   // A position closed by assignment whose shares are still held has a result so
   // far, not a result. Its option leg is booked and the shares that decide the
@@ -41,16 +77,39 @@ export function computeStats(trades, equity = 0) {
   // never zero -- $0.00 is a statement about an account, and "no settled
   // losses yet" is not that statement.
   const settled = sorted.filter((t) => !t.provisional);
-  const settledPLs = settled.map((t) => t.realized_pl || 0);
+  const settledPLs = settled.map(plOf);
   const provisionalCount = sorted.length - settled.length;
-  const wins = settled.filter((t) => (t.realized_pl || 0) > 0);
-  const losses = settled.filter((t) => (t.realized_pl || 0) < 0);
+  const wins = settled.filter((t) => plOf(t) > 0);
+  const losses = settled.filter((t) => plOf(t) < 0);
 
-  const totalPL = pls.reduce((a, v) => a + v, 0);
-  const grossWin = wins.reduce((a, t) => a + t.realized_pl, 0);
-  const grossLoss = Math.abs(losses.reduce((a, t) => a + t.realized_pl, 0));
+  // Money the account has actually booked, under this view.
+  const bookedPL = pls.reduce((a, v) => a + v, 0);
+
+  // The mark on shares still held, which joins the MONEY figures and nothing
+  // else. Premium only excludes shares by definition, so it never takes the
+  // mark however it is passed in — the switch must not be able to produce a
+  // premium headline with share appreciation inside it.
+  const unrealized =
+    view === "premium" || extra.unrealized === null || extra.unrealized === undefined
+      ? null
+      : extra.unrealized;
+  const totalPL = unrealized === null ? bookedPL : bookedPL + unrealized;
+
+  const grossWin = wins.reduce((a, t) => a + plOf(t), 0);
+  const grossLoss = Math.abs(losses.reduce((a, t) => a + plOf(t), 0));
 
   const creditCollected = sorted.reduce((a, t) => a + (t.net_credit || 0) * (t.qty || 0) * 100, 0);
+  // Credit capture is the one ratio that does NOT follow the view, and the
+  // reason is arithmetic rather than preference: it asks what share of the
+  // premium sold was kept, so its numerator has to be the option legs in both
+  // views. Fold assigned shares into it and a put assigned into stock that
+  // recovered reports capture far above 100% — a ratio exceeding its own
+  // maximum measures nothing. CaptureBreakdown has always computed it this way;
+  // the headline card disagreed with the table underneath it until now.
+  const optionLegPL = sorted.reduce(
+    (a, t) => a + (t.premium_pl || 0) + (t.early_close_pl || 0),
+    0
+  );
   const riskOf = (t) => {
     const qty = t.qty || 0;
     // A leg with no short is a long option, and the most it can lose is what
@@ -94,27 +153,53 @@ export function computeStats(trades, equity = 0) {
   // result is the premium half of one.
   const perTradeRoRs = sorted.filter((t) => !t.provisional).map((t) => {
     const risk = riskOf(t);
-    return risk > 0 ? (t.realized_pl || 0) / risk : null;
+    return risk > 0 ? plOf(t) / risk : null;
   }).filter((v) => v !== null);
   const avgTradeRoR = perTradeRoRs.length
     ? perTradeRoRs.reduce((a, v) => a + v, 0) / perTradeRoRs.length
     : null;
 
-  // Equity curve + max drawdown of cumulative realized P/L.
-  let cum = 0, peak = 0, maxDD = 0;
+  // Cumulative curve of the view's own value, and the drawdown of it.
+  let cum = 0, peak = 0, bookedDD = 0;
   const curve = sorted.map((t) => {
-    cum += t.realized_pl || 0;
+    cum += plOf(t);
     peak = Math.max(peak, cum);
-    maxDD = Math.max(maxDD, peak - cum);
-    return { date: t.close_date, cum, pl: t.realized_pl || 0 };
+    bookedDD = Math.max(bookedDD, peak - cum);
+    return { date: t.close_date, cum, pl: plOf(t) };
   });
+
+  // DRAWDOWN COMES FROM THE STORED DAILY SERIES WHEN THERE IS ONE, and that is
+  // a correction, not a refinement. Measured trade by trade on booked money
+  // alone, the worst drawdown a wheel account could ever report was the sum of
+  // its option debits — the whole of an assigned position falling and
+  // recovering registered as nothing at all, because no trade closed while it
+  // happened. `extra.dailyPoints` carries a real mark for every day, so the
+  // trough is the trough the account actually sat in.
+  //
+  // Nulls are skipped rather than treated as zero: a day the book could not be
+  // valued is not a day the book was worth nothing, and reading it as zero
+  // would manufacture the deepest drawdown on the chart.
+  const daily = Array.isArray(extra.dailyPoints) ? extra.dailyPoints : null;
+  let dailyDD = null;
+  if (daily && daily.length) {
+    let dPeak = null;
+    dailyDD = 0;
+    for (const p of daily) {
+      const v = typeof p?.value === "number" && isFinite(p.value) ? p.value : null;
+      if (v === null) continue;
+      dPeak = dPeak === null ? v : Math.max(dPeak, v);
+      dailyDD = Math.max(dailyDD, dPeak - v);
+    }
+    if (dPeak === null) dailyDD = null;
+  }
+  const maxDD = dailyDD === null ? bookedDD : dailyDD;
 
   // Per-day aggregation, over every row: a day's figure is the cash booked that
   // day, which is a money question. "Green days" therefore counts days that
   // booked money, not days that finished winning trades, and the card says so.
   const byDayMap = {};
   sorted.forEach((t) => {
-    byDayMap[t.close_date] = (byDayMap[t.close_date] || 0) + (t.realized_pl || 0);
+    byDayMap[t.close_date] = (byDayMap[t.close_date] || 0) + plOf(t);
   });
   const byDay = Object.entries(byDayMap).map(([date, pl]) => ({ date, pl })).sort((a, b) => a.date.localeCompare(b.date));
   const winDays = byDay.filter((d) => d.pl > 0).length;
@@ -133,11 +218,11 @@ export function computeStats(trades, equity = 0) {
   sorted.forEach((t) => {
     const m = t.close_date.substring(0, 7);
     const b = (byMonthMap[m] = byMonthMap[m] || { month: m, pl: 0, trades: 0, settled: 0, wins: 0 });
-    b.pl += t.realized_pl || 0;
+    b.pl += plOf(t);
     b.trades += 1;
     if (t.provisional) return;
     b.settled += 1;
-    if ((t.realized_pl || 0) > 0) b.wins += 1;
+    if (plOf(t) > 0) b.wins += 1;
   });
   const byMonth = Object.values(byMonthMap).sort((a, b) => a.month.localeCompare(b.month));
 
@@ -147,11 +232,11 @@ export function computeStats(trades, equity = 0) {
     const b = (byTickerMap[t.ticker] = byTickerMap[t.ticker] || {
       ticker: t.ticker, pl: 0, trades: 0, settled: 0, wins: 0
     });
-    b.pl += t.realized_pl || 0;
+    b.pl += plOf(t);
     b.trades += 1;
     if (t.provisional) return;
     b.settled += 1;
-    if ((t.realized_pl || 0) > 0) b.wins += 1;
+    if (plOf(t) > 0) b.wins += 1;
   });
   const byTicker = Object.values(byTickerMap).sort((a, b) => b.pl - a.pl);
 
@@ -175,6 +260,15 @@ export function computeStats(trades, equity = 0) {
 
   return {
     totalPL,
+    // The two halves of it, named, so a screen can show the mark separately
+    // and never has to subtract one figure from another to find it.
+    bookedPL,
+    unrealizedPL: unrealized,
+    includesUnrealized: unrealized !== null,
+    view,
+    // Whether the drawdown above came from real daily marks or from booked
+    // trades alone. The card says which; they are not the same measurement.
+    drawdownFromDaily: dailyDD !== null,
     trades: sorted.length,
     contracts: sorted.reduce((a, t) => a + (t.qty || 0), 0),
     // Everything from here to largestLoss is measured over settled trades
@@ -197,7 +291,7 @@ export function computeStats(trades, equity = 0) {
     largestLoss: losses.length ? Math.min(...settledPLs) : null,
     expiredCount: sorted.filter((t) => t.close_reason === 'expired').length,
     creditCollected,
-    captureRate: creditCollected > 0 ? totalPL / creditCollected : null,
+    captureRate: creditCollected > 0 ? optionLegPL / creditCollected : null,
     totalRisk,
     avgRisk,
     peakRisk,
@@ -218,12 +312,12 @@ export function computeStats(trades, equity = 0) {
     avgHoldDays: holdDays,
     tradingDays: byDay.length,
     dayWinRate: byDay.length ? winDays / byDay.length : 0,
-    avgDayPL: byDay.length ? totalPL / byDay.length : 0,
+    avgDayPL: byDay.length ? bookedPL / byDay.length : 0,
     medianDayPL,
-    avgDayReturn: equity > 0 && byDay.length ? totalPL / byDay.length / equity : null,
+    avgDayReturn: equity > 0 && byDay.length ? bookedPL / byDay.length / equity : null,
     medianDayReturn: equity > 0 ? medianDayPL / equity : null,
     // Per-day return on the collateral actually at work (peak concurrent risk).
-    avgDayRiskReturn: peakRisk > 0 && byDay.length ? totalPL / byDay.length / peakRisk : null,
+    avgDayRiskReturn: peakRisk > 0 && byDay.length ? bookedPL / byDay.length / peakRisk : null,
     medianDayRiskReturn: peakRisk > 0 ? medianDayPL / peakRisk : null,
     bestDay: byDay.reduce((m, d) => (d.pl > (m?.pl ?? -Infinity) ? d : m), null),
     worstDay: byDay.reduce((m, d) => (d.pl < (m?.pl ?? Infinity) ? d : m), null),

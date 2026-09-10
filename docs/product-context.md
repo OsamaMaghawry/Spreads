@@ -115,6 +115,7 @@ so a change to shared code requires redeploying all of them.
 - **closeSpread** — Submits the closing order for a position: the whole structure by default, or just the legs the caller picked when only one side needs unwinding.
 - **createCheckoutSession** — Starts a Stripe Checkout for the Live plan and returns the page to send the user to.
 - **dumpBrokerFeed** — Captures a broker activity feed so a refused sync can be diagnosed off-box.
+- **equityHistory** — (no summary comment)
 - **findEntry** — Scans the live chain and returns the delta-targeted setup for one strategy.
 - **manageOrder** — Reads the status of a working order, cancels it, or replaces its price or size.
 - **marketStream** — Live underlying prices, relayed from Alpaca's stream.
@@ -161,6 +162,7 @@ revoked from the browser role entirely.
 - **broker_feed_dumps** — id, account_id, activities, activity_count, created_at, positions, filled_orders
 - **subscriptions** — user_id, stripe_customer_id, stripe_subscription_id, plan, status, current_period_end, cancel_at_period_end, grandfathered_until, created_at, updated_at
 - **growth_metrics** — day, search, analytics, funnel, created_at
+- **account_equity_daily** — account_id, user_id, day, equity, profit_loss, base_value, premium_cum, shares_booked, shares_open, shares_cost, shares_value, performance, unpriced, source, captured_at, equity_synced_at
 
 ## Analytics vocabulary
 
@@ -169,7 +171,7 @@ being premium-seller specific rather than generic profit and loss: credit
 capture is the kept share of premium sold, and return on risk is measured
 against peak *concurrent* collateral rather than the sum of every trade.
 
-`totalPL` · `trades` · `contracts` · `settledTrades` · `provisionalTrades` · `winRate` · `wins` · `losses` · `scratches` · `avgPL` · `avgWin` · `avgLoss` · `profitFactor` · `payoffRatio` · `largestWin` · `largestLoss` · `expiredCount` · `creditCollected` · `captureRate` · `totalRisk` · `avgRisk` · `peakRisk` · `returnOnRisk` · `avgTradeRoR` · `roe` · `annualizable` · `annualized` · `cagr` · `maxDrawdown` · `avgHoldDays` · `tradingDays` · `dayWinRate` · `avgDayPL` · `medianDayPL` · `avgDayReturn` · `medianDayReturn` · `avgDayRiskReturn` · `medianDayRiskReturn` · `bestDay` · `worstDay` · `bestStreak` · `worstStreak` · `firstDate` · `lastDate` · `spanDays` · `curve` · `byDay` · `byMonth`
+`totalPL` · `bookedPL` · `unrealizedPL` · `includesUnrealized` · `view` · `drawdownFromDaily` · `trades` · `contracts` · `settledTrades` · `provisionalTrades` · `winRate` · `wins` · `losses` · `scratches` · `avgPL` · `avgWin` · `avgLoss` · `profitFactor` · `payoffRatio` · `largestWin` · `largestLoss` · `expiredCount` · `creditCollected` · `captureRate` · `totalRisk` · `avgRisk` · `peakRisk` · `returnOnRisk` · `avgTradeRoR` · `roe` · `annualizable` · `annualized` · `cagr` · `maxDrawdown` · `avgHoldDays` · `tradingDays` · `dayWinRate` · `avgDayPL` · `medianDayPL` · `avgDayReturn` · `medianDayReturn` · `avgDayRiskReturn` · `medianDayRiskReturn` · `bestDay` · `worstDay` · `bestStreak` · `worstStreak` · `firstDate` · `lastDate` · `spanDays` · `curve` · `byDay` · `byMonth`
 
 ## Known gaps
 

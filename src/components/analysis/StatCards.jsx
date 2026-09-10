@@ -3,22 +3,46 @@ import { fmtMoney } from "@/lib/format";
 const pct = (v, d = 1) => (v === null || v === undefined || !isFinite(v) ? "—" : `${(v * 100).toFixed(d)}%`);
 const num = (v, d = 2) => (v === null || v === undefined || !isFinite(v) ? "—" : v.toFixed(d));
 
+// Every card reads whatever `computeStats` was told to measure, so the labels
+// have to say WHICH measurement or the page is precise and unlabelled. Three
+// things vary: whether a trade's result means the whole position or its option
+// legs, whether the total carries the mark on shares still held, and whether
+// drawdown came from real daily values or from booked trades alone.
 export default function StatCards({ stats }) {
+  const premium = stats.view === "premium";
+  // "settled trades" appears on eleven cards; under Premium only they are the
+  // same trades measured a different way, and saying so once per card is how a
+  // reader who scrolls past the switch still knows what they are reading.
+  const basis = premium ? "Option legs, settled trades" : "Settled trades";
+  const totalLabel = premium
+    ? "Option-leg P/L"
+    : stats.includesUnrealized
+      ? "Total P/L"
+      : "Realized P/L";
+  const totalSub = premium
+    ? "Credits taken less debits paid, closed trades"
+    : stats.includesUnrealized
+      ? `${fmtMoney(stats.bookedPL)} booked + ${fmtMoney(stats.unrealizedPL)} on shares still held`
+      : "Money booked on closed positions";
+
   const groups = [
     {
       title: "Returns",
       items: [
-        { label: "Realized P/L", value: fmtMoney(stats.totalPL), tone: stats.totalPL >= 0 ? "pos" : "neg" },
-        { label: "Return on equity", value: pct(stats.roe), sub: "Realized P/L ÷ account equity", tone: stats.roe === null ? undefined : stats.roe >= 0 ? "pos" : "neg" },
+        { label: totalLabel, value: fmtMoney(stats.totalPL), sub: totalSub, tone: stats.totalPL >= 0 ? "pos" : "neg" },
+        { label: "Return on equity", value: pct(stats.roe), sub: `${totalLabel} ÷ account equity`, tone: stats.roe === null ? undefined : stats.roe >= 0 ? "pos" : "neg" },
         // Withheld below 30 trades / 90 days: annualizing a short window
         // multiplies noise into a headline figure. The sub says so, so the
         // dash reads as deliberate rather than broken.
         { label: "Annualized (simple)", value: pct(stats.annualized), sub: stats.annualizable ? `ROE × 365 ÷ ${stats.spanDays} days` : "Needs 30 closed trades and 90 days of history", tone: stats.annualized === null ? undefined : stats.annualized >= 0 ? "pos" : "neg" },
         { label: "Annualized (CAGR)", value: pct(stats.cagr), sub: stats.annualizable ? "Compounded over the same span" : "Needs 30 closed trades and 90 days of history", tone: stats.cagr === null ? undefined : stats.cagr >= 0 ? "pos" : "neg" },
         { label: "Return on risk", value: pct(stats.returnOnRisk), sub: `vs ${fmtMoney(stats.peakRisk)} peak capital at risk` },
-        { label: "Avg return / trade", value: pct(stats.avgTradeRoR, 2), sub: "Each trade's P/L ÷ its own collateral, settled trades" },
+        { label: "Avg return / trade", value: pct(stats.avgTradeRoR, 2), sub: `Each trade's P/L ÷ its own collateral · ${basis.toLowerCase()}` },
         { label: "Credit collected", value: fmtMoney(stats.creditCollected) },
-        { label: "Credit capture", value: pct(stats.captureRate), sub: "Kept share of premium sold" }
+        // The one figure that does not follow the view, and the sub says
+        // so. Fold assigned shares into the numerator and a put assigned
+        // into stock that recovered reports capture above 100%.
+        { label: "Credit capture", value: pct(stats.captureRate), sub: "Kept share of premium sold — option legs, both views" }
       ]
     },
     {
@@ -36,21 +60,26 @@ export default function StatCards({ stats }) {
             stats.provisionalTrades ? ` · ${stats.provisionalTrades} not final, excluded` : ""
           }`
         },
-        { label: "Profit factor", value: num(stats.profitFactor), sub: "Gross wins ÷ gross losses, settled trades" },
-        { label: "Expectancy / trade", value: fmtMoney(stats.avgPL), sub: "Over settled trades", tone: stats.avgPL === null || stats.avgPL === undefined ? undefined : stats.avgPL >= 0 ? "pos" : "neg" },
-        { label: "Payoff ratio", value: num(stats.payoffRatio), sub: "Avg win ÷ avg loss, settled trades" },
+        { label: "Profit factor", value: num(stats.profitFactor), sub: `Gross wins ÷ gross losses · ${basis.toLowerCase()}` },
+        { label: "Expectancy / trade", value: fmtMoney(stats.avgPL), sub: basis, tone: stats.avgPL === null || stats.avgPL === undefined ? undefined : stats.avgPL >= 0 ? "pos" : "neg" },
+        { label: "Payoff ratio", value: num(stats.payoffRatio), sub: `Avg win ÷ avg loss · ${basis.toLowerCase()}` },
         // A dash is not a positive number. Painting it green said "no settled
         // wins yet" in the colour reserved for winning.
-        { label: "Avg win", value: fmtMoney(stats.avgWin), sub: "Settled trades", tone: stats.avgWin === null ? undefined : "pos" },
-        { label: "Avg loss", value: fmtMoney(stats.avgLoss), sub: "Settled trades", tone: stats.avgLoss === null ? undefined : "neg" }
+        { label: "Avg win", value: fmtMoney(stats.avgWin), sub: basis, tone: stats.avgWin === null ? undefined : "pos" },
+        { label: "Avg loss", value: fmtMoney(stats.avgLoss), sub: basis, tone: stats.avgLoss === null ? undefined : "neg" }
       ]
     },
     {
       title: "Risk & activity",
       items: [
-        { label: "Max drawdown", value: fmtMoney(stats.maxDrawdown ? -stats.maxDrawdown : 0), sub: "Peak-to-trough realized", tone: "neg" },
-        { label: "Largest win", value: fmtMoney(stats.largestWin), sub: "Settled trades", tone: stats.largestWin === null ? undefined : "pos" },
-        { label: "Largest loss", value: fmtMoney(stats.largestLoss), sub: "Settled trades", tone: stats.largestLoss === null ? undefined : "neg" },
+        // Two different measurements under one name, so the sub names
+        // which one. Booked trade by trade, a position that fell $9,000
+        // and recovered registers NOTHING, because no trade closed while
+        // it happened. The daily series has a mark for every day, so the
+        // trough is the trough the account actually sat in.
+        { label: "Max drawdown", value: fmtMoney(stats.maxDrawdown ? -stats.maxDrawdown : 0), sub: stats.drawdownFromDaily ? "Peak to trough, day by day" : "Peak to trough of money booked — daily values not stored yet", tone: "neg" },
+        { label: "Largest win", value: fmtMoney(stats.largestWin), sub: basis, tone: stats.largestWin === null ? undefined : "pos" },
+        { label: "Largest loss", value: fmtMoney(stats.largestLoss), sub: basis, tone: stats.largestLoss === null ? undefined : "neg" },
         { label: "Avg risk / trade", value: fmtMoney(stats.avgRisk) },
         { label: "Trades", value: `${stats.trades}`, sub: `${stats.contracts} contracts · ${stats.expiredCount} expired worthless` },
         { label: "Avg hold", value: `${num(stats.avgHoldDays, 1)} days` }
@@ -64,7 +93,7 @@ export default function StatCards({ stats }) {
         // because it is the one figure in this group that reads like a win
         // rate and is not measured like one.
         { label: "Green days", value: pct(stats.dayWinRate), sub: `${stats.tradingDays} closing days · cash booked, all rows` },
-        { label: "Avg per day", value: fmtMoney(stats.avgDayPL), sub: `${pct(stats.avgDayReturn, 3)} of equity`, tone: stats.avgDayPL >= 0 ? "pos" : "neg" },
+        { label: "Avg per day", value: fmtMoney(stats.avgDayPL), sub: `${pct(stats.avgDayReturn, 3)} of equity · money booked, not the mark`, tone: stats.avgDayPL >= 0 ? "pos" : "neg" },
         { label: "Median per day", value: fmtMoney(stats.medianDayPL), sub: `${pct(stats.medianDayReturn, 3)} of equity`, tone: stats.medianDayPL >= 0 ? "pos" : "neg" },
         { label: "Avg return / day", value: pct(stats.avgDayReturn, 3), sub: `${pct(stats.avgDayRiskReturn, 2)} of capital at risk`, tone: stats.avgDayReturn === null ? undefined : stats.avgDayReturn >= 0 ? "pos" : "neg" },
         { label: "Median return / day", value: pct(stats.medianDayReturn, 3), sub: `${pct(stats.medianDayRiskReturn, 2)} of capital at risk`, tone: stats.medianDayReturn === null ? undefined : stats.medianDayReturn >= 0 ? "pos" : "neg" },

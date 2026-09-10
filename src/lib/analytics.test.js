@@ -146,3 +146,134 @@ test("no figure that classifies a trade counts an unfinished one, and none of th
   assert.equal(march.wins, 2);
   assert.equal(march.pl, -5900);
 });
+
+// ---------------------------------------------------------------------------
+// The view drives every figure
+//
+// The owner: "When I say whole view, everything should be whole view. What's
+// difficult about this?" These are the tests that make the switch real rather
+// than cosmetic — before them, every figure below read `realized_pl` whichever
+// way it was flipped.
+// ---------------------------------------------------------------------------
+
+// A wheel put: the option leg was a clean credit, the shares it delivered lost
+// more than the credit was worth. Whole view calls it a loss; Premium only
+// calls it a win. Both are true statements about different questions, and the
+// page must not report one under the other's label.
+const wheelPut = {
+  open_date: "2026-01-02",
+  close_date: "2026-01-10",
+  premium_pl: 400,
+  early_close_pl: 0,
+  stock_pl: -1500,
+  realized_pl: -1100,
+  net_credit: 4,
+  qty: 1,
+  short_strike: 100,
+  short_symbol: "S",
+  ticker: "X",
+  close_reason: "assigned"
+};
+
+test("win rate follows the view", () => {
+  const whole = computeStats([wheelPut], 0, "whole");
+  const premium = computeStats([wheelPut], 0, "premium");
+  assert.equal(whole.winRate, 0);
+  assert.equal(premium.winRate, 1);
+  assert.equal(whole.totalPL, -1100);
+  assert.equal(premium.totalPL, 400);
+});
+
+test("largest win, largest loss and payoff all follow the view", () => {
+  const whole = computeStats([wheelPut], 0, "whole");
+  const premium = computeStats([wheelPut], 0, "premium");
+  assert.equal(whole.largestLoss, -1100);
+  assert.equal(whole.largestWin, null);
+  assert.equal(premium.largestWin, 400);
+  assert.equal(premium.largestLoss, null);
+});
+
+test("the month and ticker tables follow the view", () => {
+  const whole = computeStats([wheelPut], 0, "whole");
+  const premium = computeStats([wheelPut], 0, "premium");
+  assert.equal(whole.byMonth[0].pl, -1100);
+  assert.equal(premium.byMonth[0].pl, 400);
+  assert.equal(whole.byTicker[0].pl, -1100);
+  assert.equal(premium.byTicker[0].pl, 400);
+  // And the win column inside them agrees with the headline win rate.
+  assert.equal(whole.byMonth[0].wins, 0);
+  assert.equal(premium.byMonth[0].wins, 1);
+});
+
+test("the mark on shares still held joins the money figures and nothing else", () => {
+  const s = computeStats([wheelPut], 10000, "whole", { unrealized: 2500 });
+  assert.equal(s.bookedPL, -1100);
+  assert.equal(s.unrealizedPL, 2500);
+  assert.equal(s.totalPL, 1400);
+  assert.equal(s.includesUnrealized, true);
+  assert.equal(s.roe, 1400 / 10000);
+  // The outcome statistics are untouched by an open position.
+  assert.equal(s.winRate, 0);
+  assert.equal(s.largestWin, null);
+});
+
+test("Premium only refuses the mark even when it is handed one", () => {
+  // The switch must not be able to produce a premium headline with share
+  // appreciation inside it.
+  const s = computeStats([wheelPut], 10000, "premium", { unrealized: 2500 });
+  assert.equal(s.unrealizedPL, null);
+  assert.equal(s.includesUnrealized, false);
+  assert.equal(s.totalPL, 400);
+});
+
+test("credit capture stays on the option legs in both views", () => {
+  // Capture asks what share of the premium sold was kept. Fold the assigned
+  // shares in and the ratio can exceed its own maximum, which measures nothing.
+  const whole = computeStats([wheelPut], 0, "whole");
+  const premium = computeStats([wheelPut], 0, "premium");
+  assert.equal(whole.captureRate, 400 / 400);
+  assert.equal(premium.captureRate, 400 / 400);
+});
+
+test("drawdown comes from the daily series when there is one", () => {
+  // Booked trade by trade, a position that fell $9,000 and recovered registers
+  // nothing at all, because no trade closed while it happened.
+  const points = [
+    { date: "2026-01-02", value: 0 },
+    { date: "2026-01-05", value: 3000 },
+    { date: "2026-01-06", value: -6000 },
+    { date: "2026-01-10", value: 1000 }
+  ];
+  const withDaily = computeStats([wheelPut], 0, "whole", { dailyPoints: points });
+  assert.equal(withDaily.maxDrawdown, 9000);
+  assert.equal(withDaily.drawdownFromDaily, true);
+
+  const without = computeStats([wheelPut], 0, "whole");
+  assert.equal(without.drawdownFromDaily, false);
+  assert.equal(without.maxDrawdown, 1100);
+});
+
+test("a day the book could not be valued is skipped, not read as zero", () => {
+  // Reading a null as zero would manufacture the deepest drawdown on the chart.
+  const points = [
+    { date: "2026-01-02", value: 5000 },
+    { date: "2026-01-05", value: null },
+    { date: "2026-01-06", value: 4000 }
+  ];
+  const s = computeStats([wheelPut], 0, "whole", { dailyPoints: points });
+  assert.equal(s.maxDrawdown, 1000);
+});
+
+test("per-day figures measure booked cash, never the mark", () => {
+  const s = computeStats([wheelPut], 10000, "whole", { unrealized: 2500 });
+  // One closing day, -$1,100 booked on it. The $2,500 mark belongs to no day.
+  assert.equal(s.avgDayPL, -1100);
+  assert.equal(s.bestDay.pl, -1100);
+});
+
+test("the default view is whole, so an un-passed call behaves as before", () => {
+  const a = computeStats([wheelPut], 5000);
+  const b = computeStats([wheelPut], 5000, "whole");
+  assert.equal(a.totalPL, b.totalPL);
+  assert.equal(a.view, "whole");
+});

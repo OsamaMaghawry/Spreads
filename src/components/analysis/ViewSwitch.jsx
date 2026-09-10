@@ -1,3 +1,4 @@
+import { ChevronDown } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 
 // Whole view / Premium only.
@@ -34,51 +35,93 @@ import { fmtMoney } from "@/lib/format";
 //
 // The symmetry is what makes the default honest rather than promotional: in a
 // week those shares are down, Whole view shows the loss just as loudly.
+//
+// WHY THIS IS A DROPDOWN AND NOT TWO CHIPS. The first build put two small
+// buttons under the header, each showing its own figure. The owner: *"don't do
+// like a bond or something, because the filtering is so shadow, so shadow. Make
+// it like a dropdown menu or something stronger. I don't want to see something
+// like, you give me some numbers when I say whole view."* Two chips side by
+// side read as a comparison of two numbers rather than a control over the page,
+// and showing both figures at once was the whole problem — it invited the eye
+// to read the other one. So: one control, one figure, the selected view named
+// in full, and a line saying in words that everything below obeys it.
 
-export default function ViewSwitch({ value, onChange, whole, premium, wholeUnknown }) {
-  const opts = [
-    {
-      key: "whole",
-      label: "Whole view",
-      sub: "Options + shares",
-      figure: wholeUnknown ? null : whole
-    },
-    {
-      key: "premium",
-      label: "Premium only",
-      sub: "Option legs, net",
-      figure: premium
-    }
-  ];
+const OPTIONS = [
+  {
+    key: "whole",
+    label: "Whole view",
+    sub: "Option legs + shares — the wheel as one strategy",
+    long: "Every figure below counts the whole position: the option legs and the shares they delivered, including the gain or loss on shares still held at today's price."
+  },
+  {
+    key: "premium",
+    label: "Premium only",
+    sub: "Option legs alone, net of what closing them cost",
+    long: "Every figure below counts the option legs alone — credits taken and debits paid. Shares are not in any number on this page, held or sold."
+  }
+];
+
+export default function ViewSwitch({ value, onChange, figure, figureUnknown, withheldNote }) {
+  const active = OPTIONS.find((o) => o.key === value) || OPTIONS[0];
+  const showFigure = !figureUnknown && figure !== null && figure !== undefined;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-1.5 inline-flex gap-1.5 flex-wrap">
-      {opts.map((o) => {
-        const on = value === o.key;
-        return (
-          <button
-            key={o.key}
-            type="button"
-            onClick={() => onChange(o.key)}
-            aria-pressed={on}
-            className={`text-left px-3.5 py-2 rounded-lg transition-colors ${
-              on ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"
+    <div className="bg-white border-2 border-slate-900 rounded-xl overflow-hidden">
+      <div className="flex flex-wrap items-stretch">
+        <div className="flex-1 min-w-[260px] p-4">
+          <label
+            htmlFor="analysis-view"
+            className="block text-[10px] uppercase tracking-widest text-slate-500 font-semibold mb-1.5"
+          >
+            This page is showing
+          </label>
+          {/* A native select, deliberately. It is one tap on a phone, it is
+              keyboard- and screen-reader-correct without a line of our own
+              code, and the chevron below is decorative only. A hand-rolled
+              listbox would be a second thing to keep working. */}
+          <div className="relative">
+            <select
+              id="analysis-view"
+              value={active.key}
+              onChange={(e) => onChange(e.target.value)}
+              className="w-full appearance-none bg-slate-900 text-white text-base font-semibold rounded-lg pl-3.5 pr-10 py-2.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-400"
+            >
+              {OPTIONS.map((o) => (
+                <option key={o.key} value={o.key}>
+                  {o.label} — {o.sub}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              className="w-4 h-4 text-white absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+              aria-hidden="true"
+            />
+          </div>
+          <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">{active.long}</p>
+        </div>
+
+        {/* One figure, the selected view's. Never both: showing the other
+            view's number beside it is what made the control read as a
+            comparison instead of a filter. */}
+        <div className="min-w-[190px] border-t sm:border-t-0 sm:border-l border-slate-200 bg-slate-50 p-4 flex flex-col justify-center">
+          <div className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">
+            {active.label} total
+          </div>
+          <div
+            className={`text-2xl font-semibold tabular-nums mt-1 ${
+              !showFigure ? "text-slate-400" : figure >= 0 ? "text-emerald-600" : "text-rose-600"
             }`}
           >
-            <span className="block text-xs font-semibold">{o.label}</span>
-            <span className={`block text-[10px] ${on ? "text-slate-300" : "text-slate-400"}`}>{o.sub}</span>
-            <span className={`block text-sm font-semibold tabular-nums mt-0.5 ${
-              o.figure === null
-                ? on ? "text-slate-400" : "text-slate-400"
-                : o.figure >= 0
-                  ? on ? "text-emerald-300" : "text-emerald-600"
-                  : on ? "text-rose-300" : "text-rose-600"
-            }`}>
-              {o.figure === null ? "—" : `${o.figure >= 0 ? "+" : ""}${fmtMoney(o.figure)}`}
-            </span>
-          </button>
-        );
-      })}
+            {showFigure ? `${figure >= 0 ? "+" : ""}${fmtMoney(figure)}` : "—"}
+          </div>
+          {/* A dash always says why. brand.md: a figure that cannot be trusted
+              renders as "—", never as a substitute number — and never without
+              its reason, or it reads as broken rather than withheld. */}
+          {!showFigure && withheldNote && (
+            <div className="text-[10px] text-amber-700 mt-1 leading-snug">{withheldNote}</div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
