@@ -5,6 +5,21 @@
   "assets": {
     "directory": "./public",
     "not_found_handling": "404-page",
+    // Declared, not inherited. This one setting decides whether /terms/ is a
+    // REDIRECT to /terms or a second URL serving the same page, and the pages
+    // themselves say <link rel="canonical" href="https://deltamint.app/terms">
+    // with no trailing slash. If the two ever disagree, every page has a
+    // canonical pointing somewhere other than the URL Google fetched, which
+    // splits its authority and is what lands a page in "alternate page with
+    // proper canonical tag".
+    //
+    // Search Console flagged five URLs on 10 Sep, four of them http:// and
+    // three carrying a trailing slash the canonical does not use. Nothing we
+    // emit produces those forms -- the sitemap, robots.txt and every internal
+    // link use the canonical form -- so they are almost certainly redirects
+    // Google is reporting for information. "Almost certainly" was resting on
+    // an unstated platform default, which is not a contract. It is one now.
+    "html_handling": "auto-trailing-slash",
     "binding": "ASSETS",
     // Only these paths invoke the Worker. Everything else — the homepage,
     // pricing, terms, privacy, css, images — is served straight from static
