@@ -1,0 +1,170 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { openBook, premiumOnly, realizedShares } from "./openBook.js";
+
+const lot = (ticker, qty, price, acquired, disposed = null) => ({
+  ticker, qty, acquired_price: price, acquired_date: acquired, disposed_date: disposed
+});
+const eq = (ticker, qty, currentPrice) => ({
+  assetClass: "equity", ticker, symbol: ticker, qty, currentPrice,
+  unrealizedPL: null
+});
+
+// The real staging account, which is why this module exists.
+const WHEEL_LOTS = [
+  lot("TSLA", 100, 320, "2026-07-24"),
+  lot("AMZN", 100, 227.5, "2026-07-29"),
+  lot("JNJ", 100, 257.5, "2026-07-31"),
+  lot("XOP", 100, 167, "2026-08-07"),
+  lot("WMT", 100, 109, "2026-08-21"),
+  lot("WMT", 100, 108, "2026-08-21"),
+  lot("WMT", 100, 108, "2026-08-21")
+];
+
+test("the Options Wheel book: 7 lots, 700 shares, $129,700 — the figure the screen never showed", () => {
+  const b = openBook(WHEEL_LOTS, []);
+  assert.equal(b.lots, 7);
+  assert.equal(b.shares, 700);
+  assert.equal(b.basis, 129700);
+  assert.equal(b.tickers.length, 5, "three WMT lots are one ticker, not three");
+  assert.equal(b.tickers[0].ticker, "WMT", "sorted by basis: WMT $32,500 leads");
+  assert.equal(b.tickers[0].basis, 32500);
+  assert.equal(b.tickers[0].lots, 3);
+  assert.equal(b.tickers[0].shares, 300);
+});
+
+test("with no marks the totals are null, never zero", () => {
+  const b = openBook(WHEEL_LOTS, []);
+  assert.equal(b.complete, false);
+  assert.equal(b.unrealized, null, "$0.00 is a claim about a portfolio; this is not that claim");
+  assert.equal(b.marketValue, null);
+  assert.equal(b.markedBasis, 0);
+  assert.equal(b.unmarkedBasis, 129700);
+  assert.deepEqual(b.unmarked.sort(), ["AMZN", "JNJ", "TSLA", "WMT", "XOP"]);
+});
+
+test("TSLA marked at the price the live account actually sold at", () => {
+  // 9 Sep 2026, the Alton Live disposal: 375.15 against a 320.00 basis.
+  const b = openBook([lot("TSLA", 100, 320, "2026-07-24")], [eq("TSLA", 100, 375.15)]);
+  assert.equal(b.complete, true);
+  assert.equal(b.tickers[0].mark, 375.15);
+  assert.equal(Math.round(b.unrealized), 5515);
+  assert.equal(b.marketValue, 37515);
+});
+
+test("ONE unmarked position withholds the whole total", () => {
+  // Six of seven priced. The seventh is the $32,000 TSLA lot -- exactly the
+  // case a lot-count coverage figure ("6 of 7") would wave through.
+  const marks = [
+    eq("AMZN", 100, 240), eq("JNJ", 100, 260), eq("XOP", 100, 170),
+    eq("WMT", 300, 112)
+  ];
+  const b = openBook(WHEEL_LOTS, marks);
+  assert.equal(b.complete, false);
+  assert.equal(b.unrealized, null);
+  assert.deepEqual(b.unmarked, ["TSLA"]);
+  assert.equal(b.markedBasis, 129700 - 32000);
+  assert.equal(b.unmarkedBasis, 32000, "coverage is in DOLLARS, so the gap is visible");
+});
+
+test("a fully marked book reports the gain", () => {
+  const marks = [
+    eq("TSLA", 100, 375.15), eq("AMZN", 100, 240), eq("JNJ", 100, 260),
+    eq("XOP", 100, 170), eq("WMT", 300, 112)
+  ];
+  const b = openBook(WHEEL_LOTS, marks);
+  assert.equal(b.complete, true);
+  // 5,515 + 1,250 + 250 + 300 + 1,100
+  assert.equal(Math.round(b.unrealized), 8415);
+});
+
+test("the same book DOWN reports the loss just as plainly", () => {
+  // The symmetry is the honesty: a default that only revealed gains would be
+  // marketing.
+  const marks = [
+    eq("TSLA", 100, 300), eq("AMZN", 100, 200), eq("JNJ", 100, 240),
+    eq("XOP", 100, 150), eq("WMT", 300, 100)
+  ];
+  const b = openBook(WHEEL_LOTS, marks);
+  assert.equal(b.complete, true);
+  assert.ok(b.unrealized < 0);
+  // TSLA -2,000 · AMZN -2,750 · JNJ -1,750 · XOP -1,700 · WMT -2,500
+  assert.equal(Math.round(b.unrealized), -10700);
+});
+
+test("a broker quantity that disagrees with the ledger withholds the total", () => {
+  // Not a rounding difference: the two disagree about the position, and a
+  // total built on a disagreement is a guess with a decimal point.
+  const b = openBook([lot("TSLA", 100, 320, "2026-07-24")], [eq("TSLA", 50, 375)]);
+  assert.equal(b.tickers[0].marked, true, "the per-line mark still shows");
+  assert.equal(b.tickers[0].qtyMatchesBroker, false);
+  assert.equal(b.tickers[0].brokerQty, 50);
+  assert.equal(b.complete, false);
+  assert.equal(b.unrealized, null);
+  assert.deepEqual(b.mismatched, ["TSLA"]);
+});
+
+test("disposed lots are not open, and short stock is not a wheel lot", () => {
+  const lots = [lot("TSLA", 100, 320, "2026-07-24", "2026-09-09"), lot("JNJ", 100, 257.5, "2026-07-31")];
+  const b = openBook(lots, [eq("JNJ", 100, 260), { assetClass: "equity", ticker: "NVDA", qty: -100, currentPrice: 180 }]);
+  assert.equal(b.lots, 1);
+  assert.equal(b.tickers.length, 1);
+  assert.equal(b.tickers[0].ticker, "JNJ");
+});
+
+test("an adjusted ticker still finds its broker row", () => {
+  const b = openBook([lot("TSLA1", 100, 320, "2026-07-24")], [eq("TSLA", 100, 375)]);
+  assert.equal(b.complete, true);
+  assert.equal(b.tickers[0].mark, 375);
+});
+
+test("a lot with no acquisition price is held, unmarked and named", () => {
+  const b = openBook([lot("JNJ", 100, null, "2026-07-31")], [eq("JNJ", 100, 260)]);
+  assert.equal(b.tickers[0].basisKnown, false);
+  assert.equal(b.tickers[0].marked, false, "no basis means no unrealized figure to state");
+  assert.equal(b.complete, false);
+  assert.deepEqual(b.unmarked, ["JNJ"]);
+});
+
+test("an option row is never mistaken for a share mark", () => {
+  const b = openBook([lot("TSLA", 100, 320, "2026-07-24")], [
+    { assetClass: "option", ticker: "TSLA", symbol: "TSLA260918C00362500", qty: 1, currentPrice: 17.85 }
+  ]);
+  assert.equal(b.complete, false, "a contract price is not a share price");
+});
+
+test("empty and junk inputs produce an empty book, not a crash", () => {
+  for (const b of [openBook(null, null), openBook([], []), openBook([{}], [{}])]) {
+    assert.equal(b.lots, 0);
+    assert.equal(b.basis, 0);
+    assert.equal(b.complete, false);
+    assert.equal(b.unrealized, null);
+  }
+});
+
+// --- the two views -------------------------------------------------------
+
+const tr = (premium, early, stock) => ({
+  close_date: "2026-09-09", premium_pl: premium, early_close_pl: early, stock_pl: stock,
+  realized_pl: premium + early + stock
+});
+
+test("Premium only reports the option legs, NOT realized_pl", () => {
+  // realized_pl already carries the share result of every disposed lot. If the
+  // two were not separable the switch would mean nothing.
+  const trades = [tr(144, 0, 1258.909), tr(1738, -3570, 0)];
+  assert.equal(Math.round(premiumOnly(trades)), Math.round(144 - 1832));
+  assert.equal(Math.round(realizedShares(trades)), 1259);
+  const realized = trades.reduce((a, t) => a + t.realized_pl, 0);
+  assert.equal(
+    Math.round(premiumOnly(trades) + realizedShares(trades)),
+    Math.round(realized),
+    "the two components must reconstitute realized_pl exactly"
+  );
+});
+
+test("a row with no close date is in neither view", () => {
+  assert.equal(premiumOnly([{ premium_pl: 100 }]), 0);
+  assert.equal(realizedShares([{ stock_pl: 100 }]), 0);
+  assert.equal(premiumOnly(null), 0);
+});

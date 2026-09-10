@@ -12,6 +12,9 @@ import StrategyTabs from "@/components/history/StrategyTabs";
 import ExportPdfButton from "@/components/analysis/ExportPdfButton";
 import DateRangeFilter from "@/components/analysis/DateRangeFilter";
 import CaptureBreakdown from "@/components/analysis/CaptureBreakdown";
+import OpenBookPanel from "@/components/analysis/OpenBookPanel";
+import ViewSwitch from "@/components/analysis/ViewSwitch";
+import { openBook, premiumOnly } from "@/lib/openBook";
 
 export default function AccountAnalysis() {
   const { id } = useParams();
@@ -20,6 +23,10 @@ export default function AccountAnalysis() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [strategy, setStrategy] = useState("all");
+  // Whole view is the DEFAULT. See ViewSwitch for why that is a statement
+  // about what the wheel is, not a precaution.
+  const [view, setView] = useState("whole");
+  const [broker, setBroker] = useState([]);
   const [range, setRange] = useState({ from: "", to: "" });
   const [syncing, setSyncing] = useState(false);
   const reportRef = useRef(null);
@@ -38,6 +45,11 @@ export default function AccountAnalysis() {
       setSyncing(Boolean(hist.data?.syncing));
       const acct = live?.data?.accounts?.find((a) => a.id === id);
       setEquity(acct?.equity || 0);
+      // The marks were already arriving and nothing read them. `brokerView`
+      // carries the broker's own current price per position, and this page
+      // already called syncAccounts on load -- so pricing the held shares
+      // needs no new request, no second price source and no cron.
+      setBroker(acct?.broker || []);
       return hist.data;
     } catch (e) {
       setError(e.message);
@@ -114,6 +126,19 @@ export default function AccountAnalysis() {
     };
   }, [trades, strategy, equity]);
 
+  // The shares still held, and what the two views report.
+  //
+  // The book is NOT filtered by strategy or date: an open position is held
+  // today whatever window is being read, and hiding it under a date filter
+  // would recreate the defect this was built to fix.
+  const book = useMemo(() => openBook(data?.stockLots, broker), [data, broker]);
+  const premiumFigure = useMemo(() => premiumOnly(subset), [subset]);
+  // Realized (option legs AND shares already sold) plus the mark on what is
+  // still held. Null -- never a substitute number -- when any lot is unpriced.
+  const wholeFigure =
+    stats && book.unrealized !== null ? stats.totalPL + book.unrealized : null;
+  const wholeUnknown = !stats || (book.lots > 0 && book.unrealized === null);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-32 gap-3 text-slate-500">
@@ -155,7 +180,7 @@ export default function AccountAnalysis() {
             <ExportPdfButton
               targetRef={reportRef}
               title={data?.account ? `${data.account.name} — Performance Analysis` : "Performance Analysis"}
-              subtitle={`${stats.firstDate} → ${stats.lastDate}${range.from || range.to ? " (filtered)" : ""} · ${strategy === "all" ? "All strategies" : strategyLabel(strategy)} · equity ${equity ? `$${equity.toLocaleString()}` : "n/a"} · generated ${new Date().toLocaleString()}`}
+              subtitle={`${stats.firstDate} → ${stats.lastDate}${range.from || range.to ? " (filtered)" : ""} · ${strategy === "all" ? "All strategies" : strategyLabel(strategy)} · ${view === "whole" ? "Whole view (options + shares)" : "Premium only (option legs)"} · equity ${equity ? `$${equity.toLocaleString()}` : "n/a"} · generated ${new Date().toLocaleString()}`}
               isPaper={!!data?.account?.is_paper}
             />
           )}
@@ -183,6 +208,34 @@ export default function AccountAnalysis() {
                 Paper account &mdash; every figure below is simulated, not real money.
               </div>
             )}
+            {/* The switch, and the book it governs. Both sit INSIDE reportRef:
+                an export has to say which view produced it, or two PDFs of the
+                same week disagree with nothing on either to explain why. */}
+            {book.lots > 0 && (
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <ViewSwitch
+                  value={view}
+                  onChange={setView}
+                  whole={wholeFigure}
+                  premium={premiumFigure}
+                  wholeUnknown={wholeUnknown}
+                />
+                <p className="text-xs text-slate-500 leading-relaxed max-w-xs">
+                  {view === "whole" ? (
+                    <>
+                      <strong>Whole view</strong> — realized money plus the current mark on shares
+                      still held. Answers “how is the strategy doing?”
+                    </>
+                  ) : (
+                    <>
+                      <strong>Premium only</strong> — the option legs alone. Answers “what have I
+                      actually banked?”, and is the view to use against a 1099-B.
+                    </>
+                  )}
+                </p>
+              </div>
+            )}
+            {book.lots > 0 && <OpenBookPanel book={book} priced={view === "whole"} />}
             {comparison.length > 1 && <StrategyComparison rows={comparison} />}
             <StatCards stats={stats} />
             <CaptureBreakdown trades={subset} />
