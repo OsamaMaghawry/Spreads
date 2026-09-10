@@ -17,6 +17,10 @@ export default function StrategyComparison({ rows }) {
   // thing, 200px away. The whole-book row is the one to read it off.
   const whole = rows.find((r) => r.stats?.provisionalTrades !== undefined && /all/i.test(r.label));
   const notFinal = (whole || rows[0])?.stats?.provisionalTrades || 0;
+  // Every row is measured under the selected view, so the P/L column means the
+  // whole position or the option legs alone depending on the control above.
+  const view = (whole || rows[0])?.stats?.view;
+  const marked = !!(whole || rows[0])?.stats?.includesUnrealized;
   return (
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
       <h3 className="text-sm font-medium text-slate-900 px-4 py-3 border-b border-slate-200">Strategy comparison</h3>
@@ -27,7 +31,7 @@ export default function StrategyComparison({ rows }) {
               <th className={th}>Strategy</th>
               <th className={`${th} text-right`}>Trades</th>
               <th className={`${th} text-right`}>Win rate</th>
-              <th className={`${th} text-right`}>Realized P/L</th>
+              <th className={`${th} text-right`}>{view === "premium" ? "Option-leg P/L" : marked ? "Total P/L" : "Realized P/L"}</th>
               <th className={`${th} text-right`}>Expectancy</th>
               <th className={`${th} text-right`}>Profit factor</th>
               <th className={`${th} text-right`}>Return on risk</th>
@@ -58,12 +62,23 @@ export default function StrategyComparison({ rows }) {
           </tbody>
         </table>
       </div>
+      {/* The all-strategies row carries the mark on shares still held; the
+          strategy rows cannot, because a share lot is held by the account and
+          not by a strategy. Said here, or the rows visibly fail to add up to
+          the row above them with nothing on screen to explain it. */}
+      {marked && (
+        <p className="border-t border-slate-200 px-4 py-2.5 text-[11px] leading-relaxed text-slate-500">
+          The all-strategies row includes the gain or loss on shares still held; the individual
+          strategy rows are money booked only, because shares are held by the account rather than
+          by one strategy. The rows will not add up to it, by that amount.
+        </p>
+      )}
       {notFinal > 0 && (
         <p className="border-t border-slate-200 px-4 py-2.5 text-[11px] leading-relaxed text-slate-500">
           Win rate, expectancy and profit factor are measured over settled trades. {notFinal} position
           {notFinal === 1 ? "" : "s"} closed by assignment {notFinal === 1 ? "still holds" : "still hold"}{" "}
           shares, so {notFinal === 1 ? "its result is" : "their results are"} not final and{" "}
-          {notFinal === 1 ? "it is" : "they are"} left out of those three. Trades, realized P/L and max
+          {notFinal === 1 ? "it is" : "they are"} left out of those three. Trades, P/L and max
           drawdown count every row.
         </p>
       )}
