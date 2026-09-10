@@ -153,3 +153,4 @@ Full list in `docs/context/compliance.md`; these are the ones that bite:
 | 2026-09-09 | `call-vs-put-option-explained` | foundations · 2 | draft. Options 101 shape: definition first sentence, key takeaways, question headings, worked example, FAQ, bottom line. Unreviewed — desk-editor, seo-editor, compliance-gate all outstanding |
 | 2026-09-09 | `option-strike-price-expiration-premium` | foundations · 3 | draft, same shape. Unreviewed — desk-editor, seo-editor, compliance-gate all outstanding |
 | 2026-09-09 | `intrinsic-vs-extrinsic-value-options` | foundations · 4 | draft, same shape. Unreviewed — desk-editor, seo-editor, compliance-gate all outstanding |
+| 2026-09-10 | `options-bid-ask-spread` | foundations · 5 | reviewed and pushed for the content-merge workflow. Full chain run (seo-editor, desk-editor, compliance-gate) with findings applied; content:check clean |
