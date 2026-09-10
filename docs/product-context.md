@@ -78,7 +78,7 @@ incomplete.
 
 - **accounts** — AccountForm
 - **admin** — AdminMaintenance, BlogPanel, EngagementPanel, PostPreview, SettingsPanel, SignupsChart, StatTile, UsersPanel
-- **analysis** — BreakdownTable, CaptureBreakdown, DateRangeFilter, EquityCurveChart, ExportPdfButton, StatCards, StrategyComparison
+- **analysis** — BreakdownTable, CaptureBreakdown, DateRangeFilter, EquityCurveChart, ExportPdfButton, OpenBookPanel, StatCards, StrategyComparison, ViewSwitch
 - **billing** — UpgradePrompt
 - **brand** — DeltaMintMark, Wordmark
 - **close** — CloseDialog, LegPicker, LegsQuoteSummary, MultiCloseDialog, OpenOrdersPanel, OrderLog, useCloseOrder, useMultiClose
