@@ -59,38 +59,66 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Open
 
-- 2026-09-10 · owner found in Search Console · **Five pages flagged, and four
-  of the five are `http://` URLs.** Owner started a validation on 9/10 and is
-  parking this until the Alton Live number review is finished — **do not start
-  it before then.** What is on the screen, recorded so it is not re-derived:
+- [needs owner] 2026-09-10 · owner found in Search Console · **`www.deltamint.app`
+  returns a server error, and only Cloudflare can fix it.** All five report
+  categories were read; this is the only genuine defect among them.
 
-  | URL | last crawled |
-  |---|---|
-  | `http://deltamint.app/terms/` | Sep 1 |
-  | `http://deltamint.app/pricing/` | Aug 31 |
-  | `http://deltamint.app/` | Aug 30 |
-  | `https://deltamint.app/terms/` | Aug 30 |
-  | `http://deltamint.app/blog` | Aug 29 |
+  Googlebot got a **5xx** from `https://www.deltamint.app/` on 29 Aug and
+  `http://www.deltamint.app/` on 1 Sep. Nothing in this repo serves www: the
+  apex is attached to the landing Worker as a custom domain in the Cloudflare
+  dashboard, and www was never attached to anything. **No code change can fix
+  it** — the landing Worker also only runs for `/blog`, `/blog/*` and
+  `/sitemap.xml` on production, so even routing www at it would leave the
+  homepage unserved.
 
-  The error category itself was cropped out of the screenshot, so it is NOT
-  established — get it from Search Console before fixing anything. Two things
-  the repo already shows, though, and either would produce a flag of this
-  shape:
+  **Diagnosed precisely, from this session.** `www.deltamint.app` resolves to
+  `2606:4700:3030::6815:22a2` / `2606:4700:3031::ac43:a311` — **the same
+  Cloudflare addresses as the apex and the dashboard**. So the DNS record
+  exists and is proxied. Fetching it returns **HTTP 522**, Cloudflare's
+  "connection timed out to origin". Cloudflare is answering for www and then
+  looking for an origin server that does not exist, because www was never
+  attached to the landing Worker the way the apex was. Not NXDOMAIN, not a
+  missing record, not a certificate problem: an orphaned proxied hostname.
 
-  - **Scheme.** Four of five are `http://`. Nothing in `landing/src/index.js`
-    issues a redirect of any kind — no 301, no 308, no scheme check. Whatever
-    http→https handling exists is Cloudflare's, not ours, and unverified.
-  - **Trailing slash.** The pages carry `<link rel="canonical"
-    href="https://deltamint.app/terms">` — no trailing slash — while Google
-    crawled `/terms/` WITH one. Three of the five have that mismatch. A
-    canonical pointing at a different URL than the one served is exactly what
-    lands a page in "alternate page with proper canonical tag" or "page with
-    redirect", and it splits whatever authority the page has.
+  Owner action, in Cloudflare, one of two — **the Redirect Rule is the right
+  one** because it sends 301 to the canonical host and creates no second copy
+  of the site for Google to weigh:
 
-  Blocked on nothing technical; blocked on the owner's sequencing. The fix is
-  likely one redirect rule in the Worker plus a decision about which form is
-  canonical — and seo-editor should settle that, since it owns the search
-  surface and a wrong choice here is expensive to reverse once crawled.
+  - Rules → Redirect Rules → `www.deltamint.app/*` →
+    `https://deltamint.app/$1`, status 301, preserve query string; **or**
+  - Workers & Pages → `deltamint-landing` → Settings → Domains & Routes → add
+    `www.deltamint.app` as a custom domain, which serves the site on www and
+    then needs a canonical decision of its own.
+
+  A person typing the address they are used to typing currently gets a server
+  error, and Google has seen it twice.
+
+  Now monitored: `site:health --live` checks both www forms daily at 06:17 UTC
+  (`scripts/site-health.mjs`), so this cannot again be discovered by a crawler
+  weeks after the fact.
+
+- [fixed a19d911] 2026-09-10 · **`dashboard.deltamint.app/login` filed as
+  "duplicate without user-selected canonical"** — already fixed, awaiting
+  re-crawl. Google crawled it **27 Aug**; the `X-Robots-Tag: noindex, nofollow`
+  header on every dashboard response shipped **31 Aug** in `a19d911`, four days
+  later. `dev-dash` already sits correctly under "excluded by noindex" in the
+  same report, which is the same mechanism working. Nothing to do but let
+  Google re-crawl; do not "fix" it again.
+
+- 2026-09-10 · **The other three Search Console categories are correct
+  behaviour and need no work.** Recorded so nobody spends a day on them:
+  *Alternate page with proper canonical tag* (5) — trailing-slash and http
+  variants correctly pointing at the canonical, which is exactly what the
+  canonical tag is for. *Page with redirect* (3) — `http://` forms of /terms,
+  /pricing, /privacy redirecting to https. *Excluded by noindex* (2) —
+  `dev-dash.deltamint.app`, which carries `NOINDEX=1` on purpose.
+
+  Verified while reading them: everything this repo emits is already canonical.
+  The sitemap lists `/`, `/pricing`, `/blog`, `/terms`, `/privacy` with no
+  trailing slashes over https; robots.txt points at the https sitemap; no
+  internal link anywhere uses `http://` or a trailing-slash form. `html_handling`
+  is now declared explicitly in both wrangler configs rather than inherited
+  from a platform default.
 
 - 2026-09-09 · owner found on the live account · **The multi-close reads
   availability once, when the selection is made.** Closing a TSLA book: every

@@ -105,7 +105,16 @@ async function checkCanonicalForms() {
   const cases = [
     [`http://${APEX}/terms`, "http is upgraded"],
     [`https://${APEX}/terms/`, "a trailing slash resolves to the canonical form"],
-    [`http://${APEX}/`, "http on the apex is upgraded"]
+    [`http://${APEX}/`, "http on the apex is upgraded"],
+    // www answered 5xx to Googlebot on 29 Aug and 1 Sep 2026 -- the only
+    // genuine error in the whole Search Console report, and invisible from
+    // this repo because no code here serves www: the apex is attached to the
+    // landing Worker as a custom domain in the Cloudflare dashboard and www
+    // was never attached to anything. A person typing the address they are
+    // used to typing gets a server error. Checked here so it can never again
+    // be discovered by a crawler weeks later.
+    [`https://www.${APEX}/`, "www reaches the site"],
+    [`http://www.${APEX}/`, "http www reaches the site"]
   ];
 
   for (const [url, what] of cases) {
