@@ -3,6 +3,37 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-09 · The multi-close Stop button no longer sends one more order after
+  it's pressed: a race where a losing cancel let the run loop advance and fire
+  the next leg anyway — live on the owner's own TSLA book, where the second
+  order would have sold the cover the first order had just bought back — is
+  closed by checking the stop flag at the top of every step, immediately after
+  each order returns, and once more before any submit. A second, related bug
+  is also fixed: repricing a spread whose reprice was refused could resubmit
+  the cancelled parent order as a single-leg order with a null symbol, because
+  the single-order read didn't fetch legs the way every list endpoint already
+  does. Three multi-close copy defects that asserted things the code can't
+  back up are corrected too — "never a bare short" no longer sits over a plan
+  that completes naked, a short-stock cover no longer reads as short
+  contracts, and "fills together or not at all" is now only said about a real
+  all-or-none multi-leg order (`e32a8a7`, merged to `main` as `ad3602a`).
+- 2026-09-09 · Everything staged since 2 September reached production in one
+  merge, closing out the `(staging)`-tagged entries below: repricing a stuck
+  resting order now cancels-and-resubmits automatically instead of surfacing
+  the raw broker error; a one-sided quote (a real missing bid/ask, seen live
+  on an SPY share close) can no longer price a close at half its true value or
+  let a price walk overshoot; the Broker tab and its safety-ordered
+  multi-select close are live; the scanner can now sweep the whole listed
+  market (not just the S&P 500) as a fourth universe option; a cash-secured
+  put or covered call opens as a plain single-leg order under the wheel
+  prefix; and Hotjar/GA now gate on an EEA/UK/Switzerland consent check.
+  Most consequentially: the security hole in `dumpBrokerFeed` — any caller
+  holding the app's public project key, not just a signed-in account owner,
+  could name any account and pull its decrypted broker credentials and full
+  position/order history — is now closed in **production**, not just on
+  staging; the caller must be signed in and either own the account or be an
+  admin (`0ac2e27`, closing out `af75776`, `2b9ccf7`/`3aee291`, `dcf0f17`, and
+  the Broker-tab/multi-close/analytics-consent commits logged below).
 - 2026-09-09 · (staging) Repricing a resting option order that the broker refuses to replace directly (Alpaca won't PATCH an order once it reaches "accepted") now cancels the order, confirms the cancel, and resubmits at the new price automatically instead of showing the raw broker error with no way forward; if the original filled — or partially filled — while being cancelled, nothing extra is sent and the ticket says what actually happened (`85c64ca`).
 - 2026-09-09 · (staging) The live blog no longer prints a spurious "part 48" under a post's byline (that number is only the post's slot in the internal syllabus), and page titles no longer have "— DeltaMint" appended, which was eating 12 characters off a 60-character search-result budget (`c72b562`, `dc92fac`).
 - 2026-09-09 · (staging) A new Broker tab shows exactly what Alpaca reports you hold — one row per broker position, with a Close on every line that sends the broker's own quantity with no pairing logic involved — plus a multi-select close across several rows at once: buy-backs are always sent before sales (never the reverse), so an in-progress multi-order close can never leave the rest of the book more exposed than before it started, it respects Alpaca's four-legs-per-order cap, and it refuses to send a second order when a cancel can't be confirmed rather than risk closing more than intended (`4b523bc`, `91cc0f2`, `8f0e7fa`, `d520b22`).

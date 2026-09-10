@@ -1,8 +1,12 @@
-# Every feature, and what it is worth — 2026-09-02
+# Every feature, and what it is worth — 2026-09-02, Live column updated 2026-09-09
 
 Owned by `vp-product`. Read from the code on `main` at `3a22207` plus the
 `staging` delta (`git diff --stat main staging` = one migration and the
-generated context file; everything shipped on 2 Sep is on `main`). This is the
+generated context file; everything shipped on 2 Sep is on `main`). The 9 Sep
+production ship (`0ac2e27`) closed out most of that staging delta — S3 and T1
+below moved from `staging` to `main` that day, and the `dumpBrokerFeed`
+credential-exposure hole named in Back-office is now closed on `main`, not
+just staging. Rows not called out above are unchanged since 2 Sep. This is the
 inventory the pricing page, the Alpaca fee schedule and the Tuesday product
 run read. Categories use the canonical names in `docs/context/brand.md`.
 
@@ -21,8 +25,8 @@ rows, and the watch on `main` threw on every account (fixed the same day,
 | # | What the user gets | Where | Live | Call |
 | --- | --- | --- | --- | --- |
 | S1 | Sweep a universe for credit setups, four tickers a batch, results streaming in ranked | `src/pages/Screener.jsx`, `screener/useMarketScan.js`, `scanEntries/index.ts`, `_shared/optionScan.ts` | main | FREE |
-| S2 | Universe: top 50 mega caps, ~500 S&P names, or a custom list. No ETFs or indices | `src/lib/sp500.js`, `screener/ScreenerConfig.jsx` | main | FREE |
-| S3 | Five strategies — put spread, call spread, iron condor, cash-secured put, covered call — and a Wheel scan that runs the last two together; covered calls scan the shares the account holds at their cost basis | `scanEntries`, `findEntry`, `_shared/optionScan.ts` `buildSingle()`, `_shared/heldShares.ts`, `open/StrategyPicker.jsx` | staging | FREE |
+| S2 | Universe: top 50 mega caps, ~500 S&P names, a custom list, or now the whole listed market via a cheap first-pass price/volume/quote-width sieve before the slow per-ticker chain fetch. Still no ETFs or indices | `src/lib/sp500.js`, `screener/ScreenerConfig.jsx` | main | FREE |
+| S3 | Five strategies — put spread, call spread, iron condor, cash-secured put, covered call — and a Wheel scan that runs the last two together; covered calls scan the shares the account holds at their cost basis | `scanEntries`, `findEntry`, `_shared/optionScan.ts` `buildSingle()`, `_shared/heldShares.ts`, `open/StrategyPicker.jsx` | main | FREE |
 | S4 | Filters: DTE, short delta, wing width, min credit, max risk per unit, min return on risk, put/call ratio. No volume, OI, bid-ask or IV filter | `ScreenerConfig.jsx`, `ScanFilters.jsx` | main | FREE |
 | S5 | Exact wing width or skip — never a wider spread than asked | `optionScan.ts` `pickWing()` | main | FREE |
 | S6 | One ranking metric, return on risk, top 25; client re-sort by RoR / credit / max risk | `optionScan.ts`, `ResultsTable.jsx` | main | FREE |
@@ -40,7 +44,7 @@ rows, and the watch on `main` threw on every account (fixed the same day,
 
 | # | What the user gets | Where | Live | Call |
 | --- | --- | --- | --- | --- |
-| T1 | Trade a ranked row directly, or build a setup by hand — spreads, condors, and now a single short put or a covered call sent as a plain option order under the wheel prefix | `ResultsTable.jsx`, `screener/TradeDialog.jsx`, `open/OpenPositionDialog.jsx`, `openPosition/index.ts` | staging | PAID on live |
+| T1 | Trade a ranked row directly, or build a setup by hand — spreads, condors, and now a single short put or a covered call sent as a plain option order under the wheel prefix | `ResultsTable.jsx`, `screener/TradeDialog.jsx`, `open/OpenPositionDialog.jsx`, `openPosition/index.ts` | main | PAID on live |
 | T2 | Server preflight on every open and every walk resubmit: adjusted contracts, no or untrusted price, spot drift, short leg through the strike | `openPosition/index.ts` `preflight()` | main | PAID on live |
 | T3 | Market or limit on open | `openPosition`, `open/OpenPricing.jsx` | main | PAID on live |
 | T4 | Price walking on the open: 34 % of the remaining gap toward the bid every 30 s, never past the floor, requoted each step, resubmits only the unfilled remainder | `src/lib/openWalk.js`, `open/useOpenOrder.js` | main | PAID on live |
@@ -150,9 +154,12 @@ Admin with server re-authorisation; activation funnel (signed up → connected
 signups chart; users table with CRM notes, status, tags and connection
 issues; role management; blog CMS and the publish workflow; operator
 switches; credential migration and key rotation; earnings refresh; broker-feed
-dump (`dumpBrokerFeed`, migration 0024 on staging); last-active stamping via
-a security-definer RPC. `oauthDiag` is reachable by any signed-in user —
-handed to systems-engineer.
+dump (`dumpBrokerFeed`, migration 0024, on `main`; as of 9 Sep the caller must
+be signed in and either own the account or be an admin — previously any
+caller holding the public project key could pull any account's decrypted
+broker credentials and history); last-active stamping via a security-definer
+RPC. `oauthDiag` is reachable by any signed-in user — handed to
+systems-engineer.
 
 ## What this inventory says about packaging
 

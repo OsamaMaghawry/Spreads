@@ -120,6 +120,7 @@ silence there is not clearance. All of it is still open:
 - [open] 2026-09-08 · head-of-trading · `manageOrder`'s replace path beyond its `> 0` guard, which this pass changed to "finite and non-zero" so a resting credit order can be repriced.
 - [open] 2026-09-08 · **A re-audit before any of this goes to production.** Every fix above was made against a STOP verdict and none of them has been read back by the bench.
 
+- [open] 2026-09-10 · vp-product · **`pricing/index.html`'s Paper-tier screener line is stale as of today's production ship (`0ac2e27`).** It reads: `Screener — put spreads, call spreads and iron condors across the S&amp;P 500 or your own list`. Two things the code now does on `main`, neither claimed: (1) the screener also finds cash-secured puts and covered calls and runs a combined Wheel scan (`_shared/optionScan.ts` `buildSingle()`, `open/StrategyPicker.jsx` — free on Paper, per `docs/product/features.md` S3); (2) the universe picker now offers the whole listed market as a fourth option beside S&P 500 and a custom list (`ScreenerConfig.jsx`, `dcf0f17`). Proposed wording: `Screener — put spreads, call spreads, iron condors, cash-secured puts and covered calls, across the S&amp;P 500, the whole market, or your own list`. Not a defect a stranger would notice, but the page is now understating what free Paper already does. vp-product does not edit marketing pages — filed here per its brief.
 
 ## Fixed
 
