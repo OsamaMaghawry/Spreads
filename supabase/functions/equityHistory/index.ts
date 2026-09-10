@@ -34,9 +34,11 @@ async function fetchPortfolioHistory(account) {
   // period=1A is the longest daily window Alpaca serves in one call. Rows
   // already stored from earlier pulls are never deleted, so an account older
   // than a year keeps accumulating history rather than losing the front of it.
-  const url =
-    `${tradingBase(account)}/account/portfolio/history` +
-    `?period=1A&timeframe=1D&intraday_reporting=market_hours&pnl_reset=no_reset`;
+  // Two parameters and no more. `intraday_reporting` and `pnl_reset` are
+  // intraday concepts and Alpaca rejects some combinations of them outright —
+  // a 422 here would cost the account-value line for a setting that does
+  // nothing at a daily timeframe.
+  const url = `${tradingBase(account)}/account/portfolio/history?period=1A&timeframe=1D`;
   return await alpacaFetch(url, account).catch((e) => {
     // A missing account-value line must not lose the reconstruction, which is
     // the half the owner actually asked for. The chart's performance line is
@@ -60,16 +62,27 @@ async function fetchDailyBars(account, tickers: string[], start: string) {
   for (let i = 0; i < list.length; i += 100) {
     const chunk = list.slice(i, i + 100);
     let token: string | null = null;
+    // The plan's own data feed decides what the default is, and a plan without
+    // the consolidated feed answers 403 rather than falling back. One retry on
+    // the free IEX feed rather than losing every mark on the account: an IEX
+    // close can differ from the consolidated close by a cent or two on a thin
+    // name, which is a far smaller error than no line at all. Tried second, so
+    // an account entitled to the better feed always gets it.
+    let feed: string | null = null;
     do {
       const url =
         `https://data.alpaca.markets/v2/stocks/bars?symbols=${chunk.join(",")}` +
         `&timeframe=1Day&start=${start}&adjustment=raw&limit=${BAR_PAGE_LIMIT}` +
+        (feed ? `&feed=${feed}` : "") +
         (token ? `&page_token=${encodeURIComponent(token)}` : "");
       const page = await alpacaFetch(url, account).catch((e) => {
-        console.error("bars fetch failed", chunk.join(","), e?.message || e);
+        console.error("bars fetch failed", chunk.join(","), feed || "default", e?.message || e);
         return null;
       });
-      if (!page) break;
+      if (!page) {
+        if (feed === null) { feed = "iex"; continue; }
+        break;
+      }
       for (const symbol of Object.keys(page.bars || {})) {
         out[symbol] = (out[symbol] || []).concat(page.bars[symbol] || []);
       }
