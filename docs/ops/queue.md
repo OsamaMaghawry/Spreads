@@ -59,6 +59,39 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Open
 
+- 2026-09-10 · owner found in Search Console · **Five pages flagged, and four
+  of the five are `http://` URLs.** Owner started a validation on 9/10 and is
+  parking this until the Alton Live number review is finished — **do not start
+  it before then.** What is on the screen, recorded so it is not re-derived:
+
+  | URL | last crawled |
+  |---|---|
+  | `http://deltamint.app/terms/` | Sep 1 |
+  | `http://deltamint.app/pricing/` | Aug 31 |
+  | `http://deltamint.app/` | Aug 30 |
+  | `https://deltamint.app/terms/` | Aug 30 |
+  | `http://deltamint.app/blog` | Aug 29 |
+
+  The error category itself was cropped out of the screenshot, so it is NOT
+  established — get it from Search Console before fixing anything. Two things
+  the repo already shows, though, and either would produce a flag of this
+  shape:
+
+  - **Scheme.** Four of five are `http://`. Nothing in `landing/src/index.js`
+    issues a redirect of any kind — no 301, no 308, no scheme check. Whatever
+    http→https handling exists is Cloudflare's, not ours, and unverified.
+  - **Trailing slash.** The pages carry `<link rel="canonical"
+    href="https://deltamint.app/terms">` — no trailing slash — while Google
+    crawled `/terms/` WITH one. Three of the five have that mismatch. A
+    canonical pointing at a different URL than the one served is exactly what
+    lands a page in "alternate page with proper canonical tag" or "page with
+    redirect", and it splits whatever authority the page has.
+
+  Blocked on nothing technical; blocked on the owner's sequencing. The fix is
+  likely one redirect rule in the Worker plus a decision about which form is
+  canonical — and seo-editor should settle that, since it owns the search
+  surface and a wrong choice here is expensive to reverse once crawled.
+
 - 2026-09-09 · owner found on the live account · **The multi-close reads
   availability once, when the selection is made.** Closing a TSLA book: every
   order went through except the sale of the main share line. The shares were
