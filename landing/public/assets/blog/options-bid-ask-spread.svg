@@ -1,0 +1,28 @@
+<svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A price line for a single option contract with three marks on it. At the left, the bid of 2.10, marked in green as the price a seller receives. At the right, the ask of 2.30, marked in red as the price a buyer pays. Between them, the midpoint of 2.20, marked as a dashed line with no side attached to it, because nobody has offered that price. A bracket across the top spans the two outer marks and labels the distance between them as a spread of 0.20.">
+  <rect width="720" height="260" fill="#FFFFFF"/>
+
+  <!-- bracket across the gap -->
+  <path d="M140 74 L140 58 L580 58 L580 74" fill="none" stroke="#767B8E" stroke-width="1.5"/>
+  <rect x="296" y="34" width="128" height="30" rx="6" fill="#FFFFFF"/>
+  <text x="360" y="55" font-size="16" text-anchor="middle" fill="#767B8E">spread 0.20</text>
+
+  <!-- the price line -->
+  <line x1="80" y1="160" x2="640" y2="160" stroke="#E1DEF2" stroke-width="3"/>
+
+  <!-- bid -->
+  <line x1="140" y1="132" x2="140" y2="188" stroke="#2E8B5F" stroke-width="4"/>
+  <text x="140" y="112" font-size="15" text-anchor="middle" fill="#767B8E">bid</text>
+  <text x="140" y="93" font-size="24" font-weight="600" text-anchor="middle" fill="#2E8B5F">2.10</text>
+  <text x="140" y="216" font-size="18" font-weight="600" text-anchor="middle" fill="#2E8B5F">sell here</text>
+
+  <!-- midpoint -->
+  <line x1="360" y1="138" x2="360" y2="182" stroke="#534AB7" stroke-width="3" stroke-dasharray="5 5"/>
+  <text x="360" y="112" font-size="15" text-anchor="middle" fill="#767B8E">mid</text>
+  <text x="360" y="93" font-size="24" font-weight="600" text-anchor="middle" fill="#534AB7">2.20</text>
+
+  <!-- ask -->
+  <line x1="580" y1="132" x2="580" y2="188" stroke="#B4485C" stroke-width="4"/>
+  <text x="580" y="112" font-size="15" text-anchor="middle" fill="#767B8E">ask</text>
+  <text x="580" y="93" font-size="24" font-weight="600" text-anchor="middle" fill="#B4485C">2.30</text>
+  <text x="580" y="216" font-size="18" font-weight="600" text-anchor="middle" fill="#B4485C">buy here</text>
+</svg>
