@@ -245,6 +245,33 @@ export function realizedShares(trades) {
   return rows.reduce((a, t) => a + (num(t.stock_pl) || 0), 0);
 }
 
+/**
+ * Share results that reached NO trade row, so no statistic on this page counts
+ * them.
+ *
+ * `tradeReconstruction.ts:1030` — `orphaned += lot.realized_pl` — is reached
+ * when a disposed lot's owning option cannot be resolved: shares bought or sold
+ * outside DeltaMint, an activity feed that starts mid-position, a chain the
+ * pairing could not close. That money is real, it is in the account, and it is
+ * in no `stock_pl`, so every figure built from trade rows is short by exactly
+ * this amount.
+ *
+ * It was surfaced only in the admin rebuild preview. On Analysis it was the
+ * difference between two numbers on the same screen with nothing to explain it
+ * — the daily chart reads the lots directly and sees it, the headline reads the
+ * trade rows and does not. Unbounded, not a rounding term.
+ *
+ * Computed as a DIFFERENCE rather than by re-deriving ownership, because
+ * ownership lives in the reconstruction and a second implementation of it here
+ * would be a second thing to keep right.
+ */
+export function orphanedShares(stockLots, trades) {
+  const lotTotal = (stockLots || [])
+    .filter((l) => l && l.disposed_date)
+    .reduce((a, l) => a + (num(l.realized_pl) || 0), 0);
+  return lotTotal - realizedShares(trades);
+}
+
 // `viewCurve` and `viewBreakdown` used to live here and are gone.
 //
 // `viewCurve` drew the cumulative closed-trade line plus one dashed step to

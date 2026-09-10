@@ -6,6 +6,7 @@ import {
   closesByDay,
   dailyPortfolio,
   fallbackCalendar,
+  priceProblems,
   baseTicker
 } from "./dailyPortfolio.ts";
 
@@ -330,4 +331,234 @@ test("baseTicker keeps a numeric ticker rather than collapsing it to empty", () 
   assert.equal(baseTicker("TSLA1"), "TSLA");
   assert.equal(baseTicker("123"), "123");
   assert.equal(baseTicker(null), "");
+});
+
+// ---------------------------------------------------------------------------
+// Premium is drained by DATE, not keyed on the calendar
+//
+// The bench's first blocker. Share lots use inequalities and were never exposed
+// to this; premium was read as `premiumByDay[d]`, so anything booked on a date
+// the calendar did not contain was never added — not that day, not ever.
+// ---------------------------------------------------------------------------
+
+test("premium booked BEFORE the calendar window is carried into its first day", () => {
+  // The broker serves one year of session dates. An account trading since 2022
+  // lost every dollar booked before the trailing year, from every row.
+  const rows = dailyPortfolio(
+    ["2026-09-01", "2026-09-02"],
+    [
+      { close_date: "2022-03-14", premium_pl: 5000, early_close_pl: 0 },
+      { close_date: "2026-09-02", premium_pl: 100, early_close_pl: 0 }
+    ],
+    [],
+    {}
+  );
+  assert.deepEqual(rows.map((r) => r.premium_cum), [5000, 5100]);
+});
+
+test("premium stamped on a day the calendar does not contain is still counted", () => {
+  // A weekend-stamped OPEXP, a holiday, or a day equityDays dropped for null
+  // equity. 09-05 is a Saturday and is not a session in this calendar.
+  const rows = dailyPortfolio(
+    ["2026-09-04", "2026-09-08"],
+    [
+      { close_date: "2026-09-04", premium_pl: 200, early_close_pl: 0 },
+      { close_date: "2026-09-05", premium_pl: 300, early_close_pl: 0 }
+    ],
+    [],
+    {}
+  );
+  assert.deepEqual(rows.map((r) => r.premium_cum), [200, 500]);
+});
+
+test("a one-year window is a window on the chart, not an amputation of the total", () => {
+  // The seam defect: rows written a year ago kept the older baseline, so the
+  // stored series stepped DOWN by a year of premium — the pole, inverted.
+  const long = dailyPortfolio(
+    ["2025-01-02", "2026-09-02"],
+    [{ close_date: "2024-06-01", premium_pl: 900, early_close_pl: 0 }],
+    [], {}
+  );
+  const short = dailyPortfolio(
+    ["2026-09-02"],
+    [{ close_date: "2024-06-01", premium_pl: 900, early_close_pl: 0 }],
+    [], {}
+  );
+  assert.equal(long[long.length - 1].premium_cum, 900);
+  assert.equal(short[0].premium_cum, 900);
+});
+
+// ---------------------------------------------------------------------------
+// Prices that must not be used
+// ---------------------------------------------------------------------------
+
+test("carrying a close forward is bounded — a dead symbol stops being marked", () => {
+  // Unbounded, a delisted or permanently halted name marks at its last print
+  // for the rest of the account's life, every day of it rendering as valued.
+  const days = [
+    "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-08",
+    "2026-09-09", "2026-09-10", "2026-09-11"
+  ];
+  const rows = dailyPortfolio(
+    days,
+    [],
+    [{ ticker: "ZZZ", qty: 100, acquired_date: "2026-09-01", acquired_price: 10 }],
+    { ZZZ: { "2026-09-01": 10 } }
+  );
+  // Five sessions of carry, then withheld and named.
+  assert.deepEqual(rows.map((r) => r.shares_open !== null), [
+    true, true, true, true, true, true, false, false
+  ]);
+  assert.deepEqual(rows[7].unpriced, ["ZZZ"]);
+});
+
+test("priceProblems names two symbols collapsing to one ticker", () => {
+  const p = priceProblems({
+    bars: {
+      TSLA: [{ t: "2026-09-01T04:00:00Z", c: 375 }],
+      TSLA1: [{ t: "2026-09-01T04:00:00Z", c: 10 }]
+    }
+  });
+  assert.deepEqual(p.collided, ["TSLA"]);
+});
+
+test("priceProblems spots a 2-for-1 split in a raw series and dates it", () => {
+  const p = priceProblems({
+    bars: {
+      NVDA: [
+        { t: "2026-09-01T04:00:00Z", c: 320 },
+        { t: "2026-09-02T04:00:00Z", c: 318 },
+        { t: "2026-09-03T04:00:00Z", c: 159.5 },
+        { t: "2026-09-04T04:00:00Z", c: 161 }
+      ]
+    }
+  });
+  assert.equal(p.splitFrom.NVDA, "2026-09-03");
+});
+
+test("priceProblems does NOT fire on a genuine 40% earnings collapse", () => {
+  // A real loss the chart must show. Detection is by ratio near a split factor,
+  // not by "a big move", precisely so this case survives.
+  const p = priceProblems({
+    bars: {
+      MU: [
+        { t: "2026-09-01T04:00:00Z", c: 100 },
+        { t: "2026-09-02T04:00:00Z", c: 60 }
+      ]
+    }
+  });
+  assert.equal(p.splitFrom.MU, undefined);
+  assert.deepEqual(p.collided, []);
+});
+
+test("a split withholds from the split date FORWARD and leaves earlier days alone", () => {
+  // Priced straight through, a 2:1 split on a 100-share lot at $320 basis
+  // prints a $16,000 loss on one day that never happened.
+  const rows = dailyPortfolio(
+    ["2026-09-01", "2026-09-02", "2026-09-03"],
+    [],
+    [{ ticker: "NVDA", qty: 100, acquired_date: "2026-09-01", acquired_price: 320 }],
+    { NVDA: { "2026-09-01": 320, "2026-09-02": 318, "2026-09-03": 159 } },
+    { unusableFrom: { NVDA: "2026-09-03" } }
+  );
+  assert.deepEqual(rows.map((r) => r.shares_open), [0, -200, null]);
+  assert.deepEqual(rows[2].unpriced, ["NVDA"]);
+});
+
+test("a ticker the ledger and the broker disagree about is never priced", () => {
+  // openBook withholds the whole total when qtyMatchesBroker is false. The
+  // chart must refuse for the reasons the headline refuses, or the same page
+  // shows a dash in the panel and a confident line above it.
+  const rows = dailyPortfolio(
+    ["2026-09-01"],
+    [],
+    [{ ticker: "TSLA", qty: 100, acquired_date: "2026-09-01", acquired_price: 320 }],
+    { TSLA: { "2026-09-01": 375 } },
+    { unusable: ["TSLA"] }
+  );
+  assert.equal(rows[0].shares_open, null);
+  assert.equal(rows[0].performance, null);
+  assert.deepEqual(rows[0].unpriced, ["TSLA"]);
+});
+
+// ---------------------------------------------------------------------------
+// The identity, asserted against the OTHER MODULES rather than against itself
+//
+// The first version of this test restated dailyPortfolio's own formula and
+// checked dailyPortfolio computed it, which proved nothing. These import
+// `computeStats` and `openBook` — the two functions that actually produce the
+// headline the chart has to end at — and compare.
+// ---------------------------------------------------------------------------
+
+import { computeStats } from "../../../src/lib/analytics.js";
+import { openBook } from "../../../src/lib/openBook.js";
+
+// A wheel account shaped like the real one: premium taken, one lot sold, one
+// lot still held and marked.
+const IDENTITY_TRADES = [
+  { close_date: "2026-07-20", premium_pl: 800, early_close_pl: 0, stock_pl: 0,
+    realized_pl: 800, qty: 1, net_credit: 8, short_strike: 320, short_symbol: "S",
+    ticker: "TSLA", close_reason: "expired" },
+  { close_date: "2026-08-05", premium_pl: 637, early_close_pl: 0, stock_pl: 300,
+    realized_pl: 937, qty: 1, net_credit: 6.37, short_strike: 109, short_symbol: "S2",
+    ticker: "WMT", close_reason: "assigned" }
+];
+const IDENTITY_LOTS = [
+  { ticker: "TSLA", qty: 100, acquired_date: "2026-07-24", acquired_price: 320 },
+  { ticker: "WMT", qty: 100, acquired_date: "2026-07-24", acquired_price: 109,
+    disposed_date: "2026-08-05", disposed_price: 112, realized_pl: 300 }
+];
+const TODAY = "2026-09-10";
+const MARK = 415;
+
+test("IDENTITY: performance on the last day equals the Whole view headline", () => {
+  const book = openBook(IDENTITY_LOTS, [
+    { assetClass: "equity", ticker: "TSLA", qty: 100, currentPrice: MARK, unrealizedPL: 9500 }
+  ]);
+  const stats = computeStats(IDENTITY_TRADES, 0, "whole", { unrealized: book.unrealized });
+
+  const rows = dailyPortfolio(
+    ["2026-07-20", "2026-07-24", "2026-08-05", TODAY],
+    IDENTITY_TRADES,
+    IDENTITY_LOTS,
+    { TSLA: { "2026-07-24": 320, [TODAY]: MARK }, WMT: { "2026-07-24": 109, "2026-08-05": 112 } }
+  );
+  const last = rows[rows.length - 1];
+
+  // The headline the page prints, and the point the chart ends on.
+  assert.equal(stats.totalPL, 800 + 937 + 9500);
+  assert.equal(last.performance, stats.totalPL);
+  // And the booked halves agree too, which is the part the orphan case breaks.
+  assert.equal(last.realized_cum, stats.bookedPL);
+});
+
+test("IDENTITY: premium_cum on the last day equals the Premium only headline", () => {
+  const stats = computeStats(IDENTITY_TRADES, 0, "premium");
+  const rows = dailyPortfolio(
+    ["2026-07-20", "2026-08-05", TODAY],
+    IDENTITY_TRADES,
+    IDENTITY_LOTS,
+    { TSLA: { "2026-07-24": 320, [TODAY]: MARK }, WMT: { "2026-08-05": 112 } }
+  );
+  assert.equal(rows[rows.length - 1].premium_cum, stats.totalPL);
+  assert.equal(rows[rows.length - 1].premium_cum, 1437);
+});
+
+test("IDENTITY: an ORPHANED lot is exactly the gap between the two sides", () => {
+  // tradeReconstruction.ts:1030 adds a lot with no resolvable owner to
+  // `orphaned` and to no trade row, so its result reaches `stock_pl` nowhere
+  // while this walk counts it. Not a rounding term — it is unbounded, and the
+  // screen has to show it rather than let two numbers disagree in silence.
+  const orphan = { ticker: "XLI", qty: 100, acquired_date: "2026-07-24", acquired_price: 130,
+                   disposed_date: "2026-08-01", disposed_price: 122, realized_pl: -800 };
+  const stats = computeStats(IDENTITY_TRADES, 0, "whole");
+  const rows = dailyPortfolio(
+    ["2026-07-20", "2026-08-05", TODAY],
+    IDENTITY_TRADES,
+    IDENTITY_LOTS.concat([orphan]),
+    { TSLA: { "2026-07-24": 320, [TODAY]: MARK }, WMT: { "2026-08-05": 112 }, XLI: { "2026-08-01": 122 } }
+  );
+  const last = rows[rows.length - 1];
+  // The walk sees the orphan; the trade rows do not.
+  assert.equal(last.realized_cum - stats.bookedPL, -800);
 });

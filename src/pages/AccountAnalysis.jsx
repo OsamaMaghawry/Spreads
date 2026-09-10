@@ -15,7 +15,7 @@ import DateRangeFilter from "@/components/analysis/DateRangeFilter";
 import CaptureBreakdown from "@/components/analysis/CaptureBreakdown";
 import OpenBookPanel from "@/components/analysis/OpenBookPanel";
 import ViewSwitch from "@/components/analysis/ViewSwitch";
-import { openBook, premiumOnly, realizedShares } from "@/lib/openBook";
+import { openBook, premiumOnly, realizedShares, orphanedShares } from "@/lib/openBook";
 import { dailySeries, bookedCurve } from "@/lib/equityCurve";
 
 export default function AccountAnalysis() {
@@ -154,6 +154,14 @@ export default function AccountAnalysis() {
     () => equitySeries.some((r) => r?.equity !== null && r?.equity !== undefined),
     [equitySeries]
   );
+  // The daily marks that measure drawdown: always the performance series,
+  // whatever the chart happens to be drawing. Account value is a balance and
+  // its drawdown would include every withdrawal.
+  const drawdownPoints = useMemo(
+    () => (strategy === "all" ? dailySeries(equitySeries, view, "performance", range).points : []),
+    [strategy, equitySeries, view, range]
+  );
+
   const chartFallbackReason = useDaily
     ? null
     : equitySeries.length === 0
@@ -181,9 +189,15 @@ export default function AccountAnalysis() {
         // the option debits: a position that fell and recovered registers
         // nothing, because no trade closed while it happened. The daily line has
         // a mark for every day, so the trough is the trough.
-        dailyPoints: useDaily && chartMode === "performance" ? dailyChart.points : null
+        //
+        // DELIBERATELY NOT TIED TO `chartMode`. It was, and toggling the chart
+        // to Account value silently reverted Max drawdown to the booked figure
+        // -- thousands smaller -- under a caption reading "daily values not
+        // stored yet", which was untrue with the daily line drawn 300px below.
+        // A statistic must not move because a chart button moved.
+        dailyPoints: drawdownPoints
       }),
-    [subset, strategy, equity, view, scopedUnrealized, useDaily, chartMode, dailyChart]
+    [subset, strategy, equity, view, scopedUnrealized, drawdownPoints]
   );
 
   const comparison = useMemo(() => {
@@ -206,12 +220,16 @@ export default function AccountAnalysis() {
         // The comparison follows the view too. A per-strategy row takes no mark:
         // the book is not attributable to a strategy, and only the
         // all-strategies row covers the same account the mark does.
+        // The all-strategies row is the same population as the cards above, so
+        // it takes the same drawdown basis. Without this the card and the row
+        // printed two different Max drawdowns under one name on one screen.
         stats: computeStats(r.trades, r.whole ? equity : 0, view, {
-          unrealized: r.whole ? scopedUnrealized : null
+          unrealized: r.whole ? scopedUnrealized : null,
+          dailyPoints: r.whole ? drawdownPoints : null
         })
       }))
       .filter((r) => r.stats);
-  }, [trades, strategy, equity, view, scopedUnrealized]);
+  }, [trades, strategy, equity, view, scopedUnrealized, drawdownPoints]);
 
   const provisionalCount = useMemo(() => subset.filter((t) => t.provisional).length, [subset]);
 
@@ -223,6 +241,14 @@ export default function AccountAnalysis() {
   // on a book that has sold nothing, and it appears the moment one wheel lot is
   // closed.
   const soldSharesFigure = useMemo(() => realizedShares(subset), [subset]);
+  // Share results credited to no trade row at all -- unbounded, and the exact
+  // gap between the chart's own reading of the lots and the headline's reading
+  // of the trade rows. Measured over the WHOLE ledger, like the book, because
+  // an unmatched lot has no strategy and no close date to filter it by.
+  const orphanFigure = useMemo(
+    () => orphanedShares(data?.stockLots, allTrades),
+    [data, allTrades]
+  );
   const wholeUnknown = !stats || !scoped || (book.lots > 0 && book.unrealized === null);
   const headlineFigure =
     view === "premium" ? premiumFigure : wholeUnknown ? null : stats?.totalPL ?? null;
@@ -276,6 +302,7 @@ export default function AccountAnalysis() {
               title={data?.account ? `${data.account.name} — Performance Analysis` : "Performance Analysis"}
               subtitle={`${stats.firstDate} → ${stats.lastDate}${range.from || range.to ? " (filtered)" : ""} · ${strategy === "all" ? "All strategies" : strategyLabel(strategy)} · ${view === "whole" ? "Whole view (options + shares)" : "Premium only (option legs)"} · equity ${equity ? `$${equity.toLocaleString()}` : "n/a"} · generated ${new Date().toLocaleString()}`}
               isPaper={!!data?.account?.is_paper}
+              viewLabel={view === "whole" ? "Whole view (options + shares)" : "Premium only (option legs)"}
             />
           )}
         </div>
@@ -384,8 +411,42 @@ export default function AccountAnalysis() {
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] leading-relaxed text-slate-600">
               <span className="font-semibold text-slate-700">DeltaMint — economic performance report. Not a tax document.</span>{" "}
               Figures cover only positions an option opened or closed and exclude the rest of this
-              account. Realized P/L here is not taxable gain or loss: wash sales, straddle rules,
-              Section 1256 treatment and cost-basis adjustments on assignment are not applied.
+              account.{" "}
+              {/* VIEW-AWARE, because the block named a card that does not exist
+                  under one of them and described figures that are no longer
+                  what it says they are. Under Premium only there is no card
+                  called Realized P/L; under Whole view three of the things it
+                  called "money booked" now carry a mark-to-market. */}
+              {view === "premium" ? (
+                <>
+                  This view shows the option legs alone and excludes every share sale, which are the
+                  largest lines on a wheel trader&rsquo;s 1099-B. Nothing here is taxable gain or loss:
+                  wash sales, straddle rules, Section 1256 treatment and the premium&rsquo;s effect on
+                  stock basis at assignment are not applied.
+                </>
+              ) : (
+                <>
+                  P/L here is not taxable gain or loss: wash sales, straddle rules, Section 1256
+                  treatment and cost-basis adjustments on assignment are not applied.
+                  {stats?.includesUnrealized && (
+                    <> The total, return on equity and return on risk also include an{" "}
+                    <strong>unrealized</strong> mark on shares still held. Nothing is owed on a
+                    position that has not been sold, and that figure moves with the market until it
+                    is.</>
+                  )}
+                </>
+              )}
+              {/* Share results that reached no trade row, so no statistic here
+                  counts them. Real money, in the account, invisible to every
+                  figure on this page -- and the daily chart reads the lots
+                  directly and DOES see it, so unsaid the two disagree in
+                  silence. */}
+              {Math.abs(orphanFigure) >= 0.005 && (
+                <> {fmtMoney(orphanFigure)} of share results could not be matched to an option in this
+                account &mdash; shares bought or sold outside DeltaMint, or a position that began before
+                the broker&rsquo;s activity feed does. That money is in the account and in none of the
+                figures above.</>
+              )}
               {provisionalCount > 0 && (
                 <> {provisionalCount} position{provisionalCount === 1 ? "" : "s"} closed by assignment
                 {provisionalCount === 1 ? " still has" : " still have"} shares held, so

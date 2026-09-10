@@ -15,7 +15,14 @@ import { FileDown, Loader2 } from "lucide-react";
 // `isPaper` is separate and not cosmetic: a simulated account must not produce
 // a document indistinguishable from a real one. Index options are paper-only
 // on Alpaca today, so an index report is simulated by definition.
-export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = false }) {
+// `viewLabel` travels to the FOOTER, not just the header, and that is a
+// correctness fix rather than a flourish. `drawHeader` runs on page 0 only and
+// the header is the only thing that names the view. On a real account the
+// monthly and ticker tables land on page two -- so page two of a Premium-only
+// export was an unlabelled schedule of monthly P/L that excludes every share
+// disposal in the account. Putting those tables under the view switch is what
+// made that reachable.
+export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = false, viewLabel = null }) {
   const [busy, setBusy] = useState(false);
 
   const exportPdf = async () => {
@@ -121,9 +128,10 @@ export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = 
       // DeltaMint is not a broker-dealer, and none that options carry a
       // substantial risk of loss.
       const drawFooter = (n) => {
+        const view = viewLabel ? ` ${viewLabel}.` : "";
         const identity = isPaper
-          ? "DeltaMint — PAPER TRADING, SIMULATED RESULTS. Not a tax document and not investment advice."
-          : "DeltaMint — economic performance report. Not a tax document and not investment advice.";
+          ? `DeltaMint — PAPER TRADING, SIMULATED RESULTS.${view} Not a tax document and not investment advice.`
+          : `DeltaMint — economic performance report.${view} Not a tax document and not investment advice.`;
         pdf.setFontSize(7);
         pdf.setTextColor(120, 130, 150);
         const identityY = ph - 22 - (disclaimerLines.length - 1) * 8;

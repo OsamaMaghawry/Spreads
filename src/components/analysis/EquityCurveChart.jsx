@@ -67,8 +67,15 @@ export default function EquityCurveChart({
         : "Option legs, shares already sold, and the mark on shares still held — priced at each day's close";
 
   // An account balance never has a meaningful zero on screen; a P/L line does,
-  // and the axis has to reach it or a losing month can look like a rising one.
-  const domain = isValue ? ["auto", "auto"] : ["auto", "auto"];
+  // and the axis has to REACH it or a losing window renders as a wedge rising
+  // off nothing. The first version wrote the same pair on both sides of the
+  // ternary, which stripped recharts' own zero anchor and then silently
+  // discarded the <ReferenceLine y={0}> below it (`ifOverflow` defaults to
+  // "discard"), so the one line that gives the chart a sense of scale was never
+  // drawn on exactly the charts that needed it.
+  const domain = isValue
+    ? ["auto", "auto"]
+    : [(min) => Math.min(0, min), (max) => Math.max(0, max)];
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4">

@@ -47,6 +47,13 @@ export function seriesColumn(view, mode) {
  *
  * Returns `{ points, start, end, change, rebased, mode, column, missing }`.
  *
+ * `change` is `end - start` across the rendered window. On the performance line
+ * that is NOT the same as `end`, because `start` is the first day's value after
+ * rebasing rather than zero — a window whose first day already moved carries
+ * that move in `end` and not in `change`. It is rendered only in value mode
+ * today; documented here so the next caller does not read it as "what this
+ * window made".
+ *
  * REBASING. A date range asks "what did this do between these dates", so the
  * window is measured from the value on the last day BEFORE it — not from zero,
  * which would credit the window with everything that came before it, and not

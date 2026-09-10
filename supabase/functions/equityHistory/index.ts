@@ -4,6 +4,7 @@ import { loadAccount, alpacaFetch, tradingBase } from "../_shared/alpaca.ts";
 import {
   equityDays,
   closesByDay,
+  priceProblems,
   dailyPortfolio,
   fallbackCalendar,
   baseTicker
@@ -21,8 +22,9 @@ import {
 
 // Long enough that opening Analysis twice in an afternoon does not re-pull a
 // year of bars; short enough that today's point moves while the market does.
-// The last stored day is always recomputed anyway (see below), so this governs
-// how often the WHOLE series is rebuilt, not how fresh today's mark is.
+// A rebuild rewrites the WHOLE series, today's point included -- there is no
+// cheaper incremental path, so this interval governs how fresh every point is,
+// not just the old ones.
 const STALE_AFTER_MS = 30 * 60 * 1000;
 
 // A year of daily bars per ticker in one page; the loop below follows
@@ -80,7 +82,11 @@ async function fetchDailyBars(account, tickers: string[], start: string) {
         return null;
       });
       if (!page) {
-        if (feed === null) { feed = "iex"; continue; }
+        // Restart pagination on the other feed. A page_token is issued BY a
+        // feed and means nothing to another one, so carrying it across would
+        // 4xx and break the loop with a partial series — which the walk would
+        // then carry forward silently as though those were real closes.
+        if (feed === null) { feed = "iex"; token = null; continue; }
         break;
       }
       for (const symbol of Object.keys(page.bars || {})) {
@@ -134,14 +140,62 @@ async function rebuild(admin, account, userId: string) {
 
   const tickers = [...new Set(lotRows.map((l) => baseTicker(l.ticker)).filter(Boolean))];
 
-  const [history, bars] = await Promise.all([
+  const [history, bars, positions] = await Promise.all([
     fetchPortfolioHistory(account),
-    fetchDailyBars(account, tickers, barStart)
+    fetchDailyBars(account, tickers, barStart),
+    // The broker's own view of what is held right now. Cheap, and it is the
+    // only way the walk can refuse for the same reasons the headline refuses.
+    alpacaFetch(`${tradingBase(account)}/positions`, account).catch((e) => {
+      console.error("positions fetch failed", e?.message || e);
+      return null;
+    })
   ]);
 
   const closes = closesByDay(bars);
+  const { collided, splitFrom } = priceProblems(bars);
   const brokerDays = equityDays(history);
   const equityByDay = new Map(brokerDays.map((r) => [r.day, r]));
+
+  // TICKERS THE LEDGER AND THE BROKER DISAGREE ABOUT.
+  //
+  // `openBook` withholds the whole Whole-view total when the ledger's open lots
+  // and the broker's position differ in quantity, and treats two symbols
+  // stripping to one base ticker as disqualifying — "a collision is not a mark,
+  // it is a question", after a $10 adjusted-contract mark silently replaced a
+  // $375 one and published -$31,000 as complete. The chart has to apply the
+  // same rule or one page shows a dash in the panel and a confident line above
+  // it. A disagreement about the position today is a disagreement about the
+  // lot records the whole history is built from, so the ticker is withheld
+  // throughout rather than only at the right-hand edge.
+  const mismatched: string[] = [];
+  if (Array.isArray(positions)) {
+    const brokerQty: Record<string, number> = {};
+    const brokerCollided = new Set<string>();
+    for (const p of positions) {
+      if (p?.asset_class !== "us_equity") continue;
+      const q = Number(p?.qty);
+      if (!Number.isFinite(q) || q <= 0) continue;
+      const key = baseTicker(p?.symbol);
+      if (brokerQty[key] !== undefined) { brokerCollided.add(key); continue; }
+      brokerQty[key] = q;
+    }
+    const ledgerQty: Record<string, number> = {};
+    for (const l of lotRows) {
+      if (l.disposed_date) continue;
+      const q = Number(l.qty);
+      if (!Number.isFinite(q) || q <= 0) continue;
+      ledgerQty[baseTicker(l.ticker)] = (ledgerQty[baseTicker(l.ticker)] || 0) + q;
+    }
+    // Same 0.0001 tolerance as openBook and brokerView: Alpaca supports
+    // fractional shares, so exact equality on a float is the wrong test.
+    for (const key of Object.keys(ledgerQty)) {
+      const theirs = brokerQty[key];
+      if (brokerCollided.has(key)) { mismatched.push(key); continue; }
+      if (theirs === undefined || Math.abs(theirs - ledgerQty[key]) > 0.0001) mismatched.push(key);
+    }
+  }
+
+  const unusable = [...new Set([...collided, ...mismatched])];
 
   // The broker's own session list is the calendar when we have it: it is the
   // account's real trading calendar, so the chart never draws a flat weekend or
@@ -153,47 +207,78 @@ async function rebuild(admin, account, userId: string) {
   ).filter((d) => d >= firstActivity);
   if (!calendar.length) return [];
 
-  const walk = dailyPortfolio(calendar, tradeRows, lotRows, closes);
+  const walk = dailyPortfolio(calendar, tradeRows, lotRows, closes, { unusable, unusableFrom: splitFrom });
 
-  const rows = walk.map((r) => {
-    const broker = equityByDay.get(r.day);
-    return {
-      account_id: account.id,
-      user_id: userId,
-      day: r.day,
-      equity: broker ? broker.equity : null,
-      profit_loss: broker ? broker.profit_loss : null,
-      base_value: broker ? broker.base_value : null,
-      premium_cum: r.premium_cum,
-      shares_booked: r.shares_booked,
-      shares_open: r.shares_open,
-      shares_cost: r.shares_cost,
-      shares_value: r.shares_value,
-      performance: r.performance,
-      unpriced: r.unpriced,
-      source: "broker",
-      captured_at: new Date().toISOString()
-    };
-  });
+  const capturedAt = new Date().toISOString();
 
-  // Upsert in batches on the (account_id, day) key. Every day is rewritten on
-  // every rebuild rather than only the new ones: a lot's disposal price or a
-  // trade's reconstruction can change AFTER the fact, and a stored series that
-  // kept the superseded arithmetic for old days would disagree with the
-  // account for the rest of its life.
-  for (let i = 0; i < rows.length; i += 500) {
-    const { error } = await admin
-      .from("account_equity_daily")
-      .upsert(rows.slice(i, i + 500), { onConflict: "account_id,day" });
-    if (error) throw new Error(error.message);
-  }
+  // TWO UPSERTS, AND THE SPLIT IS THE WHOLE POINT.
+  //
+  // The first version wrote one row carrying both halves, so a caught broker
+  // error — `fetchPortfolioHistory` returns null on any failure — wrote NULL
+  // over `equity`, `profit_loss` and `base_value` for every day back to the
+  // account's first trade. The next successful pull only reaches back a year.
+  // Alpaca will not serve the rest again. An ordinary page load, every thirty
+  // minutes, permanently destroying primary broker-reported facts of which
+  // this table is the only copy.
+  //
+  // The rule and its boundary, because they are not the same:
+  //
+  //   RECOMPUTING `performance` IS FINE and needs nobody's permission. It is a
+  //   derivation from source records the user can inspect, and keeping
+  //   superseded arithmetic would be the worse failure — a stored series that
+  //   disagreed with the account for the rest of its life.
+  //
+  //   OVERWRITING THE BROKER'S OWN REPORTED FIGURES IS NOT. Those are primary
+  //   facts, not derivations, and nothing rewrites a user's history unasked.
+  //
+  // So the reconstruction columns are written for every day, and the broker
+  // columns are written only for days the broker actually reported. A day it
+  // did not report keeps whatever was stored for it.
+  const derived = walk.map((r) => ({
+    account_id: account.id,
+    user_id: userId,
+    day: r.day,
+    premium_cum: r.premium_cum,
+    shares_booked: r.shares_booked,
+    shares_open: r.shares_open,
+    shares_cost: r.shares_cost,
+    shares_value: r.shares_value,
+    performance: r.performance,
+    unpriced: r.unpriced,
+    // What produced THIS row's reconstruction. The column exists so a value we
+    // computed can never be mistaken for one the broker reported, and writing
+    // "broker" on every row regardless defeated it.
+    source: "reconstructed",
+    captured_at: capturedAt
+  }));
 
-  await admin
-    .from("trading_accounts")
-    .update({ equity_synced_at: new Date().toISOString() })
-    .eq("id", account.id);
+  const brokerRows = walk
+    .filter((r) => equityByDay.has(r.day))
+    .map((r) => {
+      const b = equityByDay.get(r.day)!;
+      return {
+        account_id: account.id,
+        user_id: userId,
+        day: r.day,
+        equity: b.equity,
+        profit_loss: b.profit_loss,
+        base_value: b.base_value
+      };
+    });
 
-  return rows;
+  const write = async (batch: any[]) => {
+    for (let i = 0; i < batch.length; i += 500) {
+      const { error } = await admin
+        .from("account_equity_daily")
+        .upsert(batch.slice(i, i + 500), { onConflict: "account_id,day" });
+      if (error) throw new Error(error.message);
+    }
+  };
+
+  await write(derived);
+  await write(brokerRows);
+
+  return derived;
 }
 
 Deno.serve(async (req) => {
@@ -211,17 +296,35 @@ Deno.serve(async (req) => {
     const syncedAt = account.equity_synced_at ? Date.parse(account.equity_synced_at) : 0;
     const stale = !syncedAt || Date.now() - syncedAt > STALE_AFTER_MS;
 
+    let builtAt = account.equity_synced_at || null;
     let series = stale ? null : await storedSeries(admin, accountId);
     if (!series || !series.length) {
+      // STAMPED BEFORE THE WORK, NOT AFTER, and that ordering is the in-flight
+      // guard. Two tabs, or React running an effect twice, otherwise start two
+      // concurrent full-year bar pulls for the same account. The writes are
+      // idempotent so a race corrupted nothing, but it doubled the broker
+      // traffic every time. Stamping first means the second caller sees a fresh
+      // account and serves what is stored.
+      //
+      // A rebuild that then FAILS leaves the stamp on an account with no rows,
+      // and that is handled rather than ignored: the `!series.length` test
+      // below is what forces the retry, so an empty table always rebuilds
+      // whatever the stamp says.
+      builtAt = new Date().toISOString();
+      await admin
+        .from("trading_accounts")
+        .update({ equity_synced_at: builtAt })
+        .eq("id", account.id);
       await rebuild(admin, account, user.id);
       series = await storedSeries(admin, accountId);
     }
 
     return jsonResponse({
       series,
-      // What the caller is looking at, so the screen can say so rather than
-      // implying the line is live.
-      syncedAt: new Date().toISOString(),
+      // WHEN THIS SERIES WAS BUILT, not when it was asked for. Reporting "now"
+      // for a twenty-nine-minute-old cached series is the exact opposite of
+      // what a freshness stamp is for.
+      syncedAt: builtAt,
       days: series.length
     });
   } catch (error) {

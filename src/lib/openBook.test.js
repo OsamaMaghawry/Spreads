@@ -255,3 +255,39 @@ test("M3: an all-digit ticker keeps its own identity", () => {
   assert.equal(Math.round(b.unrealized), 500);
 });
 
+
+// ---------------------------------------------------------------------------
+// orphanedShares — the gap between the two readings of the same account
+// ---------------------------------------------------------------------------
+
+import { orphanedShares } from "./openBook.js";
+
+test("orphanedShares is zero when every disposed lot reached a trade row", () => {
+  const lots = [
+    { ticker: "WMT", qty: 100, disposed_date: "2026-08-05", realized_pl: 300 },
+    { ticker: "TSLA", qty: 100, disposed_date: null, realized_pl: null }
+  ];
+  const trades = [{ close_date: "2026-08-05", stock_pl: 300 }];
+  assert.equal(orphanedShares(lots, trades), 0);
+});
+
+test("orphanedShares reports a lot whose owning option could not be resolved", () => {
+  // tradeReconstruction adds it to `orphaned` and to NO trade row, so it
+  // reaches stock_pl nowhere while the daily chart reads the lot directly.
+  const lots = [
+    { ticker: "WMT", qty: 100, disposed_date: "2026-08-05", realized_pl: 300 },
+    { ticker: "XLI", qty: 100, disposed_date: "2026-08-01", realized_pl: -800 }
+  ];
+  const trades = [{ close_date: "2026-08-05", stock_pl: 300 }];
+  assert.equal(orphanedShares(lots, trades), -800);
+});
+
+test("orphanedShares ignores lots still held — they have no result to orphan", () => {
+  const lots = [{ ticker: "TSLA", qty: 100, disposed_date: null, realized_pl: null }];
+  assert.equal(orphanedShares(lots, []), 0);
+});
+
+test("orphanedShares survives missing inputs", () => {
+  assert.equal(orphanedShares(null, null), 0);
+  assert.equal(orphanedShares([], []), 0);
+});

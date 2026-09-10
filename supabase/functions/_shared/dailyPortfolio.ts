@@ -26,20 +26,29 @@
 //
 // BUILT FROM LOT DATES, NOT FROM `realized_pl`, and that is the load-bearing
 // decision. `realized_pl` on a trade record is premium_pl + early_close_pl +
-// stock_pl, and the share half is written back onto the row of the option that
-// ACQUIRED the lot — whose close_date is the assignment, weeks before the
-// shares were sold. Accumulating realized_pl by close_date would therefore
-// book a share result on the day the lot was bought, while the same lot was
-// still being marked as held: the same dollars counted twice, every day in
-// between. Reading the lots directly cannot make that mistake, because a lot
-// is either open or disposed on any given day and never both.
+// stock_pl, and the share half is written back onto SOME option's row —
+// normally the one that DISPOSED of the lot, and for a defined-risk spread
+// exercising its own long, the one that ACQUIRED it (`ownersOf`,
+// tradeReconstruction.ts:996). Either way that row's close_date is not the day
+// the shares moved, so accumulating realized_pl by close_date books a share
+// result on a day the lot was still being marked as held: the same dollars
+// counted twice, every day in between. The owner can sit at either end, so the
+// error runs in both directions. Reading the lots directly cannot make that
+// mistake, because a lot is either open or disposed on any given day and never
+// both.
 //
 // The identity that keeps this honest at the right-hand edge:
 //
-//   premium_cum(today) + shares_booked(today) === stats.totalPL
-//   performance(today) === the Whole view headline
+//   premium_cum(today) + shares_booked(today) === stats.totalPL + orphanedStockPL
 //
-// which is asserted in the tests rather than hoped for.
+// `orphanedStockPL` is not a rounding term. tradeReconstruction.ts:1030 adds a
+// lot whose owning option cannot be resolved to `orphaned` and to NO trade row,
+// so it reaches `stock_pl` nowhere while this walk counts it. Analysis has to
+// show that difference rather than let two numbers disagree in silence.
+//
+// The identity is asserted in dailyPortfolio.test.ts against `computeStats` and
+// `openBook` THEMSELVES. The first version of that test restated this file's
+// own formula and checked this file computed it, which proved nothing at all.
 
 const num = (v: unknown): number | null => {
   if (v === null || v === undefined || v === "") return null;
@@ -148,6 +157,85 @@ export function closesByDay(bars: any): Record<string, Record<string, number>> {
   return out;
 }
 
+// Split factors a raw price series can step by, and the tolerance for spotting
+// one. Raw prices are NOT split-adjusted — deliberately, because the recorded
+// `acquired_price` is not either — so a 2-for-1 split appears as the price
+// halving overnight, and marking a 100-share lot at $320 basis against a $160
+// close would print a $16,000 loss that never happened.
+//
+// Detected by RATIO NEAR A SPLIT FACTOR rather than by "a big move", and that
+// precision is the point: a stock genuinely falling 40% on earnings is a real
+// loss the chart must show, while a ratio sitting inside 2% of exactly one half
+// is a corporate action to a near certainty. Common forward and reverse
+// factors, both directions.
+// 5:4 and 5:3 are deliberately ABSENT. Their reciprocals are 0.80 and 0.667 —
+// an ordinary 20% or 40% down day — and a guard that withholds the chart every
+// time a stock has a bad earnings print is worse than the defect it prevents.
+// The factors kept are the ones whose reciprocal is not a plausible single-day
+// move for a listed equity.
+const SPLIT_FACTORS = [2, 3, 4, 5, 6, 7, 8, 10, 20, 3 / 2, 5 / 2];
+// One percent, not two. The band around 3:2 is then a drop of 32.7% to 34.0%,
+// which no ordinary session produces by accident.
+const SPLIT_TOLERANCE = 0.01;
+
+const looksLikeSplit = (prev: number, next: number): boolean => {
+  if (!(prev > 0) || !(next > 0)) return false;
+  const ratio = next / prev;
+  return SPLIT_FACTORS.some(
+    (f) =>
+      Math.abs(ratio - f) / f <= SPLIT_TOLERANCE ||
+      Math.abs(ratio - 1 / f) * f <= SPLIT_TOLERANCE
+  );
+};
+
+/**
+ * Tickers whose price series cannot be trusted against a recorded cost basis,
+ * and the day each becomes untrustworthy.
+ *
+ * Two independent problems, both of which the first version priced straight
+ * through:
+ *
+ *   COLLISION — two broker symbols stripping to one base ticker, "TSLA" and
+ *   "TSLA1" in the same payload. `closesByDay` merges them and the last write
+ *   wins. `openBook.js` already refuses this case outright — a $375 mark
+ *   silently replaced by a $10 adjusted-contract mark once published -$31,000
+ *   as a COMPLETE total — and its comment is the rule: a collision is not a
+ *   mark, it is a question. The chart must refuse for the reasons the headline
+ *   refuses, or the same page shows "—" in the panel and a confident line above
+ *   it.
+ *
+ *   SPLIT — see above. Untrustworthy from the split date FORWARD only: every
+ *   day before it is priced on the same footing as the basis and is fine.
+ */
+export function priceProblems(bars: any): {
+  collided: string[];
+  splitFrom: Record<string, string>;
+} {
+  const map = bars?.bars || {};
+  const symbolsPerTicker: Record<string, number> = {};
+  for (const symbol of Object.keys(map)) {
+    const key = baseTicker(symbol);
+    symbolsPerTicker[key] = (symbolsPerTicker[key] || 0) + 1;
+  }
+  const collided = Object.keys(symbolsPerTicker).filter((k) => symbolsPerTicker[k] > 1).sort();
+
+  const splitFrom: Record<string, string> = {};
+  const closes = closesByDay(bars);
+  for (const ticker of Object.keys(closes)) {
+    const days = Object.keys(closes[ticker]).sort();
+    for (let i = 1; i < days.length; i++) {
+      const prev = closes[ticker][days[i - 1]];
+      const next = closes[ticker][days[i]];
+      if (looksLikeSplit(prev, next)) {
+        // The earliest one wins: after the first unaccounted corporate action
+        // nothing downstream can be reconciled with the recorded basis anyway.
+        if (!splitFrom[ticker]) splitFrom[ticker] = days[i];
+      }
+    }
+  }
+  return { collided, splitFrom };
+}
+
 // ---------------------------------------------------------------------------
 // The walk
 // ---------------------------------------------------------------------------
@@ -195,15 +283,29 @@ interface Lot {
  *               columns are read.
  * @param lots   stock_lots rows, open and disposed alike.
  * @param closes closesByDay() output.
+ * @param opts   `unusable`  tickers whose price may never be used at all —
+ *                           `priceProblems().collided`, plus any ticker whose
+ *                           open lots disagree with the broker's own position.
+ *               `unusableFrom` ticker -> the first day its price stops being
+ *                           usable, from `priceProblems().splitFrom`.
+ *
+ *               Both produce a WITHHELD day rather than a wrong one. The
+ *               headline already refuses on a collision and on a ledger/broker
+ *               quantity disagreement; a chart that priced straight through
+ *               them put a confident line above a panel reading "—".
  */
 export function dailyPortfolio(
   days: string[],
   trades: Trade[],
   lots: Lot[],
-  closes: Record<string, Record<string, number>>
+  closes: Record<string, Record<string, number>>,
+  opts: { unusable?: string[]; unusableFrom?: Record<string, string> } = {}
 ): DailyRow[] {
+  const unusable = new Set((opts.unusable || []).map(baseTicker));
+  const unusableFrom = opts.unusableFrom || {};
   const calendar = [...new Set((days || []).map(day).filter(Boolean) as string[])].sort();
   if (!calendar.length) return [];
+  const calendarIndex = new Map(calendar.map((d, i) => [d, i]));
 
   // Option legs, bucketed by the day they closed, then run as a cumulative sum
   // across the calendar. Bucketing first means the cost is one pass over the
@@ -215,6 +317,25 @@ export function dailyPortfolio(
     if (!d) continue;
     premiumByDay[d] = (premiumByDay[d] || 0) + (num(t?.premium_pl) || 0) + (num(t?.early_close_pl) || 0);
   }
+  // DRAINED BY DATE, NOT KEYED ON THE CALENDAR. The first version read
+  // `premiumByDay[d]` for each calendar day, so premium booked on a date the
+  // calendar does not contain was never added — not that day, not ever. Three
+  // ways that fired, and the share lots were never exposed to any of them
+  // because they use inequalities:
+  //
+  //   - The broker serves one year of session dates. An account trading since
+  //     2022 lost every dollar of premium booked before the trailing year, from
+  //     every row, permanently.
+  //   - Rows written a year ago kept the older baseline and were never
+  //     rewritten, so the stored series STEPPED DOWN by a year of premium at
+  //     the seam. The pole defect, inverted, produced by the fix for it.
+  //   - On any account: a close_date stamped on a weekend (an OPEXP), on a
+  //     holiday, or on a day equityDays dropped for null equity is not a
+  //     calendar key, and that day's premium silently vanished.
+  //
+  // Sorted once and drained with a moving index, so the walk stays linear.
+  const premiumDays = Object.keys(premiumByDay).sort();
+  let premiumIdx = 0;
 
   // Share lots, prepared once.
   const prepared = (lots || [])
@@ -254,31 +375,56 @@ export function dailyPortfolio(
   // halt, a feed gap, a symbol that had not begun trading), and carrying the
   // previous close forward is what a broker statement does — far better than
   // dropping the whole day's mark for want of one price.
-  const lastCloseCache: Record<string, { day: string; price: number } | null> = {};
+  //
+  // BOUNDED, and the bound is the whole point. Carried forward without limit, a
+  // DELISTED or permanently halted name marks at its last print for the rest of
+  // the account's life, and every one of those days renders as a valued day
+  // with a confident number on it. That is precisely the case where the absence
+  // of a bar is the news: the position may be worth nothing. Five sessions is a
+  // week of trading — long enough to ride out a feed gap or a trading halt,
+  // short enough that a dead symbol stops being marked and starts being named.
+  const MAX_CARRY_SESSIONS = 5;
+
+  const sortedDays: Record<string, string[]> = {};
+  const daysFor = (ticker: string) =>
+    (sortedDays[ticker] = sortedDays[ticker] || Object.keys(closes?.[ticker] || {}).sort());
+
   const closeOn = (ticker: string, d: string): number | null => {
     const series = closes?.[ticker];
     if (!series) return null;
-    const exact = series[d];
-    if (exact !== undefined) {
-      lastCloseCache[ticker] = { day: d, price: exact };
-      return exact;
+    if (series[d] !== undefined) return series[d];
+
+    // The most recent bar at or before `d`, and how many bars have passed since.
+    const list = daysFor(ticker);
+    let lo = 0;
+    let hi = list.length - 1;
+    let idx = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (list[mid] <= d) { idx = mid; lo = mid + 1; } else { hi = mid - 1; }
     }
-    const cached = lastCloseCache[ticker];
-    if (cached && cached.day <= d) return cached.price;
-    // Cold, or the walk went backwards: find it the slow way, once.
-    let best: { day: string; price: number } | null = null;
-    for (const k of Object.keys(series)) {
-      if (k <= d && (!best || k > best.day)) best = { day: k, price: series[k] };
-    }
-    if (best) lastCloseCache[ticker] = best;
-    return best ? best.price : null;
+    if (idx < 0) return null;
+
+    // Sessions elapsed is measured on the CALENDAR we are walking, not on the
+    // ticker's own bar list — a symbol that has stopped printing has no bars to
+    // count with, which is the situation this guard exists for.
+    const since = calendarIndex.get(d)! - (calendarIndex.get(list[idx]) ?? -Infinity);
+    if (!Number.isFinite(since) || since > MAX_CARRY_SESSIONS) return null;
+    return series[list[idx]];
   };
 
   let premiumCum = 0;
   const out: DailyRow[] = [];
 
   for (const d of calendar) {
-    premiumCum += premiumByDay[d] || 0;
+    // Everything booked on or before this day, including days the calendar
+    // itself does not contain. The FIRST calendar day therefore also picks up
+    // everything that happened before it, which is what makes a one-year
+    // window a window on the chart rather than an amputation of the total.
+    while (premiumIdx < premiumDays.length && premiumDays[premiumIdx] <= d) {
+      premiumCum += premiumByDay[premiumDays[premiumIdx]];
+      premiumIdx += 1;
+    }
 
     let sharesBooked = 0;
     let sharesCost = 0;
@@ -304,6 +450,12 @@ export function dailyPortfolio(
       if (lot.from && lot.from > d) continue;
 
       if (lot.cost === null) { unmarked.add(lot.ticker); continue; }
+      // A price we are not allowed to use is the same as no price. Refusing
+      // here rather than at the source keeps the reason in `unpriced`, so the
+      // screen can name the ticker instead of showing an unexplained gap.
+      if (unusable.has(lot.ticker)) { unmarked.add(lot.ticker); continue; }
+      const from = unusableFrom[lot.ticker];
+      if (from && d >= from) { unmarked.add(lot.ticker); continue; }
       const close = closeOn(lot.ticker, d);
       if (close === null) { unmarked.add(lot.ticker); continue; }
       sharesCost += lot.cost;

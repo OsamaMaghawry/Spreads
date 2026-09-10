@@ -22,8 +22,14 @@ export default function StatCards({ stats }) {
   const totalSub = premium
     ? "Credits taken less debits paid, closed trades"
     : stats.includesUnrealized
-      ? `${fmtMoney(stats.bookedPL)} booked + ${fmtMoney(stats.unrealizedPL)} on shares still held`
+      // fmtMoney already carries the sign, so a hard "+" printed
+      // "$11,482.00 booked + -$3,200.00 on shares still held".
+      ? `${fmtMoney(stats.bookedPL)} booked, ${stats.unrealizedPL >= 0 ? "plus" : "less"} ${fmtMoney(Math.abs(stats.unrealizedPL))} on shares still held`
       : "Money booked on closed positions";
+
+  // Compliance rule 2: no annualized or compounded rate over a total that
+  // includes an unrealized mark.
+  const annualizable = stats.annualizable && !stats.includesUnrealized;
 
   const groups = [
     {
@@ -34,8 +40,14 @@ export default function StatCards({ stats }) {
         // Withheld below 30 trades / 90 days: annualizing a short window
         // multiplies noise into a headline figure. The sub says so, so the
         // dash reads as deliberate rather than broken.
-        { label: "Annualized (simple)", value: pct(stats.annualized), sub: stats.annualizable ? `ROE × 365 ÷ ${stats.spanDays} days` : "Needs 30 closed trades and 90 days of history", tone: stats.annualized === null ? undefined : stats.annualized >= 0 ? "pos" : "neg" },
-        { label: "Annualized (CAGR)", value: pct(stats.cagr), sub: stats.annualizable ? "Compounded over the same span" : "Needs 30 closed trades and 90 days of history", tone: stats.cagr === null ? undefined : stats.cagr >= 0 ? "pos" : "neg" },
+        // WITHHELD WHENEVER THE TOTAL CARRIES AN UNREALIZED MARK. A reversible
+        // one-day paper gain on stock still held, divided by equity, multiplied
+        // by 365 and compounded, is the one figure on this page that reads as a
+        // performance advertisement. The same withholding the small-sample rule
+        // already applies, for a stronger reason: below 30 trades the figure is
+        // noisy, here it is built on money nobody has.
+        { label: "Annualized (simple)", value: annualizable ? pct(stats.annualized) : "—", sub: annualizable ? `Return on equity × 365 ÷ ${stats.spanDays} days` : stats.includesUnrealized ? "Not annualized while the total includes unrealized gain on shares still held" : "Needs 30 closed trades and 90 days of history", tone: !annualizable || stats.annualized === null ? undefined : stats.annualized >= 0 ? "pos" : "neg" },
+        { label: "Annualized (CAGR)", value: annualizable ? pct(stats.cagr) : "—", sub: annualizable ? "Compounded over the same span" : stats.includesUnrealized ? "Not annualized while the total includes unrealized gain on shares still held" : "Needs 30 closed trades and 90 days of history", tone: !annualizable || stats.cagr === null ? undefined : stats.cagr >= 0 ? "pos" : "neg" },
         { label: "Return on risk", value: pct(stats.returnOnRisk), sub: `vs ${fmtMoney(stats.peakRisk)} peak capital at risk` },
         { label: "Avg return / trade", value: pct(stats.avgTradeRoR, 2), sub: `Each trade's P/L ÷ its own collateral · ${basis.toLowerCase()}` },
         { label: "Credit collected", value: fmtMoney(stats.creditCollected) },
@@ -56,7 +68,11 @@ export default function StatCards({ stats }) {
         {
           label: "Win rate",
           value: pct(stats.winRate),
-          sub: `${stats.wins}W / ${stats.losses}L${stats.scratches ? ` / ${stats.scratches} flat` : ""}${
+          // The basis belongs HERE most of all. On an ordinary losing wheel
+          // cycle -- stock falls, put assigned -- Premium only reports 100% win
+          // rate, largest loss "—" and a zero loss streak over a position that
+          // lost money. Defensible as a statistic, indefensible unlabelled.
+          sub: `${premium ? "Option legs only, shares excluded · " : ""}${stats.wins}W / ${stats.losses}L${stats.scratches ? ` / ${stats.scratches} flat` : ""}${
             stats.provisionalTrades ? ` · ${stats.provisionalTrades} not final, excluded` : ""
           }`
         },
@@ -92,15 +108,17 @@ export default function StatCards({ stats }) {
         // booked includes a position whose shares are still open. Said here
         // because it is the one figure in this group that reads like a win
         // rate and is not measured like one.
-        { label: "Green days", value: pct(stats.dayWinRate), sub: `${stats.tradingDays} closing days · cash booked, all rows` },
-        { label: "Avg per day", value: fmtMoney(stats.avgDayPL), sub: `${pct(stats.avgDayReturn, 3)} of equity · money booked, not the mark`, tone: stats.avgDayPL >= 0 ? "pos" : "neg" },
+        { label: "Green days", value: pct(stats.dayWinRate), sub: `${stats.tradingDays} closing days · ${premium ? "option legs, all rows" : "cash booked, all rows"}` },
+        { label: "Avg per day", value: fmtMoney(stats.avgDayPL), sub: `${pct(stats.avgDayReturn, 3)} of equity · ${premium ? "option legs" : "money booked"}, not the mark`, tone: stats.avgDayPL >= 0 ? "pos" : "neg" },
         { label: "Median per day", value: fmtMoney(stats.medianDayPL), sub: `${pct(stats.medianDayReturn, 3)} of equity`, tone: stats.medianDayPL >= 0 ? "pos" : "neg" },
         { label: "Avg return / day", value: pct(stats.avgDayReturn, 3), sub: `${pct(stats.avgDayRiskReturn, 2)} of capital at risk`, tone: stats.avgDayReturn === null ? undefined : stats.avgDayReturn >= 0 ? "pos" : "neg" },
         { label: "Median return / day", value: pct(stats.medianDayReturn, 3), sub: `${pct(stats.medianDayRiskReturn, 2)} of capital at risk`, tone: stats.medianDayReturn === null ? undefined : stats.medianDayReturn >= 0 ? "pos" : "neg" },
-        { label: "Best day", value: fmtMoney(stats.bestDay?.pl || 0), sub: stats.bestDay?.date, tone: "pos" },
-        { label: "Worst day", value: fmtMoney(stats.worstDay?.pl || 0), sub: stats.worstDay?.date, tone: "neg" },
-        { label: "Best win streak", value: `${stats.bestStreak} ${stats.bestStreak === 1 ? "trade" : "trades"}` },
-        { label: "Worst loss streak", value: `${stats.worstStreak} ${stats.worstStreak === 1 ? "trade" : "trades"}` }
+        // brand.md reserves emerald for gains. An all-red account printed
+        // "Best day -$412.00" in the colour that means "in your favour".
+        { label: "Best day", value: fmtMoney(stats.bestDay?.pl || 0), sub: stats.bestDay?.date, tone: (stats.bestDay?.pl || 0) >= 0 ? "pos" : "neg" },
+        { label: "Worst day", value: fmtMoney(stats.worstDay?.pl || 0), sub: stats.worstDay?.date, tone: (stats.worstDay?.pl || 0) > 0 ? "pos" : "neg" },
+        { label: "Best win streak", value: `${stats.bestStreak} ${stats.bestStreak === 1 ? "trade" : "trades"}`, sub: basis },
+        { label: "Worst loss streak", value: `${stats.worstStreak} ${stats.worstStreak === 1 ? "trade" : "trades"}`, sub: basis }
       ]
     }
   ];
