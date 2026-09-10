@@ -5,8 +5,17 @@ import { fmtMoney } from "@/lib/format";
 // The owner's names, kept over the ones the bench proposed, because they say
 // what each view is FOR rather than what it technically contains:
 //
-//   Whole view    "How is the strategy doing?"      -> judging performance
-//   Premium only  "What did selling options bank?"  -> the option legs alone
+//   Whole view    "How is the strategy doing?"        -> judging performance
+//   Premium only  "What did the option legs come to?"  -> credits AND debits
+//
+// Premium only is NOT "what selling options banked", and the screen said it
+// was. `premiumOnly` sums premium_pl + early_close_pl, and premium_pl is
+// SIGNED -- negative on a net debit. This account holds three long-only rows
+// (TSLA260909P00365000, TSLA260918P00365000, TSLA260918C00352500) that are
+// BOUGHT options: $2,674 of debits paid, contributing +$805 between them. The
+// 352.50 call alone is +$1,182, paid at 13.57 and sold at 25.39 -- a long
+// directional trade that closed for a gain, and nothing about it was banked
+// from selling anything.
 //
 // PREMIUM ONLY IS NOT A TAX VIEW, and the screen said it was. The first version
 // told the user this was "the view to use against a 1099-B". It is not, in
@@ -37,7 +46,7 @@ export default function ViewSwitch({ value, onChange, whole, premium, wholeUnkno
     {
       key: "premium",
       label: "Premium only",
-      sub: "Option legs",
+      sub: "Option legs, net",
       figure: premium
     }
   ];

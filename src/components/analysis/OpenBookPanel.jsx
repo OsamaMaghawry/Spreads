@@ -13,6 +13,11 @@ import { Layers, AlertTriangle } from "lucide-react";
 // was not being cautious. It was describing a different strategy from the one
 // being run.
 
+// Share counts are raw numbers beside figures that all went through fmtMoney,
+// and this module supports fractional quantities -- so a fractional book
+// printed 699.9999999999999 in the middle of a formatted row.
+const fmtQty = (n) => Number(n).toLocaleString(undefined, { maximumFractionDigits: 4 });
+
 const dt = (d) => (d ? new Date(d + "T00:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "—");
 
 export default function OpenBookPanel({ book, priced = true }) {
@@ -26,12 +31,12 @@ export default function OpenBookPanel({ book, priced = true }) {
         <Layers className="h-4 w-4 text-slate-400 shrink-0" />
         <h3 className="text-sm font-semibold text-slate-900">Shares still held</h3>
         <span className="text-xs text-slate-500 tabular-nums">
-          {book.lots} lot{book.lots > 1 ? "s" : ""} · {book.shares} shares ·{" "}
+          {book.lots} lot{book.lots > 1 ? "s" : ""} · {fmtQty(book.shares)} shares ·{" "}
           {/* When some shares have no recorded cost, this figure is the cost of
               the REST of them, and saying "at cost" flat would overstate how
               much of the book it describes. */}
           {book.unknownCostShares > 0
-            ? `${fmtMoney(book.basis)} — cost of ${book.shares - book.unknownCostShares} of ${book.shares} shares`
+            ? `${fmtMoney(book.basis)} — cost of ${fmtQty(book.shares - book.unknownCostShares)} of ${fmtQty(book.shares)} shares`
             : `${fmtMoney(book.basis)} at cost`}
         </span>
         {priced && (
@@ -43,7 +48,7 @@ export default function OpenBookPanel({ book, priced = true }) {
                 {gain ? "+" : ""}{fmtMoney(book.unrealized)}
               </span>
             )}
-            <span className="block text-[11px] text-slate-400">unrealized, price only</span>
+            <span className="block text-[11px] text-slate-400">unrealized, on price alone</span>
           </span>
         )}
       </div>
@@ -61,32 +66,38 @@ export default function OpenBookPanel({ book, priced = true }) {
                 a $0.00 gap against a book that had one. */}
             {book.mismatched.length > 0 ? (
               <>
-                The broker reports a different quantity than this ledger on{" "}
-                <strong>{book.mismatched.join(", ")}</strong>. Until they agree, a total would be a
-                guess with a decimal point.
+                The broker and this page disagree on how many shares of{" "}
+                <strong>{book.mismatched.join(", ")}</strong> are held, so no total is shown. The row
+                below is priced on this page's count.
               </>
             ) : book.stranded.length > 0 ? (
               <>
-                The broker holds <strong>{book.stranded.join(", ")}</strong>, which this ledger has no
-                open lot for — most often a recent assignment that has not synced yet. The total is
-                withheld rather than stated over a book that is not all here.
+                The broker holds <strong>{book.stranded.join(", ")}</strong>, which this page has no
+                lot for. Either it was bought outside DeltaMint, or an assignment has not synced yet
+                — this page cannot tell which. The figures below cover the lots it does have.
               </>
             ) : book.collided.length > 0 ? (
               <>
-                Two positions report under <strong>{book.collided.join(", ")}</strong> — usually an
-                adjusted contract beside the ordinary one. They cannot be priced as one line.
+                Two share positions report under the name <strong>{book.collided.join(", ")}</strong>.
+                They cannot be priced as one line, so no total is shown.
               </>
             ) : book.noCost.length > 0 ? (
               <>
-                No recorded acquisition cost for <strong>{book.noCost.join(", ")}</strong>
-                {book.unknownCostShares > 0 ? ` (${book.unknownCostShares} shares)` : ""}. There is a
-                current price, but nothing to measure it against.
+                No recorded cost for <strong>{book.noCost.join(", ")}</strong>
+                {book.unknownCostShares > 0 ? ` (${fmtQty(book.unknownCostShares)} shares)` : ""}. There is a
+                price, but nothing to measure it against, so no total is shown.
+              </>
+            ) : book.noPosition.length > 0 ? (
+              <>
+                This page holds a lot for <strong>{book.noPosition.join(", ")}</strong> that the broker
+                does not report as a position. That is a disagreement about what is held, not a
+                missing price, so no total is shown — check it against your broker.
               </>
             ) : (
               <>
                 No current price for <strong>{book.noPrice.join(", ")}</strong> —{" "}
-                {fmtMoney(book.unmarkedBasis)} of {fmtMoney(book.basis)} at cost. The total is withheld
-                rather than shown for part of the book.
+                {fmtMoney(book.unmarkedBasis)} of {fmtMoney(book.basis)} at cost, so no total is
+                shown.
               </>
             )}
           </span>
@@ -112,7 +123,7 @@ export default function OpenBookPanel({ book, priced = true }) {
                   {t.ticker}
                   {t.lots > 1 && <span className="ml-1.5 text-xs text-slate-400">{t.lots} lots</span>}
                 </td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{t.shares}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{fmtQty(t.shares)}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">
                   {t.basisKnown ? fmtMoney(t.basis) : <span className="text-slate-400">—</span>}
                 </td>
@@ -142,13 +153,13 @@ export default function OpenBookPanel({ book, priced = true }) {
       <p className="px-5 py-3 text-xs text-slate-500 leading-relaxed border-t border-slate-100">
         {priced ? (
           <>
-            Marked at the broker's current price. <strong>Price only — dividends received are not
-            included.</strong> Unrealized money is not booked and can go either way before it is.
+            Priced at the broker's current price. <strong>Price only — no dividend is included in
+            any figure on this page.</strong> This is not booked money and it can move.
           </>
         ) : (
           <>
-            Not priced in this view. These shares are held and their result is still open — Premium
-            only reports the option legs, so nothing about these positions is in the figures above.
+            Not priced in this view. These shares are held and their result is still open, so they
+            are not in the Premium only figure.
           </>
         )}
       </p>

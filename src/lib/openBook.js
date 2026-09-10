@@ -141,12 +141,18 @@ export function openBook(stockLots, brokerRows) {
     // WHY a line could not be priced, so the screen stops guessing on its
     // behalf. The banner previously assumed "no price" and said so even when
     // the price was there and the cost was not.
+    // ORDER MATTERS, and the first version had it wrong: `no-cost` was tested
+    // before `no-position`, so a lot with neither a cost nor a broker row was
+    // labelled "no cost" and the banner then stated as fact that a current
+    // price existed. Establish what the BROKER has first, then what the ledger
+    // has, so every branch is true of the condition that reaches it.
+    const hasPrice = !!m && m.price !== null && m.price > 0;
     t.reason = t.marked
       ? null
       : collided.has(t.ticker) ? "collision"
-      : !t.basisKnown ? "no-cost"
       : !m ? "no-position"
-      : "no-price";
+      : !hasPrice ? "no-price"
+      : "no-cost";
   }
 
   const tickers = [...byTicker.values()].sort((a, b) => (b.basis || 0) - (a.basis || 0));
@@ -172,9 +178,20 @@ export function openBook(stockLots, brokerRows) {
   // 7 lots marked" reads as almost complete while a $32,000 position hides
   // inside the one that is missing. Shares whose cost is unknown are counted
   // separately again, because they have no dollars to appear in either column.
+  // `stranded` is DISCLOSED but does not withhold, and that is a reversal of
+  // the first fix.
+  //
+  // `stock_lots` holds option-touched lots only -- the Analysis page states
+  // that in its own footer -- so a broker position this ledger has no lot for
+  // is very often ordinary stock the user bought outside the product, and is
+  // outside what this page claims to cover by design. Withholding on it gave
+  // every such user a permanent "-" in Whole view while the copy told them to
+  // wait for a sync that would never resolve it. The other cause, an
+  // assignment that has not synced yet, is real too and we cannot tell the two
+  // apart from here -- so the screen names both and picks neither, the same
+  // rule brand.md sets for qty_available.
   const complete =
     tickers.length > 0 &&
-    stranded.length === 0 &&
     tickers.every((t) => t.marked && t.qtyMatchesBroker !== false);
 
   return {
@@ -195,7 +212,12 @@ export function openBook(stockLots, brokerRows) {
     complete,
     // Named so the screen can say WHICH position, and WHY.
     unmarked: tickers.filter((t) => !t.marked).map((t) => t.ticker),
-    noPrice: tickers.filter((t) => t.reason === "no-price" || t.reason === "no-position").map((t) => t.ticker),
+    noPrice: tickers.filter((t) => t.reason === "no-price").map((t) => t.ticker),
+    // The ledger says these shares are held and the broker's position list does
+    // not contain them. That is a reconciliation failure -- the mirror of
+    // `stranded` -- and it was being reported as "no current price", which
+    // describes a data gap and buries the more serious of the two.
+    noPosition: tickers.filter((t) => t.reason === "no-position").map((t) => t.ticker),
     noCost: tickers.filter((t) => t.reason === "no-cost").map((t) => t.ticker),
     collided: tickers.filter((t) => t.reason === "collision").map((t) => t.ticker),
     mismatched: tickers.filter((t) => t.qtyMatchesBroker === false).map((t) => t.ticker),

@@ -182,17 +182,50 @@ test("B2: an unknown acquisition price does not silently shrink the book's cost"
   assert.equal(b.unknownCostShares, 100, "the shares with no cost are counted, not vanished");
   assert.deepEqual(b.noCost, ["JNJ"]);
   assert.deepEqual(b.noPrice, [], "the price was never the missing input");
+  assert.deepEqual(b.noPosition, []);
   assert.equal(b.complete, false);
   assert.equal(b.unrealized, null);
 });
 
-test("B3: shares the broker holds with no ledger lot withhold the total and are named", () => {
-  // Assignment-to-sync lag. 500 NVDA at the broker appeared nowhere, and the
-  // total published as complete over a book it had not fully read.
+test("B3/B6: shares the broker holds with no ledger lot are NAMED, and do not withhold", () => {
+  // Reversed after desk-editor. `stock_lots` is option-touched only, so a
+  // broker position with no lot here is usually ordinary stock bought outside
+  // the product -- out of scope by design, not a failure. Withholding on it
+  // gave those users a PERMANENT dash while the copy told them to wait for a
+  // sync that would never come.
   const b = openBook([lot("TSLA", 100, 320, "2026-07-24")], [eq("TSLA", 100, 375), eq("NVDA", 500, 180)]);
-  assert.deepEqual(b.stranded, ["NVDA"]);
-  assert.equal(b.complete, false, "a confident headline over an unread book is the defect");
-  assert.equal(b.unrealized, null);
+  assert.deepEqual(b.stranded, ["NVDA"], "named, always");
+  assert.equal(b.complete, true, "the lots this page covers are all priced");
+  assert.equal(Math.round(b.unrealized), 5500, "100 TSLA at 375 against a 320 basis");
+});
+
+test("B4: no cost AND no broker row is reported as no position, not as no cost", () => {
+  // The banner said "there is a current price, but nothing to measure it
+  // against" when there was no price either. Order of the reason chain.
+  const b = openBook([lot("JNJ", 100, null, "2026-07-31")], []);
+  assert.deepEqual(b.noPosition, ["JNJ"]);
+  assert.deepEqual(b.noCost, [], "cost is not the finding when the position is absent");
+  assert.equal(b.complete, false);
+});
+
+test("B5: a lot the broker does not report is a reconciliation failure, not a missing price", () => {
+  const b = openBook([lot("TSLA", 100, 320, "2026-07-24")], [eq("AMZN", 100, 240)]);
+  assert.deepEqual(b.noPosition, ["TSLA"]);
+  assert.deepEqual(b.noPrice, [], "'no current price' describes a data gap and would bury this");
+  assert.equal(b.complete, false);
+});
+
+test("B4: a broker row with a null price is a missing price, and cost is not blamed", () => {
+  const b = openBook([lot("TSLA", 100, 320, "2026-07-24")], [eq("TSLA", 100, null)]);
+  assert.deepEqual(b.noPrice, ["TSLA"]);
+  assert.deepEqual(b.noCost, []);
+});
+
+test("B4: no cost WITH a price present is the one case that branch may claim", () => {
+  const b = openBook([lot("JNJ", 100, null, "2026-07-31")], [eq("JNJ", 100, 260)]);
+  assert.deepEqual(b.noCost, ["JNJ"]);
+  assert.deepEqual(b.noPrice, []);
+  assert.deepEqual(b.noPosition, []);
 });
 
 test("M2: a fractional quantity difference is not a disagreement", () => {

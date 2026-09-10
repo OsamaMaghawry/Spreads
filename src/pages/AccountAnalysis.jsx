@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
 import { invokeFunction } from "@/lib/functions";
+import { fmtMoney } from "@/lib/format";
 import { RefreshCw, ArrowLeft, BarChart3 } from "lucide-react";
 import { STRATEGIES, strategyOf, strategyLabel } from "@/lib/strategies";
 import { computeStats } from "@/lib/analytics";
@@ -247,12 +248,21 @@ export default function AccountAnalysis() {
                       statistic below it stays realized-only whichever way it
                       is flipped. */}
                   <span className="block text-slate-400 mb-1">
-                    Changes the headline only — the statistics below are realized.
+                    Changes which view is highlighted, and whether the shares below are priced. Every
+                    statistic further down is realized either way.
                   </span>
+                  {view === "whole" && wholeWithheldBecause && (
+                    <span className="block text-amber-700 mb-1">
+                      {wholeWithheldBecause === "filtered"
+                        ? "No total while a strategy tab or date range is set: the shares are held today, and adding them to a filtered figure would answer nothing."
+                        : "No total while part of the book has no price — see the shares below."}
+                    </span>
+                  )}
                   {view === "whole" ? (
                     <>
-                      <strong>Whole view</strong> — realized money plus the current mark on shares
-                      still held. Answers “how is the strategy doing?”
+                      <strong>Whole view</strong> — realized money plus the unrealized gain or loss
+                      on shares still held, at the broker's current price. Answers “how is the
+                      strategy doing?”
                     </>
                   ) : (
                     <>
@@ -273,13 +283,14 @@ export default function AccountAnalysis() {
                           premium counted here reduces the stock basis rather
                           than standing alone as income -- real cash in, but not
                           a finished result while the shares are still held. */}
-                      <strong>Premium only</strong> — the option legs alone. Premium collected on
-                      closed option trades, before pricing shares still held.
+                      <strong>Premium only</strong> — the option legs alone: credits taken, debits
+                      paid, and what closing them cost or returned. Shares still held are not priced
+                      in it.
                       {Math.abs(soldSharesFigure) >= 0.005 && (
                         <>
-                          {" "}Shares already sold added{" "}
-                          <strong>{soldSharesFigure >= 0 ? "+" : ""}${Math.abs(soldSharesFigure).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>{" "}
-                          on top of this, which is why Realized P/L below differs.
+                          {" "}Shares already sold {soldSharesFigure >= 0 ? "added" : "took off"}{" "}
+                          <strong>{fmtMoney(soldSharesFigure)}</strong>, which is why Realized P/L
+                          below differs.
                         </>
                       )}
                     </>
