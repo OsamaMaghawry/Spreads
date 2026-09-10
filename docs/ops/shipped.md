@@ -3,6 +3,25 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-10 · (staging) Fixed the review bench's blockers on the new daily
+  equity feature, two of which had been silently corrupting the stored
+  history: premium booked more than a year before an account's calendar was
+  being dropped from every day's figure permanently (an account trading
+  since 2022 lost that premium for good, and rows written a year ago kept
+  stepping down at the one-year seam), and a failed broker fetch was writing
+  `null` over the broker's own previously-good equity/P&L figures for every
+  day back to the account's first trade — an ordinary page load, every
+  thirty minutes, destroying data this table is the only copy of. Also
+  fixed: the chart now withholds a day's value across a stock split instead
+  of pricing a 2:1 split as a $16,000 one-day loss, a delisted name stops
+  being carried forward at its last print after five sessions and gets
+  named instead, the chart now refuses the same way the headline does when
+  the ledger and the broker's own positions disagree, Annualized/CAGR are
+  withheld whenever the total includes an unrealized mark (a reversible
+  paper gain read as a performance claim), Max drawdown no longer changes
+  depending on which chart button was last clicked, and several PDF-export
+  and wording bugs that stated the wrong thing about shares held or sold
+  (`333a99f`).
 - 2026-09-10 · (staging) The Strategy Comparison table now follows the Whole view / Premium only switch too: its P/L column header reads "Option-leg P/L", "Total P/L" or "Realized P/L" instead of always claiming "Realized", and the all-strategies total row shows the mark on shares still held (which no single strategy row can claim, since a share lot belongs to the account, not to the strategy that opened it) with a one-line note only when that mark is actually present — so the rows no longer visibly fail to add up with nothing on screen explaining why (`c504afb`).
 - 2026-09-10 · (staging) Account Analysis's equity chart is a real daily line instead of a pole: the portfolio is now recalculated for every session day since the account's first trade (from lot dates, not `realized_pl`, so a share result no longer double-books between the day a lot was assigned and the day it was sold) and stored (migration `0030`, `account_equity_daily`), giving two real daily curves — strategy performance and the broker's own account value — with nothing dashed or guessed in either. The Whole view / Premium only switch now actually drives every number on the page, not just the headline: win rate, payoff, expectancy, streaks, best/worst, the month and ticker tables, and return on equity all recompute for the selected view, and max drawdown is now measured from the daily series (a position that fell $9,000 and recovered mid-trade used to register as nothing, since no trade closed while it happened) (`85c8da7`).
 - 2026-09-10 · (staging) The new daily equity line no longer comes back empty for reasons unrelated to the account: `equityHistory` dropped two intraday-only Alpaca parameters that could cause an outright rejection at the daily timeframe it actually uses, and now retries on the free IEX feed when the account's plan doesn't carry the consolidated one instead of leaving every held lot unpriced for the day (`2ca653f`).
