@@ -15,7 +15,7 @@ import DateRangeFilter from "@/components/analysis/DateRangeFilter";
 import CaptureBreakdown from "@/components/analysis/CaptureBreakdown";
 import OpenBookPanel from "@/components/analysis/OpenBookPanel";
 import ViewSwitch from "@/components/analysis/ViewSwitch";
-import { openBook, premiumOnly, realizedShares } from "@/lib/openBook";
+import { openBook, premiumOnly, realizedShares, viewCurve, viewBreakdown } from "@/lib/openBook";
 
 export default function AccountAnalysis() {
   const { id } = useParams();
@@ -152,6 +152,23 @@ export default function AccountAnalysis() {
   // visible and unfiltered -- it is the ADDITION that is withheld, the same
   // discipline return on equity already applies under a strategy filter.
   const scoped = strategy === "all" && !range.from && !range.to;
+  // The mark only joins the chart when the chart is showing the whole account.
+  // Under a strategy tab or a date range the realized half is windowed and the
+  // book is not, so stepping to a whole-account mark would end a filtered line
+  // on an unfiltered number -- the same error the headline already refuses.
+  const scopedUnrealized = scoped ? book.unrealized : null;
+
+  // Declared AFTER scopedUnrealized, deliberately. useMemo runs its callback
+  // and evaluates its dependency array during render, so referencing a `const`
+  // declared further down throws on the temporal dead zone -- the same trap
+  // that took down MultiCloseDialog once already.
+  // The chart follows the view, and ends where the view's headline says. It
+  // used to accumulate realized_pl in BOTH views -- so Premium only reported
+  // one number over a chart ending at another.
+  const curve = useMemo(
+    () => viewCurve(subset, view, scopedUnrealized),
+    [subset, view, scopedUnrealized]
+  );
   const wholeFigure =
     stats && scoped && book.unrealized !== null ? stats.totalPL + book.unrealized : null;
   const wholeUnknown = !stats || !scoped || (book.lots > 0 && book.unrealized === null);
@@ -300,12 +317,33 @@ export default function AccountAnalysis() {
             )}
             {book.lots > 0 && <OpenBookPanel book={book} priced={view === "whole"} />}
             {comparison.length > 1 && <StrategyComparison rows={comparison} />}
+            {/* These three cannot follow the view, and now say so instead of
+                looking stale. Win rate, payoff, expectancy and streaks are
+                OUTCOME statistics over closed positions -- an unrealized mark
+                has no outcome to count, and credit capture is a question about
+                option premium by definition. The owner flipped the switch, saw
+                the chart not move, and reasonably concluded the filter was not
+                a filter. Anything that does not move must explain why. */}
+            {book.lots > 0 && (
+              <p className="text-xs text-slate-500 -mb-1">
+                The cards and capture figures below are measured on closed positions and do not
+                change with the view — an unrealized mark has no win or loss to count yet.
+              </p>
+            )}
             <StatCards stats={stats} />
             <CaptureBreakdown trades={subset} />
-            <EquityCurveChart curve={stats.curve} />
+            <EquityCurveChart curve={curve} view={view} unrealized={scopedUnrealized} />
             <div className="grid gap-4 lg:grid-cols-2">
-              <BreakdownTable title="By month" keyLabel="Month" keyField="month" rows={stats.byMonth} />
-              <BreakdownTable title="By ticker" keyLabel="Ticker" keyField="ticker" rows={stats.byTicker} />
+              <BreakdownTable
+                title={view === "premium" ? "By month — option legs" : "By month"}
+                keyLabel="Month" keyField="month"
+                rows={viewBreakdown(subset, view, stats.byMonth, "month")}
+              />
+              <BreakdownTable
+                title={view === "premium" ? "By ticker — option legs" : "By ticker"}
+                keyLabel="Ticker" keyField="ticker"
+                rows={viewBreakdown(subset, view, stats.byTicker, "ticker")}
+              />
             </div>
 
             {/* Inside reportRef on purpose. The site-wide disclaimer sits in
