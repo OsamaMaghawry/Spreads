@@ -105,9 +105,7 @@ and this post claims only the endpoint: at expiration, zero.
 
 - **Can intrinsic value be negative?** No. The subtraction can come out negative, but the value floors at zero, because nobody has to use a right that costs them money.
 - **Is extrinsic value the same as time value?** They name the same number. "Time value" is the older term and understates it, since the figure prices expected movement as well as days remaining.
-### Why does an in-the-money option cost more than its intrinsic value?
-
-Because the contract can still improve before expiration, and the buyer is paying for that. The deeper in the money it goes, the less of the premium that part accounts for.
+- **Why does an in-the-money option cost more than its intrinsic value?** Because the contract can still improve before expiration, and the buyer is paying for that. The deeper in the money it goes, the less of the premium that part accounts for.
 - **Who ends up with the extrinsic value?** The buyer pays it at the fill and the seller receives it. Whether the seller keeps it depends on what the stock does, which the split says nothing about.
 
 ## The bottom line
@@ -120,8 +118,8 @@ That split is why the [45-strike and 55-strike calls priced so
 differently](/blog/option-strike-price-expiration-premium) in the previous post,
 and it is why an option's price can fall while the stock sits perfectly still.
 The rest of the [foundations series](/blog/foundations) takes the
-inputs one at a time, starting with what the gap between the bid and the ask
-costs on the way in and out.
+inputs one at a time, starting with [what the gap between the bid and the ask
+costs](/blog/options-bid-ask-spread) on the way in and out.
 
 All figures on this page are hypothetical and are there to show the arithmetic.
 This post is educational and is not investment advice.
