@@ -5,20 +5,21 @@
 -- but I don't think the Long Put is in the analysis. Also, make sure the
 -- analysis has the open positions too, not only the closed ones."*
 --
--- He was right, and it was not one position. `trade_records` rows all carry a
--- `close_date` by construction and `stock_lots` are shares, so an OPTION still
--- open appeared in neither — and on that account that is five legs:
+-- He was right about the gap. `trade_records` rows all carry a `close_date` by
+-- construction and `stock_lots` are shares, so an OPTION still open appeared in
+-- neither, and nothing on the Analysis page ever counted one. While such legs
+-- are open, the page counted the 210 TSLA shares and dropped both the put
+-- protecting them and the calls written against them -- not a wheel, a third of
+-- one.
 --
---   TSLA 365P   long 1    paid $435    worth $420     -$15   <- the one he saw
---   TSLA 352.5C long 1    paid $1,357  worth $1,785   +$428
---   TSLA 375C   short 1   took $226    costs $299     -$73
---   TSLA 362.5C short 2   took $1,738  costs $2,420   -$682
---   NVDA 222.5P short 3   took $123    costs $171     -$48
---
--- Net -$390 of live P/L in no figure on the page, on a book whose headline
--- called itself "the wheel as one strategy" while counting the 210 TSLA shares
--- and dropping both the put protecting them and the calls written against
--- them. That is not a wheel; it is a third of one.
+-- A CORRECTION, recorded because the first version of this comment stated it as
+-- fact: the five legs originally listed here were read from the only stored
+-- position dump on staging, taken 8 Sep 14:56 UTC, and presented as the book
+-- "now". They were not. By 9 Sep all five had CLOSED, and the owner said so.
+-- The gap this column fills is real; that illustration of it was three days
+-- stale. See openBook.js for the marks beside what they actually realized --
+-- one leg marked -$682 and realized -$1,832, which is the reason a mark is
+-- labelled unrealized everywhere it appears.
 --
 -- Marked from `/v1beta1/options/bars`, with each leg's opening date read from
 -- the account's own closed orders for those symbols. A leg whose open date

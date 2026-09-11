@@ -290,8 +290,8 @@ interface Trade {
  *
  * The owner, 11 Sep: *"make sure the analysis has the open positions too, not
  * only the closed ones."* `trades` above are closed by construction and `lots`
- * are shares, so an option still open appeared in neither — five legs and -$390
- * of live P/L missing from a line that called itself the whole strategy.
+ * are shares, so an option still open appeared in neither, and the line called
+ * itself the whole strategy while containing none of them.
  *
  * `costBasis` is SIGNED as the broker reports it: positive for a long (paid),
  * negative for a short (credit taken). So `qty * multiplier * close - costBasis`

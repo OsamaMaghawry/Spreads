@@ -295,10 +295,10 @@ test("orphanedShares survives missing inputs", () => {
 // ---------------------------------------------------------------------------
 // openOptions — the open option legs the page had never counted
 //
-// Fixtures are the owner's real Alton Live book as the broker reported it on
-// 8 Sep: 210 TSLA shares, a long put protecting them, a long call, three short
-// calls and three short puts. Net -$390 of live P/L that no figure on the
-// Analysis page contained.
+// Fixtures are the owner's real Alton Live book as the broker reported it in
+// the 8 Sep 14:56 UTC position dump. A SNAPSHOT: all five legs had closed by
+// 9 Sep. Real figures from a real book, which is what makes them worth testing
+// against -- not a description of the account today.
 // ---------------------------------------------------------------------------
 
 import { openOptions, openMark } from "./openBook.js";

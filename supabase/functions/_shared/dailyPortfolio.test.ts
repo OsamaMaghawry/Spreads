@@ -566,10 +566,12 @@ test("IDENTITY: an ORPHANED lot is exactly the gap between the two sides", () =>
 // ---------------------------------------------------------------------------
 // Option legs still open — the half the line never had
 //
-// Fixtures are the owner's real Alton Live book as the broker reported it:
-// 210 TSLA shares, a long put protecting them, a long call, short calls
-// written against them, and short NVDA puts. Net -$390 of live P/L that no
-// figure on the Analysis page contained.
+// Fixtures are the owner's real Alton Live book as the broker reported it in
+// the 8 Sep 14:56 UTC position dump: 210 TSLA shares, a long put protecting
+// them, a long call, short calls written against them, and short NVDA puts.
+// A SNAPSHOT -- all five had closed by 9 Sep. Real numbers from a real book,
+// which is what makes them worth testing against; not a description of the
+// account today.
 // ---------------------------------------------------------------------------
 
 const LEG_DAYS = ["2026-09-01", "2026-09-02", "2026-09-03"];

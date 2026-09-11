@@ -296,22 +296,32 @@ export function orphanedShares(stockLots, trades) {
  * position but I don't think the Long Put is in the analysis. Also, make sure
  * the analysis has the open positions too, not only the closed ones."*
  *
- * He is right, and it was not one position. `openBook` above reads `stock_lots`
- * and marks held SHARES; `computeStats` reads `trade_records` and every row
- * there has a `close_date` by construction. So an option position that is still
- * open appears in NEITHER, and on the live account that is five of them:
+ * He is right about the gap. `openBook` above reads `stock_lots` and marks held
+ * SHARES; `computeStats` reads `trade_records` and every row there has a
+ * `close_date` by construction. So an option position that is still open
+ * appears in NEITHER, and nothing on the Analysis page ever counted one.
  *
- *   TSLA 365P   long 1    paid $435   worth $420    -$15   <- the one he asked about
- *   TSLA 352.5C long 1    paid $1,357 worth $1,785  +$428
- *   TSLA 375C   short 1   took $226   costs $299    -$73
- *   TSLA 362.5C short 2   took $1,738 costs $2,420  -$682
- *   NVDA 222.5P short 3   took $123   costs $171    -$48
+ * THE EXAMPLE BELOW IS A SNAPSHOT, NOT A CURRENT BOOK, and the first version of
+ * this comment got that wrong. It is read from the only stored position dump on
+ * staging, taken 8 Sep 14:56 UTC; by 9 Sep every one of these five legs had
+ * CLOSED, and the owner said so. Kept because it shows the shape of the gap
+ * exactly -- and because what happened next makes the point sharper than the
+ * marks did:
  *
- * Net -$390 of live P/L that no figure on the Analysis page contained, on a
- * book whose headline called itself "the wheel as one strategy". The TSLA
- * structure is the whole point: 210 shares, a long put protecting them, and
- * short calls written against them. Counting the shares and dropping the legs
- * describes a position nobody holds.
+ *   contract            at 8 Sep (mark)      what it actually realized
+ *   TSLA 365P  long 1   paid $435, worth $420   -$15      closed 8 Sep   -$128
+ *   TSLA 352.5C long 1  paid $1,357, worth $1,785 +$428   closed 9 Sep +$1,182
+ *   TSLA 375C  short 1  took $226, costs $299   -$73      closed 9 Sep   -$389
+ *   TSLA 362.5C short 2 took $1,738, costs $2,420 -$682   closed 9 Sep -$1,832
+ *   NVDA 222.5P short 3 took $123, costs $171    -$48     closed/expired  +$63
+ *
+ * The 362.5C was marked -$682 and realized -$1,832. A MARK IS NOT A RESULT,
+ * which is why every figure derived from one is labelled unrealized, and why
+ * the annualized cards are withheld the moment the total contains one.
+ *
+ * The TSLA structure is still the reason this matters: 210 shares, a put
+ * protecting them, short calls written against them. While such legs are open,
+ * counting the shares and dropping the legs describes a position nobody holds.
  *
  * WHERE THE MARK COMES FROM. The same place the share marks come from, and it
  * was already arriving: `brokerView(positions)` in the `syncAccounts` payload
