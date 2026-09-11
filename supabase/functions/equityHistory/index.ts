@@ -1,5 +1,6 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
+import { selectAllWhere } from "../_shared/paging.ts";
 import { loadAccount, alpacaFetch, tradingBase } from "../_shared/alpaca.ts";
 import {
   equityDays,
@@ -146,71 +147,123 @@ async function fetchOptionBars(account, symbols: string[], start: string) {
   return out;
 }
 
-// The day each still-open contract was first filled.
+// The day the CURRENT position in each still-open contract was established.
 //
-// Without it a leg cannot be placed in time, and the walk names it rather than
-// assuming it existed forever — which would put today's position on days before
-// it was opened.
-async function fetchOpenDates(account, symbols: string[], after: string) {
+// Not the first fill ever, which is what the first version took and which
+// back-dates a cost basis that does not belong to that date. One contract
+// bought in June at $4.35 and two more in August gives a broker-reported qty of
+// 3 and a basis of $1,635; dating that to June makes the walk compute
+// `3 x 100 x close - 1635` for every day from June onward, wrong by
+// `addedQty x 100 x close - addedCost` on each of them, unbounded and in either
+// direction. Re-opening the same strike is worse: open in June, close in July,
+// sell it again in August, and dating to June has `premium_cum` carrying July's
+// realized result while the walk simultaneously marks the position as open
+// across July. The same dollars, twice, with opposite signs.
+//
+// So fills are walked NEWEST FIRST, accumulating signed quantity until the
+// running total reaches the quantity the broker says is held now. The fill that
+// completes it is the one that established the current position, and its date
+// is the only one the current cost basis belongs to.
+//
+// A leg whose fills do not reach the current quantity returns NO date rather
+// than the oldest one available. That is the honest answer and the walk names
+// it; guessing would put a position on days it did not exist.
+async function fetchOpenDates(account, legs: any[], after: string) {
   const out: Record<string, string> = {};
-  const list = [...new Set(symbols.filter(Boolean))];
-  if (!list.length) return out;
+  const symbols = legs.map((l) => l.symbol).filter(Boolean);
+  if (!symbols.length) return out;
 
-  for (let i = 0; i < list.length; i += 50) {
-    const chunk = list.slice(i, i + 50);
-    const url =
-      `${tradingBase(account)}/orders?status=closed&direction=asc&limit=500` +
-      `&after=${after}T00:00:00Z&symbols=${chunk.join(",")}&nested=true`;
-    const orders = await alpacaFetch(url, account).catch((e) => {
-      console.error("open-date fetch failed", chunk.join(","), e?.message || e);
-      return null;
-    });
-    if (!Array.isArray(orders)) continue;
-    for (const o of orders) {
-      // `nested=true` so a multi-leg order's legs are visible: a wheel put
-      // opened inside a spread carries its symbol on the leg, not the parent,
-      // and every other list endpoint in this repo already passes it.
-      const rows = [o, ...(o?.legs || [])];
-      for (const r of rows) {
-        const symbol = r?.symbol;
-        if (!symbol || !list.includes(symbol)) continue;
-        const at = String(r?.filled_at || o?.filled_at || "").slice(0, 10);
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(at)) continue;
-        // EARLIEST fill wins. A position added to over several days was opened
-        // on the first of them, and the cost basis the broker reports covers
-        // all of it.
-        if (!out[symbol] || at < out[symbol]) out[symbol] = at;
+  // Fills per symbol, newest first.
+  const fills: Record<string, { day: string; qty: number }[]> = {};
+
+  for (let i = 0; i < symbols.length; i += 50) {
+    const chunk = symbols.slice(i, i + 50);
+    // PAGED. tradeHistory walks this same endpoint twelve times on a real
+    // account precisely because one page of 500 is not enough, and an
+    // unpaginated read here would silently drop the older half of the fills --
+    // which is exactly the half this function is looking for.
+    let pageAfter = `${after}T00:00:00Z`;
+    for (let page = 0; page < 20; page++) {
+      const url =
+        `${tradingBase(account)}/orders?status=closed&direction=asc&limit=500` +
+        `&after=${encodeURIComponent(pageAfter)}&symbols=${chunk.join(",")}&nested=true`;
+      const orders = await alpacaFetch(url, account).catch((e) => {
+        console.error("open-date fetch failed", chunk.join(","), e?.message || e);
+        return null;
+      });
+      if (!Array.isArray(orders) || orders.length === 0) break;
+
+      for (const o of orders) {
+        // `nested=true` so a multi-leg order's legs are visible. A spread is
+        // submitted as `order_class: "mleg"` and the parent's `symbol` is NULL
+        // -- manageOrder says so in its own comment -- so the leg rows are the
+        // only place a spread's contract symbol appears.
+        for (const r of [o, ...(o?.legs || [])]) {
+          const symbol = r?.symbol;
+          if (!symbol || !chunk.includes(symbol)) continue;
+          const at = String(r?.filled_at || o?.filled_at || "").slice(0, 10);
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(at)) continue;
+          const qty = Number(r?.filled_qty ?? r?.qty);
+          if (!Number.isFinite(qty) || qty === 0) continue;
+          const side = String(r?.side || "");
+          // Signed by side, so a buy and a sell on the same contract cancel the
+          // way the position does.
+          const signed = side.startsWith("sell") ? -qty : qty;
+          (fills[symbol] = fills[symbol] || []).push({ day: at, qty: signed });
+        }
       }
+
+      const last = orders[orders.length - 1];
+      const next = last?.submitted_at || last?.created_at;
+      if (!next || orders.length < 500) break;
+      pageAfter = next;
+    }
+  }
+
+  for (const leg of legs) {
+    const held = Number(leg.qty);
+    const rows = (fills[leg.symbol] || []).slice().sort((a, b) => b.day.localeCompare(a.day));
+    if (!rows.length || !Number.isFinite(held) || held === 0) continue;
+    let running = 0;
+    for (const f of rows) {
+      running += f.qty;
+      // Reached the quantity held now, from the newest side. `>=` for a long
+      // and `<=` for a short, because the running total approaches the target
+      // from zero in the direction of the position's own sign.
+      const reached = held > 0 ? running >= held : running <= held;
+      if (reached) { out[leg.symbol] = f.day; break; }
     }
   }
   return out;
 }
 
 async function storedSeries(admin, accountId: string) {
-  const { data, error } = await admin
-    .from("account_equity_daily")
-    .select("day, equity, profit_loss, base_value, premium_cum, shares_booked, shares_open, shares_cost, shares_value, options_open, performance, unpriced")
-    .eq("account_id", accountId)
-    .order("day", { ascending: true });
-  if (error) throw new Error(error.message);
-  return data || [];
+  // Paged for the same reason: past a thousand stored days an unbounded read
+  // serves the OLDEST thousand, so the chart would end years short of today and
+  // say nothing about it.
+  return await selectAllWhere(
+    admin,
+    "account_equity_daily",
+    "day, equity, profit_loss, base_value, premium_cum, shares_booked, shares_open, shares_cost, shares_value, options_open, performance, unpriced",
+    "day",
+    (q) => q.eq("account_id", accountId)
+  );
 }
 
 async function rebuild(admin, account, userId: string) {
-  const [{ data: trades }, { data: lots }] = await Promise.all([
-    admin
-      .from("trade_records")
-      .select("close_date, premium_pl, early_close_pl")
-      .eq("account_id", account.id)
-      .not("close_date", "is", null),
-    admin
-      .from("stock_lots")
-      .select("ticker, qty, acquired_date, acquired_price, disposed_date, disposed_price, realized_pl")
-      .eq("account_id", account.id)
+  // PAGED, because PostgREST caps an unbounded select at a thousand rows and
+  // reports no error. This function shipped without it: `premium_cum` was
+  // silently truncated to whatever thousand trade rows came back, in no defined
+  // order -- so two rebuilds could take different thousands and write different
+  // values for the same historical day with nothing about the account having
+  // changed. One book on staging already holds 1,123 stock lots.
+  const [tradeRows, lotRows] = await Promise.all([
+    selectAllWhere(admin, "trade_records", "close_date, premium_pl, early_close_pl", "close_date",
+      (q) => q.eq("account_id", account.id).not("close_date", "is", null)),
+    selectAllWhere(admin, "stock_lots",
+      "ticker, qty, acquired_date, acquired_price, disposed_date, disposed_price, realized_pl", "id",
+      (q) => q.eq("account_id", account.id))
   ]);
-
-  const tradeRows = trades || [];
-  const lotRows = lots || [];
 
   // The first thing that ever happened on this account, and one day of runway
   // before it so the line starts at zero rather than at its first jump.
@@ -233,10 +286,15 @@ async function rebuild(admin, account, userId: string) {
     fetchDailyBars(account, tickers, barStart),
     // The broker's own view of what is held right now. Cheap, and it is the
     // only way the walk can refuse for the same reasons the headline refuses.
-    alpacaFetch(`${tradingBase(account)}/positions`, account).catch((e) => {
-      console.error("positions fetch failed", e?.message || e);
-      return null;
-    })
+    // NOT caught to null. A failed positions read disables three refusals at
+    // once -- the ledger/broker quantity check, the ticker-collision check, and
+    // the entire open option book, which would then be written as `options_open
+    // = 0` over stored history. That is the shape of the very defect the
+    // never-null rule was written to close, relocated to the columns where that
+    // rule deliberately does not apply. A positions read is not optional for
+    // this walk: if it fails, the rebuild fails and the stored series is left
+    // exactly as it was.
+    alpacaFetch(`${tradingBase(account)}/positions`, account)
   ]);
 
   const closes = closesByDay(bars);
@@ -255,8 +313,11 @@ async function rebuild(admin, account, userId: string) {
   // it. A disagreement about the position today is a disagreement about the
   // lot records the whole history is built from, so the ticker is withheld
   // throughout rather than only at the right-hand edge.
+  if (!Array.isArray(positions)) {
+    throw new Error("Could not read open positions from the broker, so the day-by-day series was left unchanged.");
+  }
   const mismatched: string[] = [];
-  if (Array.isArray(positions)) {
+  {
     const brokerQty: Record<string, number> = {};
     const brokerCollided = new Set<string>();
     for (const p of positions) {
@@ -287,25 +348,29 @@ async function rebuild(admin, account, userId: string) {
 
   // OPTION LEGS STILL OPEN. The half of the book neither `trade_records` (closed
   // by construction) nor `stock_lots` (shares) has ever contained.
-  const openLegs = Array.isArray(positions)
-    ? positions.filter((p) => p?.asset_class === "us_option" && Number(p?.qty) !== 0)
-    : [];
+  const openLegs = positions.filter((p) => p?.asset_class === "us_option" && Number(p?.qty) !== 0);
   const legSymbols = openLegs.map((p) => p.symbol).filter(Boolean);
   const [optionCloses, openDates] = await Promise.all([
     fetchOptionBars(account, legSymbols, barStart),
-    fetchOpenDates(account, legSymbols, barStart)
+    fetchOpenDates(account, openLegs.map((p) => ({ symbol: p.symbol, qty: Number(p.qty) })), barStart)
   ]);
   const openOptions = openLegs.map((p) => ({
     symbol: p.symbol,
     qty: Number(p.qty),
     costBasis: Number(p.cost_basis),
     from: openDates[p.symbol] || null,
-    // Alpaca does not return a multiplier on the position, so it is read from
-    // the symbol: an OCC symbol whose root carries a trailing digit is an
-    // ADJUSTED contract and no longer delivers 100 shares. The walk refuses
-    // those rather than multiplying by a number a corporate action removed --
-    // the same refusal the close ticket and the cover allocator already make.
-    multiplier: /^[A-Z]+\d/.test(String(p.symbol || "")) ? null : 100
+    // Always 100, and an adjusted contract is no exception. occ.ts:25-28
+    // settles it against the symbology: a corporate action changes what the
+    // contract DELIVERS while the premium multiplier stays 100, which is why
+    // the premium on these is exact and is kept.
+    //
+    // The first version tried to detect adjusted contracts with /^[A-Z]+\d/ and
+    // refuse them. Two bugs cancelling: that pattern matches EVERY well-formed
+    // OCC symbol -- `[A-Z]+` takes the root and `\d` takes the first digit of
+    // the expiry -- so the multiplier was always null, and the walk read null as
+    // usable. A guard that never ran, protecting against something that is not
+    // a defect.
+    multiplier: 100
   }));
 
   // The broker's own session list is the calendar when we have it: it is the

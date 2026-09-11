@@ -54,8 +54,18 @@ export default function StrategyComparison({ rows }) {
                 <td className={`${td} text-right`}>{num(stats.profitFactor)}</td>
                 <td className={`${td} text-right`}>{pct(stats.returnOnRisk)}</td>
                 <td className={`${td} text-right`}>{pct(stats.roe)}</td>
-                <td className={`${td} text-right`}>{pct(stats.annualized, 0)}</td>
-                <td className={`${td} text-right`}>{pct(stats.cagr, 0)}</td>
+                {/* Withheld on the same rule StatCards applies, and for the
+                    same reason: a reversible paper gain on an open position,
+                    divided by equity, times 365 and compounded, reads as a
+                    performance claim. The rule landed on the cards and missed
+                    this table -- which is the one that goes into the exported
+                    PDF. */}
+                <td className={`${td} text-right`}>
+                  {stats.includesUnrealized ? "—" : pct(stats.annualized, 0)}
+                </td>
+                <td className={`${td} text-right`}>
+                  {stats.includesUnrealized ? "—" : pct(stats.cagr, 0)}
+                </td>
                 <td className={`${td} text-right text-rose-600`}>{fmtMoney(stats.maxDrawdown ? -stats.maxDrawdown : 0)}</td>
               </tr>
             ))}
@@ -68,9 +78,11 @@ export default function StrategyComparison({ rows }) {
           the row above them with nothing on screen to explain it. */}
       {marked && (
         <p className="border-t border-slate-200 px-4 py-2.5 text-[11px] leading-relaxed text-slate-500">
-          The all-strategies row includes the gain or loss on shares still held; the individual
-          strategy rows are money booked only, because shares are held by the account rather than
-          by one strategy. The rows will not add up to it, by that amount.
+          The all-strategies row includes the unrealized mark on positions still open; the
+          individual strategy rows are money booked only, because a share lot or an option leg is
+          held by the account rather than by one strategy. The rows will not add up to it, by that
+          amount. Annualized and CAGR are withheld on any row carrying that mark &mdash; a
+          reversible paper figure must not be compounded into an annual rate.
         </p>
       )}
       {notFinal > 0 && (

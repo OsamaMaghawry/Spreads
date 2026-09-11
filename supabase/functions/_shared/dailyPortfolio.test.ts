@@ -644,29 +644,86 @@ test("a leg contributes nothing before the day it was opened", () => {
   assert.deepEqual(rows.map((r) => r.options_open), [0, 0, -15]);
 });
 
-test("a leg with no opening date is named rather than assumed to be eternal", () => {
-  // Assuming it existed forever would put today's position on days before it
-  // was opened, which is the one thing worse than leaving the day blank.
+test("a leg with no opening date is NAMED, not silently written as zero", () => {
+  // The test that blessed the worst defect in this file. It was titled exactly
+  // as it is now and then asserted `options_open === 0` and `performance === 0`
+  // -- that is, it asserted the leg was NOT named, which is the opposite of its
+  // own title, and the suite went green over a chart storing $0.00 for a live
+  // option book and reporting itself complete.
+  //
+  // `from` goes null for ordinary reasons: a leg acquired by assignment or
+  // exercise has no order behind it, a leg opened before the order window is
+  // not in it, and a caught fetch error nulls every leg at once.
   const rows = dailyPortfolio(["2026-09-03"], [], [], {}, {
     openOptions: [
       { symbol: "TSLA260909P00365000", qty: 1, costBasis: 435, from: null, multiplier: 100 }
     ],
     optionCloses: { TSLA260909P00365000: { "2026-09-03": 4.2 } }
   });
-  assert.equal(rows[0].options_open, 0);
-  assert.equal(rows[0].performance, 0);
+  assert.equal(rows[0].options_open, null);
+  assert.equal(rows[0].performance, null);
+  assert.deepEqual(rows[0].unpriced, ["TSLA260909P00365000"]);
 });
 
-test("an ADJUSTED contract is refused, not multiplied by a 100 it no longer has", () => {
+test("an undatable leg does not quietly cost the account its whole option book", () => {
+  // The shape that made this severe: four legs priced fine, one undatable, and
+  // the day stored as if the book were complete.
+  const rows = dailyPortfolio(["2026-09-08"], [], [], {}, {
+    openOptions: [
+      { symbol: "TSLA260909P00365000", qty: 1, costBasis: 435, from: "2026-08-01" },
+      { symbol: "TSLA260918C00352500", qty: 1, costBasis: 1357, from: null }
+    ],
+    optionCloses: {
+      TSLA260909P00365000: { "2026-09-08": 4.20 },
+      TSLA260918C00352500: { "2026-09-08": 17.85 }
+    }
+  });
+  assert.equal(rows[0].performance, null);
+  assert.deepEqual(rows[0].unpriced, ["TSLA260918C00352500"]);
+});
+
+test("an ADJUSTED contract is priced — its premium multiplier is still 100", () => {
+  // This test asserted a REFUSAL, and the refusal was wrong. occ.ts:25-28
+  // settles it against the symbology: a 3-for-2 split turns one $90 contract
+  // into one $60 contract delivering 150 shares -- the DELIVERABLE changes and
+  // the premium multiplier stays 100. Refusing would withhold a leg that can be
+  // priced exactly. Nothing in this walk derives shares from a strike, which is
+  // the calculation a corporate action would actually break.
   const rows = dailyPortfolio(["2026-09-03"], [], [], {}, {
     openOptions: [
-      { symbol: "TSLA1260909P00365000", qty: 1, costBasis: 435, from: "2026-09-01", multiplier: 10 }
+      { symbol: "TSLA1260909P00365000", qty: 1, costBasis: 435, from: "2026-09-01" }
     ],
     optionCloses: { TSLA1260909P00365000: { "2026-09-03": 4.2 } }
   });
+  assert.equal(rows[0].options_open, -15);
+  assert.deepEqual(rows[0].unpriced, []);
+});
+
+test("a caller that does know of a different premium multiple can still withhold", () => {
+  const rows = dailyPortfolio(["2026-09-03"], [], [], {}, {
+    openOptions: [
+      { symbol: "XYZ260909P00365000", qty: 1, costBasis: 435, from: "2026-09-01", multiplier: 10 }
+    ],
+    optionCloses: { XYZ260909P00365000: { "2026-09-03": 4.2 } }
+  });
   assert.equal(rows[0].options_open, null);
-  assert.equal(rows[0].performance, null);
-  assert.deepEqual(rows[0].unpriced, ["TSLA1260909P00365000"]);
+  assert.deepEqual(rows[0].unpriced, ["XYZ260909P00365000"]);
+});
+
+test("a thin strike that did not print that session carries its last close forward", () => {
+  // An OTM put at $0.41 does not trade every day. An exact-day lookup nulled
+  // the WHOLE book's mark on any session one leg was quiet -- routine, not
+  // exceptional, and it includes today's bar on a delayed feed.
+  const rows = dailyPortfolio(
+    ["2026-09-01", "2026-09-02", "2026-09-03"], [], [], {}, {
+      openOptions: [
+        { symbol: "NVDA260909P00222500", qty: -3, costBasis: -123, from: "2026-09-01" }
+      ],
+      optionCloses: { NVDA260909P00222500: { "2026-09-01": 0.41, "2026-09-03": 0.57 } }
+    }
+  );
+  assert.deepEqual(rows.map((r) => r.options_open), [0, 0, -48]);
+  assert.deepEqual(rows.map((r) => r.unpriced), [[], [], []]);
 });
 
 test("a leg with no bar that day withholds the option half only", () => {

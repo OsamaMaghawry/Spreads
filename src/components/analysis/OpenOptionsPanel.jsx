@@ -60,7 +60,11 @@ export default function OpenOptionsPanel({ book, priced = true }) {
               <tr key={p.symbol} className="border-b border-slate-100 last:border-0">
                 <td className={`${td} font-medium text-slate-900`}>
                   {p.underlying || p.ticker} {p.strike ?? ""}
-                  {p.optionType === "call" ? "C" : p.optionType === "put" ? "P" : ""}
+                  {/* `occ.ts` yields "C" / "P", not "call" / "put". Compared
+                      against the long words this rendered NOTHING, so a long
+                      365 put and a long 365 call were the same row -- in the
+                      panel built to answer "did you add the Put position". */}
+                  {p.optionType || ""}
                   {p.expiry && <span className="ml-2 text-[11px] font-normal text-slate-400">exp {p.expiry}</span>}
                   {/* A corporate action changed what this contract delivers, so
                       the 100 multiplier no longer holds. Named rather than

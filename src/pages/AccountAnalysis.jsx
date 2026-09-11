@@ -446,11 +446,22 @@ export default function AccountAnalysis() {
                 <>
                   P/L here is not taxable gain or loss: wash sales, straddle rules, Section 1256
                   treatment and cost-basis adjustments on assignment are not applied.
+                  {/* "on shares still held" named the WRONG HALF. On a book
+                      carrying -$287.25 of mark, the share half was +$102.75 and
+                      the option half -$390.00 -- it named the half with the
+                      opposite sign and omitted the half that dominates. This
+                      block sits inside reportRef, so it is what the exported
+                      PDF says. */}
                   {stats?.includesUnrealized && (
                     <> The total, return on equity and return on risk also include an{" "}
-                    <strong>unrealized</strong> mark on shares still held. Nothing is owed on a
-                    position that has not been sold, and that figure moves with the market until it
-                    is.</>
+                    <strong>unrealized</strong> mark on positions still open
+                    {book.lots > 0 && optionBook.count > 0
+                      ? " — shares held and option legs not yet closed"
+                      : optionBook.count > 0
+                        ? " — option legs not yet closed"
+                        : " — shares still held"}
+                    . Nothing is owed on a position that has not been closed, and that figure moves
+                    with the market until it is.</>
                   )}
                 </>
               )}

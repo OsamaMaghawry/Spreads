@@ -436,17 +436,44 @@ export function dailyPortfolio(
   // short enough that a dead symbol stops being marked and starts being named.
   const MAX_CARRY_SESSIONS = 5;
 
-  const sortedDays: Record<string, string[]> = {};
-  const daysFor = (ticker: string) =>
-    (sortedDays[ticker] = sortedDays[ticker] || Object.keys(closes?.[ticker] || {}).sort());
+  const sortedDays = new Map<string, string[]>();
+  const daysFor = (key: string, series: Record<string, number>) => {
+    let list = sortedDays.get(key);
+    if (!list) { list = Object.keys(series).sort(); sortedDays.set(key, list); }
+    return list;
+  };
 
-  const closeOn = (ticker: string, d: string): number | null => {
-    const series = closes?.[ticker];
+  // How many calendar sessions fall in (anchor, d]. Counted by POSITION IN THE
+  // CALENDAR, not by looking the anchor up in it.
+  //
+  // The first version did `calendarIndex.get(d) - (calendarIndex.get(anchor) ??
+  // -Infinity)`, which refused the mark outright whenever the anchor bar's day
+  // was not itself a calendar day. Every bar in the week of runway we fetch
+  // before the first activity is structurally not a calendar day, so the runway
+  // could never be used -- and any systematic one-day misalignment between the
+  // bar dates and the broker's session list turned into every day refused, for
+  // ever, rather than an off-by-one.
+  const sessionsSince = (anchor: string, d: string): number => {
+    let lo = 0;
+    let hi = calendar.length - 1;
+    let after = calendar.length; // index of the first calendar day > anchor
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (calendar[mid] > anchor) { after = mid; hi = mid - 1; } else { lo = mid + 1; }
+    }
+    return (calendarIndex.get(d) as number) - after + 1;
+  };
+
+  const closeOn = (
+    key: string,
+    d: string,
+    source: Record<string, Record<string, number>> = closes
+  ): number | null => {
+    const series = source?.[key];
     if (!series) return null;
     if (series[d] !== undefined) return series[d];
 
-    // The most recent bar at or before `d`, and how many bars have passed since.
-    const list = daysFor(ticker);
+    const list = daysFor(key, series);
     let lo = 0;
     let hi = list.length - 1;
     let idx = -1;
@@ -455,21 +482,23 @@ export function dailyPortfolio(
       if (list[mid] <= d) { idx = mid; lo = mid + 1; } else { hi = mid - 1; }
     }
     if (idx < 0) return null;
-
-    // Sessions elapsed is measured on the CALENDAR we are walking, not on the
-    // ticker's own bar list — a symbol that has stopped printing has no bars to
-    // count with, which is the situation this guard exists for.
-    const since = calendarIndex.get(d)! - (calendarIndex.get(list[idx]) ?? -Infinity);
-    if (!Number.isFinite(since) || since > MAX_CARRY_SESSIONS) return null;
+    if (sessionsSince(list[idx], d) > MAX_CARRY_SESSIONS) return null;
     return series[list[idx]];
   };
 
   // Option legs still open, prepared once.
   //
-  // MULTIPLIER 100 OR REFUSE. A corporate action changes what a contract
-  // delivers, and the 100 is precisely the number it takes away. Every other
-  // surface in this product refuses to price an adjusted contract rather than
-  // multiply by a figure that no longer holds; so does this.
+  // AN ADJUSTED CONTRACT IS PRICED, NOT REFUSED, and the first version had this
+  // backwards. `occ.ts:25-28` settles it against the symbology: a 3-for-2 split
+  // turns one $90 contract into one $60 contract DELIVERING 150 SHARES -- the
+  // deliverable changes and the PREMIUM MULTIPLIER STAYS 100. So x100 on the
+  // premium is exact for an adjusted contract, and refusing one would withhold
+  // a leg we can price correctly. Nothing here derives shares from a strike,
+  // which is the calculation a corporate action would actually break.
+  //
+  // `multiplier` therefore only ever narrows: a caller that knows a contract
+  // genuinely delivers on a different premium multiple can say so, and the walk
+  // withholds. Nothing supplies one today.
   const legs = (opts.openOptions || [])
     .map((o) => {
       const qty = num(o?.qty);
@@ -550,15 +579,32 @@ export function dailyPortfolio(
     let optionsHeld = 0;
     const unmarkedLegs = new Set<string>();
     for (const leg of legs) {
-      // A leg with no opening date cannot be placed in time at all. It is
-      // counted as unmarked rather than assumed to have existed forever, which
-      // would put today's position on days before it was opened.
-      if (!leg.from || leg.from > d) continue;
+      // TWO CONDITIONS, TWO OUTCOMES. One `continue` used to serve both and
+      // that was the worst defect in this file: a leg whose opening date could
+      // not be established skipped before `unmarkedLegs.add`, so it contributed
+      // nothing, never reached `unpriced`, left `optionsHeld` at zero, and the
+      // day was stored as $0.00 with `performance` NON-NULL and the chart
+      // reporting itself complete. On a real five-leg book that is $0.00 stored
+      // against a true -$390, with nothing on screen to say so. Twelve lines
+      // above, this file states the rule it was breaking: zero is a statement
+      // about a portfolio and "not priced" is not that statement.
+      //
+      // `from` goes null for ordinary reasons, not exotic ones: a leg acquired
+      // by assignment or exercise has no order behind it at all; a leg opened
+      // before the order window is not in it; a caught fetch error nulls every
+      // one of them at once.
+      if (!leg.from) { optionsHeld += 1; unmarkedLegs.add(leg.symbol); continue; }
+      // Not yet opened on this day: genuinely nothing to count.
+      if (leg.from > d) continue;
       optionsHeld += 1;
       if (!leg.usable) { unmarkedLegs.add(leg.symbol); continue; }
-      const series = optionCloses[leg.symbol];
-      const close = series ? series[d] : undefined;
-      if (close === undefined || close === null) { unmarkedLegs.add(leg.symbol); continue; }
+      // CARRIED FORWARD, by the same bounded rule the share closes use. An
+      // exact-day lookup was wrong in the routine case, not the exotic one: a
+      // thin strike does not print every session -- an OTM put at $0.41, a call
+      // at $2.99 -- and one zero-volume session on ONE leg nulled the whole
+      // book's mark for that day. That includes today's bar on a delayed feed.
+      const close = closeOn(leg.symbol, d, optionCloses);
+      if (close === null) { unmarkedLegs.add(leg.symbol); continue; }
       optionsOpen += leg.qty * 100 * close - (leg.cost as number);
     }
     const optionsMarked = unmarkedLegs.size === 0;
