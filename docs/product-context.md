@@ -133,6 +133,7 @@ so a change to shared code requires redeploying all of them.
 - **spreadQuote** — Prices a position for closing: what the legs are worth right now, plus the highest limit already tried on them so a retry resumes rather than restarts.
 - **stripeWebhook** — Receives Stripe's signed subscription events and keeps one row per user current.
 - **syncAccounts** — Rebuilds the live picture for every account the caller owns: positions paired into structures, credit and risk per position, and totals that net a ticker's condors instead of double counting both wings.
+- **syncTrades** — Keeping every connected account's history current, without anybody looking.
 - **tradeHistory** — Closed trade history, rebuilt from the broker's activity feed.
 
 ## Database
