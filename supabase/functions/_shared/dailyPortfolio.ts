@@ -65,6 +65,27 @@ export const baseTicker = (t: unknown): string => {
   return root.replace(/\d+$/, "") || root;
 };
 
+// Dollars, to the cent.
+//
+// Every figure this file emits is a product of a price and a quantity summed
+// over a book, and binary floating point does not represent $4.35 exactly:
+// `1 * 100 * 4.35` is 434.99999999999994, so a leg sitting exactly at
+// break-even emitted -5.68e-14 and the owner's five-leg book totalled
+// -389.9999999999998. Both would reach the screen -- the first as "-$0.00",
+// which is a statement about a position, and the second as a figure that
+// disagrees with the broker's own by a hair for no reason a reader could ever
+// discover. Rounded at emit rather than at every intermediate, so the
+// arithmetic itself keeps full precision.
+// `0`, never `-0`. Rounding a tiny negative residue gives negative zero, which
+// formats as "-$0.00" -- a statement that a position lost money. The
+// reconstruction has carried a `noNegZero` for the same reason since the P/L
+// work; this is that rule, here.
+const cents = (v: number | null): number | null => {
+  if (v === null) return null;
+  const r = Math.round(v * 100) / 100;
+  return r === 0 ? 0 : r;
+};
+
 const day = (v: unknown): string | null => {
   const s = String(v || "").slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
@@ -248,10 +269,12 @@ export interface DailyRow {
   shares_open: number | null;
   shares_cost: number;
   shares_value: number | null;
-  /** premium_cum + shares_booked + shares_open, or null when shares_open is. */
+  /** premium_cum + shares_booked + shares_open + options_open, or null when any is. */
   performance: number | null;
   /** premium_cum + shares_booked, or null when a sold lot has no result. */
   realized_cum: number | null;
+  /** Mark on OPTION legs still open that day. Null when one cannot be valued. */
+  options_open: number | null;
   /** Tickers whose contribution to that day could not be established. */
   unpriced: string[];
 }
@@ -260,6 +283,29 @@ interface Trade {
   close_date?: string | null;
   premium_pl?: number | string | null;
   early_close_pl?: number | string | null;
+}
+
+/**
+ * An option position still open, for the days it has been open.
+ *
+ * The owner, 11 Sep: *"make sure the analysis has the open positions too, not
+ * only the closed ones."* `trades` above are closed by construction and `lots`
+ * are shares, so an option still open appeared in neither — five legs and -$390
+ * of live P/L missing from a line that called itself the whole strategy.
+ *
+ * `costBasis` is SIGNED as the broker reports it: positive for a long (paid),
+ * negative for a short (credit taken). So `qty * multiplier * close - costBasis`
+ * is the mark for both sides with no special case.
+ */
+interface OpenOptionLeg {
+  symbol?: string | null;
+  /** Signed: negative is short. */
+  qty?: number | string | null;
+  costBasis?: number | string | null;
+  /** The day the position was opened. Without one it cannot be placed in time. */
+  from?: string | null;
+  /** Shares per contract. Anything but 100 means a corporate action. */
+  multiplier?: number | string | null;
 }
 
 interface Lot {
@@ -299,7 +345,12 @@ export function dailyPortfolio(
   trades: Trade[],
   lots: Lot[],
   closes: Record<string, Record<string, number>>,
-  opts: { unusable?: string[]; unusableFrom?: Record<string, string> } = {}
+  opts: {
+    unusable?: string[];
+    unusableFrom?: Record<string, string>;
+    openOptions?: OpenOptionLeg[];
+    optionCloses?: Record<string, Record<string, number>>;
+  } = {}
 ): DailyRow[] {
   const unusable = new Set((opts.unusable || []).map(baseTicker));
   const unusableFrom = opts.unusableFrom || {};
@@ -413,6 +464,31 @@ export function dailyPortfolio(
     return series[list[idx]];
   };
 
+  // Option legs still open, prepared once.
+  //
+  // MULTIPLIER 100 OR REFUSE. A corporate action changes what a contract
+  // delivers, and the 100 is precisely the number it takes away. Every other
+  // surface in this product refuses to price an adjusted contract rather than
+  // multiply by a figure that no longer holds; so does this.
+  const legs = (opts.openOptions || [])
+    .map((o) => {
+      const qty = num(o?.qty);
+      const cost = num(o?.costBasis);
+      const mult = num(o?.multiplier);
+      const symbol = String(o?.symbol || "");
+      if (!symbol || qty === null || qty === 0) return null;
+      return {
+        symbol,
+        qty,
+        cost,
+        from: day(o?.from),
+        usable: cost !== null && (mult === null || mult === 100)
+      };
+    })
+    .filter(Boolean) as { symbol: string; qty: number; cost: number | null; from: string | null; usable: boolean }[];
+
+  const optionCloses = opts.optionCloses || {};
+
   let premiumCum = 0;
   const out: DailyRow[] = [];
 
@@ -435,7 +511,7 @@ export function dailyPortfolio(
     // one set reported `shares_open` as a clean zero on a day whose booked half
     // was missing — caught by the test for exactly that case.
     const unbooked = new Set<string>();
-    const unmarked = new Set<string>();
+    const unmarkedShares = new Set<string>();
 
     for (const lot of prepared) {
       // Sold on or before this day: its result is booked, and it is no longer
@@ -449,38 +525,71 @@ export function dailyPortfolio(
       // Not yet acquired on this day.
       if (lot.from && lot.from > d) continue;
 
-      if (lot.cost === null) { unmarked.add(lot.ticker); continue; }
+      if (lot.cost === null) { unmarkedShares.add(lot.ticker); continue; }
       // A price we are not allowed to use is the same as no price. Refusing
       // here rather than at the source keeps the reason in `unpriced`, so the
       // screen can name the ticker instead of showing an unexplained gap.
-      if (unusable.has(lot.ticker)) { unmarked.add(lot.ticker); continue; }
+      if (unusable.has(lot.ticker)) { unmarkedShares.add(lot.ticker); continue; }
       const from = unusableFrom[lot.ticker];
-      if (from && d >= from) { unmarked.add(lot.ticker); continue; }
+      if (from && d >= from) { unmarkedShares.add(lot.ticker); continue; }
       const close = closeOn(lot.ticker, d);
-      if (close === null) { unmarked.add(lot.ticker); continue; }
+      if (close === null) { unmarkedShares.add(lot.ticker); continue; }
       sharesCost += lot.cost;
       sharesValue += lot.qty * close;
     }
 
+    // OPTION LEGS STILL OPEN ON THIS DAY.
+    //
+    // `qty * 100 * close - costBasis` is right for both sides without a special
+    // case, because the broker signs both: a short leg has a negative quantity
+    // and a negative cost basis (a credit taken). The TSLA 375C sold for $226
+    // and now costing $299 to buy back is -1*100*2.99 - (-226) = -$73, a loss,
+    // which is what it is. An abs() here is the sign error that printed a loss
+    // as a gain once already.
+    let optionsOpen = 0;
+    let optionsHeld = 0;
+    const unmarkedLegs = new Set<string>();
+    for (const leg of legs) {
+      // A leg with no opening date cannot be placed in time at all. It is
+      // counted as unmarked rather than assumed to have existed forever, which
+      // would put today's position on days before it was opened.
+      if (!leg.from || leg.from > d) continue;
+      optionsHeld += 1;
+      if (!leg.usable) { unmarkedLegs.add(leg.symbol); continue; }
+      const series = optionCloses[leg.symbol];
+      const close = series ? series[d] : undefined;
+      if (close === undefined || close === null) { unmarkedLegs.add(leg.symbol); continue; }
+      optionsOpen += leg.qty * 100 * close - (leg.cost as number);
+    }
+    const optionsMarked = unmarkedLegs.size === 0;
+    const optionsValue = optionsMarked ? optionsOpen : null;
+
     // Null, never zero, when part of the book could not be valued. Zero is a
     // statement about a portfolio and "not priced" is not that statement — the
     // same rule the headline and the open-book panel already apply.
-    const marked = unmarked.size === 0;
     const booked = unbooked.size === 0;
-    const sharesOpen = marked ? sharesValue - sharesCost : null;
+    // Each half fails on its own. An unvaluable OPTION leg must not blank the
+    // share mark, and vice versa -- folding them into one flag made a missing
+    // option price report `shares_open` as unknown, which is a statement about
+    // the wrong position.
+    const sharesOpen = unmarkedShares.size === 0 ? sharesValue - sharesCost : null;
     const realizedCum = booked ? premiumCum + sharesBooked : null;
 
+    const optionsOut = optionsHeld > 0 ? optionsValue : 0;
     out.push({
       day: d,
-      premium_cum: premiumCum,
-      shares_booked: sharesBooked,
-      shares_open: sharesOpen,
-      shares_cost: sharesCost,
-      shares_value: marked ? sharesValue : null,
-      realized_cum: realizedCum,
+      premium_cum: cents(premiumCum) as number,
+      shares_booked: cents(sharesBooked) as number,
+      shares_open: cents(sharesOpen),
+      shares_cost: cents(sharesCost) as number,
+      shares_value: unmarkedShares.size === 0 ? cents(sharesValue) : null,
+      realized_cum: cents(realizedCum),
+      options_open: cents(optionsOut),
       performance:
-        sharesOpen === null || realizedCum === null ? null : realizedCum + sharesOpen,
-      unpriced: [...new Set([...unbooked, ...unmarked])].sort()
+        sharesOpen === null || realizedCum === null || optionsOut === null
+          ? null
+          : cents(realizedCum + sharesOpen + optionsOut),
+      unpriced: [...new Set([...unbooked, ...unmarkedShares, ...unmarkedLegs])].sort()
     });
   }
 

@@ -24,7 +24,11 @@ export default function StatCards({ stats }) {
     : stats.includesUnrealized
       // fmtMoney already carries the sign, so a hard "+" printed
       // "$11,482.00 booked + -$3,200.00 on shares still held".
-      ? `${fmtMoney(stats.bookedPL)} booked, ${stats.unrealizedPL >= 0 ? "plus" : "less"} ${fmtMoney(Math.abs(stats.unrealizedPL))} on shares still held`
+      // "on shares still held" was true until open option legs joined the
+      // mark. On the owner's own book that mark is 210 TSLA shares AND the put
+      // protecting them AND the calls written against them -- naming only the
+      // shares would send a reader looking for the rest of it.
+      ? `${fmtMoney(stats.bookedPL)} booked, ${stats.unrealizedPL >= 0 ? "plus" : "less"} ${fmtMoney(Math.abs(stats.unrealizedPL))} on positions still open`
       : "Money booked on closed positions";
 
   // Compliance rule 2: no annualized or compounded rate over a total that
@@ -46,8 +50,8 @@ export default function StatCards({ stats }) {
         // performance advertisement. The same withholding the small-sample rule
         // already applies, for a stronger reason: below 30 trades the figure is
         // noisy, here it is built on money nobody has.
-        { label: "Annualized (simple)", value: annualizable ? pct(stats.annualized) : "—", sub: annualizable ? `Return on equity × 365 ÷ ${stats.spanDays} days` : stats.includesUnrealized ? "Not annualized while the total includes unrealized gain on shares still held" : "Needs 30 closed trades and 90 days of history", tone: !annualizable || stats.annualized === null ? undefined : stats.annualized >= 0 ? "pos" : "neg" },
-        { label: "Annualized (CAGR)", value: annualizable ? pct(stats.cagr) : "—", sub: annualizable ? "Compounded over the same span" : stats.includesUnrealized ? "Not annualized while the total includes unrealized gain on shares still held" : "Needs 30 closed trades and 90 days of history", tone: !annualizable || stats.cagr === null ? undefined : stats.cagr >= 0 ? "pos" : "neg" },
+        { label: "Annualized (simple)", value: annualizable ? pct(stats.annualized) : "—", sub: annualizable ? `Return on equity × 365 ÷ ${stats.spanDays} days` : stats.includesUnrealized ? "Not annualized while the total includes an unrealized mark on open positions" : "Needs 30 closed trades and 90 days of history", tone: !annualizable || stats.annualized === null ? undefined : stats.annualized >= 0 ? "pos" : "neg" },
+        { label: "Annualized (CAGR)", value: annualizable ? pct(stats.cagr) : "—", sub: annualizable ? "Compounded over the same span" : stats.includesUnrealized ? "Not annualized while the total includes an unrealized mark on open positions" : "Needs 30 closed trades and 90 days of history", tone: !annualizable || stats.cagr === null ? undefined : stats.cagr >= 0 ? "pos" : "neg" },
         { label: "Return on risk", value: pct(stats.returnOnRisk), sub: `vs ${fmtMoney(stats.peakRisk)} peak capital at risk` },
         { label: "Avg return / trade", value: pct(stats.avgTradeRoR, 2), sub: `Each trade's P/L ÷ its own collateral · ${basis.toLowerCase()}` },
         { label: "Credit collected", value: fmtMoney(stats.creditCollected) },

@@ -287,3 +287,107 @@ export function orphanedShares(stockLots, trades) {
 // `computeStats` now takes the view itself and buckets correctly at the source,
 // so a second pass over the same trades to correct the first one is no longer a
 // thing that exists.
+
+/**
+ * The OPTION positions still open, and what they are worth now.
+ *
+ * THE DEFECT THIS EXISTS FOR. The owner, 11 Sep, on his own TSLA book: *"did
+ * you add the Put position that is open now? You included only the long
+ * position but I don't think the Long Put is in the analysis. Also, make sure
+ * the analysis has the open positions too, not only the closed ones."*
+ *
+ * He is right, and it was not one position. `openBook` above reads `stock_lots`
+ * and marks held SHARES; `computeStats` reads `trade_records` and every row
+ * there has a `close_date` by construction. So an option position that is still
+ * open appears in NEITHER, and on the live account that is five of them:
+ *
+ *   TSLA 365P   long 1    paid $435   worth $420    -$15   <- the one he asked about
+ *   TSLA 352.5C long 1    paid $1,357 worth $1,785  +$428
+ *   TSLA 375C   short 1   took $226   costs $299    -$73
+ *   TSLA 362.5C short 2   took $1,738 costs $2,420  -$682
+ *   NVDA 222.5P short 3   took $123   costs $171    -$48
+ *
+ * Net -$390 of live P/L that no figure on the Analysis page contained, on a
+ * book whose headline called itself "the wheel as one strategy". The TSLA
+ * structure is the whole point: 210 shares, a long put protecting them, and
+ * short calls written against them. Counting the shares and dropping the legs
+ * describes a position nobody holds.
+ *
+ * WHERE THE MARK COMES FROM. The same place the share marks come from, and it
+ * was already arriving: `brokerView(positions)` in the `syncAccounts` payload
+ * carries `costBasis`, `marketValue` and the broker's own `unrealizedPL` for
+ * every position, option and equity alike. No new request and no new price
+ * source.
+ *
+ * SIGNS. A short option has a NEGATIVE cost basis (a credit received) and a
+ * negative market value (a liability). `marketValue - costBasis` is therefore
+ * correct for both sides without a special case: the TSLA 375C above is
+ * -299 - (-226) = -$73, a loss, which is what it is. Do not "fix" this with an
+ * abs() -- that is the sign error that printed a loss as a gain once already.
+ */
+export function openOptions(brokerRows) {
+  const rows = (brokerRows || []).filter(
+    (r) => r && r.assetClass === "option" && (num(r.qty) || 0) !== 0
+  );
+
+  const positions = rows.map((r) => {
+    const cost = num(r.costBasis);
+    const value = num(r.marketValue);
+    // OURS, from cost and value, with the broker's own figure kept beside it.
+    // Where the two disagree that disagreement is worth seeing -- the same rule
+    // brokerView states for its own passthrough.
+    const unrealized = cost === null || value === null ? null : value - cost;
+    return {
+      symbol: r.symbol,
+      ticker: r.ticker,
+      underlying: r.underlying,
+      optionType: r.optionType,
+      strike: r.strike,
+      expiry: r.expiry,
+      adjusted: !!r.adjusted,
+      qty: num(r.qty) || 0,
+      side: r.side,
+      costBasis: cost,
+      marketValue: value,
+      unrealized,
+      brokerUnrealized: num(r.unrealizedPL),
+      marked: unrealized !== null
+    };
+  });
+
+  const unmarked = positions.filter((p) => !p.marked);
+  // Null, never zero, when any leg cannot be valued -- the same discipline the
+  // share book applies. A partial total over a book with an unpriced leg is a
+  // guess with a decimal point.
+  const complete = positions.length > 0 && unmarked.length === 0;
+
+  return {
+    positions,
+    count: positions.length,
+    contracts: positions.reduce((a, p) => a + Math.abs(p.qty), 0),
+    unrealized: complete ? positions.reduce((a, p) => a + p.unrealized, 0) : null,
+    // What was paid out and taken in, net, to put these on. Signed.
+    costBasis: positions.reduce((a, p) => a + (p.costBasis || 0), 0),
+    marketValue: complete ? positions.reduce((a, p) => a + p.marketValue, 0) : null,
+    complete,
+    unmarked: unmarked.map((p) => p.symbol)
+  };
+}
+
+/**
+ * The whole open book: shares and option legs together.
+ *
+ * One number for "what is the mark on everything still open", because the
+ * headline needs one and computing it at the call site in two places is how
+ * the two halves drift apart.
+ *
+ * Null when EITHER half is incomplete. A total that silently covered the shares
+ * and quietly dropped an unpriced option leg would be the same defect this
+ * whole panel exists to fix, one level up.
+ */
+export function openMark(shareBook, optionBook) {
+  const shares = shareBook && shareBook.lots > 0 ? shareBook.unrealized : 0;
+  const options = optionBook && optionBook.count > 0 ? optionBook.unrealized : 0;
+  if (shares === null || options === null) return null;
+  return shares + options;
+}

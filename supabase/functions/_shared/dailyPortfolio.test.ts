@@ -562,3 +562,133 @@ test("IDENTITY: an ORPHANED lot is exactly the gap between the two sides", () =>
   // The walk sees the orphan; the trade rows do not.
   assert.equal(last.realized_cum - stats.bookedPL, -800);
 });
+
+// ---------------------------------------------------------------------------
+// Option legs still open — the half the line never had
+//
+// Fixtures are the owner's real Alton Live book as the broker reported it:
+// 210 TSLA shares, a long put protecting them, a long call, short calls
+// written against them, and short NVDA puts. Net -$390 of live P/L that no
+// figure on the Analysis page contained.
+// ---------------------------------------------------------------------------
+
+const LEG_DAYS = ["2026-09-01", "2026-09-02", "2026-09-03"];
+
+test("an open LONG put is marked on every day since it was opened", () => {
+  // Paid $435 for one contract; the day it is worth $4.20 a share it is -$15.
+  const rows = dailyPortfolio(LEG_DAYS, [], [], {}, {
+    openOptions: [
+      { symbol: "TSLA260909P00365000", qty: 1, costBasis: 435, from: "2026-09-02", multiplier: 100 }
+    ],
+    optionCloses: {
+      TSLA260909P00365000: { "2026-09-02": 4.35, "2026-09-03": 4.20 }
+    }
+  });
+  assert.deepEqual(rows.map((r) => r.options_open), [0, 0, -15]);
+  assert.deepEqual(rows.map((r) => r.performance), [0, 0, -15]);
+});
+
+test("an open SHORT call losing money reads as a loss, not a gain", () => {
+  // Sold for $226, now costs $299 to buy back. The broker signs both the
+  // quantity and the cost basis, so one formula covers both sides -- an abs()
+  // here is the sign error that printed a loss as a gain once already.
+  const rows = dailyPortfolio(["2026-09-03"], [], [], {}, {
+    openOptions: [
+      { symbol: "TSLA260911C00375000", qty: -1, costBasis: -226, from: "2026-09-01", multiplier: 100 }
+    ],
+    optionCloses: { TSLA260911C00375000: { "2026-09-03": 2.99 } }
+  });
+  assert.equal(rows[0].options_open, -73);
+});
+
+test("an open short call winning reads as a gain", () => {
+  const rows = dailyPortfolio(["2026-09-03"], [], [], {}, {
+    openOptions: [
+      { symbol: "TSLA260911C00375000", qty: -1, costBasis: -226, from: "2026-09-01", multiplier: 100 }
+    ],
+    optionCloses: { TSLA260911C00375000: { "2026-09-03": 1.00 } }
+  });
+  assert.equal(rows[0].options_open, 126);
+});
+
+test("the whole Alton book marks to the broker's own -$390", () => {
+  const rows = dailyPortfolio(["2026-09-08"], [], [], {}, {
+    openOptions: [
+      { symbol: "TSLA260909P00365000", qty: 1, costBasis: 435, from: "2026-08-01", multiplier: 100 },
+      { symbol: "TSLA260918C00352500", qty: 1, costBasis: 1357, from: "2026-08-01", multiplier: 100 },
+      { symbol: "TSLA260911C00375000", qty: -1, costBasis: -226, from: "2026-08-01", multiplier: 100 },
+      { symbol: "TSLA260918C00362500", qty: -2, costBasis: -1738, from: "2026-08-01", multiplier: 100 },
+      { symbol: "NVDA260909P00222500", qty: -3, costBasis: -123, from: "2026-08-01", multiplier: 100 }
+    ],
+    optionCloses: {
+      TSLA260909P00365000: { "2026-09-08": 4.20 },
+      TSLA260918C00352500: { "2026-09-08": 17.85 },
+      TSLA260911C00375000: { "2026-09-08": 2.99 },
+      TSLA260918C00362500: { "2026-09-08": 12.10 },
+      NVDA260909P00222500: { "2026-09-08": 0.57 }
+    }
+  });
+  assert.equal(rows[0].options_open, -390);
+});
+
+test("a leg contributes nothing before the day it was opened", () => {
+  const rows = dailyPortfolio(LEG_DAYS, [], [], {}, {
+    openOptions: [
+      { symbol: "TSLA260909P00365000", qty: 1, costBasis: 435, from: "2026-09-03", multiplier: 100 }
+    ],
+    optionCloses: { TSLA260909P00365000: { "2026-09-01": 9, "2026-09-02": 8, "2026-09-03": 4.2 } }
+  });
+  // The contract had a price on 09-01 and 09-02; the account did not hold it.
+  assert.deepEqual(rows.map((r) => r.options_open), [0, 0, -15]);
+});
+
+test("a leg with no opening date is named rather than assumed to be eternal", () => {
+  // Assuming it existed forever would put today's position on days before it
+  // was opened, which is the one thing worse than leaving the day blank.
+  const rows = dailyPortfolio(["2026-09-03"], [], [], {}, {
+    openOptions: [
+      { symbol: "TSLA260909P00365000", qty: 1, costBasis: 435, from: null, multiplier: 100 }
+    ],
+    optionCloses: { TSLA260909P00365000: { "2026-09-03": 4.2 } }
+  });
+  assert.equal(rows[0].options_open, 0);
+  assert.equal(rows[0].performance, 0);
+});
+
+test("an ADJUSTED contract is refused, not multiplied by a 100 it no longer has", () => {
+  const rows = dailyPortfolio(["2026-09-03"], [], [], {}, {
+    openOptions: [
+      { symbol: "TSLA1260909P00365000", qty: 1, costBasis: 435, from: "2026-09-01", multiplier: 10 }
+    ],
+    optionCloses: { TSLA1260909P00365000: { "2026-09-03": 4.2 } }
+  });
+  assert.equal(rows[0].options_open, null);
+  assert.equal(rows[0].performance, null);
+  assert.deepEqual(rows[0].unpriced, ["TSLA1260909P00365000"]);
+});
+
+test("a leg with no bar that day withholds the option half only", () => {
+  // An unvaluable option leg must not blank the SHARE mark, which is a
+  // statement about a different position entirely.
+  const rows = dailyPortfolio(["2026-09-03"], [],
+    [{ ticker: "TSLA", qty: 100, acquired_date: "2026-09-01", acquired_price: 320 }],
+    { TSLA: { "2026-09-03": 340 } },
+    {
+      openOptions: [
+        { symbol: "TSLA260909P00365000", qty: 1, costBasis: 435, from: "2026-09-01", multiplier: 100 }
+      ],
+      optionCloses: {}
+    }
+  );
+  assert.equal(rows[0].shares_open, 2000);
+  assert.equal(rows[0].options_open, null);
+  assert.equal(rows[0].performance, null);
+  assert.deepEqual(rows[0].unpriced, ["TSLA260909P00365000"]);
+});
+
+test("an account with no open option legs reports zero, not unknown", () => {
+  const rows = dailyPortfolio(["2026-09-03"],
+    [{ close_date: "2026-09-03", premium_pl: 500, early_close_pl: 0 }], [], {});
+  assert.equal(rows[0].options_open, 0);
+  assert.equal(rows[0].performance, 500);
+});

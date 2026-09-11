@@ -50,22 +50,22 @@ const OPTIONS = [
   {
     key: "whole",
     label: "Whole view",
-    sub: "Option legs + shares — the wheel as one strategy",
+    sub: "Closed trades, shares held, and open option legs",
     // WHAT THIS SENTENCE MAY NOT SAY. The first version claimed every figure
     // below "includes the gain or loss on shares still held at today's price".
     // The mark reaches exactly three outputs -- totalPL, roe, returnOnRisk --
     // and reaches NONE of them under a strategy tab or a date range, because
     // scopedUnrealized is null there. The sentence rendered unconditionally.
-    long: "Every figure below counts the whole position: the option legs and the shares they delivered. Shares still held are marked into the total, return on equity and return on risk — the win and loss figures are outcomes of closed positions and cannot count an open one."
+    long: "Every figure below counts the whole position: the option legs and the shares they delivered. Everything still open — shares held, and option legs not yet closed — is marked into the total, return on equity and return on risk. The win and loss figures are outcomes of closed positions and cannot count an open one."
   },
   {
     key: "premium",
     label: "Premium only",
-    sub: "Option legs alone, net of what closing them cost",
+    sub: "Closed option legs only, net of what closing them cost",
     // "Shares are not in any number on this page" was contradicted three
     // inches away by the open-book panel's share counts and by the
     // "Shares already sold took off $442.00" line directly underneath.
-    long: "Every figure below counts the option legs alone — credits taken and debits paid. No share result is inside any of them, sold or still held; the shares themselves are still listed below."
+    long: "Every figure below counts the option legs that have CLOSED — credits taken and debits paid. No share result is inside any of them, and neither is any option leg still open; both are still listed below, unpriced."
   }
 ];
 

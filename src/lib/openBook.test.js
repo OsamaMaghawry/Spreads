@@ -291,3 +291,104 @@ test("orphanedShares survives missing inputs", () => {
   assert.equal(orphanedShares(null, null), 0);
   assert.equal(orphanedShares([], []), 0);
 });
+
+// ---------------------------------------------------------------------------
+// openOptions — the open option legs the page had never counted
+//
+// Fixtures are the owner's real Alton Live book as the broker reported it on
+// 8 Sep: 210 TSLA shares, a long put protecting them, a long call, three short
+// calls and three short puts. Net -$390 of live P/L that no figure on the
+// Analysis page contained.
+// ---------------------------------------------------------------------------
+
+import { openOptions, openMark } from "./openBook.js";
+
+const opt = (symbol, qty, costBasis, marketValue, extra = {}) => ({
+  symbol,
+  assetClass: "option",
+  ticker: symbol.slice(0, 4).replace(/\d/g, ""),
+  qty,
+  side: qty < 0 ? "short" : "long",
+  costBasis,
+  marketValue,
+  unrealizedPL: marketValue - costBasis,
+  ...extra
+});
+
+const ALTON_OPTIONS = [
+  opt("TSLA260909P00365000", 1, 435, 420),
+  opt("TSLA260918C00352500", 1, 1357, 1785),
+  opt("TSLA260911C00375000", -1, -226, -299),
+  opt("TSLA260918C00362500", -2, -1738, -2420),
+  opt("NVDA260909P00222500", -3, -123, -171)
+];
+
+test("the long put the owner asked about is counted, and so are the other four", () => {
+  const b = openOptions(ALTON_OPTIONS);
+  assert.equal(b.count, 5);
+  const put = b.positions.find((p) => p.symbol === "TSLA260909P00365000");
+  assert.equal(put.unrealized, -15);
+  assert.equal(put.side, "long");
+  assert.equal(b.unrealized, -390);
+});
+
+test("a SHORT option's loss is a loss — the sign survives", () => {
+  // Negative cost basis is a credit received; negative market value is a
+  // liability. marketValue - costBasis is right for both sides with no special
+  // case, and an abs() here is the error that printed a loss as a gain once.
+  const b = openOptions([opt("TSLA260911C00375000", -1, -226, -299)]);
+  assert.equal(b.unrealized, -73);
+  assert.equal(b.positions[0].side, "short");
+});
+
+test("a short option that is winning reads as a gain", () => {
+  // Sold for $226, now costs $100 to buy back.
+  const b = openOptions([opt("TSLA260911C00375000", -1, -226, -100)]);
+  assert.equal(b.unrealized, 126);
+});
+
+test("equity rows are not option positions", () => {
+  const b = openOptions([
+    { symbol: "TSLA", assetClass: "equity", qty: 210, costBasis: 76504, marketValue: 76607 },
+    opt("TSLA260909P00365000", 1, 435, 420)
+  ]);
+  assert.equal(b.count, 1);
+  assert.equal(b.unrealized, -15);
+});
+
+test("a closed-out row with zero quantity is not an open position", () => {
+  assert.equal(openOptions([opt("TSLA260909P00365000", 0, 0, 0)]).count, 0);
+});
+
+test("a leg with no market value withholds the total rather than part-summing it", () => {
+  const b = openOptions([
+    opt("TSLA260909P00365000", 1, 435, 420),
+    opt("NVDA260909P00222500", -3, -123, null)
+  ]);
+  assert.equal(b.unrealized, null);
+  assert.equal(b.complete, false);
+  assert.deepEqual(b.unmarked, ["NVDA260909P00222500"]);
+});
+
+test("an empty book has no total to report and says so", () => {
+  const b = openOptions([]);
+  assert.equal(b.count, 0);
+  assert.equal(b.unrealized, null);
+  assert.equal(b.complete, false);
+});
+
+test("openMark adds the two halves and refuses if either is unknown", () => {
+  const shares = { lots: 1, unrealized: 102.75 };
+  const options = openOptions(ALTON_OPTIONS);
+  assert.equal(Math.round(openMark(shares, options) * 100) / 100, -287.25);
+  // Either half unpriced withholds the whole thing.
+  assert.equal(openMark({ lots: 1, unrealized: null }, options), null);
+  assert.equal(openMark(shares, { count: 1, unrealized: null }), null);
+});
+
+test("openMark treats an empty half as zero, not as unknown", () => {
+  // An account with no options held is not an account whose options cannot be
+  // priced, and the total must not be withheld for it.
+  assert.equal(openMark({ lots: 2, unrealized: 500 }, openOptions([])), 500);
+  assert.equal(openMark({ lots: 0, unrealized: null }, openOptions(ALTON_OPTIONS)), -390);
+});

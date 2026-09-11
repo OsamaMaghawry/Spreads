@@ -98,10 +98,98 @@ async function fetchDailyBars(account, tickers: string[], start: string) {
   return { bars: out };
 }
 
+// Daily closes for OPTION contracts, and the day each position was opened.
+//
+// The owner, 11 Sep: *"make sure the analysis has the open positions too, not
+// only the closed ones."* The walk needs two things per open leg that the
+// positions endpoint does not carry: a price history, and an opening date.
+//
+// Both are one targeted request each. `/v1beta1/options/bars` is the same
+// shape as the stock bars endpoint. The opening date comes from the account's
+// own closed orders filtered TO THOSE SYMBOLS -- not the whole activity feed,
+// which tradeHistory already walks and which would be far too heavy to repeat
+// here.
+async function fetchOptionBars(account, symbols: string[], start: string) {
+  const out: Record<string, Record<string, number>> = {};
+  const list = [...new Set(symbols.filter(Boolean))];
+  if (!list.length) return out;
+
+  for (let i = 0; i < list.length; i += 100) {
+    const chunk = list.slice(i, i + 100);
+    let token: string | null = null;
+    do {
+      const url =
+        `https://data.alpaca.markets/v1beta1/options/bars?symbols=${chunk.join(",")}` +
+        `&timeframe=1Day&start=${start}&limit=${BAR_PAGE_LIMIT}` +
+        (token ? `&page_token=${encodeURIComponent(token)}` : "");
+      const page = await alpacaFetch(url, account).catch((e) => {
+        console.error("option bars fetch failed", chunk.join(","), e?.message || e);
+        return null;
+      });
+      if (!page) break;
+      for (const symbol of Object.keys(page.bars || {})) {
+        const series = (out[symbol] = out[symbol] || {});
+        for (const bar of page.bars[symbol] || []) {
+          const d = String(bar?.t || "").slice(0, 10);
+          const close = Number(bar?.c);
+          // Zero is a real closing price for a worthless option, so only a
+          // missing or non-finite value is rejected here. The stock series can
+          // drop a zero because a listed equity never closes at nothing; a
+          // contract does it every expiry.
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !Number.isFinite(close) || close < 0) continue;
+          series[d] = close;
+        }
+      }
+      token = page.next_page_token || null;
+    } while (token);
+  }
+  return out;
+}
+
+// The day each still-open contract was first filled.
+//
+// Without it a leg cannot be placed in time, and the walk names it rather than
+// assuming it existed forever — which would put today's position on days before
+// it was opened.
+async function fetchOpenDates(account, symbols: string[], after: string) {
+  const out: Record<string, string> = {};
+  const list = [...new Set(symbols.filter(Boolean))];
+  if (!list.length) return out;
+
+  for (let i = 0; i < list.length; i += 50) {
+    const chunk = list.slice(i, i + 50);
+    const url =
+      `${tradingBase(account)}/orders?status=closed&direction=asc&limit=500` +
+      `&after=${after}T00:00:00Z&symbols=${chunk.join(",")}&nested=true`;
+    const orders = await alpacaFetch(url, account).catch((e) => {
+      console.error("open-date fetch failed", chunk.join(","), e?.message || e);
+      return null;
+    });
+    if (!Array.isArray(orders)) continue;
+    for (const o of orders) {
+      // `nested=true` so a multi-leg order's legs are visible: a wheel put
+      // opened inside a spread carries its symbol on the leg, not the parent,
+      // and every other list endpoint in this repo already passes it.
+      const rows = [o, ...(o?.legs || [])];
+      for (const r of rows) {
+        const symbol = r?.symbol;
+        if (!symbol || !list.includes(symbol)) continue;
+        const at = String(r?.filled_at || o?.filled_at || "").slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(at)) continue;
+        // EARLIEST fill wins. A position added to over several days was opened
+        // on the first of them, and the cost basis the broker reports covers
+        // all of it.
+        if (!out[symbol] || at < out[symbol]) out[symbol] = at;
+      }
+    }
+  }
+  return out;
+}
+
 async function storedSeries(admin, accountId: string) {
   const { data, error } = await admin
     .from("account_equity_daily")
-    .select("day, equity, profit_loss, base_value, premium_cum, shares_booked, shares_open, shares_cost, shares_value, performance, unpriced")
+    .select("day, equity, profit_loss, base_value, premium_cum, shares_booked, shares_open, shares_cost, shares_value, options_open, performance, unpriced")
     .eq("account_id", accountId)
     .order("day", { ascending: true });
   if (error) throw new Error(error.message);
@@ -197,6 +285,29 @@ async function rebuild(admin, account, userId: string) {
 
   const unusable = [...new Set([...collided, ...mismatched])];
 
+  // OPTION LEGS STILL OPEN. The half of the book neither `trade_records` (closed
+  // by construction) nor `stock_lots` (shares) has ever contained.
+  const openLegs = Array.isArray(positions)
+    ? positions.filter((p) => p?.asset_class === "us_option" && Number(p?.qty) !== 0)
+    : [];
+  const legSymbols = openLegs.map((p) => p.symbol).filter(Boolean);
+  const [optionCloses, openDates] = await Promise.all([
+    fetchOptionBars(account, legSymbols, barStart),
+    fetchOpenDates(account, legSymbols, barStart)
+  ]);
+  const openOptions = openLegs.map((p) => ({
+    symbol: p.symbol,
+    qty: Number(p.qty),
+    costBasis: Number(p.cost_basis),
+    from: openDates[p.symbol] || null,
+    // Alpaca does not return a multiplier on the position, so it is read from
+    // the symbol: an OCC symbol whose root carries a trailing digit is an
+    // ADJUSTED contract and no longer delivers 100 shares. The walk refuses
+    // those rather than multiplying by a number a corporate action removed --
+    // the same refusal the close ticket and the cover allocator already make.
+    multiplier: /^[A-Z]+\d/.test(String(p.symbol || "")) ? null : 100
+  }));
+
   // The broker's own session list is the calendar when we have it: it is the
   // account's real trading calendar, so the chart never draws a flat weekend or
   // a point on a holiday. Without it, fall back to the days the price feed
@@ -207,78 +318,73 @@ async function rebuild(admin, account, userId: string) {
   ).filter((d) => d >= firstActivity);
   if (!calendar.length) return [];
 
-  const walk = dailyPortfolio(calendar, tradeRows, lotRows, closes, { unusable, unusableFrom: splitFrom });
+  const walk = dailyPortfolio(calendar, tradeRows, lotRows, closes, {
+    unusable,
+    unusableFrom: splitFrom,
+    openOptions,
+    optionCloses
+  });
 
   const capturedAt = new Date().toISOString();
 
-  // TWO UPSERTS, AND THE SPLIT IS THE WHOLE POINT.
+  // ONE WRITER, AND THE NEVER-NULL RULE LIVES IN SQL.
   //
-  // The first version wrote one row carrying both halves, so a caught broker
-  // error — `fetchPortfolioHistory` returns null on any failure — wrote NULL
-  // over `equity`, `profit_loss` and `base_value` for every day back to the
-  // account's first trade. The next successful pull only reaches back a year.
-  // Alpaca will not serve the rest again. An ordinary page load, every thirty
-  // minutes, permanently destroying primary broker-reported facts of which
-  // this table is the only copy.
+  // The bench's second blocker: a caught broker error — `fetchPortfolioHistory`
+  // returns null on any failure — wrote NULL over `equity`, `profit_loss` and
+  // `base_value` for every day back to the account's first trade. The next
+  // successful pull only reaches back a year. Alpaca will not serve the rest
+  // again. An ordinary page load, every thirty minutes, permanently destroying
+  // primary broker-reported facts of which this table is the only copy.
   //
-  // The rule and its boundary, because they are not the same:
+  // The first fix was two upserts here, relying on PostgREST generating
+  // `ON CONFLICT DO UPDATE SET` for exactly the keys in the payload. That is the
+  // documented behaviour and very probably right — but a data-destruction path
+  // should not rest on a library's request encoding, so the rule moved into
+  // `upsert_account_equity_daily` (migration 0031) where it is written out:
   //
-  //   RECOMPUTING `performance` IS FINE and needs nobody's permission. It is a
-  //   derivation from source records the user can inspect, and keeping
-  //   superseded arithmetic would be the worse failure — a stored series that
-  //   disagreed with the account for the rest of its life.
+  //   BROKER COLUMNS use coalesce(excluded, existing). A null means "I could
+  //   not read it", never "it is nothing", so a stored fact survives every
+  //   failed fetch. Nothing rewrites a user's history unasked.
   //
-  //   OVERWRITING THE BROKER'S OWN REPORTED FIGURES IS NOT. Those are primary
-  //   facts, not derivations, and nothing rewrites a user's history unasked.
+  //   DERIVED COLUMNS are overwritten unconditionally, nulls included — a null
+  //   there means "this day could not be valued", which is a real result and
+  //   has to be able to replace a previous number.
   //
-  // So the reconstruction columns are written for every day, and the broker
-  // columns are written only for days the broker actually reported. A day it
-  // did not report keeps whatever was stored for it.
-  const derived = walk.map((r) => ({
-    account_id: account.id,
-    user_id: userId,
-    day: r.day,
-    premium_cum: r.premium_cum,
-    shares_booked: r.shares_booked,
-    shares_open: r.shares_open,
-    shares_cost: r.shares_cost,
-    shares_value: r.shares_value,
-    performance: r.performance,
-    unpriced: r.unpriced,
-    // What produced THIS row's reconstruction. The column exists so a value we
-    // computed can never be mistaken for one the broker reported, and writing
-    // "broker" on every row regardless defeated it.
-    source: "reconstructed",
-    captured_at: capturedAt
-  }));
+  // So this side can send every day with whatever it has, and a day the broker
+  // did not report simply carries nulls that the function declines to apply.
+  const rows = walk.map((r) => {
+    const broker = equityByDay.get(r.day);
+    return {
+      account_id: account.id,
+      user_id: userId,
+      day: r.day,
+      equity: broker ? broker.equity : null,
+      profit_loss: broker ? broker.profit_loss : null,
+      base_value: broker ? broker.base_value : null,
+      premium_cum: r.premium_cum,
+      shares_booked: r.shares_booked,
+      shares_open: r.shares_open,
+      shares_cost: r.shares_cost,
+      shares_value: r.shares_value,
+      options_open: r.options_open,
+      performance: r.performance,
+      unpriced: r.unpriced,
+      // What produced THIS row's reconstruction. The column exists so a value we
+      // computed can never be mistaken for one the broker reported, and writing
+      // "broker" on every row regardless defeated it.
+      source: "reconstructed",
+      captured_at: capturedAt
+    };
+  });
 
-  const brokerRows = walk
-    .filter((r) => equityByDay.has(r.day))
-    .map((r) => {
-      const b = equityByDay.get(r.day)!;
-      return {
-        account_id: account.id,
-        user_id: userId,
-        day: r.day,
-        equity: b.equity,
-        profit_loss: b.profit_loss,
-        base_value: b.base_value
-      };
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await admin.rpc("upsert_account_equity_daily", {
+      p_rows: rows.slice(i, i + 500)
     });
+    if (error) throw new Error(error.message);
+  }
 
-  const write = async (batch: any[]) => {
-    for (let i = 0; i < batch.length; i += 500) {
-      const { error } = await admin
-        .from("account_equity_daily")
-        .upsert(batch.slice(i, i + 500), { onConflict: "account_id,day" });
-      if (error) throw new Error(error.message);
-    }
-  };
-
-  await write(derived);
-  await write(brokerRows);
-
-  return derived;
+  return rows;
 }
 
 Deno.serve(async (req) => {

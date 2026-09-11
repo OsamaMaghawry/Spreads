@@ -14,8 +14,9 @@ import ExportPdfButton from "@/components/analysis/ExportPdfButton";
 import DateRangeFilter from "@/components/analysis/DateRangeFilter";
 import CaptureBreakdown from "@/components/analysis/CaptureBreakdown";
 import OpenBookPanel from "@/components/analysis/OpenBookPanel";
+import OpenOptionsPanel from "@/components/analysis/OpenOptionsPanel";
 import ViewSwitch from "@/components/analysis/ViewSwitch";
-import { openBook, premiumOnly, realizedShares, orphanedShares } from "@/lib/openBook";
+import { openBook, openOptions, openMark, premiumOnly, realizedShares, orphanedShares } from "@/lib/openBook";
 import { dailySeries, bookedCurve } from "@/lib/equityCurve";
 
 export default function AccountAnalysis() {
@@ -118,6 +119,20 @@ export default function AccountAnalysis() {
   // would recreate the defect this was built to fix.
   const book = useMemo(() => openBook(data?.stockLots, broker), [data, broker]);
 
+  // The OPTION legs still open, which no figure on this page contained until
+  // now. The owner, on his own TSLA book: "did you add the Put position that is
+  // open now?" It was not one position -- five open legs, -$390 net, on an
+  // account whose headline called itself "the wheel as one strategy" while
+  // counting the 210 shares and dropping the put protecting them and the calls
+  // written against them.
+  const optionBook = useMemo(() => openOptions(broker), [broker]);
+
+  // Everything still open, shares and option legs together, as one number.
+  // Null when either half cannot be valued -- a total that covered the shares
+  // and quietly dropped an unpriced leg is the same defect one level up.
+  const liveMark = useMemo(() => openMark(book, optionBook), [book, optionBook]);
+  const hasOpen = book.lots > 0 || optionBook.count > 0;
+
   // 3. When a whole-account figure may be added to a filtered one: never.
   //
   // `stats` is filtered by the strategy tab and the date range; the book
@@ -127,7 +142,7 @@ export default function AccountAnalysis() {
   // book panel stays visible and unfiltered; it is the ADDITION that is
   // withheld, the same discipline return on equity already applies.
   const scoped = strategy === "all" && !range.from && !range.to;
-  const scopedUnrealized = scoped ? book.unrealized : null;
+  const scopedUnrealized = scoped ? liveMark : null;
 
   // 4. THE CHART, from the stored daily series.
   //
@@ -249,7 +264,7 @@ export default function AccountAnalysis() {
     () => orphanedShares(data?.stockLots, allTrades),
     [data, allTrades]
   );
-  const wholeUnknown = !stats || !scoped || (book.lots > 0 && book.unrealized === null);
+  const wholeUnknown = !stats || !scoped || (hasOpen && liveMark === null);
   const headlineFigure =
     view === "premium" ? premiumFigure : wholeUnknown ? null : stats?.totalPL ?? null;
   const headlineUnknown = view === "premium" ? false : wholeUnknown;
@@ -257,7 +272,9 @@ export default function AccountAnalysis() {
     ? null
     : !scoped
       ? "No whole-account total while a strategy tab or date range is set — the shares are held today, and adding them to a filtered figure would answer nothing."
-      : "Part of the book has no price. See the shares below.";
+      : book.unrealized === null && book.lots > 0
+        ? "Part of the share book has no price. See the shares below."
+        : "The broker returned no value for an open option leg. See the positions below.";
 
   if (loading) {
     return (
@@ -336,7 +353,7 @@ export default function AccountAnalysis() {
                 Shown whenever there is a book to switch OVER. Below that, there
                 is one honest reading of the page and a control offering a
                 second one would be theatre. */}
-            {book.lots > 0 && (
+            {hasOpen && (
               <div className="space-y-2">
                 <ViewSwitch
                   value={view}
@@ -352,9 +369,9 @@ export default function AccountAnalysis() {
                     above its own maximum. */}
                 <p className="text-xs text-slate-500 leading-relaxed">
                   Win rate, payoff, expectancy, streaks and the tables below are measured on{" "}
-                  {view === "whole" ? "whole positions" : "the option legs alone"}, so they change
-                  with this control. Credit capture does not: it is the share of premium sold that
-                  was kept, and shares have no premium to keep.
+                  {view === "whole" ? "whole closed positions" : "closed option legs alone"}, so they
+                  change with this control. Credit capture does not: it is the share of premium sold
+                  that was kept, and shares have no premium to keep.
                   {view === "premium" && Math.abs(soldSharesFigure) >= 0.005 && (
                     <>
                       {" "}Shares already sold {soldSharesFigure >= 0 ? "added" : "took off"}{" "}
@@ -375,6 +392,7 @@ export default function AccountAnalysis() {
               </div>
             )}
             {book.lots > 0 && <OpenBookPanel book={book} priced={view === "whole"} />}
+            <OpenOptionsPanel book={optionBook} priced={view === "whole"} />
             {comparison.length > 1 && <StrategyComparison rows={comparison} />}
             <StatCards stats={stats} />
             <EquityCurveChart
