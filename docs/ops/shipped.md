@@ -3,7 +3,37 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
-- 2026-09-10 · (staging) Fixed the review bench's blockers on the new daily
+- 2026-09-11 · (staging) Trade history now syncs on a schedule instead of
+  only when someone opens the Trade History page — every connected account
+  refreshes hourly on weekdays (skipping one already refreshed in the last
+  50 minutes) and once every morning unconditionally, so assignments,
+  exercises and expiries that settle overnight or over a weekend are
+  reflected without a click. Previously a production account nobody opened
+  could sit 24 trades stale while the same broker account on staging, which
+  does get opened, was current (`b6d26bf`).
+- 2026-09-11 · (staging) Fixed a case where the new daily equity chart could
+  store a live option book as a complete $0.00 day — a leg with no
+  establishable open date (ordinary for one acquired by assignment) was
+  dropped before it could be named as unpriced, so the chart reported the
+  day as fully known when it wasn't. Also fixed: cost basis on a
+  re-opened/added-to option leg was backdated to its very first fill instead
+  of the fill that actually explains today's position size; the account
+  history reader could silently return fewer than all of an account's trade
+  rows past 1,000, and in a different order each rebuild, corrupting stored
+  history with no error; a caught error while pricing open positions used to
+  quietly zero out the whole options book instead of refusing the update;
+  the open-positions panel couldn't tell a put from a call; option prices
+  now carry forward on a quiet trading day instead of blanking the day's
+  mark; and a PDF export line had "shares" and "options" swapped (`9faf020`).
+- 2026-09-11 · (staging) Account Analysis now includes open option positions,
+  not just closed trades and shares — previously a still-open put or call
+  (five legs on the owner's own live TSLA/NVDA book, net -$390) counted
+  nowhere on the page despite the "wheel as one strategy" headline claiming
+  to cover it; the headline, return on equity/risk and a new open-positions
+  panel now include them, marked at today's broker price and clearly labeled
+  unrealized (`0cde265`, corrected in `a49da5e` after the owner caught a
+  stale illustration in the commit description — the underlying fix was
+  already right).
   equity feature, two of which had been silently corrupting the stored
   history: premium booked more than a year before an account's calendar was
   being dropped from every day's figure permanently (an account trading
