@@ -135,8 +135,8 @@ test("a missing row is refused rather than throwing", () => {
 
 import { spreadSetup } from "./optionChain.js";
 
-const P = (strike, mid) => ({ symbol: `TSLA261016P00${strike}000`, strike, type: "P", bid: mid - 0.1, ask: mid + 0.1, mid, delta: -0.2, iv: 0.4 });
-const C = (strike, mid) => ({ symbol: `TSLA261016C00${strike}000`, strike, type: "C", bid: mid - 0.1, ask: mid + 0.1, mid, delta: 0.2, iv: 0.4 });
+const P = (strike, mid, exp = "2026-10-16") => ({ symbol: `TSLA${exp.replace(/-/g, "").slice(2)}P00${strike}000`, strike, type: "P", expiry: exp, bid: mid - 0.1, ask: mid + 0.1, mid, delta: -0.2, iv: 0.4 });
+const C = (strike, mid, exp = "2026-10-16") => ({ symbol: `TSLA${exp.replace(/-/g, "").slice(2)}C00${strike}000`, strike, type: "C", expiry: exp, bid: mid - 0.1, ask: mid + 0.1, mid, delta: 0.2, iv: 0.4 });
 
 test("a CREDIT put spread: sell the near strike, buy the far one", () => {
   const r = spreadSetup(
@@ -150,8 +150,7 @@ test("a CREDIT put spread: sell the near strike, buy the far one", () => {
   assert.equal(r.setup.maxRisk, 300);
   assert.equal(r.setup.maxProfit, 200);
   assert.equal(r.setup.breakEvenLow, 368);
-  assert.equal(r.setup.short_symbol, "TSLA261016P00370000");
-  assert.equal(r.setup.long_symbol, "TSLA261016P00365000");
+  assert.equal(r.setup.structure, "vertical");
 });
 
 test("a DEBIT vertical carries a NEGATIVE credit, not a second field", () => {
@@ -191,9 +190,10 @@ test("two legs that do not form a vertical are refused BY NAME", () => {
   // A "spread" assembled from legs that are not one reports a defined risk on
   // an undefined position.
   assert.match(spreadSetup([{ row: P(370, 4.3), action: "sell" }, { row: C(365, 2.3), action: "buy" }], ctx).reason, /same type/i);
-  assert.match(spreadSetup([{ row: P(370, 4.3), action: "sell" }, { row: P(370, 2.3), action: "buy" }], ctx).reason, /same strike/i);
+  assert.match(spreadSetup([{ row: P(370, 4.3), action: "sell" }, { row: P(370, 2.3), action: "buy" }], ctx).reason, /same contract/i);
   assert.match(spreadSetup([{ row: P(370, 4.3), action: "sell" }, { row: P(365, 2.3), action: "sell" }], ctx).reason, /one leg sold and one bought/i);
   assert.match(spreadSetup([{ row: P(370, 4.3), action: "sell" }], ctx).reason, /exactly two legs/i);
+  assert.match(spreadSetup([{ row: P(370, 4.3), action: "sell" }, { row: P(365, 2.3), action: "sell" }], ctx).reason, /one leg sold and one bought/i);
 });
 
 test("an unquoted leg prices no spread, and names which one", () => {
@@ -203,4 +203,97 @@ test("an unquoted leg prices no spread, and names which one", () => {
   );
   assert.equal(r.ok, false);
   assert.match(r.reason, /TSLA261016P00250000/);
+});
+
+// ---------------------------------------------------------------------------
+// Calendars and diagonals — and which leg outlives the other
+//
+// The owner's own selection: BUY Feb 2027 370P, SELL Dec 2027 320P. The short
+// outlives the long, so from February it is a bare short put until December.
+// Reporting a bounded max risk on that is the single most dangerous thing this
+// screen could do.
+// ---------------------------------------------------------------------------
+
+test("legs with different expiries are a spread, not a refusal", () => {
+  const r = spreadSetup(
+    [{ row: P(370, 44.5, "2027-02-19"), action: "buy" }, { row: P(320, 19.9, "2027-12-17"), action: "sell" }],
+    ctx
+  );
+  assert.equal(r.ok, true);
+  assert.equal(r.setup.structure, "diagonal");
+  assert.deepEqual(r.setup.expiries, ["2027-02-19", "2027-12-17"]);
+});
+
+test("THE OWNER'S DIAGONAL: short outlives long, so risk is NOT bounded", () => {
+  const r = spreadSetup(
+    [{ row: P(370, 44.5, "2027-02-19"), action: "buy" }, { row: P(320, 19.9, "2027-12-17"), action: "sell" }],
+    ctx
+  );
+  assert.equal(r.setup.maxRisk, null);
+  assert.equal(r.setup.unlimitedRisk, true);
+  assert.match(r.setup.riskNote, /bare short put at 320/i);
+  assert.match(r.setup.riskNote, /2027-02-19/);
+  // And the width is meaningless here, so it is not reported as collateral.
+  assert.equal(r.setup.collateral, null);
+  assert.equal(r.setup.width, null);
+});
+
+test("a standard calendar — long outlives short, paid for — risks the debit", () => {
+  const r = spreadSetup(
+    [{ row: P(370, 4.3, "2026-10-16"), action: "sell" }, { row: P(370, 9.3, "2027-01-15"), action: "buy" }],
+    ctx
+  );
+  assert.equal(r.setup.structure, "calendar");
+  assert.equal(r.setup.credit, -5);
+  assert.equal(r.setup.maxRisk, 500);
+  assert.match(r.setup.riskNote, /outlives/i);
+});
+
+test("a diagonal whose long strike does NOT protect is unbounded", () => {
+  // Long put BELOW the short put caps nothing: the short can be assigned at
+  // 370 while the long only pays from 350 down.
+  const r = spreadSetup(
+    [{ row: P(370, 4.3, "2026-10-16"), action: "sell" }, { row: P(350, 9.3, "2027-01-15"), action: "buy" }],
+    ctx
+  );
+  assert.equal(r.setup.maxRisk, null);
+  assert.equal(r.setup.unlimitedRisk, true);
+});
+
+test("a short CALL that outlives its long has no ceiling, and says so", () => {
+  const r = spreadSetup(
+    [{ row: C(370, 4.3, "2026-10-16"), action: "buy" }, { row: C(380, 9.3, "2027-01-15"), action: "sell" }],
+    ctx
+  );
+  assert.equal(r.setup.maxRisk, null);
+  assert.match(r.setup.riskNote, /no ceiling/i);
+});
+
+test("a vertical is still bounded, and still reports its width", () => {
+  const r = spreadSetup(
+    [{ row: P(370, 4.3), action: "sell" }, { row: P(365, 2.3), action: "buy" }],
+    ctx
+  );
+  assert.equal(r.setup.structure, "vertical");
+  assert.equal(r.setup.maxRisk, 300);
+  assert.equal(r.setup.collateral, 500);
+});
+
+test("the ticket's expiry is the NEAR one — it governs the next event", () => {
+  const r = spreadSetup(
+    [{ row: P(370, 44.5, "2027-02-19"), action: "buy" }, { row: P(320, 19.9, "2027-12-17"), action: "sell" }],
+    ctx
+  );
+  assert.equal(r.setup.expiry, "2027-02-19");
+  // Both travel on the legs, so the order carries the right contracts.
+  assert.deepEqual(r.setup.legs.map((l) => l.expiry).sort(), ["2027-02-19", "2027-12-17"]);
+});
+
+test("the same contract twice is still refused", () => {
+  const r = spreadSetup(
+    [{ row: P(370, 4.3, "2027-02-19"), action: "sell" }, { row: P(370, 4.3, "2027-02-19"), action: "buy" }],
+    ctx
+  );
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /same contract/i);
 });

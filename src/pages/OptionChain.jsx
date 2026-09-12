@@ -69,11 +69,15 @@ export default function OptionChain() {
       .catch(() => setAccounts([]));
   }, []);
 
-  const load = useCallback(async (sym, exp) => {
+  // `keep` is true when only the expiry moved. The first build cleared the
+  // selection on every load, which made a multi-expiry spread impossible to
+  // assemble: pick the Feb leg, change the date to find the Dec one, and the
+  // first vanished. A leg is a leg whatever the ladder is currently showing.
+  const load = useCallback(async (sym, exp, keep = false) => {
     if (!accountId || !sym) return;
     setLoading(true);
     setError(null);
-    setPicked([]);
+    if (!keep) setPicked([]);
     try {
       const r = await invokeFunction("optionChain", { accountId, ticker: sym, expiry: exp || undefined });
       if (r.data?.error) throw new Error(r.data.error);
@@ -115,13 +119,16 @@ export default function OptionChain() {
   // selection rather than silently building something that is not a vertical.
   const toggle = (row, action) => {
     if (!row || row.mid === null) return;
+    // The expiry is stamped on the leg AT PICK TIME. The page's `expiry` moves
+    // as the reader browses, so reading it later would relabel a leg chosen
+    // three expiries ago as belonging to whatever is on screen now.
+    const leg = { row, action, expiry: data?.expiry };
     setPicked((cur) => {
       const at = cur.findIndex((p) => p.row.symbol === row.symbol && p.action === action);
       if (at >= 0) return cur.filter((_, i) => i !== at);
-      // Same contract, other side: swap rather than hold both.
       const other = cur.filter((p) => p.row.symbol !== row.symbol);
-      if (other.length >= 2) return [other[other.length - 1], { row, action }];
-      return [...other, { row, action }];
+      if (other.length >= 2) return [other[other.length - 1], leg];
+      return [...other, leg];
     });
   };
 
@@ -197,7 +204,7 @@ export default function OptionChain() {
             </label>
             <select
               value={expiry}
-              onChange={(e) => { setExpiry(e.target.value); load(ticker, e.target.value); }}
+              onChange={(e) => { setExpiry(e.target.value); load(ticker, e.target.value, true); }}
               className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm"
             >
               {data.expiries.map((d) => (
@@ -264,6 +271,7 @@ export default function OptionChain() {
             >
               {p.action === "buy" ? "Buy" : "Sell"} {p.row.strike}
               {p.row.type === "C" ? "C" : "P"}
+              <span className="opacity-70 font-normal">{p.expiry}</span>
               <button type="button" onClick={() => toggle(p.row, p.action)} aria-label="Remove leg">
                 <X className="w-3 h-3" />
               </button>
@@ -271,13 +279,13 @@ export default function OptionChain() {
           ))}
           {ticket?.ok ? (
             <span className="text-xs text-slate-300">
-              {picked.length === 2 ? "Vertical · " : ""}
+              {picked.length === 2 ? `${ticket.setup.structure} · ` : ""}
               {ticket.setup.credit >= 0
                 ? `credit ${n2(ticket.setup.credit)}`
                 : `debit ${n2(Math.abs(ticket.setup.credit))}`}
               {ticket.setup.maxRisk !== null && ticket.setup.maxRisk !== undefined
                 ? ` · risk ${fmtMoney(ticket.setup.maxRisk)}`
-                : " · risk unlimited"}
+                : " · risk not bounded"}
             </span>
           ) : (
             <span className="text-xs text-amber-300">{ticket?.reason}</span>
@@ -324,17 +332,17 @@ export default function OptionChain() {
                 </tr>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500">
                   {show !== "puts" && <>
-                    <th className={head}></th>
                     <th className={head}>OI</th><th className={head}>Vol</th><th className={head}>IV</th>
                     <th className={head}>Δ</th><th className={head}>Last</th>
                     <th className={head}>Bid</th><th className={head}>Ask</th>
+                    <th className={`${head} text-center bg-emerald-50 text-emerald-800`}>Trade</th>
                   </>}
-                  <th className={`${head} text-center bg-amber-50`}></th>
+                  <th className={`${head} text-center bg-amber-100`}></th>
                   {show !== "calls" && <>
+                    <th className={`${head} text-center bg-emerald-50 text-emerald-800`}>Trade</th>
                     <th className={head}>Bid</th><th className={head}>Ask</th>
                     <th className={head}>Last</th><th className={head}>Δ</th>
                     <th className={head}>IV</th><th className={head}>Vol</th><th className={head}>OI</th>
-                    <th className={head}></th>
                   </>}
                 </tr>
               </thead>
@@ -345,15 +353,17 @@ export default function OptionChain() {
                       <SpotRow spot={spot} show={show} innerRef={spotRowRef} />
                     )}
                     <tr className="border-b border-slate-100 hover:bg-slate-50/60">
+                      {show !== "puts" && <Side row={s.call} />}
                       {show !== "puts" && (
-                        <Side row={s.call} onToggle={toggle} isPicked={isPicked} />
+                        <Trade row={s.call} onToggle={toggle} isPicked={isPicked} label="call" />
                       )}
-                      <td className="px-2 py-1 text-center font-semibold tabular-nums bg-amber-50 text-amber-900 border-x border-amber-200">
+                      <td className="px-2 py-1 text-center font-semibold tabular-nums bg-amber-100 text-amber-900 border-x border-amber-300">
                         {s.strike}
                       </td>
                       {show !== "calls" && (
-                        <Side row={s.put} onToggle={toggle} isPicked={isPicked} mirrored />
+                        <Trade row={s.put} onToggle={toggle} isPicked={isPicked} label="put" />
                       )}
+                      {show !== "calls" && <Side row={s.put} mirrored />}
                     </tr>
                   </Fragment>
                 ))}
@@ -416,9 +426,9 @@ function SpotRow({ spot, show, innerRef }) {
 // One side of a strike. `mirrored` reverses the columns so both sides read
 // outward from the strike rail in the middle — the way every chain a trader
 // has already used is laid out.
-function Side({ row, onToggle, isPicked, mirrored = false }) {
+function Side({ row, mirrored = false }) {
   if (!row) {
-    return <>{Array.from({ length: 8 }).map((_, i) => (
+    return <>{Array.from({ length: 7 }).map((_, i) => (
       <td key={i} className={`${cell} text-slate-300`}>—</td>
     ))}</>;
   }
@@ -426,38 +436,6 @@ function Side({ row, onToggle, isPicked, mirrored = false }) {
   // In the money gets a tint, and it is the SAME tint on both sides so the
   // eye reads one band crossing the strike rail rather than two decorations.
   const tone = row.itm ? "bg-sky-50" : "";
-  const dead = row.mid === null;
-
-  const bs = (
-    <td key="bs" className={`px-1.5 py-1 ${tone}`}>
-      <div className="flex gap-0.5 justify-center">
-        {["buy", "sell"].map((action) => {
-          const on = isPicked(row.symbol, action);
-          const buy = action === "buy";
-          return (
-            <button
-              key={action}
-              type="button"
-              disabled={dead}
-              onClick={() => onToggle(row, action)}
-              title={`${buy ? "Buy" : "Sell"} ${row.symbol} at the mid`}
-              className={`w-5 h-5 rounded text-[10px] font-bold transition-colors ${
-                dead
-                  ? "bg-slate-100 text-slate-300 cursor-default"
-                  : on
-                    ? buy ? "bg-emerald-600 text-white" : "bg-rose-600 text-white"
-                    : buy
-                      ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
-                      : "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
-              }`}
-            >
-              {buy ? "B" : "S"}
-            </button>
-          );
-        })}
-      </div>
-    </td>
-  );
 
   const oi = <td key="oi" className={`${cell} ${tone} text-slate-500`}>{n0(row.openInterest)}</td>;
   const vol = <td key="vol" className={`${cell} ${tone} text-slate-500`}>{n0(row.volume)}</td>;
@@ -472,7 +450,54 @@ function Side({ row, onToggle, isPicked, mirrored = false }) {
   const ask = <td key="a" className={`${cell} ${tone} text-emerald-700 font-medium`}>{n2(row.ask)}</td>;
 
   const cols = mirrored
-    ? [bid, ask, last, delta, iv, vol, oi, bs]
-    : [bs, oi, vol, iv, delta, last, bid, ask];
+    ? [bid, ask, last, delta, iv, vol, oi]
+    : [oi, vol, iv, delta, last, bid, ask];
   return <>{cols}</>;
+}
+
+// Buy and sell, ON THE STRIKE RAIL rather than at the outer edge of the row.
+//
+// The owner: *"I don't like the buy and sell button to be on sides, not good
+// for phones."* He is right and the reason is navigational. A seventeen-column
+// chain scrolls sideways on any narrow screen, and the column a reader steers
+// by is the strike — so putting the only interactive control at the far end of
+// the row meant scrolling away from the strike to reach it, then back to check
+// which strike you had hit. Against the rail, the price you are reading and the
+// button you press are in view together.
+function Trade({ row, onToggle, isPicked, label }) {
+  if (!row) return <td className="px-1 py-1 bg-slate-50/60" />;
+  const dead = row.mid === null;
+  return (
+    <td className={`px-1 py-1 ${row.itm ? "bg-sky-50" : ""}`}>
+      <div className="flex gap-0.5 justify-center">
+        {["buy", "sell"].map((action) => {
+          const on = isPicked(row.symbol, action);
+          const buy = action === "buy";
+          return (
+            <button
+              key={action}
+              type="button"
+              disabled={dead}
+              onClick={() => onToggle(row, action)}
+              aria-label={`${buy ? "Buy" : "Sell"} the ${row.strike} ${label} at the mid`}
+              title={`${buy ? "Buy" : "Sell"} ${row.symbol} at the mid`}
+              // Deliberately larger than the data cells: this is the only thing
+              // on the row a finger has to hit.
+              className={`w-7 h-7 rounded-md text-[11px] font-bold transition-colors ${
+                dead
+                  ? "bg-slate-100 text-slate-300 cursor-default"
+                  : on
+                    ? buy ? "bg-emerald-600 text-white shadow" : "bg-rose-600 text-white shadow"
+                    : buy
+                      ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300"
+                      : "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-300"
+              }`}
+            >
+              {buy ? "B" : "S"}
+            </button>
+          );
+        })}
+      </div>
+    </td>
+  );
 }
