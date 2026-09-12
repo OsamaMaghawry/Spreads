@@ -516,20 +516,36 @@ export function legsFromRecords(records: ClosedRecordLegs[] | null | undefined):
     // refuse. `qty` null here makes the leg unusable in the walk's prep.
     const qty = rawQty !== null && rawQty > 0 ? rawQty : null;
     const contracts = (qty ?? 0) * 100;
-    // A ROW WHOSE OWN ARITHMETIC IS IN DOUBT DOES NOT GET TO DRAW A LINE.
+    // `integrity_code` DOES NOT WITHHOLD THE LEG PRICES, and the first version
+    // of this had it backwards.
     //
-    // `integrity.ts:57`: *"A withheld figure must be withheld EVERYWHERE."*
-    // The impossible-result finding fires when a row's realized result exceeds
-    // what its strikes and quantity allow -- which is a statement that the
-    // entries or the quantity are wrong, and those are exactly the two numbers
-    // the mark below is built from. Its RESULT still reaches `premium_cum`,
-    // because that is an account-level sum of broker facts with no attribution
-    // in it; its PRICES do not reach the chart.
+    // The argument for withholding was `integrity.ts:57` -- *"a withheld
+    // figure must be withheld EVERYWHERE"* -- on the reading that an
+    // impossible result means the entries or the quantity must be wrong, and
+    // those are the two numbers the mark is built from. Reasonable in the
+    // abstract; false against the data. Both flagged rows on staging:
     //
-    // Null cost, not a dropped leg: the position was on the book, and the day
-    // has to say it cannot be valued rather than report itself complete.
-    const doubted = Boolean(r?.integrity_code);
-    const usableQty = !doubted && qty !== null;
+    //   WMT 110/109P   realized -203.33, stock_pl -233.33
+    //                  option half = +$30.00 = (0.73 - 0.43) x 100 x 1  EXACT
+    //   XLY 119/118P   realized -189.00, stock_pl -164.00
+    //                  option half = -$25.00 = (0.40 - 0.65) x 100 x 1  EXACT
+    //
+    // Each option half reconciles to the cent against its own entries. The
+    // whole impossibility lives in `stock_pl` -- share P/L attributed to an
+    // option row it cannot belong to -- so `impossible_loss` is a statement
+    // about WHICH TRADE OWNS A SHARE RESULT. Which is what the share lots
+    // concluded one bench round earlier, forty lines up this same file:
+    // *"what is in doubt is which TRADE owns this result, and that doubt
+    // lives on the trade row, not in a portfolio total."*
+    //
+    // Withholding here blanked six stored days across two accounts -- three of
+    // the owner's twenty-one on his live account -- over prices that were
+    // never in doubt and are broker fills besides. The flag stays on the row,
+    // where the reader sees it. The legs are priced.
+    //
+    // `impossible_loss` is the only row-scoped code today. A future code that
+    // genuinely impugns an ENTRY belongs here, under its own name.
+    const usableQty = qty !== null;
     const short = String(r?.short_symbol || "");
     if (short) {
       const entry = usableQty ? num(r?.short_entry) : null;

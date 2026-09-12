@@ -1049,22 +1049,37 @@ test("a record with no quantity is a leg we cannot value, not one we ignore", ()
   assert.deepEqual(rows[0].unpriced, ["TSLA260904P00362500"]);
 });
 
-test("a row the audit doubts does not draw a line with the prices in doubt", () => {
-  // The impossible-result finding says a row's realized result exceeds what
-  // its strikes and quantity allow -- a statement that the entries or the
-  // quantity are wrong, which are the two numbers the mark is built from.
-  // Its RESULT still belongs in premium_cum; its PRICES do not reach the
-  // chart. integrity.ts:57 -- "withheld EVERYWHERE".
+test("a flagged row keeps its leg prices — the doubt is about the SHARES", () => {
+  // This test asserted the opposite for one commit, and the data settled it.
+  // `impossible_loss` fires when a row's realized result exceeds what its
+  // strikes allow, and the first reading of that was "the entries must be
+  // wrong". Both flagged rows on staging say otherwise:
+  //
+  //   WMT 110/109P  realized -203.33, stock_pl -233.33 -> option half +$30.00
+  //   XLY 119/118P  realized -189.00, stock_pl -164.00 -> option half -$25.00
+  //
+  // and each of those option halves is exactly the row's own net credit or
+  // debit x 100. The impossibility is entirely in the SHARE P/L attributed to
+  // the row. Withholding the leg prices blanked six stored days over figures
+  // that were never in doubt and are broker fills besides.
   const legs = legsFromRecords([{
-    open_date: "2026-09-03", close_date: "2026-09-07", qty: 1,
-    short_symbol: "TSLA260904P00362500", short_entry: 1.44,
-    integrity_code: "impossible_result"
+    open_date: "2026-08-18", close_date: "2026-08-21", qty: 1,
+    short_symbol: "WMT260821P00110000", short_entry: 0.73,
+    long_symbol: "WMT260821P00109000", long_entry: 0.43,
+    integrity_code: "impossible_loss"
   }]);
-  assert.equal(legs[0].costBasis, null);
-  const rows = dailyPortfolio(["2026-09-04"], [], [], {},
-    { optionLegs: legs, optionCloses: EXPIRY_CLOSES });
-  assert.equal(rows[0].performance, null);
-  assert.deepEqual(rows[0].unpriced, ["TSLA260904P00362500"]);
+  assert.equal(legs[0].costBasis, -73);
+  assert.equal(legs[1].costBasis, 43);
+  const rows = dailyPortfolio(["2026-08-19"], [], [], {}, {
+    optionLegs: legs,
+    optionCloses: {
+      WMT260821P00110000: { "2026-08-19": 0.90 },
+      WMT260821P00109000: { "2026-08-19": 0.55 }
+    }
+  });
+  // -1x100x0.90 + 73  +  1x100x0.55 - 43  =  -17 + 12  =  -$5
+  assert.equal(rows[0].options_open, -5);
+  assert.deepEqual(rows[0].unpriced, []);
 });
 
 test("the same contract in both halves of the book withholds the day", () => {
