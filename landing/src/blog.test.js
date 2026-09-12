@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CATEGORIES, groupByCategory, postsInCategory, neighbours, related, renderFeed } from "./blog.js";
+import { CATEGORIES, groupByCategory, postsInCategory, syllabusOrder, neighbours, related, renderFeed } from "./blog.js";
 import { markdown } from "./render.js";
 
 const P = (slug, category, series_order, published_at = "2026-09-01T00:00:00Z") => ({ slug, category, series_order, published_at, title: slug, excerpt: `about ${slug}` });
@@ -20,11 +20,40 @@ test("six categories, fixed order, hubs only for categories with posts", () => {
   assert.equal(groups[0].posts.length, 4);
 });
 
-test("posts in a category follow syllabus order; unordered posts come last", () => {
-  assert.deepEqual(postsInCategory(posts, "foundations").map((p) => p.slug), ["what-is-an-option", "calls-and-puts", "strike-expiry-premium", "delta"]);
+test("a HUB lists newest first, whatever the syllabus numbers say", () => {
+  // The owner: "The order is not stable." It was consistent -- series_order
+  // ascending -- but series_order does not track dates, so one hub read
+  // oldest-first and another newest-first from the same rule, and a reader
+  // seeing only dates had no rule to learn.
+  assert.deepEqual(
+    postsInCategory(posts, "foundations").map((p) => p.slug),
+    ["delta", "strike-expiry-premium", "calls-and-puts", "what-is-an-option"]
+  );
 });
 
-test("neighbours are the previous and next in the same category", () => {
+test("a hub's order does NOT depend on series_order", () => {
+  // The bug's shape: two posts whose numbers run opposite to their dates. The
+  // hub must read the same way as every other hub regardless.
+  const odd = [
+    P("older-but-lower-number", "managing", 48, "2026-09-02T00:00:00Z"),
+    P("newer-but-higher-number", "managing", 50, "2026-08-29T00:00:00Z")
+  ];
+  assert.deepEqual(
+    postsInCategory(odd, "managing").map((p) => p.slug),
+    ["older-but-lower-number", "newer-but-higher-number"]
+  );
+});
+
+test("syllabus order is still available, and is by number not date", () => {
+  // Foundations is a course: post 1 is the definition, post 5 the bid-ask
+  // spread. That sequence still drives prev/next at the foot of a post.
+  assert.deepEqual(
+    syllabusOrder(posts, "foundations").map((p) => p.slug),
+    ["what-is-an-option", "calls-and-puts", "strike-expiry-premium", "delta"]
+  );
+});
+
+test("neighbours walk the SYLLABUS, not the hub listing", () => {
   const { prev, next } = neighbours(posts, posts[1]);
   assert.equal(prev.slug, "what-is-an-option");
   assert.equal(next.slug, "strike-expiry-premium");
