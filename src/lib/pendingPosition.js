@@ -1,4 +1,5 @@
 import { bsPrice, impliedVol, tteYears, RISK_FREE } from "./blackScholes.js";
+import { expiryOf } from "./occ.js";
 
 // An order that has not been placed, priced the same way an open one is.
 //
@@ -396,3 +397,83 @@ export function survivingRows(rows, afterDate) {
   }
   return out;
 }
+
+/**
+ * OPEN positions, made datable.
+ *
+ * The rows `syncAccounts` returns carry `symbol`, `side`, `kind`, `strike`,
+ * `ratio`, `entryPrice` and `currentPrice` on each leg — and no expiry and no
+ * volatility. `legValueAt` reads a missing expiry as T = 0 and prices the leg
+ * at intrinsic, so the combined chart was drawing the open book AT EXPIRY
+ * while the pending order beside it was priced at a date, under a caption
+ * saying both were on the same day.
+ *
+ * That mispricing runs AGAINST the account: intrinsic overstates what a short
+ * leg has retained and understates what a long leg is worth, so the true mark
+ * is worse than the line drawn.
+ *
+ * Both missing pieces are recoverable without asking the server for anything.
+ * The expiry is in the OCC symbol. The volatility is whatever makes the
+ * model agree with the leg's own current price — the same back-out
+ * `pendingRows` does for a scanner leg, from the same model.
+ *
+ * A leg that still cannot be dated or valued is left exactly as it was, and
+ * `undatable` names its row so the screen can say which positions the lines
+ * leave out rather than quietly dropping them.
+ */
+export function datedBookRows(rows, spot, now = Date.now()) {
+  const out = [];
+  const undatable = [];
+  for (const row of rows || []) {
+    if (!Array.isArray(row?.legs) || !row.legs.length) { out.push(row); continue; }
+    let missing = false;
+    const legs = row.legs.map((leg) => {
+      const expiry = leg.expiry || expiryOf(leg.symbol);
+      if (!expiry) { missing = true; return leg; }
+      if (num(leg.iv) > 0) return { ...leg, expiry };
+      const mark = num(leg.currentPrice) ?? num(leg.entryPrice);
+      const iv = impliedFrom(mark, num(spot), num(leg.strike), expiry, leg.kind === "call");
+      if (!(iv > 0)) { missing = true; return { ...leg, expiry }; }
+      return { ...leg, expiry, iv };
+    });
+    if (missing) undatable.push(row);
+    out.push({ ...row, legs });
+  }
+  return { rows: out, undatable };
+}
+
+/**
+ * A price window wide enough to contain everything the reader needs to see.
+ *
+ * The first version took `curveRange`'s window — strikes and spot, padded —
+ * and it CLIPPED A BREAK-EVEN BY TWENTY-ONE CENTS. The surviving short 320 put
+ * on the owner's diagonal turns over at $275.94; the window started at
+ * $276.14. So the one line drawn to show a position with $31,834 underneath it
+ * was rendered entirely in profit, its lowest visible point +$20.62, and the
+ * caption that would have named the crossing suppressed itself because there
+ * was no crossing inside the frame.
+ *
+ * So the crossings decide the window, not the other way round: every curve is
+ * probed across a deliberately wide range first, and the window is then set to
+ * hold every crossing found, every strike and the spot, with room to spare.
+ */
+export function analysisRange(curves, anchors, spot) {
+  const points = [];
+  for (const list of curves || []) {
+    for (const c of list || []) if (c?.price > 0) points.push(c.price);
+  }
+  for (const a of anchors || []) if (a > 0) points.push(a);
+  if (num(spot) > 0) points.push(num(spot));
+  if (!points.length) return null;
+  const lo = Math.min(...points);
+  const hi = Math.max(...points);
+  const pad = Math.max((hi - lo) * 0.12, (num(spot) || hi) * 0.05);
+  return { from: Math.max(0, lo - pad), to: hi + pad };
+}
+
+// A deliberately wide sweep, used only to FIND the crossings that then set the
+// window. Never drawn.
+export const probeRange = (spot) => {
+  const s = num(spot) || 0;
+  return s > 0 ? { from: Math.max(0.01, s * 0.2), to: s * 2.6, steps: 320 } : null;
+};

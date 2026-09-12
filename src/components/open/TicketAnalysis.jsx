@@ -2,10 +2,11 @@ import { useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import { scaledRisk } from "@/lib/setupUnit";
-import { tickerBook, curveRange, crossings } from "@/lib/tickerBook";
+import { tickerBook, crossings } from "@/lib/tickerBook";
 import {
   pendingRows, ticketMarks, withPending, maxProfitOf,
-  curveAt, analysisDates, atClose, survivingRows
+  curveAt, analysisDates, atClose, survivingRows,
+  datedBookRows, analysisRange, probeRange, rowPLAt
 } from "@/lib/pendingPosition";
 import PayoffChart from "@/components/dashboard/PayoffChart";
 
@@ -92,8 +93,14 @@ const Figure = ({ label, value, tone = "" }) => (
 // the curve rather than off `breakEvenLow`/`breakEvenHigh`, so the numbers and
 // the picture cannot disagree — and so a book of several positions has
 // break-evens at all, which no single row's figure gives it.
+// `crossings` knows which way the curve is going through zero, and dropping
+// that turned "below this you lose" into a bare number a credit trader reads
+// the wrong way round. ↓ marks where profit turns into loss going down the
+// price axis, ↑ where it turns back.
 const evens = (list) =>
-  !list?.length ? "None in range" : list.map((c) => fmtMoney(c.price)).join(" · ");
+  !list?.length
+    ? "None"
+    : list.map((c) => `${fmtMoney(c.price)}${c.rising ? " ↑" : " ↓"}`).join(" · ");
 
 export default function TicketAnalysis({ setup, qty = 1, net = null, positions = null }) {
   const [openOwn, setOpenOwn] = useState(false);
@@ -107,24 +114,45 @@ export default function TicketAnalysis({ setup, qty = 1, net = null, positions =
   const own = useMemo(() => {
     if (!rows.length) return null;
     const book = withPending(null, rows);
-    const range = curveRange(book);
-    if (!range) return null;
+    const probe = probeRange(book.spot);
+    if (!probe) return null;
 
     const nearAt = atClose(when.near);
+    const farAt = atClose(when.far);
+    const left = when.multi ? survivingRows(rows, when.near) : [];
+
+    // Probe wide, THEN choose the window from what the probe found. Sizing the
+    // window first is what clipped a break-even by twenty-one cents and drew a
+    // naked short put entirely in profit.
+    const probeNear = curveAt(rows, probe, nearAt);
+    const probeTail = left.length ? curveAt(left, probe, farAt) : [];
+    const zeros = crossings(probeNear);
+    const tailZeros = crossings(probeTail);
+
+    const range = analysisRange(
+      [zeros, tailZeros],
+      (setup.legs || []).map((l) => Number(l.strike)).filter((n) => n > 0),
+      book.spot
+    );
+    if (!range) return null;
+
     const curve = curveAt(rows, range, nearAt);
     if (!curve.length) return null;
-
-    const left = when.multi ? survivingRows(rows, when.near) : [];
-    const tail = left.length ? curveAt(left, range, atClose(when.far)) : [];
+    const tail = left.length ? curveAt(left, range, farAt) : [];
 
     return {
       curve,
+      // Read off the drawn window so the dots sit on the line, but only the
+      // ones the probe also found -- a crossing outside the frame is named in
+      // the text instead of silently dropped.
       zeros: crossings(curve),
+      allZeros: zeros,
       tail,
-      tailZeros: crossings(tail),
-      spot: book.spot
+      tailZeros,
+      spot: book.spot,
+      range
     };
-  }, [rows, when]);
+  }, [rows, when, setup.legs]);
 
   const openBook = useMemo(
     () => (setup?.ticker && positions?.length ? tickerBook(positions, setup.ticker) : null),
@@ -136,19 +164,42 @@ export default function TicketAnalysis({ setup, qty = 1, net = null, positions =
   // put the same price at two different x positions.
   const combined = useMemo(() => {
     if (!openBook || !rows.length) return null;
-    const after = withPending(openBook, rows);
-    const range = curveRange(after);
-    if (!range) return null;
+
+    // The open rows carry no expiry and no volatility, so they were being
+    // priced at intrinsic while the pending order beside them was priced at a
+    // date -- under a caption saying both were on the same day, and wrong in
+    // the direction that flatters the account. Both are recoverable: the
+    // expiry from the OCC symbol, the volatility from the leg's own mark.
+    const { rows: openRows, undatable } = datedBookRows(openBook.rows, openBook.spot);
+    const after = withPending({ ...openBook, rows: openRows }, rows);
+    const probe = probeRange(after.spot);
+    if (!probe) return null;
+
     const nearAt = atClose(when.near);
-    const before = curveAt(openBook.rows, range, nearAt);
+    const probeBefore = curveAt(openRows, probe, nearAt);
+    const probeAfter = curveAt(after.rows, probe, nearAt);
+    const range = analysisRange(
+      [crossings(probeBefore), crossings(probeAfter)],
+      [...openRows, ...rows].flatMap((r) => (r.legs || []).map((l) => Number(l.strike))).filter((n) => n > 0),
+      after.spot
+    );
+    if (!range) return null;
+
+    const before = curveAt(openRows, range, nearAt);
     const curve = curveAt(after.rows, range, nearAt);
     if (!curve.length) return null;
+
+    // The SAME predicate the curve uses, not `tickerBook.unpriceable`, which
+    // tests with the at-expiry function. Two different tests meant the chart
+    // could drop a row the "left out" note would never mention.
+    const dropped = openRows.filter((r) => rowPLAt(r, after.spot || 1, nearAt) === null);
     return {
       before,
       curve,
       zerosBefore: crossings(before),
       zerosAfter: crossings(curve),
       spot: after.spot,
+      dropped: [...new Set([...dropped, ...undatable])],
       committedNow: openBook.committed,
       // `tickerBook.committed` sums `s.collateral`, which single-leg rows set
       // and multi-leg rows do not. Four open verticals contribute nothing to
@@ -156,8 +207,7 @@ export default function TicketAnalysis({ setup, qty = 1, net = null, positions =
       committedComplete: openBook.rows.every(
         (r) => r?.collateral !== null && r?.collateral !== undefined
       ),
-      unrealizedNow: openBook.unrealizedPL,
-      unpriceable: openBook.unpriceable
+      unrealizedNow: openBook.unrealizedPL
     };
   }, [openBook, rows, when]);
 
@@ -201,12 +251,22 @@ export default function TicketAnalysis({ setup, qty = 1, net = null, positions =
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-slate-100 pt-3">
           <Figure label="Max profit" value={profitCell(maxProfit, unlimitedUpside)} />
           <Figure label="Max loss" value={lossCell(maxLoss)} tone={maxLoss === null ? "" : "text-rose-600"} />
-          <Figure label={when.multi ? `Break-even at ${day(when.near)}` : "Break-even"} value={evens(own.zeros)} />
+          <Figure
+            label={when.multi ? `Break-even at ${day(when.near)}` : "Break-even"}
+            value={evens(own.allZeros?.length ? own.allZeros : own.zeros)}
+          />
           <Figure
             label={setup.strategy === "covered_call" ? "Shares at basis" : "Collateral"}
             value={fmtMoney(collateral)}
           />
         </div>
+
+        {maxLoss !== null && when.multi && (
+          <p className="text-[11px] text-slate-500">
+            Max loss is the worst the whole position can do over its life, not the worst on{" "}
+            {day(when.near)} — it happens with the stock at zero after that date.
+          </p>
+        )}
 
         {when.multi ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-900 space-y-1">
@@ -216,10 +276,13 @@ export default function TicketAnalysis({ setup, qty = 1, net = null, positions =
               <strong>{tailLabel}</strong> is what you are holding from {day(when.near)} onward, on its own.
             </p>
             <p>
-              The two are not additive: what the {day(when.near)} leg returns depends on where the stock is
-              that day, and the second line starts from wherever that leaves you.
-              {own.tailZeros?.length ? ` It turns over at ${evens(own.tailZeros)}.` : ""}
+              It turns over at {evens(own.tailZeros)}. The two lines are not additive: what the{" "}
+              {day(when.near)} leg returns depends on where the stock is that day, and the second line
+              starts from wherever that leaves you.
             </p>
+            {/* The builder's own sentence, which names the structure in one
+                line and had been computed, unit-tested and rendered nowhere. */}
+            {setup.riskNote && <p className="border-t border-amber-200 pt-1">{setup.riskNote}</p>}
           </div>
         ) : (
           <p className="text-[11px] text-slate-500">
@@ -281,11 +344,11 @@ export default function TicketAnalysis({ setup, qty = 1, net = null, positions =
               Both lines at {day(when.near)}. The unrealized figure is at the market now — a different
               question, not a second view of the same one.
             </p>
-            {combined.unpriceable?.length > 0 && (
+            {combined.dropped?.length > 0 && (
               <p className="text-[11px] text-amber-700">
-                {combined.unpriceable.length} open{" "}
-                {combined.unpriceable.length === 1 ? "position is" : "positions are"} left out of the lines
-                (an adjusted contract does not deliver 100 shares).
+                {combined.dropped.length} open{" "}
+                {combined.dropped.length === 1 ? "position is" : "positions are"} left out of the lines —
+                an adjusted contract, or one whose expiry or price could not be read.
               </p>
             )}
           </>

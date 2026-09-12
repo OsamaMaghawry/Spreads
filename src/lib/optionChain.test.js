@@ -224,13 +224,18 @@ test("legs with different expiries are a spread, not a refusal", () => {
   assert.deepEqual(r.setup.expiries, ["2027-02-19", "2027-12-17"]);
 });
 
-test("THE OWNER'S DIAGONAL: short outlives long, so risk is NOT bounded", () => {
+test("THE OWNER'S DIAGONAL: the short outlives the long, and the worst case is the strike", () => {
+  // This test used to assert `maxRisk: null`, which put "No ceiling" on the
+  // ticket. That was wrong, and wrong by withholding: a stock cannot go below
+  // zero, so a bare short put's loss IS bounded, at the strike less what came
+  // in. The note in this very branch had said so in words all along.
   const r = spreadSetup(
     [{ row: P(370, 44.5, "2027-02-19"), action: "buy" }, { row: P(320, 19.9, "2027-12-17"), action: "sell" }],
     ctx
   );
-  assert.equal(r.setup.maxRisk, null);
-  assert.equal(r.setup.unlimitedRisk, true);
+  // credit = 19.9 - 44.5 = -24.6, so (320 + 24.6) x 100.
+  assert.equal(Math.round(r.setup.maxRisk), 34460);
+  assert.equal(r.setup.unlimitedRisk, false);
   assert.match(r.setup.riskNote, /bare short put at 320/i);
   assert.match(r.setup.riskNote, /2027-02-19/);
   // And the width is meaningless here, so it is not reported as collateral.
@@ -322,4 +327,35 @@ test("an UNCOVERED short call carries no basis to pretend with", () => {
   assert.equal(r.setup.basis, null);
   assert.equal(r.setup.maxRisk, null);
   assert.equal(r.setup.unlimitedRisk, true);
+});
+
+// A BARE SHORT PUT IS BOUNDED. Both branches used to return maxRisk null and
+// the ticket printed "No ceiling" over each, which on a put withholds a number
+// the user badly needs: a stock cannot go below zero, so the worst a short put
+// can do is its strike less what came in.
+test("a diagonal whose short PUT outlives the long names its worst case", () => {
+  const legs = [
+    { action: "buy", expiry: "2027-02-19", row: { symbol: "TSLA270219P00370000", strike: 370, type: "P", bid: 41.73, ask: 43.08, mid: 42.405, delta: -0.43 } },
+    { action: "sell", expiry: "2027-12-17", row: { symbol: "TSLA271217P00320000", strike: 320, type: "P", bid: 43.91, ask: 44.22, mid: 44.065, delta: -0.27 } }
+  ];
+  const r = spreadSetup(legs, { ticker: "TSLA", spot: 365.49 });
+  assert.equal(r.ok, true);
+  assert.equal(r.setup.structure, "diagonal");
+  assert.equal(Math.round(r.setup.credit * 100) / 100, 1.66);
+  // (320 - 1.66) x 100. NOT null, and not "No ceiling".
+  assert.equal(Math.round(r.setup.maxRisk), 31834);
+  assert.equal(r.setup.unlimitedRisk, false);
+  assert.equal(Math.round(r.setup.maxProfit), 166);
+  assert.ok(/worst case is 320 a share with the stock at zero/.test(r.setup.riskNote));
+});
+
+test("a bare short CALL still has no ceiling, because a stock has no top", () => {
+  const legs = [
+    { action: "buy", expiry: "2027-02-19", row: { symbol: "TSLA270219C00400000", strike: 400, type: "C", bid: 30, ask: 31, mid: 30.5, delta: 0.4 } },
+    { action: "sell", expiry: "2027-12-17", row: { symbol: "TSLA271217C00450000", strike: 450, type: "C", bid: 33, ask: 34, mid: 33.5, delta: 0.35 } }
+  ];
+  const r = spreadSetup(legs, { ticker: "TSLA", spot: 365.49 });
+  assert.equal(r.setup.maxRisk, null);
+  assert.equal(r.setup.unlimitedRisk, true);
+  assert.ok(/no ceiling on the loss/.test(r.setup.riskNote));
 });

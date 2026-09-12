@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   pendingRows, ticketMarks, legNet, withPending, maxProfitOf, expiriesOf,
-  rowPLAt, bookPLAt, curveAt, analysisDates, atClose, survivingRows
+  rowPLAt, bookPLAt, curveAt, analysisDates, atClose, survivingRows,
+  datedBookRows, analysisRange, probeRange
 } from "./pendingPosition.js";
 import { positionPLAt, payoffCurve, crossings } from "./tickerBook.js";
 
@@ -454,4 +455,78 @@ test("shares survive every expiry", () => {
 test("nothing survives its own expiry", () => {
   const [row] = pendingRows(dated(putSpread), 1);
   assert.deepEqual(survivingRows([row], "2026-10-16"), []);
+});
+
+// ---------------------------------------------------------------------------
+// The window must contain the break-even, not crop it
+// ---------------------------------------------------------------------------
+
+test("the drawn window holds every crossing the probe found", () => {
+  // The first version sized the window from strikes and spot, and the bare
+  // short 320 put's break-even at $275.94 fell $0.21 outside it -- so the one
+  // line drawn to show an unbounded position was rendered entirely in profit.
+  const [row] = pendingRows(diagonal, 1);
+  const [left] = survivingRows([row], "2027-02-19");
+  const probe = probeRange(426);
+  const tail = curveAt([left], probe, atClose("2027-12-17"));
+  const zeros = crossings(tail);
+  assert.equal(zeros.length, 1);
+  const range = analysisRange([zeros], [270, 320], 426);
+  assert.ok(range.from < zeros[0].price, `${range.from} must be below ${zeros[0].price}`);
+  // And the drawn curve then actually crosses zero inside the frame.
+  const drawn = curveAt([left], range, atClose("2027-12-17"));
+  assert.equal(crossings(drawn).length, 1);
+  assert.ok(Math.min(...drawn.map((p) => p.pl)) < 0, "the loss side is visible");
+});
+
+test("the range keeps the spot and the strikes in frame too", () => {
+  const range = analysisRange([[]], [270, 320], 426);
+  assert.ok(range.from < 270 && range.to > 426);
+  assert.equal(analysisRange([], [], 0), null);
+});
+
+// ---------------------------------------------------------------------------
+// datedBookRows — open positions carry no expiry and no volatility
+// ---------------------------------------------------------------------------
+
+const openLeg = (over) => ({
+  symbol: "TSLA271217P00320000",
+  side: "short", kind: "put", strike: 320, ratio: 1,
+  entryPrice: 40, currentPrice: 44.065, ...over
+});
+
+test("an open leg's expiry is read from its own symbol", () => {
+  const { rows, undatable } = datedBookRows(
+    [{ ticker: "TSLA", qty: 1, legs: [openLeg()] }], 365.49
+  );
+  assert.equal(rows[0].legs[0].expiry, "2027-12-17");
+  assert.ok(rows[0].legs[0].iv > 0.3 && rows[0].legs[0].iv < 0.7, `iv ${rows[0].legs[0].iv}`);
+  assert.equal(undatable.length, 0);
+});
+
+test("a dated open leg is valued, not settled at intrinsic", () => {
+  // The defect: with no expiry the leg priced at T=0, so the combined chart
+  // drew the open book AT EXPIRY beside a pending order priced at a date --
+  // and intrinsic overstates what a short leg has retained.
+  const raw = { ticker: "TSLA", qty: 1, legs: [openLeg()] };
+  const { rows } = datedBookRows([raw], 365.49);
+  const asOf = atClose("2027-02-19");
+  const naive = rowPLAt(raw, 365.49, asOf);       // no expiry -> intrinsic
+  const real = rowPLAt(rows[0], 365.49, asOf);    // dated and valued
+  assert.equal(naive, 4000);                       // "kept the whole $40"
+  assert.ok(real < naive - 2000, `dated ${real} vs intrinsic ${naive}`);
+});
+
+test("a leg whose symbol is not a contract is named, not silently dropped", () => {
+  const row = { ticker: "TSLA", qty: 1, legs: [openLeg({ symbol: "NOT-AN-OCC" })] };
+  const { rows, undatable } = datedBookRows([row], 365.49);
+  assert.equal(undatable.length, 1);
+  assert.equal(rows.length, 1);
+});
+
+test("share rows pass through untouched", () => {
+  const shares = { type: "shares", shareQty: 100, shareBasis: 200 };
+  const { rows, undatable } = datedBookRows([shares], 230);
+  assert.deepEqual(rows[0], shares);
+  assert.equal(undatable.length, 0);
 });

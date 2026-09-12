@@ -279,10 +279,26 @@ export function spreadSetup(legs, ctx) {
     maxRisk = Math.abs(credit) * 100;
     riskNote = `The ${buyExp} leg outlives the ${sellExp} short, so the most at risk is the debit paid.`;
   } else if (!longOutlives) {
+    // A BARE SHORT PUT IS BOUNDED; A BARE SHORT CALL IS NOT.
+    //
+    // Both used to return `maxRisk: null`, and the screen printed "No ceiling"
+    // over each. On a put that is false, and false in the reassuring
+    // direction's opposite — it refuses to name a number the user badly needs.
+    // A stock cannot go below zero, so the worst a short put can do is the
+    // strike, less whatever came in: on the owner's 320 put taken for 1.66
+    // that is $31,834, not "unknowable". This branch's own `riskNote` has said
+    // so in words since it was written; the figure simply never travelled.
+    //
+    // A call keeps null, because there the words and the null agree: a stock
+    // has no upper bound and neither does the loss.
+    maxRisk = isPut ? (sellStrike - credit) * 100 : null;
+    maxProfit = credit >= 0 ? credit * 100 : null;
     riskNote =
       `The short ${sellExp} leg outlives the long ${buyExp} leg. After ${buyExp} this is a bare short ` +
       `${isPut ? "put" : "call"} at ${sellStrike} until ${sellExp}` +
-      (isPut ? `, risking up to ${sellStrike * 100} less what came in.` : `, with no ceiling on the loss.`);
+      (isPut
+        ? `, and the worst case is ${sellStrike} a share with the stock at zero, less what came in.`
+        : `, with no ceiling on the loss.`);
   } else {
     riskNote =
       `A ${structure} taken for a credit is not bounded by the width — the legs expire on different ` +

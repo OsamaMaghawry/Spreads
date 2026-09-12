@@ -34,8 +34,16 @@ export function parseOCC(symbol) {
   return {
     ticker: root,
     expiry: `${yymmdd.slice(2, 4)}/${yymmdd.slice(4, 6)}`,
+    // The full date, because `expiry` above is a LABEL — "10/16", no year — and
+    // something that has to know whether a leg is still alive on a given day
+    // cannot work from that. The two live side by side rather than one being
+    // reformatted at every call site.
+    expiryDate: `20${yymmdd.slice(0, 2)}-${yymmdd.slice(2, 4)}-${yymmdd.slice(4, 6)}`,
     type,
     strike: Number(strike8) / 1000,
     adjusted: /\d$/.test(root)
   };
 }
+
+// The expiry of a contract as a date, or null when the symbol is not one.
+export const expiryOf = (symbol) => parseOCC(symbol)?.expiryDate ?? null;
