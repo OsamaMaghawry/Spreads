@@ -38,7 +38,6 @@
 
 import { brokerView } from "./brokerView.ts";
 import { pairSpreads } from "./spreadPairing.ts";
-import { bookRiskByTicker, bookRiskTotal } from "./bookRisk.ts";
 
 const num = (v: unknown): number | null => {
   if (v === null || v === undefined || v === "") return null;
@@ -96,9 +95,12 @@ export function snapshotOf(
     legs: Array.isArray(o.legs) ? o.legs.length : 1
   }));
 
-  // WHAT IS COMMITTED, AND WHAT IS AT RISK -- the same two functions the
-  // dashboard totals, on the same positions, so the email and the screen
-  // cannot quote different numbers for one account.
+  // WHAT IS COMMITTED -- the same function the dashboard totals, on the same
+  // positions, so the email and the screen cannot quote different numbers for
+  // one account.
+  //
+  // A RISK total was computed here too and is gone: the owner saw the bar and
+  // said he did not want it. Nothing should compute a figure nobody shows.
   //
   // `pairSpreads` is given no activities and no filled orders, and that is a
   // real if narrow degradation: without the orders that filled them, legs are
@@ -107,8 +109,6 @@ export function snapshotOf(
   // COLLATERAL or RISK, which are functions of strikes and quantities. It
   // would move a basis figure, and this does not print one.
   const paired = positions ? pairSpreads(positions, [], [], { cash: account ? num(account.cash) : null }) : null;
-  const books = paired ? bookRiskByTicker(paired) : null;
-  const risk = books ? bookRiskTotal(books) : null;
 
   return {
     // --- what the broker says the account is worth -------------------------
@@ -124,19 +124,11 @@ export function snapshotOf(
       : null,
 
     // --- what is committed and what is exposed -----------------------------
-    // Collateral is what the broker is HOLDING: the full strike on a
-    // cash-secured put, the width on a spread, the shares behind a covered
-    // call. Risk is what could be LOST. They are different numbers and a
-    // trader needs both -- a cash-secured put ties up the whole strike while
-    // risking the strike less the credit.
+    // What the broker is HOLDING: the full strike on a cash-secured put, the
+    // width on a spread, the shares behind a covered call.
     collateral: paired
       ? Math.round(paired.reduce((a: number, r: any) => a + (num(r.collateral) ?? 0), 0) * 100) / 100
       : null,
-    risk: risk ? risk.risk : null,
-    // False the moment one ticker cannot be sized. The email withholds rather
-    // than printing a total that is short by an unknown amount.
-    riskComplete: risk ? risk.complete : false,
-    riskUnbounded: risk ? risk.unbounded : [],
     // The broker's own previous close, so "today's move" is its arithmetic
     // rather than ours.
     lastEquity: account ? num(account.last_equity) : null,

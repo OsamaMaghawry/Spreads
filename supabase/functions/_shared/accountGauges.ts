@@ -1,14 +1,15 @@
-// Three small bars at the top of the weekly email, and the arithmetic behind
+// Two small bars at the top of the weekly email, and the arithmetic behind
 // them.
 //
-// The owner: *"I want also to add some nice graphs. Collateral to the Equity,
-// Risk to Equity ... Options BP. Some things to make them ready for the next
-// week. And drop other unneeded things. I want a clean, easy to read email and
-// informative."*
+// The owner asked for three -- collateral, risk and options buying power --
+// and then, seeing them: *"I don't want the second graph. If it all went
+// wrong."* So the risk bar is gone. It was the only one of the three that
+// was ours rather than the broker's, the only one that needed a paragraph to
+// explain, and on a wheel account it sits near the top of its track every
+// week, which makes it scenery rather than information.
 //
-// What he is asking is not decoration. Those three answer one question a
-// trader has on a Saturday -- how much of this account is already committed,
-// and what is left to work with on Monday -- and the email had none of it.
+// What is left answers the Saturday question: how much of the account is
+// already committed, and what is left to work with on Monday.
 //
 // WHY A BAR AND NOT A CHART. Email clients run no JavaScript, and Gmail strips
 // SVG. A chart is therefore a PNG (a fetch the reader's client may block, and
@@ -65,9 +66,6 @@ const pct = (share: number | null) =>
  * @param collateral  what the broker is holding against short positions --
  *                    the full strike on a cash-secured put, the width on a
  *                    spread, the shares themselves on a covered call
- * @param risk        the account's worst case, from `bookRiskTotal`
- * @param riskComplete false when one ticker could not be sized, in which case
- *                    the figure is withheld rather than shown short
  * @param optionsBP   the broker's own options buying power
  *
  * EVERY ONE OF THESE IS NULLABLE and a null renders a dash. The email is the
@@ -77,14 +75,10 @@ const pct = (share: number | null) =>
 export function accountGauges({
   equity,
   collateral,
-  risk,
-  riskComplete = true,
   optionsBP
 }: {
   equity?: number | null;
   collateral?: number | null;
-  risk?: number | null;
-  riskComplete?: boolean;
   optionsBP?: number | null;
 }): Gauge[] {
   const eq = num(equity);
@@ -92,14 +86,8 @@ export function accountGauges({
   const share = (v: number | null) => (base === null || v === null ? null : v / base);
 
   const col = num(collateral);
-  // Withheld, not shown short. `bookRiskTotal` sets `complete` false the moment
-  // one ticker cannot be sized, and an understatement presented as a total is
-  // the failure this codebase has been bitten by twice.
-  const rsk = riskComplete ? num(risk) : null;
   const bp = num(optionsBP);
-
   const colShare = share(col);
-  const riskShare = share(rsk);
   // Buying power is not a share of equity in the same sense -- it can exceed
   // it on margin -- so its bar is drawn against equity purely as a yardstick
   // and its band is INVERTED: a lot of buying power left is the comfortable
@@ -118,20 +106,8 @@ export function accountGauges({
       band: bandFor(colShare),
       note:
         colShare === null
-          ? "We could not read what is being held against your short positions."
-          : `${pct(colShare)} of the account is committed to positions already open.`
-    },
-    {
-      key: "risk",
-      label: "Risk if it all went wrong",
-      value: rsk,
-      share: riskShare,
-      width: riskShare === null ? 0 : Math.max(0, Math.min(100, riskShare * 100)),
-      band: bandFor(riskShare),
-      note:
-        riskShare === null
-          ? "One position has no ceiling we can size, so this is not totalled."
-          : `${pct(riskShare)} of the account, if every underlying moved against you at once.`
+          ? "Could not be read."
+          : `Held against positions already open.`
     },
     {
       key: "optionsBP",
@@ -142,8 +118,8 @@ export function accountGauges({
       band: bpBand,
       note:
         bp === null
-          ? "Your broker did not report options buying power for this account."
-          : `What your broker will let you open with on Monday.`
+          ? "Your broker did not report this."
+          : `Available to open with on Monday.`
     }
   ];
 }
