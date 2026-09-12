@@ -242,3 +242,50 @@ test("an address is escaped rather than interpolated into the markup", () => {
   assert.ok(!html.includes("<script>"));
   assert.ok(html.includes("&lt;script&gt;"));
 });
+
+// ---------------------------------------------------------------------------
+// Connected but never measured
+//
+// Found on staging before the first send: of eight accounts, five have trade
+// records and NO `account_equity_daily` rows at all, because that series is
+// built the first time somebody opens the account's history and nobody ever
+// opened those. One user has 128 trades and no series whatsoever.
+//
+// Treated as "could not be priced" it drags every total to a dash; treated as
+// zero it is a silent omission inside a figure presented as complete. It is
+// neither, so it is its own state.
+// ---------------------------------------------------------------------------
+
+test("an account with no stored history is not measured, and says so", () => {
+  const w = accountWeek({ id: "never", name: "Alpaca Live (603453690)", is_paper: false }, [], TRADES, WIN);
+  assert.equal(w.measured, false);
+  assert.equal(w.performance, null);
+  // ...but its TRADES still count. A trade is recorded whether or not anybody
+  // has built that account's daily series.
+  assert.equal(w.closed.count, 2);
+  assert.equal(w.premium.collected, 620);
+});
+
+test("an unmeasured account neither nulls the portfolio total nor is added to it", () => {
+  const real = accountWeek(ACCT, ROWS, TRADES, WIN);
+  const never = accountWeek({ id: "never", name: "Alpaca Live (603453690)", is_paper: false }, [], TRADES, WIN);
+  const w = userWeek([real, never], WIN);
+  // The portfolio figure is the measured account's, not a dash.
+  assert.equal(w.live.performance, 1553);
+  assert.equal(w.live.accounts, 1);
+  assert.deepEqual(w.live.unmeasured, ["Alpaca Live (603453690)"]);
+  // The trade figures cover BOTH, because both really traded.
+  assert.equal(w.live.closed, 4);
+  assert.equal(w.live.premiumCollected, 1240);
+});
+
+test("the email names the account it left out of the portfolio figures", () => {
+  const real = accountWeek(ACCT, ROWS, TRADES, WIN);
+  const never = accountWeek({ id: "never", name: "Alpaca Live (603453690)", is_paper: false }, [], TRADES, WIN);
+  const { html } = renderWeekly(userWeek([real, never], WIN), {});
+  assert.ok(html.includes("Not in the portfolio figures above"));
+  assert.ok(html.includes("Alpaca Live (603453690)"));
+  assert.ok(/no stored day-by-day history/.test(html));
+  // ...and does not claim the portfolio was unreadable.
+  assert.ok(html.includes("$141,562.00"), "the measured account's value should still show");
+});

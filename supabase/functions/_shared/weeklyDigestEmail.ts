@@ -133,7 +133,13 @@ const premiumPanel = (w: UserWeek) => {
 };
 
 const portfolioPanel = (w: UserWeek) => {
-  const accts = w.accounts.filter((a) => !a.isPaper).length ? w.accounts.filter((a) => !a.isPaper) : w.accounts;
+  // Measured accounts only. An account with no stored history for the week is
+  // not an account that could not be valued -- it is one nobody has opened --
+  // and letting it null these totals would tell a reader their whole portfolio
+  // was unreadable because of an empty account they connected once. It is
+  // named instead, by `unmeasuredNote` directly below this panel.
+  const measured = w.accounts.filter((a) => a.measured);
+  const accts = measured.filter((a) => !a.isPaper).length ? measured.filter((a) => !a.isPaper) : measured;
   const equityEnd = accts.reduce<number | null>(
     (s, a) => (s === null || a.equityEnd === null ? null : s + a.equityEnd), 0
   );
@@ -213,6 +219,23 @@ const accountPanel = (a: AccountWeek) => {
   );
 };
 
+// An account that is connected but has no stored history for the week. Said
+// plainly, because the alternative readings are both wrong: dragging every
+// total to "—" over an account nobody has opened, or quietly leaving it out of
+// a figure presented as the whole portfolio.
+const unmeasuredNote = (w: UserWeek) => {
+  if (!w.unmeasured.length) return "";
+  const names = w.unmeasured.map((n) => esc(n)).join(", ");
+  return `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.panel};border:1px solid ${BRAND.line};border-radius:12px;margin:0 0 16px;">
+    <tr><td style="padding:14px 18px;font:400 12px ${FONT};color:${BRAND.sub};line-height:1.6;">
+      <strong style="color:${BRAND.text};">Not in the portfolio figures above:</strong> ${names}.
+      ${w.unmeasured.length === 1 ? "This account has" : "These accounts have"} no stored day-by-day history for this week,
+      so ${w.unmeasured.length === 1 ? "it is" : "they are"} left out rather than counted as zero. Trades ${w.unmeasured.length === 1 ? "it" : "they"} closed or opened are still included.
+    </td></tr>
+  </table>`;
+};
+
 const unpricedNote = (w: UserWeek) => {
   const all = [...new Set(w.accounts.flatMap((a) => a.unpriced))].sort();
   if (!all.length) return "";
@@ -267,6 +290,7 @@ export function renderWeekly(
         hero(w),
         premiumPanel(w),
         portfolioPanel(w),
+        unmeasuredNote(w),
         unpricedNote(w),
         w.accounts.length > 1 || w.hasPaper
           ? w.accounts.map(accountPanel).join("")

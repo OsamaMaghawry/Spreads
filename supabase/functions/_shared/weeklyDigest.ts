@@ -188,6 +188,21 @@ export function accountWeek(
     measuredTo: close?.day || null,
     days: inside.length,
 
+    // NOT MEASURED IS NOT THE SAME AS NOT PRICED, and conflating them is a
+    // real defect rather than a nicety. `account_equity_daily` is built when
+    // an account's history is first read, so a connected account nobody has
+    // opened has no rows at all -- not a gap in a series, no series. Three of
+    // the eight accounts on staging are in exactly that state.
+    //
+    // Treated as "unpriced" it would drag every total it touched to null, and
+    // the reader would be told their whole portfolio could not be valued
+    // because of an empty account they connected once and never used. Treated
+    // as zero it would be worse: a silent omission inside a figure presented
+    // as complete. So it is its own state -- the account is named, its rows
+    // are excluded from the totals, and the email says which accounts were
+    // left out and why.
+    measured: Boolean(close),
+
     // --- the portfolio, as the week moved it -------------------------------
     // The whole-view line: premium closed, shares sold, and the marks on
     // everything still open, differenced across the window. This IS the
@@ -251,19 +266,32 @@ export function userWeek(accounts: AccountWeek[], win: Window) {
   const live = accounts.filter((a) => !a.isPaper);
   const paper = accounts.filter((a) => a.isPaper);
 
-  const totalOf = (list: AccountWeek[]) => {
-    // A null anywhere makes the total null: a sum that silently skipped an
-    // account the broker would not price reads as a complete answer.
+  const totalOf = (all: AccountWeek[]) => {
+    // Accounts with no stored history at all are not in the portfolio totals
+    // -- see `measured` on accountWeek. Their trades still are, because
+    // `trade_records` exists for them whether or not the daily series does,
+    // and a week's premium is a fact about the trades rather than about the
+    // series.
+    const list = all.filter((a) => a.measured);
+    // Among the accounts that WERE measured, a null anywhere makes the total
+    // null: a sum that silently skipped an account the broker would not price
+    // reads as a complete answer.
     const perf = list.map((a) => a.performance);
     return {
       accounts: list.length,
+      unmeasured: all.filter((a) => !a.measured).map((a) => a.name),
       performance: perf.some((v) => v === null) ? null : perf.reduce((s, v) => s + (v as number), 0),
-      premiumCollected: list.reduce((s, a) => s + a.premium.collected, 0),
-      premiumPaidToClose: list.reduce((s, a) => s + a.premium.paidToClose, 0),
-      premiumKept: list.reduce((s, a) => s + a.premium.kept, 0),
-      realized: list.reduce((s, a) => s + a.closed.realized, 0),
-      closed: list.reduce((s, a) => s + a.closed.count, 0),
-      opened: list.reduce((s, a) => s + a.opened.count, 0)
+      // Trade figures come from ALL accounts, measured or not. A trade is a
+      // fact recorded in `trade_records`, which exists whether or not anybody
+      // has ever built that account's daily series -- and on staging one user
+      // has 128 trades and no series at all. Summing these over the measured
+      // accounts alone would report an empty week to somebody who traded.
+      premiumCollected: all.reduce((s, a) => s + a.premium.collected, 0),
+      premiumPaidToClose: all.reduce((s, a) => s + a.premium.paidToClose, 0),
+      premiumKept: all.reduce((s, a) => s + a.premium.kept, 0),
+      realized: all.reduce((s, a) => s + a.closed.realized, 0),
+      closed: all.reduce((s, a) => s + a.closed.count, 0),
+      opened: all.reduce((s, a) => s + a.opened.count, 0)
     };
   };
 
@@ -274,6 +302,9 @@ export function userWeek(accounts: AccountWeek[], win: Window) {
     paper: totalOf(paper),
     hasLive: live.length > 0,
     hasPaper: paper.length > 0,
+    // Every account this person holds that has no stored history for the week,
+    // named once, so the email can say what is NOT in its figures.
+    unmeasured: accounts.filter((a) => !a.measured).map((a) => a.name),
     quiet: accounts.every((a) => a.quiet)
   };
 }
