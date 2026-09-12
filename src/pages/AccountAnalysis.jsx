@@ -409,6 +409,12 @@ export default function AccountAnalysis() {
               subtitle={`${stats.firstDate} → ${stats.lastDate}${range.from || range.to ? " (filtered)" : ""} · ${strategy === "all" ? "All strategies" : strategyLabel(strategy)} · ${view === "whole" ? "Whole view (options + shares)" : "Premium only (option legs)"} · equity ${equity ? `$${equity.toLocaleString()}` : "n/a"} · generated ${new Date().toLocaleString()}`}
               isPaper={!!data?.account?.is_paper}
               viewLabel={view === "whole" ? "Whole view (options + shares)" : "Premium only (option legs)"}
+              // The on-screen note is one block near the top of the flow, so
+              // it lands on page one and nowhere else. Pages two onward are the
+              // by-month and by-ticker schedules — the pages someone forwards
+              // to an accountant — and they need the qualification on them,
+              // not a pointer to a page that is no longer attached.
+              withheld={audit.count ? { count: audit.count, names: audit.names } : null}
             />
           )}
         </div>

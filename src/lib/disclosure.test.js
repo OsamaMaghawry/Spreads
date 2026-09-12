@@ -128,3 +128,31 @@ test("the withheld money stays in the totals and the outcomes leave it out", () 
   assert.equal(stats.bestStreak, null);
   assert.equal(stats.streaksKnown, false);
 });
+
+test("the PDF carries the qualification on EVERY page, not only page one", () => {
+  // The on-screen note is one block near the top of the flow, so it lands on
+  // page 1 and nowhere else. Pages 2+ are the by-month and by-ticker realized
+  // P/L schedules — the pages that get forwarded — and they carried a category
+  // disclaimer ("not a tax document") and nothing about which figures on them
+  // are qualified.
+  const pdf = src("../components/analysis/ExportPdfButton.jsx");
+
+  // A reserved band on every page, like the paper banner, so the page image
+  // cannot be drawn over the warning.
+  assert.ok(pdf.includes("const bannerH = bannerLines.length * 16"),
+    "the banner band must grow for the withheld line");
+  assert.ok(pdf.includes("if (withheldLine) {"), "drawBanner must draw it");
+
+  // And in the footer identity line, which repeats on every page.
+  assert.ok(pdf.includes("const unattributed = n"), "the footer must carry the clause");
+  assert.ok(pdf.includes("${unattributed}"), "the clause must be in the identity string");
+
+  // Wrapped, not truncated. `fit` drops from the RIGHT, which is exactly where
+  // the clause sits — a long account name would have eaten the sentence this
+  // change exists to add.
+  assert.ok(pdf.includes("splitTextToSize(identity"), "the identity line must wrap, not truncate");
+
+  // The call site must actually pass it, or every assertion above is inert.
+  const page = src("../pages/AccountAnalysis.jsx");
+  assert.ok(page.includes("withheld={audit.count ?"), "AccountAnalysis must pass withheld to the export");
+});
