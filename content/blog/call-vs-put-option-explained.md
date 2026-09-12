@@ -4,6 +4,7 @@ slug: call-vs-put-option-explained
 excerpt: A call is the right to buy 100 shares at a set price; a put is the right to sell 100 shares at a set price — and each one has a seller carrying the matching obligation.
 meta_description: A call is the right to buy 100 shares at a set price; a put the right to sell. What the buyer pays, what the seller owes, with the numbers.
 author: DeltaMint
+published_at: 2026-09-09T10:56:26+00:00
 category: foundations
 series_order: 2
 tags: call option, put option, foundations, assignment, premium
