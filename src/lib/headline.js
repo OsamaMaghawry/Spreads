@@ -69,16 +69,21 @@ export function analysisHeadline({ view, stats, premium, hasOpen, liveMark, narr
     return { figure: stats.totalPL, label: "Whole view total", note: null };
   }
 
-  // Everything below shows BOOKED money. The label carries that word so the
-  // figure cannot be read as including the open book, whatever the reason the
-  // open book is out of it.
-  const label = "Whole view · booked";
+  // Everything below shows REALIZED money. The label leads with that word for
+  // two reasons: it is the weight-bearing half, and a skimmer drops whatever
+  // follows a middot in 10px uppercase; and it is the word the rest of the
+  // page already uses for this exact value -- StatCards and StrategyComparison
+  // both switch their heading to "Realized P/L" on the same condition. Three
+  // names for one number on one screen is its own defect.
+  const label = "Realized P/L · whole view";
   const figure = stats.totalPL;
 
   if (!hasOpen) {
-    // Nothing is open, so booked money IS the whole of it. Reached when the
-    // mark is zero-but-unknown rather than absent; say nothing rather than
-    // point at an empty book.
+    // Nothing is open, so realized money IS the whole of it. Unreachable from
+    // the Analysis page, which only renders this control when something is
+    // open -- and `openMark` returns 0 rather than null on an empty book, so a
+    // page with nothing open takes the branch above. Kept as a module contract
+    // for any caller without that guarantee: never point at an empty book.
     return { figure, label, note: null };
   }
 
@@ -101,14 +106,32 @@ export function analysisHeadline({ view, stats, premium, hasOpen, liveMark, narr
   // excludes them because the book belongs to the account rather than to one
   // strategy. Getting this wrong would tell a reader on the cash-secured put
   // tab that his open puts are not cash-secured puts.
-  const closedPart = `This is what closed${strategy ? ` in ${strategy}` : ""}${when ? ` ${when}` : ""}.`;
+  // "What closed between X and Y" is the half that overclaims: `realized_pl`
+  // carries `stock_pl`, the share result written back onto the option row that
+  // delivered the shares, and that row's close_date is not the day the shares
+  // moved. "What the trades that closed in the window booked" is what the
+  // filter actually selects, and it is the true statement.
+  const closedPart =
+    `This is what the trades that closed${strategy ? ` in ${strategy}` : ""}${when ? ` ${when}` : ""} booked.`;
+  // The strategy reason is deliberately NARROW. "The open book belongs to the
+  // account rather than to one strategy" is the argument the chart makes about
+  // SHARE LOTS, and it is false of open option legs, which carry a ticker, a
+  // type, a strike and an expiry and plainly can belong to a strategy. On the
+  // cash-secured put tab it would tell a user holding an open short put that
+  // his open short put is not a cash-secured put -- the exact misreading this
+  // sentence exists to prevent. What is true is that the open book is not
+  // split by strategy anywhere in this product, and that is enough.
   const why = strategy
-    ? "What is still open belongs to the account rather than to one strategy"
+    ? "The open book is not split by strategy"
     : "What is still open is held today, not inside that window";
 
   return {
     figure,
     label,
-    note: `${closedPart} ${why}, so it is not in this figure — it is marked at ${money(liveMark)} below.`
+    // "it is marked at X below" pointed at a number that is not below: the
+    // share panel prints the share mark and the option panel prints the option
+    // mark, and nothing prints their sum. Say that the sum is of the two
+    // panels, not that it is printed in one of them.
+    note: `${closedPart} ${why}, so it is not in this figure — the open positions below come to ${money(liveMark)} between them.`
   };
 }

@@ -62,7 +62,19 @@ const OPTIONS = [
     // defect as the blanked headline below -- one text describing two states --
     // and it is fixed the same way, by saying which state this is.
     long: "Every figure below counts the whole position: the option legs and the shares they delivered. Everything still open — shares held, and option legs not yet closed — is marked into the total, return on equity and return on risk. The win and loss figures are outcomes of closed positions and cannot count an open one.",
-    unmarked: "Every figure below counts the whole position: the option legs and the shares they delivered. Nothing still open is inside them while this page is narrowed — the open book is held today and belongs to the account, so it is listed below at its own value rather than added in. The win and loss figures are outcomes of closed positions and cannot count an open one."
+    // SCOPED TO THE THREE OUTPUTS THE MARK ACTUALLY REACHES, and no wider. The
+    // first draft of this variant said "nothing still open is inside them" of
+    // every figure below, which the equity line contradicts: on the daily
+    // series that line is realized + shares open + option legs open at each
+    // day's close, so the open book IS inside it. Reproducing the original
+    // defect in the mirror direction is not a fix. The chart explains itself
+    // where it is drawn -- see EquityCurveChart's reconciliation caption.
+    //
+    // It also may not say "while this page is narrowed". `marked` goes false
+    // for a second reason -- an unfiltered page holding a position the broker
+    // will not price -- and naming a filter there invents one the reader never
+    // set, which is the mistake headline.js explicitly refuses to make.
+    unmarked: "Every figure below counts the whole position: the option legs and the shares they delivered. Here the total, return on equity and return on risk are realized money alone — what is still open is listed below on its own rather than added into them. The win and loss figures are outcomes of closed positions and cannot count an open one."
   },
   {
     key: "premium",

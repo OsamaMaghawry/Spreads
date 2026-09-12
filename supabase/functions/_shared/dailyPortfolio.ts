@@ -22,7 +22,15 @@
 //   shares_booked(D) the result of every share lot already SOLD by D
 //   shares_open(D)   the mark on every lot still HELD on D, at that day's
 //                    closing price
-//   performance(D)   the three added together — the whole-view line
+//   options_open(D)  the mark on every option leg still OPEN on D, likewise
+//   performance(D)   the FOUR added together — the whole-view line
+//
+// This list said "the three added together" after `options_open` was added,
+// and that stale line was quoted on screen: EquityCurveChart's subtitle
+// described the line as option legs, shares sold and the mark on shares held,
+// omitting the open option legs. A reader comparing this line against the
+// page's headline needs both texts to be complete, because the difference
+// between the two IS the open book.
 //
 // BUILT FROM LOT DATES, NOT FROM `realized_pl`, and that is the load-bearing
 // decision. `realized_pl` on a trade record is premium_pl + early_close_pl +

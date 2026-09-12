@@ -37,10 +37,10 @@ test("a date range shows the booked number, never a dash", () => {
   assert.equal(h.figure, 785.91);
   assert.ok(!/^—/.test(String(h.figure)));
   // ...and the label stops calling it a total, because the mark is not in it.
-  assert.equal(h.label, "Whole view · booked");
-  assert.ok(h.note.includes("closed between 2026-09-05 and 2026-09-12"));
+  assert.equal(h.label, "Realized P/L · whole view");
+  assert.ok(h.note.includes("closed between 2026-09-05 and 2026-09-12 booked"));
   assert.ok(h.note.includes("held today"));
-  assert.ok(h.note.includes("-$176.00"));
+  assert.ok(h.note.includes("come to -$176.00 between them"));
 });
 
 test("a strategy tab gives the strategy's own reason, not the date one", () => {
@@ -55,8 +55,8 @@ test("a strategy tab gives the strategy's own reason, not the date one", () => {
     narrowing: { strategy: "cash-secured puts" }
   });
   assert.equal(h.figure, 1887.91);
-  assert.ok(h.note.includes("closed in cash-secured puts"));
-  assert.ok(h.note.includes("belongs to the account rather than to one strategy"));
+  assert.ok(h.note.includes("closed in cash-secured puts booked"));
+  assert.ok(h.note.includes("not split by strategy"));
   assert.ok(!h.note.includes("held today"));
 });
 
@@ -68,8 +68,8 @@ test("both controls set: the strategy reason wins and both are named", () => {
     liveMark: 0,
     narrowing: { strategy: "covered calls", when: "on or after 2026-09-05" }
   });
-  assert.ok(h.note.includes("closed in covered calls on or after 2026-09-05"));
-  assert.ok(h.note.includes("belongs to the account"));
+  assert.ok(h.note.includes("closed in covered calls on or after 2026-09-05 booked"));
+  assert.ok(h.note.includes("not split by strategy"));
 });
 
 test("an unpriceable open position is said to be unpriceable, and the booked figure still shows", () => {
@@ -82,7 +82,7 @@ test("an unpriceable open position is said to be unpriceable, and the booked fig
   });
   assert.equal(h.figure, 785.91);
   assert.ok(h.note.includes("no price"));
-  assert.ok(!h.note.includes("marked at"));
+  assert.ok(!h.note.includes("come to"));
 });
 
 test("unfiltered and unpriceable invents no window to blame", () => {
@@ -96,10 +96,10 @@ test("unfiltered and unpriceable invents no window to blame", () => {
     narrowing: {}
   });
   assert.equal(h.figure, 609.91);
-  assert.equal(h.label, "Whole view · booked");
+  assert.equal(h.label, "Realized P/L · whole view");
   assert.ok(h.note.includes("no price"));
   assert.ok(!h.note.includes("window"));
-  assert.ok(!h.note.includes("This is what closed."));
+  assert.ok(!/This is what the trades that closed\b/.test(h.note));
 });
 
 test("nothing open: booked money is the whole of it, and nothing is pointed at", () => {

@@ -306,6 +306,25 @@ export default function AccountAnalysis() {
     liveMark,
     narrowing
   });
+  // THE CHART AND THE HEADLINE, reconciled where they differ.
+  //
+  // Only one configuration makes them disagree, and it is exactly the one the
+  // headline used to blank: all strategies, whole view, a date window, on the
+  // stored daily line. There the headline is realized money for the window and
+  // the line is marked at each day's close, so it also carries the open book's
+  // movement across the window. Under a strategy tab `useDaily` is false and
+  // the chart is `bookedCurve` over the same rows the headline sums, so the
+  // two tie to the cent and this must stay silent.
+  //
+  // The sentence names the cause and NOT a number: the gap is the open book's
+  // move plus whatever `orphanFigure` contributes, and attributing all of it to
+  // one of the two would be a fresh piece of false precision.
+  const chartReconcileNote =
+    view === "whole" && useDaily && chartMode === "performance" &&
+    (range.from || range.to) && stats && !stats.includesUnrealized
+      ? "This line is marked at each day's close, so it also moves with the positions still open while the window runs. The figure at the top of the page counts only what closed, which is why the line does not end on it."
+      : null;
+
   const unpricedDetail =
     hasOpen && liveMark === null
       ? book.unrealized === null && book.lots > 0
@@ -469,6 +488,7 @@ export default function AccountAnalysis() {
               onModeChange={setChartMode}
               hasValueSeries={hasValueSeries && useDaily}
               fallbackReason={chartFallbackReason}
+              reconcileNote={chartReconcileNote}
             />
             <CaptureBreakdown trades={subset} />
             <div className="grid gap-4 lg:grid-cols-2">
