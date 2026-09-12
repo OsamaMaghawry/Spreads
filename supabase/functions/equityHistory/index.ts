@@ -2,6 +2,7 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { loadAllAccounts } from "../_shared/accounts.ts";
 import { isServiceRole } from "../_shared/serviceRole.ts";
+import { paperOnlyMode } from "../_shared/settings.ts";
 import { redeemCronTicket } from "../_shared/cronTicket.ts";
 import { selectAllWhere } from "../_shared/paging.ts";
 import { loadAccount, alpacaFetch, tradingBase } from "../_shared/alpaca.ts";
@@ -475,7 +476,10 @@ async function rebuild(admin, account, userId: string) {
 // rebuild is a year of daily bars per ticker, and running every account at
 // once is how an API key gets rate-limited.
 async function rebuildAll(admin: any, maxAgeMinutes: number) {
-  const accounts = await loadAllAccounts(admin);
+  // Paper only: no daily series is built or stored for a live account. See
+  // PAPER_ONLY in _shared/settings.ts.
+  const paperOnly = await paperOnlyMode(admin);
+  const accounts = await loadAllAccounts(admin, { paperOnly });
   const cutoff = maxAgeMinutes > 0 ? Date.now() - maxAgeMinutes * 60000 : null;
   const due = accounts.filter((a: any) => {
     if (cutoff === null) return true;

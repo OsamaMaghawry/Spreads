@@ -18,7 +18,7 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient } from "../_shared/supabaseClients.ts";
 import { sendEmail } from "../_shared/email.ts";
-import { weeklyDigestDelivery, digestRelay } from "../_shared/settings.ts";
+import { weeklyDigestDelivery, digestRelay, paperOnlyMode } from "../_shared/settings.ts";
 import { weekWindow, accountWeek, type Window } from "../_shared/weeklyDigest.ts";
 import { renderAccountWeek } from "../_shared/weeklyDigestEmail.ts";
 
@@ -106,10 +106,16 @@ Deno.serve(async (req) => {
     // A single user, for a test. Still cannot change WHO receives it.
     const onlyUser = body?.userId ? String(body.userId) : null;
 
-    const { data: accounts, error: acctErr } = await admin
+    // Paper only: a live account gets no weekly email. It is still connected
+    // and still visible on the dashboard -- what it is excluded from is being
+    // read on a schedule and written about. See PAPER_ONLY in settings.ts.
+    const paperOnly = await paperOnlyMode(admin);
+    let accountQuery = admin
       .from("trading_accounts")
       .select("id, user_id, name, is_paper")
       .order("user_id");
+    if (paperOnly) accountQuery = accountQuery.eq("is_paper", true);
+    const { data: accounts, error: acctErr } = await accountQuery;
     if (acctErr) throw new Error(acctErr.message);
 
     const byUser = new Map<string, any[]>();

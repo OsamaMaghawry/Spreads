@@ -21,6 +21,19 @@ const SWITCHES = [
       "trading. It is also the default: a missing row or a failed read reads as ON."
   },
   {
+    key: "paper_only",
+    field: "paperOnly",
+    label: "Paper accounts only",
+    note:
+      "PRODUCTION AND LIVE ARE DIFFERENT THINGS. Production is the environment; live is what kind " +
+      "of money a connected account holds, and a paper account inside production is the ordinary, " +
+      "wanted case. Demo mode already stops a new ORDER reaching a live account — it does not stop " +
+      "us syncing one, storing its trades, watching it, or emailing its results. This does. While " +
+      "ON, a live account stays connected, stays visible on the dashboard and can always be closed " +
+      "out of, but it is excluded from the trade sync, the daily equity series, the position watch " +
+      "and the weekly email. Like demo mode, a missing row or a failed read reads as ON."
+  },
+  {
     key: "manual_api_keys",
     field: "manualApiKeys",
     label: "Manual API key entry",

@@ -1,6 +1,7 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient } from "../_shared/supabaseClients.ts";
 import { loadAllAccounts } from "../_shared/accounts.ts";
+import { paperOnlyMode } from "../_shared/settings.ts";
 import { tradingBase, alpacaFetch } from "../_shared/alpaca.ts";
 import { getSpots, getClosingSpots } from "../_shared/marketPrice.ts";
 import { parseOCCSymbol } from "../_shared/occ.ts";
@@ -259,7 +260,10 @@ Deno.serve(async (req) => {
     if (!settings?.enabled) return jsonResponse({ skipped: "watch disabled" });
     const recipient = settings.recipient_email;
 
-    const accounts = await loadAllAccounts(admin);
+    // Paper only: a live account is not watched and raises no alert while the
+    // product is not meant to be touching real money. See _shared/settings.ts.
+    const paperOnly = await paperOnlyMode(admin);
+    const accounts = await loadAllAccounts(admin, { paperOnly });
     const perAccount = [];
 
     for (const account of accounts) {

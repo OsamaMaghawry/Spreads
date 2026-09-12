@@ -29,6 +29,32 @@ export const BILLING_VISIBLE = "billing_visible";
 // without the seed must leave the product in demo, never open live order entry
 // on a broker account by accident.
 export const DEMO_MODE = "demo_mode";
+// Whether the product touches LIVE brokerage accounts at all.
+//
+// PRODUCTION AND LIVE ARE TWO DIFFERENT AXES, and conflating them is what
+// this setting exists to end. "Production" is the environment -- the real
+// database, the real users, deltamint.app. "Live" is what kind of money a
+// connected brokerage account holds. A PAPER account inside PRODUCTION is an
+// ordinary, wanted thing; it is what the product runs on until the broker
+// approves live trading. The owner: *"Differentiate between production as an
+// environment and the live account. I don't want live accounts. I want the
+// paper accounts inside the production."*
+//
+// DEMO_MODE already stops a new ORDER reaching a live account. It does not
+// stop us syncing one, storing its trades, watching it, or emailing its
+// results -- and on production that meant a real-money account's history was
+// being written and mailed while the product was nominally a demo. This is
+// the switch that was missing.
+//
+// While it is on, a live account stays connected, stays visible on the
+// dashboard, and can still be closed out of. What it is excluded from is
+// everything that READS IT ON A SCHEDULE OR STORES IT: the trade sync, the
+// daily equity series, the position watch, and the weekly email.
+//
+// Defaults ON, like DEMO_MODE and for the same reason: here the restrictive
+// answer is the safe one. A missing row, a failed read or a database restored
+// without the seed must leave the product not touching real money.
+export const PAPER_ONLY = "paper_only";
 // Who receives the weekly summary email: "off", "owner" or "users". The
 // closed default here is "owner" rather than "off", because "owner" cannot
 // reach a customer and still lets the owner see what the job produced -- a
@@ -52,7 +78,7 @@ export const DIGEST_RELAY = "digest_relay";
 // The keys an administrator may set through the panel. An allowlist rather
 // than "whatever key was posted", so the settings table cannot be used as a
 // general-purpose write target by anything holding an admin session.
-export const WRITABLE_SETTINGS = [MANUAL_API_KEYS, BILLING_ENFORCED, BILLING_VISIBLE, DEMO_MODE, WEEKLY_DIGEST_DELIVERY, DIGEST_RELAY];
+export const WRITABLE_SETTINGS = [MANUAL_API_KEYS, BILLING_ENFORCED, BILLING_VISIBLE, DEMO_MODE, PAPER_ONLY, WEEKLY_DIGEST_DELIVERY, DIGEST_RELAY];
 
 type Admin = ReturnType<typeof adminClient>;
 
@@ -70,6 +96,8 @@ export async function readSettings(admin: Admin) {
     // Note the inverted test: demo is on unless something explicitly says
     // false. See the constant above for why this one is the other way round.
     demoMode: byKey.get(DEMO_MODE) !== false,
+    // Inverted like demoMode: on unless something explicitly says false.
+    paperOnly: byKey.get(PAPER_ONLY) !== false,
     // Anything unrecognised -- a missing row, a typo, a restored database --
     // reads as "owner", the state that cannot mail a customer.
     weeklyDigestDelivery:
@@ -110,6 +138,12 @@ export const DEMO_MESSAGE =
   "DeltaMint is in demo while the broker reviews live trading. Paper accounts " +
   "trade normally; live accounts can be connected and watched, and positions on " +
   "them can always be closed, but no new live order is sent from here.";
+
+// Whether live accounts are excluded from every scheduled read and every
+// stored figure. See PAPER_ONLY above.
+export async function paperOnlyMode(admin: Admin) {
+  return (await readSettings(admin)).paperOnly;
+}
 
 // Who the weekly summary goes to. See WEEKLY_DIGEST_DELIVERY above.
 export async function weeklyDigestDelivery(admin: Admin): Promise<"off" | "owner" | "users"> {
