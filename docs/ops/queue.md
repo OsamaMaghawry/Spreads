@@ -5,6 +5,31 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Needs owner
 
+- [needs owner] 2026-09-12 · **The Vault row named `service_role_key` contains
+  the ANON key, on staging.** Found while verifying the scheduled equity
+  rebuild: the new all-accounts endpoint refused its own cron, correctly. The
+  row's JWT payload reads `"role":"anon"` — the public key that ships in the
+  browser bundle. Every pg_cron trigger in this product reads that row:
+  `trigger_trade_sync`, `trigger_position_watch`, `trigger_weekly_digest`,
+  `trigger_equity_history`. It has always "worked" because `verify_jwt = true`
+  only asks for a valid JWT and the anon key is one.
+
+  **Owner action:** replace the secret's value with the project's real
+  service-role key, on staging AND on production (production is unverified —
+  check it the same way: `select left(decrypted_secret,3), length(...)` and the
+  decoded payload's `role` claim, never the key itself). Do not paste the key
+  into a session; set it from the Supabase dashboard or the CLI.
+
+  **Live exposure until then, filed for the bench:** `syncTrades` and
+  `positionWatch` accept an all-accounts job from any caller that clears
+  verify_jwt, and the key that clears it is published. Neither was changed in
+  this branch — both are on the money path and belong in a review of their
+  own. `equityHistory`'s scheduled path is already covered by the single-use
+  `cron_tickets` mechanism (migration 0038), which needs no secret to travel
+  between the scheduler and the function; the same mechanism is what those two
+  should adopt.
+
+
 - [needs owner] 2026-09-09 · duty-engineer · **`yecfbeohyakuoyczvdbj.supabase.co` (the production Supabase project, including the `sendDigest` edge function) is 403 at CONNECT from this environment**, same failure mode as `dashboard.deltamint.app`/`deltamint.app`. Discovered trying to run the brief's own "email the owner" step (`.claude/agents/duty-engineer.md`) over the `dumpBrokerFeed` finding below — couldn't send. Recorded in `docs/context/reachable.md`; worked around this run with `PushNotification` instead. If duty-engineer is meant to email directly, this host needs the allowlist addition alongside the existing `dashboard.deltamint.app` item.
 - [needs owner] 2026-09-08 · **Turn off the Cloudflare-side Workers Build for `spreads` / `spreads-staging`** — Workers & Pages → the project → Settings → Builds. It is redundant now that `deploy-app.yml` and `deploy-app-staging.yml` deploy from this repo, and it is doing something that should not be left running: the **production** `spreads` script was modified at 19:25:06Z on 8 Sep, twenty seconds after a push to `staging` triggered the new staging deploy (19:24:05–19:24:48Z), and no workflow ran on `main` after 12:42Z that day. So the Cloudflare build is building the staging branch onto the production worker. Because it runs `wrangler versions upload` this is almost certainly a preview version that carries no traffic — but that leaves a bundle built against the STAGING Supabase project sitting on the production script, one "Deploy version" click away from serving it to real users. Not verifiable from a session (`api.cloudflare.com` is 403 at CONNECT and the connector is read-only for Workers), so it needs the owner's eyes. Two publishers on one worker also makes the Deployments tab unreadable, which is how the original "is production even current?" question went unanswered for five days.
 
