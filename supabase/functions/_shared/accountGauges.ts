@@ -140,12 +140,23 @@ const COLOURS: Record<Gauge["band"], string> = {
  */
 export function barHtml(g: Gauge, font: string, sub: string, text: string) {
   const colour = COLOURS[g.band];
+  // NO `Math.abs`, and that was a real defect in the first version of this
+  // file. Alpaca reports options buying power as a NEGATIVE number when the
+  // account is in deficit, and `Math.abs` printed a -$1,200 shortfall as
+  // "$1,200.00  -5%" under the caption "Available to open with on Monday" --
+  // positive dollars, negative percent, on the one surface this file's own
+  // header calls the worst in the product for a quietly wrong figure.
+  //
+  // A reader owed money by their broker would have been shown it as money
+  // they could spend. The sign is the fact.
   const amount =
     g.value === null
       ? "—"
-      : `$${Math.abs(g.value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      : `${g.value < 0 ? "-" : ""}$${Math.abs(g.value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   // A zero-width fill still needs a cell or the track collapses in Outlook.
-  const fill = Math.max(g.width, g.value === null ? 0 : 1.5);
+  // A deficit draws no fill. A bar growing rightward out of a negative number
+  // says the opposite of what the number says.
+  const fill = g.value !== null && g.value < 0 ? 0 : Math.max(g.width, g.value === null ? 0 : 1.5);
   return `
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 14px;">
   <tr>
