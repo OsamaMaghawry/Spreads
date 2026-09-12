@@ -289,3 +289,45 @@ test("the email names the account it left out of the portfolio figures", () => {
   // ...and does not claim the portfolio was unreadable.
   assert.ok(html.includes("$141,562.00"), "the measured account's value should still show");
 });
+
+// ---------------------------------------------------------------------------
+// Nothing measured is not a flat week
+//
+// Caught on staging in the dry run before the first email was sent. One user's
+// only live account is a dead connection — no trades, no stored history — and
+// all 43 of his trades are in a paper account. The subject line read
+// "+$0.00", which says his live week came to nothing rather than that he had
+// no live week at all, and the account with his actual result in it was
+// buried below.
+// ---------------------------------------------------------------------------
+
+const DEAD_LIVE = { id: "dead", name: "Alpaca Live (null)", is_paper: false };
+const PAPER = { id: "pap", name: "Alpaca Paper", is_paper: true };
+
+test("a total over no measured accounts is null, not zero", () => {
+  const dead = accountWeek(DEAD_LIVE, [], [], WIN);
+  const w = userWeek([dead], WIN);
+  assert.equal(w.live.accounts, 0);
+  assert.equal(w.live.performance, null, "an empty list must not reduce to 0");
+});
+
+test("a dead live connection does not make the email lead with an empty live week", () => {
+  const dead = accountWeek(DEAD_LIVE, [], [], WIN);
+  const paper = accountWeek(PAPER, ROWS, TRADES, WIN);
+  const w = userWeek([dead, paper], WIN);
+  // Holding a live account is not the test; having been measured or traded is.
+  assert.equal(w.hasLive, false);
+  const { subject } = renderWeekly(w, {});
+  assert.ok(!subject.includes("$0.00"), subject);
+  assert.ok(subject.includes("(paper)"), subject);
+  assert.ok(subject.includes("+$1,553.00"), subject);
+});
+
+test("a genuinely flat live week still reads as a live week", () => {
+  // Measured, and it came to zero. That IS a result and must not be hidden.
+  const flat = accountWeek(ACCT, [ROWS[0], { ...ROWS[2], performance: 5800 }], [], WIN);
+  const w = userWeek([flat], WIN);
+  assert.equal(w.hasLive, true);
+  assert.equal(w.live.performance, 0);
+  assert.ok(renderWeekly(w, {}).subject.includes("+$0.00"));
+});

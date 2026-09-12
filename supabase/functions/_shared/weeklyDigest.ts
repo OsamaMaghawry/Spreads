@@ -266,6 +266,14 @@ export function userWeek(accounts: AccountWeek[], win: Window) {
   const live = accounts.filter((a) => !a.isPaper);
   const paper = accounts.filter((a) => a.isPaper);
 
+  // WHICH SIDE THE EMAIL LEADS WITH. Merely HOLDING a live account is not the
+  // test: a connected live account that has never traded and has no stored
+  // history would otherwise make the email lead with an empty live summary and
+  // bury the paper account where the person's actual week is. A live account
+  // counts once it has been measured or has traded -- and a genuinely flat
+  // live week still counts, because it was measured.
+  const liveActive = live.filter((a) => a.measured || a.closed.count > 0 || a.opened.count > 0);
+
   const totalOf = (all: AccountWeek[]) => {
     // Accounts with no stored history at all are not in the portfolio totals
     // -- see `measured` on accountWeek. Their trades still are, because
@@ -279,8 +287,18 @@ export function userWeek(accounts: AccountWeek[], win: Window) {
     const perf = list.map((a) => a.performance);
     return {
       accounts: list.length,
+      // NOTHING MEASURED IS NOT A FLAT WEEK. An empty list reduces to 0, and
+      // 0 renders as "+$0.00" -- which reads as "your week came to nothing"
+      // rather than "there was no week here". Caught on staging before the
+      // first send: a user whose only live account is a dead connection with
+      // no trades was shown +$0.00 for a live week that does not exist, while
+      // the paper account holding all 43 of his trades was the one with the
+      // result in it.
       unmeasured: all.filter((a) => !a.measured).map((a) => a.name),
-      performance: perf.some((v) => v === null) ? null : perf.reduce((s, v) => s + (v as number), 0),
+      performance:
+        list.length === 0 || perf.some((v) => v === null)
+          ? null
+          : perf.reduce((s, v) => s + (v as number), 0),
       // Trade figures come from ALL accounts, measured or not. A trade is a
       // fact recorded in `trade_records`, which exists whether or not anybody
       // has ever built that account's daily series -- and on staging one user
@@ -300,7 +318,7 @@ export function userWeek(accounts: AccountWeek[], win: Window) {
     accounts,
     live: totalOf(live),
     paper: totalOf(paper),
-    hasLive: live.length > 0,
+    hasLive: liveActive.length > 0,
     hasPaper: paper.length > 0,
     // Every account this person holds that has no stored history for the week,
     // named once, so the email can say what is NOT in its figures.
