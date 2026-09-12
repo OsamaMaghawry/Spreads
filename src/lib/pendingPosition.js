@@ -1,3 +1,5 @@
+import { bsPrice, impliedVol, tteYears, RISK_FREE } from "./blackScholes.js";
+
 // An order that has not been placed, priced the same way an open one is.
 //
 // The dashboard can already draw what a ticker is doing: `tickerBook` prices
@@ -20,6 +22,13 @@
 // Null, undefined and "" are NOT zero. `Number(null)` is 0, which would turn
 // a builder's deliberate "this has no ceiling" into a $0.00 ceiling and a
 // missing mid into a free contract.
+// Backed out of the leg's own mid, with the same model and the same 0.25
+// fallback the scanner uses -- never a number typed in here.
+function impliedFrom(price, spot, strike, expiry, isCall) {
+  if (!(price > 0) || !(spot > 0) || !(strike > 0) || !expiry) return null;
+  return impliedVol(price, spot, strike, tteYears(expiry), RISK_FREE, isCall);
+}
+
 const num = (v) => {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(v);
@@ -64,13 +73,30 @@ export function pendingRows(setup, qty = 1, net = undefined) {
   if (!setup?.legs?.length) return [];
   const units = Math.max(1, Math.round(num(qty) || 1));
 
-  const legs = setup.legs.map((l) => ({
-    kind: kindOfLeg(l),
-    side: l.side === "sell" ? "short" : "long",
-    strike: num(l.strike) ?? 0,
-    entryPrice: num(l.mid) ?? num(l.bid) ?? 0,
-    ratio: num(l.ratio) || 1
-  }));
+  const spot = num(setup.spot);
+  const legs = setup.legs.map((l) => {
+    const kind = kindOfLeg(l);
+    const strike = num(l.strike) ?? 0;
+    const expiry = l.expiry || setup.expiry || null;
+    const price = num(l.mid) ?? num(l.bid) ?? 0;
+    return {
+      kind,
+      side: l.side === "sell" ? "short" : "long",
+      strike,
+      entryPrice: price,
+      ratio: num(l.ratio) || 1,
+      // The leg's OWN expiry, kept rather than discarded. Without it a
+      // calendar and a vertical are indistinguishable by the time they reach
+      // the chart, and the chart draws them the same way -- which is how a
+      // diagonal came to be shown with a floor it does not have.
+      expiry,
+      // Volatility, so a leg that is still alive on some future date can be
+      // valued rather than guessed at. The chain hands us the market's own
+      // implied volatility; the scanner does not, so it is backed out of the
+      // leg's mid at the setup's spot using the same model that will price it.
+      iv: num(l.iv) ?? impliedFrom(price, spot, strike, expiry, kind === "call")
+    };
+  });
 
   const target = num(net);
   if (target !== null) {
@@ -192,15 +218,17 @@ export function withPending(book, rows, spot = null) {
 }
 
 /**
- * The distinct expiry dates the setup's legs carry.
+ * The distinct expiry dates the setup's legs carry, soonest first.
  *
- * More than one is the reason a payoff chart must NOT be drawn.
- * `positionPLAt` takes a price and no date: it prices every leg at its own
- * expiry simultaneously, which is exact for a vertical and describes a moment
- * that does not exist for a calendar or a diagonal. On the owner's own
- * Feb-2027 / Dec-2027 structure it draws a bounded floor for a position whose
- * loss is not bounded, which is the same false-safety statement this whole
- * piece of work exists to remove — in a picture instead of a cell.
+ * More than one does NOT mean the position cannot be analysed — that was the
+ * lazy answer, and the owner rejected it: *"I don't think it's correct to just
+ * add the text of no Payoff just because they are in different dates. This is
+ * laziness from our side. You can add what you want to the graph with dates...
+ * the period when both are there and after one expires."*
+ *
+ * He is right, and `plAt` below is the answer. What more than one expiry
+ * actually means is that "at expiry" is no longer a single moment, so the
+ * curve has to be drawn AS OF a date — and these are the dates worth drawing.
  */
 export function expiriesOf(setup) {
   const dates = (setup?.legs || [])
@@ -210,4 +238,161 @@ export function expiriesOf(setup) {
   // A setup with no per-leg dates falls back to its own, which is one date.
   if (!dates.length && setup?.expiry) return [String(setup.expiry)];
   return [...new Set(dates)].sort();
+}
+
+// ---------------------------------------------------------------------------
+// Valuing a position on a DATE, not only at expiry
+//
+// `tickerBook.positionPLAt` prices every leg at intrinsic value. That is exact
+// at expiry and silent about every day before it, which is why a calendar or a
+// diagonal could not be drawn: its two legs never share an expiry, so there is
+// no single moment at which "intrinsic for everything" is true.
+//
+// So the curve is drawn AS OF a date. On that date each leg is one of two
+// things and nothing else:
+//
+//   ALREADY EXPIRED   worth its intrinsic value, exactly as before.
+//   STILL ALIVE       worth what the model says someone would pay for the time
+//                     it has left, at its own implied volatility.
+//
+// Set the date past every expiry and the second case disappears, every leg is
+// intrinsic, and this reduces to `positionPLAt` — which is asserted in the
+// tests rather than assumed, so the two can never drift into disagreeing about
+// a vertical.
+// ---------------------------------------------------------------------------
+
+const CONTRACT = 100;
+
+// One leg's worth per share on `asOf`.
+export function legValueAt(leg, price, asOf) {
+  const isCall = leg.kind === "call";
+  const T = leg.expiry ? tteYears(leg.expiry, asOf) : 0;
+  const sigma = num(leg.iv);
+  // No volatility for a leg that is still alive means the model cannot speak.
+  // Intrinsic would understate a long and overstate a short, so the caller is
+  // told rather than handed a number — see `plAt`.
+  if (T > 0 && !(sigma > 0)) return null;
+  return bsPrice(price, leg.strike, T, RISK_FREE, sigma ?? 0, isCall);
+}
+
+/**
+ * A whole position's P/L at one underlying price, on one date.
+ *
+ * null, never zero, when any leg cannot be valued — the same rule
+ * `positionPLAt` follows for an adjusted contract. A curve drawn from the legs
+ * that happened to price is not the position.
+ */
+export function rowPLAt(row, price, asOf) {
+  if (!row || !(price > 0)) return null;
+  if (row.adjusted) return null;
+
+  if (row.type === "shares" || row.shares) {
+    const basis = num(row.shareBasis ?? row.longEntryPrice) ?? 0;
+    const qty = num(row.shareQty ?? row.qty) ?? 0;
+    return (price - basis) * qty;
+  }
+
+  const legs = Array.isArray(row.legs) ? row.legs : [];
+  if (!legs.length) return null;
+  const units = Math.abs(num(row.qty) ?? 0);
+  let perShare = 0;
+  for (const leg of legs) {
+    const ratio = num(leg.ratio) || 1;
+    const entry = Math.abs(num(leg.entryPrice) ?? 0);
+    const value = legValueAt(leg, price, asOf);
+    if (value === null) return null;
+    // A short leg keeps what it took in and owes the value; a long leg paid
+    // for it and owns the value. One expression, both directions — the same
+    // one `positionPLAt` uses, with value in place of intrinsic.
+    perShare += ratio * (leg.side === "short" ? entry - value : value - entry);
+  }
+  return perShare * units * CONTRACT;
+}
+
+/** Several rows together, at one price, on one date. */
+export function bookPLAt(rows, price, asOf) {
+  let total = 0;
+  let priced = 0;
+  for (const row of rows || []) {
+    const v = rowPLAt(row, price, asOf);
+    if (v === null) continue;
+    total += v;
+    priced += 1;
+  }
+  return priced === 0 ? null : total;
+}
+
+/** The curve across a price range, on one date. */
+export function curveAt(rows, { from, to, steps = 160 }, asOf) {
+  if (!(to > from)) return [];
+  const out = [];
+  for (let i = 0; i <= steps; i++) {
+    const price = from + ((to - from) * i) / steps;
+    const pl = bookPLAt(rows, price, asOf);
+    if (pl !== null) out.push({ price, pl });
+  }
+  return out;
+}
+
+/**
+ * The dates worth drawing a two-expiry position on.
+ *
+ * The NEAR EXPIRY is the one that matters: it is the moment the position stops
+ * being what it is now. Before it, both legs are alive and the picture is a
+ * smooth curve; on it, the near leg settles and what is left is a different
+ * position with its own risk. Drawing today and the near expiry together shows
+ * exactly the thing the owner asked for — "the period when both are there and
+ * after one expires" — because the near-expiry line already IS the position
+ * after the near leg is gone, priced at that instant.
+ *
+ * A single-expiry position gets one date, its own expiry, and the near-expiry
+ * curve is then the familiar straight-line payoff.
+ */
+export function analysisDates(setup, now = Date.now()) {
+  const dates = expiriesOf(setup);
+  if (!dates.length) return { near: null, far: null, today: now, multi: false };
+  return {
+    near: dates[0],
+    far: dates.length > 1 ? dates[dates.length - 1] : null,
+    today: now,
+    multi: dates.length > 1
+  };
+}
+
+// The near expiry as a timestamp, at the close.
+export const atClose = (date) =>
+  date ? new Date(`${date}T20:00:00Z`).getTime() : null;
+
+/**
+ * What is still alive after a date — the position the near expiry leaves behind.
+ *
+ * THE REASON THIS EXISTS, and it is the whole analysis of a diagonal.
+ *
+ * Take the owner's structure: long a Feb-2027 270 put, short a Dec-2027 320
+ * put. Priced ON the February expiry (`rowPLAt` above) the loss is bounded at
+ * roughly the width less the credit, because the long put's intrinsic value
+ * rises alongside the short put's. A single payoff line therefore looks safe,
+ * and that is true — of that one day.
+ *
+ * It is what happens NEXT that has no floor. After February the long put is
+ * gone and a bare short 320 put runs to December. If the stock sits at $400 in
+ * February, the long expires worthless, and then the stock collapses, there is
+ * nothing underneath the short at all.
+ *
+ * No single curve can say this, because it depends on TWO prices — where the
+ * stock is in February and where it is in December — and a payoff chart has
+ * one axis. So the honest picture is two curves: the whole position on the
+ * near date, and the leftover on its own date. The second is what this
+ * function builds, and the screen says plainly that they are not additive.
+ */
+export function survivingRows(rows, afterDate) {
+  const cutoff = String(afterDate || "");
+  const out = [];
+  for (const row of rows || []) {
+    // Shares do not expire; they are part of whatever is left.
+    if (row.type === "shares" || row.shares) { out.push(row); continue; }
+    const legs = (row.legs || []).filter((l) => String(l.expiry || "") > cutoff);
+    if (legs.length) out.push({ ...row, legs });
+  }
+  return out;
 }

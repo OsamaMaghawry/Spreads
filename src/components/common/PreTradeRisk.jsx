@@ -29,8 +29,11 @@ export default function PreTradeRisk({ setup, accountId, qty }) {
     <>
       <EarningsWarning earnings={setup.earnings} ticker={setup.ticker} />
       {/* `scaledRisk`, never `maxRisk * qty` -- multiplying an unbounded
-          position's null risk gave 0, and a 0% bar labelled "Contained". */}
-      <RiskMeter risk={scaledRisk(setup.maxRisk, qty)} equity={equity} note={setup.riskNote} />
+          position's null risk gave 0, and a 0% bar labelled "Contained".
+          No `note`: the meter printed the same sentence the preview above it
+          had just printed, which is the repetition the owner objected to. The
+          explanation belongs once, in Analysis. */}
+      <RiskMeter risk={scaledRisk(setup.maxRisk, qty)} equity={equity} />
     </>
   );
 }

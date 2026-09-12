@@ -14,8 +14,8 @@ const clock = (t) => (t ? new Date(t).toLocaleTimeString() : "");
 //
 // Never `fmtMoney` on a null risk: it would print "$0.00" and read as a
 // position that cannot lose. "No ceiling" is the honest cell, in the colour
-// the rest of the product uses for a loss, and the note under the block says
-// why.
+// the rest of the product uses for a loss; the one-line warning below points
+// at Analysis, which is where the reason is spelled out.
 const RiskCell = ({ value }) =>
   value === null || value === undefined ? (
     <span className="text-right text-rose-600 font-semibold">No ceiling</span>
@@ -180,24 +180,18 @@ export default function SetupPreview({ setup, qty, live = null }) {
         </span>
       </div>
 
-      {/* WHY there is no ceiling, in a sentence, where the number would have
-          been. `spreadSetup` and `contractSetup` both work out what the
-          position actually is -- which leg outlives which, whether shares
-          cover the call -- and this is the only place that reasoning reaches
-          the person about to send the order. */}
+      {/* A SHORT WARNING, not the explanation. The owner: "too much text. I
+          don't want the text on the ticket itself too long and repetitive with
+          the analysis. You can just add a small warning then see the
+          analysis." The full reasoning — which leg outlives which, and what
+          the position becomes — lives in the Analysis section below, once. */}
       {!bounded && (
-        <div className="border border-rose-200 bg-rose-50 rounded-lg p-2.5 text-xs text-rose-800 space-y-1">
-          <p className="font-semibold">This position&rsquo;s loss is not bounded.</p>
-          <p>
-            {setup.riskNote ||
-              (setup.strategy === "covered_call"
-                ? `You do not hold 100 shares of ${setup.ticker} at a known cost, so this call is uncovered and the loss rises with the stock without limit.`
-                : "Nothing in this structure caps what it can lose.")}
-          </p>
-        </div>
-      )}
-      {bounded && setup.riskNote && (
-        <p className="text-xs text-slate-500 border-t border-slate-200 pt-2">{setup.riskNote}</p>
+        <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-2">
+          <span className="font-semibold">Loss not bounded.</span>{" "}
+          {setup.strategy === "covered_call"
+            ? `No shares of ${setup.ticker} behind this call.`
+            : "See Analysis for what this position becomes."}
+        </p>
       )}
     </div>
   );

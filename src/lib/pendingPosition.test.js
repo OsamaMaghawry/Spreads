@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { pendingRows, ticketMarks, legNet, withPending, maxProfitOf, expiriesOf } from "./pendingPosition.js";
+import {
+  pendingRows, ticketMarks, legNet, withPending, maxProfitOf, expiriesOf,
+  rowPLAt, bookPLAt, curveAt, analysisDates, atClose, survivingRows
+} from "./pendingPosition.js";
 import { positionPLAt, payoffCurve, crossings } from "./tickerBook.js";
 
 const csp = {
@@ -285,4 +288,170 @@ test("an uncovered short call's profit is the credit, not 'no ceiling'", () => {
   // this screen could carry.
   assert.equal(maxProfitOf({ strategy: "covered_call", credit: 6, ifCalled: null, legs: [] }), 600);
   assert.equal(maxProfitOf({ strategy: "covered_call", credit: 6, ifCalled: 4300, legs: [] }), 4300);
+});
+
+// ---------------------------------------------------------------------------
+// rowPLAt — one engine for every date, proven against the one it replaces
+//
+// The owner, on being shown "no payoff chart, the legs expire on different
+// days": *"I don't think it's correct to just add the text of no Payoff just
+// because they are in different dates. This is laziness from our side. You can
+// add what you want to the graph with dates... the period when both are there
+// and after one expires."*
+// ---------------------------------------------------------------------------
+
+const AFTER_EVERYTHING = Date.parse("2030-01-01T20:00:00Z");
+const dated = (setup) => ({ ...setup, expiry: "2026-10-16" });
+
+test("past every expiry, the dated engine IS the at-expiry one", () => {
+  // The guarantee that there are not two payoff engines in this product. If
+  // this ever fails, a vertical is being priced two different ways.
+  for (const setup of [dated(csp), dated(putSpread)]) {
+    const [row] = pendingRows(setup, 2);
+    for (const price of [0.01, 200, 300, 345, 350, 365, 400, 900]) {
+      assert.equal(
+        rowPLAt(row, price, AFTER_EVERYTHING),
+        positionPLAt(row, price),
+        `${setup.strategy} at ${price}`
+      );
+    }
+  }
+});
+
+test("shares are worth the same on any date", () => {
+  const row = { type: "shares", shareQty: 100, shareBasis: 200 };
+  assert.equal(rowPLAt(row, 240, Date.now()), 4000);
+  assert.equal(rowPLAt(row, 240, AFTER_EVERYTHING), 4000);
+});
+
+// The owner's own structure: buy the Feb-2027 270 put, sell the Dec-2027 320
+// put. The short leg outlives the long one, so after February this is a bare
+// short put — and THAT is what the near-expiry curve shows.
+const diagonal = {
+  ticker: "TSLA",
+  strategy: "put_spread",
+  structure: "diagonal",
+  spot: 426,
+  credit: 20,
+  expiry: "2027-02-19",
+  legs: [
+    { role: "long_put", side: "buy", strike: 270, mid: 25, iv: 0.5, ratio: 1, expiry: "2027-02-19" },
+    { role: "short_put", side: "sell", strike: 320, mid: 45, iv: 0.5, ratio: 1, expiry: "2027-12-17" }
+  ]
+};
+
+test("a diagonal IS drawable — on the date its near leg expires", () => {
+  const [row] = pendingRows(diagonal, 1);
+  const asOf = atClose("2027-02-19");
+  const at = (p) => rowPLAt(row, p, asOf);
+
+  // Every point prices. This is the whole objection: the position has an
+  // analysis, and refusing to draw one was a choice, not a limit.
+  for (const p of [200, 270, 320, 426, 600]) {
+    assert.ok(at(p) !== null && Number.isFinite(at(p)), `no value at ${p}`);
+  }
+
+  // High enough and both puts are worthless: the credit is what is left.
+  assert.ok(Math.abs(at(1200) - 2000) < 50, `at 1200: ${at(1200)}`);
+
+  // ON THE FEBRUARY DATE the loss IS bounded, near the width less the credit:
+  // as the stock falls the long 270 put's intrinsic value rises alongside the
+  // still-live short 320 put's. This is the curve a trader would actually see
+  // in February, and it is worth drawing precisely because it looks calm.
+  assert.ok(at(200) < -2500 && at(200) > -3500, `at 200: ${at(200)}`);
+  assert.ok(at(50) > -3500, `at 50: ${at(50)} -- still bounded on this date`);
+});
+
+test("the near-expiry curve is NOT the same as the naive at-expiry one", () => {
+  // The naive line treats the Dec-2027 short as if it settled in Feb-2027.
+  // If these agreed, the fix would be cosmetic.
+  const [row] = pendingRows(diagonal, 1);
+  const naive = positionPLAt(row, 250);
+  const real = rowPLAt(row, 250, atClose("2027-02-19"));
+  assert.ok(Math.abs(naive - real) > 1000, `naive ${naive} vs dated ${real}`);
+  assert.ok(real < naive, "the live short leg is worth more than its intrinsic");
+});
+
+test("a leg still alive with no volatility is refused, not guessed", () => {
+  const noVol = {
+    ...diagonal,
+    legs: diagonal.legs.map((l) => ({ ...l, iv: null, mid: 0 }))
+  };
+  const [row] = pendingRows(noVol, 1);
+  // Priced on the near expiry the far leg needs a volatility and has none.
+  assert.equal(rowPLAt(row, 300, atClose("2027-02-19")), null);
+  // Past every expiry it needs none, and prices.
+  assert.ok(rowPLAt(row, 300, AFTER_EVERYTHING) !== null);
+});
+
+test("a book prices what it can and says nothing when it can none", () => {
+  const rows = pendingRows(dated(csp), 1);
+  assert.equal(bookPLAt(rows, 400, AFTER_EVERYTHING), 430);
+  assert.equal(bookPLAt([], 400, AFTER_EVERYTHING), null);
+  // An adjusted row is skipped; a book of only adjusted rows has no answer.
+  assert.equal(bookPLAt([{ adjusted: true, legs: [] }], 400, AFTER_EVERYTHING), null);
+});
+
+test("the curve drops prices it cannot value rather than plotting them at zero", () => {
+  const rows = pendingRows(dated(csp), 1);
+  const curve = curveAt(rows, { from: 300, to: 400, steps: 10 }, AFTER_EVERYTHING);
+  assert.equal(curve.length, 11);
+  assert.ok(curve.every((p) => Number.isFinite(p.pl)));
+  assert.equal(curveAt(rows, { from: 400, to: 300 }, AFTER_EVERYTHING).length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// analysisDates
+// ---------------------------------------------------------------------------
+
+test("the near expiry is the date the position stops being what it is", () => {
+  const d = analysisDates(diagonal);
+  assert.equal(d.near, "2027-02-19");
+  assert.equal(d.far, "2027-12-17");
+  assert.equal(d.multi, true);
+});
+
+test("a single-expiry position has one date and is not multi", () => {
+  const d = analysisDates(dated(putSpread));
+  assert.equal(d.near, "2026-10-16");
+  assert.equal(d.far, null);
+  assert.equal(d.multi, false);
+});
+
+// ---------------------------------------------------------------------------
+// survivingRows — the half of the analysis a single curve cannot show
+// ---------------------------------------------------------------------------
+
+test("after the near expiry, only the longer leg is left", () => {
+  const [row] = pendingRows(diagonal, 1);
+  const left = survivingRows([row], "2027-02-19");
+  assert.equal(left.length, 1);
+  assert.equal(left[0].legs.length, 1);
+  assert.equal(left[0].legs[0].strike, 320);
+  assert.equal(left[0].legs[0].side, "short");
+});
+
+test("and THAT is the piece with no floor under it", () => {
+  // The February curve looks bounded. The position it leaves behind is a bare
+  // short 320 put running to December, and this is where the loss runs away —
+  // which no single payoff line can show, because it depends on where the
+  // stock was in February AND where it is in December.
+  const [row] = pendingRows(diagonal, 1);
+  const [left] = survivingRows([row], "2027-02-19");
+  const at = (p) => rowPLAt(left, p, atClose("2027-12-17"));
+  assert.equal(at(400), 4500);            // expires worthless: the 45 it took in
+  assert.equal(at(320), 4500);
+  assert.equal(at(220), -5500);           // 100 in the money
+  assert.equal(at(20), -25500);           // and it keeps going
+  assert.ok(at(1) < at(20), "no floor");
+});
+
+test("shares survive every expiry", () => {
+  const shares = { type: "shares", shareQty: 100, shareBasis: 200 };
+  assert.deepEqual(survivingRows([shares], "2030-01-01"), [shares]);
+});
+
+test("nothing survives its own expiry", () => {
+  const [row] = pendingRows(dated(putSpread), 1);
+  assert.deepEqual(survivingRows([row], "2026-10-16"), []);
 });

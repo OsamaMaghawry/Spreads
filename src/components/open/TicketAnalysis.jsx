@@ -2,43 +2,64 @@ import { useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import { scaledRisk } from "@/lib/setupUnit";
-import { tickerBook, curveRange, payoffCurve, crossings } from "@/lib/tickerBook";
-import { pendingRows, ticketMarks, withPending, maxProfitOf, expiriesOf } from "@/lib/pendingPosition";
+import { tickerBook, curveRange, crossings } from "@/lib/tickerBook";
+import {
+  pendingRows, ticketMarks, withPending, maxProfitOf,
+  curveAt, analysisDates, atClose, survivingRows
+} from "@/lib/pendingPosition";
 import PayoffChart from "@/components/dashboard/PayoffChart";
 
 // What the order does, before it is sent — and what it does to everything else.
 //
-// The owner asked for two things, and they are deliberately two:
+//   ANALYSIS           this order on its own.
+//   ADVANCED ANALYSIS  the ticker's whole open book, before and after.
 //
-//   ANALYSIS          this order, on its own. The picture behind the three
-//                     numbers the ticket already prints.
-//   ADVANCED ANALYSIS the same ticker's whole open book, as it stands and as
-//                     it would stand. "How it reflects to the entire position
-//                     if any if executed."
+// EVERY POSITION GETS A CHART, INCLUDING ONE WITH TWO EXPIRY DATES. The first
+// build printed a paragraph instead, and the owner was right to reject it:
+// *"I don't think it's correct to just add the text of no Payoff just because
+// they are in different dates. This is laziness from our side. You can add
+// what you want to the graph with dates. For example, the period when both are
+// there and after one expires. There must be some analysis to tell, not this
+// text."*
 //
-// Both are drawn by `positionPLAt` — the function that prices the dashboard —
-// through `pendingPosition`, so a pending order and an open one are priced by
-// the same arithmetic. The second section exists because the first cannot
-// answer the question that matters when something is already on: a second
-// short put is fine on its own and may be far too much beside the first.
+// So a two-expiry position is drawn as TWO curves, which is more than a single
+// payoff line can carry and more than the tools he compared us against show:
+//
+//   1. THE NEAR DATE. The whole position on the day its first leg expires —
+//      that leg at intrinsic, the other still alive and priced by the model.
+//      This is the curve a trader would actually see on the day.
+//   2. WHAT IS LEFT. The surviving leg alone, at its own expiry. On the
+//      owner's diagonal curve 1 looks calm and bounded, and curve 2 is a bare
+//      short put with nothing underneath it. Neither line alone is the trade.
+//
+// They are not additive — what the expired leg returned depends on where the
+// stock was on the near date — and the screen says that once, in a line.
+//
+// The text is otherwise kept short deliberately: *"too much text. I don't want
+// the text on the ticket itself too long and repetitive with the analysis. You
+// can just add a small warning then see the analysis."* The ticket carries a
+// short warning; the reasoning lives here, where someone has chosen to look.
 
-// A LOSS with no bound and a PROFIT with no bound are not the same news, and
-// they had been sharing one helper — so a naked short call, whose profit is
-// firmly capped at the credit and whose loss is not capped at all, printed
-// "Max profit: No ceiling" in the colour this product uses for losses.
 const lossCell = (v) =>
   v === null || v === undefined
     ? <span className="text-rose-600 font-semibold">No ceiling</span>
     : fmtMoney(v);
 
-// Unknown is "—". Genuinely unlimited upside — a bought call — is said plainly
-// and in the colour of a gain, never in red.
 const profitCell = (v, unlimited) =>
   unlimited
     ? <span className="text-emerald-600 font-semibold">Unlimited</span>
     : v === null || v === undefined
       ? "—"
       : fmtMoney(v);
+
+// "16 Oct 2026" rather than "2026-10-16" — a date in a sentence.
+const day = (d) => {
+  if (!d) return "";
+  const t = Date.parse(`${d}T00:00:00Z`);
+  return Number.isFinite(t)
+    ? new Date(t).toLocaleDateString("en-US", { timeZone: "UTC", day: "numeric", month: "short", year: "numeric" })
+    : d;
+};
 
 function Section({ title, subtitle, open, onToggle, children }) {
   return (
@@ -49,7 +70,7 @@ function Section({ title, subtitle, open, onToggle, children }) {
         aria-expanded={open}
         className="w-full flex items-center justify-between gap-3 px-3 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
       >
-        <span>
+        <span className="min-w-0">
           <span className="block text-sm font-medium text-slate-900">{title}</span>
           <span className="block text-[11px] text-slate-500">{subtitle}</span>
         </span>
@@ -67,54 +88,61 @@ const Figure = ({ label, value, tone = "" }) => (
   </div>
 );
 
-// Break-evens as the chart shows them: where the combined curve crosses zero.
-// Read off the curve rather than off `breakEvenLow`/`breakEvenHigh` so the
-// numbers and the picture cannot disagree, and so a book of several positions
-// has break-evens at all — no single row's figure is the book's.
+// Break-evens as the chart shows them: where the curve crosses zero. Read off
+// the curve rather than off `breakEvenLow`/`breakEvenHigh`, so the numbers and
+// the picture cannot disagree — and so a book of several positions has
+// break-evens at all, which no single row's figure gives it.
 const evens = (list) =>
-  list.length === 0 ? "None in range" : list.map((c) => fmtMoney(c.price)).join(" · ");
+  !list?.length ? "None in range" : list.map((c) => fmtMoney(c.price)).join(" · ");
 
 export default function TicketAnalysis({ setup, qty = 1, net = null, positions = null }) {
   const [openOwn, setOpenOwn] = useState(false);
   const [openBookView, setOpenBookView] = useState(false);
 
-  // A position whose legs expire on DIFFERENT DAYS cannot be drawn here, and
-  // this is the gate that stops it. `positionPLAt` takes a price and no date:
-  // it settles every leg at once, which is exact for a vertical and describes
-  // a moment that never arrives for a calendar or a diagonal. Drawing it
-  // anyway put a comfortable floor under the owner's Feb-2027 / Dec-2027
-  // structure — a bounded picture of an unbounded position, next to a cell
-  // correctly reading "No ceiling".
-  const dates = useMemo(() => expiriesOf(setup), [setup]);
-  const oneExpiry = dates.length <= 1;
+  const rows = useMemo(() => pendingRows(setup, qty, net), [setup, qty, net]);
+  const when = useMemo(() => analysisDates(setup), [setup]);
 
-  const rows = useMemo(() => (oneExpiry ? pendingRows(setup, qty, net) : []), [setup, qty, net, oneExpiry]);
-
-  // This order alone.
+  // This order alone, on its near date — and, when a leg outlives that date,
+  // what is left of it on its own.
   const own = useMemo(() => {
+    if (!rows.length) return null;
     const book = withPending(null, rows);
-    if (!book) return null;
     const range = curveRange(book);
     if (!range) return null;
-    const curve = payoffCurve(book, range);
-    return { curve, zeros: crossings(curve), spot: book.spot };
-  }, [rows]);
 
-  // The ticker's open book, and the same book with this order in it. Drawn on
-  // ONE price range so the two lines can be read against each other; sampling
-  // them separately would put the same price at two different x positions.
+    const nearAt = atClose(when.near);
+    const curve = curveAt(rows, range, nearAt);
+    if (!curve.length) return null;
+
+    const left = when.multi ? survivingRows(rows, when.near) : [];
+    const tail = left.length ? curveAt(left, range, atClose(when.far)) : [];
+
+    return {
+      curve,
+      zeros: crossings(curve),
+      tail,
+      tailZeros: crossings(tail),
+      spot: book.spot
+    };
+  }, [rows, when]);
+
   const openBook = useMemo(
     () => (setup?.ticker && positions?.length ? tickerBook(positions, setup.ticker) : null),
     [positions, setup?.ticker]
   );
 
+  // The book as it stands against the book as it would stand, both on the
+  // order's near date and on ONE price range — sampling them separately would
+  // put the same price at two different x positions.
   const combined = useMemo(() => {
     if (!openBook || !rows.length) return null;
     const after = withPending(openBook, rows);
     const range = curveRange(after);
     if (!range) return null;
-    const before = payoffCurve(openBook, range);
-    const curve = payoffCurve(after, range);
+    const nearAt = atClose(when.near);
+    const before = curveAt(openBook.rows, range, nearAt);
+    const curve = curveAt(after.rows, range, nearAt);
+    if (!curve.length) return null;
     return {
       before,
       curve,
@@ -123,93 +151,90 @@ export default function TicketAnalysis({ setup, qty = 1, net = null, positions =
       spot: after.spot,
       committedNow: openBook.committed,
       // `tickerBook.committed` sums `s.collateral`, which single-leg rows set
-      // and multi-leg rows do not. Four open put verticals therefore
-      // contribute nothing to it, and "collateral after" would read as though
-      // the account had capital free that it does not. Withheld unless every
-      // row carried a figure -- the rule `expirationPL` already follows one
-      // file over.
+      // and multi-leg rows do not. Four open verticals contribute nothing to
+      // it, so the total is withheld unless every row carried a figure.
       committedComplete: openBook.rows.every(
         (r) => r?.collateral !== null && r?.collateral !== undefined
       ),
       unrealizedNow: openBook.unrealizedPL,
       unpriceable: openBook.unpriceable
     };
-  }, [openBook, rows]);
+  }, [openBook, rows, when]);
 
-  // The panel still renders when there is nothing to draw: the refusal and its
-  // reason ARE the analysis in that case, and returning null would leave the
-  // ticket looking as though the feature simply was not there.
-  if (!own && oneExpiry) return null;
+  if (!own) return null;
 
   const maxLoss = scaledRisk(setup.maxRisk, qty);
   const profit = maxProfitOf(setup);
   const maxProfit = profit === null ? null : profit * (Number(qty) > 0 ? Number(qty) : 1);
   const marks = ticketMarks(setup);
   const collateral = scaledRisk(setup.collateral, qty);
-  // The one structure whose profit genuinely has no ceiling: a bought call
-  // gains with the stock, and the stock has no upper bound.
   const unlimitedUpside = setup.strategy === "long_call";
 
-  // Never assert what was not looked at. `openBook` is null both when the
-  // account holds nothing AND when no positions were passed at all, and the
-  // header claiming "Nothing open" for the second case was the exact failure
-  // this panel exists to prevent -- both sections start collapsed, so that
-  // header was the only thing on screen.
-  const subtitle = !oneExpiry
-    ? "Not drawable across two expiry dates"
-    : positions === null
-      ? "Open positions not available on this screen"
-      : openBook
-        ? `All of ${setup.ticker} in this account, before and after`
-        : `Nothing open on ${setup.ticker} in this account`;
+  const nearLabel = `At ${day(when.near)}`;
+  const tailLabel = `After it: the ${day(when.far)} leg alone`;
 
-  // What to print where the chart would be. One sentence, naming both dates
-  // and what the position actually becomes after the near one — which is the
-  // thing the chart could never have shown.
-  const cannotDraw = !oneExpiry && (
-    <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 space-y-1">
-      <p className="font-semibold">
-        No payoff chart: these legs expire on different days ({dates.join(" and ")}).
-      </p>
-      <p>
-        A payoff at expiry is a picture of ONE moment, and this position has two. After {dates[0]} the
-        near leg is gone and what is left is a different position entirely, with its own risk — so any
-        single line drawn here would describe a trade that never exists.
-        {setup.riskNote ? ` ${setup.riskNote}` : ""}
-      </p>
-    </div>
-  );
+  // Never assert what was not looked at.
+  const subtitle = positions === null
+    ? "Open positions not available on this screen"
+    : openBook
+      ? `All of ${setup.ticker} in this account, before and after`
+      : `Nothing open on ${setup.ticker} in this account`;
 
   return (
     <div className="space-y-2">
       <Section
         title="Analysis"
-        subtitle={oneExpiry ? "This order on its own, at expiry" : "Two expiry dates — see why"}
+        subtitle={when.multi ? `Two dates: ${day(when.near)} and ${day(when.far)}` : `This order at ${day(when.near)}`}
         open={openOwn}
         onToggle={() => setOpenOwn((v) => !v)}
       >
-        {cannotDraw || (
-          <>
-            <PayoffChart curve={own.curve} spot={own.spot} crossings={own.zeros} marks={marks} />
-            <p className="text-[11px] text-slate-500">
-              At expiry, intrinsic value only — no time premium, which is why the line is straight
-              between the strikes. Drawn on{" "}
-              {net === null
-                ? "the midpoints above"
-                : `${fmtMoney(Math.abs(net) * 100)} ${net < 0 ? "paid" : "received"} per contract`}.
-              {setup.riskNote ? ` ${setup.riskNote}` : ""}
-            </p>
-          </>
-        )}
+        <PayoffChart
+          curve={own.curve}
+          baseline={own.tail.length ? own.tail : null}
+          spot={own.spot}
+          crossings={own.zeros}
+          marks={marks}
+          curveLabel={nearLabel}
+          baselineLabel={tailLabel}
+        />
+
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-slate-100 pt-3">
           <Figure label="Max profit" value={profitCell(maxProfit, unlimitedUpside)} />
           <Figure label="Max loss" value={lossCell(maxLoss)} tone={maxLoss === null ? "" : "text-rose-600"} />
-          <Figure label="Break-even" value={oneExpiry ? evens(own.zeros) : "—"} />
+          <Figure label={when.multi ? `Break-even at ${day(when.near)}` : "Break-even"} value={evens(own.zeros)} />
           <Figure
             label={setup.strategy === "covered_call" ? "Shares at basis" : "Collateral"}
             value={fmtMoney(collateral)}
           />
         </div>
+
+        {when.multi ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-900 space-y-1">
+            <p>
+              <strong>{nearLabel}</strong> prices the {day(when.far)} leg at what it would still be worth
+              with time left — so the line is curved, and bounded.{" "}
+              <strong>{tailLabel}</strong> is what you are holding from {day(when.near)} onward, on its own.
+            </p>
+            <p>
+              The two are not additive: what the {day(when.near)} leg returns depends on where the stock is
+              that day, and the second line starts from wherever that leaves you.
+              {own.tailZeros?.length ? ` It turns over at ${evens(own.tailZeros)}.` : ""}
+            </p>
+          </div>
+        ) : (
+          <p className="text-[11px] text-slate-500">
+            At expiry, intrinsic value only. Drawn on{" "}
+            {net === null
+              ? "the midpoints above"
+              : `${fmtMoney(Math.abs(net) * 100)} ${net < 0 ? "paid" : "received"} per contract`}.
+          </p>
+        )}
+        {when.multi && (
+          <p className="text-[10px] text-slate-400">
+            Curved sections are a model — constant volatility, no dividends, European exercise on American
+            contracts. Where a line reaches a leg&rsquo;s own expiry it is arithmetic, not an estimate.
+          </p>
+        )}
       </Section>
 
       <Section
@@ -218,13 +243,11 @@ export default function TicketAnalysis({ setup, qty = 1, net = null, positions =
         open={openBookView}
         onToggle={() => setOpenBookView((v) => !v)}
       >
-        {!oneExpiry ? (
-          cannotDraw
-        ) : !combined ? (
+        {!combined ? (
           <p className="text-xs text-slate-500">
             {positions === null
-              ? `This ticket was opened from a screen that does not carry open positions, so nothing was read about ${setup.ticker} in this account. The order's own analysis above stands on its own.`
-              : `This account holds nothing on ${setup.ticker}, so the order's own analysis above is the whole picture.`}
+              ? `This screen doesn't carry open positions, so nothing was read about ${setup.ticker} here.`
+              : `This account holds nothing on ${setup.ticker}.`}
           </p>
         ) : (
           <>
@@ -241,7 +264,7 @@ export default function TicketAnalysis({ setup, qty = 1, net = null, positions =
               <Figure label="Break-even now" value={evens(combined.zerosBefore)} />
               <Figure label="Break-even after" value={evens(combined.zerosAfter)} />
               <Figure
-                label="Unrealized on this name (at the market now)"
+                label="Unrealized now"
                 value={fmtMoney(combined.unrealizedNow)}
                 tone={combined.unrealizedNow > 0 ? "text-emerald-600" : combined.unrealizedNow < 0 ? "text-rose-600" : ""}
               />
@@ -254,30 +277,17 @@ export default function TicketAnalysis({ setup, qty = 1, net = null, positions =
                 }
               />
             </div>
-            {/* A curve drawn from some of the rows, presented as the book, is
-                worse than no curve. `tickerBook` names the rows it could not
-                price -- an adjusted contract delivers something other than 100
-                shares, so nothing about it can be honestly plotted. */}
+            <p className="text-[11px] text-slate-500">
+              Both lines at {day(when.near)}. The unrealized figure is at the market now — a different
+              question, not a second view of the same one.
+            </p>
             {combined.unpriceable?.length > 0 && (
               <p className="text-[11px] text-amber-700">
-                {combined.unpriceable.length} open {combined.unpriceable.length === 1 ? "position" : "positions"} on{" "}
-                {setup.ticker} could not be priced (an adjusted contract does not deliver 100 shares), so the
-                lines above leave {combined.unpriceable.length === 1 ? "it" : "them"} out — though the
-                unrealized figure still counts {combined.unpriceable.length === 1 ? "it" : "them"}.
+                {combined.unpriceable.length} open{" "}
+                {combined.unpriceable.length === 1 ? "position is" : "positions are"} left out of the lines
+                (an adjusted contract does not deliver 100 shares).
               </p>
             )}
-            {(!combined.committedComplete || collateral === null) && (
-              <p className="text-[11px] text-amber-700">
-                Collateral after is withheld: {collateral === null
-                  ? "this order has no collateral figure"
-                  : "not every open position on this name records one"}, and a total missing part of
-                itself reads as capital that is free when it is not.
-              </p>
-            )}
-            <p className="text-[11px] text-slate-500">
-              The lines are at expiry; the unrealized figure is at the market now. They answer different
-              questions and are not two views of one number.
-            </p>
           </>
         )}
       </Section>

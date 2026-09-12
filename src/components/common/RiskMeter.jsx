@@ -19,7 +19,7 @@ export default function RiskMeter({ risk, equity, note = null }) {
           <span className="text-sm font-semibold text-rose-700">No ceiling</span>
         </div>
         <p className="text-xs text-rose-800">
-          {note || "This position's loss is not bounded, so it cannot be sized against the account."}
+          {note || "Not bounded, so it cannot be sized against the account."}
         </p>
       </div>
     );
