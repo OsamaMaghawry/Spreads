@@ -142,21 +142,28 @@ export interface PortfolioHistory {
 // Seconds, not milliseconds — multiplying is the whole conversion, and getting
 // it backwards puts every point in 1970, which is why this is a named function
 // with a test rather than an inline expression.
-const EASTERN = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  hourCycle: "h23"
-});
+// Built on first use, not at import. A runtime without time-zone data throws
+// from the constructor, and at module scope that takes down the whole function
+// bundle rather than one date -- a much larger failure than the thing it is
+// trying to compute. Every runtime this ships to (Deno Deploy, and Node 22 for
+// the tests) carries full ICU, so this is insurance about the blast radius, not
+// a doubt about the platform.
+let eastern: Intl.DateTimeFormat | null = null;
 
 // The wall clock in New York, which is the only clock the US session runs on.
 // `formatToParts` rather than parsing a formatted string: the layout of a
 // formatted date is a locale's business and can change, the part names cannot.
 function easternWallClock(d: Date) {
+  eastern ||= new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23"
+  });
   const parts: Record<string, string> = {};
-  for (const p of EASTERN.formatToParts(d)) parts[p.type] = p.value;
+  for (const p of eastern.formatToParts(d)) parts[p.type] = p.value;
   return {
     year: Number(parts.year),
     month: Number(parts.month),
@@ -209,6 +216,13 @@ const isWeekend = (isoDay: string): boolean => {
  *     read as a date it is not — silently mislabelled every row in the table
  *     for as long as the table existed. `skippedWeekend` counts them, so a
  *     rebuild that starts dropping days says so instead of quietly shrinking.
+ *
+ *     The one legitimate weekend entry this refuses is a crypto position,
+ *     which does trade at weekends and which Alpaca reports in the same
+ *     portfolio history. Nothing in this product touches crypto — the
+ *     scanner, the reconstruction and the risk model are options and US
+ *     equities throughout — so the trade is worth making, but this is the
+ *     first thing to revisit if that ever changes.
  */
 export function equityDays(history: PortfolioHistory | null) {
   const stamps = Array.isArray(history?.timestamp) ? history!.timestamp! : [];
@@ -223,9 +237,11 @@ export function equityDays(history: PortfolioHistory | null) {
   for (let i = 0; i < stamps.length; i++) {
     const d = sessionDay(Number(stamps[i]));
     if (!d) continue;
-    if (isWeekend(d)) { skippedWeekend++; continue; }
     const value = num(equity[i]);
     if (value === null) continue;
+    // Counted only for an entry that CARRIED something, so the tripwire reports
+    // data landing on a closed day rather than an empty slot landing there.
+    if (isWeekend(d)) { skippedWeekend++; continue; }
     if (!funded) {
       if (value === 0) continue;
       funded = true;
