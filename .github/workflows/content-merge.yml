@@ -15,6 +15,28 @@ name: Merge content to staging for review
 # rewrites of one article, none of them anywhere a reader could see. Both
 # faults are fixed here: staging is the destination, and the diagrams a post
 # needs count as part of the post.
+#
+# IT HAPPENED AGAIN, 10 and 11 Sep, and the reason it went unnoticed for two
+# days is the important half. The bid-ask-spread post was written, reviewed by
+# the whole chain, and refused BOTH times because the same session had also
+# committed `docs/growth/metrics/*.json` — files the allowlist did not name.
+# The owner: *"The blog hasn't been updated or added any article for the past
+# 2 days. This became really annoying that I keep chasing the agents' work."*
+#
+# He had no way to know. A refusal set `ok=false` and the job still exited 0,
+# so GitHub showed a GREEN TICK on a run that had merged nothing. A silent
+# skip on the one workflow whose entire job is to move work forward is worse
+# than a crash: a crash gets looked at.
+#
+# So two changes, and the second matters more than the first:
+#
+#   1. The allowlist gains `docs/growth/`, which is generated reporting the
+#      content session writes as a side effect. It is documentation, not code.
+#
+#   2. A REFUSAL NOW FAILS THE JOB. Red, with the offending paths named in the
+#      run summary. Widening an allowlist only fixes the paths somebody thought
+#      of; failing loudly fixes every path nobody thought of, which is the
+#      class this bug keeps coming back as.
 
 on:
   push:
@@ -52,13 +74,27 @@ jobs:
           base=$(git merge-base HEAD "$head")
           files=$(git diff --name-only "$base" "$head")
           echo "Changed since staging:"; echo "$files"
-          bad=$(echo "$files" | grep -vE '^(content/blog/|content/PLAN\.md$|docs/seo/|landing/public/assets/blog/)' || true)
+          bad=$(echo "$files" | grep -vE '^(content/blog/|content/PLAN\.md$|docs/seo/|docs/growth/|landing/public/assets/blog/)' || true)
           if [ -n "$bad" ]; then
-            echo "Not content-only; leaving the branch for a person to merge:"; echo "$bad"
-            echo "ok=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "ok=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Content NOT merged"
+              echo
+              echo "This branch carries files outside the content allowlist, so it was left"
+              echo "for a person. **The post on it is not on staging and is not published.**"
+              echo
+              echo '```'
+              echo "$bad"
+              echo '```'
+              echo
+              echo "Either merge \`${GITHUB_REF_NAME}\` by hand, or add the paths above to the"
+              echo "allowlist in .github/workflows/content-merge.yml if they belong there."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Content not merged::$(echo "$bad" | tr '\n' ' ')"
+            # Fails ON PURPOSE. This used to exit 0, so a branch nobody merged
+            # reported success and two days of posts went missing unnoticed.
+            exit 1
           fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
 
       - name: Merge into staging
         if: steps.gate.outputs.ok == 'true'
