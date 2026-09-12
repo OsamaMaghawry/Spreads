@@ -55,6 +55,7 @@ nothing contingent on trading activity.
 - ForgotPassword
 - Login
 - OAuthCallback
+- OptionChain
 - Register
 - ResetPassword
 - Screener
@@ -123,6 +124,7 @@ so a change to shared code requires redeploying all of them.
 - **oauthDiag** — Answers one question: does Alpaca recognise this app's OAuth credentials? The authorize page cannot answer it.
 - **openPosition** — How far the stock may have moved since the setup was built before the order is refused.
 - **opsHealth** — Read-only health for the duty engineer: last-24h order errors, alerts, connection issues and the watch's last runs, as counts and messages, never user data.
+- **optionChain** — The option chain for one underlying, as a ladder.
 - **positionWatch** — The money-safety watch.
 - **publicConfig** — The operator switches a signed-in customer's browser legitimately needs.
 - **refreshEarnings** — Refreshes the cached earnings calendar for the next 90 days from the provider.

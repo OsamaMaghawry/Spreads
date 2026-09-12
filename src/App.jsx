@@ -19,6 +19,7 @@ import AccountDetail from './pages/AccountDetail';
 import AccountHistory from './pages/AccountHistory';
 import AccountAnalysis from './pages/AccountAnalysis';
 import Screener from './pages/Screener';
+import OptionChain from '@/pages/OptionChain';
 import BlogPreview from './pages/BlogPreview';
 import Admin from './pages/Admin';
 import OAuthCallback from './pages/OAuthCallback';
@@ -52,6 +53,7 @@ const AuthenticatedApp = () => {
           <Route path="/billing" element={<Billing />} />
           <Route path="/oauth/callback" element={<OAuthCallback />} />
           <Route path="/screener" element={<Screener />} />
+          <Route path="/chain" element={<OptionChain />} />
           {/* Admin.jsx redirects a non-admin away, and every request it makes
               is re-authorized server-side in _shared/admin.ts. */}
           <Route path="/admin" element={<Admin />} />

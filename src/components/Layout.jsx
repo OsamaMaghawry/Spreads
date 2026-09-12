@@ -1,6 +1,6 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import { LayoutDashboard, KeyRound, LogOut, Radar, ShieldCheck, CreditCard } from "lucide-react";
+import { LayoutDashboard, KeyRound, LogOut, Radar, ShieldCheck, CreditCard, ListOrdered } from "lucide-react";
 import Wordmark from "@/components/brand/Wordmark";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
 import useIsAdmin from "@/lib/useIsAdmin";
@@ -18,6 +18,7 @@ export default function Layout() {
   const links = [
     { to: "/", label: "positions", Icon: LayoutDashboard },
     { to: "/screener", label: "screener", Icon: Radar },
+    { to: "/chain", label: "chain", Icon: ListOrdered },
     { to: "/accounts", label: "accounts", Icon: KeyRound },
     ...(billingVisible ? [{ to: "/billing", label: "billing", Icon: CreditCard }] : []),
     ...(isAdmin ? [{ to: "/admin", label: "admin", Icon: ShieldCheck }] : [])

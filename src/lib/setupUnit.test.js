@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { unitFor, isSingle, structureLabel, shortLegs, shortDelta } from "./setupUnit.js";
+import { unitFor, isSingle, structureLabel, shortLegs, shortDelta, STRATEGY_LABEL } from "./setupUnit.js";
 
 test("units per strategy", () => {
   assert.equal(unitFor("put_spread"), "spread");
@@ -62,4 +62,29 @@ test("no usable delta reads as nothing, never as zero", () => {
   assert.equal(shortDelta({ legs: [{ side: "sell", delta: null }] }), null);
   assert.equal(shortDelta({ legs: [] }), null);
   assert.equal(shortDelta(null), null);
+});
+
+// ---------------------------------------------------------------------------
+// Bought options are single legs too
+//
+// Reachable only once the option chain let a strike be BOUGHT rather than
+// scanned. Every strategy the product could name until then was one that sells
+// something, so a long option fell through to the spread layout — widths,
+// wings and a second strike, on a position with one leg.
+// ---------------------------------------------------------------------------
+
+test("a bought put or call is a single-leg position", () => {
+  assert.equal(isSingle("long_put"), true);
+  assert.equal(isSingle("long_call"), true);
+  assert.equal(isSingle("put_spread"), false);
+});
+
+test("a bought option's unit is its own type, not a spread", () => {
+  assert.equal(unitFor("long_put"), "put");
+  assert.equal(unitFor("long_call"), "call");
+});
+
+test("bought options are named plainly", () => {
+  assert.equal(STRATEGY_LABEL.long_put, "Long put");
+  assert.equal(STRATEGY_LABEL.long_call, "Long call");
 });
