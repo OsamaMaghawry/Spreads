@@ -285,7 +285,7 @@ substitute number.
 
 | Canonical | Not |
 | --- | --- |
-| Positions Monitor | dashboard, monitor page |
+| Dashboard | Positions Monitor, monitor page, positions |
 | Screener | scanner, finder |
 | Trade History | journal, log |
 | Analysis | analytics, stats, performance page |
@@ -294,6 +294,11 @@ substitute number.
 
 **(proposed)** "Scanner" appears in some copy where "Screener" is meant; the
 first audit should sweep it.
+
+**Dashboard**, renamed by the owner on 12 Sep, replacing "Positions Monitor".
+The table above previously listed "dashboard" as the thing NOT to say, and the
+nav had been saying it anyway while the page heading said the other — so the
+two names were being used against each other in one click. One name, his.
 
 #### The two Analysis views
 

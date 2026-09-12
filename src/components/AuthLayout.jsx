@@ -16,7 +16,7 @@ export default function AuthLayout({ icon: Icon, title, subtitle, footer, childr
                 <Icon className="w-7 h-7 text-white" aria-hidden="true" />
               </div>
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-dm-text">{title}</h1>
+            <h1 className="font-heading text-3xl font-bold tracking-[-0.03em] text-dm-text">{title}</h1>
             {subtitle && <p className="text-dm-sub mt-2">{subtitle}</p>}
           </div>
           <div className="bg-dm-panel rounded-2xl shadow-sm border border-dm-line p-8">

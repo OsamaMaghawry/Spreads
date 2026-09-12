@@ -88,7 +88,7 @@ export default function Accounts() {
     <div className="max-w-3xl mx-auto space-y-5">
       <div className="flex items-center gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Accounts</h1>
+          <h1 className="font-heading text-xl font-bold tracking-[-0.02em] text-dm-text">Accounts</h1>
           {/* Alpaca's rule, stated where it matters: a token is bound to one
               live and one paper account by account id, so several paper
               accounts means several trips through the consent screen. Ticking

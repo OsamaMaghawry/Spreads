@@ -292,7 +292,7 @@ export default function AccountAnalysis() {
           <Link to={`/account/${id}`} className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 transition-colors">
             <ArrowLeft className="w-3.5 h-3.5" /> Back to account
           </Link>
-          <h1 className="text-xl font-semibold text-slate-900 tracking-tight mt-1">
+          <h1 className="font-heading text-xl font-bold tracking-[-0.02em] text-dm-text mt-1">
             {data?.account ? `${data.account.name} — Analysis` : "Analysis"}
           </h1>
           {stats && (
