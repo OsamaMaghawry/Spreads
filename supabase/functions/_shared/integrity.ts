@@ -222,6 +222,22 @@ export function auditAccount(input: {
   return findings;
 }
 
+/**
+ * Two findings may never share (code, subject) in one pass.
+ *
+ * Postgres raises 21000 -- "ON CONFLICT DO UPDATE command cannot affect row a
+ * second time" -- and `record_integrity_findings` is called inside a try/catch
+ * that logs and continues, so the whole audit trail for that pass would go dark
+ * with one line in a log nobody is reading. Unreachable while trade_keys are
+ * unique; one pass over the array is cheaper than depending on that staying
+ * true. Last wins, matching the RPC's own upsert.
+ */
+export function dedupeFindings(findings: Finding[]): Finding[] {
+  const byKey = new Map<string, Finding>();
+  for (const f of findings || []) byKey.set(`${f.code}\u0000${f.subject}`, f);
+  return [...byKey.values()];
+}
+
 /** The trade_keys whose figures this run has decided not to stand behind. */
 export function withheldKeys(findings: Finding[]): Set<string> {
   return new Set(
@@ -262,55 +278,69 @@ export function applyFindings(records: any[], findings: Finding[]): any[] {
 }
 
 /**
- * The chains whose share results are in doubt for the same reason their option
- * row is.
+ * Stamp the same withholding onto the share lots that carry the disputed money.
  *
  * THE SHARE HALF, which the first version of this framework had no answer for.
  * Its own doc comment says the impossible-loss defect is an assignment or
  * exercise misattributing a SHARE result onto the wrong option row -- and then
  * only `trade_records` carried a flag, so the money at the heart of the defect
- * stayed published in `stock_lots`, on the lots table, in the share walk and in
- * the equity chart's own reading of the ledger. The bench put it plainly: the
- * share half of the very defect this targets was invisible to it. One
- * consequence was that the equity chart's two modes read different facts --
- * account value is the broker's and includes the money, performance is
- * reconstructed and excluded it -- so one toggle moved the endpoint with no
- * annotation.
+ * stayed published on the lots table, in the share walk and in the equity
+ * chart's own reading of the ledger.
  *
- * A lot is attributed to a chain by `disposed_chain_id`, so a withheld trade's
- * chain names exactly the disposals whose result is the disputed money.
- */
-export function withheldChains(records: any[]): Set<string> {
-  const out = new Set<string>();
-  for (const r of records || []) {
-    if (r?.integrity_code && r.chain_id) out.add(String(r.chain_id));
-  }
-  return out;
-}
-
-/**
- * Stamp the same withholding onto the share lots that carry the disputed money.
+ * MATCHED ON OWNERSHIP, NOT ON CHAIN. The first attempt matched a lot to a
+ * withheld trade by chain id and was wrong in both directions. `chain_id`
+ * prefers the ACQUIRING chain, so a lot assigned in on a questioned chain and
+ * called away on a clean one was flagged while the trade publishing its result
+ * was not; and a chain owns a LIST of trade rows, so one withheld row withheld
+ * its clean siblings' lots too. `attributeStockPL` already decides which row
+ * receives each lot's money -- through `ownersOf`, the splitter, and the
+ * long-leg-exercise exception -- and `lotOwners` is that decision, recorded.
+ * Re-deriving it here is the second implementation `orphanedShares`' own
+ * comment warns against.
+ *
+ * ANY owner being withheld withholds the lot. A lot split across a withheld
+ * row and a clean one has an attribution we have said we cannot stand behind;
+ * publishing the part that landed on the clean row would be publishing a share
+ * of the same disputed split.
  *
  * ONLY DISPOSED LOTS, and the distinction is the point rather than a shortcut.
  * What is in doubt is the ATTRIBUTION of a realised share result -- which trade
  * a closed lot's gain or loss belongs to. A lot still HELD has no attribution
  * question: its quantity is the broker's, its mark is a real closing price, and
  * withholding it would remove a fact nobody disputes from the open book and the
- * account's own value. So an open lot keeps publishing and a disposed one on a
- * withheld chain does not.
+ * account's own value.
  *
  * Not a separate action in the taxonomy: this IS `withhold_row`, applied to the
  * other table the same money lives in. A trade's figures and the share results
  * attributed to that trade are one claim, and splitting them into two actions
  * would let a future caller apply half of it.
  */
-export function applyLotFindings(lots: any[], chains: Set<string>, code = "impossible_loss") {
+export function applyLotFindings(
+  lots: any[],
+  records: any[],
+  lotOwners: Map<string, Set<string>> | null | undefined,
+  code = "impossible_loss"
+) {
+  const withheldTrades = new Set<string>();
+  for (const r of records || []) {
+    if (r?.integrity_code && r.trade_key) withheldTrades.add(String(r.trade_key));
+  }
   return (lots || []).map((l) => {
+    const owners = lotOwners?.get?.(l?.lot_key) || null;
     const disputed =
-      !!l?.disposed_date && chains.size > 0 &&
-      (chains.has(String(l.disposed_chain_id || "")) || chains.has(String(l.chain_id || "")));
+      !!l?.disposed_date &&
+      withheldTrades.size > 0 &&
+      !!owners &&
+      [...owners].some((k) => withheldTrades.has(k));
     return disputed
-      ? { ...l, integrity_code: code, integrity_detail: { reason: "attributed to a trade whose result its strikes cannot reach" } }
+      ? {
+          ...l,
+          integrity_code: code,
+          integrity_detail: {
+            reason: "attributed to a trade whose result its own strikes cannot reach",
+            owners: [...(owners as Set<string>)]
+          }
+        }
       : { ...l, integrity_code: null, integrity_detail: null };
   });
 }

@@ -153,8 +153,8 @@ Deno.serve(async (req) => {
 
       const work = (async () => {
         const { orderStrategy, activities } = await fetchBrokerData(account, base);
-        const { records, stockLots, breaches } = reconstruct(activities, orderStrategy, accountId);
-        return writeResults(admin, accountId, user.id, records, stockLots, breaches, orphanedStockPL);
+        const { records, stockLots, breaches, orphanedStockPL, lotOwners } = reconstruct(activities, orderStrategy, accountId);
+        return writeResults(admin, accountId, user.id, records, stockLots, breaches, orphanedStockPL, lotOwners);
       })().catch(async (err) => {
         // The failure has to land somewhere a person can see. Previously it was
         // caught by inBackground's `work.catch(() => {})`, so a sync that wrote

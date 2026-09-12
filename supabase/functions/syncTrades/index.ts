@@ -44,8 +44,8 @@ async function syncOne(admin, account) {
       .eq("id", account.id);
 
     const { orderStrategy, activities } = await fetchBrokerData(account, tradingBase(account));
-    const { records, stockLots, breaches, orphanedStockPL } = reconstruct(activities, orderStrategy, account.id);
-    await writeResults(admin, account.id, account.user_id, records, stockLots, breaches, orphanedStockPL);
+    const { records, stockLots, breaches, orphanedStockPL, lotOwners } = reconstruct(activities, orderStrategy, account.id);
+    await writeResults(admin, account.id, account.user_id, records, stockLots, breaches, orphanedStockPL, lotOwners);
 
     await admin
       .from("trading_accounts")

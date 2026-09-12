@@ -520,8 +520,25 @@ export function dailyPortfolio(
         // The stored result if the reconstruction wrote one, else the lot's own
         // arithmetic. Never a guess: with no disposal price and no stored
         // result the lot books nothing and says so through `unpriced`.
-        booked:
-          num(l?.realized_pl) !== null
+        //
+        // A WITHHELD LOT KEEPS ITS HOLDING PERIOD AND BOOKS NOTHING.
+        //
+        // The first version filtered these rows out of the query entirely, and
+        // the bench caught what that costs: `from` and `to` are what put the
+        // shares on the book between those dates, so removing the row removed
+        // the HOLDING as well as the disputed result. Every day between
+        // acquisition and disposal then reported fewer shares, less cost and
+        // less value than the account actually carried -- a screen showing less
+        // than the position was, which is the opposite of what this migration's
+        // own comment promises about held shares being the broker's fact.
+        //
+        // Null here routes the lot into the `unbooked` path this file already
+        // has, so the day it disposed reports `performance: null` rather than a
+        // confident number missing a term. "Not priced" is a statement this
+        // file already knows how to make; zero is not.
+        booked: l?.integrity_code
+          ? null
+          : num(l?.realized_pl) !== null
             ? (num(l?.realized_pl) as number)
             : disposedPrice !== null && acquiredPrice !== null
               ? qty * (disposedPrice - acquiredPrice)

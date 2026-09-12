@@ -23,8 +23,8 @@ import { lotFromOption } from "./writeGuards.ts";
 import {
   auditAccount,
   applyFindings,
+  dedupeFindings,
   applyLotFindings,
-  withheldChains,
   withheldLotSummary,
   massDeleteFinding,
   writesHeld,
@@ -221,7 +221,8 @@ export async function fetchBrokerData(account, base) {
 // Reconcile what the broker says against what is stored. The reconstruction is
 // deterministic over the whole feed, so the fresh set is authoritative.
 export async function writeResults(
-  admin, accountId, userId, records, stockLots, breaches = [], orphanedStockPL = 0
+  admin, accountId, userId, records, stockLots, breaches = [], orphanedStockPL = 0,
+  lotOwners: Map<string, Set<string>> | null = null
 ) {
   // THE AUDIT PASS, in place of the refusal that used to live here.
   //
@@ -243,20 +244,27 @@ export async function writeResults(
   // The impossible-loss defect IS a share result attributed to the wrong
   // option row, so flagging only `trade_records` left the disputed dollars
   // published in `stock_lots` -- on the lots table, in the share walk, and in
-  // the equity chart's own reading of the ledger. A withheld trade's chain
-  // names exactly the disposals that carry that money.
-  const chains = withheldChains(flagged);
-  const flaggedLots = applyLotFindings(stockLots, chains);
+  // the equity chart's own reading of the ledger. `lotOwners` is the
+  // reconstruction's own record of which trade row received each lot's money,
+  // so this withholds exactly the disposals the withheld rows were paid from.
+  const flaggedLots = applyLotFindings(stockLots, flagged, lotOwners);
 
   // The finding says how much of it is share money, because "this spread is
   // $64 past its floor" and "and $189 of closed-share result moved with it"
   // are different sizes of problem to whoever reads the trail.
-  const lotSummary = withheldLotSummary(flaggedLots);
-  const enriched = findings.map((f) =>
-    f.action === "withhold_row" && lotSummary.lots
-      ? { ...f, detail: { ...f.detail, withheld_share_lots: lotSummary.lots, withheld_share_pl: lotSummary.realized } }
-      : f
-  );
+  //
+  // Attributed PER FINDING rather than the whole total onto each: with two
+  // withheld rows, giving both the account-wide sum makes each look twice the
+  // size it is.
+  const enriched = findings.map((f) => {
+    if (f.action !== "withhold_row") return f;
+    const mine = withheldLotSummary(
+      flaggedLots.filter((l: any) => (l.integrity_detail?.owners || []).includes(f.subject))
+    );
+    return mine.lots
+      ? { ...f, detail: { ...f.detail, withheld_share_lots: mine.lots, withheld_share_pl: mine.realized } }
+      : f;
+  });
 
   return writeResultsInner(admin, accountId, userId, flagged, flaggedLots, enriched);
 }
@@ -354,8 +362,24 @@ export async function writeResultsInner(
   ].filter(Boolean) as Finding[];
   const allFindings = [...findings, ...deletionFindings];
 
-  const tradesFrozen = writesHeld(allFindings, "trade records");
-  const lotsFrozen = writesHeld(allFindings, "share lots");
+  // FROZEN TOGETHER, NOT INDEPENDENTLY.
+  //
+  // A trade row and the share lots attributed to it carry two halves of one
+  // claim, and the bench found that deciding them on separate thresholds
+  // splits it. Freeze trades alone and the `integrity_code` this pass computed
+  // never lands on the row -- so the row publishes the disputed money while the
+  // lot beside it shows a dash, and the trail records a withholding that had no
+  // effect. Freeze lots alone and it runs the other way, with the equity walk
+  // feeding those dollars into `shares_booked` while its trade query excludes
+  // the row.
+  //
+  // Either finding therefore freezes both. It costs a little more staleness in
+  // the rarer case; it cannot produce two tables disagreeing about the same
+  // dollars, which is the thing this whole layer exists to prevent.
+  const anyFrozen =
+    writesHeld(allFindings, "trade records") || writesHeld(allFindings, "share lots");
+  const tradesFrozen = anyFrozen;
+  const lotsFrozen = anyFrozen;
 
   const deleteTrades = tradesFrozen ? [] : stale;
   const createTrades = tradesFrozen ? [] : toCreate;
@@ -379,8 +403,12 @@ export async function writeResultsInner(
      // the trail records the finding resolved.
      "integrity_code"]
       .some((f) => String(before[f] ?? "") !== String(after[f] ?? ""));
+  // Built from the lots actually being written, so a frozen pass does not
+  // snapshot a before-image of writes that never happened.
+  const upsertLotByKey: any = {};
+  upsertLots.forEach((l: any) => { upsertLotByKey[l.lot_key] = l; });
   const updatedLotsBefore = existingLots.filter(
-    (l: any) => freshLotByKey[l.lot_key] && changedFields(l, freshLotByKey[l.lot_key])
+    (l: any) => upsertLotByKey[l.lot_key] && changedFields(l, upsertLotByKey[l.lot_key])
   );
 
   // Rewrites in place have no cap -- the mass-delete finding counts deletions
@@ -452,7 +480,7 @@ export async function writeResultsInner(
     const { error } = await admin.rpc("record_integrity_findings", {
       p_account_id: accountId,
       p_user_id: userId,
-      p_findings: allFindings
+      p_findings: dedupeFindings(allFindings)
     });
     if (error) throw new Error(error.message);
   } catch (e: any) {

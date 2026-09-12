@@ -271,18 +271,18 @@ async function rebuild(admin, account, userId: string) {
     selectAllWhere(admin, "trade_records", "close_date, premium_pl, early_close_pl", "close_date",
       (q) => q.eq("account_id", account.id).not("close_date", "is", null)
               .is("integrity_code", null)),
-    // The same predicate the trade query above uses, for the same reason and
-    // on the same money. A disposal attributed to a withheld trade carries the
-    // disputed dollars; leaving it in the walk while the trade row is out is
-    // what made this chart's two modes read different facts.
+    // `integrity_code` TRAVELS; the row does not get filtered out.
     //
-    // An OPEN lot is never flagged, so `shares_open` -- the mark on what is
-    // still held -- is untouched by this. That is the distinction the column
-    // exists to keep: the attribution of a closed lot is ours and can be
-    // wrong; the quantity and price of a held one are the broker's.
+    // The first version filtered here, and the bench showed what that costs: a
+    // lot's `acquired_date` and `disposed_date` are what put the shares ON the
+    // book between those dates, so dropping the row dropped the HOLDING as well
+    // as the disputed result -- every day in between reported fewer shares,
+    // less cost and less value than the account actually carried. The walk
+    // keeps the holding and books nothing for it instead; see `prepared` in
+    // _shared/dailyPortfolio.ts.
     selectAllWhere(admin, "stock_lots",
-      "ticker, qty, acquired_date, acquired_price, disposed_date, disposed_price, realized_pl", "id",
-      (q) => q.eq("account_id", account.id).is("integrity_code", null))
+      "ticker, qty, acquired_date, acquired_price, disposed_date, disposed_price, realized_pl, integrity_code", "id",
+      (q) => q.eq("account_id", account.id))
   ]);
 
   // The first thing that ever happened on this account, and one day of runway

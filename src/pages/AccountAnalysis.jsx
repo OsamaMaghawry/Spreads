@@ -326,6 +326,12 @@ export default function AccountAnalysis() {
   // DOES include this money, because the money moved; what we cannot say is
   // which trade it belongs to.
   const withheldLine = withheldNote(audit, view);
+  // The count and the dollars, in the view being shown, in one object so the
+  // cards and the note cannot quote different numbers.
+  const withheldFigure = {
+    count: audit.count,
+    dollars: view === "premium" ? audit.premium : audit.realized
+  };
   // THE CHART AND THE HEADLINE, reconciled where they differ.
   //
   // Only one configuration makes them disagree, and it is exactly the one the
@@ -354,10 +360,9 @@ export default function AccountAnalysis() {
   // The withheld line joins the headline's own note, because it qualifies the
   // headline FIGURE -- the money card -- and not the trade count two panels
   // down where the first version put it.
-  const headlineNote = [
-    headline.note ? `${headline.note}${unpricedDetail}` : null,
-    withheldLine
-  ].filter(Boolean).join(" ") || null;
+  // The withheld line is NOT appended here. It has its own banner, which
+  // renders whether or not this page shows a view switch — see below.
+  const headlineNote = headline.note ? `${headline.note}${unpricedDetail}` : null;
 
   if (loading) {
     return (
@@ -457,6 +462,18 @@ export default function AccountAnalysis() {
                 Paper account &mdash; every figure below is simulated, not real money.
               </div>
             )}
+            {/* WHAT THIS PAGE LEFT OUT, unconditionally and INSIDE reportRef.
+                The first version hung this off the headline's note, which only
+                renders when ViewSwitch does — and ViewSwitch is gated on the
+                account holding something open. An account holding nothing, the
+                steady state of the account this was built for, published the
+                reduced total with no explanation anywhere, and the PDF is a
+                raster of this DOM so it would have exported the same way. */}
+            {withheldLine && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-800">
+                {withheldLine}
+              </div>
+            )}
             {/* The switch, and the book it governs. Both sit INSIDE reportRef:
                 an export has to say which view produced it, or two PDFs of the
                 same week disagree with nothing on either to explain why.
@@ -506,7 +523,7 @@ export default function AccountAnalysis() {
             {book.lots > 0 && <OpenBookPanel book={book} priced={view === "whole"} />}
             <OpenOptionsPanel book={optionBook} priced={view === "whole"} />
             {comparison.length > 1 && <StrategyComparison rows={comparison} />}
-            <StatCards stats={stats} withheldPL={view === "premium" ? audit.premium : audit.realized} />
+            <StatCards stats={stats} withheld={withheldFigure} />
             <EquityCurveChart
               curve={curve}
               view={view}

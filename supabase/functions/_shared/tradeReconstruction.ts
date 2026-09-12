@@ -951,16 +951,37 @@ export function attributeStockPL(records, stockLots) {
   const capacityOf = (o) => (owed.has(o) ? owed.get(o) : (o.qty || 0) * CONTRACT_SIZE);
   const spend = (o, qty) => owed.set(o, Math.max(0, capacityOf(o) - qty));
 
+  // WHICH TRADE ROW EACH LOT'S MONEY ENDED UP ON.
+  //
+  // The audit layer needs this and must not re-derive it. A first version of
+  // the share-lot withholding matched lots to withheld trades by chain id, and
+  // the bench showed two ways that is wrong: `chain_id` prefers the ACQUIRING
+  // chain, so a lot assigned in on a questioned chain and called away on a
+  // clean one was flagged while the trade publishing its result was not; and a
+  // chain owns a LIST of trade rows, so one withheld row withheld the lots of
+  // its clean siblings. `orphanedShares`' own comment warns against exactly
+  // this -- "a second implementation of it here would be a second thing to keep
+  // right". The attribution is decided here, so it is recorded here.
+  const lotOwners = new Map<string, Set<string>>();
+  const own = (record, lot) => {
+    if (!lot?.lot_key || !record?.trade_key) return;
+    const set = lotOwners.get(lot.lot_key) || new Set<string>();
+    set.add(record.trade_key);
+    lotOwners.set(lot.lot_key, set);
+  };
+
   const credit = (owners, amount, lot) => {
     const qty = Number(lot.qty) || 0;
     if (owners.length === 1) {
       owners[0].stock_pl += amount;
+      own(owners[0], lot);
       spend(owners[0], qty);
       return;
     }
     const identified = ownerOf(owners, lot);
     if (identified) {
       identified.stock_pl += amount;
+      own(identified, lot);
       spend(identified, qty);
       return;
     }
@@ -982,6 +1003,7 @@ export function attributeStockPL(records, stockLots) {
             ? (amount * weightOf(o)) / total
             : amount / pool.length;
       o.stock_pl += cut;
+      own(o, lot);
       assigned += cut;
       spend(o, total > 0 ? (qty * weightOf(o)) / total : qty / pool.length);
     });
@@ -1121,7 +1143,7 @@ export function attributeStockPL(records, stockLots) {
     }
   });
 
-  return { orphaned, breaches };
+  return { orphaned, breaches, lotOwners };
 }
 
 // ---------------------------------------------------------------------------
@@ -1164,7 +1186,7 @@ export function reconstruct(activities, orderStrategy, accountId) {
       unreconstructedSymbols.has(r.short_symbol) || unreconstructedSymbols.has(r.long_symbol)
   );
   const records = all.filter((r) => !withheld.includes(r));
-  const { orphaned: orphanedStockPL, breaches } = attributeStockPL(records, attributable);
+  const { orphaned: orphanedStockPL, breaches, lotOwners } = attributeStockPL(records, attributable);
 
   // The contract that moved each lot is what attribution runs on, and it is
   // not a column on stock_lots -- every field here is written to that table
@@ -1177,6 +1199,10 @@ export function reconstruct(activities, orderStrategy, accountId) {
   return {
     records,
     stockLots,
+    // lot_key -> the trade rows that received that lot's money. The audit layer
+    // withholds a lot iff a trade it was attributed to is withheld, and this is
+    // the only place that attribution is decided.
+    lotOwners,
     orphanedStockPL,
     cashSettlements,
     settlementChecks,

@@ -41,7 +41,10 @@ export default function StockLotsTable({ lots }) {
   // DISPOSED lots are ever flagged, so nothing here removes a held share.
   const audit = splitWithheld(lots);
   const realized = audit.rows.reduce((a, l) => a + (l.realized_pl || 0), 0);
-  const note = withheldNote(audit);
+  // "share lot", not "trade". The trade table an inch above prints the same
+  // sentence about the same money; without a distinct noun a reader sums the
+  // two and doubles the exclusion.
+  const note = withheldNote(audit, "whole", "share lot");
   const openQty = lots.filter((l) => !l.disposed_date).reduce((a, l) => a + Number(l.qty || 0), 0);
 
   return (

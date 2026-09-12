@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   auditAccount,
-  withheldChains,
   applyLotFindings,
   withheldLotSummary,
   impossibleResultFindings,
@@ -201,53 +200,90 @@ test("no orphans, no note", () => {
 // The share half
 // ---------------------------------------------------------------------------
 
-// The lots behind the XLY spread: assigned in, exercised out, on one chain.
-const CHAIN = "chain-xly-0814";
+// The lot behind the XLY spread: assigned in, exercised out. `lotOwners` is the
+// reconstruction's own record of which trade row received each lot's money --
+// the audit layer must not re-derive it, and these tests are why.
+const owners = new Map<string, Set<string>>([
+  ["XLY|a", new Set([XLY.trade_key])],
+  ["XLY|b", new Set(["clean-trade"])],
+  ["split", new Set([XLY.trade_key, "clean-trade"])]
+]);
+const flaggedRecords = [
+  { trade_key: XLY.trade_key, integrity_code: "impossible_loss" },
+  { trade_key: "clean-trade", integrity_code: null }
+];
 
-test("a withheld trade's chain names the disposals carrying the disputed money", () => {
-  const records = [
-    { trade_key: XLY.trade_key, chain_id: CHAIN, integrity_code: "impossible_loss" },
-    { trade_key: "other", chain_id: "chain-other", integrity_code: null }
-  ];
-  assert.deepEqual([...withheldChains(records)], [CHAIN]);
-});
-
-test("only DISPOSED lots on a withheld chain are withheld", () => {
+test("a lot is withheld when the trade it was PAID TO is withheld", () => {
   const lots = [
-    // The disposal that carries the disputed result.
-    { lot_key: "a", disposed_date: "2026-08-14", disposed_chain_id: CHAIN, realized_pl: -189 },
-    // Still HELD on the same chain. Its quantity is the broker's and its mark
-    // is a real price — there is no attribution question to withhold, and
-    // removing it would take a fact nobody disputes out of the open book.
-    { lot_key: "b", disposed_date: null, acquired_chain_id: CHAIN, chain_id: CHAIN, qty: 100 },
-    // A disposal on a chain nobody is questioning.
-    { lot_key: "c", disposed_date: "2026-08-20", disposed_chain_id: "chain-other", realized_pl: 40 }
+    { lot_key: "XLY|a", disposed_date: "2026-08-14", realized_pl: -189 },
+    { lot_key: "XLY|b", disposed_date: "2026-08-20", realized_pl: 40 }
   ];
-  const out = applyLotFindings(lots, new Set([CHAIN]));
+  const out = applyLotFindings(lots, flaggedRecords, owners);
   assert.equal(out[0].integrity_code, "impossible_loss");
   assert.equal(out[1].integrity_code, null);
-  assert.equal(out[2].integrity_code, null);
+});
+
+test("ownership, not chain id, decides it", () => {
+  // The defect this replaced: matching on chain flagged a lot ACQUIRED on a
+  // questioned chain and disposed on a clean one, while the trade actually
+  // publishing its result stayed unflagged. Ownership has no such gap — this
+  // lot's money went to the clean trade, so the lot publishes with it.
+  const lots = [{
+    lot_key: "XLY|b",
+    disposed_date: "2026-08-20",
+    chain_id: "chain-xly-0814",          // acquired on the questioned chain
+    disposed_chain_id: "chain-clean",
+    realized_pl: 40
+  }];
+  assert.equal(applyLotFindings(lots, flaggedRecords, owners)[0].integrity_code, null);
+});
+
+test("a lot split across a withheld and a clean row is withheld", () => {
+  // Its attribution is the split we have said we cannot stand behind, so
+  // publishing the clean share of it publishes part of the same doubt.
+  const lots = [{ lot_key: "split", disposed_date: "2026-08-14", realized_pl: -80 }];
+  const out = applyLotFindings(lots, flaggedRecords, owners);
+  assert.equal(out[0].integrity_code, "impossible_loss");
+  assert.deepEqual(out[0].integrity_detail.owners.sort(), [XLY.trade_key, "clean-trade"].sort());
+});
+
+test("a lot still HELD is never withheld, whatever it is attributed to", () => {
+  // Its quantity is the broker's and its mark is a real closing price. Only the
+  // attribution of a CLOSED lot is ours, and only that can be wrong.
+  const lots = [{ lot_key: "XLY|a", disposed_date: null, qty: 100 }];
+  assert.equal(applyLotFindings(lots, flaggedRecords, owners)[0].integrity_code, null);
 });
 
 test("no withheld trades, no withheld lots", () => {
-  const lots = [{ lot_key: "a", disposed_date: "2026-08-14", disposed_chain_id: CHAIN, realized_pl: -189 }];
-  const out = applyLotFindings(lots, new Set());
-  assert.equal(out[0].integrity_code, null);
+  const lots = [{ lot_key: "XLY|a", disposed_date: "2026-08-14", realized_pl: -189 }];
+  const clean = [{ trade_key: XLY.trade_key, integrity_code: null }];
+  assert.equal(applyLotFindings(lots, clean, owners)[0].integrity_code, null);
 });
 
 test("a lot that stops being withheld is cleared on the next pass", () => {
-  const lots = [{ lot_key: "a", disposed_date: "2026-08-14", disposed_chain_id: CHAIN, integrity_code: "impossible_loss" }];
-  assert.equal(applyLotFindings(lots, new Set())[0].integrity_code, null);
+  const lots = [{ lot_key: "XLY|a", disposed_date: "2026-08-14", integrity_code: "impossible_loss" }];
+  const clean = [{ trade_key: XLY.trade_key, integrity_code: null }];
+  assert.equal(applyLotFindings(lots, clean, owners)[0].integrity_code, null);
+});
+
+test("a lot nothing claims is not withheld", () => {
+  // An orphan: attributed to no trade row at all, so no withheld row can be
+  // publishing its money. It is counted by the orphan note instead.
+  const lots = [{ lot_key: "unknown", disposed_date: "2026-08-14", realized_pl: -12 }];
+  assert.equal(applyLotFindings(lots, flaggedRecords, owners)[0].integrity_code, null);
+  // And a missing map must not throw — `lotOwners` is optional on the call.
+  assert.equal(applyLotFindings(lots, flaggedRecords, null)[0].integrity_code, null);
 });
 
 test("the summary sizes the share half for the audit trail", () => {
   const out = applyLotFindings(
     [
-      { lot_key: "a", disposed_date: "2026-08-14", disposed_chain_id: CHAIN, realized_pl: -189 },
-      { lot_key: "b", disposed_date: "2026-08-14", disposed_chain_id: CHAIN, realized_pl: -11 },
-      { lot_key: "c", disposed_date: "2026-08-20", disposed_chain_id: "other", realized_pl: 40 }
+      { lot_key: "XLY|a", disposed_date: "2026-08-14", realized_pl: -189 },
+      { lot_key: "split", disposed_date: "2026-08-14", realized_pl: -11 },
+      { lot_key: "XLY|b", disposed_date: "2026-08-20", realized_pl: 40 }
     ],
-    new Set([CHAIN])
+    flaggedRecords,
+    owners
   );
   assert.deepEqual(withheldLotSummary(out), { lots: 2, realized: -200 });
 });

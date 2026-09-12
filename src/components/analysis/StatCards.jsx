@@ -8,7 +8,7 @@ const num = (v, d = 2) => (v === null || v === undefined || !isFinite(v) ? "—"
 // things vary: whether a trade's result means the whole position or its option
 // legs, whether the total carries the mark on shares still held, and whether
 // drawdown came from real daily values or from booked trades alone.
-export default function StatCards({ stats, withheldPL = 0 }) {
+export default function StatCards({ stats, withheld = null }) {
   const premium = stats.view === "premium";
   // "settled trades" appears on eleven cards; under Premium only they are the
   // same trades measured a different way, and saying so once per card is how a
@@ -121,9 +121,17 @@ export default function StatCards({ stats, withheldPL = 0 }) {
         {
           label: "Trades",
           value: `${stats.trades}`,
+          // FROM THE PAGE'S OWN SPLIT, not from `stats`.
+          //
+          // `computeStats` is handed an already-split set, so its own
+          // `withheldTrades` is structurally always 0 and this line was dead
+          // the moment the split moved higher up. That is the third time a
+          // correctness fix has silently taken a disclosure off the screen,
+          // which is why `analytics.test.js` now asserts the count REACHES
+          // here rather than only that the totals are right.
           sub: `${stats.contracts} contracts · ${stats.expiredCount} expired worthless${
-            stats.withheldTrades
-              ? ` · ${stats.withheldTrades} excluded (${fmtMoney(withheldPL)}), arithmetic unverified`
+            withheld && withheld.count
+              ? ` · ${withheld.count} excluded (${fmtMoney(withheld.dollars)}), arithmetic unverified`
               : ""
           }`
         },

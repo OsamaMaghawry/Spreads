@@ -10,7 +10,7 @@ import RebuildPreview from "@/components/history/RebuildPreview";
 import StrategyTabs from "@/components/history/StrategyTabs";
 import useIsAdmin from "@/lib/useIsAdmin";
 import { isAdjustedTrade } from "@/lib/occ";
-import { splitWithheld } from "@/lib/integrity";
+import { splitWithheld, withheldNote } from "@/lib/integrity";
 
 export default function AccountHistory() {
   const { id } = useParams();
@@ -150,7 +150,12 @@ export default function AccountHistory() {
   // The header's four figures are the same money as the table's footer, so
   // they take the same split: a row the audit pass withheld is out of both, or
   // the page disagrees with itself an inch apart. See src/lib/integrity.js.
+  // Split on the WHOLE set, not the strategy-filtered one: these four figures
+  // are the account's, so their note must not vanish when a tab is clicked
+  // that the withheld row does not belong to. The table below splits its own
+  // visible rows separately, which is correct for the table's own footer.
   const audit = splitWithheld(trades);
+  const auditNote = withheldNote(audit);
   const trusted = audit.rows;
   const premiumPL = sumBy(trusted, "premium_pl");
   const earlyClosePL = sumBy(trusted, "early_close_pl");
@@ -339,6 +344,16 @@ export default function AccountHistory() {
               &mdash; width, maximum loss, and the result of shares it settled into &mdash; is not shown, because
               the contract no longer delivers 100 shares at the strike and the symbol does not say what it
               delivers instead.
+            </div>
+          )}
+
+          {/* The header's four figures exclude a row; this says so beside THEM.
+              The table's own note is driven off the visible (strategy-filtered)
+              rows, so clicking a tab the withheld row is not in makes that one
+              disappear while these figures stay short. */}
+          {auditNote && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+              {auditNote}
             </div>
           )}
 

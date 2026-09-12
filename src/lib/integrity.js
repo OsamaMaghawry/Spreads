@@ -42,7 +42,13 @@ export function splitWithheld(trades) {
     withheld,
     count: withheld.length,
     realized: sum(withheld, (t) => t.realized_pl),
-    premium: sum(withheld, (t) => (t.premium_pl || 0) + (t.early_close_pl || 0))
+    premium: sum(withheld, (t) => (t.premium_pl || 0) + (t.early_close_pl || 0)),
+    // Enough to FIND the line. A reader reconciling against a broker statement
+    // or a 1099-B needs to know which row we left out, not only how much it
+    // came to — a dollar figure with no ticker is a number they cannot chase.
+    names: withheld
+      .map((t) => [t.ticker, t.close_date].filter(Boolean).join(" "))
+      .filter(Boolean)
   };
 }
 
@@ -59,11 +65,20 @@ export function splitWithheld(trades) {
  * review" describes a process this product does not have, and a user asking
  * support about the review on their trade would be asking about nothing.
  */
-export function withheldNote(split, view = "whole") {
+export function withheldNote(split, view = "whole", noun = "trade") {
   if (!split || !split.count) return null;
   const dollars = view === "premium" ? split.premium : split.realized;
   const money = `${dollars < 0 ? "−" : ""}$${Math.abs(dollars).toFixed(2)}`;
   const n = split.count;
-  return `Excludes ${n} ${n === 1 ? "trade" : "trades"} (${money}) whose ` +
-    `arithmetic we cannot stand behind. Your broker's own total includes it.`;
+  // Named, so the reader can find the row on a broker statement. Capped: a
+  // sentence listing thirty tickers stops being read.
+  const which = split.names.length
+    ? ` (${split.names.slice(0, 3).join(", ")}${split.names.length > 3 ? `, +${split.names.length - 3} more` : ""})`
+    : "";
+  // Said of the figure actually on screen. Under Premium the excluded amount
+  // is the option half of the same row, and quoting it without saying so reads
+  // as a different, smaller loss.
+  const scope = view === "premium" ? " from the option-leg figure" : "";
+  return `Excludes ${n} ${n === 1 ? noun : `${noun}s`}${which} totalling ${money}${scope}, ` +
+    `whose arithmetic we cannot stand behind. Your broker's own total includes it.`;
 }

@@ -266,14 +266,24 @@ export function realizedShares(trades) {
  * would be a second thing to keep right.
  */
 export function orphanedShares(stockLots, trades) {
-  // Both sides of this subtraction must be measured on the same rows, or the
-  // "orphaned" figure becomes the withholding rather than the orphans. The
-  // trades handed in here are already split by the page; the lots are split
-  // here, on the same predicate. See src/lib/integrity.js.
+  // BOTH SIDES ARE SPLIT HERE, not by the caller.
+  //
+  // This is a subtraction, so measuring its two sides on different row sets
+  // turns the difference into the withholding. The first version filtered the
+  // lots and trusted a comment saying the caller had already filtered the
+  // trades; the one caller passes `allTrades`, unsplit. The result was roughly
+  // $189 of pure artifact on the owner's own account, rendered inside the
+  // disclosure block that goes into the exported PDF as "$189.00 of share
+  // results could not be matched to an option" — a false statement about a
+  // user's money in the one artifact that leaves the product.
+  //
+  // A function whose correctness depends on what its caller did is a function
+  // that will be called wrongly. It does its own splitting now.
   const lotTotal = (stockLots || [])
     .filter((l) => l && l.disposed_date && !l.integrity_code)
     .reduce((a, l) => a + (num(l.realized_pl) || 0), 0);
-  return lotTotal - realizedShares(trades);
+  const tradeTotal = realizedShares((trades || []).filter((t) => !t?.integrity_code));
+  return lotTotal - tradeTotal;
 }
 
 // `viewCurve` and `viewBreakdown` used to live here and are gone.
