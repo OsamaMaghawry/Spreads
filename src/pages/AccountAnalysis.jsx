@@ -220,6 +220,48 @@ export default function AccountAnalysis() {
     [strategy, equitySeries, view, range]
   );
 
+  // WHAT THE WHOLE BOOK DID ACROSS THE DATE WINDOW, for the headline.
+  //
+  // The owner, filtered to one week: *"only that chart says two thousand
+  // something, but the whole stays seven hundred."* Both numbers were right
+  // for what they measured -- $785.91 was the week's BOOKED money and
+  // $2,455.91 was the week's whole-book move -- and only one of them was
+  // labelled "whole view".
+  //
+  // The same series the chart draws, so the two cannot drift. Four conditions,
+  // each of which makes the figure meaningless if it does not hold:
+  //
+  //   all strategies   the daily marks are account-level and cannot be split
+  //   performance mode account VALUE is a balance, not a result
+  //   a date window    with no window the page already shows today's live
+  //                    mark, which is the more current answer for "right now"
+  //   a known baseline see `baselineKnown` -- without it the window would be
+  //                    credited with everything that came before it
+  const windowedWhole = useMemo(() => {
+    if (view !== "whole") return null;
+    if (strategy !== "all" || chartMode !== "performance") return null;
+    if (!range.from) return null;
+    if (!useDaily || !dailyChart.baselineKnown) return null;
+    if (dailyChart.end === null || dailyChart.end === undefined) return null;
+    // The booked half, from the SAME two stored rows -- premium closed plus
+    // shares sold -- rather than from `computeStats`, which counts a different
+    // set of rows. Quoting two sources in one sentence is how the halves stop
+    // adding up to the whole the reader can see above them.
+    const n = (v) => (v === null || v === undefined || v === "" ? null : Number(v));
+    const realized = dailySeries(
+      equitySeries.map((r) => {
+        const p = n(r?.premium_cum);
+        const s = n(r?.shares_booked);
+        return { ...r, performance: p === null || s === null ? null : p + s };
+      }),
+      view,
+      "performance",
+      range
+    );
+    if (realized.end === null || !realized.baselineKnown) return null;
+    return { figure: dailyChart.end, booked: realized.end };
+  }, [strategy, chartMode, range, useDaily, dailyChart, equitySeries, view]);
+
   const chartFallbackReason = useDaily
     ? null
     : equitySeries.length === 0
@@ -355,7 +397,8 @@ export default function AccountAnalysis() {
     premium: premiumFigure,
     hasOpen,
     liveMark,
-    narrowing
+    narrowing,
+    windowed: windowedWhole
   });
   // WHAT THE HEADLINE IS MISSING, in dollars, beside the headline.
   //

@@ -43,11 +43,53 @@ const money = (v) => fmtMoney(v);
  * @param narrowing { strategy: string|null, when: string|null } -- the strategy
  *                  tab's label and a phrase naming the date window, each null
  *                  when that control is not narrowing the page
+ * @param windowed  { figure, booked } -- what the WHOLE BOOK did across the
+ *                  date window, from the stored daily series, or null when
+ *                  there is no window or the series cannot answer. See below.
  * @returns { figure, label, note } -- `figure` is null only when there is
  *          nothing to measure at all.
  */
-export function analysisHeadline({ view, stats, premium, hasOpen, liveMark, narrowing = {} }) {
+export function analysisHeadline({
+  view, stats, premium, hasOpen, liveMark, narrowing = {}, windowed = null
+}) {
   const { strategy = null, when = null } = narrowing;
+
+  // THE WINDOWED WHOLE-BOOK FIGURE, and why it outranks everything below.
+  //
+  // The owner, on his own account, filtered to one week:
+  //
+  //   *"When I filter to one week, only that chart says two thousand
+  //   something, but the whole stays seven hundred. So the whole now gives the
+  //   entire performance, and it is always all and cannot be filtered?"*
+  //
+  // He is right and his diagnosis is nearly right. The figure WAS filtered to
+  // his week -- $785.91 is that week's booked money, not an all-time total --
+  // but it was only the BOOKED HALF. His open positions recovered $1,670.00
+  // across the same week, the chart drew all $2,455.91 of it, and the number
+  // above the strategy tabs showed a third of the answer under a label that
+  // said "whole view".
+  //
+  // Everything below this block predates the stored daily series. Without it
+  // there was no windowed whole-book number to print: the only mark available
+  // was TODAY's, which belongs to no window, so the honest move was to show
+  // booked money and say what sat outside. Now `performance(to) -
+  // performance(from)` is stored per account per day, and it is the same
+  // number the chart draws -- which is the point. One figure, two places.
+  //
+  // The caller supplies this only when it is legitimate: whole view, all
+  // strategies (the daily marks cannot be split by strategy), a real date
+  // window, and a baseline the series could actually value.
+  if (view === "whole" && windowed && windowed.figure !== null && windowed.figure !== undefined) {
+    return {
+      figure: windowed.figure,
+      label: "Whole view total",
+      note:
+        `What the whole book did${when ? ` ${when}` : ""}: ` +
+        `${money(windowed.booked)} booked by trades that closed, and ` +
+        `${money(windowed.figure - windowed.booked)} of change in what was still open. ` +
+        `This is the figure the chart draws.`
+    };
+  }
 
   // Premium only never contained a mark and never claimed to: it is closed
   // option legs, and the view's own description says so. A filter narrows the

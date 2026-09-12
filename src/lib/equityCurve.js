@@ -75,7 +75,7 @@ export function dailySeries(rows, view, mode = "performance", range = {}) {
     .sort((a, b) => a.date.localeCompare(b.date));
 
   if (!all.length) {
-    return { points: [], start: null, end: null, change: null, rebased: false, mode, column, missing: 0 };
+    return { points: [], start: null, end: null, change: null, rebased: false, baselineKnown: false, mode, column, missing: 0 };
   }
 
   const from = day(range?.from);
@@ -85,16 +85,32 @@ export function dailySeries(rows, view, mode = "performance", range = {}) {
   // a window whose baseline cannot be established simply does not rebase —
   // it never guesses one.
   let baseline = null;
+  // IS THE BASELINE KNOWN, as distinct from being zero?
+  //
+  // `base` falls back to 0 in two situations that look identical downstream
+  // and are not: the window starts at the account's own beginning (0 is
+  // exactly right, nothing had happened yet), or there ARE earlier days and
+  // none of them could be valued (0 is a guess, and the window would be
+  // credited with everything before it).
+  //
+  // The chart can live with that -- it draws a line either way and names the
+  // unpriced tickers. The HEADLINE cannot: it prints one number as what the
+  // window made, and in the second case that number is wrong by the whole of
+  // the account's history. So the distinction travels.
+  let baselineKnown = true;
   if (from && mode !== "value") {
+    let earlier = 0;
     for (const p of all) {
       if (p.date >= from) break;
+      earlier += 1;
       if (p.raw !== null) baseline = p.raw;
     }
+    baselineKnown = earlier === 0 || baseline !== null;
   }
 
   const windowed = all.filter((p) => (!from || p.date >= from) && (!to || p.date <= to));
   if (!windowed.length) {
-    return { points: [], start: null, end: null, change: null, rebased: false, mode, column, missing: 0 };
+    return { points: [], start: null, end: null, change: null, rebased: false, baselineKnown: false, mode, column, missing: 0 };
   }
 
   const base = baseline === null ? 0 : baseline;
@@ -118,6 +134,10 @@ export function dailySeries(rows, view, mode = "performance", range = {}) {
     // day itself carried a value.
     change: start === null || end === null ? null : end - start,
     rebased: baseline !== null,
+    // See `baselineKnown` above: false means the window has earlier days and
+    // none of them could be valued, so `start`/`end` are measured from an
+    // assumed zero. The chart still draws; a headline must not quote it.
+    baselineKnown,
     mode,
     column,
     missing: points.length - valued.length,
