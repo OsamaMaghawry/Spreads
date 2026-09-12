@@ -163,7 +163,17 @@ ${head}
   .doc code { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .92em; }
   .doc blockquote { margin: 16px 0; padding: 4px 0 4px 16px; border-left: 3px solid var(--line);
                     color: var(--ink-mute); }
-  .doc a { color: var(--brand); }
+  /* a:not(.btn) because a button inside a post is not a body-copy link.
+     ".doc a" is specificity 0,1,1 and ".btn-primary" is 0,1,0, so the post's
+     link colour won the cascade and painted the call-to-action's label brand
+     purple on its brand-purple background -- an invisible button, on the one
+     page whose whole job is to convert a reader. Excluding buttons is the fix
+     rather than raising .btn's specificity: the rule is about prose links, and
+     saying so is what stops the next component hitting the same wall.
+     NOTE: no backticks in here. This block lives inside a JS template
+     literal, and the first draft of this comment used them and broke the
+     Worker's syntax outright. */
+  .doc a:not(.btn) { color: var(--brand); }
   .doc figure { margin: 28px 0; }
   .doc figure img { width: 100%; height: auto; display: block; border: 1px solid var(--line);
                     border-radius: 12px; background: #FFFFFF; }
