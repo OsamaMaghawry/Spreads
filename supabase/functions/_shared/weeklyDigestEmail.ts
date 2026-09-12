@@ -219,19 +219,30 @@ const accountPanel = (a: AccountWeek) => {
   );
 };
 
-// An account that is connected but has no stored history for the week. Said
-// plainly, because the alternative readings are both wrong: dragging every
-// total to "—" over an account nobody has opened, or quietly leaving it out of
-// a figure presented as the whole portfolio.
+// An account with no stored history for the week.
+//
+// After the scheduled rebuild (migration 0037) this is rare and temporary --
+// an account connected since the last nightly run. It is still said plainly,
+// because the alternative readings are both wrong: dragging every total to
+// "—" over one account, or quietly leaving it out of a figure presented as
+// the whole portfolio.
+//
+// THE WORDING IS OURS TO OWN. An earlier draft said these accounts "have no
+// stored day-by-day history", which reads as the reader's omission. Keeping a
+// connected account current is this product's job, so the sentence says the
+// history is still being built rather than implying they failed to open
+// something.
 const unmeasuredNote = (w: UserWeek) => {
   if (!w.unmeasured.length) return "";
   const names = w.unmeasured.map((n) => esc(n)).join(", ");
+  const one = w.unmeasured.length === 1;
   return `
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.panel};border:1px solid ${BRAND.line};border-radius:12px;margin:0 0 16px;">
     <tr><td style="padding:14px 18px;font:400 12px ${FONT};color:${BRAND.sub};line-height:1.6;">
       <strong style="color:${BRAND.text};">Not in the portfolio figures above:</strong> ${names}.
-      ${w.unmeasured.length === 1 ? "This account has" : "These accounts have"} no stored day-by-day history for this week,
-      so ${w.unmeasured.length === 1 ? "it is" : "they are"} left out rather than counted as zero. Trades ${w.unmeasured.length === 1 ? "it" : "they"} closed or opened are still included.
+      We are still building ${one ? "this account's" : "these accounts'"} day-by-day history, so ${one ? "it is" : "they are"} left out
+      rather than counted as zero. Trades ${one ? "it" : "they"} closed or opened this week are still included, and
+      ${one ? "it" : "they"} will be in next week's figures.
     </td></tr>
   </table>`;
 };

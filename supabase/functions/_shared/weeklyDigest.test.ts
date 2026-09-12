@@ -285,7 +285,7 @@ test("the email names the account it left out of the portfolio figures", () => {
   const { html } = renderWeekly(userWeek([real, never], WIN), {});
   assert.ok(html.includes("Not in the portfolio figures above"));
   assert.ok(html.includes("Alpaca Live (603453690)"));
-  assert.ok(/no stored day-by-day history/.test(html));
+  assert.ok(/still building/.test(html), "the gap is ours to own, not the reader's omission");
   // ...and does not claim the portfolio was unreadable.
   assert.ok(html.includes("$141,562.00"), "the measured account's value should still show");
 });

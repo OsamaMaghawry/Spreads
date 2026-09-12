@@ -1,5 +1,7 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
+import { loadAllAccounts } from "../_shared/accounts.ts";
+import { isServiceRole } from "../_shared/serviceRole.ts";
 import { selectAllWhere } from "../_shared/paging.ts";
 import { loadAccount, alpacaFetch, tradingBase } from "../_shared/alpaca.ts";
 import {
@@ -452,13 +454,86 @@ async function rebuild(admin, account, userId: string) {
   return rows;
 }
 
+// THE SCHEDULED REBUILD -- every connected account, nobody having to look.
+//
+// The owner, twice: *"Everything should be synced automatically whether the
+// user opened the account or not. It's a trading account. It should be always
+// updated as long as it is connected."* And again, on finding five of eight
+// accounts with no stored series at all: *"I said multiple times, everything
+// should be updated from our side always. If something is not, it's our
+// issue."*
+//
+// He is right, and the first correction was only half applied. Migration 0033
+// put TRADE records on a cron for exactly this reason and quotes him saying
+// it; this series was left on pull-when-you-look, so an account nobody opened
+// had no history -- and the weekly email then had nothing to report for a user
+// who had traded 128 times. That is our gap, not the user's, and labelling it
+// politely in the email was the wrong fix. This is the fix.
+//
+// Sequential and stale-aware, the same shape as `syncTrades`: one account's
+// rebuild is a year of daily bars per ticker, and running every account at
+// once is how an API key gets rate-limited.
+async function rebuildAll(admin: any, maxAgeMinutes: number) {
+  const accounts = await loadAllAccounts(admin);
+  const cutoff = maxAgeMinutes > 0 ? Date.now() - maxAgeMinutes * 60000 : null;
+  const due = accounts.filter((a: any) => {
+    if (cutoff === null) return true;
+    const at = a.equity_synced_at ? Date.parse(a.equity_synced_at) : 0;
+    return !at || at < cutoff;
+  });
+
+  const results: any[] = [];
+  for (const account of due) {
+    try {
+      // Stamped before the work, as in the single-account path above: the
+      // stamp is the in-flight guard, and an empty table forces a retry
+      // whatever the stamp says.
+      await admin
+        .from("trading_accounts")
+        .update({ equity_synced_at: new Date().toISOString() })
+        .eq("id", account.id);
+      await rebuild(admin, account, account.user_id);
+      const { count } = await admin
+        .from("account_equity_daily")
+        .select("day", { count: "exact", head: true })
+        .eq("account_id", account.id);
+      results.push({ accountId: account.id, ok: true, days: count ?? null });
+    } catch (e) {
+      // One account's broker refusing must not cost every other account its
+      // series. Recorded, and the run continues.
+      console.error(`equityHistory: rebuild ${account.id}: ${e?.message || e}`);
+      results.push({ accountId: account.id, ok: false, error: String(e?.message || e) });
+    }
+  }
+  return {
+    accounts: accounts.length,
+    attempted: due.length,
+    skippedFresh: accounts.length - due.length,
+    failed: results.filter((r) => !r.ok).length,
+    results
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
+    const payload = await req.json().catch(() => ({}));
+
+    // The scheduled path, and it is gated on the SERVICE ROLE rather than on
+    // being signed in. `verify_jwt` only asks whether the caller is somebody,
+    // and any signed-in user is somebody -- which would let one user start a
+    // rebuild of every account in the product and read back a list of account
+    // ids. This asks the question that matters.
+    if (payload?.scheduled === true) {
+      if (!isServiceRole(req)) return jsonResponse({ error: "Forbidden" }, 403);
+      const admin = adminClient();
+      return jsonResponse(await rebuildAll(admin, Number(payload.maxAgeMinutes) || 0));
+    }
+
     const user = await requireUser(req);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-    const { accountId } = await req.json();
+    const { accountId } = payload;
     if (!accountId) return jsonResponse({ error: "accountId is required" }, 400);
 
     const admin = adminClient();
