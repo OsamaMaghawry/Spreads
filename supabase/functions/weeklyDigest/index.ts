@@ -18,7 +18,6 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient } from "../_shared/supabaseClients.ts";
 import { loadAllAccounts } from "../_shared/accounts.ts";
-import { tradingBase, alpacaFetch } from "../_shared/alpaca.ts";
 import { snapshotOf } from "../_shared/weeklySnapshot.ts";
 import { sendEmail } from "../_shared/email.ts";
 import { weeklyDigestDelivery, digestRelay, paperOnlyMode } from "../_shared/settings.ts";
@@ -34,6 +33,30 @@ const APP_URL = Deno.env.get("APP_URL") || "https://dashboard.deltamint.app";
 const LOOKBACK_DAYS = 10;
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+// The two Alpaca helpers this function needs, inlined rather than imported
+// from _shared/alpaca.ts -- the same call dumpBrokerFeed makes and for the
+// same reason: that module re-exports the OCC parser and the spread pairer,
+// which would drag the whole reconstruction chain into a function that only
+// makes three authenticated GETs.
+const brokerBase = (a: any) =>
+  a.is_paper ? "https://paper-api.alpaca.markets/v2" : "https://api.alpaca.markets/v2";
+
+const brokerHeaders = (a: any) =>
+  a.oauth_access_token
+    ? { Authorization: `Bearer ${a.oauth_access_token}`, "Content-Type": "application/json" }
+    : {
+        "APCA-API-KEY-ID": a.api_key,
+        "APCA-API-SECRET-KEY": a.api_secret,
+        "Content-Type": "application/json"
+      };
+
+async function brokerGet(url: string, account: any) {
+  const res = await fetch(url, { headers: brokerHeaders(account) });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Alpaca ${res.status}`);
+  return text ? JSON.parse(text) : null;
+}
 
 
 // HOW THE MAIL ACTUALLY LEAVES.
@@ -208,11 +231,11 @@ Deno.serve(async (req) => {
         // nothing".
         const snaps = new Map<string, any>();
         for (const a of userAccounts) {
-          const base = tradingBase(a);
+          const base = brokerBase(a);
           const failed: string[] = [];
-          const acct = await alpacaFetch(`${base}/account`, a).catch(() => { failed.push("account value"); return null; });
-          const positions = await alpacaFetch(`${base}/positions`, a).catch(() => { failed.push("positions"); return null; });
-          const openOrders = await alpacaFetch(`${base}/orders?status=open&nested=true&limit=100`, a)
+          const acct = await brokerGet(`${base}/account`, a).catch(() => { failed.push("account value"); return null; });
+          const positions = await brokerGet(`${base}/positions`, a).catch(() => { failed.push("positions"); return null; });
+          const openOrders = await brokerGet(`${base}/orders?status=open&nested=true&limit=100`, a)
             .catch(() => { failed.push("open orders"); return null; });
           snaps.set(a.id, snapshotOf(acct, positions, openOrders, failed));
         }
