@@ -120,8 +120,8 @@ That split is why the [45-strike and 55-strike calls priced so
 differently](/blog/option-strike-price-expiration-premium) in the previous post,
 and it is why an option's price can fall while the stock sits perfectly still.
 The rest of the [foundations series](/blog/foundations) takes the
-inputs one at a time, starting with what the gap between the bid and the ask
-costs on the way in and out.
+inputs one at a time, starting with what the gap between the [bid and the
+ask](/blog/options-bid-ask-spread) costs on the way in and out.
 
 All figures on this page are hypothetical and are there to show the arithmetic.
 This post is educational and is not investment advice.

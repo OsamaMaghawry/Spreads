@@ -144,7 +144,7 @@ Three consequences follow from that curve:
   curve above — and walks toward 98.80 only as that time passes.
 - **The mark is not the exit price.** Closing pays the ask on the leg bought
   back and takes the bid on the leg sold, so a thin long wing costs real money
-  to leave that no mid-price mark shows.
+  to leave that [no mid-price mark shows](/blog/options-bid-ask-spread).
 
 ## Early assignment turns a defined-risk position into a stock position overnight
 

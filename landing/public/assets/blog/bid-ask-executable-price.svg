@@ -1,0 +1,29 @@
+<svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A price line for one option quote. A marker on the left sits at the bid of 2.10, where an order to sell immediately fills. A marker on the right sits at the ask of 2.30, where an order to buy immediately fills. A dashed marker between them sits at the midpoint of 2.20, where neither side fills by default. A double-headed arrow across the gap is labelled 0.20, the distance between the two executable prices.">
+  <rect width="720" height="260" fill="#FFFFFF"/>
+
+  <!-- the gap measure -->
+  <line x1="208" y1="62" x2="512" y2="62" stroke="#767B8E" stroke-width="1.5"/>
+  <polygon points="200,62 214,56 214,68" fill="#767B8E"/>
+  <polygon points="520,62 506,56 506,68" fill="#767B8E"/>
+  <text x="360" y="44" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">0.20</text>
+
+  <!-- price line -->
+  <line x1="90" y1="140" x2="630" y2="140" stroke="#C9CEDC" stroke-width="1.5"/>
+  <rect x="200" y="134" width="320" height="12" rx="6" fill="#E1DEF2"/>
+
+  <!-- midpoint -->
+  <line x1="360" y1="104" x2="360" y2="176" stroke="#767B8E" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="360" y="96" font-size="15" text-anchor="middle" fill="#767B8E">Mid 2.20</text>
+
+  <!-- bid -->
+  <line x1="200" y1="106" x2="200" y2="174" stroke="#534AB7" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="200" cy="140" r="6" fill="#534AB7"/>
+  <text x="200" y="206" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">Bid 2.10</text>
+  <text x="200" y="230" font-size="15" text-anchor="middle" fill="#767B8E">sell fills here</text>
+
+  <!-- ask -->
+  <line x1="520" y1="106" x2="520" y2="174" stroke="#534AB7" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="520" cy="140" r="6" fill="#534AB7"/>
+  <text x="520" y="206" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">Ask 2.30</text>
+  <text x="520" y="230" font-size="15" text-anchor="middle" fill="#767B8E">buy fills here</text>
+</svg>
