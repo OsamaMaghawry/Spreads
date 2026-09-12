@@ -250,6 +250,21 @@ may quietly relax:
   rewrites closed trades whether or not a rebuild button is pressed.
 - **An approval covers what was described when it was given.** If the branch
   carries more than that, the scope question goes back to the owner.
+- **Every stored series is checked against a number we did not compute.**
+  `account_equity_daily` holds the broker's own `equity` on the same row as
+  our `performance`; `cash_flows` holds the deposits that separate them. A
+  release that changes how any derived column is computed shows the
+  reconciliation on a real account holding options across an expiry —
+  Δ`performance` against Δ`equity` net of cash flows, over the week containing
+  the expiry — and states the residual. "The tests pass" does not discharge
+  this, and neither does a green deploy: the 12 September option-book defect
+  was found by the account owner reading his broker statement, next to a
+  stored row that carried the broker's own contradicting figure in the
+  adjacent column.
+- **Acceptance evidence on a stored series is a before/after count on a real
+  account, not a test count.** How many days went null, and how far the
+  reconciliation moved. A bench verdict cleared on fixtures alone is a
+  verdict on the fixtures.
 
 ## Never put a prompt on the owner's screen
 

@@ -389,3 +389,25 @@ test("divergence needs two days it can actually read", () => {
   assert.equal(divergenceFinding([{ day: "2026-09-04", equity: null, performance: 1 }, ALTON_BEFORE[3]], 0), null);
   assert.equal(divergenceFinding([], 0), null);
 });
+
+test("a flow that settled on the window's opening day is already in the opening balance", () => {
+  // Found by the check itself, on its first run against the owner's live
+  // account. His $700 deposit settled on 3 September; equity on the 3rd is
+  // that day's CLOSE and already held it. Counted again it produced a
+  // $694.16 "divergence" on an account whose real residual was $5.84.
+  //
+  // The caller windows flows as (open.day, close.day], so the deposit does
+  // not reach this function at all and the week reads as the quiet week it
+  // was.
+  const rows = [
+    { day: "2026-09-03", equity: 703.86, options_open: 0, performance: -489, unpriced: [] },
+    { day: "2026-09-11", equity: 688.70, options_open: 0, performance: -510, unpriced: [] }
+  ];
+  assert.equal(divergenceFinding(rows, 0), null);
+  // And the shape of the mistake, kept so it cannot come back silently: the
+  // same week with the deposit double-counted reads as a full-size warning.
+  const wrong = divergenceFinding(rows, 700);
+  assert.ok(wrong);
+  assert.equal(wrong.severity, "warning");
+  assert.equal(wrong.detail.residual, -694.16);
+});

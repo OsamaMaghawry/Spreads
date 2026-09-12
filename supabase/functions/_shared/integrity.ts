@@ -528,6 +528,14 @@ export const DIVERGENCE_WARNING = { dollars: 500, share: 0.01 };
  * `performance` correctly does not, so without the transfers a $700 deposit is
  * indistinguishable from a $700 defect. Null flows produce no finding at all
  * -- "we could not read the transfers" is not evidence of anything.
+ *
+ * THE WINDOW FOR `flows` IS (open.day, close.day] -- STRICTLY AFTER the first
+ * row. `equity` on that row is the day's CLOSE and already contains anything
+ * that settled during it, so a flow dated there is inside the opening balance
+ * and counting it again subtracts it twice. This check found that in itself on
+ * its first run: a $700 deposit settling on the window's opening day turned a
+ * real $5.84 residual into a reported $694.16 one. The same rule Modified
+ * Dietz uses in `src/lib/capital.js`, for the same reason.
  */
 export function divergenceFinding(
   rows: SeriesRow[],

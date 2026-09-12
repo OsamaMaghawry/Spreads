@@ -581,11 +581,19 @@ async function auditSeries(admin: any, account: any, userId: string, rows: any[]
     const dated = rows.filter((r) => r.equity !== null).slice(-6);
     let flows: number | null = null;
     if (dated.length >= 2) {
+      // STRICTLY AFTER THE OPENING DAY, and the check found this in itself on
+      // its first run against real data. `equity` on the opening row is that
+      // day's CLOSE, so anything that settled that day is already inside it;
+      // counting such a flow again subtracts it twice. On the owner's live
+      // account a $700 deposit settled on 3 September, the window opened on
+      // the 3rd, and the check reported a $694.16 divergence on an account
+      // whose real residual was $5.84. A window measures from the PRIOR
+      // close -- the same rule Modified Dietz uses in `src/lib/capital.js`.
       const { data, error } = await admin
         .from("cash_flows")
         .select("amount")
         .eq("account_id", account.id)
-        .gte("day", dated[0].day)
+        .gt("day", dated[0].day)
         .lte("day", dated[dated.length - 1].day);
       // No error and no rows is a real zero: we looked and there were none.
       if (!error) flows = (data || []).reduce((a: number, f: any) => a + (Number(f.amount) || 0), 0);
