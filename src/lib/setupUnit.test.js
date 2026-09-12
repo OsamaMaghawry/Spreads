@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { unitFor, isSingle, structureLabel, shortLegs, shortDelta, STRATEGY_LABEL } from "./setupUnit.js";
+import { unitFor, isSingle, structureLabel, shortLegs, shortDelta, scaledRisk, STRATEGY_LABEL } from "./setupUnit.js";
 
 test("units per strategy", () => {
   assert.equal(unitFor("put_spread"), "spread");
@@ -87,4 +87,39 @@ test("a bought option's unit is its own type, not a spread", () => {
 test("bought options are named plainly", () => {
   assert.equal(STRATEGY_LABEL.long_put, "Long put");
   assert.equal(STRATEGY_LABEL.long_call, "Long call");
+});
+
+// ---------------------------------------------------------------------------
+// scaledRisk — "we cannot bound this" must survive multiplication
+//
+// From the owner's own ticket: a Feb-2027 long put against a Dec-2027 short
+// put. `spreadSetup` refuses to bound it, because from February onwards it is
+// a bare short put. The ticket then printed "Total max risk $0.00" and the
+// meter under it read "Contained. Under a tenth of the account."
+// ---------------------------------------------------------------------------
+
+test("an unbounded risk stays unbounded however many contracts", () => {
+  assert.equal(scaledRisk(null, 4), null);
+  assert.equal(scaledRisk(undefined, 1), null);
+  // The defect exactly: this is what the old expression produced.
+  assert.notEqual(null * 4, null);
+  assert.equal(null * 4, 0);
+});
+
+test("a bounded risk scales with quantity", () => {
+  assert.equal(scaledRisk(157, 3), 471);
+  assert.equal(scaledRisk(157, 1), 157);
+});
+
+test("a missing or nonsense quantity means one contract, never zero", () => {
+  // A quantity field mid-keystroke is "" and Number("") is 0. Reporting the
+  // risk of an order as zero while it is being typed is the same lie.
+  assert.equal(scaledRisk(157, ""), 157);
+  assert.equal(scaledRisk(157, 0), 157);
+  assert.equal(scaledRisk(157, "abc"), 157);
+  assert.equal(scaledRisk(157, undefined), 157);
+});
+
+test("a genuinely zero risk is still zero, not unknown", () => {
+  assert.equal(scaledRisk(0, 5), 0);
 });

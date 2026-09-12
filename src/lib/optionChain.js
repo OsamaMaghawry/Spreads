@@ -85,7 +85,12 @@ export function contractSetup(row, action, ctx) {
     spotAsOf: ctx?.spotAsOf ?? null,
     putRatio: 1,
     callRatio: 1,
-    fromChain: true
+    fromChain: true,
+    // The account the chain was read on. `shares`, `basis` and therefore the
+    // whole covered/uncovered judgement below are properties of THAT account,
+    // so the ticket can tell when it has been pointed somewhere else.
+    accountId: ctx?.accountId ?? null,
+    accountName: ctx?.accountName ?? null
   };
 
   const leg = {

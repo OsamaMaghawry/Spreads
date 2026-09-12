@@ -62,6 +62,25 @@ export function shortDelta(c) {
   return deltas.length ? Math.max(...deltas).toFixed(2) : null;
 }
 
+// The whole order's risk, not one contract's -- and null stays null.
+//
+// `null * qty` is 0 in JavaScript, and 0 through `fmtMoney` is "$0.00". The
+// owner's Feb-2027/Dec-2027 diagonal has a short leg that outlives its long,
+// so `spreadSetup` correctly refuses to bound it and returns `maxRisk: null`
+// -- and the ticket printed "Total max risk $0.00" and the meter underneath
+// called it "Contained. Under a tenth of the account."
+//
+// A position with no ceiling reported as costing nothing is the worst thing
+// this screen can say, so "we cannot bound this" travels all the way to the
+// pixel instead of being multiplied into a number.
+export function scaledRisk(maxRisk, qty) {
+  if (maxRisk === null || maxRisk === undefined || maxRisk === "") return null;
+  const risk = Number(maxRisk);
+  if (!Number.isFinite(risk)) return null;
+  const n = Number(qty);
+  return risk * (Number.isFinite(n) && n > 0 ? n : 1);
+}
+
 // "352.5/350P" for a spread side, "352.5P · CSP" for a lone put, "360C on
 // 300 sh" for a call over shares. The same words in the results table and
 // the dialog's list.

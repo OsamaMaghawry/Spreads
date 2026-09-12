@@ -6,7 +6,25 @@ import { fmtMoney } from "@/lib/format";
 // The bar is scaled so 70% of equity fills it: the interesting range for a
 // defined-risk position is the bottom of the scale, and a bar that only moves
 // once you are betting the account is a bar that never moves.
-export default function RiskMeter({ risk, equity }) {
+export default function RiskMeter({ risk, equity, note = null }) {
+  // A risk with no ceiling has no share of the account either -- the fraction
+  // is not zero, it is undefined, and the bar cannot be drawn. It said
+  // "0.0% · Contained · Under a tenth of the account" for a diagonal that
+  // becomes a bare short put, which is the opposite of what it was showing.
+  if (risk === null || risk === undefined) {
+    return (
+      <div className="border border-rose-200 bg-rose-50 rounded-lg p-3 space-y-1">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-xs text-rose-800">Share of account at risk</span>
+          <span className="text-sm font-semibold text-rose-700">No ceiling</span>
+        </div>
+        <p className="text-xs text-rose-800">
+          {note || "This position's loss is not bounded, so it cannot be sized against the account."}
+        </p>
+      </div>
+    );
+  }
+
   if (!(equity > 0)) {
     return (
       <div className="text-xs text-slate-500 border border-slate-200 rounded-lg p-3">

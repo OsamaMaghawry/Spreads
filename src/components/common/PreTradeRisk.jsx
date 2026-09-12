@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
+import { scaledRisk } from "@/lib/setupUnit";
 import RiskMeter from "./RiskMeter";
 import EarningsWarning from "./EarningsWarning";
 
@@ -27,7 +28,9 @@ export default function PreTradeRisk({ setup, accountId, qty }) {
   return (
     <>
       <EarningsWarning earnings={setup.earnings} ticker={setup.ticker} />
-      <RiskMeter risk={setup.maxRisk * (Number(qty) || 1)} equity={equity} />
+      {/* `scaledRisk`, never `maxRisk * qty` -- multiplying an unbounded
+          position's null risk gave 0, and a 0% bar labelled "Contained". */}
+      <RiskMeter risk={scaledRisk(setup.maxRisk, qty)} equity={equity} note={setup.riskNote} />
     </>
   );
 }

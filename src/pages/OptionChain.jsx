@@ -98,7 +98,6 @@ export default function OptionChain() {
     if (spotRowRef.current) spotRowRef.current.scrollIntoView({ block: "center" });
   }, [data]);
 
-  const account = accounts.find((a) => a.id === accountId);
   const ladder = data?.ladder || [];
   const spot = num(data?.spot);
 
@@ -135,13 +134,18 @@ export default function OptionChain() {
   const ctx = useMemo(() => data && ({
     ticker: data.ticker,
     expiry: data.expiry,
+    // Which account the shares, basis and cover below were read on. The ticket
+    // can be sent to any of them, and says so if the one chosen is not this
+    // one — a covered call is only covered where the shares are.
+    accountId,
+    accountName: accounts.find((a) => a.id === accountId)?.name || null,
     spot: data.spot,
     spotSource: data.spotSource,
     spotAsOf: data.spotAsOf,
     shares: data.shares,
     basis: data.basis,
     basisSource: data.basisSource
-  }), [data]);
+  }), [data, accountId, accounts]);
 
   // One tested builder per shape; never inline arithmetic on this page.
   const ticket = useMemo(() => {
@@ -394,11 +398,30 @@ export default function OptionChain() {
         </div>
       )}
 
-      {ticketOpen && ticket?.ok && account && (
+      {/* EVERY account, not just the one the chain was read on. The owner:
+          "the accounts don't show up in the ticket from the chains. Only shows
+          one account despite in the chain itself it shows all accounts."
+
+          And the selection SURVIVES the ticket being closed: "when I select the
+          spread, open ticket, and then close the ticket, it removes the
+          selection... sometimes I see something in the ticket needs to be
+          changed, and I want to go back to amend." Closing a ticket is how a
+          reader goes back to change a strike, so it clears nothing. The one
+          case where the legs really are spent is an order that reached the
+          broker — filled, or left working — and only that clears them. */}
+      {ticketOpen && ticket?.ok && accounts.length > 0 && (
         <TradeDialog
           setup={ticket.setup}
-          accounts={[account]}
-          onClose={() => { setTicketOpen(false); setPicked([]); }}
+          accounts={accounts}
+          defaultAccountId={accountId}
+          // What this account already holds, so the ticket's Advanced analysis
+          // can draw the whole name rather than the order in isolation.
+          // `syncAccounts` already returned these when the page loaded.
+          positions={accounts.find((a) => a.id === accountId)?.spreads ?? null}
+          onClose={({ phase } = {}) => {
+            setTicketOpen(false);
+            if (phase === "filled" || phase === "detached") setPicked([]);
+          }}
         />
       )}
     </div>

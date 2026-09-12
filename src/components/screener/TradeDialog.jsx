@@ -10,18 +10,36 @@ import useLiveSetup from "@/components/open/useLiveSetup";
 import RestingOrder from "@/components/open/RestingOrder";
 import OrderLog from "@/components/close/OrderLog";
 import UpgradePrompt from "@/components/billing/UpgradePrompt";
+import TicketAnalysis from "@/components/open/TicketAnalysis";
 import { unitFor } from "@/lib/setupUnit";
+import { fmtMoney } from "@/lib/format";
 
 const label = "text-xs text-slate-500 block mb-1.5";
 const input = "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500";
 
-export default function TradeDialog({ setup, accounts, onClose }) {
-  const [accountId, setAccountId] = useState(accounts[0]?.id || "");
+// `defaultAccountId` is which account the ticket opens on. The option chain
+// is read on one account and the owner expects the ticket to arrive on that
+// one, with the others still reachable from the selector -- "the accounts
+// don't show up in the ticket from the chains. Only shows one account despite
+// in the chain itself it shows all accounts."
+//
+// `onClose` receives `{ phase }` — what the ticket was doing when it was left.
+// The chain uses it to decide whether the selection it came from is spent
+// (an order went to the broker) or still wanted (the owner looked and went
+// back to change a strike).
+export default function TradeDialog({ setup, accounts, onClose, defaultAccountId = null, positions = null }) {
+  const [accountId, setAccountId] = useState(
+    accounts.some((a) => a.id === defaultAccountId) ? defaultAccountId : accounts[0]?.id || ""
+  );
   const [qty, setQty] = useState(1);
   const [priceMode, setPriceMode] = useState("walk");
 
   const account = accounts.find((a) => a.id === accountId);
   const unit = unitFor(setup.strategy);
+  // A setup built from holdings (a covered call's cover and basis) belongs to
+  // the account those holdings were read on.
+  const coverMoved =
+    !!setup.accountId && setup.accountId !== accountId && setup.strategy === "covered_call";
 
   // Walk by default, exactly as on the close ticket and Open Position. The
   // start and floor defaults are explained in OpenPricing.
@@ -42,6 +60,21 @@ export default function TradeDialog({ setup, accounts, onClose }) {
   const orderType = priceMode === "market" ? "market" : "limit";
   const creditReady = typeof limitCredit === "number" && limitCredit > 0;
 
+  // A STRUCTURE THAT COSTS MONEY CANNOT BE SENT FROM THIS TICKET YET.
+  //
+  // Everything this dialog opens was, until the option chain, a credit
+  // structure: the scanner builds nothing else. The chain made a debit
+  // reachable for the first time — buy a put outright, or a vertical the
+  // expensive way round — and the whole opening path is still written around
+  // a credit: the price control says credit, the walk concedes downward
+  // toward the bid, and `openPosition` sends a multi-leg limit as -|price|,
+  // which tells the broker to PAY us for an order that costs us.
+  //
+  // Saying so is the only honest state until the debit path is built. The
+  // alternative — leaving "Set a credit first" on screen — invites the user
+  // to type a positive number for an order that will never fill at it.
+  const isDebit = typeof setup.credit === "number" && setup.credit < 0;
+
   // Same rules as Open Position: a walk cannot be dismissed; a resting order
   // is left working (the log says so); a failure returns to the ticket with
   // the setup and price kept; filled or detached leaves.
@@ -51,10 +84,11 @@ export default function TradeDialog({ setup, accounts, onClose }) {
       return;
     }
     if (phase === "failed") { reset(); return; }
+    const was = phase;
     reset();
-    onClose();
+    onClose({ phase: was });
   };
-  const closeTicket = () => { reset(); onClose(); };
+  const closeTicket = () => { const was = phase; reset(); onClose({ phase: was }); };
 
   const summary =
     priceMode === "market"
@@ -90,6 +124,28 @@ export default function TradeDialog({ setup, accounts, onClose }) {
         {phase === "idle" && <PreTradeRisk setup={setup} accountId={accountId} qty={qty} />}
 
         {phase === "idle" && (
+          <TicketAnalysis
+            setup={setup}
+            qty={Number(qty) || 1}
+            net={priceMode === "manual" ? limitCredit : null}
+            positions={positions}
+          />
+        )}
+
+        {phase === "idle" && isDebit && (
+          <div className="border border-amber-300 bg-amber-50 rounded-lg p-3 text-xs text-amber-900 space-y-1">
+            <p className="font-semibold">
+              This order costs {fmtMoney(Math.abs(setup.credit) * 100 * (Number(qty) || 1))} rather than paying a credit.
+            </p>
+            <p>
+              Orders that pay a debit can&rsquo;t be sent from here yet — the pricing on this ticket works a
+              credit down toward the bid, which is the wrong direction for an order you are paying for.
+              The analysis above is correct; the submit is switched off until the debit path is built.
+            </p>
+          </div>
+        )}
+
+        {phase === "idle" && (
           <>
             <div>
               <label className={label}>Trade on account</label>
@@ -98,6 +154,19 @@ export default function TradeDialog({ setup, accounts, onClose }) {
                   <option key={a.id} value={a.id}>{a.name} ({a.is_paper ? "Paper" : "Live"})</option>
                 ))}
               </select>
+              {/* A covered call is only covered against the shares of the
+                  account it is sent to. The chain read holdings and basis on
+                  ONE account, so moving the ticket to another makes the cover
+                  line on the preview a statement about somewhere else.
+                  `openPosition`'s preflight is what actually binds; this is so
+                  the screen does not claim otherwise in the meantime. */}
+              {coverMoved && (
+                <p className="mt-1.5 text-xs text-amber-700">
+                  Shares and basis above were read on {setup.accountName || "another account"}. On{" "}
+                  {account?.name || "this account"} the cover behind this call may be different — the
+                  order is checked against the account you send it to.
+                </p>
+              )}
             </div>
 
             <div>
@@ -127,7 +196,7 @@ export default function TradeDialog({ setup, accounts, onClose }) {
               summary={summary}
               warnings={<PreTradeRisk setup={setup} accountId={accountId} qty={qty} />}
               onConfirm={submit}
-              disabled={!accountId || (orderType === "limit" && !creditReady)}
+              disabled={!accountId || isDebit || (orderType === "limit" && !creditReady)}
             />
           </>
         )}
