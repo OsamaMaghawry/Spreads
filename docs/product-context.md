@@ -155,7 +155,7 @@ revoked from the browser role entirely.
 - **blog_posts** — id, slug, title, excerpt, body, author, meta_description, og_image, status, published_at, created_at, updated_at, category
 - **user_notes** — id, user_id, author_id, body, created_at
 - **user_crm** — user_id, status, tags, updated_at
-- **stock_lots** — id, user_id, account_id, lot_key, chain_id, ticker, qty, acquired_date, acquired_price, acquired_source, disposed_date, disposed_price, disposed_source, realized_pl, created_at, backed_up_at, disposed_chain_id
+- **stock_lots** — id, user_id, account_id, lot_key, chain_id, ticker, qty, acquired_date, acquired_price, acquired_source, disposed_date, disposed_price, disposed_source, realized_pl, created_at, backed_up_at, disposed_chain_id, integrity_code
 - **app_settings** — key, value, updated_at, updated_by
 - **history_snapshots** — id, user_id, account_id, taken_at, reason, deleted_trades, updated_trades_before, deleted_lots, trades_sync_attempted_at, updated_lots_before
 - **alerts** — id, user_id, account_id, rule, severity, symbol, title, detail, dedupe_key, first_seen_at, last_seen_at, emailed_at, resolved_at, created_at

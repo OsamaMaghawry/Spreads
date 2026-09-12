@@ -2,6 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   auditAccount,
+  withheldChains,
+  applyLotFindings,
+  withheldLotSummary,
   impossibleResultFindings,
   massDeleteFinding,
   orphanedStockFinding,
@@ -192,4 +195,59 @@ test("no orphans, no note", () => {
   assert.equal(orphanedStockFinding(undefined), null);
   // A sub-cent residue of float arithmetic is not a finding.
   assert.equal(orphanedStockFinding(0.001), null);
+});
+
+// ---------------------------------------------------------------------------
+// The share half
+// ---------------------------------------------------------------------------
+
+// The lots behind the XLY spread: assigned in, exercised out, on one chain.
+const CHAIN = "chain-xly-0814";
+
+test("a withheld trade's chain names the disposals carrying the disputed money", () => {
+  const records = [
+    { trade_key: XLY.trade_key, chain_id: CHAIN, integrity_code: "impossible_loss" },
+    { trade_key: "other", chain_id: "chain-other", integrity_code: null }
+  ];
+  assert.deepEqual([...withheldChains(records)], [CHAIN]);
+});
+
+test("only DISPOSED lots on a withheld chain are withheld", () => {
+  const lots = [
+    // The disposal that carries the disputed result.
+    { lot_key: "a", disposed_date: "2026-08-14", disposed_chain_id: CHAIN, realized_pl: -189 },
+    // Still HELD on the same chain. Its quantity is the broker's and its mark
+    // is a real price — there is no attribution question to withhold, and
+    // removing it would take a fact nobody disputes out of the open book.
+    { lot_key: "b", disposed_date: null, acquired_chain_id: CHAIN, chain_id: CHAIN, qty: 100 },
+    // A disposal on a chain nobody is questioning.
+    { lot_key: "c", disposed_date: "2026-08-20", disposed_chain_id: "chain-other", realized_pl: 40 }
+  ];
+  const out = applyLotFindings(lots, new Set([CHAIN]));
+  assert.equal(out[0].integrity_code, "impossible_loss");
+  assert.equal(out[1].integrity_code, null);
+  assert.equal(out[2].integrity_code, null);
+});
+
+test("no withheld trades, no withheld lots", () => {
+  const lots = [{ lot_key: "a", disposed_date: "2026-08-14", disposed_chain_id: CHAIN, realized_pl: -189 }];
+  const out = applyLotFindings(lots, new Set());
+  assert.equal(out[0].integrity_code, null);
+});
+
+test("a lot that stops being withheld is cleared on the next pass", () => {
+  const lots = [{ lot_key: "a", disposed_date: "2026-08-14", disposed_chain_id: CHAIN, integrity_code: "impossible_loss" }];
+  assert.equal(applyLotFindings(lots, new Set())[0].integrity_code, null);
+});
+
+test("the summary sizes the share half for the audit trail", () => {
+  const out = applyLotFindings(
+    [
+      { lot_key: "a", disposed_date: "2026-08-14", disposed_chain_id: CHAIN, realized_pl: -189 },
+      { lot_key: "b", disposed_date: "2026-08-14", disposed_chain_id: CHAIN, realized_pl: -11 },
+      { lot_key: "c", disposed_date: "2026-08-20", disposed_chain_id: "other", realized_pl: 40 }
+    ],
+    new Set([CHAIN])
+  );
+  assert.deepEqual(withheldLotSummary(out), { lots: 2, realized: -200 });
 });

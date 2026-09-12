@@ -271,9 +271,18 @@ async function rebuild(admin, account, userId: string) {
     selectAllWhere(admin, "trade_records", "close_date, premium_pl, early_close_pl", "close_date",
       (q) => q.eq("account_id", account.id).not("close_date", "is", null)
               .is("integrity_code", null)),
+    // The same predicate the trade query above uses, for the same reason and
+    // on the same money. A disposal attributed to a withheld trade carries the
+    // disputed dollars; leaving it in the walk while the trade row is out is
+    // what made this chart's two modes read different facts.
+    //
+    // An OPEN lot is never flagged, so `shares_open` -- the mark on what is
+    // still held -- is untouched by this. That is the distinction the column
+    // exists to keep: the attribution of a closed lot is ours and can be
+    // wrong; the quantity and price of a held one are the broker's.
     selectAllWhere(admin, "stock_lots",
       "ticker, qty, acquired_date, acquired_price, disposed_date, disposed_price, realized_pl", "id",
-      (q) => q.eq("account_id", account.id))
+      (q) => q.eq("account_id", account.id).is("integrity_code", null))
   ]);
 
   // The first thing that ever happened on this account, and one day of runway

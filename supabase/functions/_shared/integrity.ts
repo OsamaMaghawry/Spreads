@@ -262,6 +262,71 @@ export function applyFindings(records: any[], findings: Finding[]): any[] {
 }
 
 /**
+ * The chains whose share results are in doubt for the same reason their option
+ * row is.
+ *
+ * THE SHARE HALF, which the first version of this framework had no answer for.
+ * Its own doc comment says the impossible-loss defect is an assignment or
+ * exercise misattributing a SHARE result onto the wrong option row -- and then
+ * only `trade_records` carried a flag, so the money at the heart of the defect
+ * stayed published in `stock_lots`, on the lots table, in the share walk and in
+ * the equity chart's own reading of the ledger. The bench put it plainly: the
+ * share half of the very defect this targets was invisible to it. One
+ * consequence was that the equity chart's two modes read different facts --
+ * account value is the broker's and includes the money, performance is
+ * reconstructed and excluded it -- so one toggle moved the endpoint with no
+ * annotation.
+ *
+ * A lot is attributed to a chain by `disposed_chain_id`, so a withheld trade's
+ * chain names exactly the disposals whose result is the disputed money.
+ */
+export function withheldChains(records: any[]): Set<string> {
+  const out = new Set<string>();
+  for (const r of records || []) {
+    if (r?.integrity_code && r.chain_id) out.add(String(r.chain_id));
+  }
+  return out;
+}
+
+/**
+ * Stamp the same withholding onto the share lots that carry the disputed money.
+ *
+ * ONLY DISPOSED LOTS, and the distinction is the point rather than a shortcut.
+ * What is in doubt is the ATTRIBUTION of a realised share result -- which trade
+ * a closed lot's gain or loss belongs to. A lot still HELD has no attribution
+ * question: its quantity is the broker's, its mark is a real closing price, and
+ * withholding it would remove a fact nobody disputes from the open book and the
+ * account's own value. So an open lot keeps publishing and a disposed one on a
+ * withheld chain does not.
+ *
+ * Not a separate action in the taxonomy: this IS `withhold_row`, applied to the
+ * other table the same money lives in. A trade's figures and the share results
+ * attributed to that trade are one claim, and splitting them into two actions
+ * would let a future caller apply half of it.
+ */
+export function applyLotFindings(lots: any[], chains: Set<string>, code = "impossible_loss") {
+  return (lots || []).map((l) => {
+    const disputed =
+      !!l?.disposed_date && chains.size > 0 &&
+      (chains.has(String(l.disposed_chain_id || "")) || chains.has(String(l.chain_id || "")));
+    return disputed
+      ? { ...l, integrity_code: code, integrity_detail: { reason: "attributed to a trade whose result its strikes cannot reach" } }
+      : { ...l, integrity_code: null, integrity_detail: null };
+  });
+}
+
+/** What the withheld lots came to, for the finding that explains them. */
+export function withheldLotSummary(lots: any[]) {
+  const flagged = (lots || []).filter((l) => l?.integrity_code);
+  return {
+    lots: flagged.length,
+    realized: Number(
+      flagged.reduce((a, l) => a + (Number(l.realized_pl) || 0), 0).toFixed(2)
+    )
+  };
+}
+
+/**
  * The one predicate every monetary reader shares.
  *
  * A withheld row is still a trade that happened and is still shown as one. It

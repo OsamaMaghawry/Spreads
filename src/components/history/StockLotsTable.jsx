@@ -1,4 +1,5 @@
 import { fmtMoney } from "@/lib/format";
+import { splitWithheld, withheldNote, isWithheld } from "@/lib/integrity";
 
 // Shares, kept deliberately separate from premium.
 //
@@ -32,7 +33,15 @@ export default function StockLotsTable({ lots }) {
 
   // Only closed lots contribute. Shares still held are unrealized, and were
   // never a result to begin with.
-  const realized = lots.reduce((a, l) => a + (l.realized_pl || 0), 0);
+  //
+  // And a closed lot whose result is attributed to a trade we cannot stand
+  // behind contributes nothing either: it is the same disputed money as the
+  // trade row, and this table publishing it while Trade History and Analysis
+  // do not is the contradiction the audit layer exists to prevent. Only
+  // DISPOSED lots are ever flagged, so nothing here removes a held share.
+  const audit = splitWithheld(lots);
+  const realized = audit.rows.reduce((a, l) => a + (l.realized_pl || 0), 0);
+  const note = withheldNote(audit);
   const openQty = lots.filter((l) => !l.disposed_date).reduce((a, l) => a + Number(l.qty || 0), 0);
 
   return (
@@ -111,7 +120,9 @@ export default function StockLotsTable({ lots }) {
                 <td className={`${td} text-right font-semibold ${
                   l.realized_pl > 0 ? "text-emerald-600" : l.realized_pl < 0 ? "text-rose-600" : ""
                 }`}>
-                  {l.realized_pl == null ? (
+                  {isWithheld(l) ? (
+                    <span className="text-slate-300" title="This lot's result is attributed to a trade whose computed loss its own strikes cannot reach, so the figure is not shown. The shares moved exactly as your broker recorded.">—</span>
+                  ) : l.realized_pl == null ? (
                     <span className="font-normal text-slate-400" title="Still held — not a realized result">
                       open
                     </span>
@@ -137,6 +148,9 @@ export default function StockLotsTable({ lots }) {
           </tbody>
         </table>
       </div>
+      {note && (
+        <p className="px-3 py-2 text-xs text-rose-700 bg-rose-50 border border-rose-100 rounded-lg">{note}</p>
+      )}
     </div>
   );
 }

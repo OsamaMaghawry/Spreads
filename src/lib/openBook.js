@@ -266,8 +266,12 @@ export function realizedShares(trades) {
  * would be a second thing to keep right.
  */
 export function orphanedShares(stockLots, trades) {
+  // Both sides of this subtraction must be measured on the same rows, or the
+  // "orphaned" figure becomes the withholding rather than the orphans. The
+  // trades handed in here are already split by the page; the lots are split
+  // here, on the same predicate. See src/lib/integrity.js.
   const lotTotal = (stockLots || [])
-    .filter((l) => l && l.disposed_date)
+    .filter((l) => l && l.disposed_date && !l.integrity_code)
     .reduce((a, l) => a + (num(l.realized_pl) || 0), 0);
   return lotTotal - realizedShares(trades);
 }

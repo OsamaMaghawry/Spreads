@@ -23,6 +23,9 @@ import { lotFromOption } from "./writeGuards.ts";
 import {
   auditAccount,
   applyFindings,
+  applyLotFindings,
+  withheldChains,
+  withheldLotSummary,
   massDeleteFinding,
   writesHeld,
   type Finding
@@ -234,7 +237,28 @@ export async function writeResults(
   // stops a sync.
   const findings = auditAccount({ breaches, orphanedStockPL });
   const flagged = applyFindings(records, findings);
-  return writeResultsInner(admin, accountId, userId, flagged, stockLots, findings);
+
+  // THE SAME WITHHOLDING, ON THE OTHER TABLE THE SAME MONEY LIVES IN.
+  //
+  // The impossible-loss defect IS a share result attributed to the wrong
+  // option row, so flagging only `trade_records` left the disputed dollars
+  // published in `stock_lots` -- on the lots table, in the share walk, and in
+  // the equity chart's own reading of the ledger. A withheld trade's chain
+  // names exactly the disposals that carry that money.
+  const chains = withheldChains(flagged);
+  const flaggedLots = applyLotFindings(stockLots, chains);
+
+  // The finding says how much of it is share money, because "this spread is
+  // $64 past its floor" and "and $189 of closed-share result moved with it"
+  // are different sizes of problem to whoever reads the trail.
+  const lotSummary = withheldLotSummary(flaggedLots);
+  const enriched = findings.map((f) =>
+    f.action === "withhold_row" && lotSummary.lots
+      ? { ...f, detail: { ...f.detail, withheld_share_lots: lotSummary.lots, withheld_share_pl: lotSummary.realized } }
+      : f
+  );
+
+  return writeResultsInner(admin, accountId, userId, flagged, flaggedLots, enriched);
 }
 
 
@@ -348,7 +372,12 @@ export async function writeResultsInner(
   const changedFields = (before: any, after: any) =>
     ["qty", "acquired_date", "acquired_price", "acquired_source",
      "disposed_date", "disposed_price", "disposed_source", "realized_pl",
-     "acquired_chain_id", "disposed_chain_id", "chain_id"]
+     "acquired_chain_id", "disposed_chain_id", "chain_id",
+     // A lot that stops being withheld, or starts, is a lot whose money moved
+     // in or out of every total -- the same reason `integrity_code` is in the
+     // trade diff. Without it a corrected check leaves the lot hidden while
+     // the trail records the finding resolved.
+     "integrity_code"]
       .some((f) => String(before[f] ?? "") !== String(after[f] ?? ""));
   const updatedLotsBefore = existingLots.filter(
     (l: any) => freshLotByKey[l.lot_key] && changedFields(l, freshLotByKey[l.lot_key])
