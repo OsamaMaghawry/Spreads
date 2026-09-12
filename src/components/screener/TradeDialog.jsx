@@ -11,6 +11,7 @@ import RestingOrder from "@/components/open/RestingOrder";
 import OrderLog from "@/components/close/OrderLog";
 import UpgradePrompt from "@/components/billing/UpgradePrompt";
 import TicketAnalysis from "@/components/open/TicketAnalysis";
+import OrderWarnings from "@/components/open/OrderWarnings";
 import { unitFor } from "@/lib/setupUnit";
 import { fmtMoney } from "@/lib/format";
 
@@ -32,10 +33,26 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
     accounts.some((a) => a.id === defaultAccountId) ? defaultAccountId : accounts[0]?.id || ""
   );
   const [qty, setQty] = useState(1);
-  const [priceMode, setPriceMode] = useState("walk");
+  // Walk by default, except on an order that COSTS money: the walk concedes
+  // downward toward the bid, which is meaningless when you are the one paying.
+  // OpenPricing hides it there, so the default has to move too or the ticket
+  // opens on a mode with no control under it.
+  const [priceMode, setPriceMode] = useState(
+    typeof setup.credit === "number" && setup.credit < 0 ? "manual" : "walk"
+  );
 
   const account = accounts.find((a) => a.id === accountId);
   const unit = unitFor(setup.strategy);
+
+  // WHAT THE SELECTED ACCOUNT HOLDS -- not what the page that opened this
+  // ticket was looking at. The owner: *"When I change the account, the
+  // analysis keeps saying no TSLA for this account, it changing doesn't
+  // refresh."* The `positions` prop was fixed at the moment the ticket opened,
+  // so every figure in Advanced analysis described whichever account the chain
+  // happened to be on. `syncAccounts` returns each account's own open
+  // positions, so the selected one's book is already here; the prop is the
+  // fallback for callers whose account list does not carry them.
+  const book = Array.isArray(account?.spreads) ? account.spreads : positions;
   // A setup built from holdings (a covered call's cover and basis) belongs to
   // the account those holdings were read on.
   const coverMoved =
@@ -45,7 +62,7 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
   // start and floor defaults are explained in OpenPricing.
   const [limitCredit, setLimitCredit] = useState(null);
   const [minCredit, setMinCredit] = useState(null);
-  const { phase, log, upgrade, resting, run, stop, reset, replacePrice } = useOpenOrder();
+  const { phase, log, upgrade, resting, warnings, run, stop, reset, replacePrice, sendAnyway } = useOpenOrder();
 
   // Live under the ticket while it is priced and while a hand-priced order
   // rests; a screener row can be minutes old by the time it is opened.
@@ -70,10 +87,12 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
   // toward the bid, and `openPosition` sends a multi-leg limit as -|price|,
   // which tells the broker to PAY us for an order that costs us.
   //
-  // Saying so is the only honest state until the debit path is built. The
-  // alternative — leaving "Set a credit first" on screen — invites the user
-  // to type a positive number for an order that will never fill at it.
+  // The ticket works in MAGNITUDES and puts the sign back on here, in the one
+  // place the order is built. See `openingDefaults` for why.
   const isDebit = typeof setup.credit === "number" && setup.credit < 0;
+  // What the price actually means, signed the way the rest of the product
+  // signs it: positive is taken in, negative is paid out.
+  const signedNet = typeof limitCredit === "number" ? (isDebit ? -limitCredit : limitCredit) : null;
 
   // Same rules as Open Position: a walk cannot be dismissed; a resting order
   // is left working (the log says so); a failure returns to the ticket with
@@ -83,19 +102,25 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
       if (resting) stop();
       return;
     }
-    if (phase === "failed") { reset(); return; }
+    // Nothing was sent, so the X means "back to the ticket", not "leave".
+    if (phase === "warned" || phase === "failed") { reset(); return; }
     const was = phase;
     reset();
     onClose({ phase: was });
   };
   const closeTicket = () => { const was = phase; reset(); onClose({ phase: was }); };
 
+  // One noun for the price, decided by which way the money goes. A summary
+  // that says "credit" over an order the user is paying for is the sentence
+  // they read last before committing.
+  const priced = isDebit ? "debit" : "credit";
+  const what = `open ${qty} ${setup.ticker} ${unit}${Number(qty) > 1 ? "s" : ""} on ${account?.name || ""}`;
   const summary =
     priceMode === "market"
-      ? `Market order · open ${qty} ${setup.ticker} ${unit}${Number(qty) > 1 ? "s" : ""} on ${account?.name || ""}.`
+      ? `Market order · ${what}.`
       : priceMode === "walk"
-        ? `Limit order starting at $${(limitCredit ?? 0).toFixed(2)} credit, conceding toward the bid but never below $${(minCredit ?? 0).toFixed(2)} · open ${qty} ${setup.ticker} ${unit}${Number(qty) > 1 ? "s" : ""} on ${account?.name || ""}.`
-        : `Limit order resting at $${(limitCredit ?? 0).toFixed(2)} credit — not walked · open ${qty} ${setup.ticker} ${unit}${Number(qty) > 1 ? "s" : ""} on ${account?.name || ""}.`;
+        ? `Limit order starting at $${(limitCredit ?? 0).toFixed(2)} credit, conceding toward the bid but never below $${(minCredit ?? 0).toFixed(2)} · ${what}.`
+        : `Limit order resting at $${(limitCredit ?? 0).toFixed(2)} ${priced} — not walked · ${what}.`;
 
   // The spot this scan result was built on travels with every submit and every
   // reprice — see useOpenOrder. Screener rows sit on screen far longer than the
@@ -107,7 +132,7 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
       setup,
       qty: Number(qty),
       orderType,
-      startCredit: limitCredit,
+      startCredit: signedNet,
       minCredit,
       priceMode
     });
@@ -127,20 +152,24 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
           <TicketAnalysis
             setup={setup}
             qty={Number(qty) || 1}
-            net={priceMode === "manual" ? limitCredit : null}
-            positions={positions}
+            // The scan's own net when the price has not been set by hand, so
+            // the curve and the figures beside it are the same trade. Signed,
+            // because `pendingRows` reads the sign.
+            net={priceMode === "manual" && signedNet !== null ? signedNet : setup.credit}
+            positions={book}
           />
         )}
 
         {phase === "idle" && isDebit && (
-          <div className="border border-amber-300 bg-amber-50 rounded-lg p-3 text-xs text-amber-900 space-y-1">
-            <p className="font-semibold">
-              This order costs {fmtMoney(Math.abs(setup.credit) * 100 * (Number(qty) || 1))} rather than paying a credit.
+          <div className="border border-slate-300 bg-slate-50 rounded-lg p-3 text-xs text-slate-700">
+            <p className="font-semibold text-slate-900">
+              This order costs money — {fmtMoney(Math.abs(setup.credit) * 100 * (Number(qty) || 1))} at the
+              price below, not a credit received.
             </p>
-            <p>
-              Orders that pay a debit can&rsquo;t be sent from here yet — the pricing on this ticket works a
-              credit down toward the bid, which is the wrong direction for an order you are paying for.
-              The analysis above is correct; the submit is switched off until the debit path is built.
+            <p className="mt-1">
+              The price you set is what you are willing to PAY, and &ldquo;Walk to fill&rdquo; is not offered:
+              it concedes toward the bid, which only means something when you are the one being paid.
+              Rest it at your price, or take the market.
             </p>
           </div>
         )}
@@ -184,7 +213,7 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
               onCredit={setLimitCredit}
               minCredit={minCredit}
               onMinCredit={setMinCredit}
-              liveQuote={live.quote}
+              liveQuote={isDebit ? live.debitQuote : live.quote}
             />
 
             <ConfirmSubmit
@@ -196,7 +225,7 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
               summary={summary}
               warnings={<PreTradeRisk setup={setup} accountId={accountId} qty={qty} />}
               onConfirm={submit}
-              disabled={!accountId || isDebit || (orderType === "limit" && !creditReady)}
+              disabled={!accountId || (orderType === "limit" && !creditReady)}
             />
           </>
         )}
@@ -204,6 +233,9 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
         {phase !== "idle" && (
           <div className="space-y-4">
             <OrderLog log={log} phase={phase} />
+            {phase === "warned" && (
+              <OrderWarnings warnings={warnings} onSend={sendAnyway} onBack={reset} />
+            )}
             {phase === "failed" && upgrade && <UpgradePrompt message={upgrade} />}
             {phase === "working" && resting && (
               <RestingOrder
@@ -228,6 +260,10 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
                   Close ticket
                 </button>
               </div>
+            ) : phase === "warned" ? (
+              // OrderWarnings carries its own two buttons; a third saying
+              // "Done" under them would be a third answer to a two-way choice.
+              null
             ) : phase === "detached" ? (
               <button onClick={handleDismiss} className="w-full py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition-colors">
                 Close — the order keeps working

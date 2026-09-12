@@ -3,6 +3,7 @@
 // long wing, credit from short bid - long ask, ratio-aware iron condors.
 import { tradingBase, alpacaFetch, getOptionQuotes } from "./alpaca.ts";
 import { getSpot, MAX_SOURCE_DIVERGENCE_PCT } from "./marketPrice.ts";
+import { sessionPhase } from "./watchRules.ts";
 
 const erf = (x) => {
   const s = x < 0 ? -1 : 1;
@@ -56,10 +57,21 @@ export function optionDelta(price, S, K, T, r, isCall) {
 //
 // The spot is what picks strikes, so an untrusted one is a refusal here rather
 // than something to proceed on.
-function spotOrReason(spot, ticker) {
+//
+// The message, though, has to say the true thing. Outside market hours every
+// price is older than the freshness window BY CONSTRUCTION, and reporting that
+// as "last trade is more than 30 minutes old" told the owner his feed was
+// broken at 1 AM on a Saturday when nothing was broken at all. Same refusal,
+// different sentence: the scanner still will not pick strikes against a price
+// nobody is making, and now it says why.
+function spotOrReason(spot, ticker, now: Date = new Date()) {
   if (!(spot.price > 0)) return `No live price available for ${ticker}.`;
-  if (!spot.trusted) return `Unreliable price for ${ticker}: ${spot.reason}`;
-  return null;
+  if (spot.trusted) return null;
+  if (sessionPhase(now) !== "open") {
+    return `The market is closed, so ${ticker} has no live price to pick strikes against. ` +
+      `Scanning needs a market that is trading.`;
+  }
+  return `Unreliable price for ${ticker}: ${spot.reason}`;
 }
 
 // All expiries inside the requested DTE window, soonest first.

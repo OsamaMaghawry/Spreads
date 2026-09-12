@@ -3,7 +3,12 @@ import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { liveAllowedFor, UPGRADE_MESSAGE } from "../_shared/entitlement.ts";
 import { heldShares } from "../_shared/heldShares.ts";
 import { tradingBase, alpacaFetch, loadAccount, parseOCCSymbol } from "../_shared/alpaca.ts";
-import { getSpot } from "../_shared/marketPrice.ts";
+import { getSpots, spotFromSnapshot, closingSpotFromSnapshot } from "../_shared/marketPrice.ts";
+import { sessionPhase } from "../_shared/watchRules.ts";
+import {
+  sessionWarning, priceWarning, driftWarning, itmShortWarning, adjustedWarning,
+  coverWarning, unacknowledged, type OrderWarning
+} from "../_shared/orderWarnings.ts";
 import { earningsCoverage, refreshEarningsWindow } from "../_shared/earnings.ts";
 import { inBackground } from "../_shared/background.ts";
 
@@ -20,52 +25,74 @@ const MAX_SPOT_DRIFT_PCT = 0.01;
 // This exists because a spread was once opened on a spot price of $363.54 when
 // the stock was at $354.33: the short put looked $8.50 out of the money and was
 // in fact through it. Nothing between the scan and the broker looked again.
-async function preflight(account, legs, expectedSpot, allowItmShort) {
+//
+// IT NO LONGER REFUSES. Every finding is a warning the user can accept — see
+// `_shared/orderWarnings.ts` for the owner's instruction and the reasoning.
+// Looking is still this function's job; deciding is not.
+//
+// The market's own clock decides how the price is judged. During the session a
+// live print is what matters and a long gap in it is news. Outside the session
+// there is no live print to want, so the official close IS the price, and the
+// one thing worth saying is that the market is shut — which `sessionWarning`
+// says once, rather than every stale-price check saying it badly.
+async function preflight(
+  admin, account, legs, expectedSpot, allowItmShort, qty: number, now = new Date()
+): Promise<OrderWarning[]> {
+  const out: OrderWarning[] = [];
+  const shut = sessionPhase(now) !== "open";
+  const shutNote = sessionWarning(now);
+  if (shutNote) out.push(shutNote);
+
   const parsed = legs
     .map((l: any) => ({ ...l, occ: parseOCCSymbol(l.symbol) }))
     .filter((l: any) => l.occ);
-  if (parsed.length === 0) return null;
+  if (parsed.length === 0) return out;
 
   // An adjusted contract -- AAPL1 rather than AAPL -- no longer delivers 100
   // shares of the underlying at the strike, and the symbol does not say what it
   // delivers instead. Every check below compares its strike against the
   // underlying's spot, which is the wrong comparison, and the credit and the
-  // width would be wrong in the same way. The scanner never produces these; if
-  // one arrives, refusing is the only honest answer.
+  // width are wrong in the same way. The scanner never produces these.
   const adjusted = parsed.find((l: any) => l.occ.adjusted);
-  if (adjusted) {
-    // No "place it with your broker": a refusal made on safety grounds should
-    // not end by pointing at the exit, and the width and maximum loss still on
-    // screen are wrong for this contract.
-    return `${adjusted.symbol} is an adjusted contract — a corporate action changed what it ` +
-      `delivers, so it is no longer 100 shares of ${adjusted.occ.underlying} at the strike, and the ` +
-      `width and maximum loss shown for this trade are not right for it.`;
-  }
+  if (adjusted) out.push(adjustedWarning(adjusted.symbol, adjusted.occ.underlying));
 
   const ticker = parsed[0].occ.ticker;
-  const spot = await getSpot(account, ticker);
-  if (!(spot.price > 0)) return `No live price for ${ticker} — refusing to open a position without one.`;
-  if (!spot.trusted) return `Unreliable price for ${ticker}: ${spot.reason} Refusing to open a position on it.`;
+  const spots = await getSpots(account, [ticker], shut ? closingSpotFromSnapshot : spotFromSnapshot);
+  const spot = spots[ticker] || spotFromSnapshot(null);
 
-  if (expectedSpot > 0) {
-    const drift = Math.abs(spot.price - expectedSpot) / expectedSpot;
-    if (drift > MAX_SPOT_DRIFT_PCT) {
-      return `${ticker} is $${spot.price.toFixed(2)} now, not $${expectedSpot.toFixed(2)} — ` +
-        `${(drift * 100).toFixed(1)}% away from the setup. Re-scan before opening.`;
+  const priceNote = priceWarning(ticker, spot, now);
+  if (priceNote) out.push(priceNote);
+
+  if (spot.price > 0) {
+    const drift = driftWarning(ticker, spot.price, Number(expectedSpot) || 0, MAX_SPOT_DRIFT_PCT);
+    if (drift) out.push(drift);
+    if (!allowItmShort) {
+      const itm = itmShortWarning(ticker, parsed, spot.price);
+      if (itm) out.push(itm);
     }
   }
 
-  if (!allowItmShort) {
-    const through = parsed.find(
-      (l: any) => l.side === "sell" &&
-        (l.occ.type === "C" ? l.occ.strike <= spot.price : l.occ.strike >= spot.price)
-    );
-    if (through) {
-      return `Short ${through.occ.type === "C" ? "call" : "put"} $${through.occ.strike} is through ` +
-        `${ticker} at $${spot.price.toFixed(2)} — that is not an out-of-the-money credit spread.`;
+  // A LONE short call against shares this account does not hold. Previously a
+  // hard 409; now a warning, because an account approved for naked calls may
+  // sell one and that is between the user and their broker. The sentence still
+  // says exactly what is missing, which a broker rejection would not.
+  //
+  // `parsed.length === 1` is the whole point. The short call of a CALL SPREAD
+  // is covered by the long call above it, not by shares, and raising "this
+  // call is not covered" on every vertical would teach the user to click
+  // straight through the one time it matters.
+  const shortCall =
+    parsed.length === 1 && parsed[0].side === "sell" && parsed[0].occ.type === "C" ? parsed[0] : null;
+  if (shortCall) {
+    const held = await heldShares(admin, account).catch(() => null);
+    if (held) {
+      const have = held.shares[shortCall.occ.ticker] || 0;
+      const note = coverWarning(account.name, shortCall.occ.ticker, have, Number(qty) || 1);
+      if (note) out.push(note);
     }
   }
-  return null;
+
+  return out;
 }
 
 // Submits the opening multi-leg credit order (sell to open the shorts, buy the wings).
@@ -75,7 +102,15 @@ Deno.serve(async (req) => {
     const user = await requireUser(req);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-    const { accountId, legs, qty, orderType = "limit", limitPrice, expectedSpot, allowItmShort = false } = await req.json();
+    const {
+      accountId, legs, qty, orderType = "limit", limitPrice, expectedSpot, allowItmShort = false,
+      // Which warning codes the user has already been shown and accepted. An
+      // array rather than a boolean ON PURPOSE: a walk resubmits every thirty
+      // seconds, and a blanket "they clicked send once" would carry that
+      // consent onto a condition that first appeared five minutes later. A
+      // code the user has not seen still stops to be seen.
+      acknowledged = []
+    } = await req.json();
     if (!accountId || !Array.isArray(legs) || legs.length < 1 || !qty) {
       return jsonResponse({ error: "accountId, legs and qty are required" }, 400);
     }
@@ -105,10 +140,24 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: UPGRADE_MESSAGE, upgradeRequired: true }, 402);
     }
 
-    // Last look before the money leaves. 409 rather than 400: the request was
-    // well formed, the market moved out from under it.
-    const stale = await preflight(account, legs, Number(expectedSpot) || 0, allowItmShort);
-    if (stale) return jsonResponse({ error: stale, staleSetup: true }, 409);
+    // Last look before the money leaves -- and it is a LOOK, not a veto. What
+    // it finds comes back once, unsent, for the user to read and accept or
+    // walk away from. 409 rather than 400: the request was well formed and
+    // nothing was wrong with it; there is simply something the sender should
+    // know first.
+    const warnings = await preflight(admin, account, legs, Number(expectedSpot) || 0, allowItmShort, Number(qty) || 1);
+    const unseen = unacknowledged(warnings, acknowledged);
+    if (unseen.length) {
+      return jsonResponse({
+        error: unseen[0].title,
+        warnings: unseen,
+        // The client renders these and offers to send anyway. `staleSetup`
+        // stays for older clients, which treat it as a stop rather than a
+        // retry -- the safe reading either way.
+        needsAcknowledgement: true,
+        staleSetup: true
+      }, 409);
+    }
 
     // One leg is the wheel's half -- a cash-secured put or a covered call. It
     // goes to the broker as a plain option order, not a multi-leg one: no
@@ -117,19 +166,12 @@ Deno.serve(async (req) => {
     // wheel where one is configured.
     if (legs.length === 1) {
       const leg = legs[0];
-      const occ = parseOCCSymbol(leg.symbol);
-      if (leg.side === "sell" && occ?.type === "C") {
-        // A short call must be covered by shares this account holds, contract
-        // for contract. Refusing here says why in one sentence; the broker's
-        // rejection would not.
-        const held = await heldShares(admin, account);
-        const have = held.shares[occ.ticker] || 0;
-        if (have < Number(qty) * 100) {
-          return jsonResponse({
-            error: `${account.name} holds ${have} shares of ${occ.ticker}; ${qty} covered call${Number(qty) > 1 ? "s" : ""} need${Number(qty) > 1 ? "" : "s"} ${Number(qty) * 100}. Nothing was sent.`
-          }, 409);
-        }
-      }
+      // The share-cover check moved into `preflight` as the acknowledgeable
+      // `short_call_uncovered` warning. It used to refuse outright, which
+      // assumed every account is cash or Reg-T level 2; an account approved
+      // for naked calls may legitimately sell one, and that is between the
+      // user and their broker. The sentence it shows still names exactly how
+      // many shares are missing, which a broker rejection would not.
       const singlePrefix = (account.wheel_client_prefix || account.spreads_client_prefix || "APP_OPEN").trim();
       const single: any = {
         symbol: leg.symbol,
@@ -161,9 +203,22 @@ Deno.serve(async (req) => {
       }))
     };
     if (orderType === "limit") {
-      // Alpaca multi-leg: a NEGATIVE limit price signifies a net credit to be received.
-      // Opening credit spreads/condors always collect credit, so send -|price|.
-      body.limit_price = String(-Math.abs(Math.round(limitPrice * 100) / 100));
+      // Alpaca multi-leg: a NEGATIVE limit price is a net credit to be
+      // RECEIVED, a positive one a net debit to be PAID.
+      //
+      // This used to send `-Math.abs(price)` unconditionally, with the comment
+      // "opening credit spreads/condors always collect credit". That was true
+      // of everything the scanner builds, and stopped being true the moment
+      // the option chain let a spread be assembled by hand — a vertical taken
+      // the expensive way round, or a diagonal that costs money. On one of
+      // those, -|price| told the broker to pay us for an order we are paying
+      // for, which never fills at best and is simply wrong at worst.
+      //
+      // The client sends the net in the product's own convention (positive is
+      // a credit taken, negative a debit paid), which is the opposite of
+      // Alpaca's, so the sign is carried through by negating it rather than
+      // being thrown away.
+      body.limit_price = String(-(Math.round(limitPrice * 100) / 100));
     }
 
     const order = await alpacaFetch(`${tradingBase(account)}/orders`, account, {

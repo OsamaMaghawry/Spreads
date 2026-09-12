@@ -86,7 +86,7 @@ incomplete.
 - **common** — ConfirmDeleteAccount, ConfirmSubmit, EarningsWarning, NumberField, PreTradeRisk, PriceControl, RiskMeter, ScanPresets, StaleDataNotice
 - **dashboard** — AccountSection, AccountSummaryCard, BrokerTable, CardLegs, LegRows, MasterSummary, OrderGroup, PayoffChart, PositionCard, PositionCards, SpreadStructure, SpreadTable, StrikeLadder, TickerPanel, useLegQuotes
 - **history** — RebuildPreview, StockLotsTable, StrategyTabs, TradeHistoryTable
-- **open** — CandidateList, OpenPositionDialog, OpenPricing, RestingOrder, ScanFilters, SetupPreview, StrategyPicker, TicketAnalysis, useLiveSetup, useOpenOrder, useScanLoop
+- **open** — CandidateList, OpenPositionDialog, OpenPricing, OrderWarnings, RestingOrder, ScanFilters, SetupPreview, StrategyPicker, TicketAnalysis, useLiveSetup, useOpenOrder, useScanLoop
 - **screener** — ResultsTable, ScreenerConfig, TradeDialog, useMarketScan
 
 ## Recently shipped
@@ -122,7 +122,7 @@ so a change to shared code requires redeploying all of them.
 - **marketStream** — Live underlying prices, relayed from Alpaca's stream.
 - **migrateCredentials** — Encrypts credentials that are still stored in plaintext, across every user's accounts, without involving those users.
 - **oauthDiag** — Answers one question: does Alpaca recognise this app's OAuth credentials? The authorize page cannot answer it.
-- **openPosition** — How far the stock may have moved since the setup was built before the order is refused.
+- **openPosition** — (no summary comment)
 - **opsHealth** — Read-only health for the duty engineer: last-24h order errors, alerts, connection issues and the watch's last runs, as counts and messages, never user data.
 - **optionChain** — The option chain for one underlying, as a ladder.
 - **positionWatch** — The money-safety watch.

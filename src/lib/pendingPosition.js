@@ -142,7 +142,12 @@ export function maxProfitOf(setup) {
     // A bought put is worth most with the stock at zero. `credit` is negative
     // on a debit, so adding it subtracts what was paid.
     case "long_put": return strike !== null && credit !== null ? (strike + credit) * 100 : null;
-    case "covered_call": return num(setup.ifCalled);
+    // Covered, the best case is being called away. UNCOVERED — a short call on
+    // an account with no shares behind it — `ifCalled` is null, and falling
+    // through to null printed "Max profit: No ceiling" on a naked call. Its
+    // profit has a very firm ceiling: the credit. It is the LOSS that has none.
+    case "covered_call":
+      return num(setup.ifCalled) ?? (credit !== null ? credit * 100 : null);
     default: return credit !== null ? credit * 100 : null;
   }
 }
@@ -160,15 +165,49 @@ export function ticketMarks(setup) {
   return marks.filter((m) => (seen.has(m.value) ? false : seen.add(m.value)));
 }
 
-// A book of open rows plus the pending ones, in the shape `tickerBook` returns
-// so `payoffCurve` and `curveRange` read it unchanged.
-//
-// `spot` is taken from the OPEN rows first: they were marked by the same sync
-// that priced the dashboard, and a ticket's own spot can be a scan minutes old.
+/**
+ * A book of open rows plus the pending ones, in the shape `tickerBook` returns
+ * so `payoffCurve` and `curveRange` read it unchanged.
+ *
+ * `spot` is taken from the OPEN rows first: they were marked by the same sync
+ * that priced the dashboard, and a ticket's own spot can be a scan minutes old.
+ *
+ * THE SHARES UNDER A COVERED CALL ARE ADDED ONCE, NEVER TWICE. `pendingRows`
+ * attaches a synthetic share lot so the call can be drawn as the covered
+ * position it is. Beside the open book those same shares are already there —
+ * they are what makes the call covered — so adding the synthetic row again
+ * would draw twice the stock and make writing a call look like it ADDS upside
+ * rather than capping it.
+ */
 export function withPending(book, rows, spot = null) {
   const open = book?.rows || [];
-  const all = [...open, ...rows];
+  const holdsShares = open.some(
+    (r) => r?.type === "shares" && Number(r.shareQty ?? r.qty) > 0
+  );
+  const add = holdsShares ? rows.filter((r) => r.id !== "pending-shares") : rows;
+  const all = [...open, ...add];
   if (!all.length) return null;
   const px = num(book?.spot) || num(spot) || num(rows[0]?.stockPrice) || 0;
   return { ticker: book?.ticker || rows[0]?.ticker || null, rows: all, spot: px };
+}
+
+/**
+ * The distinct expiry dates the setup's legs carry.
+ *
+ * More than one is the reason a payoff chart must NOT be drawn.
+ * `positionPLAt` takes a price and no date: it prices every leg at its own
+ * expiry simultaneously, which is exact for a vertical and describes a moment
+ * that does not exist for a calendar or a diagonal. On the owner's own
+ * Feb-2027 / Dec-2027 structure it draws a bounded floor for a position whose
+ * loss is not bounded, which is the same false-safety statement this whole
+ * piece of work exists to remove — in a picture instead of a cell.
+ */
+export function expiriesOf(setup) {
+  const dates = (setup?.legs || [])
+    .map((l) => l?.expiry || setup?.expiry)
+    .filter(Boolean)
+    .map(String);
+  // A setup with no per-leg dates falls back to its own, which is one date.
+  if (!dates.length && setup?.expiry) return [String(setup.expiry)];
+  return [...new Set(dates)].sort();
 }

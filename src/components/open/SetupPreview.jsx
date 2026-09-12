@@ -33,6 +33,7 @@ export default function SetupPreview({ setup, qty, live = null }) {
   // "Stock to 0" is the ceiling on a short put and on shares. It is not a
   // ceiling on anything else, so the phrase only appears where it is true.
   const bounded = setup.maxRisk !== null && setup.maxRisk !== undefined;
+  const debit = typeof setup.credit === "number" && setup.credit < 0;
   const streaming = !!live?.streaming;
   const spot = streaming ? live.spot : setup.spot;
   const spotSource = setup.spotSource === "trade" ? "last trade" : setup.spotSource === "quote" ? "quote mid" : setup.spotSource;
@@ -117,7 +118,7 @@ export default function SetupPreview({ setup, qty, live = null }) {
         </div>
         {live?.quote && (
           <div className="flex items-center justify-between tabular-nums text-xs px-3 py-2 bg-slate-50 border-t border-slate-200">
-            <span className="text-slate-500">Net credit now (bid / ask){live.quoteAt ? ` · ${clock(live.quoteAt)}` : ""}</span>
+            <span className="text-slate-500">Net {debit ? "cost" : "credit"} now (bid / ask){live.quoteAt ? ` · ${clock(live.quoteAt)}` : ""}</span>
             <span className="text-slate-900 font-medium">{fmtMoney(live.quote.bid)} / {fmtMoney(live.quote.ask)}</span>
           </div>
         )}
@@ -128,8 +129,12 @@ export default function SetupPreview({ setup, qty, live = null }) {
             contract. Scaling the credit here keeps every dollar figure in this
             block on the same footing — a $0.93 credit beside a $157.00 risk
             reads as a mistake even when the arithmetic behind it is right. */}
-        <span className="text-slate-500">Credit / {unit}{live ? " (scan)" : ""}</span>
-        <span className="text-right text-emerald-600 font-medium">{fmtMoney(setup.credit * 100)}</span>
+        {/* A structure that COSTS money is not a credit, and calling it one
+            put a green number on an order the user is paying for. */}
+        <span className="text-slate-500">{debit ? "Debit" : "Credit"} / {unit}{live ? " (scan)" : ""}</span>
+        <span className={`text-right font-medium ${debit ? "text-slate-900" : "text-emerald-600"}`}>
+          {fmtMoney(Math.abs(setup.credit) * 100)}
+        </span>
         {single ? (
           <>
             <span className="text-slate-500">{cc ? "Shares at basis" : "Collateral"} / {unit}</span>
@@ -160,8 +165,10 @@ export default function SetupPreview({ setup, qty, live = null }) {
             <RiskCell value={setup.maxRisk} />
           </>
         )}
-        <span className="text-slate-500">Total credit ({qty} {unit}{qty > 1 ? "s" : ""})</span>
-        <span className="text-right text-emerald-600 font-semibold">{fmtMoney(setup.credit * qty * 100)}</span>
+        <span className="text-slate-500">Total {debit ? "cost" : "credit"} ({qty} {unit}{qty > 1 ? "s" : ""})</span>
+        <span className={`text-right font-semibold ${debit ? "text-slate-900" : "text-emerald-600"}`}>
+          {fmtMoney(Math.abs(setup.credit) * qty * 100)}
+        </span>
         <span className="text-slate-500">
           {single ? `Total max loss${bounded ? " (stock to 0)" : ""}` : "Total max risk"}
         </span>

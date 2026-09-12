@@ -73,13 +73,16 @@ export default function OptionChain() {
   // selection on every load, which made a multi-expiry spread impossible to
   // assemble: pick the Feb leg, change the date to find the Dec one, and the
   // first vanished. A leg is a leg whatever the ladder is currently showing.
-  const load = useCallback(async (sym, exp, keep = false) => {
-    if (!accountId || !sym) return;
+  // `acct` is passed explicitly when the ACCOUNT changes, because `setState`
+  // has not landed by the time the handler runs and this callback would
+  // otherwise read the account the user just left.
+  const load = useCallback(async (sym, exp, keep = false, acct = accountId) => {
+    if (!acct || !sym) return;
     setLoading(true);
     setError(null);
     if (!keep) setPicked([]);
     try {
-      const r = await invokeFunction("optionChain", { accountId, ticker: sym, expiry: exp || undefined });
+      const r = await invokeFunction("optionChain", { accountId: acct, ticker: sym, expiry: exp || undefined });
       if (r.data?.error) throw new Error(r.data.error);
       setData(r.data);
       setTicker(r.data.ticker);
@@ -169,9 +172,19 @@ export default function OptionChain() {
       <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-end gap-3">
         <div className="min-w-[170px]">
           <label className="block text-[11px] text-slate-500 mb-1">Account</label>
+          {/* Changing the account RE-READS the chain. It used to only
+              re-render: the shares, the cost basis and therefore whether a
+              call is covered at all are properties of one account, and they
+              stayed behind while the label above them changed. A naked call
+              then priced itself against another account's 300 shares. The
+              picked legs survive — they are the same contracts either way. */}
           <select
             value={accountId}
-            onChange={(e) => setAccountId(e.target.value)}
+            onChange={(e) => {
+              const id = e.target.value;
+              setAccountId(id);
+              if (ticker) load(ticker, expiry, true, id);
+            }}
             className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm"
           >
             {accounts.map((a) => (

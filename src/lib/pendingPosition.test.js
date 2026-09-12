@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { pendingRows, ticketMarks, legNet, withPending, maxProfitOf } from "./pendingPosition.js";
+import { pendingRows, ticketMarks, legNet, withPending, maxProfitOf, expiriesOf } from "./pendingPosition.js";
 import { positionPLAt, payoffCurve, crossings } from "./tickerBook.js";
 
 const csp = {
@@ -216,4 +216,73 @@ test("a builder's own refusal to bound the profit is not overridden", () => {
   // builder deliberately declined to give one.
   assert.equal(maxProfitOf({ strategy: "put_spread", credit: 1.2, maxProfit: null, legs: [] }), null);
   assert.equal(maxProfitOf({ strategy: "put_spread", credit: 1.2, maxProfit: 380, legs: [] }), 380);
+});
+
+// ---------------------------------------------------------------------------
+// expiriesOf — the gate on drawing a payoff at all
+// ---------------------------------------------------------------------------
+
+test("a vertical has one expiry and a diagonal has two", () => {
+  assert.deepEqual(expiriesOf({ expiry: "2026-10-16", legs: [{ strike: 350 }, { strike: 345 }] }), ["2026-10-16"]);
+  assert.deepEqual(
+    expiriesOf({
+      expiry: "2027-02-19",
+      legs: [
+        { strike: 270, expiry: "2027-02-19" },
+        { strike: 320, expiry: "2027-12-17" }
+      ]
+    }),
+    ["2027-02-19", "2027-12-17"]
+  );
+});
+
+test("a setup with no legs still reports its own expiry", () => {
+  assert.deepEqual(expiriesOf({ expiry: "2026-10-16", legs: [] }), ["2026-10-16"]);
+  assert.deepEqual(expiriesOf({}), []);
+});
+
+// ---------------------------------------------------------------------------
+// withPending — a covered call's shares are added once, never twice
+// ---------------------------------------------------------------------------
+
+const coveredCall = {
+  ticker: "AAPL",
+  strategy: "covered_call",
+  spot: 230,
+  credit: 3,
+  basis: 200,
+  sharesHeld: 100,
+  legs: [{ role: "short_call", side: "sell", strike: 240, mid: 3, ratio: 1 }]
+};
+
+test("with nothing open, the covered call's own shares are drawn", () => {
+  const book = withPending(null, pendingRows(coveredCall, 1));
+  assert.equal(book.rows.length, 2);
+});
+
+test("beside a book that already holds the shares, they are NOT drawn again", () => {
+  // The shares in the open book ARE the cover. Adding the synthetic lot on top
+  // draws 200 shares against a 100-share call, and writing a call then looks
+  // like it adds upside instead of capping it.
+  const open = {
+    ticker: "AAPL",
+    spot: 230,
+    rows: [{ ticker: "AAPL", type: "shares", shareQty: 100, shareBasis: 200, stockPrice: 230 }]
+  };
+  const after = withPending(open, pendingRows(coveredCall, 1));
+  assert.equal(after.rows.length, 2);
+  assert.equal(after.rows.filter((r) => r.type === "shares").length, 1);
+
+  const at = (p) => after.rows.reduce((a, r) => a + positionPLAt(r, p), 0);
+  // Called away at 240: shares made 40, the call kept 3. Not 80 and 3.
+  assert.equal(at(240), 4300);
+  assert.equal(at(400), 4300);
+});
+
+test("an uncovered short call's profit is the credit, not 'no ceiling'", () => {
+  // ifCalled is null without a basis. Falling through to null printed
+  // "Max profit: No ceiling" on a naked call -- the most dangerous sentence
+  // this screen could carry.
+  assert.equal(maxProfitOf({ strategy: "covered_call", credit: 6, ifCalled: null, legs: [] }), 600);
+  assert.equal(maxProfitOf({ strategy: "covered_call", credit: 6, ifCalled: 4300, legs: [] }), 4300);
 });

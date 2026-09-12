@@ -297,3 +297,29 @@ test("the same contract twice is still refused", () => {
   assert.equal(r.ok, false);
   assert.match(r.reason, /same contract/i);
 });
+
+// A covered call must carry the BASIS it was priced from, not just the label
+// saying where the basis came from. Without it the ticket's payoff chart has
+// no shares to put under the call and draws a naked one -- an unbounded loss
+// above the strike, directly under a max loss computed from this very number.
+test("a covered call carries the basis its own risk figure was built on", () => {
+  const r = contractSetup(
+    { symbol: "AAPL261016C00240000", strike: 240, type: "C", bid: 2.9, ask: 3.1, mid: 3, delta: 0.3 },
+    "sell",
+    { ticker: "AAPL", expiry: "2026-10-16", spot: 230, shares: 300, basis: 200, basisSource: "adjusted" }
+  );
+  assert.equal(r.setup.basis, 200);
+  assert.equal(r.setup.maxRisk, (200 - 3) * 100);
+  assert.equal(r.setup.ifCalled, (240 - 200 + 3) * 100);
+});
+
+test("an UNCOVERED short call carries no basis to pretend with", () => {
+  const r = contractSetup(
+    { symbol: "AAPL261016C00240000", strike: 240, type: "C", bid: 2.9, ask: 3.1, mid: 3, delta: 0.3 },
+    "sell",
+    { ticker: "AAPL", expiry: "2026-10-16", spot: 230, shares: 0, basis: null }
+  );
+  assert.equal(r.setup.basis, null);
+  assert.equal(r.setup.maxRisk, null);
+  assert.equal(r.setup.unlimitedRisk, true);
+});

@@ -33,6 +33,11 @@ async function invoke(fn, payload) {
   if (data?.error) {
     const err = new Error(data.error);
     err.staleSetup = !!data.staleSetup;
+    // Things the server wants the user to know before it sends anything. Not
+    // a refusal: the ticket shows them and the user decides. See
+    // supabase/functions/_shared/orderWarnings.ts.
+    err.needsAcknowledgement = !!data.needsAcknowledgement;
+    err.warnings = Array.isArray(data.warnings) ? data.warnings : [];
     // The server refused a live order for want of a plan. A stop, never a
     // retry: the dialogs render the plan prompt instead of "Try again".
     err.upgradeRequired = !!data.upgradeRequired;
@@ -46,9 +51,21 @@ const orderLegs = (setup) => setup.legs.map((l) => ({ symbol: l.symbol, ratio: l
 export default function useOpenOrder() {
   // detached: the user stopped watching a resting order; it is still working
   // at the broker and nothing here is following it any more.
-  const [phase, setPhase] = useState("idle"); // idle | working | filled | failed | detached
+  // warned: the server found something worth saying and sent NOTHING. The
+  // ticket prints it and the user either accepts it or goes back. It is its
+  // own phase rather than a kind of "failed" because nothing failed and
+  // nothing was placed — offering "Try again" here would be the wrong verb.
+  const [phase, setPhase] = useState("idle"); // idle | working | warned | filled | failed | detached
   const [log, setLog] = useState([]);
   const [upgrade, setUpgrade] = useState(null); // message when a plan is needed
+  const [warnings, setWarnings] = useState([]);
+  // The arguments of the submit that was held back, so accepting the warnings
+  // replays exactly it rather than a reconstruction of it.
+  const heldRef = useRef(null);
+  // Codes the user has accepted on THIS ticket. Carried into every resubmit a
+  // walk makes, so the same condition is not put to them every thirty seconds
+  // — and a condition that is new is still put to them once.
+  const ackRef = useRef([]);
   const [resting, setResting] = useState(false); // a hand-priced order is resting and being watched
   const stopRef = useRef(false);
   // Which order the resting watcher follows. A replace swaps the id under the
@@ -172,16 +189,20 @@ export default function useOpenOrder() {
   // priceMode: "walk" concedes the credit toward the bid until it fills;
   // "manual" submits the credit the user chose and leaves it resting; "market"
   // takes whatever the book gives.
-  async function run({ accountId, setup, qty, orderType, startCredit, minCredit, priceMode = "walk" }) {
+  async function run(args) {
+    const { accountId, setup, qty, orderType, startCredit, minCredit, priceMode = "walk" } = args;
     stopRef.current = false;
     genRef.current += 1;
     setLog([]);
     setUpgrade(null);
+    setWarnings([]);
+    heldRef.current = args;
     setPhase("working");
     const base = {
       accountId,
       legs: orderLegs(setup),
       qty,
+      acknowledged: ackRef.current,
       // The spot this setup was built on, sent unchanged on every resubmit. A
       // walk can run for minutes; if the underlying leaves the setup behind, the
       // server refusing is the correct outcome, not an obstacle.
@@ -342,6 +363,14 @@ export default function useOpenOrder() {
         await sleep(POLL);
       }
     } catch (e) {
+      if (e.needsAcknowledgement) {
+        // Nothing was sent, so nothing needs undoing and nothing failed. This
+        // is the server handing the decision back.
+        addLog("Held before sending — read the notes below.");
+        setWarnings(e.warnings);
+        setPhase("warned");
+        return;
+      }
       if (e.upgradeRequired) {
         addLog(`Stopped: ${e.message}`);
         setUpgrade(e.message);
@@ -350,6 +379,16 @@ export default function useOpenOrder() {
       }
       setPhase("failed");
     }
+  }
+
+  // The user read the notes and wants the order sent. Their consent is
+  // recorded per CODE, so it covers exactly what they were shown — a
+  // different condition arising later still stops.
+  function sendAnyway() {
+    const args = heldRef.current;
+    if (!args) return;
+    ackRef.current = [...new Set([...ackRef.current, ...warnings.map((w) => w.code)])];
+    run(args);
   }
 
   const stop = () => { stopRef.current = true; };
@@ -361,7 +400,12 @@ export default function useOpenOrder() {
     setPhase("idle");
     setLog([]);
     setUpgrade(null);
+    setWarnings([]);
+    // Acceptance is NOT cleared. The user returning to the ticket to change a
+    // strike has not un-learned that the market is closed, and putting the
+    // same note to them on every edit is how a warning becomes wallpaper.
+    // It clears when the ticket does, because the hook goes with it.
   };
 
-  return { phase, log, upgrade, resting, run, stop, reset, replacePrice };
+  return { phase, log, upgrade, resting, warnings, run, stop, reset, replacePrice, sendAnyway };
 }

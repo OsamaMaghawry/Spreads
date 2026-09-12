@@ -161,6 +161,11 @@ export function contractSetup(row, action, ctx) {
       collateral: covered ? basis * 100 : null,
       maxRisk: covered ? (basis - price) * 100 : null,
       unlimitedRisk: !covered,
+      // The basis itself travels, not just its source. Without it the ticket's
+      // payoff chart could not put the shares under the call and drew a NAKED
+      // call — loss falling without limit above the strike — directly beneath
+      // a "Max loss" cell that had been computed from this very number.
+      basis: covered ? basis : null,
       sharesHeld: shares,
       basisSource: ctx?.basisSource ?? null,
       maxContracts: covered ? Math.floor(shares / 100) : 0,

@@ -25,15 +25,45 @@ export const MODES = [
   { id: "market", label: "Market" }
 ];
 
+// THE TICKET WORKS IN MAGNITUDES, and `debit` says which direction they point.
+//
+// Every structure this file was written for collected a credit, because that
+// is all the scanner builds. The option chain can assemble one that COSTS
+// money — a put bought outright, a vertical the expensive way round — and on
+// those `setup.credit` is negative by the product's own convention. Feeding a
+// negative number to a control labelled "credit" produced "Set a credit first"
+// and no way past it.
+//
+// So the price the user types is always a positive number of dollars, and what
+// it means is settled by `debit`: a credit to be received, or a payment to be
+// made. The sign is put back on at submit, in one place, where the order is
+// built. `netQuote`'s `ask` is the best-for-us side in both directions, so the
+// same expression gives the opening credit on one and the cheapest fill on the
+// other.
+const mag = (v) => (typeof v === "number" ? Math.abs(Math.round(v * 100) / 100) : null);
+
 export function openingDefaults(setup) {
   const q = netQuote(setup?.legs);
   const scan = typeof setup?.credit === "number" ? Math.round(setup.credit * 100) / 100 : null;
+  const debit = scan !== null && scan < 0;
+  if (!debit) {
+    return {
+      quote: q,
+      // A structure with no usable quote falls back to the scan's own number
+      // rather than inventing one.
+      start: q?.ask ?? scan,
+      floor: scan,
+      debit: false
+    };
+  }
   return {
-    quote: q,
-    // A structure with no usable quote falls back to the scan's own number
-    // rather than inventing one.
-    start: q?.ask ?? scan,
-    floor: scan
+    // Flipped into a debit ladder: what it would cost at the near side is the
+    // bid, at the far side the ask, both positive.
+    quote: q ? { bid: mag(q.ask), ask: mag(q.bid), mid: mag(q.mid) } : null,
+    start: mag(q?.ask) ?? mag(scan),
+    // On a debit this is a CEILING, not a floor — the most the user will pay.
+    floor: mag(scan),
+    debit: true
   };
 }
 
@@ -44,7 +74,7 @@ export default function OpenPricing({
   minCredit, onMinCredit,
   liveQuote = null
 }) {
-  const { quote: scanQuote } = useMemo(() => openingDefaults(setup), [setup]);
+  const { quote: scanQuote, debit } = useMemo(() => openingDefaults(setup), [setup]);
   // The live quote, when the ticket has one, is what the verdict and the chips
   // are measured against: "crosses now" means now, not at scan time.
   const quote = liveQuote || scanQuote;
@@ -59,7 +89,13 @@ export default function OpenPricing({
       <div>
         <label className={label}>How to price it</label>
         <div className="flex rounded-lg overflow-hidden border border-slate-300">
-          {MODES.map((m) => (
+          {/* The walk is offered only on a credit. It starts at the best price
+              worth asking for and CONCEDES toward the bid, which on an order
+              you are paying for means creeping upward — the same mechanism,
+              the opposite meaning, and it has never been written or tested
+              that way. Resting at a price and taking the market both work in
+              either direction, so those two stay. */}
+          {MODES.filter((m) => !(debit && m.id === "walk")).map((m) => (
             <button
               key={m.id}
               type="button"
@@ -90,7 +126,7 @@ export default function OpenPricing({
           quote={quote}
           unit={unit}
           qty={qty}
-          side="credit"
+          side={debit ? "debit" : "credit"}
           id="open-limit-credit"
         />
       )}
@@ -130,7 +166,9 @@ export default function OpenPricing({
 
       {priceMode === "market" && (
         <p className="text-xs text-slate-500 leading-relaxed">
-          Market order executes immediately — the credit received may be lower than quoted.
+          Market order executes immediately — {debit
+            ? "the amount paid may be higher than quoted."
+            : "the credit received may be lower than quoted."}
         </p>
       )}
     </>
