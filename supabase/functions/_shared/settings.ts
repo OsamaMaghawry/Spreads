@@ -29,11 +29,17 @@ export const BILLING_VISIBLE = "billing_visible";
 // without the seed must leave the product in demo, never open live order entry
 // on a broker account by accident.
 export const DEMO_MODE = "demo_mode";
+// Who receives the weekly summary email: "off", "owner" or "users". The
+// closed default here is "owner" rather than "off", because "owner" cannot
+// reach a customer and still lets the owner see what the job produced -- a
+// job that silently does nothing is how two days of blog posts went missing.
+// The owner reviews real emails for real weeks before any of them leaves.
+export const WEEKLY_DIGEST_DELIVERY = "weekly_digest_delivery";
 
 // The keys an administrator may set through the panel. An allowlist rather
 // than "whatever key was posted", so the settings table cannot be used as a
 // general-purpose write target by anything holding an admin session.
-export const WRITABLE_SETTINGS = [MANUAL_API_KEYS, BILLING_ENFORCED, BILLING_VISIBLE, DEMO_MODE];
+export const WRITABLE_SETTINGS = [MANUAL_API_KEYS, BILLING_ENFORCED, BILLING_VISIBLE, DEMO_MODE, WEEKLY_DIGEST_DELIVERY];
 
 type Admin = ReturnType<typeof adminClient>;
 
@@ -50,7 +56,13 @@ export async function readSettings(admin: Admin) {
     billingVisible: byKey.get(BILLING_VISIBLE) === true,
     // Note the inverted test: demo is on unless something explicitly says
     // false. See the constant above for why this one is the other way round.
-    demoMode: byKey.get(DEMO_MODE) !== false
+    demoMode: byKey.get(DEMO_MODE) !== false,
+    // Anything unrecognised -- a missing row, a typo, a restored database --
+    // reads as "owner", the state that cannot mail a customer.
+    weeklyDigestDelivery:
+      byKey.get(WEEKLY_DIGEST_DELIVERY) === "users" ? "users"
+        : byKey.get(WEEKLY_DIGEST_DELIVERY) === "off" ? "off"
+          : "owner"
   };
 }
 
@@ -79,3 +91,8 @@ export const DEMO_MESSAGE =
   "DeltaMint is in demo while the broker reviews live trading. Paper accounts " +
   "trade normally; live accounts can be connected and watched, and positions on " +
   "them can always be closed, but no new live order is sent from here.";
+
+// Who the weekly summary goes to. See WEEKLY_DIGEST_DELIVERY above.
+export async function weeklyDigestDelivery(admin: Admin): Promise<"off" | "owner" | "users"> {
+  return (await readSettings(admin)).weeklyDigestDelivery as "off" | "owner" | "users";
+}
