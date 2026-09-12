@@ -228,25 +228,30 @@ export default function AccountAnalysis() {
   // $2,455.91 was the week's whole-book move -- and only one of them was
   // labelled "whole view".
   //
-  // The same series the chart draws, so the two cannot drift. Four conditions,
-  // each of which makes the figure meaningless if it does not hold:
+  // ALWAYS THE PERFORMANCE SERIES, never whatever the chart happens to be
+  // drawing. The first version read `dailyChart`, which carries `chartMode`,
+  // so switching the chart to Account value silently took the headline back to
+  // booked money -- the page answering a question about the strategy's result
+  // differently depending on which line was on screen beside it. `drawdown`
+  // below already had this right and this did not. Same mistake as reading a
+  // balance where a result was meant, one level up.
   //
-  //   all strategies   the daily marks are account-level and cannot be split
-  //   performance mode account VALUE is a balance, not a result
-  //   a date window    with no window the page already shows today's live
-  //                    mark, which is the more current answer for "right now"
-  //   a known baseline see `baselineKnown` -- without it the window would be
-  //                    credited with everything that came before it
+  // Three conditions, each of which makes the figure meaningless if it fails:
+  //
+  //   all strategies  the daily marks are account-level and cannot be split
+  //   a date window   with no window the page already shows today's live mark,
+  //                   which is the more current answer for "right now"
+  //   a known baseline  see `baselineKnown` -- without it the window would be
+  //                   credited with everything that came before it
   const windowedWhole = useMemo(() => {
-    if (view !== "whole") return null;
-    if (strategy !== "all" || chartMode !== "performance") return null;
-    if (!range.from) return null;
-    if (!useDaily || !dailyChart.baselineKnown) return null;
-    if (dailyChart.end === null || dailyChart.end === undefined) return null;
-    // The booked half, from the SAME two stored rows -- premium closed plus
-    // shares sold -- rather than from `computeStats`, which counts a different
-    // set of rows. Quoting two sources in one sentence is how the halves stop
-    // adding up to the whole the reader can see above them.
+    if (view !== "whole" || strategy !== "all" || !range.from) return null;
+    const whole = dailySeries(equitySeries, view, "performance", range);
+    if (!whole.points.length || !whole.baselineKnown) return null;
+    if (whole.end === null || whole.end === undefined) return null;
+    // The booked half, from the SAME stored rows -- premium closed plus shares
+    // sold -- rather than from `computeStats`, which counts a different set of
+    // rows. Quoting two sources in one sentence is how the halves stop adding
+    // up to the whole the reader can see above them.
     const n = (v) => (v === null || v === undefined || v === "" ? null : Number(v));
     const realized = dailySeries(
       equitySeries.map((r) => {
@@ -259,8 +264,8 @@ export default function AccountAnalysis() {
       range
     );
     if (realized.end === null || !realized.baselineKnown) return null;
-    return { figure: dailyChart.end, booked: realized.end };
-  }, [strategy, chartMode, range, useDaily, dailyChart, equitySeries, view]);
+    return { figure: whole.end, booked: realized.end };
+  }, [view, strategy, range, equitySeries]);
 
   const chartFallbackReason = useDaily
     ? null
