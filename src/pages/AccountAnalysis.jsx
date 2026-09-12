@@ -85,7 +85,11 @@ export default function AccountAnalysis() {
   const allTrades = data?.trades || [];
   const bounds = useMemo(() => {
     const dates = allTrades.map((t) => t.close_date).filter(Boolean).sort();
-    return { min: dates[0], max: dates[dates.length - 1] };
+    // `count` is the number of CLOSED trades, which is what the page measures
+    // and what its empty state must count. `allTrades.length` includes rows
+    // with no close date, so an account holding only open positions would have
+    // been told it had closed trades it could not find.
+    return { min: dates[0], max: dates[dates.length - 1], count: dates.length };
   }, [allTrades]);
   const trades = useMemo(
     () => allTrades.filter((t) => {
@@ -351,16 +355,16 @@ export default function AccountAnalysis() {
         // ordinary -- so the empty state has to distinguish "nothing at all"
         // from "nothing in THIS window", and leave the way back visible.
         <>
-          {allTrades.length > 0 && <StrategyTabs trades={trades} active={strategy} onChange={setStrategy} />}
+          {bounds.count > 0 && <StrategyTabs trades={trades} active={strategy} onChange={setStrategy} />}
           <div className="bg-white border border-slate-200 rounded-xl p-12 flex flex-col items-center gap-3 text-center">
             <BarChart3 className="w-8 h-8 text-slate-400" />
-            {allTrades.length === 0 ? (
+            {bounds.count === 0 ? (
               <p className="text-slate-500 text-sm max-w-sm">No closed trades to analyze yet.</p>
             ) : (
               <>
                 <p className="text-slate-600 text-sm max-w-sm">
                   Nothing closed{narrowedLabel}. This account has{" "}
-                  <strong>{allTrades.length}</strong> closed trade{allTrades.length === 1 ? "" : "s"} in all,
+                  <strong>{bounds.count}</strong> closed trade{bounds.count === 1 ? "" : "s"} in all,
                   the most recent on {bounds.max}.
                 </p>
                 {(range.from || range.to) && (
