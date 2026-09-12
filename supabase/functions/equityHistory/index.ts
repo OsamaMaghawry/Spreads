@@ -537,11 +537,28 @@ async function rebuild(admin, account, userId: string) {
 // Sequential and stale-aware, the same shape as `syncTrades`: one account's
 // rebuild is a year of daily bars per ticker, and running every account at
 // once is how an API key gets rate-limited.
-async function rebuildAll(admin: any, maxAgeMinutes: number) {
+// `includeLive` REPAIRS WHAT IS ALREADY STORED. It does not change the policy.
+//
+// PAPER_ONLY keeps live accounts out of scheduled work, so this function has
+// never built a series for one. But the SINGLE-ACCOUNT path below does not
+// consult it -- opening the Analysis page on a live account builds and stores
+// the whole series -- so live accounts on staging carry stored rows this
+// function cannot reach. When a defect is found in how those rows were
+// computed, "we only write live rows by accident, so we cannot correct them"
+// is not a defensible place to stand: the rows exist and they are wrong.
+//
+// Service-role only (the caller is gated above), opt-in, and off by default,
+// so no schedule starts storing live history on its own.
+async function rebuildAll(
+  admin: any,
+  maxAgeMinutes: number,
+  opts: { includeLive?: boolean; accountId?: string | null } = {}
+) {
   // Paper only: no daily series is built or stored for a live account. See
   // PAPER_ONLY in _shared/settings.ts.
-  const paperOnly = await paperOnlyMode(admin);
-  const accounts = await loadAllAccounts(admin, { paperOnly });
+  const paperOnly = opts.includeLive ? false : await paperOnlyMode(admin);
+  const all = await loadAllAccounts(admin, { paperOnly });
+  const accounts = opts.accountId ? all.filter((a: any) => a.id === opts.accountId) : all;
   const cutoff = maxAgeMinutes > 0 ? Date.now() - maxAgeMinutes * 60000 : null;
   const due = accounts.filter((a: any) => {
     if (cutoff === null) return true;
@@ -665,7 +682,10 @@ Deno.serve(async (req) => {
       const allowed =
         isServiceRole(req) || (await redeemCronTicket(admin, payload.ticket, "equity_history"));
       if (!allowed) return jsonResponse({ error: "Forbidden" }, 403);
-      return jsonResponse(await rebuildAll(admin, Number(payload.maxAgeMinutes) || 0));
+      return jsonResponse(await rebuildAll(admin, Number(payload.maxAgeMinutes) || 0, {
+        includeLive: payload.includeLive === true,
+        accountId: payload.accountId ? String(payload.accountId) : null
+      }));
     }
 
     const user = await requireUser(req);
