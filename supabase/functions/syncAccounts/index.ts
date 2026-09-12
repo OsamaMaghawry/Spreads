@@ -8,6 +8,7 @@ import { decryptSecret } from "../_shared/crypto.ts";
 import { parseOCCSymbol } from "../_shared/occ.ts";
 import { brokerView, coverageGaps } from "../_shared/brokerView.ts";
 import { bookRiskByTicker, bookRiskTotal } from "../_shared/bookRisk.ts";
+import { selectAllWhere } from "../_shared/paging.ts";
 import { legsOf } from "../_shared/positionLegs.ts";
 
 // Rebuilds the live picture for every account the caller owns: positions paired
@@ -169,11 +170,17 @@ async function syncOne(account) {
     // failure here leaves the broker's basis in place, labelled as such.
     const shareBasis = await (async () => {
       try {
-        const [{ data: lots }, { data: wheelRecords }] = await Promise.all([
-          admin.from("stock_lots").select("ticker, qty, acquired_price, acquired_date, chain_id, disposed_date")
-            .eq("account_id", account.id).is("disposed_date", null),
-          admin.from("trade_records").select("ticker, strategy, chain_id, net_credit, qty, open_date, close_date")
-            .eq("account_id", account.id).eq("strategy", "wheel")
+        // PAGED, like every other per-account read. A basis built from a
+        // truncated lot set is wrong rather than absent: the tickers past the
+        // thousandth row fall back to the broker's average entry price while
+        // still being presented as an adjusted basis.
+        const [lots, wheelRecords] = await Promise.all([
+          selectAllWhere(admin, "stock_lots",
+            "ticker, qty, acquired_price, acquired_date, chain_id, disposed_date", "id",
+            (q: any) => q.eq("account_id", account.id).is("disposed_date", null)),
+          selectAllWhere(admin, "trade_records",
+            "ticker, strategy, chain_id, net_credit, qty, open_date, close_date", "id",
+            (q: any) => q.eq("account_id", account.id).eq("strategy", "wheel"))
         ]);
         return basisByTicker(lots || [], wheelRecords || []);
       } catch (e) {

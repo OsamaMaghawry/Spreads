@@ -8,11 +8,16 @@ import EngagementPanel from "@/components/admin/EngagementPanel";
 import UsersPanel from "@/components/admin/UsersPanel";
 import BlogPanel from "@/components/admin/BlogPanel";
 import SettingsPanel from "@/components/admin/SettingsPanel";
+import IntegrityPanel from "@/components/admin/IntegrityPanel";
 
 const TABS = [
   { key: "engagement", label: "Engagement" },
   { key: "users", label: "Users" },
   { key: "blog", label: "Blog" },
+  // What the audit pass found. Before this the table had one writer and no
+  // readers, so a withheld trade or a frozen account was invisible to everyone
+  // including the operator.
+  { key: "integrity", label: "Integrity" },
   { key: "settings", label: "Settings" }
 ];
 
@@ -79,6 +84,8 @@ export default function Admin() {
           overview query. */}
       {tab === "blog" ? (
         <BlogPanel />
+      ) : tab === "integrity" ? (
+        <IntegrityPanel />
       ) : tab === "settings" ? (
         <SettingsPanel />
       ) : !data ? (

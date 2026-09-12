@@ -19,6 +19,7 @@
 // money path than moving code that does not change.
 
 import { alpacaFetch } from "./alpaca.ts";
+import { selectAllWhere } from "./paging.ts";
 import { lotFromOption } from "./writeGuards.ts";
 import {
   auditAccount,
@@ -33,22 +34,35 @@ import {
   type Finding
 } from "./integrity.ts";
 
+// PAGED, because PostgREST caps an unbounded select at a thousand rows and
+// reports no error.
+//
+// These two were the last uncapped reads on the money path, and they are the
+// worst place for it: this is the SYNC's view of what is stored, so past a
+// thousand rows the diff below is computed against a truncated stored set.
+// Everything absent from the invisible remainder reads as missing, so the sync
+// re-inserts rows that already exist (the unique constraint refuses them and
+// the whole pass errors), and every row past the cap is invisible to the
+// staleness diff forever. One staging book already holds 1,123 lots.
+//
+// `id` is the sort key rather than a date. Paging REQUIRES a total order or the
+// page boundaries overlap and skip -- and `close_date` is neither unique nor
+// non-null here, while `acquired_date` is not unique either. A tie at the page
+// boundary silently drops rows, which is the same class of defect one level
+// down. The callers that want a display order sort after reading.
 export async function fetchTrades(admin, accountId, ordered = true) {
-  let query = admin.from("trade_records").select("*").eq("account_id", accountId);
-  if (ordered) query = query.order("close_date", { ascending: false });
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-  return data || [];
+  const rows = await selectAllWhere(admin, "trade_records", "*", "id",
+    (q: any) => q.eq("account_id", accountId));
+  return ordered
+    ? rows.slice().sort((a: any, b: any) => String(b.close_date || "").localeCompare(String(a.close_date || "")))
+    : rows;
 }
 
 export async function fetchStockLots(admin, accountId) {
-  const { data, error } = await admin
-    .from("stock_lots")
-    .select("*")
-    .eq("account_id", accountId)
-    .order("acquired_date", { ascending: false });
-  if (error) throw new Error(error.message);
-  return data || [];
+  const rows = await selectAllWhere(admin, "stock_lots", "*", "id",
+    (q: any) => q.eq("account_id", accountId));
+  return rows.slice().sort((a: any, b: any) =>
+    String(b.acquired_date || "").localeCompare(String(a.acquired_date || "")));
 }
 
 // Everything the write is about to destroy, copied out first, as one row.

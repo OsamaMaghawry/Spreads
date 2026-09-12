@@ -241,6 +241,42 @@ Deno.serve(async (req) => {
         return jsonResponse({ users, engagement: engagement(users), metrics: metrics || null });
       }
 
+      // THE AUDIT TRAIL, GIVEN A READER.
+      //
+      // `integrity_findings` had one writer and no readers anywhere in the
+      // product: not here, not the admin UI, not the digest. So the framework's
+      // loudest actions -- a withheld trade, a frozen account -- were invisible
+      // to the user, to the operator, and to the cron's own result. A warning
+      // light nobody is wired to is not an audit.
+      //
+      // Open findings first and newest first within that, because what is open
+      // is what is wrong today. A resolved finding is kept and returned so a
+      // recurrence reads as one; `seen_count` counts passes, not days.
+      case "integrity": {
+        const { data, error } = await admin
+          .from("integrity_findings")
+          .select("id, account_id, user_id, code, subject, severity, action, message, detail, first_seen_at, last_seen_at, resolved_at, seen_count")
+          .order("resolved_at", { ascending: true, nullsFirst: true })
+          .order("last_seen_at", { ascending: false })
+          .limit(200);
+        if (error) throw new Error(error.message);
+        const rows = data || [];
+        // The account names, so a finding reads as "Wees" rather than a uuid.
+        const ids = [...new Set(rows.map((r: any) => r.account_id))];
+        const { data: accounts } = ids.length
+          ? await admin.from("trading_accounts").select("id, name, is_paper").in("id", ids)
+          : { data: [] };
+        const byId = new Map((accounts || []).map((a: any) => [a.id, a]));
+        return jsonResponse({
+          findings: rows.map((r: any) => ({
+            ...r,
+            accountName: byId.get(r.account_id)?.name || null,
+            isPaper: byId.get(r.account_id)?.is_paper ?? null
+          })),
+          open: rows.filter((r: any) => !r.resolved_at).length
+        });
+      }
+
       case "userDetail": {
         const [{ data: notes, error: nErr }, { data: crm, error: cErr }, { data: issues, error: iErr }] =
           await Promise.all([

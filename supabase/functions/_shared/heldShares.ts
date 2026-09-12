@@ -6,6 +6,7 @@
 // by scanEntries and findEntry so the two agree on which tickers a covered
 // call may be written on.
 import { tradingBase, alpacaFetch } from "./alpaca.ts";
+import { selectAllWhere } from "./paging.ts";
 import { parseOCCSymbol } from "./occ.ts";
 import { basisByTicker } from "./wheelBasis.ts";
 
@@ -25,11 +26,16 @@ export async function heldShares(admin: any, account: any) {
 
   let basis: Record<string, any> = {};
   try {
-    const [{ data: lots }, { data: wheelRecords }] = await Promise.all([
-      admin.from("stock_lots").select("ticker, qty, acquired_price, acquired_date, chain_id, disposed_date")
-        .eq("account_id", account.id).is("disposed_date", null),
-      admin.from("trade_records").select("ticker, strategy, chain_id, net_credit, qty, open_date, close_date")
-        .eq("account_id", account.id).eq("strategy", "wheel")
+    // PAGED. An adjusted basis built from a truncated lot set is a WRONG
+    // basis, not a missing one: the tickers past the cap silently fall back to
+    // the broker's average entry price while still being labelled adjusted.
+    const [lots, wheelRecords] = await Promise.all([
+      selectAllWhere(admin, "stock_lots",
+        "ticker, qty, acquired_price, acquired_date, chain_id, disposed_date", "id",
+        (q: any) => q.eq("account_id", account.id).is("disposed_date", null)),
+      selectAllWhere(admin, "trade_records",
+        "ticker, strategy, chain_id, net_credit, qty, open_date, close_date", "id",
+        (q: any) => q.eq("account_id", account.id).eq("strategy", "wheel"))
     ]);
     basis = basisByTicker(lots || [], wheelRecords || []);
   } catch (e) {

@@ -78,7 +78,7 @@ incomplete.
 ## Components, by area
 
 - **accounts** — AccountForm
-- **admin** — AdminMaintenance, BlogPanel, EngagementPanel, PostPreview, SettingsPanel, SignupsChart, StatTile, UsersPanel
+- **admin** — AdminMaintenance, BlogPanel, EngagementPanel, IntegrityPanel, PostPreview, SettingsPanel, SignupsChart, StatTile, UsersPanel
 - **analysis** — BreakdownTable, CaptureBreakdown, DateRangeFilter, EquityCurveChart, ExportPdfButton, OpenBookPanel, OpenOptionsPanel, StatCards, StrategyComparison, ViewSwitch
 - **billing** — UpgradePrompt
 - **brand** — DeltaMintMark, Wordmark
