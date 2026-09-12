@@ -51,7 +51,22 @@ export default function StatCards({ stats, withheld = null }) {
       title: "Returns",
       items: [
         { label: totalLabel, value: fmtMoney(stats.totalPL), sub: totalSub, tone: stats.totalPL >= 0 ? "pos" : "neg" },
-        { label: "Return on equity", value: pct(stats.roe), sub: `${totalLabel} ÷ account equity`, tone: stats.roe === null ? undefined : stats.roe >= 0 ? "pos" : "neg" },
+        // NOT "÷ account equity" any more, and the label mattered as much as
+        // the arithmetic. Account equity contains every deposit ever made, so
+        // dividing by it credited a period's result to money that arrived at
+        // the end of it — the owner's $700 deposit halved every rate on this
+        // page. The denominator is the capital that actually earned the
+        // result, weighted for when each dollar arrived, and the dash appears
+        // when the transfers cannot be read rather than a rate over a
+        // denominator nobody checked.
+        {
+          label: "Return on capital",
+          value: pct(stats.roe),
+          sub: stats.roe === null
+            ? "Needs your deposits and withdrawals — we could not read them for this account"
+            : `${totalLabel} ÷ capital at work, weighted for when it arrived`,
+          tone: stats.roe === null ? undefined : stats.roe >= 0 ? "pos" : "neg"
+        },
         // Withheld below 30 trades / 90 days: annualizing a short window
         // multiplies noise into a headline figure. The sub says so, so the
         // dash reads as deliberate rather than broken.
@@ -61,7 +76,7 @@ export default function StatCards({ stats, withheld = null }) {
         // performance advertisement. The same withholding the small-sample rule
         // already applies, for a stronger reason: below 30 trades the figure is
         // noisy, here it is built on money nobody has.
-        { label: "Annualized (simple)", value: annualizable ? pct(stats.annualized) : "—", sub: annualizable ? `Return on equity × 365 ÷ ${stats.spanDays} days` : stats.includesUnrealized ? "Not annualized while the total includes an unrealized mark on open positions" : "Needs 30 closed trades and 90 days of history", tone: !annualizable || stats.annualized === null ? undefined : stats.annualized >= 0 ? "pos" : "neg" },
+        { label: "Annualized (simple)", value: annualizable ? pct(stats.annualized) : "—", sub: annualizable ? `Return on capital × 365 ÷ ${stats.spanDays} days` : stats.includesUnrealized ? "Not annualized while the total includes an unrealized mark on open positions" : "Needs 30 closed trades and 90 days of history", tone: !annualizable || stats.annualized === null ? undefined : stats.annualized >= 0 ? "pos" : "neg" },
         { label: "Annualized (CAGR)", value: annualizable ? pct(stats.cagr) : "—", sub: annualizable ? "Compounded over the same span" : stats.includesUnrealized ? "Not annualized while the total includes an unrealized mark on open positions" : "Needs 30 closed trades and 90 days of history", tone: !annualizable || stats.cagr === null ? undefined : stats.cagr >= 0 ? "pos" : "neg" },
         { label: "Return on risk", value: pct(stats.returnOnRisk), sub: `vs ${fmtMoney(stats.peakRisk)} peak capital at risk` },
         { label: "Avg return / trade", value: pct(stats.avgTradeRoR, 2), sub: `Each trade's P/L ÷ its own collateral · ${basis.toLowerCase()}` },

@@ -21,6 +21,7 @@
 import { alpacaFetch } from "./alpaca.ts";
 import { selectAllWhere } from "./paging.ts";
 import { lotFromOption } from "./writeGuards.ts";
+import { cashFlows } from "./cashFlows.ts";
 import {
   auditAccount,
   applyFindings,
@@ -231,7 +232,58 @@ export async function fetchBrokerData(account, base) {
     settlementFeed = "unavailable";
   }
 
-  return { orderStrategy, activities, settlementFeed };
+  // CASH IN AND OUT, which this product has never asked for.
+  //
+  // THE DEFECT THIS CLOSES. Every return percentage on the Analysis page
+  // divided the account's P/L by the broker's CURRENT equity -- which contains
+  // every deposit ever made. The owner found it on his live account: a $700
+  // deposit into a ~$500 account more than doubled the denominator, for money
+  // that had been there five days and had never been in a position, and every
+  // rate on the page read roughly half what it should. *"It says the pl 500
+  // while it should be more but because I deposited 700 last week. It got
+  // reduced!!"*
+  //
+  // The root cause was not the arithmetic: it is that the four activity types
+  // above are fills, expirations, assignments and exercises, so a transfer was
+  // not merely mishandled, it was INVISIBLE. Nothing in the product could see
+  // a deposit, so nothing could subtract one.
+  //
+  // Its own request, like OPCSH above and for the same reason: these type
+  // names cannot be checked against documentation from this environment, and a
+  // type the API rejects takes the whole request down with it. A failure here
+  // must cost the return percentages -- which then render "—" -- and never the
+  // trade history.
+  //
+  //   CSD/CSW   cash deposit and withdrawal
+  //   JNLC      a cash journal, which is how a transfer between two accounts
+  //             of the same owner arrives
+  //   ACATC     cash arriving with an inbound account transfer
+  //
+  // JNLS and ACATS move SHARES rather than cash. Deliberately not here: a
+  // share arriving from outside has a basis this product cannot see, which is
+  // a different and larger problem than a denominator, and folding it in as a
+  // dollar amount would state a cost we do not know.
+  let flows: any[] | null = [];
+  try {
+    let token = null;
+    for (let i = 0; i < 20; i++) {
+      const url = `${base}/account/activities?activity_types=CSD,CSW,JNLC,ACATC&direction=desc&page_size=100` +
+        (token ? `&page_token=${encodeURIComponent(token)}` : "");
+      const page = await alpacaFetch(url, account);
+      if (!Array.isArray(page) || page.length === 0) break;
+      flows = flows.concat(page);
+      if (page.length < 100) break;
+      token = page[page.length - 1].id;
+    }
+  } catch {
+    // NULL, not []. "We looked and there were none" and "we could not look"
+    // are different answers, and collapsing them is how a denominator nobody
+    // checked gets published as a confident percentage -- the defect this
+    // whole change exists to remove.
+    flows = null;
+  }
+
+  return { orderStrategy, activities, settlementFeed, flows };
 }
 
 // Reconcile what the broker says against what is stored. The reconstruction is
@@ -285,6 +337,45 @@ export async function writeResults(
   return writeResultsInner(admin, accountId, userId, flagged, flaggedLots, enriched);
 }
 
+
+/**
+ * The account's cash movements, stored so every return has a denominator.
+ *
+ * Upserted on the broker's own activity id, so a re-sync cannot double a
+ * deposit -- and a doubled deposit halves a return, which is the very defect
+ * this table exists to fix arriving through the table itself.
+ *
+ * NOTHING IS DELETED HERE. A flow that stops appearing in the feed is far more
+ * likely to have aged out of the window the broker serves than to have been
+ * reversed, and dropping it would silently shrink the denominator of every
+ * historical return. The same reasoning as the equity series: rows accumulate.
+ *
+ * Allowed to fail without failing the sync. A missing flow costs the return
+ * percentages, which then render "—"; it must not cost the trade history.
+ */
+export async function writeCashFlows(admin, accountId, userId, rawFlows) {
+  const flows = cashFlows(rawFlows);
+  if (flows === null) return { stored: null };
+  if (!flows.length) return { stored: 0 };
+  try {
+    const { error } = await admin.from("cash_flows").upsert(
+      flows.map((f) => ({
+        account_id: accountId,
+        user_id: userId,
+        activity_id: f.id,
+        day: f.day,
+        amount: f.amount,
+        kind: f.kind
+      })),
+      { onConflict: "account_id,activity_id" }
+    );
+    if (error) throw new Error(error.message);
+    return { stored: flows.length };
+  } catch (e: any) {
+    console.error(`cash flows not stored for ${accountId}: ${e?.message || e}`);
+    return { stored: null };
+  }
+}
 
 export async function writeResultsInner(
   admin, accountId, userId, records, stockLots, findings: Finding[] = []

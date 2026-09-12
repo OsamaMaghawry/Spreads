@@ -1,4 +1,5 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { selectAllWhere } from "../_shared/paging.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { tradingBase, loadAccount } from "../_shared/alpaca.ts";
 import { awaitUpTo } from "../_shared/background.ts";
@@ -36,7 +37,7 @@ import {
   listSnapshots,
   readSnapshot,
   fetchBrokerData,
-  writeResults
+  writeResults, writeCashFlows
 } from "../_shared/tradeSync.ts";
 
 Deno.serve(async (req) => {
@@ -152,8 +153,9 @@ Deno.serve(async (req) => {
         .eq("id", accountId);
 
       const work = (async () => {
-        const { orderStrategy, activities } = await fetchBrokerData(account, base);
+        const { orderStrategy, activities, flows } = await fetchBrokerData(account, base);
         const { records, stockLots, breaches, orphanedStockPL, lotOwners } = reconstruct(activities, orderStrategy, accountId);
+        await writeCashFlows(admin, accountId, user.id, flows);
         return writeResults(admin, accountId, user.id, records, stockLots, breaches, orphanedStockPL, lotOwners);
       })().catch(async (err) => {
         // The failure has to land somewhere a person can see. Previously it was
@@ -174,9 +176,15 @@ Deno.serve(async (req) => {
       await awaitUpTo(work, WAIT_FOR_SYNC_MS);
     }
 
-    const [trades, stockLots, { data: fresh }] = await Promise.all([
+    const [trades, stockLots, flowRows, { data: fresh }] = await Promise.all([
       fetchTrades(admin, accountId),
       fetchStockLots(admin, accountId),
+      // Deposits and withdrawals. Every return percentage divides by the
+      // capital that EARNED the result, weighted for when each dollar arrived
+      // -- not by the closing balance, which credits the whole period to money
+      // that was only there for part of it.
+      selectAllWhere(admin, "cash_flows", "day, amount, kind", "id",
+        (q: any) => q.eq("account_id", accountId)).catch(() => null),
       admin
         .from("trading_accounts")
         .select("trades_synced_at, trades_sync_error")
@@ -190,6 +198,11 @@ Deno.serve(async (req) => {
       account: accountInfo,
       trades,
       stockLots,
+      // NULL means we could not read them, [] means there were none. The page
+      // renders every return as "—" on null rather than dividing by a
+      // denominator nobody checked -- which is the defect this whole change
+      // removes, and it must not come back through its own fix.
+      cashFlows: flowRows,
       syncedAt: finishedAt,
       // Why the figures below may be older than they should be. Null once a
       // sync succeeds; the page says so rather than implying it is current.

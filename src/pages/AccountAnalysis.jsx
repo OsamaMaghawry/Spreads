@@ -19,6 +19,7 @@ import ViewSwitch from "@/components/analysis/ViewSwitch";
 import { openBook, openOptions, openMark, premiumOnly, realizedShares, orphanedShares } from "@/lib/openBook";
 import { analysisHeadline } from "@/lib/headline";
 import { splitWithheld, withheldNote } from "@/lib/integrity";
+import { capitalAtWork, flowNote } from "@/lib/capital";
 import { dailySeries, bookedCurve } from "@/lib/equityCurve";
 
 export default function AccountAnalysis() {
@@ -238,9 +239,44 @@ export default function AccountAnalysis() {
   // 44% of equity while spreads with 55 trades and $20k got 56%. There is no
   // honest share to use, so a filtered view withholds it. Return on risk, which
   // divides by collateral the strategy really tied up, still answers it.
+  // THE DENOMINATOR EVERY RETURN IS MEASURED AGAINST.
+  //
+  // This used to be `equity` -- the broker's figure for what the account is
+  // worth RIGHT NOW, deposits included. The owner found what that costs on his
+  // live account: *"It says the pl 500 while it should be more but because I
+  // deposited 700 last week. It got reduced!!"* A $700 deposit into a roughly
+  // $500 account more than doubled the denominator, for money that had been
+  // there five days and had never been in a position.
+  //
+  // A return is a result divided by the capital that EARNED it, so each
+  // transfer is weighted by the share of the window it was actually present
+  // for. And when the flows cannot be read at all, this is null and every
+  // percentage renders "—": publishing a confident rate over a denominator
+  // nobody had checked is the whole defect, and it must not return through its
+  // own fix. See src/lib/capital.js.
+  const flows = data?.cashFlows ?? null;
+  const windowFrom = range.from || bounds.min || null;
+  const windowTo = range.to || bounds.max || null;
+  const openingEquity = useMemo(() => {
+    if (!windowFrom) return null;
+    const before = (equitySeries || []).filter((r) => r.day <= windowFrom);
+    const row = before.length ? before[before.length - 1] : null;
+    return row ? Number(row.equity) : null;
+  }, [equitySeries, windowFrom]);
+  const capital = useMemo(
+    () => (windowFrom && windowTo
+      ? capitalAtWork({ startEquity: openingEquity, flows, from: windowFrom, to: windowTo })
+      : null),
+    [openingEquity, flows, windowFrom, windowTo]
+  );
+  const transfersNote = useMemo(
+    () => (windowFrom && windowTo ? flowNote(flows, windowFrom, windowTo) : null),
+    [flows, windowFrom, windowTo]
+  );
+
   const stats = useMemo(
     () =>
-      computeStats(subset, strategy === "all" ? equity : 0, view, {
+      computeStats(subset, strategy === "all" ? (capital || 0) : 0, view, {
         unrealized: scopedUnrealized,
         // Drawdown measured on booked trades alone can only ever be the sum of
         // the option debits: a position that fell and recovered registers
@@ -254,7 +290,7 @@ export default function AccountAnalysis() {
         // A statistic must not move because a chart button moved.
         dailyPoints: drawdownPoints
       }),
-    [subset, strategy, equity, view, scopedUnrealized, drawdownPoints]
+    [subset, strategy, capital, view, scopedUnrealized, drawdownPoints]
   );
 
   const comparison = useMemo(() => {
@@ -479,6 +515,16 @@ export default function AccountAnalysis() {
             {withheldLine && (
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-800">
                 {withheldLine}
+              </div>
+            )}
+            {/* MONEY YOU MOVED, said beside the figures it changes the meaning
+                of. A deposit is not a gain and a withdrawal is not a loss, and
+                a reader who can see a step in the account-value line is owed
+                the reason for it on the same screen. Inside reportRef, so the
+                export carries it too. */}
+            {transfersNote && (
+              <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm text-sky-900">
+                {transfersNote}
               </div>
             )}
             {/* The switch, and the book it governs. Both sit INSIDE reportRef:

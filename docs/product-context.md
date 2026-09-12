@@ -170,6 +170,7 @@ revoked from the browser role entirely.
 - **weekly_digest_sends** — id, user_id, week_start, mode, recipient, status, detail, created_at, account_id
 - **cron_tickets** — token, purpose, created_at, expires_at, used_at
 - **integrity_findings** — id, account_id, user_id, code, subject, severity, action, message, detail, first_seen_at, last_seen_at, resolved_at, seen_count
+- **cash_flows** — id, account_id, user_id, activity_id, day, amount, kind, captured_at
 
 ## Analytics vocabulary
 

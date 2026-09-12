@@ -4,7 +4,7 @@ import { tradingBase } from "../_shared/alpaca.ts";
 import { loadAllAccounts } from "../_shared/accounts.ts";
 import { paperOnlyMode } from "../_shared/settings.ts";
 import { reconstruct } from "../_shared/tradeReconstruction.ts";
-import { fetchBrokerData, writeResults } from "../_shared/tradeSync.ts";
+import { fetchBrokerData, writeResults, writeCashFlows } from "../_shared/tradeSync.ts";
 
 // Keeping every connected account's history current, without anybody looking.
 //
@@ -43,9 +43,13 @@ async function syncOne(admin, account) {
       .update({ trades_sync_attempted_at: new Date().toISOString() })
       .eq("id", account.id);
 
-    const { orderStrategy, activities } = await fetchBrokerData(account, tradingBase(account));
+    const { orderStrategy, activities, flows } = await fetchBrokerData(account, tradingBase(account));
     const { records, stockLots, breaches, orphanedStockPL, lotOwners } = reconstruct(activities, orderStrategy, account.id);
     await writeResults(admin, account.id, account.user_id, records, stockLots, breaches, orphanedStockPL, lotOwners);
+    // Deposits and withdrawals, so every return has a denominator that is the
+    // capital which earned it rather than the closing balance. Allowed to fail
+    // on its own: it must cost the percentages, never the trade history.
+    await writeCashFlows(admin, account.id, account.user_id, flows);
 
     await admin
       .from("trading_accounts")
