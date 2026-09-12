@@ -1,8 +1,13 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
+import { loadAllAccounts } from "../_shared/accounts.ts";
+import { isServiceRole } from "../_shared/serviceRole.ts";
+import { paperOnlyMode } from "../_shared/settings.ts";
+import { redeemCronTicket } from "../_shared/cronTicket.ts";
 import { selectAllWhere } from "../_shared/paging.ts";
 import { loadAccount, alpacaFetch, tradingBase } from "../_shared/alpaca.ts";
 import {
+  sessionDay,
   equityDays,
   closesByDay,
   priceProblems,
@@ -271,7 +276,7 @@ async function rebuild(admin, account, userId: string) {
     ...tradeRows.map((t) => t.close_date),
     ...lotRows.map((l) => l.acquired_date)
   ].filter(Boolean).sort() as string[];
-  if (!starts.length) return [];
+  if (!starts.length) return { rows: [], skippedWeekend: 0 };
   const firstActivity = starts[0];
   // Bars from a week earlier, so a lot acquired on day one has a price on day
   // one even if that day is a holiday and the close has to be carried forward.
@@ -299,7 +304,16 @@ async function rebuild(admin, account, userId: string) {
 
   const closes = closesByDay(bars);
   const { collided, splitFrom } = priceProblems(bars);
-  const brokerDays = equityDays(history);
+  // `skippedWeekend` is a tripwire on the stamping this reads, not a routine
+  // filter — see equityDays. With the session mapping correct it is always 0,
+  // so anything else is worth a line in the function log before the run that
+  // shortened the series is forgotten.
+  const { days: brokerDays, skippedWeekend } = equityDays(history);
+  if (skippedWeekend) {
+    console.warn(
+      `equityHistory: ${skippedWeekend} broker entries mapped onto a weekend for account ${account.id} and were dropped — the 1D stamping may have changed.`
+    );
+  }
   const equityByDay = new Map(brokerDays.map((r) => [r.day, r]));
 
   // TICKERS THE LEDGER AND THE BROKER DISAGREE ABOUT.
@@ -381,7 +395,7 @@ async function rebuild(admin, account, userId: string) {
     ? brokerDays.map((r) => r.day)
     : fallbackCalendar(closes, tradeRows, lotRows)
   ).filter((d) => d >= firstActivity);
-  if (!calendar.length) return [];
+  if (!calendar.length) return { rows: [], skippedWeekend };
 
   const walk = dailyPortfolio(calendar, tradeRows, lotRows, closes, {
     unusable,
@@ -449,16 +463,163 @@ async function rebuild(admin, account, userId: string) {
     if (error) throw new Error(error.message);
   }
 
-  return rows;
+  return { rows, skippedWeekend };
+}
+
+// THE SCHEDULED REBUILD -- every connected account, nobody having to look.
+//
+// The owner, twice: *"Everything should be synced automatically whether the
+// user opened the account or not. It's a trading account. It should be always
+// updated as long as it is connected."* And again, on finding five of eight
+// accounts with no stored series at all: *"I said multiple times, everything
+// should be updated from our side always. If something is not, it's our
+// issue."*
+//
+// He is right, and the first correction was only half applied. Migration 0033
+// put TRADE records on a cron for exactly this reason and quotes him saying
+// it; this series was left on pull-when-you-look, so an account nobody opened
+// had no history -- and the weekly email then had nothing to report for a user
+// who had traded 128 times. That is our gap, not the user's, and labelling it
+// politely in the email was the wrong fix. This is the fix.
+//
+// Sequential and stale-aware, the same shape as `syncTrades`: one account's
+// rebuild is a year of daily bars per ticker, and running every account at
+// once is how an API key gets rate-limited.
+async function rebuildAll(admin: any, maxAgeMinutes: number) {
+  // Paper only: no daily series is built or stored for a live account. See
+  // PAPER_ONLY in _shared/settings.ts.
+  const paperOnly = await paperOnlyMode(admin);
+  const accounts = await loadAllAccounts(admin, { paperOnly });
+  const cutoff = maxAgeMinutes > 0 ? Date.now() - maxAgeMinutes * 60000 : null;
+  const due = accounts.filter((a: any) => {
+    if (cutoff === null) return true;
+    const at = a.equity_synced_at ? Date.parse(a.equity_synced_at) : 0;
+    return !at || at < cutoff;
+  });
+
+  const results: any[] = [];
+  for (const account of due) {
+    try {
+      // Stamped before the work, as in the single-account path above: the
+      // stamp is the in-flight guard, and an empty table forces a retry
+      // whatever the stamp says.
+      await admin
+        .from("trading_accounts")
+        .update({ equity_synced_at: new Date().toISOString() })
+        .eq("id", account.id);
+      const { skippedWeekend } = await rebuild(admin, account, account.user_id);
+      const { count } = await admin
+        .from("account_equity_daily")
+        .select("day", { count: "exact", head: true })
+        .eq("account_id", account.id);
+      // Reported, not just logged. A tripwire in a function log is a tripwire
+      // nobody is standing next to; this one travels back with the run so the
+      // caller that started the rebuild sees it.
+      results.push({ accountId: account.id, ok: true, days: count ?? null, skippedWeekend });
+    } catch (e) {
+      // One account's broker refusing must not cost every other account its
+      // series. Recorded, and the run continues.
+      console.error(`equityHistory: rebuild ${account.id}: ${e?.message || e}`);
+      results.push({ accountId: account.id, ok: false, error: String(e?.message || e) });
+    }
+  }
+  return {
+    accounts: accounts.length,
+    attempted: due.length,
+    skippedFresh: accounts.length - due.length,
+    failed: results.filter((r) => !r.ok).length,
+    results
+  };
+}
+
+// WHAT THE BROKER'S STAMP ACTUALLY SAYS, read rather than inferred.
+//
+// `sessionDay` decides which session every stored row belongs to from the hour
+// of the stamp in New York, and for as long as this table has existed that
+// decision was made on an assumption nobody checked -- which is how every row
+// came to be filed one session late. The correction rests on the same kind of
+// claim, so it does not get to rest on the same kind of evidence.
+//
+// The stored `day` column cannot settle it: it IS `sessionDay`'s own output,
+// so reading it back only re-reports the assumption. This returns the raw
+// integers, beside what they decode to, so the rule can be checked against the
+// feed instead of against itself. Writes nothing, and gated exactly like the
+// scheduled rebuild.
+async function probeStamping(admin: any, accountId: string | null) {
+  const paperOnly = await paperOnlyMode(admin);
+  const accounts = await loadAllAccounts(admin, { paperOnly });
+  const chosen = accountId ? accounts.filter((a: any) => a.id === accountId) : accounts.slice(0, 1);
+  if (!chosen.length) return { error: "no account to probe" };
+
+  const out: any[] = [];
+  for (const account of chosen) {
+    const history = await fetchPortfolioHistory(account);
+    const stamps = Array.isArray(history?.timestamp) ? history.timestamp : [];
+    // The tail is what matters: the last eight sessions are the ones a reader
+    // is looking at, and the newest entry answers a second question -- whether
+    // Alpaca appends an intraday point for the session in progress, which
+    // would not be offset and must not be shifted like the others.
+    const tail = stamps.slice(-8);
+    out.push({
+      accountId: account.id,
+      name: account.name,
+      entries: stamps.length,
+      stamps: tail.map((t: number) => ({
+        t,
+        utc: new Date(t * 1000).toISOString(),
+        eastern: new Intl.DateTimeFormat("en-US", {
+          timeZone: "America/New_York",
+          dateStyle: "short",
+          timeStyle: "short"
+        }).format(new Date(t * 1000)),
+        sessionDay: sessionDay(t)
+      }))
+    });
+  }
+  return { probed: out.length, accounts: out };
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
+    const payload = await req.json().catch(() => ({}));
+
+    // Read-only, writes nothing, same gate as the scheduled rebuild: it names
+    // accounts and reaches a broker, which is not something any signed-in user
+    // may do on somebody else's behalf.
+    if (payload?.probe === true) {
+      const admin = adminClient();
+      const allowed =
+        isServiceRole(req) || (await redeemCronTicket(admin, payload.ticket, "equity_history"));
+      if (!allowed) return jsonResponse({ error: "Forbidden" }, 403);
+      return jsonResponse(await probeStamping(admin, payload.accountId ? String(payload.accountId) : null));
+    }
+
+    // The scheduled path, and it is gated on the SERVICE ROLE rather than on
+    // being signed in. `verify_jwt` only asks whether the caller is somebody,
+    // and any signed-in user is somebody -- which would let one user start a
+    // rebuild of every account in the product and read back a list of account
+    // ids. This asks the question that matters.
+    if (payload?.scheduled === true) {
+      const admin = adminClient();
+      // EITHER credential is sufficient, and neither is the anon key.
+      //
+      // The service-role bearer is the right answer and is what the Vault row
+      // is supposed to hold; on staging that row turned out to contain the
+      // ANON key, so the cron could not authorise itself at all. The ticket is
+      // minted inside the database by the scheduler and redeemed here through
+      // our own service-role connection, which needs no secret to travel
+      // between the two. See _shared/cronTicket.ts.
+      const allowed =
+        isServiceRole(req) || (await redeemCronTicket(admin, payload.ticket, "equity_history"));
+      if (!allowed) return jsonResponse({ error: "Forbidden" }, 403);
+      return jsonResponse(await rebuildAll(admin, Number(payload.maxAgeMinutes) || 0));
+    }
+
     const user = await requireUser(req);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-    const { accountId } = await req.json();
+    const { accountId } = payload;
     if (!accountId) return jsonResponse({ error: "accountId is required" }, 400);
 
     const admin = adminClient();

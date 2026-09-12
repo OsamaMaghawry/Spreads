@@ -29,11 +29,56 @@ export const BILLING_VISIBLE = "billing_visible";
 // without the seed must leave the product in demo, never open live order entry
 // on a broker account by accident.
 export const DEMO_MODE = "demo_mode";
+// Whether the product touches LIVE brokerage accounts at all.
+//
+// PRODUCTION AND LIVE ARE TWO DIFFERENT AXES, and conflating them is what
+// this setting exists to end. "Production" is the environment -- the real
+// database, the real users, deltamint.app. "Live" is what kind of money a
+// connected brokerage account holds. A PAPER account inside PRODUCTION is an
+// ordinary, wanted thing; it is what the product runs on until the broker
+// approves live trading. The owner: *"Differentiate between production as an
+// environment and the live account. I don't want live accounts. I want the
+// paper accounts inside the production."*
+//
+// DEMO_MODE already stops a new ORDER reaching a live account. It does not
+// stop us syncing one, storing its trades, watching it, or emailing its
+// results -- and on production that meant a real-money account's history was
+// being written and mailed while the product was nominally a demo. This is
+// the switch that was missing.
+//
+// While it is on, a live account stays connected, stays visible on the
+// dashboard, and can still be closed out of. What it is excluded from is
+// everything that READS IT ON A SCHEDULE OR STORES IT: the trade sync, the
+// daily equity series, the position watch, and the weekly email.
+//
+// Defaults ON, like DEMO_MODE and for the same reason: here the restrictive
+// answer is the safe one. A missing row, a failed read or a database restored
+// without the seed must leave the product not touching real money.
+export const PAPER_ONLY = "paper_only";
+// Who receives the weekly summary email: "off", "owner" or "users". The
+// closed default here is "owner" rather than "off", because "owner" cannot
+// reach a customer and still lets the owner see what the job produced -- a
+// job that silently does nothing is how two days of blog posts went missing.
+// The owner reviews real emails for real weeks before any of them leaves.
+export const WEEKLY_DIGEST_DELIVERY = "weekly_digest_delivery";
+// Where to relay mail when THIS project has no mail provider of its own.
+// `{ "url": "https://<project>.supabase.co", "key": "<that project's anon key>" }`
+// or absent.
+//
+// In app_settings rather than an environment variable on purpose: function
+// secrets can only be set from the dashboard or the CLI, and the whole reason
+// this exists is that staging is missing one. Operator configuration that can
+// be changed without a deploy is the pattern every other switch in this file
+// already follows. The key stored here is a project's ANON key, which is
+// public by design -- it ships in the browser bundle -- and `sendDigest`
+// accepts it deliberately; see that function's header. Nothing secret is kept
+// here, and the table is service-role only regardless.
+export const DIGEST_RELAY = "digest_relay";
 
 // The keys an administrator may set through the panel. An allowlist rather
 // than "whatever key was posted", so the settings table cannot be used as a
 // general-purpose write target by anything holding an admin session.
-export const WRITABLE_SETTINGS = [MANUAL_API_KEYS, BILLING_ENFORCED, BILLING_VISIBLE, DEMO_MODE];
+export const WRITABLE_SETTINGS = [MANUAL_API_KEYS, BILLING_ENFORCED, BILLING_VISIBLE, DEMO_MODE, PAPER_ONLY, WEEKLY_DIGEST_DELIVERY, DIGEST_RELAY];
 
 type Admin = ReturnType<typeof adminClient>;
 
@@ -50,7 +95,21 @@ export async function readSettings(admin: Admin) {
     billingVisible: byKey.get(BILLING_VISIBLE) === true,
     // Note the inverted test: demo is on unless something explicitly says
     // false. See the constant above for why this one is the other way round.
-    demoMode: byKey.get(DEMO_MODE) !== false
+    demoMode: byKey.get(DEMO_MODE) !== false,
+    // Inverted like demoMode: on unless something explicitly says false.
+    paperOnly: byKey.get(PAPER_ONLY) !== false,
+    // Anything unrecognised -- a missing row, a typo, a restored database --
+    // reads as "owner", the state that cannot mail a customer.
+    weeklyDigestDelivery:
+      byKey.get(WEEKLY_DIGEST_DELIVERY) === "users" ? "users"
+        : byKey.get(WEEKLY_DIGEST_DELIVERY) === "off" ? "off"
+          : "owner",
+    // Shape-checked here so a malformed row reads as "no relay" rather than
+    // reaching a fetch as undefined.
+    digestRelay: (() => {
+      const v = byKey.get(DIGEST_RELAY) as { url?: string; key?: string } | undefined;
+      return v && typeof v.url === "string" && v.url ? { url: v.url, key: String(v.key || "") } : null;
+    })()
   };
 }
 
@@ -79,3 +138,20 @@ export const DEMO_MESSAGE =
   "DeltaMint is in demo while the broker reviews live trading. Paper accounts " +
   "trade normally; live accounts can be connected and watched, and positions on " +
   "them can always be closed, but no new live order is sent from here.";
+
+// Whether live accounts are excluded from every scheduled read and every
+// stored figure. See PAPER_ONLY above.
+export async function paperOnlyMode(admin: Admin) {
+  return (await readSettings(admin)).paperOnly;
+}
+
+// Who the weekly summary goes to. See WEEKLY_DIGEST_DELIVERY above.
+export async function weeklyDigestDelivery(admin: Admin): Promise<"off" | "owner" | "users"> {
+  return (await readSettings(admin)).weeklyDigestDelivery as "off" | "owner" | "users";
+}
+
+// Where to relay mail from a project with no provider of its own. Null when
+// there is none, which is the normal state in production.
+export async function digestRelay(admin: Admin): Promise<{ url: string; key: string } | null> {
+  return (await readSettings(admin)).digestRelay;
+}

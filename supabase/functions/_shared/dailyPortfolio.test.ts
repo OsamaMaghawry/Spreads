@@ -14,6 +14,11 @@ import {
 // sessionDay
 // ---------------------------------------------------------------------------
 
+// Alpaca's two stampings of the SAME session, written out rather than as bare
+// integers, because the whole defect these tests exist for was a number whose
+// meaning nobody checked.
+const at = (iso: string) => Date.parse(iso) / 1000;
+
 test("sessionDay reads unix SECONDS, not milliseconds", () => {
   // 2026-09-01 20:00:00 UTC — a US close in daylight time.
   assert.equal(sessionDay(1788292800), "2026-09-01");
@@ -22,10 +27,38 @@ test("sessionDay reads unix SECONDS, not milliseconds", () => {
   assert.equal(new Date(1788292800).toISOString().slice(0, 4), "1970");
 });
 
-test("sessionDay agrees for both of Alpaca's stampings of one session", () => {
-  // Midnight Eastern (04:00 UTC) and the 20:00 UTC close of the same session.
-  assert.equal(sessionDay(1788235200), "2026-09-01");
-  assert.equal(sessionDay(1788292800), "2026-09-01");
+test("sessionDay reads the stamp the feed actually sends", () => {
+  // Not a constructed example. This is a real entry from Alpaca's 1D portfolio
+  // history for a paper account, captured through equityHistory's `probe` path
+  // on 12 Sep 2026, and every one of that account's 252 entries has this shape:
+  // midnight UTC of the day AFTER the session, which is 20:00 in New York ON
+  // the session day. Reading the UTC date — which is what this used to do —
+  // files Friday's session on a Saturday.
+  assert.equal(new Date(1789171200 * 1000).toISOString(), "2026-09-12T00:00:00.000Z");
+  assert.equal(sessionDay(1789171200), "2026-09-11");
+});
+
+test("sessionDay maps midnight-Eastern stamps back to the session that ENDED", () => {
+  // THE DEFECT. Alpaca stamps a 1D entry at midnight Eastern FOLLOWING the
+  // session, which is 04:00 UTC on the next calendar day. Read as a UTC date —
+  // which is what this did — Monday's session is filed on Tuesday, and every
+  // row in account_equity_daily was one session late for as long as the table
+  // existed.
+  assert.equal(sessionDay(at("2026-09-01T04:00:00Z")), "2026-08-31"); // Monday's
+  assert.equal(sessionDay(at("2026-09-02T04:00:00Z")), "2026-09-01"); // Tuesday's
+  // And the one that made it visible without a broker: Friday's session stamped
+  // at midnight Eastern lands on a Saturday UTC date. The market does not open
+  // on Saturday, so a Saturday row was always proof of this bug.
+  assert.equal(sessionDay(at("2026-09-12T04:00:00Z")), "2026-09-11"); // Friday's
+});
+
+test("sessionDay leaves a close-of-session stamp on its own day", () => {
+  // 16:00 Eastern is after the bell, so the same rule reads it unchanged —
+  // one rule for both stampings rather than a guess about which is in use.
+  assert.equal(sessionDay(at("2026-09-01T20:00:00Z")), "2026-09-01");
+  // Standard time, when the close is 21:00 UTC and midnight Eastern is 05:00.
+  assert.equal(sessionDay(at("2026-12-01T21:00:00Z")), "2026-12-01");
+  assert.equal(sessionDay(at("2026-12-02T05:00:00Z")), "2026-12-01");
 });
 
 test("sessionDay refuses nonsense rather than returning an epoch date", () => {
@@ -38,49 +71,70 @@ test("sessionDay refuses nonsense rather than returning an epoch date", () => {
 // equityDays
 // ---------------------------------------------------------------------------
 
+// Three consecutive sessions — Monday, Tuesday, Wednesday — each stamped the
+// way Alpaca stamps them, at midnight Eastern after the session closed.
+const MON = at("2026-09-01T04:00:00Z"); // → 2026-08-31
+const TUE = at("2026-09-02T04:00:00Z"); // → 2026-09-01
+const WED = at("2026-09-03T04:00:00Z"); // → 2026-09-02
+
+test("equityDays labels each entry with the session it belongs to", () => {
+  const { days } = equityDays({ timestamp: [MON, TUE, WED], equity: [1, 2, 3] });
+  assert.deepEqual(days.map((r) => r.day), ["2026-08-31", "2026-09-01", "2026-09-02"]);
+});
+
 test("equityDays drops the unfunded days before the first deposit", () => {
-  const rows = equityDays({
-    timestamp: [1788148800, 1788235200, 1788321600],
+  const { days } = equityDays({
+    timestamp: [MON, TUE, WED],
     equity: [0, 140000, 140120],
     profit_loss: [0, 0, 120],
     base_value: 140000
   });
-  assert.equal(rows.length, 2);
-  assert.equal(rows[0].equity, 140000);
-  assert.equal(rows[0].base_value, 140000);
+  assert.equal(days.length, 2);
+  assert.equal(days[0].equity, 140000);
+  assert.equal(days[0].base_value, 140000);
 });
 
 test("equityDays keeps a genuine zero AFTER the account has been funded", () => {
   // An account drawn to zero is a fact about the account; only the leading
   // zeros are the artefact.
-  const rows = equityDays({
-    timestamp: [1788148800, 1788235200],
-    equity: [140000, 0]
-  });
-  assert.equal(rows.length, 2);
-  assert.equal(rows[1].equity, 0);
+  const { days } = equityDays({ timestamp: [MON, TUE], equity: [140000, 0] });
+  assert.equal(days.length, 2);
+  assert.equal(days[1].equity, 0);
 });
 
 test("equityDays skips a gap rather than writing it as zero", () => {
-  const rows = equityDays({
-    timestamp: [1788148800, 1788235200, 1788321600],
-    equity: [140000, null, 141000]
-  });
-  assert.deepEqual(rows.map((r) => r.equity), [140000, 141000]);
+  const { days } = equityDays({ timestamp: [MON, TUE, WED], equity: [140000, null, 141000] });
+  assert.deepEqual(days.map((r) => r.equity), [140000, 141000]);
 });
 
 test("equityDays takes the last entry for a repeated day", () => {
-  const rows = equityDays({
-    timestamp: [1788235200, 1788292800],
+  // The same session read twice — once at its close, once at midnight Eastern
+  // after it. Both must reduce to one day, which they only do if the mapping
+  // is right.
+  const { days } = equityDays({
+    timestamp: [at("2026-09-01T20:00:00Z"), at("2026-09-02T04:00:00Z")],
     equity: [140000, 140500]
   });
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].equity, 140500);
+  assert.equal(days.length, 1);
+  assert.equal(days[0].day, "2026-09-01");
+  assert.equal(days[0].equity, 140500);
+});
+
+test("equityDays refuses an entry that lands on a weekend, and counts it", () => {
+  // Insurance, not a filter: with the mapping correct nothing reaches this.
+  // 16:00 on a Saturday is after the bell on a day with no bell, so it is
+  // evidence the stamping changed rather than evidence about the account.
+  const { days, skippedWeekend } = equityDays({
+    timestamp: [at("2026-09-12T20:00:00Z"), TUE],
+    equity: [140000, 140500]
+  });
+  assert.equal(skippedWeekend, 1);
+  assert.deepEqual(days.map((r) => r.day), ["2026-09-01"]);
 });
 
 test("equityDays on an empty or missing payload returns nothing, not a throw", () => {
-  assert.deepEqual(equityDays(null), []);
-  assert.deepEqual(equityDays({}), []);
+  assert.deepEqual(equityDays(null), { days: [], skippedWeekend: 0 });
+  assert.deepEqual(equityDays({}), { days: [], skippedWeekend: 0 });
 });
 
 // ---------------------------------------------------------------------------

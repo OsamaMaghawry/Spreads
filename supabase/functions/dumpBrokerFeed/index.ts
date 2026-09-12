@@ -31,6 +31,7 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { isAdminUser } from "../_shared/admin.ts";
+import { redeemCronTicket } from "../_shared/cronTicket.ts";
 import { decryptSecret } from "../_shared/crypto.ts";
 
 const tradingBase = (account: any) =>
@@ -76,24 +77,46 @@ async function get(url: string, account: any, retries = 4) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const { accountId } = await req.json().catch(() => ({}));
+    const { accountId, ticket } = await req.json().catch(() => ({}));
     if (!accountId) return jsonResponse({ error: "accountId is required" }, 400);
 
-    const user = await requireUser(req);
-    if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
-
     const admin = adminClient();
+
+    // A PLATFORM CAPTURE, alongside the signed-in one.
+    //
+    // Three production accounts stopped syncing on the impossible-result
+    // guard, and diagnosing that needs the exact feed -- which is why this
+    // function exists. But capturing it needed a signed-in session, and the
+    // maintenance path has none: a scheduled job, or an operator working
+    // through the database, holds the service role and no user.
+    //
+    // So a single-use ticket minted inside the database authorises it too,
+    // the same mechanism the equity rebuild uses. It cannot be forged by
+    // anything holding the published anon key -- `cron_tickets` and
+    // `mint_cron_ticket` are revoked from anon and authenticated -- and it is
+    // spent on redemption. Nothing about what this function DOES widens: it
+    // still only reads a broker feed into a table revoked from the browser.
+    const byTicket = await redeemCronTicket(admin, ticket, "broker_feed_dump");
+
+    let user: any = null;
+    if (!byTicket) {
+      user = await requireUser(req);
+      if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+    }
+
     const { data, error } = await admin
       .from("trading_accounts")
       .select("*")
       .eq("id", accountId)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    // Same answer for "no such account" and "not yours" — which of the two it
-    // is would tell an unauthorised caller that the id is real.
-    const owned = !!data && data.user_id === user.id;
-    if (!owned && !(data && (await isAdminUser(user, admin)).isAdmin)) {
-      return jsonResponse({ error: "account not found" }, 404);
+    if (!byTicket) {
+      // Same answer for "no such account" and "not yours" — which of the two
+      // it is would tell an unauthorised caller that the id is real.
+      const owned = !!data && data.user_id === user.id;
+      if (!owned && !(data && (await isAdminUser(user, admin)).isAdmin)) {
+        return jsonResponse({ error: "account not found" }, 404);
+      }
     }
     if (!data) return jsonResponse({ error: "account not found" }, 404);
 

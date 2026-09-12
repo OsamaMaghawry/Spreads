@@ -17,6 +17,7 @@ import OpenBookPanel from "@/components/analysis/OpenBookPanel";
 import OpenOptionsPanel from "@/components/analysis/OpenOptionsPanel";
 import ViewSwitch from "@/components/analysis/ViewSwitch";
 import { openBook, openOptions, openMark, premiumOnly, realizedShares, orphanedShares } from "@/lib/openBook";
+import { analysisHeadline } from "@/lib/headline";
 import { dailySeries, bookedCurve } from "@/lib/equityCurve";
 
 export default function AccountAnalysis() {
@@ -85,7 +86,11 @@ export default function AccountAnalysis() {
   const allTrades = data?.trades || [];
   const bounds = useMemo(() => {
     const dates = allTrades.map((t) => t.close_date).filter(Boolean).sort();
-    return { min: dates[0], max: dates[dates.length - 1] };
+    // `count` is the number of CLOSED trades, which is what the page measures
+    // and what its empty state must count. `allTrades.length` includes rows
+    // with no close date, so an account holding only open positions would have
+    // been told it had closed trades it could not find.
+    return { min: dates[0], max: dates[dates.length - 1], count: dates.length };
   }, [allTrades]);
   const trades = useMemo(
     () => allTrades.filter((t) => {
@@ -111,6 +116,28 @@ export default function AccountAnalysis() {
     () => (strategy === "all" ? trades : trades.filter((t) => strategyOf(t) === strategy)),
     [trades, strategy]
   );
+
+  // What the page is narrowed BY — the two controls, kept apart.
+  //
+  // Two things read this and they need different halves of it, which is why it
+  // is not one string. The empty state wants them joined into a phrase; the
+  // headline wants to know WHICH control is narrowing, because a date range and
+  // a strategy tab exclude the open book for entirely different reasons.
+  const narrowing = useMemo(
+    () => ({
+      strategy: strategy === "all" ? null : strategyLabel(strategy).toLowerCase(),
+      when:
+        range.from && range.to ? `between ${range.from} and ${range.to}`
+          : range.from ? `on or after ${range.from}`
+            : range.to ? `on or before ${range.to}`
+              : null
+    }),
+    [strategy, range]
+  );
+  // The same two, joined, for the empty state: "Nothing closed in covered calls
+  // between 2026-09-05 and 2026-09-12."
+  const narrowedLabel =
+    `${narrowing.strategy ? ` in ${narrowing.strategy}` : ""}${narrowing.when ? ` ${narrowing.when}` : ""}`;
 
   // 2. The shares still held, and what they are worth now.
   //
@@ -264,17 +291,47 @@ export default function AccountAnalysis() {
     () => orphanedShares(data?.stockLots, allTrades),
     [data, allTrades]
   );
-  const wholeUnknown = !stats || !scoped || (hasOpen && liveMark === null);
-  const headlineFigure =
-    view === "premium" ? premiumFigure : wholeUnknown ? null : stats?.totalPL ?? null;
-  const headlineUnknown = view === "premium" ? false : wholeUnknown;
-  const withheldNote = !headlineUnknown
-    ? null
-    : !scoped
-      ? "No whole-account total while a strategy tab or date range is set — the shares are held today, and adding them to a filtered figure would answer nothing."
-      : book.unrealized === null && book.lots > 0
-        ? "Part of the share book has no price. See the shares below."
-        : "The broker returned no value for an open option leg. See the positions below.";
+  // The headline, and what it is allowed to claim. See src/lib/headline.js for
+  // why this stopped being a dash: the mark cannot be filtered, but the booked
+  // total can, and the honest answer is to show the booked total under a label
+  // that says "booked" rather than to withhold the only number there is.
+  //
+  // The one refinement the shared helper cannot make is WHICH part of the open
+  // book has no price, so that sentence is appended here where the book is.
+  const headline = analysisHeadline({
+    view,
+    stats,
+    premium: premiumFigure,
+    hasOpen,
+    liveMark,
+    narrowing
+  });
+  // THE CHART AND THE HEADLINE, reconciled where they differ.
+  //
+  // Only one configuration makes them disagree, and it is exactly the one the
+  // headline used to blank: all strategies, whole view, a date window, on the
+  // stored daily line. There the headline is realized money for the window and
+  // the line is marked at each day's close, so it also carries the open book's
+  // movement across the window. Under a strategy tab `useDaily` is false and
+  // the chart is `bookedCurve` over the same rows the headline sums, so the
+  // two tie to the cent and this must stay silent.
+  //
+  // The sentence names the cause and NOT a number: the gap is the open book's
+  // move plus whatever `orphanFigure` contributes, and attributing all of it to
+  // one of the two would be a fresh piece of false precision.
+  const chartReconcileNote =
+    view === "whole" && useDaily && chartMode === "performance" &&
+    (range.from || range.to) && stats && !stats.includesUnrealized
+      ? "This line is marked at each day's close, so it also moves with the positions still open while the window runs. The figure at the top of the page counts only what closed, which is why the line does not end on it."
+      : null;
+
+  const unpricedDetail =
+    hasOpen && liveMark === null
+      ? book.unrealized === null && book.lots > 0
+        ? " Part of the share book has no price."
+        : " The broker returned no value for an open option leg."
+      : "";
+  const headlineNote = headline.note ? `${headline.note}${unpricedDetail}` : null;
 
   if (loading) {
     return (
@@ -330,10 +387,38 @@ export default function AccountAnalysis() {
       {error ? (
         <div className="bg-rose-50 border border-rose-200 rounded-xl p-6 text-sm text-rose-700">{error}</div>
       ) : !stats ? (
-        <div className="bg-white border border-slate-200 rounded-xl p-12 flex flex-col items-center gap-3 text-center">
-          <BarChart3 className="w-8 h-8 text-slate-400" />
-          <p className="text-slate-500 text-sm max-w-sm">No closed trades to analyze yet.</p>
-        </div>
+        // "No closed trades to analyze yet" was the only thing this branch
+        // could say, and on a filtered page it is false: an account with 150
+        // closed trades that happens to have closed none this week was being
+        // told it had never traded. The 1W preset makes that the common case
+        // rather than the rare one -- a week with nothing closed in it is
+        // ordinary -- so the empty state has to distinguish "nothing at all"
+        // from "nothing in THIS window", and leave the way back visible.
+        <>
+          {bounds.count > 0 && <StrategyTabs trades={trades} active={strategy} onChange={setStrategy} />}
+          <div className="bg-white border border-slate-200 rounded-xl p-12 flex flex-col items-center gap-3 text-center">
+            <BarChart3 className="w-8 h-8 text-slate-400" />
+            {bounds.count === 0 ? (
+              <p className="text-slate-500 text-sm max-w-sm">No closed trades to analyze yet.</p>
+            ) : (
+              <>
+                <p className="text-slate-600 text-sm max-w-sm">
+                  Nothing closed{narrowedLabel}. This account has{" "}
+                  <strong>{bounds.count}</strong> closed trade{bounds.count === 1 ? "" : "s"} in all,
+                  the most recent on {bounds.max}.
+                </p>
+                {(range.from || range.to) && (
+                  <button
+                    onClick={() => setRange({ from: "", to: "" })}
+                    className="text-xs text-slate-600 underline hover:text-slate-900"
+                  >
+                    Clear the date range
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </>
       ) : (
         <>
           <StrategyTabs trades={trades} active={strategy} onChange={setStrategy} />
@@ -358,9 +443,10 @@ export default function AccountAnalysis() {
                 <ViewSwitch
                   value={view}
                   onChange={setView}
-                  figure={headlineFigure}
-                  figureUnknown={headlineUnknown}
-                  withheldNote={withheldNote}
+                  figure={headline.figure}
+                  figureLabel={headline.label}
+                  note={headlineNote}
+                  marked={view === "premium" || Boolean(stats?.includesUnrealized)}
                 />
                 {/* The one thing the switch does NOT change, said plainly.
                     Everything else on this page now recomputes; credit capture
@@ -402,6 +488,7 @@ export default function AccountAnalysis() {
               onModeChange={setChartMode}
               hasValueSeries={hasValueSeries && useDaily}
               fallbackReason={chartFallbackReason}
+              reconcileNote={chartReconcileNote}
             />
             <CaptureBreakdown trades={subset} />
             <div className="grid gap-4 lg:grid-cols-2">

@@ -2,6 +2,7 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient } from "../_shared/supabaseClients.ts";
 import { tradingBase } from "../_shared/alpaca.ts";
 import { loadAllAccounts } from "../_shared/accounts.ts";
+import { paperOnlyMode } from "../_shared/settings.ts";
 import { reconstruct } from "../_shared/tradeReconstruction.ts";
 import { fetchBrokerData, writeResults } from "../_shared/tradeSync.ts";
 
@@ -69,7 +70,11 @@ Deno.serve(async (req) => {
   try {
     const { maxAgeMinutes = 0 } = await req.json().catch(() => ({}));
     const admin = adminClient();
-    const accounts = await loadAllAccounts(admin);
+    // Live accounts are not synced while the product is paper-only: storing a
+    // real-money account's history is exactly what that switch exists to stop.
+    // See PAPER_ONLY in _shared/settings.ts.
+    const paperOnly = await paperOnlyMode(admin);
+    const accounts = await loadAllAccounts(admin, { paperOnly });
 
     // `maxAgeMinutes` lets a frequent job skip accounts already fresh, so the
     // hourly run does not re-pull a hundred requests per account for one that

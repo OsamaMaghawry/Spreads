@@ -38,7 +38,11 @@ export default function EquityCurveChart({
   mode = "performance",
   onModeChange,
   hasValueSeries = false,
-  fallbackReason = null
+  fallbackReason = null,
+  // Why this line does not end on the headline figure. Supplied by the page,
+  // which is the only thing that knows what the headline is currently claiming
+  // -- see the reconciliation caption below.
+  reconcileNote = null
 }) {
   const points = Array.isArray(curve?.points) ? curve.points : [];
   if (!points.length) return null;
@@ -64,7 +68,13 @@ export default function EquityCurveChart({
       ? "Credits taken and debits paid on closed option trades. Shares are not in this line."
       : curve.mode === "booked"
         ? "Money booked by this strategy, in the order it booked it"
-        : "Option legs, shares already sold, and the mark on shares still held — priced at each day's close";
+        // "the mark on shares still held" omitted the OPTION legs still open,
+        // which this line has carried since `options_open` was added to the
+        // stored series. That omission is load-bearing: this subtitle is the
+        // text a reader uses to work out why the line and the headline differ,
+        // so a line that understates what the line contains sends them to the
+        // wrong answer.
+        : "Option legs, shares already sold, and the mark on everything still open — shares and open option legs alike — priced at each day's close";
 
   // An account balance never has a meaningful zero on screen; a P/L line does,
   // and the axis has to REACH it or a losing window renders as a wedge rising
@@ -171,6 +181,21 @@ export default function EquityCurveChart({
             Measured from the close of the last day before this date range, so the line shows what
             this window did rather than everything that came before it.
           </p>
+        )}
+        {/* THE LINE AND THE HEADLINE DO NOT AGREE, and the page must say so
+            where the difference is rather than leave a reader to find it.
+            Under a date window the headline is realized money for that window,
+            while this line carries the move in the open book across the same
+            window on top of it. On a book of 100 shares and an open option leg
+            that difference is not a rounding term and the two can even carry
+            opposite signs.
+
+            Deliberately NOT gated on `curve.rebased`: rebasing needs a `from`,
+            so a window with only a `to` set does not rebase and would have
+            skipped this caption while still disagreeing with the headline. The
+            page decides, and passes the sentence or nothing. */}
+        {reconcileNote && (
+          <p className="text-[11px] text-slate-500 leading-relaxed">{reconcileNote}</p>
         )}
         {curve.mode === "booked" && fallbackReason && (
           <p className="text-[11px] text-amber-700 leading-relaxed">{fallbackReason}</p>

@@ -56,7 +56,25 @@ const OPTIONS = [
     // The mark reaches exactly three outputs -- totalPL, roe, returnOnRisk --
     // and reaches NONE of them under a strategy tab or a date range, because
     // scopedUnrealized is null there. The sentence rendered unconditionally.
-    long: "Every figure below counts the whole position: the option legs and the shares they delivered. Everything still open — shares held, and option legs not yet closed — is marked into the total, return on equity and return on risk. The win and loss figures are outcomes of closed positions and cannot count an open one."
+    //
+    // So there are now two of it, and the caller says which is true. This was
+    // recorded as a defect in this comment and left unfixed; it is the same
+    // defect as the blanked headline below -- one text describing two states --
+    // and it is fixed the same way, by saying which state this is.
+    long: "Every figure below counts the whole position: the option legs and the shares they delivered. Everything still open — shares held, and option legs not yet closed — is marked into the total, return on equity and return on risk. The win and loss figures are outcomes of closed positions and cannot count an open one.",
+    // SCOPED TO THE THREE OUTPUTS THE MARK ACTUALLY REACHES, and no wider. The
+    // first draft of this variant said "nothing still open is inside them" of
+    // every figure below, which the equity line contradicts: on the daily
+    // series that line is realized + shares open + option legs open at each
+    // day's close, so the open book IS inside it. Reproducing the original
+    // defect in the mirror direction is not a fix. The chart explains itself
+    // where it is drawn -- see EquityCurveChart's reconciliation caption.
+    //
+    // It also may not say "while this page is narrowed". `marked` goes false
+    // for a second reason -- an unfiltered page holding a position the broker
+    // will not price -- and naming a filter there invents one the reader never
+    // set, which is the mistake headline.js explicitly refuses to make.
+    unmarked: "Every figure below counts the whole position: the option legs and the shares they delivered. Here the total, return on equity and return on risk are realized money alone — what is still open is listed below on its own rather than added into them. The win and loss figures are outcomes of closed positions and cannot count an open one."
   },
   {
     key: "premium",
@@ -69,9 +87,17 @@ const OPTIONS = [
   }
 ];
 
-export default function ViewSwitch({ value, onChange, figure, figureUnknown, withheldNote }) {
+// `figureLabel` rather than a label derived from the view, because the same
+// view has two honest headings. Under a filter the mark on everything still
+// open cannot be added, so the figure is booked money and the heading has to
+// say so -- see src/lib/headline.js for the owner's "Should be a number here"
+// and why blanking it was the wrong answer to a real problem.
+export default function ViewSwitch({ value, onChange, figure, figureLabel, note, marked = true }) {
   const active = OPTIONS.find((o) => o.key === value) || OPTIONS[0];
-  const showFigure = !figureUnknown && figure !== null && figure !== undefined;
+  const showFigure = figure !== null && figure !== undefined && !isNaN(figure);
+  // Whole view has two truths and `marked` picks the one this page is showing.
+  // Premium only has one, and carries no `unmarked` text to fall back to.
+  const describes = (!marked && active.unmarked) || active.long;
 
   return (
     <div className="bg-white border-2 border-slate-900 rounded-xl overflow-hidden">
@@ -105,7 +131,7 @@ export default function ViewSwitch({ value, onChange, figure, figureUnknown, wit
               aria-hidden="true"
             />
           </div>
-          <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">{active.long}</p>
+          <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">{describes}</p>
         </div>
 
         {/* One figure, the selected view's. Never both: showing the other
@@ -113,7 +139,7 @@ export default function ViewSwitch({ value, onChange, figure, figureUnknown, wit
             comparison instead of a filter. */}
         <div className="min-w-[190px] border-t sm:border-t-0 sm:border-l border-slate-200 bg-slate-50 p-4 flex flex-col justify-center">
           <div className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">
-            {active.label} total
+            {figureLabel || `${active.label} total`}
           </div>
           <div
             className={`text-2xl font-semibold tabular-nums mt-1 ${
@@ -122,12 +148,13 @@ export default function ViewSwitch({ value, onChange, figure, figureUnknown, wit
           >
             {showFigure ? `${figure >= 0 ? "+" : ""}${fmtMoney(figure)}` : "—"}
           </div>
-          {/* A dash always says why. brand.md: a figure that cannot be trusted
-              renders as "—", never as a substitute number — and never without
-              its reason, or it reads as broken rather than withheld. */}
-          {!showFigure && withheldNote && (
-            <div className="text-[10px] text-amber-700 mt-1 leading-snug">{withheldNote}</div>
-          )}
+          {/* The note is NOT only for a dash. Its more common job now is to say
+              what a real number leaves out — the mark on everything still open,
+              which no filtered figure can contain. A dash still always says
+              why: brand.md, a figure that cannot be trusted renders as "—",
+              never as a substitute number, and never without its reason, or it
+              reads as broken rather than withheld. */}
+          {note && <div className="text-[10px] text-amber-700 mt-1 leading-snug">{note}</div>}
         </div>
       </div>
     </div>

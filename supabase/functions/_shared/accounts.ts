@@ -23,10 +23,21 @@ import { selectAllWhere } from "./paging.ts";
  * token or an API key. A row with neither cannot reach a broker, and including
  * it would turn every scheduled run into a list of failures nobody can act on.
  */
-export async function loadAllAccounts(admin: any) {
-  const rows = await selectAllWhere(admin, "trading_accounts", "*", "id", (q) =>
-    q.or("oauth_access_token.not.is.null,api_key.not.is.null")
-  );
+export async function loadAllAccounts(admin: any, opts: { paperOnly?: boolean } = {}) {
+  const rows = await selectAllWhere(admin, "trading_accounts", "*", "id", (q) => {
+    const connected = q.or("oauth_access_token.not.is.null,api_key.not.is.null");
+    // PAPER ONLY is applied HERE rather than in each caller, because this is
+    // the one door every scheduled job already walks through -- the trade
+    // sync, the daily equity series and the position watch all load their work
+    // list from this function. A filter in three callers is a filter that
+    // eventually exists in two. See PAPER_ONLY in settings.ts.
+    //
+    // Passed in rather than read here: this module does no I/O of its own
+    // beyond the query it was asked for, and a shared loader that silently
+    // consults a settings table is one whose behaviour cannot be read off its
+    // signature.
+    return opts.paperOnly ? connected.eq("is_paper", true) : connected;
+  });
   const out: any[] = [];
   for (const a of rows) {
     out.push({

@@ -1,7 +1,12 @@
 import { Calendar } from "lucide-react";
 
+// Shortest first, so the row reads as a scale. 1W is the owner's, and it is
+// the range the rest were missing: 30D is the narrowest thing the page could
+// previously be asked for, which on an account trading weekly expiries is
+// several cycles of results averaged into one number.
 const presets = [
   { label: "All", days: null },
+  { label: "1W", days: 7 },
   { label: "30D", days: 30 },
   { label: "90D", days: 90 },
   { label: "6M", days: 182 },
