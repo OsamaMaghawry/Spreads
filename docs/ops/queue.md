@@ -5,6 +5,35 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Needs owner
 
+- [needs owner] 2026-09-12 · **`http://deltamint.app/` does not upgrade to
+  HTTPS**, and neither does `http://deltamint.app/terms`. `site-health.yml`
+  has failed on this every run since at least #35 (it is the only thing
+  failing it), so the red has been standing long enough to stop being read.
+  Two `[FAIL]`s and eight `[warn]`s, all of them Cloudflare configuration
+  rather than code:
+  - **Turn on SSL/TLS → Edge Certificates → Always Use HTTPS.** Clears both
+    failures. A plain-http apex is the one item on this list a reputation
+    engine reads directly.
+  - **Enable HSTS** in the same panel. Three of the warnings.
+  - `www.deltamint.app` answers **HTTP 522** on both schemes — Cloudflare
+    cannot reach an origin for the `www` host. Either point it at the same
+    Worker route as the apex or stop publishing the name.
+  - `x-content-type-options` and `referrer-policy` are missing on both
+    `deltamint.app` and `dashboard.deltamint.app`. These two are OURS, not
+    Cloudflare's — they can be set on every response from the landing Worker
+    and the app Worker, and should be, rather than left to a dashboard toggle.
+    Filed as work, not as an owner item.
+
+- [needs owner] 2026-09-12 · **`publish-blog.yml` fails on `main` at its
+  credentials guard**: the GitHub Actions secret `SUPABASE_SERVICE_ROLE_KEY`
+  is not set on this repository. (The 2026-09-07 entries below record it being
+  added — it is not present now, so it was either removed or added on a
+  different repository.) The job refuses rather than writing with an empty key,
+  which is the right behaviour, but it means **no blog post merged to `main`
+  reaches the production blog**, including `option-delta-explained` in today's
+  release. Set it under Settings → Secrets and variables → Actions and re-run
+  the workflow.
+
 - [needs owner] 2026-09-12 · **The Vault row named `service_role_key` contains
   the ANON key, on staging.** Found while verifying the scheduled equity
   rebuild: the new all-accounts endpoint refused its own cron, correctly. The
