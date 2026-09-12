@@ -35,11 +35,24 @@ export const DEMO_MODE = "demo_mode";
 // job that silently does nothing is how two days of blog posts went missing.
 // The owner reviews real emails for real weeks before any of them leaves.
 export const WEEKLY_DIGEST_DELIVERY = "weekly_digest_delivery";
+// Where to relay mail when THIS project has no mail provider of its own.
+// `{ "url": "https://<project>.supabase.co", "key": "<that project's anon key>" }`
+// or absent.
+//
+// In app_settings rather than an environment variable on purpose: function
+// secrets can only be set from the dashboard or the CLI, and the whole reason
+// this exists is that staging is missing one. Operator configuration that can
+// be changed without a deploy is the pattern every other switch in this file
+// already follows. The key stored here is a project's ANON key, which is
+// public by design -- it ships in the browser bundle -- and `sendDigest`
+// accepts it deliberately; see that function's header. Nothing secret is kept
+// here, and the table is service-role only regardless.
+export const DIGEST_RELAY = "digest_relay";
 
 // The keys an administrator may set through the panel. An allowlist rather
 // than "whatever key was posted", so the settings table cannot be used as a
 // general-purpose write target by anything holding an admin session.
-export const WRITABLE_SETTINGS = [MANUAL_API_KEYS, BILLING_ENFORCED, BILLING_VISIBLE, DEMO_MODE, WEEKLY_DIGEST_DELIVERY];
+export const WRITABLE_SETTINGS = [MANUAL_API_KEYS, BILLING_ENFORCED, BILLING_VISIBLE, DEMO_MODE, WEEKLY_DIGEST_DELIVERY, DIGEST_RELAY];
 
 type Admin = ReturnType<typeof adminClient>;
 
@@ -62,7 +75,13 @@ export async function readSettings(admin: Admin) {
     weeklyDigestDelivery:
       byKey.get(WEEKLY_DIGEST_DELIVERY) === "users" ? "users"
         : byKey.get(WEEKLY_DIGEST_DELIVERY) === "off" ? "off"
-          : "owner"
+          : "owner",
+    // Shape-checked here so a malformed row reads as "no relay" rather than
+    // reaching a fetch as undefined.
+    digestRelay: (() => {
+      const v = byKey.get(DIGEST_RELAY) as { url?: string; key?: string } | undefined;
+      return v && typeof v.url === "string" && v.url ? { url: v.url, key: String(v.key || "") } : null;
+    })()
   };
 }
 
@@ -95,4 +114,10 @@ export const DEMO_MESSAGE =
 // Who the weekly summary goes to. See WEEKLY_DIGEST_DELIVERY above.
 export async function weeklyDigestDelivery(admin: Admin): Promise<"off" | "owner" | "users"> {
   return (await readSettings(admin)).weeklyDigestDelivery as "off" | "owner" | "users";
+}
+
+// Where to relay mail from a project with no provider of its own. Null when
+// there is none, which is the normal state in production.
+export async function digestRelay(admin: Admin): Promise<{ url: string; key: string } | null> {
+  return (await readSettings(admin)).digestRelay;
 }

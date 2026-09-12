@@ -18,7 +18,7 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient } from "../_shared/supabaseClients.ts";
 import { sendEmail } from "../_shared/email.ts";
-import { weeklyDigestDelivery } from "../_shared/settings.ts";
+import { weeklyDigestDelivery, digestRelay } from "../_shared/settings.ts";
 import { weekWindow, accountWeek, type Window } from "../_shared/weeklyDigest.ts";
 import { renderAccountWeek } from "../_shared/weeklyDigestEmail.ts";
 
@@ -56,24 +56,22 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 // The relay is therefore only ever used for owner-mode review copies. In
 // production, where the key is present, `sendEmail` sends directly and the
 // relay is never reached.
-const RELAY_URL = Deno.env.get("DIGEST_RELAY_URL") || "";
-const RELAY_KEY = Deno.env.get("DIGEST_RELAY_KEY") || "";
-
 async function deliver(
-  to: string, subject: string, html: string, text: string
+  to: string, subject: string, html: string, text: string,
+  relay: { url: string; key: string } | null
 ): Promise<{ sent: boolean; skipped?: string; error?: string; via: string }> {
   const direct = await sendEmail(to, subject, html, text);
   if (direct.sent) return { ...direct, via: "brevo" };
   // Only a MISSING PROVIDER falls back. A provider that answered with an error
   // is a real failure and must be reported as one rather than retried down a
   // second path that hides it.
-  if (!direct.skipped || !RELAY_URL) return { ...direct, via: "brevo" };
+  if (!direct.skipped || !relay) return { ...direct, via: "brevo" };
   try {
-    const res = await fetch(`${RELAY_URL.replace(/\/$/, "")}/functions/v1/sendDigest`, {
+    const res = await fetch(`${relay.url.replace(/\/$/, "")}/functions/v1/sendDigest`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        ...(RELAY_KEY ? { authorization: `Bearer ${RELAY_KEY}`, apikey: RELAY_KEY } : {})
+        ...(relay.key ? { authorization: `Bearer ${relay.key}`, apikey: relay.key } : {})
       },
       body: JSON.stringify({ subject, html, text })
     });
@@ -98,6 +96,7 @@ Deno.serve(async (req) => {
       : weekWindow(new Date());
 
     const mode = await weeklyDigestDelivery(admin);
+    const relay = await digestRelay(admin);
     if (mode === "off") return jsonResponse({ ok: true, mode, skipped: "delivery is off" });
 
     // `dryRun` builds everything and sends nothing. It is how the shape of a
@@ -232,7 +231,7 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          const sent = await deliver(recipient, subject, html, text);
+          const sent = await deliver(recipient, subject, html, text, relay);
           await admin.from("weekly_digest_sends").upsert(
             {
               user_id: userId,
