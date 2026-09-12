@@ -397,7 +397,7 @@ interface Trade {
 }
 
 /**
- * An option position still open, for the days it has been open.
+ * One option leg, for the days it was on the book.
  *
  * The owner, 11 Sep: *"make sure the analysis has the open positions too, not
  * only the closed ones."* `trades` above are closed by construction and `lots`
@@ -407,16 +407,103 @@ interface Trade {
  * `costBasis` is SIGNED as the broker reports it: positive for a long (paid),
  * negative for a short (credit taken). So `qty * multiplier * close - costBasis`
  * is the mark for both sides with no special case.
+ *
+ * `to` IS WHY THIS IS NOT CALLED `OpenOptionLeg` ANY MORE, and the rename is
+ * the whole point of the September 12th repair. The caller used to build this
+ * list from the broker's positions endpoint -- what is open RIGHT NOW -- and
+ * hand it to a walk that reaches back years. A leg open last Friday and closed
+ * on Monday was therefore absent from last Friday, and every earlier day was
+ * marked with today's book.
+ *
+ * The owner found it on his own account: *"how I just earned only six hundred
+ * ... this rebound should be at least two thousand."* He was carrying two
+ * in-the-money short TSLA puts into the 4 September expiry. The broker's equity
+ * carried their cost; this file recorded the day as fully priced with NO OPEN
+ * OPTIONS, so the week started from a figure about $2,000 too kind and the
+ * week's gain came out that much too small.
+ *
+ * So a leg now carries BOTH ends of its life, and the walk marks it between
+ * them. `to` null means still open; the closed ones come from the trade
+ * records, which have carried their symbols, entries and dates all along.
  */
-interface OpenOptionLeg {
+interface BookOptionLeg {
   symbol?: string | null;
   /** Signed: negative is short. */
   qty?: number | string | null;
   costBasis?: number | string | null;
   /** The day the position was opened. Without one it cannot be placed in time. */
   from?: string | null;
+  /**
+   * The day it closed, or null while it is still open. A leg closed ON this day
+   * is money on this day, not a position at that day's close -- the same
+   * `to <= d` rule the share lots use, and for the same reason: its result is
+   * already in `premium_cum`, so marking it as well would count it twice.
+   */
+  to?: string | null;
   /** Shares per contract. Anything but 100 means a corporate action. */
   multiplier?: number | string | null;
+}
+
+/** A closed `trade_records` row, as far as its option legs are concerned. */
+export interface ClosedRecordLegs {
+  open_date?: string | null;
+  close_date?: string | null;
+  qty?: number | string | null;
+  short_symbol?: string | null;
+  long_symbol?: string | null;
+  /** Per share, as an option is quoted. The credit taken on the short side. */
+  short_entry?: number | string | null;
+  /** Per share. The debit paid on the long side. */
+  long_entry?: number | string | null;
+}
+
+/**
+ * The legs a closed trade put on the book, and for how long.
+ *
+ * SIGNS, which is the whole of the arithmetic and the easiest thing to get
+ * backwards. `short_entry` and `long_entry` are quoted PER SHARE and the
+ * record's `qty` counts CONTRACTS, so both need `x qty x 100` — the single most
+ * common way a premium comes out a hundred times too small. Then:
+ *
+ *   short   quantity NEGATIVE, cost basis NEGATIVE (a credit was taken)
+ *   long    quantity POSITIVE, cost basis POSITIVE (a debit was paid)
+ *
+ * which is exactly how the broker's own positions endpoint signs the legs that
+ * are still open, so the walk marks a closed leg and a live one through the
+ * same line with no special case. A short put sold for $1.44 is qty -1 and cost
+ * -$144; on a day it closed at $5.00 its mark is -1 x 100 x 5 - (-144) = -$356,
+ * a loss of $356, which is what it is.
+ *
+ * A ROW WITHOUT AN ENTRY PRICE YIELDS A LEG WITH NO COST, NOT NO LEG. The walk
+ * reads a null cost as "on the book, cannot be valued" and withholds that day.
+ * Dropping the leg instead would report the day as fully priced while missing a
+ * position — the defect this whole file exists to refuse.
+ */
+export function legsFromRecords(records: ClosedRecordLegs[] | null | undefined): BookOptionLeg[] {
+  const out: BookOptionLeg[] = [];
+  for (const r of records || []) {
+    const to = day(r?.close_date);
+    // An OPEN record is not this function's business: the broker's positions
+    // endpoint carries the live book, with the basis the broker itself reports.
+    // Taking it from here as well would count the leg twice on every day both
+    // lists cover.
+    if (!to) continue;
+    const from = day(r?.open_date);
+    const qty = num(r?.qty);
+    if (qty === null || qty <= 0) continue;
+    const contracts = qty * 100;
+    const short = String(r?.short_symbol || "");
+    if (short) {
+      const entry = num(r?.short_entry);
+      out.push({ symbol: short, qty: -qty, costBasis: entry === null ? null : -entry * contracts, from, to });
+    }
+    const long = String(r?.long_symbol || "");
+    if (long) {
+      const entry = num(r?.long_entry);
+      out.push({ symbol: long, qty, costBasis: entry === null ? null : entry * contracts, from, to });
+    }
+  }
+  return out;
 }
 
 interface Lot {
@@ -459,7 +546,7 @@ export function dailyPortfolio(
   opts: {
     unusable?: string[];
     unusableFrom?: Record<string, string>;
-    openOptions?: OpenOptionLeg[];
+    optionLegs?: BookOptionLeg[];
     optionCloses?: Record<string, Record<string, number>>;
   } = {}
 ): DailyRow[] {
@@ -623,7 +710,8 @@ export function dailyPortfolio(
     return series[list[idx]];
   };
 
-  // Option legs still open, prepared once.
+  // The option book, prepared once. Legs still open and legs already closed
+  // alike -- see BookOptionLeg for why both have to be here.
   //
   // AN ADJUSTED CONTRACT IS PRICED, NOT REFUSED, and the first version had this
   // backwards. `occ.ts:25-28` settles it against the symbology: a 3-for-2 split
@@ -636,7 +724,7 @@ export function dailyPortfolio(
   // `multiplier` therefore only ever narrows: a caller that knows a contract
   // genuinely delivers on a different premium multiple can say so, and the walk
   // withholds. Nothing supplies one today.
-  const legs = (opts.openOptions || [])
+  const legs = (opts.optionLegs || [])
     .map((o) => {
       const qty = num(o?.qty);
       const cost = num(o?.costBasis);
@@ -648,10 +736,14 @@ export function dailyPortfolio(
         qty,
         cost,
         from: day(o?.from),
+        to: day(o?.to),
         usable: cost !== null && (mult === null || mult === 100)
       };
     })
-    .filter(Boolean) as { symbol: string; qty: number; cost: number | null; from: string | null; usable: boolean }[];
+    .filter(Boolean) as {
+      symbol: string; qty: number; cost: number | null;
+      from: string | null; to: string | null; usable: boolean;
+    }[];
 
   const optionCloses = opts.optionCloses || {};
 
@@ -704,7 +796,7 @@ export function dailyPortfolio(
       sharesValue += lot.qty * close;
     }
 
-    // OPTION LEGS STILL OPEN ON THIS DAY.
+    // THE OPTION LEGS ON THE BOOK ON THIS DAY.
     //
     // `qty * 100 * close - costBasis` is right for both sides without a special
     // case, because the broker signs both: a short leg has a negative quantity
@@ -716,6 +808,16 @@ export function dailyPortfolio(
     let optionsHeld = 0;
     const unmarkedLegs = new Set<string>();
     for (const leg of legs) {
+      // CLOSED ON OR BEFORE THIS DAY: off the book, and its result is already
+      // in `premium_cum`. `to <= d` rather than `to < d`, matching the share
+      // lots exactly -- a leg closed on D is money on D, not a position at that
+      // day's close. Marking it as well would put the same dollars in twice.
+      //
+      // This test comes FIRST, before the `from` rules below, because it is
+      // knowable on its own: a leg we cannot place the start of is still
+      // definitely gone after it closed, and withholding days after that would
+      // blank the rest of the account's life over a leg that no longer exists.
+      if (leg.to && leg.to <= d) continue;
       // TWO CONDITIONS, TWO OUTCOMES. One `continue` used to serve both and
       // that was the worst defect in this file: a leg whose opening date could
       // not be established skipped before `unmarkedLegs.add`, so it contributed
@@ -758,6 +860,12 @@ export function dailyPortfolio(
     const sharesOpen = unmarkedShares.size === 0 ? sharesValue - sharesCost : null;
     const realizedCum = booked ? premiumCum + sharesBooked : null;
 
+    // NO LEGS ON THE BOOK IS A REAL ZERO -- but only because the caller now
+    // supplies the whole book. While this list came from the broker's
+    // positions endpoint it was a zero asserted about days nobody had looked
+    // at, which is exactly the shape of the defect the owner found: every
+    // expiry Friday he carried in-the-money shorts into, stored as $0.00 and
+    // `unpriced: []`, and the following week's gain short by their cost.
     const optionsOut = optionsHeld > 0 ? optionsValue : 0;
     out.push({
       day: d,

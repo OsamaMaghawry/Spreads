@@ -12,6 +12,7 @@ import {
   closesByDay,
   priceProblems,
   dailyPortfolio,
+  legsFromRecords,
   fallbackCalendar,
   baseTicker
 } from "../_shared/dailyPortfolio.ts";
@@ -268,7 +269,22 @@ async function rebuild(admin, account, userId: string) {
     // belongs in it. Filtering here made the performance line disagree with the
     // broker's own equity column on the same row, by exactly the money the
     // account really did make or lose. See _shared/integrity.ts.
-    selectAllWhere(admin, "trade_records", "close_date, premium_pl, early_close_pl", "close_date",
+    //
+    // THE LEG COLUMNS ARE READ TOO, and that is the September 12th repair. A
+    // closed record is the only record anyone has of a leg that was on the
+    // book last month: its two symbols, what each side was opened at, and both
+    // dates. Without them the walk's option mark could only ever be built from
+    // what is open RIGHT NOW, which is a statement about today applied to
+    // years of stored days. See `BookOptionLeg` in _shared/dailyPortfolio.ts.
+    //
+    // ORDERED BY `id`, NOT `close_date`. A paged read needs a TOTAL order or
+    // its page boundaries are undefined: dozens of rows share one close_date,
+    // Postgres may break that tie differently on each request, and a row can
+    // then be served twice or not at all. This module's own documentation says
+    // so; the call site did not follow it.
+    selectAllWhere(admin, "trade_records",
+      "close_date, open_date, qty, premium_pl, early_close_pl, short_symbol, long_symbol, short_entry, long_entry",
+      "id",
       (q) => q.eq("account_id", account.id).not("close_date", "is", null)),
     // Also unfiltered, and for the same reason. Two earlier versions got this
     // wrong in two different directions: filtering the row out dropped the
@@ -373,19 +389,42 @@ async function rebuild(admin, account, userId: string) {
 
   const unusable = [...new Set([...collided, ...mismatched])];
 
-  // OPTION LEGS STILL OPEN. The half of the book neither `trade_records` (closed
-  // by construction) nor `stock_lots` (shares) has ever contained.
+  // THE OPTION BOOK, BOTH HALVES.
+  //
+  // The live half comes from the broker's positions endpoint; the closed half
+  // is reconstructed from `trade_records`, which carry each leg's symbol, its
+  // entry price and both of its dates.
+  //
+  // ONLY THE LIVE HALF USED TO BE HERE, and that was the defect. The walk
+  // reaches back to the account's first trade, so marking every one of those
+  // days with the positions open at the moment of the rebuild meant a leg
+  // closed since simply never existed: no cost on the day it was carried, no
+  // entry in `unpriced`, and a stored `options_open` of exactly $0.00 on days
+  // the account was carrying real option risk. The owner found it after a
+  // 4 September expiry he went into short two in-the-money TSLA puts --
+  // *"this rebound should be at least two thousand"* -- where the broker's own
+  // equity column on the very same row carried their cost and this one did not.
+  //
+  // The closed legs are bounded by nothing here on purpose: a leg that closed
+  // before the calendar starts is skipped by the walk's own `to <= d` test, and
+  // filtering by date here as well would be a second rule to keep in step with
+  // the first.
   const openLegs = positions.filter((p) => p?.asset_class === "us_option" && Number(p?.qty) !== 0);
-  const legSymbols = openLegs.map((p) => p.symbol).filter(Boolean);
+  const closedLegs = legsFromRecords(tradeRows);
+  const legSymbols = [
+    ...new Set([...openLegs.map((p) => p.symbol), ...closedLegs.map((l) => l.symbol)])
+  ].filter(Boolean) as string[];
   const [optionCloses, openDates] = await Promise.all([
     fetchOptionBars(account, legSymbols, barStart),
     fetchOpenDates(account, openLegs.map((p) => ({ symbol: p.symbol, qty: Number(p.qty) })), barStart)
   ]);
-  const openOptions = openLegs.map((p) => ({
+  const liveLegs = openLegs.map((p) => ({
     symbol: p.symbol,
     qty: Number(p.qty),
     costBasis: Number(p.cost_basis),
     from: openDates[p.symbol] || null,
+    // Still open, so there is no day it left the book.
+    to: null,
     // Always 100, and an adjusted contract is no exception. occ.ts:25-28
     // settles it against the symbology: a corporate action changes what the
     // contract DELIVERS while the premium multiplier stays 100, which is why
@@ -413,7 +452,7 @@ async function rebuild(admin, account, userId: string) {
   const walk = dailyPortfolio(calendar, tradeRows, lotRows, closes, {
     unusable,
     unusableFrom: splitFrom,
-    openOptions,
+    optionLegs: [...liveLegs, ...closedLegs],
     optionCloses
   });
 
