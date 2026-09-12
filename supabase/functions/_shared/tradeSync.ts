@@ -19,7 +19,14 @@
 // money path than moving code that does not change.
 
 import { alpacaFetch } from "./alpaca.ts";
-import { refuseMassDelete, lotFromOption } from "./writeGuards.ts";
+import { lotFromOption } from "./writeGuards.ts";
+import {
+  auditAccount,
+  applyFindings,
+  massDeleteFinding,
+  deletionsHeld,
+  type Finding
+} from "./integrity.ts";
 
 export async function fetchTrades(admin, accountId, ordered = true) {
   let query = admin.from("trade_records").select("*").eq("account_id", accountId);
@@ -210,24 +217,35 @@ export async function fetchBrokerData(account, base) {
 
 // Reconcile what the broker says against what is stored. The reconstruction is
 // deterministic over the whole feed, so the fresh set is authoritative.
-export async function writeResults(admin, accountId, userId, records, stockLots, breaches = []) {
-  // A spread reporting a loss beyond its own arithmetic maximum is not a
-  // figure to store and explain later. The sync fails, the page says the
-  // refresh failed, and the stored history is left exactly as it was --
-  // the same posture as refuseMassDelete, for the same reason.
-  if (breaches.length > 0) {
-    const first = breaches[0];
-    throw new Error(
-      `Refusing to store an impossible result: ${first.short_symbol}/${first.long_symbol} closed ` +
-        `${first.close_date} computes to ${first.realized_pl.toFixed(2)} against a maximum loss of ` +
-        `${first.max_loss.toFixed(2)}${breaches.length > 1 ? ` (and ${breaches.length - 1} more)` : ""}. ` +
-        `Nothing was changed.`
-    );
-  }
-  return writeResultsInner(admin, accountId, userId, records, stockLots);
+export async function writeResults(
+  admin, accountId, userId, records, stockLots, breaches = [], orphaned = []
+) {
+  // THE AUDIT PASS, in place of the refusal that used to live here.
+  //
+  // This function used to throw on the first impossible result, which left the
+  // account's stored history exactly as it was -- and on an account that had
+  // never synced, "exactly as it was" is nothing at all. One XLY row whose
+  // computed loss exceeded its strikes by $64 cost the owner every trade on
+  // that account, a blank Analysis page and an empty weekly email.
+  //
+  // The check was right; the remedy was not. The breach now withholds THAT
+  // ROW's figures and the other forty-two are written normally. See
+  // _shared/integrity.ts for the actions and why there is no longer one that
+  // stops a sync.
+  const findings = auditRecords(records, breaches, orphaned);
+  const flagged = applyFindings(records, findings);
+  return writeResultsInner(admin, accountId, userId, flagged, stockLots, findings);
 }
 
-export async function writeResultsInner(admin, accountId, userId, records, stockLots) {
+// Split out so the deletion checks, which can only run once the stored set has
+// been read, can add their findings to the same pass.
+function auditRecords(records: any[], breaches: any[], orphaned: any[]) {
+  return auditAccount({ breaches, orphaned });
+}
+
+export async function writeResultsInner(
+  admin, accountId, userId, records, stockLots, findings: Finding[] = []
+) {
   const existing = await fetchTrades(admin, accountId, false);
   const existingByKey: any = {};
   existing.forEach((r: any) => { existingByKey[r.trade_key] = r; });
@@ -275,12 +293,28 @@ export async function writeResultsInner(admin, accountId, userId, records, stock
   const optionLots = existingLots.filter(lotFromOption);
   const staleLots = optionLots.filter((l: any) => !freshLotKeys.has(l.lot_key));
 
-  // Both refusals are checked before anything is written, so a sync that trips
-  // either one leaves the account exactly as it found it.
-  const refusal =
-    refuseMassDelete("trade records", stale.length, existing.length) ||
-    refuseMassDelete("share lots", staleLots.length, optionLots.length);
-  if (refusal) throw new Error(refusal);
+  // THE DELETIONS, HELD RATHER THAN THE SYNC REFUSED.
+  //
+  // A reconstruction that wants to remove most of what is stored is still much
+  // more likely to be a defect than a correction -- a truncated broker feed, an
+  // outage returning a short page, a credential that has stopped working all
+  // look exactly like "this account has no trades any more". That judgement
+  // was right and has not changed.
+  //
+  // What changed is what happens next. This used to throw, which threw away a
+  // perfectly good update in order to protect the rows, and then left the
+  // account stale on top of it. Now the rows are simply KEPT: everything else
+  // in the refresh is written, and a finding says what was held and why. It is
+  // strictly safer than the refusal was -- nothing is deleted either way, and
+  // now nothing is lost either.
+  const deletionFindings = [
+    massDeleteFinding("trade records", stale.length, existing.length),
+    massDeleteFinding("share lots", staleLots.length, optionLots.length)
+  ].filter(Boolean) as Finding[];
+  const allFindings = [...findings, ...deletionFindings];
+
+  const deleteTrades = deletionsHeld(allFindings, "trade records") ? [] : stale;
+  const deleteLots = deletionsHeld(allFindings, "share lots") ? [] : staleLots;
 
   const freshLotByKey: any = {};
   stockLots.forEach((l: any) => { freshLotByKey[l.lot_key] = l; });
@@ -297,8 +331,8 @@ export async function writeResultsInner(admin, accountId, userId, records, stock
     (l: any) => freshLotByKey[l.lot_key] && changedFields(l, freshLotByKey[l.lot_key])
   );
 
-  // Rewrites in place have no cap -- refuseMassDelete counts deletions -- and
-  // an uncapped rewrite that tells nobody is how a whole account's figures
+  // Rewrites in place have no cap -- the mass-delete finding counts deletions
+  // -- and an uncapped rewrite that tells nobody is how a whole account's figures
   // change with no trace outside the snapshot. Capping it would fail the first
   // sync of any account whose rows predate this code, which is every account
   // today, so this says so rather than refusing: the snapshot holds the before
@@ -306,18 +340,18 @@ export async function writeResultsInner(admin, accountId, userId, records, stock
   if (toUpdate.length > 0 || updatedLotsBefore.length > 0) {
     console.error(
       `tradeHistory rewrite: account=${accountId} trades=${toUpdate.length}/${existing.length} ` +
-        `lots=${updatedLotsBefore.length}/${optionLots.length} removed=${stale.length}`
+        `lots=${updatedLotsBefore.length}/${optionLots.length} removed=${deleteTrades.length}`
     );
   }
 
   await snapshot(admin, accountId, userId, "sync", {
-    deleted: stale,
+    deleted: deleteTrades,
     updatedBefore: toUpdate.map((r: any) => existingByKey[r.trade_key]),
-    deletedLots: staleLots,
+    deletedLots: deleteLots,
     updatedLotsBefore
   });
 
-  for (const r of stale) {
+  for (const r of deleteTrades) {
     const { error } = await admin.from("trade_records").delete().eq("id", (r as any).id);
     if (error) throw new Error(error.message);
   }
@@ -333,7 +367,7 @@ export async function writeResultsInner(admin, accountId, userId, records, stock
     if (error) throw new Error(error.message);
   }
 
-  for (const l of staleLots) {
+  for (const l of deleteLots) {
     const { error } = await admin.from("stock_lots").delete().eq("id", (l as any).id);
     if (error) throw new Error(error.message);
   }
@@ -351,10 +385,40 @@ export async function writeResultsInner(admin, accountId, userId, records, stock
     .update({ trades_synced_at: new Date().toISOString(), trades_sync_error: null })
     .eq("id", accountId);
 
+  // THE AUDIT TRAIL, written last and on every pass including a clean one.
+  //
+  // On a clean pass this resolves whatever the last pass found, which is the
+  // half that makes the trail readable: findings close themselves when the
+  // thing stops being true, so what is open is what is actually wrong today
+  // rather than a board of stale warnings nobody reads any more.
+  //
+  // Deliberately NOT allowed to fail the sync. The records are already
+  // written and correct at this point; losing the audit note is bad, and
+  // throwing away a good sync because we could not write a note about it is
+  // exactly the posture this whole change exists to undo.
+  try {
+    const { error } = await admin.rpc("record_integrity_findings", {
+      p_account_id: accountId,
+      p_user_id: userId,
+      p_findings: allFindings
+    });
+    if (error) throw new Error(error.message);
+  } catch (e: any) {
+    console.error(`integrity findings not recorded for ${accountId}: ${e?.message || e}`);
+  }
+
   return {
     created: toCreate.length,
     updated: toUpdate.length,
-    removed: stale.length,
-    removedLots: staleLots.length
+    removed: deleteTrades.length,
+    removedLots: deleteLots.length,
+    // What the pass found, so the caller -- a page, or the cron's result --
+    // can say it out loud instead of the account quietly being different.
+    findings: allFindings.map((f) => ({
+      code: f.code, severity: f.severity, action: f.action,
+      subject: f.subject, message: f.message
+    })),
+    withheld: allFindings.filter((f) => f.action === "withhold_row").length,
+    deletionsHeld: allFindings.filter((f) => f.action === "keep_deleted").length
   };
 }

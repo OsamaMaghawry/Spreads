@@ -37,7 +37,24 @@ export const heldToExpiry = (t) => t.close_reason !== 'closed';
  * did, so the screen never has to guess.
  */
 export function computeStats(trades, equity = 0, view = "whole", extra = {}) {
-  const rows = trades.filter((t) => t.close_date);
+  // WITHHELD ROWS COME OUT BEFORE ANY ARITHMETIC, and this is the first line
+  // for a reason: there is no figure below that a row we cannot stand behind
+  // may contribute to.
+  //
+  // A withheld row is one the audit pass refused to publish a number for --
+  // today, a defined-risk spread whose computed loss exceeds what its strikes
+  // can lose, which means the dollars are real but filed on the wrong trade.
+  // The trade is still shown in the history, flagged; only its money is out.
+  //
+  // The distinction from `provisional` below is worth holding on to. A
+  // provisional row's figure is INCOMPLETE -- the option is booked and the
+  // shares are still open -- so it counts towards money booked and not towards
+  // win rate. A withheld row's figure is WRONG, so it counts towards nothing,
+  // and `withheldTrades` travels with the result so the screen can say how
+  // many rather than quietly reporting a smaller total.
+  const closed = trades.filter((t) => t.close_date);
+  const rows = closed.filter((t) => !t.integrity_code);
+  const withheldCount = closed.length - rows.length;
   if (rows.length === 0) return null;
 
   // One definition of "what this trade was worth", read everywhere below.
@@ -275,6 +292,11 @@ export function computeStats(trades, equity = 0, view = "whole", extra = {}) {
     // only, and settledTrades says how many that was.
     settledTrades: settled.length,
     provisionalTrades: provisionalCount,
+    // Closed trades whose figures the audit pass refused to publish. Not
+    // included in `trades` or in anything above it — a reader comparing
+    // "43 trades" on the broker against "42 trades" here is owed this number
+    // rather than left to find the discrepancy themselves.
+    withheldTrades: withheldCount,
     winRate: settled.length ? wins.length / settled.length : null,
     wins: wins.length,
     losses: losses.length,

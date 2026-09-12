@@ -1107,6 +1107,11 @@ export function attributeStockPL(records, stockLots) {
     const maxLoss = width * CONTRACT_SIZE * (r.qty || 1) - r.premium_pl;
     if (r.realized_pl < -maxLoss - 0.01) {
       breaches.push({
+        // The row's own key, so the audit layer can withhold THIS trade's
+        // figures rather than the whole account's. Without it a breach can
+        // only be described, not acted on, which is how one impossible row
+        // came to block an account's entire history.
+        trade_key: r.trade_key,
         short_symbol: r.short_symbol,
         long_symbol: r.long_symbol,
         close_date: r.close_date,

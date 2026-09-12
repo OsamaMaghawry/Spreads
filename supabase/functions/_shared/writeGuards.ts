@@ -1,28 +1,17 @@
-// The two rules that decide whether a sync is allowed to destroy something.
+// What a sync is allowed to destroy.
 //
-// They live here rather than in tradeHistory/index.ts because that module
+// This lives here rather than in tradeHistory/index.ts because that module
 // calls Deno.serve on import, and a guard nobody can run a test against is a
-// guard that quietly stops working. Both are pure.
+// guard that quietly stops working. Pure.
 
-/**
- * A reconstruction that wants to remove most of what is stored is more likely
- * to be a defect than a correction -- a truncated broker feed, a
- * classification change, an outage returning a short page. Past this share of
- * the stored rows the sync refuses and a person decides.
- *
- * The floor keeps small accounts usable: removing 3 of 4 rows is 75% but it is
- * also three rows, and on a new account that is ordinary reconciliation.
- */
-export const MAX_AUTO_DELETE_SHARE = 0.25;
-export const MAX_AUTO_DELETE_FLOOR = 5;
-
-export function refuseMassDelete(kind: string, removing: number, stored: number): string | null {
-  if (removing <= MAX_AUTO_DELETE_FLOOR) return null;
-  if (stored === 0 || removing / stored <= MAX_AUTO_DELETE_SHARE) return null;
-  return `Refusing to remove ${removing} of ${stored} stored ${kind} in one sync ` +
-    `(over ${Math.round(MAX_AUTO_DELETE_SHARE * 100)}%). Nothing was changed. ` +
-    `Review the account's history before syncing again.`;
-}
+// The mass-deletion rule USED TO LIVE HERE. It has moved to
+// `_shared/integrity.ts`, with its thresholds, because it stopped being a
+// refusal and became a finding: a sync that wants to remove most of a stored
+// history now KEEPS those rows and writes everything else, rather than
+// throwing away the whole update to protect them. Leaving a second copy of
+// MAX_AUTO_DELETE_SHARE here is how two thresholds drift apart and a guard
+// starts disagreeing with itself, so there is one copy and this note points
+// at it.
 
 /**
  * Whether a stored share lot is one the reconstruction is entitled to remove.

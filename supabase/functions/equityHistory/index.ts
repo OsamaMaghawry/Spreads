@@ -263,8 +263,14 @@ async function rebuild(admin, account, userId: string) {
   // values for the same historical day with nothing about the account having
   // changed. One book on staging already holds 1,123 stock lots.
   const [tradeRows, lotRows] = await Promise.all([
+    // `integrity_code is null` -- the audit layer's one predicate, applied
+    // here as a filter rather than after the fact. A row whose figures were
+    // withheld from the Analysis statistics must be withheld from the equity
+    // line drawn above them, or the page contradicts itself in exactly the way
+    // this week's session-day defect did. See _shared/integrity.ts.
     selectAllWhere(admin, "trade_records", "close_date, premium_pl, early_close_pl", "close_date",
-      (q) => q.eq("account_id", account.id).not("close_date", "is", null)),
+      (q) => q.eq("account_id", account.id).not("close_date", "is", null)
+              .is("integrity_code", null)),
     selectAllWhere(admin, "stock_lots",
       "ticker, qty, acquired_date, acquired_price, disposed_date, disposed_price, realized_pl", "id",
       (q) => q.eq("account_id", account.id))

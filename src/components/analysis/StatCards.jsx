@@ -101,7 +101,23 @@ export default function StatCards({ stats }) {
         { label: "Largest win", value: fmtMoney(stats.largestWin), sub: basis, tone: stats.largestWin === null ? undefined : "pos" },
         { label: "Largest loss", value: fmtMoney(stats.largestLoss), sub: basis, tone: stats.largestLoss === null ? undefined : "neg" },
         { label: "Avg risk / trade", value: fmtMoney(stats.avgRisk) },
-        { label: "Trades", value: `${stats.trades}`, sub: `${stats.contracts} contracts · ${stats.expiredCount} expired worthless` },
+        // WITHHELD ROWS ARE NAMED ON THE COUNT THEY ARE MISSING FROM.
+        //
+        // `stats.trades` counts what the arithmetic above it could use. A
+        // closed trade whose figures the audit pass refused to publish is not
+        // in it — and a trader comparing 43 trades at the broker against 42
+        // here is owed the reason, not left to find the gap. Same posture as
+        // "not final, excluded" on the win rate: say what was left out, on the
+        // figure it was left out of.
+        {
+          label: "Trades",
+          value: `${stats.trades}`,
+          sub: `${stats.contracts} contracts · ${stats.expiredCount} expired worthless${
+            stats.withheldTrades
+              ? ` · ${stats.withheldTrades} withheld, under review`
+              : ""
+          }`
+        },
         { label: "Avg hold", value: `${num(stats.avgHoldDays, 1)} days` }
       ]
     },

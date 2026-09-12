@@ -193,6 +193,12 @@ Deno.serve(async (req) => {
             .from("trade_records")
             .select("account_id, ticker, strategy, open_date, close_date, qty, net_credit, close_debit, realized_pl, premium_pl, early_close_pl, stock_pl, provisional, close_reason, short_strike, expiry")
             .in("account_id", accountIds)
+            // The audit layer's one predicate. An email is the worst possible
+            // place to publish a figure we have already decided not to stand
+            // behind on screen -- the reader cannot click through to the note
+            // beside it, and it arrives looking settled. See
+            // _shared/integrity.ts.
+            .is("integrity_code", null)
             // Both ends of the window matter: a row OPENED in it and a row
             // CLOSED in it are different halves of the premium story, so this
             // cannot filter on close_date alone.

@@ -1,31 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { refuseMassDelete, lotFromOption } from "./writeGuards.ts";
+import { lotFromOption } from "./writeGuards.ts";
 
-// The guards exist because of two specific incidents. Each test names one.
-
-test("allows ordinary reconciliation", () => {
-  assert.equal(refuseMassDelete("trade records", 3, 99), null);
-  assert.equal(refuseMassDelete("trade records", 24, 99), null); // 24% — under the line
-});
-
-test("refuses a sync that would remove most of the stored history", () => {
-  const refusal = refuseMassDelete("trade records", 50, 99);
-  assert.ok(refusal, "50 of 99 must be refused");
-  assert.match(refusal, /Nothing was changed/);
-  assert.match(refusal, /50 of 99/);
-});
-
-test("the floor keeps small accounts usable", () => {
-  // 3 of 4 is 75% and is still just three rows on a new account.
-  assert.equal(refuseMassDelete("trade records", 3, 4), null);
-  assert.equal(refuseMassDelete("trade records", 5, 6), null);
-  assert.ok(refuseMassDelete("trade records", 6, 7), "past the floor the share rule applies again");
-});
-
-test("an empty store is never a mass delete", () => {
-  assert.equal(refuseMassDelete("share lots", 0, 0), null);
-});
+// The mass-deletion rule and its tests moved to `integrity.test.ts` when it
+// stopped being a refusal and became a finding. What is left here is the rule
+// about WHICH lots a reconstruction owns, which is unchanged.
 
 // The incident this one is from: the reconstruction only derives option-touched
 // lots, so deleting everything absent from its output destroyed 1,119 of 1,123
