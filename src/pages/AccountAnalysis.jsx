@@ -112,6 +112,19 @@ export default function AccountAnalysis() {
     [trades, strategy]
   );
 
+  // What the page was narrowed BY, said in the empty state so an account with
+  // trades is never told it has none. Both halves are optional and either can
+  // be the one that emptied it.
+  const narrowedLabel = useMemo(() => {
+    const where = strategy === "all" ? "" : ` in ${strategyLabel(strategy).toLowerCase()}`;
+    const when =
+      range.from && range.to ? ` between ${range.from} and ${range.to}`
+        : range.from ? ` on or after ${range.from}`
+          : range.to ? ` on or before ${range.to}`
+            : "";
+    return `${where}${when}`;
+  }, [strategy, range]);
+
   // 2. The shares still held, and what they are worth now.
   //
   // The book is NOT filtered by strategy or date: an open position is held
@@ -330,10 +343,38 @@ export default function AccountAnalysis() {
       {error ? (
         <div className="bg-rose-50 border border-rose-200 rounded-xl p-6 text-sm text-rose-700">{error}</div>
       ) : !stats ? (
-        <div className="bg-white border border-slate-200 rounded-xl p-12 flex flex-col items-center gap-3 text-center">
-          <BarChart3 className="w-8 h-8 text-slate-400" />
-          <p className="text-slate-500 text-sm max-w-sm">No closed trades to analyze yet.</p>
-        </div>
+        // "No closed trades to analyze yet" was the only thing this branch
+        // could say, and on a filtered page it is false: an account with 150
+        // closed trades that happens to have closed none this week was being
+        // told it had never traded. The 1W preset makes that the common case
+        // rather than the rare one -- a week with nothing closed in it is
+        // ordinary -- so the empty state has to distinguish "nothing at all"
+        // from "nothing in THIS window", and leave the way back visible.
+        <>
+          {allTrades.length > 0 && <StrategyTabs trades={trades} active={strategy} onChange={setStrategy} />}
+          <div className="bg-white border border-slate-200 rounded-xl p-12 flex flex-col items-center gap-3 text-center">
+            <BarChart3 className="w-8 h-8 text-slate-400" />
+            {allTrades.length === 0 ? (
+              <p className="text-slate-500 text-sm max-w-sm">No closed trades to analyze yet.</p>
+            ) : (
+              <>
+                <p className="text-slate-600 text-sm max-w-sm">
+                  Nothing closed{narrowedLabel}. This account has{" "}
+                  <strong>{allTrades.length}</strong> closed trade{allTrades.length === 1 ? "" : "s"} in all,
+                  the most recent on {bounds.max}.
+                </p>
+                {(range.from || range.to) && (
+                  <button
+                    onClick={() => setRange({ from: "", to: "" })}
+                    className="text-xs text-slate-600 underline hover:text-slate-900"
+                  >
+                    Clear the date range
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </>
       ) : (
         <>
           <StrategyTabs trades={trades} active={strategy} onChange={setStrategy} />
