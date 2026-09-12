@@ -167,3 +167,113 @@ export function contractSetup(row, action, ctx) {
     }
   };
 }
+
+/**
+ * Two selected legs, as a vertical spread.
+ *
+ * The owner: *"I can't open spreads from it. Only one put or call. Not multi
+ * select."* Selling one strike and buying another of the same type and expiry
+ * is a vertical, and it is the structure this product was built around — it
+ * had a builder for it in the scanner and no way to reach it by hand.
+ *
+ * WHAT MAKES IT A VERTICAL, checked rather than assumed: same underlying, same
+ * expiry, same type, different strikes, and exactly one of each side. Anything
+ * else is refused by name. A "spread" assembled from two legs that do not form
+ * one is the shape that reports a defined risk on an undefined position.
+ *
+ * THE CREDIT IS SIGNED. Sell the near strike and buy the far one and money
+ * comes in — a credit spread, positive. The other way round it goes out, and
+ * the same field carries a negative number, which is the debit convention used
+ * everywhere else in this product. `openPosition` reads that sign to decide
+ * what to send; a separate `debit` field would be a second convention.
+ *
+ * MAX RISK IS THE WIDTH LESS WHAT CAME IN, and on a debit spread it is simply
+ * what was paid. Both are bounded, which is the whole reason a trader puts one
+ * leg against another.
+ */
+export function spreadSetup(legs, ctx) {
+  const picked = (legs || []).filter(Boolean);
+  if (picked.length !== 2) {
+    return { ok: false, reason: "A vertical spread is exactly two legs." };
+  }
+
+  const [a, b] = picked;
+  const typeOf = (l) => (l.row.type === "P" || l.row.type === "put" ? "P" : "C");
+  if (typeOf(a) !== typeOf(b)) {
+    return { ok: false, reason: "Both legs of a vertical must be the same type — two puts or two calls." };
+  }
+  if (Number(a.row.strike) === Number(b.row.strike)) {
+    return { ok: false, reason: "Both legs are the same strike, so there is no spread between them." };
+  }
+  const sell = picked.find((l) => l.action === "sell");
+  const buy = picked.find((l) => l.action === "buy");
+  if (!sell || !buy) {
+    return { ok: false, reason: "A vertical needs one leg sold and one bought." };
+  }
+
+  const sellMid = num(sell.row.mid);
+  const buyMid = num(buy.row.mid);
+  if (sellMid === null || buyMid === null) {
+    const dead = sellMid === null ? sell.row.symbol : buy.row.symbol;
+    return { ok: false, reason: `No two-sided market on ${dead}. Nothing to price the spread from.` };
+  }
+
+  const isPut = typeOf(a) === "P";
+  // Positive is a credit taken, negative a debit paid. One convention.
+  const credit = Math.round((sellMid - buyMid) * 10000) / 10000;
+  const width = Math.abs(Number(sell.row.strike) - Number(buy.row.strike));
+  const spot = num(ctx?.spot);
+
+  const leg = (l, side) => ({
+    role: `${side === "sell" ? "short" : "long"}_${isPut ? "put" : "call"}`,
+    symbol: l.row.symbol,
+    strike: Number(l.row.strike),
+    type: isPut ? "put" : "call",
+    bid: num(l.row.bid),
+    ask: num(l.row.ask),
+    mid: num(l.row.mid),
+    delta: num(l.row.delta),
+    iv: num(l.row.iv),
+    ratio: 1,
+    side
+  });
+
+  return {
+    ok: true,
+    setup: {
+      ticker: ctx?.ticker,
+      expiry: ctx?.expiry,
+      // A credit spread is the product's "spreads" strategy; a debit vertical
+      // is the same structure with the sign the other way, and the
+      // reconstruction already pairs both.
+      strategy: isPut ? "put_spread" : "call_spread",
+      targetDelta: null,
+      wingWidth: width,
+      width,
+      spot,
+      spotSource: ctx?.spotSource ?? null,
+      spotAsOf: ctx?.spotAsOf ?? null,
+      putRatio: 1,
+      callRatio: 1,
+      fromChain: true,
+      credit,
+      debit: credit < 0 ? Math.abs(credit) : null,
+      collateral: width * 100,
+      // Bounded either way, which is the point of the second leg. On a credit
+      // spread the width less what came in; on a debit spread, what was paid.
+      maxRisk: credit >= 0 ? (width - credit) * 100 : Math.abs(credit) * 100,
+      maxProfit: credit >= 0 ? credit * 100 : (width - Math.abs(credit)) * 100,
+      breakEvenLow: isPut ? Number(sell.row.strike) - credit : null,
+      breakEvenHigh: isPut ? null : Number(sell.row.strike) + credit,
+      returnOnCollateral: width > 0 ? credit / width : null,
+      otmPct: spot && spot > 0
+        ? (isPut ? (spot - Number(sell.row.strike)) / spot : (Number(sell.row.strike) - spot) / spot)
+        : null,
+      short_symbol: sell.row.symbol,
+      long_symbol: buy.row.symbol,
+      short_strike: Number(sell.row.strike),
+      long_strike: Number(buy.row.strike),
+      legs: [leg(sell, "sell"), leg(buy, "buy")]
+    }
+  };
+}

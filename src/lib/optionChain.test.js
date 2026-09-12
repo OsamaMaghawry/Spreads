@@ -128,3 +128,79 @@ test("no spot means no moneyness, not a fabricated one", () => {
 test("a missing row is refused rather than throwing", () => {
   assert.equal(contractSetup(null, "buy", ctx).ok, false);
 });
+
+// ---------------------------------------------------------------------------
+// spreadSetup — two selected strikes as a vertical
+// ---------------------------------------------------------------------------
+
+import { spreadSetup } from "./optionChain.js";
+
+const P = (strike, mid) => ({ symbol: `TSLA261016P00${strike}000`, strike, type: "P", bid: mid - 0.1, ask: mid + 0.1, mid, delta: -0.2, iv: 0.4 });
+const C = (strike, mid) => ({ symbol: `TSLA261016C00${strike}000`, strike, type: "C", bid: mid - 0.1, ask: mid + 0.1, mid, delta: 0.2, iv: 0.4 });
+
+test("a CREDIT put spread: sell the near strike, buy the far one", () => {
+  const r = spreadSetup(
+    [{ row: P(370, 4.3), action: "sell" }, { row: P(365, 2.3), action: "buy" }],
+    ctx
+  );
+  assert.equal(r.ok, true);
+  assert.equal(r.setup.strategy, "put_spread");
+  assert.equal(r.setup.credit, 2);
+  assert.equal(r.setup.width, 5);
+  assert.equal(r.setup.maxRisk, 300);
+  assert.equal(r.setup.maxProfit, 200);
+  assert.equal(r.setup.breakEvenLow, 368);
+  assert.equal(r.setup.short_symbol, "TSLA261016P00370000");
+  assert.equal(r.setup.long_symbol, "TSLA261016P00365000");
+});
+
+test("a DEBIT vertical carries a NEGATIVE credit, not a second field", () => {
+  // Buying the near strike and selling the far one costs money. One sign
+  // convention; openPosition reads it to decide what to send.
+  const r = spreadSetup(
+    [{ row: P(370, 4.3), action: "buy" }, { row: P(365, 2.3), action: "sell" }],
+    ctx
+  );
+  assert.equal(r.setup.credit, -2);
+  assert.equal(r.setup.debit, 2);
+  assert.equal(r.setup.maxRisk, 200);
+  assert.equal(r.setup.maxProfit, 300);
+});
+
+test("a call spread breaks even ABOVE the short strike", () => {
+  const r = spreadSetup(
+    [{ row: C(370, 4.3), action: "sell" }, { row: C(375, 2.3), action: "buy" }],
+    ctx
+  );
+  assert.equal(r.setup.strategy, "call_spread");
+  assert.equal(r.setup.breakEvenHigh, 372);
+  assert.equal(r.setup.breakEvenLow, null);
+});
+
+test("risk is bounded on BOTH sides of a vertical", () => {
+  // The whole reason a trader puts one leg against another.
+  const credit = spreadSetup([{ row: P(370, 4.3), action: "sell" }, { row: P(365, 2.3), action: "buy" }], ctx);
+  const debit = spreadSetup([{ row: P(370, 4.3), action: "buy" }, { row: P(365, 2.3), action: "sell" }], ctx);
+  assert.ok(credit.setup.maxRisk > 0 && isFinite(credit.setup.maxRisk));
+  assert.ok(debit.setup.maxRisk > 0 && isFinite(debit.setup.maxRisk));
+  // And the two sides of one spread add up to its width.
+  assert.equal(credit.setup.maxRisk + credit.setup.maxProfit, 500);
+});
+
+test("two legs that do not form a vertical are refused BY NAME", () => {
+  // A "spread" assembled from legs that are not one reports a defined risk on
+  // an undefined position.
+  assert.match(spreadSetup([{ row: P(370, 4.3), action: "sell" }, { row: C(365, 2.3), action: "buy" }], ctx).reason, /same type/i);
+  assert.match(spreadSetup([{ row: P(370, 4.3), action: "sell" }, { row: P(370, 2.3), action: "buy" }], ctx).reason, /same strike/i);
+  assert.match(spreadSetup([{ row: P(370, 4.3), action: "sell" }, { row: P(365, 2.3), action: "sell" }], ctx).reason, /one leg sold and one bought/i);
+  assert.match(spreadSetup([{ row: P(370, 4.3), action: "sell" }], ctx).reason, /exactly two legs/i);
+});
+
+test("an unquoted leg prices no spread, and names which one", () => {
+  const r = spreadSetup(
+    [{ row: P(370, 4.3), action: "sell" }, { row: { ...P(250, 0), mid: null }, action: "buy" }],
+    ctx
+  );
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /TSLA261016P00250000/);
+});

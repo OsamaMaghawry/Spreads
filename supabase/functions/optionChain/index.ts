@@ -65,24 +65,47 @@ async function fetchContracts(account, ticker: string, expiry: string) {
   return oi;
 }
 
-// Every expiry with a listed contract, soonest first. Unbounded on purpose:
-// a chain screen offers what the broker lists, and clamping it to a DTE window
-// is the scanner's job, not this one's.
+// Every expiry with a listed contract, soonest first — LEAPS included.
+//
+// The owner: "It gets only till Sep 18. I need the whole chain with all dates
+// in case for LEAPS too." The cause was paging, not filtering. Alpaca returns
+// contracts ordered by symbol, which is effectively by expiry then strike, and
+// the first version asked for 1,000 at a time. TSLA lists tens of thousands, so
+// one page is the front few weeks and the loop needed a dozen round trips to
+// reach a January 2028 LEAP — long enough that the function was returning
+// before it got there.
+//
+// Three changes, all about finishing:
+//
+//   - CONTRACT_PAGE of 10,000, Alpaca's maximum, so most names resolve in one
+//     or two requests rather than a dozen.
+//   - `expiration_date_gte=today`, because an expired contract is not an expiry
+//     anyone can trade and it was costing pages to walk past them.
+//   - A page ceiling, so a symbol with an absurd number of listings degrades to
+//     "the expiries we could read" rather than hanging. `truncated` says so,
+//     and the screen says so, instead of silently offering a short list that
+//     looks complete.
+const CONTRACT_PAGE = 10000;
+const MAX_PAGES = 20;
+
 async function fetchExpiries(account, ticker: string) {
   const seen = new Set<string>();
+  const today = new Date().toISOString().slice(0, 10);
   let token: string | null = null;
+  let pages = 0;
   do {
     const url =
       `${tradingBase(account)}/options/contracts?underlying_symbols=${encodeURIComponent(ticker)}` +
-      `&status=active&limit=${PAGE_LIMIT}` +
+      `&status=active&expiration_date_gte=${today}&limit=${CONTRACT_PAGE}` +
       (token ? `&page_token=${encodeURIComponent(token)}` : "");
     const page = await alpacaFetch(url, account);
     for (const c of page?.option_contracts || []) {
       if (c?.expiration_date) seen.add(c.expiration_date);
     }
     token = page?.next_page_token || null;
-  } while (token);
-  return [...seen].sort();
+    pages += 1;
+  } while (token && pages < MAX_PAGES);
+  return { expiries: [...seen].sort(), truncated: !!token };
 }
 
 Deno.serve(async (req) => {
@@ -104,7 +127,7 @@ Deno.serve(async (req) => {
     const admin = adminClient();
     const account = await loadAccount(admin, accountId, user.id);
 
-    const expiries = await fetchExpiries(account, symbol);
+    const { expiries, truncated } = await fetchExpiries(account, symbol);
     if (!expiries.length) {
       return jsonResponse({ error: `No listed options for ${symbol}.` }, 404);
     }
@@ -152,6 +175,7 @@ Deno.serve(async (req) => {
       ticker: symbol,
       expiry: chosen,
       expiries,
+      expiriesTruncated: truncated,
       spot: spot?.price ?? null,
       spotSource: spot?.source ?? null,
       spotAsOf: spot?.asOf ?? null,
