@@ -545,7 +545,18 @@ export function legsFromRecords(records: ClosedRecordLegs[] | null | undefined):
     //
     // `impossible_loss` is the only row-scoped code today. A future code that
     // genuinely impugns an ENTRY belongs here, under its own name.
-    const usableQty = qty !== null;
+    // THE CODES THIS FILE HAS ACTUALLY REASONED ABOUT.
+    //
+    // The paragraph above argues, from both flagged rows on staging, that
+    // `impossible_loss` is a statement about share attribution and leaves the
+    // entries untouched. That argument covers exactly one code. Written as
+    // `const usableQty = qty !== null` it silently extended to every code that
+    // will ever exist -- and `tradeReconstruction` already has candidates
+    // whose entries a finding WOULD impugn. So the allowance is named, and
+    // anything else prices nothing until someone does the same work for it.
+    const REASONED = new Set(["impossible_loss"]);
+    const code = r?.integrity_code ? String(r.integrity_code) : null;
+    const usableQty = qty !== null && (code === null || REASONED.has(code));
     const short = String(r?.short_symbol || "");
     if (short) {
       const entry = usableQty ? num(r?.short_entry) : null;
@@ -934,12 +945,28 @@ export function dailyPortfolio(
       // last price it ever printed, and then dropped it in one step that no
       // market move produced.
       //
-      // The days between expiry and settlement are therefore carried by
-      // neither the leg nor `premium_cum`, which books on `close_date`. That
-      // gap is real and bounded -- every one of those 16 lands on a weekend or
-      // a holiday, so no session falls inside it -- and it is the honest side
-      // to err on: a position that has ceased to exist is not a position.
-      if (leg.expiry && d > leg.expiry) continue;
+      // WITHHELD, NOT DROPPED, and the first version of this line dropped it.
+      //
+      // Between expiry and settlement the position is carried by neither the
+      // leg nor `premium_cum`, which books on `close_date` -- and on an
+      // assignment the share lot does not exist yet either, because its
+      // `acquired_date` is that same settlement date. Neither half of the
+      // position is on the books, and a bare `continue` made the day assert it
+      // was complete: `options_open: 0` with `unpriced: []`, which is the
+      // exact shape this whole release exists to abolish.
+      //
+      // I defended dropping it on the grounds that all 16 late settlements on
+      // staging land on a weekend or a holiday. The bench pointed at this
+      // file's own new regression test, which asserted a confident zero on
+      // Tuesday 8 September for a leg it prices at -$1,130 the session before.
+      // A claim about a sample is not a rule about the market.
+      //
+      // The live half matters more than the 16. `equityHistory` builds a
+      // broker position with `to: null`, so a contract the broker still lists
+      // after its expiry -- Monday morning, before `syncTrades` has written
+      // the record -- has no `to` to bring it back. That is the right-hand
+      // edge of the chart, on every expiry, on the day the reader is looking.
+      if (leg.expiry && d > leg.expiry) { optionsHeld += 1; unmarkedLegs.add(leg.symbol); continue; }
       // TWO CONDITIONS, TWO OUTCOMES. One `continue` used to serve both and
       // that was the worst defect in this file: a leg whose opening date could
       // not be established skipped before `unmarkedLegs.add`, so it contributed

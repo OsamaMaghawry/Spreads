@@ -21,6 +21,12 @@
 -- call then matches both candidates and fails with "function is not unique" --
 -- which would take the trade sync's whole findings path down at its next run.
 drop function if exists public.record_integrity_findings(uuid, uuid, jsonb, boolean);
+-- AND 0042's original three-argument form, which 0044 left behind: it used
+-- `create or replace` with a NEW argument count, which creates an overload
+-- rather than replacing. Nothing calls it, but it is already ambiguous against
+-- 0044's defaults and would be ambiguous against these -- a latent
+-- "function is not unique" waiting for the first caller who omits an argument.
+drop function if exists public.record_integrity_findings(uuid, uuid, jsonb);
 
 create or replace function public.record_integrity_findings(
   p_account_id uuid,

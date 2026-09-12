@@ -1076,7 +1076,59 @@ test("a spread bought back through parity is not an impossible result", () => {
   const r = find(records, "ARKK260821C00081000", "ARKK260821C00083000");
   assert.equal(r.close_reason, "closed");
   assert.equal(money(r.realized_pl), -178);
-  assert.deepEqual(breaches, [], "an early exit has no arithmetic maximum to breach");
+  // $2 over a $200 width is inside the parity allowance: max($5, 2%) = $5.
+  assert.deepEqual(breaches, [], "two cents through parity is what the market asked");
+});
+
+test("a bought-back spread is BOUNDED by parity, not exempt from arithmetic", () => {
+  // The owner's live account, asking where a thousand dollars went. WMT
+  // 112/108 put spread, 1 contract, sold for $1.14: the strikes cap the loss
+  // at $286 and parity can add a few dollars more. It is recorded at -$751.
+  //
+  // Its long leg's $4.65 exit had been credited to a DIFFERENT row whose
+  // short simultaneously expired at zero -- impossible on both rows, netting
+  // to the cent, which is why the account total stayed right and nothing
+  // reconciled it away. The guard that exists for exactly this returned early
+  // on any row that was bought back, so the largest single loss in the
+  // account was never checked.
+  const acts = [
+    fill("2026-08-17", "sell", "WMT260821P00112000", 1, 1.52),
+    fill("2026-08-17", "buy", "WMT260821P00108000", 1, 0.38),
+    fill("2026-08-21", "buy", "WMT260821P00112000", 1, 8.65),
+    fill("2026-08-21", "sell", "WMT260821P00108000", 1, 0.0)
+  ];
+  const { records, breaches } = reconstruct(acts, {}, ACCOUNT);
+  const r = find(records, "WMT260821P00112000", "WMT260821P00108000");
+  assert.equal(r.close_reason, "closed");
+  assert.equal(money(r.realized_pl), -751);
+  assert.equal(breaches.length, 1, "$751 against a $286 ceiling is refused");
+  assert.equal(breaches[0].short_symbol, "WMT260821P00112000");
+  assert.equal(breaches[0].bought_back, true);
+  // $400 width -> max($5, $8) = $8 of parity slack. Nowhere near $465.
+  assert.equal(breaches[0].slack, 8);
+  assert.equal(money(breaches[0].max_loss), -286);
+});
+
+test("the parity allowance scales with the spread, and never below $5", () => {
+  // A one-dollar-wide spread bought back a few cents through parity is the
+  // routine case, and 2% of $100 is $2 -- under the floor. A wide spread
+  // needs proportionally more room, which is why it is the larger of the two.
+  const narrow = [
+    fill("2026-08-14", "sell", "X260821C00100000", 1, 0.20),
+    fill("2026-08-14", "buy", "X260821C00101000", 1, 0.0),
+    fill("2026-08-19", "buy", "X260821C00100000", 1, 1.24),
+    fill("2026-08-19", "sell", "X260821C00101000", 1, 0.0)
+  ];
+  // Loss $104 against an $80 ceiling: $24 over, past the $5 floor.
+  assert.equal(reconstruct(narrow, {}, ACCOUNT).breaches.length, 1);
+  const inside = [
+    fill("2026-08-14", "sell", "X260821C00100000", 1, 0.20),
+    fill("2026-08-14", "buy", "X260821C00101000", 1, 0.0),
+    fill("2026-08-19", "buy", "X260821C00100000", 1, 1.03),
+    fill("2026-08-19", "sell", "X260821C00101000", 1, 0.0)
+  ];
+  // Loss $83 against $80: $3 over, inside the floor.
+  assert.deepEqual(reconstruct(inside, {}, ACCOUNT).breaches, []);
 });
 
 test("the invariant still fires when the strikes decided the outcome", () => {

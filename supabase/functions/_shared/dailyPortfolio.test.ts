@@ -1010,14 +1010,20 @@ test("a price is never carried onto the day a contract expires", () => {
   assert.deepEqual(rows[1].unpriced, ["TSLA260904P00362500"]);
 });
 
-test("a contract is off the book after its expiry, whatever the record says", () => {
+test("a contract past its expiry is WITHHELD, not silently dropped", () => {
   // `close_date` is the day the BROKER settled, which on an expiry or an
   // assignment is a business day or two later -- 16 of the 417 closed records
-  // on staging. Without this the walk marked a contract that no longer existed
-  // at the last price it ever printed, then dropped it in one step no market
-  // move produced.
+  // on staging. In that gap the position is carried by neither the leg nor
+  // `premium_cum` (which books on close_date), and on an assignment the share
+  // lot does not exist yet either: its acquired_date IS the settlement date.
+  //
+  // The first version of this `continue`d, which made the day assert it was
+  // complete -- a confident zero on a day both halves of a position were off
+  // the books. The bench caught it against this very test, which used to
+  // assert `options_open: 0` on a full session for a leg it prices at -$1,130
+  // the session before.
   const rows = dailyPortfolio(
-    ["2026-09-04", "2026-09-07", "2026-09-08"], [], [], {},
+    ["2026-09-04", "2026-09-08", "2026-09-10"], [], [], {},
     {
       optionLegs: legsFromRecords([
         { open_date: "2026-09-01", close_date: "2026-09-09", qty: 1,
@@ -1026,10 +1032,46 @@ test("a contract is off the book after its expiry, whatever the record says", ()
       optionCloses: { TSLA260904P00362500: { "2026-09-04": 12.50 } }
     }
   );
-  assert.equal(rows[0].options_open, -1130);  // 120 - 1250, on expiry day
-  assert.equal(rows[1].options_open, 0);      // gone, not carried at 12.50
-  assert.equal(rows[2].options_open, 0);
-  assert.deepEqual(rows.map((r) => r.unpriced), [[], [], []]);
+  assert.equal(rows[0].options_open, -1130);   // expiry day, priced
+  assert.equal(rows[1].options_open, null);    // gone, and the day says so
+  assert.deepEqual(rows[1].unpriced, ["TSLA260904P00362500"]);
+  assert.equal(rows[2].options_open, 0);       // settled: off the book for real
+  assert.deepEqual(rows[2].unpriced, []);
+});
+
+test("a broker position still listed after its expiry withholds the newest day", () => {
+  // The half that is not about the 16 rows. `equityHistory` builds a live leg
+  // with `to: null`, so a contract the broker has not yet cleared -- Monday
+  // morning after a Friday expiry, before syncTrades has written the record --
+  // has no close date to bring it back. That is the right-hand edge of the
+  // chart, on every expiry, on the day the reader is actually looking at it.
+  const rows = dailyPortfolio(["2026-09-04", "2026-09-08"], [], [], {}, {
+    optionLegs: [
+      { symbol: "TSLA260904P00362500", qty: -1, costBasis: -120, from: "2026-09-01", to: null }
+    ],
+    optionCloses: { TSLA260904P00362500: { "2026-09-04": 12.50 } }
+  });
+  assert.equal(rows[0].options_open, -1130);
+  assert.equal(rows[1].options_open, null);
+  assert.deepEqual(rows[1].unpriced, ["TSLA260904P00362500"]);
+});
+
+test("a code this file has NOT reasoned about prices nothing", () => {
+  // The argument for pricing a flagged row's legs was derived from
+  // `impossible_loss` specifically, and covers exactly that code. Anything
+  // else waits for someone to do the same work.
+  const legs = legsFromRecords([{
+    open_date: "2026-09-03", close_date: "2026-09-07", qty: 1,
+    short_symbol: "TSLA260904P00362500", short_entry: 1.44,
+    integrity_code: "some_future_finding"
+  }]);
+  assert.equal(legs[0].costBasis, null);
+  const priced = legsFromRecords([{
+    open_date: "2026-09-03", close_date: "2026-09-07", qty: 1,
+    short_symbol: "TSLA260904P00362500", short_entry: 1.44,
+    integrity_code: "impossible_loss"
+  }]);
+  assert.equal(priced[0].costBasis, -144);
 });
 
 test("a record with no quantity is a leg we cannot value, not one we ignore", () => {

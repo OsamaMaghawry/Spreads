@@ -490,6 +490,14 @@ export function emptyOptionBookFindings(rows: SeriesRow[], spans: LegSpan[]): Fi
         (!s.expiry || s.expiry >= r.day)
     );
     if (!onBook.length) continue;
+    // CAPPED. A future regression that reproduces this shape reproduces it on
+    // every stored day, and one RPC body carrying five years of findings is
+    // how a diagnostic becomes the outage. The first ten name the problem;
+    // the count says how big it is.
+    if (out.length >= 10) {
+      out[9].detail = { ...out[9].detail, more_days_not_listed: true };
+      break;
+    }
     out.push({
       code: "empty_option_book",
       severity: "critical",
@@ -562,7 +570,14 @@ export function divergenceFinding(
     code: "equity_divergence",
     severity,
     action: "note",
-    subject: `${open.day}..${close.day}`,
+    // A STABLE SUBJECT, not the window. `record_integrity_findings` resolves
+    // anything the pass did not report, and a sliding `from..to` gives every
+    // day's run a new key -- so yesterday's divergence resolves itself every
+    // morning and the trail reads clean for a defect nobody fixed. That is
+    // the failure migration 0048's own comment calls worse than never
+    // resolving at all. One subject per account, `seen_count` does the rest,
+    // and the window travels in `detail` where it belongs.
+    subject: "day-by-day series",
     message:
       `Over ${label} the broker's own account value moved ${money(brokerMove)} once ` +
       `deposits and withdrawals are taken out, and this product's performance line ` +

@@ -578,7 +578,19 @@ async function auditSeries(admin: any, account: any, userId: string, rows: any[]
     // are REQUIRED: equity moves on a deposit and `performance` correctly does
     // not, so without them a $700 deposit is indistinguishable from a $700
     // defect. Unreadable transfers produce no finding rather than a wrong one.
-    const dated = rows.filter((r) => r.equity !== null).slice(-6);
+    // BOTH CONDITIONS HERE, because `divergenceFinding` applies both and then
+    // takes first and last of ITS OWN set. Filtering on `equity` alone made
+    // the flow window and the equity window two different windows, and only
+    // ever over-inclusive: an opening row with an equity but a null
+    // `performance` was dropped inside the function and not here, so a deposit
+    // dated between the two boundaries was subtracted from a move it was never
+    // part of. Reproduced three ways, and the one that matters is the silent
+    // direction -- an ordinary deposit the size of a defect makes the check
+    // that exists to catch the next 12 September report nothing at all.
+    //
+    // A null `performance` on a boundary row is not exotic. This release makes
+    // it the ordinary shape of an expiry Friday, through `noCarryFrom`.
+    const dated = rows.filter((r) => r.equity !== null && r.performance !== null).slice(-6);
     let flows: number | null = null;
     if (dated.length >= 2) {
       // STRICTLY AFTER THE OPENING DAY, and the check found this in itself on

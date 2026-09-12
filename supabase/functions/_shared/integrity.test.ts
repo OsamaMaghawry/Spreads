@@ -411,3 +411,34 @@ test("a flow that settled on the window's opening day is already in the opening 
   assert.equal(wrong.severity, "warning");
   assert.equal(wrong.detail.residual, -694.16);
 });
+
+test("the divergence finding keeps one subject per account, not one per window", () => {
+  // A sliding `from..to` subject gives every morning's run a new key, so the
+  // resolve half closes yesterday's finding and the trail reads clean for a
+  // divergence nobody fixed.
+  const a = divergenceFinding([ALTON_BEFORE[1], ALTON_BEFORE[3]], 0);
+  const b = divergenceFinding([
+    { day: "2026-09-03", equity: 140844.76, options_open: 0, performance: -1574, unpriced: [] },
+    { day: "2026-09-11", equity: 145000.00, options_open: 0, performance: -1574, unpriced: [] }
+  ], 0);
+  assert.equal(a.subject, "day-by-day series");
+  assert.equal(b.subject, a.subject);
+  // The window still travels, where it cannot be mistaken for an identity.
+  assert.equal(a.detail.from, "2026-09-04");
+  assert.equal(b.detail.from, "2026-09-03");
+});
+
+test("an empty-book regression is capped rather than flooding the trail", () => {
+  // The shape that makes this matter: a future defect reproduces on every
+  // stored day, and one RPC body carrying five years of findings turns a
+  // diagnostic into the outage.
+  const rows = Array.from({ length: 40 }, (_, i) => ({
+    day: `2026-09-${String(i + 1).padStart(2, "0")}`,
+    equity: 1, options_open: 0, performance: 0, unpriced: []
+  }));
+  const found = emptyOptionBookFindings(rows, [
+    { symbol: "TSLA260930P00362500", from: "2026-08-01", to: null, expiry: "2026-09-30" }
+  ]);
+  assert.equal(found.length, 10);
+  assert.equal(found[9].detail.more_days_not_listed, true);
+});
