@@ -4,6 +4,7 @@ slug: what-is-an-options-contract
 excerpt: Every field on a listed option is fixed before you arrive except the price, and what lands in your account afterwards depends on which side of it you took.
 meta_description: An options contract is standardised — every field but the price is fixed before you trade it. What the 100 multiplier costs, and what a sold one ties up.
 author: DeltaMint
+published_at: 2026-09-07T16:03:54+00:00
 category: foundations
 series_order: 1
 tags: options contract, contract specs, multiplier, long and short, foundations

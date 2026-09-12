@@ -4,6 +4,7 @@ slug: options-bid-ask-spread
 excerpt: The bid-ask spread is the gap between what a buyer will pay and what a seller will accept right now, and crossing it is a real cost paid on the way in and again on the way out.
 meta_description: An option quote is two prices. What crossing the gap costs per contract, why it is paid on entry and again on exit, and why a midpoint credit is not one.
 author: DeltaMint
+published_at: 2026-09-11T11:25:18+00:00
 category: foundations
 series_order: 5
 tags: bid ask spread, liquidity, limit order, execution, foundations

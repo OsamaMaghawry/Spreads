@@ -4,6 +4,7 @@ slug: credit-spread-max-loss
 excerpt: Max loss is an exact figure that describes one moment; the collateral, the mark and an assignment notice each behave differently from it.
 meta_description: Credit spread max loss is width minus credit, times 100 — the expiration number. What the collateral holds and what the mark does in the weeks before it.
 author: DeltaMint
+published_at: 2026-09-02T23:33:09+00:00
 category: managing
 series_order: 48
 tags: credit spread, max loss, assignment, defined risk, collateral
