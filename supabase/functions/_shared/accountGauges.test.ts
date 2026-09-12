@@ -62,3 +62,25 @@ test("an unknown figure still draws a track, so the row does not collapse", () =
   assert.ok(html.includes("—"));
   assert.ok(html.includes('width="0%"'));
 });
+
+test("a buying-power DEFICIT reads as owed, never as available", () => {
+  // Alpaca reports options buying power negative when the account is in
+  // deficit. `Math.abs` printed -$1,200 as "$1,200.00  -5%" under "Available
+  // to open with on Monday" -- positive dollars, negative percent, telling a
+  // reader who owes their broker that they have money to spend.
+  const g = accountGauges({ equity: 24000, optionsBP: -1200 });
+  const bp = g.find((x) => x.key === "optionsBP")!;
+  assert.equal(bp.value, -1200);
+  assert.equal(bp.band, "hot");
+  const html = barHtml(bp, "Arial", "#666", "#111");
+  assert.ok(html.includes("-$1,200.00"), "the sign is the fact");
+  assert.ok(!html.includes(">$1,200.00"), "it must never render as positive");
+  // And no bar growing rightward out of a negative number.
+  assert.ok(html.includes('width="0%"'));
+});
+
+test("collateral reported negative is shown as reported, not flipped", () => {
+  const g = accountGauges({ equity: 1000, collateral: -250 });
+  const col = g.find((x) => x.key === "collateral")!;
+  assert.ok(barHtml(col, "Arial", "#666", "#111").includes("-$250.00"));
+});

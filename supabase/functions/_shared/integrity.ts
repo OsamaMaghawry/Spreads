@@ -517,7 +517,19 @@ export function emptyOptionBookFindings(rows: SeriesRow[], spans: LegSpan[]): Fi
 // Provisional, and deliberately labelled so. `performance` is blind to
 // interest, dividends and fees by construction -- `fetchBrokerData` never asks
 // for them -- while the broker's `equity` carries all three, so there is a
-// permanent floor under this residual that nobody has measured yet. Set these
+// permanent floor under this residual that nobody has measured yet.
+//
+// AND THE FIX FOR THAT FLOOR IS NOT `cash_flows`. I proposed adding INT, DIV,
+// FEE, REG, TAF and OCC to the flows term to close Alton's $250.73, and the
+// bench refused it: migration 0045 defines that table as *"the trader's own
+// money entering and leaving an account ... the denominator for every return
+// figure"*, and interest, dividends and fees are RETURN, not contributed
+// capital. Folding them in would corrupt every percentage in the product to
+// close a reconciliation gap on a chart.
+//
+// Two terms, not one table. The divergence check wants NON-TRADING EQUITY
+// MOVEMENT; the return denominator wants EXTERNAL CAPITAL. When the floor is
+// finally measured it gets its own column, and `capital.js` must not see it. Set these
 // from a quiet week on a real account, not from a guess; until then they are
 // wide enough that only a defect of the 12 September size trips them.
 export const DIVERGENCE_NOTE = { dollars: 100, share: 0.0025 };
