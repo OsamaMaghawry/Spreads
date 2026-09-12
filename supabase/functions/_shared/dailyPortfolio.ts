@@ -115,10 +115,18 @@ export interface PortfolioHistory {
 // THE DEFECT THIS EXISTS FOR, and it ran in production for as long as the table
 // has existed. This function used to take the UTC calendar date of the stamp,
 // under a comment asserting that both of Alpaca's stampings "fall on the same
-// UTC calendar day as the session". The second one does not. Alpaca stamps a 1D
-// entry at MIDNIGHT EASTERN FOLLOWING the session — 04:00 UTC in daylight time,
-// 05:00 in standard — which is the next UTC calendar day. So every row this
-// table has ever written was labelled one session late.
+// UTC calendar day as the session". Neither of them is what the feed sends.
+//
+// READ FROM THE FEED, not assumed — see the `probe` path in equityHistory,
+// which exists because the first version of this fix was argued from the
+// stored dates, and the stored dates are this function's own output. What
+// comes back for a paper account, 252 entries, every one of the same shape:
+//
+//   t=1789171200   2026-09-12T00:00:00Z   New York: 9/11/26, 8:00 PM
+//
+// MIDNIGHT UTC OF THE DAY AFTER the session, which is 20:00 Eastern ON the
+// session day. So the UTC date is always one day past the session, and every
+// row this table has ever written was labelled one session late.
 //
 // It is visible in the stored data without reference to any broker. On staging,
 // 204 rows carried days running Tuesday to Saturday and never a Monday: Friday's
@@ -136,8 +144,12 @@ export interface PortfolioHistory {
 //
 // THE RULE. New York, not UTC, decides the date, and an entry stamped before the
 // opening bell belongs to the session that has already ENDED rather than to the
-// one that has not begun. The close stamping (16:00 Eastern) is unaffected by
-// the second clause and lands on its own date, so one rule reads both.
+// one that has not begun. That reads all three stampings without having to know
+// which is in force: 20:00 Eastern, which is what the feed actually sends (hour
+// 20, kept); 16:00 Eastern at the close (hour 16, kept); and midnight Eastern
+// after the session (hour 0, pushed back to the session that closed). It also
+// survives the daylight-saving change untouched — midnight UTC is 20:00 Eastern
+// in summer and 19:00 in winter, both a long way clear of the bell.
 //
 // Seconds, not milliseconds — multiplying is the whole conversion, and getting
 // it backwards puts every point in 1970, which is why this is a named function

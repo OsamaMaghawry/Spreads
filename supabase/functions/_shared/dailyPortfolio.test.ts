@@ -27,6 +27,17 @@ test("sessionDay reads unix SECONDS, not milliseconds", () => {
   assert.equal(new Date(1788292800).toISOString().slice(0, 4), "1970");
 });
 
+test("sessionDay reads the stamp the feed actually sends", () => {
+  // Not a constructed example. This is a real entry from Alpaca's 1D portfolio
+  // history for a paper account, captured through equityHistory's `probe` path
+  // on 12 Sep 2026, and every one of that account's 252 entries has this shape:
+  // midnight UTC of the day AFTER the session, which is 20:00 in New York ON
+  // the session day. Reading the UTC date — which is what this used to do —
+  // files Friday's session on a Saturday.
+  assert.equal(new Date(1789171200 * 1000).toISOString(), "2026-09-12T00:00:00.000Z");
+  assert.equal(sessionDay(1789171200), "2026-09-11");
+});
+
 test("sessionDay maps midnight-Eastern stamps back to the session that ENDED", () => {
   // THE DEFECT. Alpaca stamps a 1D entry at midnight Eastern FOLLOWING the
   // session, which is 04:00 UTC on the next calendar day. Read as a UTC date —
