@@ -56,7 +56,7 @@ export default function Billing() {
     return (
       <div className="max-w-3xl space-y-5">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Billing</h1>
+          <h1 className="font-heading text-xl font-bold tracking-[-0.02em] text-dm-text">Billing</h1>
           <p className="text-sm text-slate-500 mt-0.5">Not open yet.</p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
@@ -71,7 +71,7 @@ export default function Billing() {
   return (
     <div className="max-w-3xl space-y-5">
       <div>
-        <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Billing</h1>
+        <h1 className="font-heading text-xl font-bold tracking-[-0.02em] text-dm-text">Billing</h1>
         <p className="text-sm text-slate-500 mt-0.5">Your plan, and what it covers.</p>
       </div>
 

@@ -52,12 +52,75 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Escalated
 
-- [escalated 2026-09-09] duty-engineer · **`dumpBrokerFeed` is unauthenticated in production right now.** Verified by reading `supabase/functions/dumpBrokerFeed/index.ts` at `origin/main` (`60814dc`): it takes an `accountId` from the request body, loads that account with the admin client, decrypts its Alpaca credentials and fetches its full activity/position/order history — with no auth check of any kind. Any caller holding the app's public anon key (embedded in every client bundle) can name any account id and trigger this. `systems-engineer` already found and fixed this on `staging` in `af75776` — signed-in + (owner or admin) is now required — but that commit has not been merged to `main`, so production is unprotected until it is. Not a duty-engineer fix (touches credentials/auth, outside plain-bug authority; also the fix already exists and only needs merging, which is the owner's own release step). Proposed action: merge/deploy the `staging` fix to `main` as soon as possible — no schema or behavior change beyond the auth check, `303` server tests green on `staging`. Emailed the owner.
+- [fixed 0ac2e27] 2026-09-09 · duty-engineer · **`dumpBrokerFeed` is unauthenticated in production right now.** Verified by reading `supabase/functions/dumpBrokerFeed/index.ts` at `origin/main` (`60814dc`): it takes an `accountId` from the request body, loads that account with the admin client, decrypts its Alpaca credentials and fetches its full activity/position/order history — with no auth check of any kind. Any caller holding the app's public anon key (embedded in every client bundle) can name any account id and trigger this. `systems-engineer` already found and fixed this on `staging` in `af75776` — signed-in + (owner or admin) is now required — but that commit has not been merged to `main`, so production is unprotected until it is. Not a duty-engineer fix (touches credentials/auth, outside plain-bug authority; also the fix already exists and only needs merging, which is the owner's own release step). Proposed action: merge/deploy the `staging` fix to `main` as soon as possible — no schema or behavior change beyond the auth check, `303` server tests green on `staging`. Emailed the owner.
+
+  **Confirmed fixed in production, 2026-09-10.** The owner merged `staging` to `main` himself at `0ac2e27` ("Ship staging to production: auth fix, quote sanity, multi-close, Broker tab, universe scan, analytics consent"), which carries `af75776`. `git merge-base --is-ancestor af75776 origin/main` now succeeds. The hole is closed.
 - [escalated 2026-09-02] duty-engineer · `oauthDiag` (`supabase/functions/oauthDiag/index.ts`) is gated only by `requireUser` — any signed-in user, not just admins, can trigger a live Alpaca OAuth token exchange using the app's own client id/secret (the secret itself is never returned, only the client id — already public — and Alpaca's response). Exposure is a probing/rate-limit risk against our own Alpaca app credentials, not a credential leak. Outside duty-engineer's plain-bug authority (touches OAuth credentials) — systems-engineer to judge whether it needs admin-gating or is fine as a diagnostic any signed-in user can run. Proposed patch if gating is wanted: apply the same admin check `adminData`'s handler uses before the `requireUser` call.
 - [escalated 2026-09-08] duty-engineer · **A closed DEBIT vertical is still filed as two unpaired legs.** Verified against `supabase/functions/_shared/tradeReconstruction.ts` lines 558-577: `nearestLong` only accepts a long whose strike sits on the *credit* side of the short (`strike > short.strike` for a call), the same rule `spreadPairing` used before `pairSide` learned to pair a debit vertical using an order as proof the two legs were filled together. `tradeReconstruction` has no equivalent proof to check — it groups closed lots by a strategy-string prefix, not by order id — so loosening the strike test here would pair legs on nothing but proximity, the exact unproven guess the live path just stopped making. Both legs' money and the P/L totals are already right; only the grouping and the `unpaired` flag differ, so no number is wrong, only a trade's filing. Outside plain-bug authority: a safe fix means recording order provenance on the lot (a schema addition) so reconstruction can tell "filled together" from "merely adjacent," which is a design decision. Proposed direction: carry the broker order id already available at fill time onto the stored lot, then let `nearestLong` prefer a same-order long before falling back to strike proximity where no provenance exists.
 - [escalated 2026-09-02] duty-engineer · `openPosition` (`supabase/functions/openPosition/index.ts`) never calls `recordAttempt` — `closeSpread/index.ts` writes an `order_attempts` row on every close (success and failure alike), opens write none, so the audit trail is one-sided. No test harness covers either function's `Deno.serve` handler (only `_shared/` modules are unit tested), so duty-engineer could not reproduce-first per its mandate; it also touches the order-submission path, which duty-engineer escalates rather than fixes on its own judgment. Proposed patch (mirrors `closeSpread` exactly, reusing the existing, already-tested, error-swallowing `recordAttempt` helper — no new dependency or schema): import `recordAttempt` from `../_shared/orderAttempts.ts`; wrap both the single-leg (around line 144) and multi-leg (around line 169) `alpacaFetch` calls in try/catch, recording `intent: "open"` with the error on failure and the `brokerOrderId`/`status` on success — the same shape `closeSpread/index.ts` lines 76-89 and 122-132 already use.
 
 ## Open
+
+- [needs owner] 2026-09-10 · owner found in Search Console · **`www.deltamint.app`
+  returns a server error, and only Cloudflare can fix it.** All five report
+  categories were read; this is the only genuine defect among them.
+
+  Googlebot got a **5xx** from `https://www.deltamint.app/` on 29 Aug and
+  `http://www.deltamint.app/` on 1 Sep. Nothing in this repo serves www: the
+  apex is attached to the landing Worker as a custom domain in the Cloudflare
+  dashboard, and www was never attached to anything. **No code change can fix
+  it** — the landing Worker also only runs for `/blog`, `/blog/*` and
+  `/sitemap.xml` on production, so even routing www at it would leave the
+  homepage unserved.
+
+  **Diagnosed precisely, from this session.** `www.deltamint.app` resolves to
+  `2606:4700:3030::6815:22a2` / `2606:4700:3031::ac43:a311` — **the same
+  Cloudflare addresses as the apex and the dashboard**. So the DNS record
+  exists and is proxied. Fetching it returns **HTTP 522**, Cloudflare's
+  "connection timed out to origin". Cloudflare is answering for www and then
+  looking for an origin server that does not exist, because www was never
+  attached to the landing Worker the way the apex was. Not NXDOMAIN, not a
+  missing record, not a certificate problem: an orphaned proxied hostname.
+
+  Owner action, in Cloudflare, one of two — **the Redirect Rule is the right
+  one** because it sends 301 to the canonical host and creates no second copy
+  of the site for Google to weigh:
+
+  - Rules → Redirect Rules → `www.deltamint.app/*` →
+    `https://deltamint.app/$1`, status 301, preserve query string; **or**
+  - Workers & Pages → `deltamint-landing` → Settings → Domains & Routes → add
+    `www.deltamint.app` as a custom domain, which serves the site on www and
+    then needs a canonical decision of its own.
+
+  A person typing the address they are used to typing currently gets a server
+  error, and Google has seen it twice.
+
+  Now monitored: `site:health --live` checks both www forms daily at 06:17 UTC
+  (`scripts/site-health.mjs`), so this cannot again be discovered by a crawler
+  weeks after the fact.
+
+- [fixed a19d911] 2026-09-10 · **`dashboard.deltamint.app/login` filed as
+  "duplicate without user-selected canonical"** — already fixed, awaiting
+  re-crawl. Google crawled it **27 Aug**; the `X-Robots-Tag: noindex, nofollow`
+  header on every dashboard response shipped **31 Aug** in `a19d911`, four days
+  later. `dev-dash` already sits correctly under "excluded by noindex" in the
+  same report, which is the same mechanism working. Nothing to do but let
+  Google re-crawl; do not "fix" it again.
+
+- 2026-09-10 · **The other three Search Console categories are correct
+  behaviour and need no work.** Recorded so nobody spends a day on them:
+  *Alternate page with proper canonical tag* (5) — trailing-slash and http
+  variants correctly pointing at the canonical, which is exactly what the
+  canonical tag is for. *Page with redirect* (3) — `http://` forms of /terms,
+  /pricing, /privacy redirecting to https. *Excluded by noindex* (2) —
+  `dev-dash.deltamint.app`, which carries `NOINDEX=1` on purpose.
+
+  Verified while reading them: everything this repo emits is already canonical.
+  The sitemap lists `/`, `/pricing`, `/blog`, `/terms`, `/privacy` with no
+  trailing slashes over https; robots.txt points at the https sitemap; no
+  internal link anywhere uses `http://` or a trailing-slash form. `html_handling`
+  is now declared explicitly in both wrangler configs rather than inherited
+  from a platform default.
 
 - 2026-09-09 · owner found on the live account · **The multi-close reads
   availability once, when the selection is made.** Closing a TSLA book: every

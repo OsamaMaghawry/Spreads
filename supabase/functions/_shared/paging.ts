@@ -35,3 +35,41 @@ export async function listAllUsers(admin: any) {
     if (batch.length < PAGE) return users;
   }
 }
+
+/**
+ * Every row matching a filter, ordered so the pages cannot overlap or skip.
+ *
+ * `selectAll` above reads a whole table; this reads one account's slice of one,
+ * which is what every per-account function actually wants. `equityHistory`
+ * shipped without it and was capped at a thousand `trade_records` and a
+ * thousand `stock_lots` — on a book that already holds 1,123 lots.
+ *
+ * ORDER IS REQUIRED, not optional, and that is the second half of the bug. An
+ * unordered paged read has no defined page boundary: Postgres may return the
+ * rows in any order it likes, and it need not be the same order twice. So a
+ * rebuild could take a different thousand rows than the last one, write a
+ * different `premium_cum` for the same historical day, and nothing about the
+ * account would have changed. A stored series that moves on its own is worse
+ * than a truncated one, because the truncation is at least stable.
+ *
+ * `apply` receives the builder returned by `.select()` and adds the filters.
+ * Order matters exactly as it does above: `.range()` lives on that builder, not
+ * on the one `.from()` returns, and chaining it first throws at runtime.
+ */
+export async function selectAllWhere(
+  admin: any,
+  table: string,
+  columns: string,
+  orderBy: string,
+  apply: (q: any) => any = (q) => q
+) {
+  const rows: any[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await apply(admin.from(table).select(columns))
+      .order(orderBy, { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`${table}: ${error.message}`);
+    rows.push(...(data || []));
+    if (!data || data.length < PAGE) return rows;
+  }
+}

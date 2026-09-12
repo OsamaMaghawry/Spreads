@@ -3,6 +3,68 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-11 · (staging) Trade history now syncs on a schedule instead of
+  only when someone opens the Trade History page — every connected account
+  refreshes hourly on weekdays (skipping one already refreshed in the last
+  50 minutes) and once every morning unconditionally, so assignments,
+  exercises and expiries that settle overnight or over a weekend are
+  reflected without a click. Previously a production account nobody opened
+  could sit 24 trades stale while the same broker account on staging, which
+  does get opened, was current (`b6d26bf`).
+- 2026-09-11 · (staging) Fixed a case where the new daily equity chart could
+  store a live option book as a complete $0.00 day — a leg with no
+  establishable open date (ordinary for one acquired by assignment) was
+  dropped before it could be named as unpriced, so the chart reported the
+  day as fully known when it wasn't. Also fixed: cost basis on a
+  re-opened/added-to option leg was backdated to its very first fill instead
+  of the fill that actually explains today's position size; the account
+  history reader could silently return fewer than all of an account's trade
+  rows past 1,000, and in a different order each rebuild, corrupting stored
+  history with no error; a caught error while pricing open positions used to
+  quietly zero out the whole options book instead of refusing the update;
+  the open-positions panel couldn't tell a put from a call; option prices
+  now carry forward on a quiet trading day instead of blanking the day's
+  mark; and a PDF export line had "shares" and "options" swapped (`9faf020`).
+- 2026-09-11 · (staging) Account Analysis now includes open option positions,
+  not just closed trades and shares — previously a still-open put or call
+  (five legs on the owner's own live TSLA/NVDA book, net -$390) counted
+  nowhere on the page despite the "wheel as one strategy" headline claiming
+  to cover it; the headline, return on equity/risk and a new open-positions
+  panel now include them, marked at today's broker price and clearly labeled
+  unrealized (`0cde265`, corrected in `a49da5e` after the owner caught a
+  stale illustration in the commit description — the underlying fix was
+  already right).
+  equity feature, two of which had been silently corrupting the stored
+  history: premium booked more than a year before an account's calendar was
+  being dropped from every day's figure permanently (an account trading
+  since 2022 lost that premium for good, and rows written a year ago kept
+  stepping down at the one-year seam), and a failed broker fetch was writing
+  `null` over the broker's own previously-good equity/P&L figures for every
+  day back to the account's first trade — an ordinary page load, every
+  thirty minutes, destroying data this table is the only copy of. Also
+  fixed: the chart now withholds a day's value across a stock split instead
+  of pricing a 2:1 split as a $16,000 one-day loss, a delisted name stops
+  being carried forward at its last print after five sessions and gets
+  named instead, the chart now refuses the same way the headline does when
+  the ledger and the broker's own positions disagree, Annualized/CAGR are
+  withheld whenever the total includes an unrealized mark (a reversible
+  paper gain read as a performance claim), Max drawdown no longer changes
+  depending on which chart button was last clicked, and several PDF-export
+  and wording bugs that stated the wrong thing about shares held or sold
+  (`333a99f`).
+- 2026-09-10 · (staging) The Strategy Comparison table now follows the Whole view / Premium only switch too: its P/L column header reads "Option-leg P/L", "Total P/L" or "Realized P/L" instead of always claiming "Realized", and the all-strategies total row shows the mark on shares still held (which no single strategy row can claim, since a share lot belongs to the account, not to the strategy that opened it) with a one-line note only when that mark is actually present — so the rows no longer visibly fail to add up with nothing on screen explaining why (`c504afb`).
+- 2026-09-10 · (staging) Account Analysis's equity chart is a real daily line instead of a pole: the portfolio is now recalculated for every session day since the account's first trade (from lot dates, not `realized_pl`, so a share result no longer double-books between the day a lot was assigned and the day it was sold) and stored (migration `0030`, `account_equity_daily`), giving two real daily curves — strategy performance and the broker's own account value — with nothing dashed or guessed in either. The Whole view / Premium only switch now actually drives every number on the page, not just the headline: win rate, payoff, expectancy, streaks, best/worst, the month and ticker tables, and return on equity all recompute for the selected view, and max drawdown is now measured from the daily series (a position that fell $9,000 and recovered mid-trade used to register as nothing, since no trade closed while it happened) (`85c8da7`).
+- 2026-09-10 · (staging) The new daily equity line no longer comes back empty for reasons unrelated to the account: `equityHistory` dropped two intraday-only Alpaca parameters that could cause an outright rejection at the daily timeframe it actually uses, and now retries on the free IEX feed when the account's plan doesn't carry the consolidated one instead of leaving every held lot unpriced for the day (`2ca653f`).
+- 2026-09-10 · (staging) The Whole view / Premium only switch now actually re-buckets the equity curve, the month table and the ticker table instead of only moving the headline: Premium only's chart now ends at its own figure instead of a third number neither view claims, Whole view draws a dashed step from the realized path to today's mark (there's no historical mark-to-market data to draw a solid line through), and outcome-only statistics (win rate, payoff, expectancy, streaks, credit capture) now say why they don't move instead of sitting there unexplained (`78da876`).
+- 2026-09-10 · (staging) Account Analysis's Whole view now counts assigned-but-unsold wheel lots at all — previously a lot acquired by assignment contributed zero to every figure on the page until it was sold, so a wheel account that grew from $140k to $151k showed a $1,737 result; the page now reads the broker's live mark for those lots the same way the rest of the screen already does (`1e230e4`).
+- 2026-09-10 · (staging) Fixed four blockers the review bench found on Whole view before it could ship: a false claim that "Premium only" was the number to use for a 1099-B (deleted — it excludes share sales and misclassifies assigned-put premium); Whole view silently adding a date/strategy-filtered total to the unfiltered position book; a banner that could name the wrong reason a position was unpriced; and two broker symbols that could collide to one ticker and publish a wildly wrong total as complete. Also surfaces the share result next to Premium only so the two realized figures on the page no longer disagree with no explanation (`a83613e`).
+- 2026-09-10 · (staging) Dropped "actually banked" from the Premium only question — it implied Whole view was the inflated number, but premium on an assigned wheel lot reduces stock basis rather than standing alone as banked income; now states what the figure sums and omits without claiming which view is truer (`b7434c5`).
+- 2026-09-10 · (staging) Fixed nine more Whole view blockers from desk-editor's review: a bought-option gain wrongly described as "banked from selling", a negative share result printed as a gain by a stray `Math.abs`, a wrongly ordered no-cost/no-position check that let the banner assert a price existed when it didn't, a stranded-position message blaming sync lag for what is usually ordinary stock the page doesn't cover, two wrong scope-line claims, a dollar figure mislabeled as a mark instead of a gain, and a stock line called a "contract" (`20610f5`).
+- 2026-09-10 · (staging) Cloudflare's HTTPS/trailing-slash redirect behaviour is now declared explicitly in both wrangler configs instead of resting on a platform default, and a live daily check (`scripts/site-health.mjs`, 06:17 UTC) fetches the http and trailing-slash forms of every page and compares where they land against the canonical URL each page itself declares — a mismatch fails the check instead of surfacing weeks later in Search Console (`2948a28`).
+- 2026-09-09 · (staging) Fixed the worst of the multi-close bugs the review bench found, two of which were already live in production: pressing Stop mid-sequence could still let one more order go out if a cancel lost the race to a fill (now checked before every submit, not just once); a reprice on a spread order whose read was missing its legs could resubmit a malformed order with no symbol; and the walk's fill count is now derived from the legs' own contract counts (the smallest fully-filled leg) instead of guessing whether the broker reports multi-leg fills in units or contracts. Also fixed three status messages that promised something the plan didn't guarantee (`e32a8a7`).
+- 2026-09-09 · (staging) The number showing how much of a position you can act on right now is labelled "Available to close" instead of "Free" — the owner read "Free" as free of charge, not as the broker's `qty_available`; the reason it's reduced (collateral for a short, or a working order) now shows on hover instead of being asserted as one specific cause (`d722020`).
+- 2026-09-09 · (staging) The multi-close plan explanation no longer reads as a warning — it opens with what will actually happen instead of "This cannot go as one order" in the same amber box as real risk warnings, so closing several positions at once no longer looks like a refusal when it isn't one (`0d48c92`).
+- 2026-09-09 · (staging) Google Analytics and Hotjar no longer fire for visitors in the EEA, the UK or Switzerland — gated client-side (both the marketing pages and the edge Worker's own copy of the gate) rather than relying on a config omission to keep staging out of the data; the privacy policy's analytics section was rewritten to match (`7ed6ee8`, `cd4049a`).
 - 2026-09-09 · (staging) Repricing a resting option order that the broker refuses to replace directly (Alpaca won't PATCH an order once it reaches "accepted") now cancels the order, confirms the cancel, and resubmits at the new price automatically instead of showing the raw broker error with no way forward; if the original filled — or partially filled — while being cancelled, nothing extra is sent and the ticket says what actually happened (`85c64ca`).
 - 2026-09-09 · (staging) The live blog no longer prints a spurious "part 48" under a post's byline (that number is only the post's slot in the internal syllabus), and page titles no longer have "— DeltaMint" appended, which was eating 12 characters off a 60-character search-result budget (`c72b562`, `dc92fac`).
 - 2026-09-09 · (staging) A new Broker tab shows exactly what Alpaca reports you hold — one row per broker position, with a Close on every line that sends the broker's own quantity with no pairing logic involved — plus a multi-select close across several rows at once: buy-backs are always sent before sales (never the reverse), so an in-progress multi-order close can never leave the rest of the book more exposed than before it started, it respects Alpaca's four-legs-per-order cap, and it refuses to send a second order when a cancel can't be confirmed rather than risk closing more than intended (`4b523bc`, `91cc0f2`, `8f0e7fa`, `d520b22`).

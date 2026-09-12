@@ -12,6 +12,12 @@ export const STRATEGIES = [
   { key: "spreads", label: "Spreads", badge: "bg-indigo-100 text-indigo-700" },
   { key: "cash_secured_put", label: "Cash-secured puts", badge: "bg-amber-100 text-amber-700" },
   { key: "covered_call", label: "Covered calls", badge: "bg-teal-100 text-teal-700" },
+  // Bought outright, one leg, nothing sold against it. These existed all along
+  // -- the owner holds several -- and had no category, so they were filed as
+  // "Spreads" with an empty short leg and were unfindable. "Don't we have a
+  // design just for regular puts and calls?" We did not.
+  { key: "long_put", label: "Long puts", badge: "bg-rose-100 text-rose-700" },
+  { key: "long_call", label: "Long calls", badge: "bg-sky-100 text-sky-700" },
   { key: "wheel", label: "Wheel (not yet synced)", badge: "bg-orange-100 text-orange-700" },
   { key: "unknown", label: "Untagged", badge: "bg-slate-100 text-slate-600" }
 ];

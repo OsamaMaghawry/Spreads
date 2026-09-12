@@ -55,6 +55,7 @@ nothing contingent on trading activity.
 - ForgotPassword
 - Login
 - OAuthCallback
+- OptionChain
 - Register
 - ResetPassword
 - Screener
@@ -78,30 +79,30 @@ incomplete.
 
 - **accounts** — AccountForm
 - **admin** — AdminMaintenance, BlogPanel, EngagementPanel, PostPreview, SettingsPanel, SignupsChart, StatTile, UsersPanel
-- **analysis** — BreakdownTable, CaptureBreakdown, DateRangeFilter, EquityCurveChart, ExportPdfButton, StatCards, StrategyComparison
+- **analysis** — BreakdownTable, CaptureBreakdown, DateRangeFilter, EquityCurveChart, ExportPdfButton, OpenBookPanel, OpenOptionsPanel, StatCards, StrategyComparison, ViewSwitch
 - **billing** — UpgradePrompt
 - **brand** — DeltaMintMark, Wordmark
 - **close** — CloseDialog, LegPicker, LegsQuoteSummary, MultiCloseDialog, OpenOrdersPanel, OrderLog, useCloseOrder, useMultiClose
 - **common** — ConfirmDeleteAccount, ConfirmSubmit, EarningsWarning, NumberField, PreTradeRisk, PriceControl, RiskMeter, ScanPresets, StaleDataNotice
 - **dashboard** — AccountSection, AccountSummaryCard, BrokerTable, CardLegs, LegRows, MasterSummary, OrderGroup, PayoffChart, PositionCard, PositionCards, SpreadStructure, SpreadTable, StrikeLadder, TickerPanel, useLegQuotes
 - **history** — RebuildPreview, StockLotsTable, StrategyTabs, TradeHistoryTable
-- **open** — CandidateList, OpenPositionDialog, OpenPricing, RestingOrder, ScanFilters, SetupPreview, StrategyPicker, useLiveSetup, useOpenOrder, useScanLoop
+- **open** — CandidateList, OpenPositionDialog, OpenPricing, OrderWarnings, RestingOrder, ScanFilters, SetupPreview, StrategyPicker, TicketAnalysis, useLiveSetup, useOpenOrder, useScanLoop
 - **screener** — ResultsTable, ScreenerConfig, TradeDialog, useMarketScan
 
 ## Recently shipped
 
 From `docs/ops/shipped.md`, newest first.
 
-- 2026-09-09 · (staging) Repricing a resting option order that the broker refuses to replace directly (Alpaca won't PATCH an order once it reaches "accepted") now cancels the order, confirms the cancel, and resubmits at the new price automatically instead of showing the raw broker error with no way forward; if the original filled — or partially filled — while being cancelled, nothing extra is sent and the ticket says what actually happened (`85c64ca`).
-- 2026-09-09 · (staging) The live blog no longer prints a spurious "part 48" under a post's byline (that number is only the post's slot in the internal syllabus), and page titles no longer have "— DeltaMint" appended, which was eating 12 characters off a 60-character search-result budget (`c72b562`, `dc92fac`).
-- 2026-09-09 · (staging) A new Broker tab shows exactly what Alpaca reports you hold — one row per broker position, with a Close on every line that sends the broker's own quantity with no pairing logic involved — plus a multi-select close across several rows at once: buy-backs are always sent before sales (never the reverse), so an in-progress multi-order close can never leave the rest of the book more exposed than before it started, it respects Alpaca's four-legs-per-order cap, and it refuses to send a second order when a cancel can't be confirmed rather than risk closing more than intended (`4b523bc`, `91cc0f2`, `8f0e7fa`, `d520b22`).
-- 2026-09-09 · (staging) The scanner can now scan the whole market instead of just the S&P 500: a cheap first pass prices every listed name and filters on price, volume, quote width and capital-per-contract (a floor that keeps a small account out of illiquid names it could get stuck in) before the slow per-ticker options-chain fetch runs on the survivors; the results panel reports how many names were priced and how many passed (`dcf0f17`).
-- 2026-09-09 · (staging) The close ticket no longer treats a missing bid or ask as a price of zero: a one-sided quote (seen live on an SPY share close, bid $746.01 / ask $0.00) now refuses to show a price, a P/L or an armed "Sell" button instead of pricing the trade at half the real value; a price walk that resumes after a refused quote no longer loses its ceiling and walks past what the market will bear; and a close spanning more than Alpaca's four-leg limit is now capped, split and rescaled correctly instead of being sent as an order the broker would reject (`2b9ccf7`, `3aee291`).
-- 2026-09-09 · (staging) Closed a security hole in the broker-feed diagnostic function: any caller holding the app's public project key — not just a signed-in account owner — could name any account and have its broker credentials decrypted and its full position/order history fetched. The caller must now be signed in and either own the account or be an admin; the function also now captures filled orders, not just account activity, so a "position mismatch" report can be checked against the exact data the broker sent. **This fix is on `staging` only — the same hole is still open in production `main` until this is merged** (`af75776`).
-- 2026-09-09 · (staging) A stock-repair or other ratio position (1 long against 2 or 3 short) now closes correctly from the ticket: it quotes and orders the true leg counts instead of misreading a 1x2 as a 1x1, a cancelled reprice resumes at the correct per-leg limit instead of the wrong net price, its max risk shows as unbounded rather than a false $0.00, and the ticket now refuses rather than guesses when it doesn't recognize a structure's legs (`619b0b7`, `1ee4e8f`).
-- 2026-09-08 · (staging) The app now deploys from this repo instead of relying on Cloudflare's own build, which only ever published a preview version that never reached traffic — four commits of dashboard work had gone unseen at dev-dash with no signal anywhere that they hadn't shipped. New `deploy-app.yml`/`deploy-app-staging.yml` run lint, tests and a real `wrangler deploy` on merge, gated the same staging-first way the landing site is (`9183b42`).
-- 2026-09-08 · (staging) A ticker with more than one open position (a repair, a wheel) gets a P/L-at-a-price curve that sums every position on that name at the same underlying price and sweeps it across a range, showing where the whole thing — not just one card — stops losing money (`fbd520e`).
-- 2026-09-08 · (staging) A stock repair (a long call bought against more short calls of a higher strike over 100+ shares) now shows as one position instead of being split across two or three cards with no card saying they're the same trade — a new `call_ratio_spread` shape claims it, covers its extra short from the same share allocator every covered call uses, and carries its own max risk, close cost and break-evens; the strike ladder labels that break-even "Options break-even" so it doesn't read as the whole position (shares included) turning over (`6770ae4`, `5bd85f7`).
+- 2026-09-11 · (staging) Trade history now syncs on a schedule instead of
+- 2026-09-11 · (staging) Fixed a case where the new daily equity chart could
+- 2026-09-11 · (staging) Account Analysis now includes open option positions,
+- 2026-09-10 · (staging) The Strategy Comparison table now follows the Whole view / Premium only switch too: its P/L column header reads "Option-leg P/L", "Total P/L" or "Realized P/L" instead of always claiming "Realized", and the all-strategies total row shows the mark on shares still held (which no single strategy row can claim, since a share lot belongs to the account, not to the strategy that opened it) with a one-line note only when that mark is actually present — so the rows no longer visibly fail to add up with nothing on screen explaining why (`c504afb`).
+- 2026-09-10 · (staging) Account Analysis's equity chart is a real daily line instead of a pole: the portfolio is now recalculated for every session day since the account's first trade (from lot dates, not `realized_pl`, so a share result no longer double-books between the day a lot was assigned and the day it was sold) and stored (migration `0030`, `account_equity_daily`), giving two real daily curves — strategy performance and the broker's own account value — with nothing dashed or guessed in either. The Whole view / Premium only switch now actually drives every number on the page, not just the headline: win rate, payoff, expectancy, streaks, best/worst, the month and ticker tables, and return on equity all recompute for the selected view, and max drawdown is now measured from the daily series (a position that fell $9,000 and recovered mid-trade used to register as nothing, since no trade closed while it happened) (`85c8da7`).
+- 2026-09-10 · (staging) The new daily equity line no longer comes back empty for reasons unrelated to the account: `equityHistory` dropped two intraday-only Alpaca parameters that could cause an outright rejection at the daily timeframe it actually uses, and now retries on the free IEX feed when the account's plan doesn't carry the consolidated one instead of leaving every held lot unpriced for the day (`2ca653f`).
+- 2026-09-10 · (staging) The Whole view / Premium only switch now actually re-buckets the equity curve, the month table and the ticker table instead of only moving the headline: Premium only's chart now ends at its own figure instead of a third number neither view claims, Whole view draws a dashed step from the realized path to today's mark (there's no historical mark-to-market data to draw a solid line through), and outcome-only statistics (win rate, payoff, expectancy, streaks, credit capture) now say why they don't move instead of sitting there unexplained (`78da876`).
+- 2026-09-10 · (staging) Account Analysis's Whole view now counts assigned-but-unsold wheel lots at all — previously a lot acquired by assignment contributed zero to every figure on the page until it was sold, so a wheel account that grew from $140k to $151k showed a $1,737 result; the page now reads the broker's live mark for those lots the same way the rest of the screen already does (`1e230e4`).
+- 2026-09-10 · (staging) Fixed four blockers the review bench found on Whole view before it could ship: a false claim that "Premium only" was the number to use for a 1099-B (deleted — it excludes share sales and misclassifies assigned-put premium); Whole view silently adding a date/strategy-filtered total to the unfiltered position book; a banner that could name the wrong reason a position was unpriced; and two broker symbols that could collide to one ticker and publish a wildly wrong total as complete. Also surfaces the share result next to Premium only so the two realized figures on the page no longer disagree with no explanation (`a83613e`).
+- 2026-09-10 · (staging) Dropped "actually banked" from the Premium only question — it implied Whole view was the inflated number, but premium on an assigned wheel lot reduces stock basis rather than standing alone as banked income; now states what the figure sums and omits without claiming which view is truer (`b7434c5`).
 
 ## Server functions
 
@@ -115,13 +116,15 @@ so a change to shared code requires redeploying all of them.
 - **closeSpread** — Submits the closing order for a position: the whole structure by default, or just the legs the caller picked when only one side needs unwinding.
 - **createCheckoutSession** — Starts a Stripe Checkout for the Live plan and returns the page to send the user to.
 - **dumpBrokerFeed** — Captures a broker activity feed so a refused sync can be diagnosed off-box.
+- **equityHistory** — (no summary comment)
 - **findEntry** — Scans the live chain and returns the delta-targeted setup for one strategy.
 - **manageOrder** — Reads the status of a working order, cancels it, or replaces its price or size.
 - **marketStream** — Live underlying prices, relayed from Alpaca's stream.
 - **migrateCredentials** — Encrypts credentials that are still stored in plaintext, across every user's accounts, without involving those users.
 - **oauthDiag** — Answers one question: does Alpaca recognise this app's OAuth credentials? The authorize page cannot answer it.
-- **openPosition** — How far the stock may have moved since the setup was built before the order is refused.
+- **openPosition** — (no summary comment)
 - **opsHealth** — Read-only health for the duty engineer: last-24h order errors, alerts, connection issues and the watch's last runs, as counts and messages, never user data.
+- **optionChain** — The option chain for one underlying, as a ladder.
 - **positionWatch** — The money-safety watch.
 - **publicConfig** — The operator switches a signed-in customer's browser legitimately needs.
 - **refreshEarnings** — Refreshes the cached earnings calendar for the next 90 days from the provider.
@@ -132,6 +135,7 @@ so a change to shared code requires redeploying all of them.
 - **spreadQuote** — Prices a position for closing: what the legs are worth right now, plus the highest limit already tried on them so a retry resumes rather than restarts.
 - **stripeWebhook** — Receives Stripe's signed subscription events and keeps one row per user current.
 - **syncAccounts** — Rebuilds the live picture for every account the caller owns: positions paired into structures, credit and risk per position, and totals that net a ticker's condors instead of double counting both wings.
+- **syncTrades** — Keeping every connected account's history current, without anybody looking.
 - **tradeHistory** — Closed trade history, rebuilt from the broker's activity feed.
 
 ## Database
@@ -161,6 +165,7 @@ revoked from the browser role entirely.
 - **broker_feed_dumps** — id, account_id, activities, activity_count, created_at, positions, filled_orders
 - **subscriptions** — user_id, stripe_customer_id, stripe_subscription_id, plan, status, current_period_end, cancel_at_period_end, grandfathered_until, created_at, updated_at
 - **growth_metrics** — day, search, analytics, funnel, created_at
+- **account_equity_daily** — account_id, user_id, day, equity, profit_loss, base_value, premium_cum, shares_booked, shares_open, shares_cost, shares_value, performance, unpriced, source, captured_at, equity_synced_at, options_open
 
 ## Analytics vocabulary
 
@@ -169,7 +174,7 @@ being premium-seller specific rather than generic profit and loss: credit
 capture is the kept share of premium sold, and return on risk is measured
 against peak *concurrent* collateral rather than the sum of every trade.
 
-`totalPL` · `trades` · `contracts` · `settledTrades` · `provisionalTrades` · `winRate` · `wins` · `losses` · `scratches` · `avgPL` · `avgWin` · `avgLoss` · `profitFactor` · `payoffRatio` · `largestWin` · `largestLoss` · `expiredCount` · `creditCollected` · `captureRate` · `totalRisk` · `avgRisk` · `peakRisk` · `returnOnRisk` · `avgTradeRoR` · `roe` · `annualizable` · `annualized` · `cagr` · `maxDrawdown` · `avgHoldDays` · `tradingDays` · `dayWinRate` · `avgDayPL` · `medianDayPL` · `avgDayReturn` · `medianDayReturn` · `avgDayRiskReturn` · `medianDayRiskReturn` · `bestDay` · `worstDay` · `bestStreak` · `worstStreak` · `firstDate` · `lastDate` · `spanDays` · `curve` · `byDay` · `byMonth`
+`totalPL` · `bookedPL` · `unrealizedPL` · `includesUnrealized` · `view` · `drawdownFromDaily` · `trades` · `contracts` · `settledTrades` · `provisionalTrades` · `winRate` · `wins` · `losses` · `scratches` · `avgPL` · `avgWin` · `avgLoss` · `profitFactor` · `payoffRatio` · `largestWin` · `largestLoss` · `expiredCount` · `creditCollected` · `captureRate` · `totalRisk` · `avgRisk` · `peakRisk` · `returnOnRisk` · `avgTradeRoR` · `roe` · `annualizable` · `annualized` · `cagr` · `maxDrawdown` · `avgHoldDays` · `tradingDays` · `dayWinRate` · `avgDayPL` · `medianDayPL` · `avgDayReturn` · `medianDayReturn` · `avgDayRiskReturn` · `medianDayRiskReturn` · `bestDay` · `worstDay` · `bestStreak` · `worstStreak` · `firstDate` · `lastDate` · `spanDays` · `curve` · `byDay` · `byMonth`
 
 ## Known gaps
 
@@ -280,7 +285,7 @@ substitute number.
 
 | Canonical | Not |
 | --- | --- |
-| Positions Monitor | dashboard, monitor page |
+| Dashboard | Positions Monitor, monitor page, positions |
 | Screener | scanner, finder |
 | Trade History | journal, log |
 | Analysis | analytics, stats, performance page |
@@ -289,6 +294,30 @@ substitute number.
 
 **(proposed)** "Scanner" appears in some copy where "Screener" is meant; the
 first audit should sweep it.
+
+**Dashboard**, renamed by the owner on 12 Sep, replacing "Positions Monitor".
+The table above previously listed "dashboard" as the thing NOT to say, and the
+nav had been saying it anyway while the page heading said the other — so the
+two names were being used against each other in one click. One name, his.
+
+#### The two Analysis views
+
+| Canonical | Not |
+| --- | --- |
+| Whole view | full view, total view, everything view, mark-to-market |
+| Premium only | premium view, options only, realized only, cash view |
+
+Named by the owner on 10 Sep and registered here before the copy set a
+precedent. **Whole view** is realized money plus the unrealized gain or loss on
+shares still held; **Premium only** is the option legs alone — credits taken,
+debits paid, and what closing them cost or returned.
+
+Two things neither name may be made to say. Premium only is **not a tax view**:
+it excludes share sales, which are the largest lines on a wheel trader's
+1099-B, and on an assigned put the premium reduces the stock basis rather than
+standing alone as income. And it is not "what selling options banked": the
+figure is signed and includes debits paid on bought options — three such rows
+on the owner's own account contribute +$805 between them.
 
 #### Quantity a broker will not release
 

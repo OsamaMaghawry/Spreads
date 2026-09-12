@@ -124,7 +124,7 @@ export default function Screener() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
+        <h1 className="font-heading text-xl font-bold tracking-[-0.02em] text-dm-text flex items-center gap-2">
           <Radar className="w-5 h-5 text-emerald-600" /> Market Screener
         </h1>
         <p className="text-sm text-slate-500 mt-1">

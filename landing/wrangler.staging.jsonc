@@ -5,6 +5,10 @@
   "assets": {
     "directory": "./public",
     "not_found_handling": "404-page",
+    // Same contract as production, for the same reason -- see the long note in
+    // wrangler.jsonc. Staging must canonicalise identically or it is not a
+    // rehearsal of the thing being rehearsed.
+    "html_handling": "auto-trailing-slash",
     "binding": "ASSETS",
     // `true` rather than the production config's path list: on staging the
     // Worker must see every request, including static pages and assets, so it

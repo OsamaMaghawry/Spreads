@@ -49,7 +49,7 @@ export default function Admin() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="flex items-center gap-2 text-xl font-semibold text-dm-text">
+        <h1 className="flex items-center gap-2 font-heading text-xl font-bold tracking-[-0.02em] text-dm-text">
           <ShieldCheck className="h-5 w-5 text-dm-accent" /> Admin
         </h1>
         <p className="mt-1 text-sm text-dm-sub">Users, engagement and published content.</p>

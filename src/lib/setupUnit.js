@@ -5,14 +5,24 @@
 // cash-secured put is never called a spread and a covered call never a
 // condor.
 
-export const SINGLE_STRATEGIES = ["cash_secured_put", "covered_call"];
+// A bought put and a bought call are single legs too. They were absent until
+// the option chain made them reachable: every strategy this product could name
+// was one that SELLS something, so `isSingle` was false for a long option and
+// every screen that branches on it fell to the spread layout -- widths, wings
+// and a second strike, on a position with one leg.
+export const SINGLE_STRATEGIES = [
+  "cash_secured_put",
+  "covered_call",
+  "long_put",
+  "long_call"
+];
 
 export const isSingle = (strategy) => SINGLE_STRATEGIES.includes(strategy);
 
 export function unitFor(strategy) {
   if (strategy === "iron_condor") return "condor";
-  if (strategy === "cash_secured_put") return "put";
-  if (strategy === "covered_call") return "call";
+  if (strategy === "cash_secured_put" || strategy === "long_put") return "put";
+  if (strategy === "covered_call" || strategy === "long_call") return "call";
   return "spread";
 }
 
@@ -21,7 +31,9 @@ export const STRATEGY_LABEL = {
   call_spread: "Call spread",
   iron_condor: "Iron condor",
   cash_secured_put: "Cash-secured put",
-  covered_call: "Covered call"
+  covered_call: "Covered call",
+  long_put: "Long put",
+  long_call: "Long call"
 };
 
 // The legs being sold -- one for a wheel half, one per side of a spread, two
@@ -48,6 +60,25 @@ export function shortDelta(c) {
     .map((l) => Math.abs(Number(l.delta)))
     .filter((d) => Number.isFinite(d));
   return deltas.length ? Math.max(...deltas).toFixed(2) : null;
+}
+
+// The whole order's risk, not one contract's -- and null stays null.
+//
+// `null * qty` is 0 in JavaScript, and 0 through `fmtMoney` is "$0.00". The
+// owner's Feb-2027/Dec-2027 diagonal has a short leg that outlives its long,
+// so `spreadSetup` correctly refuses to bound it and returns `maxRisk: null`
+// -- and the ticket printed "Total max risk $0.00" and the meter underneath
+// called it "Contained. Under a tenth of the account."
+//
+// A position with no ceiling reported as costing nothing is the worst thing
+// this screen can say, so "we cannot bound this" travels all the way to the
+// pixel instead of being multiplied into a number.
+export function scaledRisk(maxRisk, qty) {
+  if (maxRisk === null || maxRisk === undefined || maxRisk === "") return null;
+  const risk = Number(maxRisk);
+  if (!Number.isFinite(risk)) return null;
+  const n = Number(qty);
+  return risk * (Number.isFinite(n) && n > 0 ? n : 1);
 }
 
 // "352.5/350P" for a spread side, "352.5P · CSP" for a lone put, "360C on

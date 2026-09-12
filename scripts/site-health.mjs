@@ -31,7 +31,15 @@ const ORIGINS = [`https://${APEX}`, `https://dashboard.${APEX}`];
 
 // Pages a legitimate business is expected to publish. Their absence is one of
 // the cheapest signals a reputation engine reads, and the easiest to fix.
-const TRUST_PAGES = ["privacy", "terms", "pricing"];
+//
+// Pricing is NOT among them while the product is a demo. A published price is
+// a promise of something to buy, and a reputation engine reading a price for a
+// product that cannot yet be delivered is worse than reading none — the owner,
+// 12 Sep: "I don't want to have the pricing on something doesn't exist yet."
+// The page is kept in `landing/drafts/`; add it back here the day it goes
+// back up, so this check starts failing again the moment prices are promised
+// and then quietly removed.
+const TRUST_PAGES = ["privacy", "terms"];
 
 const results = [];
 const ok = (name, detail = "") => results.push({ level: "ok", name, detail });
@@ -85,6 +93,79 @@ function checkNoCredentialFormsOnMarketing() {
 async function head(url) {
   const res = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(10000) });
   return res;
+}
+
+// Every URL Google can reach must lead to the one the canonical tag names.
+//
+// Search Console flagged five URLs on 10 Sep 2026: four `http://` and three
+// carrying a trailing slash the canonical does not use. Nothing this repo
+// emits produces those forms -- sitemap, robots.txt and every internal link
+// use the canonical form -- so they are almost certainly redirects being
+// reported for information rather than a defect. But "almost certainly" was
+// resting on two things nobody had tested: Cloudflare's Always Use HTTPS,
+// which is a dashboard setting invisible from the repo, and the asset
+// server's trailing-slash default, which is now declared in wrangler.jsonc.
+//
+// This is the test that would have answered the question in a minute instead
+// of an afternoon. It reads the canonical the page itself declares rather
+// than a list held here, so it cannot drift from the pages.
+async function checkCanonicalForms() {
+  const cases = [
+    [`http://${APEX}/terms`, "http is upgraded"],
+    [`https://${APEX}/terms/`, "a trailing slash resolves to the canonical form"],
+    [`http://${APEX}/`, "http on the apex is upgraded"],
+    // www answered 5xx to Googlebot on 29 Aug and 1 Sep 2026 -- the only
+    // genuine error in the whole Search Console report, and invisible from
+    // this repo because no code here serves www: the apex is attached to the
+    // landing Worker as a custom domain in the Cloudflare dashboard and www
+    // was never attached to anything. A person typing the address they are
+    // used to typing gets a server error. Checked here so it can never again
+    // be discovered by a crawler weeks later.
+    [`https://www.${APEX}/`, "www reaches the site"],
+    [`http://www.${APEX}/`, "http www reaches the site"]
+  ];
+
+  for (const [url, what] of cases) {
+    let res;
+    try {
+      res = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(10000) });
+    } catch (e) {
+      skip(`canonical: ${what}`, `${url} not reachable from here (${e.message})`);
+      continue;
+    }
+    // A non-2xx is an environment problem far more often than a site problem
+    // -- this repo's own sandbox answers 403 at CONNECT for deltamint.app, and
+    // failing the build on that would train everyone to ignore the check.
+    // Only a canonical MISMATCH is a real defect, so only that fails.
+    if (!res.ok) {
+      warn(`canonical: ${what}`, `${url} ended at HTTP ${res.status} — could not judge from here`);
+      continue;
+    }
+    const landed = res.url;
+    if (!landed.startsWith("https://")) {
+      fail(`canonical: ${what}`, `${url} ended on ${landed} — still not https`);
+      continue;
+    }
+    // The page's own canonical is the authority. A redirect that lands on a
+    // URL the page does not claim as canonical is the actual defect, and it
+    // is invisible to a status-code check.
+    const body = await res.text().catch(() => "");
+    const m = /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i.exec(body);
+    if (!m) {
+      warn(`canonical: ${what}`, `${landed} declares no canonical tag`);
+      continue;
+    }
+    const declared = m[1].replace(/\/$/, "");
+    const arrived = landed.replace(/\/$/, "");
+    if (declared !== arrived) {
+      fail(
+        `canonical: ${what}`,
+        `${url} lands on ${arrived} but that page declares ${declared} — Google sees two URLs for one page`
+      );
+      continue;
+    }
+    ok(`canonical: ${what}`, `${url} → ${arrived}`);
+  }
 }
 
 async function checkOrigins() {
@@ -193,6 +274,7 @@ checkNoCredentialFormsOnMarketing();
 
 if (live) {
   await checkOrigins();
+  await checkCanonicalForms();
   await checkMailAuth();
   await checkSafeBrowsing();
   await checkVirusTotal();

@@ -17,6 +17,7 @@ import useLiveSetup from "./useLiveSetup";
 import RestingOrder from "./RestingOrder";
 import OrderLog from "@/components/close/OrderLog";
 import UpgradePrompt from "@/components/billing/UpgradePrompt";
+import OrderWarnings from "./OrderWarnings";
 import { unitFor, isSingle } from "@/lib/setupUnit";
 
 const DEFAULTS = {
@@ -52,10 +53,11 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
   // Walk is the default here for the same reason it is on the close ticket: it
   // fills more often than a price left to rest. See OpenPricing for why the
   // start and floor default where they do.
+  const [timeInForce, setTimeInForce] = useState("day");
   const [priceMode, setPriceMode] = useState("walk");
   const [limitCredit, setLimitCredit] = useState(null);
   const [minCredit, setMinCredit] = useState(null);
-  const { phase, log, upgrade, resting, run, stop: stopOrder, reset, replacePrice } = useOpenOrder();
+  const { phase, log, upgrade, resting, warnings, run, stop: stopOrder, reset, replacePrice, sendAnyway } = useOpenOrder();
 
   // The market under the chosen setup, live while the ticket is being priced
   // and while a hand-priced order rests (so its price can be changed against
@@ -118,7 +120,8 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
       orderType,
       startCredit: limitCredit,
       minCredit,
-      priceMode
+      priceMode,
+      timeInForce
     });
 
   // What the X and a click outside the dialog do depends on where the order is:
@@ -138,7 +141,8 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
       if (resting) stopOrder();
       return;
     }
-    if (phase === "failed") { reset(); return; }
+    // Nothing was sent, so the X means "back to the ticket", not "leave".
+    if (phase === "warned" || phase === "failed") { reset(); return; }
     const refresh = phase === "filled" || phase === "detached";
     reset();
     if (refresh) onDone(); else onClose();
@@ -248,6 +252,8 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
               onCredit={setLimitCredit}
               minCredit={minCredit}
               onMinCredit={setMinCredit}
+              timeInForce={timeInForce}
+              onTimeInForce={setTimeInForce}
               liveQuote={live.quote}
             />
 
@@ -268,6 +274,9 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
         {phase !== "idle" && (
           <div className="space-y-4">
             <OrderLog log={log} phase={phase} />
+            {phase === "warned" && (
+              <OrderWarnings warnings={warnings} onSend={sendAnyway} onBack={reset} />
+            )}
             {phase === "failed" && upgrade && <UpgradePrompt message={upgrade} />}
             {phase === "working" && resting && setup && (
               <RestingOrder
@@ -292,6 +301,9 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
                   Close ticket
                 </button>
               </div>
+            ) : phase === "warned" ? (
+              // OrderWarnings carries its own two buttons.
+              null
             ) : phase === "detached" ? (
               <button onClick={handleDismiss} className="w-full py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition-colors">
                 Close — the order keeps working

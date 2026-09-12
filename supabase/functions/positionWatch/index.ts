@@ -1,7 +1,7 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient } from "../_shared/supabaseClients.ts";
+import { loadAllAccounts } from "../_shared/accounts.ts";
 import { tradingBase, alpacaFetch } from "../_shared/alpaca.ts";
-import { decryptSecret } from "../_shared/crypto.ts";
 import { getSpots, getClosingSpots } from "../_shared/marketPrice.ts";
 import { parseOCCSymbol } from "../_shared/occ.ts";
 import { earningsThrough, daysUntil } from "../_shared/earnings.ts";
@@ -25,25 +25,6 @@ import { sharesByTicker, nakedShortCalls, unjudgedShortCalls, judgeOnLivePrices 
 // Trust is honoured, not defaulted. A price the trust ladder rejects never
 // silently becomes a moneyness verdict; it becomes an alert that the watch
 // could not judge the position, which is itself worth knowing.
-
-// One connected account, credentials decrypted for the length of this request.
-async function loadAllAccounts(admin) {
-  const { data, error } = await admin
-    .from("trading_accounts")
-    .select("*")
-    .or("oauth_access_token.not.is.null,api_key.not.is.null");
-  if (error) throw new Error(error.message);
-  const out = [];
-  for (const a of data || []) {
-    out.push({
-      ...a,
-      api_key: await decryptSecret(a.api_key),
-      api_secret: await decryptSecret(a.api_secret),
-      oauth_access_token: await decryptSecret(a.oauth_access_token)
-    });
-  }
-  return out;
-}
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
 

@@ -55,7 +55,7 @@ export default function Dashboard() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Positions Monitor</h1>
+          <h1 className="font-heading text-xl font-bold tracking-[-0.02em] text-dm-text">Dashboard</h1>
           {data?.syncedAt && (
             <p className="text-xs text-slate-500 mt-0.5">Last synced {new Date(data.syncedAt).toLocaleTimeString()}</p>
           )}

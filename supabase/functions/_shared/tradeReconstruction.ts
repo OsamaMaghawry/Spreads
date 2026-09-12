@@ -676,9 +676,32 @@ export function buildTrades(closedLots, sharesHeldAt, accountId) {
   // real money. Writing it into the long fields with an empty short leg makes
   // the generic P/L formula produce exactly (exit - entry) * qty * 100, so the
   // cost lands in the totals instead of disappearing.
+  // A BOUGHT PUT IS A BOUGHT PUT, NOT A SPREAD.
+  //
+  // The owner, 11 Sep: *"I don't see the long put in the trade history."* It
+  // was there, filed under Spreads, which is where he was never going to look.
+  // Two rows on his own account -- TSLA 365P long 1 twice, -$128 and -$249 --
+  // each with an EMPTY `short_symbol`, because there is no short leg. Calling
+  // that a spread is not a near-miss; it is a different position.
+  //
+  // The cause was that no category existed. Until migration 0034 the strategy
+  // column allowed only spreads / cash_secured_put / covered_call / wheel /
+  // unknown, so a long option that found no partner fell through to the
+  // leftover bucket and got stamped `spreads` for want of anywhere else. His
+  // question -- "don't we have a design just for regular puts and calls?" --
+  // has the answer: we did not.
+  //
+  // Only when genuinely UNPAIRED and only when the leg's own order did not
+  // already name a strategy. A long leg carrying `wheel` from the account's
+  // order prefix keeps it; this is the fallback, not an override.
+  const longOnly = (l) => {
+    if (l.strategy && l.strategy !== "unknown" && l.strategy !== "spreads") return l.strategy;
+    return l.parsed?.type === "P" ? "long_put" : l.parsed?.type === "C" ? "long_call" : "spreads";
+  };
+
   const longLeg = (l) => ({
     account_id: accountId,
-    strategy: l.strategy === "unknown" ? "spreads" : l.strategy,
+    strategy: longOnly(l),
     unpaired: true,
     chain_id: l.chainKey || null,
     ticker: l.parsed.ticker,

@@ -17,6 +17,10 @@ export default function StrategyComparison({ rows }) {
   // thing, 200px away. The whole-book row is the one to read it off.
   const whole = rows.find((r) => r.stats?.provisionalTrades !== undefined && /all/i.test(r.label));
   const notFinal = (whole || rows[0])?.stats?.provisionalTrades || 0;
+  // Every row is measured under the selected view, so the P/L column means the
+  // whole position or the option legs alone depending on the control above.
+  const view = (whole || rows[0])?.stats?.view;
+  const marked = !!(whole || rows[0])?.stats?.includesUnrealized;
   return (
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
       <h3 className="text-sm font-medium text-slate-900 px-4 py-3 border-b border-slate-200">Strategy comparison</h3>
@@ -27,7 +31,7 @@ export default function StrategyComparison({ rows }) {
               <th className={th}>Strategy</th>
               <th className={`${th} text-right`}>Trades</th>
               <th className={`${th} text-right`}>Win rate</th>
-              <th className={`${th} text-right`}>Realized P/L</th>
+              <th className={`${th} text-right`}>{view === "premium" ? "Option-leg P/L" : marked ? "Total P/L" : "Realized P/L"}</th>
               <th className={`${th} text-right`}>Expectancy</th>
               <th className={`${th} text-right`}>Profit factor</th>
               <th className={`${th} text-right`}>Return on risk</th>
@@ -50,20 +54,43 @@ export default function StrategyComparison({ rows }) {
                 <td className={`${td} text-right`}>{num(stats.profitFactor)}</td>
                 <td className={`${td} text-right`}>{pct(stats.returnOnRisk)}</td>
                 <td className={`${td} text-right`}>{pct(stats.roe)}</td>
-                <td className={`${td} text-right`}>{pct(stats.annualized, 0)}</td>
-                <td className={`${td} text-right`}>{pct(stats.cagr, 0)}</td>
+                {/* Withheld on the same rule StatCards applies, and for the
+                    same reason: a reversible paper gain on an open position,
+                    divided by equity, times 365 and compounded, reads as a
+                    performance claim. The rule landed on the cards and missed
+                    this table -- which is the one that goes into the exported
+                    PDF. */}
+                <td className={`${td} text-right`}>
+                  {stats.includesUnrealized ? "—" : pct(stats.annualized, 0)}
+                </td>
+                <td className={`${td} text-right`}>
+                  {stats.includesUnrealized ? "—" : pct(stats.cagr, 0)}
+                </td>
                 <td className={`${td} text-right text-rose-600`}>{fmtMoney(stats.maxDrawdown ? -stats.maxDrawdown : 0)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {/* The all-strategies row carries the mark on shares still held; the
+          strategy rows cannot, because a share lot is held by the account and
+          not by a strategy. Said here, or the rows visibly fail to add up to
+          the row above them with nothing on screen to explain it. */}
+      {marked && (
+        <p className="border-t border-slate-200 px-4 py-2.5 text-[11px] leading-relaxed text-slate-500">
+          The all-strategies row includes the unrealized mark on positions still open; the
+          individual strategy rows are money booked only, because a share lot or an option leg is
+          held by the account rather than by one strategy. The rows will not add up to it, by that
+          amount. Annualized and CAGR are withheld on any row carrying that mark &mdash; a
+          reversible paper figure must not be compounded into an annual rate.
+        </p>
+      )}
       {notFinal > 0 && (
         <p className="border-t border-slate-200 px-4 py-2.5 text-[11px] leading-relaxed text-slate-500">
           Win rate, expectancy and profit factor are measured over settled trades. {notFinal} position
           {notFinal === 1 ? "" : "s"} closed by assignment {notFinal === 1 ? "still holds" : "still hold"}{" "}
           shares, so {notFinal === 1 ? "its result is" : "their results are"} not final and{" "}
-          {notFinal === 1 ? "it is" : "they are"} left out of those three. Trades, realized P/L and max
+          {notFinal === 1 ? "it is" : "they are"} left out of those three. Trades, P/L and max
           drawdown count every row.
         </p>
       )}

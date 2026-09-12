@@ -9,6 +9,7 @@ import ConfirmDeleteAccount from "@/components/common/ConfirmDeleteAccount";
 import AccountForm from "@/components/accounts/AccountForm";
 import { startAlpacaOAuth, describeOAuthConfig } from "@/lib/alpacaOAuth";
 import useAdminSettings from "@/lib/useAdminSettings";
+import usePublicConfig from "@/lib/usePublicConfig";
 
 export default function Accounts() {
   const [accounts, setAccounts] = useState(null);
@@ -30,6 +31,9 @@ export default function Accounts() {
   // an administrator with the switch off sees no more than a customer does.
   const { isAdmin, settings } = useAdminSettings();
   const manualKeys = isAdmin && settings.manualApiKeys === true;
+  // Demo is a customer-visible mode, so it comes from publicConfig rather than
+  // the admin-only settings read -- this page renders for everyone.
+  const { demoMode } = usePublicConfig();
 
   // Straight to Alpaca, with nothing in between.
   //
@@ -88,15 +92,21 @@ export default function Accounts() {
     <div className="max-w-3xl mx-auto space-y-5">
       <div className="flex items-center gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Accounts</h1>
+          <h1 className="font-heading text-xl font-bold tracking-[-0.02em] text-dm-text">Accounts</h1>
           {/* Alpaca's rule, stated where it matters: a token is bound to one
               live and one paper account by account id, so several paper
               accounts means several trips through the consent screen. Ticking
               three at once does not connect three. */}
           <p className="text-xs text-slate-500 mt-0.5">
-            The Alpaca accounts shown on the monitor. Each authorization connects one live and one
+            The Alpaca accounts shown on the dashboard. Each authorization connects one live and one
             paper account — to add another paper account, connect again and tick just that one.
           </p>
+          {demoMode && (
+            <p className="mt-1.5 text-xs text-dm-accent">
+              While DeltaMint is in demo, connect a <strong>paper</strong> account on Alpaca&rsquo;s
+              consent screen. A live account will connect and sync, but no new order is sent to it.
+            </p>
+          )}
         </div>
         <div className="ml-auto flex items-center gap-2">
           <button
@@ -221,10 +231,23 @@ export default function Accounts() {
                   }`}>
                     {a.is_paper ? "Paper" : "Live"}
                   </span>
+                  {/* In demo, a live account is read-only for OPENING and
+                      nothing else: it still syncs, still shows its positions,
+                      and can still be closed out of. Saying that on the row
+                      itself beats letting someone find out at a ticket. */}
+                  {!a.is_paper && demoMode && (
+                    <span
+                      title="Demo mode: no new order is sent to a live account. Closing is never blocked."
+                      className="rounded-full border border-dm-line bg-dm-accent/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-dm-accent"
+                    >
+                      Watch only
+                    </span>
+                  )}
                   {/* Whether a live plan is in force. Presentation only: the
                       order function decides, and it also knows whether billing
-                      is being enforced yet. */}
-                  {!a.is_paper && (
+                      is being enforced yet. Hidden in demo, where no plan
+                      changes anything. */}
+                  {!a.is_paper && !demoMode && (
                     <Link
                       to="/billing"
                       title={plan === "live" ? "Live plan active" : "No Live plan — opening live positions needs one once billing is enforced"}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
 import { invokeFunction } from "@/lib/functions";
+import { fmtMoney } from "@/lib/format";
 import { RefreshCw, ArrowLeft, BarChart3 } from "lucide-react";
 import { STRATEGIES, strategyOf, strategyLabel } from "@/lib/strategies";
 import { computeStats } from "@/lib/analytics";
@@ -12,6 +13,11 @@ import StrategyTabs from "@/components/history/StrategyTabs";
 import ExportPdfButton from "@/components/analysis/ExportPdfButton";
 import DateRangeFilter from "@/components/analysis/DateRangeFilter";
 import CaptureBreakdown from "@/components/analysis/CaptureBreakdown";
+import OpenBookPanel from "@/components/analysis/OpenBookPanel";
+import OpenOptionsPanel from "@/components/analysis/OpenOptionsPanel";
+import ViewSwitch from "@/components/analysis/ViewSwitch";
+import { openBook, openOptions, openMark, premiumOnly, realizedShares, orphanedShares } from "@/lib/openBook";
+import { dailySeries, bookedCurve } from "@/lib/equityCurve";
 
 export default function AccountAnalysis() {
   const { id } = useParams();
@@ -20,8 +26,15 @@ export default function AccountAnalysis() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [strategy, setStrategy] = useState("all");
+  // Whole view is the DEFAULT. See ViewSwitch for why that is a statement
+  // about what the wheel is, not a precaution.
+  const [view, setView] = useState("whole");
+  const [broker, setBroker] = useState([]);
   const [range, setRange] = useState({ from: "", to: "" });
   const [syncing, setSyncing] = useState(false);
+  // The stored daily series, and which of its two lines the chart is drawing.
+  const [equitySeries, setEquitySeries] = useState([]);
+  const [chartMode, setChartMode] = useState("performance");
   const reportRef = useRef(null);
 
   // Same as the history page: the function refreshes itself when what it holds
@@ -29,15 +42,29 @@ export default function AccountAnalysis() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [hist, live] = await Promise.all([
+      const [hist, live, equityHistory] = await Promise.all([
         invokeFunction("tradeHistory", { accountId: id }),
-        invokeFunction("syncAccounts", {}).catch(() => null)
+        invokeFunction("syncAccounts", {}).catch(() => null),
+        // The stored day-by-day series. It syncs itself, like tradeHistory: the
+        // call serves what is stored and rebuilds first when that is stale.
+        //
+        // Caught rather than awaited into the failure path on purpose — a
+        // broker that will not serve a year of bars must not take the whole
+        // Analysis page down with it. The chart falls back to the booked line
+        // and says why.
+        invokeFunction("equityHistory", { accountId: id }).catch(() => null)
       ]);
       if (hist.data?.error) throw new Error(hist.data.error);
       setData(hist.data);
+      setEquitySeries(equityHistory?.data?.series || []);
       setSyncing(Boolean(hist.data?.syncing));
       const acct = live?.data?.accounts?.find((a) => a.id === id);
       setEquity(acct?.equity || 0);
+      // The marks were already arriving and nothing read them. `brokerView`
+      // carries the broker's own current price per position, and this page
+      // already called syncAccounts on load -- so pricing the held shares
+      // needs no new request, no second price source and no cron.
+      setBroker(acct?.broker || []);
       return hist.data;
     } catch (e) {
       setError(e.message);
@@ -70,49 +97,184 @@ export default function AccountAnalysis() {
     [allTrades, range]
   );
 
-  const { stats, comparison, subset, provisionalCount } = useMemo(() => {
-    const subset = strategy === "all" ? trades : trades.filter((t) => strategyOf(t) === strategy);
-    // Equity belongs to the account, not to a strategy, and it was being split
-    // between them by *trade count*: cash-secured puts with 44 trades and
-    // $1.36M of collateral got 44% of equity while spreads with 55 trades and
-    // $20k got 56% — denominators inverted against the capital actually used,
-    // with CAGR exponential in the invented number and the whole thing landing
-    // in the exported report. There is no honest share to use, so a filtered
-    // view withholds return on equity rather than inventing one. Return on
-    // risk, which divides by collateral the strategy really tied up, still
-    // answers the question for a single strategy.
-    const s = computeStats(subset, strategy === "all" ? equity : 0);
-    // Built from the shared category list, so a category added there appears
-    // here without a second place needing to know the names.
-    //
+  // ---------------------------------------------------------------------
+  // What the page is showing, in one place.
+  //
+  // ORDER MATTERS THROUGHOUT. useMemo evaluates its callback AND its dependency
+  // array during render, so referencing a `const` declared further down throws
+  // on the temporal dead zone — the same trap that took down MultiCloseDialog
+  // once already. Each block below depends only on the ones above it.
+  // ---------------------------------------------------------------------
+
+  // 1. The rows this page is measuring: the date filter, then the strategy tab.
+  const subset = useMemo(
+    () => (strategy === "all" ? trades : trades.filter((t) => strategyOf(t) === strategy)),
+    [trades, strategy]
+  );
+
+  // 2. The shares still held, and what they are worth now.
+  //
+  // The book is NOT filtered by strategy or date: an open position is held
+  // today whatever window is being read, and hiding it under a date filter
+  // would recreate the defect this was built to fix.
+  const book = useMemo(() => openBook(data?.stockLots, broker), [data, broker]);
+
+  // The OPTION legs still open, which no figure on this page contained until
+  // now. The owner, on his own TSLA book: "did you add the Put position that is
+  // open now?" It was not one position -- five open legs, -$390 net, on an
+  // account whose headline called itself "the wheel as one strategy" while
+  // counting the 210 shares and dropping the put protecting them and the calls
+  // written against them.
+  const optionBook = useMemo(() => openOptions(broker), [broker]);
+
+  // Everything still open, shares and option legs together, as one number.
+  // Null when either half cannot be valued -- a total that covered the shares
+  // and quietly dropped an unpriced leg is the same defect one level up.
+  const liveMark = useMemo(() => openMark(book, optionBook), [book, optionBook]);
+  const hasOpen = book.lots > 0 || optionBook.count > 0;
+
+  // 3. When a whole-account figure may be added to a filtered one: never.
+  //
+  // `stats` is filtered by the strategy tab and the date range; the book
+  // deliberately is not. Adding an all-time figure to a windowed one produces a
+  // number that answers nothing — on the covered-call tab it reported -$2,221
+  // of covered-call realized plus the mark on the entire equity book. The open
+  // book panel stays visible and unfiltered; it is the ADDITION that is
+  // withheld, the same discipline return on equity already applies.
+  const scoped = strategy === "all" && !range.from && !range.to;
+  const scopedUnrealized = scoped ? liveMark : null;
+
+  // 4. THE CHART, from the stored daily series.
+  //
+  // `equityHistory` recalculates the portfolio for every session day since the
+  // account's first trade and stores it, so there is a real mark for every day
+  // rather than one step bolted onto today. A date range slices and rebases
+  // that series cleanly.
+  //
+  // The one case it cannot answer is a STRATEGY TAB: a share lot is held by the
+  // account, not by a strategy, and attributing a day's move on 300 WMT shares
+  // to covered calls rather than to the puts that bought them would be an
+  // invention. There the chart falls back to the money that strategy booked, in
+  // the order it booked it, and says so on screen.
+  const dailyChart = useMemo(
+    () => dailySeries(equitySeries, view, chartMode, range),
+    [equitySeries, view, chartMode, range]
+  );
+  const useDaily = strategy === "all" && dailyChart.points.length > 0;
+  const curve = useMemo(
+    () => (useDaily ? dailyChart : bookedCurve(subset, view)),
+    [useDaily, dailyChart, subset, view]
+  );
+  const hasValueSeries = useMemo(
+    () => equitySeries.some((r) => r?.equity !== null && r?.equity !== undefined),
+    [equitySeries]
+  );
+  // The daily marks that measure drawdown: always the performance series,
+  // whatever the chart happens to be drawing. Account value is a balance and
+  // its drawdown would include every withdrawal.
+  const drawdownPoints = useMemo(
+    () => (strategy === "all" ? dailySeries(equitySeries, view, "performance", range).points : []),
+    [strategy, equitySeries, view, range]
+  );
+
+  const chartFallbackReason = useDaily
+    ? null
+    : equitySeries.length === 0
+      ? "Day-by-day values are not stored for this account yet. This line is the money booked, trade by trade; it will be redrawn from daily values after the next sync."
+      : `Day-by-day marks cover the whole account, not one strategy — shares are held by the account, not by the ${strategyLabel(strategy)} tab. This line is the money that strategy booked, in the order it booked it.`;
+
+  // 5. EVERY STATISTIC, UNDER THE SELECTED VIEW.
+  //
+  // The owner: *"When I say whole view, everything should be whole view."* This
+  // is where that happens. `computeStats` takes the view and the mark, so win
+  // rate, payoff, expectancy, streaks, best and worst, the month and ticker
+  // tables and return on equity are all recomputed rather than relabelled.
+  //
+  // Return on equity is withheld under a strategy tab, and that is unchanged:
+  // equity belongs to the account and was being split between strategies by
+  // TRADE COUNT — cash-secured puts with 44 trades and $1.36M of collateral got
+  // 44% of equity while spreads with 55 trades and $20k got 56%. There is no
+  // honest share to use, so a filtered view withholds it. Return on risk, which
+  // divides by collateral the strategy really tied up, still answers it.
+  const stats = useMemo(
+    () =>
+      computeStats(subset, strategy === "all" ? equity : 0, view, {
+        unrealized: scopedUnrealized,
+        // Drawdown measured on booked trades alone can only ever be the sum of
+        // the option debits: a position that fell and recovered registers
+        // nothing, because no trade closed while it happened. The daily line has
+        // a mark for every day, so the trough is the trough.
+        //
+        // DELIBERATELY NOT TIED TO `chartMode`. It was, and toggling the chart
+        // to Account value silently reverted Max drawdown to the booked figure
+        // -- thousands smaller -- under a caption reading "daily values not
+        // stored yet", which was untrue with the daily line drawn 300px below.
+        // A statistic must not move because a chart button moved.
+        dailyPoints: drawdownPoints
+      }),
+    [subset, strategy, equity, view, scopedUnrealized, drawdownPoints]
+  );
+
+  const comparison = useMemo(() => {
     // Only when looking at everything. Filtering to one strategy and then
-    // printing a table of all of them contradicts the filter -- on screen it is
+    // printing a table of all of them contradicts the filter — on screen it is
     // merely odd, but the PDF is the artifact that gets sent to someone, and a
     // report headed "Cash-secured puts" that lists every other strategy
-    // underneath is not the report that was asked for. With one strategy
-    // selected there is also nothing to compare it against.
-    const rows =
-      strategy !== "all"
-        ? []
-        : [{ label: "All strategies", trades }]
-            .concat(
-              STRATEGIES.map((s) => ({
-                label: s.label,
-                trades: trades.filter((t) => strategyOf(t) === s.key)
-              })).filter((r) => r.trades.length > 0)
-            )
-            .map((r) => ({
-              label: r.label,
-              stats: computeStats(r.trades, r.label === "All strategies" ? equity : 0)
-            }))
-            .filter((r) => r.stats);
-    return {
-      stats: s,
-      comparison: rows,
-      subset,
-      provisionalCount: subset.filter((t) => t.provisional).length
-    };
-  }, [trades, strategy, equity]);
+    // underneath is not the report that was asked for.
+    if (strategy !== "all") return [];
+    return [{ label: "All strategies", trades, whole: true }]
+      .concat(
+        STRATEGIES.map((s) => ({
+          label: s.label,
+          trades: trades.filter((t) => strategyOf(t) === s.key),
+          whole: false
+        })).filter((r) => r.trades.length > 0)
+      )
+      .map((r) => ({
+        label: r.label,
+        // The comparison follows the view too. A per-strategy row takes no mark:
+        // the book is not attributable to a strategy, and only the
+        // all-strategies row covers the same account the mark does.
+        // The all-strategies row is the same population as the cards above, so
+        // it takes the same drawdown basis. Without this the card and the row
+        // printed two different Max drawdowns under one name on one screen.
+        stats: computeStats(r.trades, r.whole ? equity : 0, view, {
+          unrealized: r.whole ? scopedUnrealized : null,
+          dailyPoints: r.whole ? drawdownPoints : null
+        })
+      }))
+      .filter((r) => r.stats);
+  }, [trades, strategy, equity, view, scopedUnrealized, drawdownPoints]);
+
+  const provisionalCount = useMemo(() => subset.filter((t) => t.provisional).length, [subset]);
+
+  // 6. The headline figure for the selected view, and why it is ever withheld.
+  const premiumFigure = useMemo(() => premiumOnly(subset), [subset]);
+  // The bridge between the two realized numbers on this page. Premium only is
+  // -$1,686 while Realized P/L reads -$1,244; the $442 difference is the share
+  // result of lots already SOLD, and nothing on screen explained it. Invisible
+  // on a book that has sold nothing, and it appears the moment one wheel lot is
+  // closed.
+  const soldSharesFigure = useMemo(() => realizedShares(subset), [subset]);
+  // Share results credited to no trade row at all -- unbounded, and the exact
+  // gap between the chart's own reading of the lots and the headline's reading
+  // of the trade rows. Measured over the WHOLE ledger, like the book, because
+  // an unmatched lot has no strategy and no close date to filter it by.
+  const orphanFigure = useMemo(
+    () => orphanedShares(data?.stockLots, allTrades),
+    [data, allTrades]
+  );
+  const wholeUnknown = !stats || !scoped || (hasOpen && liveMark === null);
+  const headlineFigure =
+    view === "premium" ? premiumFigure : wholeUnknown ? null : stats?.totalPL ?? null;
+  const headlineUnknown = view === "premium" ? false : wholeUnknown;
+  const withheldNote = !headlineUnknown
+    ? null
+    : !scoped
+      ? "No whole-account total while a strategy tab or date range is set — the shares are held today, and adding them to a filtered figure would answer nothing."
+      : book.unrealized === null && book.lots > 0
+        ? "Part of the share book has no price. See the shares below."
+        : "The broker returned no value for an open option leg. See the positions below.";
 
   if (loading) {
     return (
@@ -130,7 +292,7 @@ export default function AccountAnalysis() {
           <Link to={`/account/${id}`} className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 transition-colors">
             <ArrowLeft className="w-3.5 h-3.5" /> Back to account
           </Link>
-          <h1 className="text-xl font-semibold text-slate-900 tracking-tight mt-1">
+          <h1 className="font-heading text-xl font-bold tracking-[-0.02em] text-dm-text mt-1">
             {data?.account ? `${data.account.name} — Analysis` : "Analysis"}
           </h1>
           {stats && (
@@ -155,8 +317,9 @@ export default function AccountAnalysis() {
             <ExportPdfButton
               targetRef={reportRef}
               title={data?.account ? `${data.account.name} — Performance Analysis` : "Performance Analysis"}
-              subtitle={`${stats.firstDate} → ${stats.lastDate}${range.from || range.to ? " (filtered)" : ""} · ${strategy === "all" ? "All strategies" : strategyLabel(strategy)} · equity ${equity ? `$${equity.toLocaleString()}` : "n/a"} · generated ${new Date().toLocaleString()}`}
+              subtitle={`${stats.firstDate} → ${stats.lastDate}${range.from || range.to ? " (filtered)" : ""} · ${strategy === "all" ? "All strategies" : strategyLabel(strategy)} · ${view === "whole" ? "Whole view (options + shares)" : "Premium only (option legs)"} · equity ${equity ? `$${equity.toLocaleString()}` : "n/a"} · generated ${new Date().toLocaleString()}`}
               isPaper={!!data?.account?.is_paper}
+              viewLabel={view === "whole" ? "Whole view (options + shares)" : "Premium only (option legs)"}
             />
           )}
         </div>
@@ -183,13 +346,78 @@ export default function AccountAnalysis() {
                 Paper account &mdash; every figure below is simulated, not real money.
               </div>
             )}
+            {/* The switch, and the book it governs. Both sit INSIDE reportRef:
+                an export has to say which view produced it, or two PDFs of the
+                same week disagree with nothing on either to explain why.
+
+                Shown whenever there is a book to switch OVER. Below that, there
+                is one honest reading of the page and a control offering a
+                second one would be theatre. */}
+            {hasOpen && (
+              <div className="space-y-2">
+                <ViewSwitch
+                  value={view}
+                  onChange={setView}
+                  figure={headlineFigure}
+                  figureUnknown={headlineUnknown}
+                  withheldNote={withheldNote}
+                />
+                {/* The one thing the switch does NOT change, said plainly.
+                    Everything else on this page now recomputes; credit capture
+                    cannot, because it asks what share of the premium sold was
+                    kept and folding assigned shares into that produces a ratio
+                    above its own maximum. */}
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Win rate, payoff, expectancy, streaks and the tables below are measured on{" "}
+                  {view === "whole" ? "whole closed positions" : "closed option legs alone"}, so they
+                  change with this control. Credit capture does not: it is the share of premium sold
+                  that was kept, and shares have no premium to keep.
+                  {view === "premium" && Math.abs(soldSharesFigure) >= 0.005 && (
+                    <>
+                      {" "}Shares already sold {soldSharesFigure >= 0 ? "added" : "took off"}{" "}
+                      <strong>{fmtMoney(soldSharesFigure)}</strong>, which is why the whole-view
+                      total differs by more than the mark on what is still held.
+                    </>
+                  )}
+                  {/* The clause "and is the view to use against a 1099-B" stood
+                      here and is deleted, not softened. Premium only EXCLUDES
+                      share sales, which are the largest lines on a wheel
+                      trader's 1099-B, and on an assigned put the premium is not
+                      option income at all -- it reduces the stock basis. It also
+                      contradicted the tax paragraph below, which already tells
+                      the reader to reconcile against the broker's own 1099-B.
+                      One screen must not carry two instructions about a tax
+                      filing. */}
+                </p>
+              </div>
+            )}
+            {book.lots > 0 && <OpenBookPanel book={book} priced={view === "whole"} />}
+            <OpenOptionsPanel book={optionBook} priced={view === "whole"} />
             {comparison.length > 1 && <StrategyComparison rows={comparison} />}
             <StatCards stats={stats} />
+            <EquityCurveChart
+              curve={curve}
+              view={view}
+              mode={chartMode}
+              onModeChange={setChartMode}
+              hasValueSeries={hasValueSeries && useDaily}
+              fallbackReason={chartFallbackReason}
+            />
             <CaptureBreakdown trades={subset} />
-            <EquityCurveChart curve={stats.curve} />
             <div className="grid gap-4 lg:grid-cols-2">
-              <BreakdownTable title="By month" keyLabel="Month" keyField="month" rows={stats.byMonth} />
-              <BreakdownTable title="By ticker" keyLabel="Ticker" keyField="ticker" rows={stats.byTicker} />
+              {/* `computeStats` buckets these under the selected view at the
+                  source, so there is no second pass here correcting the first
+                  one -- which is what `viewBreakdown` used to be. */}
+              <BreakdownTable
+                title={view === "premium" ? "By month — option legs" : "By month"}
+                keyLabel="Month" keyField="month"
+                rows={stats.byMonth}
+              />
+              <BreakdownTable
+                title={view === "premium" ? "By ticker — option legs" : "By ticker"}
+                keyLabel="Ticker" keyField="ticker"
+                rows={stats.byTicker}
+              />
             </div>
 
             {/* Inside reportRef on purpose. The site-wide disclaimer sits in
@@ -201,8 +429,53 @@ export default function AccountAnalysis() {
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] leading-relaxed text-slate-600">
               <span className="font-semibold text-slate-700">DeltaMint — economic performance report. Not a tax document.</span>{" "}
               Figures cover only positions an option opened or closed and exclude the rest of this
-              account. Realized P/L here is not taxable gain or loss: wash sales, straddle rules,
-              Section 1256 treatment and cost-basis adjustments on assignment are not applied.
+              account.{" "}
+              {/* VIEW-AWARE, because the block named a card that does not exist
+                  under one of them and described figures that are no longer
+                  what it says they are. Under Premium only there is no card
+                  called Realized P/L; under Whole view three of the things it
+                  called "money booked" now carry a mark-to-market. */}
+              {view === "premium" ? (
+                <>
+                  This view shows the option legs alone and excludes every share sale, which are the
+                  largest lines on a wheel trader&rsquo;s 1099-B. Nothing here is taxable gain or loss:
+                  wash sales, straddle rules, Section 1256 treatment and the premium&rsquo;s effect on
+                  stock basis at assignment are not applied.
+                </>
+              ) : (
+                <>
+                  P/L here is not taxable gain or loss: wash sales, straddle rules, Section 1256
+                  treatment and cost-basis adjustments on assignment are not applied.
+                  {/* "on shares still held" named the WRONG HALF. On a book
+                      carrying -$287.25 of mark, the share half was +$102.75 and
+                      the option half -$390.00 -- it named the half with the
+                      opposite sign and omitted the half that dominates. This
+                      block sits inside reportRef, so it is what the exported
+                      PDF says. */}
+                  {stats?.includesUnrealized && (
+                    <> The total, return on equity and return on risk also include an{" "}
+                    <strong>unrealized</strong> mark on positions still open
+                    {book.lots > 0 && optionBook.count > 0
+                      ? " — shares held and option legs not yet closed"
+                      : optionBook.count > 0
+                        ? " — option legs not yet closed"
+                        : " — shares still held"}
+                    . Nothing is owed on a position that has not been closed, and that figure moves
+                    with the market until it is.</>
+                  )}
+                </>
+              )}
+              {/* Share results that reached no trade row, so no statistic here
+                  counts them. Real money, in the account, invisible to every
+                  figure on this page -- and the daily chart reads the lots
+                  directly and DOES see it, so unsaid the two disagree in
+                  silence. */}
+              {Math.abs(orphanFigure) >= 0.005 && (
+                <> {fmtMoney(orphanFigure)} of share results could not be matched to an option in this
+                account &mdash; shares bought or sold outside DeltaMint, or a position that began before
+                the broker&rsquo;s activity feed does. That money is in the account and in none of the
+                figures above.</>
+              )}
               {provisionalCount > 0 && (
                 <> {provisionalCount} position{provisionalCount === 1 ? "" : "s"} closed by assignment
                 {provisionalCount === 1 ? " still has" : " still have"} shares held, so

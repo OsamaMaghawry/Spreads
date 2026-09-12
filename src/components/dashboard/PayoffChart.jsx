@@ -17,14 +17,28 @@ const PAD = { top: 32, right: 16, bottom: 34, left: 60 };
 
 const money = (n) => (Math.abs(n) >= 1000 ? `${n < 0 ? "-" : ""}$${Math.round(Math.abs(n) / 1000)}k` : fmtMoney(n));
 
-export default function PayoffChart({ curve, spot, crossings = [], marks = [] }) {
+// `baseline` is a second curve drawn behind the first, on the SAME price
+// sampling: the book as it stands, against the book as it would stand if the
+// order on the ticket were filled. Without it "how does this reflect on the
+// entire position" is two pictures the reader has to hold in their head.
+export default function PayoffChart({
+  curve,
+  spot,
+  crossings = [],
+  marks = [],
+  baseline = null,
+  baselineLabel = "As it stands",
+  curveLabel = "With this order"
+}) {
   const ref = useRef(null);
   const [hover, setHover] = useState(null);
 
   const geom = useMemo(() => {
     if (!curve?.length) return null;
     const xs = curve.map((p) => p.price);
-    const ys = curve.map((p) => p.pl);
+    // Both curves set the vertical range, or the comparison one is drawn
+    // partly outside the frame and reads as flatter than it is.
+    const ys = curve.map((p) => p.pl).concat((baseline || []).map((p) => p.pl));
     const x0 = Math.min(...xs);
     const x1 = Math.max(...xs);
     // Zero is always in frame: a payoff chart whose baseline is off-screen
@@ -37,7 +51,7 @@ export default function PayoffChart({ curve, spot, crossings = [], marks = [] })
     const py = (v) =>
       PAD.top + (1 - (v - (yLo - yPad)) / (yHi + yPad - (yLo - yPad))) * (H - PAD.top - PAD.bottom);
     return { x0, x1, yLo, yHi, px, py, zeroY: py(0) };
-  }, [curve]);
+  }, [curve, baseline]);
 
   if (!geom) return null;
   const { px, py, zeroY, x0, x1 } = geom;
@@ -60,7 +74,9 @@ export default function PayoffChart({ curve, spot, crossings = [], marks = [] })
     });
   })();
 
-  const line = curve.map((p, i) => `${i ? "L" : "M"}${px(p.price).toFixed(1)},${py(p.pl).toFixed(1)}`).join(" ");
+  const path = (pts) => pts.map((p, i) => `${i ? "L" : "M"}${px(p.price).toFixed(1)},${py(p.pl).toFixed(1)}`).join(" ");
+  const line = path(curve);
+  const baseLine = baseline?.length ? path(baseline) : null;
   // Two fills clipped to their own side of the baseline, rather than one fill
   // that would paint a loss region green wherever the curve crossed.
   const area = `${line} L${px(x1).toFixed(1)},${zeroY.toFixed(1)} L${px(x0).toFixed(1)},${zeroY.toFixed(1)} Z`;
@@ -137,6 +153,12 @@ export default function PayoffChart({ curve, spot, crossings = [], marks = [] })
           </g>
         ))}
 
+        {/* The book as it stands, behind: dashed and recessive, because the
+            reader is deciding about the solid one. */}
+        {baseLine && (
+          <path d={baseLine} fill="none" stroke="#64748b" strokeWidth="1.5" strokeDasharray="5 4" strokeLinejoin="round" />
+        )}
+
         <path d={line} fill="none" stroke="#0f172a" strokeWidth="2" strokeLinejoin="round" />
 
         {/* Where the whole book turns over. Labelled on the chart, because it
@@ -200,6 +222,25 @@ export default function PayoffChart({ curve, spot, crossings = [], marks = [] })
           </g>
         )}
       </svg>
+      {/* Below the frame rather than inside it: the strike labels already
+          occupy two rows along the top and a legend drawn up there printed
+          straight through them. */}
+      {baseLine && (
+        <div className="flex items-center gap-4 pt-1 text-[11px] text-slate-500">
+          <span className="flex items-center gap-1.5">
+            <svg width="20" height="6" aria-hidden="true">
+              <line x1="0" x2="20" y1="3" y2="3" stroke="#64748b" strokeWidth="1.5" strokeDasharray="5 4" />
+            </svg>
+            {baselineLabel}
+          </span>
+          <span className="flex items-center gap-1.5 text-slate-700 font-medium">
+            <svg width="20" height="6" aria-hidden="true">
+              <line x1="0" x2="20" y1="3" y2="3" stroke="#0f172a" strokeWidth="2" />
+            </svg>
+            {curveLabel}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

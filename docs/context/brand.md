@@ -93,7 +93,7 @@ substitute number.
 
 | Canonical | Not |
 | --- | --- |
-| Positions Monitor | dashboard, monitor page |
+| Dashboard | Positions Monitor, monitor page, positions |
 | Screener | scanner, finder |
 | Trade History | journal, log |
 | Analysis | analytics, stats, performance page |
@@ -102,6 +102,30 @@ substitute number.
 
 **(proposed)** "Scanner" appears in some copy where "Screener" is meant; the
 first audit should sweep it.
+
+**Dashboard**, renamed by the owner on 12 Sep, replacing "Positions Monitor".
+The table above previously listed "dashboard" as the thing NOT to say, and the
+nav had been saying it anyway while the page heading said the other — so the
+two names were being used against each other in one click. One name, his.
+
+### The two Analysis views
+
+| Canonical | Not |
+| --- | --- |
+| Whole view | full view, total view, everything view, mark-to-market |
+| Premium only | premium view, options only, realized only, cash view |
+
+Named by the owner on 10 Sep and registered here before the copy set a
+precedent. **Whole view** is realized money plus the unrealized gain or loss on
+shares still held; **Premium only** is the option legs alone — credits taken,
+debits paid, and what closing them cost or returned.
+
+Two things neither name may be made to say. Premium only is **not a tax view**:
+it excludes share sales, which are the largest lines on a wheel trader's
+1099-B, and on an assigned put the premium reduces the stock basis rather than
+standing alone as income. And it is not "what selling options banked": the
+figure is signed and includes debits paid on bought options — three such rows
+on the owner's own account contribute +$805 between them.
 
 ### Quantity a broker will not release
 
