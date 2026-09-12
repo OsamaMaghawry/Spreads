@@ -141,9 +141,9 @@ crossing it is the cost of trading without waiting. It is not charged, not
 itemised, and not optional for anyone transacting immediately.
 
 Reading a quote as one number — the midpoint — makes anything built on it
-slightly optimistic at both ends. The rest of the [foundations
-series](/blog/foundations) turns next from what a contract costs to how its
-price behaves.
+slightly optimistic at both ends. Next in the [foundations
+series](/blog/foundations): [option delta](/blog/option-delta-explained), the
+number on that same chain row that says how a price moves when the stock does.
 
 All figures on this page are hypothetical and are there to show the arithmetic.
 This post is educational and is not investment advice.

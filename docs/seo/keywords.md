@@ -36,6 +36,34 @@ results, not a metric. Never dress reading a results page up as volume data.
 
 Rows 21–65 are added by the Wednesday run as their turn approaches.
 
+## Reading for row 6 — option delta explained (read 12 Sep 2026)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| option delta explained (target) | Merrill Edge, TradingBlock, OptionAlpha, Seeking Alpha, Nasdaq, QuantWheel, IncomeShares | **hard-ish** — broker education plus well-funded content blogs, all titled "Delta Explained" |
+| what does delta mean in options trading | tastytrade, Interactive Brokers, Fidelity, Nasdaq, TradingBlock | **hard** — broker hubs own it end to end |
+| is delta the probability of expiring in the money | Medium, Macroption, Quora, OIC, Schwab, a Substack | **winnable** — Quora/Medium/Substack in the top set is a text-coverage gap |
+| what does 30 delta mean / choose strikes by delta | Macroption, QuantWheel (twice), TradingView scripts, small tool blogs | **winnable** — script pages and tool blogs padding the results means nothing authoritative answers the intent; this is our angle's home |
+| does option delta change as the stock moves | SpotGamma support, OIC, Schwab, IncomeShares, TradingView | winnable, thin — most answers pivot to gamma within two sentences |
+
+**The gap.** Every ranking page gives the $1-move definition, the sign rule and
+the ITM-probability shortcut. Almost none says why the number exists
+operationally: dollar distance from the stock is not comparable between a $60
+name and a $400 name, or between two expirations, and delta is what makes
+strike distance portable. QuantWheel is the one competitor pushing on strike
+selection, and it does so as a recommendation ("30 delta is the best
+option") — the angle here stays descriptive, not prescriptive.
+
+**Could not establish:** search volume, difficulty and current position for
+any phrasing above; whether these results are personalised or localised;
+whether "delta vs dollar distance" has its own searched phrasing — searches
+for it returned only generic delta explainers, so the post owns the idea with
+no query to target it.
+
 ## Off-syllabus rows
 
 `M48` is not a syllabus number. That post is not in the numbered list in
