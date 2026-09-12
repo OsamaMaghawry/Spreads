@@ -19,12 +19,18 @@ Deno.serve(async (req) => {
     // Signed in, but no role required: every customer gets the same answer.
     const user = await requireUser(req);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
-    const { billingVisible } = await readSettings(adminClient());
-    return jsonResponse({ billingVisible });
+    const { billingVisible, demoMode } = await readSettings(adminClient());
+    // `demoMode` joins `billingVisible` for the same reason: it changes what
+    // the nav and the Accounts page offer, and both render long before
+    // anything else is fetched. Still not a passthrough of readSettings --
+    // manual_api_keys and billing_enforced stay operator-only.
+    return jsonResponse({ billingVisible, demoMode });
   } catch (e) {
     // A failed read must not open the payment surface: the closed answer is
     // the safe one, and the caller renders as though billing does not exist.
     console.error("publicConfig failed", e instanceof Error ? e.message : e);
-    return jsonResponse({ billingVisible: false });
+    // Both closed answers: no payment surface, and demo ON. A failed read must
+    // not open live order entry any more than it opens a checkout.
+    return jsonResponse({ billingVisible: false, demoMode: true });
   }
 });

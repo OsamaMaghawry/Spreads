@@ -9,6 +9,18 @@ import AdminMaintenance from "@/components/admin/AdminMaintenance";
 // is unclear is one nobody dares touch.
 const SWITCHES = [
   {
+    key: "demo_mode",
+    field: "demoMode",
+    label: "Demo mode",
+    note:
+      "While ON, no new order is sent to a LIVE account from anywhere in the app: openPosition " +
+      "refuses it, Accounts will not connect a new live account, and a banner on every screen says " +
+      "so. Paper accounts are untouched and trade normally, and closing a live position is never " +
+      "blocked — whatever mode we are in, a user can always get out of what they hold. This is the " +
+      "switch to leave ON while sharing the app for feedback before the broker approves live " +
+      "trading. It is also the default: a missing row or a failed read reads as ON."
+  },
+  {
     key: "manual_api_keys",
     field: "manualApiKeys",
     label: "Manual API key entry",

@@ -31,7 +31,15 @@ const ORIGINS = [`https://${APEX}`, `https://dashboard.${APEX}`];
 
 // Pages a legitimate business is expected to publish. Their absence is one of
 // the cheapest signals a reputation engine reads, and the easiest to fix.
-const TRUST_PAGES = ["privacy", "terms", "pricing"];
+//
+// Pricing is NOT among them while the product is a demo. A published price is
+// a promise of something to buy, and a reputation engine reading a price for a
+// product that cannot yet be delivered is worse than reading none — the owner,
+// 12 Sep: "I don't want to have the pricing on something doesn't exist yet."
+// The page is kept in `landing/drafts/`; add it back here the day it goes
+// back up, so this check starts failing again the moment prices are promised
+// and then quietly removed.
+const TRUST_PAGES = ["privacy", "terms"];
 
 const results = [];
 const ok = (name, detail = "") => results.push({ level: "ok", name, detail });

@@ -1,6 +1,7 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { liveAllowedFor, UPGRADE_MESSAGE } from "../_shared/entitlement.ts";
+import { demoModeOn, DEMO_MESSAGE } from "../_shared/settings.ts";
 import { heldShares } from "../_shared/heldShares.ts";
 import { tradingBase, alpacaFetch, loadAccount, parseOCCSymbol } from "../_shared/alpaca.ts";
 import { getSpots, spotFromSnapshot, closingSpotFromSnapshot } from "../_shared/marketPrice.ts";
@@ -139,6 +140,17 @@ Deno.serve(async (req) => {
       .catch(() => {});
 
     const account = await loadAccount(admin, accountId, user.id);
+
+    // DEMO. The whole product works on paper; on a live account it watches,
+    // reports and closes, and opens nothing. This is the one refusal in this
+    // function that is not a warning the user can accept -- the point of a
+    // demo is that no live order leaves it, so there is nothing here for the
+    // user to decide. `closeSpread` and `manageOrder` are untouched: a
+    // position already open must always be closeable, whatever mode the
+    // product is in.
+    if (!account.is_paper && (await demoModeOn(admin))) {
+      return jsonResponse({ error: DEMO_MESSAGE, demoMode: true }, 403);
+    }
 
     // The one thing a plan gates: opening on a live account. Paper is never
     // gated, and neither is closing, cancelling or quoting anywhere -- a user

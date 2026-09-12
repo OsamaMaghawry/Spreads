@@ -8,7 +8,7 @@ import {
 import Wordmark from "@/components/brand/Wordmark";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
 import useIsAdmin from "@/lib/useIsAdmin";
-import useBillingVisible from "@/lib/useBillingVisible";
+import usePublicConfig from "@/lib/usePublicConfig";
 
 // The app's navigation, down the side rather than across the top.
 //
@@ -42,8 +42,11 @@ export default function Layout() {
   // redirects and the edge function refuses a non-admin token either way.
   const { isAdmin } = useIsAdmin();
   // Off until the broker approves live trading, so there is no entry to a
-  // payment page for something that cannot be delivered yet.
-  const { billingVisible } = useBillingVisible();
+  // payment page for something that cannot be delivered yet. `demoMode` rides
+  // along on the same fetch: while it is on, no live order leaves the app, and
+  // anyone the owner shares this with should be told that before they wonder
+  // why their live account will not trade.
+  const { billingVisible, demoMode } = usePublicConfig();
   const [open, setOpen] = useState(false);
 
   // A drawer that survives navigation would cover the page it just opened.
@@ -150,6 +153,14 @@ export default function Layout() {
       </aside>
 
       <div className="flex min-h-screen flex-col lg:pl-[15rem]">
+        {/* Said once, at the top of every screen, rather than discovered at
+            the moment an order is refused. */}
+        {demoMode && (
+          <div className="border-b border-dm-line bg-dm-accent/[0.06] px-5 py-2 text-center text-[0.8rem] text-dm-accent sm:px-10">
+            <span className="font-medium">Demo.</span> Paper accounts trade normally. A live account
+            can be connected, watched and closed — no new live order is sent from here.
+          </div>
+        )}
         <main className="mx-auto w-full max-w-[1400px] flex-1 px-5 py-7 sm:px-10">
           <Outlet />
         </main>
