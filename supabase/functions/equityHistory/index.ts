@@ -263,25 +263,23 @@ async function rebuild(admin, account, userId: string) {
   // values for the same historical day with nothing about the account having
   // changed. One book on staging already holds 1,123 stock lots.
   const [tradeRows, lotRows] = await Promise.all([
-    // `integrity_code is null` -- the audit layer's one predicate, applied
-    // here as a filter rather than after the fact. A row whose figures were
-    // withheld from the Analysis statistics must be withheld from the equity
-    // line drawn above them, or the page contradicts itself in exactly the way
-    // this week's session-day defect did. See _shared/integrity.ts.
+    // NO FILTER. `premium_cum` is an account-level sum of option legs closed on
+    // or before a day; it carries no attribution, so a withheld row's premium
+    // belongs in it. Filtering here made the performance line disagree with the
+    // broker's own equity column on the same row, by exactly the money the
+    // account really did make or lose. See _shared/integrity.ts.
     selectAllWhere(admin, "trade_records", "close_date, premium_pl, early_close_pl", "close_date",
-      (q) => q.eq("account_id", account.id).not("close_date", "is", null)
-              .is("integrity_code", null)),
-    // `integrity_code` TRAVELS; the row does not get filtered out.
-    //
-    // The first version filtered here, and the bench showed what that costs: a
-    // lot's `acquired_date` and `disposed_date` are what put the shares ON the
-    // book between those dates, so dropping the row dropped the HOLDING as well
-    // as the disputed result -- every day in between reported fewer shares,
-    // less cost and less value than the account actually carried. The walk
-    // keeps the holding and books nothing for it instead; see `prepared` in
-    // _shared/dailyPortfolio.ts.
+      (q) => q.eq("account_id", account.id).not("close_date", "is", null)),
+    // Also unfiltered, and for the same reason. Two earlier versions got this
+    // wrong in two different directions: filtering the row out dropped the
+    // HOLDING PERIOD with it, so every day between acquisition and disposal
+    // understated the shares, the cost and the value the account carried; and
+    // keeping the row while booking nothing blanked the performance line from
+    // the disposal day to the end of the account's life, blaming a price that
+    // was never missing. A lot's result is a broker fact; only which trade owns
+    // it is ours to doubt, and that doubt lives on the trade row.
     selectAllWhere(admin, "stock_lots",
-      "ticker, qty, acquired_date, acquired_price, disposed_date, disposed_price, realized_pl, integrity_code", "id",
+      "ticker, qty, acquired_date, acquired_price, disposed_date, disposed_price, realized_pl", "id",
       (q) => q.eq("account_id", account.id))
   ]);
 

@@ -28,6 +28,8 @@ import {
   withheldLotSummary,
   massDeleteFinding,
   writesHeld,
+  vanished,
+  lotIdentity,
   type Finding
 } from "./integrity.ts";
 
@@ -356,9 +358,35 @@ export async function writeResultsInner(
   // KIND of record, and the share ledger, the equity series, the sync timestamp
   // and the audit note all still proceed. The account keeps the history it had
   // rather than being emptied, which is the whole complaint this answers.
+  // WHAT VANISHED, NOT WHAT WAS RE-KEYED, and measured over the SAME
+  // population on both sides of the ratio.
+  //
+  // Two separate defects lived in the four numbers this used to pass:
+  //
+  //   - `staleLots.length` counted re-keys. Disposing of a held lot changes
+  //     its `lot_key`, so an ordinary wheel week reads as "6 of 6 lots
+  //     removed" and froze the whole account, permanently and silently.
+  //
+  //   - `stale.length / existing.length` compared a WINDOW against the WHOLE
+  //     ACCOUNT. On an empty broker feed `stale` is 0 by construction, so the
+  //     guard could not fire at all on the very case it was written for; on a
+  //     truncated feed 9 real deletions inside an 11-row window read as 9/40
+  //     and passed.
+  //
+  // The deletion sets below are unchanged -- a re-keyed row must still go, or
+  // its replacement duplicates it. Only the EVIDENCE is counted differently.
+  const inWindow = existing.filter((r: any) => (r.close_date || "") >= oldestClose);
   const deletionFindings = [
-    massDeleteFinding("trade records", stale.length, existing.length),
-    massDeleteFinding("share lots", staleLots.length, optionLots.length)
+    massDeleteFinding(
+      "trade records",
+      vanished(stale, records, (r: any) => r.trade_key),
+      inWindow.length
+    ),
+    massDeleteFinding(
+      "share lots",
+      vanished(staleLots, stockLots, lotIdentity),
+      optionLots.length
+    )
   ].filter(Boolean) as Finding[];
   const allFindings = [...findings, ...deletionFindings];
 
@@ -460,9 +488,24 @@ export async function writeResultsInner(
     if (error) throw new Error(error.message);
   }
 
+  // A FROZEN PASS DOES NOT GET TO SAY IT SYNCED.
+  //
+  // This used to stamp `trades_synced_at` and clear `trades_sync_error`
+  // unconditionally, so an account whose writes were held read as current and
+  // healthy on every screen -- the staleness gate then skipped it as fresh, and
+  // the cron reported ok. The one signal that would have surfaced a freeze was
+  // being erased by the freeze itself.
   await admin
     .from("trading_accounts")
-    .update({ trades_synced_at: new Date().toISOString(), trades_sync_error: null })
+    .update(
+      anyFrozen
+        ? {
+            trades_sync_error:
+              `Held: ${allFindings.filter((f) => f.action === "hold_writes").map((f) => f.subject).join(" and ")}` +
+              ` looked wrong enough to leave alone. Stored history is unchanged.`
+          }
+        : { trades_synced_at: new Date().toISOString(), trades_sync_error: null }
+    )
     .eq("id", accountId);
 
   // THE AUDIT TRAIL, written last and on every pass including a clean one.
@@ -476,11 +519,24 @@ export async function writeResultsInner(
   // written and correct at this point; losing the audit note is bad, and
   // throwing away a good sync because we could not write a note about it is
   // exactly the posture this whole change exists to undo.
+  //
+  // A FROZEN PASS RECORDS ONLY WHAT IT DID. The row-level withholdings this
+  // pass computed never landed -- the writes were held -- so recording them
+  // would put a withholding in the trail that had no effect on any figure, and
+  // worse, RESOLVING the ones it no longer produces would close a finding whose
+  // flag is still on a row nobody cleared. The trail must describe the stored
+  // state, not the state a pass wished for.
+  const trail = anyFrozen
+    ? allFindings.filter((f) => f.action === "hold_writes")
+    : allFindings;
   try {
     const { error } = await admin.rpc("record_integrity_findings", {
       p_account_id: accountId,
       p_user_id: userId,
-      p_findings: dedupeFindings(allFindings)
+      p_findings: dedupeFindings(trail),
+      // Nothing resolves on a frozen pass: the flags on the stored rows were
+      // not touched, so their findings are still in force.
+      p_resolve_missing: !anyFrozen
     });
     if (error) throw new Error(error.message);
   } catch (e: any) {

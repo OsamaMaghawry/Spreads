@@ -40,7 +40,7 @@ export default function StockLotsTable({ lots }) {
   // do not is the contradiction the audit layer exists to prevent. Only
   // DISPOSED lots are ever flagged, so nothing here removes a held share.
   const audit = splitWithheld(lots);
-  const realized = audit.rows.reduce((a, l) => a + (l.realized_pl || 0), 0);
+  const realized = lots.reduce((a, l) => a + (l.realized_pl || 0), 0);
   // "share lot", not "trade". The trade table an inch above prints the same
   // sentence about the same money; without a distinct noun a reader sums the
   // two and doubles the exclusion.

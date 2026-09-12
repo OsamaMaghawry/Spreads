@@ -14,6 +14,17 @@ export default function StatCards({ stats, withheld = null }) {
   // same trades measured a different way, and saying so once per card is how a
   // reader who scrolls past the switch still knows what they are reading.
   const basis = premium ? "Option legs, settled trades" : "Settled trades";
+  // THE CAVEAT GOES ON THE FIGURES THE DOUBT TOUCHES.
+  //
+  // It used to sit on the Trades card, in "Risk & activity", while the figures
+  // it actually qualifies -- win rate, profit factor, expectancy, payoff, the
+  // largest win and loss -- sat two panels up saying only "Settled trades".
+  // Removing a LOSER from that set raises every one of them, so the card that
+  // moves is the card that has to say why.
+  const n = withheld?.count || 0;
+  const unattributed = n
+    ? ` · ${n} more ${n === 1 ? "trade is" : "trades are"} in the totals but not here — we cannot say which position earned ${n === 1 ? "its" : "their"} result`
+    : "";
   const totalLabel = premium
     ? "Option-leg P/L"
     : stats.includesUnrealized
@@ -78,11 +89,11 @@ export default function StatCards({ stats, withheld = null }) {
           // lost money. Defensible as a statistic, indefensible unlabelled.
           sub: `${premium ? "Option legs only, shares excluded · " : ""}${stats.wins}W / ${stats.losses}L${stats.scratches ? ` / ${stats.scratches} flat` : ""}${
             stats.provisionalTrades ? ` · ${stats.provisionalTrades} not final, excluded` : ""
-          }`
+          }${unattributed}`
         },
-        { label: "Profit factor", value: num(stats.profitFactor), sub: `Gross wins ÷ gross losses · ${basis.toLowerCase()}` },
-        { label: "Expectancy / trade", value: fmtMoney(stats.avgPL), sub: basis, tone: stats.avgPL === null || stats.avgPL === undefined ? undefined : stats.avgPL >= 0 ? "pos" : "neg" },
-        { label: "Payoff ratio", value: num(stats.payoffRatio), sub: `Avg win ÷ avg loss · ${basis.toLowerCase()}` },
+        { label: "Profit factor", value: num(stats.profitFactor), sub: `Gross wins ÷ gross losses · ${basis.toLowerCase()}${unattributed}` },
+        { label: "Expectancy / trade", value: fmtMoney(stats.avgPL), sub: `${basis}${unattributed}`, tone: stats.avgPL === null || stats.avgPL === undefined ? undefined : stats.avgPL >= 0 ? "pos" : "neg" },
+        { label: "Payoff ratio", value: num(stats.payoffRatio), sub: `Avg win ÷ avg loss · ${basis.toLowerCase()}${unattributed}` },
         // A dash is not a positive number. Painting it green said "no settled
         // wins yet" in the colour reserved for winning.
         { label: "Avg win", value: fmtMoney(stats.avgWin), sub: basis, tone: stats.avgWin === null ? undefined : "pos" },
@@ -99,7 +110,7 @@ export default function StatCards({ stats, withheld = null }) {
         // trough is the trough the account actually sat in.
         { label: "Max drawdown", value: fmtMoney(stats.maxDrawdown ? -stats.maxDrawdown : 0), sub: stats.drawdownFromDaily ? "Peak to trough, day by day" : "Peak to trough of money booked — daily values not stored yet", tone: "neg" },
         { label: "Largest win", value: fmtMoney(stats.largestWin), sub: basis, tone: stats.largestWin === null ? undefined : "pos" },
-        { label: "Largest loss", value: fmtMoney(stats.largestLoss), sub: basis, tone: stats.largestLoss === null ? undefined : "neg" },
+        { label: "Largest loss", value: fmtMoney(stats.largestLoss), sub: `${basis}${unattributed}`, tone: stats.largestLoss === null ? undefined : "neg" },
         { label: "Avg risk / trade", value: fmtMoney(stats.avgRisk) },
         // WITHHELD ROWS ARE NAMED ON THE COUNT THEY ARE MISSING FROM, AND IN
         // DOLLARS.
@@ -129,11 +140,7 @@ export default function StatCards({ stats, withheld = null }) {
           // correctness fix has silently taken a disclosure off the screen,
           // which is why `analytics.test.js` now asserts the count REACHES
           // here rather than only that the totals are right.
-          sub: `${stats.contracts} contracts · ${stats.expiredCount} expired worthless${
-            withheld && withheld.count
-              ? ` · ${withheld.count} excluded (${fmtMoney(withheld.dollars)}), arithmetic unverified`
-              : ""
-          }`
+          sub: `${stats.contracts} contracts · ${stats.expiredCount} expired worthless`
         },
         { label: "Avg hold", value: `${num(stats.avgHoldDays, 1)} days` }
       ]
@@ -154,8 +161,21 @@ export default function StatCards({ stats, withheld = null }) {
         // "Best day -$412.00" in the colour that means "in your favour".
         { label: "Best day", value: fmtMoney(stats.bestDay?.pl || 0), sub: stats.bestDay?.date, tone: (stats.bestDay?.pl || 0) >= 0 ? "pos" : "neg" },
         { label: "Worst day", value: fmtMoney(stats.worstDay?.pl || 0), sub: stats.worstDay?.date, tone: (stats.worstDay?.pl || 0) > 0 ? "pos" : "neg" },
-        { label: "Best win streak", value: `${stats.bestStreak} ${stats.bestStreak === 1 ? "trade" : "trades"}`, sub: basis },
-        { label: "Worst loss streak", value: `${stats.worstStreak} ${stats.worstStreak === 1 ? "trade" : "trades"}`, sub: basis }
+        // WITHHELD OUTRIGHT, not caveated, when anything is unattributed.
+        // Removing a loser from the middle of the sequence MERGES the win runs
+        // either side of it: W W L W W reports a four-trade streak that never
+        // happened. That is a different statistic, not a smaller sample, and
+        // no footnote makes an invented run true.
+        {
+          label: "Best win streak",
+          value: stats.streaksKnown ? `${stats.bestStreak} ${stats.bestStreak === 1 ? "trade" : "trades"}` : "—",
+          sub: stats.streaksKnown ? basis : `Not shown while ${n} ${n === 1 ? "trade cannot" : "trades cannot"} be placed in the sequence — leaving ${n === 1 ? "it" : "them"} out would join the runs on either side into one that never happened`
+        },
+        {
+          label: "Worst loss streak",
+          value: stats.streaksKnown ? `${stats.worstStreak} ${stats.worstStreak === 1 ? "trade" : "trades"}` : "—",
+          sub: stats.streaksKnown ? basis : "Same reason as the win streak above"
+        }
       ]
     }
   ];

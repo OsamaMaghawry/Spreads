@@ -154,9 +154,11 @@ export default function AccountHistory() {
   // are the account's, so their note must not vanish when a tab is clicked
   // that the withheld row does not belong to. The table below splits its own
   // visible rows separately, which is correct for the table's own footer.
+  // The four header figures keep every row: the account total is not in doubt,
+  // only which trade owns what. `audit` drives the note, not the arithmetic.
   const audit = splitWithheld(trades);
   const auditNote = withheldNote(audit);
-  const trusted = audit.rows;
+  const trusted = trades;
   const premiumPL = sumBy(trusted, "premium_pl");
   const earlyClosePL = sumBy(trusted, "early_close_pl");
   const stockPL = sumBy(trusted, "stock_pl");

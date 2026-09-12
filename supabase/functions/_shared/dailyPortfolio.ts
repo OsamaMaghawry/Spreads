@@ -521,7 +521,17 @@ export function dailyPortfolio(
         // arithmetic. Never a guess: with no disposal price and no stored
         // result the lot books nothing and says so through `unpriced`.
         //
-        // A WITHHELD LOT KEEPS ITS HOLDING PERIOD AND BOOKS NOTHING.
+        // A WITHHELD LOT BOOKS NORMALLY. Its result is a broker fact -- buy
+        // price, sell price, quantity -- and `shares_booked` is an
+        // account-level sum with no attribution in it. Withholding it here
+        // blanked the performance line from the disposal day to the end of the
+        // account's life and made the weekly email's headline permanently
+        // null, both blaming a price that was never missing. What is in doubt
+        // is which TRADE owns this result, and that doubt lives on the trade
+        // row, not in a portfolio total.
+        //
+        // (The version that returned null is kept in the history for its
+        // reasoning; it was answering the wrong question.)
         //
         // The first version filtered these rows out of the query entirely, and
         // the bench caught what that costs: `from` and `to` are what put the
@@ -536,9 +546,8 @@ export function dailyPortfolio(
         // has, so the day it disposed reports `performance: null` rather than a
         // confident number missing a term. "Not priced" is a statement this
         // file already knows how to make; zero is not.
-        booked: l?.integrity_code
-          ? null
-          : num(l?.realized_pl) !== null
+        booked:
+          num(l?.realized_pl) !== null
             ? (num(l?.realized_pl) as number)
             : disposedPrice !== null && acquiredPrice !== null
               ? qty * (disposedPrice - acquiredPrice)

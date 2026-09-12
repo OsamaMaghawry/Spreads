@@ -279,11 +279,17 @@ export function orphanedShares(stockLots, trades) {
   //
   // A function whose correctness depends on what its caller did is a function
   // that will be called wrongly. It does its own splitting now.
+  // BOTH SIDES KEEP EVERY ROW. This is a subtraction, so measuring its two
+  // sides on different row sets turns the difference into the withholding --
+  // which is exactly what happened when the lot side was filtered and the
+  // trade side was not: ~$189 of pure artifact, printed in the PDF as share
+  // results that "could not be matched to an option". Neither side is filtered
+  // now, because the money in both is real and the account total is not in
+  // doubt; only which trade owns what is.
   const lotTotal = (stockLots || [])
-    .filter((l) => l && l.disposed_date && !l.integrity_code)
+    .filter((l) => l && l.disposed_date)
     .reduce((a, l) => a + (num(l.realized_pl) || 0), 0);
-  const tradeTotal = realizedShares((trades || []).filter((t) => !t?.integrity_code));
-  return lotTotal - tradeTotal;
+  return lotTotal - realizedShares(trades);
 }
 
 // `viewCurve` and `viewBreakdown` used to live here and are gone.

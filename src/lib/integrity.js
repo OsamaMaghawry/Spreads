@@ -46,39 +46,40 @@ export function splitWithheld(trades) {
     // Enough to FIND the line. A reader reconciling against a broker statement
     // or a 1099-B needs to know which row we left out, not only how much it
     // came to — a dollar figure with no ticker is a number they cannot chase.
+    // `close_date` on a trade, `disposed_date` on a share lot — the lots table
+    // has no `close_date`, so reading only that printed a lot note with no
+    // date at all. The disclosure test missed it because its fixture was
+    // trade-shaped, which is the fourth instance of the pattern that suite
+    // exists to catch.
     names: withheld
-      .map((t) => [t.ticker, t.close_date].filter(Boolean).join(" "))
+      .map((t) => [t.ticker, t.close_date || t.disposed_date].filter(Boolean).join(" "))
       .filter(Boolean)
   };
 }
 
 /**
- * The sentence that goes beside a total some of whose rows were taken out.
+ * The sentence that goes beside a page carrying withheld rows.
  *
- * Says the dollars, and names the authority the reader can check it against --
- * their broker's own total DOES include this money, because the money really
- * moved; what we cannot say is which trade it belongs to. Returns null when
- * nothing was withheld, so a caller can render it unconditionally.
+ * WHAT IT NO LONGER SAYS. The first version read "Excludes 1 trade (−$189.00)
+ * … your broker's own total includes it", because the withheld row's money had
+ * been taken out of every total. That was the wrong design and the sentence
+ * was its symptom: the defect is MISFILING, so the account total was never in
+ * doubt, and removing one side of a transfer published a figure outside the
+ * range the account's own arithmetic permits -- on the flattering side.
  *
- * Deliberately not the words "under review". Nothing queues a finding to a
- * person -- it resolves when a later sync stops producing it -- so "under
- * review" describes a process this product does not have, and a user asking
- * support about the review on their trade would be asking about nothing.
+ * The money is in the totals now and they tie to the broker. What is withheld
+ * is the per-trade claim, so that is what the sentence is about.
  */
 export function withheldNote(split, view = "whole", noun = "trade") {
   if (!split || !split.count) return null;
-  const dollars = view === "premium" ? split.premium : split.realized;
-  const money = `${dollars < 0 ? "−" : ""}$${Math.abs(dollars).toFixed(2)}`;
   const n = split.count;
-  // Named, so the reader can find the row on a broker statement. Capped: a
-  // sentence listing thirty tickers stops being read.
+  // Named, so the reader can find the row. Capped: a sentence listing thirty
+  // tickers stops being read.
   const which = split.names.length
     ? ` (${split.names.slice(0, 3).join(", ")}${split.names.length > 3 ? `, +${split.names.length - 3} more` : ""})`
     : "";
-  // Said of the figure actually on screen. Under Premium the excluded amount
-  // is the option half of the same row, and quoting it without saying so reads
-  // as a different, smaller loss.
-  const scope = view === "premium" ? " from the option-leg figure" : "";
-  return `Excludes ${n} ${n === 1 ? noun : `${noun}s`}${which} totalling ${money}${scope}, ` +
-    `whose arithmetic we cannot stand behind. Your broker's own total includes it.`;
+  return `${n} ${n === 1 ? noun : `${noun}s`}${which} ${n === 1 ? "carries a result" : "carry results"} ` +
+    `we cannot attribute to the right position — the money is real and is IN the totals ` +
+    `below, which match your broker; what we cannot say is which ${noun} earned or lost it. ` +
+    `Win rate, averages and streaks are measured without ${n === 1 ? "it" : "them"}.`;
 }

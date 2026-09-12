@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { splitWithheld, withheldNote } from "./integrity.js";
 import { orphanedShares } from "./openBook.js";
+import { computeStats } from "./analytics.js";
 
 // DISCLOSURE TESTS, and why they exist as a category of their own.
 //
@@ -33,14 +34,22 @@ const WITHHELD = {
 };
 const CLEAN = { ticker: "MSFT", close_date: "2026-09-01", realized_pl: -500, premium_pl: -500, stock_pl: 0 };
 
-test("the note names the rows, the dollars and the authority", () => {
+test("the note names the rows and says the money is in the totals", () => {
   const note = withheldNote(splitWithheld([WITHHELD, CLEAN]));
   assert.match(note, /XLY 2026-08-14/);
-  assert.match(note, /\$189\.00/);
-  assert.match(note, /broker/);
+  assert.match(note, /IN the totals/);
+  assert.match(note, /match your broker/);
 });
 
-test("orphanedShares splits BOTH sides itself, so a withheld row invents no orphan", () => {
+test("a share lot's name falls back to its disposal date", () => {
+  // `stock_lots` has no `close_date`. Reading only that printed a lot note
+  // with no date at all, and the first version of THIS test missed it by
+  // building a trade-shaped fixture.
+  const lot = { ticker: "XLY", disposed_date: "2026-08-21", realized_pl: -214, integrity_code: "impossible_loss" };
+  assert.match(withheldNote(splitWithheld([lot]), "whole", "share lot"), /XLY 2026-08-21/);
+});
+
+test("orphanedShares measures both sides on every row, so withholding invents no orphan", () => {
   // The defect: the lot side was filtered and the trade side was not, so the
   // difference became the withholding and printed in the PDF as "$189.00 of
   // share results could not be matched to an option".
@@ -70,12 +79,23 @@ test("the Analysis banner is not gated on the account holding something open", (
   );
 });
 
-test("StatCards reads the withheld count from the page, not from stats", () => {
-  // `computeStats` is handed an already-split set, so `stats.withheldTrades`
-  // is structurally always 0 and any disclosure keyed off it is dead code.
+test("the caveat sits on the cards the exclusion actually moves", () => {
+  // It used to sit on the Trades card while win rate, profit factor,
+  // expectancy, payoff and largest loss — every figure that RISES when a loser
+  // is removed — carried only "Settled trades" two panels above.
   const cards = src("../components/analysis/StatCards.jsx");
-  assert.ok(cards.includes("withheld && withheld.count"), "the count must come from the page's own split");
-  assert.ok(!cards.includes("stats.withheldTrades"), "stats.withheldTrades is always 0 here");
+  const onCard = (label) => {
+    const i = cards.indexOf(`label: "${label}"`);
+    assert.ok(i > 0, `${label} card missing`);
+    const block = cards.slice(i, i + 900);
+    assert.ok(block.includes("unattributed"), `${label} must carry the caveat`);
+  };
+  ["Win rate", "Profit factor", "Expectancy / trade", "Payoff ratio", "Largest loss"].forEach(onCard);
+});
+
+test("the streaks are withheld outright, not caveated", () => {
+  const cards = src("../components/analysis/StatCards.jsx");
+  assert.ok(cards.includes("stats.streaksKnown ?"), "streaks must render a dash when unknown");
 });
 
 test("the Trade History header carries its own note, independent of the tab", () => {
@@ -94,8 +114,17 @@ test("the share lots table says 'share lot', not 'trade'", () => {
   assert.match(note, /1 share lot/);
 });
 
-test("under Premium the note says which figure it is short of", () => {
-  const note = withheldNote(splitWithheld([WITHHELD]), "premium");
-  assert.match(note, /\$25\.00/);
-  assert.match(note, /option-leg figure/);
+test("the withheld money stays in the totals and the outcomes leave it out", () => {
+  // The load-bearing property of the redesign, asserted rather than described:
+  // the account total ties to the broker, and the win rate does not count the
+  // row we cannot attribute.
+  const stats = computeStats([WITHHELD, CLEAN], 0, "whole");
+  assert.equal(stats.bookedPL, -689);        // -189 + -500, nothing dropped
+  assert.equal(stats.trades, 2);
+  assert.equal(stats.withheldTrades, 1);
+  assert.equal(stats.settledTrades, 1);      // outcomes measured on the clean row
+  // Streaks are withheld outright: removing a loser merges the runs either
+  // side of it into one that never happened.
+  assert.equal(stats.bestStreak, null);
+  assert.equal(stats.streaksKnown, false);
 });

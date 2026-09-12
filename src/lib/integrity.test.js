@@ -8,7 +8,7 @@ import { isWithheld, splitWithheld, withheldNote } from "./integrity.js";
 // which is 19% of what the page shows — the reason a count on its own is not
 // enough.
 const trades = [
-  { realized_pl: -189, premium_pl: 25, early_close_pl: 0, integrity_code: "impossible_loss" },
+  { ticker: "XLY", close_date: "2026-08-14", realized_pl: -189, premium_pl: 25, early_close_pl: 0, integrity_code: "impossible_loss" },
   { realized_pl: -500, premium_pl: -500, early_close_pl: 0 },
   { realized_pl: -314, premium_pl: -300, early_close_pl: -14, integrity_code: null }
 ];
@@ -21,28 +21,30 @@ test("the split keeps the trade and removes only its money", () => {
   assert.equal(s.withheld[0].realized_pl, -189);
 });
 
-test("the split reports the withheld DOLLARS, per view", () => {
+test("the split still reports the dollars, for the audit trail", () => {
   const s = splitWithheld(trades);
   assert.equal(s.realized, -189);
-  // Premium only is a different question and a different number: the option
-  // half of the same row. Quoting the whole-view figure under a premium
-  // headline is the mixing this exists to prevent.
   assert.equal(s.premium, 25);
 });
 
-test("the note says the dollars and names the authority", () => {
-  const s = splitWithheld(trades);
-  const note = withheldNote(s, "whole");
+test("the note says the money is IN the totals, not missing from them", () => {
+  // The sentence changed with the design. The defect is misfiling, so the
+  // account total was never in doubt -- taking the row's money OUT published a
+  // figure outside the range the account's own arithmetic permits, on the
+  // flattering side, under a note implying every other row was sound.
+  const note = withheldNote(splitWithheld(trades), "whole");
   assert.match(note, /1 trade/);
-  assert.match(note, /\$189\.00/);
-  assert.match(note, /broker/);
-  // "under review" described a process nothing in this product performs.
+  assert.match(note, /XLY 2026-08-14/);
+  assert.match(note, /IN the totals/);
+  assert.match(note, /match your broker/);
+  // The claim it must no longer make.
+  assert.doesNotMatch(note, /[Ee]xcludes/);
   assert.doesNotMatch(note, /under review/i);
 });
 
-test("the note follows the view it is shown under", () => {
-  const s = splitWithheld(trades);
-  assert.match(withheldNote(s, "premium"), /\$25\.00/);
+test("the note says which statistics it DOES affect", () => {
+  const note = withheldNote(splitWithheld(trades), "whole");
+  assert.match(note, /Win rate, averages and streaks/);
 });
 
 test("nothing withheld, nothing said", () => {

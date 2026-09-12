@@ -33,8 +33,10 @@ export default function TradeHistoryTable({ trades }) {
   // publish a figure Analysis has already excluded: the bench found the same
   // account reading -$1,003 here and -$814 there, with nothing on either page
   // explaining the $189. One predicate, both pages. See src/lib/integrity.js.
+  // The footer sums EVERY row — it is the account's money and it ties to the
+  // broker. The per-row cells are what go to dashes.
   const audit = splitWithheld(trades);
-  const total = (field) => sumBy(audit.rows, field);
+  const total = (field) => sumBy(trades, field);
   const note = withheldNote(audit);
 
   return (

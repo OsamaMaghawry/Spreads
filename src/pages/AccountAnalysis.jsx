@@ -126,7 +126,11 @@ export default function AccountAnalysis() {
     [trades, strategy]
   );
   const audit = useMemo(() => splitWithheld(filtered), [filtered]);
-  const subset = audit.rows;
+  // `subset` is EVERY closed row, withheld included. `computeStats` keeps their
+  // money in the totals and leaves them out of the outcome statistics itself —
+  // see the header of src/lib/analytics.js for why removing them here published
+  // a total outside the range the account's own arithmetic permits.
+  const subset = filtered;
 
   // What the page is narrowed BY — the two controls, kept apart.
   //
@@ -328,10 +332,7 @@ export default function AccountAnalysis() {
   const withheldLine = withheldNote(audit, view);
   // The count and the dollars, in the view being shown, in one object so the
   // cards and the note cannot quote different numbers.
-  const withheldFigure = {
-    count: audit.count,
-    dollars: view === "premium" ? audit.premium : audit.realized
-  };
+  const withheldFigure = { count: audit.count };
   // THE CHART AND THE HEADLINE, reconciled where they differ.
   //
   // Only one configuration makes them disagree, and it is exactly the one the

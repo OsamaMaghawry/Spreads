@@ -135,6 +135,40 @@ export function impossibleResultFindings(breaches: any[]): Finding[] {
 export const MAX_AUTO_DELETE_SHARE = 0.25;
 export const MAX_AUTO_DELETE_FLOOR = 5;
 
+/**
+ * The identity a record keeps across a re-key.
+ *
+ * THE DEFECT THIS EXISTS FOR, and it was the most expensive thing in this
+ * framework. `lot_key` is built from ticker, acquired date, acquired price,
+ * DISPOSED DATE, DISPOSED PRICE and quantity -- so selling shares does not
+ * update a lot, it creates a differently-keyed one. Six assigned lots called
+ * away in one week is therefore "6 of 6 removed", which trips the mass-delete
+ * threshold, which froze the whole account -- permanently, because the next
+ * pass computes the same 6 of 6, and silently, because the screen still said
+ * "synced just now". An ordinary wheel week. Strictly worse than the refusal
+ * this framework replaced, which at least announced itself.
+ *
+ * A RE-KEY IS NOT A DELETION. The stored row does still get deleted -- its
+ * replacement lives under a new key -- but it is not EVIDENCE that the broker
+ * has stopped returning history, which is the only thing the threshold is
+ * looking for. So the count that feeds the threshold is over identities that
+ * VANISHED, not over keys that changed.
+ */
+export const lotIdentity = (l: any): string =>
+  [l?.ticker, l?.acquired_date, l?.acquired_price, l?.qty].join("|");
+
+/**
+ * How many of a set genuinely disappeared, as opposed to being re-keyed.
+ *
+ * `stale` (what gets deleted) and `removing` (what the threshold judges) are
+ * deliberately different numbers, and conflating them is what froze the
+ * account.
+ */
+export function vanished(stale: any[], fresh: any[], identity: (x: any) => string): number {
+  const alive = new Set((fresh || []).map(identity));
+  return (stale || []).filter((r) => !alive.has(identity(r))).length;
+}
+
 export function massDeleteFinding(
   kind: string,
   removing: number,
