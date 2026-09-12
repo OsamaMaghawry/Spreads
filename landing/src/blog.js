@@ -16,15 +16,43 @@ export const CATEGORIES = [
 
 export const categoryBySlug = (slug) => CATEGORIES.find((c) => c.slug === slug) || null;
 
-// Posts inside a category, in syllabus order where one is set, else newest
-// first. A post with no series_order sorts after those with one.
+// Posts inside a category, NEWEST FIRST. One rule for every hub.
+//
+// The owner, reading the blog index: *"The order is not stable. In the second
+// one is okay, but first one the new is in the top."*
+//
+// The old sort was `series_order` ascending, falling back to newest first —
+// and it was consistent, which is exactly why it looked broken. `series_order`
+// does not track dates: foundations holds 1-5 (7 Sep → 11 Sep, so it read
+// oldest-first) while "After the fill" holds 48 and 50 (2 Sep, then 29 Aug, so
+// it read newest-first). Two sections, two apparent orderings, from one rule.
+// A reader cannot see the numbers, only the dates, so the page had no rule
+// they could learn.
+//
+// Newest first everywhere. It is the ordering a reader already expects from
+// anything dated, and being the SAME everywhere is most of the value.
 export function postsInCategory(posts, slug) {
+  return posts
+    .filter((p) => p.category === slug)
+    .sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || "")));
+}
+
+// The same posts in SYLLABUS order — `series_order` ascending, unnumbered
+// posts last, oldest first among equals.
+//
+// Kept, and used where sequence genuinely means something: "previous" and
+// "read next" at the foot of a post. Foundations is a course — post 1 is the
+// definition of a contract and post 5 is the bid-ask spread, on purpose — so a
+// reader working through it should be handed the next lesson, not the next
+// most recent article. What changed is that this ordering no longer decides
+// how a HUB is listed, where the reader is browsing rather than studying.
+export function syllabusOrder(posts, slug) {
   return posts
     .filter((p) => p.category === slug)
     .sort((a, b) => {
       const ao = a.series_order ?? Infinity, bo = b.series_order ?? Infinity;
       if (ao !== bo) return ao - bo;
-      return String(b.published_at || "").localeCompare(String(a.published_at || ""));
+      return String(a.published_at || "").localeCompare(String(b.published_at || ""));
     });
 }
 
@@ -35,9 +63,10 @@ export function groupByCategory(posts) {
   return CATEGORIES.map((c) => ({ ...c, posts: postsInCategory(posts, c.slug) })).filter((c) => c.posts.length > 0);
 }
 
-// Previous and next inside the same category, by syllabus order.
+// Previous and next inside the same category, by SYLLABUS order — the one
+// place sequence is the point rather than recency.
 export function neighbours(posts, post) {
-  const list = postsInCategory(posts, post.category);
+  const list = syllabusOrder(posts, post.category);
   const i = list.findIndex((p) => p.slug === post.slug);
   return { prev: i > 0 ? list[i - 1] : null, next: i >= 0 && i < list.length - 1 ? list[i + 1] : null };
 }
@@ -48,7 +77,7 @@ export function neighbours(posts, post) {
 export function related(posts, post, n = 3) {
   const { prev, next } = neighbours(posts, post);
   const skip = new Set([post.slug, prev?.slug, next?.slug].filter(Boolean));
-  const same = postsInCategory(posts, post.category).filter((p) => !skip.has(p.slug));
+  const same = syllabusOrder(posts, post.category).filter((p) => !skip.has(p.slug));
   const others = posts
     .filter((p) => p.category !== post.category && !skip.has(p.slug))
     .sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || "")));
