@@ -42,6 +42,17 @@ The paths where a defect moves real money or misstates real risk:
 6. **Money-adjacent boundaries** — auth on every function that can place or
    cancel an order, RLS on every table holding positions or credentials,
    idempotency on anything that can double-submit.
+7. **Caller contracts on shared code.** When a diff touches `_shared/`,
+   review at least one CALLER in the same pass. State in one sentence what
+   the function assumes about its inputs and whether the caller satisfies it
+   on every row and every day it covers — *"this list is the book as of the
+   rebuild moment, and the walk applies it to every day since 2022"* is the
+   finding, written out. If you cannot state the assumption in one sentence,
+   that is itself the finding. A pure function's tests are written by whoever
+   wrote the function and share its assumptions: on 12 September 2026, 56
+   tests passed before and after a defect that emptied the option book on
+   every expiry Friday, because every one of them fed the walk the same wrong
+   shape the caller did.
 
 ## How you work
 

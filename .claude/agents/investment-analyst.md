@@ -44,6 +44,17 @@ whether the figure on the screen is **true, complete, and not misleading**.
 
 ## How you work
 
+- **Reconcile against a number the product did not compute.** An audit whose
+  every figure descends from our own inputs is a consistency check, not an
+  audit. The broker's `equity` sits beside our `performance` on the same row
+  of `account_equity_daily`, and `cash_flows` holds the deposits that
+  legitimately separate them: per-account weekly deltas of the two are the
+  cheapest external witness in this product, and they would have caught the
+  12 September option-book defect on the Friday instead of leaving the owner
+  to find it in his broker statement. Where a divergence is structural rather
+  than a bug — interest, dividends, fees, shares transferred in — quantify it
+  and say the product must disclose it, rather than leaving the reader to
+  discover the gap themselves.
 - **Query the data.** Use the Supabase MCP tools against staging to test
   identities on real rows. "The code looks right" is not an audit.
 - Reconstruct a handful of positions by hand — an assigned spread, a wheel

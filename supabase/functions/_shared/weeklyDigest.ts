@@ -145,10 +145,27 @@ export function accountWeek(
   const open = before.length ? before[before.length - 1] : null;
   const close = inside.length ? inside[inside.length - 1] : null;
 
+  // WITHHELD ROWS COME OUT FIRST, and are COUNTED rather than dropped.
+  //
+  // The digest used to filter them in its SQL, which excluded them correctly
+  // and left the email with no way to mention them. An email is the worst
+  // surface in the product for a silently short figure: the reader cannot
+  // click through to a note, cannot re-run the week, and the number arrives
+  // looking settled. So the rows travel here and the split happens where the
+  // email can see both halves. See _shared/integrity.ts.
+  const flagged = (trades || []).filter((t: any) => t.integrity_code);
+  const publishable = (trades || []).filter((t: any) => !t.integrity_code);
+  const withheld = {
+    count: flagged.filter((t) => inWindow(t.close_date, win)).length,
+    realized: flagged
+      .filter((t) => inWindow(t.close_date, win))
+      .reduce((a, t: any) => a + (num(t.realized_pl) ?? 0), 0)
+  };
+
   // PROVISIONAL ROWS ARE EXCLUDED FROM OUTCOME FIGURES, as everywhere else in
   // this product: a row the reconstruction had to guess at must not be
   // summed into a number presented as what the week earned.
-  const real = (trades || []).filter((t) => !t.provisional);
+  const real = publishable.filter((t) => !t.provisional);
   const closed = real.filter((t) => inWindow(t.close_date, win));
   const opened = real.filter((t) => inWindow(t.open_date, win));
 
@@ -244,6 +261,8 @@ export function accountWeek(
     opened: { count: opened.length, rows: opened },
 
     unpriced,
+    // What this week's figures leave out, in dollars, so the email can say it.
+    withheld,
     // Nothing happened AND nothing is held: the one shape that deserves a
     // shorter email rather than a grid of zeroes.
     quiet:

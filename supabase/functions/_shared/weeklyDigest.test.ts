@@ -318,9 +318,9 @@ test("premium and stock both appear, per account", () => {
   const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, null, {});
   assert.ok(html.includes(">Premium<"), "premium block missing");
   assert.ok(html.includes(">Stock<"), "stock block missing");
-  assert.ok(html.includes("Move on shares held this week"));
+  assert.ok(html.includes("Move on shares held"));
   assert.ok(html.includes("Booked on shares sold"));
-  assert.ok(html.includes("Move on open option legs"));
+  assert.ok(html.includes("Move in the option book"));
   assert.ok(html.includes("Collected on positions opened"));
 });
 
@@ -328,4 +328,62 @@ test("a bought position's debit is shown as paid, not hidden", () => {
   const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, null, {});
   assert.ok(html.includes("Paid to open bought positions"));
   assert.ok(html.includes("$450.00"));
+});
+
+// ---------------------------------------------------------------------------
+// The account first, and the three bars
+//
+// The owner: *"Make the first section the total account, not the holding, then
+// go down to the rest of the email. I want also to add some nice graphs.
+// Collateral to the Equity, Risk to Equity ... Options BP."*
+// ---------------------------------------------------------------------------
+
+// A snapshot in the shape `snapshotOf` returns, with the fields the lead panel
+// reads. Numbers from the Options Wheel staging account.
+const SNAP: any = {
+  equity: 141577.61,
+  cash: 68021.10,
+  optionsBuyingPower: 52310.44,
+  collateral: 73000,
+  options: [], shares: [], optionCount: 3, shareCount: 1,
+  optionsValue: -2420, sharesValue: 36544,
+  optionsUnrealized: -682, sharesUnrealized: -206,
+  openOrders: [], openOrderCount: 2,
+  failed: [], read: true, empty: false
+};
+
+test("the email opens on the account, before anything it holds", () => {
+  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, SNAP, {});
+  const account = html.indexOf("The account");
+  const holdings = html.indexOf("What this account holds");
+  assert.ok(account > -1, "the account panel must be present");
+  // Either ordering renders; only one of them answers a Saturday's first
+  // question before its second.
+  assert.ok(holdings === -1 || account < holdings, "the account must come before the holdings");
+  // And the account's own value is the headline figure of that panel.
+  assert.ok(html.includes("$141,577.61"));
+});
+
+test("the two bars are there, and the risk bar is not", () => {
+  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, SNAP, {});
+  assert.ok(html.includes("Collateral held"), "collateral bar missing");
+  assert.ok(html.includes("Options buying power"), "options BP bar missing");
+  // The owner asked for it, saw it and removed it. It must not drift back.
+  assert.ok(!html.includes("Risk if it all went wrong"), "the risk bar was removed");
+  // 73,000 / 141,577.61 = 51.6%
+  assert.ok(html.includes("51.6%"), "collateral share missing");
+  assert.ok(html.includes("$73,000.00"));
+  assert.ok(html.includes("$52,310.44"));
+});
+
+test("the bars are tables — no image and no SVG reaches the inbox", () => {
+  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, SNAP, {});
+  assert.ok(!/<svg|<img|background-image/i.test(html), "an email must carry no image or SVG");
+});
+
+
+test("no snapshot, no invented bars — the stored account panel stands in", () => {
+  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, null, {});
+  assert.ok(html.includes("The account"), "the lead panel still renders from stored rows");
+  assert.ok(!html.includes("Collateral held"), "bars need a broker answer, not a guess");
 });

@@ -10,6 +10,7 @@ import RebuildPreview from "@/components/history/RebuildPreview";
 import StrategyTabs from "@/components/history/StrategyTabs";
 import useIsAdmin from "@/lib/useIsAdmin";
 import { isAdjustedTrade } from "@/lib/occ";
+import { splitWithheld, withheldNote } from "@/lib/integrity";
 
 export default function AccountHistory() {
   const { id } = useParams();
@@ -146,9 +147,21 @@ export default function AccountHistory() {
   // adding the stock_lots table on top would count the shares twice — which is
   // what the old "Premium + Shares = Combined" row did the moment shares
   // started being attributed.
-  const premiumPL = sumBy(trades, "premium_pl");
-  const earlyClosePL = sumBy(trades, "early_close_pl");
-  const stockPL = sumBy(trades, "stock_pl");
+  // The header's four figures are the same money as the table's footer, so
+  // they take the same split: a row the audit pass withheld is out of both, or
+  // the page disagrees with itself an inch apart. See src/lib/integrity.js.
+  // Split on the WHOLE set, not the strategy-filtered one: these four figures
+  // are the account's, so their note must not vanish when a tab is clicked
+  // that the withheld row does not belong to. The table below splits its own
+  // visible rows separately, which is correct for the table's own footer.
+  // The four header figures keep every row: the account total is not in doubt,
+  // only which trade owns what. `audit` drives the note, not the arithmetic.
+  const audit = splitWithheld(trades);
+  const auditNote = withheldNote(audit);
+  const trusted = trades;
+  const premiumPL = sumBy(trusted, "premium_pl");
+  const earlyClosePL = sumBy(trusted, "early_close_pl");
+  const stockPL = sumBy(trusted, "stock_pl");
   // The total comes from realized_pl, not from adding the three parts.
   //
   // Rows written before the components existed carry null in all three, and
@@ -156,8 +169,8 @@ export default function AccountHistory() {
   // whose own footer said −$992.00. The parts still sum to the whole on every
   // row the current code wrote; the header must not claim otherwise for rows
   // it did not.
-  const totalPL = sumBy(trades, "realized_pl");
-  const componentsMissing = trades.some((t) => t.premium_pl === null || t.premium_pl === undefined);
+  const totalPL = sumBy(trusted, "realized_pl");
+  const componentsMissing = trusted.some((t) => t.premium_pl === null || t.premium_pl === undefined);
   const unpairedCount = trades.filter((t) => t.unpaired).length;
   const provisionalCount = trades.filter((t) => t.provisional).length;
   const adjustedCount = trades.filter(isAdjustedTrade).length;
@@ -333,6 +346,16 @@ export default function AccountHistory() {
               &mdash; width, maximum loss, and the result of shares it settled into &mdash; is not shown, because
               the contract no longer delivers 100 shares at the strike and the symbol does not say what it
               delivers instead.
+            </div>
+          )}
+
+          {/* The header's four figures exclude a row; this says so beside THEM.
+              The table's own note is driven off the visible (strategy-filtered)
+              rows, so clicking a tab the withheld row is not in makes that one
+              disappear while these figures stay short. */}
+          {auditNote && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+              {auditNote}
             </div>
           )}
 

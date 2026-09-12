@@ -37,6 +37,7 @@
 // they can be quoted without their context.
 
 import type { AccountWeek, Window } from "./weeklyDigest.ts";
+import { accountGauges, barHtml } from "./accountGauges.ts";
 import type { Snapshot } from "./weeklySnapshot.ts";
 
 const BRAND = {
@@ -221,6 +222,59 @@ const brokerAccountPanel = (s: Snapshot) =>
 
 // The one number at the top, and it is THIS ACCOUNT's. Its label carries what
 // it counts, because a figure this size is the thing that gets quoted alone.
+
+// THE ACCOUNT ITSELF, FIRST, and the three bars that say what is committed.
+//
+// The owner: *"Make the first section the total account, not the holding, then
+// go down to the rest of the email ... I want a clean, easy to read email and
+// informative."*
+//
+// The email used to open with a list of positions and reach the account's own
+// value in the third panel, under a heading about the broker. That is the
+// wrong way round for a Saturday: the first question is what the account is
+// worth and how much of it is already spoken for, and the positions are the
+// detail behind the answer.
+//
+// This panel REPLACES `brokerAccountPanel` rather than sitting above it -- the
+// same four figures printed twice under two headings is the opposite of clean.
+const accountLead = (a: AccountWeek, s: Snapshot | null) => {
+  const equity = s?.equity ?? a.equityEnd;
+  const gauges = accountGauges({
+    equity,
+    collateral: s?.collateral,
+    optionsBP: s?.optionsBuyingPower
+  });
+  const bars = s ? gauges.map((g) => barHtml(g, FONT, BRAND.sub, BRAND.text)).join("") : "";
+  return `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.panel};border:1px solid ${BRAND.line};border-radius:12px;margin:0 0 16px;">
+    <tr><td style="padding:20px;">
+      <div style="font:700 11px ${FONT};letter-spacing:.08em;text-transform:uppercase;color:${BRAND.sub};">
+        The account${a.isPaper ? " (simulated)" : ""}
+      </div>
+      <div style="font:700 34px ${FONT};color:${BRAND.text};margin:6px 0 2px;letter-spacing:-.02em;">
+        ${esc(money(equity))}
+      </div>
+      <div style="font:400 12px ${FONT};color:${BRAND.sub};margin:0 0 4px;">
+        Your broker's own account value${a.equityChange === null ? "" : ` · ${esc(money(a.equityChange, true))} this week`}
+      </div>
+      <div style="font:400 11px ${FONT};color:${BRAND.sub};margin:0 0 16px;">
+        Includes deposits and withdrawals.
+      </div>
+      ${bars}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid ${BRAND.line};margin:2px 0 0;">
+        <tr>
+          <td style="padding:10px 0 0;font:400 11px ${FONT};color:${BRAND.sub};">Cash</td>
+          <td align="right" style="padding:10px 0 0;font:600 12px ${FONT};color:${BRAND.text};">${esc(money(s ? s.cash : null))}</td>
+          <td style="padding:10px 0 0 16px;font:400 11px ${FONT};color:${BRAND.sub};">Positions</td>
+          <td align="right" style="padding:10px 0 0;font:600 12px ${FONT};color:${BRAND.text};">${s ? s.optionCount + s.shareCount : "—"}</td>
+          <td style="padding:10px 0 0 16px;font:400 11px ${FONT};color:${BRAND.sub};">Working</td>
+          <td align="right" style="padding:10px 0 0;font:600 12px ${FONT};color:${BRAND.text};">${s && s.openOrderCount !== null ? s.openOrderCount : "—"}</td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>`;
+};
+
 const hero = (a: AccountWeek) => `
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.panel};border:1px solid ${BRAND.line};border-radius:12px;margin:0 0 16px;">
     <tr><td style="padding:24px 20px;text-align:center;">
@@ -233,9 +287,9 @@ const hero = (a: AccountWeek) => `
       <div style="font:400 12px ${FONT};color:${BRAND.sub};line-height:1.6;max-width:430px;margin:0 auto;">
         ${a.performance === null
           ? (a.measured
-              ? "Part of this book could not be valued this week, so there is no whole-account figure. The parts that could be are below."
-              : "We are still building this account's day-by-day history, so there is no figure for the week yet. Anything it traded is below.")
-          : "Option legs closed, shares sold, and the change in what is still open — measured from the previous Friday's close to this one."}
+              ? "Part of this book could not be valued, so there is no figure for the week. The parts that could be are below."
+              : "Still building this account's day-by-day history. Anything it traded is below.")
+          : "Closed trades and the change in what is still open, Friday to Friday."}
       </div>
     </td></tr>
   </table>`;
@@ -247,48 +301,57 @@ const premiumPanel = (a: AccountWeek) =>
     "Premium",
     [
       row("Collected on positions opened", money(a.premium.collected),
-        a.premium.collected > 0 ? BRAND.positive : BRAND.text,
-        "Cash taken in when you sold to open this week."),
+        a.premium.collected > 0 ? BRAND.positive : BRAND.text),
       a.premium.paidToOpen > 0
-        ? row("Paid to open bought positions", money(a.premium.paidToOpen), BRAND.negative,
-            "Debit paid where you bought rather than sold.")
+        ? row("Paid to open bought positions", money(a.premium.paidToOpen), BRAND.negative)
         : "",
       row("Paid to close positions", money(a.premium.paidToClose),
         a.premium.paidToClose > 0 ? BRAND.negative : BRAND.text,
-        "What buying positions back cost. Nothing on a leg that expired."),
+        "Nothing on a leg that expired."),
       row("Kept on what closed", money(a.premium.kept, true), colourFor(a.premium.kept),
-        "The option legs' own result on trades that closed this week — credits taken less debits paid.")
+        "Credits taken less debits paid, on trades that closed.")
     ].join(""),
-    "Cash in and cash out are separate from the outcome: a credit taken this week on a position still open has not been kept yet."
+    "A credit taken on a position still open has not been kept yet."
   );
 
+// TRIMMED, NOT DROPPED. The owner asked for a clean email, and he also asked
+// -- earlier, and it still stands -- that *"each account should have the
+// premium and stocks moves"*. So the row that duplicated the holdings list
+// ("Shares still held", which the list below prints per ticker) is gone and
+// the three WEEK figures stay: a movement across a window is not something
+// any snapshot of today can tell you.
+//
+// The option row's caption is rewritten. It described a LEVEL -- "a credit
+// taken against what it would cost to buy back now" -- while the figure is a
+// DELTA across the window, and since the option book now includes legs that
+// closed during the week it also carries the removal of their opening marks.
+// So a week of profitable closes can print a negative figure here while the
+// same money shows as a gain under Premium. The arithmetic was corrected and
+// the label was left behind; this is the label catching up.
 const stockPanel = (a: AccountWeek) =>
   panel(
     "Stock",
     [
-      row("Shares still held", money(a.sharesValue), BRAND.text, "At Friday's closing price."),
-      row("Move on shares held this week", money(a.sharesMark, true), colourFor(a.sharesMark),
-        "Unrealized. None of it is booked and it moves until you sell."),
-      row("Booked on shares sold", money(a.sharesBooked, true), colourFor(a.sharesBooked),
-        "Realized result of share lots that left the account this week."),
-      row("Move on open option legs", money(a.optionsMark, true), colourFor(a.optionsMark),
-        "Unrealized. A short leg's figure is a credit taken against what it would cost to buy back now.")
-    ].join("")
+      row("Move on shares held", money(a.sharesMark, true), colourFor(a.sharesMark),
+        "Unrealized — it moves until you sell."),
+      row("Booked on shares sold", money(a.sharesBooked, true), colourFor(a.sharesBooked)),
+      row("Move in the option book", money(a.optionsMark, true), colourFor(a.optionsMark),
+        "A position that closed leaves this figure; its result is under Premium. The two are not added together.")
+    ].join(""),
+    "What the week did to what you hold, not what it booked."
   );
 
 const accountPanel = (a: AccountWeek) =>
   panel(
     "The account",
     [
-      row("Account value at Friday's close", money(a.equityEnd), BRAND.text,
-        "Your broker's own figure: cash plus everything held."),
+      row("Account value at Friday's close", money(a.equityEnd), BRAND.text),
       row("Change in account value", money(a.equityChange, true), colourFor(a.equityChange),
-        "Moves with deposits and withdrawals too, which is why it is not added to anything above."),
+        "Includes deposits and withdrawals."),
       row("Positions closed", `${a.closed.count}`, BRAND.text,
         a.closed.count ? `${a.closed.winners} up, ${a.closed.expired} expired` : ""),
       row("Positions opened", `${a.opened.count}`, BRAND.text),
-      row("Realized on what closed", money(a.closed.realized, true), colourFor(a.closed.realized),
-        "Option legs and any share result the close delivered.")
+      row("Realized on what closed", money(a.closed.realized, true), colourFor(a.closed.realized))
     ].join("")
   );
 
@@ -328,6 +391,34 @@ const unpricedNote = (a: AccountWeek) => {
     <tr><td style="padding:14px 18px;font:400 12px ${FONT};color:${BRAND.warning};line-height:1.6;">
       <strong>Some of the week could not be valued.</strong> ${esc(a.unpriced.join(", "))} had at least one day with no usable price,
       so any figure that depends on ${a.unpriced.length === 1 ? "it" : "them"} shows as ${DASH} rather than as a number we guessed.
+    </td></tr>
+  </table>`;
+};
+
+// WHAT THIS EMAIL LEFT OUT, IN DOLLARS.
+//
+// The audit layer filters withheld rows out of the digest's query, and the
+// first version of that filter went in with no corresponding line here. The
+// compliance gate called it blocking and was right: email is the worst surface
+// in the product for a silently short figure, because the reader cannot click
+// through to the note beside it, cannot re-run the week, and the number arrives
+// looking settled.
+//
+// The existing "some of the week could not be valued" note is not this. That
+// one is about a missing PRICE; this is about arithmetic of ours that produced
+// a result the position could not reach.
+const withheldNote = (a: AccountWeek) => {
+  if (!a.withheld || !a.withheld.count) return "";
+  const n = a.withheld.count;
+  return `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FDF0F0;border:1px solid #F0D0D0;border-radius:12px;margin:0 0 16px;">
+    <tr><td style="padding:14px 18px;font:400 12px ${FONT};color:${BRAND.negative};line-height:1.6;">
+      <strong>${n} ${n === 1 ? "trade is" : "trades are"} missing from these figures.</strong>
+      ${n === 1 ? "It computes" : "They compute"} to ${money(a.withheld.realized, true)}, which is more than
+      ${n === 1 ? "its own strikes can" : "their own strikes can"} lose &mdash; so the arithmetic is ours to fix and
+      the ${n === 1 ? "figure is" : "figures are"} left out rather than shown. Your broker's own total includes
+      ${n === 1 ? "it" : "them"}. ${n === 1 ? "The trade" : "The trades"} happened exactly as your broker recorded
+      ${n === 1 ? "it" : "them"}.
     </td></tr>
   </table>`;
 };
@@ -393,21 +484,31 @@ export function renderAccountWeek(
   // trading follows it. A week with no trades still has an account in it.
   const traded = a.closed.count > 0 || a.opened.count > 0;
   const weekBlocks = traded
-    ? [premiumPanel(a), unpricedNote(a), tradeTable(a)].join("")
+    ? [premiumPanel(a), withheldNote(a), unpricedNote(a), tradeTable(a)].join("")
     : panel(
         "This week's trading",
         row("Positions closed", "0") + row("Positions opened", "0"),
         "Nothing opened and nothing closed in this account this week. What it holds is above."
       );
 
+  // THE ORDER OF THE MESSAGE. The owner, twice -- *"an account snapshot in
+  // general should be sent. It's not about trades, it's about the account
+  // itself"*, and then *"make the first section the total account, not the
+  // holding, then go down to the rest"*. So: what the account is worth and
+  // what is committed, then what the week did to it, then what it holds, then
+  // the trades themselves. Widest to narrowest, and a week with no trades
+  // still opens on a complete answer.
+  //
+  // DROPPED, because he asked for clean and these were duplicates rather than
+  // content: `brokerAccountPanel` (its four figures are in the lead panel and
+  // the holdings list), and `stockPanel` (shares held and the option mark are
+  // both in the holdings list, and its "Move in the option book" row changed
+  // meaning under a caption that still described a level).
   const body = [
-    snap ? holdingsPanel(snap) : "",
-    snap ? ordersPanel(snap) : "",
-    snap ? brokerAccountPanel(snap) : accountPanel(a),
-    // The week's own result only where the stored series could produce one we
-    // can stand behind. Where it could not, the section is absent rather than
-    // a grid of dashes -- see hero().
+    accountLead(a, snap),
     a.performance !== null ? hero(a) : "",
+    snap ? holdingsPanel(snap) : accountPanel(a),
+    snap ? ordersPanel(snap) : "",
     weekBlocks,
     a.performance !== null ? stockPanel(a) : ""
   ].join("");
@@ -431,10 +532,9 @@ export function renderAccountWeek(
           </td></tr>
         </table>
         <div style="font:400 11px ${FONT};color:${BRAND.sub};line-height:1.7;padding:4px 4px 0;">
-          This is a record of one of your own accounts, not advice, a recommendation or a signal. Nothing here
-          tells you what to do next. Figures are reconstructed from your broker's own trade and price
-          history and can differ from your broker's statement; your broker's statement is the record.
-          Unrealized figures are marks, not money: they move until a position is closed.
+          A record of your own account — not advice, a recommendation or a signal. Figures are
+          reconstructed from your broker's own trade and price history and can differ from it; your
+          broker's statement is the record. Unrealized figures are marks, not money.
           ${a.isPaper ? "This is a paper account and its money is simulated." : ""}
           ${opts.unsubscribeUrl ? `<br><a href="${esc(opts.unsubscribeUrl)}" style="color:${BRAND.sub};">Stop receiving these weekly emails</a>` : ""}
         </div>
@@ -463,7 +563,7 @@ export function renderAccountWeek(
           line("  Shares still held", money(a.sharesValue)),
           line("  Move on shares held", money(a.sharesMark, true)),
           line("  Booked on shares sold", money(a.sharesBooked, true)),
-          line("  Move on open option legs", money(a.optionsMark, true)),
+          line("  Move in the option book", money(a.optionsMark, true)),
           "",
           "THE ACCOUNT",
           line("  Account value at Friday's close", money(a.equityEnd)),

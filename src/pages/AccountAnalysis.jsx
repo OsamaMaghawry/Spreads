@@ -18,6 +18,8 @@ import OpenOptionsPanel from "@/components/analysis/OpenOptionsPanel";
 import ViewSwitch from "@/components/analysis/ViewSwitch";
 import { openBook, openOptions, openMark, premiumOnly, realizedShares, orphanedShares } from "@/lib/openBook";
 import { analysisHeadline } from "@/lib/headline";
+import { splitWithheld, withheldNote } from "@/lib/integrity";
+import { capitalAtWork, flowNote } from "@/lib/capital";
 import { dailySeries, bookedCurve } from "@/lib/equityCurve";
 
 export default function AccountAnalysis() {
@@ -111,11 +113,25 @@ export default function AccountAnalysis() {
   // once already. Each block below depends only on the ones above it.
   // ---------------------------------------------------------------------
 
-  // 1. The rows this page is measuring: the date filter, then the strategy tab.
-  const subset = useMemo(
+  // 1. The rows this page is measuring: the date filter, then the strategy tab,
+  //    then the audit layer.
+  //
+  // THE SPLIT HAPPENS ONCE, HERE, and everything below takes `subset`. The
+  // first version filtered withheld rows inside `computeStats` alone, which
+  // left the headline, the capture breakdown and the booked equity curve --
+  // all of which read the same rows through other functions -- publishing a
+  // figure the statistics two panels below had already excluded. One page,
+  // contradicting itself. See src/lib/integrity.js.
+  const filtered = useMemo(
     () => (strategy === "all" ? trades : trades.filter((t) => strategyOf(t) === strategy)),
     [trades, strategy]
   );
+  const audit = useMemo(() => splitWithheld(filtered), [filtered]);
+  // `subset` is EVERY closed row, withheld included. `computeStats` keeps their
+  // money in the totals and leaves them out of the outcome statistics itself —
+  // see the header of src/lib/analytics.js for why removing them here published
+  // a total outside the range the account's own arithmetic permits.
+  const subset = filtered;
 
   // What the page is narrowed BY — the two controls, kept apart.
   //
@@ -204,6 +220,53 @@ export default function AccountAnalysis() {
     [strategy, equitySeries, view, range]
   );
 
+  // WHAT THE WHOLE BOOK DID ACROSS THE DATE WINDOW, for the headline.
+  //
+  // The owner, filtered to one week: *"only that chart says two thousand
+  // something, but the whole stays seven hundred."* Both numbers were right
+  // for what they measured -- $785.91 was the week's BOOKED money and
+  // $2,455.91 was the week's whole-book move -- and only one of them was
+  // labelled "whole view".
+  //
+  // ALWAYS THE PERFORMANCE SERIES, never whatever the chart happens to be
+  // drawing. The first version read `dailyChart`, which carries `chartMode`,
+  // so switching the chart to Account value silently took the headline back to
+  // booked money -- the page answering a question about the strategy's result
+  // differently depending on which line was on screen beside it. `drawdown`
+  // below already had this right and this did not. Same mistake as reading a
+  // balance where a result was meant, one level up.
+  //
+  // Three conditions, each of which makes the figure meaningless if it fails:
+  //
+  //   all strategies  the daily marks are account-level and cannot be split
+  //   a date window   with no window the page already shows today's live mark,
+  //                   which is the more current answer for "right now"
+  //   a known baseline  see `baselineKnown` -- without it the window would be
+  //                   credited with everything that came before it
+  const windowedWhole = useMemo(() => {
+    if (view !== "whole" || strategy !== "all" || !range.from) return null;
+    const whole = dailySeries(equitySeries, view, "performance", range);
+    if (!whole.points.length || !whole.baselineKnown) return null;
+    if (whole.end === null || whole.end === undefined) return null;
+    // The booked half, from the SAME stored rows -- premium closed plus shares
+    // sold -- rather than from `computeStats`, which counts a different set of
+    // rows. Quoting two sources in one sentence is how the halves stop adding
+    // up to the whole the reader can see above them.
+    const n = (v) => (v === null || v === undefined || v === "" ? null : Number(v));
+    const realized = dailySeries(
+      equitySeries.map((r) => {
+        const p = n(r?.premium_cum);
+        const s = n(r?.shares_booked);
+        return { ...r, performance: p === null || s === null ? null : p + s };
+      }),
+      view,
+      "performance",
+      range
+    );
+    if (realized.end === null || !realized.baselineKnown) return null;
+    return { figure: whole.end, booked: realized.end };
+  }, [view, strategy, range, equitySeries]);
+
   const chartFallbackReason = useDaily
     ? null
     : equitySeries.length === 0
@@ -223,9 +286,44 @@ export default function AccountAnalysis() {
   // 44% of equity while spreads with 55 trades and $20k got 56%. There is no
   // honest share to use, so a filtered view withholds it. Return on risk, which
   // divides by collateral the strategy really tied up, still answers it.
+  // THE DENOMINATOR EVERY RETURN IS MEASURED AGAINST.
+  //
+  // This used to be `equity` -- the broker's figure for what the account is
+  // worth RIGHT NOW, deposits included. The owner found what that costs on his
+  // live account: *"It says the pl 500 while it should be more but because I
+  // deposited 700 last week. It got reduced!!"* A $700 deposit into a roughly
+  // $500 account more than doubled the denominator, for money that had been
+  // there five days and had never been in a position.
+  //
+  // A return is a result divided by the capital that EARNED it, so each
+  // transfer is weighted by the share of the window it was actually present
+  // for. And when the flows cannot be read at all, this is null and every
+  // percentage renders "—": publishing a confident rate over a denominator
+  // nobody had checked is the whole defect, and it must not return through its
+  // own fix. See src/lib/capital.js.
+  const flows = data?.cashFlows ?? null;
+  const windowFrom = range.from || bounds.min || null;
+  const windowTo = range.to || bounds.max || null;
+  const openingEquity = useMemo(() => {
+    if (!windowFrom) return null;
+    const before = (equitySeries || []).filter((r) => r.day <= windowFrom);
+    const row = before.length ? before[before.length - 1] : null;
+    return row ? Number(row.equity) : null;
+  }, [equitySeries, windowFrom]);
+  const capital = useMemo(
+    () => (windowFrom && windowTo
+      ? capitalAtWork({ startEquity: openingEquity, flows, from: windowFrom, to: windowTo })
+      : null),
+    [openingEquity, flows, windowFrom, windowTo]
+  );
+  const transfersNote = useMemo(
+    () => (windowFrom && windowTo ? flowNote(flows, windowFrom, windowTo) : null),
+    [flows, windowFrom, windowTo]
+  );
+
   const stats = useMemo(
     () =>
-      computeStats(subset, strategy === "all" ? equity : 0, view, {
+      computeStats(subset, strategy === "all" ? (capital || 0) : 0, view, {
         unrealized: scopedUnrealized,
         // Drawdown measured on booked trades alone can only ever be the sum of
         // the option debits: a position that fell and recovered registers
@@ -239,7 +337,7 @@ export default function AccountAnalysis() {
         // A statistic must not move because a chart button moved.
         dailyPoints: drawdownPoints
       }),
-    [subset, strategy, equity, view, scopedUnrealized, drawdownPoints]
+    [subset, strategy, capital, view, scopedUnrealized, drawdownPoints]
   );
 
   const comparison = useMemo(() => {
@@ -304,8 +402,21 @@ export default function AccountAnalysis() {
     premium: premiumFigure,
     hasOpen,
     liveMark,
-    narrowing
+    narrowing,
+    windowed: windowedWhole
   });
+  // WHAT THE HEADLINE IS MISSING, in dollars, beside the headline.
+  //
+  // The count alone was not enough and the bench said so plainly: on this
+  // account one withheld row is $189 against an $814 total, so "1 withheld"
+  // reads like a rounding note when it is a fifth of the figure. The note also
+  // names the authority the reader can check against -- their broker's total
+  // DOES include this money, because the money moved; what we cannot say is
+  // which trade it belongs to.
+  const withheldLine = withheldNote(audit, view);
+  // The count and the dollars, in the view being shown, in one object so the
+  // cards and the note cannot quote different numbers.
+  const withheldFigure = { count: audit.count };
   // THE CHART AND THE HEADLINE, reconciled where they differ.
   //
   // Only one configuration makes them disagree, and it is exactly the one the
@@ -331,6 +442,11 @@ export default function AccountAnalysis() {
         ? " Part of the share book has no price."
         : " The broker returned no value for an open option leg."
       : "";
+  // The withheld line joins the headline's own note, because it qualifies the
+  // headline FIGURE -- the money card -- and not the trade count two panels
+  // down where the first version put it.
+  // The withheld line is NOT appended here. It has its own banner, which
+  // renders whether or not this page shows a view switch — see below.
   const headlineNote = headline.note ? `${headline.note}${unpricedDetail}` : null;
 
   if (loading) {
@@ -377,6 +493,12 @@ export default function AccountAnalysis() {
               subtitle={`${stats.firstDate} → ${stats.lastDate}${range.from || range.to ? " (filtered)" : ""} · ${strategy === "all" ? "All strategies" : strategyLabel(strategy)} · ${view === "whole" ? "Whole view (options + shares)" : "Premium only (option legs)"} · equity ${equity ? `$${equity.toLocaleString()}` : "n/a"} · generated ${new Date().toLocaleString()}`}
               isPaper={!!data?.account?.is_paper}
               viewLabel={view === "whole" ? "Whole view (options + shares)" : "Premium only (option legs)"}
+              // The on-screen note is one block near the top of the flow, so
+              // it lands on page one and nowhere else. Pages two onward are the
+              // by-month and by-ticker schedules — the pages someone forwards
+              // to an accountant — and they need the qualification on them,
+              // not a pointer to a page that is no longer attached.
+              withheld={audit.count ? { count: audit.count, names: audit.names } : null}
             />
           )}
         </div>
@@ -431,6 +553,28 @@ export default function AccountAnalysis() {
                 Paper account &mdash; every figure below is simulated, not real money.
               </div>
             )}
+            {/* WHAT THIS PAGE LEFT OUT, unconditionally and INSIDE reportRef.
+                The first version hung this off the headline's note, which only
+                renders when ViewSwitch does — and ViewSwitch is gated on the
+                account holding something open. An account holding nothing, the
+                steady state of the account this was built for, published the
+                reduced total with no explanation anywhere, and the PDF is a
+                raster of this DOM so it would have exported the same way. */}
+            {withheldLine && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-800">
+                {withheldLine}
+              </div>
+            )}
+            {/* MONEY YOU MOVED, said beside the figures it changes the meaning
+                of. A deposit is not a gain and a withdrawal is not a loss, and
+                a reader who can see a step in the account-value line is owed
+                the reason for it on the same screen. Inside reportRef, so the
+                export carries it too. */}
+            {transfersNote && (
+              <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm text-sky-900">
+                {transfersNote}
+              </div>
+            )}
             {/* The switch, and the book it governs. Both sit INSIDE reportRef:
                 an export has to say which view produced it, or two PDFs of the
                 same week disagree with nothing on either to explain why.
@@ -480,7 +624,7 @@ export default function AccountAnalysis() {
             {book.lots > 0 && <OpenBookPanel book={book} priced={view === "whole"} />}
             <OpenOptionsPanel book={optionBook} priced={view === "whole"} />
             {comparison.length > 1 && <StrategyComparison rows={comparison} />}
-            <StatCards stats={stats} />
+            <StatCards stats={stats} withheld={withheldFigure} />
             <EquityCurveChart
               curve={curve}
               view={view}

@@ -19,24 +19,52 @@
 // money path than moving code that does not change.
 
 import { alpacaFetch } from "./alpaca.ts";
-import { refuseMassDelete, lotFromOption } from "./writeGuards.ts";
+import { selectAllWhere } from "./paging.ts";
+import { lotFromOption } from "./writeGuards.ts";
+import { cashFlows } from "./cashFlows.ts";
+import {
+  auditAccount,
+  applyFindings,
+  dedupeFindings,
+  applyLotFindings,
+  withheldLotSummary,
+  massDeleteFinding,
+  writesHeld,
+  vanished,
+  lotIdentity,
+  SERIES_FINDING_CODES,
+  type Finding
+} from "./integrity.ts";
 
+// PAGED, because PostgREST caps an unbounded select at a thousand rows and
+// reports no error.
+//
+// These two were the last uncapped reads on the money path, and they are the
+// worst place for it: this is the SYNC's view of what is stored, so past a
+// thousand rows the diff below is computed against a truncated stored set.
+// Everything absent from the invisible remainder reads as missing, so the sync
+// re-inserts rows that already exist (the unique constraint refuses them and
+// the whole pass errors), and every row past the cap is invisible to the
+// staleness diff forever. One staging book already holds 1,123 lots.
+//
+// `id` is the sort key rather than a date. Paging REQUIRES a total order or the
+// page boundaries overlap and skip -- and `close_date` is neither unique nor
+// non-null here, while `acquired_date` is not unique either. A tie at the page
+// boundary silently drops rows, which is the same class of defect one level
+// down. The callers that want a display order sort after reading.
 export async function fetchTrades(admin, accountId, ordered = true) {
-  let query = admin.from("trade_records").select("*").eq("account_id", accountId);
-  if (ordered) query = query.order("close_date", { ascending: false });
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-  return data || [];
+  const rows = await selectAllWhere(admin, "trade_records", "*", "id",
+    (q: any) => q.eq("account_id", accountId));
+  return ordered
+    ? rows.slice().sort((a: any, b: any) => String(b.close_date || "").localeCompare(String(a.close_date || "")))
+    : rows;
 }
 
 export async function fetchStockLots(admin, accountId) {
-  const { data, error } = await admin
-    .from("stock_lots")
-    .select("*")
-    .eq("account_id", accountId)
-    .order("acquired_date", { ascending: false });
-  if (error) throw new Error(error.message);
-  return data || [];
+  const rows = await selectAllWhere(admin, "stock_lots", "*", "id",
+    (q: any) => q.eq("account_id", accountId));
+  return rows.slice().sort((a: any, b: any) =>
+    String(b.acquired_date || "").localeCompare(String(a.acquired_date || "")));
 }
 
 // Everything the write is about to destroy, copied out first, as one row.
@@ -205,29 +233,154 @@ export async function fetchBrokerData(account, base) {
     settlementFeed = "unavailable";
   }
 
-  return { orderStrategy, activities, settlementFeed };
+  // CASH IN AND OUT, which this product has never asked for.
+  //
+  // THE DEFECT THIS CLOSES. Every return percentage on the Analysis page
+  // divided the account's P/L by the broker's CURRENT equity -- which contains
+  // every deposit ever made. The owner found it on his live account: a $700
+  // deposit into a ~$500 account more than doubled the denominator, for money
+  // that had been there five days and had never been in a position, and every
+  // rate on the page read roughly half what it should. *"It says the pl 500
+  // while it should be more but because I deposited 700 last week. It got
+  // reduced!!"*
+  //
+  // The root cause was not the arithmetic: it is that the four activity types
+  // above are fills, expirations, assignments and exercises, so a transfer was
+  // not merely mishandled, it was INVISIBLE. Nothing in the product could see
+  // a deposit, so nothing could subtract one.
+  //
+  // Its own request, like OPCSH above and for the same reason: these type
+  // names cannot be checked against documentation from this environment, and a
+  // type the API rejects takes the whole request down with it. A failure here
+  // must cost the return percentages -- which then render "—" -- and never the
+  // trade history.
+  //
+  //   CSD/CSW   cash deposit and withdrawal
+  //   JNLC      a cash journal, which is how a transfer between two accounts
+  //             of the same owner arrives
+  //   ACATC     cash arriving with an inbound account transfer
+  //
+  // JNLS and ACATS move SHARES rather than cash. Deliberately not here: a
+  // share arriving from outside has a basis this product cannot see, which is
+  // a different and larger problem than a denominator, and folding it in as a
+  // dollar amount would state a cost we do not know.
+  let flows: any[] | null = [];
+  try {
+    let token = null;
+    for (let i = 0; i < 20; i++) {
+      const url = `${base}/account/activities?activity_types=CSD,CSW,JNLC,ACATC&direction=desc&page_size=100` +
+        (token ? `&page_token=${encodeURIComponent(token)}` : "");
+      const page = await alpacaFetch(url, account);
+      if (!Array.isArray(page) || page.length === 0) break;
+      flows = flows.concat(page);
+      if (page.length < 100) break;
+      token = page[page.length - 1].id;
+    }
+  } catch {
+    // NULL, not []. "We looked and there were none" and "we could not look"
+    // are different answers, and collapsing them is how a denominator nobody
+    // checked gets published as a confident percentage -- the defect this
+    // whole change exists to remove.
+    flows = null;
+  }
+
+  return { orderStrategy, activities, settlementFeed, flows };
 }
 
 // Reconcile what the broker says against what is stored. The reconstruction is
 // deterministic over the whole feed, so the fresh set is authoritative.
-export async function writeResults(admin, accountId, userId, records, stockLots, breaches = []) {
-  // A spread reporting a loss beyond its own arithmetic maximum is not a
-  // figure to store and explain later. The sync fails, the page says the
-  // refresh failed, and the stored history is left exactly as it was --
-  // the same posture as refuseMassDelete, for the same reason.
-  if (breaches.length > 0) {
-    const first = breaches[0];
-    throw new Error(
-      `Refusing to store an impossible result: ${first.short_symbol}/${first.long_symbol} closed ` +
-        `${first.close_date} computes to ${first.realized_pl.toFixed(2)} against a maximum loss of ` +
-        `${first.max_loss.toFixed(2)}${breaches.length > 1 ? ` (and ${breaches.length - 1} more)` : ""}. ` +
-        `Nothing was changed.`
+export async function writeResults(
+  admin, accountId, userId, records, stockLots, breaches = [], orphanedStockPL = 0,
+  lotOwners: Map<string, Set<string>> | null = null
+) {
+  // THE AUDIT PASS, in place of the refusal that used to live here.
+  //
+  // This function used to throw on the first impossible result, which left the
+  // account's stored history exactly as it was -- and on an account that had
+  // never synced, "exactly as it was" is nothing at all. One XLY row whose
+  // computed loss exceeded its strikes by $64 cost the owner every trade on
+  // that account, a blank Analysis page and an empty weekly email.
+  //
+  // The check was right; the remedy was not. The breach now withholds THAT
+  // ROW's figures and the other forty-two are written normally. See
+  // _shared/integrity.ts for the actions and why there is no longer one that
+  // stops a sync.
+  const findings = auditAccount({ breaches, orphanedStockPL });
+  const flagged = applyFindings(records, findings);
+
+  // THE SAME WITHHOLDING, ON THE OTHER TABLE THE SAME MONEY LIVES IN.
+  //
+  // The impossible-loss defect IS a share result attributed to the wrong
+  // option row, so flagging only `trade_records` left the disputed dollars
+  // published in `stock_lots` -- on the lots table, in the share walk, and in
+  // the equity chart's own reading of the ledger. `lotOwners` is the
+  // reconstruction's own record of which trade row received each lot's money,
+  // so this withholds exactly the disposals the withheld rows were paid from.
+  const flaggedLots = applyLotFindings(stockLots, flagged, lotOwners);
+
+  // The finding says how much of it is share money, because "this spread is
+  // $64 past its floor" and "and $189 of closed-share result moved with it"
+  // are different sizes of problem to whoever reads the trail.
+  //
+  // Attributed PER FINDING rather than the whole total onto each: with two
+  // withheld rows, giving both the account-wide sum makes each look twice the
+  // size it is.
+  const enriched = findings.map((f) => {
+    if (f.action !== "withhold_row") return f;
+    const mine = withheldLotSummary(
+      flaggedLots.filter((l: any) => (l.integrity_detail?.owners || []).includes(f.subject))
     );
-  }
-  return writeResultsInner(admin, accountId, userId, records, stockLots);
+    return mine.lots
+      ? { ...f, detail: { ...f.detail, withheld_share_lots: mine.lots, withheld_share_pl: mine.realized } }
+      : f;
+  });
+
+  return writeResultsInner(admin, accountId, userId, flagged, flaggedLots, enriched);
 }
 
-export async function writeResultsInner(admin, accountId, userId, records, stockLots) {
+
+/**
+ * The account's cash movements, stored so every return has a denominator.
+ *
+ * Upserted on the broker's own activity id, so a re-sync cannot double a
+ * deposit -- and a doubled deposit halves a return, which is the very defect
+ * this table exists to fix arriving through the table itself.
+ *
+ * NOTHING IS DELETED HERE. A flow that stops appearing in the feed is far more
+ * likely to have aged out of the window the broker serves than to have been
+ * reversed, and dropping it would silently shrink the denominator of every
+ * historical return. The same reasoning as the equity series: rows accumulate.
+ *
+ * Allowed to fail without failing the sync. A missing flow costs the return
+ * percentages, which then render "—"; it must not cost the trade history.
+ */
+export async function writeCashFlows(admin, accountId, userId, rawFlows) {
+  const flows = cashFlows(rawFlows);
+  if (flows === null) return { stored: null };
+  if (!flows.length) return { stored: 0 };
+  try {
+    const { error } = await admin.from("cash_flows").upsert(
+      flows.map((f) => ({
+        account_id: accountId,
+        user_id: userId,
+        activity_id: f.id,
+        day: f.day,
+        amount: f.amount,
+        kind: f.kind
+      })),
+      { onConflict: "account_id,activity_id" }
+    );
+    if (error) throw new Error(error.message);
+    return { stored: flows.length };
+  } catch (e: any) {
+    console.error(`cash flows not stored for ${accountId}: ${e?.message || e}`);
+    return { stored: null };
+  }
+}
+
+export async function writeResultsInner(
+  admin, accountId, userId, records, stockLots, findings: Finding[] = []
+) {
   const existing = await fetchTrades(admin, accountId, false);
   const existingByKey: any = {};
   existing.forEach((r: any) => { existingByKey[r.trade_key] = r; });
@@ -257,6 +410,13 @@ export async function writeResultsInner(admin, accountId, userId, records, stock
         // figure on it is identical: its shares were disposed of and its
         // result is final now.
         !!e.provisional !== !!r.provisional ||
+        // A row that stops being withheld, or starts, has changed even when
+        // every figure on it is identical -- and this is the one comparison
+        // that decides whether the clearing write happens at all. Without it a
+        // corrected check leaves the row hidden from every total while the
+        // audit trail records the finding as resolved: the trail says fixed,
+        // the money is still missing.
+        (e.integrity_code || null) !== (r.integrity_code || null) ||
         e.chain_id !== r.chain_id
       );
     })
@@ -275,12 +435,91 @@ export async function writeResultsInner(admin, accountId, userId, records, stock
   const optionLots = existingLots.filter(lotFromOption);
   const staleLots = optionLots.filter((l: any) => !freshLotKeys.has(l.lot_key));
 
-  // Both refusals are checked before anything is written, so a sync that trips
-  // either one leaves the account exactly as it found it.
-  const refusal =
-    refuseMassDelete("trade records", stale.length, existing.length) ||
-    refuseMassDelete("share lots", staleLots.length, optionLots.length);
-  if (refusal) throw new Error(refusal);
+  // ONE KIND'S STORED ROWS FROZEN, RATHER THAN THE SYNC REFUSED.
+  //
+  // A reconstruction that wants to remove most of what is stored is still much
+  // more likely to be a defect than a correction -- a truncated broker feed, an
+  // outage returning a short page, a credential that has stopped working all
+  // look exactly like "this account has no trades any more". That judgement
+  // was right and has not changed.
+  //
+  // What changed is what happens next. This used to throw, which threw away a
+  // perfectly good update to protect the rows and left the account stale on top
+  // of it.
+  //
+  // THE VERSION IN BETWEEN WAS WORSE THAN EITHER, and the bench caught it
+  // before it left staging. It held only the DELETIONS and let `toCreate`
+  // write, on the reasoning that keeping rows can only be safer. It is not:
+  // `stale` is defined a few lines above as rows whose IDENTITY changed as well
+  // as rows that vanished, so the replacement arrives under a NEW key. Holding
+  // the delete while writing the create stores the same closed trade twice,
+  // both copies with `integrity_code` null because a `mass_delete_held`
+  // finding's subject is the string "trade records" and matches no row. It
+  // reproduced at exactly double the true P/L. A stale account is wrong and
+  // self-consistent; a double-counted account is wrong and looks right.
+  //
+  // We cannot tell a truncated feed from a re-keying from here, so that kind's
+  // stored rows do not move AT ALL -- no delete, no insert, no rewrite. What
+  // makes this different from the old refusal is its blast radius: it costs one
+  // KIND of record, and the share ledger, the equity series, the sync timestamp
+  // and the audit note all still proceed. The account keeps the history it had
+  // rather than being emptied, which is the whole complaint this answers.
+  // WHAT VANISHED, NOT WHAT WAS RE-KEYED, and measured over the SAME
+  // population on both sides of the ratio.
+  //
+  // Two separate defects lived in the four numbers this used to pass:
+  //
+  //   - `staleLots.length` counted re-keys. Disposing of a held lot changes
+  //     its `lot_key`, so an ordinary wheel week reads as "6 of 6 lots
+  //     removed" and froze the whole account, permanently and silently.
+  //
+  //   - `stale.length / existing.length` compared a WINDOW against the WHOLE
+  //     ACCOUNT. On an empty broker feed `stale` is 0 by construction, so the
+  //     guard could not fire at all on the very case it was written for; on a
+  //     truncated feed 9 real deletions inside an 11-row window read as 9/40
+  //     and passed.
+  //
+  // The deletion sets below are unchanged -- a re-keyed row must still go, or
+  // its replacement duplicates it. Only the EVIDENCE is counted differently.
+  const inWindow = existing.filter((r: any) => (r.close_date || "") >= oldestClose);
+  const deletionFindings = [
+    massDeleteFinding(
+      "trade records",
+      vanished(stale, records, (r: any) => r.trade_key),
+      inWindow.length
+    ),
+    massDeleteFinding(
+      "share lots",
+      vanished(staleLots, stockLots, lotIdentity),
+      optionLots.length
+    )
+  ].filter(Boolean) as Finding[];
+  const allFindings = [...findings, ...deletionFindings];
+
+  // FROZEN TOGETHER, NOT INDEPENDENTLY.
+  //
+  // A trade row and the share lots attributed to it carry two halves of one
+  // claim, and the bench found that deciding them on separate thresholds
+  // splits it. Freeze trades alone and the `integrity_code` this pass computed
+  // never lands on the row -- so the row publishes the disputed money while the
+  // lot beside it shows a dash, and the trail records a withholding that had no
+  // effect. Freeze lots alone and it runs the other way, with the equity walk
+  // feeding those dollars into `shares_booked` while its trade query excludes
+  // the row.
+  //
+  // Either finding therefore freezes both. It costs a little more staleness in
+  // the rarer case; it cannot produce two tables disagreeing about the same
+  // dollars, which is the thing this whole layer exists to prevent.
+  const anyFrozen =
+    writesHeld(allFindings, "trade records") || writesHeld(allFindings, "share lots");
+  const tradesFrozen = anyFrozen;
+  const lotsFrozen = anyFrozen;
+
+  const deleteTrades = tradesFrozen ? [] : stale;
+  const createTrades = tradesFrozen ? [] : toCreate;
+  const updateTrades = tradesFrozen ? [] : toUpdate;
+  const deleteLots = lotsFrozen ? [] : staleLots;
+  const upsertLots = lotsFrozen ? [] : stockLots;
 
   const freshLotByKey: any = {};
   stockLots.forEach((l: any) => { freshLotByKey[l.lot_key] = l; });
@@ -291,70 +530,144 @@ export async function writeResultsInner(admin, accountId, userId, records, stock
   const changedFields = (before: any, after: any) =>
     ["qty", "acquired_date", "acquired_price", "acquired_source",
      "disposed_date", "disposed_price", "disposed_source", "realized_pl",
-     "acquired_chain_id", "disposed_chain_id", "chain_id"]
+     "acquired_chain_id", "disposed_chain_id", "chain_id",
+     // A lot that stops being withheld, or starts, is a lot whose money moved
+     // in or out of every total -- the same reason `integrity_code` is in the
+     // trade diff. Without it a corrected check leaves the lot hidden while
+     // the trail records the finding resolved.
+     "integrity_code"]
       .some((f) => String(before[f] ?? "") !== String(after[f] ?? ""));
+  // Built from the lots actually being written, so a frozen pass does not
+  // snapshot a before-image of writes that never happened.
+  const upsertLotByKey: any = {};
+  upsertLots.forEach((l: any) => { upsertLotByKey[l.lot_key] = l; });
   const updatedLotsBefore = existingLots.filter(
-    (l: any) => freshLotByKey[l.lot_key] && changedFields(l, freshLotByKey[l.lot_key])
+    (l: any) => upsertLotByKey[l.lot_key] && changedFields(l, upsertLotByKey[l.lot_key])
   );
 
-  // Rewrites in place have no cap -- refuseMassDelete counts deletions -- and
-  // an uncapped rewrite that tells nobody is how a whole account's figures
+  // Rewrites in place have no cap -- the mass-delete finding counts deletions
+  // -- and an uncapped rewrite that tells nobody is how a whole account's figures
   // change with no trace outside the snapshot. Capping it would fail the first
   // sync of any account whose rows predate this code, which is every account
   // today, so this says so rather than refusing: the snapshot holds the before
   // image and this is the line that sends someone to look for it.
-  if (toUpdate.length > 0 || updatedLotsBefore.length > 0) {
+  if (updateTrades.length > 0 || updatedLotsBefore.length > 0) {
     console.error(
-      `tradeHistory rewrite: account=${accountId} trades=${toUpdate.length}/${existing.length} ` +
-        `lots=${updatedLotsBefore.length}/${optionLots.length} removed=${stale.length}`
+      `tradeHistory rewrite: account=${accountId} trades=${updateTrades.length}/${existing.length} ` +
+        `lots=${updatedLotsBefore.length}/${optionLots.length} removed=${deleteTrades.length}`
     );
   }
 
   await snapshot(admin, accountId, userId, "sync", {
-    deleted: stale,
-    updatedBefore: toUpdate.map((r: any) => existingByKey[r.trade_key]),
-    deletedLots: staleLots,
+    deleted: deleteTrades,
+    updatedBefore: updateTrades.map((r: any) => existingByKey[r.trade_key]),
+    deletedLots: deleteLots,
     updatedLotsBefore
   });
 
-  for (const r of stale) {
+  for (const r of deleteTrades) {
     const { error } = await admin.from("trade_records").delete().eq("id", (r as any).id);
     if (error) throw new Error(error.message);
   }
-  if (toCreate.length > 0) {
+  if (createTrades.length > 0) {
     const { error } = await admin
       .from("trade_records")
-      .insert(toCreate.map((r: any) => ({ ...r, user_id: userId })));
+      .insert(createTrades.map((r: any) => ({ ...r, user_id: userId })));
     if (error) throw new Error(error.message);
   }
-  for (const r of toUpdate) {
+  for (const r of updateTrades) {
     const { id, ...fields } = r as any;
     const { error } = await admin.from("trade_records").update(fields).eq("id", id);
     if (error) throw new Error(error.message);
   }
 
-  for (const l of staleLots) {
+  for (const l of deleteLots) {
     const { error } = await admin.from("stock_lots").delete().eq("id", (l as any).id);
     if (error) throw new Error(error.message);
   }
-  if (stockLots.length > 0) {
+  if (upsertLots.length > 0) {
     const { error } = await admin
       .from("stock_lots")
-      .upsert(stockLots.map((l: any) => ({ ...l, user_id: userId })), {
+      .upsert(upsertLots.map((l: any) => ({ ...l, user_id: userId })), {
         onConflict: "account_id,lot_key"
       });
     if (error) throw new Error(error.message);
   }
 
+  // A FROZEN PASS DOES NOT GET TO SAY IT SYNCED.
+  //
+  // This used to stamp `trades_synced_at` and clear `trades_sync_error`
+  // unconditionally, so an account whose writes were held read as current and
+  // healthy on every screen -- the staleness gate then skipped it as fresh, and
+  // the cron reported ok. The one signal that would have surfaced a freeze was
+  // being erased by the freeze itself.
   await admin
     .from("trading_accounts")
-    .update({ trades_synced_at: new Date().toISOString(), trades_sync_error: null })
+    .update(
+      anyFrozen
+        ? {
+            trades_sync_error:
+              `Held: ${allFindings.filter((f) => f.action === "hold_writes").map((f) => f.subject).join(" and ")}` +
+              ` looked wrong enough to leave alone. Stored history is unchanged.`
+          }
+        : { trades_synced_at: new Date().toISOString(), trades_sync_error: null }
+    )
     .eq("id", accountId);
 
+  // THE AUDIT TRAIL, written last and on every pass including a clean one.
+  //
+  // On a clean pass this resolves whatever the last pass found, which is the
+  // half that makes the trail readable: findings close themselves when the
+  // thing stops being true, so what is open is what is actually wrong today
+  // rather than a board of stale warnings nobody reads any more.
+  //
+  // Deliberately NOT allowed to fail the sync. The records are already
+  // written and correct at this point; losing the audit note is bad, and
+  // throwing away a good sync because we could not write a note about it is
+  // exactly the posture this whole change exists to undo.
+  //
+  // A FROZEN PASS RECORDS ONLY WHAT IT DID. The row-level withholdings this
+  // pass computed never landed -- the writes were held -- so recording them
+  // would put a withholding in the trail that had no effect on any figure, and
+  // worse, RESOLVING the ones it no longer produces would close a finding whose
+  // flag is still on a row nobody cleared. The trail must describe the stored
+  // state, not the state a pass wished for.
+  const trail = anyFrozen
+    ? allFindings.filter((f) => f.action === "hold_writes")
+    : allFindings;
+  try {
+    const { error } = await admin.rpc("record_integrity_findings", {
+      p_account_id: accountId,
+      p_user_id: userId,
+      p_findings: dedupeFindings(trail),
+      // Nothing resolves on a frozen pass: the flags on the stored rows were
+      // not touched, so their findings are still in force.
+      p_resolve_missing: !anyFrozen,
+      // EVERY CODE EXCEPT THE SERIES ONES. The daily equity rebuild writes to
+      // this table for the same account, and resolving its findings from here
+      // would close a live divergence this pass knows nothing about. Named as
+      // an exclusion rather than a list so a new finding raised in this file
+      // still resolves itself without anyone remembering to add it.
+      p_codes: null,
+      p_exclude_codes: SERIES_FINDING_CODES
+    });
+    if (error) throw new Error(error.message);
+  } catch (e: any) {
+    console.error(`integrity findings not recorded for ${accountId}: ${e?.message || e}`);
+  }
+
   return {
-    created: toCreate.length,
-    updated: toUpdate.length,
-    removed: stale.length,
-    removedLots: staleLots.length
+    created: createTrades.length,
+    updated: updateTrades.length,
+    removed: deleteTrades.length,
+    removedLots: deleteLots.length,
+    // What the pass found, so the caller -- a page, or the cron's result --
+    // can say it out loud instead of the account quietly being different.
+    findings: allFindings.map((f) => ({
+      code: f.code, severity: f.severity, action: f.action,
+      subject: f.subject, message: f.message
+    })),
+    withheld: allFindings.filter((f) => f.action === "withhold_row").length,
+    writesHeld: allFindings.filter((f) => f.action === "hold_writes").map((f) => f.subject)
   };
 }

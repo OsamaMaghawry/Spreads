@@ -22,7 +22,7 @@ import { FileDown, Loader2 } from "lucide-react";
 // export was an unlabelled schedule of monthly P/L that excludes every share
 // disposal in the account. Putting those tables under the view switch is what
 // made that reachable.
-export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = false, viewLabel = null }) {
+export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = false, viewLabel = null, withheld = null }) {
   const [busy, setBusy] = useState(false);
 
   const exportPdf = async () => {
@@ -66,11 +66,33 @@ export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = 
       const margin = 28;
       // Room for a banner line above the title on a paper export, and for two
       // footer lines the page image must not be allowed to run over.
-      const headerH = isPaper ? 68 : 54;
-      // A red banner on every page, not only the first. Page two of a paper
-      // export is a monthly realized-P/L schedule, and a 7pt grey footer line
-      // is not the same warning as an 11pt red one at the top.
-      const bannerH = isPaper ? 16 : 0;
+      const headerH = (isPaper ? 68 : 54) + (withheld?.count ? 14 : 0);
+      // WHAT THE PAGES AFTER THE FIRST NEED TO SAY.
+      //
+      // The on-screen note is a block near the top of the flow, so it is on
+      // page one and nowhere else. Pages two onward are the by-month and
+      // by-ticker realized-P/L tables -- the most schedule-shaped thing this
+      // product emits, and the pages someone forwards to an accountant. They
+      // carried a category disclaimer ("not a tax document") and nothing about
+      // WHICH figures on them are qualified.
+      //
+      // This file already makes the argument, twelve lines up, about the paper
+      // banner: "a 7pt grey footer line is not the same warning as an 11pt red
+      // one at the top". The same applies here.
+      //
+      // The wording is the one that is true after the redesign, and it is not
+      // the one the tax review proposed, because the design changed underneath
+      // it. Nothing is EXCLUDED from these tables any more -- the money is in
+      // every total and ties to the broker. What is qualified is the per-trade
+      // outcome statistics, so that is what the line says.
+      const n = withheld?.count || 0;
+      const withheldLine = n
+        ? `${n} ${n === 1 ? "TRADE'S RESULT CANNOT BE ATTRIBUTED" : "TRADES' RESULTS CANNOT BE ATTRIBUTED"} — TOTALS INCLUDE ${n === 1 ? "IT" : "THEM"}; WIN RATE, AVERAGES AND STREAKS DO NOT`
+        : null;
+      // Each banner line is its own 16pt band, and they stack. Reserving the
+      // room is what stops the page image being drawn over the warning.
+      const bannerLines = [isPaper ? "paper" : null, withheldLine ? "withheld" : null].filter(Boolean);
+      const bannerH = bannerLines.length * 16;
       const disclaimer =
         "DeltaMint is not a broker-dealer and does not provide investment advice. Options trading involves " +
         "substantial risk of loss and is not suitable for every investor. Trades are placed through your own " +
@@ -102,17 +124,28 @@ export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = 
       };
 
       const drawBanner = (y) => {
-        if (!isPaper) return;
-        pdf.setFontSize(11);
-        pdf.setTextColor(180, 72, 92);
-        pdf.text("PAPER TRADING — SIMULATED RESULTS, NOT REAL MONEY", margin, y);
+        let at = y;
+        if (isPaper) {
+          pdf.setFontSize(11);
+          pdf.setTextColor(180, 72, 92);
+          pdf.text("PAPER TRADING — SIMULATED RESULTS, NOT REAL MONEY", margin, at);
+          at += 16;
+        }
+        if (withheldLine) {
+          // Smaller than the paper banner and in a different red: one says the
+          // money is not real, the other says one row's attribution is not
+          // settled. Giving them the same weight would flatten the difference.
+          pdf.setFontSize(8.5);
+          pdf.setTextColor(160, 60, 60);
+          pdf.text(fit(withheldLine, imgW), margin, at);
+        }
       };
 
       const drawHeader = () => {
         let y = margin + 14;
-        if (isPaper) {
+        if (bannerLines.length) {
           drawBanner(y);
-          y += 18;
+          y += 2 + bannerLines.length * 16;
         }
         pdf.setFontSize(15);
         pdf.setTextColor(isPaper ? 180 : 15, isPaper ? 72 : 23, isPaper ? 92 : 42);
@@ -120,6 +153,17 @@ export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = 
         pdf.setFontSize(9);
         pdf.setTextColor(100, 116, 139);
         if (subtitle) pdf.text(fit(subtitle, imgW), margin, y + 16);
+        // Named on the cover, so a reader can find the rows on a broker
+        // statement without hunting the body for the note.
+        if (withheld?.names?.length) {
+          pdf.setFontSize(8);
+          pdf.setTextColor(160, 60, 60);
+          pdf.text(
+            fit(`Unattributed: ${withheld.names.slice(0, 6).join(", ")}${withheld.names.length > 6 ? `, +${withheld.names.length - 6} more` : ""}`, imgW),
+            margin,
+            y + (subtitle ? 30 : 16)
+          );
+        }
       };
 
       // The same disclosure the application carries on every screen. The export
@@ -129,13 +173,28 @@ export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = 
       // substantial risk of loss.
       const drawFooter = (n) => {
         const view = viewLabel ? ` ${viewLabel}.` : "";
+        // The completeness clause rides in the IDENTITY line, which is on every
+        // page. A disclaimer about what kind of document this is does not tell
+        // a reader that the win rate on the page they are looking at was
+        // measured over fewer trades than the totals beside it.
+        const unattributed = n
+          ? ` ${n} ${n === 1 ? "trade's result is" : "trades' results are"} unattributed: in the totals, not in the rates — see page 1.`
+          : "";
         const identity = isPaper
-          ? `DeltaMint — PAPER TRADING, SIMULATED RESULTS.${view} Not a tax document and not investment advice.`
-          : `DeltaMint — economic performance report.${view} Not a tax document and not investment advice.`;
+          ? `DeltaMint — PAPER TRADING, SIMULATED RESULTS.${view}${unattributed} Not a tax document and not investment advice.`
+          : `DeltaMint — economic performance report.${view}${unattributed} Not a tax document and not investment advice.`;
         pdf.setFontSize(7);
         pdf.setTextColor(120, 130, 150);
         const identityY = ph - 22 - (disclaimerLines.length - 1) * 8;
-        pdf.text(fit(identity, imgW - 40), margin, identityY);
+        // Wrapped rather than truncated once the completeness clause is on it:
+        // `fit` drops from the RIGHT, which is exactly where that clause sits,
+        // so a long account name would have silently eaten the one sentence
+        // this change exists to add.
+        pdf.setFontSize(7);
+        const identityLines = pdf.splitTextToSize(identity, imgW - 40);
+        identityLines.slice(0, 2).forEach((line, i) => {
+          pdf.text(line, margin, identityY + i * 8);
+        });
         pdf.text(`Page ${n}`, pw - margin, identityY, { align: "right" });
 
         // Wrapped, not truncated. Cut to one line this text ends somewhere

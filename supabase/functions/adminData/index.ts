@@ -23,7 +23,11 @@ async function loadUsers(admin: any) {
   const [authUserList, accounts, trades, profiles, subscriptions] = await Promise.all([
     listAllUsers(admin),
     selectAll(admin, "trading_accounts", "id, user_id, is_paper, created_at"),
-    selectAll(admin, "trade_records", "user_id, account_id, open_date, close_date, realized_pl, created_at"),
+    // `integrity_code` travels so the back office can see BOTH figures. The
+    // operator panel is where someone goes to diagnose a withheld row, so
+    // filtering it out here — which is what every user-facing reader does —
+    // would hide the problem in the one place built for finding it.
+    selectAll(admin, "trade_records", "user_id, account_id, open_date, close_date, realized_pl, integrity_code, created_at"),
     selectAll(admin, "profiles", "id, role, last_active_at, signup_source"),
     selectAll(admin, "subscriptions", "user_id, plan, status, current_period_end, grandfathered_until")
   ]);
@@ -61,6 +65,10 @@ async function loadUsers(admin: any) {
       liveTrades: 0,
       lastTradeAt: null as string | null,
       realizedPL: 0,
+      // What the trader's own screens exclude, kept beside it rather than
+      // folded in. Zero on every account with nothing withheld.
+      withheldTrades: 0,
+      realizedPLUnverified: 0,
       // From the subscriptions row the Stripe webhook keeps; null until the
       // user has ever started a checkout.
       signupSource: null as string | null,
@@ -108,7 +116,17 @@ async function loadUsers(admin: any) {
     if (!u) continue;
     u.trades += 1;
     if (liveAccountIds.has(t.account_id)) u.liveTrades += 1;
-    u.realizedPL += Number(t.realized_pl || 0);
+    // `realizedPL` is the figure the USER is shown, so it excludes what the
+    // user's own pages exclude; `realizedPLUnverified` is the difference,
+    // carried separately rather than folded in. One number that quietly means
+    // something different here than on the trader's screen is how a support
+    // conversation goes wrong.
+    if (t.integrity_code) {
+      u.withheldTrades += 1;
+      u.realizedPLUnverified += Number(t.realized_pl || 0);
+    } else {
+      u.realizedPL += Number(t.realized_pl || 0);
+    }
     const when = t.close_date || t.open_date || t.created_at;
     if (when && (!u.lastTradeAt || when > u.lastTradeAt)) u.lastTradeAt = when;
   }
@@ -221,6 +239,42 @@ Deno.serve(async (req) => {
         // the owner has connected those sources. Null until then.
         const { data: metrics } = await admin.from("growth_metrics").select("day, search, analytics").order("day", { ascending: false }).limit(1).maybeSingle();
         return jsonResponse({ users, engagement: engagement(users), metrics: metrics || null });
+      }
+
+      // THE AUDIT TRAIL, GIVEN A READER.
+      //
+      // `integrity_findings` had one writer and no readers anywhere in the
+      // product: not here, not the admin UI, not the digest. So the framework's
+      // loudest actions -- a withheld trade, a frozen account -- were invisible
+      // to the user, to the operator, and to the cron's own result. A warning
+      // light nobody is wired to is not an audit.
+      //
+      // Open findings first and newest first within that, because what is open
+      // is what is wrong today. A resolved finding is kept and returned so a
+      // recurrence reads as one; `seen_count` counts passes, not days.
+      case "integrity": {
+        const { data, error } = await admin
+          .from("integrity_findings")
+          .select("id, account_id, user_id, code, subject, severity, action, message, detail, first_seen_at, last_seen_at, resolved_at, seen_count")
+          .order("resolved_at", { ascending: true, nullsFirst: true })
+          .order("last_seen_at", { ascending: false })
+          .limit(200);
+        if (error) throw new Error(error.message);
+        const rows = data || [];
+        // The account names, so a finding reads as "Wees" rather than a uuid.
+        const ids = [...new Set(rows.map((r: any) => r.account_id))];
+        const { data: accounts } = ids.length
+          ? await admin.from("trading_accounts").select("id, name, is_paper").in("id", ids)
+          : { data: [] };
+        const byId = new Map((accounts || []).map((a: any) => [a.id, a]));
+        return jsonResponse({
+          findings: rows.map((r: any) => ({
+            ...r,
+            accountName: byId.get(r.account_id)?.name || null,
+            isPaper: byId.get(r.account_id)?.is_paper ?? null
+          })),
+          open: rows.filter((r: any) => !r.resolved_at).length
+        });
       }
 
       case "userDetail": {

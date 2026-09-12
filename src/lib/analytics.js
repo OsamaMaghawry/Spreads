@@ -37,8 +37,47 @@ export const heldToExpiry = (t) => t.close_reason !== 'closed';
  * did, so the screen never has to guess.
  */
 export function computeStats(trades, equity = 0, view = "whole", extra = {}) {
+  // THE MONEY STAYS IN THE TOTAL. THE PER-TRADE CLAIM IS WHAT IS WITHHELD.
+  //
+  // This file first removed withheld rows from everything, and that was wrong
+  // in a way worth writing down, because it is the opposite mistake to the one
+  // it was fixing.
+  //
+  // The impossible-loss defect is MISFILING, not bad arithmetic. The
+  // reconstruction conserves dollars by construction -- `attributeStockPL`
+  // distributes every share result across owning rows or adds it to `orphaned`
+  // -- so when a spread computes $64 more loss than its strikes can hold, that
+  // $64 was taken OFF another row, and that row is published as trustworthy.
+  // Dropping the flagged row alone removes one side of a transfer.
+  //
+  // On the account this was built for that published -$814.00. The account's
+  // real total is -$1,003.00, and the true sum of the other 42 rows must lie
+  // in [-$1,028, -$878] -- so -$814 was outside the range the account's own
+  // arithmetic permits, on the FLATTERING side, under a disclosure implying
+  // the other 42 rows were sound.
+  //
+  // So:
+  //
+  //   MONEY AGGREGATES count every closed row, withheld included. They are
+  //   account-level sums with no attribution in them, and the account total is
+  //   not in doubt -- it ties to the broker to the cent. Nothing is missing
+  //   from a figure a reader checks against their statement.
+  //
+  //   PER-TRADE STATISTICS -- anything that calls one trade a win, a loss, the
+  //   largest, or part of a streak -- are measured over rows we can attribute,
+  //   and say so. Those are the figures the doubt actually touches.
+  //
+  //   STREAKS ARE WITHHELD OUTRIGHT when anything is withheld. Removing a
+  //   loser from the middle of the sequence MERGES two win runs: W W L W W
+  //   reports a four-trade win streak that never happened. That is not the
+  //   same statistic on fewer trades, it is a different statistic, and there
+  //   is no caveat that makes an invented run true.
   const rows = trades.filter((t) => t.close_date);
   if (rows.length === 0) return null;
+  // The rows whose individual result we can stand behind. `rows` keeps the
+  // money; `attributable` carries the outcomes.
+  const attributable = rows.filter((t) => !t.integrity_code);
+  const withheldCount = rows.length - attributable.length;
 
   // One definition of "what this trade was worth", read everywhere below.
   // premium_pl is SIGNED — negative on a net debit — so a bought option that
@@ -76,7 +115,13 @@ export function computeStats(trades, equity = 0, view = "whole", extra = {}) {
   // flattering. Where a settled figure has nothing to measure it returns null,
   // never zero -- $0.00 is a statement about an account, and "no settled
   // losses yet" is not that statement.
-  const settled = sorted.filter((t) => !t.provisional);
+  // Two exclusions, and they are not the same exclusion. `provisional` means
+  // the result is INCOMPLETE -- the shares are still open -- so it counts
+  // towards money and not towards outcomes. `integrity_code` means the result
+  // is on the WRONG ROW -- so it counts towards money (the account total is
+  // not in doubt) and not towards outcomes either. Both land here; only the
+  // reasons differ, and each is reported separately on screen.
+  const settled = sorted.filter((t) => !t.provisional && !t.integrity_code);
   const settledPLs = settled.map(plOf);
   const provisionalCount = sorted.length - settled.length;
   const wins = settled.filter((t) => plOf(t) > 0);
@@ -242,6 +287,11 @@ export function computeStats(trades, equity = 0, view = "whole", extra = {}) {
 
   // Streaks (chronological), over settled results only: a run of wins that
   // includes a position still waiting on its shares is not a run of wins.
+  // WITHHELD OUTRIGHT when any row is withheld -- see the header. Removing a
+  // loser from the middle of the sequence merges the win runs on either side
+  // of it into one run that never happened, so this is not the same statistic
+  // measured on fewer trades and no caveat can make it true.
+  const streaksKnown = withheldCount === 0;
   let streak = 0, bestStreak = 0, worstStreak = 0;
   settledPLs.forEach((v) => {
     if (v > 0) streak = streak > 0 ? streak + 1 : 1;
@@ -275,6 +325,11 @@ export function computeStats(trades, equity = 0, view = "whole", extra = {}) {
     // only, and settledTrades says how many that was.
     settledTrades: settled.length,
     provisionalTrades: provisionalCount,
+    // Closed trades whose INDIVIDUAL result we cannot attribute. Their money
+    // IS in every total above -- the account total ties to the broker -- so
+    // this number qualifies the outcome statistics, not the totals.
+    withheldTrades: withheldCount,
+    attributableTrades: attributable.length,
     winRate: settled.length ? wins.length / settled.length : null,
     wins: wins.length,
     losses: losses.length,
@@ -321,8 +376,9 @@ export function computeStats(trades, equity = 0, view = "whole", extra = {}) {
     medianDayRiskReturn: peakRisk > 0 ? medianDayPL / peakRisk : null,
     bestDay: byDay.reduce((m, d) => (d.pl > (m?.pl ?? -Infinity) ? d : m), null),
     worstDay: byDay.reduce((m, d) => (d.pl < (m?.pl ?? Infinity) ? d : m), null),
-    bestStreak,
-    worstStreak: Math.abs(worstStreak),
+    bestStreak: streaksKnown ? bestStreak : null,
+    worstStreak: streaksKnown ? Math.abs(worstStreak) : null,
+    streaksKnown,
     firstDate,
     lastDate,
     spanDays: span,

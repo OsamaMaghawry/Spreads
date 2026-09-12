@@ -138,3 +138,29 @@ test("bookedCurve on nothing returns nothing", () => {
   assert.deepEqual(bookedCurve([], "whole").points, []);
   assert.deepEqual(bookedCurve(null, "premium").points, []);
 });
+
+test("baselineKnown separates 'the window starts at zero' from 'we could not look'", () => {
+  const rows = [
+    { day: "2026-09-03", performance: -1597 },
+    { day: "2026-09-04", performance: -3405 },
+    { day: "2026-09-08", performance: -1180 },
+    { day: "2026-09-11", performance: -949.09 }
+  ];
+  // A real baseline before the window: the week reads as its own move.
+  const week = dailySeries(rows, "whole", "performance", { from: "2026-09-08", to: "2026-09-11" });
+  assert.equal(week.baselineKnown, true);
+  assert.equal(Math.round(week.end * 100) / 100, 2455.91);
+
+  // No earlier day at all — the window IS the beginning, and zero is right.
+  assert.equal(dailySeries(rows, "whole", "performance", { from: "2026-09-03" }).baselineKnown, true);
+
+  // Earlier days exist and none could be valued. `end` is still a number, and
+  // it is measured from an assumed zero — which is the whole of the account's
+  // history credited to one week. The chart may draw it; a headline may not.
+  const blind = dailySeries(
+    [{ day: "2026-09-03", performance: null }, { day: "2026-09-04", performance: null }, ...rows.slice(2)],
+    "whole", "performance", { from: "2026-09-08", to: "2026-09-11" }
+  );
+  assert.equal(blind.baselineKnown, false);
+  assert.equal(blind.end, -949.09);
+});

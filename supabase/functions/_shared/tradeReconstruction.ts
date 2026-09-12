@@ -951,16 +951,37 @@ export function attributeStockPL(records, stockLots) {
   const capacityOf = (o) => (owed.has(o) ? owed.get(o) : (o.qty || 0) * CONTRACT_SIZE);
   const spend = (o, qty) => owed.set(o, Math.max(0, capacityOf(o) - qty));
 
+  // WHICH TRADE ROW EACH LOT'S MONEY ENDED UP ON.
+  //
+  // The audit layer needs this and must not re-derive it. A first version of
+  // the share-lot withholding matched lots to withheld trades by chain id, and
+  // the bench showed two ways that is wrong: `chain_id` prefers the ACQUIRING
+  // chain, so a lot assigned in on a questioned chain and called away on a
+  // clean one was flagged while the trade publishing its result was not; and a
+  // chain owns a LIST of trade rows, so one withheld row withheld the lots of
+  // its clean siblings. `orphanedShares`' own comment warns against exactly
+  // this -- "a second implementation of it here would be a second thing to keep
+  // right". The attribution is decided here, so it is recorded here.
+  const lotOwners = new Map<string, Set<string>>();
+  const own = (record, lot) => {
+    if (!lot?.lot_key || !record?.trade_key) return;
+    const set = lotOwners.get(lot.lot_key) || new Set<string>();
+    set.add(record.trade_key);
+    lotOwners.set(lot.lot_key, set);
+  };
+
   const credit = (owners, amount, lot) => {
     const qty = Number(lot.qty) || 0;
     if (owners.length === 1) {
       owners[0].stock_pl += amount;
+      own(owners[0], lot);
       spend(owners[0], qty);
       return;
     }
     const identified = ownerOf(owners, lot);
     if (identified) {
       identified.stock_pl += amount;
+      own(identified, lot);
       spend(identified, qty);
       return;
     }
@@ -982,6 +1003,7 @@ export function attributeStockPL(records, stockLots) {
             ? (amount * weightOf(o)) / total
             : amount / pool.length;
       o.stock_pl += cut;
+      own(o, lot);
       assigned += cut;
       spend(o, total > 0 ? (qty * weightOf(o)) / total : qty / pool.length);
     });
@@ -1101,22 +1123,61 @@ export function attributeStockPL(records, stockLots) {
     // failed the whole account's sync over $2 that the trader genuinely paid.
     // The invariant exists to catch attribution inventing losses, and
     // attribution only touches rows the strikes closed.
-    if (r.close_reason === "closed" || r.early_close_pl) return;
     const width = Math.abs((r.short_strike || 0) - (r.long_strike || 0));
     if (!(width > 0)) return;
-    const maxLoss = width * CONTRACT_SIZE * (r.qty || 1) - r.premium_pl;
-    if (r.realized_pl < -maxLoss - 0.01) {
+    const boughtBack = r.close_reason === "closed" || Boolean(r.early_close_pl);
+    const spread = width * CONTRACT_SIZE * (r.qty || 1);
+    // BOUNDED, NOT EXEMPT, and that distinction cost the owner an answer.
+    //
+    // The exemption above used to be `return` -- a bought-back row was not
+    // checked at all. The reasoning was sound and is kept: width less the
+    // credit is what the STRIKES can do to you, and buying back means paying
+    // whatever the market asks, so a spread closed a cent or two through
+    // parity costs slightly more than its width. The real case it was written
+    // for is an ARKK 81/83 call spread bought back for $178 against a $176
+    // "maximum", which failed a whole account's sync over $2 the trader
+    // genuinely paid.
+    //
+    // But it was written as an unconditional pass, so a bought-back row could
+    // report ANY loss and nothing looked. The owner's live account, asking
+    // where a thousand dollars went:
+    //
+    //   WMT 112/108P, qty 1, credit $1.14 -- ceiling $286, reported -$751.
+    //
+    // 2.6x its own maximum, the largest single row in the account, unflagged.
+    // Its long leg's $4.65 exit had been credited to a different row, whose
+    // short simultaneously expired at zero -- impossible on both rows, and the
+    // pair nets to the cent, which is why the account total stayed right and
+    // nothing reconciled it away. This file's own comment, eight lines up,
+    // says that has happened three times before.
+    //
+    // So the allowance is sized to what parity can actually cost: $5 a
+    // contract, or 2% of the spread's width, whichever is larger. ARKK's $2
+    // passes. WMT's $465 does not.
+    const slack = boughtBack ? Math.max(5 * (r.qty || 1), spread * 0.02) : 0;
+    const maxLoss = spread - r.premium_pl;
+    if (r.realized_pl < -maxLoss - slack - 0.01) {
       breaches.push({
+        // The row's own key, so the audit layer can withhold THIS trade's
+        // figures rather than the whole account's. Without it a breach can
+        // only be described, not acted on, which is how one impossible row
+        // came to block an account's entire history.
+        trade_key: r.trade_key,
         short_symbol: r.short_symbol,
         long_symbol: r.long_symbol,
         close_date: r.close_date,
         realized_pl: r.realized_pl,
-        max_loss: -maxLoss
+        max_loss: -maxLoss,
+        // So the finding can say WHICH ceiling was breached: a row closed at
+        // expiry is held to the strikes exactly, a bought-back one to the
+        // strikes plus what parity can cost.
+        bought_back: boughtBack,
+        slack
       });
     }
   });
 
-  return { orphaned, breaches };
+  return { orphaned, breaches, lotOwners };
 }
 
 // ---------------------------------------------------------------------------
@@ -1159,7 +1220,7 @@ export function reconstruct(activities, orderStrategy, accountId) {
       unreconstructedSymbols.has(r.short_symbol) || unreconstructedSymbols.has(r.long_symbol)
   );
   const records = all.filter((r) => !withheld.includes(r));
-  const { orphaned: orphanedStockPL, breaches } = attributeStockPL(records, attributable);
+  const { orphaned: orphanedStockPL, breaches, lotOwners } = attributeStockPL(records, attributable);
 
   // The contract that moved each lot is what attribution runs on, and it is
   // not a column on stock_lots -- every field here is written to that table
@@ -1172,6 +1233,10 @@ export function reconstruct(activities, orderStrategy, accountId) {
   return {
     records,
     stockLots,
+    // lot_key -> the trade rows that received that lot's money. The audit layer
+    // withholds a lot iff a trade it was attributed to is withheld, and this is
+    // the only place that attribution is decided.
+    lotOwners,
     orphanedStockPL,
     cashSettlements,
     settlementChecks,

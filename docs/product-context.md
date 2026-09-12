@@ -78,7 +78,7 @@ incomplete.
 ## Components, by area
 
 - **accounts** — AccountForm
-- **admin** — AdminMaintenance, BlogPanel, EngagementPanel, PostPreview, SettingsPanel, SignupsChart, StatTile, UsersPanel
+- **admin** — AdminMaintenance, BlogPanel, EngagementPanel, IntegrityPanel, PostPreview, SettingsPanel, SignupsChart, StatTile, UsersPanel
 - **analysis** — BreakdownTable, CaptureBreakdown, DateRangeFilter, EquityCurveChart, ExportPdfButton, OpenBookPanel, OpenOptionsPanel, StatCards, StrategyComparison, ViewSwitch
 - **billing** — UpgradePrompt
 - **brand** — DeltaMintMark, Wordmark
@@ -147,7 +147,7 @@ function environment rather than the database, and the credential columns are
 revoked from the browser role entirely.
 
 - **trading_accounts** — id, user_id, name, api_key, api_secret, is_paper, spreads_client_prefix, wheel_client_prefix, created_at, oauth_access_token, api_key_hint, is_oauth, broker_account_number, trades_synced_at, trades_sync_error, broker_account_id
-- **trade_records** — id, user_id, account_id, strategy, trade_key, ticker, expiry, short_symbol, long_symbol, short_strike, long_strike, qty, open_date, close_date, short_entry, long_entry, net_credit, short_exit, long_exit, close_debit, realized_pl, close_reason, created_at, chain_id, unpaired, premium_pl, early_close_pl, stock_pl, acquired_chain_id, provisional
+- **trade_records** — id, user_id, account_id, strategy, trade_key, ticker, expiry, short_symbol, long_symbol, short_strike, long_strike, qty, open_date, close_date, short_entry, long_entry, net_credit, short_exit, long_exit, close_debit, realized_pl, close_reason, created_at, chain_id, unpaired, premium_pl, early_close_pl, stock_pl, acquired_chain_id, provisional, integrity_code
 - **profiles** — id, role, created_at, last_active_at, signup_source, weekly_digest_opt_out
 - **earnings_calendar** — symbol, report_date, session, fetched_at
 - **scan_presets** — id, user_id, scope, name, strategy, config, created_at, updated_at
@@ -155,7 +155,7 @@ revoked from the browser role entirely.
 - **blog_posts** — id, slug, title, excerpt, body, author, meta_description, og_image, status, published_at, created_at, updated_at, category
 - **user_notes** — id, user_id, author_id, body, created_at
 - **user_crm** — user_id, status, tags, updated_at
-- **stock_lots** — id, user_id, account_id, lot_key, chain_id, ticker, qty, acquired_date, acquired_price, acquired_source, disposed_date, disposed_price, disposed_source, realized_pl, created_at, backed_up_at, disposed_chain_id
+- **stock_lots** — id, user_id, account_id, lot_key, chain_id, ticker, qty, acquired_date, acquired_price, acquired_source, disposed_date, disposed_price, disposed_source, realized_pl, created_at, backed_up_at, disposed_chain_id, integrity_code
 - **app_settings** — key, value, updated_at, updated_by
 - **history_snapshots** — id, user_id, account_id, taken_at, reason, deleted_trades, updated_trades_before, deleted_lots, trades_sync_attempted_at, updated_lots_before
 - **alerts** — id, user_id, account_id, rule, severity, symbol, title, detail, dedupe_key, first_seen_at, last_seen_at, emailed_at, resolved_at, created_at
@@ -169,6 +169,8 @@ revoked from the browser role entirely.
 - **account_equity_daily** — account_id, user_id, day, equity, profit_loss, base_value, premium_cum, shares_booked, shares_open, shares_cost, shares_value, performance, unpriced, source, captured_at, equity_synced_at, options_open
 - **weekly_digest_sends** — id, user_id, week_start, mode, recipient, status, detail, created_at, account_id
 - **cron_tickets** — token, purpose, created_at, expires_at, used_at
+- **integrity_findings** — id, account_id, user_id, code, subject, severity, action, message, detail, first_seen_at, last_seen_at, resolved_at, seen_count
+- **cash_flows** — id, account_id, user_id, activity_id, day, amount, kind, captured_at
 
 ## Analytics vocabulary
 
@@ -177,7 +179,7 @@ being premium-seller specific rather than generic profit and loss: credit
 capture is the kept share of premium sold, and return on risk is measured
 against peak *concurrent* collateral rather than the sum of every trade.
 
-`totalPL` · `bookedPL` · `unrealizedPL` · `includesUnrealized` · `view` · `drawdownFromDaily` · `trades` · `contracts` · `settledTrades` · `provisionalTrades` · `winRate` · `wins` · `losses` · `scratches` · `avgPL` · `avgWin` · `avgLoss` · `profitFactor` · `payoffRatio` · `largestWin` · `largestLoss` · `expiredCount` · `creditCollected` · `captureRate` · `totalRisk` · `avgRisk` · `peakRisk` · `returnOnRisk` · `avgTradeRoR` · `roe` · `annualizable` · `annualized` · `cagr` · `maxDrawdown` · `avgHoldDays` · `tradingDays` · `dayWinRate` · `avgDayPL` · `medianDayPL` · `avgDayReturn` · `medianDayReturn` · `avgDayRiskReturn` · `medianDayRiskReturn` · `bestDay` · `worstDay` · `bestStreak` · `worstStreak` · `firstDate` · `lastDate` · `spanDays` · `curve` · `byDay` · `byMonth`
+`totalPL` · `bookedPL` · `unrealizedPL` · `includesUnrealized` · `view` · `drawdownFromDaily` · `trades` · `contracts` · `settledTrades` · `provisionalTrades` · `withheldTrades` · `attributableTrades` · `winRate` · `wins` · `losses` · `scratches` · `avgPL` · `avgWin` · `avgLoss` · `profitFactor` · `payoffRatio` · `largestWin` · `largestLoss` · `expiredCount` · `creditCollected` · `captureRate` · `totalRisk` · `avgRisk` · `peakRisk` · `returnOnRisk` · `avgTradeRoR` · `roe` · `annualizable` · `annualized` · `cagr` · `maxDrawdown` · `avgHoldDays` · `tradingDays` · `dayWinRate` · `avgDayPL` · `medianDayPL` · `avgDayReturn` · `medianDayReturn` · `avgDayRiskReturn` · `medianDayRiskReturn` · `bestDay` · `worstDay` · `bestStreak` · `worstStreak` · `streaksKnown` · `firstDate` · `lastDate` · `spanDays` · `curve` · `byDay` · `byMonth`
 
 ## Known gaps
 

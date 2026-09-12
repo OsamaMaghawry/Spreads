@@ -37,6 +37,7 @@
 // grouping is wrong somewhere else, these rows are still right.
 
 import { brokerView } from "./brokerView.ts";
+import { pairSpreads } from "./spreadPairing.ts";
 
 const num = (v: unknown): number | null => {
   if (v === null || v === undefined || v === "") return null;
@@ -94,12 +95,40 @@ export function snapshotOf(
     legs: Array.isArray(o.legs) ? o.legs.length : 1
   }));
 
+  // WHAT IS COMMITTED -- the same function the dashboard totals, on the same
+  // positions, so the email and the screen cannot quote different numbers for
+  // one account.
+  //
+  // A RISK total was computed here too and is gone: the owner saw the bar and
+  // said he did not want it. Nothing should compute a figure nobody shows.
+  //
+  // `pairSpreads` is given no activities and no filled orders, and that is a
+  // real if narrow degradation: without the orders that filled them, legs are
+  // paired by the vertical heuristic rather than proven, and a share lot's
+  // basis is the broker's rather than the wheel-adjusted one. Neither moves
+  // COLLATERAL or RISK, which are functions of strikes and quantities. It
+  // would move a basis figure, and this does not print one.
+  const paired = positions ? pairSpreads(positions, [], [], { cash: account ? num(account.cash) : null }) : null;
+
   return {
     // --- what the broker says the account is worth -------------------------
     // Null when the call failed, never zero: an account worth nothing and an
     // account we could not read are not the same statement.
     equity: account ? num(account.equity) : null,
     cash: account ? num(account.cash) : null,
+    // The broker's own answer, not ours. `options_buying_power` is the figure
+    // that decides what can be opened on Monday; `buying_power` is the
+    // fallback for an account type that does not report the options one.
+    optionsBuyingPower: account
+      ? num(account.options_buying_power) ?? num(account.buying_power)
+      : null,
+
+    // --- what is committed and what is exposed -----------------------------
+    // What the broker is HOLDING: the full strike on a cash-secured put, the
+    // width on a spread, the shares behind a covered call.
+    collateral: paired
+      ? Math.round(paired.reduce((a: number, r: any) => a + (num(r.collateral) ?? 0), 0) * 100) / 100
+      : null,
     // The broker's own previous close, so "today's move" is its arithmetic
     // rather than ours.
     lastEquity: account ? num(account.last_equity) : null,

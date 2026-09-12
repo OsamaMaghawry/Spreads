@@ -191,8 +191,16 @@ Deno.serve(async (req) => {
             .lte("day", win.to),
           admin
             .from("trade_records")
-            .select("account_id, ticker, strategy, open_date, close_date, qty, net_credit, close_debit, realized_pl, premium_pl, early_close_pl, stock_pl, provisional, close_reason, short_strike, expiry")
+            .select("account_id, ticker, strategy, open_date, close_date, qty, net_credit, close_debit, realized_pl, premium_pl, early_close_pl, stock_pl, provisional, close_reason, short_strike, expiry, integrity_code")
             .in("account_id", accountIds)
+            // `integrity_code` TRAVELS rather than being filtered in SQL.
+            //
+            // The first version filtered here, which excluded the withheld
+            // rows correctly and left the email unable to mention them --
+            // and email is the worst surface in the product for a silently
+            // short figure. `accountWeek` splits them instead, so the message
+            // can carry both the total and what is missing from it. See
+            // _shared/integrity.ts.
             // Both ends of the window matter: a row OPENED in it and a row
             // CLOSED in it are different halves of the premium story, so this
             // cannot filter on close_date alone.

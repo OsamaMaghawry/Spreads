@@ -5,6 +5,7 @@ import {
   equityDays,
   closesByDay,
   dailyPortfolio,
+  legsFromRecords,
   fallbackCalendar,
   priceProblems,
   baseTicker
@@ -633,7 +634,7 @@ const LEG_DAYS = ["2026-09-01", "2026-09-02", "2026-09-03"];
 test("an open LONG put is marked on every day since it was opened", () => {
   // Paid $435 for one contract; the day it is worth $4.20 a share it is -$15.
   const rows = dailyPortfolio(LEG_DAYS, [], [], {}, {
-    openOptions: [
+    optionLegs: [
       { symbol: "TSLA260909P00365000", qty: 1, costBasis: 435, from: "2026-09-02", multiplier: 100 }
     ],
     optionCloses: {
@@ -649,7 +650,7 @@ test("an open SHORT call losing money reads as a loss, not a gain", () => {
   // quantity and the cost basis, so one formula covers both sides -- an abs()
   // here is the sign error that printed a loss as a gain once already.
   const rows = dailyPortfolio(["2026-09-03"], [], [], {}, {
-    openOptions: [
+    optionLegs: [
       { symbol: "TSLA260911C00375000", qty: -1, costBasis: -226, from: "2026-09-01", multiplier: 100 }
     ],
     optionCloses: { TSLA260911C00375000: { "2026-09-03": 2.99 } }
@@ -659,7 +660,7 @@ test("an open SHORT call losing money reads as a loss, not a gain", () => {
 
 test("an open short call winning reads as a gain", () => {
   const rows = dailyPortfolio(["2026-09-03"], [], [], {}, {
-    openOptions: [
+    optionLegs: [
       { symbol: "TSLA260911C00375000", qty: -1, costBasis: -226, from: "2026-09-01", multiplier: 100 }
     ],
     optionCloses: { TSLA260911C00375000: { "2026-09-03": 1.00 } }
@@ -669,7 +670,7 @@ test("an open short call winning reads as a gain", () => {
 
 test("the whole Alton book marks to the broker's own -$390", () => {
   const rows = dailyPortfolio(["2026-09-08"], [], [], {}, {
-    openOptions: [
+    optionLegs: [
       { symbol: "TSLA260909P00365000", qty: 1, costBasis: 435, from: "2026-08-01", multiplier: 100 },
       { symbol: "TSLA260918C00352500", qty: 1, costBasis: 1357, from: "2026-08-01", multiplier: 100 },
       { symbol: "TSLA260911C00375000", qty: -1, costBasis: -226, from: "2026-08-01", multiplier: 100 },
@@ -689,7 +690,7 @@ test("the whole Alton book marks to the broker's own -$390", () => {
 
 test("a leg contributes nothing before the day it was opened", () => {
   const rows = dailyPortfolio(LEG_DAYS, [], [], {}, {
-    openOptions: [
+    optionLegs: [
       { symbol: "TSLA260909P00365000", qty: 1, costBasis: 435, from: "2026-09-03", multiplier: 100 }
     ],
     optionCloses: { TSLA260909P00365000: { "2026-09-01": 9, "2026-09-02": 8, "2026-09-03": 4.2 } }
@@ -709,7 +710,7 @@ test("a leg with no opening date is NAMED, not silently written as zero", () => 
   // exercise has no order behind it, a leg opened before the order window is
   // not in it, and a caught fetch error nulls every leg at once.
   const rows = dailyPortfolio(["2026-09-03"], [], [], {}, {
-    openOptions: [
+    optionLegs: [
       { symbol: "TSLA260909P00365000", qty: 1, costBasis: 435, from: null, multiplier: 100 }
     ],
     optionCloses: { TSLA260909P00365000: { "2026-09-03": 4.2 } }
@@ -723,7 +724,7 @@ test("an undatable leg does not quietly cost the account its whole option book",
   // The shape that made this severe: four legs priced fine, one undatable, and
   // the day stored as if the book were complete.
   const rows = dailyPortfolio(["2026-09-08"], [], [], {}, {
-    openOptions: [
+    optionLegs: [
       { symbol: "TSLA260909P00365000", qty: 1, costBasis: 435, from: "2026-08-01" },
       { symbol: "TSLA260918C00352500", qty: 1, costBasis: 1357, from: null }
     ],
@@ -744,7 +745,7 @@ test("an ADJUSTED contract is priced — its premium multiplier is still 100", (
   // priced exactly. Nothing in this walk derives shares from a strike, which is
   // the calculation a corporate action would actually break.
   const rows = dailyPortfolio(["2026-09-03"], [], [], {}, {
-    openOptions: [
+    optionLegs: [
       { symbol: "TSLA1260909P00365000", qty: 1, costBasis: 435, from: "2026-09-01" }
     ],
     optionCloses: { TSLA1260909P00365000: { "2026-09-03": 4.2 } }
@@ -755,7 +756,7 @@ test("an ADJUSTED contract is priced — its premium multiplier is still 100", (
 
 test("a caller that does know of a different premium multiple can still withhold", () => {
   const rows = dailyPortfolio(["2026-09-03"], [], [], {}, {
-    openOptions: [
+    optionLegs: [
       { symbol: "XYZ260909P00365000", qty: 1, costBasis: 435, from: "2026-09-01", multiplier: 10 }
     ],
     optionCloses: { XYZ260909P00365000: { "2026-09-03": 4.2 } }
@@ -770,7 +771,7 @@ test("a thin strike that did not print that session carries its last close forwa
   // exceptional, and it includes today's bar on a delayed feed.
   const rows = dailyPortfolio(
     ["2026-09-01", "2026-09-02", "2026-09-03"], [], [], {}, {
-      openOptions: [
+      optionLegs: [
         { symbol: "NVDA260909P00222500", qty: -3, costBasis: -123, from: "2026-09-01" }
       ],
       optionCloses: { NVDA260909P00222500: { "2026-09-01": 0.41, "2026-09-03": 0.57 } }
@@ -787,7 +788,7 @@ test("a leg with no bar that day withholds the option half only", () => {
     [{ ticker: "TSLA", qty: 100, acquired_date: "2026-09-01", acquired_price: 320 }],
     { TSLA: { "2026-09-03": 340 } },
     {
-      openOptions: [
+      optionLegs: [
         { symbol: "TSLA260909P00365000", qty: 1, costBasis: 435, from: "2026-09-01", multiplier: 100 }
       ],
       optionCloses: {}
@@ -804,4 +805,370 @@ test("an account with no open option legs reports zero, not unknown", () => {
     [{ close_date: "2026-09-03", premium_pl: 500, early_close_pl: 0 }], [], {});
   assert.equal(rows[0].options_open, 0);
   assert.equal(rows[0].performance, 500);
+});
+
+// ---------------------------------------------------------------------------
+// Legs that have SINCE CLOSED — the half the line still did not have
+//
+// The tests above all hand the walk legs that are open today, which is exactly
+// what the caller used to do, and is why every one of them passed while the
+// defect was live. A walk that reaches back years cannot be fed a list of
+// what is open now.
+//
+// Fixtures are Alton Live, week of 7-11 September 2026, from the broker's own
+// records. Friday 4 September closed with two short TSLA puts in the money;
+// both were assigned over the weekend. The broker's equity column on the
+// 4 September row read $138,870.97 and the reconstruction's own line read
+// -$1,574 with `options_open: 0` and `unpriced: []` -- a day the account was
+// carrying about two thousand dollars of option risk, stored as fully priced
+// and empty. The owner: *"how I just earned only six hundred ... this rebound
+// should be at least two thousand."*
+// ---------------------------------------------------------------------------
+
+// The two puts, as `trade_records` stored them: opened 3 Sep for $1.44 and
+// $1.60 a share, expired 4 Sep, settled (assigned) on the 7th.
+const EXPIRY_WEEK = [
+  { open_date: "2026-09-03", close_date: "2026-09-07", qty: 1,
+    short_symbol: "TSLA260904P00362500", short_entry: 1.44 },
+  { open_date: "2026-09-03", close_date: "2026-09-07", qty: 1,
+    short_symbol: "TSLA260904P00367500", short_entry: 1.60 }
+];
+// What they were worth at each close. TSLA at $355 on the 4th puts the 362.5
+// at $7.50 and the 367.5 at $12.50 of intrinsic.
+const EXPIRY_CLOSES = {
+  TSLA260904P00362500: { "2026-09-03": 1.44, "2026-09-04": 7.50 },
+  TSLA260904P00367500: { "2026-09-03": 1.60, "2026-09-04": 12.50 }
+};
+
+test("a short put carried into expiry is marked on the day it was carried", () => {
+  const rows = dailyPortfolio(
+    ["2026-09-03", "2026-09-04", "2026-09-08"], [], [], {},
+    { optionLegs: legsFromRecords(EXPIRY_WEEK), optionCloses: EXPIRY_CLOSES }
+  );
+  // Opened at the money it was sold for, so day one is flat.
+  assert.equal(rows[0].options_open, 0);
+  // 4 Sep: sold for $144 + $160, now worth $750 + $1,250 to buy back.
+  // (144 - 750) + (160 - 1250) = -$1,696. This is the figure that was stored
+  // as $0.00, and it is the whole of the owner's missing rebound.
+  assert.equal(rows[1].options_open, -1696);
+  // Settled on the 7th, so by the 8th they are off the book and their result
+  // lives in premium_cum instead.
+  assert.equal(rows[2].options_open, 0);
+  // And never withheld: every day was priced.
+  assert.deepEqual(rows.map((r) => r.unpriced), [[], [], []]);
+});
+
+test("a leg closed ON a day is money that day, not a position at its close", () => {
+  // The double-count this rule exists to stop: `premium_cum` books the result
+  // on close_date, so marking the leg on that same day counts the same dollars
+  // twice, with opposite signs on either side of the walk.
+  const record = {
+    close_date: "2026-09-04", premium_pl: 144, early_close_pl: 0,
+    open_date: "2026-09-03", qty: 1, short_symbol: "TSLA260904P00362500", short_entry: 1.44
+  };
+  const rows = dailyPortfolio(
+    ["2026-09-03", "2026-09-04"], [record], [], {},
+    { optionLegs: legsFromRecords([record]), optionCloses: EXPIRY_CLOSES }
+  );
+  assert.equal(rows[0].options_open, 0);
+  assert.equal(rows[1].options_open, 0);
+  // 144 booked, nothing marked. Not 144 booked AND -606 marked.
+  assert.equal(rows[1].premium_cum, 144);
+  assert.equal(rows[1].performance, 144);
+});
+
+test("a leg that has closed does not blank the rest of the account's life", () => {
+  // A record whose opening date is unknown withholds the days it may have been
+  // on the book — and stops there. Before this rule an undatable leg was
+  // counted as held on EVERY day, so one assignment with no order behind it
+  // nulled the chart from the account's first trade to its last.
+  const rows = dailyPortfolio(
+    ["2026-09-03", "2026-09-04", "2026-09-08"], [], [], {},
+    {
+      optionLegs: legsFromRecords([
+        { open_date: null, close_date: "2026-09-07", qty: 1,
+          short_symbol: "TSLA260904P00362500", short_entry: 1.44 }
+      ]),
+      optionCloses: EXPIRY_CLOSES
+    }
+  );
+  assert.deepEqual(rows.map((r) => r.options_open), [null, null, 0]);
+  assert.deepEqual(rows.map((r) => r.unpriced), [
+    ["TSLA260904P00362500"], ["TSLA260904P00362500"], []
+  ]);
+});
+
+test("a closed leg with no bar for that day withholds it rather than dropping it", () => {
+  // The failure mode that matters: a contract whose history the feed will not
+  // serve must make the day say so, not quietly shrink the book.
+  const rows = dailyPortfolio(
+    ["2026-09-04"], [], [], {},
+    { optionLegs: legsFromRecords(EXPIRY_WEEK), optionCloses: {} }
+  );
+  assert.equal(rows[0].options_open, null);
+  assert.equal(rows[0].performance, null);
+  assert.deepEqual(rows[0].unpriced, ["TSLA260904P00362500", "TSLA260904P00367500"]);
+});
+
+test("legsFromRecords signs a short and a long the way the broker does", () => {
+  const [short, long] = legsFromRecords([{
+    open_date: "2026-09-03", close_date: "2026-09-07", qty: 2,
+    short_symbol: "SPY260904P00760000", short_entry: 0.15,
+    long_symbol: "SPY260904P00755000", long_entry: 0.05
+  }]);
+  // Sold 2 contracts at $0.15 a share: quantity negative, a $30 credit taken.
+  assert.deepEqual(short, {
+    symbol: "SPY260904P00760000", qty: -2, costBasis: -30,
+    from: "2026-09-03", to: "2026-09-07"
+  });
+  // Bought 2 at $0.05: quantity positive, a $10 debit paid.
+  assert.deepEqual(long, {
+    symbol: "SPY260904P00755000", qty: 2, costBasis: 10,
+    from: "2026-09-03", to: "2026-09-07"
+  });
+});
+
+test("legsFromRecords leaves the live book to the broker", () => {
+  // An open record would be the same position the positions endpoint reports,
+  // and counting it from both lists doubles it on every day they overlap.
+  assert.deepEqual(legsFromRecords([
+    { open_date: "2026-09-03", close_date: null, qty: 1,
+      short_symbol: "TSLA260918P00352500", short_entry: 4.27 }
+  ]), []);
+  assert.deepEqual(legsFromRecords(null), []);
+  assert.deepEqual(legsFromRecords([]), []);
+});
+
+test("a record with no entry price yields a leg that cannot be valued", () => {
+  // Not no leg. Dropping it reports the day as complete while a position is
+  // missing from it, which is the defect this file exists to refuse.
+  const legs = legsFromRecords([{
+    open_date: "2026-09-03", close_date: "2026-09-07", qty: 1,
+    short_symbol: "TSLA260904P00362500", short_entry: null
+  }]);
+  assert.equal(legs.length, 1);
+  assert.equal(legs[0].costBasis, null);
+  const rows = dailyPortfolio(["2026-09-04"], [], [], {},
+    { optionLegs: legs, optionCloses: EXPIRY_CLOSES });
+  assert.equal(rows[0].performance, null);
+  assert.deepEqual(rows[0].unpriced, ["TSLA260904P00362500"]);
+});
+
+test("the same strike sold twice is marked in each window and neither between", () => {
+  // Re-opening a contract is routine on a weekly wheel. Two records, disjoint
+  // lives, one symbol: the walk must not carry the first one's cost into the
+  // gap, nor the second one's back before it was sold.
+  const rows = dailyPortfolio(
+    ["2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04"], [], [], {},
+    {
+      optionLegs: legsFromRecords([
+        { open_date: "2026-09-01", close_date: "2026-09-02", qty: 1,
+          short_symbol: "NVDA260904P00222500", short_entry: 0.43 },
+        { open_date: "2026-09-04", close_date: "2026-09-08", qty: 1,
+          short_symbol: "NVDA260904P00222500", short_entry: 0.41 }
+      ]),
+      optionCloses: {
+        NVDA260904P00222500: {
+          "2026-09-01": 0.43, "2026-09-02": 0.10, "2026-09-03": 0.20, "2026-09-04": 0.30
+        }
+      }
+    }
+  );
+  // Day 1 flat, day 2 closed (booked, not marked), day 3 nothing on the book,
+  // day 4 sold again at $0.41 and worth $0.30: +$11.
+  assert.deepEqual(rows.map((r) => r.options_open), [0, 0, 0, 11]);
+});
+
+// ---------------------------------------------------------------------------
+// A dead contract — the bench's STOP on the fix above
+//
+// `head-of-trading` returned STOP on the first version of the closed-leg walk,
+// and was right: it pointed a set of rules written for legs that are open
+// TODAY at every contract the account has ever held, where two of those rules
+// behave worse. Both understate risk, which is the same direction as the
+// defect they were added to repair.
+// ---------------------------------------------------------------------------
+
+test("a price is never carried onto the day a contract expires", () => {
+  // Carrying forward says "nothing has changed". On expiry day that is false
+  // by construction: the last print is the price of a contract with time left
+  // in it, and the true value is intrinsic. A short put with no bar on its
+  // expiry Friday used to carry Thursday's $0.12 and store a $108 GAIN for a
+  // position that was $12 in the money and really -$1,212.
+  const rows = dailyPortfolio(
+    ["2026-09-03", "2026-09-04"], [], [], {},
+    {
+      optionLegs: legsFromRecords([
+        { open_date: "2026-09-01", close_date: "2026-09-07", qty: 1,
+          short_symbol: "TSLA260904P00362500", short_entry: 1.20 }
+      ]),
+      optionCloses: { TSLA260904P00362500: { "2026-09-03": 0.12 } }
+    }
+  );
+  assert.equal(rows[0].options_open, 108);      // a real bar, carried nowhere
+  assert.equal(rows[1].options_open, null);     // expiry day, no bar: withheld
+  assert.deepEqual(rows[1].unpriced, ["TSLA260904P00362500"]);
+});
+
+test("a contract past its expiry is WITHHELD, not silently dropped", () => {
+  // `close_date` is the day the BROKER settled, which on an expiry or an
+  // assignment is a business day or two later -- 16 of the 417 closed records
+  // on staging. In that gap the position is carried by neither the leg nor
+  // `premium_cum` (which books on close_date), and on an assignment the share
+  // lot does not exist yet either: its acquired_date IS the settlement date.
+  //
+  // The first version of this `continue`d, which made the day assert it was
+  // complete -- a confident zero on a day both halves of a position were off
+  // the books. The bench caught it against this very test, which used to
+  // assert `options_open: 0` on a full session for a leg it prices at -$1,130
+  // the session before.
+  const rows = dailyPortfolio(
+    ["2026-09-04", "2026-09-08", "2026-09-10"], [], [], {},
+    {
+      optionLegs: legsFromRecords([
+        { open_date: "2026-09-01", close_date: "2026-09-09", qty: 1,
+          short_symbol: "TSLA260904P00362500", short_entry: 1.20 }
+      ]),
+      optionCloses: { TSLA260904P00362500: { "2026-09-04": 12.50 } }
+    }
+  );
+  assert.equal(rows[0].options_open, -1130);   // expiry day, priced
+  assert.equal(rows[1].options_open, null);    // gone, and the day says so
+  assert.deepEqual(rows[1].unpriced, ["TSLA260904P00362500"]);
+  assert.equal(rows[2].options_open, 0);       // settled: off the book for real
+  assert.deepEqual(rows[2].unpriced, []);
+});
+
+test("a broker position still listed after its expiry withholds the newest day", () => {
+  // The half that is not about the 16 rows. `equityHistory` builds a live leg
+  // with `to: null`, so a contract the broker has not yet cleared -- Monday
+  // morning after a Friday expiry, before syncTrades has written the record --
+  // has no close date to bring it back. That is the right-hand edge of the
+  // chart, on every expiry, on the day the reader is actually looking at it.
+  const rows = dailyPortfolio(["2026-09-04", "2026-09-08"], [], [], {}, {
+    optionLegs: [
+      { symbol: "TSLA260904P00362500", qty: -1, costBasis: -120, from: "2026-09-01", to: null }
+    ],
+    optionCloses: { TSLA260904P00362500: { "2026-09-04": 12.50 } }
+  });
+  assert.equal(rows[0].options_open, -1130);
+  assert.equal(rows[1].options_open, null);
+  assert.deepEqual(rows[1].unpriced, ["TSLA260904P00362500"]);
+});
+
+test("a code this file has NOT reasoned about prices nothing", () => {
+  // The argument for pricing a flagged row's legs was derived from
+  // `impossible_loss` specifically, and covers exactly that code. Anything
+  // else waits for someone to do the same work.
+  const legs = legsFromRecords([{
+    open_date: "2026-09-03", close_date: "2026-09-07", qty: 1,
+    short_symbol: "TSLA260904P00362500", short_entry: 1.44,
+    integrity_code: "some_future_finding"
+  }]);
+  assert.equal(legs[0].costBasis, null);
+  const priced = legsFromRecords([{
+    open_date: "2026-09-03", close_date: "2026-09-07", qty: 1,
+    short_symbol: "TSLA260904P00362500", short_entry: 1.44,
+    integrity_code: "impossible_loss"
+  }]);
+  assert.equal(priced[0].costBasis, -144);
+});
+
+test("a record with no quantity is a leg we cannot value, not one we ignore", () => {
+  // `trade_records.qty` is nullable, and a null one used to drop BOTH legs --
+  // producing `options_open: 0` with `unpriced: []`, byte for byte the
+  // confident zero this whole file forbids.
+  const legs = legsFromRecords([{
+    open_date: "2026-09-03", close_date: "2026-09-07", qty: null,
+    short_symbol: "TSLA260904P00362500", short_entry: 1.44
+  }]);
+  assert.equal(legs.length, 1);
+  assert.equal(legs[0].qty, null);
+  assert.equal(legs[0].costBasis, null);
+  const rows = dailyPortfolio(["2026-09-04"], [], [], {},
+    { optionLegs: legs, optionCloses: EXPIRY_CLOSES });
+  assert.equal(rows[0].options_open, null);
+  assert.deepEqual(rows[0].unpriced, ["TSLA260904P00362500"]);
+});
+
+test("a flagged row keeps its leg prices — the doubt is about the SHARES", () => {
+  // This test asserted the opposite for one commit, and the data settled it.
+  // `impossible_loss` fires when a row's realized result exceeds what its
+  // strikes allow, and the first reading of that was "the entries must be
+  // wrong". Both flagged rows on staging say otherwise:
+  //
+  //   WMT 110/109P  realized -203.33, stock_pl -233.33 -> option half +$30.00
+  //   XLY 119/118P  realized -189.00, stock_pl -164.00 -> option half -$25.00
+  //
+  // and each of those option halves is exactly the row's own net credit or
+  // debit x 100. The impossibility is entirely in the SHARE P/L attributed to
+  // the row. Withholding the leg prices blanked six stored days over figures
+  // that were never in doubt and are broker fills besides.
+  const legs = legsFromRecords([{
+    open_date: "2026-08-18", close_date: "2026-08-21", qty: 1,
+    short_symbol: "WMT260821P00110000", short_entry: 0.73,
+    long_symbol: "WMT260821P00109000", long_entry: 0.43,
+    integrity_code: "impossible_loss"
+  }]);
+  assert.equal(legs[0].costBasis, -73);
+  assert.equal(legs[1].costBasis, 43);
+  const rows = dailyPortfolio(["2026-08-19"], [], [], {}, {
+    optionLegs: legs,
+    optionCloses: {
+      WMT260821P00110000: { "2026-08-19": 0.90 },
+      WMT260821P00109000: { "2026-08-19": 0.55 }
+    }
+  });
+  // -1x100x0.90 + 73  +  1x100x0.55 - 43  =  -17 + 12  =  -$5
+  assert.equal(rows[0].options_open, -5);
+  assert.deepEqual(rows[0].unpriced, []);
+});
+
+test("the same contract in both halves of the book withholds the day", () => {
+  // Merged entries take the EARLIEST fill date, so scaling into a strike over
+  // two days back-dates the full size to the first. Where a live leg and a
+  // closed record cover the same contract on the same day, one of those two
+  // copies is wrong and the walk cannot tell which -- and on a legged-in
+  // entry the wrong one is a SIGN FLIP, a loss printed on a day the position
+  // was in profit.
+  const rows = dailyPortfolio(
+    ["2026-09-04"], [], [], {},
+    {
+      optionLegs: [
+        { symbol: "TSLA260918P00352500", qty: -1, costBasis: -427, from: "2026-09-01", to: null },
+        ...legsFromRecords([
+          { open_date: "2026-09-01", close_date: "2026-09-09", qty: 1,
+            short_symbol: "TSLA260918P00352500", short_entry: 4.27 }
+        ])
+      ],
+      optionCloses: { TSLA260918P00352500: { "2026-09-04": 3.93 } }
+    }
+  );
+  assert.equal(rows[0].options_open, null);
+  assert.deepEqual(rows[0].unpriced, ["TSLA260918P00352500"]);
+});
+
+test("a contract still open is marked on its expiry day from a real bar", () => {
+  // The no-carry rule must not turn into a refusal: an expiry-day bar that
+  // exists is exactly the price we want, and this is the routine case.
+  const rows = dailyPortfolio(["2026-09-04"], [], [], {}, {
+    optionLegs: [
+      { symbol: "TSLA260904P00362500", qty: -1, costBasis: -120, from: "2026-09-01", to: null }
+    ],
+    optionCloses: { TSLA260904P00362500: { "2026-09-04": 12.50 } }
+  });
+  assert.equal(rows[0].options_open, -1130);
+  assert.deepEqual(rows[0].unpriced, []);
+});
+
+test("a symbol that is not an OCC contract is carried as before", () => {
+  // The expiry rules key off the symbol. Anything that does not parse keeps
+  // the old behaviour rather than being refused.
+  const rows = dailyPortfolio(["2026-09-03", "2026-09-04"], [], [], {}, {
+    optionLegs: [
+      { symbol: "NOT-A-CONTRACT", qty: 1, costBasis: 100, from: "2026-09-01", to: null }
+    ],
+    optionCloses: { "NOT-A-CONTRACT": { "2026-09-03": 2 } }
+  });
+  assert.deepEqual(rows.map((r) => r.options_open), [100, 100]);
 });
