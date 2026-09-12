@@ -24,7 +24,7 @@ import {
   auditAccount,
   applyFindings,
   massDeleteFinding,
-  deletionsHeld,
+  writesHeld,
   type Finding
 } from "./integrity.ts";
 
@@ -218,7 +218,7 @@ export async function fetchBrokerData(account, base) {
 // Reconcile what the broker says against what is stored. The reconstruction is
 // deterministic over the whole feed, so the fresh set is authoritative.
 export async function writeResults(
-  admin, accountId, userId, records, stockLots, breaches = [], orphaned = []
+  admin, accountId, userId, records, stockLots, breaches = [], orphanedStockPL = 0
 ) {
   // THE AUDIT PASS, in place of the refusal that used to live here.
   //
@@ -232,16 +232,11 @@ export async function writeResults(
   // ROW's figures and the other forty-two are written normally. See
   // _shared/integrity.ts for the actions and why there is no longer one that
   // stops a sync.
-  const findings = auditRecords(records, breaches, orphaned);
+  const findings = auditAccount({ breaches, orphanedStockPL });
   const flagged = applyFindings(records, findings);
   return writeResultsInner(admin, accountId, userId, flagged, stockLots, findings);
 }
 
-// Split out so the deletion checks, which can only run once the stored set has
-// been read, can add their findings to the same pass.
-function auditRecords(records: any[], breaches: any[], orphaned: any[]) {
-  return auditAccount({ breaches, orphaned });
-}
 
 export async function writeResultsInner(
   admin, accountId, userId, records, stockLots, findings: Finding[] = []
@@ -275,6 +270,13 @@ export async function writeResultsInner(
         // figure on it is identical: its shares were disposed of and its
         // result is final now.
         !!e.provisional !== !!r.provisional ||
+        // A row that stops being withheld, or starts, has changed even when
+        // every figure on it is identical -- and this is the one comparison
+        // that decides whether the clearing write happens at all. Without it a
+        // corrected check leaves the row hidden from every total while the
+        // audit trail records the finding as resolved: the trail says fixed,
+        // the money is still missing.
+        (e.integrity_code || null) !== (r.integrity_code || null) ||
         e.chain_id !== r.chain_id
       );
     })
@@ -293,7 +295,7 @@ export async function writeResultsInner(
   const optionLots = existingLots.filter(lotFromOption);
   const staleLots = optionLots.filter((l: any) => !freshLotKeys.has(l.lot_key));
 
-  // THE DELETIONS, HELD RATHER THAN THE SYNC REFUSED.
+  // ONE KIND'S STORED ROWS FROZEN, RATHER THAN THE SYNC REFUSED.
   //
   // A reconstruction that wants to remove most of what is stored is still much
   // more likely to be a defect than a correction -- a truncated broker feed, an
@@ -302,19 +304,40 @@ export async function writeResultsInner(
   // was right and has not changed.
   //
   // What changed is what happens next. This used to throw, which threw away a
-  // perfectly good update in order to protect the rows, and then left the
-  // account stale on top of it. Now the rows are simply KEPT: everything else
-  // in the refresh is written, and a finding says what was held and why. It is
-  // strictly safer than the refusal was -- nothing is deleted either way, and
-  // now nothing is lost either.
+  // perfectly good update to protect the rows and left the account stale on top
+  // of it.
+  //
+  // THE VERSION IN BETWEEN WAS WORSE THAN EITHER, and the bench caught it
+  // before it left staging. It held only the DELETIONS and let `toCreate`
+  // write, on the reasoning that keeping rows can only be safer. It is not:
+  // `stale` is defined a few lines above as rows whose IDENTITY changed as well
+  // as rows that vanished, so the replacement arrives under a NEW key. Holding
+  // the delete while writing the create stores the same closed trade twice,
+  // both copies with `integrity_code` null because a `mass_delete_held`
+  // finding's subject is the string "trade records" and matches no row. It
+  // reproduced at exactly double the true P/L. A stale account is wrong and
+  // self-consistent; a double-counted account is wrong and looks right.
+  //
+  // We cannot tell a truncated feed from a re-keying from here, so that kind's
+  // stored rows do not move AT ALL -- no delete, no insert, no rewrite. What
+  // makes this different from the old refusal is its blast radius: it costs one
+  // KIND of record, and the share ledger, the equity series, the sync timestamp
+  // and the audit note all still proceed. The account keeps the history it had
+  // rather than being emptied, which is the whole complaint this answers.
   const deletionFindings = [
     massDeleteFinding("trade records", stale.length, existing.length),
     massDeleteFinding("share lots", staleLots.length, optionLots.length)
   ].filter(Boolean) as Finding[];
   const allFindings = [...findings, ...deletionFindings];
 
-  const deleteTrades = deletionsHeld(allFindings, "trade records") ? [] : stale;
-  const deleteLots = deletionsHeld(allFindings, "share lots") ? [] : staleLots;
+  const tradesFrozen = writesHeld(allFindings, "trade records");
+  const lotsFrozen = writesHeld(allFindings, "share lots");
+
+  const deleteTrades = tradesFrozen ? [] : stale;
+  const createTrades = tradesFrozen ? [] : toCreate;
+  const updateTrades = tradesFrozen ? [] : toUpdate;
+  const deleteLots = lotsFrozen ? [] : staleLots;
+  const upsertLots = lotsFrozen ? [] : stockLots;
 
   const freshLotByKey: any = {};
   stockLots.forEach((l: any) => { freshLotByKey[l.lot_key] = l; });
@@ -337,16 +360,16 @@ export async function writeResultsInner(
   // sync of any account whose rows predate this code, which is every account
   // today, so this says so rather than refusing: the snapshot holds the before
   // image and this is the line that sends someone to look for it.
-  if (toUpdate.length > 0 || updatedLotsBefore.length > 0) {
+  if (updateTrades.length > 0 || updatedLotsBefore.length > 0) {
     console.error(
-      `tradeHistory rewrite: account=${accountId} trades=${toUpdate.length}/${existing.length} ` +
+      `tradeHistory rewrite: account=${accountId} trades=${updateTrades.length}/${existing.length} ` +
         `lots=${updatedLotsBefore.length}/${optionLots.length} removed=${deleteTrades.length}`
     );
   }
 
   await snapshot(admin, accountId, userId, "sync", {
     deleted: deleteTrades,
-    updatedBefore: toUpdate.map((r: any) => existingByKey[r.trade_key]),
+    updatedBefore: updateTrades.map((r: any) => existingByKey[r.trade_key]),
     deletedLots: deleteLots,
     updatedLotsBefore
   });
@@ -355,13 +378,13 @@ export async function writeResultsInner(
     const { error } = await admin.from("trade_records").delete().eq("id", (r as any).id);
     if (error) throw new Error(error.message);
   }
-  if (toCreate.length > 0) {
+  if (createTrades.length > 0) {
     const { error } = await admin
       .from("trade_records")
-      .insert(toCreate.map((r: any) => ({ ...r, user_id: userId })));
+      .insert(createTrades.map((r: any) => ({ ...r, user_id: userId })));
     if (error) throw new Error(error.message);
   }
-  for (const r of toUpdate) {
+  for (const r of updateTrades) {
     const { id, ...fields } = r as any;
     const { error } = await admin.from("trade_records").update(fields).eq("id", id);
     if (error) throw new Error(error.message);
@@ -371,10 +394,10 @@ export async function writeResultsInner(
     const { error } = await admin.from("stock_lots").delete().eq("id", (l as any).id);
     if (error) throw new Error(error.message);
   }
-  if (stockLots.length > 0) {
+  if (upsertLots.length > 0) {
     const { error } = await admin
       .from("stock_lots")
-      .upsert(stockLots.map((l: any) => ({ ...l, user_id: userId })), {
+      .upsert(upsertLots.map((l: any) => ({ ...l, user_id: userId })), {
         onConflict: "account_id,lot_key"
       });
     if (error) throw new Error(error.message);
@@ -408,8 +431,8 @@ export async function writeResultsInner(
   }
 
   return {
-    created: toCreate.length,
-    updated: toUpdate.length,
+    created: createTrades.length,
+    updated: updateTrades.length,
     removed: deleteTrades.length,
     removedLots: deleteLots.length,
     // What the pass found, so the caller -- a page, or the cron's result --
@@ -419,6 +442,6 @@ export async function writeResultsInner(
       subject: f.subject, message: f.message
     })),
     withheld: allFindings.filter((f) => f.action === "withhold_row").length,
-    deletionsHeld: allFindings.filter((f) => f.action === "keep_deleted").length
+    writesHeld: allFindings.filter((f) => f.action === "hold_writes").map((f) => f.subject)
   };
 }

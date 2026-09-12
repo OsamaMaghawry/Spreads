@@ -61,8 +61,10 @@ create table if not exists public.integrity_findings (
   severity text not null check (severity in ('critical', 'warning', 'info')),
   -- The narrowest thing done about it. Deliberately no value that stops a
   -- sync: a defect in one row is not a reason to stop telling a trader what
-  -- the other forty-two did.
-  action text not null check (action in ('withhold_row', 'keep_deleted', 'note')),
+  -- the other forty-two did. 'hold_writes' freezes ONE KIND of record for one
+  -- pass -- see _shared/integrity.ts for why holding only the deletions was
+  -- worse than either freezing or refusing.
+  action text not null check (action in ('withhold_row', 'hold_writes', 'note')),
 
   -- One sentence a person can act on, and the numbers behind it.
   message text not null,
@@ -115,8 +117,6 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare
-  v_codes text[];
 begin
   -- Upsert everything this pass found.
   insert into public.integrity_findings
@@ -136,18 +136,24 @@ begin
     seen_count = public.integrity_findings.seen_count + 1,
     resolved_at = null;
 
-  -- Resolve what this pass did not find. The key is (code, subject) together:
+  -- Resolve what this pass did not find. The key is (code, subject) TOGETHER:
   -- one impossible row being fixed must not resolve a different impossible row
   -- on the same account.
-  select coalesce(array_agg(f->>'code' || E'' || (f->>'subject')), '{}')
-    into v_codes
-  from jsonb_array_elements(coalesce(p_findings, '[]'::jsonb)) as f;
-
-  update public.integrity_findings
+  --
+  -- A tuple compare rather than a concatenated key. The first version joined
+  -- the two with a separator and compared strings, which is only safe while no
+  -- two codes can concatenate into each other -- an invariant nothing in the
+  -- schema enforces and nobody would remember when adding a fourth code. This
+  -- has none to maintain.
+  update public.integrity_findings af
      set resolved_at = now()
-   where account_id = p_account_id
-     and resolved_at is null
-     and (code || E'' || subject) <> all (v_codes);
+   where af.account_id = p_account_id
+     and af.resolved_at is null
+     and not exists (
+       select 1
+       from jsonb_array_elements(coalesce(p_findings, '[]'::jsonb)) as f
+       where f->>'code' = af.code and f->>'subject' = af.subject
+     );
 end;
 $$;
 

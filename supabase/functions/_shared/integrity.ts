@@ -28,10 +28,27 @@
 //                   withheld -- rendered "—", excluded from every total and
 //                   every statistic. The trade happened; only our arithmetic
 //                   about it is in doubt, and the reader is told which.
-//   keep_deleted    the rows a sync wanted to remove are KEPT instead. The
-//                   rest of the sync writes normally. Nothing is lost and
-//                   nothing is blocked -- the opposite of the old refusal,
-//                   which lost the whole update to protect the deletions.
+//   hold_writes     the stored set for ONE KIND of record is left exactly as
+//                   it is -- nothing deleted, nothing created, nothing
+//                   rewritten -- while everything else in the sync proceeds.
+//
+//                   The first version of this held only the DELETIONS and let
+//                   the fresh rows write, on the reasoning that keeping rows
+//                   can only be safer. The bench found that it is not: `stale`
+//                   includes rows whose IDENTITY changed, so the replacement
+//                   arrives under a new key, and holding the delete while
+//                   writing the create stores the same closed trade twice,
+//                   both copies unflagged. It reproduced at double the true
+//                   P/L. A stale account is wrong and self-consistent; a
+//                   double-counted account is wrong and looks right, which is
+//                   worse than the refusal this framework replaced.
+//
+//                   So when we cannot tell a truncated feed from a re-keying,
+//                   that kind's stored rows do not move at all. Unlike the old
+//                   refusal this costs only that kind: the share ledger, the
+//                   equity series, the sync timestamp and the audit note all
+//                   still proceed, and the account keeps the history it had
+//                   instead of being emptied.
 //   note            recorded and surfaced; nothing is withheld.
 //
 // There is deliberately no action that stops a sync. A defect in one row is
@@ -45,7 +62,7 @@
 // rather than quietly showing a smaller number.
 
 export type Severity = "critical" | "warning" | "info";
-export type Action = "withhold_row" | "keep_deleted" | "note";
+export type Action = "withhold_row" | "hold_writes" | "note";
 
 export type Finding = {
   /** Stable identifier for the KIND of problem. Dedupe key, never prose. */
@@ -128,13 +145,15 @@ export function massDeleteFinding(
   return {
     code: "mass_delete_held",
     severity: "critical",
-    action: "keep_deleted",
+    action: "hold_writes",
     subject: kind,
     message:
       `The broker's answer would have removed ${removing} of ${stored} stored ` +
-      `${kind} in one refresh. They have been kept rather than deleted, and ` +
-      `nothing else about the refresh was affected. This usually means the ` +
-      `account's connection to the broker has stopped returning its history.`,
+      `${kind} in one refresh. That is more likely a broker problem than a ` +
+      `correction, so the stored ${kind} were left exactly as they were and ` +
+      `nothing from this refresh was written over them. The rest of the ` +
+      `refresh was unaffected. This usually means the account's connection to ` +
+      `the broker has stopped returning its history.`,
     detail: {
       kind,
       would_remove: removing,
@@ -146,27 +165,33 @@ export function massDeleteFinding(
 }
 
 /**
- * A share lot the reconstruction could not attribute to any option.
+ * Share results the reconstruction could not attribute to any option.
  *
  * Not withheld and not an error: `dailyPortfolio` already counts these and
  * Analysis already shows the difference they make. It is here so that the
- * count is on the record beside everything else, instead of being a term in
+ * figure is on the record beside everything else, instead of being a term in
  * one page's arithmetic that nobody is watching.
+ *
+ * TAKES THE SUM, NOT A LIST OF LOTS. The first version took an array and was
+ * therefore dead code: `reconstruct()` returns `orphanedStockPL`, a single
+ * number, so the finding could only ever fire in a test fixture while the
+ * commit describing it claimed production coverage. Caught by the bench, and
+ * worth stating because a check that cannot fire is worse than no check --
+ * it reads on the page as an assurance.
  */
-export function orphanedStockFinding(orphaned: any[]): Finding | null {
-  const rows = orphaned || [];
-  if (!rows.length) return null;
-  const total = rows.reduce((s, l) => s + (Number(l?.realized_pl) || 0), 0);
+export function orphanedStockFinding(orphanedPL: number | null | undefined): Finding | null {
+  const total = Number(orphanedPL);
+  if (!Number.isFinite(total) || Math.abs(total) < 0.005) return null;
   return {
     code: "orphaned_stock",
     severity: "info",
     action: "note",
     subject: "share lots",
     message:
-      `${rows.length} share ${rows.length === 1 ? "lot" : "lots"} worth ` +
-      `${money(total)} could not be attributed to the option that moved them, ` +
-      `so they are counted in the account total but sit on no individual trade.`,
-    detail: { lots: rows.length, realized_pl: Number(total.toFixed(2)) }
+      `${money(total)} of share results could not be attributed to the option ` +
+      `that moved the shares, so it is counted in the account total but sits ` +
+      `on no individual trade.`,
+    detail: { realized_pl: Number(total.toFixed(2)) }
   };
 }
 
@@ -182,7 +207,7 @@ export function orphanedStockFinding(orphaned: any[]): Finding | null {
  */
 export function auditAccount(input: {
   breaches?: any[];
-  orphaned?: any[];
+  orphanedStockPL?: number | null;
   deletions?: { kind: string; removing: number; stored: number }[];
 }): Finding[] {
   const findings: Finding[] = [
@@ -192,7 +217,7 @@ export function auditAccount(input: {
     const f = massDeleteFinding(d.kind, d.removing, d.stored);
     if (f) findings.push(f);
   }
-  const orphan = orphanedStockFinding(input.orphaned || []);
+  const orphan = orphanedStockFinding(input.orphanedStockPL);
   if (orphan) findings.push(orphan);
   return findings;
 }
@@ -204,9 +229,15 @@ export function withheldKeys(findings: Finding[]): Set<string> {
   );
 }
 
-/** Whether a sync is allowed to delete the rows it wanted to delete. */
-export function deletionsHeld(findings: Finding[], kind: string): boolean {
-  return findings.some((f) => f.action === "keep_deleted" && f.subject === kind);
+/**
+ * Whether this kind's stored rows are frozen for this pass.
+ *
+ * True means write NOTHING of that kind -- no delete, no insert, no update.
+ * Half-applying it is the defect this replaced: holding the deletions alone
+ * lets a re-keyed row land beside the row it was meant to replace.
+ */
+export function writesHeld(findings: Finding[], kind: string): boolean {
+  return findings.some((f) => f.action === "hold_writes" && f.subject === kind);
 }
 
 /**

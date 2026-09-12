@@ -23,7 +23,11 @@ async function loadUsers(admin: any) {
   const [authUserList, accounts, trades, profiles, subscriptions] = await Promise.all([
     listAllUsers(admin),
     selectAll(admin, "trading_accounts", "id, user_id, is_paper, created_at"),
-    selectAll(admin, "trade_records", "user_id, account_id, open_date, close_date, realized_pl, created_at"),
+    // `integrity_code` travels so the back office can see BOTH figures. The
+    // operator panel is where someone goes to diagnose a withheld row, so
+    // filtering it out here — which is what every user-facing reader does —
+    // would hide the problem in the one place built for finding it.
+    selectAll(admin, "trade_records", "user_id, account_id, open_date, close_date, realized_pl, integrity_code, created_at"),
     selectAll(admin, "profiles", "id, role, last_active_at, signup_source"),
     selectAll(admin, "subscriptions", "user_id, plan, status, current_period_end, grandfathered_until")
   ]);
@@ -61,6 +65,10 @@ async function loadUsers(admin: any) {
       liveTrades: 0,
       lastTradeAt: null as string | null,
       realizedPL: 0,
+      // What the trader's own screens exclude, kept beside it rather than
+      // folded in. Zero on every account with nothing withheld.
+      withheldTrades: 0,
+      realizedPLUnverified: 0,
       // From the subscriptions row the Stripe webhook keeps; null until the
       // user has ever started a checkout.
       signupSource: null as string | null,
@@ -108,7 +116,17 @@ async function loadUsers(admin: any) {
     if (!u) continue;
     u.trades += 1;
     if (liveAccountIds.has(t.account_id)) u.liveTrades += 1;
-    u.realizedPL += Number(t.realized_pl || 0);
+    // `realizedPL` is the figure the USER is shown, so it excludes what the
+    // user's own pages exclude; `realizedPLUnverified` is the difference,
+    // carried separately rather than folded in. One number that quietly means
+    // something different here than on the trader's screen is how a support
+    // conversation goes wrong.
+    if (t.integrity_code) {
+      u.withheldTrades += 1;
+      u.realizedPLUnverified += Number(t.realized_pl || 0);
+    } else {
+      u.realizedPL += Number(t.realized_pl || 0);
+    }
     const when = t.close_date || t.open_date || t.created_at;
     if (when && (!u.lastTradeAt || when > u.lastTradeAt)) u.lastTradeAt = when;
   }

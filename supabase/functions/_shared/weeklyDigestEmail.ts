@@ -332,6 +332,34 @@ const unpricedNote = (a: AccountWeek) => {
   </table>`;
 };
 
+// WHAT THIS EMAIL LEFT OUT, IN DOLLARS.
+//
+// The audit layer filters withheld rows out of the digest's query, and the
+// first version of that filter went in with no corresponding line here. The
+// compliance gate called it blocking and was right: email is the worst surface
+// in the product for a silently short figure, because the reader cannot click
+// through to the note beside it, cannot re-run the week, and the number arrives
+// looking settled.
+//
+// The existing "some of the week could not be valued" note is not this. That
+// one is about a missing PRICE; this is about arithmetic of ours that produced
+// a result the position could not reach.
+const withheldNote = (a: AccountWeek) => {
+  if (!a.withheld || !a.withheld.count) return "";
+  const n = a.withheld.count;
+  return `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FDF0F0;border:1px solid #F0D0D0;border-radius:12px;margin:0 0 16px;">
+    <tr><td style="padding:14px 18px;font:400 12px ${FONT};color:${BRAND.negative};line-height:1.6;">
+      <strong>${n} ${n === 1 ? "trade is" : "trades are"} missing from these figures.</strong>
+      ${n === 1 ? "It computes" : "They compute"} to ${money(a.withheld.realized, true)}, which is more than
+      ${n === 1 ? "its own strikes can" : "their own strikes can"} lose &mdash; so the arithmetic is ours to fix and
+      the ${n === 1 ? "figure is" : "figures are"} left out rather than shown. Your broker's own total includes
+      ${n === 1 ? "it" : "them"}. ${n === 1 ? "The trade" : "The trades"} happened exactly as your broker recorded
+      ${n === 1 ? "it" : "them"}.
+    </td></tr>
+  </table>`;
+};
+
 // ---------------------------------------------------------------------------
 // One account's email
 // ---------------------------------------------------------------------------
@@ -393,7 +421,7 @@ export function renderAccountWeek(
   // trading follows it. A week with no trades still has an account in it.
   const traded = a.closed.count > 0 || a.opened.count > 0;
   const weekBlocks = traded
-    ? [premiumPanel(a), unpricedNote(a), tradeTable(a)].join("")
+    ? [premiumPanel(a), withheldNote(a), unpricedNote(a), tradeTable(a)].join("")
     : panel(
         "This week's trading",
         row("Positions closed", "0") + row("Positions opened", "0"),

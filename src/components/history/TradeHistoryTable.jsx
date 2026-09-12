@@ -2,6 +2,7 @@ import { fmtMoney } from "@/lib/format";
 import { AlertTriangle } from "lucide-react";
 import { strategyOf, strategyLabel, strategyBadge, sumBy } from "@/lib/strategies";
 import { isAdjustedTrade } from "@/lib/occ";
+import { splitWithheld, withheldNote, isWithheld } from "@/lib/integrity";
 
 const th = "px-2.5 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
 const td = "px-2.5 py-2.5 whitespace-nowrap tabular-nums";
@@ -26,7 +27,15 @@ function Money({ value }) {
 }
 
 export default function TradeHistoryTable({ trades }) {
-  const total = (field) => sumBy(trades, field);
+  // THE FOOTER SUMS ONLY WHAT WE STAND BEHIND.
+  //
+  // This page is shaped like a ledger, which makes it the worst place to
+  // publish a figure Analysis has already excluded: the bench found the same
+  // account reading -$1,003 here and -$814 there, with nothing on either page
+  // explaining the $189. One predicate, both pages. See src/lib/integrity.js.
+  const audit = splitWithheld(trades);
+  const total = (field) => sumBy(audit.rows, field);
+  const note = withheldNote(audit);
 
   return (
     <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
@@ -83,6 +92,18 @@ export default function TradeHistoryTable({ trades }) {
                       adjusted
                     </span>
                   )}
+                  {isWithheld(t) && (
+                    <span
+                      className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200"
+                      // The trade happened and is shown; only our arithmetic
+                      // about it is in doubt, so the row stays and its money
+                      // reads "—". Three badges already sit on this line for
+                      // weaker reasons than this one.
+                      title="Our reconstruction of this trade produces a result its own strikes cannot reach, so its figures are not shown. The trade itself is unaffected, and your broker's total includes it."
+                    >
+                      unverified
+                    </span>
+                  )}
                   {t.provisional && (
                     <span
                       className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200"
@@ -115,10 +136,14 @@ export default function TradeHistoryTable({ trades }) {
               <td className={`${td} text-right`}>{t.short_symbol ? fmtMoney(t.short_exit) : "—"}</td>
               <td className={`${td} text-right`}>{t.long_symbol ? fmtMoney(t.long_exit) : "—"}</td>
               <td className={`${td} text-right`}>{fmtMoney(t.close_debit)}</td>
-              <td className={`${td} text-right`}><Money value={t.premium_pl} /></td>
-              <td className={`${td} text-right`}><Money value={t.early_close_pl} /></td>
-              <td className={`${td} text-right`}><Money value={t.stock_pl} /></td>
-              <td className={`${td} text-right font-semibold`}><Money value={t.realized_pl} /></td>
+              {/* A withheld row's four money cells read "—". Showing the
+                  computed figure greyed out would still be showing it, and
+                  the standing rule is that a figure we cannot trust renders a
+                  dash and never a substitute number. */}
+              <td className={`${td} text-right`}>{isWithheld(t) ? <span className="text-slate-300">—</span> : <Money value={t.premium_pl} />}</td>
+              <td className={`${td} text-right`}>{isWithheld(t) ? <span className="text-slate-300">—</span> : <Money value={t.early_close_pl} />}</td>
+              <td className={`${td} text-right`}>{isWithheld(t) ? <span className="text-slate-300">—</span> : <Money value={t.stock_pl} />}</td>
+              <td className={`${td} text-right font-semibold`}>{isWithheld(t) ? <span className="text-slate-300">—</span> : <Money value={t.realized_pl} />}</td>
               <td className={`${td} text-center`}>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${RESULT[t.close_reason] || RESULT.closed}`}>
                   {(t.close_reason || "closed").toUpperCase()}
@@ -139,6 +164,12 @@ export default function TradeHistoryTable({ trades }) {
           )}
         </tbody>
       </table>
+      {/* Said under the total it qualifies, in dollars. A count on its own
+          cannot be sized: one withheld row on the account this was built for
+          is a fifth of the figure above. */}
+      {note && (
+        <p className="px-3 py-2 text-xs text-rose-700 bg-rose-50 border-t border-rose-100">{note}</p>
+      )}
     </div>
   );
 }

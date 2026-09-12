@@ -8,7 +8,7 @@ const num = (v, d = 2) => (v === null || v === undefined || !isFinite(v) ? "—"
 // things vary: whether a trade's result means the whole position or its option
 // legs, whether the total carries the mark on shares still held, and whether
 // drawdown came from real daily values or from booked trades alone.
-export default function StatCards({ stats }) {
+export default function StatCards({ stats, withheldPL = 0 }) {
   const premium = stats.view === "premium";
   // "settled trades" appears on eleven cards; under Premium only they are the
   // same trades measured a different way, and saying so once per card is how a
@@ -101,20 +101,29 @@ export default function StatCards({ stats }) {
         { label: "Largest win", value: fmtMoney(stats.largestWin), sub: basis, tone: stats.largestWin === null ? undefined : "pos" },
         { label: "Largest loss", value: fmtMoney(stats.largestLoss), sub: basis, tone: stats.largestLoss === null ? undefined : "neg" },
         { label: "Avg risk / trade", value: fmtMoney(stats.avgRisk) },
-        // WITHHELD ROWS ARE NAMED ON THE COUNT THEY ARE MISSING FROM.
+        // WITHHELD ROWS ARE NAMED ON THE COUNT THEY ARE MISSING FROM, AND IN
+        // DOLLARS.
         //
         // `stats.trades` counts what the arithmetic above it could use. A
         // closed trade whose figures the audit pass refused to publish is not
         // in it — and a trader comparing 43 trades at the broker against 42
-        // here is owed the reason, not left to find the gap. Same posture as
-        // "not final, excluded" on the win rate: say what was left out, on the
-        // figure it was left out of.
+        // here is owed the reason, not left to find the gap.
+        //
+        // The count ALONE is not enough, and the bench was blunt about why: on
+        // the account this was built for, one withheld row is $189 against an
+        // $814 total. "1 withheld" reads like a rounding note when it is a
+        // fifth of the figure, and a confidently wrong total is worse than a
+        // blank page because a blank page is obviously broken.
+        //
+        // The words "under review" stood here and are deleted rather than
+        // softened: nothing queues a finding to a person, so they described a
+        // process this product does not have.
         {
           label: "Trades",
           value: `${stats.trades}`,
           sub: `${stats.contracts} contracts · ${stats.expiredCount} expired worthless${
             stats.withheldTrades
-              ? ` · ${stats.withheldTrades} withheld, under review`
+              ? ` · ${stats.withheldTrades} excluded (${fmtMoney(withheldPL)}), arithmetic unverified`
               : ""
           }`
         },

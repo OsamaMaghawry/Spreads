@@ -18,6 +18,7 @@ import OpenOptionsPanel from "@/components/analysis/OpenOptionsPanel";
 import ViewSwitch from "@/components/analysis/ViewSwitch";
 import { openBook, openOptions, openMark, premiumOnly, realizedShares, orphanedShares } from "@/lib/openBook";
 import { analysisHeadline } from "@/lib/headline";
+import { splitWithheld, withheldNote } from "@/lib/integrity";
 import { dailySeries, bookedCurve } from "@/lib/equityCurve";
 
 export default function AccountAnalysis() {
@@ -111,11 +112,21 @@ export default function AccountAnalysis() {
   // once already. Each block below depends only on the ones above it.
   // ---------------------------------------------------------------------
 
-  // 1. The rows this page is measuring: the date filter, then the strategy tab.
-  const subset = useMemo(
+  // 1. The rows this page is measuring: the date filter, then the strategy tab,
+  //    then the audit layer.
+  //
+  // THE SPLIT HAPPENS ONCE, HERE, and everything below takes `subset`. The
+  // first version filtered withheld rows inside `computeStats` alone, which
+  // left the headline, the capture breakdown and the booked equity curve --
+  // all of which read the same rows through other functions -- publishing a
+  // figure the statistics two panels below had already excluded. One page,
+  // contradicting itself. See src/lib/integrity.js.
+  const filtered = useMemo(
     () => (strategy === "all" ? trades : trades.filter((t) => strategyOf(t) === strategy)),
     [trades, strategy]
   );
+  const audit = useMemo(() => splitWithheld(filtered), [filtered]);
+  const subset = audit.rows;
 
   // What the page is narrowed BY — the two controls, kept apart.
   //
@@ -306,6 +317,15 @@ export default function AccountAnalysis() {
     liveMark,
     narrowing
   });
+  // WHAT THE HEADLINE IS MISSING, in dollars, beside the headline.
+  //
+  // The count alone was not enough and the bench said so plainly: on this
+  // account one withheld row is $189 against an $814 total, so "1 withheld"
+  // reads like a rounding note when it is a fifth of the figure. The note also
+  // names the authority the reader can check against -- their broker's total
+  // DOES include this money, because the money moved; what we cannot say is
+  // which trade it belongs to.
+  const withheldLine = withheldNote(audit, view);
   // THE CHART AND THE HEADLINE, reconciled where they differ.
   //
   // Only one configuration makes them disagree, and it is exactly the one the
@@ -331,7 +351,13 @@ export default function AccountAnalysis() {
         ? " Part of the share book has no price."
         : " The broker returned no value for an open option leg."
       : "";
-  const headlineNote = headline.note ? `${headline.note}${unpricedDetail}` : null;
+  // The withheld line joins the headline's own note, because it qualifies the
+  // headline FIGURE -- the money card -- and not the trade count two panels
+  // down where the first version put it.
+  const headlineNote = [
+    headline.note ? `${headline.note}${unpricedDetail}` : null,
+    withheldLine
+  ].filter(Boolean).join(" ") || null;
 
   if (loading) {
     return (
@@ -480,7 +506,7 @@ export default function AccountAnalysis() {
             {book.lots > 0 && <OpenBookPanel book={book} priced={view === "whole"} />}
             <OpenOptionsPanel book={optionBook} priced={view === "whole"} />
             {comparison.length > 1 && <StrategyComparison rows={comparison} />}
-            <StatCards stats={stats} />
+            <StatCards stats={stats} withheldPL={view === "premium" ? audit.premium : audit.realized} />
             <EquityCurveChart
               curve={curve}
               view={view}

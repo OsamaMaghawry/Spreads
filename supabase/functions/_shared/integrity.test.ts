@@ -7,7 +7,7 @@ import {
   orphanedStockFinding,
   applyFindings,
   withheldKeys,
-  deletionsHeld,
+  writesHeld,
   withheld
 } from "./integrity.ts";
 
@@ -34,7 +34,7 @@ test("the audit pass returns findings rather than throwing", () => {
   const findings = auditAccount({
     breaches: [XLY],
     deletions: [{ kind: "trade records", removing: 12, stored: 12 }],
-    orphaned: [{ realized_pl: -40 }]
+    orphanedStockPL: -40
   });
   assert.equal(findings.length, 3);
   assert.ok(findings.every((f) => typeof f.message === "string" && f.message.length > 0));
@@ -45,7 +45,7 @@ test("no finding may carry an action that stops a sync", () => {
     breaches: [XLY],
     deletions: [{ kind: "trade records", removing: 12, stored: 12 }]
   });
-  const allowed = new Set(["withhold_row", "keep_deleted", "note"]);
+  const allowed = new Set(["withhold_row", "hold_writes", "note"]);
   for (const f of findings) assert.ok(allowed.has(f.action), `unexpected action ${f.action}`);
 });
 
@@ -67,7 +67,7 @@ test("an impossible loss withholds its own row and names the excess", () => {
 });
 
 test("a clean set produces no findings at all", () => {
-  assert.deepEqual(auditAccount({ breaches: [], orphaned: [], deletions: [] }), []);
+  assert.deepEqual(auditAccount({ breaches: [], orphanedStockPL: 0, deletions: [] }), []);
   assert.deepEqual(auditAccount({}), []);
 });
 
@@ -75,14 +75,28 @@ test("a clean set produces no findings at all", () => {
 // The deletions
 // ---------------------------------------------------------------------------
 
-test("a mass deletion is held, not refused", () => {
+test("a mass deletion freezes that kind's writes, and says so", () => {
   // Wees's account on production: the broker returned nothing, so the sync
   // wanted to remove all twelve stored trades.
   const f = massDeleteFinding("trade records", 12, 12);
   assert.ok(f);
-  assert.equal(f.action, "keep_deleted");
+  assert.equal(f.action, "hold_writes");
   assert.equal(f.detail.would_remove, 12);
-  assert.match(f.message, /kept rather than deleted/);
+  assert.match(f.message, /left exactly as they were/);
+  // The whole write, not just the delete. Holding only the deletions is what
+  // stored the same closed trade twice.
+  assert.match(f.message, /nothing from this refresh was written over them/);
+});
+
+test("the boundary cases the old guard covered and the new suite lost", () => {
+  // Just past the floor AND past the share, both binding at once: the smallest
+  // account the rule can still fire on.
+  assert.ok(massDeleteFinding("trade records", 6, 7));
+  // A partial majority -- the shape B1 lived in, where some rows are removed
+  // and replacements are written under new keys.
+  assert.ok(massDeleteFinding("trade records", 50, 99));
+  // Under the share on a large account: ordinary correction, no finding.
+  assert.equal(massDeleteFinding("trade records", 24, 99), null);
 });
 
 test("ordinary reconciliation is not a finding", () => {
@@ -94,17 +108,17 @@ test("ordinary reconciliation is not a finding", () => {
   assert.equal(massDeleteFinding("trade records", 0, 0), null);
 });
 
-test("holding the deletion is scoped to the kind that tripped it", () => {
+test("the freeze is scoped to the kind that tripped it", () => {
   const findings = auditAccount({
     deletions: [
       { kind: "trade records", removing: 12, stored: 12 },
       { kind: "share lots", removing: 1, stored: 40 }
     ]
   });
-  assert.equal(deletionsHeld(findings, "trade records"), true);
-  // Share lots were fine, so they are still deleted. A guard that held
-  // everything because one thing tripped is the behaviour being replaced.
-  assert.equal(deletionsHeld(findings, "share lots"), false);
+  assert.equal(writesHeld(findings, "trade records"), true);
+  // Share lots were fine, so they still write. A guard that froze everything
+  // because one thing tripped is the behaviour being replaced.
+  assert.equal(writesHeld(findings, "share lots"), false);
 });
 
 // ---------------------------------------------------------------------------
@@ -149,9 +163,9 @@ test("withheldKeys names exactly the rows to keep out of the arithmetic", () => 
   const findings = auditAccount({
     breaches: [XLY],
     deletions: [{ kind: "trade records", removing: 12, stored: 12 }],
-    orphaned: [{ realized_pl: -40 }]
+    orphanedStockPL: -40
   });
-  // The held deletion and the orphan note are not row withholdings, and must
+  // The frozen kind and the orphan note are not row withholdings, and must
   // not quietly remove anything from a total.
   assert.deepEqual([...withheldKeys(findings)], [XLY.trade_key]);
 });
@@ -160,16 +174,22 @@ test("withheldKeys names exactly the rows to keep out of the arithmetic", () => 
 // The orphan note
 // ---------------------------------------------------------------------------
 
-test("orphaned share lots are recorded but withhold nothing", () => {
-  const f = orphanedStockFinding([{ realized_pl: -40 }, { realized_pl: 15 }]);
+test("orphaned share results are recorded but withhold nothing", () => {
+  // The SUM, which is what `reconstruct()` actually returns. Taking an array
+  // here made the check unreachable in production while the commit claimed it
+  // as coverage — a check that cannot fire reads on the page as an assurance.
+  const f = orphanedStockFinding(-25);
   assert.ok(f);
   assert.equal(f.action, "note");
   assert.equal(f.severity, "info");
-  assert.equal(f.detail.lots, 2);
   assert.equal(f.detail.realized_pl, -25);
+  assert.match(f.message, /-\$25\.00/);
 });
 
 test("no orphans, no note", () => {
-  assert.equal(orphanedStockFinding([]), null);
+  assert.equal(orphanedStockFinding(0), null);
   assert.equal(orphanedStockFinding(null), null);
+  assert.equal(orphanedStockFinding(undefined), null);
+  // A sub-cent residue of float arithmetic is not a finding.
+  assert.equal(orphanedStockFinding(0.001), null);
 });

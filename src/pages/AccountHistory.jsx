@@ -10,6 +10,7 @@ import RebuildPreview from "@/components/history/RebuildPreview";
 import StrategyTabs from "@/components/history/StrategyTabs";
 import useIsAdmin from "@/lib/useIsAdmin";
 import { isAdjustedTrade } from "@/lib/occ";
+import { splitWithheld } from "@/lib/integrity";
 
 export default function AccountHistory() {
   const { id } = useParams();
@@ -146,9 +147,14 @@ export default function AccountHistory() {
   // adding the stock_lots table on top would count the shares twice — which is
   // what the old "Premium + Shares = Combined" row did the moment shares
   // started being attributed.
-  const premiumPL = sumBy(trades, "premium_pl");
-  const earlyClosePL = sumBy(trades, "early_close_pl");
-  const stockPL = sumBy(trades, "stock_pl");
+  // The header's four figures are the same money as the table's footer, so
+  // they take the same split: a row the audit pass withheld is out of both, or
+  // the page disagrees with itself an inch apart. See src/lib/integrity.js.
+  const audit = splitWithheld(trades);
+  const trusted = audit.rows;
+  const premiumPL = sumBy(trusted, "premium_pl");
+  const earlyClosePL = sumBy(trusted, "early_close_pl");
+  const stockPL = sumBy(trusted, "stock_pl");
   // The total comes from realized_pl, not from adding the three parts.
   //
   // Rows written before the components existed carry null in all three, and
@@ -156,8 +162,8 @@ export default function AccountHistory() {
   // whose own footer said −$992.00. The parts still sum to the whole on every
   // row the current code wrote; the header must not claim otherwise for rows
   // it did not.
-  const totalPL = sumBy(trades, "realized_pl");
-  const componentsMissing = trades.some((t) => t.premium_pl === null || t.premium_pl === undefined);
+  const totalPL = sumBy(trusted, "realized_pl");
+  const componentsMissing = trusted.some((t) => t.premium_pl === null || t.premium_pl === undefined);
   const unpairedCount = trades.filter((t) => t.unpaired).length;
   const provisionalCount = trades.filter((t) => t.provisional).length;
   const adjustedCount = trades.filter(isAdjustedTrade).length;
