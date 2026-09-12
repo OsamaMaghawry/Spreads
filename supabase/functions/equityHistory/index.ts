@@ -2,6 +2,7 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { loadAllAccounts } from "../_shared/accounts.ts";
 import { isServiceRole } from "../_shared/serviceRole.ts";
+import { redeemCronTicket } from "../_shared/cronTicket.ts";
 import { selectAllWhere } from "../_shared/paging.ts";
 import { loadAccount, alpacaFetch, tradingBase } from "../_shared/alpaca.ts";
 import {
@@ -525,8 +526,18 @@ Deno.serve(async (req) => {
     // rebuild of every account in the product and read back a list of account
     // ids. This asks the question that matters.
     if (payload?.scheduled === true) {
-      if (!isServiceRole(req)) return jsonResponse({ error: "Forbidden" }, 403);
       const admin = adminClient();
+      // EITHER credential is sufficient, and neither is the anon key.
+      //
+      // The service-role bearer is the right answer and is what the Vault row
+      // is supposed to hold; on staging that row turned out to contain the
+      // ANON key, so the cron could not authorise itself at all. The ticket is
+      // minted inside the database by the scheduler and redeemed here through
+      // our own service-role connection, which needs no secret to travel
+      // between the two. See _shared/cronTicket.ts.
+      const allowed =
+        isServiceRole(req) || (await redeemCronTicket(admin, payload.ticket, "equity_history"));
+      if (!allowed) return jsonResponse({ error: "Forbidden" }, 403);
       return jsonResponse(await rebuildAll(admin, Number(payload.maxAgeMinutes) || 0));
     }
 
