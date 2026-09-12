@@ -23,8 +23,9 @@ const day = (v) => {
 /**
  * Which stored column a view and mode read.
  *
- *   performance + whole    -> `performance`  option legs + shares sold + the
- *                            mark on shares still held, that day
+ *   performance + whole    -> `performance`  option legs closed + shares sold +
+ *                            the mark on the shares and the option legs on the
+ *                            book that day
  *   performance + premium  -> `premium_cum`  the option legs alone
  *   value                  -> `equity`       the broker's account value
  *

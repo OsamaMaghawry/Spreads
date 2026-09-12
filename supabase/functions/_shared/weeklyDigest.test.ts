@@ -320,7 +320,7 @@ test("premium and stock both appear, per account", () => {
   assert.ok(html.includes(">Stock<"), "stock block missing");
   assert.ok(html.includes("Move on shares held this week"));
   assert.ok(html.includes("Booked on shares sold"));
-  assert.ok(html.includes("Move on open option legs"));
+  assert.ok(html.includes("Move in the option book"));
   assert.ok(html.includes("Collected on positions opened"));
 });
 

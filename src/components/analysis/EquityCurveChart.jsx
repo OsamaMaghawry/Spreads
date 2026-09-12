@@ -74,7 +74,7 @@ export default function EquityCurveChart({
         // text a reader uses to work out why the line and the headline differ,
         // so a line that understates what the line contains sends them to the
         // wrong answer.
-        : "Option legs, shares already sold, and the mark on everything still open — shares and open option legs alike — priced at each day's close";
+        : "Option legs closed, shares already sold, and the mark on everything the account held that day — shares and option legs alike — priced at that day's close";
 
   // An account balance never has a meaningful zero on screen; a P/L line does,
   // and the axis has to REACH it or a losing window renders as a wedge rising

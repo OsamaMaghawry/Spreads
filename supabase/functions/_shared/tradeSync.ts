@@ -32,6 +32,7 @@ import {
   writesHeld,
   vanished,
   lotIdentity,
+  SERIES_FINDING_CODES,
   type Finding
 } from "./integrity.ts";
 
@@ -641,7 +642,14 @@ export async function writeResultsInner(
       p_findings: dedupeFindings(trail),
       // Nothing resolves on a frozen pass: the flags on the stored rows were
       // not touched, so their findings are still in force.
-      p_resolve_missing: !anyFrozen
+      p_resolve_missing: !anyFrozen,
+      // EVERY CODE EXCEPT THE SERIES ONES. The daily equity rebuild writes to
+      // this table for the same account, and resolving its findings from here
+      // would close a live divergence this pass knows nothing about. Named as
+      // an exclusion rather than a list so a new finding raised in this file
+      // still resolves itself without anyone remembering to add it.
+      p_codes: null,
+      p_exclude_codes: SERIES_FINDING_CODES
     });
     if (error) throw new Error(error.message);
   } catch (e: any) {

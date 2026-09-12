@@ -978,3 +978,140 @@ test("the same strike sold twice is marked in each window and neither between", 
   // day 4 sold again at $0.41 and worth $0.30: +$11.
   assert.deepEqual(rows.map((r) => r.options_open), [0, 0, 0, 11]);
 });
+
+// ---------------------------------------------------------------------------
+// A dead contract — the bench's STOP on the fix above
+//
+// `head-of-trading` returned STOP on the first version of the closed-leg walk,
+// and was right: it pointed a set of rules written for legs that are open
+// TODAY at every contract the account has ever held, where two of those rules
+// behave worse. Both understate risk, which is the same direction as the
+// defect they were added to repair.
+// ---------------------------------------------------------------------------
+
+test("a price is never carried onto the day a contract expires", () => {
+  // Carrying forward says "nothing has changed". On expiry day that is false
+  // by construction: the last print is the price of a contract with time left
+  // in it, and the true value is intrinsic. A short put with no bar on its
+  // expiry Friday used to carry Thursday's $0.12 and store a $108 GAIN for a
+  // position that was $12 in the money and really -$1,212.
+  const rows = dailyPortfolio(
+    ["2026-09-03", "2026-09-04"], [], [], {},
+    {
+      optionLegs: legsFromRecords([
+        { open_date: "2026-09-01", close_date: "2026-09-07", qty: 1,
+          short_symbol: "TSLA260904P00362500", short_entry: 1.20 }
+      ]),
+      optionCloses: { TSLA260904P00362500: { "2026-09-03": 0.12 } }
+    }
+  );
+  assert.equal(rows[0].options_open, 108);      // a real bar, carried nowhere
+  assert.equal(rows[1].options_open, null);     // expiry day, no bar: withheld
+  assert.deepEqual(rows[1].unpriced, ["TSLA260904P00362500"]);
+});
+
+test("a contract is off the book after its expiry, whatever the record says", () => {
+  // `close_date` is the day the BROKER settled, which on an expiry or an
+  // assignment is a business day or two later -- 16 of the 417 closed records
+  // on staging. Without this the walk marked a contract that no longer existed
+  // at the last price it ever printed, then dropped it in one step no market
+  // move produced.
+  const rows = dailyPortfolio(
+    ["2026-09-04", "2026-09-07", "2026-09-08"], [], [], {},
+    {
+      optionLegs: legsFromRecords([
+        { open_date: "2026-09-01", close_date: "2026-09-09", qty: 1,
+          short_symbol: "TSLA260904P00362500", short_entry: 1.20 }
+      ]),
+      optionCloses: { TSLA260904P00362500: { "2026-09-04": 12.50 } }
+    }
+  );
+  assert.equal(rows[0].options_open, -1130);  // 120 - 1250, on expiry day
+  assert.equal(rows[1].options_open, 0);      // gone, not carried at 12.50
+  assert.equal(rows[2].options_open, 0);
+  assert.deepEqual(rows.map((r) => r.unpriced), [[], [], []]);
+});
+
+test("a record with no quantity is a leg we cannot value, not one we ignore", () => {
+  // `trade_records.qty` is nullable, and a null one used to drop BOTH legs --
+  // producing `options_open: 0` with `unpriced: []`, byte for byte the
+  // confident zero this whole file forbids.
+  const legs = legsFromRecords([{
+    open_date: "2026-09-03", close_date: "2026-09-07", qty: null,
+    short_symbol: "TSLA260904P00362500", short_entry: 1.44
+  }]);
+  assert.equal(legs.length, 1);
+  assert.equal(legs[0].qty, null);
+  assert.equal(legs[0].costBasis, null);
+  const rows = dailyPortfolio(["2026-09-04"], [], [], {},
+    { optionLegs: legs, optionCloses: EXPIRY_CLOSES });
+  assert.equal(rows[0].options_open, null);
+  assert.deepEqual(rows[0].unpriced, ["TSLA260904P00362500"]);
+});
+
+test("a row the audit doubts does not draw a line with the prices in doubt", () => {
+  // The impossible-result finding says a row's realized result exceeds what
+  // its strikes and quantity allow -- a statement that the entries or the
+  // quantity are wrong, which are the two numbers the mark is built from.
+  // Its RESULT still belongs in premium_cum; its PRICES do not reach the
+  // chart. integrity.ts:57 -- "withheld EVERYWHERE".
+  const legs = legsFromRecords([{
+    open_date: "2026-09-03", close_date: "2026-09-07", qty: 1,
+    short_symbol: "TSLA260904P00362500", short_entry: 1.44,
+    integrity_code: "impossible_result"
+  }]);
+  assert.equal(legs[0].costBasis, null);
+  const rows = dailyPortfolio(["2026-09-04"], [], [], {},
+    { optionLegs: legs, optionCloses: EXPIRY_CLOSES });
+  assert.equal(rows[0].performance, null);
+  assert.deepEqual(rows[0].unpriced, ["TSLA260904P00362500"]);
+});
+
+test("the same contract in both halves of the book withholds the day", () => {
+  // Merged entries take the EARLIEST fill date, so scaling into a strike over
+  // two days back-dates the full size to the first. Where a live leg and a
+  // closed record cover the same contract on the same day, one of those two
+  // copies is wrong and the walk cannot tell which -- and on a legged-in
+  // entry the wrong one is a SIGN FLIP, a loss printed on a day the position
+  // was in profit.
+  const rows = dailyPortfolio(
+    ["2026-09-04"], [], [], {},
+    {
+      optionLegs: [
+        { symbol: "TSLA260918P00352500", qty: -1, costBasis: -427, from: "2026-09-01", to: null },
+        ...legsFromRecords([
+          { open_date: "2026-09-01", close_date: "2026-09-09", qty: 1,
+            short_symbol: "TSLA260918P00352500", short_entry: 4.27 }
+        ])
+      ],
+      optionCloses: { TSLA260918P00352500: { "2026-09-04": 3.93 } }
+    }
+  );
+  assert.equal(rows[0].options_open, null);
+  assert.deepEqual(rows[0].unpriced, ["TSLA260918P00352500"]);
+});
+
+test("a contract still open is marked on its expiry day from a real bar", () => {
+  // The no-carry rule must not turn into a refusal: an expiry-day bar that
+  // exists is exactly the price we want, and this is the routine case.
+  const rows = dailyPortfolio(["2026-09-04"], [], [], {}, {
+    optionLegs: [
+      { symbol: "TSLA260904P00362500", qty: -1, costBasis: -120, from: "2026-09-01", to: null }
+    ],
+    optionCloses: { TSLA260904P00362500: { "2026-09-04": 12.50 } }
+  });
+  assert.equal(rows[0].options_open, -1130);
+  assert.deepEqual(rows[0].unpriced, []);
+});
+
+test("a symbol that is not an OCC contract is carried as before", () => {
+  // The expiry rules key off the symbol. Anything that does not parse keeps
+  // the old behaviour rather than being refused.
+  const rows = dailyPortfolio(["2026-09-03", "2026-09-04"], [], [], {}, {
+    optionLegs: [
+      { symbol: "NOT-A-CONTRACT", qty: 1, costBasis: 100, from: "2026-09-01", to: null }
+    ],
+    optionCloses: { "NOT-A-CONTRACT": { "2026-09-03": 2 } }
+  });
+  assert.deepEqual(rows.map((r) => r.options_open), [100, 100]);
+});

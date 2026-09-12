@@ -235,7 +235,7 @@ const hero = (a: AccountWeek) => `
           ? (a.measured
               ? "Part of this book could not be valued this week, so there is no whole-account figure. The parts that could be are below."
               : "We are still building this account's day-by-day history, so there is no figure for the week yet. Anything it traded is below.")
-          : "Option legs closed, shares sold, and the change in what is still open — measured from the previous Friday's close to this one."}
+          : "Option legs closed, shares sold, and the change in the mark on everything the account held — measured from the previous Friday's close to this one."}
       </div>
     </td></tr>
   </table>`;
@@ -271,7 +271,7 @@ const stockPanel = (a: AccountWeek) =>
         "Unrealized. None of it is booked and it moves until you sell."),
       row("Booked on shares sold", money(a.sharesBooked, true), colourFor(a.sharesBooked),
         "Realized result of share lots that left the account this week."),
-      row("Move on open option legs", money(a.optionsMark, true), colourFor(a.optionsMark),
+      row("Move in the option book", money(a.optionsMark, true), colourFor(a.optionsMark),
         "Unrealized. A short leg's figure is a credit taken against what it would cost to buy back now.")
     ].join("")
   );
@@ -491,7 +491,7 @@ export function renderAccountWeek(
           line("  Shares still held", money(a.sharesValue)),
           line("  Move on shares held", money(a.sharesMark, true)),
           line("  Booked on shares sold", money(a.sharesBooked, true)),
-          line("  Move on open option legs", money(a.optionsMark, true)),
+          line("  Move in the option book", money(a.optionsMark, true)),
           "",
           "THE ACCOUNT",
           line("  Account value at Friday's close", money(a.equityEnd)),

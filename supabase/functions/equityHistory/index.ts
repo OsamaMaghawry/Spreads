@@ -5,6 +5,12 @@ import { isServiceRole } from "../_shared/serviceRole.ts";
 import { paperOnlyMode } from "../_shared/settings.ts";
 import { redeemCronTicket } from "../_shared/cronTicket.ts";
 import { selectAllWhere } from "../_shared/paging.ts";
+import {
+  emptyOptionBookFindings,
+  divergenceFinding,
+  SERIES_FINDING_CODES
+} from "../_shared/integrity.ts";
+import { parseOCCSymbol } from "../_shared/occ.ts";
 import { loadAccount, alpacaFetch, tradingBase } from "../_shared/alpaca.ts";
 import {
   sessionDay,
@@ -129,11 +135,27 @@ async function fetchOptionBars(account, symbols: string[], start: string) {
         `https://data.alpaca.markets/v1beta1/options/bars?symbols=${chunk.join(",")}` +
         `&timeframe=1Day&start=${start}&limit=${BAR_PAGE_LIMIT}` +
         (token ? `&page_token=${encodeURIComponent(token)}` : "");
-      const page = await alpacaFetch(url, account).catch((e) => {
-        console.error("option bars fetch failed", chunk.join(","), e?.message || e);
-        return null;
-      });
-      if (!page) break;
+      // NOT CAUGHT, for the reason `positions` is not caught three functions
+      // down: `upsert_account_equity_daily` overwrites the DERIVED columns
+      // unconditionally, nulls included, so a swallowed failure here does not
+      // produce a gap -- it writes a confident `options_open` over stored
+      // history, computed from a book it could not read.
+      //
+      // A caught failure was survivable while this fetched only the legs open
+      // right now. It stopped being survivable when it started fetching every
+      // contract the account has ever traded: the chunk count went from one to
+      // dozens, so a 429 or an expired token is an ordinary event rather than
+      // an exotic one. And a PARTIAL failure is the worse half -- the symbols
+      // that did return carry stale closes forward as confident marks while
+      // the ones that did not silently leave the book.
+      //
+      // So the rebuild fails and the stored series is left exactly as it was.
+      const page = await alpacaFetch(url, account);
+      if (!page) {
+        throw new Error(
+          "Could not read option price history from the broker, so the day-by-day series was left unchanged."
+        );
+      }
       for (const symbol of Object.keys(page.bars || {})) {
         const series = (out[symbol] = out[symbol] || {});
         for (const bar of page.bars[symbol] || []) {
@@ -282,8 +304,17 @@ async function rebuild(admin, account, userId: string) {
     // Postgres may break that tie differently on each request, and a row can
     // then be served twice or not at all. This module's own documentation says
     // so; the call site did not follow it.
+    //
+    // `integrity_code` TRAVELS WITH THE ROW because the two halves of it are
+    // used for opposite purposes. Its RESULT still belongs in `premium_cum`,
+    // which is an account-level sum with no attribution in it -- that is the
+    // rule the comment above states and it has not changed. Its ENTRY PRICES
+    // and QUANTITY are a different matter: the impossible-result finding says
+    // a row's own arithmetic does not hold, and marking a contract day after
+    // day off figures we have already said we do not believe would publish
+    // that doubt as a confident line. Withheld there, kept here.
     selectAllWhere(admin, "trade_records",
-      "close_date, open_date, qty, premium_pl, early_close_pl, short_symbol, long_symbol, short_entry, long_entry",
+      "close_date, open_date, qty, premium_pl, early_close_pl, short_symbol, long_symbol, short_entry, long_entry, integrity_code",
       "id",
       (q) => q.eq("account_id", account.id).not("close_date", "is", null)),
     // Also unfiltered, and for the same reason. Two earlier versions got this
@@ -515,7 +546,72 @@ async function rebuild(admin, account, userId: string) {
     if (error) throw new Error(error.message);
   }
 
+  await auditSeries(admin, account, userId, rows, closedLegs);
   return { rows, skippedWeekend };
+}
+
+// WHAT THE BROKER SAYS, AGAINST WHAT WE SAY -- run on every rebuild.
+//
+// The 12 September option-book defect was not found by a test, an agent or a
+// check; it was found by the account owner reading his own broker statement.
+// What made that structural rather than unlucky is that every check this
+// product had compared its own output against its own inputs. The independent
+// witness was in the same row the whole time: `equity` is the broker's number
+// and `performance` is ours. Nothing had ever compared them.
+//
+// AFTER the write, deliberately. These are notes, not gates: a residual must
+// never cost a user their chart, and a check that can block a rebuild is a
+// check that will one day block a correct one. See `integrity.ts`.
+//
+// Never throws. A rebuild that succeeded must not be reported as failed
+// because the audit trail could not be written.
+async function auditSeries(admin: any, account: any, userId: string, rows: any[], legs: any[]) {
+  try {
+    const spans = legs.map((l: any) => ({
+      symbol: String(l.symbol || ""),
+      from: l.from || null,
+      to: l.to || null,
+      expiry: parseOCCSymbol(l.symbol)?.expiryFormatted || null
+    }));
+
+    // The last full week of stored days, and the transfers inside it. Flows
+    // are REQUIRED: equity moves on a deposit and `performance` correctly does
+    // not, so without them a $700 deposit is indistinguishable from a $700
+    // defect. Unreadable transfers produce no finding rather than a wrong one.
+    const dated = rows.filter((r) => r.equity !== null).slice(-6);
+    let flows: number | null = null;
+    if (dated.length >= 2) {
+      const { data, error } = await admin
+        .from("cash_flows")
+        .select("amount")
+        .eq("account_id", account.id)
+        .gte("day", dated[0].day)
+        .lte("day", dated[dated.length - 1].day);
+      // No error and no rows is a real zero: we looked and there were none.
+      if (!error) flows = (data || []).reduce((a: number, f: any) => a + (Number(f.amount) || 0), 0);
+    }
+
+    const findings = [
+      ...emptyOptionBookFindings(rows, spans),
+      ...(dated.length >= 2
+        ? [divergenceFinding(dated, flows, `${dated[0].day} to ${dated[dated.length - 1].day}`)]
+        : [])
+    ].filter(Boolean);
+
+    const { error } = await admin.rpc("record_integrity_findings", {
+      p_account_id: account.id,
+      p_user_id: userId,
+      p_findings: findings,
+      p_resolve_missing: true,
+      // ONLY OUR OWN CODES. The trade sync writes to the same table for the
+      // same account, and an unscoped resolve would close its withholdings --
+      // whose flags are still on the stored rows. See migration 0048.
+      p_codes: SERIES_FINDING_CODES
+    });
+    if (error) throw new Error(error.message);
+  } catch (e: any) {
+    console.error(`equityHistory: series audit not recorded for ${account.id}: ${e?.message || e}`);
+  }
 }
 
 // THE SCHEDULED REBUILD -- every connected account, nobody having to look.

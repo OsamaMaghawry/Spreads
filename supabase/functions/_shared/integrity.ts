@@ -399,3 +399,174 @@ export function withheldLotSummary(lots: any[]) {
  * smaller number is worse than one that reports a dash.
  */
 export const withheld = (t: any): boolean => !!t?.integrity_code;
+
+// ---------------------------------------------------------------------------
+// The stored series, checked against a number we did not compute
+// ---------------------------------------------------------------------------
+//
+// WHY THESE EXIST, and it is the more important half of the 12 September
+// incident. The option-book defect was not found by a test, an agent or a
+// check. It was found by the account owner reading his own broker statement:
+//
+//   *"How I just earned, like, six hundred ... this rebound should be at
+//   least two thousand. It doesn't make any sense to me."*
+//
+// He was right. His account had gone up $2,706.64 that week and the product
+// said $624.91. What makes that miss structural rather than unlucky is that
+// every check this product had was CLOSED-LOOP: the walk's tests compare its
+// output against arithmetic derived from fixtures the same author wrote, the
+// impossible-result check compares a row against its own strikes, and
+// `integrity.ts` above compares the reconstruction against itself. In all of
+// them both sides of the comparison descend from inputs the product chose, so
+// a defect in WHICH INPUTS GET CHOSEN is invisible to every one.
+//
+// And the independent witness was sitting in the same row the whole time.
+// `account_equity_daily` stores the broker's own `equity` beside our
+// `performance`, and `cash_flows` stores the deposits that legitimately
+// separate them. Nothing had ever compared the two.
+//
+// Both checks emit `note`, never `withhold_row` or `hold_writes`. Blanking a
+// chart over a residual is the refuse-to-ship failure this whole framework was
+// written to replace; the job here is to tell someone, not to take the screen
+// away.
+
+/**
+ * The codes these checks own.
+ *
+ * `record_integrity_findings` resolves anything for the account that the pass
+ * did not report, so two writers sharing one account would resolve each
+ * other's findings on every run. Each pass therefore names the codes it is
+ * responsible for and the resolve half is scoped to those. See migration 0048.
+ */
+export const SERIES_FINDING_CODES = ["empty_option_book", "equity_divergence"] as const;
+
+type SeriesRow = {
+  day: string;
+  equity?: number | string | null;
+  options_open?: number | string | null;
+  performance?: number | string | null;
+  unpriced?: string[] | null;
+};
+
+/** A leg's life, for the span test. Built from the records, not from the walk. */
+type LegSpan = { symbol: string; from: string | null; to: string | null; expiry: string | null };
+
+const n = (v: unknown): number | null => {
+  if (v === null || v === undefined || v === "") return null;
+  const x = Number(v);
+  return Number.isFinite(x) ? x : null;
+};
+
+/**
+ * A day that claims an empty option book while a contract was on it.
+ *
+ * THE EXACT SIGNATURE OF THE 12 SEPTEMBER DEFECT, with no threshold and no
+ * prices in it. `options_open = 0` and `unpriced = []` together are an
+ * assertion: the account held no option legs that day and nothing was missing.
+ * `spans` is built from `trade_records` -- the same table the walk's closed
+ * legs come from, read independently -- so if the caller ever again fails to
+ * hand the walk the legs it should have, the two disagree and this fires.
+ *
+ * On Alton's 4 September row it fires immediately: two records (TSLA 362.5P
+ * and 367.5P, opened the 3rd, settled the 7th) span that day, and the row says
+ * the book was empty. It would have fired on every expiry Friday on every
+ * account for as long as the table has existed -- which is exactly the
+ * population that made the defect systematic rather than rare.
+ */
+export function emptyOptionBookFindings(rows: SeriesRow[], spans: LegSpan[]): Finding[] {
+  const live = (spans || []).filter((s) => s?.symbol);
+  if (!live.length) return [];
+  const out: Finding[] = [];
+  for (const r of rows || []) {
+    if (!r?.day) continue;
+    if (n(r.options_open) !== 0) continue;
+    if ((r.unpriced || []).length) continue;
+    // Same two rules the walk uses, so a disagreement here is a real
+    // disagreement and not two spellings of the same boundary.
+    const onBook = live.filter(
+      (s) =>
+        (!s.from || s.from <= r.day) &&
+        (!s.to || s.to > r.day) &&
+        (!s.expiry || s.expiry >= r.day)
+    );
+    if (!onBook.length) continue;
+    out.push({
+      code: "empty_option_book",
+      severity: "critical",
+      action: "note",
+      subject: r.day,
+      message:
+        `The stored day-by-day series records no option positions on ${r.day}, ` +
+        `and nothing missing, while the trade records show ${onBook.length} ` +
+        `option leg${onBook.length === 1 ? "" : "s"} on the book that day. ` +
+        `That day's performance figure is understated by whatever they were worth.`,
+      detail: { day: r.day, legs: onBook.length, symbols: onBook.map((s) => s.symbol).slice(0, 8) }
+    });
+  }
+  return out;
+}
+
+// Provisional, and deliberately labelled so. `performance` is blind to
+// interest, dividends and fees by construction -- `fetchBrokerData` never asks
+// for them -- while the broker's `equity` carries all three, so there is a
+// permanent floor under this residual that nobody has measured yet. Set these
+// from a quiet week on a real account, not from a guess; until then they are
+// wide enough that only a defect of the 12 September size trips them.
+export const DIVERGENCE_NOTE = { dollars: 100, share: 0.0025 };
+export const DIVERGENCE_WARNING = { dollars: 500, share: 0.01 };
+
+/**
+ * What the broker says the week did, against what we say it did.
+ *
+ * The general net, where `emptyOptionBookFindings` is the exact one. It knows
+ * nothing about options, shares or reconstruction, which is the point: it
+ * would have caught a defect nobody had imagined, in any of those three, as
+ * long as it moved the line away from the account's own value.
+ *
+ * `flows` is the net of deposits and withdrawals inside the window, and it is
+ * REQUIRED rather than optional: equity moves when money is transferred in and
+ * `performance` correctly does not, so without the transfers a $700 deposit is
+ * indistinguishable from a $700 defect. Null flows produce no finding at all
+ * -- "we could not read the transfers" is not evidence of anything.
+ */
+export function divergenceFinding(
+  rows: SeriesRow[],
+  flows: number | null,
+  label = "the last week"
+): Finding | null {
+  const usable = (rows || []).filter((r) => r?.day && n(r.equity) !== null && n(r.performance) !== null);
+  if (usable.length < 2 || flows === null) return null;
+  const sorted = usable.slice().sort((a, b) => a.day.localeCompare(b.day));
+  const open = sorted[0];
+  const close = sorted[sorted.length - 1];
+  const brokerMove = (n(close.equity) as number) - (n(open.equity) as number) - flows;
+  const ourMove = (n(close.performance) as number) - (n(open.performance) as number);
+  const residual = brokerMove - ourMove;
+  const size = Math.abs(n(close.equity) as number);
+  const abs = Math.abs(residual);
+
+  const over = (t: { dollars: number; share: number }) =>
+    abs > Math.max(t.dollars, size * t.share);
+  if (!over(DIVERGENCE_NOTE)) return null;
+  const severity: Severity = over(DIVERGENCE_WARNING) ? "warning" : "info";
+
+  return {
+    code: "equity_divergence",
+    severity,
+    action: "note",
+    subject: `${open.day}..${close.day}`,
+    message:
+      `Over ${label} the broker's own account value moved ${money(brokerMove)} once ` +
+      `deposits and withdrawals are taken out, and this product's performance line ` +
+      `moved ${money(ourMove)}. The ${money(abs)} between them is not explained.`,
+    detail: {
+      from: open.day,
+      to: close.day,
+      brokerMoveNetOfFlows: Number(brokerMove.toFixed(2)),
+      performanceMove: Number(ourMove.toFixed(2)),
+      residual: Number(residual.toFixed(2)),
+      flows,
+      shareOfEquity: size ? Number((abs / size).toFixed(4)) : null
+    }
+  };
+}

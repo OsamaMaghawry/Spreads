@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   auditAccount,
+  emptyOptionBookFindings,
+  divergenceFinding,
   applyLotFindings,
   withheldLotSummary,
   impossibleResultFindings,
@@ -286,4 +288,104 @@ test("the summary sizes the share half for the audit trail", () => {
     owners
   );
   assert.deepEqual(withheldLotSummary(out), { lots: 2, realized: -200 });
+});
+
+// ---------------------------------------------------------------------------
+// The stored series against the broker's own column
+//
+// Both fixtures are Alton Live, week of 7-11 September 2026, as the rows
+// actually stood when the owner asked why his rebound was missing.
+// ---------------------------------------------------------------------------
+
+// The 4 September row as it was stored: fully priced, no option positions,
+// on a day two short TSLA puts were being carried into expiry.
+const ALTON_BEFORE = [
+  { day: "2026-09-03", equity: 140844.76, options_open: 0, performance: -1574, unpriced: [] },
+  { day: "2026-09-04", equity: 138870.97, options_open: 0, performance: -1574, unpriced: [] },
+  { day: "2026-09-08", equity: 141530.46, options_open: 90, performance: -1123.09, unpriced: [] },
+  { day: "2026-09-11", equity: 141577.61, options_open: 45, performance: -949.09, unpriced: [] }
+];
+const ALTON_LEGS = [
+  { symbol: "TSLA260904P00362500", from: "2026-09-03", to: "2026-09-07", expiry: "2026-09-04" },
+  { symbol: "TSLA260904P00367500", from: "2026-09-03", to: "2026-09-07", expiry: "2026-09-04" }
+];
+
+test("an empty option book on a day a contract was carried is a critical finding", () => {
+  const found = emptyOptionBookFindings(ALTON_BEFORE, ALTON_LEGS);
+  // 3 and 4 September both held the two puts and both claimed an empty book.
+  assert.deepEqual(found.map((f) => f.subject), ["2026-09-03", "2026-09-04"]);
+  assert.equal(found[0].severity, "critical");
+  assert.equal(found[0].action, "note");         // never withhold: this is a chart
+  assert.equal(found[1].detail.legs, 2);
+  assert.match(found[1].message, /no option positions on 2026-09-04/);
+});
+
+test("the fixed series produces no finding", () => {
+  const after = ALTON_BEFORE.map((r) =>
+    r.day === "2026-09-03" ? { ...r, options_open: -23 }
+    : r.day === "2026-09-04" ? { ...r, options_open: -1831 } : r
+  );
+  assert.deepEqual(emptyOptionBookFindings(after, ALTON_LEGS), []);
+});
+
+test("a day that already says it could not be valued is not accused as well", () => {
+  // `unpriced` non-empty means the row is already telling the truth about
+  // itself, and a second finding on the same day is noise.
+  const rows = [{ day: "2026-09-04", equity: 1, options_open: 0, performance: null, unpriced: ["TSLA260904P00362500"] }];
+  assert.deepEqual(emptyOptionBookFindings(rows, ALTON_LEGS), []);
+});
+
+test("a genuinely empty day is left alone, on both boundaries", () => {
+  // Before the legs opened, after they settled, and after their expiry even
+  // though the record stays open until settlement.
+  const rows = [
+    { day: "2026-09-02", equity: 1, options_open: 0, performance: 0, unpriced: [] },
+    { day: "2026-09-05", equity: 1, options_open: 0, performance: 0, unpriced: [] },
+    { day: "2026-09-08", equity: 1, options_open: 0, performance: 0, unpriced: [] }
+  ];
+  assert.deepEqual(emptyOptionBookFindings(rows, ALTON_LEGS), []);
+});
+
+test("the week the owner questioned raises a warning before he has to ask", () => {
+  // Broker +$2,706.64, product +$624.91, no transfers. 1.47% of equity.
+  const f = divergenceFinding(
+    [ALTON_BEFORE[1], ALTON_BEFORE[3]], 0, "the week of 7 September"
+  );
+  assert.ok(f);
+  assert.equal(f.code, "equity_divergence");
+  assert.equal(f.severity, "warning");
+  assert.equal(f.action, "note");
+  assert.equal(f.detail.residual, 2081.73);
+  assert.match(f.message, /\$2,?081\.73|\$2081\.73/);
+});
+
+test("a deposit is not a divergence", () => {
+  // The whole reason `flows` is required. A $2,700 deposit and a flat week
+  // look identical to a check that does not subtract it.
+  const rows = [
+    { day: "2026-09-04", equity: 138870.97, options_open: 0, performance: -1574, unpriced: [] },
+    { day: "2026-09-11", equity: 141577.61, options_open: 0, performance: -1574, unpriced: [] }
+  ];
+  assert.equal(divergenceFinding(rows, 2706.64), null);
+});
+
+test("transfers we could not read produce no finding at all", () => {
+  // "We could not look" is not evidence. Publishing a divergence over an
+  // unknown denominator is the defect this product already fixed once.
+  assert.equal(divergenceFinding([ALTON_BEFORE[1], ALTON_BEFORE[3]], null), null);
+});
+
+test("an ordinary week stays quiet", () => {
+  const rows = [
+    { day: "2026-09-04", equity: 100000, options_open: 0, performance: 1000, unpriced: [] },
+    { day: "2026-09-11", equity: 100400, options_open: 0, performance: 1350, unpriced: [] }
+  ];
+  // $50 out of $100k: under both the dollar floor and the share.
+  assert.equal(divergenceFinding(rows, 0), null);
+});
+
+test("divergence needs two days it can actually read", () => {
+  assert.equal(divergenceFinding([ALTON_BEFORE[1]], 0), null);
+  assert.equal(divergenceFinding([{ day: "2026-09-04", equity: null, performance: 1 }, ALTON_BEFORE[3]], 0), null);
+  assert.equal(divergenceFinding([], 0), null);
 });

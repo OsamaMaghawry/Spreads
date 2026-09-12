@@ -22,7 +22,10 @@
 //   shares_booked(D) the result of every share lot already SOLD by D
 //   shares_open(D)   the mark on every lot still HELD on D, at that day's
 //                    closing price
-//   options_open(D)  the mark on every option leg still OPEN on D, likewise
+//   options_open(D)  the mark on every option leg ON THE BOOK on D, likewise
+//                    — the ones still open today and the ones long since
+//                    closed alike. The name is historical; see BookOptionLeg
+//                    for the day it stopped meaning "still open" and why.
 //   performance(D)   the FOUR added together — the whole-view line
 //
 // This list said "the three added together" after `options_open` was added,
@@ -57,6 +60,16 @@
 // The identity is asserted in dailyPortfolio.test.ts against `computeStats` and
 // `openBook` THEMSELVES. The first version of that test restated this file's
 // own formula and checked this file computed it, which proved nothing at all.
+
+// The ONLY import this module has, and it is deliberately a leaf: `occ.ts`
+// imports nothing itself, for the reason its own header gives -- anything that
+// reaches alpaca.ts wants the credential key at import time and cannot run
+// outside an edge function. The walk stays testable with `node --test`.
+//
+// Needed because an option's expiry is a property of the contract, written in
+// its symbol, and the walk must not mark a contract that has expired or carry
+// a stale price onto the day it expires.
+import { parseOCCSymbol } from "./occ.ts";
 
 const num = (v: unknown): number | null => {
   if (v === null || v === undefined || v === "") return null;
@@ -384,7 +397,11 @@ export interface DailyRow {
   performance: number | null;
   /** premium_cum + shares_booked, or null when a sold lot has no result. */
   realized_cum: number | null;
-  /** Mark on OPTION legs still open that day. Null when one cannot be valued. */
+  /**
+   * Mark on every OPTION leg that was ON THE BOOK that day -- legs still open
+   * now and legs long since closed alike. Null when one cannot be valued; 0 when
+   * the account held none.
+   */
   options_open: number | null;
   /** Tickers whose contribution to that day could not be established. */
   unpriced: string[];
@@ -455,6 +472,8 @@ export interface ClosedRecordLegs {
   short_entry?: number | string | null;
   /** Per share. The debit paid on the long side. */
   long_entry?: number | string | null;
+  /** Set when the audit doubts this row's own arithmetic. See `integrity.ts`. */
+  integrity_code?: string | null;
 }
 
 /**
@@ -489,17 +508,42 @@ export function legsFromRecords(records: ClosedRecordLegs[] | null | undefined):
     // lists cover.
     if (!to) continue;
     const from = day(r?.open_date);
-    const qty = num(r?.qty);
-    if (qty === null || qty <= 0) continue;
-    const contracts = qty * 100;
+    const rawQty = num(r?.qty);
+    // `trade_records.qty` is nullable. A row we cannot size still put a
+    // position on the book, so it becomes a leg the walk cannot value rather
+    // than no leg at all -- dropping it reports the day as complete with a
+    // position missing from it, which is the defect this file exists to
+    // refuse. `qty` null here makes the leg unusable in the walk's prep.
+    const qty = rawQty !== null && rawQty > 0 ? rawQty : null;
+    const contracts = (qty ?? 0) * 100;
+    // A ROW WHOSE OWN ARITHMETIC IS IN DOUBT DOES NOT GET TO DRAW A LINE.
+    //
+    // `integrity.ts:57`: *"A withheld figure must be withheld EVERYWHERE."*
+    // The impossible-result finding fires when a row's realized result exceeds
+    // what its strikes and quantity allow -- which is a statement that the
+    // entries or the quantity are wrong, and those are exactly the two numbers
+    // the mark below is built from. Its RESULT still reaches `premium_cum`,
+    // because that is an account-level sum of broker facts with no attribution
+    // in it; its PRICES do not reach the chart.
+    //
+    // Null cost, not a dropped leg: the position was on the book, and the day
+    // has to say it cannot be valued rather than report itself complete.
+    const doubted = Boolean(r?.integrity_code);
+    const usableQty = !doubted && qty !== null;
     const short = String(r?.short_symbol || "");
     if (short) {
-      const entry = num(r?.short_entry);
-      out.push({ symbol: short, qty: -qty, costBasis: entry === null ? null : -entry * contracts, from, to });
+      const entry = usableQty ? num(r?.short_entry) : null;
+      out.push({
+        symbol: short,
+        qty: qty === null ? null : -qty,
+        costBasis: entry === null ? null : -entry * contracts,
+        from,
+        to
+      });
     }
     const long = String(r?.long_symbol || "");
     if (long) {
-      const entry = num(r?.long_entry);
+      const entry = usableQty ? num(r?.long_entry) : null;
       out.push({ symbol: long, qty, costBasis: entry === null ? null : entry * contracts, from, to });
     }
   }
@@ -691,11 +735,23 @@ export function dailyPortfolio(
   const closeOn = (
     key: string,
     d: string,
-    source: Record<string, Record<string, number>> = closes
+    source: Record<string, Record<string, number>> = closes,
+    // The day after which this key's price may not be carried. Options only:
+    // see `noCarryFrom` at the call site for why.
+    noCarryFrom: string | null = null
   ): number | null => {
     const series = source?.[key];
     if (!series) return null;
     if (series[d] !== undefined) return series[d];
+    // CARRYING FORWARD IS A STATEMENT THAT NOTHING HAS CHANGED, and on a
+    // contract's expiry day that statement is false by construction. The last
+    // print before expiry is the price of a contract with time left in it; on
+    // the day it dies its value is its intrinsic, which is exactly where the
+    // two numbers are furthest apart. A short put with no bar on its expiry
+    // Friday carried its Thursday price and stored +$108 for a position that
+    // was really -$1,212 -- understating the risk, with `unpriced: []` beside
+    // it, which is the shape of the defect this whole file exists to refuse.
+    if (noCarryFrom && d >= noCarryFrom) return null;
 
     const list = daysFor(key, series);
     let lo = 0;
@@ -730,20 +786,56 @@ export function dailyPortfolio(
       const cost = num(o?.costBasis);
       const mult = num(o?.multiplier);
       const symbol = String(o?.symbol || "");
-      if (!symbol || qty === null || qty === 0) return null;
+      if (!symbol) return null;
       return {
         symbol,
-        qty,
+        qty: qty ?? 0,
         cost,
         from: day(o?.from),
         to: day(o?.to),
-        usable: cost !== null && (mult === null || mult === 100)
+        // The day the contract stops existing, read off the symbol itself.
+        // Null for anything that does not parse as OCC, which withholds
+        // nothing -- it only declines the extra protection.
+        expiry: parseOCCSymbol(symbol)?.expiryFormatted || null,
+        // A QUANTITY WE CANNOT READ MAKES THE LEG UNUSABLE, NOT ABSENT. The
+        // first version of this dropped it -- `qty === null || qty === 0`
+        // returning null -- which was correct while every leg came from the
+        // broker's positions endpoint, where a zero quantity means no
+        // position. It stopped being correct the moment closed records
+        // started arriving here: `trade_records.qty` is nullable, and a null
+        // one produced `options_open: 0` with `unpriced: []`, byte for byte
+        // the confident zero this file forbids eleven lines below.
+        usable:
+          qty !== null && qty !== 0 && cost !== null && (mult === null || mult === 100)
       };
     })
     .filter(Boolean) as {
-      symbol: string; qty: number; cost: number | null;
-      from: string | null; to: string | null; usable: boolean;
+      symbol: string; qty: number; cost: number | null; from: string | null;
+      to: string | null; expiry: string | null; usable: boolean;
     }[];
+
+  // A SYMBOL THAT IS IN BOTH HALVES OF THE BOOK ON ONE DAY IS A QUESTION, NOT
+  // A MARK. The live half comes from the broker, the closed half from records
+  // whose dates the reconstruction derived; where they overlap, either the
+  // record's `open_date` is back-dated (merged entries take the EARLIEST fill
+  // date, so scaling into a strike over two days marks the full size from the
+  // first) or a strike was closed and re-sold the same day. Both shapes put
+  // the same contract on the book twice, and one of them flips the sign.
+  //
+  // Withheld rather than guessed: the day names the symbol and renders "—".
+  const liveWindows = new Map<string, { from: string | null; to: string | null }[]>();
+  for (const leg of legs) {
+    if (leg.to) continue;
+    const list = liveWindows.get(leg.symbol) || [];
+    list.push({ from: leg.from, to: leg.to });
+    liveWindows.set(leg.symbol, list);
+  }
+  const contested = (leg: { symbol: string; to: string | null }, d: string) => {
+    if (!leg.to) return false;
+    const live = liveWindows.get(leg.symbol);
+    if (!live) return false;
+    return live.some((w) => !w.from || w.from <= d);
+  };
 
   const optionCloses = opts.optionCloses || {};
 
@@ -818,6 +910,20 @@ export function dailyPortfolio(
       // definitely gone after it closed, and withholding days after that would
       // blank the rest of the account's life over a leg that no longer exists.
       if (leg.to && leg.to <= d) continue;
+      // PAST ITS OWN EXPIRY THE CONTRACT DOES NOT EXIST, whatever the record
+      // says. `close_date` is the day the broker SETTLED the position, and on
+      // an expiry or an assignment that is the next business day or two: 16 of
+      // the 417 closed records on staging close after their contract's expiry.
+      // Without this the walk marked a dead contract for those days, at the
+      // last price it ever printed, and then dropped it in one step that no
+      // market move produced.
+      //
+      // The days between expiry and settlement are therefore carried by
+      // neither the leg nor `premium_cum`, which books on `close_date`. That
+      // gap is real and bounded -- every one of those 16 lands on a weekend or
+      // a holiday, so no session falls inside it -- and it is the honest side
+      // to err on: a position that has ceased to exist is not a position.
+      if (leg.expiry && d > leg.expiry) continue;
       // TWO CONDITIONS, TWO OUTCOMES. One `continue` used to serve both and
       // that was the worst defect in this file: a leg whose opening date could
       // not be established skipped before `unmarkedLegs.add`, so it contributed
@@ -837,12 +943,19 @@ export function dailyPortfolio(
       if (leg.from > d) continue;
       optionsHeld += 1;
       if (!leg.usable) { unmarkedLegs.add(leg.symbol); continue; }
+      // The same contract in both halves of the book on this day: see
+      // `contested` above. A question, not a mark.
+      if (contested(leg, d)) { unmarkedLegs.add(leg.symbol); continue; }
       // CARRIED FORWARD, by the same bounded rule the share closes use. An
       // exact-day lookup was wrong in the routine case, not the exotic one: a
       // thin strike does not print every session -- an OTM put at $0.41, a call
       // at $2.99 -- and one zero-volume session on ONE leg nulled the whole
       // book's mark for that day. That includes today's bar on a delayed feed.
-      const close = closeOn(leg.symbol, d, optionCloses);
+      //
+      // BUT NEVER ACROSS EXPIRY. On the day a contract dies, yesterday's price
+      // is the price of a different instrument -- one with time left in it --
+      // and the gap is widest exactly where it costs most. See `noCarryFrom`.
+      const close = closeOn(leg.symbol, d, optionCloses, leg.expiry);
       if (close === null) { unmarkedLegs.add(leg.symbol); continue; }
       optionsOpen += leg.qty * 100 * close - (leg.cost as number);
     }
