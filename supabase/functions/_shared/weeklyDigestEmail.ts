@@ -37,6 +37,7 @@
 // they can be quoted without their context.
 
 import type { AccountWeek, Window } from "./weeklyDigest.ts";
+import type { Snapshot } from "./weeklySnapshot.ts";
 
 const BRAND = {
   bg: "#F6F5FB",
@@ -108,6 +109,115 @@ const panel = (title: string, inner: string, subtitle = "") => `
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">${inner}</table>
     </td></tr>
   </table>`;
+
+
+const qty = (n: number | null | undefined) =>
+  n === null || n === undefined || !Number.isFinite(Number(n))
+    ? DASH
+    : Number(n).toLocaleString("en-US", { maximumFractionDigits: 4 });
+
+// WHAT THE ACCOUNT HOLDS. The owner: *"It's not about trades, it's about the
+// account itself. If someone trades LEAPS, and have equities, they should
+// receive email too."* So this is the first thing in the message and it is
+// present whether or not a single trade happened in the week.
+const holdingsPanel = (s: Snapshot) => {
+  if (!s.read) {
+    return panel(
+      "What you hold",
+      row("Positions", DASH, BRAND.sub),
+      "We could not reach your broker for this account when the email was built, so this is blank rather than empty. It is not a statement that you hold nothing."
+    );
+  }
+  if (s.empty) {
+    return panel(
+      "What you hold",
+      row("Open positions", "0") + row("Working orders", "0"),
+      "Your broker reports nothing open in this account and no orders working."
+    );
+  }
+  const optionRows = s.options
+    .slice()
+    .sort((a: any, b: any) => Math.abs(Number(b.marketValue) || 0) - Math.abs(Number(a.marketValue) || 0))
+    .slice(0, 12)
+    .map((p: any) => {
+      const label = `${esc(p.ticker)} ${p.strike ?? ""}${p.optionType || ""}`.trim();
+      const when = p.expiry ? ` exp ${esc(prettyDate(p.expiry))}` : "";
+      return `
+      <tr>
+        <td style="font:400 13px ${FONT};color:${BRAND.text};padding:8px 0;border-bottom:1px solid ${BRAND.line};">
+          ${label}<div style="font-size:11px;color:${BRAND.sub};">${p.side === "short" ? "short" : "long"} ${qty(Math.abs(p.qty))}${when}</div>
+        </td>
+        <td align="right" style="font:600 13px ${FONT};color:${BRAND.text};padding:8px 0;border-bottom:1px solid ${BRAND.line};white-space:nowrap;">
+          ${esc(money(p.marketValue))}
+          <div style="font-size:11px;font-weight:400;color:${colourFor(p.unrealizedPL)};">${esc(money(p.unrealizedPL, true))}</div>
+        </td>
+      </tr>`;
+    })
+    .join("");
+
+  const shareRows = s.shares
+    .slice()
+    .sort((a: any, b: any) => Math.abs(Number(b.marketValue) || 0) - Math.abs(Number(a.marketValue) || 0))
+    .slice(0, 12)
+    .map((p: any) => `
+      <tr>
+        <td style="font:400 13px ${FONT};color:${BRAND.text};padding:8px 0;border-bottom:1px solid ${BRAND.line};">
+          ${esc(p.ticker)}<div style="font-size:11px;color:${BRAND.sub};">${qty(p.qty)} shares at ${esc(money(p.avgEntryPrice))}</div>
+        </td>
+        <td align="right" style="font:600 13px ${FONT};color:${BRAND.text};padding:8px 0;border-bottom:1px solid ${BRAND.line};white-space:nowrap;">
+          ${esc(money(p.marketValue))}
+          <div style="font-size:11px;font-weight:400;color:${colourFor(p.unrealizedPL)};">${esc(money(p.unrealizedPL, true))}</div>
+        </td>
+      </tr>`)
+    .join("");
+
+  const head = (what: string) => `
+    <tr><td colspan="2" style="font:700 11px ${FONT};color:${BRAND.sub};text-transform:uppercase;letter-spacing:.06em;padding:14px 0 6px;">${what}</td></tr>`;
+
+  return panel(
+    "What you hold",
+    (s.shareCount ? head(`Shares — ${s.shareCount} ${s.shareCount === 1 ? "position" : "positions"}`) + shareRows : "") +
+      (s.optionCount ? head(`Option legs — ${s.optionCount}`) + optionRows : ""),
+    "Your broker's own quantities and marks, as they stand now. Unrealized figures move until a position is closed."
+  );
+};
+
+// WORKING ORDERS. Asked for by name: *"and if any open orders."*
+const ordersPanel = (s: Snapshot) => {
+  if (!s.read || s.openOrderCount === null) return "";
+  if (s.openOrderCount === 0) return "";
+  const rows = s.openOrders
+    .slice(0, 10)
+    .map((o) => `
+      <tr>
+        <td style="font:400 13px ${FONT};color:${BRAND.text};padding:8px 0;border-bottom:1px solid ${BRAND.line};">
+          ${esc(o.symbol)}<div style="font-size:11px;color:${BRAND.sub};">${esc(o.side)} ${qty(o.qty)}${o.legs > 1 ? ` · ${o.legs} legs` : ""} · ${esc(o.type)}</div>
+        </td>
+        <td align="right" style="font:600 13px ${FONT};color:${BRAND.text};padding:8px 0;border-bottom:1px solid ${BRAND.line};white-space:nowrap;">
+          ${o.limitPrice === null ? esc(o.type) : esc(money(o.limitPrice))}
+        </td>
+      </tr>`)
+    .join("");
+  return panel(
+    `Still working — ${s.openOrderCount} order${s.openOrderCount === 1 ? "" : "s"}`,
+    rows,
+    "Orders your broker still has open. They can be changed or cancelled from the Orders tab."
+  );
+};
+
+// THE ACCOUNT, from the broker rather than from our reconstruction.
+const brokerAccountPanel = (s: Snapshot) =>
+  panel(
+    "The account",
+    [
+      row("Account value", money(s.equity), BRAND.text,
+        s.equity === null ? "Your broker did not answer when this email was built." : "Cash plus everything held, as your broker reports it."),
+      row("Cash", money(s.cash), BRAND.text),
+      row("Shares at market", money(s.sharesValue), BRAND.text),
+      row("Option legs at market", money(s.optionsValue), BRAND.text,
+        "A short leg's market value is negative: it is what it would cost to buy back.")
+    ].join("")
+  );
 
 // The one number at the top, and it is THIS ACCOUNT's. Its label carries what
 // it counts, because a figure this size is the thing that gets quoted alone.
@@ -229,6 +339,7 @@ const unpricedNote = (a: AccountWeek) => {
 export function renderAccountWeek(
   a: AccountWeek,
   win: Window,
+  snap: Snapshot | null,
   opts: {
     appUrl?: string;
     // Set when this copy is going to the owner for review rather than to the
@@ -245,9 +356,20 @@ export function renderAccountWeek(
   // The ACCOUNT NAME leads the subject, because a person with four accounts
   // now receives four of these and the inbox has to tell them apart at a
   // glance without opening one.
-  const subject = a.quiet
-    ? `${a.name} — ${span}: nothing traded${a.isPaper ? " (paper)" : ""}`
-    : `${a.name} — ${span}: ${money(a.performance, true)}${a.isPaper ? " (paper)" : ""}`;
+  // THE SUBJECT DESCRIBES THE ACCOUNT, not only the week's trading. An
+  // account holding six option legs and a thousand shares that happened to
+  // trade nothing is not "nothing traded" -- that subject line is what made
+  // the first send read as empty. The week's figure leads when we have one we
+  // can stand behind; otherwise what is held does.
+  const held = snap && snap.read && !snap.empty
+    ? [snap.shareCount ? `${snap.shareCount} stock` : "", snap.optionCount ? `${snap.optionCount} option legs` : ""]
+        .filter(Boolean).join(", ")
+    : "";
+  const subject = a.performance !== null
+    ? `${a.name} — ${span}: ${money(a.performance, true)}${a.isPaper ? " (paper)" : ""}`
+    : held
+      ? `${a.name} — ${span}: holding ${held}${a.isPaper ? " (paper)" : ""}`
+      : `${a.name} — ${span}: nothing open${a.isPaper ? " (paper)" : ""}`;
 
   const preview = opts.previewFor
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.accent};border-radius:12px;margin:0 0 16px;">
@@ -265,13 +387,30 @@ export function renderAccountWeek(
        </table>`
     : "";
 
-  const body = a.quiet
-    ? panel(
-        "A quiet week",
+  // ORDER OF THE MESSAGE, and it is the owner's: *"an account snapshot in
+  // general should be sent. It's not about trades, it's about the account
+  // itself."* So what is held comes first and is always present; the week's
+  // trading follows it. A week with no trades still has an account in it.
+  const traded = a.closed.count > 0 || a.opened.count > 0;
+  const weekBlocks = traded
+    ? [premiumPanel(a), unpricedNote(a), tradeTable(a)].join("")
+    : panel(
+        "This week's trading",
         row("Positions closed", "0") + row("Positions opened", "0"),
-        "Nothing opened, nothing closed, and nothing held in this account. The week is recorded as it happened."
-      )
-    : [hero(a), premiumPanel(a), stockPanel(a), accountPanel(a), unpricedNote(a), tradeTable(a)].join("");
+        "Nothing opened and nothing closed in this account this week. What it holds is above."
+      );
+
+  const body = [
+    snap ? holdingsPanel(snap) : "",
+    snap ? ordersPanel(snap) : "",
+    snap ? brokerAccountPanel(snap) : accountPanel(a),
+    // The week's own result only where the stored series could produce one we
+    // can stand behind. Where it could not, the section is absent rather than
+    // a grid of dashes -- see hero().
+    a.performance !== null ? hero(a) : "",
+    weekBlocks,
+    a.performance !== null ? stockPanel(a) : ""
+  ].join("");
 
   const html = `
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.bg};padding:24px 12px;">

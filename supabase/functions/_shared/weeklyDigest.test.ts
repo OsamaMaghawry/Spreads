@@ -151,7 +151,7 @@ test("trades outside the window are not in it", () => {
 // predate the split still hand one over; it renders the first, which is the
 // account under test.
 const render = (accounts: ReturnType<typeof accountWeek>[]) =>
-  renderAccountWeek(accounts[0], WIN, { appUrl: "https://dashboard.deltamint.app" });
+  renderAccountWeek(accounts[0], WIN, null, { appUrl: "https://dashboard.deltamint.app" });
 
 test("the subject carries the week and the number", () => {
   const { subject } = render([accountWeek(ACCT, ROWS, TRADES, WIN)]);
@@ -195,7 +195,7 @@ test("an unvaluable week renders a dash and says which ticker cost it", () => {
 });
 
 test("a review copy says whose account it is, at the top", () => {
-  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, { previewFor: "someone@example.com" });
+  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, null, { previewFor: "someone@example.com" });
   assert.ok(html.includes("REVIEW COPY"));
   assert.ok(html.includes("someone@example.com"));
   assert.ok(html.includes("has not been sent to them"));
@@ -203,14 +203,57 @@ test("a review copy says whose account it is, at the top", () => {
   assert.ok(html.indexOf("REVIEW COPY") < html.indexOf("This account's week"));
 });
 
-test("a quiet week is short and does not print a grid of zeroes", () => {
-  const empty = accountWeek(ACCT, [{ day: "2026-09-11", performance: 0, equity: 1000, shares_value: 0, options_open: 0 }], [], WIN);
-  assert.equal(empty.quiet, true);
+test("an account that traded nothing still gets an email, and it is not a grid of zeroes", () => {
+  // The owner, after the first production send: *"I still see the weekly all
+  // about last week premiums, not the shares not the account snapshot.
+  // Nothing."* And before that: *"Even no trades this week, an account
+  // snapshot in general should be sent. It's not about trades, it's about the
+  // account itself."*
+  //
+  // So a week with no trades is no longer "quiet" and skipped -- it is an
+  // account with a state worth reporting. What it must NOT do is print a
+  // premium panel of zeroes.
+  // No stored series at all, which is production's actual state, so there is
+  // no week figure to lead with. A MEASURED week that came to zero is a
+  // different case and still reads "+$0.00" -- that is a result, not an
+  // absence, and the two must not be collapsed.
+  const empty = accountWeek(ACCT, [], [], WIN);
   const { subject, html } = render([empty]);
-  assert.ok(subject.includes("nothing traded"), subject);
-  assert.ok(!html.includes(">Premium<"));
+  // No trades and, with no snapshot, nothing known to be held.
+  assert.ok(subject.includes("nothing open"), subject);
+  assert.ok(!html.includes(">Premium<"), "a premium panel of zeroes is noise");
+  assert.ok(html.includes("This week's trading"));
+  assert.ok(html.includes("What it holds is above"));
 });
 
+test("the subject names what is HELD when there is no week figure to stand behind", () => {
+  // Production had no stored series at all, so every week figure was a dash
+  // and the subject read "nothing traded" about accounts holding real
+  // positions. The snapshot is what the subject falls back to.
+  const snap = {
+    read: true, empty: false, shareCount: 1, optionCount: 3,
+    options: [], shares: [], openOrders: [], openOrderCount: 0,
+    equity: 151562.83, cash: 11065.83, lastEquity: null,
+    optionsValue: -420, sharesValue: 140497, optionsUnrealized: 30, sharesUnrealized: -206,
+    failed: []
+  } as any;
+  const noSeries = accountWeek(ACCT, [], [], WIN);
+  const { subject } = renderAccountWeek(noSeries, WIN, snap, {});
+  assert.ok(subject.includes("holding"), subject);
+  assert.ok(subject.includes("1 stock"), subject);
+  assert.ok(subject.includes("3 option legs"), subject);
+  assert.ok(!subject.includes("nothing"), subject);
+});
+
+test("a broker that would not answer is not reported as an empty account", () => {
+  const unread = { read: false, empty: false, shareCount: 0, optionCount: 0,
+    options: [], shares: [], openOrders: [], openOrderCount: null,
+    equity: null, cash: null, lastEquity: null, optionsValue: null, sharesValue: null,
+    optionsUnrealized: null, sharesUnrealized: null, failed: ["positions"] } as any;
+  const { html } = renderAccountWeek(accountWeek(ACCT, [], [], WIN), WIN, unread, {});
+  assert.ok(html.includes("could not reach your broker"));
+  assert.ok(html.includes("not a statement that you hold nothing"));
+});
 test("money formats to the cent, signs only where asked, and dashes a null", () => {
   assert.equal(money(1553), "$1,553.00");
   assert.equal(money(1553, true), "+$1,553.00");
@@ -223,7 +266,7 @@ test("money formats to the cent, signs only where asked, and dashes a null", () 
 });
 
 test("an address is escaped rather than interpolated into the markup", () => {
-  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, [], WIN), WIN, { previewFor: '"><script>alert(1)</script>' });
+  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, [], WIN), WIN, null, { previewFor: '"><script>alert(1)</script>' });
   assert.ok(!html.includes("<script>"));
   assert.ok(html.includes("&lt;script&gt;"));
 });
@@ -260,8 +303,8 @@ test("each account is measured on its own, never pooled", () => {
   const live = accountWeek(ACCT, ROWS, TRADES, WIN);
   const paper = accountWeek({ id: "p2", name: "Practice", is_paper: true }, ROWS, TRADES, WIN);
   // Two accounts, two emails, and neither figure is a sum of the other.
-  const a = renderAccountWeek(live, WIN, {});
-  const b = renderAccountWeek(paper, WIN, {});
+  const a = renderAccountWeek(live, WIN, null, {});
+  const b = renderAccountWeek(paper, WIN, null, {});
   assert.notEqual(a.subject, b.subject);
   assert.ok(a.subject.startsWith("Alton Live"));
   assert.ok(b.subject.startsWith("Practice"));
@@ -272,7 +315,7 @@ test("each account is measured on its own, never pooled", () => {
 test("premium and stock both appear, per account", () => {
   // The owner's first ask: "each account should have the premium and stocks
   // moves". Both blocks, in every non-quiet email.
-  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, {});
+  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, null, {});
   assert.ok(html.includes(">Premium<"), "premium block missing");
   assert.ok(html.includes(">Stock<"), "stock block missing");
   assert.ok(html.includes("Move on shares held this week"));
@@ -282,7 +325,7 @@ test("premium and stock both appear, per account", () => {
 });
 
 test("a bought position's debit is shown as paid, not hidden", () => {
-  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, {});
+  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, null, {});
   assert.ok(html.includes("Paid to open bought positions"));
   assert.ok(html.includes("$450.00"));
 });

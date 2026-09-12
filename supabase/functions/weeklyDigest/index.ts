@@ -17,6 +17,9 @@
 // review copy. See migration 0036 for why, and for the state machine.
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient } from "../_shared/supabaseClients.ts";
+import { loadAllAccounts } from "../_shared/accounts.ts";
+import { tradingBase, alpacaFetch } from "../_shared/alpaca.ts";
+import { snapshotOf } from "../_shared/weeklySnapshot.ts";
 import { sendEmail } from "../_shared/email.ts";
 import { weeklyDigestDelivery, digestRelay, paperOnlyMode } from "../_shared/settings.ts";
 import { weekWindow, accountWeek, type Window } from "../_shared/weeklyDigest.ts";
@@ -110,13 +113,10 @@ Deno.serve(async (req) => {
     // and still visible on the dashboard -- what it is excluded from is being
     // read on a schedule and written about. See PAPER_ONLY in settings.ts.
     const paperOnly = await paperOnlyMode(admin);
-    let accountQuery = admin
-      .from("trading_accounts")
-      .select("id, user_id, name, is_paper")
-      .order("user_id");
-    if (paperOnly) accountQuery = accountQuery.eq("is_paper", true);
-    const { data: accounts, error: acctErr } = await accountQuery;
-    if (acctErr) throw new Error(acctErr.message);
+    // Credentials decrypted for the length of the request, because the email
+    // now asks the broker what the account HOLDS -- see _shared/weeklySnapshot.ts
+    // for why that changed and how its failure is kept cheap.
+    const accounts = await loadAllAccounts(admin, { paperOnly });
 
     const byUser = new Map<string, any[]>();
     for (const a of accounts || []) {
@@ -200,6 +200,23 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        // THE BROKER, once per account, and allowed to fail three separate
+        // ways. A snapshot is what the owner asked the email to be; a broker
+        // outage must cost that account's snapshot and nothing else, so each
+        // call is caught on its own and the email says which part is missing
+        // rather than rendering an empty section that reads as "you hold
+        // nothing".
+        const snaps = new Map<string, any>();
+        for (const a of userAccounts) {
+          const base = tradingBase(a);
+          const failed: string[] = [];
+          const acct = await alpacaFetch(`${base}/account`, a).catch(() => { failed.push("account value"); return null; });
+          const positions = await alpacaFetch(`${base}/positions`, a).catch(() => { failed.push("positions"); return null; });
+          const openOrders = await alpacaFetch(`${base}/orders?status=open&nested=true&limit=100`, a)
+            .catch(() => { failed.push("open orders"); return null; });
+          snaps.set(a.id, snapshotOf(acct, positions, openOrders, failed));
+        }
+
         for (const week of weeks) {
           // An account that has never traded and holds nothing sends nothing.
           // Four accounts producing four emails is the point; four accounts
@@ -215,12 +232,21 @@ Deno.serve(async (req) => {
           // one thing in this file changed under review: it is what stands
           // between the owner and the emails he asked to see, and it cannot
           // affect a user -- owner mode reaches only his own address.
-          if (week.quiet && !week.measured && mode !== "owner") {
-            results.push({ userId, accountId: week.accountId, status: "skipped", detail: "never traded, nothing held" });
+          const snap = snaps.get(week.accountId) || null;
+          // AN ACCOUNT IS NOT SKIPPED FOR NOT TRADING. The owner: *"As long as
+          // the account is connected, they should receive a weekly digest
+          // email."* The only thing that sends nothing now is an account the
+          // broker reports as holding nothing, with no orders working and no
+          // trades in the week -- and even that is still sent in owner mode,
+          // where coverage is what is being audited.
+          const nothingAtAll =
+            week.quiet && (!snap || !snap.read || snap.empty);
+          if (nothingAtAll && mode !== "owner") {
+            results.push({ userId, accountId: week.accountId, status: "skipped", detail: "nothing held, nothing traded" });
             continue;
           }
 
-          const { subject, html, text } = renderAccountWeek(week, win, {
+          const { subject, html, text } = renderAccountWeek(week, win, snap, {
             appUrl: APP_URL,
             previewFor: mode === "owner" ? (theirEmail || userId) : null,
             unsubscribeUrl: mode === "users" ? `${APP_URL}/settings?email=off` : null
