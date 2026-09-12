@@ -17,6 +17,7 @@ import OpenBookPanel from "@/components/analysis/OpenBookPanel";
 import OpenOptionsPanel from "@/components/analysis/OpenOptionsPanel";
 import ViewSwitch from "@/components/analysis/ViewSwitch";
 import { openBook, openOptions, openMark, premiumOnly, realizedShares, orphanedShares } from "@/lib/openBook";
+import { analysisHeadline } from "@/lib/headline";
 import { dailySeries, bookedCurve } from "@/lib/equityCurve";
 
 export default function AccountAnalysis() {
@@ -116,18 +117,27 @@ export default function AccountAnalysis() {
     [trades, strategy]
   );
 
-  // What the page was narrowed BY, said in the empty state so an account with
-  // trades is never told it has none. Both halves are optional and either can
-  // be the one that emptied it.
-  const narrowedLabel = useMemo(() => {
-    const where = strategy === "all" ? "" : ` in ${strategyLabel(strategy).toLowerCase()}`;
-    const when =
-      range.from && range.to ? ` between ${range.from} and ${range.to}`
-        : range.from ? ` on or after ${range.from}`
-          : range.to ? ` on or before ${range.to}`
-            : "";
-    return `${where}${when}`;
-  }, [strategy, range]);
+  // What the page is narrowed BY — the two controls, kept apart.
+  //
+  // Two things read this and they need different halves of it, which is why it
+  // is not one string. The empty state wants them joined into a phrase; the
+  // headline wants to know WHICH control is narrowing, because a date range and
+  // a strategy tab exclude the open book for entirely different reasons.
+  const narrowing = useMemo(
+    () => ({
+      strategy: strategy === "all" ? null : strategyLabel(strategy).toLowerCase(),
+      when:
+        range.from && range.to ? `between ${range.from} and ${range.to}`
+          : range.from ? `on or after ${range.from}`
+            : range.to ? `on or before ${range.to}`
+              : null
+    }),
+    [strategy, range]
+  );
+  // The same two, joined, for the empty state: "Nothing closed in covered calls
+  // between 2026-09-05 and 2026-09-12."
+  const narrowedLabel =
+    `${narrowing.strategy ? ` in ${narrowing.strategy}` : ""}${narrowing.when ? ` ${narrowing.when}` : ""}`;
 
   // 2. The shares still held, and what they are worth now.
   //
@@ -281,17 +291,28 @@ export default function AccountAnalysis() {
     () => orphanedShares(data?.stockLots, allTrades),
     [data, allTrades]
   );
-  const wholeUnknown = !stats || !scoped || (hasOpen && liveMark === null);
-  const headlineFigure =
-    view === "premium" ? premiumFigure : wholeUnknown ? null : stats?.totalPL ?? null;
-  const headlineUnknown = view === "premium" ? false : wholeUnknown;
-  const withheldNote = !headlineUnknown
-    ? null
-    : !scoped
-      ? "No whole-account total while a strategy tab or date range is set — the shares are held today, and adding them to a filtered figure would answer nothing."
-      : book.unrealized === null && book.lots > 0
-        ? "Part of the share book has no price. See the shares below."
-        : "The broker returned no value for an open option leg. See the positions below.";
+  // The headline, and what it is allowed to claim. See src/lib/headline.js for
+  // why this stopped being a dash: the mark cannot be filtered, but the booked
+  // total can, and the honest answer is to show the booked total under a label
+  // that says "booked" rather than to withhold the only number there is.
+  //
+  // The one refinement the shared helper cannot make is WHICH part of the open
+  // book has no price, so that sentence is appended here where the book is.
+  const headline = analysisHeadline({
+    view,
+    stats,
+    premium: premiumFigure,
+    hasOpen,
+    liveMark,
+    narrowing
+  });
+  const unpricedDetail =
+    hasOpen && liveMark === null
+      ? book.unrealized === null && book.lots > 0
+        ? " Part of the share book has no price."
+        : " The broker returned no value for an open option leg."
+      : "";
+  const headlineNote = headline.note ? `${headline.note}${unpricedDetail}` : null;
 
   if (loading) {
     return (
@@ -403,9 +424,10 @@ export default function AccountAnalysis() {
                 <ViewSwitch
                   value={view}
                   onChange={setView}
-                  figure={headlineFigure}
-                  figureUnknown={headlineUnknown}
-                  withheldNote={withheldNote}
+                  figure={headline.figure}
+                  figureLabel={headline.label}
+                  note={headlineNote}
+                  marked={view === "premium" || Boolean(stats?.includesUnrealized)}
                 />
                 {/* The one thing the switch does NOT change, said plainly.
                     Everything else on this page now recomputes; credit capture
