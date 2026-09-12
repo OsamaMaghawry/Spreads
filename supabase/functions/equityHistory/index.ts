@@ -303,7 +303,16 @@ async function rebuild(admin, account, userId: string) {
 
   const closes = closesByDay(bars);
   const { collided, splitFrom } = priceProblems(bars);
-  const brokerDays = equityDays(history);
+  // `skippedWeekend` is a tripwire on the stamping this reads, not a routine
+  // filter — see equityDays. With the session mapping correct it is always 0,
+  // so anything else is worth a line in the function log before the run that
+  // shortened the series is forgotten.
+  const { days: brokerDays, skippedWeekend } = equityDays(history);
+  if (skippedWeekend) {
+    console.warn(
+      `equityHistory: ${skippedWeekend} broker entries mapped onto a weekend for account ${account.id} and were dropped — the 1D stamping may have changed.`
+    );
+  }
   const equityByDay = new Map(brokerDays.map((r) => [r.day, r]));
 
   // TICKERS THE LEDGER AND THE BROKER DISAGREE ABOUT.

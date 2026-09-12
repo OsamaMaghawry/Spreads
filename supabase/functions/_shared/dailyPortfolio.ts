@@ -112,18 +112,79 @@ export interface PortfolioHistory {
 
 // The session date a daily entry belongs to.
 //
-// Alpaca stamps a 1D entry either at the US close (20:00/21:00 UTC) or at
-// midnight Eastern (04:00/05:00 UTC). Both fall on the same UTC calendar day as
-// the session, so the UTC date is the session date under either stamping and no
-// timezone table is needed. Seconds, not milliseconds — multiplying is the
-// whole conversion, and getting it backwards puts every point in 1970, which is
-// why this is a named function with a test rather than an inline expression.
+// THE DEFECT THIS EXISTS FOR, and it ran in production for as long as the table
+// has existed. This function used to take the UTC calendar date of the stamp,
+// under a comment asserting that both of Alpaca's stampings "fall on the same
+// UTC calendar day as the session". The second one does not. Alpaca stamps a 1D
+// entry at MIDNIGHT EASTERN FOLLOWING the session — 04:00 UTC in daylight time,
+// 05:00 in standard — which is the next UTC calendar day. So every row this
+// table has ever written was labelled one session late.
+//
+// It is visible in the stored data without reference to any broker. On staging,
+// 204 rows carried days running Tuesday to Saturday and never a Monday: Friday's
+// session stamped Saturday, Monday's stamped Tuesday, all the way along. The
+// week of 7 September proves the shift end to end — Labor Day is a holiday, so
+// there is no session to stamp on Tuesday the 8th, and the table has no row that
+// day while it has one on Saturday the 12th.
+//
+// What it cost the reader: a Monday-to-Friday window measured the previous
+// Friday through Thursday, so the weekly email and the Analysis chart both drew
+// a week shifted one session at BOTH ends. The owner found it from the figures
+// alone — *"the performance is contradicting. How the account lost 500+ in an
+// area and overall 600+"* — which is exactly the shape of an interval whose two
+// endpoints come from different weeks.
+//
+// THE RULE. New York, not UTC, decides the date, and an entry stamped before the
+// opening bell belongs to the session that has already ENDED rather than to the
+// one that has not begun. The close stamping (16:00 Eastern) is unaffected by
+// the second clause and lands on its own date, so one rule reads both.
+//
+// Seconds, not milliseconds — multiplying is the whole conversion, and getting
+// it backwards puts every point in 1970, which is why this is a named function
+// with a test rather than an inline expression.
+const EASTERN = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  hourCycle: "h23"
+});
+
+// The wall clock in New York, which is the only clock the US session runs on.
+// `formatToParts` rather than parsing a formatted string: the layout of a
+// formatted date is a locale's business and can change, the part names cannot.
+function easternWallClock(d: Date) {
+  const parts: Record<string, string> = {};
+  for (const p of EASTERN.formatToParts(d)) parts[p.type] = p.value;
+  return {
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+    // `h23` still emits "24" for midnight in some implementations.
+    hour: Number(parts.hour) % 24
+  };
+}
+
 export function sessionDay(unixSeconds: number): string | null {
   if (!Number.isFinite(unixSeconds) || unixSeconds <= 0) return null;
   const d = new Date(unixSeconds * 1000);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
+  const { year, month, day, hour } = easternWallClock(d);
+  // The bell is 09:30. Anything before nine in the morning in New York is an
+  // end-of-session stamp that has rolled past midnight, not the start of a
+  // session that has yet to open.
+  const at = Date.UTC(year, month - 1, day) - (hour < 9 ? 86400000 : 0);
+  return new Date(at).toISOString().slice(0, 10);
 }
+
+// A weekday, by the calendar. Not a trading calendar — it knows nothing about
+// holidays — and it is not used to decide what a session is. It is a tripwire:
+// see `equityDays`.
+const isWeekend = (isoDay: string): boolean => {
+  const dow = new Date(isoDay + "T12:00:00Z").getUTCDay();
+  return dow === 0 || dow === 6;
+};
 
 /**
  * The broker's own end-of-day account value, per day, oldest first.
@@ -139,6 +200,15 @@ export function sessionDay(unixSeconds: number): string | null {
  *     the bottom and render the first deposit as an infinite gain.
  *   - Duplicate days, last wins: a re-read of a session that has since settled
  *     is more correct than the first read of it.
+ *   - Any entry that maps onto a Saturday or a Sunday. The US market does not
+ *     open on those days, so such an entry is proof that the stamping this
+ *     reads has changed under us rather than evidence about the account, and a
+ *     session day is the one thing in this file that everything else is keyed
+ *     by. This is insurance and nothing more: with `sessionDay` correct it
+ *     never fires, and it is here because the same class of error — a stamp
+ *     read as a date it is not — silently mislabelled every row in the table
+ *     for as long as the table existed. `skippedWeekend` counts them, so a
+ *     rebuild that starts dropping days says so instead of quietly shrinking.
  */
 export function equityDays(history: PortfolioHistory | null) {
   const stamps = Array.isArray(history?.timestamp) ? history!.timestamp! : [];
@@ -148,10 +218,12 @@ export function equityDays(history: PortfolioHistory | null) {
 
   const byDay = new Map<string, { day: string; equity: number; profit_loss: number | null; base_value: number | null }>();
   let funded = false;
+  let skippedWeekend = 0;
 
   for (let i = 0; i < stamps.length; i++) {
     const d = sessionDay(Number(stamps[i]));
     if (!d) continue;
+    if (isWeekend(d)) { skippedWeekend++; continue; }
     const value = num(equity[i]);
     if (value === null) continue;
     if (!funded) {
@@ -161,7 +233,10 @@ export function equityDays(history: PortfolioHistory | null) {
     byDay.set(d, { day: d, equity: value, profit_loss: num(pl[i]), base_value: base });
   }
 
-  return [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day));
+  return {
+    days: [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day)),
+    skippedWeekend
+  };
 }
 
 /**
