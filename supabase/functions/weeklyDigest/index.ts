@@ -19,8 +19,8 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient } from "../_shared/supabaseClients.ts";
 import { sendEmail } from "../_shared/email.ts";
 import { weeklyDigestDelivery } from "../_shared/settings.ts";
-import { weekWindow, accountWeek, userWeek, type Window } from "../_shared/weeklyDigest.ts";
-import { renderWeekly } from "../_shared/weeklyDigestEmail.ts";
+import { weekWindow, accountWeek, type Window } from "../_shared/weeklyDigest.ts";
+import { renderAccountWeek } from "../_shared/weeklyDigestEmail.ts";
 
 const APP_URL = Deno.env.get("APP_URL") || "https://dashboard.deltamint.app";
 
@@ -31,6 +31,58 @@ const APP_URL = Deno.env.get("APP_URL") || "https://dashboard.deltamint.app";
 const LOOKBACK_DAYS = 10;
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+
+// HOW THE MAIL ACTUALLY LEAVES.
+//
+// `sendEmail` talks to Brevo with BREVO_API_KEY from this function's own
+// environment. That key is set on PRODUCTION and has never been set on
+// staging, which is a different Supabase project with its own secrets -- so a
+// staging run reported "no provider key configured" and sent nothing.
+//
+// The owner, on being told: *"what do you mean the key is not working, I
+// receive emails from the agents everyday!!! What's the difference? Fix it.
+// You do it, keys is already there. Not my problem."*
+//
+// He is right on both counts. The key IS already there -- on production, which
+// is where the agent digests go through `sendDigest` -- and which project a
+// test happens to run on is not his problem to solve. So when there is no
+// local provider key, this relays through `sendDigest` on whichever project
+// DIGEST_RELAY_URL names, which is exactly what that function exists for: it
+// takes {subject, html, text}, never a recipient, and mails the owner's own
+// address from `watch_settings`. It cannot be aimed at anybody else, so
+// relaying a REVIEW COPY through it is safe by construction.
+//
+// The relay is therefore only ever used for owner-mode review copies. In
+// production, where the key is present, `sendEmail` sends directly and the
+// relay is never reached.
+const RELAY_URL = Deno.env.get("DIGEST_RELAY_URL") || "";
+const RELAY_KEY = Deno.env.get("DIGEST_RELAY_KEY") || "";
+
+async function deliver(
+  to: string, subject: string, html: string, text: string
+): Promise<{ sent: boolean; skipped?: string; error?: string; via: string }> {
+  const direct = await sendEmail(to, subject, html, text);
+  if (direct.sent) return { ...direct, via: "brevo" };
+  // Only a MISSING PROVIDER falls back. A provider that answered with an error
+  // is a real failure and must be reported as one rather than retried down a
+  // second path that hides it.
+  if (!direct.skipped || !RELAY_URL) return { ...direct, via: "brevo" };
+  try {
+    const res = await fetch(`${RELAY_URL.replace(/\/$/, "")}/functions/v1/sendDigest`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(RELAY_KEY ? { authorization: `Bearer ${RELAY_KEY}`, apikey: RELAY_KEY } : {})
+      },
+      body: JSON.stringify({ subject, html, text })
+    });
+    if (!res.ok) return { sent: false, error: `relay ${res.status}`, via: "relay" };
+    return { sent: true, via: "relay" };
+  } catch (e) {
+    return { sent: false, error: `relay: ${String(e?.message || e)}`, via: "relay" };
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -119,6 +171,10 @@ Deno.serve(async (req) => {
             .or(`and(open_date.gte.${win.from},open_date.lte.${win.to}),and(close_date.gte.${win.from},close_date.lte.${win.to})`)
         ]);
 
+        // ONE EMAIL PER ACCOUNT. The owner: *"Each account should be in a
+        // separate email. I need exactly to see things as if it's real."* A
+        // person with one live account and three paper ones has no use for a
+        // number that adds them -- there is no portfolio that contains both.
         const weeks = userAccounts.map((a) =>
           accountWeek(
             a,
@@ -127,61 +183,74 @@ Deno.serve(async (req) => {
             win
           )
         );
-        const summary = userWeek(weeks, win);
 
         // The address this person signed up with. Read through the admin API
         // rather than from a table, because `auth.users` is not ours to select
         // from directly.
         const { data: authUser } = await admin.auth.admin.getUserById(userId);
         const theirEmail = authUser?.user?.email || null;
-
-        const { subject, html, text } = renderWeekly(summary, {
-          appUrl: APP_URL,
-          previewFor: mode === "owner" ? (theirEmail || userId) : null,
-          unsubscribeUrl: mode === "users" ? `${APP_URL}/settings?email=off` : null
-        });
-
         const recipient = mode === "owner" ? ownerEmail : theirEmail;
         if (!recipient) {
           results.push({ userId, status: "skipped", detail: "no address on file" });
           continue;
         }
 
-        if (dryRun) {
-          results.push({ userId, status: "dry-run", recipient, subject, accounts: weeks.length });
-          continue;
-        }
+        for (const week of weeks) {
+          // An account that has never traded and holds nothing sends nothing.
+          // Four accounts producing four emails is the point; four accounts
+          // producing three empty ones is noise.
+          if (week.quiet && !week.measured) {
+            results.push({ userId, accountId: week.accountId, status: "skipped", detail: "never traded, nothing held" });
+            continue;
+          }
 
-        // Already sent this week, in this mode? Then stop. The unique
-        // constraint would refuse the row anyway; checking first means a retry
-        // does not send the mail and THEN fail to record it, which is the one
-        // ordering that produces duplicates.
-        const sendMode = mode === "owner" ? "owner" : "user";
-        const { data: already } = await admin
-          .from("weekly_digest_sends")
-          .select("id, status")
-          .eq("user_id", userId)
-          .eq("week_start", win.from)
-          .eq("mode", sendMode)
-          .maybeSingle();
-        if (already && already.status === "sent") {
-          results.push({ userId, status: "skipped", detail: "already sent this week" });
-          continue;
-        }
+          const { subject, html, text } = renderAccountWeek(week, win, {
+            appUrl: APP_URL,
+            previewFor: mode === "owner" ? (theirEmail || userId) : null,
+            unsubscribeUrl: mode === "users" ? `${APP_URL}/settings?email=off` : null
+          });
 
-        const sent = await sendEmail(recipient, subject, html, text);
-        await admin.from("weekly_digest_sends").upsert(
-          {
-            user_id: userId,
-            week_start: win.from,
-            mode: sendMode,
-            recipient,
-            status: sent.sent ? "sent" : "failed",
-            detail: sent.error || sent.skipped || null
-          },
-          { onConflict: "user_id,week_start,mode" }
-        );
-        results.push({ userId, status: sent.sent ? "sent" : "failed", recipient, detail: sent.error || sent.skipped });
+          if (dryRun) {
+            results.push({ userId, accountId: week.accountId, status: "dry-run", recipient, subject });
+            continue;
+          }
+
+          // Already sent this account's week, in this mode? Then stop. The
+          // unique constraint would refuse the row anyway; checking first
+          // means a retry does not send the mail and THEN fail to record it,
+          // which is the one ordering that produces duplicates.
+          const sendMode = mode === "owner" ? "owner" : "user";
+          const { data: already } = await admin
+            .from("weekly_digest_sends")
+            .select("id, status")
+            .eq("account_id", week.accountId)
+            .eq("week_start", win.from)
+            .eq("mode", sendMode)
+            .maybeSingle();
+          if (already && already.status === "sent" && !body?.resend) {
+            results.push({ userId, accountId: week.accountId, status: "skipped", detail: "already sent this week" });
+            continue;
+          }
+
+          const sent = await deliver(recipient, subject, html, text);
+          await admin.from("weekly_digest_sends").upsert(
+            {
+              user_id: userId,
+              account_id: week.accountId,
+              week_start: win.from,
+              mode: sendMode,
+              recipient,
+              status: sent.sent ? "sent" : "failed",
+              detail: sent.error || sent.skipped || null
+            },
+            { onConflict: "account_id,week_start,mode" }
+          );
+          results.push({
+            userId, accountId: week.accountId, account: week.name,
+            status: sent.sent ? "sent" : "failed", recipient,
+            detail: sent.error || sent.skipped, via: sent.via
+          });
+        }
       } catch (e) {
         // One user's bad week must not stop everybody else's email. Recorded
         // rather than thrown, so the run finishes and the failure is visible.

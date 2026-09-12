@@ -1,7 +1,24 @@
-// Turning one person's week into the email they receive.
+// Turning ONE ACCOUNT'S week into the email it gets.
 //
 // Kept apart from `weeklyDigest.ts` so the FIGURES can be tested without the
 // markup and the MARKUP without a database. Pure: no Deno, no fetch, no env.
+//
+// ONE ACCOUNT, ONE EMAIL. The first build summed every account a person holds
+// into one message with a combined headline. The owner, reading it:
+//
+//   *"Each account should have the premium and stocks moves and then if you
+//   want to mix them all it's okay, but not necessarily as most probably will
+//   be only one live and the rest demo. So no point of summing them all. At
+//   least for now. Most importantly, each account should be having the
+//   information. [...] Each account should be in a separate email. I need
+//   exactly to see things as if it's real."*
+//
+// He is right, and the reason is not only presentation. A person holding one
+// live account and three paper ones has no use for a number that adds them --
+// there is no portfolio that contains both, and the combined figure describes
+// nothing anybody owns. Worse, it was the figure in the subject line. Per
+// account, every number in the email is about one real book, and the paper
+// label sits on the whole message rather than on a block inside it.
 //
 // WHY IT IS TABLES AND INLINE STYLES. Mail clients are not browsers. Outlook
 // renders with Word's engine, Gmail strips <style> blocks on forwards, and
@@ -15,11 +32,11 @@
 // WHAT THIS EMAIL MAY NOT DO. Compliance rules 5 and 6. It reports; it never
 // advises. No position is called good or bad, nothing is ranked, no action is
 // suggested, and no figure is projected forward. A paper account is labelled
-// simulated in the subject line, the header and beside every one of its
-// numbers, because this is the one place the product's figures leave the
-// product and land somewhere they can be quoted without their context.
+// simulated in the subject line, the header and the footer, because this is
+// the one place the product's figures leave the product and land somewhere
+// they can be quoted without their context.
 
-import type { UserWeek, AccountWeek } from "./weeklyDigest.ts";
+import type { AccountWeek, Window } from "./weeklyDigest.ts";
 
 const BRAND = {
   bg: "#F6F5FB",
@@ -92,221 +109,169 @@ const panel = (title: string, inner: string, subtitle = "") => `
     </td></tr>
   </table>`;
 
-// The one number at the top. Its LABEL carries what it counts, because a
-// figure this size is the thing that gets quoted on its own.
-const hero = (w: UserWeek) => {
-  const t = w.hasLive ? w.live : w.paper;
-  const paperOnly = !w.hasLive;
-  const v = t.performance;
-  return `
+// The one number at the top, and it is THIS ACCOUNT's. Its label carries what
+// it counts, because a figure this size is the thing that gets quoted alone.
+const hero = (a: AccountWeek) => `
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.panel};border:1px solid ${BRAND.line};border-radius:12px;margin:0 0 16px;">
     <tr><td style="padding:24px 20px;text-align:center;">
       <div style="font:700 12px ${FONT};letter-spacing:.08em;text-transform:uppercase;color:${BRAND.sub};">
-        Your positions this week${paperOnly ? " (simulated)" : ""}
+        This account's week${a.isPaper ? " (simulated)" : ""}
       </div>
-      <div style="font:700 38px ${FONT};color:${colourFor(v)};margin:8px 0 4px;letter-spacing:-.02em;">
-        ${esc(money(v, true))}
+      <div style="font:700 38px ${FONT};color:${colourFor(a.performance)};margin:8px 0 4px;letter-spacing:-.02em;">
+        ${esc(money(a.performance, true))}
       </div>
-      <div style="font:400 12px ${FONT};color:${BRAND.sub};line-height:1.6;max-width:420px;margin:0 auto;">
-        ${v === null
-          ? "Part of the book could not be valued this week, so there is no whole-account figure. The parts that could be are below."
-          : "Option legs closed, shares sold, and the change in what is still open — all of it, measured from last Friday's close to this one."}
+      <div style="font:400 12px ${FONT};color:${BRAND.sub};line-height:1.6;max-width:430px;margin:0 auto;">
+        ${a.performance === null
+          ? (a.measured
+              ? "Part of this book could not be valued this week, so there is no whole-account figure. The parts that could be are below."
+              : "We are still building this account's day-by-day history, so there is no figure for the week yet. Anything it traded is below.")
+          : "Option legs closed, shares sold, and the change in what is still open — measured from the previous Friday's close to this one."}
       </div>
     </td></tr>
   </table>`;
-};
 
-const premiumPanel = (w: UserWeek) => {
-  const t = w.hasLive ? w.live : w.paper;
-  return panel(
+// PREMIUM AND STOCK SIDE BY SIDE, per account, which is the owner's first ask:
+// "each account should have the premium and stocks moves".
+const premiumPanel = (a: AccountWeek) =>
+  panel(
     "Premium",
     [
-      row("Collected on positions opened", money(t.premiumCollected), t.premiumCollected > 0 ? BRAND.positive : BRAND.text,
+      row("Collected on positions opened", money(a.premium.collected),
+        a.premium.collected > 0 ? BRAND.positive : BRAND.text,
         "Cash taken in when you sold to open this week."),
-      row("Paid to close positions", money(t.premiumPaidToClose), t.premiumPaidToClose > 0 ? BRAND.negative : BRAND.text,
+      a.premium.paidToOpen > 0
+        ? row("Paid to open bought positions", money(a.premium.paidToOpen), BRAND.negative,
+            "Debit paid where you bought rather than sold.")
+        : "",
+      row("Paid to close positions", money(a.premium.paidToClose),
+        a.premium.paidToClose > 0 ? BRAND.negative : BRAND.text,
         "What buying positions back cost. Nothing on a leg that expired."),
-      row("Kept on what closed", money(t.premiumKept, true), colourFor(t.premiumKept),
+      row("Kept on what closed", money(a.premium.kept, true), colourFor(a.premium.kept),
         "The option legs' own result on trades that closed this week — credits taken less debits paid.")
     ].join(""),
-    "Cash in and cash out are separate from the outcome: a credit taken this week on a position that is still open has not been kept yet."
+    "Cash in and cash out are separate from the outcome: a credit taken this week on a position still open has not been kept yet."
   );
-};
 
-const portfolioPanel = (w: UserWeek) => {
-  // Measured accounts only. An account with no stored history for the week is
-  // not an account that could not be valued -- it is one nobody has opened --
-  // and letting it null these totals would tell a reader their whole portfolio
-  // was unreadable because of an empty account they connected once. It is
-  // named instead, by `unmeasuredNote` directly below this panel.
-  const measured = w.accounts.filter((a) => a.measured);
-  const accts = measured.filter((a) => !a.isPaper).length ? measured.filter((a) => !a.isPaper) : measured;
-  const equityEnd = accts.reduce<number | null>(
-    (s, a) => (s === null || a.equityEnd === null ? null : s + a.equityEnd), 0
-  );
-  const equityChange = accts.reduce<number | null>(
-    (s, a) => (s === null || a.equityChange === null ? null : s + a.equityChange), 0
-  );
-  const shares = accts.reduce<number | null>(
-    (s, a) => (s === null || a.sharesValue === null ? null : s + a.sharesValue), 0
-  );
-  const sharesMark = accts.reduce<number | null>(
-    (s, a) => (s === null || a.sharesMark === null ? null : s + a.sharesMark), 0
-  );
-  const optionsMark = accts.reduce<number | null>(
-    (s, a) => (s === null || a.optionsMark === null ? null : s + a.optionsMark), 0
-  );
-  return panel(
-    "Your portfolio",
+const stockPanel = (a: AccountWeek) =>
+  panel(
+    "Stock",
     [
-      row("Account value at Friday's close", money(equityEnd), BRAND.text,
-        "Your broker's own figure: cash plus everything held."),
-      row("Change in account value", money(equityChange, true), colourFor(equityChange),
-        "Moves with deposits and withdrawals too, which is why it is not added to anything above."),
-      row("Shares still held", money(shares), BRAND.text, "At Friday's closing price."),
-      row("Shares — move this week", money(sharesMark, true), colourFor(sharesMark),
+      row("Shares still held", money(a.sharesValue), BRAND.text, "At Friday's closing price."),
+      row("Move on shares held this week", money(a.sharesMark, true), colourFor(a.sharesMark),
         "Unrealized. None of it is booked and it moves until you sell."),
-      row("Open option legs — move this week", money(optionsMark, true), colourFor(optionsMark),
+      row("Booked on shares sold", money(a.sharesBooked, true), colourFor(a.sharesBooked),
+        "Realized result of share lots that left the account this week."),
+      row("Move on open option legs", money(a.optionsMark, true), colourFor(a.optionsMark),
         "Unrealized. A short leg's figure is a credit taken against what it would cost to buy back now.")
     ].join("")
   );
-};
+
+const accountPanel = (a: AccountWeek) =>
+  panel(
+    "The account",
+    [
+      row("Account value at Friday's close", money(a.equityEnd), BRAND.text,
+        "Your broker's own figure: cash plus everything held."),
+      row("Change in account value", money(a.equityChange, true), colourFor(a.equityChange),
+        "Moves with deposits and withdrawals too, which is why it is not added to anything above."),
+      row("Positions closed", `${a.closed.count}`, BRAND.text,
+        a.closed.count ? `${a.closed.winners} up, ${a.closed.expired} expired` : ""),
+      row("Positions opened", `${a.opened.count}`, BRAND.text),
+      row("Realized on what closed", money(a.closed.realized, true), colourFor(a.closed.realized),
+        "Option legs and any share result the close delivered.")
+    ].join("")
+  );
 
 const tradeTable = (a: AccountWeek) => {
   if (!a.closed.rows.length) return "";
   const head = `
     <tr>
-      <th align="left" style="font:700 11px ${FONT};color:${BRAND.sub};text-transform:uppercase;letter-spacing:.06em;padding:0 0 6px;border-bottom:1px solid ${BRAND.line};">Closed</th>
-      <th align="left" style="font:700 11px ${FONT};color:${BRAND.sub};text-transform:uppercase;letter-spacing:.06em;padding:0 0 6px;border-bottom:1px solid ${BRAND.line};">How</th>
+      <th align="left" style="font:700 11px ${FONT};color:${BRAND.sub};text-transform:uppercase;letter-spacing:.06em;padding:0 0 6px;border-bottom:1px solid ${BRAND.line};">Position</th>
+      <th align="left" style="font:700 11px ${FONT};color:${BRAND.sub};text-transform:uppercase;letter-spacing:.06em;padding:0 0 6px;border-bottom:1px solid ${BRAND.line};">How it ended</th>
       <th align="right" style="font:700 11px ${FONT};color:${BRAND.sub};text-transform:uppercase;letter-spacing:.06em;padding:0 0 6px;border-bottom:1px solid ${BRAND.line};">Result</th>
     </tr>`;
-  // Biggest movers first, and capped: an email is a summary, and the full
-  // ledger is a click away rather than forty rows deep in an inbox.
   const rows = a.closed.rows
     .slice()
     .sort((x, y) => Math.abs(Number(y.realized_pl) || 0) - Math.abs(Number(x.realized_pl) || 0))
-    .slice(0, 8)
+    .slice(0, 10)
     .map((t) => {
       const pl = Number(t.realized_pl);
       const label = `${t.ticker || ""}${t.short_strike ? ` ${t.short_strike}` : ""}`;
       return `
       <tr>
         <td style="font:400 13px ${FONT};color:${BRAND.text};padding:8px 0;border-bottom:1px solid ${BRAND.line};">${esc(label)}</td>
-        <td style="font:400 12px ${FONT};color:${BRAND.sub};padding:8px 0;border-bottom:1px solid ${BRAND.line};">${esc(t.close_reason === "expired" ? "expired" : "closed")} ${esc(t.close_date ? prettyDate(t.close_date) : "")}</td>
+        <td style="font:400 12px ${FONT};color:${BRAND.sub};padding:8px 0;border-bottom:1px solid ${BRAND.line};">${esc(t.close_reason || "closed")} ${esc(t.close_date ? prettyDate(t.close_date) : "")}</td>
         <td align="right" style="font:600 13px ${FONT};color:${colourFor(Number.isFinite(pl) ? pl : null)};padding:8px 0;border-bottom:1px solid ${BRAND.line};white-space:nowrap;">${esc(money(Number.isFinite(pl) ? pl : null, true))}</td>
       </tr>`;
     })
     .join("");
-  const more = a.closed.rows.length > 8
-    ? `<tr><td colspan="3" style="font:400 11px ${FONT};color:${BRAND.sub};padding:8px 0 0;">and ${a.closed.rows.length - 8} more</td></tr>`
+  const more = a.closed.rows.length > 10
+    ? `<tr><td colspan="3" style="font:400 11px ${FONT};color:${BRAND.sub};padding:8px 0 0;">and ${a.closed.rows.length - 10} more</td></tr>`
     : "";
-  return head + rows + more;
+  return panel("What closed this week", head + rows + more);
 };
 
-const accountPanel = (a: AccountWeek) => {
-  const title = a.isPaper ? `${a.name} — paper` : a.name;
-  const inner = [
-    row("This account's week", money(a.performance, true), colourFor(a.performance)),
-    row("Closed", `${a.closed.count} position${a.closed.count === 1 ? "" : "s"}`, BRAND.text,
-      a.closed.count ? `${a.closed.winners} up, ${a.closed.expired} expired` : ""),
-    row("Opened", `${a.opened.count} position${a.opened.count === 1 ? "" : "s"}`, BRAND.text,
-      a.opened.count ? `${money(a.premium.collected)} collected` : "")
-  ].join("");
-  const trades = tradeTable(a);
-  return panel(
-    title,
-    inner + (trades ? `<tr><td colspan="2" style="padding-top:14px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${trades}</table></td></tr>` : ""),
-    a.isPaper ? "Simulated money. Every figure in this block is practice, not a result." : ""
-  );
-};
-
-// An account with no stored history for the week.
-//
-// After the scheduled rebuild (migration 0037) this is rare and temporary --
-// an account connected since the last nightly run. It is still said plainly,
-// because the alternative readings are both wrong: dragging every total to
-// "—" over one account, or quietly leaving it out of a figure presented as
-// the whole portfolio.
-//
-// THE WORDING IS OURS TO OWN. An earlier draft said these accounts "have no
-// stored day-by-day history", which reads as the reader's omission. Keeping a
-// connected account current is this product's job, so the sentence says the
-// history is still being built rather than implying they failed to open
-// something.
-const unmeasuredNote = (w: UserWeek) => {
-  if (!w.unmeasured.length) return "";
-  const names = w.unmeasured.map((n) => esc(n)).join(", ");
-  const one = w.unmeasured.length === 1;
-  return `
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.panel};border:1px solid ${BRAND.line};border-radius:12px;margin:0 0 16px;">
-    <tr><td style="padding:14px 18px;font:400 12px ${FONT};color:${BRAND.sub};line-height:1.6;">
-      <strong style="color:${BRAND.text};">Not in the portfolio figures above:</strong> ${names}.
-      We are still building ${one ? "this account's" : "these accounts'"} day-by-day history, so ${one ? "it is" : "they are"} left out
-      rather than counted as zero. Trades ${one ? "it" : "they"} closed or opened this week are still included, and
-      ${one ? "it" : "they"} will be in next week's figures.
-    </td></tr>
-  </table>`;
-};
-
-const unpricedNote = (w: UserWeek) => {
-  const all = [...new Set(w.accounts.flatMap((a) => a.unpriced))].sort();
-  if (!all.length) return "";
+const unpricedNote = (a: AccountWeek) => {
+  if (!a.unpriced.length) return "";
   return `
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FDF6E9;border:1px solid #F0E0C0;border-radius:12px;margin:0 0 16px;">
     <tr><td style="padding:14px 18px;font:400 12px ${FONT};color:${BRAND.warning};line-height:1.6;">
-      <strong>Some of the week could not be valued.</strong> ${esc(all.join(", "))} had at least one day with no usable price,
-      so any figure that depends on ${all.length === 1 ? "it" : "them"} shows as ${DASH} rather than as a number we guessed.
+      <strong>Some of the week could not be valued.</strong> ${esc(a.unpriced.join(", "))} had at least one day with no usable price,
+      so any figure that depends on ${a.unpriced.length === 1 ? "it" : "them"} shows as ${DASH} rather than as a number we guessed.
     </td></tr>
   </table>`;
 };
 
 // ---------------------------------------------------------------------------
-// The whole thing
+// One account's email
 // ---------------------------------------------------------------------------
 
-export function renderWeekly(
-  w: UserWeek,
+export function renderAccountWeek(
+  a: AccountWeek,
+  win: Window,
   opts: {
     appUrl?: string;
     // Set when this copy is going to the owner for review rather than to the
-    // person it is about. It is stamped at the TOP, in a colour nothing else
-    // uses, because the one thing that must never happen is the owner reading
+    // person it is about. Stamped at the TOP, in a colour nothing else uses,
+    // because the one thing that must never happen is the owner reading
     // somebody else's account as his own.
     previewFor?: string | null;
     unsubscribeUrl?: string | null;
   } = {}
 ): { subject: string; html: string; text: string } {
   const app = opts.appUrl || "https://dashboard.deltamint.app";
-  const span = `${prettyDate(w.window.from)}–${prettyDate(w.window.to)}`;
-  const t = w.hasLive ? w.live : w.paper;
+  const span = `${prettyDate(win.from)}–${prettyDate(win.to)}`;
 
-  const subject = w.quiet
-    ? `Your week — ${span}: nothing traded`
-    : `Your week — ${span}: ${money(t.performance, true)}${w.hasLive ? "" : " (paper)"}`;
+  // The ACCOUNT NAME leads the subject, because a person with four accounts
+  // now receives four of these and the inbox has to tell them apart at a
+  // glance without opening one.
+  const subject = a.quiet
+    ? `${a.name} — ${span}: nothing traded${a.isPaper ? " (paper)" : ""}`
+    : `${a.name} — ${span}: ${money(a.performance, true)}${a.isPaper ? " (paper)" : ""}`;
 
   const preview = opts.previewFor
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.accent};border-radius:12px;margin:0 0 16px;">
          <tr><td style="padding:14px 18px;font:600 13px ${FONT};color:#FFFFFF;line-height:1.6;">
-           REVIEW COPY — this is the email <strong>${esc(opts.previewFor)}</strong> would receive. It has not been sent to them.
+           REVIEW COPY — this is the email <strong>${esc(opts.previewFor)}</strong> would receive for this account. It has not been sent to them.
          </td></tr>
        </table>`
     : "";
 
-  const body = w.quiet
+  const paperBanner = a.isPaper
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FDF6E9;border:1px solid #F0E0C0;border-radius:12px;margin:0 0 16px;">
+         <tr><td style="padding:12px 18px;font:600 13px ${FONT};color:${BRAND.warning};line-height:1.5;">
+           Paper account — every figure below is simulated, not real money.
+         </td></tr>
+       </table>`
+    : "";
+
+  const body = a.quiet
     ? panel(
         "A quiet week",
         row("Positions closed", "0") + row("Positions opened", "0"),
-        "Nothing opened, nothing closed, and nothing held. The week is recorded as it happened."
+        "Nothing opened, nothing closed, and nothing held in this account. The week is recorded as it happened."
       )
-    : [
-        hero(w),
-        premiumPanel(w),
-        portfolioPanel(w),
-        unmeasuredNote(w),
-        unpricedNote(w),
-        w.accounts.length > 1 || w.hasPaper
-          ? w.accounts.map(accountPanel).join("")
-          : w.accounts.map((a) => (a.closed.rows.length ? accountPanel(a) : "")).join("")
-      ].join("");
+    : [hero(a), premiumPanel(a), stockPanel(a), accountPanel(a), unpricedNote(a), tradeTable(a)].join("");
 
   const html = `
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.bg};padding:24px 12px;">
@@ -314,10 +279,12 @@ export function renderWeekly(
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;">
       <tr><td style="padding:0 0 18px;">
         <div style="font:700 20px ${FONT};color:${BRAND.text};letter-spacing:-.02em;">DeltaMint</div>
+        <div style="font:600 15px ${FONT};color:${BRAND.text};margin-top:6px;">${esc(a.name)}</div>
         <div style="font:400 13px ${FONT};color:${BRAND.sub};margin-top:2px;">Your week, ${esc(span)}</div>
       </td></tr>
       <tr><td>
         ${preview}
+        ${paperBanner}
         ${body}
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
           <tr><td align="center" style="padding:6px 0 18px;">
@@ -325,12 +292,12 @@ export function renderWeekly(
           </td></tr>
         </table>
         <div style="font:400 11px ${FONT};color:${BRAND.sub};line-height:1.7;padding:4px 4px 0;">
-          This is a record of your own account, not advice, a recommendation or a signal. Nothing here
+          This is a record of one of your own accounts, not advice, a recommendation or a signal. Nothing here
           tells you what to do next. Figures are reconstructed from your broker's own trade and price
           history and can differ from your broker's statement; your broker's statement is the record.
           Unrealized figures are marks, not money: they move until a position is closed.
-          ${w.hasPaper ? "Paper accounts are simulated and are labelled wherever they appear." : ""}
-          ${opts.unsubscribeUrl ? `<br><a href="${esc(opts.unsubscribeUrl)}" style="color:${BRAND.sub};">Stop receiving this weekly email</a>` : ""}
+          ${a.isPaper ? "This is a paper account and its money is simulated." : ""}
+          ${opts.unsubscribeUrl ? `<br><a href="${esc(opts.unsubscribeUrl)}" style="color:${BRAND.sub};">Stop receiving these weekly emails</a>` : ""}
         </div>
       </td></tr>
     </table>
@@ -339,28 +306,37 @@ export function renderWeekly(
 
   const line = (l: string, v: string) => `${l}: ${v}`;
   const text = [
-    opts.previewFor ? `REVIEW COPY — the email ${opts.previewFor} would receive. Not sent to them.` : "",
-    `DeltaMint — your week, ${span}`,
+    opts.previewFor ? `REVIEW COPY — the email ${opts.previewFor} would receive for this account. Not sent to them.` : "",
+    `DeltaMint — ${a.name}${a.isPaper ? " (paper — simulated money)" : ""}`,
+    `Your week, ${span}`,
     "",
-    w.quiet
-      ? "Nothing opened, nothing closed, and nothing held this week."
+    a.quiet
+      ? "Nothing opened, nothing closed, and nothing held in this account this week."
       : [
-          line("Your positions this week", money(t.performance, true)),
+          line("This account's week", money(a.performance, true)),
           "",
           "PREMIUM",
-          line("  Collected on positions opened", money(t.premiumCollected)),
-          line("  Paid to close positions", money(t.premiumPaidToClose)),
-          line("  Kept on what closed", money(t.premiumKept, true)),
+          line("  Collected on positions opened", money(a.premium.collected)),
+          line("  Paid to close positions", money(a.premium.paidToClose)),
+          line("  Kept on what closed", money(a.premium.kept, true)),
           "",
-          "TRADES",
-          line("  Closed", String(t.closed)),
-          line("  Opened", String(t.opened)),
-          line("  Realized", money(t.realized, true))
+          "STOCK",
+          line("  Shares still held", money(a.sharesValue)),
+          line("  Move on shares held", money(a.sharesMark, true)),
+          line("  Booked on shares sold", money(a.sharesBooked, true)),
+          line("  Move on open option legs", money(a.optionsMark, true)),
+          "",
+          "THE ACCOUNT",
+          line("  Account value at Friday's close", money(a.equityEnd)),
+          line("  Change in account value", money(a.equityChange, true)),
+          line("  Closed", String(a.closed.count)),
+          line("  Opened", String(a.opened.count)),
+          line("  Realized", money(a.closed.realized, true))
         ].join("\n"),
     "",
     app,
     "",
-    "A record of your own account, not advice, a recommendation or a signal.",
+    "A record of one of your own accounts, not advice, a recommendation or a signal.",
     "Your broker's statement is the record. Unrealized figures are marks, not money."
   ]
     .filter((s) => s !== "")

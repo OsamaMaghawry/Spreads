@@ -167,7 +167,7 @@ revoked from the browser role entirely.
 - **subscriptions** — user_id, stripe_customer_id, stripe_subscription_id, plan, status, current_period_end, cancel_at_period_end, grandfathered_until, created_at, updated_at
 - **growth_metrics** — day, search, analytics, funnel, created_at
 - **account_equity_daily** — account_id, user_id, day, equity, profit_loss, base_value, premium_cum, shares_booked, shares_open, shares_cost, shares_value, performance, unpriced, source, captured_at, equity_synced_at, options_open
-- **weekly_digest_sends** — id, user_id, week_start, mode, recipient, status, detail, created_at
+- **weekly_digest_sends** — id, user_id, week_start, mode, recipient, status, detail, created_at, account_id
 - **cron_tickets** — token, purpose, created_at, expires_at, used_at
 
 ## Analytics vocabulary

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { weekWindow, accountWeek, userWeek } from "./weeklyDigest.ts";
-import { renderWeekly, money, DASH } from "./weeklyDigestEmail.ts";
+import { weekWindow, accountWeek } from "./weeklyDigest.ts";
+import { renderAccountWeek, money, DASH } from "./weeklyDigestEmail.ts";
 
 // ---------------------------------------------------------------------------
 // The window
@@ -147,33 +147,17 @@ test("trades outside the window are not in it", () => {
 // Across accounts
 // ---------------------------------------------------------------------------
 
-test("paper and live are never added together", () => {
-  const live = accountWeek(ACCT, ROWS, TRADES, WIN);
-  const paper = accountWeek({ id: "acc-2", name: "Practice", is_paper: true }, ROWS, TRADES, WIN);
-  const w = userWeek([live, paper], WIN);
-  assert.equal(w.live.accounts, 1);
-  assert.equal(w.paper.accounts, 1);
-  assert.equal(w.live.performance, 1553);
-  assert.equal(w.paper.performance, 1553);
-  // Two separate totals, and no third one adding simulated money to real.
-  assert.ok(!("performance" in (w as Record<string, unknown>)));
-});
-
-test("a total containing an unvaluable account is null, not a partial sum", () => {
-  const good = accountWeek(ACCT, ROWS, [], WIN);
-  const bad = accountWeek({ id: "acc-3", name: "Other", is_paper: false }, [ROWS[0], { ...ROWS[2], performance: null }], [], WIN);
-  assert.equal(userWeek([good, bad], WIN).live.performance, null);
-});
-
-// ---------------------------------------------------------------------------
-// The email itself
-// ---------------------------------------------------------------------------
-
+// One account, one email. The helper takes a list only because the tests that
+// predate the split still hand one over; it renders the first, which is the
+// account under test.
 const render = (accounts: ReturnType<typeof accountWeek>[]) =>
-  renderWeekly(userWeek(accounts, WIN), { appUrl: "https://dashboard.deltamint.app" });
+  renderAccountWeek(accounts[0], WIN, { appUrl: "https://dashboard.deltamint.app" });
 
 test("the subject carries the week and the number", () => {
   const { subject } = render([accountWeek(ACCT, ROWS, TRADES, WIN)]);
+  // The ACCOUNT NAME leads it now: a person with four accounts gets four of
+  // these and the inbox has to tell them apart unopened.
+  assert.ok(subject.startsWith("Alton Live — "), subject);
   assert.ok(subject.includes("Sep 7"));
   assert.ok(subject.includes("Sep 11"));
   assert.ok(subject.includes("+$1,553.00"), subject);
@@ -183,6 +167,8 @@ test("a paper-only reader is told so in the subject line", () => {
   const { subject, html } = render([accountWeek({ id: "p", name: "Practice", is_paper: true }, ROWS, TRADES, WIN)]);
   assert.ok(subject.includes("(paper)"), subject);
   assert.ok(html.includes("simulated"));
+  // ...and the whole message is banded, not one block inside it.
+  assert.ok(html.includes("Paper account — every figure below is simulated"));
 });
 
 test("the email never advises", () => {
@@ -202,27 +188,27 @@ test("the email never advises", () => {
 test("an unvaluable week renders a dash and says which ticker cost it", () => {
   const rows = [ROWS[0], { ...ROWS[2], performance: null, unpriced: ["MU"] }];
   const { html } = render([accountWeek(ACCT, rows, TRADES, WIN)]);
+  void 0;
   assert.ok(html.includes(DASH));
   assert.ok(html.includes("MU"));
   assert.ok(/could not be valued/i.test(html));
 });
 
 test("a review copy says whose account it is, at the top", () => {
-  const w = userWeek([accountWeek(ACCT, ROWS, TRADES, WIN)], WIN);
-  const { html } = renderWeekly(w, { previewFor: "someone@example.com" });
+  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, { previewFor: "someone@example.com" });
   assert.ok(html.includes("REVIEW COPY"));
   assert.ok(html.includes("someone@example.com"));
   assert.ok(html.includes("has not been sent to them"));
   // It must be before any figure, or the owner reads another account as his.
-  assert.ok(html.indexOf("REVIEW COPY") < html.indexOf("Your positions this week"));
+  assert.ok(html.indexOf("REVIEW COPY") < html.indexOf("This account's week"));
 });
 
 test("a quiet week is short and does not print a grid of zeroes", () => {
   const empty = accountWeek(ACCT, [{ day: "2026-09-11", performance: 0, equity: 1000, shares_value: 0, options_open: 0 }], [], WIN);
   assert.equal(empty.quiet, true);
   const { subject, html } = render([empty]);
-  assert.ok(subject.includes("nothing traded"));
-  assert.ok(!html.includes("Premium</div>"));
+  assert.ok(subject.includes("nothing traded"), subject);
+  assert.ok(!html.includes(">Premium<"));
 });
 
 test("money formats to the cent, signs only where asked, and dashes a null", () => {
@@ -237,8 +223,7 @@ test("money formats to the cent, signs only where asked, and dashes a null", () 
 });
 
 test("an address is escaped rather than interpolated into the markup", () => {
-  const w = userWeek([accountWeek(ACCT, ROWS, [], WIN)], WIN);
-  const { html } = renderWeekly(w, { previewFor: '"><script>alert(1)</script>' });
+  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, [], WIN), WIN, { previewFor: '"><script>alert(1)</script>' });
   assert.ok(!html.includes("<script>"));
   assert.ok(html.includes("&lt;script&gt;"));
 });
@@ -266,68 +251,38 @@ test("an account with no stored history is not measured, and says so", () => {
   assert.equal(w.premium.collected, 620);
 });
 
-test("an unmeasured account neither nulls the portfolio total nor is added to it", () => {
-  const real = accountWeek(ACCT, ROWS, TRADES, WIN);
-  const never = accountWeek({ id: "never", name: "Alpaca Live (603453690)", is_paper: false }, [], TRADES, WIN);
-  const w = userWeek([real, never], WIN);
-  // The portfolio figure is the measured account's, not a dash.
-  assert.equal(w.live.performance, 1553);
-  assert.equal(w.live.accounts, 1);
-  assert.deepEqual(w.live.unmeasured, ["Alpaca Live (603453690)"]);
-  // The trade figures cover BOTH, because both really traded.
-  assert.equal(w.live.closed, 4);
-  assert.equal(w.live.premiumCollected, 1240);
-});
-
-test("the email names the account it left out of the portfolio figures", () => {
-  const real = accountWeek(ACCT, ROWS, TRADES, WIN);
-  const never = accountWeek({ id: "never", name: "Alpaca Live (603453690)", is_paper: false }, [], TRADES, WIN);
-  const { html } = renderWeekly(userWeek([real, never], WIN), {});
-  assert.ok(html.includes("Not in the portfolio figures above"));
-  assert.ok(html.includes("Alpaca Live (603453690)"));
-  assert.ok(/still building/.test(html), "the gap is ours to own, not the reader's omission");
-  // ...and does not claim the portfolio was unreadable.
-  assert.ok(html.includes("$141,562.00"), "the measured account's value should still show");
-});
 
 // ---------------------------------------------------------------------------
-// Nothing measured is not a flat week
-//
-// Caught on staging in the dry run before the first email was sent. One user's
-// only live account is a dead connection — no trades, no stored history — and
-// all 43 of his trades are in a paper account. The subject line read
-// "+$0.00", which says his live week came to nothing rather than that he had
-// no live week at all, and the account with his actual result in it was
-// buried below.
+// One account, one email
 // ---------------------------------------------------------------------------
 
-const DEAD_LIVE = { id: "dead", name: "Alpaca Live (null)", is_paper: false };
-const PAPER = { id: "pap", name: "Alpaca Paper", is_paper: true };
-
-test("a total over no measured accounts is null, not zero", () => {
-  const dead = accountWeek(DEAD_LIVE, [], [], WIN);
-  const w = userWeek([dead], WIN);
-  assert.equal(w.live.accounts, 0);
-  assert.equal(w.live.performance, null, "an empty list must not reduce to 0");
+test("each account is measured on its own, never pooled", () => {
+  const live = accountWeek(ACCT, ROWS, TRADES, WIN);
+  const paper = accountWeek({ id: "p2", name: "Practice", is_paper: true }, ROWS, TRADES, WIN);
+  // Two accounts, two emails, and neither figure is a sum of the other.
+  const a = renderAccountWeek(live, WIN, {});
+  const b = renderAccountWeek(paper, WIN, {});
+  assert.notEqual(a.subject, b.subject);
+  assert.ok(a.subject.startsWith("Alton Live"));
+  assert.ok(b.subject.startsWith("Practice"));
+  assert.ok(b.subject.includes("(paper)"));
+  assert.ok(!a.subject.includes("(paper)"));
 });
 
-test("a dead live connection does not make the email lead with an empty live week", () => {
-  const dead = accountWeek(DEAD_LIVE, [], [], WIN);
-  const paper = accountWeek(PAPER, ROWS, TRADES, WIN);
-  const w = userWeek([dead, paper], WIN);
-  // Holding a live account is not the test; having been measured or traded is.
-  assert.equal(w.hasLive, false);
-  const { subject } = renderWeekly(w, {});
-  assert.ok(!subject.includes("$0.00"), subject);
-  assert.ok(subject.includes("(paper)"), subject);
-  assert.ok(subject.includes("+$1,553.00"), subject);
+test("premium and stock both appear, per account", () => {
+  // The owner's first ask: "each account should have the premium and stocks
+  // moves". Both blocks, in every non-quiet email.
+  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, {});
+  assert.ok(html.includes(">Premium<"), "premium block missing");
+  assert.ok(html.includes(">Stock<"), "stock block missing");
+  assert.ok(html.includes("Move on shares held this week"));
+  assert.ok(html.includes("Booked on shares sold"));
+  assert.ok(html.includes("Move on open option legs"));
+  assert.ok(html.includes("Collected on positions opened"));
 });
 
-test("a genuinely flat live week still reads as a live week", () => {
-  // Measured, and it came to zero. That IS a result and must not be hidden.
-  const flat = accountWeek(ACCT, [ROWS[0], { ...ROWS[2], performance: 5800 }], [], WIN);
-  const w = userWeek([flat], WIN);
-  assert.equal(w.hasLive, true);
-  assert.equal(w.live.performance, 0);
-  assert.ok(renderWeekly(w, {}).subject.includes("+$0.00"));
+test("a bought position's debit is shown as paid, not hidden", () => {
+  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, {});
+  assert.ok(html.includes("Paid to open bought positions"));
+  assert.ok(html.includes("$450.00"));
 });
