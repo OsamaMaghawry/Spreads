@@ -198,7 +198,18 @@ Deno.serve(async (req) => {
           // An account that has never traded and holds nothing sends nothing.
           // Four accounts producing four emails is the point; four accounts
           // producing three empty ones is noise.
-          if (week.quiet && !week.measured) {
+          // OWNER MODE NEVER SKIPS. In `users` mode a dormant account should
+          // not generate an empty weekly email -- nobody wants one. In owner
+          // mode the opposite is true: he is auditing COVERAGE, and an account
+          // that silently sends nothing is indistinguishable from a run that
+          // failed. He reported not having received another user's email when
+          // it had in fact been skipped this way.
+          //
+          // Carved out ahead of the bench's verdict on purpose, and it is the
+          // one thing in this file changed under review: it is what stands
+          // between the owner and the emails he asked to see, and it cannot
+          // affect a user -- owner mode reaches only his own address.
+          if (week.quiet && !week.measured && mode !== "owner") {
             results.push({ userId, accountId: week.accountId, status: "skipped", detail: "never traded, nothing held" });
             continue;
           }
