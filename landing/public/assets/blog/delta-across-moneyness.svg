@@ -1,0 +1,28 @@
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Three horizontal bars showing the delta of the same hypothetical 50-strike call at three stock prices, each bar drawn against a light track that runs the full range from zero to 1.00. With the stock at 44 the strike is far out of the money and delta is 0.15, filling a small part of the track. With the stock at 50 the strike is at the money and delta is 0.50, filling half the track. With the stock at 56 the strike is deep in the money and delta is 0.85, filling most of the track. Delta rises as the stock rises past the strike.">
+  <rect width="720" height="300" fill="#FFFFFF"/>
+
+  <text x="128" y="80" font-size="15" text-anchor="end" fill="#767B8E">stock</text>
+  <text x="640" y="80" font-size="15" fill="#767B8E">delta</text>
+
+  <!-- stock at 44: delta 0.15 -->
+  <text x="128" y="126" font-size="18" font-weight="600" text-anchor="end" fill="#767B8E">$44</text>
+  <rect x="144" y="106" width="480" height="28" rx="4" fill="#F1F2F6"/>
+  <rect x="144" y="106" width="72" height="28" rx="4" fill="#2E8B5F"/>
+  <text x="640" y="126" font-size="18" font-weight="600" fill="#14151C">0.15</text>
+
+  <!-- stock at 50: delta 0.50 -->
+  <text x="128" y="186" font-size="18" font-weight="600" text-anchor="end" fill="#767B8E">$50</text>
+  <rect x="144" y="166" width="480" height="28" rx="4" fill="#F1F2F6"/>
+  <rect x="144" y="166" width="240" height="28" rx="4" fill="#2E8B5F"/>
+  <text x="640" y="186" font-size="18" font-weight="600" fill="#14151C">0.50</text>
+
+  <!-- stock at 56: delta 0.85 -->
+  <text x="128" y="246" font-size="18" font-weight="600" text-anchor="end" fill="#767B8E">$56</text>
+  <rect x="144" y="226" width="480" height="28" rx="4" fill="#F1F2F6"/>
+  <rect x="144" y="226" width="408" height="28" rx="4" fill="#2E8B5F"/>
+  <text x="640" y="246" font-size="18" font-weight="600" fill="#14151C">0.85</text>
+
+  <!-- scale -->
+  <text x="144" y="278" font-size="13" fill="#767B8E">0</text>
+  <text x="624" y="278" font-size="13" text-anchor="end" fill="#767B8E">1.00</text>
+</svg>
