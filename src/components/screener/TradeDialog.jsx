@@ -33,6 +33,9 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
     accounts.some((a) => a.id === defaultAccountId) ? defaultAccountId : accounts[0]?.id || ""
   );
   const [qty, setQty] = useState(1);
+  // Day unless the user says otherwise -- the conservative of the two, and
+  // what the ticket silently sent before it asked.
+  const [timeInForce, setTimeInForce] = useState("day");
   // Walk by default, except on an order that COSTS money: the walk concedes
   // downward toward the bid, which is meaningless when you are the one paying.
   // OpenPricing hides it there, so the default has to move too or the ticket
@@ -120,7 +123,7 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
       ? `Market order · ${what}.`
       : priceMode === "walk"
         ? `Limit order starting at $${(limitCredit ?? 0).toFixed(2)} credit, conceding toward the bid but never below $${(minCredit ?? 0).toFixed(2)} · ${what}.`
-        : `Limit order resting at $${(limitCredit ?? 0).toFixed(2)} ${priced} — not walked · ${what}.`;
+        : `Limit order resting at $${(limitCredit ?? 0).toFixed(2)} ${priced}, ${timeInForce === "gtc" ? "good til canceled" : "good for the day"} · ${what}.`;
 
   // The spot this scan result was built on travels with every submit and every
   // reprice — see useOpenOrder. Screener rows sit on screen far longer than the
@@ -134,7 +137,8 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
       orderType,
       startCredit: signedNet,
       minCredit,
-      priceMode
+      priceMode,
+      timeInForce
     });
 
   return (
@@ -213,6 +217,8 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
               onCredit={setLimitCredit}
               minCredit={minCredit}
               onMinCredit={setMinCredit}
+              timeInForce={timeInForce}
+              onTimeInForce={setTimeInForce}
               liveQuote={isDebit ? live.debitQuote : live.quote}
             />
 

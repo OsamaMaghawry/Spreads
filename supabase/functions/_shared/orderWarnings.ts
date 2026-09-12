@@ -70,7 +70,10 @@ const nextOpenDay = (now: Date) => {
  * session and queues them for the next one, and this product does not stand
  * between a user and their broker's own rules.
  */
-export function sessionWarning(now: Date = new Date()): OrderWarning | null {
+export function sessionWarning(
+  now: Date = new Date(),
+  order: { orderType?: string; timeInForce?: string } = {}
+): OrderWarning | null {
   const phase = sessionPhase(now);
   if (phase === "open") return null;
 
@@ -80,15 +83,31 @@ export function sessionWarning(now: Date = new Date()): OrderWarning | null {
       : phase === "pre" ? "The session has not opened yet (9:30 AM ET)."
         : "The session closed at 4:00 PM ET.";
 
+  // What happens next depends on the order, and saying "the broker may reject
+  // it under its own rules" for all three was the vague half of this warning.
+  // Alpaca's rules here are specific and knowable:
+  //   MARKET  options market orders are accepted only during the session, so
+  //           this one WILL be rejected.
+  //   DAY     queued for the next session, and it expires at the end of that
+  //           session whether or not it filled.
+  //   GTC     queued, and it stays working until it fills or is cancelled.
+  const fate =
+    order.orderType === "market"
+      ? `A market order is the one kind Alpaca will not take outside the session — this will be ` +
+        `rejected. Set a limit price, or wait for the open (${nextOpenDay(now)}).`
+      : order.timeInForce === "gtc"
+        ? `Good-til-canceled, so it will queue for the open (${nextOpenDay(now)}) and keep working ` +
+          `after that until it fills or you cancel it.`
+        : `A day order will queue for the open (${nextOpenDay(now)}) and expire at the end of that ` +
+          `session if it has not filled. Choose good-til-canceled on the ticket to keep it working.`;
+
   return {
     code: "market_closed",
     severity: "caution",
     title: "The market is closed.",
     detail:
-      `${when} Quotes and the underlying price on this ticket are the last ones the market made, ` +
-      `not live ones, and options do not trade outside the session. The order can still be sent — ` +
-      `the broker will hold it for the open (${nextOpenDay(now)}) or reject it under its own rules — ` +
-      `but nothing will fill until then, and the market may open somewhere else entirely.`
+      `${when} Quotes and the underlying price on this ticket are the last the market made, not live ` +
+      `ones, and the market may open somewhere else entirely. ${fate}`
   };
 }
 

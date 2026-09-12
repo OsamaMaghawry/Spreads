@@ -36,11 +36,12 @@ const MAX_SPOT_DRIFT_PCT = 0.01;
 // one thing worth saying is that the market is shut — which `sessionWarning`
 // says once, rather than every stale-price check saying it badly.
 async function preflight(
-  admin, account, legs, expectedSpot, allowItmShort, qty: number, now = new Date()
+  admin, account, legs, expectedSpot, allowItmShort, qty: number,
+  order: { orderType?: string; timeInForce?: string } = {}, now = new Date()
 ): Promise<OrderWarning[]> {
   const out: OrderWarning[] = [];
   const shut = sessionPhase(now) !== "open";
-  const shutNote = sessionWarning(now);
+  const shutNote = sessionWarning(now, order);
   if (shutNote) out.push(shutNote);
 
   const parsed = legs
@@ -109,8 +110,15 @@ Deno.serve(async (req) => {
       // seconds, and a blanket "they clicked send once" would carry that
       // consent onto a condition that first appeared five minutes later. A
       // code the user has not seen still stops to be seen.
-      acknowledged = []
+      acknowledged = [],
+      // How long the order lives. Alpaca takes `day` and `gtc` on options and
+      // nothing else. It was hardcoded to "day" here and offered nowhere on
+      // the ticket, so an order placed on a Saturday could only ever be a day
+      // order queued for Monday's close -- there was no way to leave one
+      // working, which is exactly what somebody planning over a weekend wants.
+      timeInForce = "day"
     } = await req.json();
+    const tif = timeInForce === "gtc" ? "gtc" : "day";
     if (!accountId || !Array.isArray(legs) || legs.length < 1 || !qty) {
       return jsonResponse({ error: "accountId, legs and qty are required" }, 400);
     }
@@ -145,7 +153,10 @@ Deno.serve(async (req) => {
     // walk away from. 409 rather than 400: the request was well formed and
     // nothing was wrong with it; there is simply something the sender should
     // know first.
-    const warnings = await preflight(admin, account, legs, Number(expectedSpot) || 0, allowItmShort, Number(qty) || 1);
+    const warnings = await preflight(
+      admin, account, legs, Number(expectedSpot) || 0, allowItmShort, Number(qty) || 1,
+      { orderType, timeInForce: tif }
+    );
     const unseen = unacknowledged(warnings, acknowledged);
     if (unseen.length) {
       return jsonResponse({
@@ -178,7 +189,7 @@ Deno.serve(async (req) => {
         qty: String(qty),
         side: leg.side,
         type: orderType,
-        time_in_force: "day",
+        time_in_force: tif,
         position_intent: leg.side === "sell" ? "sell_to_open" : "buy_to_open",
         client_order_id: `${singlePrefix}_OPEN_${Date.now()}`
       };
@@ -193,7 +204,7 @@ Deno.serve(async (req) => {
       order_class: "mleg",
       qty: String(qty),
       type: orderType,
-      time_in_force: "day",
+      time_in_force: tif,
       client_order_id: `${prefix}_OPEN_${Date.now()}`,
       legs: legs.map((l: any) => ({
         symbol: l.symbol,

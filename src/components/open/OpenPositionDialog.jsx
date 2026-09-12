@@ -53,6 +53,7 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
   // Walk is the default here for the same reason it is on the close ticket: it
   // fills more often than a price left to rest. See OpenPricing for why the
   // start and floor default where they do.
+  const [timeInForce, setTimeInForce] = useState("day");
   const [priceMode, setPriceMode] = useState("walk");
   const [limitCredit, setLimitCredit] = useState(null);
   const [minCredit, setMinCredit] = useState(null);
@@ -119,7 +120,8 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
       orderType,
       startCredit: limitCredit,
       minCredit,
-      priceMode
+      priceMode,
+      timeInForce
     });
 
   // What the X and a click outside the dialog do depends on where the order is:
@@ -250,6 +252,8 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
               onCredit={setLimitCredit}
               minCredit={minCredit}
               onMinCredit={setMinCredit}
+              timeInForce={timeInForce}
+              onTimeInForce={setTimeInForce}
               liveQuote={live.quote}
             />
 

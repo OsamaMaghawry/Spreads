@@ -29,9 +29,11 @@ test("a weekend says it is the weekend, not that a price is stale", () => {
   assert.equal(w.code, "market_closed");
   assert.ok(w.detail.includes("It is the weekend."));
   assert.ok(!/minutes old/.test(w.detail));
-  // And it is a warning, never a refusal: Alpaca accepts weekend orders.
+  // And it is a warning, never a refusal: Alpaca accepts weekend orders and
+  // queues them. The detail now says what will happen to THIS order rather
+  // than the vaguer "can still be sent" it used to.
   assert.equal(w.severity, "caution");
-  assert.ok(/can still be sent/.test(w.detail));
+  assert.ok(/queue for the open/.test(w.detail), w.detail);
 });
 
 test("before the bell and after it are told apart", () => {
@@ -160,4 +162,37 @@ test("a condition that appears MID-WALK still stops to be seen", () => {
     { code: "spot_drift", title: "", detail: "", severity: "serious" as const }
   ];
   assert.deepEqual(unacknowledged(now, ["market_closed"]).map((w) => w.code), ["spot_drift"]);
+});
+
+// ---------------------------------------------------------------------------
+// What happens to the order outside the session depends on the order
+//
+// The first version said "the broker will hold it or reject it under its own
+// rules" for every order, which is the vague half of a warning. Alpaca's rules
+// here are specific: options market orders are session-only, a day order
+// queues and then expires at that session's close, and GTC keeps working.
+// ---------------------------------------------------------------------------
+
+test("a market order outside the session is named as one Alpaca will reject", () => {
+  const w = sessionWarning(SATURDAY, { orderType: "market" })!;
+  assert.ok(/will be\s+rejected/.test(w.detail), w.detail);
+  assert.ok(/Set a limit price/.test(w.detail));
+});
+
+test("a day limit order is told it expires at the next close", () => {
+  const w = sessionWarning(SATURDAY, { orderType: "limit", timeInForce: "day" })!;
+  assert.ok(/queue for the open \(Monday\)/.test(w.detail), w.detail);
+  assert.ok(/expire at the end of that/.test(w.detail));
+  // ...and pointed at the control that fixes it.
+  assert.ok(/good-til-canceled on the ticket/.test(w.detail));
+});
+
+test("a GTC order is told it keeps working", () => {
+  const w = sessionWarning(SATURDAY, { orderType: "limit", timeInForce: "gtc" })!;
+  assert.ok(/until it fills or you cancel/.test(w.detail), w.detail);
+  assert.ok(!/expire at the end/.test(w.detail));
+});
+
+test("none of it fires while the session is open", () => {
+  assert.equal(sessionWarning(WED_MIDSESSION, { orderType: "market" }), null);
 });

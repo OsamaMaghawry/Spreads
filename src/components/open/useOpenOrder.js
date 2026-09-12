@@ -190,7 +190,11 @@ export default function useOpenOrder() {
   // "manual" submits the credit the user chose and leaves it resting; "market"
   // takes whatever the book gives.
   async function run(args) {
-    const { accountId, setup, qty, orderType, startCredit, minCredit, priceMode = "walk" } = args;
+    const {
+      accountId, setup, qty, orderType, startCredit, minCredit, priceMode = "walk",
+      // day | gtc. Alpaca takes no other value on an option order.
+      timeInForce = "day"
+    } = args;
     stopRef.current = false;
     genRef.current += 1;
     setLog([]);
@@ -203,6 +207,7 @@ export default function useOpenOrder() {
       legs: orderLegs(setup),
       qty,
       acknowledged: ackRef.current,
+      timeInForce,
       // The spot this setup was built on, sent unchanged on every resubmit. A
       // walk can run for minutes; if the underlying leaves the setup behind, the
       // server refusing is the correct outcome, not an obstacle.

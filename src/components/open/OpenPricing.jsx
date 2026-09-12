@@ -67,12 +67,21 @@ export function openingDefaults(setup) {
   };
 }
 
+// Alpaca takes exactly these two on an option order. Everything else --
+// ioc, fok, opg, cls -- it rejects, so offering them would be offering a
+// rejection.
+export const TIF = [
+  { id: "day", label: "Day", note: "Expires at the close of the next session it reaches." },
+  { id: "gtc", label: "Good til canceled", note: "Keeps working across sessions until it fills or you cancel." }
+];
+
 export default function OpenPricing({
   setup, qty, unit,
   priceMode, onPriceMode,
   credit, onCredit,
   minCredit, onMinCredit,
-  liveQuote = null
+  liveQuote = null,
+  timeInForce = "day", onTimeInForce = null
 }) {
   const { quote: scanQuote, debit } = useMemo(() => openingDefaults(setup), [setup]);
   // The live quote, when the ticket has one, is what the verdict and the chips
@@ -168,8 +177,40 @@ export default function OpenPricing({
         <p className="text-xs text-slate-500 leading-relaxed">
           Market order executes immediately — {debit
             ? "the amount paid may be higher than quoted."
-            : "the credit received may be lower than quoted."}
+            : "the credit received may be lower than quoted."}{" "}
+          Alpaca accepts an options market order only while the session is trading.
         </p>
+      )}
+
+      {/* HOW LONG THE ORDER LIVES, which the ticket never asked and always
+          answered "day". An order placed on a weekend could therefore only
+          ever queue for Monday and expire at Monday's close -- there was no
+          way to leave one working, which is the whole point of planning
+          outside the session. Hidden on a walk, which cancels and resubmits
+          every thirty seconds and so has no use for a life beyond today. */}
+      {onTimeInForce && priceMode !== "walk" && (
+        <div>
+          <label className={label}>How long it stays live</label>
+          <div className="flex rounded-lg overflow-hidden border border-slate-300">
+            {TIF.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => onTimeInForce(t.id)}
+                className={`flex-1 py-2 text-sm transition-colors ${
+                  timeInForce === t.id
+                    ? "bg-emerald-100 text-emerald-700 font-medium"
+                    : "bg-white text-slate-500 hover:text-slate-900"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            {TIF.find((t) => t.id === timeInForce)?.note}
+          </p>
+        </div>
       )}
     </>
   );
