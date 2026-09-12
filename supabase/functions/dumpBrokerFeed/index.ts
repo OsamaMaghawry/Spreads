@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
     // `mint_cron_ticket` are revoked from anon and authenticated -- and it is
     // spent on redemption. Nothing about what this function DOES widens: it
     // still only reads a broker feed into a table revoked from the browser.
-    const byTicket = await redeemCronTicket(admin, (await Promise.resolve(ticket)), "broker_feed_dump");
+    const byTicket = await redeemCronTicket(admin, ticket, "broker_feed_dump");
 
     let user: any = null;
     if (!byTicket) {
