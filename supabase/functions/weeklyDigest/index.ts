@@ -250,32 +250,37 @@ Deno.serve(async (req) => {
 
         for (const week of weeks) {
           // An account that has never traded and holds nothing sends nothing.
-          // Four accounts producing four emails is the point; four accounts
-          // producing three empty ones is noise.
-          // OWNER MODE NEVER SKIPS. In `users` mode a dormant account should
-          // not generate an empty weekly email -- nobody wants one. In owner
-          // mode the opposite is true: he is auditing COVERAGE, and an account
-          // that silently sends nothing is indistinguishable from a run that
-          // failed. He reported not having received another user's email when
-          // it had in fact been skipped this way.
+          // NOTHING IS SKIPPED. A connected account gets its email.
           //
-          // Carved out ahead of the bench's verdict on purpose, and it is the
-          // one thing in this file changed under review: it is what stands
-          // between the owner and the emails he asked to see, and it cannot
-          // affect a user -- owner mode reaches only his own address.
+          // The owner, twice. First: *"As long as the account is connected,
+          // they should receive a weekly digest email."* Then, on being shown
+          // the three accounts this code had decided to leave out: *"Who told
+          // you to take this decision on behalf of me? I decide what is
+          // dormant or not. Send all emails."*
+          //
+          // What stood here skipped an account whose week was quiet AND whose
+          // snapshot came back empty -- OR UNREADABLE. That `!snap.read` is
+          // the part that made the rule indefensible rather than merely
+          // presumptuous: `read` is false when we could not reach the broker,
+          // so an outage on our side silently cancelled somebody's weekly
+          // email, recorded as "nothing held, nothing traded". It is the same
+          // "I could not look" written down as "there is nothing there" that
+          // put an empty option book on every expiry Friday, and it reached
+          // the same conclusion -- a confident statement about a day nobody
+          // had managed to look at.
+          //
+          // Judging an account dormant is a product decision, and it was made
+          // in code, silently, on the one run where it would first affect real
+          // people. The owner's rule is simpler and needs no judgement: the
+          // account is connected, so the email goes.
+          //
+          // A quiet week still renders -- `accountWeek` sets `quiet` and the
+          // email says plainly that nothing opened, nothing closed and nothing
+          // is held. An unreadable account renders too, and `holdingsPanel`
+          // says we could not reach the broker rather than showing an empty
+          // list that reads as "you hold nothing". Both are answers. Silence
+          // was not.
           const snap = snaps.get(week.accountId) || null;
-          // AN ACCOUNT IS NOT SKIPPED FOR NOT TRADING. The owner: *"As long as
-          // the account is connected, they should receive a weekly digest
-          // email."* The only thing that sends nothing now is an account the
-          // broker reports as holding nothing, with no orders working and no
-          // trades in the week -- and even that is still sent in owner mode,
-          // where coverage is what is being audited.
-          const nothingAtAll =
-            week.quiet && (!snap || !snap.read || snap.empty);
-          if (nothingAtAll && mode !== "owner") {
-            results.push({ userId, accountId: week.accountId, status: "skipped", detail: "nothing held, nothing traded" });
-            continue;
-          }
 
           const { subject, html, text } = renderAccountWeek(week, win, snap, {
             appUrl: APP_URL,
