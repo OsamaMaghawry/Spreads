@@ -48,6 +48,7 @@ jobs:
           fi
 
       - name: Publish
+        id: publish
         env:
           SUPABASE_URL: https://yecfbeohyakuoyczvdbj.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -56,3 +57,50 @@ jobs:
           # written but is not actually visible.
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: node scripts/publish-blog.mjs
+
+      # TELL SOMEBODY. The owner, on finding a finished article had sat
+      # unpublished for a day behind a red run nobody was watching: *"THIS IS
+      # NOT ACCEPTABLE ANYMORE. My job is not chasing this."*
+      #
+      # A failed publish is invisible unless someone opens the Actions tab. The
+      # blog is the one part of this product with no user to notice it is
+      # broken -- a trader sees a wrong number, but nobody complains about an
+      # article that never appeared. So the job now says so out loud, through
+      # the same Brevo account the product's own mail goes through.
+      #
+      # `if: failure()` only, and never blocking: a notification that fails
+      # must not turn a successful publish red, which is why the send is
+      # `|| true` and the step carries no credentials beyond the SMTP pair
+      # already used by the digest workflow.
+      - name: Say so when publishing fails
+        if: failure()
+        env:
+          BREVO_SMTP_USER: ${{ secrets.BREVO_SMTP_USER }}
+          BREVO_SMTP_PASS: ${{ secrets.BREVO_SMTP_PASS }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          if [ -z "${BREVO_SMTP_USER:-}" ] || [ -z "${BREVO_SMTP_PASS:-}" ]; then
+            echo "Brevo SMTP credentials not set; cannot send the failure notice." >&2
+            exit 0
+          fi
+          python3 - <<'PY' || true
+          import os, smtplib
+          from email.message import EmailMessage
+          m = EmailMessage()
+          m["Subject"] = "DeltaMint: the blog did not publish"
+          m["From"] = "DeltaMint <support@deltamint.app>"
+          m["To"] = "support@deltamint.app"
+          m.set_content(
+              "The publish-blog job failed, so anything written since the last "
+              "successful run is still not on the blog.\n\n"
+              f"The run, with the reason: {os.environ['RUN_URL']}\n\n"
+              "Nothing is lost — the articles are in the repository. Re-running "
+              "the job republishes them once the cause is fixed.\n"
+          )
+          with smtplib.SMTP("smtp-relay.brevo.com", 587, timeout=20) as s:
+              s.starttls()
+              s.login(os.environ["BREVO_SMTP_USER"], os.environ["BREVO_SMTP_PASS"])
+              s.send_message(m)
+          print("failure notice sent")
+          PY

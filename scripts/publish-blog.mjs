@@ -167,24 +167,55 @@ if (!toWrite.length) {
   process.exit(0);
 }
 
-const res = await fetch(`${url}/rest/v1/blog_posts?on_conflict=slug`, {
-  method: "POST",
-  headers: {
-    apikey: key,
-    Authorization: `Bearer ${key}`,
-    "content-type": "application/json",
-    // merge-duplicates makes this an upsert; without it a re-run 409s on slug.
-    Prefer: "resolution=merge-duplicates,return=representation"
-  },
-  body: JSON.stringify(toWrite)
-});
+// ONE REQUEST PER POST, and that is not a style choice -- it is the defect
+// that took the blog down for a day.
+//
+// PostgREST rejects a bulk insert whose objects do not all carry IDENTICAL
+// keys: `{"code":"PGRST102","message":"All object keys must match"}`. This
+// script deliberately builds two shapes -- a NEW post carries `published_at`,
+// an EDITED one has it deleted so an old article is never re-dated. Send them
+// in one array and the two shapes collide.
+//
+// So the rule added on 12 September to stop re-dating old posts armed a
+// failure that fires the moment one new post and one edit land in the same
+// run. It did, that same afternoon: `option-delta-explained` was refused
+// alongside an edit to `options-bid-ask-spread`, the whole batch 400'd, and
+// NOTHING was written -- the finished article sat in the repo while the blog
+// showed eight posts and the owner asked why it had stopped.
+//
+// Per-post also means one bad row cannot block the others. A new article is no
+// longer hostage to an unrelated edit failing, every failure names its own
+// slug instead of one status code for the batch, and the job still exits
+// non-zero if any post failed, so a partial run can never read as green.
+const written = [];
+const failed = [];
+for (const row of toWrite) {
+  const res = await fetch(`${url}/rest/v1/blog_posts?on_conflict=slug`, {
+    method: "POST",
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      "content-type": "application/json",
+      // merge-duplicates makes this an upsert; without it a re-run 409s on slug.
+      Prefer: "resolution=merge-duplicates,return=representation"
+    },
+    body: JSON.stringify([row])
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    console.error(`publish-blog: ${row.slug} FAILED ${res.status} ${detail}`);
+    failed.push(row.slug);
+    continue;
+  }
+  const [r] = await res.json();
+  written.push(r);
+  console.log(`live  ${r.slug}  status=${r.status}`);
+}
 
-if (!res.ok) {
-  console.error(`publish-blog: ${res.status} ${await res.text()}`);
+if (failed.length) {
+  console.error(`publish-blog: ${failed.length} post(s) failed: ${failed.join(", ")}`);
   process.exit(1);
 }
-const written = await res.json();
-for (const r of written) console.log(`live  ${r.slug}  status=${r.status}`);
 
 // Verify as the public sees it rather than trusting the write. The failure
 // this guards against is a row that exists and is still invisible, which a
