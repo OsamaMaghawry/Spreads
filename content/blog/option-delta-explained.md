@@ -146,8 +146,8 @@ across names and expirations. Both are approximations that change as the stock
 and the calendar do.
 
 It is also the first of the sensitivities the [foundations
-series](/blog/foundations) takes one at a time. What the passage of a day alone
-does to a price comes next.
+series](/blog/foundations) takes one at a time. [What the passage of a day
+alone does to a price](/blog/theta-decay-explained) comes next.
 
 All figures on this page are hypothetical and are there to show the mechanics.
 This post is educational and is not investment advice.
