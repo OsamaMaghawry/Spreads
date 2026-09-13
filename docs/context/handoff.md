@@ -28,7 +28,7 @@ need `npx wrangler deploy` by hand.
 - **Admin panel**: paging fixed (was throwing), real `last_active_at` tracking,
   broker refusals recorded, activation funnel no longer inverts.
 - **positionWatch**: runs every 15 min in-session + one report after close.
-- **Email**: sends through Brevo as `DeltaMint Agents <agents@deltamint.app>`.
+- **Email**: sends through Brevo as `DeltaMint <support@deltamint.app>`.
 
 ## Waiting on the owner
 

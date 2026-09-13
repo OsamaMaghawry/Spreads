@@ -37,11 +37,33 @@ const WIN = { from: "2026-09-07", to: "2026-09-11" };
 const ACCT = { id: "acc-1", name: "Alton Live", is_paper: false };
 
 // Friday before the window, then the week itself.
+//
+// EVERY ROW SATISFIES THE STORED INVARIANT: `performance` is the sum of the
+// other four, which is what `dailyPortfolio` writes
+// (`realized_cum + shares_open + options_open`, and `realized_cum` is
+// `premium_cum + shares_booked`). These three rows did not, for a while: they
+// were written when the line was the THREE, and `options_open` joining the sum
+// on 12 September 2026 left them 100 and 30 short. No assertion here noticed,
+// because every one of them differenced two columns and never added four --
+// which is exactly the blind spot that let the email show three parts of a
+// four-part figure for as long as it did.
 const ROWS = [
-  { day: "2026-09-04", equity: 140000, premium_cum: 5000, shares_booked: 1200, shares_open: -400, shares_value: 36000, options_open: 100, performance: 5800 },
-  { day: "2026-09-07", equity: 140500, premium_cum: 5300, shares_booked: 1200, shares_open: -300, shares_value: 36100, options_open: 110, performance: 6200 },
-  { day: "2026-09-11", equity: 141562, premium_cum: 6100, shares_booked: 1459, shares_open: -206, shares_value: 36544, options_open: 30, performance: 7353 }
+  { day: "2026-09-04", equity: 140000, premium_cum: 5000, shares_booked: 1200, shares_open: -400, shares_value: 36000, options_open: 100, performance: 5900 },
+  { day: "2026-09-07", equity: 140500, premium_cum: 5300, shares_booked: 1200, shares_open: -300, shares_value: 36100, options_open: 110, performance: 6310 },
+  { day: "2026-09-11", equity: 141562, premium_cum: 6100, shares_booked: 1459, shares_open: -206, shares_value: 36544, options_open: 30, performance: 7383 }
 ];
+
+// The invariant itself, asserted once, so a fixture can never drift off it
+// again without a test saying so.
+test("the fixture obeys the stored invariant: performance is the other four", () => {
+  for (const r of ROWS) {
+    assert.equal(
+      r.performance,
+      r.premium_cum + r.shares_booked + r.shares_open + r.options_open,
+      `${r.day} does not add up`
+    );
+  }
+});
 
 test("every portfolio figure is a subtraction between two stored days", () => {
   const w = accountWeek(ACCT, ROWS, [], WIN);
@@ -49,7 +71,7 @@ test("every portfolio figure is a subtraction between two stored days", () => {
   // Monday would silently drop Monday itself.
   assert.equal(w.measuredFrom, "2026-09-04");
   assert.equal(w.measuredTo, "2026-09-11");
-  assert.equal(w.performance, 7353 - 5800);
+  assert.equal(w.performance, 7383 - 5900);
   assert.equal(w.premiumLine, 6100 - 5000);
   assert.equal(w.sharesBooked, 1459 - 1200);
   assert.equal(w.sharesMark, -206 - -400);
@@ -63,7 +85,7 @@ test("an account whose history starts inside the week reports the column itself"
   // cumulative column IS the week's change.
   const w = accountWeek(ACCT, ROWS.slice(1), [], WIN);
   assert.equal(w.measuredFrom, null);
-  assert.equal(w.performance, 7353);
+  assert.equal(w.performance, 7383);
 });
 
 test("a null on either end is null, never a number we did not have", () => {
@@ -166,7 +188,7 @@ test("the subject is one line, and carries no money", () => {
   // figure are the first three things inside.
   assert.ok(html.includes("Alton Live"));
   assert.ok(html.includes("Sep 7"));
-  assert.ok(html.includes("+$1,553.00"));
+  assert.ok(html.includes(money(accountWeek(ACCT, ROWS, TRADES, WIN).performance, true)));
 });
 
 test("a paper-only reader is told so, in the body where it is unmissable", () => {
@@ -183,11 +205,16 @@ test("a paper-only reader is told so, in the body where it is unmissable", () =>
 test("the email never advises", () => {
   const { html, text } = render([accountWeek(ACCT, ROWS, TRADES, WIN)]);
   for (const body of [html, text]) {
-    // Scanned up to the disclosure, which necessarily contains the word
-    // "recommendation" in order to disclaim one. Everything a reader takes as
-    // the product's voice about their positions is before it.
-    assert.ok(/not advice/i.test(body), "the disclosure is missing");
-    const copy = body.split(/not advice/i)[0];
+    // Scanned up to the disclosure, which necessarily contains the words
+    // "recommendation" and "advice" in order to disclaim them. Everything a
+    // reader takes as the product's voice about their positions is before it.
+    //
+    // The marker is the disclaimer's OPENING line rather than a phrase inside
+    // it, so a future rewording of the disclaimer cannot quietly shrink the
+    // region this test scans.
+    const MARK = /DeltaMint is not a broker or a broker-dealer/;
+    assert.ok(MARK.test(body), "the disclosure is missing");
+    const copy = body.split(MARK)[0];
     for (const banned of [/\bshould\b/i, /\bconsider\b/i, /\brecommend/i, /\bsuggest/i, /\bopportunit/i, /\bbuy now\b/i, /\broll\b/i]) {
       assert.ok(!banned.test(copy), `advice-shaped wording in email: ${banned}`);
     }
@@ -341,16 +368,106 @@ test("each account is measured on its own, never pooled", () => {
   assert.ok(!a.html.includes("every figure below is simulated"));
 });
 
-test("premium and stock both appear, per account", () => {
+test("premium and the week's parts both appear, per account", () => {
   // The owner's first ask: "each account should have the premium and stocks
   // moves". Both blocks, in every non-quiet email.
   const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, null, {});
   assert.ok(html.includes(">Premium<"), "premium block missing");
-  assert.ok(html.includes(">Stock<"), "stock block missing");
-  assert.ok(html.includes("Move on shares held"));
+  assert.ok(html.includes(">How the week adds up<"), "breakdown block missing");
+  assert.ok(html.includes("Premium booked in the week"));
   assert.ok(html.includes("Booked on shares sold"));
+  assert.ok(html.includes("Move on shares still held"));
   assert.ok(html.includes("Move in the option book"));
   assert.ok(html.includes("Collected on positions opened"));
+});
+
+// THE OWNER COULD NOT READ THE PANEL THIS REPLACES: *"The attached part is
+// confusing. I don't understand it so for sure it would confuse users."*
+//
+// It showed three of the week's four parts under the heading "Stock" with a
+// caption telling him not to add two of them together -- so the numbers on
+// screen came to something the same email's own headline contradicted.
+//
+// The contract now: every part is shown, and they add to the headline. This
+// test asserts the arithmetic a reader would do by hand.
+test("the week's four parts are all shown and add to the headline", () => {
+  const w = accountWeek(ACCT, ROWS, TRADES, WIN);
+  const parts = [w.premiumLine, w.sharesBooked, w.sharesMark, w.optionsMark] as number[];
+  assert.equal(parts.reduce((a, b) => a + b, 0), w.performance);
+
+  const { html, text } = renderAccountWeek(w, WIN, null, {});
+  // Each part, and the total, as a reader sees them -- in BOTH renderings.
+  for (const v of parts) {
+    assert.ok(html.includes(money(v, true)), `${money(v, true)} missing from html`);
+    assert.ok(text.includes(money(v, true)), `${money(v, true)} missing from text`);
+  }
+  // The label now carries a caption div after it, so match the label alone.
+  assert.ok(/>\s*The week\s*</.test(html), "the total row is missing");
+  assert.ok(/your broker's statement is the total that counts/.test(html),
+    "the record reminder must sit at the total, where the eye lands");
+  assert.ok(html.includes(money(w.performance, true)));
+  assert.ok(text.includes("HOW THE WEEK ADDS UP"));
+  // And the instruction not to add them is gone, because now they add.
+  assert.ok(!html.includes("not added together"));
+});
+
+test("a breakdown that does not reconcile is withheld, not shown wrong", () => {
+  // A stored row whose parts do not make its own `performance` -- the shape
+  // the fixture itself was in before this session. The hero still carries the
+  // week; a four-line breakdown that contradicts it does not run.
+  const broken = [ROWS[0], { ...ROWS[2], options_open: 999 }];
+  const w = accountWeek(ACCT, broken, TRADES, WIN);
+  const { html, text } = renderAccountWeek(w, WIN, null, {});
+  assert.ok(!html.includes(">How the week adds up<"));
+  // AND THE TEXT PART, which is the half the first version of this left
+  // unguarded: it printed the heading over four numbers that did not add to
+  // the total under them -- the owner's own screenshot, reproduced as text,
+  // in the release written to remove it. Gmail's plain-text mode,
+  // policy-stripped Outlook and some screen readers all render this branch.
+  assert.ok(!text.includes("HOW THE WEEK ADDS UP"));
+  // The headline is untouched -- this withholds a breakdown, not a figure.
+  assert.ok(html.includes(money(w.performance, true)));
+});
+
+test("a part that could not be valued withholds the breakdown too", () => {
+  const gap = [ROWS[0], { ...ROWS[2], shares_open: null }];
+  const { html, text } = renderAccountWeek(accountWeek(ACCT, gap, TRADES, WIN), WIN, null, {});
+  assert.ok(!html.includes(">How the week adds up<"));
+  // Text too: three numbers and a dash under a heading promising arithmetic
+  // is the same defect in a different font.
+  assert.ok(!text.includes("HOW THE WEEK ADDS UP"));
+});
+
+// A cent, and it is not a nicety. `dailyPortfolio` rounds the four columns
+// independently and rounds `performance` from the UNROUNDED sum, so the two
+// can disagree by a cent or two per row -- and this panel differences two
+// rows. What the reader adds up must be what the total says.
+test("a part that is a cent off its own headline withholds rather than misprints", () => {
+  const off = [ROWS[0], { ...ROWS[2], options_open: ROWS[2].options_open + 0.01 }];
+  const { html, text } = renderAccountWeek(accountWeek(ACCT, off, TRADES, WIN), WIN, null, {});
+  assert.ok(!html.includes(">How the week adds up<"));
+  assert.ok(!text.includes("HOW THE WEEK ADDS UP"));
+});
+
+// The two premium figures in one email are DIFFERENT figures and must not
+// carry the same claim. `premium_cum` is built with no filter (a withheld
+// row's premium belongs in an account-level sum); the Premium panel's "Kept
+// on what closed" excludes withheld and provisional rows.
+test("the two premium lines are named apart, not stated twice", () => {
+  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, null, {});
+  assert.ok(html.includes("Premium booked in the week"));
+  assert.ok(html.includes("Kept on what closed"));
+  assert.ok(!html.includes("Premium on trades that closed"),
+    "the old label made two different figures the same claim");
+  assert.ok(html.includes("including any trade held back from the figures above"));
+});
+
+// A plain-text reader is told what their shares are worth. `holdingsPanel` is
+// HTML only and `snap` can be null, so without this line the figure appears
+// nowhere in the text rendering at all.
+test("the text email still states what the shares are worth", () => {
+  const { text } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, null, {});
+  assert.ok(text.includes("Shares still held"));
 });
 
 test("a bought position's debit is shown as paid, not hidden", () => {
@@ -415,4 +532,55 @@ test("no snapshot, no invented bars — the stored account panel stands in", () 
   const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, null, {});
   assert.ok(html.includes("The account"), "the lead panel still renders from stored rows");
   assert.ok(!html.includes("Collateral held"), "bars need a broker answer, not a guess");
+});
+
+
+// ---------------------------------------------------------------------------
+// What we are not
+//
+// The owner: *"add on disclaimer of the email that DeltaMint is not a
+// broker/dealer. We don't hold any positions or cash [...] mistakes, bugs,
+// downtime can happen."* Compliance rule 2 is the standing requirement never
+// to imply broker-dealer status, and this is the surface where the product's
+// figures leave the product.
+// ---------------------------------------------------------------------------
+
+test("the email says plainly that DeltaMint is not a broker-dealer", () => {
+  const { html, text } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, null, {});
+  for (const part of [html, text]) {
+    assert.ok(/not a broker or a broker-dealer/.test(part), "the broker-dealer denial is missing");
+    assert.ok(/do not hold your money or your\s+positions/.test(part), "custody denial missing");
+    assert.ok(/not place trades on your behalf/.test(part));
+    assert.ok(/advice, a\s*\n?\s*recommendation or a signal/.test(part), "advice denial missing");
+    assert.ok(/broker's own\s*\n?\s*statement is the record/.test(part));
+    assert.ok(/reconstructed/.test(part));
+    assert.ok(/marks, not money/.test(part));
+    // The owner's own point, and the one most products leave out.
+    // Whitespace-tolerant: the HTML wraps this sentence across source lines.
+    assert.ok(/bug, an outage, a late or\s+corrected/.test(part), "the fallibility line is missing");
+    // Somebody to tell, with the address.
+    assert.ok(part.includes("support@deltamint.app"), "no address to report a wrong number to");
+    // Cut at compliance's request: an unverifiable effort claim sitting
+    // immediately before "can differ" softens the warning it introduces.
+    assert.ok(!/work hard/i.test(part), "the effort claim undercuts the disclaimer");
+    // The broker must be the named executing party in the same clause.
+    assert.ok(/send your own orders to your broker/.test(part));
+  }
+});
+
+test("the disclaimer keeps the brand's words and never names the broker", () => {
+  const { html, text } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, null, {});
+  for (const part of [html, text]) {
+    // `docs/context/brand.md` bans "journal" in favour of Trade History.
+    assert.ok(!/journal/i.test(part), "the brand table bans 'journal'");
+    // Compliance rule 1: the broker is not named outside the places that need it.
+    assert.ok(!/alpaca/i.test(part), "the broker must not be named here");
+  }
+});
+
+test("a paper account's disclaimer says its money is simulated, in both parts", () => {
+  const paper = accountWeek({ id: "p", name: "Practice", is_paper: true }, ROWS, TRADES, WIN);
+  const { html, text } = renderAccountWeek(paper, WIN, null, {});
+  assert.ok(html.includes("its money is simulated"));
+  assert.ok(text.includes("its money is simulated"));
 });

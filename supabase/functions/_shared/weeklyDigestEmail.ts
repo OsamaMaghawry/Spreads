@@ -314,32 +314,134 @@ const premiumPanel = (a: AccountWeek) =>
     "A credit taken on a position still open has not been kept yet."
   );
 
-// TRIMMED, NOT DROPPED. The owner asked for a clean email, and he also asked
-// -- earlier, and it still stands -- that *"each account should have the
-// premium and stocks moves"*. So the row that duplicated the holdings list
-// ("Shares still held", which the list below prints per ticker) is gone and
-// the three WEEK figures stay: a movement across a window is not something
-// any snapshot of today can tell you.
+// THE PANEL THE OWNER COULD NOT READ, AND WHY.
 //
-// The option row's caption is rewritten. It described a LEVEL -- "a credit
-// taken against what it would cost to buy back now" -- while the figure is a
-// DELTA across the window, and since the option book now includes legs that
-// closed during the week it also carries the removal of their opening marks.
-// So a week of profitable closes can print a negative figure here while the
-// same money shows as a gain under Premium. The arithmetic was corrected and
-// the label was left behind; this is the label catching up.
-const stockPanel = (a: AccountWeek) =>
-  panel(
-    "Stock",
+// He sent a screenshot of what stood here and said: *"The attached part is
+// confusing. I don't understand it so for sure it would confuse users."* He
+// was right, and the defect was arithmetic rather than wording.
+//
+// The week has FOUR parts -- premium booked on legs that closed, money booked
+// on shares sold, the move on shares still held, and the move in the option
+// book -- and `performance` is their sum, which is the figure in the hero at
+// the top of the email. The panel showed THREE of them, under the heading
+// "Stock", with a caption telling the reader that two of the three must not be
+// added together. So nothing on screen summed to anything: three of Alton's
+// numbers came to +$2,928.91 against a week the same email had already called
+// +$2,455.91, and the only explanation offered was an instruction not to try.
+//
+// A reader who adds up the numbers in front of them and gets a different
+// answer from the headline concludes the headline is wrong. That is the right
+// conclusion from what was shown.
+//
+// So: all four parts, the missing one included, and the total they make --
+// which is the hero figure, reached a second way. The caption that said not to
+// add them is gone because now they add.
+//
+// ONE GUARD, BOTH PARTS OF THE MESSAGE. The first version of this put the
+// reconciliation check in the HTML and left the plain-text branch printing the
+// same five lines unconditionally -- so the exact defect this release exists
+// to fix would have shipped intact to every reader whose client renders text,
+// which is Gmail's plain-text mode, policy-stripped Outlook, several corporate
+// gateways and some screen readers. A guard that protects one rendering of a
+// figure and not the other is not a guard. Hence `weekParts`: both callers
+// take their numbers from it or render nothing.
+//
+// EXACT AT THE CENT, not within a tolerance. `dailyPortfolio` rounds each of
+// the four columns on its own and rounds `performance` from the UNROUNDED sum
+// (`cents(realizedCum + sharesOpen + optionsOut)`), so the stored columns may
+// miss their own `performance` by a cent or two per row, and this differences
+// two rows. A tolerance would let that gap through and print four numbers that
+// visibly do not add to the total above them -- in the one panel whose whole
+// promise is that they do. So the parts are rounded to the cent FIRST and must
+// then sum to the cent-rounded headline exactly: what is on screen adds up as
+// written, or nothing is on screen. Measured before choosing this: 410 stored
+// rows across production and staging, worst divergence exactly zero, so today
+// this withholds from nobody.
+const round2 = (v: number) => Math.round(v * 100) / 100;
+
+/**
+ * The week's four parts and their total, or null when they cannot be shown.
+ *
+ * Null on three counts: no headline, a part that could not be valued, or parts
+ * that do not reconcile to the headline. The third is a statement about OUR
+ * stored series rather than about the account, so it is logged -- an
+ * unreconciled row is the tripwire for a stale or half-rebuilt
+ * `account_equity_daily`, and silently dropping the panel would hide it.
+ */
+export function weekParts(a: AccountWeek): { parts: number[]; total: number } | null {
+  const raw = [a.premiumLine, a.sharesBooked, a.sharesMark, a.optionsMark];
+  if (a.performance === null || raw.some((p) => p === null || !Number.isFinite(Number(p)))) return null;
+  const parts = raw.map((p) => round2(Number(p)));
+  const total = round2(a.performance);
+  const sum = round2(parts.reduce((s, p) => s + p, 0));
+  if (sum !== total) {
+    console.warn(
+      `weeklyDigest: ${a.accountId} week parts do not reconcile — parts ${sum}, performance ${total}, residual ${round2(sum - total)}; breakdown withheld`
+    );
+    return null;
+  }
+  return { parts, total };
+}
+
+// THE CAPTION BELONGS AT THE TOTAL, not only at the top of the panel.
+//
+// The compliance review's point, and it is about where a reader's eye lands
+// rather than about what the panel says: the subtitle carrying "your broker's
+// statement is the record" sits four rows above the bold figure, and a reader
+// who skims to the total never re-reads it. A bold signed total under four
+// signed components is the most brokerage-statement-shaped thing in this
+// email, so the reminder that it is OUR reconstruction sits on the same line.
+const totalRow = (label: string, value: string, colour: string, note = "") => `
+  <tr>
+    <td style="padding:12px 0 0;font:700 13px ${FONT};color:${BRAND.text};">
+      ${esc(label)}${note ? `<div style="font:400 11px ${FONT};color:${BRAND.sub};line-height:1.4;margin-top:3px;">${esc(note)}</div>` : ""}
+    </td>
+    <td align="right" style="padding:12px 0 0;font:700 17px ${FONT};color:${colour};white-space:nowrap;">${esc(value)}</td>
+  </tr>`;
+
+const weekPartsPanel = (a: AccountWeek) => {
+  const w = weekParts(a);
+  if (!w) return "";
+  const [premium, sharesBooked, sharesMark, optionsMark] = w.parts;
+  return panel(
+    "How the week adds up",
     [
-      row("Move on shares held", money(a.sharesMark, true), colourFor(a.sharesMark),
-        "Unrealized — it moves until you sell."),
-      row("Booked on shares sold", money(a.sharesBooked, true), colourFor(a.sharesBooked)),
-      row("Move in the option book", money(a.optionsMark, true), colourFor(a.optionsMark),
-        "A position that closed leaves this figure; its result is under Premium. The two are not added together.")
+      // NOT "Premium on trades that closed", and the difference is a real
+      // figure rather than a nicety. This line is the change in `premium_cum`,
+      // which `equityHistory` builds with NO FILTER -- deliberately, because
+      // it is an account-level sum with no attribution in it, so a withheld
+      // row's premium belongs in it. The Premium panel a few inches above
+      // reports `Kept on what closed`, which EXCLUDES provisional and withheld
+      // rows. Two figures, adjacent, differing by exactly the money the email
+      // has just told the reader it left out. Under the old label they were
+      // the same claim made twice with two different numbers.
+      row("Premium booked in the week", money(premium, true), colourFor(premium),
+        "Every option leg the week booked, including any trade held back from the figures above."),
+      row("Booked on shares sold", money(sharesBooked, true), colourFor(sharesBooked),
+        "Money, not a mark."),
+      row("Move on shares still held", money(sharesMark, true), colourFor(sharesMark),
+        "A mark. It keeps moving until you sell."),
+      // WHAT THE OLD CAPTION GOT WRONG. "A leg that closed leaves this line
+      // and lands on the first one" is true of the LEG and false of the
+      // AMOUNT: what leaves here is the mark the leg carried at last Friday's
+      // close, and what lands on line one is its whole lifetime result. Those
+      // are different numbers and routinely opposite in sign -- which is
+      // exactly the case that alarms a reader, because a week of closing
+      // winners prints a large negative here.
+      row("Move in the option book", money(optionsMark, true), colourFor(optionsMark),
+        "A mark on what was open. When a position closes its whole result moves to the first line and the mark it had been carrying comes off this one — so a good week of closes can leave this line negative."),
+      totalRow("The week", money(w.total, true), colourFor(w.total),
+        "Our reconstruction — your broker's statement is the total that counts.")
     ].join(""),
-    "What the week did to what you hold, not what it booked."
+    // TWO OF THESE ARE MONEY AND TWO ARE MARKS, and the subtitle has to say so.
+    // The panel this replaces carried that distinction in its own subtitle
+    // ("what the week did to what you hold, not what it booked"); a bold
+    // signed total under four signed rows reads as money earned unless
+    // something on the same screen says otherwise, and the footer's "unrealized
+    // figures are marks" is four panels down in 11px grey.
+    "The four parts of the figure at the top of this email. Two are money; two are marks that keep moving until the positions close."
   );
+};
 
 const accountPanel = (a: AccountWeek) =>
   panel(
@@ -413,7 +515,7 @@ const withheldNote = (a: AccountWeek) => {
   return `
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FDF0F0;border:1px solid #F0D0D0;border-radius:12px;margin:0 0 16px;">
     <tr><td style="padding:14px 18px;font:400 12px ${FONT};color:${BRAND.negative};line-height:1.6;">
-      <strong>${n} ${n === 1 ? "trade is" : "trades are"} missing from these figures.</strong>
+      <strong>${n} ${n === 1 ? "trade is" : "trades are"} missing from the premium figures above and the trade list below.</strong>
       ${n === 1 ? "It computes" : "They compute"} to ${money(a.withheld.realized, true)}, which is more than
       ${n === 1 ? "its own strikes can" : "their own strikes can"} lose &mdash; so the arithmetic is ours to fix and
       the ${n === 1 ? "figure is" : "figures are"} left out rather than shown. Your broker's own total includes
@@ -422,6 +524,59 @@ const withheldNote = (a: AccountWeek) => {
     </td></tr>
   </table>`;
 };
+
+// WHAT WE ARE NOT, said plainly, at the owner's instruction.
+//
+// He asked for this in his own words: *"add on disclaimer of the email that
+// DeltaMint is not a broker/dealer. We don't hold any positions or cash. We do
+// our best of delivering the accurate numbers but we are not the broker,
+// difference can happen, if you have a problem with the number reach out to us
+// support email. We are a software that helps you trade [...] and understand
+// your brokerage account but mistakes, bugs, downtime can happen."*
+//
+// The footer it replaces made three of those points in a single 11px run-on
+// and made the most important one -- that we are not a broker-dealer -- not at
+// all. Compliance rule 2 is the standing requirement never to imply that
+// status, and this email is the one surface where the product's figures leave
+// the product: they arrive looking settled, beside a dollar total, in a
+// message a reader may forward or quote with none of its context.
+//
+// FOUR CLAIMS, IN ORDER OF WHAT A READER LOSES BY NOT KNOWING IT:
+//   1. We are not a broker-dealer and hold neither money nor positions.
+//   2. These figures are RECONSTRUCTED and can differ from the broker's.
+//   3. Software fails -- bugs, outages, a late or corrected feed.
+//   4. There is a person to tell, and the address is here.
+//
+// The third is the one most products leave out, and the owner put it in
+// unprompted. A weekly email that never admits it can be wrong is the reason a
+// reader believes the one week it is.
+//
+// WORDING RULES THIS FOLLOWS. "Trade History", never "journal" -- the brand
+// table bans the word (`docs/context/brand.md`). No advice, no recommendation,
+// no ranking (rule 3). The broker is "your broker", never named (rule 1).
+// The support address is the one published on the legal pages, and it is the
+// same address this email now comes FROM, so a reply reaches it either way.
+const disclaimer = (a: AccountWeek, unsubscribeUrl?: string | null) => `
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid ${BRAND.line};margin:8px 0 0;">
+          <tr><td style="padding:14px 4px 0;font:400 11px ${FONT};color:${BRAND.sub};line-height:1.75;">
+            <strong style="color:${BRAND.text};">DeltaMint is not a broker or a broker-dealer.</strong>
+            We do not hold your money or your positions, we do not place trades on your behalf, and
+            nothing here is advice, a recommendation or a signal. Your broker holds your account, and
+            your broker's own statement is the record.
+            <br><br>
+            DeltaMint is software you use to screen for trades, send your own orders to your broker,
+            and review what happened — and to keep their history. Every figure above is
+            <strong style="color:${BRAND.text};">reconstructed</strong> from your broker's trade and
+            price history, and can differ from your broker's — through a bug, an outage, a late or
+            corrected price, or something we could not see. Unrealized figures are marks, not money.
+            ${a.isPaper ? "This is a paper account and its money is simulated." : ""}
+            <br><br>
+            <strong style="color:${BRAND.text};">If a number here looks wrong to you, tell us:</strong>
+            <a href="mailto:support@deltamint.app" style="color:${BRAND.accent};">support@deltamint.app</a>.
+            We would rather hear it than not.
+            ${unsubscribeUrl ? `<br><br><a href="${esc(unsubscribeUrl)}" style="color:${BRAND.sub};">Stop receiving these weekly emails</a>` : ""}
+          </td></tr>
+        </table>`;
 
 // ---------------------------------------------------------------------------
 // One account's email
@@ -513,7 +668,7 @@ export function renderAccountWeek(
     snap ? holdingsPanel(snap) : accountPanel(a),
     snap ? ordersPanel(snap) : "",
     weekBlocks,
-    a.performance !== null ? stockPanel(a) : ""
+    weekPartsPanel(a)
   ].join("");
 
   const html = `
@@ -534,13 +689,7 @@ export function renderAccountWeek(
             <a href="${esc(app)}" style="display:inline-block;background:${BRAND.accent};color:#FFFFFF;font:600 14px ${FONT};text-decoration:none;padding:11px 22px;border-radius:9px;">Open your dashboard</a>
           </td></tr>
         </table>
-        <div style="font:400 11px ${FONT};color:${BRAND.sub};line-height:1.7;padding:4px 4px 0;">
-          A record of your own account — not advice, a recommendation or a signal. Figures are
-          reconstructed from your broker's own trade and price history and can differ from it; your
-          broker's statement is the record. Unrealized figures are marks, not money.
-          ${a.isPaper ? "This is a paper account and its money is simulated." : ""}
-          ${opts.unsubscribeUrl ? `<br><a href="${esc(opts.unsubscribeUrl)}" style="color:${BRAND.sub};">Stop receiving these weekly emails</a>` : ""}
-        </div>
+        ${disclaimer(a, opts.unsubscribeUrl)}
       </td></tr>
     </table>
   </td></tr>
@@ -548,7 +697,7 @@ export function renderAccountWeek(
 
   const line = (l: string, v: string) => `${l}: ${v}`;
   const text = [
-    opts.previewFor ? `REVIEW COPY — the email ${opts.previewFor} would receive for this account. Not sent to them.` : "",
+    opts.previewFor ? `REVIEW COPY — the email ${opts.previewFor} would receive for this account. Not sent to them.` : null,
     `DeltaMint — ${a.name}${a.isPaper ? " (paper — simulated money)" : ""}`,
     `Your week, ${span}`,
     "",
@@ -562,13 +711,28 @@ export function renderAccountWeek(
           line("  Paid to close positions", money(a.premium.paidToClose)),
           line("  Kept on what closed", money(a.premium.kept, true)),
           "",
-          "STOCK",
-          line("  Shares still held", money(a.sharesValue)),
-          line("  Move on shares held", money(a.sharesMark, true)),
-          line("  Booked on shares sold", money(a.sharesBooked, true)),
-          line("  Move in the option book", money(a.optionsMark, true)),
-          "",
+          // THE SAME GUARD AS THE PANEL, off the same function. A heading that
+          // promises four numbers add up, printed over four numbers that do
+          // not, is the defect this release exists to remove -- and it is no
+          // less a defect for arriving as text.
+          ...(() => {
+            const w = weekParts(a);
+            if (!w) return [];
+            return [
+              "HOW THE WEEK ADDS UP",
+              line("  Premium booked in the week", money(w.parts[0], true)),
+              line("  Booked on shares sold", money(w.parts[1], true)),
+              line("  Move on shares still held", money(w.parts[2], true)),
+              line("  Move in the option book", money(w.parts[3], true)),
+              line("  The week", money(w.total, true)),
+              ""
+            ];
+          })(),
           "THE ACCOUNT",
+          // Restored here because `holdingsPanel` is HTML only and `snap` can
+          // be null: without this line a plain-text reader is told nowhere at
+          // all what their shares are worth.
+          line("  Shares still held", money(a.sharesValue)),
           line("  Account value at Friday's close", money(a.equityEnd)),
           line("  Change in account value", money(a.equityChange, true)),
           line("  Closed", String(a.closed.count)),
@@ -578,10 +742,31 @@ export function renderAccountWeek(
     "",
     app,
     "",
-    "A record of one of your own accounts, not advice, a recommendation or a signal.",
-    "Your broker's statement is the record. Unrealized figures are marks, not money."
+    // THE SAME FOUR CLAIMS AS THE HTML FOOTER. A disclaimer that is weaker in
+    // the plain-text part is a disclaimer the reader who most needs it -- the
+    // one whose client strips markup -- does not get.
+    "—",
+    "DeltaMint is not a broker or a broker-dealer. We do not hold your money or your",
+    "positions, we do not place trades on your behalf, and nothing here is advice, a",
+    "recommendation or a signal. Your broker holds your account, and your broker's own",
+    "statement is the record.",
+    "",
+    "DeltaMint is software you use to screen for trades, send your own orders to your broker,",
+    "and review what happened — and to keep their history. Every figure above is reconstructed",
+    "from your broker's trade and price history, and can differ from your broker's — through a",
+    "bug, an outage, a late or corrected price, or something we could not see. Unrealized",
+    "figures are marks, not money.",
+    a.isPaper ? "This is a paper account and its money is simulated." : null,
+    "",
+    "If a number here looks wrong to you, tell us: support@deltamint.app.",
+    "We would rather hear it than not."
   ]
-    .filter((s) => s !== "")
+    // NULL is an entry that does not apply (no review stamp, not a paper
+    // account). An EMPTY STRING is a deliberate blank line. The old filter
+    // dropped both, which is why the plain-text part arrived as unbroken
+    // paragraphs -- including the disclaimer, where the breaks are what make
+    // four separate claims readable as four.
+    .filter((s) => s !== null)
     .join("\n");
 
   return { subject, html, text };

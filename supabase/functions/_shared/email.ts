@@ -15,7 +15,27 @@ import { brevoPayload } from "./emailPayload.ts";
 
 const BREVO_KEY = Deno.env.get("BREVO_API_KEY");
 // The verified sender on the authenticated domain.
-const FROM = Deno.env.get("ALERT_EMAIL_FROM") || "DeltaMint Agents <agents@deltamint.app>";
+//
+// NOT `agents@`, at the owner's word: *"can we remove Agents from this email.
+// I want to send with the Support email not Agent. Agents is internal only."*
+// He is right, and it matters more than a label. "Agents" is the name of the
+// review bench -- systems-engineer, investment-analyst, compliance-gate and
+// the rest -- which is how this product is BUILT, not a party a customer has
+// any relationship with. A weekly digest arriving from it tells the reader
+// their account is being handled by something they have never been introduced
+// to, and gives them an address to reply to that nobody reads.
+//
+// `support@deltamint.app` is the address already published in the privacy
+// policy, the terms, the security policy and the site's own structured data,
+// and it is already the authenticated sender for sign-in mail
+// (`.github/workflows/auth-config.yml`). So it is a mailbox that exists, that
+// a reply reaches, and that the reader has already been given -- which is the
+// whole of what a from-address is for.
+//
+// This is the sender for EVERY email the product sends, the position-watch
+// alerts included, because they share this module. That is the right outcome:
+// the alerts had no more business coming from `agents@` than the digest did.
+const FROM = Deno.env.get("ALERT_EMAIL_FROM") || "DeltaMint <support@deltamint.app>";
 
 export interface EmailResult {
   sent: boolean;
