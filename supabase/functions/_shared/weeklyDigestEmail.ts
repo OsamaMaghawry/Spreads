@@ -444,31 +444,34 @@ export function renderAccountWeek(
   const app = opts.appUrl || "https://dashboard.deltamint.app";
   const span = `${prettyDate(win.from)}–${prettyDate(win.to)}`;
 
-  // The ACCOUNT NAME leads the subject, because a person with four accounts
-  // now receives four of these and the inbox has to tell them apart at a
-  // glance without opening one.
-  // THE SUBJECT DESCRIBES THE ACCOUNT, not only the week's trading. An
-  // account holding six option legs and a thousand shares that happened to
-  // trade nothing is not "nothing traded" -- that subject line is what made
-  // the first send read as empty. The week's figure leads when we have one we
-  // can stand behind; otherwise what is held does.
-  const held = snap && snap.read && !snap.empty
-    ? [snap.shareCount ? `${snap.shareCount} stock` : "", snap.optionCount ? `${snap.optionCount} option legs` : ""]
-        .filter(Boolean).join(", ")
-    : "";
-  const subject = a.performance !== null
-    ? `${a.name} — ${span}: ${money(a.performance, true)}${a.isPaper ? " (paper)" : ""}`
-    : held
-      ? `${a.name} — ${span}: holding ${held}${a.isPaper ? " (paper)" : ""}`
-      : `${a.name} — ${span}: nothing open${a.isPaper ? " (paper)" : ""}`;
+  // ONE SUBJECT, THE OWNER'S WORDS: *"change the subject to DeltaMint Weekly
+  // Digest"*, on the send that starts going to real users.
+  //
+  // What it replaces led with the account name and the week's figure, for a
+  // reason that was right for HIM and wrong for them: he holds eight accounts
+  // and needed the inbox to tell them apart. A user holds one or two, and a
+  // dollar figure in a subject line is the account's result sitting in a
+  // notification preview on a lock screen, beside whatever else is there.
+  //
+  // The account name and the week are the first two lines of the email, so
+  // nothing is lost by a reader who opens it -- and the paper banner is the
+  // first thing inside, in full width, so "(paper)" leaving the subject costs
+  // no warning either.
+  //
+  // The cost, and it falls on the owner alone: eight accounts now produce
+  // eight identical subjects in his inbox.
+  const subject = "DeltaMint Weekly Digest";
 
-  const preview = opts.previewFor
-    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.accent};border-radius:12px;margin:0 0 16px;">
-         <tr><td style="padding:14px 18px;font:600 13px ${FONT};color:#FFFFFF;line-height:1.6;">
-           REVIEW COPY — this is the email <strong>${esc(opts.previewFor)}</strong> would receive for this account. It has not been sent to them.
-         </td></tr>
-       </table>`
-    : "";
+  // THE REVIEW-COPY BANNER IS GONE, at the owner's word, because the point of
+  // the copy he receives is now to be EXACTLY what a user receives -- and a
+  // banner none of them will ever see defeats that.
+  //
+  // What it cost: in owner mode this email is addressed to one person and
+  // delivered to another, and the banner was the only thing on screen saying
+  // so. Nothing in an owner-mode copy now distinguishes it from mail a user
+  // actually got. `previewFor` still travels and still names the intended
+  // recipient in the send log, which is where that fact now lives alone.
+  const preview = "";
 
   const paperBanner = a.isPaper
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FDF6E9;border:1px solid #F0E0C0;border-radius:12px;margin:0 0 16px;">
