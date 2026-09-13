@@ -59,6 +59,7 @@ nothing contingent on trading activity.
 - Register
 - ResetPassword
 - Screener
+- Settings
 
 ## Position kinds
 
