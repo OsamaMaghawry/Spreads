@@ -2,7 +2,7 @@
 title: "Theta decay explained: why an option loses value every day"
 slug: theta-decay-explained
 excerpt: Theta estimates the value an option loses from one day passing, and the same number that costs a buyer money is what a seller was paid to accept.
-meta_description: Theta estimates how much an option's price drops from one day passing. What decay looks like on a long position, a short position, and near expiration.
+meta_description: Theta decay is what an option loses from one day passing. The same contract long and short in its final week, and why the daily figure speeds up.
 author: DeltaMint
 published_at: 2026-09-13T10:00:00+00:00
 category: foundations
@@ -16,10 +16,14 @@ showing a theta of −0.05 is expected to be worth about $0.05 a share less
 tomorrow than it is today — $5 on one contract — if nothing else about the
 market moves.
 
-It sits on the same chain row as delta and the bid-ask spread, and like them
-it is a live number rather than a fixed property of the contract. Theta
-itself changes as the days themselves run down, and it does not run down at
-a constant pace.
+It sits on the same chain row as delta and the [bid-ask
+spread](/blog/options-bid-ask-spread), and like them it is a live number
+rather than a fixed property of the contract — traders also call this daily
+erosion time decay. Theta itself changes as the days themselves run down,
+and it does not run down at a constant pace.
+
+Theta decay is not a single number set at the trade. It is recomputed every
+day, from whatever is left of the option's extrinsic value on that day.
 
 ## Key takeaways
 
@@ -51,7 +55,7 @@ the near-dated ones. A one-year contract and a one-week contract both carry
 extrinsic value to lose, just on very different clocks — theta is the same
 concept applied at whatever pace that particular contract's calendar runs.
 
-## Why does theta flip sign between the buyer and the seller?
+## Why is theta negative for the buyer and positive for the seller?
 
 A held option is almost always losing extrinsic value as the calendar runs, so
 its theta — the contract's own theta — is negative whether it is a call or a
@@ -168,7 +172,7 @@ afternoon — which is a separate subject from theta itself, taken up in the
 
 - **Is theta quoted per share or per contract?** Per share, like the premium and delta. Multiply by 100 for a standard contract: −0.05 is about −$5 a day.
 - **Why does my short option's theta show as positive on some platforms?** Some chains display the contract's own theta, always negative; others display it from the position you hold, which flips sign once you are short. Check which one you are reading.
-- **Does theta decay happen evenly over a weekend?** Conventions differ by platform on how weekend time is counted, and the daily figure is an estimate either way — treat the exact weekend treatment as a detail to confirm with your own data, not a fixed rule.
+- **Does theta decay over the weekend?** Conventions differ by platform on how weekend time is counted, and the daily figure is an estimate either way — treat the exact weekend treatment as a detail to confirm with your own data, not a fixed rule.
 - **Can theta be positive for a long option?** Effectively no for a standard long call or put; a held option's own theta is negative because it is always losing extrinsic value as the calendar runs.
 
 ## The bottom line
