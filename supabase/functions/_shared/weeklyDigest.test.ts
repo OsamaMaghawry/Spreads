@@ -401,7 +401,10 @@ test("the week's four parts are all shown and add to the headline", () => {
     assert.ok(html.includes(money(v, true)), `${money(v, true)} missing from html`);
     assert.ok(text.includes(money(v, true)), `${money(v, true)} missing from text`);
   }
-  assert.ok(html.includes(">The week<"), "the total row is missing");
+  // The label now carries a caption div after it, so match the label alone.
+  assert.ok(/>\s*The week\s*</.test(html), "the total row is missing");
+  assert.ok(/your broker's statement is the total that counts/.test(html),
+    "the record reminder must sit at the total, where the eye lands");
   assert.ok(html.includes(money(w.performance, true)));
   assert.ok(text.includes("HOW THE WEEK ADDS UP"));
   // And the instruction not to add them is gone, because now they add.
@@ -553,9 +556,15 @@ test("the email says plainly that DeltaMint is not a broker-dealer", () => {
     assert.ok(/reconstructed/.test(part));
     assert.ok(/marks, not money/.test(part));
     // The owner's own point, and the one most products leave out.
-    assert.ok(/bug, an outage, a late or corrected/.test(part), "the fallibility line is missing");
+    // Whitespace-tolerant: the HTML wraps this sentence across source lines.
+    assert.ok(/bug, an outage, a late or\s+corrected/.test(part), "the fallibility line is missing");
     // Somebody to tell, with the address.
     assert.ok(part.includes("support@deltamint.app"), "no address to report a wrong number to");
+    // Cut at compliance's request: an unverifiable effort claim sitting
+    // immediately before "can differ" softens the warning it introduces.
+    assert.ok(!/work hard/i.test(part), "the effort claim undercuts the disclaimer");
+    // The broker must be the named executing party in the same clause.
+    assert.ok(/send your own orders to your broker/.test(part));
   }
 });
 

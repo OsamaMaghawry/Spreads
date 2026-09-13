@@ -383,9 +383,19 @@ export function weekParts(a: AccountWeek): { parts: number[]; total: number } | 
   return { parts, total };
 }
 
-const totalRow = (label: string, value: string, colour: string) => `
+// THE CAPTION BELONGS AT THE TOTAL, not only at the top of the panel.
+//
+// The compliance review's point, and it is about where a reader's eye lands
+// rather than about what the panel says: the subtitle carrying "your broker's
+// statement is the record" sits four rows above the bold figure, and a reader
+// who skims to the total never re-reads it. A bold signed total under four
+// signed components is the most brokerage-statement-shaped thing in this
+// email, so the reminder that it is OUR reconstruction sits on the same line.
+const totalRow = (label: string, value: string, colour: string, note = "") => `
   <tr>
-    <td style="padding:12px 0 0;font:700 13px ${FONT};color:${BRAND.text};">${esc(label)}</td>
+    <td style="padding:12px 0 0;font:700 13px ${FONT};color:${BRAND.text};">
+      ${esc(label)}${note ? `<div style="font:400 11px ${FONT};color:${BRAND.sub};line-height:1.4;margin-top:3px;">${esc(note)}</div>` : ""}
+    </td>
     <td align="right" style="padding:12px 0 0;font:700 17px ${FONT};color:${colour};white-space:nowrap;">${esc(value)}</td>
   </tr>`;
 
@@ -420,7 +430,8 @@ const weekPartsPanel = (a: AccountWeek) => {
       // winners prints a large negative here.
       row("Move in the option book", money(optionsMark, true), colourFor(optionsMark),
         "A mark on what was open. When a position closes its whole result moves to the first line and the mark it had been carrying comes off this one — so a good week of closes can leave this line negative."),
-      totalRow("The week", money(w.total, true), colourFor(w.total))
+      totalRow("The week", money(w.total, true), colourFor(w.total),
+        "Our reconstruction — your broker's statement is the total that counts.")
     ].join(""),
     // TWO OF THESE ARE MONEY AND TWO ARE MARKS, and the subtitle has to say so.
     // The panel this replaces carried that distinction in its own subtitle
@@ -428,7 +439,7 @@ const weekPartsPanel = (a: AccountWeek) => {
     // signed total under four signed rows reads as money earned unless
     // something on the same screen says otherwise, and the footer's "unrealized
     // figures are marks" is four panels down in 11px grey.
-    "The four parts of the figure at the top of this email. Two are money; two are marks that keep moving until the positions close. Your broker's statement is the record."
+    "The four parts of the figure at the top of this email. Two are money; two are marks that keep moving until the positions close."
   );
 };
 
@@ -504,7 +515,7 @@ const withheldNote = (a: AccountWeek) => {
   return `
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FDF0F0;border:1px solid #F0D0D0;border-radius:12px;margin:0 0 16px;">
     <tr><td style="padding:14px 18px;font:400 12px ${FONT};color:${BRAND.negative};line-height:1.6;">
-      <strong>${n} ${n === 1 ? "trade is" : "trades are"} missing from the premium and trade figures above.</strong>
+      <strong>${n} ${n === 1 ? "trade is" : "trades are"} missing from the premium figures above and the trade list below.</strong>
       ${n === 1 ? "It computes" : "They compute"} to ${money(a.withheld.realized, true)}, which is more than
       ${n === 1 ? "its own strikes can" : "their own strikes can"} lose &mdash; so the arithmetic is ours to fix and
       the ${n === 1 ? "figure is" : "figures are"} left out rather than shown. Your broker's own total includes
@@ -553,11 +564,11 @@ const disclaimer = (a: AccountWeek, unsubscribeUrl?: string | null) => `
             nothing here is advice, a recommendation or a signal. Your broker holds your account, and
             your broker's own statement is the record.
             <br><br>
-            DeltaMint is software you use to screen, place and review your own trades, and to keep
-            their history. Every figure above is <strong style="color:${BRAND.text};">reconstructed</strong>
-            from your broker's trade and price history. We work hard to get these numbers right and
-            they can still differ from your broker's — through a bug, an outage, a late or corrected
-            price, or something we could not see. Unrealized figures are marks, not money.
+            DeltaMint is software you use to screen for trades, send your own orders to your broker,
+            and review what happened — and to keep their history. Every figure above is
+            <strong style="color:${BRAND.text};">reconstructed</strong> from your broker's trade and
+            price history, and can differ from your broker's — through a bug, an outage, a late or
+            corrected price, or something we could not see. Unrealized figures are marks, not money.
             ${a.isPaper ? "This is a paper account and its money is simulated." : ""}
             <br><br>
             <strong style="color:${BRAND.text};">If a number here looks wrong to you, tell us:</strong>
@@ -740,11 +751,11 @@ export function renderAccountWeek(
     "recommendation or a signal. Your broker holds your account, and your broker's own",
     "statement is the record.",
     "",
-    "DeltaMint is software you use to screen, place and review your own trades, and to",
-    "keep their history. Every figure above is reconstructed from your broker's trade and",
-    "price history. We work hard to get these numbers right and they can still differ from",
-    "your broker's — through a bug, an outage, a late or corrected price, or something we",
-    "could not see. Unrealized figures are marks, not money.",
+    "DeltaMint is software you use to screen for trades, send your own orders to your broker,",
+    "and review what happened — and to keep their history. Every figure above is reconstructed",
+    "from your broker's trade and price history, and can differ from your broker's — through a",
+    "bug, an outage, a late or corrected price, or something we could not see. Unrealized",
+    "figures are marks, not money.",
     a.isPaper ? "This is a paper account and its money is simulated." : null,
     "",
     "If a number here looks wrong to you, tell us: support@deltamint.app.",
