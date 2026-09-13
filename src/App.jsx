@@ -24,6 +24,7 @@ import BlogPreview from './pages/BlogPreview';
 import Admin from './pages/Admin';
 import OAuthCallback from './pages/OAuthCallback';
 import Billing from './pages/Billing';
+import Settings from './pages/Settings';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth } = useAuth();
@@ -51,6 +52,8 @@ const AuthenticatedApp = () => {
           <Route path="/" element={<Dashboard />} />
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/billing" element={<Billing />} />
+          {/* The weekly email's unsubscribe link lands here with ?email=off. */}
+          <Route path="/settings" element={<Settings />} />
           <Route path="/oauth/callback" element={<OAuthCallback />} />
           <Route path="/screener" element={<Screener />} />
           <Route path="/chain" element={<OptionChain />} />
