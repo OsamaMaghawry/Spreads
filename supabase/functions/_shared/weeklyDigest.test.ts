@@ -153,19 +153,28 @@ test("trades outside the window are not in it", () => {
 const render = (accounts: ReturnType<typeof accountWeek>[]) =>
   renderAccountWeek(accounts[0], WIN, null, { appUrl: "https://dashboard.deltamint.app" });
 
-test("the subject carries the week and the number", () => {
-  const { subject } = render([accountWeek(ACCT, ROWS, TRADES, WIN)]);
-  // The ACCOUNT NAME leads it now: a person with four accounts gets four of
-  // these and the inbox has to tell them apart unopened.
-  assert.ok(subject.startsWith("Alton Live — "), subject);
-  assert.ok(subject.includes("Sep 7"));
-  assert.ok(subject.includes("Sep 11"));
-  assert.ok(subject.includes("+$1,553.00"), subject);
+test("the subject is one line, and carries no money", () => {
+  // The owner's words on the send that starts reaching real users: "change
+  // the subject to DeltaMint Weekly Digest". What it replaces led with the
+  // account name and the week's result -- right for him, holding eight
+  // accounts, and wrong for a user whose account's P/L would then sit in a
+  // notification preview on a lock screen.
+  const { subject, html } = render([accountWeek(ACCT, ROWS, TRADES, WIN)]);
+  assert.equal(subject, "DeltaMint Weekly Digest");
+  assert.ok(!/\$|\d/.test(subject), "no figure and no date in a subject line");
+  // Nothing is lost to a reader who opens it: the account, the week and the
+  // figure are the first three things inside.
+  assert.ok(html.includes("Alton Live"));
+  assert.ok(html.includes("Sep 7"));
+  assert.ok(html.includes("+$1,553.00"));
 });
 
-test("a paper-only reader is told so in the subject line", () => {
+test("a paper-only reader is told so, in the body where it is unmissable", () => {
+  // "(paper)" left the subject with everything else. It cost no warning: the
+  // banner is full width and first inside the message, which is a louder
+  // statement than five characters after a colon.
   const { subject, html } = render([accountWeek({ id: "p", name: "Practice", is_paper: true }, ROWS, TRADES, WIN)]);
-  assert.ok(subject.includes("(paper)"), subject);
+  assert.equal(subject, "DeltaMint Weekly Digest");
   assert.ok(html.includes("simulated"));
   // ...and the whole message is banded, not one block inside it.
   assert.ok(html.includes("Paper account — every figure below is simulated"));
@@ -194,13 +203,15 @@ test("an unvaluable week renders a dash and says which ticker cost it", () => {
   assert.ok(/could not be valued/i.test(html));
 });
 
-test("a review copy says whose account it is, at the top", () => {
-  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, null, { previewFor: "someone@example.com" });
-  assert.ok(html.includes("REVIEW COPY"));
-  assert.ok(html.includes("someone@example.com"));
-  assert.ok(html.includes("has not been sent to them"));
-  // It must be before any figure, or the owner reads another account as his.
-  assert.ok(html.indexOf("REVIEW COPY") < html.indexOf("This account's week"));
+test("an owner copy is now indistinguishable from what the user gets", () => {
+  // The owner removed the review banner so his copy is EXACTLY the user's.
+  // That is the point, and it has a cost worth pinning: in owner mode the
+  // email is addressed to one person and delivered to another, and nothing
+  // on screen says so any more. The send log is where that fact now lives.
+  const withPreview = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, null, { previewFor: "someone@example.com" });
+  const without = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, null, {});
+  assert.equal(withPreview.html, without.html);
+  assert.ok(!withPreview.html.includes("someone@example.com"));
 });
 
 test("an account that traded nothing still gets an email, and it is not a grid of zeroes", () => {
@@ -218,18 +229,20 @@ test("an account that traded nothing still gets an email, and it is not a grid o
   // different case and still reads "+$0.00" -- that is a result, not an
   // absence, and the two must not be collapsed.
   const empty = accountWeek(ACCT, [], [], WIN);
-  const { subject, html } = render([empty]);
-  // No trades and, with no snapshot, nothing known to be held.
-  assert.ok(subject.includes("nothing open"), subject);
+  const { html } = render([empty]);
+  // The subject no longer describes the week at all -- see the subject test
+  // above. What must still hold is the BODY: no trades is a state to report,
+  // not a premium panel of zeroes.
   assert.ok(!html.includes(">Premium<"), "a premium panel of zeroes is noise");
   assert.ok(html.includes("This week's trading"));
   assert.ok(html.includes("What it holds is above"));
 });
 
-test("the subject names what is HELD when there is no week figure to stand behind", () => {
+test("an account with no week figure still reports what it HOLDS", () => {
   // Production had no stored series at all, so every week figure was a dash
-  // and the subject read "nothing traded" about accounts holding real
-  // positions. The snapshot is what the subject falls back to.
+  // and the email read as empty about accounts holding real positions. The
+  // snapshot is what answers instead -- and since the subject stopped
+  // describing the account, the body carries the whole of that answer.
   const snap = {
     read: true, empty: false, shareCount: 1, optionCount: 3,
     options: [], shares: [], openOrders: [], openOrderCount: 0,
@@ -238,11 +251,13 @@ test("the subject names what is HELD when there is no week figure to stand behin
     failed: []
   } as any;
   const noSeries = accountWeek(ACCT, [], [], WIN);
-  const { subject } = renderAccountWeek(noSeries, WIN, snap, {});
-  assert.ok(subject.includes("holding"), subject);
-  assert.ok(subject.includes("1 stock"), subject);
-  assert.ok(subject.includes("3 option legs"), subject);
-  assert.ok(!subject.includes("nothing"), subject);
+  const { subject, html } = renderAccountWeek(noSeries, WIN, snap, {});
+  assert.equal(subject, "DeltaMint Weekly Digest");
+  // The account's own value leads the message even with no week to report.
+  assert.ok(html.includes("$151,562.83"), "the account value is the headline");
+  assert.ok(html.includes("The account"));
+  // Four positions, counted where the reader can see them.
+  assert.ok(html.includes(">4<"), "1 stock + 3 option legs");
 });
 
 test("a broker that would not answer is not reported as an empty account", () => {
@@ -265,10 +280,18 @@ test("money formats to the cent, signs only where asked, and dashes a null", () 
   assert.equal(money(0, true), "+$0.00");
 });
 
-test("an address is escaped rather than interpolated into the markup", () => {
-  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, [], WIN), WIN, null, { previewFor: '"><script>alert(1)</script>' });
+test("an intended recipient never reaches the markup at all", () => {
+  // This used to assert that `previewFor` was ESCAPED into the review-copy
+  // banner. The banner is gone at the owner's word, so the address no longer
+  // reaches the HTML by any path -- which is strictly safer than escaping it,
+  // and is the assertion worth keeping so a future banner cannot reintroduce
+  // an unescaped one.
+  const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, [], WIN), WIN, null, {
+    previewFor: '"><script>alert(1)</script>'
+  });
   assert.ok(!html.includes("<script>"));
-  assert.ok(html.includes("&lt;script&gt;"));
+  assert.ok(!html.includes("alert(1)"));
+  assert.ok(!html.includes("REVIEW COPY"), "the owner banner was removed");
 });
 
 // ---------------------------------------------------------------------------
@@ -305,11 +328,17 @@ test("each account is measured on its own, never pooled", () => {
   // Two accounts, two emails, and neither figure is a sum of the other.
   const a = renderAccountWeek(live, WIN, null, {});
   const b = renderAccountWeek(paper, WIN, null, {});
-  assert.notEqual(a.subject, b.subject);
-  assert.ok(a.subject.startsWith("Alton Live"));
-  assert.ok(b.subject.startsWith("Practice"));
-  assert.ok(b.subject.includes("(paper)"));
-  assert.ok(!a.subject.includes("(paper)"));
+  // The SUBJECT is now one line for everybody -- the account is told apart in
+  // the body, not the inbox. What must still never be pooled is the content.
+  assert.equal(a.subject, "DeltaMint Weekly Digest");
+  assert.equal(b.subject, a.subject);
+  assert.notEqual(a.html, b.html);
+  assert.ok(a.html.includes("Alton Live"));
+  assert.ok(b.html.includes("Practice"));
+  // And the paper warning moved out of the subject into the body, where it is
+  // a full-width banner rather than five characters after a colon.
+  assert.ok(b.html.includes("every figure below is simulated"));
+  assert.ok(!a.html.includes("every figure below is simulated"));
 });
 
 test("premium and stock both appear, per account", () => {
