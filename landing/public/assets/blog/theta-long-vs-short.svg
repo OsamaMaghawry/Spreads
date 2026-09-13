@@ -1,0 +1,15 @@
+<svg viewBox="0 0 720 220" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="One day of theta on the same hypothetical at-the-money call, seven days from expiration, shown for both sides of the same contract. The long position, which paid for the option, is marked down about 14 dollars, a red bar extending left from a centre line. The short position, which sold the identical option, is marked up about 14 dollars, a green bar of the same length extending right from the centre line. The two bars are mirror images: one side's loss is the other side's gain, from the identical day passing.">
+  <rect width="720" height="220" fill="#FFFFFF"/>
+
+  <line x1="360" y1="50" x2="360" y2="180" stroke="#E1DEF2" stroke-width="2"/>
+
+  <!-- long: -$14 -->
+  <text x="120" y="96" font-size="18" font-weight="600" text-anchor="end" fill="#767B8E">long</text>
+  <rect x="120" y="76" width="240" height="28" rx="4" fill="#B4485C"/>
+  <text x="132" y="96" font-size="16" font-weight="600" fill="#FFFFFF">-$14</text>
+
+  <!-- short: +$14 -->
+  <text x="600" y="150" font-size="18" font-weight="600" fill="#767B8E">short</text>
+  <rect x="360" y="130" width="240" height="28" rx="4" fill="#2E8B5F"/>
+  <text x="548" y="150" font-size="16" font-weight="600" fill="#FFFFFF">+$14</text>
+</svg>
