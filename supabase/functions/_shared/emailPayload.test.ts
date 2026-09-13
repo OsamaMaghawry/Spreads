@@ -3,33 +3,33 @@ import assert from "node:assert/strict";
 import { parseSender, brevoPayload } from "./emailPayload.ts";
 
 test("splits a display name from the address, which Brevo needs separately", () => {
-  assert.deepEqual(parseSender("DeltaMint Agents <agents@deltamint.app>"), {
-    name: "DeltaMint Agents",
-    email: "agents@deltamint.app"
+  assert.deepEqual(parseSender("DeltaMint <support@deltamint.app>"), {
+    name: "DeltaMint",
+    email: "support@deltamint.app"
   });
 });
 
 test("a bare address has no name rather than an empty one", () => {
-  assert.deepEqual(parseSender("agents@deltamint.app"), { email: "agents@deltamint.app" });
+  assert.deepEqual(parseSender("support@deltamint.app"), { email: "support@deltamint.app" });
 });
 
 test("tolerates quotes and stray whitespace", () => {
-  assert.deepEqual(parseSender('  "DeltaMint Agents"  <agents@deltamint.app>  '), {
-    name: "DeltaMint Agents",
-    email: "agents@deltamint.app"
+  assert.deepEqual(parseSender('  "DeltaMint"  <support@deltamint.app>  '), {
+    name: "DeltaMint",
+    email: "support@deltamint.app"
   });
 });
 
 test("uses Brevo's field names, not Resend's", () => {
   const p = brevoPayload(
-    "DeltaMint Agents <agents@deltamint.app>",
+    "DeltaMint <support@deltamint.app>",
     "osamamaghawry@gmail.com",
     "Alert",
     "<p>hi</p>",
     "hi"
   );
   assert.deepEqual(p, {
-    sender: { name: "DeltaMint Agents", email: "agents@deltamint.app" },
+    sender: { name: "DeltaMint", email: "support@deltamint.app" },
     to: [{ email: "osamamaghawry@gmail.com" }],
     subject: "Alert",
     htmlContent: "<p>hi</p>",

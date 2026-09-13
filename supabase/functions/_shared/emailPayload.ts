@@ -9,7 +9,7 @@ export interface Sender {
   email: string;
 }
 
-// Accepts either "DeltaMint Agents <agents@deltamint.app>" or a bare address.
+// Accepts either "DeltaMint <support@deltamint.app>" or a bare address.
 // Brevo wants the two parts separately, where Resend took one string — which is
 // the whole reason this parse exists.
 export function parseSender(from: string): Sender {

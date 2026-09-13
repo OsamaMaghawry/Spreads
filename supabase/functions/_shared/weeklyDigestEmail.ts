@@ -314,32 +314,59 @@ const premiumPanel = (a: AccountWeek) =>
     "A credit taken on a position still open has not been kept yet."
   );
 
-// TRIMMED, NOT DROPPED. The owner asked for a clean email, and he also asked
-// -- earlier, and it still stands -- that *"each account should have the
-// premium and stocks moves"*. So the row that duplicated the holdings list
-// ("Shares still held", which the list below prints per ticker) is gone and
-// the three WEEK figures stay: a movement across a window is not something
-// any snapshot of today can tell you.
+// THE PANEL THE OWNER COULD NOT READ, AND WHY.
 //
-// The option row's caption is rewritten. It described a LEVEL -- "a credit
-// taken against what it would cost to buy back now" -- while the figure is a
-// DELTA across the window, and since the option book now includes legs that
-// closed during the week it also carries the removal of their opening marks.
-// So a week of profitable closes can print a negative figure here while the
-// same money shows as a gain under Premium. The arithmetic was corrected and
-// the label was left behind; this is the label catching up.
-const stockPanel = (a: AccountWeek) =>
-  panel(
-    "Stock",
+// He sent a screenshot of what stood here and said: *"The attached part is
+// confusing. I don't understand it so for sure it would confuse users."* He
+// was right, and the defect was arithmetic rather than wording.
+//
+// The week has FOUR parts -- premium booked on legs that closed, money booked
+// on shares sold, the move on shares still held, and the move in the option
+// book -- and `performance` is their sum, which is the figure in the hero at
+// the top of the email. The panel showed THREE of them, under the heading
+// "Stock", with a caption telling the reader that two of the three must not be
+// added together. So nothing on screen summed to anything: three of Alton's
+// numbers came to +$2,928.91 against a week the same email had already called
+// +$2,455.91, and the only explanation offered was an instruction not to try.
+//
+// A reader who adds up the numbers in front of them and gets a different
+// answer from the headline concludes the headline is wrong. That is the right
+// conclusion from what was shown.
+//
+// So: all four parts, the missing one included, and the total they make --
+// which is the hero figure, reached a second way. The caption that said not to
+// add them is gone because now they add. The panel renders only when the four
+// reconcile to the headline within a cent; a breakdown that does not add up is
+// worse than no breakdown, and the hero still carries the week on its own.
+const CENT = 0.01;
+
+const totalRow = (label: string, value: string, colour: string) => `
+  <tr>
+    <td style="padding:12px 0 0;font:700 13px ${FONT};color:${BRAND.text};">${esc(label)}</td>
+    <td align="right" style="padding:12px 0 0;font:700 17px ${FONT};color:${colour};white-space:nowrap;">${esc(value)}</td>
+  </tr>`;
+
+const weekPartsPanel = (a: AccountWeek) => {
+  const parts = [a.premiumLine, a.sharesBooked, a.sharesMark, a.optionsMark];
+  if (a.performance === null || parts.some((p) => p === null)) return "";
+  const total = parts.reduce((s, p) => s + (p as number), 0);
+  if (Math.abs(total - a.performance) > CENT) return "";
+  return panel(
+    "How the week adds up",
     [
-      row("Move on shares held", money(a.sharesMark, true), colourFor(a.sharesMark),
-        "Unrealized — it moves until you sell."),
-      row("Booked on shares sold", money(a.sharesBooked, true), colourFor(a.sharesBooked)),
+      row("Premium on trades that closed", money(a.premiumLine, true), colourFor(a.premiumLine),
+        "What the closed legs came to, net of what was paid to buy them back."),
+      row("Booked on shares sold", money(a.sharesBooked, true), colourFor(a.sharesBooked),
+        "Money, not a mark."),
+      row("Move on shares still held", money(a.sharesMark, true), colourFor(a.sharesMark),
+        "A mark. It keeps moving until you sell."),
       row("Move in the option book", money(a.optionsMark, true), colourFor(a.optionsMark),
-        "A position that closed leaves this figure; its result is under Premium. The two are not added together.")
+        "A mark on what was open. A leg that closed during the week leaves this line and lands on the first one."),
+      totalRow("The week", money(a.performance, true), colourFor(a.performance))
     ].join(""),
-    "What the week did to what you hold, not what it booked."
+    "The four parts of the figure at the top of this email."
   );
+};
 
 const accountPanel = (a: AccountWeek) =>
   panel(
@@ -513,7 +540,7 @@ export function renderAccountWeek(
     snap ? holdingsPanel(snap) : accountPanel(a),
     snap ? ordersPanel(snap) : "",
     weekBlocks,
-    a.performance !== null ? stockPanel(a) : ""
+    weekPartsPanel(a)
   ].join("");
 
   const html = `
@@ -562,11 +589,12 @@ export function renderAccountWeek(
           line("  Paid to close positions", money(a.premium.paidToClose)),
           line("  Kept on what closed", money(a.premium.kept, true)),
           "",
-          "STOCK",
-          line("  Shares still held", money(a.sharesValue)),
-          line("  Move on shares held", money(a.sharesMark, true)),
+          "HOW THE WEEK ADDS UP",
+          line("  Premium on trades that closed", money(a.premiumLine, true)),
           line("  Booked on shares sold", money(a.sharesBooked, true)),
+          line("  Move on shares still held", money(a.sharesMark, true)),
           line("  Move in the option book", money(a.optionsMark, true)),
+          line("  The week", money(a.performance, true)),
           "",
           "THE ACCOUNT",
           line("  Account value at Friday's close", money(a.equityEnd)),

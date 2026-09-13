@@ -37,11 +37,33 @@ const WIN = { from: "2026-09-07", to: "2026-09-11" };
 const ACCT = { id: "acc-1", name: "Alton Live", is_paper: false };
 
 // Friday before the window, then the week itself.
+//
+// EVERY ROW SATISFIES THE STORED INVARIANT: `performance` is the sum of the
+// other four, which is what `dailyPortfolio` writes
+// (`realized_cum + shares_open + options_open`, and `realized_cum` is
+// `premium_cum + shares_booked`). These three rows did not, for a while: they
+// were written when the line was the THREE, and `options_open` joining the sum
+// on 12 September 2026 left them 100 and 30 short. No assertion here noticed,
+// because every one of them differenced two columns and never added four --
+// which is exactly the blind spot that let the email show three parts of a
+// four-part figure for as long as it did.
 const ROWS = [
-  { day: "2026-09-04", equity: 140000, premium_cum: 5000, shares_booked: 1200, shares_open: -400, shares_value: 36000, options_open: 100, performance: 5800 },
-  { day: "2026-09-07", equity: 140500, premium_cum: 5300, shares_booked: 1200, shares_open: -300, shares_value: 36100, options_open: 110, performance: 6200 },
-  { day: "2026-09-11", equity: 141562, premium_cum: 6100, shares_booked: 1459, shares_open: -206, shares_value: 36544, options_open: 30, performance: 7353 }
+  { day: "2026-09-04", equity: 140000, premium_cum: 5000, shares_booked: 1200, shares_open: -400, shares_value: 36000, options_open: 100, performance: 5900 },
+  { day: "2026-09-07", equity: 140500, premium_cum: 5300, shares_booked: 1200, shares_open: -300, shares_value: 36100, options_open: 110, performance: 6310 },
+  { day: "2026-09-11", equity: 141562, premium_cum: 6100, shares_booked: 1459, shares_open: -206, shares_value: 36544, options_open: 30, performance: 7383 }
 ];
+
+// The invariant itself, asserted once, so a fixture can never drift off it
+// again without a test saying so.
+test("the fixture obeys the stored invariant: performance is the other four", () => {
+  for (const r of ROWS) {
+    assert.equal(
+      r.performance,
+      r.premium_cum + r.shares_booked + r.shares_open + r.options_open,
+      `${r.day} does not add up`
+    );
+  }
+});
 
 test("every portfolio figure is a subtraction between two stored days", () => {
   const w = accountWeek(ACCT, ROWS, [], WIN);
@@ -49,7 +71,7 @@ test("every portfolio figure is a subtraction between two stored days", () => {
   // Monday would silently drop Monday itself.
   assert.equal(w.measuredFrom, "2026-09-04");
   assert.equal(w.measuredTo, "2026-09-11");
-  assert.equal(w.performance, 7353 - 5800);
+  assert.equal(w.performance, 7383 - 5900);
   assert.equal(w.premiumLine, 6100 - 5000);
   assert.equal(w.sharesBooked, 1459 - 1200);
   assert.equal(w.sharesMark, -206 - -400);
@@ -63,7 +85,7 @@ test("an account whose history starts inside the week reports the column itself"
   // cumulative column IS the week's change.
   const w = accountWeek(ACCT, ROWS.slice(1), [], WIN);
   assert.equal(w.measuredFrom, null);
-  assert.equal(w.performance, 7353);
+  assert.equal(w.performance, 7383);
 });
 
 test("a null on either end is null, never a number we did not have", () => {
@@ -166,7 +188,7 @@ test("the subject is one line, and carries no money", () => {
   // figure are the first three things inside.
   assert.ok(html.includes("Alton Live"));
   assert.ok(html.includes("Sep 7"));
-  assert.ok(html.includes("+$1,553.00"));
+  assert.ok(html.includes(money(accountWeek(ACCT, ROWS, TRADES, WIN).performance, true)));
 });
 
 test("a paper-only reader is told so, in the body where it is unmissable", () => {
@@ -341,16 +363,58 @@ test("each account is measured on its own, never pooled", () => {
   assert.ok(!a.html.includes("every figure below is simulated"));
 });
 
-test("premium and stock both appear, per account", () => {
+test("premium and the week's parts both appear, per account", () => {
   // The owner's first ask: "each account should have the premium and stocks
   // moves". Both blocks, in every non-quiet email.
   const { html } = renderAccountWeek(accountWeek(ACCT, ROWS, TRADES, WIN), WIN, null, {});
   assert.ok(html.includes(">Premium<"), "premium block missing");
-  assert.ok(html.includes(">Stock<"), "stock block missing");
-  assert.ok(html.includes("Move on shares held"));
+  assert.ok(html.includes(">How the week adds up<"), "breakdown block missing");
+  assert.ok(html.includes("Premium on trades that closed"));
   assert.ok(html.includes("Booked on shares sold"));
+  assert.ok(html.includes("Move on shares still held"));
   assert.ok(html.includes("Move in the option book"));
   assert.ok(html.includes("Collected on positions opened"));
+});
+
+// THE OWNER COULD NOT READ THE PANEL THIS REPLACES: *"The attached part is
+// confusing. I don't understand it so for sure it would confuse users."*
+//
+// It showed three of the week's four parts under the heading "Stock" with a
+// caption telling him not to add two of them together -- so the numbers on
+// screen came to something the same email's own headline contradicted.
+//
+// The contract now: every part is shown, and they add to the headline. This
+// test asserts the arithmetic a reader would do by hand.
+test("the week's four parts are all shown and add to the headline", () => {
+  const w = accountWeek(ACCT, ROWS, TRADES, WIN);
+  const parts = [w.premiumLine, w.sharesBooked, w.sharesMark, w.optionsMark] as number[];
+  assert.equal(parts.reduce((a, b) => a + b, 0), w.performance);
+
+  const { html } = renderAccountWeek(w, WIN, null, {});
+  // Each part, and the total, as a reader sees them.
+  for (const v of parts) assert.ok(html.includes(money(v, true)), `${money(v, true)} missing`);
+  assert.ok(html.includes(">The week<"), "the total row is missing");
+  assert.ok(html.includes(money(w.performance, true)));
+  // And the instruction not to add them is gone, because now they add.
+  assert.ok(!html.includes("not added together"));
+});
+
+test("a breakdown that does not reconcile is withheld, not shown wrong", () => {
+  // A stored row whose parts do not make its own `performance` -- the shape
+  // the fixture itself was in before this session. The hero still carries the
+  // week; a four-line breakdown that contradicts it does not run.
+  const broken = [ROWS[0], { ...ROWS[2], options_open: 999 }];
+  const w = accountWeek(ACCT, broken, TRADES, WIN);
+  const { html } = renderAccountWeek(w, WIN, null, {});
+  assert.ok(!html.includes(">How the week adds up<"));
+  // The headline is untouched -- this withholds a breakdown, not a figure.
+  assert.ok(html.includes(money(w.performance, true)));
+});
+
+test("a part that could not be valued withholds the breakdown too", () => {
+  const gap = [ROWS[0], { ...ROWS[2], shares_open: null }];
+  const { html } = renderAccountWeek(accountWeek(ACCT, gap, TRADES, WIN), WIN, null, {});
+  assert.ok(!html.includes(">How the week adds up<"));
 });
 
 test("a bought position's debit is shown as paid, not hidden", () => {
