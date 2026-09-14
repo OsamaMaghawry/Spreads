@@ -121,9 +121,11 @@ Not a licence to imply we choose the strategy. The trader picks it before
 anything is swept, and results copy stays as it is: what matched the filters
 you set, nothing recommended (compliance rules 2 and 3).
 
-**Short form "Scanner"** is correct on its own in the nav and in running prose
-once the full name has appeared. "Market Scanner" is retired; do not
-reintroduce it.
+**The nav says the full name.** The owner asked for it there on 14 Sep, and it
+is the right place for it: the menu is where someone learns what a screen is
+called, and the heading they land on then matches the link they clicked.
+"Scanner" alone stays correct in running prose once the full name has already
+appeared. "Market Scanner" is retired; do not reintroduce it.
 
 The stored value stays `screener`. `scan_presets.scope` is a CHECK-constrained
 column holding every user's saved presets, and the string is an internal key no

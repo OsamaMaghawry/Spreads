@@ -63,7 +63,7 @@ export default function Layout() {
 
   const links = [
     { to: "/", label: "Dashboard", Icon: LayoutDashboard },
-    { to: "/scanner", label: "Scanner", Icon: Radar },
+    { to: "/scanner", label: "Strategy Scanner", Icon: Radar },
     { to: "/chain", label: "Option chain", Icon: ListOrdered },
     { to: "/accounts", label: "Accounts", Icon: KeyRound },
     ...(billingVisible ? [{ to: "/billing", label: "Billing", Icon: CreditCard }] : []),
