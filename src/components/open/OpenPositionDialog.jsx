@@ -32,7 +32,13 @@ const DEFAULTS = {
   widthMax: 3,
   minCredit: 0.2,
   maxRisk: "",
-  putRatio: 2,
+  // A condor opens balanced, 1:1. This ticket used to seed the put side at 2,
+  // which the Scanner never did -- so the same strategy started from two
+  // different structures depending on which screen you opened it from, and the
+  // asymmetric one was unexplained. A 2:1 condor carries twice the risk on its
+  // put side; that is a position a trader chooses deliberately, not a default
+  // they inherit. Both fields are still editable.
+  putRatio: 1,
   callRatio: 1
 };
 
