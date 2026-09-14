@@ -5,6 +5,64 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Needs owner
 
+- [needs owner] 2026-09-14 · reality-check · **`publish-blog.yml` may still be
+  silently failing to reach production, and two more posts may be stuck.**
+  The 2026-09-12 ticket below (missing `SUPABASE_SERVICE_ROLE_KEY`) has not
+  been touched since it was filed. Since then, `option-delta-explained`
+  (12 Sep) and `theta-decay-explained` (13 Sep) have both been merged from
+  `staging` into `main` — the exact push event that triggers
+  `publish-blog.yml` — and if the secret is still missing, neither reached
+  the production `blog_posts` table. Cannot verify directly: `deltamint.app`
+  and the production Supabase project are both blocked at this session's
+  network proxy (see the reachability item below). **Check the Actions run
+  list for `publish-blog.yml` since 12 Sep, or fetch `deltamint.app/blog`,
+  and either re-set the secret or say why this is a false alarm.** Full
+  writeup: `docs/reality/2026-W38.md` §1.
+
+- [needs owner] 2026-09-14 · reality-check · **Every W37 weekly report is
+  stranded on an orphan `claude/*` branch and was never landed to `main` or
+  `staging`** — the reality check, growth play, branding audit, trading
+  audit and board pack all exist (verified: each commit is real, dated, and
+  complete) but none is an ancestor of `origin/main` or `origin/staging`.
+  This is the identical failure `ad3eb33` ("Land the agent reports...", 7 Sep)
+  fixed for W36 by cherry-picking report files off eleven stranded branches;
+  nobody has repeated that for W37, and this week's five reports (W38,
+  including this one) are at risk of the same fate. **Either repeat the
+  report-only landing `ad3eb33` did, or build the equivalent of
+  `content-merge.yml` for report branches so this stops needing a manual
+  rescue every week.** Full writeup: `docs/reality/2026-W38.md` §2.
+
+- [needs owner] 2026-09-14 · reality-check · **`docs/product/pricing.md` and
+  `docs/product/features.md` (both dated 2026-09-02) do not reflect two
+  2026-09-12 product changes**: `/pricing` was taken down entirely (no page,
+  no nav link, out of the sitemap — `landing/public/` has no `pricing/`
+  directory) and the whole product went into owner-directed Demo Mode
+  (`supabase/migrations/0035_demo_mode.sql`, `0040_paper_only.sql`) —live
+  accounts cannot place new orders and are excluded from every scheduled
+  read. Neither pricing.md's "current state" section nor features.md's
+  "PAID on live" tags mention this. Not a code defect — a deliberate owner
+  call — but the docs describing it are stale. **vp-product: update both
+  docs to note Demo Mode supersedes the pricing/gating sections until it is
+  turned off.** Full writeup: `docs/reality/2026-W38.md` §3.
+
+- [needs owner] 2026-09-14 · reality-check · **`content/PLAN.md`'s Published
+  table is missing a row for `what-is-an-options-contract`** (foundations · 1,
+  `published_at: 2026-09-07` in its own front matter), on both `main` and
+  `staging`. Every other file in `content/blog/` has at least one row.
+  **content-engine or desk-editor: add the missing row next time either
+  touches PLAN.md.** Full writeup: `docs/reality/2026-W38.md` §4.
+
+- [needs owner] 2026-09-14 · reality-check · **`docs/context/handoff.md`
+  ("read this first in a new session") is stale**: all four of its "waiting
+  on the owner" items appear resolved (Brevo API key and SMTP both working,
+  the manual `wrangler deploy` step superseded by `deploy-app.yml`, migration
+  0021 already marked done in the doc itself), but the document has had
+  exactly one line edited since 31 Aug and does not mention the production
+  security fix, Demo Mode, or either stranding problem above. **A five-minute
+  rewrite next time someone is in this file for real work** — a better
+  current list already exists in this queue's own "Needs owner" section.
+  Full writeup: `docs/reality/2026-W38.md` §7.
+
 - [needs owner] 2026-09-14 · **`www.deltamint.app` answers HTTP 522** on both
   schemes. A proxied DNS record already exists — 522 rather than NXDOMAIN
   proves it — but it points at an origin Cloudflare cannot reach. Adding a
