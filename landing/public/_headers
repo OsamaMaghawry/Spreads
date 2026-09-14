@@ -1,0 +1,13 @@
+# Headers a reputation scanner reads, and that cost nothing to serve.
+#
+# This file covers the STATIC assets only. Cloudflare does not apply _headers
+# to responses a Worker generates, and on production the Worker is not invoked
+# for static pages at all (assets.run_worker_first lists only /blog and
+# /sitemap.xml). So neither mechanism covers the whole site on its own, and the
+# same three values are set again in src/index.js for the pages the Worker
+# renders. If you change one, change both -- scripts/site-health.mjs checks the
+# homepage, which is served from here.
+/*
+  Strict-Transport-Security: max-age=15552000
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
