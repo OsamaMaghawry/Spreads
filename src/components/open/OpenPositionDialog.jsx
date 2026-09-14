@@ -15,6 +15,7 @@ import OpenPricing, { openingDefaults } from "./OpenPricing";
 import useOpenOrder from "./useOpenOrder";
 import useLiveSetup from "./useLiveSetup";
 import { saveOrder, deleteSavedOrder } from "@/lib/savedOrders";
+import { toast } from "@/components/ui/use-toast";
 import RestingOrder from "./RestingOrder";
 import OrderLog from "@/components/close/OrderLog";
 import UpgradePrompt from "@/components/billing/UpgradePrompt";
@@ -144,8 +145,25 @@ export default function OpenPositionDialog({ account, onClose, onDone, prefill =
     if (!["working", "filled", "detached"].includes(phase)) return;
     if (clearedSaved.current === fromSaved.id) return;
     clearedSaved.current = fromSaved.id;
-    deleteSavedOrder(fromSaved.id).catch(() => {});
-  }, [fromSaved, phase]);
+    const sent = Number(qty) || 0;
+    const parked = Number(fromSaved.qty) || 0;
+    deleteSavedOrder(fromSaved.id)
+      .then(() => {
+        toast({
+          title: "Saved ticket sent",
+          description:
+            sent && parked && sent !== parked
+              ? `Sent ${sent} of the ${parked} you had saved. The saved ticket has been removed — the remaining ${Math.max(parked - sent, 0)} is not queued anywhere.`
+              : "It is with your broker now, and the saved copy has been removed."
+        });
+      })
+      .catch(() => {
+        toast({
+          title: "Sent, but the saved copy is still here",
+          description: "The order is with your broker. We could not remove the saved ticket — delete it under Saved so it is not sent twice."
+        });
+      });
+  }, [fromSaved, phase, qty]);
   useEffect(() => {
     if (!fromSaved || !setup) return;
     if (seededPrice.current === fromSaved.id) return;
@@ -219,6 +237,10 @@ export default function OpenPositionDialog({ account, onClose, onDone, prefill =
         // `onDone` rather than `onClose`: the parent refetches, so the saved
         // ticket is visible in the Orders tab the moment the dialog closes
         // rather than after the next manual refresh.
+        toast({
+          title: "Saved for later",
+          description: `${setup.ticker} was not sent to your broker. Find it under "Saved" in this account.`
+        });
         onDone?.();
       } catch (e) {
         setSaveError(e.message || "Could not save it.");

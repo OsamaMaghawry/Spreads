@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { deleteSavedOrder } from "@/lib/savedOrders";
+import { toast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { fmtMoney } from "@/lib/format";
 import { Loader2 } from "lucide-react";
@@ -62,18 +63,44 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
   // from that moment whether it fills, rests or is walked, and a saved copy
   // sitting beside a RESTING exit is exactly the pair that gets sent twice.
   //
-  // A failed delete is deliberately silent. The order is placed, which is the
-  // part that matters; an error box about housekeeping over a live exit would
-  // read as a problem with the exit itself. The stale row simply shows as a
-  // saved ticket the trader can delete.
+  // AND IT SAYS SO. The owner sent a reopened QQQ exit at 5 shares of the 14
+  // he had parked and got nothing back: *"it didn't remove the saved ticket
+  // and still open and no confirmation."* The row was in fact deleted -- the
+  // list behind it was stale -- but silence on a money action is
+  // indistinguishable from failure, and he was right to read it as broken.
+  //
+  // The quantity is named when it differs from what was saved, because that is
+  // his exact case and the difference matters: parking 14 and sending 5 leaves
+  // nine shares he might still think are queued somewhere. They are not, and
+  // the ticket is gone, so the message has to say both.
+  //
+  // A failed delete stays quiet about the ORDER but is not pretended away: the
+  // stale ticket remains visible in Saved, where it can be deleted by hand.
   const clearedSaved = useRef(null);
   useEffect(() => {
     if (!prefill?.id) return;
     if (!["working", "filled", "detached"].includes(phase)) return;
     if (clearedSaved.current === prefill.id) return;
     clearedSaved.current = prefill.id;
-    deleteSavedOrder(prefill.id).catch(() => {});
-  }, [prefill, phase]);
+    const sent = Number(qtyInput) || 0;
+    const parked = Number(prefill.qty) || 0;
+    deleteSavedOrder(prefill.id)
+      .then(() => {
+        toast({
+          title: "Saved ticket sent",
+          description:
+            sent && parked && sent !== parked
+              ? `Sent ${sent} of the ${parked} you had saved. The saved ticket has been removed — the remaining ${Math.max(parked - sent, 0)} is not queued anywhere.`
+              : "It is with your broker now, and the saved copy has been removed."
+        });
+      })
+      .catch(() => {
+        toast({
+          title: "Sent, but the saved copy is still here",
+          description: "The order is with your broker. We could not remove the saved ticket — delete it under Saved so it is not sent twice."
+        });
+      });
+  }, [prefill, phase, qtyInput]);
 
   // The clamp the input no longer does: never below one, never more than the
   // position holds, and a half-typed field reads as one rather than NaN.

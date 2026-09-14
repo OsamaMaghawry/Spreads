@@ -8,6 +8,7 @@ import OpenPricing, { openingDefaults } from "@/components/open/OpenPricing";
 import useOpenOrder from "@/components/open/useOpenOrder";
 import useLiveSetup from "@/components/open/useLiveSetup";
 import { saveOrder } from "@/lib/savedOrders";
+import { toast } from "@/components/ui/use-toast";
 import RestingOrder from "@/components/open/RestingOrder";
 import OrderLog from "@/components/close/OrderLog";
 import UpgradePrompt from "@/components/billing/UpgradePrompt";
@@ -154,6 +155,10 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
           // the stored row keeps that rather than re-deriving it from legs.
           netIsCredit: !isDebit,
           timeInForce
+        });
+        toast({
+          title: "Saved for later",
+          description: `${setup.ticker} was not sent to your broker. Find it under "Saved" in that account.`
         });
         onClose({ phase: "saved" });
       } catch (e) {

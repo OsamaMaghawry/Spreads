@@ -43,7 +43,21 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
       // it: the broker's own orders are the ones that matter here.
       .catch(() => setSaved([]));
   }, [account?.id]);
-  useEffect(() => { refreshSaved(); }, [refreshSaved]);
+
+  // KEYED ON THE ACCOUNT PAYLOAD, NOT ITS ID -- and that distinction was a real
+  // defect the owner hit within minutes.
+  //
+  // Keyed on `account?.id`, this ran ONCE. The id never changes while the page
+  // is open, so nothing refetched the saved list afterwards. He reopened a
+  // saved QQQ exit, changed it to 5 shares, sent it; the dialog deleted the
+  // row exactly as intended, and the screen went on showing the ticket it had
+  // fetched minutes earlier. It looked like the delete had failed. *"It didn't
+  // remove the saved ticket and still open and no confirmation."*
+  //
+  // `account` is rebuilt by the parent on every reload, so this now refetches
+  // whenever anything else on the page does -- which is precisely when a saved
+  // ticket may have been sent.
+  useEffect(() => { refreshSaved(); }, [account, refreshSaved]);
 
   // A saved EXIT is only sendable while the position it closes is still open.
   // Resolved here, where the account's positions are, so the card can say
@@ -212,6 +226,12 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
           {[
             { id: "positions", label: "Positions", n: account.spreads.length, tone: "bg-slate-100 text-slate-600" },
             { id: "orders", label: "Orders", n: workingCount, tone: "bg-emerald-100 text-emerald-700" },
+            // ITS OWN TAB, at the owner's request: *"a saved orders tab is
+            // needed to show if there is any."* Always present, so the feature
+            // is discoverable when the list is empty rather than only once
+            // something is in it. Slate, never emerald -- the colour on this
+            // row means "can still cost money", and a saved ticket cannot.
+            { id: "saved", label: "Saved", n: savedResolved.length, tone: "bg-slate-100 text-slate-600" },
             // The broker's own list, uninterpreted. Its badge counts the
             // contracts our view does NOT account for, because that is the
             // only number on this tab worth noticing from across the room.
@@ -263,10 +283,16 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
           onCloseMany={(legs, held) => onCloseMany?.(account, legs, account.broker || [], held)}
         />
       ) : tab === "orders" ? (
-        orders.length === 0 && savedResolved.length === 0 ? (
+        orders.length === 0 ? (
           <div className="px-5 py-6 text-sm text-slate-500">
             No working orders, and nothing has been sent to the broker today. Orders from earlier days
             appear in this account&rsquo;s trade history once they settle.
+            {savedResolved.length > 0 && (
+              <>
+                {" "}You have {savedResolved.length} ticket{savedResolved.length === 1 ? "" : "s"} saved for
+                later under <button type="button" onClick={() => setTab("saved")} className="text-emerald-700 hover:underline">Saved</button>.
+              </>
+            )}
           </div>
         ) : (
           <div className="p-4 flex flex-col gap-2.5">
@@ -279,30 +305,34 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
                 onSaved={refreshSaved}
               />
             ))}
-            {/* BELOW the broker's own orders and under their own heading,
-                never interleaved by time. A saved ticket and a working order
-                are different kinds of thing, and sorting them together would
-                put something that cannot fill in the middle of a list of
-                things that can. */}
-            {savedResolved.length > 0 && (
-              <>
-                <div className="flex items-baseline gap-2 pt-2 mt-1 border-t border-slate-200">
-                  <h4 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    Saved for later
-                  </h4>
-                  <span className="text-xs text-slate-400">not sent to your broker</span>
-                </div>
-                {savedResolved.map((sv) => (
-                  <SavedOrderGroup
-                    key={sv.id}
-                    accountId={account.id}
-                    saved={sv}
-                    onChanged={() => { refreshSaved(); onOrdersChanged?.(); }}
-                    onReopen={onReopenSaved}
-                  />
-                ))}
-              </>
-            )}
+          </div>
+        )
+      ) : tab === "saved" ? (
+        // A TAB OF ITS OWN rather than a section under Orders. Mixing them put
+        // something that cannot fill at the bottom of a list of things that
+        // can, and left the count ambiguous -- the Orders badge means "can
+        // still cost money", which a saved ticket never can.
+        savedResolved.length === 0 ? (
+          <div className="px-5 py-6 text-sm text-slate-500">
+            Nothing saved for later. Tick &ldquo;Save for later&rdquo; when you build an order, or press
+            &ldquo;Save for later&rdquo; on a working order, and the ticket is kept here instead of going to
+            your broker.
+          </div>
+        ) : (
+          <div className="p-4 flex flex-col gap-2.5">
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Your broker does not know about these. They are not working, they hold no place in any queue,
+              and none of them can fill until you open and send it.
+            </p>
+            {savedResolved.map((sv) => (
+              <SavedOrderGroup
+                key={sv.id}
+                accountId={account.id}
+                saved={sv}
+                onChanged={() => { refreshSaved(); onOrdersChanged?.(); }}
+                onReopen={onReopenSaved}
+              />
+            ))}
           </div>
         )
       ) : account.spreads.length === 0 ? (
