@@ -5,24 +5,45 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Needs owner
 
-- [needs owner] 2026-09-12 · **`http://deltamint.app/` does not upgrade to
-  HTTPS**, and neither does `http://deltamint.app/terms`. `site-health.yml`
-  has failed on this every run since at least #35 (it is the only thing
-  failing it), so the red has been standing long enough to stop being read.
-  Two `[FAIL]`s and eight `[warn]`s, all of them Cloudflare configuration
-  rather than code:
-  - **Turn on SSL/TLS → Edge Certificates → Always Use HTTPS.** Clears both
-    failures. A plain-http apex is the one item on this list a reputation
-    engine reads directly.
-  - **Enable HSTS** in the same panel. Three of the warnings.
-  - `www.deltamint.app` answers **HTTP 522** on both schemes — Cloudflare
-    cannot reach an origin for the `www` host. Either point it at the same
-    Worker route as the apex or stop publishing the name.
-  - `x-content-type-options` and `referrer-policy` are missing on both
-    `deltamint.app` and `dashboard.deltamint.app`. These two are OURS, not
-    Cloudflare's — they can be set on every response from the landing Worker
-    and the app Worker, and should be, rather than left to a dashboard toggle.
-    Filed as work, not as an owner item.
+- [needs owner] 2026-09-14 · **`www.deltamint.app` answers HTTP 522** on both
+  schemes. A proxied DNS record already exists — 522 rather than NXDOMAIN
+  proves it — but it points at an origin Cloudflare cannot reach. Adding a
+  second record does not fix it, and Cloudflare refuses one anyway ("a record
+  with that host already exists"); the existing record is the thing to change.
+  The fix is a redirect to the apex, not a second custom domain: every page's
+  canonical tag says `https://deltamint.app`, so serving the site on two
+  hostnames would split its authority. Rules → Redirect Rules → new rule,
+  hostname `equals` `www.deltamint.app`, **dynamic** target
+  `concat("https://deltamint.app", http.request.uri.path)`, **301**, preserve
+  query string. Dynamic and not static, or every `www` URL lands on the
+  homepage instead of the same path.
+  **Owner-only: not reachable from a session.** No Cloudflare credentials are
+  present here, and the Cloudflare connector covers Workers/KV/R2/D1 — not DNS
+  and not Rules. `api.cloudflare.com` is 403 at CONNECT besides (allowlist
+  item below).
+  **Priority: low, and the owner has been told so.** `site-health` is green
+  without it — two `[warn]`s, no failure. It affects visitors who type `www.`
+  by hand and nothing else; no app, order or user path touches it. Do not
+  raise it again unasked.
+
+- [fixed 2026-09-14] 2026-09-12 · **`http://deltamint.app/` did not upgrade to
+  HTTPS**, and neither did `http://deltamint.app/terms`. `site-health.yml` had
+  failed on this every run since at least #35 — the only thing failing it — so
+  the red had been standing long enough to stop being read. Owner turned on
+  SSL/TLS → Edge Certificates → **Always Use HTTPS**; the re-run of run
+  34825468629 went `9 ok · 8 warn · 2 fail` → `11 ok · 8 warn · 0 fail`.
+
+  The three header warnings that came with it were OURS, not Cloudflare's, and
+  are now set in code rather than left to a dashboard toggle:
+  `Strict-Transport-Security`, `X-Content-Type-Options` and `Referrer-Policy`,
+  in `landing/src/index.js` + `landing/public/_headers` and `worker/index.js`
+  + `public/_headers`. Two copies per site because Cloudflare does not apply a
+  `_headers` file to a Worker's own responses and neither Worker runs for every
+  path — one mechanism covers what the other cannot.
+  HSTS included, so the Cloudflare HSTS panel is not needed. Deliberately six
+  months with **no** `includeSubDomains` and no preload while `www` is still
+  522: both are one-way doors cached client-side, where no setting of ours can
+  revoke them.
 
 - [needs owner] 2026-09-12 · **`publish-blog.yml` fails on `main` at its
   credentials guard**: the GitHub Actions secret `SUPABASE_SERVICE_ROLE_KEY`
