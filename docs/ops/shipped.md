@@ -3,6 +3,14 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-14 · (staging) Reopening a saved order ticket no longer shows a
+  false "No ceiling"/"Loss not bounded" risk warning, blank strikes and
+  "Delta NaN" for a setup it never actually rebuilt — saved orders now
+  store the setup itself (strikes, expiry, deltas, credit, max risk), so
+  reopening one shows the real numbers instead of guessing from the wire
+  legs alone; risk now reads bounded, unbounded, or "not known" rather
+  than treating "we don't know" the same as "unlimited loss"
+  (`3ab139a`, migration `0053`).
 - 2026-09-14 · (staging) An eighth foundations post — implied volatility
   explained — is live on staging (not yet merged to production `main`):
   what IV measures, why every contract on a chain reprices together
