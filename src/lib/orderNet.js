@@ -150,3 +150,56 @@ export function matchPositionForTicket(savedLegs, spreads, legsOf) {
   }
   return null;
 }
+
+/**
+ * The most this CLOSING order could be raised to, or null when unknown.
+ *
+ * The owner: *"Why are you capping to 5 shares while I have more? As long as I
+ * have the quantity, just write total or max qty and let me have the option to
+ * increase or decrease."* He is right. I capped at the quantity the order was
+ * SENT for, which is not a limit on anything — it is just what he happened to
+ * type earlier. The real ceiling is what he HOLDS.
+ *
+ * THE ARITHMETIC HAS ONE TRAP. `qty_available` is the broker's own answer to
+ * "how much will you accept an order for right now", and it has ALREADY
+ * subtracted what this working order claims. Capping at `available` alone
+ * would refuse to raise an order above the holding MINUS itself — 14 shares
+ * with a 5-share sell working would cap at 9. Replacing the order releases its
+ * own hold, so the ceiling is `available + this order's own quantity`.
+ *
+ * Per leg, because a multi-leg close is limited by its scarcest leg: a spread
+ * where one side has 3 contracts and the other 10 can only close 3.
+ *
+ * Null when any leg has no matching broker row. Unknown is not zero, and it is
+ * not "uncapped either" — the caller decides, and this module refuses to
+ * invent a number that would either block a legitimate order or wave through
+ * one the broker will bounce.
+ *
+ * @param order     the order as the Orders tab holds it
+ * @param brokerRows `account.broker` — the broker's own positions
+ * @param isEquity  shares may be fractional; contracts may not
+ */
+export function maxCloseQty(order, brokerRows, isEquity) {
+  const legs = order?.legs || [];
+  const unitQty = Number(order?.qty) || 0;
+  if (!legs.length || unitQty <= 0) return null;
+
+  let cap = Infinity;
+  for (const leg of legs) {
+    const row = (brokerRows || []).find((r) => r?.symbol === leg?.symbol);
+    if (!row) return null;
+    const legQty = Math.abs(Number(leg?.qty) || 0);
+    // The ratio this leg contributes to one unit of the order.
+    const ratio = legQty > 0 ? legQty / unitQty : 1;
+    if (!(ratio > 0)) return null;
+    const available = Math.abs(Number(row.available ?? row.qty) || 0);
+    // Add back what this very order is holding: replacing it frees that.
+    const held = available + legQty;
+    cap = Math.min(cap, held / ratio);
+  }
+  if (!Number.isFinite(cap) || cap <= 0) return null;
+  // A contract is indivisible. A share may not be — Alpaca trades fractions,
+  // and rounding one down would quietly strip part of a holding the trader can
+  // legitimately close.
+  return isEquity ? Math.round(cap * 1e6) / 1e6 : Math.floor(cap);
+}

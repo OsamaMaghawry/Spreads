@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { netKind, legsAreEquity, orderNetKind, saveRefusalFor, isClosingTicket, matchPositionForTicket } from "./orderNet.js";
+import { netKind, legsAreEquity, orderNetKind, saveRefusalFor, isClosingTicket, matchPositionForTicket, maxCloseQty } from "./orderNet.js";
 
 // The owner: *"I want to show up if the order is Debit or Credit (Options
 // only). For stocks, no need."*
@@ -196,4 +196,69 @@ test("a position whose legs cannot be built is skipped rather than thrown on", (
   const good = { id: "good", legs: [{ symbol: "QQQ" }] };
   const throwing = (s) => { if (!s.legs) throw new Error("cannot pair"); return s.legs; };
   assert.equal(matchPositionForTicket([{ symbol: "QQQ" }], [bad, good], throwing).id, "good");
+});
+
+
+// ---------------------------------------------------------------------------
+// How much of a closing order you may actually ask for.
+//
+// The owner: *"Why are you capping to 5 shares while I have more?"* I had
+// capped at the quantity the order was sent for, which limits nothing -- it is
+// just what he typed earlier. The ceiling is what he HOLDS.
+// ---------------------------------------------------------------------------
+
+test("the cap adds back what this order is already holding", () => {
+  // 14 shares held, 5 of them claimed by this very working sell order, so the
+  // broker reports 9 available. Replacing the order releases its own hold, so
+  // he may raise it to the full 14 -- capping at 9 is the bug he hit.
+  const order = { qty: 5, legs: [{ symbol: "QQQ", qty: 5 }] };
+  const broker = [{ symbol: "QQQ", qty: 14, available: 9 }];
+  assert.equal(maxCloseQty(order, broker, true), 14);
+});
+
+test("a multi-leg close is limited by its scarcest leg", () => {
+  // One leg can cover 10 units, the other only 3.
+  const order = {
+    qty: 1,
+    legs: [{ symbol: "TSLA251217P00320000", qty: 1 }, { symbol: "TSLA251217P00310000", qty: 1 }]
+  };
+  const broker = [
+    { symbol: "TSLA251217P00320000", qty: 10, available: 9 },
+    { symbol: "TSLA251217P00310000", qty: 3, available: 2 }
+  ];
+  assert.equal(maxCloseQty(order, broker, false), 3);
+});
+
+test("a ratio leg is divided by its ratio, not counted flat", () => {
+  // Two contracts of the short per unit of the order: 10 held is 5 units.
+  const order = { qty: 1, legs: [{ symbol: "AAA", qty: 2 }] };
+  const broker = [{ symbol: "AAA", qty: 10, available: 8 }];
+  assert.equal(maxCloseQty(order, broker, false), 5);
+});
+
+test("contracts floor; shares keep their fraction", () => {
+  const order = { qty: 1, legs: [{ symbol: "SPY", qty: 1 }] };
+  const broker = [{ symbol: "SPY", qty: 13.456789, available: 12.456789 }];
+  // A share may be fractional -- rounding down would strip part of a holding
+  // the trader is entitled to close.
+  assert.equal(maxCloseQty(order, broker, true), 13.456789);
+  // A contract may not be.
+  assert.equal(maxCloseQty({ qty: 1, legs: [{ symbol: "X", qty: 1 }] }, [{ symbol: "X", qty: 2.9, available: 1.9 }], false), 2);
+});
+
+test("a leg the broker does not report leaves the cap unknown", () => {
+  // Unknown is not zero and not "uncapped" -- the caller decides. Inventing a
+  // number here would either block a legitimate order or wave through one the
+  // broker will bounce.
+  const order = { qty: 1, legs: [{ symbol: "GONE", qty: 1 }] };
+  assert.equal(maxCloseQty(order, [{ symbol: "OTHER", qty: 5, available: 5 }], false), null);
+  assert.equal(maxCloseQty(order, [], false), null);
+  assert.equal(maxCloseQty({ qty: 0, legs: [] }, [], false), null);
+});
+
+test("a broker row with no qty_available falls back to the holding", () => {
+  const order = { qty: 2, legs: [{ symbol: "QQQ", qty: 2 }] };
+  // No `available` field at all: the holding is all we know, and the order's
+  // own claim is still added back.
+  assert.equal(maxCloseQty(order, [{ symbol: "QQQ", qty: 7 }], true), 9);
 });

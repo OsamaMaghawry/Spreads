@@ -303,6 +303,9 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
                 order={o}
                 onChanged={onOrdersChanged}
                 onSaved={refreshSaved}
+                // The broker's own positions, so a closing order knows what is
+                // actually held rather than capping at what it was sent for.
+                brokerRows={account.broker || []}
               />
             ))}
           </div>

@@ -7,7 +7,7 @@ import useLiveSetup from "@/components/open/useLiveSetup";
 import NumberField from "@/components/common/NumberField";
 import ConfirmAction from "@/components/common/ConfirmAction";
 import { fmtMoney } from "@/lib/format";
-import { orderNetKind, saveRefusalFor, isClosingTicket } from "@/lib/orderNet";
+import { orderNetKind, saveRefusalFor, isClosingTicket, maxCloseQty } from "@/lib/orderNet";
 import { saveOrder } from "@/lib/savedOrders";
 import { toast } from "@/components/ui/use-toast";
 
@@ -74,7 +74,7 @@ function isEquityOrder(order) {
   return all.length > 0 && all.every((s) => !parseOCC(s));
 }
 
-export default function OrderGroup({ accountId, order, onChanged, onSaved }) {
+export default function OrderGroup({ accountId, order, onChanged, onSaved, brokerRows = [] }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -156,6 +156,10 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved }) {
   // one answer across the whole feature. It decides two things here: whether
   // the quantity may be raised, and how the Update confirmation is worded.
   const closingOrder = isClosingTicket(order.legs);
+  // WHAT YOU HOLD, not what you happened to send. Null when the broker does not
+  // report one of the legs -- unknown, so no cap is applied rather than a
+  // guessed one that would block a legitimate order.
+  const maxQty = closingOrder ? maxCloseQty(order, brokerRows, isEquity) : null;
   // The underlying's move today, from the previous close syncAccounts carries.
   const change = dayChange(market.spot || order.spot, order.prevClose);
   // spreadQuote answers in debits. A closing order pays one; an opening credit
@@ -317,9 +321,10 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved }) {
     const p = Number(price);
     if (!(p > 0)) { setError("Enter a price above zero."); return; }
     const q = Number(qtyEdit);
-    if (!(q > 0) || !Number.isInteger(q)) { setError("Enter a whole quantity above zero."); return; }
-    if (closingOrder && q > Number(order.qty)) {
-      setError(`This order is closing a position, so it cannot be raised above the ${order.qty} it was sent for.`);
+    if (!(q > 0)) { setError("Enter a quantity above zero."); return; }
+    if (!isEquity && !Number.isInteger(q)) { setError("Contracts are whole numbers."); return; }
+    if (closingOrder && maxQty && q > maxQty) {
+      setError(`You hold ${maxQty}, so this closing order cannot be raised above that.`);
       return;
     }
     const payload = { action: "replace", limitPrice: p };
@@ -548,7 +553,7 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved }) {
                         step={0.01}
                         min={0.01}
                         ariaLabel="New limit price"
-                        className="w-28"
+                        className="w-44"
                       />
                     </span>
                   </label>
@@ -565,15 +570,28 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved }) {
                   <label className="flex flex-col gap-1">
                     <span className="text-[10px] uppercase tracking-wide text-slate-400">
                       {isEquity ? "Shares" : "Contracts"}
+                      {/* The ceiling is stated rather than merely enforced. A
+                          field that silently refuses to go past a number the
+                          trader cannot see reads as broken -- which is exactly
+                          how the old cap read. */}
+                      {maxQty ? <span className="normal-case text-slate-400"> · max {maxQty}</span> : null}
                     </span>
                     <NumberField
                       value={qtyEdit}
                       onChange={setQtyEdit}
+                      // STEP 1 EVEN FOR SHARES, though shares may be
+                      // fractional. The step only drives the -/+ buttons, and
+                      // nudging a holding by a millionth of a share is not a
+                      // thing anybody wants to press. Typing stays free --
+                      // `NumberField` is permissive mid-keystroke -- so
+                      // 13.456789 can be entered directly, and because the
+                      // nudge clamps to `max`, pressing + from 13 lands
+                      // exactly on the full fractional holding.
                       step={1}
                       min={1}
-                      max={closingOrder ? Number(order.qty) || undefined : undefined}
+                      max={maxQty || undefined}
                       ariaLabel="New quantity"
-                      className="w-24"
+                      className="w-40"
                     />
                   </label>
                   <ConfirmAction
