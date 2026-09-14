@@ -3,6 +3,17 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-14 · Closing a position no longer shows a blank white screen: the
+  close ticket read its own share/contract quantity before the value existed
+  (a JavaScript temporal-dead-zone bug in `CloseDialog`), so every attempt to
+  close crashed the whole page with no message, live on production since the
+  morning's order-card release. The quantity is now read after it is set, and
+  the app gets its first error boundary anywhere — a crash is now caught at
+  the smallest scope, shows what broke with a way back, and is recorded for
+  later instead of unmounting the entire page. A new lint rule
+  (`no-use-before-define` for `let`/`const`/`class` across `src/components`
+  and `src/pages`) stops the same class of bug from shipping again
+  (`c576da7`, `b9c2555`, merged straight to `main` in `c835e0f`).
 - 2026-09-14 · (staging) Reopening a saved order ticket no longer shows a
   false "No ceiling"/"Loss not bounded" risk warning, blank strikes and
   "Delta NaN" for a setup it never actually rebuilt — saved orders now
