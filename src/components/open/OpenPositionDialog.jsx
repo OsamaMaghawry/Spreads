@@ -375,7 +375,28 @@ export default function OpenPositionDialog({ account, onClose, onDone, prefill =
             <PreTradeRisk setup={setup} accountId={account.id} qty={qty} />
 
             <div>
-              <label className={label}>Quantity{setup.maxContracts ? ` — up to ${setup.maxContracts} on ${setup.sharesHeld} shares` : ""}</label>
+              {/* The ceiling is CLICKABLE here too, so "up to 3 on 300 shares"
+                  fills the field instead of being a number to copy by hand. A
+                  covered call is the case where it matters: the maximum is
+                  derived from the shares held, and getting it wrong means an
+                  order the broker refuses. */}
+              <label className={label}>
+                Quantity
+                {setup.maxContracts ? (
+                  <>
+                    {" — up to "}
+                    <button
+                      type="button"
+                      onClick={() => setQty(String(setup.maxContracts))}
+                      className="text-emerald-700 hover:underline"
+                      title={`Use all ${setup.maxContracts}`}
+                    >
+                      {setup.maxContracts}
+                    </button>
+                    {` on ${setup.sharesHeld} shares`}
+                  </>
+                ) : null}
+              </label>
               <NumberField value={qty} onChange={setQty} step={1} min={1} max={setup.maxContracts || undefined} ariaLabel="Quantity" />
             </div>
 

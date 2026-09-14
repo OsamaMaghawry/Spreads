@@ -120,12 +120,36 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
   // That is the app overruling the owner, not protecting him. What it owes
   // him is the consequence, stated before he confirms — which is the warning
   // under the field, not a lower number in it.
-  const rowQty = Math.abs(Number(spread.qty)) || 1;
-  const maxQty = Math.max(1, Math.min(rowQty, Number(spread.qtyAvailable ?? spread.qty) || rowQty));
-  const heldForOrders = Math.max(0, Number(spread.qty) - Number(spread.qtyAvailable ?? spread.qty));
+  //
+  // A FRACTIONAL HOLDING WAS COLLAPSING TO 1, in three places at once, and the
+  // owner hit all three with a single IVV row of 0.000055585 shares: the
+  // dialog said "0.000055585 share held" in its own subtitle and then offered
+  // "Quantity (max 1)" — a ceiling 18,000 times his position, defaulted to.
+  //
+  //   `Math.max(1, ...)` floored the ceiling at one whole share.
+  //   `parseInt(qtyInput, 10)` truncated "0.000055585" to 0, then `|| 1`
+  //   turned that into one share.
+  //   The seeding effect below did the same again.
+  //
+  // Each was written when a share count was assumed whole. A contract IS whole
+  // -- that floor is real and stays -- but Alpaca trades shares to nine decimal
+  // places, and a position built up over time is fractional more often than
+  // not.
+  const isShares = !!spread.shares;
+  const rowQty = Math.abs(Number(spread.qty)) || 0;
+  const availRaw = Math.abs(Number(spread.qtyAvailable ?? spread.qty));
+  const avail = Number.isFinite(availRaw) && availRaw > 0 ? availRaw : rowQty;
+  const ceiling = Math.min(rowQty, avail) || rowQty;
+  // Contracts floor at one; shares floor at whatever is actually held.
+  const maxQty = isShares ? ceiling : Math.max(1, ceiling);
+  const heldForOrders = Math.max(0, rowQty - avail);
   // How many short calls this sale would leave without shares behind them.
   const freeShares = Number(spread.freeQty ?? spread.qty);
-  const qty = Math.max(1, Math.min(maxQty, parseInt(qtyInput, 10) || 1));
+  const typedQty = Number(qtyInput);
+  const qty = isShares
+    // Number, not parseInt: the fraction IS the quantity here.
+    ? Math.min(maxQty, Number.isFinite(typedQty) && typedQty > 0 ? typedQty : maxQty)
+    : Math.max(1, Math.min(maxQty, parseInt(qtyInput, 10) || 1));
 
   const allLegs = spreadLegs(spread);
   const pickedLegs = allLegs.filter((l) => selected.includes(l.symbol));
@@ -133,13 +157,13 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
   const legSig = customLegs ? customLegs.map((l) => l.symbol).join(",") : "";
 
   useEffect(() => {
-    // Defaults to what can actually be sold, not to the whole holding.
-    setQtyInput(String(
-      Math.max(1, Math.min(
-        Math.abs(Number(spread.qty)) || 1,
-        Number(spread.qtyAvailable ?? spread.qty) || Math.abs(Number(spread.qty)) || 1
-      ))
-    ));
+    // Defaults to what can actually be sold, not to the whole holding -- and
+    // for shares that may be a fraction. `Math.max(1, ...)` here was the third
+    // place a 0.000055585-share position became "1".
+    const held = Math.abs(Number(spread.qty)) || 0;
+    const free = Math.abs(Number(spread.qtyAvailable ?? spread.qty));
+    const sellable = Math.min(held, Number.isFinite(free) && free > 0 ? free : held) || held;
+    setQtyInput(String(spread.shares ? sellable : Math.max(1, sellable)));
     setOpenOrders(spread.openOrders || []);
     setMode(spread.presetLegSymbol ? "legs" : "whole");
     setSelected(spread.presetLegSymbol ? [spread.presetLegSymbol] : []);
@@ -268,8 +292,8 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
   // multiplier does not apply, and the result of selling them is measured
   // against the basis rather than against a credit that was never received.
   // Using the option arithmetic here would have overstated a share close by
-  // exactly 100x on a real position.
-  const isShares = !!spread.shares;
+  // exactly 100x on a real position. (`isShares` is declared above, where the
+  // quantity ceiling needs it.)
   // Closing this structure PAYS the account rather than costing it. True of a
   // debit vertical, a ratio whose long is worth more than its shorts, and any
   // net-long position -- and the whole-position readout had no word for it.
@@ -510,10 +534,37 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
 
             <div>
               <label className="text-xs text-slate-500 block mb-1.5">
-                {mode === "legs" ? "Units to close" : "Quantity"} (max {maxQty})
+                {mode === "legs" ? "Units to close" : "Quantity"}
+                {/* CLICKABLE, at the owner's request and for the same reason as
+                    the Orders tab: a nine-decimal holding is not a number
+                    anybody should retype, and one wrong digit on a close is
+                    either a rejection or a sliver left behind. */}
+                {maxQty > 0 && (
+                  <>
+                    {" ("}
+                    <button
+                      type="button"
+                      onClick={() => setQtyInput(String(maxQty))}
+                      className="text-emerald-700 hover:underline"
+                      title={`Close the whole position: ${maxQty}`}
+                    >
+                      max {maxQty}
+                    </button>
+                    {")"}
+                  </>
+                )}
               </label>
-              <NumberField value={qtyInput} onChange={setQtyInput} step={1} min={1} max={maxQty}
-                ariaLabel={mode === "legs" ? "Units to close" : "Quantity"} />
+              <NumberField
+                value={qtyInput}
+                onChange={setQtyInput}
+                step={1}
+                // Shares floor at whatever is held, which may be a fraction far
+                // below one. A contract cannot be split.
+                min={isShares ? 0 : 1}
+                max={maxQty}
+                className="w-full"
+                ariaLabel={mode === "legs" ? "Units to close" : "Quantity"}
+              />
               {heldForOrders > 0 && (
                 <p className="mt-1.5 text-xs text-amber-700">
                   {heldForOrders} of your {spread.qty} {isShares ? "shares are" : "contracts are"} already
