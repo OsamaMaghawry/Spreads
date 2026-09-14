@@ -1,5 +1,11 @@
 # Duty engineer — needs you: confirm production ran today's three migrations
 
+> Written to be emailed, and **not delivered** — `sendDigest` is 403 at CONNECT
+> on both Supabase projects, `email-digest.yml` cannot be dispatched with this
+> session's token, and a GitHub issue was refused. See the 17:06 UTC section of
+> `docs/ops/2026-09-14.md`. Kept as-is so anyone who *can* send it has the words
+> ready.
+
 Today's merge to `main` at 14:28 UTC put live code into production that writes a
 database column we have no record of production having. If the column is not
 there, **Save for later fails for every user, on every order**. It is probably

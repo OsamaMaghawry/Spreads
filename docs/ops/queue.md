@@ -40,9 +40,31 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
   compare against `supabase/migrations/`; apply anything missing, oldest first.
   At minimum confirm `0051`, `0052`, `0053`. Not a duty-engineer fix — a
   migration is escalate-never-fix, and this one is on production besides.
-  Emailed: attempted through `sendDigest` per the brief and blocked at the proxy
-  (403 at CONNECT, the standing item below), so delivered instead by dispatching
-  this repo's own `email-digest.yml`, which calls `sendDigest` from CI.
+  **Not emailed — no channel exists.** See the item directly below.
+
+- [needs owner] 2026-09-14 · duty-engineer · **The duty engineer can no longer
+  reach the owner at all.** The brief requires an email for a user-visible or
+  money-path finding; the escalation above is one, and it could not be
+  delivered. Three routes tried this run:
+  (1) `sendDigest` on production per the brief's recipe — `CONNECT tunnel
+  failed, response 403`, the standing allowlist item below. **New this run:**
+  the staging project `wpwaomzgpbozzghohwmf.supabase.co` is blocked the same
+  way, so *no* Supabase host is reachable and the brief's step cannot run as
+  written. Recorded in `docs/context/reachable.md`.
+  (2) `email-digest.yml`, this repo's own answer to "an agent physically cannot
+  call sendDigest itself" — `workflow_dispatch` refused with
+  `403 Resource not accessible by integration`; the session token can read
+  Actions and push branches but not dispatch. Its push trigger does not cover
+  `docs/ops/**`, and misfiling an ops escalation into `docs/product/**` to trip
+  a path filter is not an option worth taking.
+  (3) A GitHub issue — refused by the session's own permission system as an
+  external write. Not worked around.
+  The 2026-09-09 run that hit (1) used `PushNotification`; that tool is not
+  present in this session. **Owner: one of these needs to exist** — the
+  allowlist addition for `yecfbeohyakuoyczvdbj.supabase.co` (smallest change,
+  already requested below), or `docs/ops/**` added to `email-digest.yml`'s push
+  paths so a pushed ledger mails itself. Until then every duty-engineer
+  escalation is silent until someone reads `docs/ops/queue.md`.
 
 - [fixed 2026-09-14] 2026-09-12 · **`publish-blog.yml`'s failure was NOT the
   credentials guard, and nothing is waiting on the owner.** The entry below
