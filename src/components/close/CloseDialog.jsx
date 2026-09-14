@@ -1,5 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invokeFunction } from "@/lib/functions";
+import { deleteSavedOrder } from "@/lib/savedOrders";
+import { qtyString } from "@/lib/orderNet";
+import { toast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { fmtMoney } from "@/lib/format";
 import { Loader2 } from "lucide-react";
@@ -27,14 +30,25 @@ import RestingOrder from "@/components/open/RestingOrder";
 // instead of flooding it.
 const QUOTE_REFRESH_MS = 1000;
 
-export default function CloseDialog({ account, spread, onClose, onDone }) {
+export default function CloseDialog({ account, spread, onClose, onDone, prefill = null }) {
   // Held as typed, clamped where it is used. Clamping inside onChange meant a
   // half-typed number was rewritten under the cursor.
-  const [qtyInput, setQtyInput] = useState("1");
+  const [qtyInput, setQtyInput] = useState(prefill?.qty ? String(prefill.qty) : "1");
   // Walk stays the default because it fills more often than a price left to
   // rest. "manual" and "market" are the two ways to override it.
-  const [priceMode, setPriceMode] = useState(spread.shares ? "manual" : "walk");
-  const [manualPrice, setManualPrice] = useState(null);
+  // A REOPENED SAVED EXIT arrives priced. `prefill` is the parked ticket, and
+  // its price is a decision the trader already made -- so the ticket opens on
+  // "manual", resting exactly where they put it, never on the walk. A walk
+  // concedes toward the bid on its own; starting one on a price chosen days
+  // ago would move their limit while they watched it.
+  const [priceMode, setPriceMode] = useState(
+    prefill?.order_type === "limit" ? "manual" : prefill?.order_type === "market" ? "market" : spread.shares ? "manual" : "walk"
+  );
+  const [manualPrice, setManualPrice] = useState(
+    prefill?.order_type === "limit" && prefill?.limit_price !== null && prefill?.limit_price !== undefined
+      ? Math.abs(Number(prefill.limit_price))
+      : null
+  );
   const [quote, setQuote] = useState(null);
   const [quoteLoading, setQuoteLoading] = useState(true);
   // Why there is no quote, in the server's own words. Null when there is one,
@@ -44,6 +58,60 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   const [selected, setSelected] = useState([]);
   const [openOrders, setOpenOrders] = useState(spread.openOrders || []);
   const { phase, log, resting, run, stop, reset, replacePrice } = useCloseOrder();
+
+  // A reopened saved exit stops being a saved ticket the moment its order
+  // reaches the broker. Keyed on "working", not on "filled": the order exists
+  // from that moment whether it fills, rests or is walked, and a saved copy
+  // sitting beside a RESTING exit is exactly the pair that gets sent twice.
+  //
+  // AND IT SAYS SO. The owner sent a reopened QQQ exit at 5 shares of the 14
+  // he had parked and got nothing back: *"it didn't remove the saved ticket
+  // and still open and no confirmation."* The row was in fact deleted -- the
+  // list behind it was stale -- but silence on a money action is
+  // indistinguishable from failure, and he was right to read it as broken.
+  //
+  // The quantity is named when it differs from what was saved, because that is
+  // his exact case and the difference matters: parking 14 and sending 5 leaves
+  // nine shares he might still think are queued somewhere. They are not, and
+  // the ticket is gone, so the message has to say both.
+  //
+  // A failed delete stays quiet about the ORDER but is not pretended away: the
+  // stale ticket remains visible in Saved, where it can be deleted by hand.
+  const clearedSaved = useRef(null);
+  useEffect(() => {
+    if (!prefill?.id) return;
+    if (!["working", "filled", "detached"].includes(phase)) return;
+    if (clearedSaved.current === prefill.id) return;
+    clearedSaved.current = prefill.id;
+    // The CLAMPED quantity, not the raw typed string. Typing 20 against a 14
+    // holding produced "Sent 20 of the 14 you had saved — the remaining 0 is
+    // not queued anywhere": two wrong figures and a nonsense clause, on a
+    // message about money.
+    const sent = qty || 0;
+    const parked = Number(prefill.qty) || 0;
+    deleteSavedOrder(prefill.id)
+      .then(() => {
+        toast({
+          title: "Saved ticket sent",
+          description:
+            // Only when LESS was sent than parked. More is not a remainder.
+            sent && parked && sent < parked
+              ? `Sent ${qtyString(sent)} of the ${qtyString(parked)} you had saved. The saved ticket has been removed — the remaining ${qtyString(parked - sent)} is not queued anywhere.`
+              // THE TRADE-OFF IS STATED. The ticket is cleared the moment the
+              // order reaches the broker, which is what stops it being sent
+              // twice -- but a walk that never fills leaves the trader with
+              // neither an order nor a ticket. Saying so is the difference
+              // between a deliberate choice and a surprise.
+              : "It is with your broker now, and the saved copy has been removed. If it does not fill, you will need to build the ticket again."
+        });
+      })
+      .catch(() => {
+        toast({
+          title: "Sent, but the saved copy is still here",
+          description: "The order is with your broker. We could not remove the saved ticket — delete it under Saved so it is not sent twice."
+        });
+      });
+  }, [prefill, phase, qty]);
 
   // The clamp the input no longer does: never below one, never more than the
   // position holds, and a half-typed field reads as one rather than NaN.
@@ -63,12 +131,42 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   // That is the app overruling the owner, not protecting him. What it owes
   // him is the consequence, stated before he confirms — which is the warning
   // under the field, not a lower number in it.
-  const rowQty = Math.abs(Number(spread.qty)) || 1;
-  const maxQty = Math.max(1, Math.min(rowQty, Number(spread.qtyAvailable ?? spread.qty) || rowQty));
-  const heldForOrders = Math.max(0, Number(spread.qty) - Number(spread.qtyAvailable ?? spread.qty));
+  //
+  // A FRACTIONAL HOLDING WAS COLLAPSING TO 1, in three places at once, and the
+  // owner hit all three with a single IVV row of 0.000055585 shares: the
+  // dialog said "0.000055585 share held" in its own subtitle and then offered
+  // "Quantity (max 1)" — a ceiling 18,000 times his position, defaulted to.
+  //
+  //   `Math.max(1, ...)` floored the ceiling at one whole share.
+  //   `parseInt(qtyInput, 10)` truncated "0.000055585" to 0, then `|| 1`
+  //   turned that into one share.
+  //   The seeding effect below did the same again.
+  //
+  // Each was written when a share count was assumed whole. A contract IS whole
+  // -- that floor is real and stays -- but Alpaca trades shares to nine decimal
+  // places, and a position built up over time is fractional more often than
+  // not.
+  const isShares = !!spread.shares;
+  const rowQty = Math.abs(Number(spread.qty)) || 0;
+  const availRaw = Math.abs(Number(spread.qtyAvailable ?? spread.qty));
+  const avail = Number.isFinite(availRaw) && availRaw > 0 ? availRaw : rowQty;
+  const ceiling = Math.min(rowQty, avail) || rowQty;
+  // Contracts floor at one; shares floor at whatever is actually held.
+  const maxQty = isShares ? ceiling : Math.max(1, ceiling);
+  const heldForOrders = Math.max(0, rowQty - avail);
   // How many short calls this sale would leave without shares behind them.
   const freeShares = Number(spread.freeQty ?? spread.qty);
-  const qty = Math.max(1, Math.min(maxQty, parseInt(qtyInput, 10) || 1));
+  const typedQty = Number(qtyInput);
+  // NOTHING TYPED IS NOT "SELL EVERYTHING". Clearing the field, or pressing
+  // minus once on a fractional holding, left it reading 0 while the order
+  // became the ENTIRE position -- the fallback pointed at the maximum on a
+  // close, which is the wrong direction to guess in. An unreadable quantity is
+  // now zero, and zero is refused before it can be submitted.
+  const qty = isShares
+    // Number, not parseInt: the fraction IS the quantity here.
+    ? (Number.isFinite(typedQty) && typedQty > 0 ? Math.min(maxQty, typedQty) : 0)
+    : Math.max(1, Math.min(maxQty, parseInt(qtyInput, 10) || 1));
+  const qtyReady = qty > 0;
 
   const allLegs = spreadLegs(spread);
   const pickedLegs = allLegs.filter((l) => selected.includes(l.symbol));
@@ -76,17 +174,24 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   const legSig = customLegs ? customLegs.map((l) => l.symbol).join(",") : "";
 
   useEffect(() => {
-    // Defaults to what can actually be sold, not to the whole holding.
-    setQtyInput(String(
-      Math.max(1, Math.min(
-        Math.abs(Number(spread.qty)) || 1,
-        Number(spread.qtyAvailable ?? spread.qty) || Math.abs(Number(spread.qty)) || 1
-      ))
-    ));
+    // Defaults to what can actually be sold, not to the whole holding -- and
+    // for shares that may be a fraction. `Math.max(1, ...)` here was the third
+    // place a 0.000055585-share position became "1".
+    const held = Math.abs(Number(spread.qty)) || 0;
+    const free = Math.abs(Number(spread.qtyAvailable ?? spread.qty));
+    const sellable = Math.min(held, Number.isFinite(free) && free > 0 ? free : held) || held;
+    // A REOPENED TICKET KEEPS THE QUANTITY IT WAS PARKED WITH. This effect ran
+    // unconditionally and overwrote it, so a "5 of 14" exit came back
+    // presenting 14 -- the ticket silently substituting a size the trader
+    // never chose, in the over-closing direction. Clamped, because the
+    // position may have shrunk since it was parked.
+    const parked = Number(prefill?.qty);
+    const seed = Number.isFinite(parked) && parked > 0 ? Math.min(parked, sellable) : sellable;
+    setQtyInput(qtyString(spread.shares ? seed : Math.max(1, Math.floor(seed))));
     setOpenOrders(spread.openOrders || []);
     setMode(spread.presetLegSymbol ? "legs" : "whole");
     setSelected(spread.presetLegSymbol ? [spread.presetLegSymbol] : []);
-  }, [spread]);
+  }, [spread, prefill]);
 
   useEffect(() => {
     if (mode === "legs" && !customLegs) {
@@ -211,8 +316,8 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   // multiplier does not apply, and the result of selling them is measured
   // against the basis rather than against a credit that was never received.
   // Using the option arithmetic here would have overstated a share close by
-  // exactly 100x on a real position.
-  const isShares = !!spread.shares;
+  // exactly 100x on a real position. (`isShares` is declared above, where the
+  // quantity ceiling needs it.)
   // Closing this structure PAYS the account rather than costing it. True of a
   // debit vertical, a ratio whose long is worth more than its shorts, and any
   // net-long position -- and the whole-position readout had no word for it.
@@ -453,10 +558,37 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
 
             <div>
               <label className="text-xs text-slate-500 block mb-1.5">
-                {mode === "legs" ? "Units to close" : "Quantity"} (max {maxQty})
+                {mode === "legs" ? "Units to close" : "Quantity"}
+                {/* CLICKABLE, at the owner's request and for the same reason as
+                    the Orders tab: a nine-decimal holding is not a number
+                    anybody should retype, and one wrong digit on a close is
+                    either a rejection or a sliver left behind. */}
+                {maxQty > 0 && (
+                  <>
+                    {" ("}
+                    <button
+                      type="button"
+                      onClick={() => setQtyInput(qtyString(maxQty))}
+                      className="text-emerald-700 hover:underline"
+                      title={`Close the whole position: ${qtyString(maxQty)}`}
+                    >
+                      max {qtyString(maxQty)}
+                    </button>
+                    {")"}
+                  </>
+                )}
               </label>
-              <NumberField value={qtyInput} onChange={setQtyInput} step={1} min={1} max={maxQty}
-                ariaLabel={mode === "legs" ? "Units to close" : "Quantity"} />
+              <NumberField
+                value={qtyInput}
+                onChange={setQtyInput}
+                step={1}
+                // Shares floor at whatever is held, which may be a fraction far
+                // below one. A contract cannot be split.
+                min={isShares ? 0 : 1}
+                max={maxQty}
+                className="w-full"
+                ariaLabel={mode === "legs" ? "Units to close" : "Quantity"}
+              />
               {heldForOrders > 0 && (
                 <p className="mt-1.5 text-xs text-amber-700">
                   {heldForOrders} of your {spread.qty} {isShares ? "shares are" : "contracts are"} already
@@ -580,10 +712,21 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
                 customLegs ? `${customLegs.length} leg${customLegs.length > 1 ? "s" : ""} of` : ""
               } ${qty} ${spread.ticker} ${unit}${qty > 1 ? "s" : ""} on ${account.name}.`}
               onConfirm={() =>
-                run({ accountId: account.id, spread, qty, orderType, startDebit, legs: customLegs, priceMode })
+                run({
+                  accountId: account.id, spread, qty, orderType, startDebit,
+                  legs: customLegs, priceMode,
+                  // Carried from a reopened saved ticket. Honoured on the
+                  // equity branch of `closeSpread`; options stay "day".
+                  timeInForce: prefill?.time_in_force || undefined
+                })
               }
               disabled={
                 openOrders.length > 0 ||
+                // Zero is not a close. Clearing the field, or nudging a
+                // fractional holding down past its floor, used to fall back to
+                // the WHOLE position; it now reads zero, and zero must not be
+                // submittable.
+                !qtyReady ||
                 (mode === "legs" && !customLegs) ||
                 (priceMode === "manual" && !manualReady) ||
                 // A walk with no starting price is not a walk. walkStart now

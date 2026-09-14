@@ -1,11 +1,15 @@
 import { useMemo, useState } from "react";
-import { ChevronRight, Loader2, Pencil, X } from "lucide-react";
+import { ChevronRight, Pencil, X, BookmarkPlus } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { parseOCC } from "@/lib/occ";
 import { dayChange, dayChangeLabel } from "@/lib/dayChange";
 import useLiveSetup from "@/components/open/useLiveSetup";
 import NumberField from "@/components/common/NumberField";
+import ConfirmAction from "@/components/common/ConfirmAction";
 import { fmtMoney } from "@/lib/format";
+import { orderNetKind, saveRefusalFor, isClosingTicket, maxCloseQty, tooPrecise, QTY_DECIMALS } from "@/lib/orderNet";
+import { saveOrder } from "@/lib/savedOrders";
+import { toast } from "@/components/ui/use-toast";
 
 // One broker order, with the legs it was sent as.
 //
@@ -70,7 +74,7 @@ function isEquityOrder(order) {
   return all.length > 0 && all.every((s) => !parseOCC(s));
 }
 
-export default function OrderGroup({ accountId, order, onChanged }) {
+export default function OrderGroup({ accountId, order, onChanged, onSaved, brokerRows = [] }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -81,15 +85,28 @@ export default function OrderGroup({ accountId, order, onChanged }) {
   // new id; the parent refetches and this row is replaced by the new one.
   const [editing, setEditing] = useState(false);
   const [price, setPrice] = useState("");
+  // Quantity is editable now too. Held as typed and read where it is used, so
+  // a half-typed number is never rewritten under the cursor.
+  const [qtyEdit, setQtyEdit] = useState("");
   const state = stateOf(order);
+  // Pulling a working order off the market and keeping the ticket.
+  const [saving, setSaving] = useState(false);
   const live = state.key === "working" || state.key === "partial";
   const canReprice = live && order.type === "limit";
 
-  // A price is chosen against something. While the editor is open the order's
-  // own legs are requoted every second and the underlying streams, so the
-  // number being typed sits beside the market it has to beat -- a bare $ box
-  // asked the trader to guess. Off unless the editor is open: one socket and
-  // one quote loop per order row is not a cost to pay for a closed panel.
+  // THE MARKET IS SHOWN WITHOUT ASKING FOR IT. The owner: *"I want to show the
+  // current market outside, doesn't have to be when I click Change order."*
+  //
+  // He is right, and the reason is not convenience. A resting limit is only
+  // meaningful next to what the market is doing -- $2.49 is a good price or a
+  // stale one depending entirely on a number that was hidden behind a button.
+  // A trader scanning working orders to decide which needs attention had to
+  // open the price editor on every one of them to find out, and opening the
+  // editor is one keystroke away from changing the order.
+  //
+  // So the quote loop follows the ROW being open rather than the editor. Still
+  // not always-on: a collapsed row costs nothing, which is what keeps a page of
+  // twenty orders from holding twenty sockets.
   const isEquity = isEquityOrder(order);
   const asSetup = useMemo(
     () => ({
@@ -108,7 +125,41 @@ export default function OrderGroup({ accountId, order, onChanged }) {
     }),
     [order.ticker, order.legs, order.qty, isEquity]
   );
-  const market = useLiveSetup(accountId, asSetup, editing);
+  const market = useLiveSetup(accountId, asSetup, open && live);
+  // Which way the money goes on THIS order, by its own instruction rather than
+  // by the live quote -- the badge describes the order, not the market.
+  const netSide = orderNetKind(order, isEquity);
+
+  // CAN THIS ORDER BE PARKED AT ALL, decided BEFORE the button is drawn.
+  //
+  // A CLOSING ORDER CAN, now. It could not for one release, and the owner was
+  // right to push back: *"I need anything to be saved for later."* The refusal
+  // was never about exits being unsafe to park — it was that every saved
+  // ticket reopened through the OPEN dialog, where `openPosition` stamps each
+  // leg `*_to_open`. That was a routing defect wearing a product rule's
+  // clothes. A closing ticket now reopens in the CLOSE dialog against the
+  // position it belongs to, and `intent` is stored per leg so the two can
+  // never be confused.
+  //
+  // The owner, on a working closing order: *"I clicked save it for later first
+  // time, and it didn't give me any status ... Then I clicked again, it gave me
+  // the attached message. Somehow it's confusing."*
+  //
+  // He is describing an offer we had no intention of honouring. The button was
+  // live on an order that can never be saved, the confirmation asked him to
+  // commit to it, and only the SECOND click -- the one that means yes -- came
+  // back with a red refusal. The check existed; it just ran after he had
+  // agreed to something. A control that cannot work must not be presented as
+  // one that can, and the reason belongs beside it rather than behind it.
+  const saveRefusal = saveRefusalFor(order);
+  // Read from the same helper the saved cards use, so "is this an exit" has
+  // one answer across the whole feature. It decides two things here: whether
+  // the quantity may be raised, and how the Update confirmation is worded.
+  const closingOrder = isClosingTicket(order.legs);
+  // WHAT YOU HOLD, not what you happened to send. Null when the broker does not
+  // report one of the legs -- unknown, so no cap is applied rather than a
+  // guessed one that would block a legitimate order.
+  const maxQty = closingOrder ? maxCloseQty(order, brokerRows, isEquity) : null;
   // The underlying's move today, from the previous close syncAccounts carries.
   const change = dayChange(market.spot || order.spot, order.prevClose);
   // spreadQuote answers in debits. A closing order pays one; an opening credit
@@ -121,7 +172,13 @@ export default function OrderGroup({ accountId, order, onChanged }) {
       // a negative debit, so the sign is dropped and the word with it.
       : isEquity
         ? fmtMoney(Math.abs(netNow))
-        : `${fmtMoney(netNow)} ${netNow < 0 ? "credit" : "debit"}`;
+        // THE WORD CARRIES THE DIRECTION, so the sign must not. This printed
+        // "-$1.20 credit" -- the minus and the word saying the same thing
+        // twice, and contradicting each other to anyone who reads the minus as
+        // "less than nothing". `orderNet.js` states the rule and returns an
+        // unsigned amount for exactly this reason; the strip was formatting
+        // the raw quote instead.
+        : `${fmtMoney(Math.abs(netNow))} ${netNow < 0 ? "credit" : "debit"}`;
 
   const call = async (payload, fallback) => {
     setBusy(true);
@@ -155,15 +212,180 @@ export default function OrderGroup({ accountId, order, onChanged }) {
 
   const cancel = () => call({ action: "cancel" }, "Could not cancel the order.");
 
+  // PRIVATE = OFF THE MARKET, KEPT AS A TICKET. The owner: *"I want to have an
+  // option of making the order Private, it's there but not in the market,
+  // something as (Save for Later)."*
+  //
+  // For an order ALREADY WORKING that is two acts, and the order matters. The
+  // broker cancellation goes FIRST and the ticket is only stored if it
+  // succeeds: save-then-cancel would, on a failed cancel, leave a saved copy
+  // beside a live order the trader now believes is parked -- one ticket, two
+  // places, one of them able to fill.
+  //
+  // A partial fill is a refusal, not a warning. There is no honest way to park
+  // "the rest" of an order that has already bought some: the saved ticket would
+  // carry the original quantity and re-open what was just filled.
+  const savePrivate = async () => {
+    // The button is not rendered when `saveRefusal` is set, so reaching here
+    // with one means the order changed under the trader between render and
+    // click. Kept as the last line rather than the first.
+    if (saveRefusal) {
+      setError(saveRefusal);
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    setNote(null);
+    try {
+      const { data } = await invokeFunction("manageOrder", { accountId, orderId: order.id, action: "cancel" });
+      if (data?.error) throw new Error(data.error);
+
+      // THE CANCEL IS CONFIRMED BEFORE THE TICKET IS WRITTEN. Alpaca's DELETE
+      // means ACCEPTED, not done -- `useOpenOrder.ensureCanceled` polls for
+      // exactly this reason, and `manageOrder` does the same on its replace
+      // path. Without it a cancel racing a fill produces the worst outcome
+      // this card can produce: the order fills, the row is written anyway, and
+      // the card tells the trader it "cannot fill" about a position they now
+      // hold. The stale `filledQty` check above cannot catch that; it reads
+      // the last sync, which is seconds old.
+      let settled = null;
+      for (let i = 0; i < 10; i += 1) {
+        await new Promise((r) => setTimeout(r, 400));
+        const { data: st } = await invokeFunction("manageOrder", { accountId, orderId: order.id, action: "get" });
+        const status = String(st?.status || "").toLowerCase();
+        if (["canceled", "cancelled", "expired", "filled", "rejected", "done_for_day"].includes(status)) {
+          settled = { status, filledQty: Number(st?.filledQty) || 0 };
+          break;
+        }
+      }
+      if (!settled) {
+        setError("The cancellation was accepted but your broker has not confirmed it yet, so nothing was saved. Check the Orders list in a moment — if it is gone, build the ticket again from Open Position.");
+        return;
+      }
+      if (settled.status === "filled" || settled.filledQty > 0) {
+        setError(
+          settled.status === "filled"
+            ? "This order filled before the cancellation reached your broker, so it was not saved. You hold the position — it is on the Positions tab."
+            : `${settled.filledQty} of ${order.qty} filled before the cancellation reached your broker, so nothing was saved. You hold what filled.`
+        );
+        onChanged?.();
+        return;
+      }
+
+      await saveOrder({
+        accountId,
+        ticker: order.ticker,
+        legs: (order.legs || []).map((l) => ({
+          symbol: l.symbol,
+          side: String(l.side || "").startsWith("sell") ? "sell" : "buy",
+          // Alpaca's `ratio_qty` is an integer. The division is exact for every
+          // structure this product writes, but a float reaching an integer
+          // field is a defect waiting for the first ratio that is not.
+          ratio: Math.max(1, Math.round(order.qty > 0 && l.qty > 0 ? l.qty / order.qty : 1)),
+          intent: l.intent || null
+        })),
+        qty: Number(order.qty),
+        limitPrice: order.limitPrice,
+        orderType: order.type === "market" ? "market" : "limit",
+        netIsCredit: netSide ? netSide.kind === "credit" : false,
+        fromBrokerOrderId: order.id
+      });
+      // A TOAST, NOT A NOTE ON THIS CARD, and that is the owner's other
+      // complaint. On success the order is cancelled at the broker, so the
+      // parent refetches and this row -- the one holding the note -- stops
+      // being a working order and is replaced. The confirmation was written
+      // into a component that was about to be unmounted, which is precisely
+      // why he saw nothing and could not tell whether it had worked.
+      toast({
+        title: "Saved for later",
+        description: `${order.ticker} is off the market and saved. Your broker no longer has it, and it cannot fill. Find it under "Saved for later" in this account's Orders tab.`
+      });
+      setNote("Taken off the market and saved. It is under “Saved for later” below.");
+      onSaved?.();
+      onChanged?.();
+    } catch (e) {
+      setError(
+        `Could not save it for later: ${e.message}. Check the Orders list before trying again — the order may already be cancelled.`
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const startEdit = () => {
     setPrice(order.limitPrice != null ? Math.abs(Number(order.limitPrice)).toFixed(2) : "");
+    setQtyEdit(String(order.qty ?? ""));
     setEditing(true);
   };
   const reprice = async () => {
     const p = Number(price);
     if (!(p > 0)) { setError("Enter a price above zero."); return; }
-    if (await call({ action: "replace", limitPrice: p }, "Could not change the price.")) setEditing(false);
+    const q = Number(qtyEdit);
+    if (!(q > 0)) { setError("Enter a quantity above zero."); return; }
+    if (!isEquity && !Number.isInteger(q)) { setError("Contracts are whole numbers."); return; }
+    // Alpaca takes nine decimal places on a fractional quantity and no more.
+    // Refused here rather than sent and bounced, so the message names the rule
+    // instead of relaying a broker error code.
+    if (isEquity && tooPrecise(qtyEdit)) {
+      setError(`Your broker accepts at most ${QTY_DECIMALS} decimal places on a share quantity.`);
+      return;
+    }
+    if (closingOrder && maxQty && q > maxQty) {
+      setError(`You hold ${maxQty}, so this closing order cannot be raised above that.`);
+      return;
+    }
+    const payload = { action: "replace", limitPrice: p };
+    // Only sent when it actually changed. `replaceBody` skips an absent qty,
+    // and an unchanged one is noise in the patch that Alpaca may answer to.
+    if (q !== Number(order.qty)) payload.qty = q;
+    if (await call(payload, "Could not change the order.")) setEditing(false);
   };
+
+  // The market, as its own thing, above the buttons. It was previously nested
+  // inside the price editor, which is why it only existed while repricing.
+  // What Update will actually do, in the trader's own numbers. Built here so
+  // the confirmation names the change rather than the control -- "Send the
+  // change" means nothing without the two figures beside it.
+  const nextPrice = Number(price);
+  const nextQty = Number(qtyEdit);
+  const priceChanged = Number.isFinite(nextPrice) && nextPrice > 0 && nextPrice !== Math.abs(Number(order.limitPrice));
+  const qtyChanged = Number.isFinite(nextQty) && nextQty > 0 && nextQty !== Number(order.qty);
+  const changed = priceChanged || qtyChanged;
+  const unitWord = isEquity ? "shares" : "contracts";
+  const updateQuestion = !changed
+    ? "Nothing has changed yet — adjust the price or the quantity first."
+    : `This replaces the order at your broker${
+        priceChanged ? ` at ${money(nextPrice)}` : ` at ${money(order.limitPrice)}`
+      }${qtyChanged ? `, for ${nextQty} ${unitWord} instead of ${order.qty}` : ""}. The old order stops working and a new one takes its place, so it loses its position in the queue.`;
+
+  const marketStrip = (
+    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs tabular-nums">
+      <span className="text-slate-500">
+        {order.ticker}{" "}
+        <span className={`font-semibold ${market.streaming ? "text-slate-900" : "text-slate-600"}`}>
+          {fmtMoney(market.spot || order.spot || 0)}
+        </span>
+        {market.streaming && (
+          <span
+            title="Streaming"
+            className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 align-middle animate-pulse"
+          />
+        )}
+      </span>
+      <span className="text-slate-500">
+        Market now <span className="font-semibold text-slate-900">{marketLabel || "—"}</span>
+      </span>
+      {order.type === "limit" && (
+        <span className="text-slate-500">
+          Your limit{" "}
+          <span className="font-semibold text-slate-900">
+            {money(order.limitPrice)}
+            {netSide ? <span className="font-normal text-slate-500"> {netSide.kind}</span> : null}
+          </span>
+        </span>
+      )}
+    </div>
+  );
 
   return (
     <div className={`border rounded-xl bg-white overflow-hidden ${live ? "border-emerald-200" : "border-slate-200"}`}>
@@ -195,6 +417,30 @@ export default function OrderGroup({ accountId, order, onChanged }) {
           <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border ${state.cls}`}>
             {state.label}
           </span>
+          {/* DEBIT OR CREDIT, options only, at the owner's word. Which way the
+              money goes is the first thing a trader wants from an order row
+              and it was nowhere on the card -- a bare "$2.49" says nothing
+              about whether that is coming in or going out.
+
+              `orderNetKind` is the only place that decides this, because the
+              rule is not "read the sign": Alpaca signs a MULTI-LEG net and
+              does not sign a single-leg one, so a lone short put carries a
+              POSITIVE limit and is still a credit. Shares get no word at all —
+              selling stock is a sale, not a credit. */}
+          {netSide && (
+            <span
+              title={netSide.kind === "credit"
+                ? "You receive this if the order fills."
+                : "You pay this if the order fills."}
+              className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border ${
+                netSide.kind === "credit"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-indigo-50 text-indigo-700 border-indigo-200"
+              }`}
+            >
+              {netSide.label}
+            </span>
+          )}
         </div>
         <div className="ml-auto flex items-center gap-5 shrink-0">
           <div className="text-right">
@@ -265,8 +511,26 @@ export default function OrderGroup({ accountId, order, onChanged }) {
             <p className="mt-2.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">{note}</p>
           )}
 
+          {live && saveRefusal && (
+            <p className="mt-2.5 text-xs text-slate-600 bg-white border border-slate-200 rounded-lg px-3 py-2 leading-relaxed">
+              <span className="font-medium text-slate-700">Cannot be saved for later.</span> {saveRefusal}
+            </p>
+          )}
+
+          {live && marketStrip}
+
           {live && (
             <div className="flex flex-wrap items-center gap-2 mt-3">
+              {/* NO CONFIRMATION HERE, and putting one here was my mistake.
+                  The owner: *"Pressing change price is not sending anything.
+                  This was never the problem ... I wanted the confirmation
+                  after clicking Update or Cancel Order."*
+
+                  He is right, and the principle is worth stating because it
+                  decides where every future confirmation goes: CONFIRM WHAT
+                  REACHES THE BROKER, nothing else. Opening an editor changes
+                  no money. A confirmation on it is friction that teaches the
+                  trader to click through the two that matter. */}
               {canReprice && !editing && (
                 <button
                   onClick={startEdit}
@@ -274,49 +538,106 @@ export default function OrderGroup({ accountId, order, onChanged }) {
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs hover:bg-slate-50 transition-colors disabled:opacity-50"
                 >
                   <Pencil className="w-3.5 h-3.5" />
-                  Change price
+                  Change price or quantity
                 </button>
               )}
               {canReprice && editing && (
                 <div className="w-full space-y-2">
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs tabular-nums">
-                    <span className="text-slate-500">
-                      {order.ticker}{" "}
-                      <span className={`font-semibold ${market.streaming ? "text-slate-900" : "text-slate-600"}`}>
-                        {fmtMoney(market.spot || order.spot || 0)}
-                      </span>
-                      {market.streaming && <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 align-middle animate-pulse" />}
+                <div className="flex flex-wrap items-end gap-3 min-w-0">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] uppercase tracking-wide text-slate-400">
+                      {order.type === "limit" ? "Limit" : "Price"}
                     </span>
-                    <span className="text-slate-500">
-                      Market now{" "}
-                      <span className="font-semibold text-slate-900">{marketLabel || "—"}</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-slate-400 text-xs">$</span>
+                      {/* The same −/+ control every other price field uses. A
+                          bare number input renders no spinner at all on iOS
+                          Safari, so on a phone the only way to move the price
+                          was to retype the whole thing. */}
+                      <NumberField
+                        value={price}
+                        onChange={setPrice}
+                        step={0.01}
+                        min={0.01}
+                        ariaLabel="New limit price"
+                        // 96px of text, which holds a four-figure limit and its
+                        // cents with room to spare. The original w-28 left under
+                        // 50px and rendered $715.03 as "715.".
+                        className="w-44"
+                      />
                     </span>
-                    <span className="text-slate-500">
-                      Your limit <span className="font-semibold text-slate-900">{money(order.limitPrice)}</span>
+                  </label>
+                  {/* QUANTITY, at the owner's request. `replaceBody` and
+                      `manageOrder` already carried `qty` -- only the field was
+                      missing, so changing size meant cancelling and rebuilding
+                      the whole ticket.
+
+                      A CLOSING order is capped at what it was sent for:
+                      raising it would try to close more than the position
+                      holds, which the broker refuses and which nobody means to
+                      do. An opening order is uncapped -- adding size to your
+                      own entry is a decision, not a mistake. */}
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] uppercase tracking-wide text-slate-400">
+                      {isEquity ? "Shares" : "Contracts"}
+                      {/* The ceiling is stated rather than merely enforced, and
+                          it is CLICKABLE -- at the owner's request, and because
+                          a nine-decimal holding is not a number anybody should
+                          be asked to retype. One tap fills the field with the
+                          whole position. */}
+                      {maxQty ? (
+                        <>
+                          {" · "}
+                          <button
+                            type="button"
+                            onClick={() => setQtyEdit(String(maxQty))}
+                            className="normal-case text-emerald-700 hover:underline"
+                            title={`Use the whole position: ${maxQty}`}
+                          >
+                            max {maxQty}
+                          </button>
+                        </>
+                      ) : null}
                     </span>
-                  </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-slate-400 text-xs">$</span>
-                  {/* The same −/+ control every other price field uses. A bare
-                      number input renders no spinner at all on iOS Safari, so
-                      on a phone the only way to move the price was to retype
-                      the whole thing. */}
-                  <NumberField
-                    value={price}
-                    onChange={setPrice}
-                    step={0.01}
-                    min={0.01}
-                    ariaLabel="New limit price"
-                    className="w-32"
+                    <NumberField
+                      value={qtyEdit}
+                      onChange={setQtyEdit}
+                      // STEP 1 EVEN FOR SHARES, though shares may be
+                      // fractional. The step only drives the -/+ buttons, and
+                      // nudging a holding by a billionth of a share is not a
+                      // thing anybody wants to press. Typing stays free --
+                      // `NumberField` is permissive mid-keystroke -- so
+                      // 9.000000818 can be entered directly, and because the
+                      // nudge clamps to `max`, pressing + from 9 lands exactly
+                      // on the full fractional holding.
+                      step={1}
+                      // BELOW ONE SHARE IS A REAL ORDER, at the owner's word.
+                      // Alpaca sells fractions down to a billionth, so a floor
+                      // of 1 refused half a share of something he genuinely
+                      // held. A CONTRACT still cannot be split.
+                      min={isEquity ? 0 : 1}
+                      max={maxQty || undefined}
+                      ariaLabel="New quantity"
+                      // WIDE ENOUGH FOR WHAT IT NOW HOLDS. `NumberField` spends
+                      // 64px on its two buttons and 16px on padding, so the
+                      // visible text area is the class width minus 80. At w-40
+                      // that is 80px, and a nine-decimal share count --
+                      // "9.000000818", eleven characters at ~8.4px each -- needs
+                      // about 95. It cropped the moment the precision fix let
+                      // that number exist. w-52 gives 128px, which also carries
+                      // a four-figure lot with nine places behind it.
+                      className="w-52"
+                    />
+                  </label>
+                  <ConfirmAction
+                    label="Update"
+                    tone="go"
+                    question={updateQuestion}
+                    confirmLabel="Send the change"
+                    onConfirm={reprice}
+                    busy={busy}
+                    disabled={!changed}
                   />
-                  <button
-                    onClick={reprice}
-                    disabled={busy}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100 transition-colors disabled:opacity-50"
-                  >
-                    {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                    Update
-                  </button>
                   {/* "Keep $396.01" read as a second price to choose, sitting
                       beside a box holding that same number — and as plain text
                       it did not look clickable at all. It is one thing: leave
@@ -331,14 +652,30 @@ export default function OrderGroup({ accountId, order, onChanged }) {
                 </div>
                 </div>
               )}
-              <button
-                onClick={cancel}
-                disabled={busy}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 bg-white text-rose-700 text-xs hover:bg-rose-50 transition-colors disabled:opacity-50"
-              >
-                {busy && !editing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
-                Cancel order
-              </button>
+              {!editing && !saveRefusal && (
+                <ConfirmAction
+                  label="Save for later"
+                  tone="neutral"
+                  icon={<BookmarkPlus className="w-3.5 h-3.5" />}
+                  question="This takes the order off the market at your broker and keeps it here as a saved ticket. It will not fill, and nothing happens to it until you open it again."
+                  confirmLabel="Take it off the market"
+                  onConfirm={savePrivate}
+                  busy={saving}
+                />
+              )}
+              <ConfirmAction
+                label="Cancel order"
+                tone="danger"
+                icon={<X className="w-3.5 h-3.5" />}
+                question={`This order stops working at your broker and nothing more fills.${
+                  Number(order.filledQty) > 0
+                    ? ` ${order.filledQty} of ${order.qty} has already filled and that stays — you keep what filled.`
+                    : " Nothing has filled, so this leaves you with no position from it."
+                } Cancelling does not save it; use Save for later to keep the ticket.`}
+                confirmLabel="Cancel it at the broker"
+                onConfirm={cancel}
+                busy={busy && !editing}
+              />
             </div>
           )}
         </div>

@@ -7,6 +7,8 @@ import NumberField from "@/components/common/NumberField";
 import OpenPricing, { openingDefaults } from "@/components/open/OpenPricing";
 import useOpenOrder from "@/components/open/useOpenOrder";
 import useLiveSetup from "@/components/open/useLiveSetup";
+import { saveOrder } from "@/lib/savedOrders";
+import { toast } from "@/components/ui/use-toast";
 import RestingOrder from "@/components/open/RestingOrder";
 import OrderLog from "@/components/close/OrderLog";
 import UpgradePrompt from "@/components/billing/UpgradePrompt";
@@ -64,6 +66,12 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
   // Walk by default, exactly as on the close ticket and Open Position. The
   // start and floor defaults are explained in OpenPricing.
   const [limitCredit, setLimitCredit] = useState(null);
+  // Save instead of send, unchecked by default -- the same control and the
+  // same default as the Open Position ticket, because a trader who ticks
+  // nothing must get the same behaviour from both screens.
+  const [savePrivate, setSavePrivate] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [saveBusy, setSaveBusy] = useState(false);
   const [minCredit, setMinCredit] = useState(null);
   const { phase, log, upgrade, resting, warnings, run, stop, reset, replacePrice, sendAnyway } = useOpenOrder();
 
@@ -129,8 +137,38 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
   // reprice — see useOpenOrder. Screener rows sit on screen far longer than the
   // open dialog's do, so the server's drift check is what stands between a stale
   // row and an order priced against a market that has moved.
-  const submit = () =>
-    run({
+  const submit = async () => {
+    // A private ticket never reaches `run`, so no order exists at the broker
+    // even for an instant.
+    if (savePrivate) {
+      setSaveBusy(true);
+      setSaveError(null);
+      try {
+        await saveOrder({
+          accountId,
+          ticker: setup.ticker,
+          legs: setup.legs.map((l) => ({ symbol: l.symbol, side: l.side, ratio: l.ratio })),
+          qty: Number(qty),
+          limitPrice: orderType === "limit" ? limitCredit : null,
+          orderType,
+          // This dialog already knows which way the structure is priced, so
+          // the stored row keeps that rather than re-deriving it from legs.
+          netIsCredit: !isDebit,
+          timeInForce
+        });
+        toast({
+          title: "Saved for later",
+          description: `${setup.ticker} was not sent to your broker. Find it under "Saved" in that account.`
+        });
+        onClose({ phase: "saved" });
+      } catch (e) {
+        setSaveError(e.message || "Could not save it.");
+      } finally {
+        setSaveBusy(false);
+      }
+      return;
+    }
+    return run({
       accountId,
       setup,
       qty: Number(qty),
@@ -140,6 +178,7 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
       priceMode,
       timeInForce
     });
+  };
 
   return (
     <Dialog open onOpenChange={(o) => !o && handleDismiss()}>
@@ -203,7 +242,28 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
             </div>
 
             <div>
-              <label className={label}>Quantity{setup.maxContracts ? ` — up to ${setup.maxContracts} on ${setup.sharesHeld} shares` : ""}</label>
+              {/* The ceiling is CLICKABLE here too, so "up to 3 on 300 shares"
+                  fills the field instead of being a number to copy by hand. A
+                  covered call is the case where it matters: the maximum is
+                  derived from the shares held, and getting it wrong means an
+                  order the broker refuses. */}
+              <label className={label}>
+                Quantity
+                {setup.maxContracts ? (
+                  <>
+                    {" — up to "}
+                    <button
+                      type="button"
+                      onClick={() => setQty(String(setup.maxContracts))}
+                      className="text-emerald-700 hover:underline"
+                      title={`Use all ${setup.maxContracts}`}
+                    >
+                      {setup.maxContracts}
+                    </button>
+                    {` on ${setup.sharesHeld} shares`}
+                  </>
+                ) : null}
+              </label>
               <NumberField value={qty} onChange={setQty} step={1} min={1} max={setup.maxContracts || undefined} ariaLabel="Quantity" />
             </div>
 
@@ -222,16 +282,42 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
               liveQuote={isDebit ? live.debitQuote : live.quote}
             />
 
+            <label className="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={savePrivate}
+                onChange={(e) => setSavePrivate(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300"
+              />
+              <span className="text-xs leading-relaxed">
+                <span className="font-medium text-slate-800">Save for later — do not send this to the market</span>
+                <span className="block text-slate-500 mt-0.5">
+                  The ticket is kept in that account&rsquo;s Orders tab. Your broker never sees it, it holds no
+                  place in the queue, and it cannot fill until you send it.
+                </span>
+              </span>
+            </label>
+
+            {saveError && (
+              <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{saveError}</p>
+            )}
+
             <ConfirmSubmit
               label={
-                orderType === "limit" && !creditReady
-                  ? "Set a credit first"
-                  : `Submit — open ${qty} ${unit}${Number(qty) > 1 ? "s" : ""} (${priceMode === "market" ? "market" : priceMode === "walk" ? "walk" : "limit"}) on ${account?.name || "…"}`
+                savePrivate
+                  ? `Save for later — ${qty} ${unit}${Number(qty) > 1 ? "s" : ""}, not sent`
+                  : orderType === "limit" && !creditReady
+                    ? "Set a credit first"
+                    : `Submit — open ${qty} ${unit}${Number(qty) > 1 ? "s" : ""} (${priceMode === "market" ? "market" : priceMode === "walk" ? "walk" : "limit"}) on ${account?.name || "…"}`
               }
-              summary={summary}
+              summary={
+                savePrivate
+                  ? `Saved, not sent · ${qty} ${setup?.ticker} ${unit}${Number(qty) > 1 ? "s" : ""} on ${account?.name || "…"}. Nothing reaches your broker.`
+                  : summary
+              }
               warnings={<PreTradeRisk setup={setup} accountId={accountId} qty={qty} />}
               onConfirm={submit}
-              disabled={!accountId || (orderType === "limit" && !creditReady)}
+              disabled={!accountId || saveBusy || (!savePrivate && orderType === "limit" && !creditReady)}
             />
           </>
         )}

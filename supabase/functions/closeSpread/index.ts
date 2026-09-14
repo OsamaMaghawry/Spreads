@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
     const user = await requireUser(req);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-    const { accountId, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, putRatio, callRatio, qty, orderType, limitPrice, legs,
+    const { accountId, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, putRatio, callRatio, qty, orderType, limitPrice, legs, timeInForce,
       // Diagnostics only, and never trusted for anything the order depends on:
       // runKey groups one walk, step is its position in it, quote is the market
       // the caller priced against. Without the quote a stored limit price is
@@ -54,7 +54,17 @@ Deno.serve(async (req) => {
           qty: String(qty),
           side: isBuy ? "buy" : "sell",
           type: orderType,
-          time_in_force: "day",
+          // THE TRADER'S OWN CHOICE, on the one branch where it is valid.
+          // A ticket parked as "good til canceled" came back as a day order
+          // -- the exact failure migration 0052 was written to prevent, on the
+          // half of the feature it did not reach.
+          //
+          // EQUITY ONLY, deliberately. The option branches below stay "day":
+          // Alpaca does not reliably accept GTC on a multi-leg option order,
+          // and honouring it there would trade a silent downgrade for a broker
+          // rejection on an exit. A downgrade the trader can see beats a
+          // refusal they cannot act on.
+          time_in_force: timeInForce === "gtc" ? "gtc" : "day",
           client_order_id: clientId
         };
       } else if (customLegs.length === 1) {

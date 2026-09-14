@@ -111,6 +111,20 @@ export default function AccountDetail() {
 
       {account ? (
         <AccountSection
+          // An exit goes to the CLOSE ticket against its own position; an entry
+          // goes to the OPEN one. `AccountSection` has already matched the
+          // position, so a ticket whose position is gone never reaches here --
+          // its card says so instead of offering the button.
+          onReopenSaved={(saved) => {
+            // `blocked` never reaches here -- the card disables its button and
+            // says why -- but routing on the decision rather than on the
+            // presence of a position keeps the two in step.
+            if (saved.route === "close" && saved.position) {
+              setClosing({ account, spread: saved.position, prefill: saved });
+            } else if (saved.route === "open") {
+              setOpening(saved);
+            }
+          }}
           account={account}
           onCloseSpread={(acc, spread) => setClosing({ account: acc, spread })}
           onCloseMany={(acc, legs, brokerRows, held) => setClosingMany({ account: acc, legs, brokerRows, held })}
@@ -123,9 +137,14 @@ export default function AccountDetail() {
         </div>
       )}
 
+      {/* `opening` is either `true` (a fresh ticket) or the saved row the
+          trader chose to reopen. One dialog either way: a saved ticket is an
+          ordinary order from the moment it lands here, which is the whole
+          reason the saved card has no send button of its own. */}
       {opening && account && (
         <OpenPositionDialog
           account={account}
+          prefill={opening === true ? null : opening}
           onClose={() => setOpening(false)}
           onDone={() => { setOpening(false); load(); }}
         />
@@ -144,6 +163,7 @@ export default function AccountDetail() {
 
       {closing && (
         <CloseDialog
+          prefill={closing.prefill || null}
           account={closing.account}
           spread={closing.spread}
           onClose={() => setClosing(null)}

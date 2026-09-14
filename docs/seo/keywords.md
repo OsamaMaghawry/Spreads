@@ -18,7 +18,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 4 | Intrinsic and time value | intrinsic vs extrinsic value options | time value | Investopedia, tastylive | why the same strike costs different amounts on different days |
 | 5 | Bid-ask on options | options bid ask spread | bid ask spread | forums, broker pages | what the spread costs a seller at the executable price |
 | 6 | Delta | option delta explained | delta | Investopedia, OIC | what people use it for: strike selection, not a formula |
-| 7 | Theta | theta decay explained | theta | tastylive, Investopedia | what decay looks like on a short and a long the same week |
+| 7 | Theta | theta decay explained | option theta | Barchart, Schwab, OIC, TradingBlock, tastytrade; thin AI-era blogs in the tail | what decay looks like on a short and a long the same week |
 | 8 | Vega and IV | implied volatility options explained | implied volatility | Investopedia, CBOE | why a chain reprices before earnings |
 | 9 | Gamma | gamma options meaning | gamma | Investopedia | short, honest, when it matters and when it does not |
 | 10 | Assignment | option assignment what happens | assignment | broker help pages, Reddit | the account the morning after, line by line |
@@ -63,6 +63,37 @@ any phrasing above; whether these results are personalised or localised;
 whether "delta vs dollar distance" has its own searched phrasing — searches
 for it returned only generic delta explainers, so the post owns the idea with
 no query to target it.
+
+## Reading for row 7 — theta decay explained (read 13 Sep 2026)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| theta decay explained (target) | Barchart, Schwab, TradingBlock, OIC, Zerodha Varsity, then Flow Proof and InsiderFinance | **hard-ish** — broker and exchange education hold the top, but the tail is thin recent content rather than authority |
+| what is theta in options trading | tastytrade, Merrill Edge, moomoo, Schwab, SoFi, CME, projectoption | **hard** — broker hubs end to end; hub language, not post language |
+| why is my short option theta positive | Macroption, Schwab, tastytrade, a CFA forum thread, Wall Street Oasis, a Substack note | **winnable** — a forum thread and a Substack in the top set is a text-coverage gap |
+| when does theta decay accelerate / final 30 days | Option Alpha, projectfinance, OIC, fattail.ai, glossary pages, then TradingView chart ideas | **winnable** — chart-idea pages padding the tail means nothing authoritative holds the intent |
+| how much does an option lose per day | Option Alpha, wallstreetmojo, SoFi, Nasdaq (twice), OptionsPlaybook, StockCram | winnable, thin — most give one −0.05 example and stop |
+| out-of-the-money vs at-the-money decay | TradingBlock, Schwab, OptionsPlaybook, OIC, projectoption, timothysykes | **winnable** — pages assert "ATM decays fastest" and few describe the OTM curve peaking mid-life |
+| does theta decay over the weekend | SpotGamma support, NavigationTrading, Stryke, MenthorQ, small blogs, a Substack | **winnable**, but declined for post 7 — we will not state a weekend convention we have not verified |
+| theta (unqualified) | Theta Network (THETA) crypto chart pages across TradingView locales | **do not target**: the bare word is a crypto ticker. The head term for this row is **option theta**, never "theta" alone |
+
+**The gap.** Every ranking page gives the definition, a −0.05 example, "decay is
+not linear" and "sellers benefit". Almost none shows one contract's daily
+figure at several days to expiration with arithmetic a reader can check, and
+none puts the long and the short side of the identical fill on the same day —
+same number, opposite sign. Where the competitors do reach the seller's side
+they turn it into strategy (Schwab's "3 strategies"); the angle here stays
+descriptive.
+
+**Could not establish:** search volume, difficulty and current position for any
+phrasing above; whether these results are personalised or localised; and
+whether "the same contract long and short in one week" has its own searched
+phrasing — searches for it returned generic theta explainers, so the post owns
+the idea with no query to target it.
 
 ## Off-syllabus rows
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, Search, BellRing, StopCircle } from "lucide-react";
 import StrategyPicker from "./StrategyPicker";
@@ -14,6 +14,8 @@ import { SCOPE, saveLastUsed } from "@/lib/scanPresets";
 import OpenPricing, { openingDefaults } from "./OpenPricing";
 import useOpenOrder from "./useOpenOrder";
 import useLiveSetup from "./useLiveSetup";
+import { saveOrder, deleteSavedOrder } from "@/lib/savedOrders";
+import { toast } from "@/components/ui/use-toast";
 import RestingOrder from "./RestingOrder";
 import OrderLog from "@/components/close/OrderLog";
 import UpgradePrompt from "@/components/billing/UpgradePrompt";
@@ -36,7 +38,7 @@ const DEFAULTS = {
 
 const legKey = (s) => s.legs.map((l) => l.symbol).join("|");
 
-export default function OpenPositionDialog({ account, onClose, onDone }) {
+export default function OpenPositionDialog({ account, onClose, onDone, prefill = null }) {
   const [strategy, setStrategy] = useState("iron_condor");
   const [cfg, setCfg] = useState(DEFAULTS);
   const [qty, setQty] = useState(1);
@@ -55,6 +57,19 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
   // start and floor default where they do.
   const [timeInForce, setTimeInForce] = useState("day");
   const [priceMode, setPriceMode] = useState("walk");
+  // SAVE INSTEAD OF SEND. The owner: *"I want to add the Private option when
+  // creating order too, something like a checkmark; unchecked by default."*
+  //
+  // Unchecked is the only defensible default and not merely what was asked
+  // for: the dialog is called Open Position, its button says Submit, and a
+  // trader who ticks nothing expects the order to reach the market. A default
+  // that silently parked orders would make "I placed it" mean "I did not".
+  const [savePrivate, setSavePrivate] = useState(false);
+  // The saved ticket this dialog was opened from, if any. Held so the row can
+  // be cleared once -- and only once -- the order actually reaches the broker.
+  const [fromSaved, setFromSaved] = useState(null);
+  const [saveError, setSaveError] = useState(null);
+  const [saveBusy, setSaveBusy] = useState(false);
   const [limitCredit, setLimitCredit] = useState(null);
   const [minCredit, setMinCredit] = useState(null);
   const { phase, log, upgrade, resting, warnings, run, stop: stopOrder, reset, replacePrice, sendAnyway } = useOpenOrder();
@@ -71,6 +86,91 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
     setLimitCredit(d.start);
     setMinCredit(d.floor);
   }, [setup]);
+
+  // A SAVED TICKET, REOPENED. This is the only way a parked order reaches the
+  // broker, deliberately: the release gate blocked a send button on the saved
+  // card because it was a second route that bypassed the warning
+  // acknowledgement, the risk panel and the drift check. Landing the ticket
+  // here instead means every one of those applies, unchanged, because by this
+  // point it is an ordinary order.
+  //
+  // The price is restored as the trader set it, and the mode is "manual" --
+  // NOT the walk. A walk concedes toward the bid on its own; starting one on a
+  // price chosen days ago, without the trader re-confirming it, would move
+  // their limit while they watched. Manual rests exactly where they put it.
+  useEffect(() => {
+    if (!prefill) return;
+    setFromSaved(prefill);
+    setSetup({
+      ticker: prefill.ticker,
+      legs: (prefill.legs || []).map((l) => ({
+        symbol: l.symbol,
+        side: String(l.side || "").startsWith("sell") ? "sell" : "buy",
+        ratio: l.ratio ?? 1
+      }))
+    });
+    setQty(Number(prefill.qty) || 1);
+    if (prefill.order_type === "market") {
+      setPriceMode("market");
+    } else {
+      setPriceMode("manual");
+      // Stored unsigned beside a flag. `openingDefaults` reseeds from the
+      // setup, so this runs after it in a second effect keyed on the setup
+      // landing -- see the guard below.
+    }
+    if (prefill.time_in_force === "gtc" || prefill.time_in_force === "day") {
+      setTimeInForce(prefill.time_in_force);
+    }
+  }, [prefill]);
+
+  // The saved price, applied AFTER `openingDefaults` has reseeded from the new
+  // setup -- otherwise the default would overwrite it on the same tick. Runs
+  // once per reopened ticket.
+  const seededPrice = useRef(null);
+  // Once the reopened ticket has actually reached the broker, the saved copy
+  // stops being a ticket and becomes a duplicate of a live order -- so it goes.
+  //
+  // KEYED ON THE ORDER EXISTING, not on the dialog closing. "working" is
+  // enough: the order is at the broker from that moment, whether it fills,
+  // rests or is walked. Waiting for "filled" would leave a saved copy beside a
+  // resting order, which is exactly the pair that gets sent twice.
+  //
+  // A failed delete is deliberately silent. The order is placed; that is the
+  // part that matters, and an error box about housekeeping over a live ticket
+  // would read as a problem with the order itself. The stale row shows as a
+  // saved ticket the trader can delete.
+  const clearedSaved = useRef(null);
+  useEffect(() => {
+    if (!fromSaved) return;
+    if (!["working", "filled", "detached"].includes(phase)) return;
+    if (clearedSaved.current === fromSaved.id) return;
+    clearedSaved.current = fromSaved.id;
+    const sent = Number(qty) || 0;
+    const parked = Number(fromSaved.qty) || 0;
+    deleteSavedOrder(fromSaved.id)
+      .then(() => {
+        toast({
+          title: "Saved ticket sent",
+          description:
+            sent && parked && sent !== parked
+              ? `Sent ${sent} of the ${parked} you had saved. The saved ticket has been removed — the remaining ${Math.max(parked - sent, 0)} is not queued anywhere.`
+              : "It is with your broker now, and the saved copy has been removed."
+        });
+      })
+      .catch(() => {
+        toast({
+          title: "Sent, but the saved copy is still here",
+          description: "The order is with your broker. We could not remove the saved ticket — delete it under Saved so it is not sent twice."
+        });
+      });
+  }, [fromSaved, phase, qty]);
+  useEffect(() => {
+    if (!fromSaved || !setup) return;
+    if (seededPrice.current === fromSaved.id) return;
+    if (fromSaved.order_type !== "limit" || fromSaved.limit_price === null) return;
+    seededPrice.current = fromSaved.id;
+    setLimitCredit(Math.abs(Number(fromSaved.limit_price)));
+  }, [fromSaved, setup]);
 
   const orderType = priceMode === "market" ? "market" : "limit";
   const creditReady = typeof limitCredit === "number" && limitCredit > 0;
@@ -112,8 +212,44 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
     );
   };
 
-  const submit = () =>
-    run({
+  const submit = async () => {
+    // Private tickets never touch `run`, which is the whole submit-and-watch
+    // machine: no broker call, no polling, no walk. Routing them through it
+    // and cancelling afterwards would put a real order on the market for the
+    // moments in between, which is exactly what the checkbox says will not
+    // happen.
+    if (savePrivate) {
+      setSaveBusy(true);
+      setSaveError(null);
+      try {
+        await saveOrder({
+          accountId: account.id,
+          ticker: setup.ticker,
+          legs: setup.legs.map((l) => ({ symbol: l.symbol, side: l.side, ratio: l.ratio })),
+          qty: Number(qty),
+          limitPrice: orderType === "limit" ? limitCredit : null,
+          orderType,
+          // A ticket built in this dialog is an OPENING structure priced as a
+          // credit, which is what `limitCredit` means throughout it.
+          netIsCredit: true,
+          timeInForce
+        });
+        // `onDone` rather than `onClose`: the parent refetches, so the saved
+        // ticket is visible in the Orders tab the moment the dialog closes
+        // rather than after the next manual refresh.
+        toast({
+          title: "Saved for later",
+          description: `${setup.ticker} was not sent to your broker. Find it under "Saved" in this account.`
+        });
+        onDone?.();
+      } catch (e) {
+        setSaveError(e.message || "Could not save it.");
+      } finally {
+        setSaveBusy(false);
+      }
+      return;
+    }
+    return run({
       accountId: account.id,
       setup,
       qty: Number(qty),
@@ -123,6 +259,7 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
       priceMode,
       timeInForce
     });
+  };
 
   // What the X and a click outside the dialog do depends on where the order is:
   //   walking   -- nothing, while it is still conceding. Dismissing would leave
@@ -238,7 +375,28 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
             <PreTradeRisk setup={setup} accountId={account.id} qty={qty} />
 
             <div>
-              <label className={label}>Quantity{setup.maxContracts ? ` — up to ${setup.maxContracts} on ${setup.sharesHeld} shares` : ""}</label>
+              {/* The ceiling is CLICKABLE here too, so "up to 3 on 300 shares"
+                  fills the field instead of being a number to copy by hand. A
+                  covered call is the case where it matters: the maximum is
+                  derived from the shares held, and getting it wrong means an
+                  order the broker refuses. */}
+              <label className={label}>
+                Quantity
+                {setup.maxContracts ? (
+                  <>
+                    {" — up to "}
+                    <button
+                      type="button"
+                      onClick={() => setQty(String(setup.maxContracts))}
+                      className="text-emerald-700 hover:underline"
+                      title={`Use all ${setup.maxContracts}`}
+                    >
+                      {setup.maxContracts}
+                    </button>
+                    {` on ${setup.sharesHeld} shares`}
+                  </>
+                ) : null}
+              </label>
               <NumberField value={qty} onChange={setQty} step={1} min={1} max={setup.maxContracts || undefined} ariaLabel="Quantity" />
             </div>
 
@@ -257,16 +415,42 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
               liveQuote={live.quote}
             />
 
+            <label className="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={savePrivate}
+                onChange={(e) => setSavePrivate(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300"
+              />
+              <span className="text-xs leading-relaxed">
+                <span className="font-medium text-slate-800">Save for later — do not send this to the market</span>
+                <span className="block text-slate-500 mt-0.5">
+                  The ticket is kept in this account&rsquo;s Orders tab. Your broker never sees it, it holds no
+                  place in the queue, and it cannot fill until you send it.
+                </span>
+              </span>
+            </label>
+
+            {saveError && (
+              <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{saveError}</p>
+            )}
+
             <ConfirmSubmit
               label={
-                orderType === "limit" && !creditReady
-                  ? "Set a credit first"
-                  : `Submit — open ${qty} ${unit}${Number(qty) > 1 ? "s" : ""} (${priceMode === "market" ? "market" : priceMode === "walk" ? "walk" : "limit"}) on ${setup.ticker}`
+                savePrivate
+                  ? `Save for later — ${qty} ${unit}${Number(qty) > 1 ? "s" : ""} on ${setup.ticker}, not sent`
+                  : orderType === "limit" && !creditReady
+                    ? "Set a credit first"
+                    : `Submit — open ${qty} ${unit}${Number(qty) > 1 ? "s" : ""} (${priceMode === "market" ? "market" : priceMode === "walk" ? "walk" : "limit"}) on ${setup.ticker}`
               }
-              summary={summary}
+              summary={
+                savePrivate
+                  ? `Saved, not sent · ${qty} ${setup?.ticker} ${unit}${Number(qty) > 1 ? "s" : ""} on ${account.name}. Nothing reaches your broker.`
+                  : summary
+              }
               warnings={<PreTradeRisk setup={setup} accountId={account.id} qty={qty} />}
               onConfirm={submit}
-              disabled={orderType === "limit" && !creditReady}
+              disabled={saveBusy || (!savePrivate && orderType === "limit" && !creditReady)}
             />
           </>
         )}

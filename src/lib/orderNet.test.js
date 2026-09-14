@@ -1,0 +1,396 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { netKind, legsAreEquity, orderNetKind, saveRefusalFor, isClosingTicket, matchPositionForTicket, maxCloseQty, tooPrecise, QTY_DECIMALS, qtyString, ticketRoute } from "./orderNet.js";
+
+// The owner: *"I want to show up if the order is Debit or Credit (Options
+// only). For stocks, no need."*
+//
+// The trap this guards is the sign convention. `spreadQuote` answers in
+// DEBITS, so a CREDIT spread quotes NEGATIVE -- the same convention Alpaca's
+// multi-leg limit uses. Read the sign the other way round and every credit
+// spread in the product is labelled a debit, on the screen where a trader
+// decides whether money is coming in or going out.
+
+test("a negative net is money coming in, and is named a credit", () => {
+  const k = netKind(-2.49, false);
+  assert.equal(k.kind, "credit");
+  assert.equal(k.label, "Credit");
+  // The amount is unsigned: the word carries the direction, so "-$2.49 credit"
+  // would say it twice and contradict itself.
+  assert.equal(k.amount, 2.49);
+});
+
+test("a positive net is money going out, and is named a debit", () => {
+  const k = netKind(1.15, false);
+  assert.equal(k.kind, "debit");
+  assert.equal(k.amount, 1.15);
+});
+
+test("shares are never called a debit or a credit", () => {
+  // Selling stock quotes as a negative debit. That is a sale, not a credit in
+  // the sense a trader means, so equity gets no word at all.
+  assert.equal(netKind(-412.5, true), null);
+  assert.equal(netKind(412.5, true), null);
+});
+
+test("a figure we do not have is not labelled either way", () => {
+  for (const v of [null, undefined, NaN, "", 0]) {
+    assert.equal(netKind(v, false), null, `${String(v)} should carry no label`);
+  }
+});
+
+test("option symbols are not equity, plain tickers are", () => {
+  assert.equal(legsAreEquity([{ symbol: "TSLA251217P00320000" }]), false);
+  assert.equal(
+    legsAreEquity([{ symbol: "TSLA251217P00320000" }, { symbol: "TSLA260219P00370000" }]),
+    false
+  );
+  assert.equal(legsAreEquity([{ symbol: "TSLA" }]), true);
+  // Nothing to judge is not "equity" -- it is nothing, and calling it equity
+  // would strip the debit/credit label off an option ticket whose legs simply
+  // had not loaded yet.
+  assert.equal(legsAreEquity([]), false);
+  assert.equal(legsAreEquity(null), false);
+});
+
+
+// ---------------------------------------------------------------------------
+// A whole order, which is a different question from a quoted net.
+//
+// Alpaca signs a MULTI-LEG limit and does NOT sign a single-leg one. Reading
+// the sign on a lone short put -- the most common ticket this product writes --
+// would label its credit a debit, on the row where the trader checks whether
+// money is coming in.
+// ---------------------------------------------------------------------------
+
+const SHORT_PUT = { legs: [{ side: "sell_to_open", symbol: "TSLA251217P00320000" }], limitPrice: 2.49 };
+const LONG_PUT = { legs: [{ side: "buy_to_open", symbol: "TSLA251217P00320000" }], limitPrice: 2.49 };
+
+test("a single short option leg is a credit even though its limit is positive", () => {
+  const k = orderNetKind(SHORT_PUT, false);
+  assert.equal(k.kind, "credit");
+  assert.equal(k.amount, 2.49);
+});
+
+test("a single long option leg is a debit", () => {
+  assert.equal(orderNetKind(LONG_PUT, false).kind, "debit");
+});
+
+test("a multi-leg order is read from Alpaca's signed net, not from leg sides", () => {
+  // Both legs present, net negative: a credit spread, whatever order the legs
+  // happen to be listed in.
+  const credit = {
+    legs: [{ side: "sell_to_open", symbol: "TSLA251217P00320000" }, { side: "buy_to_open", symbol: "TSLA251217P00310000" }],
+    limitPrice: -1.05
+  };
+  assert.equal(orderNetKind(credit, false).kind, "credit");
+  assert.equal(orderNetKind(credit, false).amount, 1.05);
+  // The same two legs with a positive net is a debit structure.
+  const debit = { ...credit, limitPrice: 2.49 };
+  assert.equal(orderNetKind(debit, false).kind, "debit");
+});
+
+test("a share order and a market order carry no debit/credit word", () => {
+  assert.equal(orderNetKind({ legs: [{ side: "buy", symbol: "TSLA" }], limitPrice: 412.5 }, true), null);
+  // No limit yet: nothing to name until it fills.
+  assert.equal(orderNetKind({ legs: [{ side: "sell_to_open", symbol: "TSLA251217P00320000" }], limitPrice: null }, false), null);
+  assert.equal(orderNetKind({ legs: [], limitPrice: 2.49 }, false), null);
+});
+
+
+// ---------------------------------------------------------------------------
+// Never offer what we will refuse.
+//
+// The owner, on a working closing order: *"I clicked save it for later first
+// time, and it didn't give me any status ... Then I clicked again, it gave me
+// the attached message. Somehow it's confusing."* The button was live on an
+// order that could never be parked, and the refusal arrived only after he had
+// confirmed. These cases are what the card now asks before drawing the button.
+// ---------------------------------------------------------------------------
+
+test("a partly filled order cannot be parked, and the reason names the numbers", () => {
+  const why = saveRefusalFor({
+    legs: [{ side: "sell", intent: "sell_to_open", symbol: "TSLA251217P00320000" }],
+    qty: 5,
+    filledQty: 2
+  });
+  assert.match(why, /2 of 5/);
+  assert.match(why, /re-open what filled/);
+});
+
+test("an untouched opening order can be parked", () => {
+  assert.equal(
+    saveRefusalFor({
+      legs: [
+        { side: "sell", intent: "sell_to_open", symbol: "TSLA251217P00320000" },
+        { side: "buy", intent: "buy_to_open", symbol: "TSLA260219P00370000" }
+      ],
+      qty: 1,
+      filledQty: 0
+    }),
+    null
+  );
+  // An order carrying no intent at all is not assumed to be closing — that
+  // would refuse every order on a broker that omits the field.
+  assert.equal(saveRefusalFor({ legs: [{ side: "sell", symbol: "QQQ" }], qty: 14, filledQty: 0 }), null);
+});
+
+
+// ---------------------------------------------------------------------------
+// Anything can be parked, including an exit.
+//
+// The owner: *"So, why the closing position cannot be saved for later. I need
+// anything to be saved for later."* He was right — the refusal was a symptom
+// of routing every saved ticket through the OPEN dialog. A closing ticket now
+// reopens against the position it belongs to.
+// ---------------------------------------------------------------------------
+
+test("a closing order can be saved now; only a partial fill still refuses", () => {
+  const exit = { legs: [{ side: "sell", intent: "sell_to_close", symbol: "QQQ" }], qty: 14, filledQty: 0 };
+  assert.equal(saveRefusalFor(exit), null);
+});
+
+test("closing is read from intent, because side cannot carry it", () => {
+  // Both of these are "buy". Only the intent separates an exit from an entry,
+  // and sending one down the other's path doubles a position instead of
+  // flattening it.
+  assert.equal(isClosingTicket([{ side: "buy", intent: "buy_to_close" }]), true);
+  assert.equal(isClosingTicket([{ side: "buy", intent: "buy_to_open" }]), false);
+  assert.equal(isClosingTicket([{ side: "sell", intent: "sell_to_close" }]), true);
+  // One closing leg among several is a closing ticket.
+  assert.equal(
+    isClosingTicket([{ side: "sell", intent: "sell_to_open" }, { side: "buy", intent: "buy_to_close" }]),
+    true
+  );
+  // No intent at all is not assumed to be closing.
+  assert.equal(isClosingTicket([{ side: "buy" }]), false);
+  assert.equal(isClosingTicket([]), false);
+});
+
+// The matcher, with `spreadLegs` stubbed the way the app injects it.
+const legsOf = (s) => s.legs;
+
+test("a saved exit finds the position holding exactly its contracts", () => {
+  const target = { id: "a", legs: [{ symbol: "TSLA251217P00320000" }, { symbol: "TSLA251217P00310000" }] };
+  const other = { id: "b", legs: [{ symbol: "NVDA251217P00100000" }] };
+  const saved = [{ symbol: "TSLA251217P00310000" }, { symbol: "TSLA251217P00320000" }];
+  // Order does not matter; the set does.
+  assert.equal(matchPositionForTicket(saved, [other, target], legsOf).id, "a");
+});
+
+test("a position that merely overlaps is not a match", () => {
+  // One leg of the saved ticket, plus a third contract. Sending an exit built
+  // for two legs against a three-legged position would leave a naked leg.
+  const partial = { id: "p", legs: [{ symbol: "TSLA251217P00320000" }, { symbol: "TSLA251217P00310000" }, { symbol: "TSLA251217P00300000" }] };
+  const saved = [{ symbol: "TSLA251217P00310000" }, { symbol: "TSLA251217P00320000" }];
+  assert.equal(matchPositionForTicket(saved, [partial], legsOf), null);
+});
+
+test("a position closed since the ticket was parked returns null, not a guess", () => {
+  assert.equal(matchPositionForTicket([{ symbol: "QQQ" }], [], legsOf), null);
+  assert.equal(matchPositionForTicket([], [{ id: "x", legs: [{ symbol: "QQQ" }] }], legsOf), null);
+});
+
+test("a position whose legs cannot be built is skipped rather than thrown on", () => {
+  const bad = { id: "bad" };
+  const good = { id: "good", legs: [{ symbol: "QQQ" }] };
+  const throwing = (s) => { if (!s.legs) throw new Error("cannot pair"); return s.legs; };
+  assert.equal(matchPositionForTicket([{ symbol: "QQQ" }], [bad, good], throwing).id, "good");
+});
+
+
+// ---------------------------------------------------------------------------
+// How much of a closing order you may actually ask for.
+//
+// The owner: *"Why are you capping to 5 shares while I have more?"* I had
+// capped at the quantity the order was sent for, which limits nothing -- it is
+// just what he typed earlier. The ceiling is what he HOLDS.
+// ---------------------------------------------------------------------------
+
+test("the cap adds back what this order is already holding", () => {
+  // 14 shares held, 5 of them claimed by this very working sell order, so the
+  // broker reports 9 available. Replacing the order releases its own hold, so
+  // he may raise it to the full 14 -- capping at 9 is the bug he hit.
+  const order = { qty: 5, legs: [{ symbol: "QQQ", qty: 5 }] };
+  const broker = [{ symbol: "QQQ", qty: 14, qtyAvailable: 9 }];
+  assert.equal(maxCloseQty(order, broker, true), 14);
+});
+
+test("a multi-leg close is limited by its scarcest leg", () => {
+  // One leg can cover 10 units, the other only 3.
+  const order = {
+    qty: 1,
+    legs: [{ symbol: "TSLA251217P00320000", qty: 1 }, { symbol: "TSLA251217P00310000", qty: 1 }]
+  };
+  const broker = [
+    { symbol: "TSLA251217P00320000", qty: 10, qtyAvailable: 9 },
+    { symbol: "TSLA251217P00310000", qty: 3, qtyAvailable: 2 }
+  ];
+  assert.equal(maxCloseQty(order, broker, false), 3);
+});
+
+test("a ratio leg is divided by its ratio, not counted flat", () => {
+  // Two contracts of the short per unit of the order: 10 held is 5 units.
+  const order = { qty: 1, legs: [{ symbol: "AAA", qty: 2 }] };
+  const broker = [{ symbol: "AAA", qty: 10, qtyAvailable: 8 }];
+  assert.equal(maxCloseQty(order, broker, false), 5);
+});
+
+test("contracts floor; shares keep their fraction", () => {
+  const order = { qty: 1, legs: [{ symbol: "SPY", qty: 1 }] };
+  const broker = [{ symbol: "SPY", qty: 13.456789, qtyAvailable: 12.456789 }];
+  // A share may be fractional -- rounding down would strip part of a holding
+  // the trader is entitled to close.
+  assert.equal(maxCloseQty(order, broker, true), 13.456789);
+  // A contract may not be.
+  assert.equal(maxCloseQty({ qty: 1, legs: [{ symbol: "X", qty: 1 }] }, [{ symbol: "X", qty: 2.9, qtyAvailable: 1.9 }], false), 2);
+});
+
+test("a leg the broker does not report leaves the cap unknown", () => {
+  // Unknown is not zero and not "uncapped" -- the caller decides. Inventing a
+  // number here would either block a legitimate order or wave through one the
+  // broker will bounce.
+  const order = { qty: 1, legs: [{ symbol: "GONE", qty: 1 }] };
+  assert.equal(maxCloseQty(order, [{ symbol: "OTHER", qty: 5, qtyAvailable: 5 }], false), null);
+  assert.equal(maxCloseQty(order, [], false), null);
+  assert.equal(maxCloseQty({ qty: 0, legs: [] }, [], false), null);
+});
+
+test("the cap never exceeds the position, even when the broker reserved nothing", () => {
+  // The owner's SPY: 13.000080555 held, a 13-share sell working, and
+  // `qty_available` came back EQUAL to the holding -- the broker had not
+  // reserved it. Adding the order's own 13 produced "max 26.000080555" on a
+  // 13-share position. The holding is the bound that is true either way.
+  const order = { qty: 13, legs: [{ symbol: "SPY", qty: 13 }] };
+  const broker = [{ symbol: "SPY", qty: 13.000080555, qtyAvailable: 13.000080555 }];
+  assert.equal(maxCloseQty(order, broker, true), 13.000080555);
+});
+
+test("the cap reads qtyAvailable, the field brokerView actually emits", () => {
+  // This read `row.available`, which has never existed, so it always fell back
+  // to `row.qty` -- and every test around it built rows with `available:`, the
+  // same wrong name. Both were green and neither proved the wiring.
+  const order = { qty: 5, legs: [{ symbol: "QQQ", qty: 5 }] };
+  // 14 held, 9 available because another order claims 5 beyond this one.
+  assert.equal(maxCloseQty(order, [{ symbol: "QQQ", qty: 14, qtyAvailable: 9 }], true), 14);
+  // A row using the old name still works, so nothing regresses if one appears.
+  assert.equal(maxCloseQty(order, [{ symbol: "QQQ", qty: 14, available: 9 }], true), 14);
+});
+
+test("a broker row with no qty_available falls back to the holding", () => {
+  const order = { qty: 2, legs: [{ symbol: "QQQ", qty: 2 }] };
+  // No `available` field at all: the holding is all we know, and it is also
+  // the ceiling -- adding the order's own claim on top would exceed it.
+  assert.equal(maxCloseQty(order, [{ symbol: "QQQ", qty: 7 }], true), 7);
+});
+
+
+// ---------------------------------------------------------------------------
+// Alpaca's precision, from Alpaca.
+//
+// The owner's own QQQ holding: 9.000000818 shares. "Both notional and qty
+// fields can take up to 9 decimal point values"
+// (docs.alpaca.markets/docs/fractional-trading). This module first rounded to
+// six, which turns that holding into 9.000001 -- MORE than he holds, on a
+// closing order. The broker refuses it, and it asks to sell a share that does
+// not exist.
+// ---------------------------------------------------------------------------
+
+test("nine decimal places survive a holding exactly, uncapped and unrounded", () => {
+  assert.equal(QTY_DECIMALS, 9);
+  const order = { qty: 1, legs: [{ symbol: "QQQ", qty: 1 }] };
+  // 9.000000818 held, 1 claimed by the working order, so 8.000000818 available.
+  const broker = [{ symbol: "QQQ", qty: 9.000000818, qtyAvailable: 8.000000818 }];
+  assert.equal(maxCloseQty(order, broker, true), 9.000000818);
+});
+
+test("the cap never rounds UP past the holding", () => {
+  // Rounding is a ceiling on what can be sold, so the one forbidden direction
+  // is up. A tenth digit must be dropped, never carried.
+  const order = { qty: 0.000000001, legs: [{ symbol: "X", qty: 0.000000001 }] };
+  const broker = [{ symbol: "X", qty: 5.0000000009, qtyAvailable: 5 }];
+  const cap = maxCloseQty(order, broker, true);
+  assert.ok(cap <= 5.000000001, `cap ${cap} exceeds the holding`);
+});
+
+test("more than nine decimals is refused before it reaches the broker", () => {
+  assert.equal(tooPrecise("9.000000818"), false);   // exactly nine
+  assert.equal(tooPrecise("9.0000008181"), true);   // ten
+  assert.equal(tooPrecise("9"), false);
+  assert.equal(tooPrecise("9."), false);
+  assert.equal(tooPrecise(13), false);
+  assert.equal(tooPrecise(""), false);
+  assert.equal(tooPrecise(null), false);
+});
+
+
+// ---------------------------------------------------------------------------
+// Exponential notation on the wire.
+// ---------------------------------------------------------------------------
+
+test("a small quantity never reaches the broker as an exponent", () => {
+  // `String(Number(n))` prints "1e-7" below a millionth. The owner's own IVV
+  // row is 0.000055585 shares; a residue after a partial close is smaller
+  // still, and `NumberField`'s input regex rejects `e`, so such a value can be
+  // shown and then not edited.
+  assert.equal(qtyString(1e-7), "0.0000001");
+  assert.equal(qtyString(8.18e-7), "0.000000818");
+  assert.equal(qtyString(1e-9), "0.000000001");
+  assert.equal(qtyString(0.000055585), "0.000055585");
+  for (const v of [1e-7, 8.18e-7, 1e-9, 0.000055585, 9.000000818]) {
+    assert.ok(!/e/i.test(qtyString(v)), `${v} stringified with an exponent`);
+  }
+});
+
+test("whole and trailing-zero quantities stay readable", () => {
+  assert.equal(qtyString(13), "13");
+  assert.equal(qtyString(13.5), "13.5");
+  assert.equal(qtyString(9.000000818), "9.000000818");
+  assert.equal(qtyString(NaN), "");
+  assert.equal(qtyString(null), "");
+});
+
+// ---------------------------------------------------------------------------
+// Routing a parked ticket, when the broker did not say which kind it was.
+//
+// `closeSpread` omits `position_intent` on the EQUITY branch -- it is an
+// options concept the equity endpoint does not want -- so every leg of a share
+// exit this app places comes back with `intent: null`. Reading that as "not
+// closing" sent a parked share exit into the OPEN ticket, where `openPosition`
+// stamps `sell_to_open` unconditionally: the exit would have left as an
+// opening short sale.
+// ---------------------------------------------------------------------------
+
+const legsOfRoute = (sp) => sp.legs;
+const HELD = [{ id: "p1", legs: [{ symbol: "QQQ" }] }];
+
+test("an explicit exit routes to the close ticket against its position", () => {
+  const r = ticketRoute({ legs: [{ symbol: "QQQ", intent: "sell_to_close" }] }, HELD, legsOfRoute);
+  assert.equal(r.route, "close");
+  assert.equal(r.position.id, "p1");
+});
+
+test("an explicit exit whose position is gone is blocked, not opened", () => {
+  const r = ticketRoute({ legs: [{ symbol: "QQQ", intent: "sell_to_close" }] }, [], legsOfRoute);
+  assert.equal(r.route, "blocked");
+  assert.match(r.why, /no open position matches/);
+});
+
+test("NO INTENT plus a matching holding is blocked, never routed to open", () => {
+  // The share-exit case. Absent intent must not be read as "opening" when the
+  // legs match something held -- that is the fail-dangerous direction.
+  const r = ticketRoute({ legs: [{ symbol: "QQQ" }] }, HELD, legsOfRoute);
+  assert.equal(r.route, "blocked");
+  assert.match(r.why, /did not record whether this ticket was opening or closing/);
+});
+
+test("no intent and nothing held is an ordinary entry", () => {
+  const r = ticketRoute({ legs: [{ symbol: "NVDA" }] }, HELD, legsOfRoute);
+  assert.equal(r.route, "open");
+});
+
+test("an explicit entry opens even when the ticker is already held", () => {
+  // Adding to a position is a real thing to park. Explicit intent is trusted.
+  const r = ticketRoute({ legs: [{ symbol: "QQQ", intent: "buy_to_open" }] }, HELD, legsOfRoute);
+  assert.equal(r.route, "open");
+});

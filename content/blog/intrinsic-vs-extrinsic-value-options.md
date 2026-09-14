@@ -45,8 +45,8 @@ Extrinsic value is the premium minus the intrinsic value. It is what the buyer
 pays for the possibility that the contract is worth more later than it is
 worth now.
 
-It is often called time value, which is accurate but incomplete. Days remaining
-are one input; how much the market expects the stock to move is another, and
+It is often called time value, which is accurate but incomplete. [Days
+remaining](/blog/theta-decay-explained) are one input; how much the market expects the stock to move is another, and
 two options with identical strikes and expirations on different stocks carry
 different extrinsic value for that reason.
 
