@@ -293,18 +293,36 @@ substitute number.
 | Canonical | Not |
 | --- | --- |
 | Dashboard | Positions Monitor, monitor page, positions |
-| Scanner | screener, finder |
+| Strategy Scanner (short: Scanner) | Market Scanner, screener, finder |
 | Trade History | journal, log |
 | Analysis | analytics, stats, performance page |
 | Accounts / Connect Alpaca | link, sync accounts |
 | Audit against broker feed | rebuild, preview (admin-only surface) |
 
-**Scanner**, renamed by the owner on 14 Sep, replacing "Screener" — and the
-row above is reversed from what it said that morning, when "scanner" was the
-word to avoid. His reason: *"this is a scanner not a screener"*, and the page
-agrees with him. A screener filters a list you already hold; this sweeps option
-chains it fetches, strike by strike and expiry by expiry, and builds structures
-that did not exist before the sweep. The old word described the wrong verb.
+**Strategy Scanner**, renamed by the owner on 14 Sep, replacing "Screener" —
+and the row above is reversed from what it said that morning, when "scanner"
+was the word to avoid. His reason: *"this is a scanner not a screener"*, and
+the page agrees with him. A screener filters a list you already hold; this
+sweeps option chains it fetches, strike by strike and expiry by expiry, and
+builds structures that did not exist before the sweep. The old word described
+the wrong verb.
+
+**"Market Scanner" was the first replacement and lasted an hour**, because it
+is false on the page's own screen. Pick Covered call and the config says *"the
+universe above is ignored"* and the button reads *"Scan shares held"* — it
+sweeps the account's book, not a market. The Wheel is half each way: puts on
+the universe, calls on the shares held. "Strategy" is also the more honest
+half of the description, naming what comes BACK — a built spread with strikes,
+credit, break-even and return on risk — rather than where it looked, which is
+the part every broker's scanner also does.
+
+Not a licence to imply we choose the strategy. The trader picks it before
+anything is swept, and results copy stays as it is: what matched the filters
+you set, nothing recommended (compliance rules 2 and 3).
+
+**Short form "Scanner"** is correct on its own in the nav and in running prose
+once the full name has appeared. "Market Scanner" is retired; do not
+reintroduce it.
 
 The stored value stays `screener`. `scan_presets.scope` is a CHECK-constrained
 column holding every user's saved presets, and the string is an internal key no

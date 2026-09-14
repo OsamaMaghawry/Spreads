@@ -1,4 +1,5 @@
-// Ticker universes for the market Scanner.
+// Ticker universes the Strategy Scanner sweeps. Not every strategy uses one:
+// a covered call scans the shares the account holds and ignores these entirely.
 // TOP50: the most liquid, options-active S&P 500 mega caps — fast scans.
 export const TOP50 = [
   "AAPL","MSFT","NVDA","AMZN","GOOGL","META","TSLA","AVGO","JPM","V",
