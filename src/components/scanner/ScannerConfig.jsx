@@ -3,7 +3,7 @@ import NumberField from "@/components/common/NumberField";
 const input = "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500";
 const label = "text-xs text-slate-500 block mb-1.5";
 
-export const SCREENER_DEFAULTS = {
+export const SCANNER_DEFAULTS = {
   universe: "top50",
   customTickers: "",
   // The whole-market sieve. Only read when universe === "market"; the cheap
@@ -56,7 +56,7 @@ function Range({ title, min, max, onChange, fieldStep, minFloor = 0 }) {
   );
 }
 
-export default function ScreenerConfig({ cfg, set, isCondor, single = false, strategy = "" }) {
+export default function ScannerConfig({ cfg, set, isCondor, single = false, strategy = "" }) {
   return (
     <div className="space-y-3">
       <div>

@@ -1,6 +1,6 @@
 // Which tickers are worth scanning, out of the whole market.
 //
-// The screener's expensive pass -- one option chain per ticker -- is unchanged.
+// The Scanner's expensive pass -- one option chain per ticker -- is unchanged.
 // This is the cheap pass in front of it: the list of names, one snapshot
 // request per hundred, and a sieve on price, volume, quote width and capital
 // per contract. It returns TICKERS, not candidates, so the existing client

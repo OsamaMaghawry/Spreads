@@ -3,11 +3,11 @@ import NumberField from "@/components/common/NumberField";
 const input = "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500";
 const label = "text-xs text-slate-500 block mb-1.5";
 
-// Step per unit — see the same table in screener/ScreenerConfig.jsx. Days used
+// Step per unit — see the same table in scanner/ScannerConfig.jsx. Days used
 // to step by 0.5 here, which is not a thing a day can do.
 const STEP = { dte: 1, delta: 0.01, width: 0.5, credit: 0.05, risk: 50, ratio: 1 };
 
-// Counterpart of the same component in screener/ScreenerConfig.jsx — keep the
+// Counterpart of the same component in scanner/ScannerConfig.jsx — keep the
 // labelling and stepping behaviour identical in both.
 function Bound({ caption, value, onChange, step, min, placeholder, ariaLabel }) {
   return (

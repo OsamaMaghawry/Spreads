@@ -4,7 +4,7 @@ import { netQuote } from "@/lib/priceVerdict";
 import { walkBounds } from "@/lib/openWalk";
 import { fmtMoney } from "@/lib/format";
 
-// How the opening order is priced -- shared by the screener's ticket and Open
+// How the opening order is priced -- shared by the Scanner's ticket and Open
 // Position, so the two cannot drift apart.
 //
 // The walk here starts OPTIMISTIC and concedes, which is the opposite of the

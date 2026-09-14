@@ -230,7 +230,7 @@
   .home .setup-line { font-size: .82rem; color: var(--ink-soft); margin-bottom: 10px; }
   .home .setup-line b { color: var(--ink); }
 
-  .home /* screener */
+  .home /* scanner */
   .bot { display: grid; gap: 16px; }
   @media (min-width: 900px) { .home .bot { grid-template-columns: .9fr 1.1fr; } }
   .home .rule { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line-soft); font-size: .84rem; }
@@ -344,7 +344,7 @@
   .home .chip { border: 1px solid var(--brand); background: var(--brand-soft); color: var(--brand); border-radius: 999px; padding: 3px 9px; font-size: .64rem; font-weight: 600; justify-self: start; }
   .home .chip::after { content: " ▸"; } .home .flip.on .chip::after { content: " ▾"; }
 
-  .home /* ---- Screener replica: the app's own light palette, .home painted explicitly (the product is light-only) ---- */
+  .home /* ---- Scanner replica: the app's own light palette, .home painted explicitly (the product is light-only) ---- */
   .app { background: #F6F5FB; color: #201B3A; border: 1px solid #E1DEF2; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); position: relative; font-family: "IBM Plex Sans", system-ui, sans-serif; }
   .home .app * { box-sizing: border-box; }
   .home .app-h { display: flex; align-items: center; gap: 16px; height: 48px; padding: 0 20px; background: #fff; border-bottom: 1px solid #E1DEF2; }
@@ -431,7 +431,7 @@
   @keyframes ring { 0% { opacity: .9; transform: translate(-50%,-50%) scale(.3); } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1.6); } }
   .home .sc-replay { position: absolute; right: 14px; top: 16px; z-index: 6; }
 
-  .home /* ---- Trade ticket replica (shadcn Dialog over the screener) ---- */
+  .home /* ---- Trade ticket replica (shadcn Dialog over the scanner) ---- */
   .earn { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 500; padding: 0 4px; border-radius: 4px; border: 1px solid #fde68a; background: #fffbeb; color: #b45309; vertical-align: 1px; margin-left: 4px; }
   .home .tk-app { min-height: 900px; }
   .home .ovl { position: absolute; inset: 0; background: rgba(0,0,0,.8); z-index: 3; opacity: 0; transition: opacity .3s; pointer-events: none; }

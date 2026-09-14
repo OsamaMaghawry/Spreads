@@ -1,6 +1,6 @@
 // Which of the market's thousands of names are worth pulling a chain for.
 //
-// The screener used to scan a hard-coded list: fifty mega caps, or the S&P 500.
+// The Scanner used to scan a hard-coded list: fifty mega caps, or the S&P 500.
 // Scanning "everything" is a different problem, not a bigger one. Alpaca lists
 // around eleven thousand equities; fetching an option chain for each is minutes
 // of requests and most of the answers are unusable. So the universe scan is two
@@ -33,7 +33,7 @@ export type UniverseFilters = {
   // Highest underlying price to consider. The direct form of the owner's ask.
   maxSpot?: number | null;
   // Lowest underlying price -- sub-dollar names have option chains that exist
-  // and should not be traded by anyone reading a screener.
+  // and should not be traded by anyone reading a scan.
   minSpot?: number | null;
   // Shares traded today. The liquidity floor.
   minVolume?: number | null;
@@ -76,7 +76,7 @@ export function readSnapshot(s: Snapshot) {
   };
 }
 
-// Judge one name. Returns why it was dropped, so the screener can say
+// Judge one name. Returns why it was dropped, so the Scanner can say
 // "1,847 names, 31 passed" and account for the rest instead of showing a short
 // list with no explanation.
 export function judge(symbol: string, snap: Snapshot, f: UniverseFilters): Judged {
@@ -110,7 +110,7 @@ export function judge(symbol: string, snap: Snapshot, f: UniverseFilters): Judge
 export function screenUniverse(snapshots: Record<string, Snapshot>, f: UniverseFilters) {
   const judged = Object.keys(snapshots || {}).sort().map((sym) => judge(sym, snapshots[sym], f));
   const kept = judged.filter((j) => j.keep);
-  // Counted by reason so the screener can show where the universe went. A
+  // Counted by reason so the Scanner can show where the universe went. A
   // filter nobody can see the effect of is a filter nobody trusts.
   const dropped: Record<string, number> = {};
   for (const j of judged) if (!j.keep && j.reason) dropped[j.reason] = (dropped[j.reason] || 0) + 1;

@@ -1,5 +1,5 @@
 // Homepage animations: streamed ticks on the hero cards, the broker/DeltaMint wipe, the phone toggle and
-// card flips, the screener replay and the trade-ticket replay. Loaded with defer by index.html.
+// card flips, the scanner replay and the trade-ticket replay. Loaded with defer by index.html.
 
 (function () {
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -61,7 +61,7 @@
   });
 
 
-  // ---- screener replay: defaults → cursor to Scan → batches of 4 stream rows → cursor to Trade
+  // ---- scanner replay: defaults → cursor to Scan → batches of 4 stream rows → cursor to Trade
   (function () {
     var app = document.getElementById('scApp'), cur = document.getElementById('scCursor'), ring = document.getElementById('scRing');
     var btn = document.getElementById('scanBtn'), lbl = document.getElementById('scanLbl'), prog = document.getElementById('scProg'),

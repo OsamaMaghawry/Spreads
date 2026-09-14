@@ -76,7 +76,7 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
   const { phase, log, upgrade, resting, warnings, run, stop, reset, replacePrice, sendAnyway } = useOpenOrder();
 
   // Live under the ticket while it is priced and while a hand-priced order
-  // rests; a screener row can be minutes old by the time it is opened.
+  // rests; a Scanner row can be minutes old by the time it is opened.
   const live = useLiveSetup(accountId, setup, phase === "idle" || resting);
 
   useEffect(() => {
@@ -134,7 +134,7 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
         : `Limit order resting at $${(limitCredit ?? 0).toFixed(2)} ${priced}, ${timeInForce === "gtc" ? "good til canceled" : "good for the day"} · ${what}.`;
 
   // The spot this scan result was built on travels with every submit and every
-  // reprice — see useOpenOrder. Screener rows sit on screen far longer than the
+  // reprice — see useOpenOrder. Scanner rows sit on screen far longer than the
   // open dialog's do, so the server's drift check is what stands between a stale
   // row and an order priced against a market that has moved.
   const submit = async () => {

@@ -94,14 +94,25 @@ substitute number.
 | Canonical | Not |
 | --- | --- |
 | Dashboard | Positions Monitor, monitor page, positions |
-| Screener | scanner, finder |
+| Scanner | screener, finder |
 | Trade History | journal, log |
 | Analysis | analytics, stats, performance page |
 | Accounts / Connect Alpaca | link, sync accounts |
 | Audit against broker feed | rebuild, preview (admin-only surface) |
 
-**(proposed)** "Scanner" appears in some copy where "Screener" is meant; the
-first audit should sweep it.
+**Scanner**, renamed by the owner on 14 Sep, replacing "Screener" — and the
+row above is reversed from what it said that morning, when "scanner" was the
+word to avoid. His reason: *"this is a scanner not a screener"*, and the page
+agrees with him. A screener filters a list you already hold; this sweeps option
+chains it fetches, strike by strike and expiry by expiry, and builds structures
+that did not exist before the sweep. The old word described the wrong verb.
+
+The stored value stays `screener`. `scan_presets.scope` is a CHECK-constrained
+column holding every user's saved presets, and the string is an internal key no
+one sees. Renaming it would buy nothing and would need a migration on both
+projects to avoid orphaning saved presets. The JS constant reads `SCOPE.SCANNER`
+so the code says the product's word; only the value on the wire is the old one,
+and it is commented where it is defined.
 
 **Dashboard**, renamed by the owner on 12 Sep, replacing "Positions Monitor".
 The table above previously listed "dashboard" as the thing NOT to say, and the

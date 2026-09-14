@@ -1,4 +1,4 @@
-// Ticker universes for the market screener.
+// Ticker universes for the market Scanner.
 // TOP50: the most liquid, options-active S&P 500 mega caps — fast scans.
 export const TOP50 = [
   "AAPL","MSFT","NVDA","AMZN","GOOGL","META","TSLA","AVGO","JPM","V",

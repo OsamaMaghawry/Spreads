@@ -24,7 +24,7 @@ import usePublicConfig from "@/lib/usePublicConfig";
 //
 //   IT LOOKS LIKE THE REST OF DELTAMINT. "The menu doesn't follow the brand
 //   identity and the website fonts. Frontpage is now different from the app."
-//   The links read `positions`, `screener`, `log_out` — lowercase with
+//   The links read `positions`, `scanner`, `log_out` — lowercase with
 //   underscores, a terminal register the landing site has nowhere. The site's
 //   own nav says Blog, Pricing, Log in. So do these. The panel takes the
 //   landing's metrics too: 9px radius, IBM Plex Sans at 0.95rem, `--dm-line`
@@ -63,7 +63,7 @@ export default function Layout() {
 
   const links = [
     { to: "/", label: "Dashboard", Icon: LayoutDashboard },
-    { to: "/screener", label: "Screener", Icon: Radar },
+    { to: "/scanner", label: "Scanner", Icon: Radar },
     { to: "/chain", label: "Option chain", Icon: ListOrdered },
     { to: "/accounts", label: "Accounts", Icon: KeyRound },
     ...(billingVisible ? [{ to: "/billing", label: "Billing", Icon: CreditCard }] : []),

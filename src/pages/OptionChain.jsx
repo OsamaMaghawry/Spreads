@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from "rea
 import { Search, RefreshCw, AlertTriangle, X } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { fmtMoney } from "@/lib/format";
-import TradeDialog from "@/components/screener/TradeDialog";
+import TradeDialog from "@/components/scanner/TradeDialog";
 import { contractSetup, spreadSetup } from "@/lib/optionChain";
 
 // The option chain, as a ladder, with every strike tradeable.

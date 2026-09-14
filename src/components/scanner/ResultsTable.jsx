@@ -18,7 +18,7 @@ const SORTS_SINGLE = [
   { key: "maxRisk", label: "Max Loss" }
 ];
 
-// Ranked scan results for the screener.
+// Ranked scan results for the Scanner.
 //
 // Counterpart: components/open/CandidateList.jsx renders the same candidate
 // objects inside the account's own open-position dialog. What a candidate row
