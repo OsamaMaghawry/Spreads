@@ -107,14 +107,32 @@ export default function OpenPositionDialog({ account, onClose, onDone, prefill =
   useEffect(() => {
     if (!prefill) return;
     setFromSaved(prefill);
-    setSetup({
-      ticker: prefill.ticker,
-      legs: (prefill.legs || []).map((l) => ({
-        symbol: l.symbol,
-        side: String(l.side || "").startsWith("sell") ? "sell" : "buy",
-        ratio: l.ratio ?? 1
-      }))
-    });
+    const wireLegs = (prefill.legs || []).map((l) => ({
+      symbol: l.symbol,
+      side: String(l.side || "").startsWith("sell") ? "sell" : "buy",
+      ratio: l.ratio ?? 1
+    }));
+    // The stored setup is what the ticket READS: strikes, expiry, deltas,
+    // credit, max risk. Its legs already carry symbol, side and ratio, so the
+    // send path -- which takes exactly those three off setup.legs -- is
+    // byte-identical either way. The wire legs are the authority on WHAT
+    // trades, so they win on any disagreement.
+    //
+    // Rows saved from the Orders tab never had a setup, and neither did any
+    // row written before migration 0053. Those get `analyticsAbsent`, which
+    // makes the preview print "—" and say why, instead of reporting a max risk
+    // of null as "No ceiling" on a position whose loss is strictly bounded.
+    const saved = prefill.setup;
+    if (saved && Array.isArray(saved.legs) && saved.legs.length === wireLegs.length) {
+      const bySymbol = new Map(saved.legs.map((l) => [l.symbol, l]));
+      setSetup({
+        ...saved,
+        ticker: prefill.ticker,
+        legs: wireLegs.map((w) => ({ ...(bySymbol.get(w.symbol) || {}), ...w }))
+      });
+    } else {
+      setSetup({ ticker: prefill.ticker, legs: wireLegs, analyticsAbsent: true });
+    }
     setQty(Number(prefill.qty) || 1);
     if (prefill.order_type === "market") {
       setPriceMode("market");
@@ -238,7 +256,11 @@ export default function OpenPositionDialog({ account, onClose, onDone, prefill =
           // A ticket built in this dialog is an OPENING structure priced as a
           // credit, which is what `limitCredit` means throughout it.
           netIsCredit: true,
-          timeInForce
+          timeInForce,
+          // The whole setup, for reading it back. Legs above are the payload;
+          // this is what makes a reopened ticket show its strikes, expiry,
+          // deltas and risk instead of dashes and "No ceiling".
+          setup
         });
         // `onDone` rather than `onClose`: the parent refetches, so the saved
         // ticket is visible in the Orders tab the moment the dialog closes

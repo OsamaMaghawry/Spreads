@@ -41,7 +41,8 @@ export async function saveOrder({
   netIsCredit = true,
   timeInForce = null,
   note = null,
-  fromBrokerOrderId = null
+  fromBrokerOrderId = null,
+  setup = null
 }) {
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth?.user?.id;
@@ -58,7 +59,14 @@ export async function saveOrder({
     time_in_force: timeInForce === "gtc" || timeInForce === "day" ? timeInForce : null,
     is_equity: legsAreEquity(legs),
     note,
-    from_broker_order_id: fromBrokerOrderId
+    from_broker_order_id: fromBrokerOrderId,
+    // Display only. `legs` above is what reaches the broker; this is what the
+    // ticket needs to READ -- strikes, expiry, deltas, credit, max risk -- and
+    // without it a reopened ticket rendered dashes, "Delta NaN", and a max
+    // risk of null that the preview printed as "No ceiling" on positions whose
+    // loss was strictly bounded. Null is a legitimate value: a ticket parked
+    // from the Orders tab is a resting broker order that never had a setup.
+    setup: setup || null
   };
   const { data, error } = await supabase.from("saved_orders").insert(row).select().single();
   if (error) throw new Error(error.message);

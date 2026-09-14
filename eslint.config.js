@@ -63,6 +63,26 @@ export default [
         { ignore: ["cmdk-input-wrapper", "toast-close"] },
       ],
       "react-hooks/rules-of-hooks": "error",
+      // THE BLANK PAGE RULE.
+      //
+      // CloseDialog listed `qty` in a dependency array above the `const qty`
+      // that defines it. A dependency array is evaluated during render, every
+      // render, so the dialog read `qty` inside its own temporal dead zone and
+      // threw before it drew anything -- "Cannot access uninitialized
+      // variable" in Safari. With no error boundary at the time, a trader
+      // pressing Close on a live position got a white screen.
+      //
+      // Nothing caught it: it is valid syntax, the build succeeded, and no
+      // test renders a component. This rule is what catches the next one, at
+      // lint time, before it ships.
+      //
+      // `functions: false` because hoisted function declarations are genuinely
+      // fine and the codebase uses them; only `let`/`const`/`class` -- the
+      // bindings that actually have a dead zone -- are errors.
+      "no-use-before-define": [
+        "error",
+        { variables: true, functions: false, classes: false },
+      ],
     },
   },
 ];

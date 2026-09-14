@@ -84,7 +84,7 @@ incomplete.
 - **billing** — UpgradePrompt
 - **brand** — DeltaMintMark, Wordmark
 - **close** — CloseDialog, LegPicker, LegsQuoteSummary, MultiCloseDialog, OpenOrdersPanel, OrderLog, useCloseOrder, useMultiClose
-- **common** — ConfirmAction, ConfirmDeleteAccount, ConfirmSubmit, EarningsWarning, NumberField, PreTradeRisk, PriceControl, RiskMeter, ScanPresets, StaleDataNotice
+- **common** — ConfirmAction, ConfirmDeleteAccount, ConfirmSubmit, EarningsWarning, ErrorBoundary, NumberField, PreTradeRisk, PriceControl, RiskMeter, ScanPresets, StaleDataNotice
 - **dashboard** — AccountSection, AccountSummaryCard, BrokerTable, CardLegs, LegRows, MasterSummary, OrderGroup, PayoffChart, PositionCard, PositionCards, SavedOrderGroup, SpreadStructure, SpreadTable, StrikeLadder, TickerPanel, useLegQuotes
 - **history** — RebuildPreview, StockLotsTable, StrategyTabs, TradeHistoryTable
 - **open** — CandidateList, OpenPositionDialog, OpenPricing, OrderWarnings, RestingOrder, ScanFilters, SetupPreview, StrategyPicker, TicketAnalysis, useLiveSetup, useOpenOrder, useScanLoop
@@ -94,16 +94,16 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
-- 2026-09-11 · (staging) Trade history now syncs on a schedule instead of
-- 2026-09-11 · (staging) Fixed a case where the new daily equity chart could
-- 2026-09-11 · (staging) Account Analysis now includes open option positions,
-- 2026-09-10 · (staging) The Strategy Comparison table now follows the Whole view / Premium only switch too: its P/L column header reads "Option-leg P/L", "Total P/L" or "Realized P/L" instead of always claiming "Realized", and the all-strategies total row shows the mark on shares still held (which no single strategy row can claim, since a share lot belongs to the account, not to the strategy that opened it) with a one-line note only when that mark is actually present — so the rows no longer visibly fail to add up with nothing on screen explaining why (`c504afb`).
-- 2026-09-10 · (staging) Account Analysis's equity chart is a real daily line instead of a pole: the portfolio is now recalculated for every session day since the account's first trade (from lot dates, not `realized_pl`, so a share result no longer double-books between the day a lot was assigned and the day it was sold) and stored (migration `0030`, `account_equity_daily`), giving two real daily curves — strategy performance and the broker's own account value — with nothing dashed or guessed in either. The Whole view / Premium only switch now actually drives every number on the page, not just the headline: win rate, payoff, expectancy, streaks, best/worst, the month and ticker tables, and return on equity all recompute for the selected view, and max drawdown is now measured from the daily series (a position that fell $9,000 and recovered mid-trade used to register as nothing, since no trade closed while it happened) (`85c8da7`).
-- 2026-09-10 · (staging) The new daily equity line no longer comes back empty for reasons unrelated to the account: `equityHistory` dropped two intraday-only Alpaca parameters that could cause an outright rejection at the daily timeframe it actually uses, and now retries on the free IEX feed when the account's plan doesn't carry the consolidated one instead of leaving every held lot unpriced for the day (`2ca653f`).
-- 2026-09-10 · (staging) The Whole view / Premium only switch now actually re-buckets the equity curve, the month table and the ticker table instead of only moving the headline: Premium only's chart now ends at its own figure instead of a third number neither view claims, Whole view draws a dashed step from the realized path to today's mark (there's no historical mark-to-market data to draw a solid line through), and outcome-only statistics (win rate, payoff, expectancy, streaks, credit capture) now say why they don't move instead of sitting there unexplained (`78da876`).
-- 2026-09-10 · (staging) Account Analysis's Whole view now counts assigned-but-unsold wheel lots at all — previously a lot acquired by assignment contributed zero to every figure on the page until it was sold, so a wheel account that grew from $140k to $151k showed a $1,737 result; the page now reads the broker's live mark for those lots the same way the rest of the screen already does (`1e230e4`).
-- 2026-09-10 · (staging) Fixed four blockers the review bench found on Whole view before it could ship: a false claim that "Premium only" was the number to use for a 1099-B (deleted — it excludes share sales and misclassifies assigned-put premium); Whole view silently adding a date/strategy-filtered total to the unfiltered position book; a banner that could name the wrong reason a position was unpriced; and two broker symbols that could collide to one ticker and publish a wildly wrong total as complete. Also surfaces the share result next to Premium only so the two realized figures on the page no longer disagree with no explanation (`a83613e`).
-- 2026-09-10 · (staging) Dropped "actually banked" from the Premium only question — it implied Whole view was the inflated number, but premium on an assigned wheel lot reduces stock basis rather than standing alone as banked income; now states what the figure sums and omits without claiming which view is truer (`b7434c5`).
+- 2026-09-14 · (staging) Reopening a saved order ticket no longer shows a
+- 2026-09-14 · (staging) An eighth foundations post — implied volatility
+- 2026-09-14 · The Screener is now the Scanner everywhere a user reads it
+- 2026-09-14 · Both deltamint.app and dashboard.deltamint.app now serve
+- 2026-09-14 · The Orders tab's order card was rebuilt end to end: a
+- 2026-09-13 · A seventh foundations post — theta decay explained — is
+- 2026-09-13 · The weekly digest email now actually sends to every
+- 2026-09-12 · A negative options buying power (an account in deficit) now
+- 2026-09-12 · The weekly digest email was rebuilt into what a user
+- 2026-09-12 · A tax-review disclaimer that used to appear only on page
 
 ## Server functions
 
@@ -172,7 +172,7 @@ revoked from the browser role entirely.
 - **cron_tickets** — token, purpose, created_at, expires_at, used_at
 - **integrity_findings** — id, account_id, user_id, code, subject, severity, action, message, detail, first_seen_at, last_seen_at, resolved_at, seen_count
 - **cash_flows** — id, account_id, user_id, activity_id, day, amount, kind, captured_at
-- **saved_orders** — id, user_id, account_id, ticker, legs, qty, order_type, limit_price, net_is_credit, is_equity, note, from_broker_order_id, created_at, updated_at, time_in_force
+- **saved_orders** — id, user_id, account_id, ticker, legs, qty, order_type, limit_price, net_is_credit, is_equity, note, from_broker_order_id, created_at, updated_at, time_in_force, setup
 
 ## Analytics vocabulary
 

@@ -154,7 +154,11 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
           // This dialog already knows which way the structure is priced, so
           // the stored row keeps that rather than re-deriving it from legs.
           netIsCredit: !isDebit,
-          timeInForce
+          timeInForce,
+          // The whole setup, for reading it back. Legs above are the payload;
+          // this is what makes a reopened ticket show its strikes, expiry,
+          // deltas and risk instead of dashes and "No ceiling".
+          setup
         });
         toast({
           title: "Saved for later",

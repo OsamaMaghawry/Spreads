@@ -62,6 +62,29 @@ export function shortDelta(c) {
   return deltas.length ? Math.max(...deltas).toFixed(2) : null;
 }
 
+// Three states, not two: bounded, unbounded, and NOT KNOWN.
+//
+// `maxRisk == null` used to mean one thing -- "the builder looked at this
+// structure and could not put a floor under it" -- and the ticket printed "No
+// ceiling" in red above "Loss not bounded." That is the right words for a
+// short leg that outlives its long.
+//
+// Reopening a saved ticket produced the same null for the opposite reason.
+// Saved rows carried only the wire legs, so nothing had been computed at all,
+// and a 2.50-wide NVDA put spread -- bounded at $250 a contract by arithmetic
+// no market can change -- came back reading "No ceiling". The absence of a
+// judgement was being displayed as a judgement, and the most alarming one
+// available.
+//
+// A risk warning that fires when we simply do not know is worse than no
+// warning: it is the mechanism by which a trader learns the red text means
+// nothing. So a setup that was never built says so, in the neutral "—" this
+// product uses everywhere for a figure it cannot stand behind.
+export function riskState(setup) {
+  if (setup?.analyticsAbsent) return "unknown";
+  return setup?.maxRisk === null || setup?.maxRisk === undefined ? "unbounded" : "bounded";
+}
+
 // The whole order's risk, not one contract's -- and null stays null.
 //
 // `null * qty` is 0 in JavaScript, and 0 through `fmtMoney` is "$0.00". The

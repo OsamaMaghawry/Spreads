@@ -59,60 +59,18 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
   const [openOrders, setOpenOrders] = useState(spread.openOrders || []);
   const { phase, log, resting, run, stop, reset, replacePrice } = useCloseOrder();
 
-  // A reopened saved exit stops being a saved ticket the moment its order
-  // reaches the broker. Keyed on "working", not on "filled": the order exists
-  // from that moment whether it fills, rests or is walked, and a saved copy
-  // sitting beside a RESTING exit is exactly the pair that gets sent twice.
+  // DECLARED BEFORE THE EFFECT BELOW, and that is the whole reason this block
+  // sits up here rather than beside the input it clamps.
   //
-  // AND IT SAYS SO. The owner sent a reopened QQQ exit at 5 shares of the 14
-  // he had parked and got nothing back: *"it didn't remove the saved ticket
-  // and still open and no confirmation."* The row was in fact deleted -- the
-  // list behind it was stale -- but silence on a money action is
-  // indistinguishable from failure, and he was right to read it as broken.
+  // `qty` is in the dependency array of the saved-ticket effect further down.
+  // A dependency array is evaluated DURING RENDER, on every render -- so with
+  // the declaration underneath it, every mount of this dialog read `qty`
+  // inside its own temporal dead zone and threw before anything drew. Safari
+  // words it "Cannot access uninitialized variable"; the owner saw a blank
+  // page when he pressed Close on a live position.
   //
-  // The quantity is named when it differs from what was saved, because that is
-  // his exact case and the difference matters: parking 14 and sending 5 leaves
-  // nine shares he might still think are queued somewhere. They are not, and
-  // the ticket is gone, so the message has to say both.
-  //
-  // A failed delete stays quiet about the ORDER but is not pretended away: the
-  // stale ticket remains visible in Saved, where it can be deleted by hand.
-  const clearedSaved = useRef(null);
-  useEffect(() => {
-    if (!prefill?.id) return;
-    if (!["working", "filled", "detached"].includes(phase)) return;
-    if (clearedSaved.current === prefill.id) return;
-    clearedSaved.current = prefill.id;
-    // The CLAMPED quantity, not the raw typed string. Typing 20 against a 14
-    // holding produced "Sent 20 of the 14 you had saved — the remaining 0 is
-    // not queued anywhere": two wrong figures and a nonsense clause, on a
-    // message about money.
-    const sent = qty || 0;
-    const parked = Number(prefill.qty) || 0;
-    deleteSavedOrder(prefill.id)
-      .then(() => {
-        toast({
-          title: "Saved ticket sent",
-          description:
-            // Only when LESS was sent than parked. More is not a remainder.
-            sent && parked && sent < parked
-              ? `Sent ${qtyString(sent)} of the ${qtyString(parked)} you had saved. The saved ticket has been removed — the remaining ${qtyString(parked - sent)} is not queued anywhere.`
-              // THE TRADE-OFF IS STATED. The ticket is cleared the moment the
-              // order reaches the broker, which is what stops it being sent
-              // twice -- but a walk that never fills leaves the trader with
-              // neither an order nor a ticket. Saying so is the difference
-              // between a deliberate choice and a surprise.
-              : "It is with your broker now, and the saved copy has been removed. If it does not fill, you will need to build the ticket again."
-        });
-      })
-      .catch(() => {
-        toast({
-          title: "Sent, but the saved copy is still here",
-          description: "The order is with your broker. We could not remove the saved ticket — delete it under Saved so it is not sent twice."
-        });
-      });
-  }, [prefill, phase, qty]);
-
+  // eslint's no-use-before-define is now on for src/, so the next one of these
+  // fails the build instead of reaching a trader.
   // The clamp the input no longer does: never below one, never more than the
   // position holds, and a half-typed field reads as one rather than NaN.
   // What the broker will actually accept right now.
@@ -167,6 +125,60 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
     ? (Number.isFinite(typedQty) && typedQty > 0 ? Math.min(maxQty, typedQty) : 0)
     : Math.max(1, Math.min(maxQty, parseInt(qtyInput, 10) || 1));
   const qtyReady = qty > 0;
+
+  // A reopened saved exit stops being a saved ticket the moment its order
+  // reaches the broker. Keyed on "working", not on "filled": the order exists
+  // from that moment whether it fills, rests or is walked, and a saved copy
+  // sitting beside a RESTING exit is exactly the pair that gets sent twice.
+  //
+  // AND IT SAYS SO. The owner sent a reopened QQQ exit at 5 shares of the 14
+  // he had parked and got nothing back: *"it didn't remove the saved ticket
+  // and still open and no confirmation."* The row was in fact deleted -- the
+  // list behind it was stale -- but silence on a money action is
+  // indistinguishable from failure, and he was right to read it as broken.
+  //
+  // The quantity is named when it differs from what was saved, because that is
+  // his exact case and the difference matters: parking 14 and sending 5 leaves
+  // nine shares he might still think are queued somewhere. They are not, and
+  // the ticket is gone, so the message has to say both.
+  //
+  // A failed delete stays quiet about the ORDER but is not pretended away: the
+  // stale ticket remains visible in Saved, where it can be deleted by hand.
+  const clearedSaved = useRef(null);
+  useEffect(() => {
+    if (!prefill?.id) return;
+    if (!["working", "filled", "detached"].includes(phase)) return;
+    if (clearedSaved.current === prefill.id) return;
+    clearedSaved.current = prefill.id;
+    // The CLAMPED quantity, not the raw typed string. Typing 20 against a 14
+    // holding produced "Sent 20 of the 14 you had saved — the remaining 0 is
+    // not queued anywhere": two wrong figures and a nonsense clause, on a
+    // message about money.
+    const sent = qty || 0;
+    const parked = Number(prefill.qty) || 0;
+    deleteSavedOrder(prefill.id)
+      .then(() => {
+        toast({
+          title: "Saved ticket sent",
+          description:
+            // Only when LESS was sent than parked. More is not a remainder.
+            sent && parked && sent < parked
+              ? `Sent ${qtyString(sent)} of the ${qtyString(parked)} you had saved. The saved ticket has been removed — the remaining ${qtyString(parked - sent)} is not queued anywhere.`
+              // THE TRADE-OFF IS STATED. The ticket is cleared the moment the
+              // order reaches the broker, which is what stops it being sent
+              // twice -- but a walk that never fills leaves the trader with
+              // neither an order nor a ticket. Saying so is the difference
+              // between a deliberate choice and a surprise.
+              : "It is with your broker now, and the saved copy has been removed. If it does not fill, you will need to build the ticket again."
+        });
+      })
+      .catch(() => {
+        toast({
+          title: "Sent, but the saved copy is still here",
+          description: "The order is with your broker. We could not remove the saved ticket — delete it under Saved so it is not sent twice."
+        });
+      });
+  }, [prefill, phase, qty]);
 
   const allLegs = spreadLegs(spread);
   const pickedLegs = allLegs.filter((l) => selected.includes(l.symbol));

@@ -1,0 +1,36 @@
+<svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Three pairs of horizontal bars showing the price of three hypothetical 30-day calls on the same stock, struck at 45, 50 and 55, each priced twice: once with implied volatility at 40 percent and once at 60 percent, with the stock price unchanged at 50. The 45-strike call is 5 dollars 53 at 40 percent and 6 dollars 35 at 60 percent. The 50-strike call is 2 dollars 29 at 40 percent and 3 dollars 43 at 60 percent. The 55-strike call is 68 cents at 40 percent and 1 dollar 64 at 60 percent. Every bar in the higher-volatility set is longer than its pair, so the whole chain reprices upward together rather than one strike moving on its own.">
+  <rect width="720" height="340" fill="#FFFFFF"/>
+
+  <text x="110" y="46" font-size="15" text-anchor="end" fill="#767B8E">strike</text>
+  <rect x="128" y="34" width="14" height="14" rx="3" fill="#767B8E"/>
+  <text x="150" y="46" font-size="15" fill="#767B8E">40% IV</text>
+  <rect x="238" y="34" width="14" height="14" rx="3" fill="#2E8B5F"/>
+  <text x="260" y="46" font-size="15" fill="#767B8E">60% IV</text>
+
+  <!-- 45 strike: 5.53 at 40% IV, 6.35 at 60% IV -->
+  <text x="110" y="108" font-size="18" font-weight="600" text-anchor="end" fill="#767B8E">$45</text>
+  <rect x="128" y="78" width="480" height="22" rx="4" fill="#F1F2F6"/>
+  <rect x="128" y="78" width="379" height="22" rx="4" fill="#767B8E"/>
+  <text x="624" y="96" font-size="16" font-weight="600" fill="#14151C">$5.53</text>
+  <rect x="128" y="106" width="480" height="22" rx="4" fill="#F1F2F6"/>
+  <rect x="128" y="106" width="435" height="22" rx="4" fill="#2E8B5F"/>
+  <text x="624" y="124" font-size="16" font-weight="600" fill="#14151C">$6.35</text>
+
+  <!-- 50 strike: 2.29 at 40% IV, 3.43 at 60% IV -->
+  <text x="110" y="198" font-size="18" font-weight="600" text-anchor="end" fill="#767B8E">$50</text>
+  <rect x="128" y="168" width="480" height="22" rx="4" fill="#F1F2F6"/>
+  <rect x="128" y="168" width="157" height="22" rx="4" fill="#767B8E"/>
+  <text x="624" y="186" font-size="16" font-weight="600" fill="#14151C">$2.29</text>
+  <rect x="128" y="196" width="480" height="22" rx="4" fill="#F1F2F6"/>
+  <rect x="128" y="196" width="235" height="22" rx="4" fill="#2E8B5F"/>
+  <text x="624" y="214" font-size="16" font-weight="600" fill="#14151C">$3.43</text>
+
+  <!-- 55 strike: 0.68 at 40% IV, 1.64 at 60% IV -->
+  <text x="110" y="288" font-size="18" font-weight="600" text-anchor="end" fill="#767B8E">$55</text>
+  <rect x="128" y="258" width="480" height="22" rx="4" fill="#F1F2F6"/>
+  <rect x="128" y="258" width="47" height="22" rx="4" fill="#767B8E"/>
+  <text x="624" y="276" font-size="16" font-weight="600" fill="#14151C">$0.68</text>
+  <rect x="128" y="286" width="480" height="22" rx="4" fill="#F1F2F6"/>
+  <rect x="128" y="286" width="112" height="22" rx="4" fill="#2E8B5F"/>
+  <text x="624" y="304" font-size="16" font-weight="600" fill="#14151C">$1.64</text>
+</svg>

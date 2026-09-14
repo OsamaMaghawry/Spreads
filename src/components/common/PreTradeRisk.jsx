@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
-import { scaledRisk } from "@/lib/setupUnit";
+import { scaledRisk, riskState } from "@/lib/setupUnit";
 import RiskMeter from "./RiskMeter";
 import EarningsWarning from "./EarningsWarning";
 
@@ -33,7 +33,11 @@ export default function PreTradeRisk({ setup, accountId, qty }) {
           No `note`: the meter printed the same sentence the preview above it
           had just printed, which is the repetition the owner objected to. The
           explanation belongs once, in Analysis. */}
-      <RiskMeter risk={scaledRisk(setup.maxRisk, qty)} equity={equity} />
+      <RiskMeter
+        risk={scaledRisk(setup.maxRisk, qty)}
+        equity={equity}
+        unknown={riskState(setup) === "unknown"}
+      />
     </>
   );
 }

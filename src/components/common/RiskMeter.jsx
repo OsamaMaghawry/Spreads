@@ -6,7 +6,25 @@ import { fmtMoney } from "@/lib/format";
 // The bar is scaled so 70% of equity fills it: the interesting range for a
 // defined-risk position is the bottom of the scale, and a bar that only moves
 // once you are betting the account is a bar that never moves.
-export default function RiskMeter({ risk, equity, note = null }) {
+export default function RiskMeter({ risk, equity, note = null, unknown = false }) {
+  // Nothing was computed, so there is no claim to make in either direction.
+  // This used to fall into the red "No ceiling" panel below, which reads as a
+  // finding about the position rather than the absence of one -- and it fired
+  // on reopened saved tickets whose risk was, in fact, strictly bounded.
+  if (unknown) {
+    return (
+      <div className="border border-slate-200 bg-slate-50 rounded-lg p-3 space-y-1">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-xs text-slate-600">Share of account at risk</span>
+          <span className="text-sm font-semibold text-slate-400">—</span>
+        </div>
+        <p className="text-xs text-slate-600">
+          Not calculated for this ticket, so it cannot be sized against the account.
+        </p>
+      </div>
+    );
+  }
+
   // A risk with no ceiling has no share of the account either -- the fraction
   // is not zero, it is undefined, and the bar cannot be drawn. It said
   // "0.0% · Contained · Under a tenth of the account" for a diagonal that

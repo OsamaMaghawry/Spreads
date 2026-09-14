@@ -5,6 +5,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import ErrorBoundary from "@/components/common/ErrorBoundary"
 
 const Dialog = DialogPrimitive.Root
 
@@ -35,7 +36,13 @@ const DialogContent = React.forwardRef(({ className, children, ...props }, ref) 
         className
       )}
       {...props}>
-      {children}
+      {/* EVERY dialog in the product gets a boundary, from one place.
+          A ticket that throws while drawing used to unmount the whole
+          document -- the dashboard behind it included -- and leave a white
+          page with no message and no way out. Inside the Content and OUTSIDE
+          the Close button below, so the X still works: whatever broke, the
+          trader can always leave the dialog and reach their positions. */}
+      <ErrorBoundary label="this ticket">{children}</ErrorBoundary>
       <DialogPrimitive.Close
         className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
         <X className="h-4 w-4" />

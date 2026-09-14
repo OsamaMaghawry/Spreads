@@ -9,6 +9,7 @@ import Wordmark from "@/components/brand/Wordmark";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
 import useIsAdmin from "@/lib/useIsAdmin";
 import usePublicConfig from "@/lib/usePublicConfig";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 // The app's navigation, down the side rather than across the top.
 //
@@ -162,7 +163,14 @@ export default function Layout() {
           </div>
         )}
         <main className="mx-auto w-full max-w-[1400px] flex-1 px-5 py-7 sm:px-10">
-          <Outlet />
+          {/* The page, contained. A throw in one account card or one table
+              now leaves the nav, the account switcher and every other screen
+              reachable, instead of taking the whole document down. `key` on
+              the path so navigating away clears a stuck error rather than
+              carrying it to the next page. */}
+          <ErrorBoundary key={pathname} label="this page">
+            <Outlet />
+          </ErrorBoundary>
         </main>
         <DisclaimerFooter />
       </div>
