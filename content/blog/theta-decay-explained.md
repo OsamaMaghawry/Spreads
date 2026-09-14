@@ -185,8 +185,9 @@ strikes sitting at the money.
 
 It is the second of the sensitivities the [foundations
 series](/blog/foundations) takes one at a time, following [what delta
-measures](/blog/option-delta-explained). What implied volatility does to the
-same premium comes next.
+measures](/blog/option-delta-explained). What [implied
+volatility](/blog/implied-volatility-options-explained) does to the same
+premium comes next.
 
 All figures on this page are hypothetical and are there to show the
 mechanics. This post is educational and is not investment advice.

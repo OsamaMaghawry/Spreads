@@ -3,6 +3,158 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-14 · (staging) An eighth foundations post — implied volatility
+  explained — is live on staging (not yet merged to production `main`):
+  what IV measures, why every contract on a chain reprices together
+  because they're all priced off one shared expected move, and what vega
+  turns a change in it into in dollars; cleared through desk-editor and
+  seo-editor review before publishing (`7076e62`, `10c3431`, `32186c2`,
+  `1fe3c4d`).
+- 2026-09-14 · The Screener is now the Scanner everywhere a user reads it
+  — nav, headings and copy all rename, and to "Strategy Scanner" rather
+  than "Market Scanner" (two of its six strategies sweep an account's own
+  held shares, not the market). A Condor now opens 1:1 by default in the
+  Open Position ticket the same way it already did in the Scanner, instead
+  of silently starting at a riskier, unexplained 2:1 (`8a51f95`,
+  `aeb0f55`, `4e67892`, `49ea499`).
+- 2026-09-14 · Both deltamint.app and dashboard.deltamint.app now serve
+  Strict-Transport-Security, X-Content-Type-Options and Referrer-Policy on
+  every response, including the paths each site's own Worker generates
+  that a static Cloudflare `_headers` file can't reach on its own
+  (`8b378bd`, `505a9bb`).
+- 2026-09-14 · The Orders tab's order card was rebuilt end to end: a
+  working order now shows the live market price without opening the price
+  editor, the price is labelled debit or credit rather than a bare
+  number, and every editor confirms only what actually reaches the broker
+  (Update or Cancel) instead of adding a confirmation to opening the
+  editor itself. Any order — opens and closes alike, not just opens — can
+  now be saved for later; a parked ticket reopens through the real ticket
+  rather than a second send route that bypassed order-safety checks and
+  could have inverted a position, the button is hidden on an order that
+  would only be refused, and a new Saved tab lists parked tickets and
+  actually refreshes instead of going stale after the first load. A
+  closing order's quantity field now reads the true broker ceiling
+  instead of an amount already sent, holds Alpaca's full nine decimal
+  places (previously rounded to six, which could ask to sell more shares
+  than were held), is wide enough to show a nine-decimal count without
+  cropping it, no longer double-counts a replaced order's own reservation
+  into its max, and no longer collapses a sub-1-share fractional holding
+  down to a default quantity of 1 (`3b34511`, `0084d35`, `cadf3e3`,
+  `3b04795`, `5424c51`, `9e26daa`, `2578cdd`, `813e849`, `fdd6793`,
+  `29ab4b5`, `16093e2`, `2fe6390`).
+- 2026-09-13 · A seventh foundations post — theta decay explained — is
+  live: what an option loses from one day passing, the same contract
+  shown long and short in its final week, and why the daily figure speeds
+  up as expiry nears; reviewed by desk-editor and seo-editor before
+  publishing (`67d7cdc`, `bf62ac0`, `394e74f`, `bc3f318`). Also fixed: a
+  publish-pipeline bug that had silently kept the previous day's post
+  (option delta) from ever reaching the live blog — a bulk insert the
+  publisher relies on refuses unless every row shares identical keys —
+  so a new post landing next to an edited old one killed the whole run
+  with no visible failure (`939bbf0`).
+- 2026-09-13 · The weekly digest email now actually sends to every
+  connected account's own users, not just to the owner's preview inbox,
+  and no longer decides on its own that a quiet account is "dormant" and
+  skips it — each connected account gets its own email with its own
+  premium and stock figures (`b13e9cc`, `8328baf`). Its footer's
+  unsubscribe link now works: `/settings?email=off` didn't exist as a
+  route until this fix, so nobody who clicked it had ever actually been
+  unsubscribed (`d4d9648`).
+- 2026-09-12 · A negative options buying power (an account in deficit) now
+  reads as money owed instead of being run through an unconditional
+  `Math.abs` and shown as a positive balance available to spend (`133140c`).
+- 2026-09-12 · The weekly digest email was rebuilt into what a user
+  actually receives: it opens on the account's own total value with two
+  bars for what's committed (collateral, options buying power) instead of
+  three more technical ones, states a plain support@ sender with no
+  internal "Owner" banner or account-name-and-P/L subject line, shows all
+  four parts of the week — premium paid, premium earned, share result and
+  the change in open option marks — under a heading that actually covers
+  all four instead of three, and the plain-text fallback (for clients
+  that don't render HTML) now carries the same reconciliation fixes as
+  the HTML version instead of silently reverting to the older, wrong
+  numbers (`e88b34c`, `d91e484`, `177fb5c`, `9ea477e`, `80126bb`,
+  `ec7974a`, `4a63bda`, `cefbdc1`, `7d9a963`, `28affc9`). It's backed by a
+  corrected daily account-equity series: every stored day had been
+  labelled to the session *after* the one it actually belonged to
+  (Alpaca's own daily-equity timestamp lands after midnight Eastern, the
+  next UTC calendar day), the series now rebuilds itself automatically
+  for every connected account instead of only when someone happens to
+  open Analysis, production's scheduler for it — never actually turned
+  on — now runs, and a cron job that had been authenticating with the
+  public anon key instead of the service-role key the Vault row claimed
+  to hold can now write at all (`9236525`, `4f03740`, `fc9beb5`,
+  `f403623`, `126311e`). A new audit framework flags a stored row with an
+  internal contradiction and withholds only the disputed figure instead
+  of freezing a whole account's trade history the way the two guards it
+  replaces did (`ef0bbf0`, `8ff794b`, `d5534a6`, `0fcfae3`, `c9243fa`,
+  `88c154d`, `2dfa61e`, `123dd04`).
+- 2026-09-12 · A tax-review disclaimer that used to appear only on page
+  one of an exported PDF now repeats on every page, including the
+  by-month and by-ticker realized-P/L tables — the pages most likely to
+  actually get forwarded to an accountant (`ab47f13`).
+- 2026-09-12 · Account Analysis gets a 1-week date-range preset (the row
+  now reads shortest-to-longest: All · 1W · 30D · 90D · 6M · YTD · 1Y),
+  and its empty state now distinguishes "no trades at all" from "nothing
+  closed in this window" instead of telling an account with 150 closed
+  trades that it had never traded. Whole view's weekly filter now
+  actually filters the whole book instead of always showing the
+  unfiltered all-time figure, its headline no longer silently reverts to
+  booked-only P/L just because the chart was switched off "Performance"
+  mode, and it now shows the booked total for a filtered window instead
+  of a dash (`8157d92`, `f015384`, `816ccae`, `3b8aae1`, `23c1a12`,
+  `d8e4914`).
+- 2026-09-12 · A fifth foundations post — the bid-ask spread on an option
+  — went live, and the publish script no longer rewrites or re-dates a
+  post that hasn't actually changed (`083144c`, `78b4396`, `4e7acf1`). A
+  sixth post — option delta, explained — published the same day
+  (`89f7840`). Both blog hub pages now sort strictly newest-first —
+  "series order" and true chronological date used to disagree, so one hub
+  looked broken while sorting exactly as designed (`1e55691`, `cc9a1f1`).
+- 2026-09-12 · A one-switch Demo mode (toggled from Admin, reversible)
+  makes every live-money broker account watch-only across the whole
+  site — `openPosition` now refuses outright to place any order on a live
+  account, and prices/quotes are held back site-wide — while paper
+  accounts keep trading normally, so the product can be shared and tested
+  by others before pricing is finalized (`95b03b7`).
+- 2026-09-12 · Navigation moved from a top bar to a left-side column:
+  pinned open on desktop, behind a hamburger with a backdrop and
+  Escape-to-close on phones. The old top bar hid link labels below a
+  breakpoint, leaving a phone user five unlabelled icons to click through
+  to find out where each one went (`e9330ff`).
+- 2026-09-12 · Every strike on an underlying's full option chain is now
+  tradeable from its own page, not only through the Scanner: the chain
+  now covers every expiry including LEAPS years out (fixed by paging
+  through all of Alpaca's results instead of stopping at the first page),
+  legs can be picked across different expiries by multi-select without
+  the selection resetting when the expiry changes, a diagonal or other
+  position with unbounded downside is refused a false "$0.00 max risk"
+  and shown its real payoff instead, a position whose legs expire on
+  different dates now draws an actual priced curve (a new Black-Scholes
+  module) instead of a paragraph explaining why no chart is available, a
+  short put's bounded max loss is now computed correctly instead of
+  reading "No ceiling", order warnings (a stale quote, an after-hours
+  session) no longer silently fail to reach the ticket and now offer
+  "Send it anyway" instead of a flat refusal, and GTC is now an offered
+  order type (`104fceb`, `75f3ab7`, `ba1f931`, `ce2e48e`, `48c020c`,
+  `7c58e61`, `9c5ba2c`, `1fc65ea`).
+- 2026-09-09 · Three more foundations posts are live — "Call vs put
+  options," "Intrinsic vs extrinsic value in options," and strike/
+  expiry/premium — reviewed for compliance and desk-editor findings
+  before publishing (`27b27cb`, `d4bfb5c`, `0dac475`). Two existing post
+  titles were also rewritten per a new SEO keyword map, and the
+  credit-spread post got its first diagram under a new house rule for
+  keeping diagram text short (`c5c9950`, `c4d1774`).
+- 2026-09-07 · The marketing homepage was rebuilt from the product
+  itself: a hero that wipes between raw broker rows and DeltaMint's own
+  position cards (with a Broker View / DeltaMint View toggle on phone), a
+  looping Scanner replay with real defaults and batch streaming, a
+  looping trade-ticket replay (earnings warning, risk meter, two-step
+  confirm, walk log), an Analysis tiles/capture-table section and an FAQ
+  — with the app's own top nav dropped from the replicas so they no
+  longer read as a second site nav, and a smaller broker logo in the
+  connect card (`f14570a`, `0c423ee`, `c3675a3`).
+
 - 2026-09-11 · (staging) Trade history now syncs on a schedule instead of
   only when someone opens the Trade History page — every connected account
   refreshes hourly on weekdays (skipping one already refreshed in the last

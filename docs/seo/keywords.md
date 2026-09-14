@@ -95,6 +95,42 @@ whether "the same contract long and short in one week" has its own searched
 phrasing — searches for it returned generic theta explainers, so the post owns
 the idea with no query to target it.
 
+## Reading for row 8 — implied volatility options explained (read 2026-09-14)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| implied volatility options explained (target) | Option Alpha, Fidelity, OIC, Options Playbook, Schwab, REX Shares, TradingView support, Motley Fool | **hard-ish** — broker and exchange education plus funded content sites, nearly all titled some form of "Implied Volatility Explained" |
+| what is implied volatility in options trading | Fidelity, moomoo, Options Playbook, Groww, VectorVest, Option Strategies Insider, Barchart help | **hard** — broker hubs end to end; hub language, not post language |
+| why did my option lose value when the stock didn't move | Wall Street Education, appmosis, Bankrate, Nasdaq, REX Shares | **winnable** — small blogs and one syndicated column hold it; no authority answers the question in those words |
+| why do option prices rise before earnings / IV crush | Option Alpha, SoFi, OIC, BullishBears, Collin Seow, Piranha Profits, MenthorQ, advancedautotrades | **winnable but crowded** — a coaching/affiliate tail, and almost every title is "how to avoid" or "how to capitalise on" it. The demand is real; the framing there is advice we do not write |
+| what is vega in options | Merrill Edge, tastytrade, Option Alpha, SoFi, TradingBlock, Option Samurai, optionstrading.org | **hard** — the same broker set that owns delta and theta. Vega earns a heading inside this post, never the title |
+| does high implied volatility mean the stock will move | Fidelity, Robinhood, Schwab, REX Shares, optionstradingiq, EquitiesAmerica, Motley Fool, a Substack | **winnable, thin** — a Substack in the top set, and most pages answer in one hedged sentence before pivoting to IV rank |
+| does implied volatility affect every strike on the chain | Bankrate, REX Shares, a Quora thread, Options Playbook, then TradingView BANKNIFTY chain chart-ideas | **winnable** — Quora plus chart-idea pages in the top set means nothing authoritative holds it; the closest query to our angle |
+| option chain / option chain IV (unqualified) | TradingView BANKNIFTY and Indian index chain pages across locales | **do not target**: unqualified "option chain" drifts to Indian index chains. Qualify with "implied volatility" or a US framing every time |
+
+**The gap.** Every ranking page gives the definition, forward-looking versus
+historical, "higher IV means pricier options", and IV crush. Almost none puts
+one chain at two volatility levels with arithmetic a reader can check against
+vega, and none separates which part of each premium moved from which part did
+not — the pages that mention intrinsic value do it in a different article.
+Where a page does answer "every strike", it answers with skew (strikes carry
+different IVs) rather than with the level shift that lifts them together, so
+the chain-wide repricing is unoccupied ground. The earnings tail is held by
+"how to avoid IV crush" strategy pages; our angle stays descriptive — what
+repriced and why — and never becomes a trade to place around an event.
+
+**Could not establish:** search volume, difficulty and current position for any
+phrasing above; whether these results are personalised or localised; whether
+"IV crush" or "volatility crush" is the dominant phrasing (both surface, and
+"IV crush" leads on title count, which is a count of titles and not demand);
+and whether "the whole chain reprices at once" has its own searched phrasing —
+searches for it returned generic IV explainers and skew pages, so the post owns
+the idea with no query to target it.
+
 ## Off-syllabus rows
 
 `M48` is not a syllabus number. That post is not in the numbered list in
