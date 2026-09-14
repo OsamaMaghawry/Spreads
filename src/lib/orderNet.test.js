@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { netKind, legsAreEquity, orderNetKind, saveRefusalFor, isClosingTicket, matchPositionForTicket, maxCloseQty } from "./orderNet.js";
+import { netKind, legsAreEquity, orderNetKind, saveRefusalFor, isClosingTicket, matchPositionForTicket, maxCloseQty, tooPrecise, QTY_DECIMALS } from "./orderNet.js";
 
 // The owner: *"I want to show up if the order is Debit or Credit (Options
 // only). For stocks, no need."*
@@ -261,4 +261,43 @@ test("a broker row with no qty_available falls back to the holding", () => {
   // No `available` field at all: the holding is all we know, and the order's
   // own claim is still added back.
   assert.equal(maxCloseQty(order, [{ symbol: "QQQ", qty: 7 }], true), 9);
+});
+
+
+// ---------------------------------------------------------------------------
+// Alpaca's precision, from Alpaca.
+//
+// The owner's own QQQ holding: 9.000000818 shares. "Both notional and qty
+// fields can take up to 9 decimal point values"
+// (docs.alpaca.markets/docs/fractional-trading). This module first rounded to
+// six, which turns that holding into 9.000001 -- MORE than he holds, on a
+// closing order. The broker refuses it, and it asks to sell a share that does
+// not exist.
+// ---------------------------------------------------------------------------
+
+test("nine decimal places survive a holding exactly, uncapped and unrounded", () => {
+  assert.equal(QTY_DECIMALS, 9);
+  const order = { qty: 1, legs: [{ symbol: "QQQ", qty: 1 }] };
+  // 9.000000818 held, 1 claimed by the working order, so 8.000000818 available.
+  const broker = [{ symbol: "QQQ", qty: 9.000000818, available: 8.000000818 }];
+  assert.equal(maxCloseQty(order, broker, true), 9.000000818);
+});
+
+test("the cap never rounds UP past the holding", () => {
+  // Rounding is a ceiling on what can be sold, so the one forbidden direction
+  // is up. A tenth digit must be dropped, never carried.
+  const order = { qty: 0.000000001, legs: [{ symbol: "X", qty: 0.000000001 }] };
+  const broker = [{ symbol: "X", qty: 5.0000000009, available: 5 }];
+  const cap = maxCloseQty(order, broker, true);
+  assert.ok(cap <= 5.000000001, `cap ${cap} exceeds the holding`);
+});
+
+test("more than nine decimals is refused before it reaches the broker", () => {
+  assert.equal(tooPrecise("9.000000818"), false);   // exactly nine
+  assert.equal(tooPrecise("9.0000008181"), true);   // ten
+  assert.equal(tooPrecise("9"), false);
+  assert.equal(tooPrecise("9."), false);
+  assert.equal(tooPrecise(13), false);
+  assert.equal(tooPrecise(""), false);
+  assert.equal(tooPrecise(null), false);
 });

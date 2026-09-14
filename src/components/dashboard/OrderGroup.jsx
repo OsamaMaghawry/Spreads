@@ -7,7 +7,7 @@ import useLiveSetup from "@/components/open/useLiveSetup";
 import NumberField from "@/components/common/NumberField";
 import ConfirmAction from "@/components/common/ConfirmAction";
 import { fmtMoney } from "@/lib/format";
-import { orderNetKind, saveRefusalFor, isClosingTicket, maxCloseQty } from "@/lib/orderNet";
+import { orderNetKind, saveRefusalFor, isClosingTicket, maxCloseQty, tooPrecise, QTY_DECIMALS } from "@/lib/orderNet";
 import { saveOrder } from "@/lib/savedOrders";
 import { toast } from "@/components/ui/use-toast";
 
@@ -323,6 +323,13 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved, broke
     const q = Number(qtyEdit);
     if (!(q > 0)) { setError("Enter a quantity above zero."); return; }
     if (!isEquity && !Number.isInteger(q)) { setError("Contracts are whole numbers."); return; }
+    // Alpaca takes nine decimal places on a fractional quantity and no more.
+    // Refused here rather than sent and bounced, so the message names the rule
+    // instead of relaying a broker error code.
+    if (isEquity && tooPrecise(qtyEdit)) {
+      setError(`Your broker accepts at most ${QTY_DECIMALS} decimal places on a share quantity.`);
+      return;
+    }
     if (closingOrder && maxQty && q > maxQty) {
       setError(`You hold ${maxQty}, so this closing order cannot be raised above that.`);
       return;
@@ -570,25 +577,42 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved, broke
                   <label className="flex flex-col gap-1">
                     <span className="text-[10px] uppercase tracking-wide text-slate-400">
                       {isEquity ? "Shares" : "Contracts"}
-                      {/* The ceiling is stated rather than merely enforced. A
-                          field that silently refuses to go past a number the
-                          trader cannot see reads as broken -- which is exactly
-                          how the old cap read. */}
-                      {maxQty ? <span className="normal-case text-slate-400"> · max {maxQty}</span> : null}
+                      {/* The ceiling is stated rather than merely enforced, and
+                          it is CLICKABLE -- at the owner's request, and because
+                          a nine-decimal holding is not a number anybody should
+                          be asked to retype. One tap fills the field with the
+                          whole position. */}
+                      {maxQty ? (
+                        <>
+                          {" · "}
+                          <button
+                            type="button"
+                            onClick={() => setQtyEdit(String(maxQty))}
+                            className="normal-case text-emerald-700 hover:underline"
+                            title={`Use the whole position: ${maxQty}`}
+                          >
+                            max {maxQty}
+                          </button>
+                        </>
+                      ) : null}
                     </span>
                     <NumberField
                       value={qtyEdit}
                       onChange={setQtyEdit}
                       // STEP 1 EVEN FOR SHARES, though shares may be
                       // fractional. The step only drives the -/+ buttons, and
-                      // nudging a holding by a millionth of a share is not a
+                      // nudging a holding by a billionth of a share is not a
                       // thing anybody wants to press. Typing stays free --
                       // `NumberField` is permissive mid-keystroke -- so
-                      // 13.456789 can be entered directly, and because the
-                      // nudge clamps to `max`, pressing + from 13 lands
-                      // exactly on the full fractional holding.
+                      // 9.000000818 can be entered directly, and because the
+                      // nudge clamps to `max`, pressing + from 9 lands exactly
+                      // on the full fractional holding.
                       step={1}
-                      min={1}
+                      // BELOW ONE SHARE IS A REAL ORDER, at the owner's word.
+                      // Alpaca sells fractions down to a billionth, so a floor
+                      // of 1 refused half a share of something he genuinely
+                      // held. A CONTRACT still cannot be split.
+                      min={isEquity ? 0 : 1}
                       max={maxQty || undefined}
                       ariaLabel="New quantity"
                       className="w-40"

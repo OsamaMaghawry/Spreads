@@ -152,6 +152,36 @@ export function matchPositionForTicket(savedLegs, spreads, legsOf) {
 }
 
 /**
+ * Alpaca's own precision for a fractional quantity: NINE decimal places.
+ *
+ * "Both notional and qty fields can take up to 9 decimal point values"
+ * (docs.alpaca.markets/docs/fractional-trading), and a holding really does
+ * arrive at that precision -- the owner's own QQQ position is 9.000000818
+ * shares. Rounding that to six, as this module first did, produces 9.000001:
+ * MORE than he holds, on a closing order, which the broker refuses and which
+ * asks to sell a share that does not exist.
+ *
+ * So nine, and the rounding direction matters as much as the count. A cap is a
+ * ceiling on what can be sold; rounding it UP is the one direction that can
+ * exceed the position. `floorTo9` rounds to nine places and steps back a
+ * billionth if that landed above the input.
+ */
+export const QTY_DECIMALS = 9;
+
+const floorTo9 = (n) => {
+  const r = Number(Number(n).toFixed(QTY_DECIMALS));
+  return r > n ? Number((r - 1e-9).toFixed(QTY_DECIMALS)) : r;
+};
+
+/** More decimal places than the broker will accept? */
+export function tooPrecise(value) {
+  const str = String(value ?? "");
+  const dot = str.indexOf(".");
+  if (dot < 0) return false;
+  return str.length - dot - 1 > QTY_DECIMALS;
+}
+
+/**
  * The most this CLOSING order could be raised to, or null when unknown.
  *
  * The owner: *"Why are you capping to 5 shares while I have more? As long as I
@@ -201,5 +231,7 @@ export function maxCloseQty(order, brokerRows, isEquity) {
   // A contract is indivisible. A share may not be — Alpaca trades fractions,
   // and rounding one down would quietly strip part of a holding the trader can
   // legitimately close.
-  return isEquity ? Math.round(cap * 1e6) / 1e6 : Math.floor(cap);
+  // A contract is indivisible. A share may not be -- Alpaca trades fractions to
+  // nine decimal places -- and the cap must never round UP past the holding.
+  return isEquity ? floorTo9(cap) : Math.floor(cap);
 }
