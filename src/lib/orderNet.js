@@ -74,3 +74,36 @@ export function orderNetKind(order, isEquity) {
   if (side.startsWith("buy")) return { kind: "debit", label: "Debit", amount };
   return null;
 }
+
+/**
+ * Why this order cannot be parked, or null when it can.
+ *
+ * PURE AND TESTED because of how this failed in the owner's hands: the button
+ * was live on a closing order, the confirmation asked him to commit, and only
+ * the click that meant YES came back with a refusal. The check was real; it
+ * simply ran after he had agreed. Deciding it here means the card can ask the
+ * same question BEFORE it draws the control, and a test can hold it to that.
+ *
+ * Two reasons, and neither is a judgement call:
+ *
+ *   CLOSING. `openPosition` stamps `position_intent` as `*_to_open` with no
+ *   exceptions, so a parked exit would come back as a new position on top of
+ *   the one it was meant to close. `syncAccounts` keeps `intent` per leg for
+ *   exactly this distinction -- side cannot carry it, since buy_to_close and
+ *   buy_to_open are both "buy".
+ *
+ *   PARTLY FILLED. The saved ticket carries the ORIGINAL quantity, so sending
+ *   it re-opens what already filled. Saving "the remainder" is a different
+ *   feature with its own arithmetic.
+ */
+export function saveRefusalFor(order) {
+  const legs = order?.legs || [];
+  if (legs.some((l) => String(l?.intent || "").endsWith("_to_close"))) {
+    return "This order is closing a position, so it cannot be saved for later — a saved ticket is sent as a new position, never as an exit. Cancel it here and close the position from its own card when you are ready.";
+  }
+  const filled = Number(order?.filledQty) || 0;
+  if (filled > 0) {
+    return `${filled} of ${order?.qty} has already filled, so this cannot be saved for later — the saved ticket would carry the whole quantity and re-open what filled.`;
+  }
+  return null;
+}

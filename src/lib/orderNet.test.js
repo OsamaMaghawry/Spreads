@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { netKind, legsAreEquity, orderNetKind } from "./orderNet.js";
+import { netKind, legsAreEquity, orderNetKind, saveRefusalFor } from "./orderNet.js";
 
 // The owner: *"I want to show up if the order is Debit or Credit (Options
 // only). For stocks, no need."*
@@ -95,4 +95,69 @@ test("a share order and a market order carry no debit/credit word", () => {
   // No limit yet: nothing to name until it fills.
   assert.equal(orderNetKind({ legs: [{ side: "sell_to_open", symbol: "TSLA251217P00320000" }], limitPrice: null }, false), null);
   assert.equal(orderNetKind({ legs: [], limitPrice: 2.49 }, false), null);
+});
+
+
+// ---------------------------------------------------------------------------
+// Never offer what we will refuse.
+//
+// The owner, on a working closing order: *"I clicked save it for later first
+// time, and it didn't give me any status ... Then I clicked again, it gave me
+// the attached message. Somehow it's confusing."* The button was live on an
+// order that could never be parked, and the refusal arrived only after he had
+// confirmed. These cases are what the card now asks before drawing the button.
+// ---------------------------------------------------------------------------
+
+test("a closing order can never be parked, whatever its side", () => {
+  // A share exit -- the exact order the owner hit.
+  assert.match(
+    saveRefusalFor({ legs: [{ side: "sell", intent: "sell_to_close", symbol: "QQQ" }], qty: 14, filledQty: 0 }),
+    /closing a position/
+  );
+  // And the dangerous one: buy_to_close and buy_to_open are both "buy", so
+  // only `intent` tells them apart. If this ever returns null, a parked exit
+  // comes back as a new position on top of the one it was closing.
+  assert.match(
+    saveRefusalFor({ legs: [{ side: "buy", intent: "buy_to_close", symbol: "TSLA251217P00320000" }], qty: 1, filledQty: 0 }),
+    /closing a position/
+  );
+  // One closing leg among several is still closing.
+  assert.match(
+    saveRefusalFor({
+      legs: [
+        { side: "buy", intent: "buy_to_close", symbol: "TSLA251217P00320000" },
+        { side: "sell", intent: "sell_to_close", symbol: "TSLA251217P00310000" }
+      ],
+      qty: 1,
+      filledQty: 0
+    }),
+    /closing a position/
+  );
+});
+
+test("a partly filled order cannot be parked, and the reason names the numbers", () => {
+  const why = saveRefusalFor({
+    legs: [{ side: "sell", intent: "sell_to_open", symbol: "TSLA251217P00320000" }],
+    qty: 5,
+    filledQty: 2
+  });
+  assert.match(why, /2 of 5/);
+  assert.match(why, /re-open what filled/);
+});
+
+test("an untouched opening order can be parked", () => {
+  assert.equal(
+    saveRefusalFor({
+      legs: [
+        { side: "sell", intent: "sell_to_open", symbol: "TSLA251217P00320000" },
+        { side: "buy", intent: "buy_to_open", symbol: "TSLA260219P00370000" }
+      ],
+      qty: 1,
+      filledQty: 0
+    }),
+    null
+  );
+  // An order carrying no intent at all is not assumed to be closing — that
+  // would refuse every order on a broker that omits the field.
+  assert.equal(saveRefusalFor({ legs: [{ side: "sell", symbol: "QQQ" }], qty: 14, filledQty: 0 }), null);
 });

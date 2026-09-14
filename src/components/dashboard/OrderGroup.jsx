@@ -7,8 +7,9 @@ import useLiveSetup from "@/components/open/useLiveSetup";
 import NumberField from "@/components/common/NumberField";
 import ConfirmAction from "@/components/common/ConfirmAction";
 import { fmtMoney } from "@/lib/format";
-import { orderNetKind } from "@/lib/orderNet";
+import { orderNetKind, saveRefusalFor } from "@/lib/orderNet";
 import { saveOrder } from "@/lib/savedOrders";
+import { toast } from "@/components/ui/use-toast";
 
 // One broker order, with the legs it was sent as.
 //
@@ -125,6 +126,20 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved }) {
   // Which way the money goes on THIS order, by its own instruction rather than
   // by the live quote -- the badge describes the order, not the market.
   const netSide = orderNetKind(order, isEquity);
+
+  // CAN THIS ORDER BE PARKED AT ALL, decided BEFORE the button is drawn.
+  //
+  // The owner, on a working closing order: *"I clicked save it for later first
+  // time, and it didn't give me any status ... Then I clicked again, it gave me
+  // the attached message. Somehow it's confusing."*
+  //
+  // He is describing an offer we had no intention of honouring. The button was
+  // live on an order that can never be saved, the confirmation asked him to
+  // commit to it, and only the SECOND click -- the one that means yes -- came
+  // back with a red refusal. The check existed; it just ran after he had
+  // agreed to something. A control that cannot work must not be presented as
+  // one that can, and the reason belongs beside it rather than behind it.
+  const saveRefusal = saveRefusalFor(order);
   // The underlying's move today, from the previous close syncAccounts carries.
   const change = dayChange(market.spot || order.spot, order.prevClose);
   // spreadQuote answers in debits. A closing order pays one; an opening credit
@@ -191,22 +206,11 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved }) {
   // "the rest" of an order that has already bought some: the saved ticket would
   // carry the original quantity and re-open what was just filled.
   const savePrivate = async () => {
-    if (Number(order.filledQty) > 0) {
-      setError("Part of this order has already filled, so it cannot be saved for later. Cancel it and build a new ticket for what is left.");
-      return;
-    }
-    // A CLOSING ORDER CANNOT BE PARKED, and this is the release gate's worst
-    // finding rather than a nicety. `openPosition` stamps `position_intent`
-    // as `*_to_open` unconditionally, so a saved buy-to-close would come back
-    // as an OPENING order: the trader's exit is cancelled, and sending the
-    // saved ticket opens a second inverted position on top of the one they
-    // still hold. Exposure doubles at the moment they were reducing it.
-    //
-    // `syncAccounts` keeps `intent` on every leg precisely because side alone
-    // cannot tell the two apart -- buy_to_close and buy_to_open are both
-    // "buy".
-    if ((order.legs || []).some((l) => String(l.intent || "").endsWith("_to_close"))) {
-      setError("This order is closing a position, so it cannot be saved for later — a saved ticket is sent as a new position, not as an exit. Cancel it here and close the position from its own card when you are ready.");
+    // The button is not rendered when `saveRefusal` is set, so reaching here
+    // with one means the order changed under the trader between render and
+    // click. Kept as the last line rather than the first.
+    if (saveRefusal) {
+      setError(saveRefusal);
       return;
     }
     setSaving(true);
@@ -266,7 +270,17 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved }) {
         netIsCredit: netSide ? netSide.kind === "credit" : false,
         fromBrokerOrderId: order.id
       });
-      setNote("Taken off the market and saved. It is not working at your broker and cannot fill until you send it.");
+      // A TOAST, NOT A NOTE ON THIS CARD, and that is the owner's other
+      // complaint. On success the order is cancelled at the broker, so the
+      // parent refetches and this row -- the one holding the note -- stops
+      // being a working order and is replaced. The confirmation was written
+      // into a component that was about to be unmounted, which is precisely
+      // why he saw nothing and could not tell whether it had worked.
+      toast({
+        title: "Saved for later",
+        description: `${order.ticker} is off the market and saved. Your broker no longer has it, and it cannot fill. Find it under "Saved for later" in this account's Orders tab.`
+      });
+      setNote("Taken off the market and saved. It is under “Saved for later” below.");
       onSaved?.();
       onChanged?.();
     } catch (e) {
@@ -443,6 +457,12 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved }) {
             <p className="mt-2.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">{note}</p>
           )}
 
+          {live && saveRefusal && (
+            <p className="mt-2.5 text-xs text-slate-600 bg-white border border-slate-200 rounded-lg px-3 py-2 leading-relaxed">
+              <span className="font-medium text-slate-700">Cannot be saved for later.</span> {saveRefusal}
+            </p>
+          )}
+
           {live && marketStrip}
 
           {live && (
@@ -495,18 +515,15 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved }) {
                 </div>
                 </div>
               )}
-              {!editing && (
+              {!editing && !saveRefusal && (
                 <ConfirmAction
                   label="Save for later"
                   tone="neutral"
                   icon={<BookmarkPlus className="w-3.5 h-3.5" />}
-                  question={`This takes the order off the market at your broker and keeps it here as a saved ticket. It will not fill, and nothing happens to it until you send it again.${
-                    Number(order.filledQty) > 0 ? " Part of this order has already filled, so it cannot be saved." : ""
-                  }`}
+                  question="This takes the order off the market at your broker and keeps it here as a saved ticket. It will not fill, and nothing happens to it until you open it again."
                   confirmLabel="Take it off the market"
                   onConfirm={savePrivate}
                   busy={saving}
-                  disabled={Number(order.filledQty) > 0}
                 />
               )}
               <ConfirmAction
