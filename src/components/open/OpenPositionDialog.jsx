@@ -32,7 +32,13 @@ const DEFAULTS = {
   widthMax: 3,
   minCredit: 0.2,
   maxRisk: "",
-  putRatio: 2,
+  // A condor opens balanced, 1:1. This ticket used to seed the put side at 2,
+  // which the Scanner never did -- so the same strategy started from two
+  // different structures depending on which screen you opened it from, and the
+  // asymmetric one was unexplained. A 2:1 condor carries twice the risk on its
+  // put side; that is a position a trader chooses deliberately, not a default
+  // they inherit. Both fields are still editable.
+  putRatio: 1,
   callRatio: 1
 };
 
@@ -176,7 +182,7 @@ export default function OpenPositionDialog({ account, onClose, onDone, prefill =
   const creditReady = typeof limitCredit === "number" && limitCredit > 0;
 
   // Merged over DEFAULTS so a preset saved before a filter existed still yields
-  // a complete config — same reasoning as the screener's applyPreset.
+  // a complete config — same reasoning as the Scanner's applyPreset.
   const applyPreset = (savedStrategy, savedConfig) => {
     setStrategy(savedStrategy);
     setCfg({ ...DEFAULTS, ...savedConfig });
@@ -197,7 +203,7 @@ export default function OpenPositionDialog({ account, onClose, onDone, prefill =
         dteMin: Number(cfg.dteMin),
         dteMax: Number(cfg.dteMax),
         // Sweep granularity inside these ranges is the engine's call — see the
-        // matching note in pages/Screener.jsx.
+        // matching note in pages/Scanner.jsx.
         deltaMin: Number(cfg.deltaMin),
         deltaMax: Number(cfg.deltaMax),
         widthMin: Number(cfg.widthMin),

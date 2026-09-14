@@ -337,7 +337,7 @@ p { margin: 0; }
 
 /* ---------- home: finding opportunities ----------
  * Three ranked rows, nothing else: ticker, structure, return on risk, one
- * Trade button. Real columns from the app's screener, cut to what a stranger
+ * Trade button. Real columns from the app's Scanner, cut to what a stranger
  * needs to understand "find, then trade" in one glance. */
 
 .scanlist { margin-top: 2.5rem; overflow: hidden; }

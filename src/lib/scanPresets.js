@@ -4,10 +4,16 @@ import { supabase } from "@/lib/supabaseClient";
 // Both tables are RLS-scoped to auth.uid(), so every query here is implicitly
 // the signed-in user's own rows; no user_id filter is needed or wanted.
 
-// Which scanner a preset belongs to. The screener sweeps a universe, the
+// Which scan a preset belongs to. The Scanner sweeps a universe, the
 // open-position dialog takes an explicit ticker list — different config shapes,
 // so presets never cross between them.
-export const SCOPE = { SCREENER: "screener", OPEN: "open" };
+//
+// The VALUE is still "screener", and deliberately so. It is a CHECK-constrained
+// column in scan_presets.scope holding every user's saved presets; changing it
+// would need a migration on both projects, and getting that wrong orphans work
+// people named and kept. Nobody ever sees the string. The key reads SCANNER so
+// the code speaks the product's word — see docs/context/brand.md.
+export const SCOPE = { SCANNER: "screener", OPEN: "open" };
 
 export async function listPresets(scope) {
   const { data, error } = await supabase

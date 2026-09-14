@@ -1,6 +1,6 @@
 import { STRATEGY_LABEL } from "@/lib/setupUnit";
 
-// Five ways to sell premium, plus -- on the screener only -- the wheel, which
+// Five ways to sell premium, plus -- on the Scanner only -- the wheel, which
 // is the last two run together: puts on the universe, calls on the shares
 // this account holds.
 const OPTIONS = [

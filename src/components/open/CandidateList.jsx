@@ -4,8 +4,8 @@ import { structureLabel, isSingle, shortDelta } from "@/lib/setupUnit";
 
 // Ranked scan results inside the account's own open-position dialog.
 //
-// Counterpart: components/screener/ResultsTable.jsx renders the same candidate
-// objects for the screener. What a candidate row tells a trader has to match in
+// Counterpart: components/scanner/ResultsTable.jsx renders the same candidate
+// objects for the Scanner. What a candidate row tells a trader has to match in
 // both — change one, change the other.
 export default function CandidateList({ candidates, selected, onSelect }) {
   return (

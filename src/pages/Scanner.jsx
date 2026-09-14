@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Loader2, Radar, StopCircle } from "lucide-react";
 import StrategyPicker from "@/components/open/StrategyPicker";
-import ScreenerConfig, { SCREENER_DEFAULTS } from "@/components/screener/ScreenerConfig";
-import ResultsTable from "@/components/screener/ResultsTable";
-import TradeDialog from "@/components/screener/TradeDialog";
-import useMarketScan from "@/components/screener/useMarketScan";
+import ScannerConfig, { SCANNER_DEFAULTS } from "@/components/scanner/ScannerConfig";
+import ResultsTable from "@/components/scanner/ResultsTable";
+import TradeDialog from "@/components/scanner/TradeDialog";
+import useMarketScan from "@/components/scanner/useMarketScan";
 import ScanPresets from "@/components/common/ScanPresets";
 import { SCOPE, saveLastUsed } from "@/lib/scanPresets";
 import { SP500, TOP50 } from "@/lib/sp500";
@@ -13,10 +13,10 @@ import { invokeFunction } from "@/lib/functions";
 import { SAFE_ACCOUNT_COLUMNS } from "@/lib/accountColumns";
 import { isSingle, STRATEGY_LABEL } from "@/lib/setupUnit";
 
-export default function Screener() {
+export default function Scanner() {
   const [accounts, setAccounts] = useState([]);
   const [strategy, setStrategy] = useState("put_spread");
-  const [cfg, setCfg] = useState(SCREENER_DEFAULTS);
+  const [cfg, setCfg] = useState(SCANNER_DEFAULTS);
   const [tradeSetup, setTradeSetup] = useState(null);
   // The whole-market pass: what the sieve kept, and where the rest went. Held
   // here rather than inside the scan hook because it happens BEFORE a scan and
@@ -50,7 +50,7 @@ export default function Screener() {
   // complete, valid config instead of leaving that field undefined.
   const applyPreset = (savedStrategy, savedConfig) => {
     setStrategy(savedStrategy);
-    setCfg({ ...SCREENER_DEFAULTS, ...savedConfig });
+    setCfg({ ...SCANNER_DEFAULTS, ...savedConfig });
   };
 
   const filtersFor = (strat) => ({
@@ -85,7 +85,7 @@ export default function Screener() {
 
   const run = async () => {
     // Recording what was scanned must never be able to stop the scan itself.
-    saveLastUsed(SCOPE.SCREENER, strategy, cfg).catch(() => {});
+    saveLastUsed(SCOPE.SCANNER, strategy, cfg).catch(() => {});
 
     // Whole-market: price everything first, then scan chains only for what
     // survives. The sieve is a separate call so its result can be shown and
@@ -125,7 +125,7 @@ export default function Screener() {
     <div className="space-y-5">
       <div>
         <h1 className="font-heading text-xl font-bold tracking-[-0.02em] text-dm-text flex items-center gap-2">
-          <Radar className="w-5 h-5 text-emerald-600" /> Market Screener
+          <Radar className="w-5 h-5 text-emerald-600" /> Strategy Scanner
         </h1>
         <p className="text-sm text-slate-500 mt-1">
           Sweep the market for the best credit-to-risk setups, then trade them on any account.
@@ -134,9 +134,9 @@ export default function Screener() {
 
       <div className="grid lg:grid-cols-[340px_1fr] gap-5 items-start">
         <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
-          <ScanPresets scope={SCOPE.SCREENER} strategy={strategy} config={cfg} onApply={applyPreset} />
+          <ScanPresets scope={SCOPE.SCANNER} strategy={strategy} config={cfg} onApply={applyPreset} />
           <StrategyPicker value={strategy} onChange={setStrategy} withWheel />
-          <ScreenerConfig cfg={cfg} set={set} isCondor={isCondor} single={single} strategy={strategy} />
+          <ScannerConfig cfg={cfg} set={set} isCondor={isCondor} single={single} strategy={strategy} />
 
           {findingUniverse && (
             <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-600">

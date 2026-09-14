@@ -18,7 +18,7 @@ import Accounts from './pages/Accounts';
 import AccountDetail from './pages/AccountDetail';
 import AccountHistory from './pages/AccountHistory';
 import AccountAnalysis from './pages/AccountAnalysis';
-import Screener from './pages/Screener';
+import Scanner from './pages/Scanner';
 import OptionChain from '@/pages/OptionChain';
 import BlogPreview from './pages/BlogPreview';
 import Admin from './pages/Admin';
@@ -55,7 +55,13 @@ const AuthenticatedApp = () => {
           {/* The weekly email's unsubscribe link lands here with ?email=off. */}
           <Route path="/settings" element={<Settings />} />
           <Route path="/oauth/callback" element={<OAuthCallback />} />
-          <Route path="/screener" element={<Screener />} />
+          <Route path="/scanner" element={<Scanner />} />
+          {/* Renamed from Screener on 14 Sep. The old path stays as a redirect
+              rather than becoming a 404: it is in browser histories and
+              bookmarks, and a rename of ours is not a reason for someone's
+              saved link to break. `replace` so Back does not bounce through
+              it. */}
+          <Route path="/screener" element={<Navigate to="/scanner" replace />} />
           <Route path="/chain" element={<OptionChain />} />
           {/* Admin.jsx redirects a non-admin away, and every request it makes
               is re-authorized server-side in _shared/admin.ts. */}

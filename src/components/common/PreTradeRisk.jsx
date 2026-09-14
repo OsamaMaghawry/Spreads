@@ -7,7 +7,7 @@ import EarningsWarning from "./EarningsWarning";
 // What a trader is owed before sending an order: what it risks as a share of
 // the account, and whether it is held through an earnings announcement.
 //
-// Shared rather than duplicated so the screener and the account's own
+// Shared rather than duplicated so the Scanner and the account's own
 // open-position dialog cannot drift apart — the same order reached by either
 // route has to show the same numbers, from the same equity fetch.
 export default function PreTradeRisk({ setup, accountId, qty }) {
