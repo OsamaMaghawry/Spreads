@@ -1,5 +1,5 @@
 import { fmtMoney } from "@/lib/format";
-import { unitFor, isSingle, scaledRisk } from "@/lib/setupUnit";
+import { unitFor, isSingle, scaledRisk, riskState } from "@/lib/setupUnit";
 
 const ROLE_LABEL = {
   short_put: "Short put",
@@ -16,12 +16,18 @@ const clock = (t) => (t ? new Date(t).toLocaleTimeString() : "");
 // position that cannot lose. "No ceiling" is the honest cell, in the colour
 // the rest of the product uses for a loss; the one-line warning below points
 // at Analysis, which is where the reason is spelled out.
-const RiskCell = ({ value }) =>
-  value === null || value === undefined ? (
-    <span className="text-right text-rose-600 font-semibold">No ceiling</span>
-  ) : (
-    <span className="text-right font-semibold">{fmtMoney(value)}</span>
-  );
+//
+// `state` separates three things the old two-way test ran together: bounded
+// with a number, bounded nowhere, and never computed. The third prints the
+// neutral em dash every other unknown figure in this product prints -- never
+// the red claim, which would assert something we did not work out.
+const RiskCell = ({ value, state }) => {
+  if (state === "unknown") return <span className="text-right text-slate-400">—</span>;
+  if (value === null || value === undefined) {
+    return <span className="text-right text-rose-600 font-semibold">No ceiling</span>;
+  }
+  return <span className="text-right font-semibold">{fmtMoney(value)}</span>;
+};
 
 // live: what useLiveSetup returns -- the market now, beside the scan's figures.
 // Without it the preview is the scan as it was, which is what a scan result
@@ -32,7 +38,11 @@ export default function SetupPreview({ setup, qty, live = null }) {
   const cc = setup.strategy === "covered_call";
   // "Stock to 0" is the ceiling on a short put and on shares. It is not a
   // ceiling on anything else, so the phrase only appears where it is true.
-  const bounded = setup.maxRisk !== null && setup.maxRisk !== undefined;
+  const risk = riskState(setup);
+  // "(stock to 0)" and the not-bounded warning are both claims about the
+  // structure, so both are reserved for a setup we actually judged.
+  const bounded = risk === "bounded";
+  const unknownRisk = risk === "unknown";
   const debit = typeof setup.credit === "number" && setup.credit < 0;
   const streaming = !!live?.streaming;
   const spot = streaming ? live.spot : setup.spot;
@@ -40,7 +50,10 @@ export default function SetupPreview({ setup, qty, live = null }) {
   return (
     <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-3 text-sm">
       <div className="flex items-start justify-between gap-3 text-xs text-slate-500">
-        <span className="pt-1">{setup.ticker} · Expiry {setup.expiry}</span>
+        {/* The word "Expiry" with no date after it is what a reopened saved
+            ticket showed. Each leg carries its own below; the header says it
+            only when there is one to say. */}
+        <span className="pt-1">{setup.ticker}{setup.expiry ? ` · Expiry ${setup.expiry}` : ""}</span>
         {/* Where the spot came from and when. This number picks the strikes,
             and a scan built on a bad one sold a short put that was already in
             the money while the dialog showed it $8.50 clear of the stock. On a
@@ -97,15 +110,29 @@ export default function SetupPreview({ setup, qty, live = null }) {
                     >
                       {sell ? "Sell" : "Buy"}
                     </span>
+                    {/* A leg reopened from a saved ticket has no strike and no
+                        role -- only what the wire needs. The OCC symbol is
+                        still the whole truth about the contract, so it stands
+                        in rather than a dash: a trader reads TSLA271217P00320000
+                        and knows the expiry, the right, and the strike. */}
                     <span className="text-base font-semibold text-slate-900 tabular-nums">
-                      {l.ratio > 1 ? `${l.ratio}× ` : ""}{fmtMoney(l.strike)} {ROLE_LABEL[l.role]?.split(" ")[1] || ""}
+                      {l.ratio > 1 ? `${l.ratio}× ` : ""}
+                      {l.strike == null
+                        ? l.symbol
+                        : `${fmtMoney(l.strike)} ${ROLE_LABEL[l.role]?.split(" ")[1] || ""}`}
                     </span>
                   </span>
                   {/* Each leg's own expiry, because a calendar or a diagonal
                       has two and the header can only name one of them. */}
+                  {/* Δ NaN is what `Math.abs(undefined).toFixed(2)` prints, and
+                      it appeared on both legs of every reopened saved ticket.
+                      A delta we do not have is omitted, not rendered as
+                      nonsense beside one we do. */}
                   <span className="block text-[11px] text-slate-500 tabular-nums">
-                    {l.expiry || setup.expiry}
-                    <span className="text-slate-400"> · Δ {Math.abs(l.delta).toFixed(2)}</span>
+                    {l.expiry || setup.expiry || ""}
+                    {Number.isFinite(Number(l.delta)) && (
+                      <span className="text-slate-400"> · Δ {Math.abs(Number(l.delta)).toFixed(2)}</span>
+                    )}
                   </span>
                 </span>
                 <span className={`text-right tabular-nums text-sm ${isLive ? "text-slate-900" : "text-slate-600"}`}>
@@ -148,7 +175,7 @@ export default function SetupPreview({ setup, qty, live = null }) {
               </>
             )}
             <span className="text-slate-500">Max loss / {unit}{bounded ? " (stock to 0)" : ""}</span>
-            <RiskCell value={setup.maxRisk} />
+            <RiskCell value={setup.maxRisk} state={risk} />
           </>
         ) : (
           <>
@@ -162,7 +189,7 @@ export default function SetupPreview({ setup, qty, live = null }) {
               </>
             )}
             <span className="text-slate-500">Max risk / {unit}</span>
-            <RiskCell value={setup.maxRisk} />
+            <RiskCell value={setup.maxRisk} state={risk} />
           </>
         )}
         <span className="text-slate-500">Total {debit ? "cost" : "credit"} ({qty} {unit}{qty > 1 ? "s" : ""})</span>
@@ -172,7 +199,7 @@ export default function SetupPreview({ setup, qty, live = null }) {
         <span className="text-slate-500">
           {single ? `Total max loss${bounded ? " (stock to 0)" : ""}` : "Total max risk"}
         </span>
-        <RiskCell value={scaledRisk(setup.maxRisk, qty)} />
+        <RiskCell value={scaledRisk(setup.maxRisk, qty)} state={risk} />
         <span className="text-slate-500">Break-even</span>
         <span className="text-right">
           {setup.breakEvenLow != null ? fmtMoney(setup.breakEvenLow) : "—"}
@@ -185,7 +212,22 @@ export default function SetupPreview({ setup, qty, live = null }) {
           the analysis. You can just add a small warning then see the
           analysis." The full reasoning — which leg outlives which, and what
           the position becomes — lives in the Analysis section below, once. */}
-      {!bounded && (
+      {/* Why the figures above are blank. Without this the ticket is just
+          silent dashes, and silence invites the trader to assume the position
+          is fine -- the same mistake in the other direction. It says what we
+          do NOT know, and points at the one thing on screen that is still
+          exact: the contracts themselves and the live market beside them. */}
+      {unknownRisk && (
+        <p className="text-xs text-slate-600 bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-2">
+          <span className="font-semibold">Not calculated for this ticket.</span>{" "}
+          It was parked before these figures were worked out, so credit, risk
+          and break-even are unknown — not zero, and not unbounded. The
+          contracts and the live market above are exact. Check the risk in
+          Analysis before sending.
+        </p>
+      )}
+
+      {!bounded && !unknownRisk && (
         <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-2">
           <span className="font-semibold">Loss not bounded.</span>{" "}
           {setup.strategy === "covered_call"

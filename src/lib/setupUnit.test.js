@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { unitFor, isSingle, structureLabel, shortLegs, shortDelta, scaledRisk, STRATEGY_LABEL } from "./setupUnit.js";
+import { unitFor, isSingle, structureLabel, shortLegs, shortDelta, scaledRisk, riskState, STRATEGY_LABEL } from "./setupUnit.js";
 
 test("units per strategy", () => {
   assert.equal(unitFor("put_spread"), "spread");
@@ -122,4 +122,46 @@ test("a missing or nonsense quantity means one contract, never zero", () => {
 
 test("a genuinely zero risk is still zero, not unknown", () => {
   assert.equal(scaledRisk(0, 5), 0);
+});
+
+// riskState: the difference between "no floor" and "we did not look".
+//
+// These three cases are the whole bug. A saved TSLA ticket reopened with no
+// stored analytics reported "No ceiling" and "Loss not bounded" -- the same
+// words the product uses for a genuinely uncapped short -- on a screen where
+// nothing had been computed at all. The NVDA row beside it was a 2.50-wide put
+// spread whose loss is bounded at $250 a contract by arithmetic, and it would
+// have said exactly the same thing.
+
+test("riskState: a computed ceiling is bounded", () => {
+  assert.equal(riskState({ maxRisk: 250 }), "bounded");
+  // Zero is a number, not an absence.
+  assert.equal(riskState({ maxRisk: 0 }), "bounded");
+});
+
+test("riskState: a builder that refused to bound the structure is unbounded", () => {
+  // spreadSetup returns null for a short leg that outlives its long.
+  assert.equal(riskState({ maxRisk: null }), "unbounded");
+  assert.equal(riskState({}), "unbounded");
+});
+
+test("riskState: a ticket with no analytics is unknown, not unbounded", () => {
+  assert.equal(riskState({ ticker: "NVDA", legs: [], analyticsAbsent: true }), "unknown");
+  // And the flag wins even though maxRisk is missing for the same reason the
+  // other two cases are missing it -- which is exactly why the flag exists.
+  assert.equal(riskState({ maxRisk: null, analyticsAbsent: true }), "unknown");
+});
+
+test("riskState: unknown never reaches the unbounded warning", () => {
+  // The preview renders the red "Loss not bounded" only when the state is
+  // literally "unbounded", so this equality is the guard that keeps a blank
+  // ticket from making a claim about the position.
+  const blank = { analyticsAbsent: true };
+  assert.notEqual(riskState(blank), "unbounded");
+  assert.notEqual(riskState(blank), "bounded");
+});
+
+test("riskState: tolerates a missing setup", () => {
+  assert.equal(riskState(null), "unbounded");
+  assert.equal(riskState(undefined), "unbounded");
 });
