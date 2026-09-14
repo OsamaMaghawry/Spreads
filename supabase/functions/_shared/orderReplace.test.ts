@@ -101,3 +101,22 @@ test("a zero or negative quantity is refused whatever it trades in", () => {
     );
   }
 });
+
+
+test("a sub-millionth quantity never goes out as an exponent", () => {
+  // `String(Number(n))` prints "1e-7" below a millionth. A share residue after
+  // a partial close is routinely that small, and an exponent on the wire is a
+  // quantity the broker may reject or misread.
+  for (const q of [1e-7, 8.18e-7, 1e-9, 0.000055585]) {
+    const body = replaceBody({
+      order: { limit_price: "1", type: "limit", asset_class: "us_equity", symbol: "IVV" },
+      qty: q
+    });
+    assert.ok(body?.qty, `${q} produced no quantity`);
+    assert.ok(!/e/i.test(body!.qty), `${q} went out as ${body!.qty}`);
+  }
+  assert.equal(
+    replaceBody({ order: { limit_price: "1", type: "limit", asset_class: "us_equity", symbol: "IVV" }, qty: 8.18e-7 })?.qty,
+    "0.000000818"
+  );
+});

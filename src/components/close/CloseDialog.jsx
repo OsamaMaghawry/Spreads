@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { deleteSavedOrder } from "@/lib/savedOrders";
+import { qtyString } from "@/lib/orderNet";
 import { toast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { fmtMoney } from "@/lib/format";
@@ -82,16 +83,26 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
     if (!["working", "filled", "detached"].includes(phase)) return;
     if (clearedSaved.current === prefill.id) return;
     clearedSaved.current = prefill.id;
-    const sent = Number(qtyInput) || 0;
+    // The CLAMPED quantity, not the raw typed string. Typing 20 against a 14
+    // holding produced "Sent 20 of the 14 you had saved — the remaining 0 is
+    // not queued anywhere": two wrong figures and a nonsense clause, on a
+    // message about money.
+    const sent = qty || 0;
     const parked = Number(prefill.qty) || 0;
     deleteSavedOrder(prefill.id)
       .then(() => {
         toast({
           title: "Saved ticket sent",
           description:
-            sent && parked && sent !== parked
-              ? `Sent ${sent} of the ${parked} you had saved. The saved ticket has been removed — the remaining ${Math.max(parked - sent, 0)} is not queued anywhere.`
-              : "It is with your broker now, and the saved copy has been removed."
+            // Only when LESS was sent than parked. More is not a remainder.
+            sent && parked && sent < parked
+              ? `Sent ${qtyString(sent)} of the ${qtyString(parked)} you had saved. The saved ticket has been removed — the remaining ${qtyString(parked - sent)} is not queued anywhere.`
+              // THE TRADE-OFF IS STATED. The ticket is cleared the moment the
+              // order reaches the broker, which is what stops it being sent
+              // twice -- but a walk that never fills leaves the trader with
+              // neither an order nor a ticket. Saying so is the difference
+              // between a deliberate choice and a surprise.
+              : "It is with your broker now, and the saved copy has been removed. If it does not fill, you will need to build the ticket again."
         });
       })
       .catch(() => {
@@ -100,7 +111,7 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
           description: "The order is with your broker. We could not remove the saved ticket — delete it under Saved so it is not sent twice."
         });
       });
-  }, [prefill, phase, qtyInput]);
+  }, [prefill, phase, qty]);
 
   // The clamp the input no longer does: never below one, never more than the
   // position holds, and a half-typed field reads as one rather than NaN.
@@ -146,10 +157,16 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
   // How many short calls this sale would leave without shares behind them.
   const freeShares = Number(spread.freeQty ?? spread.qty);
   const typedQty = Number(qtyInput);
+  // NOTHING TYPED IS NOT "SELL EVERYTHING". Clearing the field, or pressing
+  // minus once on a fractional holding, left it reading 0 while the order
+  // became the ENTIRE position -- the fallback pointed at the maximum on a
+  // close, which is the wrong direction to guess in. An unreadable quantity is
+  // now zero, and zero is refused before it can be submitted.
   const qty = isShares
     // Number, not parseInt: the fraction IS the quantity here.
-    ? Math.min(maxQty, Number.isFinite(typedQty) && typedQty > 0 ? typedQty : maxQty)
+    ? (Number.isFinite(typedQty) && typedQty > 0 ? Math.min(maxQty, typedQty) : 0)
     : Math.max(1, Math.min(maxQty, parseInt(qtyInput, 10) || 1));
+  const qtyReady = qty > 0;
 
   const allLegs = spreadLegs(spread);
   const pickedLegs = allLegs.filter((l) => selected.includes(l.symbol));
@@ -163,11 +180,18 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
     const held = Math.abs(Number(spread.qty)) || 0;
     const free = Math.abs(Number(spread.qtyAvailable ?? spread.qty));
     const sellable = Math.min(held, Number.isFinite(free) && free > 0 ? free : held) || held;
-    setQtyInput(String(spread.shares ? sellable : Math.max(1, sellable)));
+    // A REOPENED TICKET KEEPS THE QUANTITY IT WAS PARKED WITH. This effect ran
+    // unconditionally and overwrote it, so a "5 of 14" exit came back
+    // presenting 14 -- the ticket silently substituting a size the trader
+    // never chose, in the over-closing direction. Clamped, because the
+    // position may have shrunk since it was parked.
+    const parked = Number(prefill?.qty);
+    const seed = Number.isFinite(parked) && parked > 0 ? Math.min(parked, sellable) : sellable;
+    setQtyInput(qtyString(spread.shares ? seed : Math.max(1, Math.floor(seed))));
     setOpenOrders(spread.openOrders || []);
     setMode(spread.presetLegSymbol ? "legs" : "whole");
     setSelected(spread.presetLegSymbol ? [spread.presetLegSymbol] : []);
-  }, [spread]);
+  }, [spread, prefill]);
 
   useEffect(() => {
     if (mode === "legs" && !customLegs) {
@@ -544,11 +568,11 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
                     {" ("}
                     <button
                       type="button"
-                      onClick={() => setQtyInput(String(maxQty))}
+                      onClick={() => setQtyInput(qtyString(maxQty))}
                       className="text-emerald-700 hover:underline"
-                      title={`Close the whole position: ${maxQty}`}
+                      title={`Close the whole position: ${qtyString(maxQty)}`}
                     >
-                      max {maxQty}
+                      max {qtyString(maxQty)}
                     </button>
                     {")"}
                   </>
@@ -688,10 +712,21 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
                 customLegs ? `${customLegs.length} leg${customLegs.length > 1 ? "s" : ""} of` : ""
               } ${qty} ${spread.ticker} ${unit}${qty > 1 ? "s" : ""} on ${account.name}.`}
               onConfirm={() =>
-                run({ accountId: account.id, spread, qty, orderType, startDebit, legs: customLegs, priceMode })
+                run({
+                  accountId: account.id, spread, qty, orderType, startDebit,
+                  legs: customLegs, priceMode,
+                  // Carried from a reopened saved ticket. Honoured on the
+                  // equity branch of `closeSpread`; options stay "day".
+                  timeInForce: prefill?.time_in_force || undefined
+                })
               }
               disabled={
                 openOrders.length > 0 ||
+                // Zero is not a close. Clearing the field, or nudging a
+                // fractional holding down past its floor, used to fall back to
+                // the WHOLE position; it now reads zero, and zero must not be
+                // submittable.
+                !qtyReady ||
                 (mode === "legs" && !customLegs) ||
                 (priceMode === "manual" && !manualReady) ||
                 // A walk with no starting price is not a walk. walkStart now

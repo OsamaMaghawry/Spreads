@@ -5,7 +5,7 @@ import PositionCards from "./PositionCards";
 import OrderGroup from "./OrderGroup";
 import SavedOrderGroup from "./SavedOrderGroup";
 import { listSavedOrders } from "@/lib/savedOrders";
-import { isClosingTicket, matchPositionForTicket } from "@/lib/orderNet";
+import { ticketRoute } from "@/lib/orderNet";
 import { spreadLegs } from "@/lib/spreadLegs";
 import useMarketStream from "@/lib/useMarketStream";
 import TickerPanel from "./TickerPanel";
@@ -66,9 +66,12 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
   const savedResolved = useMemo(
     () =>
       saved.map((sv) => {
-        if (!isClosingTicket(sv.legs)) return sv;
-        const position = matchPositionForTicket(sv.legs, account.spreads || [], spreadLegs);
-        return { ...sv, position, positionGone: !position };
+        // `ticketRoute` decides close / open / blocked, and blocks rather than
+        // guessing when the broker recorded no intent and the legs match
+        // something held -- the share-exit case, where guessing "opening"
+        // would send a new position instead of flattening one.
+        const r = ticketRoute(sv, account.spreads || [], spreadLegs);
+        return { ...sv, route: r.route, position: r.position, blockedWhy: r.why };
       }),
     [saved, account.spreads]
   );

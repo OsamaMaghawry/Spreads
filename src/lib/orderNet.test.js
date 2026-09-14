@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { netKind, legsAreEquity, orderNetKind, saveRefusalFor, isClosingTicket, matchPositionForTicket, maxCloseQty, tooPrecise, QTY_DECIMALS } from "./orderNet.js";
+import { netKind, legsAreEquity, orderNetKind, saveRefusalFor, isClosingTicket, matchPositionForTicket, maxCloseQty, tooPrecise, QTY_DECIMALS, qtyString, ticketRoute } from "./orderNet.js";
 
 // The owner: *"I want to show up if the order is Debit or Credit (Options
 // only). For stocks, no need."*
@@ -212,7 +212,7 @@ test("the cap adds back what this order is already holding", () => {
   // broker reports 9 available. Replacing the order releases its own hold, so
   // he may raise it to the full 14 -- capping at 9 is the bug he hit.
   const order = { qty: 5, legs: [{ symbol: "QQQ", qty: 5 }] };
-  const broker = [{ symbol: "QQQ", qty: 14, available: 9 }];
+  const broker = [{ symbol: "QQQ", qty: 14, qtyAvailable: 9 }];
   assert.equal(maxCloseQty(order, broker, true), 14);
 });
 
@@ -223,8 +223,8 @@ test("a multi-leg close is limited by its scarcest leg", () => {
     legs: [{ symbol: "TSLA251217P00320000", qty: 1 }, { symbol: "TSLA251217P00310000", qty: 1 }]
   };
   const broker = [
-    { symbol: "TSLA251217P00320000", qty: 10, available: 9 },
-    { symbol: "TSLA251217P00310000", qty: 3, available: 2 }
+    { symbol: "TSLA251217P00320000", qty: 10, qtyAvailable: 9 },
+    { symbol: "TSLA251217P00310000", qty: 3, qtyAvailable: 2 }
   ];
   assert.equal(maxCloseQty(order, broker, false), 3);
 });
@@ -232,18 +232,18 @@ test("a multi-leg close is limited by its scarcest leg", () => {
 test("a ratio leg is divided by its ratio, not counted flat", () => {
   // Two contracts of the short per unit of the order: 10 held is 5 units.
   const order = { qty: 1, legs: [{ symbol: "AAA", qty: 2 }] };
-  const broker = [{ symbol: "AAA", qty: 10, available: 8 }];
+  const broker = [{ symbol: "AAA", qty: 10, qtyAvailable: 8 }];
   assert.equal(maxCloseQty(order, broker, false), 5);
 });
 
 test("contracts floor; shares keep their fraction", () => {
   const order = { qty: 1, legs: [{ symbol: "SPY", qty: 1 }] };
-  const broker = [{ symbol: "SPY", qty: 13.456789, available: 12.456789 }];
+  const broker = [{ symbol: "SPY", qty: 13.456789, qtyAvailable: 12.456789 }];
   // A share may be fractional -- rounding down would strip part of a holding
   // the trader is entitled to close.
   assert.equal(maxCloseQty(order, broker, true), 13.456789);
   // A contract may not be.
-  assert.equal(maxCloseQty({ qty: 1, legs: [{ symbol: "X", qty: 1 }] }, [{ symbol: "X", qty: 2.9, available: 1.9 }], false), 2);
+  assert.equal(maxCloseQty({ qty: 1, legs: [{ symbol: "X", qty: 1 }] }, [{ symbol: "X", qty: 2.9, qtyAvailable: 1.9 }], false), 2);
 });
 
 test("a leg the broker does not report leaves the cap unknown", () => {
@@ -251,7 +251,7 @@ test("a leg the broker does not report leaves the cap unknown", () => {
   // number here would either block a legitimate order or wave through one the
   // broker will bounce.
   const order = { qty: 1, legs: [{ symbol: "GONE", qty: 1 }] };
-  assert.equal(maxCloseQty(order, [{ symbol: "OTHER", qty: 5, available: 5 }], false), null);
+  assert.equal(maxCloseQty(order, [{ symbol: "OTHER", qty: 5, qtyAvailable: 5 }], false), null);
   assert.equal(maxCloseQty(order, [], false), null);
   assert.equal(maxCloseQty({ qty: 0, legs: [] }, [], false), null);
 });
@@ -262,8 +262,19 @@ test("the cap never exceeds the position, even when the broker reserved nothing"
   // reserved it. Adding the order's own 13 produced "max 26.000080555" on a
   // 13-share position. The holding is the bound that is true either way.
   const order = { qty: 13, legs: [{ symbol: "SPY", qty: 13 }] };
-  const broker = [{ symbol: "SPY", qty: 13.000080555, available: 13.000080555 }];
+  const broker = [{ symbol: "SPY", qty: 13.000080555, qtyAvailable: 13.000080555 }];
   assert.equal(maxCloseQty(order, broker, true), 13.000080555);
+});
+
+test("the cap reads qtyAvailable, the field brokerView actually emits", () => {
+  // This read `row.available`, which has never existed, so it always fell back
+  // to `row.qty` -- and every test around it built rows with `available:`, the
+  // same wrong name. Both were green and neither proved the wiring.
+  const order = { qty: 5, legs: [{ symbol: "QQQ", qty: 5 }] };
+  // 14 held, 9 available because another order claims 5 beyond this one.
+  assert.equal(maxCloseQty(order, [{ symbol: "QQQ", qty: 14, qtyAvailable: 9 }], true), 14);
+  // A row using the old name still works, so nothing regresses if one appears.
+  assert.equal(maxCloseQty(order, [{ symbol: "QQQ", qty: 14, available: 9 }], true), 14);
 });
 
 test("a broker row with no qty_available falls back to the holding", () => {
@@ -289,7 +300,7 @@ test("nine decimal places survive a holding exactly, uncapped and unrounded", ()
   assert.equal(QTY_DECIMALS, 9);
   const order = { qty: 1, legs: [{ symbol: "QQQ", qty: 1 }] };
   // 9.000000818 held, 1 claimed by the working order, so 8.000000818 available.
-  const broker = [{ symbol: "QQQ", qty: 9.000000818, available: 8.000000818 }];
+  const broker = [{ symbol: "QQQ", qty: 9.000000818, qtyAvailable: 8.000000818 }];
   assert.equal(maxCloseQty(order, broker, true), 9.000000818);
 });
 
@@ -297,7 +308,7 @@ test("the cap never rounds UP past the holding", () => {
   // Rounding is a ceiling on what can be sold, so the one forbidden direction
   // is up. A tenth digit must be dropped, never carried.
   const order = { qty: 0.000000001, legs: [{ symbol: "X", qty: 0.000000001 }] };
-  const broker = [{ symbol: "X", qty: 5.0000000009, available: 5 }];
+  const broker = [{ symbol: "X", qty: 5.0000000009, qtyAvailable: 5 }];
   const cap = maxCloseQty(order, broker, true);
   assert.ok(cap <= 5.000000001, `cap ${cap} exceeds the holding`);
 });
@@ -310,4 +321,76 @@ test("more than nine decimals is refused before it reaches the broker", () => {
   assert.equal(tooPrecise(13), false);
   assert.equal(tooPrecise(""), false);
   assert.equal(tooPrecise(null), false);
+});
+
+
+// ---------------------------------------------------------------------------
+// Exponential notation on the wire.
+// ---------------------------------------------------------------------------
+
+test("a small quantity never reaches the broker as an exponent", () => {
+  // `String(Number(n))` prints "1e-7" below a millionth. The owner's own IVV
+  // row is 0.000055585 shares; a residue after a partial close is smaller
+  // still, and `NumberField`'s input regex rejects `e`, so such a value can be
+  // shown and then not edited.
+  assert.equal(qtyString(1e-7), "0.0000001");
+  assert.equal(qtyString(8.18e-7), "0.000000818");
+  assert.equal(qtyString(1e-9), "0.000000001");
+  assert.equal(qtyString(0.000055585), "0.000055585");
+  for (const v of [1e-7, 8.18e-7, 1e-9, 0.000055585, 9.000000818]) {
+    assert.ok(!/e/i.test(qtyString(v)), `${v} stringified with an exponent`);
+  }
+});
+
+test("whole and trailing-zero quantities stay readable", () => {
+  assert.equal(qtyString(13), "13");
+  assert.equal(qtyString(13.5), "13.5");
+  assert.equal(qtyString(9.000000818), "9.000000818");
+  assert.equal(qtyString(NaN), "");
+  assert.equal(qtyString(null), "");
+});
+
+// ---------------------------------------------------------------------------
+// Routing a parked ticket, when the broker did not say which kind it was.
+//
+// `closeSpread` omits `position_intent` on the EQUITY branch -- it is an
+// options concept the equity endpoint does not want -- so every leg of a share
+// exit this app places comes back with `intent: null`. Reading that as "not
+// closing" sent a parked share exit into the OPEN ticket, where `openPosition`
+// stamps `sell_to_open` unconditionally: the exit would have left as an
+// opening short sale.
+// ---------------------------------------------------------------------------
+
+const legsOfRoute = (sp) => sp.legs;
+const HELD = [{ id: "p1", legs: [{ symbol: "QQQ" }] }];
+
+test("an explicit exit routes to the close ticket against its position", () => {
+  const r = ticketRoute({ legs: [{ symbol: "QQQ", intent: "sell_to_close" }] }, HELD, legsOfRoute);
+  assert.equal(r.route, "close");
+  assert.equal(r.position.id, "p1");
+});
+
+test("an explicit exit whose position is gone is blocked, not opened", () => {
+  const r = ticketRoute({ legs: [{ symbol: "QQQ", intent: "sell_to_close" }] }, [], legsOfRoute);
+  assert.equal(r.route, "blocked");
+  assert.match(r.why, /no open position matches/);
+});
+
+test("NO INTENT plus a matching holding is blocked, never routed to open", () => {
+  // The share-exit case. Absent intent must not be read as "opening" when the
+  // legs match something held -- that is the fail-dangerous direction.
+  const r = ticketRoute({ legs: [{ symbol: "QQQ" }] }, HELD, legsOfRoute);
+  assert.equal(r.route, "blocked");
+  assert.match(r.why, /did not record whether this ticket was opening or closing/);
+});
+
+test("no intent and nothing held is an ordinary entry", () => {
+  const r = ticketRoute({ legs: [{ symbol: "NVDA" }] }, HELD, legsOfRoute);
+  assert.equal(r.route, "open");
+});
+
+test("an explicit entry opens even when the ticker is already held", () => {
+  // Adding to a position is a real thing to park. Explicit intent is trusted.
+  const r = ticketRoute({ legs: [{ symbol: "QQQ", intent: "buy_to_open" }] }, HELD, legsOfRoute);
+  assert.equal(r.route, "open");
 });

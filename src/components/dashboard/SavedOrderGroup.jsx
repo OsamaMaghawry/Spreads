@@ -45,9 +45,12 @@ export default function SavedOrderGroup({ accountId, saved, onChanged, onReopen 
   // sending an exit down the opening path would open a second position on top
   // of the one it was meant to flatten.
   const closing = isClosingTicket(legs);
-  // Set by the parent when a closing ticket no longer has a position to close
-  // — the trader flattened it some other way after parking the exit.
-  const orphaned = closing && saved.positionGone;
+  // The parent decided this: "close", "open", or "blocked" with a reason.
+  // Blocked covers two different truths and the card must not conflate them --
+  // an exit whose position is genuinely gone, and a ticket whose kind the
+  // broker never recorded. Saying "nothing left to close" about a position the
+  // trader still holds is a false statement on a risk screen.
+  const blocked = saved.route === "blocked";
 
   // The market, for the same reason the working card shows it: a saved limit
   // is a decision made at some point in the past, and the only way to judge it
@@ -234,11 +237,9 @@ export default function SavedOrderGroup({ accountId, saved, onChanged, onReopen 
             )}
           </div>
 
-          {orphaned && (
+          {blocked && saved.blockedWhy && (
             <p className="mt-2.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
-              <span className="font-medium">Nothing left to close.</span> This ticket was an exit, and the
-              position it belonged to is no longer open — you closed it another way, or it expired. Sending
-              it would open a new position rather than flatten one, so it cannot be reopened. Delete it.
+              <span className="font-medium">This ticket cannot be reopened.</span> {saved.blockedWhy}
             </p>
           )}
 
@@ -254,7 +255,7 @@ export default function SavedOrderGroup({ accountId, saved, onChanged, onReopen 
             <button
               type="button"
               onClick={() => onReopen?.(saved)}
-              disabled={busy || orphaned}
+              disabled={busy || blocked}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100 transition-colors disabled:opacity-50"
             >
               <PencilLine className="w-3.5 h-3.5" />

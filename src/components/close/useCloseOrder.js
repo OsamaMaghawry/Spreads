@@ -203,7 +203,7 @@ export default function useCloseOrder() {
   // never time out, because a resting order the user set is a decision, not an
   // attempt that failed. The only thing that ends it is a fill, the broker, or
   // the user.
-  async function run({ accountId, spread, qty: askedQty, orderType, startDebit, legs, priceMode = "walk" }) {
+  async function run({ accountId, spread, qty: askedQty, orderType, startDebit, legs, priceMode = "walk", timeInForce }) {
     // MUTABLE, because the server can send a different quantity than was asked
     // for. An mleg order with an unreduced leg ratio (a 2:1 condor's put side
     // closed on its own restores a common factor the pairing had removed) is
@@ -230,7 +230,13 @@ export default function useCloseOrder() {
     // Ties every order in this walk together, so the ladder can be read back as
     // one sequence when someone asks what the app tried.
     const runKey = `${accountId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const params = { accountId, ...legParams(spread, legs), qty, runKey, ticker: spread.ticker };
+    // `timeInForce` travels only when the caller set one -- a reopened saved
+    // ticket that was parked as GTC. Undefined leaves `closeSpread` on its own
+    // default, so nothing about an ordinary close changes.
+    const params = {
+      accountId, ...legParams(spread, legs), qty, runKey, ticker: spread.ticker,
+      ...(timeInForce ? { timeInForce } : {})
+    };
     const key = spreadKey(accountId, spread, legs);
     try {
       if (orderType === "market") {

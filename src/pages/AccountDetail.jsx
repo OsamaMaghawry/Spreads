@@ -115,11 +115,16 @@ export default function AccountDetail() {
           // goes to the OPEN one. `AccountSection` has already matched the
           // position, so a ticket whose position is gone never reaches here --
           // its card says so instead of offering the button.
-          onReopenSaved={(saved) =>
-            saved.position
-              ? setClosing({ account, spread: saved.position, prefill: saved })
-              : setOpening(saved)
-          }
+          onReopenSaved={(saved) => {
+            // `blocked` never reaches here -- the card disables its button and
+            // says why -- but routing on the decision rather than on the
+            // presence of a position keeps the two in step.
+            if (saved.route === "close" && saved.position) {
+              setClosing({ account, spread: saved.position, prefill: saved });
+            } else if (saved.route === "open") {
+              setOpening(saved);
+            }
+          }}
           account={account}
           onCloseSpread={(acc, spread) => setClosing({ account: acc, spread })}
           onCloseMany={(acc, legs, brokerRows, held) => setClosingMany({ account: acc, legs, brokerRows, held })}

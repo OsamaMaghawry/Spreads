@@ -223,7 +223,13 @@ export function maxCloseQty(order, brokerRows, isEquity) {
     const ratio = legQty > 0 ? legQty / unitQty : 1;
     if (!(ratio > 0)) return null;
     const position = Math.abs(Number(row.qty) || 0);
-    const available = Math.abs(Number(row.available ?? row.qty) || 0);
+    // `brokerView` emits `qtyAvailable`. This read `row.available`, a field
+    // that has never existed, so it silently fell back to `row.qty` every time
+    // -- and the 27 tests around it constructed rows with `available:`, the
+    // same wrong name as the code. They were green and proved nothing about
+    // the wiring. Green is not evidence when the test and the code share a
+    // mistake.
+    const available = Math.abs(Number(row.qtyAvailable ?? row.available ?? row.qty) || 0);
     // TWO BOUNDS, AND THE LOWER ONE WINS.
     //
     // `qty_available` is documented as the holding less what working orders
@@ -247,4 +253,77 @@ export function maxCloseQty(order, brokerRows, isEquity) {
   // A contract is indivisible. A share may not be -- Alpaca trades fractions to
   // nine decimal places -- and the cap must never round UP past the holding.
   return isEquity ? floorTo9(cap) : Math.floor(cap);
+}
+
+/**
+ * A quantity as a string the broker will parse.
+ *
+ * `String(Number(n))` PRINTS EXPONENTIAL NOTATION below 1e-6: 1e-7 becomes
+ * "1e-7" and 8.18e-7 becomes "8.18e-7". Those are the quantities this product
+ * now has to handle -- the owner's own IVV row is 0.000055585 shares, and a
+ * ninth-decimal residue is smaller still. An exponent on the wire is a
+ * quantity the broker may reject or, worse, misread; `NumberField`'s own input
+ * regex rejects `e` as well, so such a value can be displayed and then not
+ * edited.
+ *
+ * Fixed notation, trailing zeros stripped, at Alpaca's nine places.
+ */
+export function qtyString(n) {
+  // `Number(null)` is 0, not NaN, so an absent quantity would stringify as
+  // "0" -- a number, on a field that means "how much to trade".
+  if (n === null || n === undefined || n === "") return "";
+  const v = Number(n);
+  if (!Number.isFinite(v)) return "";
+  const fixed = v.toFixed(QTY_DECIMALS);
+  return fixed.includes(".") ? fixed.replace(/0+$/, "").replace(/\.$/, "") : fixed;
+}
+
+/**
+ * Which ticket a saved order must reopen in, and when neither is safe.
+ *
+ * THE HOLE THIS CLOSES. `isClosingTicket` reads `position_intent`, and
+ * `closeSpread` deliberately omits that field on the EQUITY branch -- it is an
+ * options concept the equity endpoint does not want -- so every leg of a share
+ * exit this app places can arrive back with `intent: null`. The old routing
+ * then read "not closing" and sent the parked exit to the OPEN dialog, where
+ * `openPosition` stamps `sell_to_open` unconditionally. A parked share exit
+ * would have left as an opening short sale.
+ *
+ * So intent is no longer the only signal, and ABSENT INTENT IS NOT TAKEN AS
+ * "OPENING". When the ticket's legs match a position the account holds, that
+ * match is evidence an exit is what this was, and the router refuses rather
+ * than guessing in the dangerous direction. Refusing costs the trader a
+ * reopen they can do by hand; guessing costs them a new position.
+ *
+ * @returns {{ route: "close"|"open"|"blocked", position: any, why: string|null }}
+ */
+export function ticketRoute(saved, spreads, legsOf) {
+  const legs = saved?.legs || [];
+  const position = matchPositionForTicket(legs, spreads, legsOf);
+  const saysClosing = isClosingTicket(legs);
+  const saysOpening = legs.some((l) => String(l?.intent || "").endsWith("_to_open"));
+
+  if (saysClosing) {
+    return position
+      ? { route: "close", position, why: null }
+      : {
+          route: "blocked",
+          position: null,
+          why: "This ticket was an exit, and no open position matches its legs any more — you closed it another way, or it expired. Sending it would open a new position rather than flatten one."
+        };
+  }
+
+  // No intent at all, but the legs match something held. `closeSpread` omits
+  // `position_intent` on share orders, so this is exactly what a parked share
+  // exit looks like coming back. Refuse rather than route it into the opening
+  // ticket.
+  if (!saysOpening && position) {
+    return {
+      route: "blocked",
+      position,
+      why: "Your broker did not record whether this ticket was opening or closing, and its legs match a position you already hold. Rather than guess — and risk opening a second position instead of closing this one — close it from its own card, and delete this ticket."
+    };
+  }
+
+  return { route: "open", position: null, why: null };
 }

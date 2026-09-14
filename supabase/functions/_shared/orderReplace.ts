@@ -71,9 +71,16 @@ export function replaceBody({ order, limitPrice, qty }: ReplaceInput): Record<st
     //
     // A CONTRACT still cannot be split, and that refusal stays.
     if (tradesFractions(order)) {
+      // FIXED NOTATION, NEVER AN EXPONENT. `String(Number(n))` prints "1e-7"
+      // below a millionth, and these are exactly the quantities this path now
+      // carries -- a share residue after a partial close is routinely smaller
+      // than that. An exponent on the wire is a quantity the broker may reject
+      // or misread, and neither is acceptable on an order.
+      //
       // Nine places, rounded rather than truncated: the caller has already
       // bounded this by the holding, so there is nothing to overshoot.
-      body.qty = String(Number(n.toFixed(QTY_DECIMALS)));
+      const fixed = n.toFixed(QTY_DECIMALS);
+      body.qty = fixed.includes(".") ? fixed.replace(/0+$/, "").replace(/\.$/, "") : fixed;
     } else {
       if (!Number.isInteger(n)) return null;
       body.qty = String(n);
