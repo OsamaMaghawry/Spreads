@@ -14,6 +14,7 @@ import { SCOPE, saveLastUsed } from "@/lib/scanPresets";
 import OpenPricing, { openingDefaults } from "./OpenPricing";
 import useOpenOrder from "./useOpenOrder";
 import useLiveSetup from "./useLiveSetup";
+import { saveOrder } from "@/lib/savedOrders";
 import RestingOrder from "./RestingOrder";
 import OrderLog from "@/components/close/OrderLog";
 import UpgradePrompt from "@/components/billing/UpgradePrompt";
@@ -55,6 +56,16 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
   // start and floor default where they do.
   const [timeInForce, setTimeInForce] = useState("day");
   const [priceMode, setPriceMode] = useState("walk");
+  // SAVE INSTEAD OF SEND. The owner: *"I want to add the Private option when
+  // creating order too, something like a checkmark; unchecked by default."*
+  //
+  // Unchecked is the only defensible default and not merely what was asked
+  // for: the dialog is called Open Position, its button says Submit, and a
+  // trader who ticks nothing expects the order to reach the market. A default
+  // that silently parked orders would make "I placed it" mean "I did not".
+  const [savePrivate, setSavePrivate] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [saveBusy, setSaveBusy] = useState(false);
   const [limitCredit, setLimitCredit] = useState(null);
   const [minCredit, setMinCredit] = useState(null);
   const { phase, log, upgrade, resting, warnings, run, stop: stopOrder, reset, replacePrice, sendAnyway } = useOpenOrder();
@@ -112,8 +123,39 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
     );
   };
 
-  const submit = () =>
-    run({
+  const submit = async () => {
+    // Private tickets never touch `run`, which is the whole submit-and-watch
+    // machine: no broker call, no polling, no walk. Routing them through it
+    // and cancelling afterwards would put a real order on the market for the
+    // moments in between, which is exactly what the checkbox says will not
+    // happen.
+    if (savePrivate) {
+      setSaveBusy(true);
+      setSaveError(null);
+      try {
+        await saveOrder({
+          accountId: account.id,
+          ticker: setup.ticker,
+          legs: setup.legs.map((l) => ({ symbol: l.symbol, side: l.side, ratio: l.ratio })),
+          qty: Number(qty),
+          limitPrice: orderType === "limit" ? limitCredit : null,
+          orderType,
+          // A ticket built in this dialog is an OPENING structure priced as a
+          // credit, which is what `limitCredit` means throughout it.
+          netIsCredit: true
+        });
+        // `onDone` rather than `onClose`: the parent refetches, so the saved
+        // ticket is visible in the Orders tab the moment the dialog closes
+        // rather than after the next manual refresh.
+        onDone?.();
+      } catch (e) {
+        setSaveError(e.message || "Could not save it.");
+      } finally {
+        setSaveBusy(false);
+      }
+      return;
+    }
+    return run({
       accountId: account.id,
       setup,
       qty: Number(qty),
@@ -123,6 +165,7 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
       priceMode,
       timeInForce
     });
+  };
 
   // What the X and a click outside the dialog do depends on where the order is:
   //   walking   -- nothing, while it is still conceding. Dismissing would leave
@@ -257,16 +300,42 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
               liveQuote={live.quote}
             />
 
+            <label className="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={savePrivate}
+                onChange={(e) => setSavePrivate(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300"
+              />
+              <span className="text-xs leading-relaxed">
+                <span className="font-medium text-slate-800">Save for later — do not send this to the market</span>
+                <span className="block text-slate-500 mt-0.5">
+                  The ticket is kept in this account&rsquo;s Orders tab. Your broker never sees it, it holds no
+                  place in the queue, and it cannot fill until you send it.
+                </span>
+              </span>
+            </label>
+
+            {saveError && (
+              <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{saveError}</p>
+            )}
+
             <ConfirmSubmit
               label={
-                orderType === "limit" && !creditReady
-                  ? "Set a credit first"
-                  : `Submit — open ${qty} ${unit}${Number(qty) > 1 ? "s" : ""} (${priceMode === "market" ? "market" : priceMode === "walk" ? "walk" : "limit"}) on ${setup.ticker}`
+                savePrivate
+                  ? `Save for later — ${qty} ${unit}${Number(qty) > 1 ? "s" : ""} on ${setup.ticker}, not sent`
+                  : orderType === "limit" && !creditReady
+                    ? "Set a credit first"
+                    : `Submit — open ${qty} ${unit}${Number(qty) > 1 ? "s" : ""} (${priceMode === "market" ? "market" : priceMode === "walk" ? "walk" : "limit"}) on ${setup.ticker}`
               }
-              summary={summary}
+              summary={
+                savePrivate
+                  ? `Saved, not sent · ${qty} ${setup?.ticker} ${unit}${Number(qty) > 1 ? "s" : ""} on ${account.name}. Nothing reaches your broker.`
+                  : summary
+              }
               warnings={<PreTradeRisk setup={setup} accountId={account.id} qty={qty} />}
               onConfirm={submit}
-              disabled={orderType === "limit" && !creditReady}
+              disabled={saveBusy || (!savePrivate && orderType === "limit" && !creditReady)}
             />
           </>
         )}

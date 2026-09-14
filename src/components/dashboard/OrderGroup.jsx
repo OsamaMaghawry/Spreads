@@ -1,11 +1,14 @@
 import { useMemo, useState } from "react";
-import { ChevronRight, Loader2, Pencil, X } from "lucide-react";
+import { ChevronRight, Loader2, Pencil, X, BookmarkPlus } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { parseOCC } from "@/lib/occ";
 import { dayChange, dayChangeLabel } from "@/lib/dayChange";
 import useLiveSetup from "@/components/open/useLiveSetup";
 import NumberField from "@/components/common/NumberField";
+import ConfirmAction from "@/components/common/ConfirmAction";
 import { fmtMoney } from "@/lib/format";
+import { orderNetKind } from "@/lib/orderNet";
+import { saveOrder } from "@/lib/savedOrders";
 
 // One broker order, with the legs it was sent as.
 //
@@ -70,7 +73,7 @@ function isEquityOrder(order) {
   return all.length > 0 && all.every((s) => !parseOCC(s));
 }
 
-export default function OrderGroup({ accountId, order, onChanged }) {
+export default function OrderGroup({ accountId, order, onChanged, onSaved }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -82,14 +85,24 @@ export default function OrderGroup({ accountId, order, onChanged }) {
   const [editing, setEditing] = useState(false);
   const [price, setPrice] = useState("");
   const state = stateOf(order);
+  // Pulling a working order off the market and keeping the ticket.
+  const [saving, setSaving] = useState(false);
   const live = state.key === "working" || state.key === "partial";
   const canReprice = live && order.type === "limit";
 
-  // A price is chosen against something. While the editor is open the order's
-  // own legs are requoted every second and the underlying streams, so the
-  // number being typed sits beside the market it has to beat -- a bare $ box
-  // asked the trader to guess. Off unless the editor is open: one socket and
-  // one quote loop per order row is not a cost to pay for a closed panel.
+  // THE MARKET IS SHOWN WITHOUT ASKING FOR IT. The owner: *"I want to show the
+  // current market outside, doesn't have to be when I click Change order."*
+  //
+  // He is right, and the reason is not convenience. A resting limit is only
+  // meaningful next to what the market is doing -- $2.49 is a good price or a
+  // stale one depending entirely on a number that was hidden behind a button.
+  // A trader scanning working orders to decide which needs attention had to
+  // open the price editor on every one of them to find out, and opening the
+  // editor is one keystroke away from changing the order.
+  //
+  // So the quote loop follows the ROW being open rather than the editor. Still
+  // not always-on: a collapsed row costs nothing, which is what keeps a page of
+  // twenty orders from holding twenty sockets.
   const isEquity = isEquityOrder(order);
   const asSetup = useMemo(
     () => ({
@@ -108,7 +121,10 @@ export default function OrderGroup({ accountId, order, onChanged }) {
     }),
     [order.ticker, order.legs, order.qty, isEquity]
   );
-  const market = useLiveSetup(accountId, asSetup, editing);
+  const market = useLiveSetup(accountId, asSetup, open && live);
+  // Which way the money goes on THIS order, by its own instruction rather than
+  // by the live quote -- the badge describes the order, not the market.
+  const netSide = orderNetKind(order, isEquity);
   // The underlying's move today, from the previous close syncAccounts carries.
   const change = dayChange(market.spot || order.spot, order.prevClose);
   // spreadQuote answers in debits. A closing order pays one; an opening credit
@@ -155,6 +171,56 @@ export default function OrderGroup({ accountId, order, onChanged }) {
 
   const cancel = () => call({ action: "cancel" }, "Could not cancel the order.");
 
+  // PRIVATE = OFF THE MARKET, KEPT AS A TICKET. The owner: *"I want to have an
+  // option of making the order Private, it's there but not in the market,
+  // something as (Save for Later)."*
+  //
+  // For an order ALREADY WORKING that is two acts, and the order matters. The
+  // broker cancellation goes FIRST and the ticket is only stored if it
+  // succeeds: save-then-cancel would, on a failed cancel, leave a saved copy
+  // beside a live order the trader now believes is parked -- one ticket, two
+  // places, one of them able to fill.
+  //
+  // A partial fill is a refusal, not a warning. There is no honest way to park
+  // "the rest" of an order that has already bought some: the saved ticket would
+  // carry the original quantity and re-open what was just filled.
+  const savePrivate = async () => {
+    if (Number(order.filledQty) > 0) {
+      setError("Part of this order has already filled, so it cannot be saved for later. Cancel it and build a new ticket for what is left.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    setNote(null);
+    try {
+      const { data } = await invokeFunction("manageOrder", { accountId, orderId: order.id, action: "cancel" });
+      if (data?.error) throw new Error(data.error);
+      await saveOrder({
+        accountId,
+        ticker: order.ticker,
+        legs: (order.legs || []).map((l) => ({
+          symbol: l.symbol,
+          side: String(l.side || "").startsWith("sell") ? "sell" : "buy",
+          ratio: order.qty > 0 && l.qty > 0 ? l.qty / order.qty : 1
+        })),
+        qty: Number(order.qty),
+        limitPrice: order.limitPrice,
+        orderType: order.type === "market" ? "market" : "limit",
+        netIsCredit: netSide ? netSide.kind === "credit" : false,
+        fromBrokerOrderId: order.id
+      });
+      setNote("Taken off the market and saved. It is not working at your broker and cannot fill until you send it.");
+      onSaved?.();
+      onChanged?.();
+    } catch (e) {
+      setError(
+        `Could not save it for later: ${e.message}. Check the Orders list before trying again — the order may already be cancelled.`
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const startEdit = () => {
     setPrice(order.limitPrice != null ? Math.abs(Number(order.limitPrice)).toFixed(2) : "");
     setEditing(true);
@@ -164,6 +230,37 @@ export default function OrderGroup({ accountId, order, onChanged }) {
     if (!(p > 0)) { setError("Enter a price above zero."); return; }
     if (await call({ action: "replace", limitPrice: p }, "Could not change the price.")) setEditing(false);
   };
+
+  // The market, as its own thing, above the buttons. It was previously nested
+  // inside the price editor, which is why it only existed while repricing.
+  const marketStrip = (
+    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs tabular-nums">
+      <span className="text-slate-500">
+        {order.ticker}{" "}
+        <span className={`font-semibold ${market.streaming ? "text-slate-900" : "text-slate-600"}`}>
+          {fmtMoney(market.spot || order.spot || 0)}
+        </span>
+        {market.streaming && (
+          <span
+            title="Streaming"
+            className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 align-middle animate-pulse"
+          />
+        )}
+      </span>
+      <span className="text-slate-500">
+        Market now <span className="font-semibold text-slate-900">{marketLabel || "—"}</span>
+      </span>
+      {order.type === "limit" && (
+        <span className="text-slate-500">
+          Your limit{" "}
+          <span className="font-semibold text-slate-900">
+            {money(order.limitPrice)}
+            {netSide ? <span className="font-normal text-slate-500"> {netSide.kind}</span> : null}
+          </span>
+        </span>
+      )}
+    </div>
+  );
 
   return (
     <div className={`border rounded-xl bg-white overflow-hidden ${live ? "border-emerald-200" : "border-slate-200"}`}>
@@ -195,6 +292,30 @@ export default function OrderGroup({ accountId, order, onChanged }) {
           <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border ${state.cls}`}>
             {state.label}
           </span>
+          {/* DEBIT OR CREDIT, options only, at the owner's word. Which way the
+              money goes is the first thing a trader wants from an order row
+              and it was nowhere on the card -- a bare "$2.49" says nothing
+              about whether that is coming in or going out.
+
+              `orderNetKind` is the only place that decides this, because the
+              rule is not "read the sign": Alpaca signs a MULTI-LEG net and
+              does not sign a single-leg one, so a lone short put carries a
+              POSITIVE limit and is still a credit. Shares get no word at all —
+              selling stock is a sale, not a credit. */}
+          {netSide && (
+            <span
+              title={netSide.kind === "credit"
+                ? "You receive this if the order fills."
+                : "You pay this if the order fills."}
+              className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border ${
+                netSide.kind === "credit"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-indigo-50 text-indigo-700 border-indigo-200"
+              }`}
+            >
+              {netSide.label}
+            </span>
+          )}
         </div>
         <div className="ml-auto flex items-center gap-5 shrink-0">
           <div className="text-right">
@@ -265,36 +386,22 @@ export default function OrderGroup({ accountId, order, onChanged }) {
             <p className="mt-2.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">{note}</p>
           )}
 
+          {live && marketStrip}
+
           {live && (
             <div className="flex flex-wrap items-center gap-2 mt-3">
               {canReprice && !editing && (
-                <button
-                  onClick={startEdit}
-                  disabled={busy}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs hover:bg-slate-50 transition-colors disabled:opacity-50"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                  Change price
-                </button>
+                <ConfirmAction
+                  label="Change price"
+                  icon={<Pencil className="w-3.5 h-3.5" />}
+                  question="Open the price editor? Nothing changes at your broker until you press Update."
+                  confirmLabel="Open the editor"
+                  onConfirm={startEdit}
+                  busy={busy}
+                />
               )}
               {canReprice && editing && (
                 <div className="w-full space-y-2">
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs tabular-nums">
-                    <span className="text-slate-500">
-                      {order.ticker}{" "}
-                      <span className={`font-semibold ${market.streaming ? "text-slate-900" : "text-slate-600"}`}>
-                        {fmtMoney(market.spot || order.spot || 0)}
-                      </span>
-                      {market.streaming && <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 align-middle animate-pulse" />}
-                    </span>
-                    <span className="text-slate-500">
-                      Market now{" "}
-                      <span className="font-semibold text-slate-900">{marketLabel || "—"}</span>
-                    </span>
-                    <span className="text-slate-500">
-                      Your limit <span className="font-semibold text-slate-900">{money(order.limitPrice)}</span>
-                    </span>
-                  </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-slate-400 text-xs">$</span>
                   {/* The same −/+ control every other price field uses. A bare
@@ -331,14 +438,33 @@ export default function OrderGroup({ accountId, order, onChanged }) {
                 </div>
                 </div>
               )}
-              <button
-                onClick={cancel}
-                disabled={busy}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 bg-white text-rose-700 text-xs hover:bg-rose-50 transition-colors disabled:opacity-50"
-              >
-                {busy && !editing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
-                Cancel order
-              </button>
+              {!editing && (
+                <ConfirmAction
+                  label="Save for later"
+                  tone="neutral"
+                  icon={<BookmarkPlus className="w-3.5 h-3.5" />}
+                  question={`This takes the order off the market at your broker and keeps it here as a saved ticket. It will not fill, and nothing happens to it until you send it again.${
+                    Number(order.filledQty) > 0 ? " Part of this order has already filled, so it cannot be saved." : ""
+                  }`}
+                  confirmLabel="Take it off the market"
+                  onConfirm={savePrivate}
+                  busy={saving}
+                  disabled={Number(order.filledQty) > 0}
+                />
+              )}
+              <ConfirmAction
+                label="Cancel order"
+                tone="danger"
+                icon={<X className="w-3.5 h-3.5" />}
+                question={`This order stops working at your broker and nothing more fills.${
+                  Number(order.filledQty) > 0
+                    ? ` ${order.filledQty} of ${order.qty} has already filled and that stays — you keep what filled.`
+                    : " Nothing has filled, so this leaves you with no position from it."
+                } Cancelling does not save it; use Save for later to keep the ticket.`}
+                confirmLabel="Cancel it at the broker"
+                onConfirm={cancel}
+                busy={busy && !editing}
+              />
             </div>
           )}
         </div>

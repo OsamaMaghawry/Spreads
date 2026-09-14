@@ -1,8 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { fmtMoney, fmtPct } from "@/lib/format";
 import SpreadTable from "./SpreadTable";
 import PositionCards from "./PositionCards";
 import OrderGroup from "./OrderGroup";
+import SavedOrderGroup from "./SavedOrderGroup";
+import { listSavedOrders } from "@/lib/savedOrders";
 import useMarketStream from "@/lib/useMarketStream";
 import TickerPanel from "./TickerPanel";
 import BrokerTable from "./BrokerTable";
@@ -20,6 +22,26 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
   // Which name the combined view is open on. Null is closed.
   const [ticker, setTicker] = useState(null);
   const orders = account.orders || [];
+
+  // Tickets the trader saved instead of sending. They live in our own table,
+  // not at the broker, so they are fetched here rather than arriving with the
+  // account's broker payload.
+  //
+  // NOT COUNTED IN THE ORDERS BADGE. That badge counts orders that can still
+  // cost money, and a saved order cannot cost anything — it holds no place in
+  // any queue and cannot fill. Folding them into that count would inflate the
+  // one number on this page a trader uses to decide whether anything needs
+  // attention.
+  const [saved, setSaved] = useState([]);
+  const refreshSaved = useCallback(() => {
+    if (!account?.id) return;
+    listSavedOrders(account.id)
+      .then(setSaved)
+      // A saved-orders read that fails must not take the Orders tab down with
+      // it: the broker's own orders are the ones that matter here.
+      .catch(() => setSaved([]));
+  }, [account?.id]);
+  useEffect(() => { refreshSaved(); }, [refreshSaved]);
 
   const tickers = useMemo(
     () => [...new Set((account.spreads || []).map((s) => s.ticker).filter(Boolean))],
@@ -225,7 +247,7 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
           onCloseMany={(legs, held) => onCloseMany?.(account, legs, account.broker || [], held)}
         />
       ) : tab === "orders" ? (
-        orders.length === 0 ? (
+        orders.length === 0 && saved.length === 0 ? (
           <div className="px-5 py-6 text-sm text-slate-500">
             No working orders, and nothing has been sent to the broker today. Orders from earlier days
             appear in this account&rsquo;s trade history once they settle.
@@ -233,8 +255,37 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
         ) : (
           <div className="p-4 flex flex-col gap-2.5">
             {orders.map((o) => (
-              <OrderGroup key={o.id} accountId={account.id} order={o} onChanged={onOrdersChanged} />
+              <OrderGroup
+                key={o.id}
+                accountId={account.id}
+                order={o}
+                onChanged={onOrdersChanged}
+                onSaved={refreshSaved}
+              />
             ))}
+            {/* BELOW the broker's own orders and under their own heading,
+                never interleaved by time. A saved ticket and a working order
+                are different kinds of thing, and sorting them together would
+                put something that cannot fill in the middle of a list of
+                things that can. */}
+            {saved.length > 0 && (
+              <>
+                <div className="flex items-baseline gap-2 pt-2 mt-1 border-t border-slate-200">
+                  <h4 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Saved for later
+                  </h4>
+                  <span className="text-xs text-slate-400">not sent to your broker</span>
+                </div>
+                {saved.map((sv) => (
+                  <SavedOrderGroup
+                    key={sv.id}
+                    accountId={account.id}
+                    saved={sv}
+                    onChanged={() => { refreshSaved(); onOrdersChanged?.(); }}
+                  />
+                ))}
+              </>
+            )}
           </div>
         )
       ) : account.spreads.length === 0 ? (
