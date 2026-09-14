@@ -111,6 +111,7 @@ export default function AccountDetail() {
 
       {account ? (
         <AccountSection
+          onReopenSaved={(saved) => setOpening(saved)}
           account={account}
           onCloseSpread={(acc, spread) => setClosing({ account: acc, spread })}
           onCloseMany={(acc, legs, brokerRows, held) => setClosingMany({ account: acc, legs, brokerRows, held })}
@@ -123,9 +124,14 @@ export default function AccountDetail() {
         </div>
       )}
 
+      {/* `opening` is either `true` (a fresh ticket) or the saved row the
+          trader chose to reopen. One dialog either way: a saved ticket is an
+          ordinary order from the moment it lands here, which is the whole
+          reason the saved card has no send button of its own. */}
       {opening && account && (
         <OpenPositionDialog
           account={account}
+          prefill={opening === true ? null : opening}
           onClose={() => setOpening(false)}
           onDone={() => { setOpening(false); load(); }}
         />

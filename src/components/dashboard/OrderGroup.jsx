@@ -137,7 +137,13 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved }) {
       // a negative debit, so the sign is dropped and the word with it.
       : isEquity
         ? fmtMoney(Math.abs(netNow))
-        : `${fmtMoney(netNow)} ${netNow < 0 ? "credit" : "debit"}`;
+        // THE WORD CARRIES THE DIRECTION, so the sign must not. This printed
+        // "-$1.20 credit" -- the minus and the word saying the same thing
+        // twice, and contradicting each other to anyone who reads the minus as
+        // "less than nothing". `orderNet.js` states the rule and returns an
+        // unsigned amount for exactly this reason; the strip was formatting
+        // the raw quote instead.
+        : `${fmtMoney(Math.abs(netNow))} ${netNow < 0 ? "credit" : "debit"}`;
 
   const call = async (payload, fallback) => {
     setBusy(true);
@@ -189,19 +195,70 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved }) {
       setError("Part of this order has already filled, so it cannot be saved for later. Cancel it and build a new ticket for what is left.");
       return;
     }
+    // A CLOSING ORDER CANNOT BE PARKED, and this is the release gate's worst
+    // finding rather than a nicety. `openPosition` stamps `position_intent`
+    // as `*_to_open` unconditionally, so a saved buy-to-close would come back
+    // as an OPENING order: the trader's exit is cancelled, and sending the
+    // saved ticket opens a second inverted position on top of the one they
+    // still hold. Exposure doubles at the moment they were reducing it.
+    //
+    // `syncAccounts` keeps `intent` on every leg precisely because side alone
+    // cannot tell the two apart -- buy_to_close and buy_to_open are both
+    // "buy".
+    if ((order.legs || []).some((l) => String(l.intent || "").endsWith("_to_close"))) {
+      setError("This order is closing a position, so it cannot be saved for later — a saved ticket is sent as a new position, not as an exit. Cancel it here and close the position from its own card when you are ready.");
+      return;
+    }
     setSaving(true);
     setError(null);
     setNote(null);
     try {
       const { data } = await invokeFunction("manageOrder", { accountId, orderId: order.id, action: "cancel" });
       if (data?.error) throw new Error(data.error);
+
+      // THE CANCEL IS CONFIRMED BEFORE THE TICKET IS WRITTEN. Alpaca's DELETE
+      // means ACCEPTED, not done -- `useOpenOrder.ensureCanceled` polls for
+      // exactly this reason, and `manageOrder` does the same on its replace
+      // path. Without it a cancel racing a fill produces the worst outcome
+      // this card can produce: the order fills, the row is written anyway, and
+      // the card tells the trader it "cannot fill" about a position they now
+      // hold. The stale `filledQty` check above cannot catch that; it reads
+      // the last sync, which is seconds old.
+      let settled = null;
+      for (let i = 0; i < 10; i += 1) {
+        await new Promise((r) => setTimeout(r, 400));
+        const { data: st } = await invokeFunction("manageOrder", { accountId, orderId: order.id, action: "get" });
+        const status = String(st?.status || "").toLowerCase();
+        if (["canceled", "cancelled", "expired", "filled", "rejected", "done_for_day"].includes(status)) {
+          settled = { status, filledQty: Number(st?.filledQty) || 0 };
+          break;
+        }
+      }
+      if (!settled) {
+        setError("The cancellation was accepted but your broker has not confirmed it yet, so nothing was saved. Check the Orders list in a moment — if it is gone, build the ticket again from Open Position.");
+        return;
+      }
+      if (settled.status === "filled" || settled.filledQty > 0) {
+        setError(
+          settled.status === "filled"
+            ? "This order filled before the cancellation reached your broker, so it was not saved. You hold the position — it is on the Positions tab."
+            : `${settled.filledQty} of ${order.qty} filled before the cancellation reached your broker, so nothing was saved. You hold what filled.`
+        );
+        onChanged?.();
+        return;
+      }
+
       await saveOrder({
         accountId,
         ticker: order.ticker,
         legs: (order.legs || []).map((l) => ({
           symbol: l.symbol,
           side: String(l.side || "").startsWith("sell") ? "sell" : "buy",
-          ratio: order.qty > 0 && l.qty > 0 ? l.qty / order.qty : 1
+          // Alpaca's `ratio_qty` is an integer. The division is exact for every
+          // structure this product writes, but a float reaching an integer
+          // field is a defect waiting for the first ratio that is not.
+          ratio: Math.max(1, Math.round(order.qty > 0 && l.qty > 0 ? l.qty / order.qty : 1)),
+          intent: l.intent || null
         })),
         qty: Number(order.qty),
         limitPrice: order.limitPrice,

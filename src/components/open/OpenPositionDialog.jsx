@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, Search, BellRing, StopCircle } from "lucide-react";
 import StrategyPicker from "./StrategyPicker";
@@ -14,7 +14,7 @@ import { SCOPE, saveLastUsed } from "@/lib/scanPresets";
 import OpenPricing, { openingDefaults } from "./OpenPricing";
 import useOpenOrder from "./useOpenOrder";
 import useLiveSetup from "./useLiveSetup";
-import { saveOrder } from "@/lib/savedOrders";
+import { saveOrder, deleteSavedOrder } from "@/lib/savedOrders";
 import RestingOrder from "./RestingOrder";
 import OrderLog from "@/components/close/OrderLog";
 import UpgradePrompt from "@/components/billing/UpgradePrompt";
@@ -37,7 +37,7 @@ const DEFAULTS = {
 
 const legKey = (s) => s.legs.map((l) => l.symbol).join("|");
 
-export default function OpenPositionDialog({ account, onClose, onDone }) {
+export default function OpenPositionDialog({ account, onClose, onDone, prefill = null }) {
   const [strategy, setStrategy] = useState("iron_condor");
   const [cfg, setCfg] = useState(DEFAULTS);
   const [qty, setQty] = useState(1);
@@ -64,6 +64,9 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
   // trader who ticks nothing expects the order to reach the market. A default
   // that silently parked orders would make "I placed it" mean "I did not".
   const [savePrivate, setSavePrivate] = useState(false);
+  // The saved ticket this dialog was opened from, if any. Held so the row can
+  // be cleared once -- and only once -- the order actually reaches the broker.
+  const [fromSaved, setFromSaved] = useState(null);
   const [saveError, setSaveError] = useState(null);
   const [saveBusy, setSaveBusy] = useState(false);
   const [limitCredit, setLimitCredit] = useState(null);
@@ -82,6 +85,74 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
     setLimitCredit(d.start);
     setMinCredit(d.floor);
   }, [setup]);
+
+  // A SAVED TICKET, REOPENED. This is the only way a parked order reaches the
+  // broker, deliberately: the release gate blocked a send button on the saved
+  // card because it was a second route that bypassed the warning
+  // acknowledgement, the risk panel and the drift check. Landing the ticket
+  // here instead means every one of those applies, unchanged, because by this
+  // point it is an ordinary order.
+  //
+  // The price is restored as the trader set it, and the mode is "manual" --
+  // NOT the walk. A walk concedes toward the bid on its own; starting one on a
+  // price chosen days ago, without the trader re-confirming it, would move
+  // their limit while they watched. Manual rests exactly where they put it.
+  useEffect(() => {
+    if (!prefill) return;
+    setFromSaved(prefill);
+    setSetup({
+      ticker: prefill.ticker,
+      legs: (prefill.legs || []).map((l) => ({
+        symbol: l.symbol,
+        side: String(l.side || "").startsWith("sell") ? "sell" : "buy",
+        ratio: l.ratio ?? 1
+      }))
+    });
+    setQty(Number(prefill.qty) || 1);
+    if (prefill.order_type === "market") {
+      setPriceMode("market");
+    } else {
+      setPriceMode("manual");
+      // Stored unsigned beside a flag. `openingDefaults` reseeds from the
+      // setup, so this runs after it in a second effect keyed on the setup
+      // landing -- see the guard below.
+    }
+    if (prefill.time_in_force === "gtc" || prefill.time_in_force === "day") {
+      setTimeInForce(prefill.time_in_force);
+    }
+  }, [prefill]);
+
+  // The saved price, applied AFTER `openingDefaults` has reseeded from the new
+  // setup -- otherwise the default would overwrite it on the same tick. Runs
+  // once per reopened ticket.
+  const seededPrice = useRef(null);
+  // Once the reopened ticket has actually reached the broker, the saved copy
+  // stops being a ticket and becomes a duplicate of a live order -- so it goes.
+  //
+  // KEYED ON THE ORDER EXISTING, not on the dialog closing. "working" is
+  // enough: the order is at the broker from that moment, whether it fills,
+  // rests or is walked. Waiting for "filled" would leave a saved copy beside a
+  // resting order, which is exactly the pair that gets sent twice.
+  //
+  // A failed delete is deliberately silent. The order is placed; that is the
+  // part that matters, and an error box about housekeeping over a live ticket
+  // would read as a problem with the order itself. The stale row shows as a
+  // saved ticket the trader can delete.
+  const clearedSaved = useRef(null);
+  useEffect(() => {
+    if (!fromSaved) return;
+    if (!["working", "filled", "detached"].includes(phase)) return;
+    if (clearedSaved.current === fromSaved.id) return;
+    clearedSaved.current = fromSaved.id;
+    deleteSavedOrder(fromSaved.id).catch(() => {});
+  }, [fromSaved, phase]);
+  useEffect(() => {
+    if (!fromSaved || !setup) return;
+    if (seededPrice.current === fromSaved.id) return;
+    if (fromSaved.order_type !== "limit" || fromSaved.limit_price === null) return;
+    seededPrice.current = fromSaved.id;
+    setLimitCredit(Math.abs(Number(fromSaved.limit_price)));
+  }, [fromSaved, setup]);
 
   const orderType = priceMode === "market" ? "market" : "limit";
   const creditReady = typeof limitCredit === "number" && limitCredit > 0;
@@ -142,7 +213,8 @@ export default function OpenPositionDialog({ account, onClose, onDone }) {
           orderType,
           // A ticket built in this dialog is an OPENING structure priced as a
           // credit, which is what `limitCredit` means throughout it.
-          netIsCredit: true
+          netIsCredit: true,
+          timeInForce
         });
         // `onDone` rather than `onClose`: the parent refetches, so the saved
         // ticket is visible in the Orders tab the moment the dialog closes

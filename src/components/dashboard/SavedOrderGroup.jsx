@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronRight, Loader2, Send, Trash2 } from "lucide-react";
-import { invokeFunction } from "@/lib/functions";
+import { ChevronRight, Loader2, PencilLine, Trash2 } from "lucide-react";
 import { parseOCC } from "@/lib/occ";
 import useLiveSetup from "@/components/open/useLiveSetup";
 import ConfirmAction from "@/components/common/ConfirmAction";
@@ -33,13 +32,17 @@ function legDescription(symbol) {
   return `${occ.ticker} ${occ.expiry} ${occ.strike}${occ.type}`;
 }
 
-export default function SavedOrderGroup({ accountId, saved, onChanged }) {
+export default function SavedOrderGroup({ accountId, saved, onChanged, onReopen }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
   const legs = saved.legs || [];
   const isEquity = Boolean(saved.is_equity);
+  // A ticket that was closing something cannot be reopened through the OPEN
+  // dialog, which would invert its intent. `savePrivate` refuses to create
+  // these; this is the second line, for any row that predates that guard.
+  const closingIntent = legs.some((l) => String(l.intent || "").endsWith("_to_close"));
 
   // The market, for the same reason the working card shows it: a saved limit
   // is a decision made at some point in the past, and the only way to judge it
@@ -64,39 +67,44 @@ export default function SavedOrderGroup({ accountId, saved, onChanged }) {
       ? null
       : isEquity
         ? fmtMoney(Math.abs(netNow))
-        : `${fmtMoney(netNow)} ${netNow < 0 ? "credit" : "debit"}`;
+        // Unsigned: the word is the direction. See OrderGroup.
+        : `${fmtMoney(Math.abs(netNow))} ${netNow < 0 ? "credit" : "debit"}`;
 
-  // Sending is the ordinary open path with the stored legs handed over
-  // unchanged — no rebuild, so a leg cannot be dropped or a ratio inverted on
-  // the way out. `openPosition` re-runs its own preflight, which is the point:
-  // a ticket saved last week has not been checked against today's market, and
-  // the checks that refuse a bad order are the same ones a fresh ticket faces.
-  const send = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const { data } = await invokeFunction("openPosition", {
-        accountId,
-        legs: legs.map((l) => ({ symbol: l.symbol, side: l.side, ratio: l.ratio ?? 1 })),
-        qty: Number(saved.qty),
-        orderType: saved.order_type === "market" ? "market" : "limit",
-        ...(saved.order_type === "limit" && saved.limit_price !== null
-          ? { limitPrice: Number(saved.limit_price) }
-          : {})
-      });
-      if (data?.error) throw new Error(data.error);
-      // Sent: the ticket has become a real order, so it stops being a saved
-      // one. Leaving it would show the same trade twice, once as working and
-      // once as saved, and invite sending it a second time.
-      await deleteSavedOrder(saved.id);
-      onChanged?.();
-    } catch (e) {
-      setError(`${e.message || "Could not send it."} It is still saved here — nothing was lost.`);
-    } finally {
-      setBusy(false);
-    }
-  };
-
+  // THERE IS NO SEND BUTTON HERE, AND THAT IS THE POINT.
+  //
+  // The first version of this card sent the ticket straight to `openPosition`.
+  // The release gate blocked it, and was right: that was a SECOND route to the
+  // broker, and it bypassed every guard the real ticket has. Four separate
+  // defects lived in those fifteen lines --
+  //
+  //   - `openPosition` stamps `position_intent: *_to_open` unconditionally, so
+  //     a saved CLOSING order came back as an OPENING one. A trader parking a
+  //     buy-to-close on a credit spread would have cancelled their exit and
+  //     then, pressing send, opened a second inverted spread on top of the
+  //     position they still held -- doubling exposure at the moment they were
+  //     trying to reach zero.
+  //   - `limit_price` was sent unsigned. `openPosition`'s wire convention is
+  //     the PRODUCT's (positive is a credit), the opposite of Alpaca's, so a
+  //     saved multi-leg DEBIT ticket went out as a credit of the same size: an
+  //     order to receive what it actually costs, which never fills while the
+  //     card claims "it can fill immediately".
+  //   - `warnings`/`needsAcknowledgement` were never read, so the one moment a
+  //     parked ticket exists for -- outside market hours -- was the one moment
+  //     it could not be sent, with no way past the red box.
+  //   - No `expectedSpot`, so the drift check that protects every other order
+  //     path returned null. A ticket saved nine days ago got the same silence
+  //     as one saved this morning.
+  //
+  // Each was fixable. Fixing all four would have meant rebuilding the
+  // acknowledgement flow, the risk panel and the drift baseline HERE, beside
+  // the ones that already exist -- a second implementation of the most
+  // dangerous path in the product, kept in step by hand.
+  //
+  // So a saved ticket opens in the REAL ticket instead, with its legs, quantity
+  // and price filled in. Everything that guards a normal order guards this one,
+  // because it IS a normal order by then, and the saved row is cleared only
+  // once that ticket reports a send. "Save for later" still means what it says;
+  // later just goes through the same door as everything else.
   const discard = async () => {
     setBusy(true);
     setError(null);
@@ -214,22 +222,31 @@ export default function SavedOrderGroup({ accountId, saved, onChanged }) {
             )}
           </div>
 
+          {closingIntent && (
+            <p className="mt-2.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
+              This ticket was closing a position, so it cannot be reopened here — the open ticket would
+              send it as a new position instead of an exit. Close the position from its own card.
+            </p>
+          )}
+
           {error && (
             <p className="mt-2.5 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{error}</p>
           )}
 
           <div className="flex flex-wrap items-center gap-2 mt-3">
-            <ConfirmAction
-              label="Send to market"
-              tone="go"
-              icon={<Send className="w-3.5 h-3.5" />}
-              question={`This sends the order to your broker now, at ${
-                saved.order_type === "limit" ? `a limit of ${money(saved.limit_price)}` : "the market price"
-              }. It can fill immediately. The checks that refuse a bad order run again before it goes.`}
-              confirmLabel="Send it"
-              onConfirm={send}
-              busy={busy}
-            />
+            {/* Opens the ordinary ticket, prefilled. No confirmation here:
+                nothing is sent by pressing it, and a confirmation on a button
+                that only opens a form teaches the trader to click through the
+                ones that matter. */}
+            <button
+              type="button"
+              onClick={() => onReopen?.(saved)}
+              disabled={busy || closingIntent}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100 transition-colors disabled:opacity-50"
+            >
+              <PencilLine className="w-3.5 h-3.5" />
+              Open in ticket
+            </button>
             <ConfirmAction
               label="Delete"
               tone="danger"

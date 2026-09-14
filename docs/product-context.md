@@ -172,7 +172,7 @@ revoked from the browser role entirely.
 - **cron_tickets** — token, purpose, created_at, expires_at, used_at
 - **integrity_findings** — id, account_id, user_id, code, subject, severity, action, message, detail, first_seen_at, last_seen_at, resolved_at, seen_count
 - **cash_flows** — id, account_id, user_id, activity_id, day, amount, kind, captured_at
-- **saved_orders** — id, user_id, account_id, ticker, legs, qty, order_type, limit_price, net_is_credit, is_equity, note, from_broker_order_id, created_at, updated_at
+- **saved_orders** — id, user_id, account_id, ticker, legs, qty, order_type, limit_price, net_is_credit, is_equity, note, from_broker_order_id, created_at, updated_at, time_in_force
 
 ## Analytics vocabulary
 

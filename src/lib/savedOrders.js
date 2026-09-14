@@ -39,6 +39,7 @@ export async function saveOrder({
   limitPrice = null,
   orderType = "limit",
   netIsCredit = true,
+  timeInForce = null,
   note = null,
   fromBrokerOrderId = null
 }) {
@@ -54,6 +55,7 @@ export async function saveOrder({
     order_type: orderType,
     limit_price: limitPrice === null || limitPrice === undefined ? null : Math.abs(Number(limitPrice)),
     net_is_credit: Boolean(netIsCredit),
+    time_in_force: timeInForce === "gtc" || timeInForce === "day" ? timeInForce : null,
     is_equity: legsAreEquity(legs),
     note,
     from_broker_order_id: fromBrokerOrderId

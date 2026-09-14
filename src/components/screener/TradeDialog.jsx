@@ -152,7 +152,8 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
           orderType,
           // This dialog already knows which way the structure is priced, so
           // the stored row keeps that rather than re-deriving it from legs.
-          netIsCredit: !isDebit
+          netIsCredit: !isDebit,
+          timeInForce
         });
         onClose({ phase: "saved" });
       } catch (e) {
