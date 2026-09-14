@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invokeFunction } from "@/lib/functions";
+import { deleteSavedOrder } from "@/lib/savedOrders";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { fmtMoney } from "@/lib/format";
 import { Loader2 } from "lucide-react";
@@ -27,14 +28,25 @@ import RestingOrder from "@/components/open/RestingOrder";
 // instead of flooding it.
 const QUOTE_REFRESH_MS = 1000;
 
-export default function CloseDialog({ account, spread, onClose, onDone }) {
+export default function CloseDialog({ account, spread, onClose, onDone, prefill = null }) {
   // Held as typed, clamped where it is used. Clamping inside onChange meant a
   // half-typed number was rewritten under the cursor.
-  const [qtyInput, setQtyInput] = useState("1");
+  const [qtyInput, setQtyInput] = useState(prefill?.qty ? String(prefill.qty) : "1");
   // Walk stays the default because it fills more often than a price left to
   // rest. "manual" and "market" are the two ways to override it.
-  const [priceMode, setPriceMode] = useState(spread.shares ? "manual" : "walk");
-  const [manualPrice, setManualPrice] = useState(null);
+  // A REOPENED SAVED EXIT arrives priced. `prefill` is the parked ticket, and
+  // its price is a decision the trader already made -- so the ticket opens on
+  // "manual", resting exactly where they put it, never on the walk. A walk
+  // concedes toward the bid on its own; starting one on a price chosen days
+  // ago would move their limit while they watched it.
+  const [priceMode, setPriceMode] = useState(
+    prefill?.order_type === "limit" ? "manual" : prefill?.order_type === "market" ? "market" : spread.shares ? "manual" : "walk"
+  );
+  const [manualPrice, setManualPrice] = useState(
+    prefill?.order_type === "limit" && prefill?.limit_price !== null && prefill?.limit_price !== undefined
+      ? Math.abs(Number(prefill.limit_price))
+      : null
+  );
   const [quote, setQuote] = useState(null);
   const [quoteLoading, setQuoteLoading] = useState(true);
   // Why there is no quote, in the server's own words. Null when there is one,
@@ -44,6 +56,24 @@ export default function CloseDialog({ account, spread, onClose, onDone }) {
   const [selected, setSelected] = useState([]);
   const [openOrders, setOpenOrders] = useState(spread.openOrders || []);
   const { phase, log, resting, run, stop, reset, replacePrice } = useCloseOrder();
+
+  // A reopened saved exit stops being a saved ticket the moment its order
+  // reaches the broker. Keyed on "working", not on "filled": the order exists
+  // from that moment whether it fills, rests or is walked, and a saved copy
+  // sitting beside a RESTING exit is exactly the pair that gets sent twice.
+  //
+  // A failed delete is deliberately silent. The order is placed, which is the
+  // part that matters; an error box about housekeeping over a live exit would
+  // read as a problem with the exit itself. The stale row simply shows as a
+  // saved ticket the trader can delete.
+  const clearedSaved = useRef(null);
+  useEffect(() => {
+    if (!prefill?.id) return;
+    if (!["working", "filled", "detached"].includes(phase)) return;
+    if (clearedSaved.current === prefill.id) return;
+    clearedSaved.current = prefill.id;
+    deleteSavedOrder(prefill.id).catch(() => {});
+  }, [prefill, phase]);
 
   // The clamp the input no longer does: never below one, never more than the
   // position holds, and a half-typed field reads as one rather than NaN.

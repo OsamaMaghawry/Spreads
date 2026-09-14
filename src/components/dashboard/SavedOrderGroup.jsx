@@ -5,6 +5,7 @@ import useLiveSetup from "@/components/open/useLiveSetup";
 import ConfirmAction from "@/components/common/ConfirmAction";
 import { fmtMoney } from "@/lib/format";
 import { deleteSavedOrder } from "@/lib/savedOrders";
+import { isClosingTicket } from "@/lib/orderNet";
 
 // A ticket the trader wrote and chose not to send.
 //
@@ -39,10 +40,14 @@ export default function SavedOrderGroup({ accountId, saved, onChanged, onReopen 
 
   const legs = saved.legs || [];
   const isEquity = Boolean(saved.is_equity);
-  // A ticket that was closing something cannot be reopened through the OPEN
-  // dialog, which would invert its intent. `savePrivate` refuses to create
-  // these; this is the second line, for any row that predates that guard.
-  const closingIntent = legs.some((l) => String(l.intent || "").endsWith("_to_close"));
+  // An exit reopens in the CLOSE ticket, an entry in the OPEN one. This is the
+  // whole reason `intent` is stored per leg: side cannot tell them apart, and
+  // sending an exit down the opening path would open a second position on top
+  // of the one it was meant to flatten.
+  const closing = isClosingTicket(legs);
+  // Set by the parent when a closing ticket no longer has a position to close
+  // — the trader flattened it some other way after parking the exit.
+  const orphaned = closing && saved.positionGone;
 
   // The market, for the same reason the working card shows it: a saved limit
   // is a decision made at some point in the past, and the only way to judge it
@@ -139,6 +144,13 @@ export default function SavedOrderGroup({ accountId, saved, onChanged, onReopen 
           <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border bg-slate-100 text-slate-600 border-slate-300">
             Saved
           </span>
+          {/* An exit and an entry are different enough that the row should say
+              which, without expanding it. */}
+          {closing && (
+            <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border bg-amber-50 text-amber-800 border-amber-200">
+              Exit
+            </span>
+          )}
           {!isEquity && saved.limit_price !== null && (
             <span
               className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border ${
@@ -222,10 +234,11 @@ export default function SavedOrderGroup({ accountId, saved, onChanged, onReopen 
             )}
           </div>
 
-          {closingIntent && (
+          {orphaned && (
             <p className="mt-2.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
-              This ticket was closing a position, so it cannot be reopened here — the open ticket would
-              send it as a new position instead of an exit. Close the position from its own card.
+              <span className="font-medium">Nothing left to close.</span> This ticket was an exit, and the
+              position it belonged to is no longer open — you closed it another way, or it expired. Sending
+              it would open a new position rather than flatten one, so it cannot be reopened. Delete it.
             </p>
           )}
 
@@ -241,11 +254,11 @@ export default function SavedOrderGroup({ accountId, saved, onChanged, onReopen 
             <button
               type="button"
               onClick={() => onReopen?.(saved)}
-              disabled={busy || closingIntent}
+              disabled={busy || orphaned}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100 transition-colors disabled:opacity-50"
             >
               <PencilLine className="w-3.5 h-3.5" />
-              Open in ticket
+              {closing ? "Open in close ticket" : "Open in ticket"}
             </button>
             <ConfirmAction
               label="Delete"

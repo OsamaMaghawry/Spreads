@@ -5,6 +5,8 @@ import PositionCards from "./PositionCards";
 import OrderGroup from "./OrderGroup";
 import SavedOrderGroup from "./SavedOrderGroup";
 import { listSavedOrders } from "@/lib/savedOrders";
+import { isClosingTicket, matchPositionForTicket } from "@/lib/orderNet";
+import { spreadLegs } from "@/lib/spreadLegs";
 import useMarketStream from "@/lib/useMarketStream";
 import TickerPanel from "./TickerPanel";
 import BrokerTable from "./BrokerTable";
@@ -42,6 +44,20 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
       .catch(() => setSaved([]));
   }, [account?.id]);
   useEffect(() => { refreshSaved(); }, [refreshSaved]);
+
+  // A saved EXIT is only sendable while the position it closes is still open.
+  // Resolved here, where the account's positions are, so the card can say
+  // "nothing left to close" instead of offering a button that would open a new
+  // position on top of nothing.
+  const savedResolved = useMemo(
+    () =>
+      saved.map((sv) => {
+        if (!isClosingTicket(sv.legs)) return sv;
+        const position = matchPositionForTicket(sv.legs, account.spreads || [], spreadLegs);
+        return { ...sv, position, positionGone: !position };
+      }),
+    [saved, account.spreads]
+  );
 
   const tickers = useMemo(
     () => [...new Set((account.spreads || []).map((s) => s.ticker).filter(Boolean))],
@@ -247,7 +263,7 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
           onCloseMany={(legs, held) => onCloseMany?.(account, legs, account.broker || [], held)}
         />
       ) : tab === "orders" ? (
-        orders.length === 0 && saved.length === 0 ? (
+        orders.length === 0 && savedResolved.length === 0 ? (
           <div className="px-5 py-6 text-sm text-slate-500">
             No working orders, and nothing has been sent to the broker today. Orders from earlier days
             appear in this account&rsquo;s trade history once they settle.
@@ -268,7 +284,7 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
                 are different kinds of thing, and sorting them together would
                 put something that cannot fill in the middle of a list of
                 things that can. */}
-            {saved.length > 0 && (
+            {savedResolved.length > 0 && (
               <>
                 <div className="flex items-baseline gap-2 pt-2 mt-1 border-t border-slate-200">
                   <h4 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -276,7 +292,7 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
                   </h4>
                   <span className="text-xs text-slate-400">not sent to your broker</span>
                 </div>
-                {saved.map((sv) => (
+                {savedResolved.map((sv) => (
                   <SavedOrderGroup
                     key={sv.id}
                     accountId={account.id}

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { netKind, legsAreEquity, orderNetKind, saveRefusalFor } from "./orderNet.js";
+import { netKind, legsAreEquity, orderNetKind, saveRefusalFor, isClosingTicket, matchPositionForTicket } from "./orderNet.js";
 
 // The owner: *"I want to show up if the order is Debit or Credit (Options
 // only). For stocks, no need."*
@@ -108,33 +108,6 @@ test("a share order and a market order carry no debit/credit word", () => {
 // confirmed. These cases are what the card now asks before drawing the button.
 // ---------------------------------------------------------------------------
 
-test("a closing order can never be parked, whatever its side", () => {
-  // A share exit -- the exact order the owner hit.
-  assert.match(
-    saveRefusalFor({ legs: [{ side: "sell", intent: "sell_to_close", symbol: "QQQ" }], qty: 14, filledQty: 0 }),
-    /closing a position/
-  );
-  // And the dangerous one: buy_to_close and buy_to_open are both "buy", so
-  // only `intent` tells them apart. If this ever returns null, a parked exit
-  // comes back as a new position on top of the one it was closing.
-  assert.match(
-    saveRefusalFor({ legs: [{ side: "buy", intent: "buy_to_close", symbol: "TSLA251217P00320000" }], qty: 1, filledQty: 0 }),
-    /closing a position/
-  );
-  // One closing leg among several is still closing.
-  assert.match(
-    saveRefusalFor({
-      legs: [
-        { side: "buy", intent: "buy_to_close", symbol: "TSLA251217P00320000" },
-        { side: "sell", intent: "sell_to_close", symbol: "TSLA251217P00310000" }
-      ],
-      qty: 1,
-      filledQty: 0
-    }),
-    /closing a position/
-  );
-});
-
 test("a partly filled order cannot be parked, and the reason names the numbers", () => {
   const why = saveRefusalFor({
     legs: [{ side: "sell", intent: "sell_to_open", symbol: "TSLA251217P00320000" }],
@@ -160,4 +133,67 @@ test("an untouched opening order can be parked", () => {
   // An order carrying no intent at all is not assumed to be closing — that
   // would refuse every order on a broker that omits the field.
   assert.equal(saveRefusalFor({ legs: [{ side: "sell", symbol: "QQQ" }], qty: 14, filledQty: 0 }), null);
+});
+
+
+// ---------------------------------------------------------------------------
+// Anything can be parked, including an exit.
+//
+// The owner: *"So, why the closing position cannot be saved for later. I need
+// anything to be saved for later."* He was right — the refusal was a symptom
+// of routing every saved ticket through the OPEN dialog. A closing ticket now
+// reopens against the position it belongs to.
+// ---------------------------------------------------------------------------
+
+test("a closing order can be saved now; only a partial fill still refuses", () => {
+  const exit = { legs: [{ side: "sell", intent: "sell_to_close", symbol: "QQQ" }], qty: 14, filledQty: 0 };
+  assert.equal(saveRefusalFor(exit), null);
+});
+
+test("closing is read from intent, because side cannot carry it", () => {
+  // Both of these are "buy". Only the intent separates an exit from an entry,
+  // and sending one down the other's path doubles a position instead of
+  // flattening it.
+  assert.equal(isClosingTicket([{ side: "buy", intent: "buy_to_close" }]), true);
+  assert.equal(isClosingTicket([{ side: "buy", intent: "buy_to_open" }]), false);
+  assert.equal(isClosingTicket([{ side: "sell", intent: "sell_to_close" }]), true);
+  // One closing leg among several is a closing ticket.
+  assert.equal(
+    isClosingTicket([{ side: "sell", intent: "sell_to_open" }, { side: "buy", intent: "buy_to_close" }]),
+    true
+  );
+  // No intent at all is not assumed to be closing.
+  assert.equal(isClosingTicket([{ side: "buy" }]), false);
+  assert.equal(isClosingTicket([]), false);
+});
+
+// The matcher, with `spreadLegs` stubbed the way the app injects it.
+const legsOf = (s) => s.legs;
+
+test("a saved exit finds the position holding exactly its contracts", () => {
+  const target = { id: "a", legs: [{ symbol: "TSLA251217P00320000" }, { symbol: "TSLA251217P00310000" }] };
+  const other = { id: "b", legs: [{ symbol: "NVDA251217P00100000" }] };
+  const saved = [{ symbol: "TSLA251217P00310000" }, { symbol: "TSLA251217P00320000" }];
+  // Order does not matter; the set does.
+  assert.equal(matchPositionForTicket(saved, [other, target], legsOf).id, "a");
+});
+
+test("a position that merely overlaps is not a match", () => {
+  // One leg of the saved ticket, plus a third contract. Sending an exit built
+  // for two legs against a three-legged position would leave a naked leg.
+  const partial = { id: "p", legs: [{ symbol: "TSLA251217P00320000" }, { symbol: "TSLA251217P00310000" }, { symbol: "TSLA251217P00300000" }] };
+  const saved = [{ symbol: "TSLA251217P00310000" }, { symbol: "TSLA251217P00320000" }];
+  assert.equal(matchPositionForTicket(saved, [partial], legsOf), null);
+});
+
+test("a position closed since the ticket was parked returns null, not a guess", () => {
+  assert.equal(matchPositionForTicket([{ symbol: "QQQ" }], [], legsOf), null);
+  assert.equal(matchPositionForTicket([], [{ id: "x", legs: [{ symbol: "QQQ" }] }], legsOf), null);
+});
+
+test("a position whose legs cannot be built is skipped rather than thrown on", () => {
+  const bad = { id: "bad" };
+  const good = { id: "good", legs: [{ symbol: "QQQ" }] };
+  const throwing = (s) => { if (!s.legs) throw new Error("cannot pair"); return s.legs; };
+  assert.equal(matchPositionForTicket([{ symbol: "QQQ" }], [bad, good], throwing).id, "good");
 });

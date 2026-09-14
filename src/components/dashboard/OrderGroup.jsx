@@ -129,6 +129,15 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved }) {
 
   // CAN THIS ORDER BE PARKED AT ALL, decided BEFORE the button is drawn.
   //
+  // A CLOSING ORDER CAN, now. It could not for one release, and the owner was
+  // right to push back: *"I need anything to be saved for later."* The refusal
+  // was never about exits being unsafe to park — it was that every saved
+  // ticket reopened through the OPEN dialog, where `openPosition` stamps each
+  // leg `*_to_open`. That was a routing defect wearing a product rule's
+  // clothes. A closing ticket now reopens in the CLOSE dialog against the
+  // position it belongs to, and `intent` is stored per leg so the two can
+  // never be confused.
+  //
   // The owner, on a working closing order: *"I clicked save it for later first
   // time, and it didn't give me any status ... Then I clicked again, it gave me
   // the attached message. Somehow it's confusing."*

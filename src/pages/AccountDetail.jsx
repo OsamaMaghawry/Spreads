@@ -111,7 +111,15 @@ export default function AccountDetail() {
 
       {account ? (
         <AccountSection
-          onReopenSaved={(saved) => setOpening(saved)}
+          // An exit goes to the CLOSE ticket against its own position; an entry
+          // goes to the OPEN one. `AccountSection` has already matched the
+          // position, so a ticket whose position is gone never reaches here --
+          // its card says so instead of offering the button.
+          onReopenSaved={(saved) =>
+            saved.position
+              ? setClosing({ account, spread: saved.position, prefill: saved })
+              : setOpening(saved)
+          }
           account={account}
           onCloseSpread={(acc, spread) => setClosing({ account: acc, spread })}
           onCloseMany={(acc, legs, brokerRows, held) => setClosingMany({ account: acc, legs, brokerRows, held })}
@@ -150,6 +158,7 @@ export default function AccountDetail() {
 
       {closing && (
         <CloseDialog
+          prefill={closing.prefill || null}
           account={closing.account}
           spread={closing.spread}
           onClose={() => setClosing(null)}

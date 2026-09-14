@@ -76,34 +76,77 @@ export function orderNetKind(order, isEquity) {
 }
 
 /**
+ * Is this ticket closing something rather than opening it?
+ *
+ * `syncAccounts` keeps `position_intent` per leg precisely because SIDE CANNOT
+ * CARRY THIS: buy_to_close and buy_to_open are both "buy". Everything that
+ * routes a saved ticket depends on getting this right — an exit sent through
+ * the opening path becomes a new position on top of the one it was closing.
+ */
+export function isClosingTicket(legs) {
+  return (legs || []).some((l) => String(l?.intent || "").endsWith("_to_close"));
+}
+
+/**
  * Why this order cannot be parked, or null when it can.
  *
  * PURE AND TESTED because of how this failed in the owner's hands: the button
- * was live on a closing order, the confirmation asked him to commit, and only
- * the click that meant YES came back with a refusal. The check was real; it
- * simply ran after he had agreed. Deciding it here means the card can ask the
- * same question BEFORE it draws the control, and a test can hold it to that.
+ * was live on an order that could not be parked, the confirmation asked him to
+ * commit, and only the click that meant YES came back with a refusal. Deciding
+ * it here means the card can ask before it draws the control.
  *
- * Two reasons, and neither is a judgement call:
+ * A CLOSING ORDER IS NO LONGER REFUSED. It was, briefly, and that was my
+ * limitation rather than the idea's: saved tickets were reopened through the
+ * OPEN dialog, and `openPosition` stamps every leg `*_to_open`, so an exit
+ * would have come back as a new position. The owner's answer was the right
+ * one — *"I need anything to be saved for later"* — so the route was fixed
+ * instead of the feature narrowed: a closing ticket now reopens in the CLOSE
+ * dialog, against the position it belongs to.
  *
- *   CLOSING. `openPosition` stamps `position_intent` as `*_to_open` with no
- *   exceptions, so a parked exit would come back as a new position on top of
- *   the one it was meant to close. `syncAccounts` keeps `intent` per leg for
- *   exactly this distinction -- side cannot carry it, since buy_to_close and
- *   buy_to_open are both "buy".
- *
- *   PARTLY FILLED. The saved ticket carries the ORIGINAL quantity, so sending
- *   it re-opens what already filled. Saving "the remainder" is a different
- *   feature with its own arithmetic.
+ * One refusal survives, and it is arithmetic rather than plumbing: a PARTLY
+ * FILLED order cannot be parked, because the saved ticket carries the ORIGINAL
+ * quantity and sending it would re-open what already filled. Saving "the
+ * remainder" is a different feature with its own sums.
  */
 export function saveRefusalFor(order) {
-  const legs = order?.legs || [];
-  if (legs.some((l) => String(l?.intent || "").endsWith("_to_close"))) {
-    return "This order is closing a position, so it cannot be saved for later — a saved ticket is sent as a new position, never as an exit. Cancel it here and close the position from its own card when you are ready.";
-  }
   const filled = Number(order?.filledQty) || 0;
   if (filled > 0) {
     return `${filled} of ${order?.qty} has already filled, so this cannot be saved for later — the saved ticket would carry the whole quantity and re-open what filled.`;
+  }
+  return null;
+}
+
+/**
+ * The open position a saved CLOSING ticket belongs to, or null.
+ *
+ * Matched on the SET OF SYMBOLS, because that is the one thing that cannot
+ * drift: quantities change as a position is partly closed, prices move, and
+ * the broker's own ids are not carried on a saved row. Two positions on the
+ * same account never hold the same set of contracts — if they did they would
+ * be one position.
+ *
+ * Null is a real answer and the caller must handle it: the trader may have
+ * closed the position by other means since parking the exit, and a ticket to
+ * close something you no longer hold must not be sent.
+ *
+ * @param savedLegs the saved ticket's legs
+ * @param spreads   the account's open positions
+ * @param legsOf    `spreadLegs`, injected so this module stays free of imports
+ */
+export function matchPositionForTicket(savedLegs, spreads, legsOf) {
+  const want = new Set((savedLegs || []).map((l) => l?.symbol).filter(Boolean));
+  if (!want.size) return null;
+  for (const spread of spreads || []) {
+    let have;
+    try {
+      have = new Set((legsOf(spread) || []).map((l) => l?.symbol).filter(Boolean));
+    } catch {
+      continue;
+    }
+    if (have.size !== want.size) continue;
+    let all = true;
+    for (const sym of want) if (!have.has(sym)) { all = false; break; }
+    if (all) return spread;
   }
   return null;
 }
