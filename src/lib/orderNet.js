@@ -222,9 +222,22 @@ export function maxCloseQty(order, brokerRows, isEquity) {
     // The ratio this leg contributes to one unit of the order.
     const ratio = legQty > 0 ? legQty / unitQty : 1;
     if (!(ratio > 0)) return null;
+    const position = Math.abs(Number(row.qty) || 0);
     const available = Math.abs(Number(row.available ?? row.qty) || 0);
-    // Add back what this very order is holding: replacing it frees that.
-    const held = available + legQty;
+    // TWO BOUNDS, AND THE LOWER ONE WINS.
+    //
+    // `qty_available` is documented as the holding less what working orders
+    // claim, so adding this order's own quantity back is right WHEN THE BROKER
+    // ACTUALLY RESERVED IT -- replacing an order frees its reservation. But it
+    // does not always reserve: on the owner's SPY the two came back equal,
+    // 13.000080555 available against 13.000080555 held, and adding the order's
+    // own 13 produced a "max 26.000080555" on a 13-share position. He had 13.
+    //
+    // So the sum is capped by the POSITION, which is the one bound that is
+    // true either way: you can never close more than you hold, whatever the
+    // broker is reserving. When the reservation is real the sum is the lower
+    // number and still wins; when it is not, the holding is.
+    const held = Math.min(position, available + legQty);
     cap = Math.min(cap, held / ratio);
   }
   if (!Number.isFinite(cap) || cap <= 0) return null;

@@ -256,11 +256,21 @@ test("a leg the broker does not report leaves the cap unknown", () => {
   assert.equal(maxCloseQty({ qty: 0, legs: [] }, [], false), null);
 });
 
+test("the cap never exceeds the position, even when the broker reserved nothing", () => {
+  // The owner's SPY: 13.000080555 held, a 13-share sell working, and
+  // `qty_available` came back EQUAL to the holding -- the broker had not
+  // reserved it. Adding the order's own 13 produced "max 26.000080555" on a
+  // 13-share position. The holding is the bound that is true either way.
+  const order = { qty: 13, legs: [{ symbol: "SPY", qty: 13 }] };
+  const broker = [{ symbol: "SPY", qty: 13.000080555, available: 13.000080555 }];
+  assert.equal(maxCloseQty(order, broker, true), 13.000080555);
+});
+
 test("a broker row with no qty_available falls back to the holding", () => {
   const order = { qty: 2, legs: [{ symbol: "QQQ", qty: 2 }] };
-  // No `available` field at all: the holding is all we know, and the order's
-  // own claim is still added back.
-  assert.equal(maxCloseQty(order, [{ symbol: "QQQ", qty: 7 }], true), 9);
+  // No `available` field at all: the holding is all we know, and it is also
+  // the ceiling -- adding the order's own claim on top would exceed it.
+  assert.equal(maxCloseQty(order, [{ symbol: "QQQ", qty: 7 }], true), 7);
 });
 
 
