@@ -1,8 +1,8 @@
 ---
-title: "Implied volatility options explained: why a whole chain reprices"
+title: "Implied volatility explained: why a chain reprices before earnings"
 slug: implied-volatility-options-explained
 excerpt: Implied volatility is the movement an option's own price implies, and because every contract on a chain is priced from the same expectation, they reprice together.
-meta_description: Implied volatility is the movement an option's price implies, not a forecast. What vega turns it into in dollars, and why a whole chain reprices at once.
+meta_description: Implied volatility is the movement an option's price implies, not a forecast. What vega turns it into in dollars, and why premiums move when the stock doesn't.
 author: DeltaMint
 published_at: 2026-09-14T10:00:00+00:00
 category: foundations
@@ -56,7 +56,7 @@ for strike distance. Implied volatility is a size and not a sign, so a call
 and a put on the same strike and expiration are priced off the same
 expectation of movement, in the same units, whatever the stock is worth.
 
-## How does vega turn a volatility change into dollars?
+## What is vega, and how does it turn IV into dollars?
 
 Vega does for IV what delta does for the stock price: it converts a change in
 one input into an estimated change in the premium. A contract showing a vega
@@ -131,7 +131,8 @@ together rather than one strike at a time.
 - **The stock does not have to move at all.** IV is an input alongside the stock price; raise it with the stock unchanged and every premium on the chain rises, as the table above shows.
 - **The near expiration usually rises most in IV terms.** One announcement is a larger share of the movement expected over a week than of the movement expected over a quarter, so the front expirations lift further in percentage terms.
 - **The longer expiration usually carries more vega.** More days left means more extrinsic value at stake, so a smaller IV move there can still be worth more in dollars.
-- **The same inputs unwind afterwards.** Once the result is public the uncertainty it carried is gone, IV falls back, and the contracts reprice down on that alone — a move traders call a volatility crush.
+- **The same inputs unwind afterwards.** Once the result is public the uncertainty it carried is gone, IV falls back, and the contracts reprice down on that alone — a move traders call IV crush, or a volatility
+crush.
 
 The last point is the one that surprises people, because it can happen on a
 day the stock barely moves. Both legs of the repricing are mechanical: an
@@ -143,7 +144,7 @@ holding several of them sees one input revalue every line in the same moment
 rather than line by line — a problem of scale taken up in the [after the
 fill](/blog/managing) posts rather than this one.
 
-## Does a high implied volatility mean the stock will move?
+## Does high implied volatility mean the stock will move?
 
 No. It means a large move is priced into the contracts today, which is a
 statement about prices rather than about the stock.
