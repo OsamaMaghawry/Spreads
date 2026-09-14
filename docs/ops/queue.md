@@ -40,7 +40,10 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
   compare against `supabase/migrations/`; apply anything missing, oldest first.
   At minimum confirm `0051`, `0052`, `0053`. Not a duty-engineer fix — a
   migration is escalate-never-fix, and this one is on production besides.
-  **Not emailed — no channel exists.** See the item directly below.
+  **Not emailed — no channel exists.** See the item directly below. Raised
+  instead as PR [#9](https://github.com/OsamaMaghawry/Spreads/pull/9)
+  (`staging` → `main`, docs only, **not merged**), whose description leads with
+  this ask.
 
 - [needs owner] 2026-09-14 · duty-engineer · **The duty engineer can no longer
   reach the owner at all.** The brief requires an email for a user-visible or
@@ -59,6 +62,9 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
   a path filter is not an option worth taking.
   (3) A GitHub issue — refused by the session's own permission system as an
   external write. Not worked around.
+  What did work: opening a pull request. PR #9 is how this run's escalation
+  reached anywhere the owner is notified. That is a workaround, not a fix — a
+  PR is a poor place to put "production may be broken right now".
   The 2026-09-09 run that hit (1) used `PushNotification`; that tool is not
   present in this session. **Owner: one of these needs to exist** — the
   allowlist addition for `yecfbeohyakuoyczvdbj.supabase.co` (smallest change,
