@@ -5,6 +5,60 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Needs owner
 
+- [needs owner] 2026-09-14 · duty-engineer · **Production's migration state is
+  unverified, and today's merge put code live that writes a column migration
+  `0053` adds.** Not "production is broken" — I cannot reach the production
+  project from a session (`yecfbeohyakuoyczvdbj.supabase.co` is 403 at CONNECT,
+  see the 2026-09-09 item below) and hold no database credentials, so this is a
+  confirmation request with one specific consequence attached.
+
+  **The specific one.** `src/lib/savedOrders.js:50-70` builds every saved-ticket
+  insert with `setup: setup || null` in the row, unconditionally — the column is
+  named on the wire whether or not a setup exists. That column comes from
+  `0053_saved_orders_setup.sql`, which reached `main` today inside the owner's
+  `c835e0f` merge (14:28 UTC, deployed by 14:30). If production has not run
+  0053, PostgREST answers the insert with `PGRST204` and **Save for later fails
+  for every user on every order**. `c835e0f`'s own message says the change is
+  "additive and nullable, and the reopen path handles a null setup, so the order
+  is safe either way" — that is true of READING a reopened ticket
+  (`OpenPositionDialog.jsx:125-135` falls to `analyticsAbsent`) and not true of
+  SAVING one, because the insert names the column either way. The same applies to
+  `0051_saved_orders.sql` (the table itself) and `0052_saved_orders_tif.sql`,
+  both of which also first reached `main` today.
+
+  **The general one.** The last record anywhere in this repo of production's
+  migration state being verified is the 2026-09-02 item below, closed
+  `fixed 2026-09-09` at `0029`. Since then **24 migrations (`0030`–`0053`) have
+  reached `main`** — `account_equity_daily`, `cash_flows`, the integrity
+  findings tables, the per-account weekly digest, `cron_tickets`, `saved_orders`.
+  `docs/ops/ship.md` step 1 says migrations go first on production, "each
+  verified by listing"; no run since 2026-09-09 records that being done. If the
+  equity chart and the digest have been working in production this week then
+  `0030`–`0050` are plainly applied and only today's three are in question.
+
+  **Owner action:** list the applied migrations on `yecfbeohyakuoyczvdbj` and
+  compare against `supabase/migrations/`; apply anything missing, oldest first.
+  At minimum confirm `0051`, `0052`, `0053`. Not a duty-engineer fix — a
+  migration is escalate-never-fix, and this one is on production besides.
+  Emailed: attempted through `sendDigest` per the brief and blocked at the proxy
+  (403 at CONNECT, the standing item below), so delivered instead by dispatching
+  this repo's own `email-digest.yml`, which calls `sendDigest` from CI.
+
+- [fixed 2026-09-14] 2026-09-12 · **`publish-blog.yml`'s failure was NOT the
+  credentials guard, and nothing is waiting on the owner.** The entry below
+  asked for `SUPABASE_SERVICE_ROLE_KEY` to be set. Checked step by step through
+  the Actions API on the exact run it cites (34698751470, `255e3151`,
+  2026-09-12 14:15 UTC): **`Require credentials` passed** — so the secret was
+  already set at the time — and the job failed one step later, in `Publish`.
+  The failure log itself is not readable from here (Actions log downloads
+  redirect to `objects.githubusercontent.com`, which is 403 at CONNECT), but it
+  no longer matters: every `publish-blog` run on `main` since has been green
+  including `Publish` — 34760214212 (13 Sep 13:34), 34825468618 (14 Sep 08:58)
+  and 34855910416 (14 Sep 14:29, on `c835e0f`). The script upserts on slug over
+  all of `content/blog/`, so those green runs republished whatever the 12 Sep
+  run missed; the production blog is current. Do not set the secret again — it
+  is set.
+
 - [needs owner] 2026-09-14 · **`www.deltamint.app` answers HTTP 522** on both
   schemes. A proxied DNS record already exists — 522 rather than NXDOMAIN
   proves it — but it points at an origin Cloudflare cannot reach. Adding a
@@ -45,8 +99,10 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
   522: both are one-way doors cached client-side, where no setting of ours can
   revoke them.
 
-- [needs owner] 2026-09-12 · **`publish-blog.yml` fails on `main` at its
-  credentials guard**: the GitHub Actions secret `SUPABASE_SERVICE_ROLE_KEY`
+- [fixed 2026-09-14] 2026-09-12 · ~~**`publish-blog.yml` fails on `main` at its
+  credentials guard**~~ — **misdiagnosed; see the 2026-09-14 entry above.** The
+  guard passed on the very run cited here; the secret was set. Kept for the
+  record: the GitHub Actions secret `SUPABASE_SERVICE_ROLE_KEY`
   is not set on this repository. (The 2026-09-07 entries below record it being
   added — it is not present now, so it was either removed or added on a
   different repository.) The job refuses rather than writing with an empty key,
