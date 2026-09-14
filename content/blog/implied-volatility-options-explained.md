@@ -21,15 +21,17 @@ option's price for a one-point change in implied volatility, quoted per share
 like the premium.
 
 Because implied volatility is solved backwards out of the price, the two move
-together by construction. A premium that changes while the stock stands still
-is, in this language, an implied volatility change.
+together by construction. A premium that changes while the stock and the
+calendar both stand still is, in this language, an implied volatility change
+— over a longer stretch the passage of time moves the price too, which is
+what [the previous post](/blog/theta-decay-explained) covers on its own.
 
 ## Key takeaways
 
 - Implied volatility is derived from the option's price, not from the stock's past. It is often shortened to IV on a chain.
 - Vega estimates the price change for one point of IV, per share — about $6 on one contract at 0.06.
 - IV only moves extrinsic value, so a rise lifts every premium on the chain at once while intrinsic value sits unchanged.
-- Vega is largest at the money in dollar terms; far-from-the-money strikes hold less premium but move more in proportion.
+- Vega is largest at the money in dollar terms; strikes far out of the money hold less premium but move more in proportion, while deep in-the-money strikes move least in proportion because most of their premium is intrinsic.
 - A scheduled event inside an option's remaining life raises the movement priced into every contract covering it, and the same contracts reprice down once the outcome is known.
 
 ## What does implied volatility actually measure?
@@ -81,9 +83,10 @@ most extrinsic value at a given expiration, so there is most there for a
 volatility change to act on, and contracts with more days left hold more of it
 again.
 
-It also shrinks as expiration approaches. With a day to go there is almost no
+It also shrinks as expiration approaches. With a day to go there is little
 extrinsic value left to revalue, so even a large move in implied volatility
-changes that contract's price very little.
+changes that contract's price very little in dollar terms — though what
+extrinsic value remains can still swing hard in percentage terms.
 
 ## Example: one hypothetical chain priced at two volatility levels
 
@@ -103,6 +106,10 @@ stock price, the strikes and the calendar are identical in both.
 Check the middle row against vega. The at-the-money call's vega is about 0.06
 a share, and 20 points of IV at roughly $0.057 a point comes to about $1.14 —
 which is exactly the gap between the two columns, or $114 on one contract.
+That estimate lands this cleanly only because vega itself barely moves across
+this 20-point range at the money; away from the money vega shifts more as IV
+changes, so a single point figure is a local estimate, the same limitation
+[delta](/blog/option-delta-explained) carries.
 
 The top row moved least in dollars, and the reason is in the split. With the
 stock at $50, the 45-strike call holds $5.00 of intrinsic value and $0.53 of
@@ -152,7 +159,7 @@ reason the premium is negotiated at all.
 
 ## Frequently asked questions
 
-- **Is implied volatility quoted per contract?** No. It is an annualised percentage attached to the contract's price, while vega is quoted per share like the premium and delta.
+- **Does implied volatility scale by 100 like the premium?** No. It is an annualised percentage that already applies to the whole quote; vega, delta and the premium itself are the figures quoted per share and multiplied by 100 for one contract.
 - **Where does the IV on my chain come from?** It is back-solved from the option's price with a model, usually from the midpoint of the [bid and the ask](/blog/options-bid-ask-spread) — a price nobody actually offered.
 - **Why did my option lose value when the stock moved my way?** One possibility is that IV fell by enough to outweigh what [delta](/blog/option-delta-explained) added. Both inputs pull on the same premium at once.
 - **Does every strike on one expiration show the same IV?** No. Strikes usually show different figures, a pattern called the volatility skew or smile, even though they all cover the same period.
