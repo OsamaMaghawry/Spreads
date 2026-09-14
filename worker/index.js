@@ -38,6 +38,20 @@ export default {
     // parsing, and applies to every response this Worker serves.
     const out = new Response(response.body, response);
     out.headers.set("X-Robots-Tag", "noindex, nofollow");
+    // Headers a reputation scanner reads, and that cost nothing to serve. The
+    // same three are set on the marketing site, in landing/src/index.js and
+    // landing/public/_headers.
+    //
+    // Six months, no includeSubDomains, no preload: includeSubDomains would
+    // tell every browser never to speak http to anything under deltamint.app
+    // for that period, cached client-side and not revocable by changing a
+    // setting, so it waits until every subdomain is known good.
+    out.headers.set("Strict-Transport-Security", "max-age=15552000");
+    out.headers.set("X-Content-Type-Options", "nosniff");
+    // The app carries an OAuth redirect and password-reset links in its URLs.
+    // strict-origin-when-cross-origin sends only the origin off-site, so a
+    // path or token never travels in a Referer to a third party.
+    out.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
     return out;
   }
 };

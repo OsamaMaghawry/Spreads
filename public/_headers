@@ -1,0 +1,15 @@
+# Headers a reputation scanner reads, and that cost nothing to serve.
+#
+# This file covers /assets/* only -- the fingerprinted JS and CSS bundles,
+# which wrangler.jsonc excludes from run_worker_first, so the Worker never
+# sees them and cannot stamp their headers. Everything else on the dashboard
+# goes through worker/index.js, which sets the same three values. Cloudflare
+# does not apply _headers to a Worker's own responses, so both copies are
+# needed. Change one, change the other.
+#
+# Vite copies this directory into dist/ verbatim, which is the asset directory
+# wrangler.jsonc uploads.
+/*
+  Strict-Transport-Security: max-age=15552000
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

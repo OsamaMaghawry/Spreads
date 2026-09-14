@@ -105,6 +105,32 @@ async function fetchPosts(env, { slug = null } = {}) {
   return res.json();
 }
 
+// Headers a reputation scanner reads, and that cost nothing to serve.
+//
+// The same three values live in public/_headers. Both copies are needed:
+// Cloudflare does not apply _headers to a Worker's own responses, and on
+// production the Worker is not invoked for static assets, so neither covers
+// the whole site alone. Change one, change the other.
+//
+// max-age is six months with no includeSubDomains and no preload on purpose.
+// includeSubDomains would tell every browser never to speak http to anything
+// under deltamint.app for that whole period, cached client-side and not
+// revocable by changing a setting -- so it waits until every subdomain is
+// known good. Preload is harder still to undo.
+const SECURITY_HEADERS = {
+  "Strict-Transport-Security": "max-age=15552000",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin"
+};
+
+// Like withNoIndexHeader below: a response is never mutated in place, because
+// headers on a cached or asset response are immutable.
+function withSecurityHeaders(response) {
+  const out = new Response(response.body, response);
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) out.headers.set(name, value);
+  return out;
+}
+
 // A response is never mutated in place — headers on a cached or asset response
 // are immutable, so anything added has to go onto a fresh copy.
 function withNoIndexHeader(response) {
@@ -315,110 +341,117 @@ ${urls}
 }
 
 export default {
+  // Every response leaves through here, so the security headers are stamped in
+  // exactly one place rather than on each of the eight return paths below --
+  // where the next one added would quietly miss them.
   async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    const path = url.pathname.replace(/\/+$/, "") || "/";
-    const site = siteUrl(request, env);
-    const noindex = isNoIndex(env);
-
-    // On a non-production deployment the Worker runs ahead of every asset
-    // (run_worker_first: true), so this is the one place that can guarantee no
-    // response leaves without the noindex header.
-    if (noindex && path === "/robots.txt") {
-      return new Response("User-agent: *\nDisallow: /\n", {
-        headers: {
-          "content-type": "text/plain; charset=utf-8",
-          "cache-control": "no-store",
-          "X-Robots-Tag": "noindex, nofollow"
-        }
-      });
-    }
-
-    const isBlogPath = path === "/blog" || path.startsWith("/blog/") || path === "/sitemap.xml";
-    // The home and pricing pages are static assets; their tracking tags are
-    // injected below on the way out, for any that the page does not already
-    // carry itself.
-    if (!isBlogPath) {
-      // Anything else is a static asset. On production the Worker is not even
-      // invoked for these; on staging it is, purely to stamp the header.
-      let asset = await env.ASSETS.fetch(request);
-      if ((asset.headers.get("content-type") || "").includes("text/html")) {
-        const text = await asset.text();
-        // Those four pages carry their own hostname-guarded GA and Hotjar
-        // snippets inline, precisely because production's run_worker_first
-        // means this branch never runs for them. Should that config ever be
-        // widened to `true`, injecting again here would double-count every
-        // page view and record every session twice — so a tag whose id is
-        // already on the page is not added a second time. Cheap, and it makes
-        // the two halves safe to hold at once.
-        const already = (mark) => mark && text.includes(mark);
-        const tag =
-          (already(env.GA_MEASUREMENT_ID) ? "" : analyticsTag(env)) +
-          (already(`hjid:${env.HOTJAR_SITE_ID}`) ? "" : hotjarTag(env));
-        // Both tags call dmAnalyticsAllowed. The four hand-written pages
-        // define it themselves; any other asset would not, so it travels with
-        // the tags -- but only if the page has not already defined it, or the
-        // second definition would shadow the first mid-page.
-        const gate = tag && !text.includes("dmAnalyticsAllowed") ? CONSENT_GATE : "";
-        if (tag) asset = new Response(text.replace("</head>", `${gate}${tag}\n</head>`), asset);
-        else asset = new Response(text, asset);
-      }
-      return noindex ? withNoIndexHeader(asset) : asset;
-    }
-
-    const cache = caches.default;
-    const cached = await cache.match(request);
-    if (cached) return cached;
-
-    let response;
-    try {
-      if (path === "/sitemap.xml") {
-        const posts = await fetchPosts(env);
-        response = new Response(renderSitemap(posts, site), {
-          headers: {
-            "content-type": "application/xml; charset=utf-8",
-            "cache-control": `public, max-age=300, s-maxage=${CACHE_SECONDS}`
-          }
-        });
-      } else if (path === "/blog") {
-        response = html(renderIndex(await fetchPosts(env), site, noindex, env));
-      } else if (path === "/blog/feed.xml") {
-        response = new Response(renderFeed(await fetchPosts(env), site), {
-          headers: { "content-type": "application/rss+xml; charset=utf-8", "cache-control": `public, max-age=300, s-maxage=${CACHE_SECONDS}` }
-        });
-      } else {
-        const slug = decodeURIComponent(path.slice("/blog/".length));
-        const cat = categoryBySlug(slug);
-        if (cat) {
-          response = html(renderCategory(await fetchPosts(env), cat, site, noindex, env));
-        } else {
-          // One fetch of everything published: the post itself plus the
-          // neighbours and related list need the whole set, and it is small.
-          const all = await fetchPosts(env);
-          const post = all.find((p) => p.slug === slug);
-          response = post ? html(renderPost(post, site, noindex, env, all)) : notFound(site);
-        }
-      }
-    } catch (err) {
-      // A database hiccup must not return a broken page to a crawler that
-      // might then de-index it. 503 with no cache tells it to come back.
-      return new Response(
-        page({
-          title: "Temporarily unavailable — DeltaMint",
-          description: "The blog is temporarily unavailable.",
-          canonical: `${site}/blog`,
-          head: '<meta name="robots" content="noindex">',
-          body: `<h1>Temporarily unavailable</h1><p>Please try again shortly.</p>`
-        }),
-        {
-          status: 503,
-          headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "retry-after": "120" }
-        }
-      );
-    }
-
-    if (noindex) response = withNoIndexHeader(response);
-    if (response.status === 200) ctx.waitUntil(cache.put(request, response.clone()));
-    return response;
+    return withSecurityHeaders(await handle(request, env, ctx));
   }
 };
+
+async function handle(request, env, ctx) {
+  const url = new URL(request.url);
+  const path = url.pathname.replace(/\/+$/, "") || "/";
+  const site = siteUrl(request, env);
+  const noindex = isNoIndex(env);
+
+  // On a non-production deployment the Worker runs ahead of every asset
+  // (run_worker_first: true), so this is the one place that can guarantee no
+  // response leaves without the noindex header.
+  if (noindex && path === "/robots.txt") {
+    return new Response("User-agent: *\nDisallow: /\n", {
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+        "cache-control": "no-store",
+        "X-Robots-Tag": "noindex, nofollow"
+      }
+    });
+  }
+
+  const isBlogPath = path === "/blog" || path.startsWith("/blog/") || path === "/sitemap.xml";
+  // The home and pricing pages are static assets; their tracking tags are
+  // injected below on the way out, for any that the page does not already
+  // carry itself.
+  if (!isBlogPath) {
+    // Anything else is a static asset. On production the Worker is not even
+    // invoked for these; on staging it is, purely to stamp the header.
+    let asset = await env.ASSETS.fetch(request);
+    if ((asset.headers.get("content-type") || "").includes("text/html")) {
+      const text = await asset.text();
+      // Those four pages carry their own hostname-guarded GA and Hotjar
+      // snippets inline, precisely because production's run_worker_first
+      // means this branch never runs for them. Should that config ever be
+      // widened to `true`, injecting again here would double-count every
+      // page view and record every session twice — so a tag whose id is
+      // already on the page is not added a second time. Cheap, and it makes
+      // the two halves safe to hold at once.
+      const already = (mark) => mark && text.includes(mark);
+      const tag =
+        (already(env.GA_MEASUREMENT_ID) ? "" : analyticsTag(env)) +
+        (already(`hjid:${env.HOTJAR_SITE_ID}`) ? "" : hotjarTag(env));
+      // Both tags call dmAnalyticsAllowed. The four hand-written pages
+      // define it themselves; any other asset would not, so it travels with
+      // the tags -- but only if the page has not already defined it, or the
+      // second definition would shadow the first mid-page.
+      const gate = tag && !text.includes("dmAnalyticsAllowed") ? CONSENT_GATE : "";
+      if (tag) asset = new Response(text.replace("</head>", `${gate}${tag}\n</head>`), asset);
+      else asset = new Response(text, asset);
+    }
+    return noindex ? withNoIndexHeader(asset) : asset;
+  }
+
+  const cache = caches.default;
+  const cached = await cache.match(request);
+  if (cached) return cached;
+
+  let response;
+  try {
+    if (path === "/sitemap.xml") {
+      const posts = await fetchPosts(env);
+      response = new Response(renderSitemap(posts, site), {
+        headers: {
+          "content-type": "application/xml; charset=utf-8",
+          "cache-control": `public, max-age=300, s-maxage=${CACHE_SECONDS}`
+        }
+      });
+    } else if (path === "/blog") {
+      response = html(renderIndex(await fetchPosts(env), site, noindex, env));
+    } else if (path === "/blog/feed.xml") {
+      response = new Response(renderFeed(await fetchPosts(env), site), {
+        headers: { "content-type": "application/rss+xml; charset=utf-8", "cache-control": `public, max-age=300, s-maxage=${CACHE_SECONDS}` }
+      });
+    } else {
+      const slug = decodeURIComponent(path.slice("/blog/".length));
+      const cat = categoryBySlug(slug);
+      if (cat) {
+        response = html(renderCategory(await fetchPosts(env), cat, site, noindex, env));
+      } else {
+        // One fetch of everything published: the post itself plus the
+        // neighbours and related list need the whole set, and it is small.
+        const all = await fetchPosts(env);
+        const post = all.find((p) => p.slug === slug);
+        response = post ? html(renderPost(post, site, noindex, env, all)) : notFound(site);
+      }
+    }
+  } catch (err) {
+    // A database hiccup must not return a broken page to a crawler that
+    // might then de-index it. 503 with no cache tells it to come back.
+    return new Response(
+      page({
+        title: "Temporarily unavailable — DeltaMint",
+        description: "The blog is temporarily unavailable.",
+        canonical: `${site}/blog`,
+        head: '<meta name="robots" content="noindex">',
+        body: `<h1>Temporarily unavailable</h1><p>Please try again shortly.</p>`
+      }),
+      {
+        status: 503,
+        headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "retry-after": "120" }
+      }
+    );
+  }
+
+  if (noindex) response = withNoIndexHeader(response);
+  if (response.status === 200) ctx.waitUntil(cache.put(request, response.clone()));
+  return response;
+}
