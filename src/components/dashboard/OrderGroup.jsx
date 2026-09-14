@@ -543,7 +543,7 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved, broke
               )}
               {canReprice && editing && (
                 <div className="w-full space-y-2">
-                <div className="flex flex-wrap items-end gap-3">
+                <div className="flex flex-wrap items-end gap-3 min-w-0">
                   <label className="flex flex-col gap-1">
                     <span className="text-[10px] uppercase tracking-wide text-slate-400">
                       {order.type === "limit" ? "Limit" : "Price"}
@@ -560,6 +560,9 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved, broke
                         step={0.01}
                         min={0.01}
                         ariaLabel="New limit price"
+                        // 96px of text, which holds a four-figure limit and its
+                        // cents with room to spare. The original w-28 left under
+                        // 50px and rendered $715.03 as "715.".
                         className="w-44"
                       />
                     </span>
@@ -615,7 +618,15 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved, broke
                       min={isEquity ? 0 : 1}
                       max={maxQty || undefined}
                       ariaLabel="New quantity"
-                      className="w-40"
+                      // WIDE ENOUGH FOR WHAT IT NOW HOLDS. `NumberField` spends
+                      // 64px on its two buttons and 16px on padding, so the
+                      // visible text area is the class width minus 80. At w-40
+                      // that is 80px, and a nine-decimal share count --
+                      // "9.000000818", eleven characters at ~8.4px each -- needs
+                      // about 95. It cropped the moment the precision fix let
+                      // that number exist. w-52 gives 128px, which also carries
+                      // a four-figure lot with nine places behind it.
+                      className="w-52"
                     />
                   </label>
                   <ConfirmAction
