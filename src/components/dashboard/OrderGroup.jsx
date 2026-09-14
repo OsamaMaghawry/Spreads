@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronRight, Loader2, Pencil, X, BookmarkPlus } from "lucide-react";
+import { ChevronRight, Pencil, X, BookmarkPlus } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { parseOCC } from "@/lib/occ";
 import { dayChange, dayChangeLabel } from "@/lib/dayChange";
@@ -7,7 +7,7 @@ import useLiveSetup from "@/components/open/useLiveSetup";
 import NumberField from "@/components/common/NumberField";
 import ConfirmAction from "@/components/common/ConfirmAction";
 import { fmtMoney } from "@/lib/format";
-import { orderNetKind, saveRefusalFor } from "@/lib/orderNet";
+import { orderNetKind, saveRefusalFor, isClosingTicket } from "@/lib/orderNet";
 import { saveOrder } from "@/lib/savedOrders";
 import { toast } from "@/components/ui/use-toast";
 
@@ -85,6 +85,9 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved }) {
   // new id; the parent refetches and this row is replaced by the new one.
   const [editing, setEditing] = useState(false);
   const [price, setPrice] = useState("");
+  // Quantity is editable now too. Held as typed and read where it is used, so
+  // a half-typed number is never rewritten under the cursor.
+  const [qtyEdit, setQtyEdit] = useState("");
   const state = stateOf(order);
   // Pulling a working order off the market and keeping the ticket.
   const [saving, setSaving] = useState(false);
@@ -149,6 +152,10 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved }) {
   // agreed to something. A control that cannot work must not be presented as
   // one that can, and the reason belongs beside it rather than behind it.
   const saveRefusal = saveRefusalFor(order);
+  // Read from the same helper the saved cards use, so "is this an exit" has
+  // one answer across the whole feature. It decides two things here: whether
+  // the quantity may be raised, and how the Update confirmation is worded.
+  const closingOrder = isClosingTicket(order.legs);
   // The underlying's move today, from the previous close syncAccounts carries.
   const change = dayChange(market.spot || order.spot, order.prevClose);
   // spreadQuote answers in debits. A closing order pays one; an opening credit
@@ -303,16 +310,42 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved }) {
 
   const startEdit = () => {
     setPrice(order.limitPrice != null ? Math.abs(Number(order.limitPrice)).toFixed(2) : "");
+    setQtyEdit(String(order.qty ?? ""));
     setEditing(true);
   };
   const reprice = async () => {
     const p = Number(price);
     if (!(p > 0)) { setError("Enter a price above zero."); return; }
-    if (await call({ action: "replace", limitPrice: p }, "Could not change the price.")) setEditing(false);
+    const q = Number(qtyEdit);
+    if (!(q > 0) || !Number.isInteger(q)) { setError("Enter a whole quantity above zero."); return; }
+    if (closingOrder && q > Number(order.qty)) {
+      setError(`This order is closing a position, so it cannot be raised above the ${order.qty} it was sent for.`);
+      return;
+    }
+    const payload = { action: "replace", limitPrice: p };
+    // Only sent when it actually changed. `replaceBody` skips an absent qty,
+    // and an unchanged one is noise in the patch that Alpaca may answer to.
+    if (q !== Number(order.qty)) payload.qty = q;
+    if (await call(payload, "Could not change the order.")) setEditing(false);
   };
 
   // The market, as its own thing, above the buttons. It was previously nested
   // inside the price editor, which is why it only existed while repricing.
+  // What Update will actually do, in the trader's own numbers. Built here so
+  // the confirmation names the change rather than the control -- "Send the
+  // change" means nothing without the two figures beside it.
+  const nextPrice = Number(price);
+  const nextQty = Number(qtyEdit);
+  const priceChanged = Number.isFinite(nextPrice) && nextPrice > 0 && nextPrice !== Math.abs(Number(order.limitPrice));
+  const qtyChanged = Number.isFinite(nextQty) && nextQty > 0 && nextQty !== Number(order.qty);
+  const changed = priceChanged || qtyChanged;
+  const unitWord = isEquity ? "shares" : "contracts";
+  const updateQuestion = !changed
+    ? "Nothing has changed yet — adjust the price or the quantity first."
+    : `This replaces the order at your broker${
+        priceChanged ? ` at ${money(nextPrice)}` : ` at ${money(order.limitPrice)}`
+      }${qtyChanged ? `, for ${nextQty} ${unitWord} instead of ${order.qty}` : ""}. The old order stops working and a new one takes its place, so it loses its position in the queue.`;
+
   const marketStrip = (
     <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs tabular-nums">
       <span className="text-slate-500">
@@ -476,40 +509,82 @@ export default function OrderGroup({ accountId, order, onChanged, onSaved }) {
 
           {live && (
             <div className="flex flex-wrap items-center gap-2 mt-3">
+              {/* NO CONFIRMATION HERE, and putting one here was my mistake.
+                  The owner: *"Pressing change price is not sending anything.
+                  This was never the problem ... I wanted the confirmation
+                  after clicking Update or Cancel Order."*
+
+                  He is right, and the principle is worth stating because it
+                  decides where every future confirmation goes: CONFIRM WHAT
+                  REACHES THE BROKER, nothing else. Opening an editor changes
+                  no money. A confirmation on it is friction that teaches the
+                  trader to click through the two that matter. */}
               {canReprice && !editing && (
-                <ConfirmAction
-                  label="Change price"
-                  icon={<Pencil className="w-3.5 h-3.5" />}
-                  question="Open the price editor? Nothing changes at your broker until you press Update."
-                  confirmLabel="Open the editor"
-                  onConfirm={startEdit}
-                  busy={busy}
-                />
+                <button
+                  onClick={startEdit}
+                  disabled={busy}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs hover:bg-slate-50 transition-colors disabled:opacity-50"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  Change price or quantity
+                </button>
               )}
               {canReprice && editing && (
                 <div className="w-full space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-slate-400 text-xs">$</span>
-                  {/* The same −/+ control every other price field uses. A bare
-                      number input renders no spinner at all on iOS Safari, so
-                      on a phone the only way to move the price was to retype
-                      the whole thing. */}
-                  <NumberField
-                    value={price}
-                    onChange={setPrice}
-                    step={0.01}
-                    min={0.01}
-                    ariaLabel="New limit price"
-                    className="w-32"
+                <div className="flex flex-wrap items-end gap-3">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] uppercase tracking-wide text-slate-400">
+                      {order.type === "limit" ? "Limit" : "Price"}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-slate-400 text-xs">$</span>
+                      {/* The same −/+ control every other price field uses. A
+                          bare number input renders no spinner at all on iOS
+                          Safari, so on a phone the only way to move the price
+                          was to retype the whole thing. */}
+                      <NumberField
+                        value={price}
+                        onChange={setPrice}
+                        step={0.01}
+                        min={0.01}
+                        ariaLabel="New limit price"
+                        className="w-28"
+                      />
+                    </span>
+                  </label>
+                  {/* QUANTITY, at the owner's request. `replaceBody` and
+                      `manageOrder` already carried `qty` -- only the field was
+                      missing, so changing size meant cancelling and rebuilding
+                      the whole ticket.
+
+                      A CLOSING order is capped at what it was sent for:
+                      raising it would try to close more than the position
+                      holds, which the broker refuses and which nobody means to
+                      do. An opening order is uncapped -- adding size to your
+                      own entry is a decision, not a mistake. */}
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] uppercase tracking-wide text-slate-400">
+                      {isEquity ? "Shares" : "Contracts"}
+                    </span>
+                    <NumberField
+                      value={qtyEdit}
+                      onChange={setQtyEdit}
+                      step={1}
+                      min={1}
+                      max={closingOrder ? Number(order.qty) || undefined : undefined}
+                      ariaLabel="New quantity"
+                      className="w-24"
+                    />
+                  </label>
+                  <ConfirmAction
+                    label="Update"
+                    tone="go"
+                    question={updateQuestion}
+                    confirmLabel="Send the change"
+                    onConfirm={reprice}
+                    busy={busy}
+                    disabled={!changed}
                   />
-                  <button
-                    onClick={reprice}
-                    disabled={busy}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100 transition-colors disabled:opacity-50"
-                  >
-                    {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                    Update
-                  </button>
                   {/* "Keep $396.01" read as a second price to choose, sitting
                       beside a box holding that same number — and as plain text
                       it did not look clickable at all. It is one thing: leave
