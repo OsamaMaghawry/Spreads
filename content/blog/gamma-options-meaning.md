@@ -42,7 +42,7 @@ It is quoted per share, the same way delta and the premium are. Multiply by 100
 and it reads as share-equivalents: a gamma of 0.07 means one contract's exposure
 shifts by roughly seven shares' worth for each dollar the stock moves.
 
-- **It is second order.** Nothing on the chain moves the premium except the inputs delta, theta and vega already describe. Gamma describes how one of those inputs is itself shifting while the move happens.
+- **It is second order.** Nothing on the chain moves the premium except the inputs delta, theta and vega already describe. Gamma describes how one of those sensitivities — delta — is itself shifting while the move happens.
 - **It is local, exactly as delta is.** Gamma has its own rate of change, so you cannot add it up dollar by dollar across a large move and expect the arithmetic to hold.
 - **It is model output.** It comes from the same pricing model that produces delta and theta, from the same live inputs, and it says nothing about what any stock will do.
 
@@ -51,6 +51,10 @@ strike whose gamma is small keeps roughly the delta it showed this morning; a
 strike whose gamma is large may not resemble its morning self by the close.
 
 ![The delta of one hypothetical 50-strike call plotted against the stock price forms an S-curve that is steepest where the stock sits at the strike, and gamma is the slope of that curve at any point.](/assets/blog/gamma-is-deltas-slope.svg)
+
+The 0.52 marked at the strike is the same number the delta post rounded to
+0.50 — both are correct readings of the same curve, and this post keeps the
+extra digit because gamma is the size of the change in it.
 
 ## Why do held options carry positive gamma and sold ones negative?
 
@@ -92,15 +96,16 @@ estimating a premium move that rounding costs nothing. Here it is worth carrying
 the extra hundredths, because the whole subject is a change of about seven of
 them.
 
-Now follow the premium through the same dollar. At $50 this call is worth about
-$2.29, the figure the [implied
-volatility](/blog/implied-volatility-options-explained) post priced it at; at
-$51 it is worth about $2.84. The gain is about $0.56 a share, where the
-starting delta on its own would have predicted $0.52.
+Now follow the premium through the same dollar. At $50 this call is worth
+$2.2862, the figure the [implied
+volatility](/blog/implied-volatility-options-explained) post rounds to $2.29;
+at $51 it is worth $2.8434. The gain is $0.5572 a share, where the starting
+delta of 0.5229 on its own would have predicted $0.5229 — a gap of about
+three and a half cents.
 
-That difference of a little over three cents is the curvature. Delta was not 0.52 for the whole
-trip — it climbed toward 0.59 on the way up, so the premium collected slightly
-more than a straight-line estimate allowed for. On a $1 move it is small change;
+That gap is the curvature. Delta was not 0.5229 for the whole trip — it
+climbed toward 0.591 on the way up, so the premium collected slightly more
+than a straight-line estimate allowed for. On a $1 move it is small change;
 the point is that it is there, and that it grows with the square of the move
 rather than in step with it.
 
@@ -117,8 +122,9 @@ close to 1 and there is little room left to move.
 | $50 | At the money | 0.52 | 0.069 |
 | $56 | Deep in the money | 0.85 | 0.036 |
 
-The middle row is the largest, which is the hump the diagram above draws. The
-outer rows are lower but not dramatically so, and the reason is worth stating:
+The middle row is the largest — it sits inside the steep, highlighted section
+of the S-curve the diagram above draws. The outer rows are lower but not
+dramatically so, and the reason is worth stating:
 30 days at this volatility spreads the distribution of outcomes wide enough that
 $44 and $56 are both still live. Shorten the calendar or lower the volatility
 and the same three figures separate much further.
@@ -154,7 +160,7 @@ headline.
 
 - **It matters where delta is moving fastest.** A strike near the stock price with days rather than months left is one whose exposure can change materially in an afternoon.
 - **It matters least far from the strike with time to run.** There, delta drifts slowly and this morning's reading is still roughly this afternoon's.
-- **It compounds on a sold option.** Negative gamma means the exposure grows in whichever direction is going against the position, so the same dollar of stock movement does progressively more each time.
+- **It compounds on a sold option, up to a point.** Negative gamma means the exposure grows in whichever direction is going against the position, so each dollar does a bit more than the last — until the option is deep enough in the money that its delta approaches 1 and the damage tops out at the stock's own rate.
 - **It never acts alone.** Theta and vega pull on the same premium in the same session, so no single day's price change is attributable to gamma by itself.
 - **It is not a forecast.** Like delta, it is arithmetic on today's prices and carries no information about direction.
 
