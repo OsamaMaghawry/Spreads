@@ -81,7 +81,10 @@ option's exposure grows into the move that favours it and shrinks out of the one
 that does not; a sold option's exposure does the opposite, and does it without
 anybody placing an order.
 
-## Example: what one dollar does to delta
+A position carrying positive gamma is described as long gamma; one carrying
+negative gamma, short gamma.
+
+## Example: how much delta changes on a $1 move
 
 Take the hypothetical 50-strike call used earlier in this series, with 30 days
 left and the stock at $50. Only the stock price changes; the strike, the
@@ -109,7 +112,7 @@ than a straight-line estimate allowed for. On a $1 move it is small change;
 the point is that it is there, and that it grows with the square of the move
 rather than in step with it.
 
-## Why is gamma largest at the money?
+## Why is gamma highest at the money?
 
 Delta has to travel from near 0 to near 1 over the life of a call, and almost
 all of that travel happens while the stock is near the strike. Far below it,
