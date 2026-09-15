@@ -16,12 +16,26 @@ page (Paper $0 / Pro $39 / Desk $99) was false against the code on seven
 rows, and the watch on `main` threw on every account (fixed the same day,
 `a7db799`).
 
+**Staleness note, added 2026-09-15, not a full re-audit.** Two weeks and
+~40 shipped changes have passed (`docs/ops/shipped.md`); this table has not
+been re-walked line by line. What is confirmed current, because the Tuesday
+backlog reconciliation this same day read the code directly: the Screener →
+Scanner rename (row paths below corrected accordingly, `8a51f95`); the
+Scanner can now also sweep the entire market, not just Top-50/S&P-500/custom
+(a new pre-filtered universe option, `dcf0f17`); the false pricing page named
+above no longer exists at all (see `pricing.md` §1). Everything else below —
+Positions Monitor's ratio-spread and book-risk work, the Orders tab rebuild,
+the Broker tab and multi-close, Account Analysis's daily equity curve, Demo
+mode — shipped since this file's last full pass and is not yet reflected row
+by row. Treat rows outside Screener/Scanner as directionally right, not
+verified today.
+
 ## Screener
 
 | # | What the user gets | Where | Live | Call |
 | --- | --- | --- | --- | --- |
-| S1 | Sweep a universe for credit setups, four tickers a batch, results streaming in ranked | `src/pages/Screener.jsx`, `screener/useMarketScan.js`, `scanEntries/index.ts`, `_shared/optionScan.ts` | main | FREE |
-| S2 | Universe: top 50 mega caps, ~500 S&P names, or a custom list. No ETFs or indices | `src/lib/sp500.js`, `screener/ScreenerConfig.jsx` | main | FREE |
+| S1 | Sweep a universe for credit setups, four tickers a batch, results streaming in ranked | `src/pages/Scanner.jsx`, `scanner/useMarketScan.js`, `scanEntries/index.ts`, `_shared/optionScan.ts` | main | FREE |
+| S2 | Universe: top 50 mega caps, ~500 S&P names, a custom list, **or the entire market** — a cheap price/volume/spread/capital-per-contract sieve (`_shared/universe.ts`, `dcf0f17`, 2026-09-09) runs first so a full options-chain fetch only hits survivors. No ETFs or indices in any universe | `src/lib/sp500.js`, `scanner/ScannerConfig.jsx`, `_shared/universe.ts` | main | FREE |
 | S3 | Five strategies — put spread, call spread, iron condor, cash-secured put, covered call — and a Wheel scan that runs the last two together; covered calls scan the shares the account holds at their cost basis | `scanEntries`, `findEntry`, `_shared/optionScan.ts` `buildSingle()`, `_shared/heldShares.ts`, `open/StrategyPicker.jsx` | staging | FREE |
 | S4 | Filters: DTE, short delta, wing width, min credit, max risk per unit, min return on risk, put/call ratio. No volume, OI, bid-ask or IV filter | `ScreenerConfig.jsx`, `ScanFilters.jsx` | main | FREE |
 | S5 | Exact wing width or skip — never a wider spread than asked | `optionScan.ts` `pickWing()` | main | FREE |

@@ -6,18 +6,27 @@ number here becomes live only when the owner flips `billing_enforced` in
 Admin and the page ships through the normal release path.
 
 Supersedes the 1 Sep pitch ("The Nineteen Dollar Case"). What changed, and
-why, is in §3.
+why, is in §3. Current-state section (§1) and decision #1 re-checked against
+the code on 2026-09-15 — see the dated notes inline. No number in §2–§5
+moved this cycle; nothing shipped that bears on the $29/$290 case.
 
-## 1. Current state
+## 1. Current state — updated 2026-09-15
 
-- **No billing exists.** No Stripe code, no plan column, no subscription
-  table. (Being built on staging, 2 Sep — see `docs/ops/queue.md`.)
-- **A pricing page is published** at `/pricing` with Paper $0 / Pro $39 /
-  Desk $99 and a nine-row matrix of which at least seven rows are false
-  against the code: position caps, account caps, condors Pro-only,
-  single-leg closing Pro-only, risk aggregation Desk-only, PDF Desk-only,
-  "60-second auto-refresh". All three buttons go to `/register`. It is
-  replaced by the two-tier page below at the Stripe switch.
+- **Billing code exists now, gated off.** Stripe checkout
+  (`createCheckoutSession`), a billing portal, a plan column and
+  entitlement gating (`_shared/entitlement.ts`) shipped 2026-09-02. Price
+  amounts live in Stripe's own dashboard via `STRIPE_PRICE_MONTHLY` /
+  `STRIPE_PRICE_ANNUAL` env vars, not in code, so a price change is never a
+  deploy. Everything sits behind `billing_visible` (migration `0027`,
+  default `false`) — off until the owner flips it, exactly as designed.
+- **The old false pricing page is gone, not replaced.** Decision #1 below is
+  done: `/pricing` (Paper $0 / Pro $39 / Desk $99, false on seven rows) no
+  longer exists as a route or a static asset. `landing/src/index.js`
+  explicitly keeps it out of the sitemap "while the product is a demo."
+  Nobody sees a false price today. The two-tier page in §2 still needs to be
+  built and published at the Stripe switch — reducing the old page "to one
+  line" was the fallback the decision offered; removing it outright is the
+  stronger version of the same instruction and satisfies it.
 - Pre-revenue; Alpaca live-trading approval pending. Paper is free by design.
 - Our marginal cost per free user is Supabase invocations, not broker data:
   every broker call runs on the user's own token or keys, and the price
@@ -124,13 +133,16 @@ matrix goes.
 ## 4. The wheel and the automation
 
 **Wheel execution, human-clicked** (sell the put, take assignment, sell the
-call against the shares): **inside Live at $29, on ship, no price change.**
+call against the shares): **inside Live at $29, no price change.**
 A strategy is not a tier; the monitor already shows the wheel with an
 adjusted basis; charging separately to place what we display is the shape
-of a feature that gets refunded. The reading half is complete; the writing
-half (single-leg setups in the scanner and open ticket) is the next product
-build. Anchor: QuantWheel's whole business is this at ~$37 and does not
-route to Alpaca.
+of a feature that gets refunded. **Both halves are complete** — the reading
+half, and the writing half (single-leg cash-secured-put and covered-call
+setups open from the Scanner and the open ticket), which shipped
+2026-09-02, ahead of this pricing proposal's own 2026-09-02 date; "the next
+product build" language here was wrong the day it was written and is
+corrected now. Anchor: QuantWheel's whole business is this at ~$37 and does
+not route to Alpaca.
 
 **The automated bot** (wheel, cash-secured puts, covered calls, as rules the
 user configured): **a price rise, not an add-on or a tier — "Live +
@@ -156,8 +168,10 @@ accounts. A $59 subscriber counts once.
 
 ## 6. Decisions for the owner
 
-1. Replace the live pricing page at the Stripe switch, or reduce it now to
-   one line. Not leave it.
+1. ~~Replace the live pricing page at the Stripe switch, or reduce it now to
+   one line. Not leave it.~~ **Done, 2026-09-15 check.** The false page is
+   removed, not just reduced. Still open: building and publishing the
+   two-tier page from §2 at the Stripe switch.
 2. Live at $29 / $290, held for 60 days.
 3. Charge from the first live connection after the switch date; 30 days
    free on Live; everyone connected before the switch free for 90 days.
