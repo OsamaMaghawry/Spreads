@@ -94,6 +94,7 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-14 · Closing a position no longer shows a blank white screen: the
 - 2026-09-14 · (staging) Reopening a saved order ticket no longer shows a
 - 2026-09-14 · (staging) An eighth foundations post — implied volatility
 - 2026-09-14 · The Screener is now the Scanner everywhere a user reads it
@@ -103,7 +104,6 @@ From `docs/ops/shipped.md`, newest first.
 - 2026-09-13 · The weekly digest email now actually sends to every
 - 2026-09-12 · A negative options buying power (an account in deficit) now
 - 2026-09-12 · The weekly digest email was rebuilt into what a user
-- 2026-09-12 · A tax-review disclaimer that used to appear only on page
 
 ## Server functions
 
