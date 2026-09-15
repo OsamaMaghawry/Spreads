@@ -3,7 +3,31 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
-- 2026-09-14 · (staging) Reopening a saved order ticket no longer shows a
+- 2026-09-14 · Closing a position no longer shows a blank white screen: the
+  close ticket read its own share/contract quantity before the value existed
+  (a JavaScript temporal-dead-zone bug in `CloseDialog`), so every attempt to
+  close crashed the whole page with no message, live on production since the
+  morning's order-card release. The quantity is now read after it is set, and
+  the app gets its first error boundary anywhere — a crash is now caught at
+  the smallest scope, shows what broke with a way back, and is recorded for
+  later instead of unmounting the entire page. A new lint rule
+  (`no-use-before-define` for `let`/`const`/`class` across `src/components`
+  and `src/pages`) stops the same class of bug from shipping again
+  (`c576da7`, `b9c2555`, merged straight to `main` in `c835e0f`).
+- 2026-09-14 · **The `staging`/`main` gap closed.** The same merge
+  (`c835e0f`) that carried the close-ticket fix above also carried the rest
+  of `staging`'s branch history into `main` — verified: `git diff --stat
+  origin/main origin/staging` now shows zero difference in `src/` or
+  `supabase/`, only same-day content and ops-log files. Every entry below
+  still marked `(staging)` reached production `main` today, not on the date
+  it's listed under. The two most recent are pulled forward here; the
+  practical effect of the rest — Broker tab, whole-market scan, Wheel
+  single-leg writes, Demo mode, the `dumpBrokerFeed` auth hole, price-walk
+  and multi-close fixes, the daily-equity/Account-Analysis rebuild, and more
+  — is that it is now live for every user, not staging-only. `features.md`
+  and `backlog.md` have been re-checked against this and updated where it
+  changed a fact; nothing currently open on the backlog was among it.
+- 2026-09-14 · Reopening a saved order ticket no longer shows a
   false "No ceiling"/"Loss not bounded" risk warning, blank strikes and
   "Delta NaN" for a setup it never actually rebuilt — saved orders now
   store the setup itself (strikes, expiry, deltas, credit, max risk), so
@@ -11,8 +35,9 @@ English. Newest first.
   legs alone; risk now reads bounded, unbounded, or "not known" rather
   than treating "we don't know" the same as "unlimited loss"
   (`3ab139a`, migration `0053`).
-- 2026-09-14 · (staging) An eighth foundations post — implied volatility
-  explained — is live on staging (not yet merged to production `main`):
+- 2026-09-14 · An eighth foundations post — implied volatility
+  explained — is live on production (merged to `main` the same day as the
+  close-ticket fix, `c835e0f`):
   what IV measures, why every contract on a chain reprices together
   because they're all priced off one shared expected move, and what vega
   turns a change in it into in dollars; cleared through desk-editor and
