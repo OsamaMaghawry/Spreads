@@ -32,9 +32,102 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 18 | Put credit spread | put credit spread explained | credit spread | tastylive, Investopedia | width, credit and the executable price |
 | 19 | Call credit spread | call credit spread explained | credit spread | tastylive | the mirror, and what is different about upside |
 | 20 | Iron condor | iron condor explained | iron condor | Investopedia, tastylive, OptionStrat | two spreads, one risk, per-side netting |
+| 21 | Width | credit spread width explained | vertical spread width | SoFi, Aeromir, theoptionpremium, ProsperityPub; finchtrade glossary and TradingView LIBOR/OIS chart pages padding the tail | what width changes — collateral, max loss and credit per dollar at risk — and why the credit does not scale with it |
+| 22 | Choosing a strike by delta | credit spread delta strike selection | credit spread strike selection | optionstradingiq, theoptionpremium, creditspread.net, strike.money, a Medium post, Wikipedia | what the delta number does to distance, credit and collateral, described without naming a number as the right one |
+| 23 | Days to expiry | best dte for credit spreads | days to expiry | daystoexpiry, datadrivenoptions, advancedautotrades; two YouTube results and a TradingView 0DTE script in the top set | what actually moves across DTE — decay rate, gamma, credit and how many days the collateral is held |
+| 24 | Earnings and short premium | selling options before earnings | earnings options | Schwab, Option Alpha, Option Samurai, Yahoo and Barchart syndicated columns, Pro Trader Dashboard | what the event does to the premium and to a position still open across the date, not a trade to place around it |
+| 25 | Calendar spreads | calendar spread explained | calendar spread | Fidelity, CME, Option Alpha, TradingBlock, Wikipedia, Corporate Finance Institute, a broker learn hub | two expirations on one strike, and what is left in the account the morning the short leg expires |
+| 26 | Diagonal spreads | calendar vs diagonal spread | diagonal spread | wallstreetmojo, SoFi, TradeStation (twice), Option Alpha, Options Playbook, Wikipedia; Indian broker blogs hold the comparison phrasing | the one strike difference that turns a calendar into a directional position, leg by leg |
+| 27 | Poor man's covered call | poor mans covered call | poor man's covered call | Option Alpha, moomoo, TradingBlock, TradeStation, Option Samurai, CapTrader; Medium and Substack income-claim posts in the tail | what stands in for the shares, and what assignment on the short call looks like when there are none |
+| 28 | Rolling a short option | rolling options explained | rolling options | Saxo, Option Alpha, TradeStation, Wealthsimple, Robinhood support, options.cafe | a roll is two fills — the close realises a result, the open is a new position with its own risk |
+| 29 | Covered calls on assigned shares | covered call after assignment | covered call assignment | QuantWheel, VectorVest, optionstradingiq, CashFlowMachine; a Quicken community thread, a Substack and TradingView chart ideas in the top set | what the shares cost once they arrive, and what a call written above or below that number does |
+| 30 | Cost basis on the wheel | wheel strategy cost basis | wheel strategy | QuantWheel (twice), tradingoptionscashflow (twice), optionwheellogic, optionwheeltracker, optionstradingiq — tracker apps and spreadsheets almost exclusively | the arithmetic turn by turn, and what the broker's own basis figure does not include |
 | M48 | What a credit spread actually risks | credit spread max loss before expiration | credit spread max loss | tastytrade (short put vertical), moomoo, Schwab, broker learn hubs; TradingView chart-idea pages padding the tail | max loss is the expiration number — what the collateral holds, what the mark does, and what assignment changes in between |
 
-Rows 21–65 are added by the Wednesday run as their turn approaches.
+Rows 31–65 are added by the Wednesday run as their turn approaches.
+
+## Reading for rows 21–30 (read 16 Sep 2026)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size.
+
+**Row 21 — width.** Disambiguation trap: the unqualified phrase drifts to
+fixed income (bond "spread widening" glossary pages, TradingView LIBOR/OIS
+chart pages sit alongside the options results). Same trap `M48` already
+recorded for "credit spread risk" — **do not target "credit spread width"
+bare**; the head term for this row is **vertical spread width** or "credit
+spread width options".
+
+**Row 22 — strike by delta.** A Medium post and Wikipedia in the top set is a
+text-coverage gap, but every ranking page answers with a prescribed delta
+band ("0.15–0.25", "20–30 delta", a "90% rule"). That is the gap and the
+thing we do not copy: the angle describes what the number does, and proposes
+no band as correct.
+
+**Row 23 — DTE.** Winnable and video-heavy: two YouTube results and a
+TradingView 0DTE script hold part of the top set, so no text authority holds
+the intent. Every text page that does rank converges on "45 DTE is optimal",
+sourced back to one vendor's backtest — a recommendation this angle does not
+repeat. The target query stays "best dte for credit spreads" because that is
+how people search it; the post's own title and angle do not answer with a
+best.
+
+**Row 24 — earnings.** Hard-ish and advice-framed: broker education plus
+syndicated ticker columns, titled "the three best strategies for earnings" /
+"how to capitalise on IV crush". Demand is real — it is a playbook theme
+("got burned holding through earnings") — but the page-one framing is advice
+we do not write. Targets the searched phrase, not the searched framing.
+
+**Row 25 — calendars.** Hard: exchange and broker education end to end
+(Fidelity, CME, Option Alpha), plus Wikipedia, with little tail. Alpaca's own
+learn page ranks here; not used as a reason to name the broker — `PLAN.md`
+says the broker is named only when the post is about the integration. The
+winnable ground is the after-expiry mechanics, which has no distinct
+phrasing of its own.
+
+**Row 26 — diagonals.** The bare "diagonal spread explained" is
+broker/strategy-guide territory; "calendar vs diagonal spread" surfaces
+thinner results (Indian broker blogs, a moomoo community post, a wiki-style
+site) closer to the actual question, so the target query was moved off
+`PLAN.md`'s literal phrasing to the comparison form — flag at publication if
+the syllabus phrasing is wanted instead.
+
+**Row 27 — PMCC.** Crowded but winnable: Medium and Substack rank (a coverage
+gap), though the tail is full of income-claim titles ("How I generate
+thousands…"). No ranking page covers what assignment on the short call does
+when there is no stock to deliver — the unoccupied ground. Topic 43
+("pmcc vs covered call") targets adjacent phrasing; needs a cannibalisation
+check when both are closer to publication.
+
+**Row 28 — rolling.** Hard-ish: broker help pages (Robinhood, Saxo,
+Wealthsimple) plus funded education, almost all framing a roll as an outcome
+lever ("lock in profits, reduce losses, buy time"). Only one result named the
+accounting fact PLAN.md's angle asks for — that the close leg realises a
+result and the open leg is a new position with its own risk.
+
+**Row 29 — assigned-share covered calls.** Winnable: a Quicken community
+thread, a Substack comment page and TradingView chart ideas hold part of the
+top set, nothing authoritative owns it. Factual note for the writer: several
+ranking pages assert assignment on a covered call is *always* profitable,
+true only relative to the strike and not to a cost basis — sharper on shares
+that arrived by put assignment.
+
+**Row 30 — wheel cost basis.** Winnable on SERP shape but the competing set
+is almost entirely product, not content: wheel trackers and spreadsheet
+tools (QuantWheel, optionwheeltracker, optionwheellogic,
+tradingoptionscashflow), thin on arithmetic, heavy on "the number your
+broker shows is wrong — use our tracker." One adjacent result is titled
+"Wheel Strategy Returns: Real Monthly Income Data" — the register this post
+must not match. Names no product capability: the wheel's scanner and order
+placement are not live per `PLAN.md`, so the angle stays the arithmetic only.
+
+**Could not establish, rows 21–30:** search volume, difficulty and current
+position for any phrasing above; whether results are personalised or
+localised; whether "poor man's covered call" or "PMCC" is the dominant
+phrasing for row 27 (both surface); and whether the row 21 or row 29 angles
+have any searched phrasing of their own — those searches returned generic
+explainers, so each post owns its idea with no query to target it.
 
 ## Reading for row 6 — option delta explained (read 12 Sep 2026)
 
