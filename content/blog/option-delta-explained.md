@@ -136,7 +136,7 @@ one. Which of those a trader wants is not something delta answers.
 - **Why is my put showing a negative delta?** Because a put gains value when the stock falls. A put at −0.30 is expected to lose about $0.30 a share on a $1 rise.
 - **Is an at-the-money delta always exactly 0.50?** No. It sits near 0.50 and drifts with the time remaining and other inputs, so treat it as an approximation.
 - **Can one option's delta exceed 1?** No. A share behaves like a delta of 1, and an option cannot outrun the shares it is written on.
-- **Does delta change as the stock moves?** Yes, continuously. It is a snapshot at one stock price rather than a fixed property of the contract, and the rate at which it drifts is its own number, later in this series.
+- **Does delta change as the stock moves?** Yes, continuously. It is a snapshot at one stock price rather than a fixed property of the contract, and [the rate at which it drifts](/blog/gamma-options-meaning) is its own number, later in this series.
 
 ## The bottom line
 

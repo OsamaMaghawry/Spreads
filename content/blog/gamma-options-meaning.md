@@ -2,7 +2,7 @@
 title: "Gamma options meaning: what it measures, and when it matters"
 slug: gamma-options-meaning
 excerpt: Gamma is the rate at which delta itself changes as the stock moves, and it is largest for a strike sitting right at the money.
-meta_description: Gamma is how fast an option's delta changes as the stock moves. Why it peaks at the money, why it doesn't flip sign like delta, and when to ignore it.
+meta_description: Gamma is how fast an option's delta changes as the stock moves. Why it peaks at the money, why it doesn't flip sign like delta, and when it barely matters.
 author: DeltaMint
 category: foundations
 series_order: 9
@@ -27,7 +27,7 @@ delta, it says exactly how stale that delta estimate is about to become.
 - A short time to expiration concentrates gamma into a narrower band around the strike, which is also the window where short theta is largest.
 - Gamma is model output, a snapshot at one stock price and one moment, not a forecast of what the stock will do next.
 
-## Gamma is delta's own rate of change
+## What does gamma measure, and how is it different from delta?
 
 Delta already answers "how much does the price move." Gamma answers a
 different question: how quickly does that answer change as the stock keeps
@@ -46,7 +46,7 @@ recomputed from the current stock price, strike, time left and [implied
 volatility](/blog/implied-volatility-options-explained) — change any one input
 and both numbers move without the stock doing anything at all.
 
-## Gamma is largest at the money, and fades toward either extreme
+## Why is gamma largest at the money?
 
 Take the hypothetical 50-strike call already used to show [delta across
 moneyness](/blog/option-delta-explained), 30 days to expiration, priced off a
@@ -96,7 +96,7 @@ behaves close to the stock itself. A $1 move changes little about an outcome
 that has mostly already resolved, and gamma is small there for exactly that
 reason.
 
-## Being long always means positive gamma, whether the option is a call or a put
+## Why is gamma positive for a long call and a long put?
 
 Delta's sign depends on whether the contract is a call or a put. Gamma's sign
 does not — it depends only on which side of the trade you are on.
@@ -130,7 +130,7 @@ though a spread nets its own long and short legs together, so its overall
 gamma depends on where the stock sits relative to both strikes, not on a
 single sign for the whole position.
 
-## A short time to expiration concentrates gamma right at the strike
+## Why does gamma get larger as expiration nears?
 
 Gamma does not sit still as expiration approaches. The same at-the-money
 strike shows a smaller gamma with two months left and a much larger one with
@@ -156,7 +156,7 @@ most to a short, near-dated, at-the-money book, watched day to day — a single
 long-dated position, held and rarely adjusted, rarely needs anyone to track it
 at all.
 
-## What a chain's gamma figure is not
+## What does gamma not tell you?
 
 A displayed gamma inherits every limit that applies to delta, because it comes
 from the identical model. It is a rate, computed at one stock price and one
