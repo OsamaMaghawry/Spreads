@@ -1,36 +1,42 @@
-<svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Five horizontal bars showing the estimated change in delta per $1 move in the stock for the same hypothetical 50-strike call, across five stock-price ranges. From $40 to $44 delta moves about 0.03 per dollar. From $44 to $48 it moves about 0.05 per dollar. From $48 to $52, spanning the strike, it moves about 0.08 per dollar, the longest bar. From $52 to $56 it falls back to about 0.05 per dollar. From $56 to $60 it falls further to about 0.03 per dollar. The bars rise toward the strike and fall away on both sides.">
-  <rect width="720" height="340" fill="#FFFFFF"/>
+<svg viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Five horizontal bars showing the estimated change in delta per $1 move in the stock for the same hypothetical 50-strike call, across five stock-price ranges, drawn against a track scaled from 0 to 0.10 with headroom above the tallest bar since gamma has no fixed ceiling. From $40 to $44 delta moves about 0.03 per dollar. From $44 to $48 it moves about 0.06 per dollar. From $48 to $52, straddling the strike, it moves about 0.07 per dollar, the longest bar. From $52 to $56 it falls to about 0.05 per dollar. From $56 to $60 it falls further to about 0.02 per dollar. The bars rise toward the strike and fall away on both sides, a little steeper on the way up than on the way down.">
+  <rect width="720" height="360" fill="#FFFFFF"/>
 
   <text x="188" y="50" font-size="15" text-anchor="end" fill="#767B8E">stock range</text>
   <text x="640" y="50" font-size="15" fill="#767B8E">delta per $1</text>
 
-  <!-- $40 to $44: 0.03 -->
+  <!-- track scaled 0 to 0.10, so a value fills value/0.10 of the 420px track -->
+
+  <!-- $40 to $44: about 0.03 -->
   <text x="188" y="96" font-size="17" font-weight="600" text-anchor="end" fill="#767B8E">$40–44</text>
   <rect x="204" y="76" width="420" height="28" rx="4" fill="#F1F2F6"/>
-  <rect x="204" y="76" width="158" height="28" rx="4" fill="#2E8B5F"/>
-  <text x="640" y="96" font-size="18" font-weight="600" fill="#14151C">0.03</text>
+  <rect x="204" y="76" width="126" height="28" rx="4" fill="#2E8B5F"/>
+  <text x="640" y="96" font-size="18" font-weight="600" fill="#14151C">~0.03</text>
 
-  <!-- $44 to $48: 0.05 -->
-  <text x="188" y="156" font-size="17" font-weight="600" text-anchor="end" fill="#767B8E">$44–48</text>
-  <rect x="204" y="136" width="420" height="28" rx="4" fill="#F1F2F6"/>
-  <rect x="204" y="136" width="263" height="28" rx="4" fill="#2E8B5F"/>
-  <text x="640" y="156" font-size="18" font-weight="600" fill="#14151C">0.05</text>
+  <!-- $44 to $48: about 0.06 -->
+  <text x="188" y="150" font-size="17" font-weight="600" text-anchor="end" fill="#767B8E">$44–48</text>
+  <rect x="204" y="130" width="420" height="28" rx="4" fill="#F1F2F6"/>
+  <rect x="204" y="130" width="252" height="28" rx="4" fill="#2E8B5F"/>
+  <text x="640" y="150" font-size="18" font-weight="600" fill="#14151C">~0.06</text>
 
-  <!-- $48 to $52: 0.08 (peak, spans the strike) -->
-  <text x="188" y="216" font-size="17" font-weight="600" text-anchor="end" fill="#767B8E">$48–52</text>
-  <rect x="204" y="196" width="420" height="28" rx="4" fill="#F1F2F6"/>
-  <rect x="204" y="196" width="420" height="28" rx="4" fill="#2E8B5F"/>
-  <text x="640" y="216" font-size="18" font-weight="600" fill="#14151C">0.08</text>
+  <!-- $48 to $52: about 0.07 (peak, straddles the strike) -->
+  <text x="188" y="204" font-size="17" font-weight="600" text-anchor="end" fill="#767B8E">$48–52</text>
+  <rect x="204" y="184" width="420" height="28" rx="4" fill="#F1F2F6"/>
+  <rect x="204" y="184" width="294" height="28" rx="4" fill="#2E8B5F"/>
+  <text x="640" y="204" font-size="18" font-weight="600" fill="#14151C">~0.07</text>
 
-  <!-- $52 to $56: 0.05 -->
-  <text x="188" y="276" font-size="17" font-weight="600" text-anchor="end" fill="#767B8E">$52–56</text>
-  <rect x="204" y="256" width="420" height="28" rx="4" fill="#F1F2F6"/>
-  <rect x="204" y="256" width="263" height="28" rx="4" fill="#2E8B5F"/>
-  <text x="640" y="276" font-size="18" font-weight="600" fill="#14151C">0.05</text>
+  <!-- $52 to $56: about 0.05 -->
+  <text x="188" y="258" font-size="17" font-weight="600" text-anchor="end" fill="#767B8E">$52–56</text>
+  <rect x="204" y="238" width="420" height="28" rx="4" fill="#F1F2F6"/>
+  <rect x="204" y="238" width="210" height="28" rx="4" fill="#2E8B5F"/>
+  <text x="640" y="258" font-size="18" font-weight="600" fill="#14151C">~0.05</text>
 
-  <!-- $56 to $60: 0.03 -->
-  <text x="188" y="316" font-size="17" font-weight="600" text-anchor="end" fill="#767B8E">$56–60</text>
-  <rect x="204" y="296" width="420" height="28" rx="4" fill="#F1F2F6"/>
-  <rect x="204" y="296" width="158" height="28" rx="4" fill="#2E8B5F"/>
-  <text x="640" y="316" font-size="18" font-weight="600" fill="#14151C">0.03</text>
+  <!-- $56 to $60: about 0.02 -->
+  <text x="188" y="312" font-size="17" font-weight="600" text-anchor="end" fill="#767B8E">$56–60</text>
+  <rect x="204" y="292" width="420" height="28" rx="4" fill="#F1F2F6"/>
+  <rect x="204" y="292" width="84" height="28" rx="4" fill="#2E8B5F"/>
+  <text x="640" y="312" font-size="18" font-weight="600" fill="#14151C">~0.02</text>
+
+  <!-- scale, with visible headroom above the tallest bar -->
+  <text x="204" y="344" font-size="13" fill="#767B8E">0</text>
+  <text x="624" y="344" font-size="13" text-anchor="end" fill="#767B8E">0.10</text>
 </svg>
