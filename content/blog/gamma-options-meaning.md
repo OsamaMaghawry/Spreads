@@ -63,18 +63,20 @@ it moved from the row above:
 | $56 | 0.85 | about +0.05 per $1, over a $4 move |
 | $60 | 0.95 | about +0.02 per $1, over a $4 move |
 
-The deltas above are rounded to two decimal places; the per-dollar figures
-come from the fuller model behind them, so subtracting two rows by hand lands
-close but not exactly on the number shown.
+The deltas above are rounded from the underlying model, except the at-the-money
+row: it is shown as a round 0.50 to match the figure already used in [delta
+across moneyness](/blog/option-delta-explained), while the model itself sits a
+little above that at $50. That is also why the 48-to-50 rate below reads a
+touch higher than subtracting the two printed numbers by hand would give.
 
 Read the third column on its own and the shape is the whole point: it climbs
 from $40 toward the strike, peaks in the $48-to-$52 band straddling it, and
-falls away again toward $60 — a little steeper on the way up than on the way
-down, since the curve is not perfectly symmetric around the strike. Each
-figure is an average rate across its interval rather than a value at one
-exact price, but the shape is the same one gamma describes: delta moves
-fastest for a $1 move while the stock sits near the strike, and progressively
-slower the further the stock already is from it.
+falls away again toward $60 — falling off a little faster above the strike
+than it climbed below it, since the curve is not perfectly symmetric around
+the strike. Each figure is an average rate across its interval rather than a
+value at one exact price, but the shape is the same one gamma describes:
+delta moves fastest for a $1 move while the stock sits near the strike, and
+progressively slower the further the stock already is from it.
 
 ![Five bars showing how much the same hypothetical 50-strike call's delta moves per $1 of stock price across five ranges, rising from about 0.03 near $40 to about 0.07 in the range straddling the $50 strike and falling back to about 0.02 near $60.](/assets/blog/gamma-across-moneyness.svg)
 
@@ -122,9 +124,11 @@ of that shared movement. Delta's sign depends on the contract; gamma depends
 only on which way delta is currently sliding.
 
 That is also why a book built from short options is described as "short
-gamma" as a whole, regardless of whether the short legs are calls, puts, or
-both sides of a spread. The sign comes from being short, not from which type
-of contract it is.
+gamma" as a whole, regardless of whether the short legs are calls or puts.
+The sign comes from being short, not from which type of contract it is —
+though a spread nets its own long and short legs together, so its overall
+gamma depends on where the stock sits relative to both strikes, not on a
+single sign for the whole position.
 
 ## A short time to expiration concentrates gamma right at the strike
 
@@ -165,8 +169,8 @@ stops being useful and starts being misleading.
 - **It does not price a gap.** The whole idea of a rate of change assumes the stock moves in small steps; a large overnight jump crosses the zone gamma describes in one move, and the smooth relationship it implies does not hold across that jump.
 
 The gap point is worth sitting with, because it is the one place the estimate
-quietly breaks down. Delta plus gamma together are a two-term estimate of how
-a price responds to a move in the stock, and like any such estimate its error
+quietly breaks down. Delta plus gamma together estimate how delta itself
+responds to the next move in the stock, and like any such estimate its error
 grows with the size of the move.
 
 Take the $50 row from the table above — delta 0.50, gamma about 0.07 — and
@@ -179,7 +183,7 @@ never meant to travel in one step.
 
 - **Is gamma quoted per share or per contract?** Per share, like delta. Multiply by 100 for one standard contract's total change in delta.
 - **Can gamma be negative for a long option?** No. A long call or a long put is always positive gamma; only being short flips the sign.
-- **Does gamma have a fixed maximum, the way delta is capped at 1?** No fixed ceiling exists. Its size also scales with the stock's own price, so a $500 stock's gamma runs much smaller than a $50 stock's at an equivalent setup — the table above describes this hypothetical $50 stock, not a number to expect on every chain.
+- **Does gamma have a fixed maximum, the way delta is capped at 1?** No fixed ceiling exists. Its size also scales inversely with the stock's own price, so a $500 stock's gamma runs much smaller than a $50 stock's at an equivalent setup — the table above describes this hypothetical $50 stock, not a number to expect on every chain.
 - **Why do people worry more about gamma near expiration than earlier in a trade?** Because that is when it is largest for an at-the-money strike, and the delta it is attached to is changing the fastest right where the outcome is still undecided.
 
 ## The bottom line
