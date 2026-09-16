@@ -66,8 +66,8 @@ it moved from the row above:
 The deltas above are rounded from the underlying model, except the at-the-money
 row: it is shown as a round 0.50 to match the figure already used in [delta
 across moneyness](/blog/option-delta-explained), while the model itself sits a
-little above that at $50. That is also why the 48-to-50 rate below reads a
-touch higher than subtracting the two printed numbers by hand would give.
+little above that at $50. That is also why the 48-to-50 rate in the third column above reads a touch
+higher than subtracting the two printed numbers by hand would give.
 
 Read the third column on its own and the shape is the whole point: it climbs
 from $40 toward the strike, peaks in the $48-to-$52 band straddling it, and
