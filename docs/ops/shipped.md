@@ -3,21 +3,38 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
-- 2026-09-14 · (staging) Reopening a saved order ticket no longer shows a
-  false "No ceiling"/"Loss not bounded" risk warning, blank strikes and
-  "Delta NaN" for a setup it never actually rebuilt — saved orders now
-  store the setup itself (strikes, expiry, deltas, credit, max risk), so
-  reopening one shows the real numbers instead of guessing from the wire
-  legs alone; risk now reads bounded, unbounded, or "not known" rather
-  than treating "we don't know" the same as "unlimited loss"
-  (`3ab139a`, migration `0053`).
-- 2026-09-14 · (staging) An eighth foundations post — implied volatility
-  explained — is live on staging (not yet merged to production `main`):
-  what IV measures, why every contract on a chain reprices together
+- 2026-09-16 · (backfilled) Two 2026-09-14 lines below were stale: both said
+  `(staging)` / "not yet merged to production `main`", but both actually
+  reached `main` — and, for the blog post, published live — the same day, in
+  the `c835e0f` merge (14:28 UTC). Migration `0053` must still be confirmed
+  applied to production for the saved-ticket write path to work there; see
+  `docs/ops/queue.md`'s open "Production's migration state is unverified"
+  item — that is a production-database question, not a shipped-ledger one.
+- 2026-09-14 · Closing a position no longer shows a blank white screen: the
+  close ticket read its own share/contract quantity before the value existed
+  (a JavaScript temporal-dead-zone bug in `CloseDialog`), so every attempt to
+  close crashed the whole page with no message, live on production since the
+  morning's order-card release. The quantity is now read after it is set, and
+  the app gets its first error boundary anywhere — a crash is now caught at
+  the smallest scope, shows what broke with a way back, and is recorded for
+  later instead of unmounting the entire page. A new lint rule
+  (`no-use-before-define` for `let`/`const`/`class` across `src/components`
+  and `src/pages`) stops the same class of bug from shipping again
+  (`c576da7`, `b9c2555`, merged straight to `main` in `c835e0f`).
+- 2026-09-14 · Reopening a saved order ticket no longer shows a false "No
+  ceiling"/"Loss not bounded" risk warning, blank strikes and "Delta NaN" for
+  a setup it never actually rebuilt — saved orders now store the setup
+  itself (strikes, expiry, deltas, credit, max risk), so reopening one shows
+  the real numbers instead of guessing from the wire legs alone; risk now
+  reads bounded, unbounded, or "not known" rather than treating "we don't
+  know" the same as "unlimited loss" (`3ab139a`, migration `0053`, merged to
+  `main` in `c835e0f`).
+- 2026-09-14 · An eighth foundations post — implied volatility explained — is
+  live: what IV measures, why every contract on a chain reprices together
   because they're all priced off one shared expected move, and what vega
   turns a change in it into in dollars; cleared through desk-editor and
   seo-editor review before publishing (`7076e62`, `10c3431`, `32186c2`,
-  `1fe3c4d`).
+  `1fe3c4d`, merged to `main` in `c835e0f`).
 - 2026-09-14 · The Screener is now the Scanner everywhere a user reads it
   — nav, headings and copy all rename, and to "Strategy Scanner" rather
   than "Market Scanner" (two of its six strategies sweep an account's own
