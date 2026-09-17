@@ -5,6 +5,51 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Needs owner
 
+- [fixed 2956bfb] 2026-09-17 · owner found · **The weekly digest said Alton
+  made $2.7k+ for the week of 7 September; the Analysis page, filtered to the
+  same window, now shows something else entirely.** Traced end to end; the
+  data changed, on 16 September at 21:30 UTC, and the mechanism is recorded so
+  it is never a mystery again:
+  - `equityHistory.fetchOpenDates` asked the broker for closed orders with
+    `symbols=<OCC contract>`. A spread is ONE parent order whose own `symbol`
+    is not either contract — the contracts sit nested under `legs` — so the
+    filter matched nothing for a leg bought inside a spread.
+  - The long TSLA 370 put (Feb 2027) was bought inside a spread on 14
+    September (sent from `dev-dash` against brokerage account 907253851, which
+    is connected to BOTH projects — a staging order is a real order). It had no
+    fills, so no open date; `dailyPortfolio.ts:984` carries a leg it cannot
+    place in time as held-but-unpriced on EVERY day. The nightly rebuild
+    rewrote all 52 stored days on production (back to 2 July) with
+    `performance: null`, `options_open: null`, `unpriced: ["TSLA270219P00370000"]`.
+    Staging: 53 of 54 days, identically.
+  - So the Whole view shows nothing for any window, and the trades view shows
+    realized money only: about **+$626** of non-provisional realized P/L on
+    trades closed 7–13 Sep (+$786 with the one provisional TSLA assignment).
+    The email's ~$2.7k was `performance` differenced across the week — the
+    open book's move included — and the broker's own equity change for the
+    same days was +$2,706.64 (138,870.97 → 141,577.61).
+  - The email's exact figures are gone from our side: `weekly_digest_sends`
+    recorded who was mailed and when, and the series it was computed from is
+    rewritten in full every night. Only the owner's inbox has them.
+  Fixed in `2956bfb`: `fetchOpenDates` pages every closed order in the window
+  and matches nested legs locally (pure `_shared/legOpenDates.ts`, 8 tests,
+  the owner's spread verbatim); migration `0054` adds
+  `weekly_digest_sends.figures` and the digest stores what it rendered at send
+  time. **Still open, needs a decision:** one unplaceable leg nulling the
+  entire series is honest and catastrophic; the bound belongs to
+  head-of-trading, not a patch.
+
+- [fixed 2026-09-14] 2026-09-14 · duty-engineer · **Production's migration
+  state is unverified** — it was verified the same day, before the merge the
+  entry worries about, by the session that made it: `0051` and `0052` were
+  applied to `yecfbeohyakuoyczvdbj` at 08:55 UTC and read back (15 columns, 4
+  policies, ownership trigger, zero UPDATE policies on `profiles`); `0053` was
+  applied at 14:2x UTC before `c835e0f` was pushed, and `saved_orders` read
+  back with 16 columns. Save for later did not fail. The general worry stands
+  as a process gap — `ship.md` step 1 says "each verified by listing" and no
+  run since 2026-09-09 records the full list being compared; the owner can
+  close that by running the comparison once. Original text kept below.
+
 - [needs owner] 2026-09-14 · duty-engineer · **Production's migration state is
   unverified, and today's merge put code live that writes a column migration
   `0053` adds.** Not "production is broken" — I cannot reach the production
