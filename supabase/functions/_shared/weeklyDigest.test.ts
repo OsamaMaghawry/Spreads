@@ -125,16 +125,19 @@ const TRADES = [
   // Outside the window entirely.
   { ticker: "WMT", open_date: "2026-08-01", close_date: "2026-08-28", qty: 1, net_credit: 1.50,
     close_debit: 0.10, premium_pl: 140, realized_pl: 140, close_reason: "closed" },
-  // Provisional: excluded from every outcome figure, as everywhere else.
+  // Provisional: counted in every MONEY figure (the cash moved) and excluded
+  // from every OUTCOME figure (it has not won or lost yet) -- the same rule
+  // src/lib/analytics.js applies, so the email and the page agree.
   { ticker: "GME", open_date: "2026-09-08", close_date: "2026-09-10", qty: 5, net_credit: 9.99,
     close_debit: 0, premium_pl: 4995, realized_pl: 4995, provisional: true, close_reason: "expired" }
 ];
 
 test("premium collected counts credits taken to open, in dollars", () => {
   const w = accountWeek(ACCT, ROWS, TRADES, WIN);
-  // 3.10 x 2 contracts x 100. The multiplier is the most common way a premium
-  // figure comes out a hundred times too small.
-  assert.equal(w.premium.collected, 620);
+  // 3.10 x 2 contracts x 100, plus the provisional GME credit of 9.99 x 5 x
+  // 100: cash that arrived is cash that arrived. The multiplier is the most
+  // common way a premium figure comes out a hundred times too small.
+  assert.equal(w.premium.collected, 620 + 4995);
   // The bought AAPL position is premium PAID, not collected.
   assert.equal(w.premium.paidToOpen, 450);
 });
@@ -147,22 +150,30 @@ test("premium paid to close is what buying back cost, and an expiry costs nothin
 
 test("premium kept is the outcome of what closed, not the cash flow", () => {
   const w = accountWeek(ACCT, ROWS, TRADES, WIN);
-  assert.equal(w.premium.kept, 160 + 300);
+  assert.equal(w.premium.kept, 160 + 300 + 4995);
 });
 
-test("a provisional row reaches no outcome figure", () => {
+test("a provisional row counts as money and never as an outcome", () => {
+  // The owner met the old behaviour as a contradiction: the Analysis page said
+  // $785.91 booked for the week, the email said $625.91 realized, and the gap
+  // was one assignment whose shares were still open. The email's own four-part
+  // headline already carried that cash, so the trade line disagreed with the
+  // hero above it. Money over every row; wins and losses over settled rows.
   const w = accountWeek(ACCT, ROWS, TRADES, WIN);
-  assert.equal(w.closed.count, 2);
-  assert.ok(!w.closed.rows.some((t) => t.ticker === "GME"));
-  assert.equal(w.closed.realized, 460);
-  // ...and its credit is not counted as collected either.
-  assert.equal(w.premium.collected, 620);
+  assert.equal(w.closed.count, 3);
+  assert.equal(w.closed.provisional, 1);
+  assert.ok(w.closed.rows.some((t) => t.ticker === "GME"));
+  assert.equal(w.closed.realized, 460 + 4995);
+  // GME's 4995 would have been a "win"; it is not counted as one.
+  assert.equal(w.closed.winners, 2);
+  assert.equal(w.closed.expired, 1);
 });
 
 test("trades outside the window are not in it", () => {
   const w = accountWeek(ACCT, ROWS, TRADES, WIN);
   assert.ok(!w.closed.rows.some((t) => t.ticker === "WMT"));
-  assert.equal(w.opened.count, 2);
+  // AAPL, MSFT and the provisional GME open: money counts every row.
+  assert.equal(w.opened.count, 3);
 });
 
 // ---------------------------------------------------------------------------
@@ -340,8 +351,8 @@ test("an account with no stored history is not measured, and says so", () => {
   assert.equal(w.performance, null);
   // ...but its TRADES still count. A trade is recorded whether or not anybody
   // has built that account's daily series.
-  assert.equal(w.closed.count, 2);
-  assert.equal(w.premium.collected, 620);
+  assert.equal(w.closed.count, 3);
+  assert.equal(w.premium.collected, 620 + 4995);
 });
 
 

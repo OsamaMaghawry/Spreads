@@ -39,6 +39,9 @@ export default function EquityCurveChart({
   onModeChange,
   hasValueSeries = false,
   fallbackReason = null,
+  // The window's closing date when a range is set, so the balance is labelled
+  // as the window's end rather than as today.
+  windowEnd = null,
   // Why this line does not end on the headline figure. Supplied by the page,
   // which is the only thing that knows what the headline is currently claiming
   // -- see the reconciliation caption below.
@@ -96,8 +99,13 @@ export default function EquityCurveChart({
         </div>
 
         <div className="text-right ml-auto">
+          {/* "Today" was printed over the last day INSIDE the window -- on a
+              range ending 11 September, read six days later, it labelled a
+              Friday balance as today's while the page header showed the live
+              figure two inches above. A windowed balance is the window's end,
+              and says so with the date. */}
           <div className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">
-            {isValue ? "Today" : "Ends at"}
+            {isValue ? (windowEnd ? `End of window · ${windowEnd}` : "Today") : "Ends at"}
           </div>
           <div
             className={`text-lg font-semibold tabular-nums ${
@@ -109,7 +117,7 @@ export default function EquityCurveChart({
           {isValue && change !== null && (
             <div className={`text-[11px] tabular-nums ${change >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
               {change >= 0 ? "+" : ""}
-              {fmtMoney(change)} over this window
+              {fmtMoney(change)}{curve.baselineDate ? ` since the ${curve.baselineDate} close` : " over this window"}
             </div>
           )}
         </div>

@@ -61,6 +61,27 @@ test("account value is never rebased — a balance is a balance in any window", 
   assert.deepEqual(s.points.map((p) => p.value), [141500, 151000]);
 });
 
+test("both lines measure a window's change from the same day: the last close before it", () => {
+  // The owner's week: the performance line said +$2,455.91 since the Friday
+  // before, the account-value line said "+$47.15 over this window" since the
+  // Monday inside it, and the email said the broker moved +$2,706.64. Three
+  // starting points for one window. Now one.
+  const perf = dailySeries(SERIES, "whole", "performance", { from: "2026-09-03" });
+  const value = dailySeries(SERIES, "whole", "value", { from: "2026-09-03" });
+  assert.equal(perf.baselineDate, "2026-09-02");
+  assert.equal(value.baselineDate, "2026-09-02");
+  // Balance on 09-04 minus balance on 09-02 -- not minus the 09-03 point.
+  assert.equal(value.change, 151000 - 140800);
+  // The points themselves are still the untouched balances.
+  assert.deepEqual(value.points.map((p) => p.value), [141500, 151000]);
+});
+
+test("a window at the account's own beginning measures from its first day", () => {
+  const value = dailySeries(SERIES, "whole", "value", { from: "2026-09-01" });
+  assert.equal(value.baselineDate, null);
+  assert.equal(value.change, 151000 - 140000);
+});
+
 test("a closing date bounds the window on the right", () => {
   const s = dailySeries(SERIES, "whole", "performance", { to: "2026-09-02" });
   assert.deepEqual(s.points.map((p) => p.date), ["2026-09-01", "2026-09-02"]);

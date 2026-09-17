@@ -97,13 +97,23 @@ export function dailySeries(rows, view, mode = "performance", range = {}) {
   // unpriced tickers. The HEADLINE cannot: it prints one number as what the
   // window made, and in the second case that number is wrong by the whole of
   // the account's history. So the distinction travels.
+  // ONE BASELINE FOR BOTH LINES, AND THE DIGEST. The performance line has
+  // always been measured from the last valued day BEFORE the window. The
+  // account-value line skipped this block, so its "change over this window"
+  // ran from the first day INSIDE the window instead. On the owner's week of
+  // 7-11 September that put "+$47.15 over this window" under a chart whose
+  // sibling said +$2,455.91 and whose email said the broker's value moved
+  // +$2,706.64 -- three answers to one question, differing only in where each
+  // one started counting. The balance itself is still never rebased (a
+  // balance is a balance); only `change` starts where the other line starts.
   let baselineKnown = true;
-  if (from && mode !== "value") {
+  let baselineDate = null;
+  if (from) {
     let earlier = 0;
     for (const p of all) {
       if (p.date >= from) break;
       earlier += 1;
-      if (p.raw !== null) baseline = p.raw;
+      if (p.raw !== null) { baseline = p.raw; baselineDate = p.date; }
     }
     baselineKnown = earlier === 0 || baseline !== null;
   }
@@ -124,16 +134,29 @@ export function dailySeries(rows, view, mode = "performance", range = {}) {
   const start = valued.length ? valued[0].value : null;
   const end = valued.length ? valued[valued.length - 1].value : null;
 
+  // What the window moved by, measured from the same day for both modes: the
+  // last valued close before the window when there is one, else the first
+  // valued day inside it (the account's own beginning, where nothing came
+  // before). For the performance line the points already start at that
+  // baseline, so this is `end`; for the account-value line it is the balance
+  // now against the balance then -- NOT against the first day inside the
+  // window, which silently dropped the first session's whole move.
+  const change =
+    end === null ? null
+      : mode === "value" ? (baseline !== null ? end - baseline : (start === null ? null : end - start))
+      : (start === null ? null : end - start);
+
   return {
     points,
     start,
     end,
-    // What the window moved by. For the account-value line that is a dollar
-    // change in the balance; for the performance line the line already starts
-    // at its baseline, so `end` and `change` coincide unless the first stored
-    // day itself carried a value.
-    change: start === null || end === null ? null : end - start,
-    rebased: baseline !== null,
+    change,
+    // The day `change` is measured from, when it is a day before the window;
+    // null when the window starts at the account's beginning. The chart names
+    // it so "over this window" can say where the count began.
+    baselineDate: mode === "value" ? baselineDate : (baseline !== null ? baselineDate : null),
+    // The performance line is drawn from its baseline; a balance never is.
+    rebased: mode !== "value" && baseline !== null,
     // See `baselineKnown` above: false means the window has earlier days and
     // none of them could be valued, so `start`/`end` are measured from an
     // assumed zero. The chart still draws; a headline must not quote it.
