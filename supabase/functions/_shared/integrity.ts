@@ -438,7 +438,13 @@ export const withheld = (t: any): boolean => !!t?.integrity_code;
  * other's findings on every run. Each pass therefore names the codes it is
  * responsible for and the resolve half is scoped to those. See migration 0048.
  */
-export const SERIES_FINDING_CODES = ["empty_option_book", "equity_divergence"] as const;
+// `history_frozen`, `history_rewritten` and `digest_drift` are raised by the
+// same pass -- see _shared/seriesFreeze.ts -- so they resolve themselves the
+// same way: the night a rebuild stops trying to change the past, or a sent
+// email's figures agree with the series again.
+export const SERIES_FINDING_CODES = [
+  "empty_option_book", "equity_divergence", "history_frozen", "history_rewritten", "digest_drift"
+] as const;
 
 type SeriesRow = {
   day: string;
