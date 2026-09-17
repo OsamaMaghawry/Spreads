@@ -174,8 +174,8 @@ premium covering the same period, with the stock price contributing nothing.
 
 It is the third of the sensitivities the [foundations
 series](/blog/foundations) takes one at a time, after [delta](/blog/option-delta-explained)
-and [theta](/blog/theta-decay-explained). How fast delta itself changes comes
-next.
+and [theta](/blog/theta-decay-explained). [How fast delta itself
+changes](/blog/gamma-options-meaning) comes next.
 
 All figures on this page are hypothetical and are there to show the mechanics.
 This post is educational and is not investment advice.

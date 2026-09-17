@@ -1,0 +1,34 @@
+<svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A curve plotting the delta of one hypothetical 50-strike call with 30 days left against the price of the stock, from 40 dollars on the left to 60 dollars on the right. The curve starts almost flat near a delta of zero, rises through 0.15 with the stock at 44, climbs steeply through 0.52 with the stock at 50 and level with the strike, then flattens again through 0.85 with the stock at 56 and approaches 1.00 on the right. The steep middle section around the strike is highlighted and marked steepest here. The slope of this curve at any point is gamma, so gamma is largest where the curve is steepest, at the money, and smallest where the curve flattens out far above or far below the strike.">
+  <rect width="720" height="340" fill="#FFFFFF"/>
+
+  <line x1="100" y1="280" x2="660" y2="280" stroke="#E4E5EC" stroke-width="1.5"/>
+  <line x1="100" y1="66" x2="100" y2="280" stroke="#E4E5EC" stroke-width="1.5"/>
+  <line x1="370" y1="172" x2="370" y2="280" stroke="#E4E5EC" stroke-width="1.5" stroke-dasharray="4 5"/>
+
+  <text x="100" y="56" font-size="15" fill="#767B8E">delta</text>
+  <text x="92" y="78" font-size="13" text-anchor="end" fill="#767B8E">1.00</text>
+  <text x="92" y="285" font-size="13" text-anchor="end" fill="#767B8E">0</text>
+
+  <polyline fill="none" stroke="#767B8E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+    points="100,273.7 127,270.1 154,264.9 181,258.1 208,249.5 235,239.1 262,227.2 289,213.9 316,199.7"/>
+  <polyline fill="none" stroke="#2E8B5F" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"
+    points="316,199.7 343,184.9 370,170.2 397,155.9 424,142.4"/>
+  <polyline fill="none" stroke="#767B8E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+    points="424,142.4 451,130.0 478,119.0 505,109.3 532,101.0 559,94.2 586,88.5 613,84.0 640,80.5"/>
+
+  <circle cx="208" cy="249.5" r="5" fill="#14151C"/>
+  <circle cx="370" cy="170.2" r="5" fill="#14151C"/>
+  <circle cx="532" cy="101.0" r="5" fill="#14151C"/>
+
+  <text x="196" y="272" font-size="17" font-weight="600" text-anchor="end" fill="#14151C">0.15</text>
+  <text x="334" y="158" font-size="17" font-weight="600" text-anchor="end" fill="#14151C">0.52</text>
+  <text x="548" y="120" font-size="17" font-weight="600" fill="#14151C">0.85</text>
+
+  <line x1="404" y1="220" x2="381" y2="183" stroke="#767B8E" stroke-width="1.5"/>
+  <text x="400" y="238" font-size="15" fill="#2E8B5F">steepest here</text>
+
+  <text x="208" y="303" font-size="17" font-weight="600" text-anchor="middle" fill="#767B8E">$44</text>
+  <text x="370" y="303" font-size="17" font-weight="600" text-anchor="middle" fill="#767B8E">$50</text>
+  <text x="532" y="303" font-size="17" font-weight="600" text-anchor="middle" fill="#767B8E">$56</text>
+  <text x="648" y="303" font-size="15" fill="#767B8E">stock</text>
+</svg>
