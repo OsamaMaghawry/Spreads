@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  freezeSeries, digestDrift, historyFinding, digestDriftFinding, driftEmail, FREEZE_AFTER_SESSIONS
+  freezeSeries, digestDrift, historyFinding, digestDriftFinding, driftEmail, sampleDriftEmail, FREEZE_AFTER_SESSIONS
 } from "./seriesFreeze.ts";
 
 // Alton's stored rows, 2-14 September 2026, verbatim from production. Eight
@@ -160,4 +160,12 @@ test("the mail lists every held figure with both values and changes nothing", ()
   assert.match(mail.text, /performance  sent \$2455\.91  now —/);
   assert.match(mail.text, /Nothing was changed by this message/);
   assert.match(mail.html, /<pre/);
+});
+
+test("the sample mail is marked as a sample and carries both kinds of finding", () => {
+  const m = sampleDriftEmail("Alpaca Live (907253851)");
+  assert.match(m.subject, /^\[Sample\] DeltaMint: stored history held for Alpaca Live/);
+  assert.match(m.text, /^THIS IS A SAMPLE/);
+  assert.match(m.text, /2026-09-04  performance  stored -\$3405\.00  computed —  \(blanked\)/);
+  assert.match(m.text, /week of 2026-09-07/);
 });
