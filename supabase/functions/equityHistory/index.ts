@@ -19,6 +19,7 @@ import {
   digestDrift,
   digestDriftFinding,
   driftEmail,
+  sampleDriftEmail,
   HISTORY_FINDING_CODES
 } from "../_shared/seriesFreeze.ts";
 import { accountWeek } from "../_shared/weeklyDigest.ts";
@@ -846,6 +847,23 @@ Deno.serve(async (req) => {
         isServiceRole(req) || (await redeemCronTicket(admin, payload.ticket, "equity_history"));
       if (!allowed) return jsonResponse({ error: "Forbidden" }, 403);
       return jsonResponse(await probeStamping(admin, payload.accountId ? String(payload.accountId) : null));
+    }
+
+    // A SAMPLE OF THE DRIFT MAIL, so the owner can see the alert before one is
+    // needed. Same gate as the scheduled path; always to the watch's own
+    // recipient, never to an address from the request; marked as a sample.
+    if (payload?.previewDriftMail === true) {
+      const admin = adminClient();
+      const allowed =
+        isServiceRole(req) || (await redeemCronTicket(admin, payload.ticket, "equity_history"));
+      if (!allowed) return jsonResponse({ error: "Forbidden" }, 403);
+      const { data: settings } = await admin
+        .from("watch_settings").select("recipient_email").eq("id", true).maybeSingle();
+      const to = settings?.recipient_email;
+      if (!to) return jsonResponse({ error: "watch_settings.recipient_email is not set" }, 500);
+      const mail = sampleDriftEmail("Alpaca Live (907253851)");
+      const result = await sendEmail(to, mail.subject, mail.html, mail.text);
+      return jsonResponse({ to, subject: mail.subject, ...result });
     }
 
     // The scheduled path, and it is gated on the SERVICE ROLE rather than on

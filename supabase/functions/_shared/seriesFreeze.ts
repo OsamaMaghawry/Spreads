@@ -244,6 +244,43 @@ export function digestDriftFinding(
   };
 }
 
+/**
+ * A sample of the mail, built from the 16 September shape on the owner's own
+ * rows, so what an alert looks like can be seen before one is ever needed.
+ * Marked as a sample in the subject and the first line; nothing in it is a
+ * finding about any account.
+ */
+export function sampleDriftEmail(accountName: string): { subject: string; text: string; html: string } {
+  const stored = [
+    { day: "2026-09-03", equity: 140844.76, premium_cum: -757, shares_booked: -817, shares_open: 0, options_open: -23, performance: -1597 },
+    { day: "2026-09-04", equity: 138870.97, premium_cum: -757, shares_booked: -817, shares_open: 0, options_open: -1831, performance: -3405 },
+    { day: "2026-09-08", equity: 141530.46, premium_cum: -495, shares_booked: -817, shares_open: 632, options_open: -500, performance: -1180 },
+    { day: "2026-09-09", equity: 141547.64, premium_cum: -1686, shares_booked: 441.91, shares_open: 31, options_open: 230, performance: -983.09 },
+    { day: "2026-09-10", equity: 141247.97, premium_cum: -1473, shares_booked: 441.91, shares_open: -394, options_open: 317, performance: -1108.09 },
+    { day: "2026-09-11", equity: 141577.61, premium_cum: -1230, shares_booked: 441.91, shares_open: -206, options_open: 45, performance: -949.09 },
+    { day: "2026-09-14", equity: 141294.56, premium_cum: -809, shares_booked: 441.91, shares_open: -853, options_open: 134, performance: -1086.09 }
+  ];
+  const computed = stored.map((r) => (r.day <= "2026-09-04" ? { ...r, performance: null, options_open: null } : r));
+  const held = historyFinding(freezeSeries(stored, computed));
+  const sent = {
+    measuredFrom: "2026-09-04", measuredTo: "2026-09-11",
+    performance: 2455.91, premiumLine: -473, sharesBooked: 1258.91, sharesMark: -206, optionsMark: 1876,
+    equityChange: 2706.64, equityEnd: 141577.61
+  };
+  const digest = digestDriftFinding(
+    { week_start: "2026-09-07", mode: "user", sent_at: "2026-09-13T19:20:27Z" },
+    digestDrift(sent, { ...sent, performance: null, premiumLine: null, sharesBooked: null, sharesMark: null, optionsMark: null })
+  );
+  const mail = driftEmail(accountName, [held!, digest!]);
+  const note = "THIS IS A SAMPLE. No account has drifted; this is what the alert looks like when one does.\n\n";
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return {
+    subject: `[Sample] ${mail.subject}`,
+    text: note + mail.text,
+    html: `<pre style="font:13px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;">${esc(note + mail.text)}</pre>`
+  };
+}
+
 /** The mail for the findings that are NEW this run. Plain, factual, two values per line. */
 export function driftEmail(accountName: string, findings: Finding[]): { subject: string; text: string; html: string } {
   const frozen = findings.filter((f) => f.code === "history_frozen");
