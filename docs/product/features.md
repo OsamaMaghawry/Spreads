@@ -117,6 +117,7 @@ History** and bans "journal" and "log".
 | A8 | Strategy comparison | `analysis/StrategyComparison.jsx` | main | PAID |
 | A9 | Date range filter; ROE withheld on a filtered view | `analysis/DateRangeFilter.jsx` | main | PAID |
 | A10 | PDF export, A4, paginated, paper banner, full disclaimer on every page | `analysis/ExportPdfButton.jsx` | main | PAID — the old page sold it as Desk-only |
+| A11 | Equity curve draws the close a window is measured from (not just the days inside it), and a panel breaks the window's total into the same four parts (premium, shares, mark change, gap-to-broker) the weekly digest email states — added 2026-09-17 after the chart and the digest were found to disagree with each other | `analysis/WindowParts.jsx`, `src/lib/windowParts.js`, `analysis/EquityCurveChart.jsx` | main | PAID |
 
 ## Accounts
 
