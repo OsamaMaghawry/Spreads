@@ -360,6 +360,28 @@ const premiumPanel = (a: AccountWeek) =>
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
 /**
+ * The sentence under "Change in account value": how the broker's figure
+ * relates to the headline. Exported for the plain-text branch and the tests.
+ *
+ * Three cases, and each says exactly what is known:
+ *   both figures, and they match     -> says so
+ *   both figures, and they differ    -> names the difference and what it can be
+ *   either figure missing            -> only what was always said
+ */
+export function brokerGapNote(a: AccountWeek): string {
+  const base = "Includes deposits and withdrawals.";
+  if (a.equityChange === null || a.equityChange === undefined) return base;
+  if (a.performance === null || a.performance === undefined) return base;
+  const gap = round2(Number(a.equityChange) - Number(a.performance));
+  if (Math.abs(gap) < 0.005) return `${base} Matches "The week" above.`;
+  return (
+    `${base} ${money(Math.abs(gap))} ${gap > 0 ? "more" : "less"} than "The week" above -- ` +
+    `that part is not from any trade: fees, interest, dividends, transfers, or a difference ` +
+    `between your broker's marks and ours.`
+  );
+}
+
+/**
  * The week's four parts and their total, or null when they cannot be shown.
  *
  * Null on three counts: no headline, a part that could not be valued, or parts
@@ -411,10 +433,12 @@ const weekPartsPanel = (a: AccountWeek) => {
       // which `equityHistory` builds with NO FILTER -- deliberately, because
       // it is an account-level sum with no attribution in it, so a withheld
       // row's premium belongs in it. The Premium panel a few inches above
-      // reports `Kept on what closed`, which EXCLUDES provisional and withheld
-      // rows. Two figures, adjacent, differing by exactly the money the email
-      // has just told the reader it left out. Under the old label they were
-      // the same claim made twice with two different numbers.
+      // reports `Kept on what closed`, which EXCLUDES withheld rows (and, as
+      // of 17 September, INCLUDES provisional ones -- money over every row,
+      // outcomes over settled rows, the same rule as the Analysis page). Two
+      // figures, adjacent, differing by exactly the money the email has just
+      // told the reader it left out. Under the old label they were the same
+      // claim made twice with two different numbers.
       row("Premium booked in the week", money(premium, true), colourFor(premium),
         "Every option leg the week booked, including any trade held back from the figures above."),
       row("Booked on shares sold", money(sharesBooked, true), colourFor(sharesBooked),
@@ -448,12 +472,26 @@ const accountPanel = (a: AccountWeek) =>
     "The account",
     [
       row("Account value at Friday's close", money(a.equityEnd), BRAND.text),
+      // RECONCILED TO THE HEADLINE, in the row itself. The owner, reading
+      // "The week +$2,455.91" beside "Change in account value +$2,706.64":
+      // *"What is your brokerage 2706 and this account is 2455? This is too
+      // confusing. What does this mean for the user?"* The headline is what
+      // trading did; the broker's figure also carries fees, interest,
+      // dividends, transfers and the gap between its marks and ours. Two true
+      // numbers with no sentence between them read as one wrong number, so
+      // the difference is named here in dollars with what it can be.
       row("Change in account value", money(a.equityChange, true), colourFor(a.equityChange),
-        "Includes deposits and withdrawals."),
+        brokerGapNote(a)),
       row("Positions closed", `${a.closed.count}`, BRAND.text,
-        a.closed.count ? `${a.closed.winners} up, ${a.closed.expired} expired` : ""),
+        a.closed.count
+          ? `${a.closed.winners} up, ${a.closed.expired} expired` +
+            (a.closed.provisional ? `, ${a.closed.provisional} still settling` : "")
+          : ""),
       row("Positions opened", `${a.opened.count}`, BRAND.text),
-      row("Realized on what closed", money(a.closed.realized, true), colourFor(a.closed.realized))
+      row("Realized on what closed", money(a.closed.realized, true), colourFor(a.closed.realized),
+        a.closed.provisional
+          ? `Includes ${a.closed.provisional} position${a.closed.provisional > 1 ? "s" : ""} whose shares are still open; its option leg is booked, its outcome is not yet counted as a win or a loss.`
+          : "")
     ].join("")
   );
 
@@ -735,7 +773,8 @@ export function renderAccountWeek(
           line("  Shares still held", money(a.sharesValue)),
           line("  Account value at Friday's close", money(a.equityEnd)),
           line("  Change in account value", money(a.equityChange, true)),
-          line("  Closed", String(a.closed.count)),
+          `    ${brokerGapNote(a)}`,
+          line("  Closed", `${a.closed.count}${a.closed.provisional ? ` (${a.closed.provisional} still settling)` : ""}`),
           line("  Opened", String(a.opened.count)),
           line("  Realized", money(a.closed.realized, true))
         ].join("\n"),

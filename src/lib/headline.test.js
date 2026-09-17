@@ -187,6 +187,47 @@ test("whole view, filtered to a week, prints what the whole book did", () => {
   assert.match(h.note, /the figure the chart draws/);
 });
 
+// The broker's own figure for the same days, reconciled in the sentence.
+//
+//   *"What is your brokerage 2706 and this account is 2455? This is too
+//   confusing. What does this mean for the user?!!!"*
+//
+// The whole-view figure is what trading did; the broker's account value also
+// carries fees, interest, dividends, transfers and the gap between its marks
+// and ours. Left as two numbers, the reader subtracts and calls the remainder
+// a bug. So the remainder is printed, with what it can be.
+test("whole view names the broker's move and the part that is not from any trade", () => {
+  const h = analysisHeadline({
+    view: "whole",
+    stats: { totalPL: 785.91, includesUnrealized: false },
+    premium: -473,
+    hasOpen: true,
+    liveMark: -161,
+    narrowing: { strategy: null, when: "between 2026-09-07 and 2026-09-11" },
+    windowed: { figure: 2455.91, booked: 785.91, broker: 2706.64 }
+  });
+  assert.match(h.note, /broker's account value moved \$2,706\.64 over the same days/);
+  assert.match(h.note, /\$250\.73 more is not from any trade/);
+  assert.match(h.note, /fees, interest, dividends, transfers/);
+});
+
+test("when the broker's figure matches, the sentence says so instead of printing $0.00", () => {
+  const h = analysisHeadline({
+    view: "whole", stats: { totalPL: 1, includesUnrealized: false }, premium: 0, hasOpen: true, liveMark: 0,
+    windowed: { figure: 100, booked: 40, broker: 100.004 }
+  });
+  assert.match(h.note, /moved \$100\.00 over the same days, which matches/);
+  assert.doesNotMatch(h.note, /not from any trade/);
+});
+
+test("no broker figure, no claim about it", () => {
+  const h = analysisHeadline({
+    view: "whole", stats: { totalPL: 1, includesUnrealized: false }, premium: 0, hasOpen: true, liveMark: 0,
+    windowed: { figure: 100, booked: 40, broker: null }
+  });
+  assert.doesNotMatch(h.note, /broker/);
+});
+
 test("premium view is untouched by it — it never had a mark to miss", () => {
   const h = analysisHeadline({
     view: "premium", stats: { totalPL: 1 }, premium: -473, hasOpen: true, liveMark: 0,

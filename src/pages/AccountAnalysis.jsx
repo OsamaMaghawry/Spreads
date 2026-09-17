@@ -264,7 +264,14 @@ export default function AccountAnalysis() {
       range
     );
     if (realized.end === null || !realized.baselineKnown) return null;
-    return { figure: whole.end, booked: realized.end };
+    // The broker's own account value over the SAME window, from the SAME
+    // baseline day -- `dailySeries` now measures both modes from the last
+    // valued close before the window -- so the headline can reconcile the two
+    // figures the owner was left to subtract by hand (2,706 against 2,455).
+    // Null when the balance could not be read; the sentence then says nothing
+    // about it rather than something wrong.
+    const broker = dailySeries(equitySeries, view, "value", range);
+    return { figure: whole.end, booked: realized.end, broker: broker.change ?? null };
   }, [view, strategy, range, equitySeries]);
 
   const chartFallbackReason = useDaily
@@ -470,7 +477,12 @@ export default function AccountAnalysis() {
           </h1>
           {stats && (
             <p className="text-xs text-slate-500 mt-0.5">
-              {stats.firstDate} → {stats.lastDate} · account equity {equity ? `$${equity.toLocaleString()}` : "unavailable"}
+              {/* "equity NOW": this is the broker's live figure, not the
+                  window's. Under a date range the chart below ends on the
+                  range's last day and says so; two "account equity" numbers
+                  on one screen, one live and one dated, read as a
+                  contradiction unless each says which it is. */}
+              {stats.firstDate} → {stats.lastDate} · equity now {equity ? `$${equity.toLocaleString()}` : "unavailable"}
             </p>
           )}
         </div>
@@ -633,6 +645,7 @@ export default function AccountAnalysis() {
               hasValueSeries={hasValueSeries && useDaily}
               fallbackReason={chartFallbackReason}
               reconcileNote={chartReconcileNote}
+              windowEnd={range.to || null}
             />
             <CaptureBreakdown trades={subset} />
             <div className="grid gap-4 lg:grid-cols-2">

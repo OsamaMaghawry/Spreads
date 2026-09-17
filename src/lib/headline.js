@@ -80,6 +80,27 @@ export function analysisHeadline({
   // strategies (the daily marks cannot be split by strategy), a real date
   // window, and a baseline the series could actually value.
   if (view === "whole" && windowed && windowed.figure !== null && windowed.figure !== undefined) {
+    // THE BROKER'S NUMBER, RECONCILED, NOT LEFT FOR THE READER TO SUBTRACT.
+    //
+    // The owner: *"What is your brokerage 2706 and this account is 2455? This
+    // is too confusing. What does this mean for the user?"* The whole-view
+    // figure is what TRADING did -- money booked plus the open book's move at
+    // our closes. The broker's account value also moves with everything that
+    // is not a trade: fees, interest, dividends, transfers, and the gap
+    // between the broker's marks and ours. Two honest figures, one screen, no
+    // sentence joining them -- so the reader did the subtraction and read the
+    // remainder as an error. The remainder is named here, in dollars, with
+    // what it can be. When it is large it IS the finding; it is never hidden.
+    const broker = typeof windowed.broker === "number" && Number.isFinite(windowed.broker) ? windowed.broker : null;
+    const residual = broker === null ? null : broker - windowed.figure;
+    const reconcile =
+      broker === null
+        ? ""
+        : Math.abs(residual) < 0.005
+          ? ` Your broker's account value moved ${money(broker)} over the same days, which matches.`
+          : ` Your broker's account value moved ${money(broker)} over the same days; the ` +
+            `${money(Math.abs(residual))} ${residual > 0 ? "more" : "less"} is not from any trade -- ` +
+            `fees, interest, dividends, transfers, or a difference between the broker's marks and ours.`;
     return {
       figure: windowed.figure,
       label: "Whole view total",
@@ -87,7 +108,7 @@ export function analysisHeadline({
         `What the whole book did${when ? ` ${when}` : ""}: ` +
         `${money(windowed.booked)} booked by trades that closed, and ` +
         `${money(windowed.figure - windowed.booked)} of change in what was still open. ` +
-        `This is the figure the chart draws.`
+        `This is the figure the chart draws.` + reconcile
     };
   }
 

@@ -133,6 +133,7 @@ function digestFigures(week: any) {
     },
     closed: {
       count: week.closed?.count ?? 0,
+      provisional: week.closed?.provisional ?? 0,
       winners: week.closed?.winners ?? 0,
       expired: week.closed?.expired ?? 0,
       realized: n(week.closed?.realized),

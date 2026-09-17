@@ -162,12 +162,24 @@ export function accountWeek(
       .reduce((a, t: any) => a + (num(t.realized_pl) ?? 0), 0)
   };
 
-  // PROVISIONAL ROWS ARE EXCLUDED FROM OUTCOME FIGURES, as everywhere else in
-  // this product: a row the reconstruction had to guess at must not be
-  // summed into a number presented as what the week earned.
-  const real = publishable.filter((t) => !t.provisional);
-  const closed = real.filter((t) => inWindow(t.close_date, win));
-  const opened = real.filter((t) => inWindow(t.open_date, win));
+  // ONE RULE, THE SAME ONE THE ANALYSIS PAGE APPLIES (src/lib/analytics.js):
+  //
+  //   Anything that calls a trade a win or a loss is measured over SETTLED
+  //   rows. Anything that measures money booked is measured over EVERY row.
+  //
+  // This email used to drop provisional rows from the money too, and the
+  // owner met the result as a contradiction: the Analysis page said $785.91
+  // booked for the week, this email said $625.91 realized on what closed, and
+  // the difference was one TSLA assignment whose shares are still open. Its
+  // premium and its stock result are real cash that moved -- the four-part
+  // headline a few lines down already counts them, because `premium_cum` and
+  // `shares_booked` are built with no filter -- so leaving them out of the
+  // trade line made the email disagree with its own hero. What a provisional
+  // row cannot do is be called a win or a loss, and it still is not.
+  const closedAll = publishable.filter((t) => inWindow(t.close_date, win));
+  const opened = publishable.filter((t) => inWindow(t.open_date, win));
+  const closed = closedAll.filter((t) => !t.provisional);
+  const provisionalClosed = closedAll.length - closed.length;
 
   // PREMIUM, in the two senses a trader means it, kept apart because they
   // answer different questions and netting them answers neither.
@@ -183,9 +195,12 @@ export function accountWeek(
   const openedDollars = opened.map((t) => dollars(num(t.net_credit), num(t.qty)) ?? 0);
   const premiumCollected = openedDollars.filter((v) => v > 0).reduce((s, v) => s + v, 0);
   const premiumPaidToOpen = -openedDollars.filter((v) => v < 0).reduce((s, v) => s + v, 0);
-  const premiumPaidToClose = sum(closed, (t) => dollars(num(t.close_debit), num(t.qty)));
-  const premiumKept = sum(closed, (t) => (num(t.premium_pl) ?? 0) + (num(t.early_close_pl) ?? 0));
+  // Money: every row that closed in the window, provisional included.
+  const premiumPaidToClose = sum(closedAll, (t) => dollars(num(t.close_debit), num(t.qty)));
+  const premiumKept = sum(closedAll, (t) => (num(t.premium_pl) ?? 0) + (num(t.early_close_pl) ?? 0));
 
+  // Outcomes: settled rows only. A position whose shares are still open has
+  // not won or lost yet, whatever its option leg booked.
   const winners = closed.filter((t) => (num(t.realized_pl) ?? 0) > 0).length;
   const expired = closed.filter((t) => t.close_reason === "expired").length;
 
@@ -251,12 +266,16 @@ export function accountWeek(
 
     // --- the trades themselves ---------------------------------------------
     closed: {
-      count: closed.length,
+      // Everything that closed, money over all of it; wins and expiries over
+      // the settled rows only. `provisional` is how many are still settling,
+      // so the email can say the realized figure carries them.
+      count: closedAll.length,
+      provisional: provisionalClosed,
       winners,
       expired,
-      realized: sum(closed, (t) => num(t.realized_pl)),
-      stock: sum(closed, (t) => num(t.stock_pl)),
-      rows: closed
+      realized: sum(closedAll, (t) => num(t.realized_pl)),
+      stock: sum(closedAll, (t) => num(t.stock_pl)),
+      rows: closedAll
     },
     opened: { count: opened.length, rows: opened },
 
