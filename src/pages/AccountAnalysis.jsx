@@ -21,6 +21,8 @@ import { analysisHeadline } from "@/lib/headline";
 import { splitWithheld, withheldNote } from "@/lib/integrity";
 import { capitalAtWork, flowNote } from "@/lib/capital";
 import { dailySeries, bookedCurve } from "@/lib/equityCurve";
+import { windowParts } from "@/lib/windowParts";
+import WindowParts from "@/components/analysis/WindowParts";
 
 export default function AccountAnalysis() {
   const { id } = useParams();
@@ -273,6 +275,17 @@ export default function AccountAnalysis() {
     const broker = dailySeries(equitySeries, view, "value", range);
     return { figure: whole.end, booked: realized.end, broker: broker.change ?? null };
   }, [view, strategy, range, equitySeries]);
+  // WHERE THAT FIGURE CAME FROM, in the four stored parts. The owner: *"The
+  // 2.4k+ is not justifiable in anywhere! Nothing to show where it came
+  // from."* The email has carried this panel since the digest was rebuilt;
+  // the page that the email points at did not. Same rule as the email: the
+  // parts are shown only when they add to the headline to the cent. Null
+  // whenever the headline itself is withheld, so it never explains a figure
+  // that is not on screen.
+  const parts = useMemo(
+    () => (windowedWhole ? windowParts(equitySeries, range) : null),
+    [windowedWhole, equitySeries, range]
+  );
 
   const chartFallbackReason = useDaily
     ? null
@@ -633,6 +646,10 @@ export default function AccountAnalysis() {
                 </p>
               </div>
             )}
+            {/* Directly under the figure it decomposes, before the panels of
+                what is open TODAY -- which are the panels a reader was
+                subtracting from the headline and finding no match. */}
+            {parts && <WindowParts parts={parts} />}
             {book.lots > 0 && <OpenBookPanel book={book} priced={view === "whole"} />}
             <OpenOptionsPanel book={optionBook} priced={view === "whole"} />
             {comparison.length > 1 && <StrategyComparison rows={comparison} />}
