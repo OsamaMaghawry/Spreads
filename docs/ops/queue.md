@@ -5,6 +5,25 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Needs owner
 
+- [needs owner] 2026-09-17 · duty-engineer · **Migration `0054` needs
+  confirming on production before Saturday 13:00 UTC, or the weekly digest
+  will fail to send to everyone.** `0054_digest_figures_kept.sql` (landed on
+  `main` today in `7386f6b`, alongside the leg-matching fix below) adds
+  `weekly_digest_sends.figures`; `weeklyDigest/index.ts:351` upserts a row
+  naming that column **unconditionally**, on every send — the same shape as
+  the `0053`/`saved_orders.setup` case already found and confirmed this
+  week (queue, 2026-09-14). If `0054` has not been applied on
+  `yecfbeohyakuoyczvdbj` by then, PostgREST answers `PGRST204` and the
+  `weekly-digest` cron job (Saturday 13:00 UTC, `0036_weekly_digest.sql`)
+  fails to upsert for every account — no digest reaches anyone that week,
+  and the same failure repeats every Saturday until the migration is
+  applied. Not a duty-engineer fix — a migration is escalate-never-fix, and
+  production's schema is not readable from this session (`yecfbeohyakuoyczvdbj.supabase.co`
+  is 403 at CONNECT, see the 2026-09-09 item below). **Owner action:**
+  confirm/apply `0054` on production the same way `0051`–`0053` were
+  confirmed on 2026-09-14, before Saturday. Emailed (money/user-path finding
+  with a hard deadline).
+
 - [fixed 2956bfb] 2026-09-17 · owner found · **The weekly digest said Alton
   made $2.7k+ for the week of 7 September; the Analysis page, filtered to the
   same window, now shows something else entirely.** Traced end to end; the
