@@ -40,6 +40,10 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
+          # The action resolves "latest" through the GitHub API, which is
+          # rate-limited unauthenticated. The 17 September staging deploy
+          # failed on exactly that, before a line of our code ran.
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy all functions to staging
         run: |
