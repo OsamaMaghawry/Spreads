@@ -155,6 +155,22 @@ export function dailySeries(rows, view, mode = "performance", range = {}) {
     // null when the window starts at the account's beginning. The chart names
     // it so "over this window" can say where the count began.
     baselineDate: mode === "value" ? baselineDate : (baseline !== null ? baselineDate : null),
+    // THE POINT THE LINE IS MEASURED FROM, so the chart can draw it.
+    //
+    // The owner, on a week whose first session did +$2,225 of its +$2,455:
+    // *"open and closing at almost at the same point is correct to you?!"*
+    // The line's first drawn point was that first session, already at
+    // +$2,225, so the whole move sat to the LEFT of the chart and the week
+    // read as flat. The baseline is a real close on a real day -- it is the
+    // zero of the performance line and the starting balance of the value
+    // line -- and a window "measured from the close before it" has to show
+    // that close or the measurement is invisible. Kept out of `points` so
+    // drawdown, `start`, `missing` and every test of the window's own days
+    // are untouched; the chart prepends it.
+    baselinePoint:
+      baseline === null || baselineDate === null
+        ? null
+        : { date: baselineDate, value: mode === "value" ? baseline : 0, unpriced: [], baseline: true },
     // The performance line is drawn from its baseline; a balance never is.
     rebased: mode !== "value" && baseline !== null,
     // See `baselineKnown` above: false means the window has earlier days and

@@ -80,6 +80,25 @@ test("a window at the account's own beginning measures from its first day", () =
   const value = dailySeries(SERIES, "whole", "value", { from: "2026-09-01" });
   assert.equal(value.baselineDate, null);
   assert.equal(value.change, 151000 - 140000);
+  assert.equal(value.baselinePoint, null);
+});
+
+test("the close the window is measured from is handed to the chart as a point", () => {
+  // The owner's week: the first session inside it did +$2,225 of the week's
+  // +$2,455, and with the line starting ON that session the move was off the
+  // left edge and the week looked flat. The baseline is the line's zero and
+  // must be drawable.
+  const perf = dailySeries(SERIES, "whole", "performance", { from: "2026-09-03" });
+  assert.deepEqual(perf.baselinePoint, { date: "2026-09-02", value: 0, unpriced: [], baseline: true });
+  // Not inside `points`: the window's own days are unchanged.
+  assert.deepEqual(perf.points.map((p) => p.date), ["2026-09-03", "2026-09-04"]);
+
+  // On the value line it is the balance at that close, untouched.
+  const value = dailySeries(SERIES, "whole", "value", { from: "2026-09-03" });
+  assert.deepEqual(value.baselinePoint, { date: "2026-09-02", value: 140800, unpriced: [], baseline: true });
+
+  // No window, no baseline, nothing to prepend.
+  assert.equal(dailySeries(SERIES, "whole").baselinePoint, null);
 });
 
 test("a closing date bounds the window on the right", () => {

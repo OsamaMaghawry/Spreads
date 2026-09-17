@@ -50,6 +50,15 @@ export default function EquityCurveChart({
   const points = Array.isArray(curve?.points) ? curve.points : [];
   if (!points.length) return null;
 
+  // THE LINE STARTS WHERE IT IS MEASURED FROM. A window is measured from the
+  // last close before it, and the first version drew only the days inside
+  // the window -- so on a week whose first session did +$2,225 of its
+  // +$2,455 the line began already at +$2,225 and the week read as flat. The
+  // owner: *"open and closing at almost at the same point is correct to
+  // you?!"* The baseline close is a real day and is drawn as the first point:
+  // zero on the performance line, the starting balance on the value line.
+  const drawn = curve.baselinePoint ? [curve.baselinePoint, ...points] : points;
+
   const isValue = curve.mode === "value";
   const end = curve.end;
   const change = curve.change;
@@ -146,7 +155,7 @@ export default function EquityCurveChart({
 
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={points} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <AreaChart data={drawn} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="curveFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={color} stopOpacity={0.25} />
@@ -163,7 +172,12 @@ export default function EquityCurveChart({
             />
             <Tooltip
               contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}
-              formatter={(v) => (v === null || v === undefined ? ["—", isValue ? "Account value" : "Cumulative"] : [fmtMoney(v), isValue ? "Account value" : "Cumulative"])}
+              formatter={(v, _name, item) => {
+                const label = item?.payload?.baseline
+                  ? (isValue ? "Account value · close before the window" : "Close before the window · the line's zero")
+                  : isValue ? "Account value" : "Cumulative";
+                return [v === null || v === undefined ? "—" : fmtMoney(v), label];
+              }}
             />
             {!isValue && <ReferenceLine y={0} stroke="#cbd5e1" strokeWidth={1} />}
             {/* connectNulls={false} on purpose: a day the book could not be
@@ -186,8 +200,15 @@ export default function EquityCurveChart({
       <div className="mt-2 space-y-1">
         {curve.rebased && (
           <p className="text-[11px] text-slate-500">
-            Measured from the close of the last day before this date range, so the line shows what
+            Measured from the {curve.baselineDate} close, the last session before this date range.
+            That close is the first point drawn and the line&rsquo;s zero, so the line shows what
             this window did rather than everything that came before it.
+          </p>
+        )}
+        {isValue && curve.baselinePoint && (
+          <p className="text-[11px] text-slate-500">
+            The first point is the {curve.baselineDate} close, the last session before this date
+            range, so the window&rsquo;s whole move is on the chart.
           </p>
         )}
         {/* THE LINE AND THE HEADLINE DO NOT AGREE, and the page must say so
