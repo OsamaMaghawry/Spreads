@@ -94,16 +94,16 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-17 · Stored account history is now frozen against being silently
+- 2026-09-17 · The Account Analysis chart now draws the close a window is
+- 2026-09-17 · Account Analysis and the weekly digest email now agree with
+- 2026-09-17 · Account Analysis, filtered to the exact week a weekly
+- 2026-09-14 · Closing a position no longer shows a blank white screen: the
 - 2026-09-14 · (staging) Reopening a saved order ticket no longer shows a
 - 2026-09-14 · (staging) An eighth foundations post — implied volatility
 - 2026-09-14 · The Screener is now the Scanner everywhere a user reads it
 - 2026-09-14 · Both deltamint.app and dashboard.deltamint.app now serve
 - 2026-09-14 · The Orders tab's order card was rebuilt end to end: a
-- 2026-09-13 · A seventh foundations post — theta decay explained — is
-- 2026-09-13 · The weekly digest email now actually sends to every
-- 2026-09-12 · A negative options buying power (an account in deficit) now
-- 2026-09-12 · The weekly digest email was rebuilt into what a user
-- 2026-09-12 · A tax-review disclaimer that used to appear only on page
 
 ## Server functions
 

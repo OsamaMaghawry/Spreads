@@ -5,6 +5,152 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Needs owner
 
+- [needs owner] 2026-09-17 · duty-engineer · **Migration `0054` needs
+  confirming on production before Saturday 13:00 UTC, or the weekly digest
+  will fail to send to everyone.** `0054_digest_figures_kept.sql` (landed on
+  `main` today in `7386f6b`, alongside the leg-matching fix below) adds
+  `weekly_digest_sends.figures`; `weeklyDigest/index.ts:351` upserts a row
+  naming that column **unconditionally**, on every send — the same shape as
+  the `0053`/`saved_orders.setup` case already found and confirmed this
+  week (queue, 2026-09-14). If `0054` has not been applied on
+  `yecfbeohyakuoyczvdbj` by then, PostgREST answers `PGRST204` and the
+  `weekly-digest` cron job (Saturday 13:00 UTC, `0036_weekly_digest.sql`)
+  fails to upsert for every account — no digest reaches anyone that week,
+  and the same failure repeats every Saturday until the migration is
+  applied. Not a duty-engineer fix — a migration is escalate-never-fix, and
+  production's schema is not readable from this session (`yecfbeohyakuoyczvdbj.supabase.co`
+  is 403 at CONNECT, see the 2026-09-09 item below). **Owner action:**
+  confirm/apply `0054` on production the same way `0051`–`0053` were
+  confirmed on 2026-09-14, before Saturday. Emailed (money/user-path finding
+  with a hard deadline).
+
+- [fixed 2956bfb] 2026-09-17 · owner found · **The weekly digest said Alton
+  made $2.7k+ for the week of 7 September; the Analysis page, filtered to the
+  same window, now shows something else entirely.** Traced end to end; the
+  data changed, on 16 September at 21:30 UTC, and the mechanism is recorded so
+  it is never a mystery again:
+  - `equityHistory.fetchOpenDates` asked the broker for closed orders with
+    `symbols=<OCC contract>`. A spread is ONE parent order whose own `symbol`
+    is not either contract — the contracts sit nested under `legs` — so the
+    filter matched nothing for a leg bought inside a spread.
+  - The long TSLA 370 put (Feb 2027) was bought inside a spread on 14
+    September (sent from `dev-dash` against brokerage account 907253851, which
+    is connected to BOTH projects — a staging order is a real order). It had no
+    fills, so no open date; `dailyPortfolio.ts:984` carries a leg it cannot
+    place in time as held-but-unpriced on EVERY day. The nightly rebuild
+    rewrote all 52 stored days on production (back to 2 July) with
+    `performance: null`, `options_open: null`, `unpriced: ["TSLA270219P00370000"]`.
+    Staging: 53 of 54 days, identically.
+  - So the Whole view shows nothing for any window, and the trades view shows
+    realized money only: about **+$626** of non-provisional realized P/L on
+    trades closed 7–13 Sep (+$786 with the one provisional TSLA assignment).
+    The email's ~$2.7k was `performance` differenced across the week — the
+    open book's move included — and the broker's own equity change for the
+    same days was +$2,706.64 (138,870.97 → 141,577.61).
+  - The email's exact figures are gone from our side: `weekly_digest_sends`
+    recorded who was mailed and when, and the series it was computed from is
+    rewritten in full every night. Only the owner's inbox has them.
+  Fixed in `2956bfb`: `fetchOpenDates` pages every closed order in the window
+  and matches nested legs locally (pure `_shared/legOpenDates.ts`, 8 tests,
+  the owner's spread verbatim); migration `0054` adds
+  `weekly_digest_sends.figures` and the digest stores what it rendered at send
+  time. **Still open, needs a decision:** one unplaceable leg nulling the
+  entire series is honest and catastrophic; the bound belongs to
+  head-of-trading, not a patch.
+
+- [fixed 2026-09-14] 2026-09-14 · duty-engineer · **Production's migration
+  state is unverified** — it was verified the same day, before the merge the
+  entry worries about, by the session that made it: `0051` and `0052` were
+  applied to `yecfbeohyakuoyczvdbj` at 08:55 UTC and read back (15 columns, 4
+  policies, ownership trigger, zero UPDATE policies on `profiles`); `0053` was
+  applied at 14:2x UTC before `c835e0f` was pushed, and `saved_orders` read
+  back with 16 columns. Save for later did not fail. The general worry stands
+  as a process gap — `ship.md` step 1 says "each verified by listing" and no
+  run since 2026-09-09 records the full list being compared; the owner can
+  close that by running the comparison once. Original text kept below.
+
+- [needs owner] 2026-09-14 · duty-engineer · **Production's migration state is
+  unverified, and today's merge put code live that writes a column migration
+  `0053` adds.** Not "production is broken" — I cannot reach the production
+  project from a session (`yecfbeohyakuoyczvdbj.supabase.co` is 403 at CONNECT,
+  see the 2026-09-09 item below) and hold no database credentials, so this is a
+  confirmation request with one specific consequence attached.
+
+  **The specific one.** `src/lib/savedOrders.js:50-70` builds every saved-ticket
+  insert with `setup: setup || null` in the row, unconditionally — the column is
+  named on the wire whether or not a setup exists. That column comes from
+  `0053_saved_orders_setup.sql`, which reached `main` today inside the owner's
+  `c835e0f` merge (14:28 UTC, deployed by 14:30). If production has not run
+  0053, PostgREST answers the insert with `PGRST204` and **Save for later fails
+  for every user on every order**. `c835e0f`'s own message says the change is
+  "additive and nullable, and the reopen path handles a null setup, so the order
+  is safe either way" — that is true of READING a reopened ticket
+  (`OpenPositionDialog.jsx:125-135` falls to `analyticsAbsent`) and not true of
+  SAVING one, because the insert names the column either way. The same applies to
+  `0051_saved_orders.sql` (the table itself) and `0052_saved_orders_tif.sql`,
+  both of which also first reached `main` today.
+
+  **The general one.** The last record anywhere in this repo of production's
+  migration state being verified is the 2026-09-02 item below, closed
+  `fixed 2026-09-09` at `0029`. Since then **24 migrations (`0030`–`0053`) have
+  reached `main`** — `account_equity_daily`, `cash_flows`, the integrity
+  findings tables, the per-account weekly digest, `cron_tickets`, `saved_orders`.
+  `docs/ops/ship.md` step 1 says migrations go first on production, "each
+  verified by listing"; no run since 2026-09-09 records that being done. If the
+  equity chart and the digest have been working in production this week then
+  `0030`–`0050` are plainly applied and only today's three are in question.
+
+  **Owner action:** list the applied migrations on `yecfbeohyakuoyczvdbj` and
+  compare against `supabase/migrations/`; apply anything missing, oldest first.
+  At minimum confirm `0051`, `0052`, `0053`. Not a duty-engineer fix — a
+  migration is escalate-never-fix, and this one is on production besides.
+  **Not emailed — no channel exists.** See the item directly below. Raised
+  instead as PR [#9](https://github.com/OsamaMaghawry/Spreads/pull/9)
+  (`staging` → `main`, docs only, **not merged**), whose description leads with
+  this ask.
+
+- [needs owner] 2026-09-14 · duty-engineer · **The duty engineer can no longer
+  reach the owner at all.** The brief requires an email for a user-visible or
+  money-path finding; the escalation above is one, and it could not be
+  delivered. Three routes tried this run:
+  (1) `sendDigest` on production per the brief's recipe — `CONNECT tunnel
+  failed, response 403`, the standing allowlist item below. **New this run:**
+  the staging project `wpwaomzgpbozzghohwmf.supabase.co` is blocked the same
+  way, so *no* Supabase host is reachable and the brief's step cannot run as
+  written. Recorded in `docs/context/reachable.md`.
+  (2) `email-digest.yml`, this repo's own answer to "an agent physically cannot
+  call sendDigest itself" — `workflow_dispatch` refused with
+  `403 Resource not accessible by integration`; the session token can read
+  Actions and push branches but not dispatch. Its push trigger does not cover
+  `docs/ops/**`, and misfiling an ops escalation into `docs/product/**` to trip
+  a path filter is not an option worth taking.
+  (3) A GitHub issue — refused by the session's own permission system as an
+  external write. Not worked around.
+  What did work: opening a pull request. PR #9 is how this run's escalation
+  reached anywhere the owner is notified. That is a workaround, not a fix — a
+  PR is a poor place to put "production may be broken right now".
+  The 2026-09-09 run that hit (1) used `PushNotification`; that tool is not
+  present in this session. **Owner: one of these needs to exist** — the
+  allowlist addition for `yecfbeohyakuoyczvdbj.supabase.co` (smallest change,
+  already requested below), or `docs/ops/**` added to `email-digest.yml`'s push
+  paths so a pushed ledger mails itself. Until then every duty-engineer
+  escalation is silent until someone reads `docs/ops/queue.md`.
+
+- [fixed 2026-09-14] 2026-09-12 · **`publish-blog.yml`'s failure was NOT the
+  credentials guard, and nothing is waiting on the owner.** The entry below
+  asked for `SUPABASE_SERVICE_ROLE_KEY` to be set. Checked step by step through
+  the Actions API on the exact run it cites (34698751470, `255e3151`,
+  2026-09-12 14:15 UTC): **`Require credentials` passed** — so the secret was
+  already set at the time — and the job failed one step later, in `Publish`.
+  The failure log itself is not readable from here (Actions log downloads
+  redirect to `objects.githubusercontent.com`, which is 403 at CONNECT), but it
+  no longer matters: every `publish-blog` run on `main` since has been green
+  including `Publish` — 34760214212 (13 Sep 13:34), 34825468618 (14 Sep 08:58)
+  and 34855910416 (14 Sep 14:29, on `c835e0f`). The script upserts on slug over
+  all of `content/blog/`, so those green runs republished whatever the 12 Sep
+  run missed; the production blog is current. Do not set the secret again — it
+  is set.
+
 - [needs owner] 2026-09-14 · **`www.deltamint.app` answers HTTP 522** on both
   schemes. A proxied DNS record already exists — 522 rather than NXDOMAIN
   proves it — but it points at an origin Cloudflare cannot reach. Adding a
@@ -45,8 +191,10 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
   522: both are one-way doors cached client-side, where no setting of ours can
   revoke them.
 
-- [needs owner] 2026-09-12 · **`publish-blog.yml` fails on `main` at its
-  credentials guard**: the GitHub Actions secret `SUPABASE_SERVICE_ROLE_KEY`
+- [fixed 2026-09-14] 2026-09-12 · ~~**`publish-blog.yml` fails on `main` at its
+  credentials guard**~~ — **misdiagnosed; see the 2026-09-14 entry above.** The
+  guard passed on the very run cited here; the secret was set. Kept for the
+  record: the GitHub Actions secret `SUPABASE_SERVICE_ROLE_KEY`
   is not set on this repository. (The 2026-09-07 entries below record it being
   added — it is not present now, so it was either removed or added on a
   different repository.) The job refuses rather than writing with an empty key,

@@ -3,6 +3,58 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-17 · Stored account history is now frozen against being silently
+  rewritten: a nightly rebuild can no longer blank or materially change a
+  day older than the last few trading sessions (the exact bug that had
+  zeroed 52 days of one account's history two lines below) — a
+  disagreement is recorded and the old, good value is kept instead of
+  overwritten. Every previously-sent weekly digest is now re-checked
+  against what's actually stored, and the owner is mailed once if a sent
+  figure no longer matches history, not every night the mismatch persists
+  (`7da283d`/`294175c`, `22c5b44`/`a9dbf8b`).
+- 2026-09-17 · The Account Analysis chart now draws the close a window is
+  measured FROM, not just the days inside it — previously a week's chart
+  started already up most of its gain, so the week looked flat when it
+  wasn't. A new panel under the headline breaks the window's total into
+  the same four parts the weekly digest already emails (premium, shares,
+  mark change, etc.) between that starting close and the window's last
+  close, so a figure like "+$2,455.91 for the week" now shows where it
+  came from instead of just asserting it (`33b1333`/`e8787b0`).
+- 2026-09-17 · Account Analysis and the weekly digest email now agree with
+  each other and explain their own numbers instead of contradicting each
+  other: both now measure a window's change from the same starting
+  balance (previously the chart measured from the first day inside the
+  window while the digest measured from the last day before it), a
+  windowed balance is now labelled "End of window · <date>" instead of
+  reading as today's, the digest's realized figure now excludes the same
+  still-settling trades the page already excludes instead of silently
+  disagreeing with it, and the gap between what trading did and the
+  broker's own account-value change is now named on screen and in the
+  email (fees, interest, dividends, transfers, or a marking difference)
+  instead of left for the reader to notice and distrust (`f6d610c`/`0dd5122`).
+- 2026-09-17 · Account Analysis, filtered to the exact week a weekly
+  digest email described, no longer disagrees with what the email said:
+  a spread's long leg (nested under its parent order rather than
+  carrying its own symbol) was invisible to the nightly history rebuild,
+  so it was treated as held with no known open date and blanked 52 days
+  of stored history to "performance: null" — the Whole view showed
+  nothing for any window while the trades view showed realized money
+  only. The rebuild now matches every leg to its fill the same way trade
+  history already does. The weekly digest also now keeps a permanent
+  record of the exact figures it sent, so what was emailed can be
+  checked later instead of only living in that one inbox (`a1127e8`/
+  `7386f6b`, `ec6b0f3`/`bf9180f`, migration `0054`).
+- 2026-09-14 · Closing a position no longer shows a blank white screen: the
+  close ticket read its own share/contract quantity before the value existed
+  (a JavaScript temporal-dead-zone bug in `CloseDialog`), so every attempt to
+  close crashed the whole page with no message, live on production since the
+  morning's order-card release. The quantity is now read after it is set, and
+  the app gets its first error boundary anywhere — a crash is now caught at
+  the smallest scope, shows what broke with a way back, and is recorded for
+  later instead of unmounting the entire page. A new lint rule
+  (`no-use-before-define` for `let`/`const`/`class` across `src/components`
+  and `src/pages`) stops the same class of bug from shipping again
+  (`c576da7`, `b9c2555`, merged straight to `main` in `c835e0f`).
 - 2026-09-14 · (staging) Reopening a saved order ticket no longer shows a
   false "No ceiling"/"Loss not bounded" risk warning, blank strikes and
   "Delta NaN" for a setup it never actually rebuilt — saved orders now
