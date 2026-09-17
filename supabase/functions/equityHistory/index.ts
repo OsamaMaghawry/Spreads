@@ -14,6 +14,16 @@ import { parseOCCSymbol } from "../_shared/occ.ts";
 import { loadAccount, alpacaFetch, tradingBase } from "../_shared/alpaca.ts";
 import { fillsBySymbol, openDatesFor } from "../_shared/legOpenDates.ts";
 import {
+  freezeSeries,
+  historyFinding,
+  digestDrift,
+  digestDriftFinding,
+  driftEmail,
+  HISTORY_FINDING_CODES
+} from "../_shared/seriesFreeze.ts";
+import { accountWeek } from "../_shared/weeklyDigest.ts";
+import { sendEmail } from "../_shared/email.ts";
+import {
   sessionDay,
   equityDays,
   closesByDay,
@@ -252,7 +262,7 @@ async function storedSeries(admin, accountId: string) {
   );
 }
 
-async function rebuild(admin, account, userId: string) {
+async function rebuild(admin, account, userId: string, opts: { rewriteHistory?: boolean } = {}) {
   // PAGED, because PostgREST caps an unbounded select at a thousand rows and
   // reports no error. This function shipped without it: `premium_cum` was
   // silently truncated to whatever thousand trade rows came back, in no defined
@@ -513,15 +523,34 @@ async function rebuild(admin, account, userId: string) {
     };
   });
 
-  for (let i = 0; i < rows.length; i += 500) {
+  // HISTORY IS FROZEN. See _shared/seriesFreeze.ts for the 16 September
+  // rebuild that wrote null over 52 stored days and the owner's question
+  // that followed. A day older than the last five stored sessions may not
+  // change by more than a cent and may not be blanked: the stored row is
+  // kept, the computed one is not written, and the difference is recorded
+  // and mailed below. Filling a stored blank is allowed. `rewriteHistory`,
+  // service-role only, is the one way past it, and it is recorded too.
+  const stored = await storedSeries(admin, account.id);
+  const freeze = freezeSeries(stored, rows, { rewriteHistory: opts.rewriteHistory === true });
+  if (freeze.held.length) {
+    console.warn(
+      `equityHistory: ${account.id} held ${freeze.held.length} frozen day(s) ${freeze.held[0]}..${freeze.held[freeze.held.length - 1]}; stored history kept`
+    );
+  }
+
+  for (let i = 0; i < freeze.rows.length; i += 500) {
     const { error } = await admin.rpc("upsert_account_equity_daily", {
-      p_rows: rows.slice(i, i + 500)
+      p_rows: freeze.rows.slice(i, i + 500)
     });
     if (error) throw new Error(error.message);
   }
 
-  await auditSeries(admin, account, userId, rows, closedLegs);
-  return { rows, skippedWeekend };
+  // The series AS STORED, read back, is what the audits and the digest check
+  // run against -- not the computed rows, which on a held day are exactly the
+  // figures that were refused.
+  const after = await storedSeries(admin, account.id);
+  await auditSeries(admin, account, userId, after, closedLegs, freeze);
+  return { rows: freeze.rows, skippedWeekend, held: freeze.held.length, drift: freeze.drift.length };
 }
 
 // WHAT THE BROKER SAYS, AGAINST WHAT WE SAY -- run on every rebuild.
@@ -539,8 +568,54 @@ async function rebuild(admin, account, userId: string) {
 //
 // Never throws. A rebuild that succeeded must not be reported as failed
 // because the audit trail could not be written.
-async function auditSeries(admin: any, account: any, userId: string, rows: any[], legs: any[]) {
+async function auditSeries(admin: any, account: any, userId: string, rows: any[], legs: any[], freeze: any = null) {
   try {
+    // WHAT A SENT EMAIL SAID, against the series now. Every digest stores the
+    // figures it rendered (migration 0054); each is recomputed over its own
+    // week from the rows as stored and any figure that moved is a finding.
+    // The trade-derived figures (positions closed, premium collected) are not
+    // compared here: they come from trade_records, which this rebuild does
+    // not touch.
+    const digestFindings: any[] = [];
+    try {
+      const { data: sends } = await admin
+        .from("weekly_digest_sends")
+        .select("week_start, mode, created_at, figures")
+        .eq("account_id", account.id)
+        .eq("status", "sent")
+        .not("figures", "is", null);
+      for (const s of sends || []) {
+        const from = String(s.week_start).slice(0, 10);
+        const to = new Date(new Date(`${from}T00:00:00Z`).getTime() + 4 * 86400000).toISOString().slice(0, 10);
+        const week = accountWeek(account, rows, [], { from, to });
+        const f = digestDriftFinding(
+          { week_start: from, mode: s.mode, sent_at: s.created_at },
+          digestDrift(s.figures, week)
+        );
+        if (f) digestFindings.push(f);
+      }
+    } catch (e: any) {
+      console.error(`equityHistory: digest check skipped for ${account.id}: ${e?.message || e}`);
+    }
+    const history = freeze ? historyFinding(freeze) : null;
+    const guardFindings = [...(history ? [history] : []), ...digestFindings];
+
+    // MAIL ONLY WHAT IS NEW. A frozen day that keeps drifting is one finding
+    // that stays open, not a nightly alarm; the signature in each finding's
+    // detail is what "the same thing" means. Read before the record below
+    // rewrites it.
+    let fresh: any[] = [];
+    if (guardFindings.length) {
+      const { data: open } = await admin
+        .from("integrity_findings")
+        .select("code, subject, detail")
+        .eq("account_id", account.id)
+        .in("code", [...HISTORY_FINDING_CODES])
+        .is("resolved_at", null);
+      const seen = new Set((open || []).map((f: any) => `${f.code} ${f.subject} ${f.detail?.signature ?? ""}`));
+      fresh = guardFindings.filter((f) => !seen.has(`${f.code} ${f.subject} ${f.detail?.signature ?? ""}`));
+    }
+
     const spans = legs.map((l: any) => ({
       symbol: String(l.symbol || ""),
       from: l.from || null,
@@ -589,7 +664,8 @@ async function auditSeries(admin: any, account: any, userId: string, rows: any[]
       ...emptyOptionBookFindings(rows, spans),
       ...(dated.length >= 2
         ? [divergenceFinding(dated, flows, `${dated[0].day} to ${dated[dated.length - 1].day}`)]
-        : [])
+        : []),
+      ...guardFindings
     ].filter(Boolean);
 
     const { error } = await admin.rpc("record_integrity_findings", {
@@ -603,6 +679,22 @@ async function auditSeries(admin: any, account: any, userId: string, rows: any[]
       p_codes: SERIES_FINDING_CODES
     });
     if (error) throw new Error(error.message);
+
+    // The owner is told, in the same run, with both values. Recipient is the
+    // watch's, the one address every alert in the product goes to; a missing
+    // address or a missing provider key is a logged skip, never a failure.
+    if (fresh.length) {
+      const { data: settings } = await admin
+        .from("watch_settings").select("recipient_email").eq("id", true).maybeSingle();
+      const to = settings?.recipient_email;
+      if (to) {
+        const mail = driftEmail(account.name || account.id, fresh);
+        const result = await sendEmail(to, mail.subject, mail.html, mail.text);
+        console.warn(`equityHistory: ${account.id} drift mail ${result.sent ? "sent" : `not sent (${result.skipped || result.error})`}: ${mail.subject}`);
+      } else {
+        console.warn(`equityHistory: ${account.id} drift found and no recipient_email set`);
+      }
+    }
   } catch (e: any) {
     console.error(`equityHistory: series audit not recorded for ${account.id}: ${e?.message || e}`);
   }
@@ -642,7 +734,7 @@ async function auditSeries(admin: any, account: any, userId: string, rows: any[]
 async function rebuildAll(
   admin: any,
   maxAgeMinutes: number,
-  opts: { includeLive?: boolean; accountId?: string | null } = {}
+  opts: { includeLive?: boolean; accountId?: string | null; rewriteHistory?: boolean } = {}
 ) {
   // Paper only: no daily series is built or stored for a live account. See
   // PAPER_ONLY in _shared/settings.ts.
@@ -666,7 +758,9 @@ async function rebuildAll(
         .from("trading_accounts")
         .update({ equity_synced_at: new Date().toISOString() })
         .eq("id", account.id);
-      const { skippedWeekend } = await rebuild(admin, account, account.user_id);
+      const { skippedWeekend, held, drift } = await rebuild(admin, account, account.user_id, {
+        rewriteHistory: opts.rewriteHistory === true
+      });
       const { count } = await admin
         .from("account_equity_daily")
         .select("day", { count: "exact", head: true })
@@ -674,7 +768,7 @@ async function rebuildAll(
       // Reported, not just logged. A tripwire in a function log is a tripwire
       // nobody is standing next to; this one travels back with the run so the
       // caller that started the rebuild sees it.
-      results.push({ accountId: account.id, ok: true, days: count ?? null, skippedWeekend });
+      results.push({ accountId: account.id, ok: true, days: count ?? null, skippedWeekend, held, drift });
     } catch (e) {
       // One account's broker refusing must not cost every other account its
       // series. Recorded, and the run continues.
@@ -774,7 +868,10 @@ Deno.serve(async (req) => {
       if (!allowed) return jsonResponse({ error: "Forbidden" }, 403);
       return jsonResponse(await rebuildAll(admin, Number(payload.maxAgeMinutes) || 0, {
         includeLive: payload.includeLive === true,
-        accountId: payload.accountId ? String(payload.accountId) : null
+        accountId: payload.accountId ? String(payload.accountId) : null,
+        // THE ONE WAY TO CHANGE THE PAST, and it is service-role only and
+        // explicit. A rebuild asked to rewrite still records what it changed.
+        rewriteHistory: payload.rewriteHistory === true
       }));
     }
 

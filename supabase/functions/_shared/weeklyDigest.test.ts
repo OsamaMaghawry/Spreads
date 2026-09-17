@@ -595,3 +595,34 @@ test("a paper account's disclaimer says its money is simulated, in both parts", 
   assert.ok(html.includes("its money is simulated"));
   assert.ok(text.includes("its money is simulated"));
 });
+
+// ---------------------------------------------------------------------------
+// The same rows the Analysis page is tested on -- src/lib/windowParts.test.js
+// carries this fixture verbatim. Two implementations, one arithmetic: if
+// either side changes what a week's four parts are, one of the two suites
+// fails on the owner's own numbers.
+// ---------------------------------------------------------------------------
+
+const ALTON = [
+  { day: "2026-09-03", equity: 140844.76, premium_cum: -757, shares_booked: -817, shares_open: 0, options_open: -23, performance: -1597 },
+  { day: "2026-09-04", equity: 138870.97, premium_cum: -757, shares_booked: -817, shares_open: 0, options_open: -1831, performance: -3405 },
+  { day: "2026-09-08", equity: 141530.46, premium_cum: -495, shares_booked: -817, shares_open: 632, options_open: -500, performance: -1180 },
+  { day: "2026-09-09", equity: 141547.64, premium_cum: -1686, shares_booked: 441.91, shares_open: 31, options_open: 230, performance: -983.09 },
+  { day: "2026-09-10", equity: 141247.97, premium_cum: -1473, shares_booked: 441.91, shares_open: -394, options_open: 317, performance: -1108.09 },
+  { day: "2026-09-11", equity: 141577.61, premium_cum: -1230, shares_booked: 441.91, shares_open: -206, options_open: 45, performance: -949.09 },
+  { day: "2026-09-14", equity: 141294.56, premium_cum: -809, shares_booked: 441.91, shares_open: -853, options_open: 134, performance: -1086.09 }
+];
+
+test("Alton's week of 7-11 September: the email's four parts are the page's four parts", () => {
+  const r2 = (v: number | null) => (v === null ? null : Math.round(v * 100) / 100);
+  const w = accountWeek({ id: "alton", name: "Alton Live", is_paper: false }, ALTON, [], { from: "2026-09-07", to: "2026-09-11" });
+  assert.equal(w.measuredFrom, "2026-09-04");
+  assert.equal(w.measuredTo, "2026-09-11");
+  assert.equal(r2(w.premiumLine), -473);
+  assert.equal(r2(w.sharesBooked), 1258.91);
+  assert.equal(r2(w.sharesMark), -206);
+  assert.equal(r2(w.optionsMark), 1876);
+  assert.equal(r2(w.performance), 2455.91);
+  assert.equal(r2(w.equityChange), 2706.64);
+  assert.equal(r2(w.equityEnd), 141577.61);
+});
