@@ -13,6 +13,7 @@ import {
 import { parseOCCSymbol } from "../_shared/occ.ts";
 import { loadAccount, alpacaFetch, tradingBase } from "../_shared/alpaca.ts";
 import {
+import { fillsBySymbol, openDatesFor } from "../_shared/legOpenDates.ts";
   sessionDay,
   equityDays,
   closesByDay,
@@ -197,72 +198,45 @@ async function fetchOptionBars(account, symbols: string[], start: string) {
 // than the oldest one available. That is the honest answer and the walk names
 // it; guessing would put a position on days it did not exist.
 async function fetchOpenDates(account, legs: any[], after: string) {
-  const out: Record<string, string> = {};
   const symbols = legs.map((l) => l.symbol).filter(Boolean);
-  if (!symbols.length) return out;
+  if (!symbols.length) return {};
 
-  // Fills per symbol, newest first.
-  const fills: Record<string, { day: string; qty: number }[]> = {};
-
-  for (let i = 0; i < symbols.length; i += 50) {
-    const chunk = symbols.slice(i, i + 50);
-    // PAGED. tradeHistory walks this same endpoint twelve times on a real
-    // account precisely because one page of 500 is not enough, and an
-    // unpaginated read here would silently drop the older half of the fills --
-    // which is exactly the half this function is looking for.
-    let pageAfter = `${after}T00:00:00Z`;
-    for (let page = 0; page < 20; page++) {
-      const url =
-        `${tradingBase(account)}/orders?status=closed&direction=asc&limit=500` +
-        `&after=${encodeURIComponent(pageAfter)}&symbols=${chunk.join(",")}&nested=true`;
-      const orders = await alpacaFetch(url, account).catch((e) => {
-        console.error("open-date fetch failed", chunk.join(","), e?.message || e);
-        return null;
-      });
-      if (!Array.isArray(orders) || orders.length === 0) break;
-
-      for (const o of orders) {
-        // `nested=true` so a multi-leg order's legs are visible. A spread is
-        // submitted as `order_class: "mleg"` and the parent's `symbol` is NULL
-        // -- manageOrder says so in its own comment -- so the leg rows are the
-        // only place a spread's contract symbol appears.
-        for (const r of [o, ...(o?.legs || [])]) {
-          const symbol = r?.symbol;
-          if (!symbol || !chunk.includes(symbol)) continue;
-          const at = String(r?.filled_at || o?.filled_at || "").slice(0, 10);
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(at)) continue;
-          const qty = Number(r?.filled_qty ?? r?.qty);
-          if (!Number.isFinite(qty) || qty === 0) continue;
-          const side = String(r?.side || "");
-          // Signed by side, so a buy and a sell on the same contract cancel the
-          // way the position does.
-          const signed = side.startsWith("sell") ? -qty : qty;
-          (fills[symbol] = fills[symbol] || []).push({ day: at, qty: signed });
-        }
-      }
-
-      const last = orders[orders.length - 1];
-      const next = last?.submitted_at || last?.created_at;
-      if (!next || orders.length < 500) break;
-      pageAfter = next;
-    }
+  // EVERY closed order in the window, matched by symbol locally -- NOT
+  // `&symbols=<contract>` on the request.
+  //
+  // That filter is what blanked the owner's whole history. A spread is one
+  // parent order whose own `symbol` is not either contract; the contracts sit
+  // under `legs`. Filtering the request by the contract's OCC symbol matched
+  // nothing, so a leg bought inside a spread had no fills, no open date, and
+  // was carried as "held, unpriced" on every day back to the account's first
+  // trade -- 52 stored days on a live account, all `performance: null`,
+  // because of one TSLA put bought on 14 September. tradeSync walks this same
+  // endpoint unfiltered and always knew about the fill; now so does this.
+  //
+  // PAGED, forward from the window start, because one page of 500 is not a
+  // whole account and the older half is exactly the half being looked for.
+  const orders: any[] = [];
+  let pageAfter = `${after}T00:00:00Z`;
+  for (let page = 0; page < 20; page++) {
+    const url =
+      `${tradingBase(account)}/orders?status=closed&direction=asc&limit=500` +
+      `&after=${encodeURIComponent(pageAfter)}&nested=true`;
+    const batch = await alpacaFetch(url, account).catch((e) => {
+      console.error("open-date fetch failed", e?.message || e);
+      return null;
+    });
+    if (!Array.isArray(batch) || batch.length === 0) break;
+    orders.push(...batch);
+    const last = batch[batch.length - 1];
+    const next = last?.submitted_at || last?.created_at;
+    if (!next || batch.length < 500) break;
+    pageAfter = next;
   }
 
-  for (const leg of legs) {
-    const held = Number(leg.qty);
-    const rows = (fills[leg.symbol] || []).slice().sort((a, b) => b.day.localeCompare(a.day));
-    if (!rows.length || !Number.isFinite(held) || held === 0) continue;
-    let running = 0;
-    for (const f of rows) {
-      running += f.qty;
-      // Reached the quantity held now, from the newest side. `>=` for a long
-      // and `<=` for a short, because the running total approaches the target
-      // from zero in the direction of the position's own sign.
-      const reached = held > 0 ? running >= held : running <= held;
-      if (reached) { out[leg.symbol] = f.day; break; }
-    }
-  }
-  return out;
+  return openDatesFor(
+    legs.map((l) => ({ symbol: l.symbol, qty: Number(l.qty) })),
+    fillsBySymbol(orders, symbols)
+  );
 }
 
 async function storedSeries(admin, accountId: string) {
