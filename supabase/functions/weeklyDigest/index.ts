@@ -108,6 +108,42 @@ async function deliver(
   }
 }
 
+// The week as the email rendered it, minus the per-trade rows, for
+// weekly_digest_sends.figures. Plain numbers and strings only: this is read
+// back by a person asking what was sent, never by code computing anything.
+function digestFigures(week: any) {
+  const n = (v: any) => (v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v));
+  return {
+    measuredFrom: week.measuredFrom ?? null,
+    measuredTo: week.measuredTo ?? null,
+    days: week.days ?? null,
+    measured: Boolean(week.measured),
+    performance: n(week.performance),
+    premiumLine: n(week.premiumLine),
+    sharesBooked: n(week.sharesBooked),
+    sharesMark: n(week.sharesMark),
+    optionsMark: n(week.optionsMark),
+    equityChange: n(week.equityChange),
+    equityEnd: n(week.equityEnd),
+    premium: {
+      collected: n(week.premium?.collected),
+      paidToOpen: n(week.premium?.paidToOpen),
+      paidToClose: n(week.premium?.paidToClose),
+      kept: n(week.premium?.kept)
+    },
+    closed: {
+      count: week.closed?.count ?? 0,
+      winners: week.closed?.winners ?? 0,
+      expired: week.closed?.expired ?? 0,
+      realized: n(week.closed?.realized),
+      stock: n(week.closed?.stock)
+    },
+    opened: { count: week.opened?.count ?? 0 },
+    unpriced: Array.isArray(week.unpriced) ? week.unpriced : [],
+    withheld: { count: week.withheld?.count ?? 0, realized: n(week.withheld?.realized) }
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -319,7 +355,15 @@ Deno.serve(async (req) => {
               mode: sendMode,
               recipient,
               status: sent.sent ? "sent" : "failed",
-              detail: sent.error || sent.skipped || null
+              detail: sent.error || sent.skipped || null,
+              // WHAT THE EMAIL SAID, kept. The series this was computed from is
+              // rewritten by every nightly rebuild, so without this the only
+              // record of the figures a person was mailed is their inbox -- and
+              // "why does the app show something different now" cannot be
+              // answered from our side. See migration 0054. Trade rows are
+              // summarised rather than copied: the record is the headline and
+              // its parts, not a second trade history.
+              figures: digestFigures(week)
             },
             { onConflict: "account_id,week_start,mode" }
           );
