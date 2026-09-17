@@ -12,8 +12,8 @@ import {
 } from "../_shared/integrity.ts";
 import { parseOCCSymbol } from "../_shared/occ.ts";
 import { loadAccount, alpacaFetch, tradingBase } from "../_shared/alpaca.ts";
-import {
 import { fillsBySymbol, openDatesFor } from "../_shared/legOpenDates.ts";
+import {
   sessionDay,
   equityDays,
   closesByDay,
