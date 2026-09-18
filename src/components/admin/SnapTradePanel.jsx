@@ -221,6 +221,10 @@ export default function SnapTradePanel() {
                         <td className="py-1.5 pr-3">
                           {r.tradeAuth === "OAUTH" ? (
                             <span className="text-emerald-600">Broker&rsquo;s own OAuth</span>
+                          ) : r.tradeAuth === "TOKEN" ? (
+                            <span className="text-emerald-600" title="API keys the broker issues for this purpose.">
+                              Broker&rsquo;s API keys
+                            </span>
                           ) : r.tradeAuth ? (
                             <span className="text-amber-700" title="An interface the broker never published — it can change or be withdrawn without notice.">
                               Unofficial

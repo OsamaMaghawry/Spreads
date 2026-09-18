@@ -90,10 +90,18 @@ const BROKER_FIELDS: Record<string, string> = {
   //
   // `allows_trading` says whether an order can be placed. `authorization_types`
   // says HOW the connection is made, and for a money path those are different
-  // questions. OAUTH means the broker sanctioned the integration and can
-  // revoke it cleanly. UNOFFICIAL_API means SnapTrade is driving an interface
-  // the broker never published, which can change or be shut off without
-  // notice, and which a user's own broker agreement may not permit.
+  // questions. The live run returned three values:
+  //
+  //   OAUTH           the broker sanctioned it and can revoke it cleanly.
+  //   TOKEN           the broker issues API keys for this on purpose. Also
+  //                   sanctioned -- it is how Binance, Kraken and Trading212
+  //                   intend third parties to connect, and reading it as
+  //                   "unofficial" would overstate the risk on four of the
+  //                   fifteen tradable brokers.
+  //   UNOFFICIAL_API  SnapTrade is driving an interface the broker never
+  //                   published. It can change or be shut off without notice,
+  //                   and the user's own broker agreement may not permit it.
+  //                   This is the only one that is a risk to weigh.
   authorization_types: "authTypes",
   is_degraded: "degraded",
   release_stage: "releaseStage"
@@ -116,7 +124,7 @@ export interface BrokerRow {
   tradeAuth: string | null;
   /** How a read-only connection is authorised. */
   readAuth: string | null;
-  /** The broker sanctioned the trading integration, rather than it being driven unofficially. */
+  /** The broker knowingly provides the trading interface (OAuth or issued API keys). */
   officialTrading: boolean | null;
   degraded: boolean | null;
   releaseStage: string | null;
@@ -138,8 +146,10 @@ export function brokerRow(raw: Record<string, unknown>): BrokerRow {
     readAuth: authOf(raw, "read"),
     // Null when there is no trading connection to judge, rather than false --
     // "they do not offer it" and "they offer it unofficially" are different
-    // answers and only one of them is a risk.
-    officialTrading: tradeAuth === null ? null : tradeAuth === "OAUTH",
+    // answers and only one of them is a risk. Anything the broker knowingly
+    // provides counts as sanctioned; only an interface it never published
+    // does not.
+    officialTrading: tradeAuth === null ? null : tradeAuth !== "UNOFFICIAL_API",
     degraded: bool(raw.is_degraded),
     releaseStage: raw.release_stage ? String(raw.release_stage) : null,
     name: String(raw.display_name || raw.name || raw.slug || "unnamed"),

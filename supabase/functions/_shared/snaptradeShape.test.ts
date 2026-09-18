@@ -89,6 +89,20 @@ test("how a broker is reached is read, not just whether it can trade", () => {
   assert.equal(unofficial.officialTrading, false);
 });
 
+test("broker-issued API keys are sanctioned, not unofficial", () => {
+  // The live run returned a third value, TOKEN, on Binance, Kraken and
+  // Trading212. Those brokers issue API keys for exactly this purpose, so
+  // reading TOKEN as "unofficial" would have overstated the risk on four of
+  // the fifteen tradable brokers. Only an interface the broker never
+  // published is a risk to weigh.
+  const token = brokerRow({
+    name: "Keyed", allows_trading: true,
+    authorization_types: [{ type: "trade", auth_type: "TOKEN" }, { type: "read", auth_type: "TOKEN" }]
+  } as any);
+  assert.equal(token.tradeAuth, "TOKEN");
+  assert.equal(token.officialTrading, true);
+});
+
 test("a broker offering no trading connection is null, not false", () => {
   // "They do not offer it" and "they offer it unofficially" are different
   // answers, and only one of them is a risk to weigh.
