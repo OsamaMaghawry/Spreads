@@ -20,7 +20,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 6 | Delta | option delta explained | delta | Investopedia, OIC | what people use it for: strike selection, not a formula |
 | 7 | Theta | theta decay explained | option theta | Barchart, Schwab, OIC, TradingBlock, tastytrade; thin AI-era blogs in the tail | what decay looks like on a short and a long the same week |
 | 8 | Vega and IV | implied volatility options explained | implied volatility | Investopedia, CBOE | why a chain reprices before earnings |
-| 9 | Gamma | gamma options meaning | gamma | Investopedia | short, honest, when it matters and when it does not |
+| 9 | Gamma | gamma options meaning | option gamma | SoFi, tastytrade, Merrill Edge, Schwab, CME, OIC, TradingBlock, Barchart | short, honest, when it matters and when it does not |
 | 10 | Assignment | option assignment what happens | assignment | broker help pages, Reddit | the account the morning after, line by line |
 | 11 | Early exercise | early exercise options | exercise | Investopedia, forums | why it is rare and the one case it is not |
 | 12 | Expiration mechanics | what happens options expiration | expiration | broker help pages | ITM by a cent, OTM by a cent, the cutoff |
@@ -129,6 +129,51 @@ phrasing above; whether these results are personalised or localised; whether
 "IV crush" leads on title count, which is a count of titles and not demand);
 and whether "the whole chain reprices at once" has its own searched phrasing —
 searches for it returned generic IV explainers and skew pages, so the post owns
+the idea with no query to target it.
+
+## Reading for row 9 — gamma options meaning (read 2026-09-18)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| gamma options meaning (target) | SoFi, tastytrade, Merrill Edge, OIC, Roundhill, Schwab, CME, TradingBlock, TradingView support, Barchart | **hard** — broker and exchange education end to end, and the set returned is all but identical to "what is gamma in options" below |
+| what is gamma in options | tastytrade, SoFi, IG, Merrill Edge, Schwab, CME, TradingBlock, Corporate Finance Institute, Benzinga | **hard** — the same hub set. The two phrasings are one intent, so the slug phrase does not buy a separate results page |
+| why is gamma highest at the money | Macroption, Option Alpha, CME, Schwab, TradingBlock, OIC, Britannica Money, Barchart, **a Scribd upload**, TradingView support | **winnable** — a Scribd document and a support KB in the top set is a text-coverage gap |
+| why does gamma increase near expiration | Option Alpha, OIC, **Quora**, Schwab, TradingBlock, a help-centre article, **three USPTO patent PDFs**, ImpliedOptions | **winnable — the thinnest of the set.** Patent filings padding a results page means nothing is answering the question |
+| is gamma the same for calls and puts | Simpler Trading, tastytrade, an RIA blog, optiontradingtips, **Quora**, Schwab, OIC, OptionsPlay, **a Substack**, **a Black-Scholes source file** | **winnable** — Quora, a Substack and a code file ranking is as thin as a results page gets |
+| what does short gamma mean | OIC, Schwab, **a Medium post**, tastytrade, TradingBlock, SteadyOptions, projectoption | **winnable but crowded** — a Medium post holds a slot, but nearly every title is "long gamma vs short gamma" strategy framing we do not write |
+| does gamma matter when selling options | TradingBlock (twice), ImpliedOptions, Schwab, Hollow Point, projectoption, Morpher, Benzinga, Barchart | **winnable, thin** — and the tail here is dealer-positioning and "3 strategies to consider" content, not the beginner question asked |
+| gamma squeeze | SmartAsset, SoFi, Option Alpha, Schwab, SpotGamma, Roundhill, TradingSim, AvaTrade, LiteFinance | **do not target**: adjacent, busy, and a different subject — dealer hedging feedback loops and meme stocks. Roundhill's meme-stock piece surfaces on the target phrasing itself, so the contamination reaches our own results page |
+| gamma (unqualified) | Merriam-Webster, Wikipedia disambiguation, gamma correction, the gamma function, an Instagram account, gamma.app | **do not target**: the bare word is not a finance query at all — worse drift than theta's crypto ticker. The head term for this row is **option gamma**, never "gamma" alone |
+
+**The gap.** Every ranking page gives the definition, the "delta is speed,
+gamma is acceleration" line, "highest at the money" and the long/short sign
+rule. From there they go one of two ways: dealer gamma and gamma squeezes, or
+"strategies to consider" and hedging adjustments. Two things almost none of
+them do. They state "gamma rises into expiration" unqualified, which is only
+true near the strike — Option Alpha and ImpliedOptions both assert it flat,
+and the at-the-money and far-from-the-money columns over the same calendar are
+essentially unoccupied ground. And none of them says when gamma does not
+matter, which is the honest half of the row's angle and the half a beginner
+needs to hear before being sold a gamma product.
+
+**On the target phrasing itself.** "gamma options meaning" and "what is gamma
+in options" return the same domains in nearly the same order — Google is
+reading them as one intent, and no beginner types the first. The slug keeps
+the phrase because it is the row's target query and a URL is not read aloud;
+the title carries "gamma in options", which is the phrasing that actually gets
+typed. Same divergence as row 8, for the same reason.
+
+**Could not establish:** search volume, difficulty and current position for any
+phrasing above; whether these results are personalised or localised; whether
+"gamma options meaning" has any real query behind it at all or is a
+keyword-tool artefact — the results page cannot tell us, and the identical
+result set for the plain-English phrasing is consistent with either; and
+whether "when does gamma not matter" has its own searched phrasing — searches
+for it returned selling-strategy and dealer-positioning pages, so the post owns
 the idea with no query to target it.
 
 ## Off-syllabus rows

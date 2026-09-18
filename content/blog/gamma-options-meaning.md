@@ -1,8 +1,8 @@
 ---
-title: "Gamma explained: how fast an option's delta changes"
+title: "Gamma in options explained: how fast delta changes"
 slug: gamma-options-meaning
 excerpt: Gamma is the rate at which an option's delta changes as the stock moves, and it is the number that says how quickly a delta reading goes stale.
-meta_description: Gamma is how fast an option's delta changes for a $1 move in the stock. Why it peaks at the money, and when it matters and when it does not.
+meta_description: Gamma is how fast an option's delta changes for a $1 move in the stock. Why it peaks at the money, what expiration does to it, and when it does not matter.
 author: DeltaMint
 published_at: 2026-09-18T10:00:00+00:00
 category: foundations
@@ -125,16 +125,16 @@ with only 0.15 to go.
 
 Two cautions on those figures. Stack four of them to walk the stock from $50
 to $54 and the estimate drifts, because gamma changed at every step. And
-raising the movement priced into that chain, as [the previous
-post](/blog/implied-volatility-options-explained) describes, flattens the peak
-and spreads it across more strikes.
+raising the movement priced into that chain, as [the implied volatility
+post](/blog/implied-volatility-options-explained) describes, flattens the
+peak and spreads it across more strikes.
 
-## Gamma concentrates at the money as expiration approaches
+## Does gamma rise as expiration approaches?
 
-This is the part worth stating precisely, because it is usually passed along
-as a vague warning about holding into expiration. The pattern is specific and
-checkable. Hold the same hypothetical call, and watch two stock prices as the
-days run out.
+At the money, yes, and sharply — away from the money it does the opposite.
+The warning usually passed along about holding into expiration is vague about
+which, and the pattern is specific and checkable. Hold the same hypothetical
+call, and watch two stock prices as the days run out.
 
 | Days to expiration | Gamma at the money ($50 stock) | Gamma far out of the money ($44 stock) |
 | --- | --- | --- |
