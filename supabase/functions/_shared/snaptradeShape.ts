@@ -231,6 +231,25 @@ export function looksPaper(...names: (string | null | undefined)[]): boolean {
   return names.some((n) => !!n && PAPER.test(String(n)));
 }
 
+/**
+ * Is this account simulated, according to the broker rather than to us?
+ *
+ * The first connected account settled this: SnapTrade returns `is_paper` on
+ * every account, and a flag from the source outranks a guess from a name in
+ * both directions. `looksPaper` stays as the fallback for an account that
+ * arrives without the flag -- but when the flag IS present it decides alone,
+ * because falling back to name-matching on an account explicitly marked live
+ * is how "Robinhood Paper Trading Individual" would get promoted to tradable.
+ */
+export function isPaperAccount(account: Record<string, unknown> | null | undefined): boolean {
+  if (!account) return false;
+  if (typeof account.is_paper === "boolean") return account.is_paper;
+  return looksPaper(
+    account.institution_name as string | undefined,
+    account.name as string | undefined
+  );
+}
+
 // ---------------------------------------------------------------------------
 // The verdict
 // ---------------------------------------------------------------------------

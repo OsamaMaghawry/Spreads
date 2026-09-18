@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { redact, brokerRow, brokerMatrix, looksPaper, verdicts } from "./snaptradeShape.ts";
+import { redact, brokerRow, brokerMatrix, looksPaper, isPaperAccount, verdicts } from "./snaptradeShape.ts";
 
 // ---------------------------------------------------------------------------
 // Redaction
@@ -187,6 +187,22 @@ test("only a plainly simulated account counts as paper", () => {
   assert.equal(looksPaper("Practice Account"), true);
   assert.equal(looksPaper(null, "sandbox"), true);
   assert.equal(looksPaper("Simulated Trading"), true);
+});
+
+test("the broker's own is_paper flag decides, in both directions", () => {
+  // The first connected account returned `is_paper: false` on "Robinhood
+  // Individual". A flag from the source outranks a guess from a name, and it
+  // has to outrank it BOTH ways -- otherwise an account explicitly marked
+  // live but named "... Paper Trading ..." would be promoted to tradable.
+  assert.equal(isPaperAccount({ is_paper: true, name: "Anything", institution_name: "Anything" }), true);
+  assert.equal(isPaperAccount({ is_paper: false, name: "Paper Trading", institution_name: "Demo Broker" }), false);
+});
+
+test("without the flag, the name is the fallback and silence is refused", () => {
+  assert.equal(isPaperAccount({ name: "Alton", institution_name: "Alpaca Paper" }), true);
+  assert.equal(isPaperAccount({ name: "Individual", institution_name: "Robinhood" }), false);
+  assert.equal(isPaperAccount({}), false);
+  assert.equal(isPaperAccount(null), false);
 });
 
 test("anything not plainly simulated is refused, including silence", () => {

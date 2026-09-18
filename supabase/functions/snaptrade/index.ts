@@ -31,7 +31,7 @@ import {
   redact,
   brokerMatrix,
   verdicts,
-  looksPaper,
+  isPaperAccount,
   type ProbeResult
 } from "../_shared/snaptradeShape.ts";
 
@@ -364,7 +364,9 @@ async function runProbe(admin: any, userId: string | null) {
     name: String(a.name ?? ""),
     number: a.number ? "[redacted]" : null,
     institution: String(a.institution_name ?? ""),
-    paper: looksPaper(String(a.institution_name ?? ""), String(a.name ?? ""))
+    // Their own flag, not our guess. See isPaperAccount.
+    paper: isPaperAccount(a),
+    balance: (a.balance as Record<string, Record<string, unknown>>)?.total?.amount ?? null
   }));
 
   if (!accounts.length) {
@@ -379,8 +381,15 @@ async function runProbe(admin: any, userId: string | null) {
   notes.push(`Account-scoped probes ran against "${summary[0].institution} — ${summary[0].name}".`);
 
   probes.push(await probe("balances", "Does cash arrive per currency, the way the dashboard needs it?", { path: `/accounts/${id}/balances`, ...scoped }));
-  probes.push(await probe("positions", "Do share lots arrive with quantity and average price?", { path: `/accounts/${id}/positions`, ...scoped }));
-  probes.push(await probe("option positions", "Are options returned as options — strike, expiry, right?", { path: `/accounts/${id}/options`, ...scoped }));
+  // POSITIONS MOVED. `/accounts/{id}/positions` and `/accounts/{id}/options`
+  // both answer 410 "This endpoint is no longer available for your account"
+  // -- not empty, gone. `/accounts/{id}/holdings` is the consolidated
+  // replacement and returns balances, positions and option positions
+  // together. Both old paths stay in the probe: a 410 is a finding about
+  // their API's churn, which is part of what is being judged here.
+  probes.push(await probe("holdings (positions + options)", "Do share lots and option positions arrive, and are options returned as options — strike, expiry, right?", { path: `/accounts/${id}/holdings`, ...scoped }));
+  probes.push(await probe("positions (deprecated path)", "Is the older per-endpoint route still served?", { path: `/accounts/${id}/positions`, ...scoped }));
+  probes.push(await probe("option positions (deprecated path)", "Is the older per-endpoint route still served?", { path: `/accounts/${id}/options`, ...scoped }));
   probes.push(await probe("orders (90 days)", "How far back does order history go, and do multi-leg orders keep their legs?", { path: `/accounts/${id}/orders`, query: { days: 90 }, ...scoped }));
   probes.push(await probe("recent orders", "Is there a fast path for an order placed seconds ago?", { path: `/accounts/${id}/recentOrders`, ...scoped }));
   probes.push(await probe("activities", "Do assignments, expiries and dividends arrive as their own events?", { path: `/accounts/${id}/activities`, ...scoped }));
@@ -600,7 +609,7 @@ Deno.serve(async (req) => {
             id: String(a.id ?? ""),
             name: String(a.name ?? ""),
             institution: String(a.institution_name ?? ""),
-            paper: looksPaper(String(a.institution_name ?? ""), String(a.name ?? ""))
+            paper: isPaperAccount(a)
           }))
         });
       }
@@ -733,11 +742,15 @@ Deno.serve(async (req) => {
 
         const institution = String(account.institution_name ?? "");
         const name = String(account.name ?? "");
-        if (!looksPaper(institution, name)) {
+        // The BROKER'S OWN FLAG decides, read fresh from SnapTrade on this
+        // request. The first connected account showed they return `is_paper`
+        // on every account, which is better evidence than reading a name --
+        // and better in both directions.
+        if (!isPaperAccount(account)) {
           return jsonResponse({
             error:
-              `"${institution} — ${name}" is not plainly a paper account, so this evaluation will not send it an order. ` +
-              `Connect a paper account (their portal lists "Alpaca Paper" among others) and try there.`
+              `"${institution} — ${name}" is not a paper account according to SnapTrade, so this evaluation ` +
+              `will not send it an order. Connect a paper account and try there.`
           }, 403);
         }
 
