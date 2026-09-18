@@ -69,6 +69,57 @@ const BROKERS = [
   }
 ];
 
+// The first live run reported `authorization_types` as unmapped, which is how
+// it was found. It carries the question `allows_trading` cannot answer: not
+// whether an order can be placed, but whether the broker sanctioned the way it
+// is placed.
+test("how a broker is reached is read, not just whether it can trade", () => {
+  const official = brokerRow({
+    name: "Somebody", allows_trading: true,
+    authorization_types: [{ type: "trade", auth_type: "OAUTH" }, { type: "read", auth_type: "OAUTH" }]
+  } as any);
+  assert.equal(official.tradeAuth, "OAUTH");
+  assert.equal(official.readAuth, "OAUTH");
+  assert.equal(official.officialTrading, true);
+
+  const unofficial = brokerRow({
+    name: "Another", allows_trading: true,
+    authorization_types: [{ type: "trade", auth_type: "UNOFFICIAL_API" }, { type: "read", auth_type: "UNOFFICIAL_API" }]
+  } as any);
+  assert.equal(unofficial.officialTrading, false);
+});
+
+test("a broker offering no trading connection is null, not false", () => {
+  // "They do not offer it" and "they offer it unofficially" are different
+  // answers, and only one of them is a risk to weigh.
+  const readOnly = brokerRow({
+    name: "Readonly", allows_trading: false,
+    authorization_types: [{ type: "read", auth_type: "OAUTH" }]
+  } as any);
+  assert.equal(readOnly.tradeAuth, null);
+  assert.equal(readOnly.officialTrading, null);
+  assert.equal(readOnly.readAuth, "OAUTH");
+});
+
+test("the matrix splits tradable reach into sanctioned and unofficial", () => {
+  const m = brokerMatrix([
+    { name: "A", allows_trading: true, authorization_types: [{ type: "trade", auth_type: "OAUTH" }] },
+    { name: "B", allows_trading: true, authorization_types: [{ type: "trade", auth_type: "UNOFFICIAL_API" }] },
+    { name: "C", allows_trading: false, authorization_types: [{ type: "read", auth_type: "OAUTH" }] }
+  ]);
+  assert.equal(m.tradable, 2);
+  assert.equal(m.tradableByOAuth, 1);
+  assert.equal(m.tradableUnofficially, 1);
+});
+
+test("the reach verdict names the unofficial ones, because that is the risk", () => {
+  const m = brokerMatrix([
+    { name: "A", allows_trading: true, authorization_types: [{ type: "trade", auth_type: "UNOFFICIAL_API" }] }
+  ]);
+  const v = verdicts([], m).find((x) => x.question.includes("How many brokers"));
+  assert.match(v!.answer, /1 through an interface the broker never published/);
+});
+
 test("a brokerage row is read into the fields that decide anything", () => {
   const r = brokerRow(BROKERS[1] as any);
   assert.equal(r.name, "Robinhood");

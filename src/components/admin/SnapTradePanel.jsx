@@ -200,7 +200,7 @@ export default function SnapTradePanel() {
                       <th className="py-2 pr-3">Broker</th>
                       <th className="py-2 pr-3">Enabled</th>
                       <th className="py-2 pr-3">Trading</th>
-                      <th className="py-2 pr-3">Via their API</th>
+                      <th className="py-2 pr-3">How it connects</th>
                       <th className="py-2 pr-3">Real time</th>
                       <th className="py-2 pr-3">Type</th>
                     </tr>
@@ -214,7 +214,23 @@ export default function SnapTradePanel() {
                         </td>
                         <td className="py-1.5 pr-3"><Flag value={r.enabled} /></td>
                         <td className="py-1.5 pr-3"><Flag value={r.trading} /></td>
-                        <td className="py-1.5 pr-3"><Flag value={r.tradingViaApi} /></td>
+                        {/* Whether an order CAN be placed and whether the
+                            broker sanctioned the way it is placed are two
+                            different questions, and only the second one is a
+                            risk to weigh on a money path. */}
+                        <td className="py-1.5 pr-3">
+                          {r.tradeAuth === "OAUTH" ? (
+                            <span className="text-emerald-600">Broker&rsquo;s own OAuth</span>
+                          ) : r.tradeAuth ? (
+                            <span className="text-amber-700" title="An interface the broker never published — it can change or be withdrawn without notice.">
+                              Unofficial
+                            </span>
+                          ) : r.readAuth ? (
+                            <span className="text-slate-400">Read only ({r.readAuth === "OAUTH" ? "OAuth" : "unofficial"})</span>
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
+                        </td>
                         <td className="py-1.5 pr-3"><Flag value={r.realTime} /></td>
                         <td className="py-1.5 pr-3 text-dm-sub">{r.type || "—"}</td>
                       </tr>

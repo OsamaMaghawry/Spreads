@@ -83,7 +83,20 @@ const BROKER_FIELDS: Record<string, string> = {
   open_url: "openUrl",
   brokerage_type: "type",
   exchanges: "exchanges",
-  description: "description"
+  description: "description",
+  // THE FIELD THAT MATTERS MOST, and the first run found it by reporting it as
+  // unmapped rather than dropping it. Each entry is
+  // `{ type: "trade" | "read", auth_type: "OAUTH" | "UNOFFICIAL_API" | ... }`.
+  //
+  // `allows_trading` says whether an order can be placed. `authorization_types`
+  // says HOW the connection is made, and for a money path those are different
+  // questions. OAUTH means the broker sanctioned the integration and can
+  // revoke it cleanly. UNOFFICIAL_API means SnapTrade is driving an interface
+  // the broker never published, which can change or be shut off without
+  // notice, and which a user's own broker agreement may not permit.
+  authorization_types: "authTypes",
+  is_degraded: "degraded",
+  release_stage: "releaseStage"
 };
 
 const bool = (v: unknown): boolean | null =>
@@ -99,12 +112,36 @@ export interface BrokerRow {
   realTime: boolean | null;
   fractional: boolean | null;
   type: string | null;
+  /** How an order-placing connection is authorised, or null when trading is not offered. */
+  tradeAuth: string | null;
+  /** How a read-only connection is authorised. */
+  readAuth: string | null;
+  /** The broker sanctioned the trading integration, rather than it being driven unofficially. */
+  officialTrading: boolean | null;
+  degraded: boolean | null;
+  releaseStage: string | null;
   unmapped: string[];
 }
 
+const authOf = (raw: Record<string, unknown>, kind: "trade" | "read"): string | null => {
+  const list = Array.isArray(raw.authorization_types) ? raw.authorization_types : [];
+  const hit = list.find((a) => a && typeof a === "object" && (a as Record<string, unknown>).type === kind);
+  const value = hit ? (hit as Record<string, unknown>).auth_type : null;
+  return value ? String(value) : null;
+};
+
 export function brokerRow(raw: Record<string, unknown>): BrokerRow {
   const type = raw.brokerage_type;
+  const tradeAuth = authOf(raw, "trade");
   return {
+    tradeAuth,
+    readAuth: authOf(raw, "read"),
+    // Null when there is no trading connection to judge, rather than false --
+    // "they do not offer it" and "they offer it unofficially" are different
+    // answers and only one of them is a risk.
+    officialTrading: tradeAuth === null ? null : tradeAuth === "OAUTH",
+    degraded: bool(raw.is_degraded),
+    releaseStage: raw.release_stage ? String(raw.release_stage) : null,
     name: String(raw.display_name || raw.name || raw.slug || "unnamed"),
     slug: raw.slug ? String(raw.slug) : null,
     enabled: bool(raw.enabled),
@@ -129,6 +166,10 @@ export interface BrokerMatrix {
   /** Brokers that can place an order, by either of the two flags they expose. */
   tradable: number;
   inMaintenance: number;
+  /** Of the tradable ones, how many the broker itself sanctioned. */
+  tradableByOAuth: number;
+  /** Tradable only through an interface the broker never published. */
+  tradableUnofficially: number;
   /** Every distinct field name seen across the rows, so nothing is lost. */
   fieldsSeen: string[];
   /** Field names no row mapped, which is the list to teach this file next. */
@@ -146,6 +187,8 @@ export function brokerMatrix(raw: unknown): BrokerMatrix {
     total: rows.length,
     enabled: rows.filter((r) => r.enabled !== false).length,
     tradable: rows.filter(tradableRow).length,
+    tradableByOAuth: rows.filter((r) => tradableRow(r) && r.officialTrading === true).length,
+    tradableUnofficially: rows.filter((r) => tradableRow(r) && r.officialTrading === false).length,
     inMaintenance: rows.filter((r) => r.maintenance === true).length,
     fieldsSeen: [...seen].sort(),
     fieldsUnmapped: [...seen].filter((k) => !(k in BROKER_FIELDS)).sort(),
@@ -220,7 +263,10 @@ export function verdicts(probes: ProbeResult[], matrix: BrokerMatrix | null): Ve
           question: "How many brokers, and how many can place an order?",
           answer:
             `${matrix.total} brokerages listed, ${matrix.enabled} enabled, ${matrix.tradable} able to trade ` +
-            `through their API${matrix.inMaintenance ? `, ${matrix.inMaintenance} in maintenance right now` : ""}.`,
+            `through their API${matrix.inMaintenance ? `, ${matrix.inMaintenance} in maintenance right now` : ""}. ` +
+            `Of the tradable ones, ${matrix.tradableByOAuth} are reached by an integration the broker itself ` +
+            `sanctioned and ${matrix.tradableUnofficially} through an interface the broker never published — ` +
+            `which can change or be withdrawn without notice, and is a different kind of risk on a money path.`,
           state: matrix.tradable > 1 ? "yes" : matrix.total > 0 ? "partial" : "unknown"
         }
       : {
