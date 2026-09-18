@@ -75,6 +75,95 @@ async function probe(name: string, need: string, call: SnapCall): Promise<ProbeR
 }
 
 // ---------------------------------------------------------------------------
+// Which signature does their API actually accept?
+// ---------------------------------------------------------------------------
+//
+// The first real run split: `/` and `/brokerages` answered 200 while
+// `/snapTrade/partners` and `/brokerageAuthorizationTypes` answered 401
+// "Unable to verify signature sent". That is not a broken key -- a wrong key
+// fails everything. It means the first two do not verify signatures at all
+// and the other two do, so the signature has been wrong from the start and
+// looked right.
+//
+// Their documentation describes the algorithm in prose, and prose leaves
+// exactly the choices this got wrong: whether `path` carries the /api/v1
+// prefix, whether an absent body is a null or an absent key, and whether the
+// credentials travel as query parameters or as headers. So rather than guess
+// again, every plausible reading is sent to one endpoint that DOES verify, and
+// their API says which is right.
+//
+// Deliberately read-only, and deliberately against an endpoint that returns
+// reference data: settling this must not create, change or trade anything.
+
+interface SigVariant {
+  name: string;
+  /** Include the /api/v1 prefix in the signed `path`. */
+  prefix: boolean;
+  /** "null" | "omit" | "empty" -- how an absent request body is signed. */
+  content: "null" | "omit" | "empty";
+  /** Credentials as query parameters, as Partner* headers, or both. */
+  where: "query" | "headers" | "both";
+  /** The header the signature itself travels in. */
+  header: "Signature" | "PartnerSignature";
+}
+
+const SIG_VARIANTS: SigVariant[] = [
+  { name: "path with /api/v1, content null, query params, Signature", prefix: true, content: "null", where: "query", header: "Signature" },
+  { name: "path WITHOUT /api/v1, content null, query params, Signature", prefix: false, content: "null", where: "query", header: "Signature" },
+  { name: "path with /api/v1, content key omitted, query params, Signature", prefix: true, content: "omit", where: "query", header: "Signature" },
+  { name: "path WITHOUT /api/v1, content key omitted, query params, Signature", prefix: false, content: "omit", where: "query", header: "Signature" },
+  { name: "path with /api/v1, content empty string, query params, Signature", prefix: true, content: "empty", where: "query", header: "Signature" },
+  { name: "path with /api/v1, content null, Partner* headers, PartnerSignature", prefix: true, content: "null", where: "headers", header: "PartnerSignature" },
+  { name: "path with /api/v1, content null, query params AND Partner* headers", prefix: true, content: "null", where: "both", header: "Signature" },
+  { name: "path WITHOUT /api/v1, content null, Partner* headers, PartnerSignature", prefix: false, content: "null", where: "headers", header: "PartnerSignature" }
+];
+
+async function trySignature(v: SigVariant, creds: { clientId: string; consumerKey: string }) {
+  // One endpoint, reference data only, and one that we know verifies.
+  const endpoint = "/brokerageAuthorizationTypes";
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signedPath = v.prefix ? `/api/v1${endpoint}` : endpoint;
+  const query = v.where === "headers" ? "" : `clientId=${encodeURIComponent(creds.clientId)}&timestamp=${timestamp}`;
+
+  const sigObject: Record<string, unknown> =
+    v.content === "omit"
+      ? { path: signedPath, query }
+      : { content: v.content === "empty" ? "" : null, path: signedPath, query };
+  const payload = JSON.stringify(sigObject);
+
+  const key = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(creds.consumerKey),
+    { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const raw = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload)));
+  let binary = "";
+  for (const b of raw) binary += String.fromCharCode(b);
+  const signature = btoa(binary);
+
+  const headers: Record<string, string> = { Accept: "application/json", [v.header]: signature };
+  if (v.where === "headers" || v.where === "both") {
+    headers.PartnerClientId = creds.clientId;
+    headers.PartnerTimestamp = String(timestamp);
+  }
+
+  try {
+    const res = await fetch(`https://api.snaptrade.com/api/v1${endpoint}${query ? `?${query}` : ""}`, { headers });
+    const text = await res.text();
+    return {
+      variant: v.name,
+      status: res.status,
+      ok: res.ok,
+      // The signed string itself, so a wrong one can be compared by eye
+      // against their documentation. It contains no key material.
+      signed: payload,
+      body: text.slice(0, 200)
+    };
+  } catch (e) {
+    return { variant: v.name, status: 0, ok: false, signed: payload, body: String(e?.message || e) };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // The SnapTrade user behind one of ours
 // ---------------------------------------------------------------------------
 //
@@ -319,6 +408,24 @@ Deno.serve(async (req) => {
           clientId: creds.clientId,
           api: { ok: status.ok, status: status.status, ms: status.ms, error: status.error, body: redact(status.data) },
           partner: { ok: partner.ok, status: partner.status, error: partner.error, body: redact(partner.data) }
+        });
+      }
+
+      // ------------------------------------------------------------- signature
+      case "signature": {
+        // Read-only, against reference data. Settles which reading of their
+        // signing rules their API actually accepts.
+        const results = [];
+        for (const v of SIG_VARIANTS) results.push(await trySignature(v, creds!));
+        return jsonResponse({
+          // Not secret: it identifies us to them and travels in every query
+          // string. Printed because a client id that looks like a 50-character
+          // random string means the two keys were pasted the wrong way round,
+          // which fails exactly like a wrong algorithm.
+          clientId: creds!.clientId,
+          consumerKeyLength: creds!.consumerKey.length,
+          accepted: results.filter((r) => r.ok).map((r) => r.variant),
+          results
         });
       }
 
