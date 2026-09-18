@@ -79,7 +79,7 @@ incomplete.
 ## Components, by area
 
 - **accounts** — AccountForm
-- **admin** — AdminMaintenance, BlogPanel, EngagementPanel, IntegrityPanel, PostPreview, SettingsPanel, SignupsChart, StatTile, UsersPanel
+- **admin** — AdminMaintenance, BlogPanel, EngagementPanel, IntegrityPanel, PostPreview, SettingsPanel, SignupsChart, SnapTradePanel, StatTile, UsersPanel
 - **analysis** — BreakdownTable, CaptureBreakdown, DateRangeFilter, EquityCurveChart, ExportPdfButton, OpenBookPanel, OpenOptionsPanel, StatCards, StrategyComparison, ViewSwitch, WindowParts
 - **billing** — UpgradePrompt
 - **brand** — DeltaMintMark, Wordmark
@@ -133,6 +133,7 @@ so a change to shared code requires redeploying all of them.
 - **scanEntries** — (no summary comment)
 - **scanUniverse** — Which tickers are worth scanning, out of the whole market.
 - **sendDigest** — The one way an agent reaches the owner.
+- **snaptrade** — SnapTrade, held against what this product actually needs.
 - **spreadQuote** — Prices a position for closing: what the legs are worth right now, plus the highest limit already tried on them so a retry resumes rather than restarts.
 - **stripeWebhook** — Receives Stripe's signed subscription events and keeps one row per user current.
 - **syncAccounts** — Rebuilds the live picture for every account the caller owns: positions paired into structures, credit and risk per position, and totals that net a ticker's condors instead of double counting both wings.
@@ -173,6 +174,8 @@ revoked from the browser role entirely.
 - **integrity_findings** — id, account_id, user_id, code, subject, severity, action, message, detail, first_seen_at, last_seen_at, resolved_at, seen_count
 - **cash_flows** — id, account_id, user_id, activity_id, day, amount, kind, captured_at
 - **saved_orders** — id, user_id, account_id, ticker, legs, qty, order_type, limit_price, net_is_credit, is_equity, note, from_broker_order_id, created_at, updated_at, time_in_force, setup
+- **snaptrade_users** — user_id, snaptrade_user_id, user_secret, registered_at, deleted_at
+- **snaptrade_probes** — id, ran_by, ran_at, report
 
 ## Analytics vocabulary
 
