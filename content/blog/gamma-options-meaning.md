@@ -4,6 +4,7 @@ slug: gamma-options-meaning
 excerpt: Gamma is the rate at which an option's delta changes as the stock moves, and it is the number that says how quickly a delta reading goes stale.
 meta_description: Gamma is how fast an option's delta changes for a $1 move in the stock. Why it peaks at the money, and when it matters and when it does not.
 author: DeltaMint
+published_at: 2026-09-18T10:00:00+00:00
 category: foundations
 series_order: 9
 tags: gamma, option greeks, delta, convexity, foundations
@@ -71,8 +72,11 @@ the other side.
 ## Do calls and puts carry the same gamma?
 
 Yes, and this is where gamma parts company with delta. A call's delta is
-positive and a put's is negative, but both contracts carry positive gamma —
-the delta of each moves in the same direction the stock does.
+positive and a put's is negative, but both contracts carry positive gamma of
+the same size — the delta of each moves in the same direction the stock does.
+(That equality holds for the simplified case this series uses; dividends and
+early exercise can pull a real call and put slightly apart, an edge case set
+aside here.)
 
 What splits the sign is the side of the fill, exactly as it did for
 [theta](/blog/theta-decay-explained) and vega in the two previous posts. A
@@ -114,9 +118,10 @@ gamma of 0.07 estimates a delta of about 0.57 after the next dollar; far out
 of the money, 0.15 plus 0.05 estimates about 0.20; deep in the money, 0.85
 plus 0.04 estimates about 0.89.
 
-The middle row shows the largest delta change of the three. Delta cannot pass
-1, so the deep in-the-money row is running out of room, and its gamma reflects
-that.
+The middle row shows the largest delta change of the three — it also has the
+most room to change, sitting at 0.50 with 0.50 of delta on either side of it.
+The deep in-the-money row has the least room left before the ceiling of 1,
+with only 0.15 to go.
 
 Two cautions on those figures. Stack four of them to walk the stock from $50
 to $54 and the estimate drifts, because gamma changed at every step. And
@@ -154,8 +159,8 @@ it changes nothing.
 - **It compounds across a book.** Several positions can approach the money in one session, all speeding up together.
 
 That last point is where a single chain row stops being enough. Adding delta
-across a book of positions is a sum that quietly assumes nothing is curving —
-which is precisely what gamma denies.
+across a book of positions is a sum that describes one moment and goes stale
+the instant the stock moves — which is exactly what gamma measures.
 
 ## Frequently asked questions
 
@@ -173,11 +178,12 @@ option was sold.
 
 It is the last of the sensitivities the [foundations
 series](/blog/foundations) takes one at a time, after
-[delta](/blog/option-delta-explained), theta and [implied
-volatility](/blog/implied-volatility-options-explained). It is also why those
-three are read as a snapshot: on a book of several positions, every delta on
-the screen drifts at its own speed. The series continues with what happens
-when a short option is assigned.
+[delta](/blog/option-delta-explained), [theta](/blog/theta-decay-explained)
+and [implied volatility](/blog/implied-volatility-options-explained). It is
+also the reason a delta reading is a snapshot rather than a setting: on a
+book of several positions, every delta on the screen drifts at its own speed,
+and gamma is the number that says how fast. The series continues with what
+happens when a short option is assigned.
 
 All figures on this page are hypothetical and are there to show the mechanics.
 This post is educational and is not investment advice.
