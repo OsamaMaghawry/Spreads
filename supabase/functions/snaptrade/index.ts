@@ -477,6 +477,36 @@ Deno.serve(async (req) => {
 
       // ------------------------------------------------------------- signature
       case "signature": {
+        // THE CONTROL, which should have been the first thing run.
+        //
+        // The whole diagnosis rests on one assumption: that `/` and
+        // `/brokerages` returned 200 because they do not verify signatures,
+        // and therefore that our signature has never been proven. If instead
+        // they DO verify, then our signature is correct and the two endpoints
+        // that refuse are refusing for some other reason -- a permission this
+        // client id does not carry -- which is a completely different finding
+        // and a much better one.
+        //
+        // One deliberately wrong signature settles it. 200 means the endpoint
+        // does not check and the assumption held; 401 means it does check,
+        // it accepted ours, and the signature was right all along.
+        const control: Record<string, unknown> = {};
+        for (const endpoint of ["/", "/brokerages"]) {
+          const ts = Math.floor(Date.now() / 1000);
+          const q = `clientId=${encodeURIComponent(creds!.clientId)}&timestamp=${ts}`;
+          const res = await fetch(`https://api.snaptrade.com/api/v1${endpoint}?${q}`, {
+            headers: { Accept: "application/json", Signature: "deliberatelyWrongSignature" }
+          });
+          control[endpoint] = {
+            withWrongSignature: res.status,
+            verifies: res.status === 401,
+            meaning:
+              res.status === 401
+                ? "This endpoint DOES check the signature, so the one it accepted from us was correct."
+                : "This endpoint does not check the signature, so its 200 proved nothing either way."
+          };
+        }
+
         // Read-only, against reference data. Settles which reading of their
         // signing rules their API actually accepts.
         const results = [];
@@ -519,6 +549,7 @@ Deno.serve(async (req) => {
                 };
               })
           },
+          control,
           accepted: results.filter((r) => r.ok).map((r) => r.variant),
           results
         });
