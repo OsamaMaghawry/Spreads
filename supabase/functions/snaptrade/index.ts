@@ -24,6 +24,7 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { requireAdmin } from "../_shared/admin.ts";
 import { adminClient } from "../_shared/supabaseClients.ts";
 import { isServiceRole } from "../_shared/serviceRole.ts";
+import { redeemCronTicket } from "../_shared/cronTicket.ts";
 import { encryptSecret, decryptSecret } from "../_shared/crypto.ts";
 import { snapFetch, snapCredentials, type SnapCall } from "../_shared/snaptrade.ts";
 import {
@@ -246,13 +247,24 @@ Deno.serve(async (req) => {
   // third-party platform and opening a connection portal are things a person
   // does on their own behalf.
   //
-  // The service role -- the platform itself, not merely somebody signed in --
-  // gets the PUBLIC half: is their API up, does our signature authenticate,
-  // and what is their brokerage reach. That is what a deploy check can prove
-  // without a browser, and it touches no user and no account.
-  const platform = isServiceRole(req);
+  // The platform itself -- not merely somebody signed in -- gets the PUBLIC
+  // half: is their API up, does our signature authenticate, and what is their
+  // brokerage reach. That is what a deploy check can prove without a browser,
+  // and it touches no user and no account.
+  //
+  // It proves it one of two ways, and the body is read before the gate because
+  // the second one lives in the body: a single-use ticket minted inside the
+  // database. See cronTicket.ts -- the Vault row every scheduled job reads as
+  // the service-role key holds the ANON key on this project, so a service-role
+  // check on its own refuses the platform's own calls.
+  const body = await req.json().catch(() => ({}));
+  const action = String(body?.action || "status");
+
   let admin: ReturnType<typeof adminClient>;
   let userId: string | null = null;
+
+  const platform =
+    isServiceRole(req) || (await redeemCronTicket(adminClient(), body?.ticket, "snaptrade"));
 
   if (platform) {
     admin = adminClient();
@@ -264,8 +276,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const body = await req.json().catch(() => ({}));
-    const action = String(body?.action || "status");
     const creds = snapCredentials();
 
     // Anything that acts FOR a person needs a person. The service-role caller
