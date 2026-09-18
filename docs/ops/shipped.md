@@ -3,6 +3,28 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-18 · (staging) Tradier — chosen as the second broker to build
+  directly, because its paper and live accounts share one API the way
+  Alpaca's do — has a client, order translation and a probe (places
+  nothing) on staging: it corrects for Tradier's inverted price sign on
+  credit/debit orders, its form-encoded multi-leg order format, and its
+  habit of collapsing a one-item list into a bare object instead of an
+  array. Migration `0056` adds `broker_probes` to record what each
+  candidate broker actually returns (`2c6fd7f`).
+- 2026-09-18 · (staging) SnapTrade — a service that connects to many
+  brokers through one API — was evaluated end to end from a new Admin →
+  SnapTrade panel: signed and authenticated against their live API, one
+  real brokerage (Robinhood) connected and probed. Verdict so far: 15 of
+  their 39 reachable brokers can place an order, but the four largest US
+  options brokers (Schwab, Fidelity, Interactive Brokers, Robinhood) are
+  read-only through them, live Alpaca isn't offered at all, and every
+  holdings/positions route currently answers 410 pending SnapTrade's own
+  explanation. Order placement is double-locked — an explicit confirm
+  flag plus the broker's own paper flag, read fresh on every call — so
+  the evaluation itself can never place a real order. Nothing it returns
+  feeds the dashboard, Analysis or the weekly digest (`cf4aadf`,
+  `b67897f`, `34d4b06`, `d83db11`, `2cc2fd5`, `cde79bf`, `448da9f`,
+  `240b2a3`, `828d287`, `1554f21`, `d6b6663`, migration `0055`).
 - 2026-09-17 · Stored account history is now frozen against being silently
   rewritten: a nightly rebuild can no longer blank or materially change a
   day older than the last few trading sessions (the exact bug that had
