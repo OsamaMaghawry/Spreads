@@ -32,6 +32,7 @@ function Flag({ value }) {
 
 export default function SnapTradePanel() {
   const [status, setStatus] = useState(null);
+  const [links, setLinks] = useState(null);
   const [report, setReport] = useState(null);
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
@@ -61,7 +62,17 @@ export default function SnapTradePanel() {
     if (data) setStatus(data);
   }, [call]);
 
-  useEffect(() => { loadStatus(); }, [loadStatus]);
+  // WHAT IS CONNECTED, WITHOUT BEING ASKED. The owner linked a broker in their
+  // portal, came back, saw nothing here, and reasonably concluded it had
+  // failed -- because connections only appeared after a full probe was run by
+  // hand. A connection is a fact about the account; it should not need a
+  // button.
+  const loadConnections = useCallback(async () => {
+    const data = await call("connections");
+    if (data) setLinks(data);
+  }, [call]);
+
+  useEffect(() => { loadStatus().then(loadConnections); }, [loadStatus, loadConnections]);
 
   const connect = async () => {
     const data = await call("connect");
@@ -145,6 +156,50 @@ export default function SnapTradePanel() {
 
         {error && (
           <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>
+        )}
+
+        {/* Connected, shown whether or not a probe has been run. */}
+        {links && (
+          <div className="mt-4 border-t border-dm-line pt-3">
+            <div className="flex items-baseline justify-between gap-2">
+              <h4 className="text-xs font-medium text-dm-text">Connected through SnapTrade</h4>
+              <button onClick={loadConnections} disabled={!!busy} className="text-[11px] text-dm-sub underline disabled:opacity-40">
+                Refresh
+              </button>
+            </div>
+            {links.error ? (
+              <p className="mt-1 text-xs text-rose-700">{links.error}</p>
+            ) : links.connections?.length === 0 ? (
+              <p className="mt-1 text-xs text-dm-sub">
+                Nothing connected yet. A connection made in their portal shows here as soon as it exists — you do not
+                have to run the probe to see it.
+              </p>
+            ) : (
+              <ul className="mt-2 space-y-1.5">
+                {links.connections?.map((c) => (
+                  <li key={c.id} className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="font-medium text-dm-text">{c.broker || "Unnamed broker"}</span>
+                    {c.disabled
+                      ? <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">disabled</span>
+                      : <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">live</span>}
+                    <span className="text-dm-sub">
+                      {(links.accounts || []).filter((a) => a.institution === c.broker).length} account(s)
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {links.accounts?.length > 0 && (
+              <ul className="mt-2 space-y-1 text-[11px] text-dm-sub">
+                {links.accounts.map((a) => (
+                  <li key={a.id}>
+                    {a.institution} — {a.name}
+                    {a.paper ? " · paper" : " · live, orders refused"}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </div>
 

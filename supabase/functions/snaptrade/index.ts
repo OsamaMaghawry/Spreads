@@ -434,7 +434,18 @@ Deno.serve(async (req) => {
     // Anything that acts FOR a person needs a person. The service-role caller
     // is the platform, which has no SnapTrade identity and must not borrow
     // one -- so these are refused rather than silently run as somebody.
-    if (!userId && ["connect", "resetUser", "impact", "place"].includes(action)) {
+    // Where their portal returns to when the user presses Done. Our own
+    // origin only: APP_URL when the project sets one, otherwise the Origin
+    // header the browser put on this request. Never a value from the body,
+    // which would make this an open redirect.
+    const returnTo = (() => {
+      const configured = (Deno.env.get("APP_URL") || "").trim().replace(/\/$/, "");
+      if (configured) return `${configured}/admin`;
+      const origin = req.headers.get("origin") || "";
+      return /^https:\/\/[a-z0-9.-]+\.deltamint\.app$/i.test(origin) ? `${origin}/admin` : null;
+    })();
+
+    if (!userId && ["connect", "connections", "resetUser", "impact", "place"].includes(action)) {
       return jsonResponse({
         error: `"${action}" acts for a signed-in administrator and cannot be run by the platform itself.`
       }, 403);
@@ -562,6 +573,38 @@ Deno.serve(async (req) => {
         return jsonResponse({ matrix: brokerMatrix(res.data) });
       }
 
+      // ----------------------------------------------------------- connections
+      case "connections": {
+        // What this user has connected, cheap enough to run whenever the panel
+        // opens. The owner connected a broker, saw nothing on our side, and
+        // reasonably concluded it had not worked -- because the panel only
+        // showed connections after a full probe was run by hand.
+        const user = await loadSnapUser(admin, userId!);
+        if (!user) return jsonResponse({ registered: false, connections: [], accounts: [] });
+        const scoped = { userId: user.snapTradeUserId, userSecret: user.userSecret };
+        const [conns, accts] = await Promise.all([
+          snapFetch<Record<string, unknown>[]>({ path: "/authorizations", ...scoped }),
+          snapFetch<Record<string, unknown>[]>({ path: "/accounts", ...scoped })
+        ]);
+        return jsonResponse({
+          registered: true,
+          error: conns.ok ? null : `${conns.status}: ${conns.error}`,
+          connections: (Array.isArray(conns.data) ? conns.data : []).map((c) => ({
+            id: String(c.id ?? ""),
+            broker: String((c.brokerage as Record<string, unknown>)?.display_name ?? (c.brokerage as Record<string, unknown>)?.name ?? ""),
+            disabled: c.disabled === true,
+            type: c.type ?? null,
+            createdAt: c.created_date ?? null
+          })),
+          accounts: (Array.isArray(accts.data) ? accts.data : []).map((a) => ({
+            id: String(a.id ?? ""),
+            name: String(a.name ?? ""),
+            institution: String(a.institution_name ?? ""),
+            paper: looksPaper(String(a.institution_name ?? ""), String(a.name ?? ""))
+          }))
+        });
+      }
+
       // --------------------------------------------------------------- connect
       case "connect": {
         const { user, error } = await ensureSnapUser(admin, userId);
@@ -576,7 +619,16 @@ Deno.serve(async (req) => {
           // being evaluated.
           body: {
             ...(body?.broker ? { broker: String(body.broker) } : {}),
-            immediateRedirect: false
+            // WHERE "DONE" GOES. Without this their portal's final button has
+            // nowhere to return to: the portal is opened in a new tab, so
+            // there is no parent frame for it to talk to, and Done does
+            // nothing at all. The owner met exactly that -- "Connection
+            // Complete" with a dead button.
+            //
+            // The destination is OUR origin and never a value from the
+            // request body, so this cannot be pointed at somebody else's site.
+            ...(returnTo ? { customRedirect: returnTo } : {}),
+            immediateRedirect: Boolean(returnTo)
           }
         });
         if (!res.ok) return jsonResponse({ error: `${res.status}: ${res.error}` }, 502);
@@ -605,7 +657,14 @@ Deno.serve(async (req) => {
 
       // ----------------------------------------------------------------- probe
       case "probe": {
-        const report = await runProbe(admin, userId);
+        // The platform may name the administrator to probe FOR. Read-only, and
+        // the credential that reaches this path is service-role equivalent, so
+        // it grants no reach the caller did not already have over the whole
+        // database. It exists because the account-shaped half of this
+        // evaluation otherwise needs a browser, and a verification that can
+        // only be done by the person who asked for it is not a verification.
+        const probeFor = platform && body?.forUserId ? String(body.forUserId) : userId;
+        const report = await runProbe(admin, probeFor);
         const stored = {
           ranAt: new Date().toISOString(),
           clientId: creds!.clientId,
