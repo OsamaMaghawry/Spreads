@@ -139,6 +139,7 @@ so a change to shared code requires redeploying all of them.
 - **syncAccounts** — Rebuilds the live picture for every account the caller owns: positions paired into structures, credit and risk per position, and totals that net a ticker's condors instead of double counting both wings.
 - **syncTrades** — Keeping every connected account's history current, without anybody looking.
 - **tradeHistory** — Closed trade history, rebuilt from the broker's activity feed.
+- **tradier** — Tradier, probed against their sandbox before a line of it reaches a user.
 - **weeklyDigest** — The weekly summary email: gather, build, deliver, record.
 
 ## Database
@@ -176,6 +177,7 @@ revoked from the browser role entirely.
 - **saved_orders** — id, user_id, account_id, ticker, legs, qty, order_type, limit_price, net_is_credit, is_equity, note, from_broker_order_id, created_at, updated_at, time_in_force, setup
 - **snaptrade_users** — user_id, snaptrade_user_id, user_secret, registered_at, deleted_at
 - **snaptrade_probes** — id, ran_by, ran_at, report
+- **broker_probes** — id, broker, ran_at, report
 
 ## Analytics vocabulary
 
