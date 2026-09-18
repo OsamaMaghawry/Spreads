@@ -120,7 +120,7 @@ interface SigVariant {
   /** The header the signature itself travels in. */
   header: "Signature" | "PartnerSignature";
   /** How the consumer key becomes HMAC key bytes. */
-  key?: "utf8" | "base64" | "uriEncoded";
+  key?: "utf8" | "base64" | "uriEncoded" | "alnum";
   /** How the digest is encoded for the header. */
   digest?: "base64" | "base64url" | "hex";
   /** Sign the whole URL rather than the path. */
@@ -142,7 +142,16 @@ const SIG_VARIANTS: SigVariant[] = [
   { name: "digest base64url instead of base64", prefix: true, content: "null", where: "query", header: "Signature", digest: "base64url" },
   { name: "digest hex instead of base64", prefix: true, content: "null", where: "query", header: "Signature", digest: "hex" },
   { name: "content as an empty object", prefix: true, content: "object", where: "query", header: "Signature" },
-  { name: "the whole URL signed as path", prefix: true, content: "null", where: "query", header: "Signature", fullUrl: true }
+  { name: "the whole URL signed as path", prefix: true, content: "null", where: "query", header: "Signature", fullUrl: true },
+  // ROUND THREE. Fourteen readings of the algorithm were refused with the same
+  // code, and the algorithm matches their documentation, so the suspect is no
+  // longer the algorithm: it is the key. Its shape does not match what
+  // SnapTrade issues -- 57 characters carrying exactly one non-alphanumeric,
+  // against the ~50 all-alphanumeric of their own example -- and a zero-width
+  // character picked up by a copy and paste is invisible in a dashboard and
+  // fatal to an HMAC. If this variant is the one that passes, that is the
+  // whole answer.
+  { name: "key with non-alphanumeric characters stripped", prefix: true, content: "null", where: "query", header: "Signature", key: "alnum" }
 ];
 
 async function trySignature(v: SigVariant, creds: { clientId: string; consumerKey: string }) {
@@ -176,7 +185,9 @@ async function trySignature(v: SigVariant, creds: { clientId: string; consumerKe
     }
   } else {
     keyBytes = new TextEncoder().encode(
-      v.key === "uriEncoded" ? encodeURI(creds.consumerKey) : creds.consumerKey
+      v.key === "uriEncoded" ? encodeURI(creds.consumerKey)
+        : v.key === "alnum" ? creds.consumerKey.replace(/[^A-Za-z0-9]/g, "")
+          : creds.consumerKey
     );
   }
 
@@ -487,7 +498,26 @@ Deno.serve(async (req) => {
             hasWhitespace: /\s/.test(creds!.consumerKey),
             hasQuotes: /["']/.test(creds!.consumerKey),
             looksBase64: /^[A-Za-z0-9+/]+={0,2}$/.test(creds!.consumerKey),
-            otherCharacterCount: creds!.consumerKey.replace(/[A-Za-z0-9]/g, "").length
+            otherCharacterCount: creds!.consumerKey.replace(/[A-Za-z0-9]/g, "").length,
+            // Where the odd characters are, and what they are ONLY when they
+            // are not printable -- a zero-width space or a byte-order mark is
+            // a paste artifact rather than key material, and naming it is the
+            // difference between a fix and another afternoon. A printable
+            // punctuation mark could be real key material, so its value stays
+            // unsaid and only its position is given.
+            oddCharacters: [...creds!.consumerKey]
+              .map((ch, i) => ({ ch, i }))
+              .filter(({ ch }) => !/[A-Za-z0-9]/.test(ch))
+              .map(({ ch, i }) => {
+                const code = ch.codePointAt(0)!;
+                const printable = code >= 0x20 && code <= 0x7e;
+                return {
+                  index: i,
+                  atEnd: i === creds!.consumerKey.length - 1,
+                  printableAscii: printable,
+                  codePoint: printable ? "(printable, withheld)" : `U+${code.toString(16).toUpperCase().padStart(4, "0")}`
+                };
+              })
           },
           accepted: results.filter((r) => r.ok).map((r) => r.variant),
           results
