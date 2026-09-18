@@ -22,6 +22,8 @@
 
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { requireAdmin } from "../_shared/admin.ts";
+import { adminClient } from "../_shared/supabaseClients.ts";
+import { isServiceRole } from "../_shared/serviceRole.ts";
 import { encryptSecret, decryptSecret } from "../_shared/crypto.ts";
 import { snapFetch, snapCredentials, type SnapCall } from "../_shared/snaptrade.ts";
 import {
@@ -150,7 +152,12 @@ async function ensureSnapUser(
 // The full probe
 // ---------------------------------------------------------------------------
 
-async function runProbe(admin: any, userId: string) {
+// `userId` null runs the PUBLIC half only: their status, our partner record,
+// the brokerage matrix and the connection types. That half needs no connected
+// account and no SnapTrade user, which is what makes it runnable from a
+// deploy check rather than only from a browser -- and it is also the half that
+// answers the question that comes first, which is how far their reach goes.
+async function runProbe(admin: any, userId: string | null) {
   const probes: ProbeResult[] = [];
   const notes: string[] = [];
 
@@ -173,6 +180,14 @@ async function runProbe(admin: any, userId: string) {
   probes.push(await probe("connection types", "Which brokers connect by OAuth and which want a password?", { path: "/brokerageAuthorizationTypes" }));
 
   // --- the user, and what they have connected ------------------------------
+  if (!userId) {
+    notes.push(
+      "Public half only: no SnapTrade user was registered, so connections, accounts, positions, orders and " +
+      "activities were not asked. Run this from the Admin panel, signed in, to reach those."
+    );
+    return { probes, matrix: matrixOut, verdicts: verdicts(probes, matrixOut), notes, accounts: [] };
+  }
+
   const { user, error: userError } = await ensureSnapUser(admin, userId);
   if (!user) {
     notes.push(userError || "No SnapTrade user, so nothing account-shaped could be asked.");
@@ -225,15 +240,42 @@ async function runProbe(admin: any, userId: string) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  const gate = await requireAdmin(req);
-  if (gate.response) return gate.response;
-  const admin = gate.admin!;
-  const userId = gate.user!.id;
+  // TWO WAYS IN, and the second is strictly narrower.
+  //
+  // An admin's own session does everything, because registering a user on a
+  // third-party platform and opening a connection portal are things a person
+  // does on their own behalf.
+  //
+  // The service role -- the platform itself, not merely somebody signed in --
+  // gets the PUBLIC half: is their API up, does our signature authenticate,
+  // and what is their brokerage reach. That is what a deploy check can prove
+  // without a browser, and it touches no user and no account.
+  const platform = isServiceRole(req);
+  let admin: ReturnType<typeof adminClient>;
+  let userId: string | null = null;
+
+  if (platform) {
+    admin = adminClient();
+  } else {
+    const gate = await requireAdmin(req);
+    if (gate.response) return gate.response;
+    admin = gate.admin!;
+    userId = gate.user!.id;
+  }
 
   try {
     const body = await req.json().catch(() => ({}));
     const action = String(body?.action || "status");
     const creds = snapCredentials();
+
+    // Anything that acts FOR a person needs a person. The service-role caller
+    // is the platform, which has no SnapTrade identity and must not borrow
+    // one -- so these are refused rather than silently run as somebody.
+    if (!userId && ["connect", "resetUser", "impact", "place"].includes(action)) {
+      return jsonResponse({
+        error: `"${action}" acts for a signed-in administrator and cannot be run by the platform itself.`
+      }, 403);
+    }
 
     // Every action needs the keys, so the refusal is one place and says
     // exactly what to do rather than failing later as a 401 from them.
