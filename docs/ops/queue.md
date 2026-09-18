@@ -5,6 +5,8 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Needs owner
 
+- [needs owner] 2026-09-18 · **SnapTrade evaluation is built and waiting on two keys.** Set `SNAPTRADE_CLIENT_ID` and `SNAPTRADE_CONSUMER_KEY` as function secrets on the **staging** project (Supabase dashboard → Edge Functions → Secrets). Verified end to end on staging today: the function deploys, both auth paths work, and `action: "status"` answers `configured: false` with those two names. Nothing can be measured until they exist. They are credentials, so they go in the dashboard and never into a session, a commit or a chat. Once set, Admin → SnapTrade → **Run the probe** answers, from their own API: how many brokers they reach, how many of those can place an order, whether an option position comes back as an option, and how their order history depth compares with the reconstruction this product runs. Connecting a broker (the portal link) and anything account-shaped needs a signed-in admin in a browser; the platform can only run the public half.
+
 - [needs owner] 2026-09-17 · duty-engineer · **Migration `0054` needs
   confirming on production before Saturday 13:00 UTC, or the weekly digest
   will fail to send to everyone.** `0054_digest_figures_kept.sql` (landed on
