@@ -95,16 +95,36 @@ async function probe(name: string, need: string, call: SnapCall): Promise<ProbeR
 // Deliberately read-only, and deliberately against an endpoint that returns
 // reference data: settling this must not create, change or trade anything.
 
+// ROUND ONE SETTLED TWO THINGS and left the third open.
+//
+//   Credentials go in the QUERY STRING. The header-only variants came back
+//   "Authentication credentials were not provided" (code 0000) rather than a
+//   signature complaint, so Partner* headers alone are not a way in.
+//
+//   The query itself is read correctly. Every query-param variant reached the
+//   signature check (code 1076, "Unable to verify signature sent") instead of
+//   failing earlier, so clientId and timestamp arrive intact.
+//
+// What is left is the HMAC itself: which bytes are the key, and how the digest
+// is encoded. Round two varies exactly that, against the same read-only
+// reference endpoint.
+
 interface SigVariant {
   name: string;
   /** Include the /api/v1 prefix in the signed `path`. */
   prefix: boolean;
-  /** "null" | "omit" | "empty" -- how an absent request body is signed. */
-  content: "null" | "omit" | "empty";
+  /** "null" | "omit" | "empty" | "object" -- how an absent request body is signed. */
+  content: "null" | "omit" | "empty" | "object";
   /** Credentials as query parameters, as Partner* headers, or both. */
   where: "query" | "headers" | "both";
   /** The header the signature itself travels in. */
   header: "Signature" | "PartnerSignature";
+  /** How the consumer key becomes HMAC key bytes. */
+  key?: "utf8" | "base64" | "uriEncoded";
+  /** How the digest is encoded for the header. */
+  digest?: "base64" | "base64url" | "hex";
+  /** Sign the whole URL rather than the path. */
+  fullUrl?: boolean;
 }
 
 const SIG_VARIANTS: SigVariant[] = [
@@ -115,7 +135,14 @@ const SIG_VARIANTS: SigVariant[] = [
   { name: "path with /api/v1, content empty string, query params, Signature", prefix: true, content: "empty", where: "query", header: "Signature" },
   { name: "path with /api/v1, content null, Partner* headers, PartnerSignature", prefix: true, content: "null", where: "headers", header: "PartnerSignature" },
   { name: "path with /api/v1, content null, query params AND Partner* headers", prefix: true, content: "null", where: "both", header: "Signature" },
-  { name: "path WITHOUT /api/v1, content null, Partner* headers, PartnerSignature", prefix: false, content: "null", where: "headers", header: "PartnerSignature" }
+  { name: "path WITHOUT /api/v1, content null, Partner* headers, PartnerSignature", prefix: false, content: "null", where: "headers", header: "PartnerSignature" },
+  // Round two: the HMAC itself.
+  { name: "key base64-decoded to bytes", prefix: true, content: "null", where: "query", header: "Signature", key: "base64" },
+  { name: "key URI-encoded first, as their example writes it", prefix: true, content: "null", where: "query", header: "Signature", key: "uriEncoded" },
+  { name: "digest base64url instead of base64", prefix: true, content: "null", where: "query", header: "Signature", digest: "base64url" },
+  { name: "digest hex instead of base64", prefix: true, content: "null", where: "query", header: "Signature", digest: "hex" },
+  { name: "content as an empty object", prefix: true, content: "object", where: "query", header: "Signature" },
+  { name: "the whole URL signed as path", prefix: true, content: "null", where: "query", header: "Signature", fullUrl: true }
 ];
 
 async function trySignature(v: SigVariant, creds: { clientId: string; consumerKey: string }) {
@@ -125,20 +152,46 @@ async function trySignature(v: SigVariant, creds: { clientId: string; consumerKe
   const signedPath = v.prefix ? `/api/v1${endpoint}` : endpoint;
   const query = v.where === "headers" ? "" : `clientId=${encodeURIComponent(creds.clientId)}&timestamp=${timestamp}`;
 
+  const pathForSig = v.fullUrl
+    ? `https://api.snaptrade.com/api/v1${endpoint}`
+    : signedPath;
+
   const sigObject: Record<string, unknown> =
     v.content === "omit"
-      ? { path: signedPath, query }
-      : { content: v.content === "empty" ? "" : null, path: signedPath, query };
+      ? { path: pathForSig, query }
+      : { content: v.content === "empty" ? "" : v.content === "object" ? {} : null, path: pathForSig, query };
   const payload = JSON.stringify(sigObject);
 
+  // The key bytes. Their own example writes `encodeURI(consumerKey)`, which is
+  // identity for an alphanumeric key and is not for one carrying anything
+  // else -- so it is a variant rather than an assumption.
+  let keyBytes: Uint8Array;
+  if (v.key === "base64") {
+    try {
+      const bin = atob(creds.consumerKey);
+      keyBytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) keyBytes[i] = bin.charCodeAt(i);
+    } catch {
+      return { variant: v.name, status: 0, ok: false, signed: payload, body: "the consumer key is not valid base64, so this variant cannot be tried" };
+    }
+  } else {
+    keyBytes = new TextEncoder().encode(
+      v.key === "uriEncoded" ? encodeURI(creds.consumerKey) : creds.consumerKey
+    );
+  }
+
   const key = await crypto.subtle.importKey(
-    "raw", new TextEncoder().encode(creds.consumerKey),
-    { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+    "raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
   );
   const raw = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload)));
   let binary = "";
   for (const b of raw) binary += String.fromCharCode(b);
-  const signature = btoa(binary);
+  const signature =
+    v.digest === "hex"
+      ? [...raw].map((b) => b.toString(16).padStart(2, "0")).join("")
+      : v.digest === "base64url"
+        ? btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+        : btoa(binary);
 
   const headers: Record<string, string> = { Accept: "application/json", [v.header]: signature };
   if (v.where === "headers" || v.where === "both") {
@@ -423,7 +476,19 @@ Deno.serve(async (req) => {
           // random string means the two keys were pasted the wrong way round,
           // which fails exactly like a wrong algorithm.
           clientId: creds!.clientId,
-          consumerKeyLength: creds!.consumerKey.length,
+          // THE KEY'S SHAPE, NEVER THE KEY. A truncated paste, a stray quote,
+          // a trailing newline or a key from the other environment all fail
+          // exactly like a wrong algorithm, and telling those apart should not
+          // cost an afternoon. None of this reveals key material: it is a
+          // length and a character census.
+          consumerKey: {
+            length: creds!.consumerKey.length,
+            allAlphanumeric: /^[A-Za-z0-9]+$/.test(creds!.consumerKey),
+            hasWhitespace: /\s/.test(creds!.consumerKey),
+            hasQuotes: /["']/.test(creds!.consumerKey),
+            looksBase64: /^[A-Za-z0-9+/]+={0,2}$/.test(creds!.consumerKey),
+            otherCharacterCount: creds!.consumerKey.replace(/[A-Za-z0-9]/g, "").length
+          },
           accepted: results.filter((r) => r.ok).map((r) => r.variant),
           results
         });
