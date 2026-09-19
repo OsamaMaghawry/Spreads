@@ -1,0 +1,25 @@
+<svg viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="The delta of one hypothetical 50-strike call plotted against the price of the stock, with 30 days left. The curve runs from near zero at 40 dollars, through about 0.52 where the stock sits at the 50 strike, up toward 0.95 at 60 dollars. A short straight line laid along the curve at 44 dollars is noticeably flatter, so a one dollar move in the stock changes delta less there. A second straight line laid along the curve at the 50 strike is about half again as steep, so the same one dollar move changes delta more. Gamma is the steepness of the curve at a point, and it is largest where the stock sits at the strike.">
+  <rect width="720" height="320" fill="#FFFFFF"/>
+
+  <text x="90" y="42" font-size="15" fill="#767B8E">delta</text>
+
+  <line x1="375" y1="58" x2="375" y2="280" stroke="#E2E5EE" stroke-width="1" stroke-dasharray="2 4"/>
+  <line x1="90" y1="280" x2="665" y2="280" stroke="#E2E5EE" stroke-width="1"/>
+
+  <path d="M90.0 273.5 L 97.1 272.7 L 104.3 271.7 L 111.4 270.7 L 118.5 269.6 L 125.6 268.4 L 132.8 267.1 L 139.9 265.7 L 147.0 264.2 L 154.1 262.6 L 161.3 260.9 L 168.4 259.0 L 175.5 257.1 L 182.6 255.0 L 189.8 252.8 L 196.9 250.5 L 204.0 248.1 L 211.1 245.5 L 218.3 242.9 L 225.4 240.1 L 232.5 237.2 L 239.6 234.2 L 246.8 231.1 L 253.9 227.9 L 261.0 224.7 L 268.1 221.3 L 275.3 217.9 L 282.4 214.3 L 289.5 210.7 L 296.6 207.1 L 303.8 203.4 L 310.9 199.6 L 318.0 195.8 L 325.1 192.0 L 332.3 188.1 L 339.4 184.3 L 346.5 180.4 L 353.6 176.5 L 360.8 172.7 L 367.9 168.8 L 375.0 165.0 L 382.1 161.2 L 389.3 157.4 L 396.4 153.7 L 403.5 150.0 L 410.6 146.4 L 417.8 142.8 L 424.9 139.3 L 432.0 135.9 L 439.1 132.5 L 446.3 129.2 L 453.4 126.0 L 460.5 122.9 L 467.6 119.9 L 474.8 116.9 L 481.9 114.1 L 489.0 111.3 L 496.1 108.6 L 503.3 106.0 L 510.4 103.6 L 517.5 101.2 L 524.6 98.9 L 531.8 96.7 L 538.9 94.6 L 546.0 92.5 L 553.1 90.6 L 560.3 88.8 L 567.4 87.0 L 574.5 85.3 L 581.6 83.7 L 588.8 82.2 L 595.9 80.8 L 603.0 79.4 L 610.1 78.1 L 617.3 76.9 L 624.4 75.8 L 631.5 74.7 L 638.6 73.7 L 645.8 72.7 L 652.9 71.8 L 660.0 70.9" fill="none" stroke="#14151C" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <path d="M141.3 269.9 L 266.7 226.2" fill="none" stroke="#2E8B5F" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="204.0" cy="248.1" r="4" fill="#FFFFFF" stroke="#2E8B5F" stroke-width="2"/>
+  <text x="132" y="212" font-size="15" font-weight="600" fill="#2E8B5F">smaller gamma</text>
+
+  <path d="M312.3 198.6 L 437.7 131.4" fill="none" stroke="#2E8B5F" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="375.0" cy="165.0" r="4" fill="#FFFFFF" stroke="#2E8B5F" stroke-width="2"/>
+  <text x="268" y="106" font-size="15" font-weight="600" fill="#2E8B5F">larger gamma</text>
+
+  <text x="78" y="64" font-size="13" text-anchor="end" fill="#767B8E">1.00</text>
+  <text x="78" y="284" font-size="13" text-anchor="end" fill="#767B8E">0</text>
+
+  <text x="90" y="304" font-size="13" fill="#767B8E">$40</text>
+  <text x="375" y="304" font-size="13" text-anchor="middle" fill="#14151C">$50 strike</text>
+  <text x="665" y="304" font-size="13" text-anchor="end" fill="#767B8E">$60</text>
+</svg>

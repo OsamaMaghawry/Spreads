@@ -147,7 +147,9 @@ and the calendar do.
 
 It is also the first of the sensitivities the [foundations
 series](/blog/foundations) takes one at a time. [What the passage of a day
-alone does to a price](/blog/theta-decay-explained) comes next.
+alone does to a price](/blog/theta-decay-explained) comes next, and [gamma, how
+fast delta itself changes](/blog/gamma-options-meaning), is its own number
+later in the series.
 
 All figures on this page are hypothetical and are there to show the mechanics.
 This post is educational and is not investment advice.

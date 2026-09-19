@@ -20,7 +20,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 6 | Delta | option delta explained | delta | Investopedia, OIC | what people use it for: strike selection, not a formula |
 | 7 | Theta | theta decay explained | option theta | Barchart, Schwab, OIC, TradingBlock, tastytrade; thin AI-era blogs in the tail | what decay looks like on a short and a long the same week |
 | 8 | Vega and IV | implied volatility options explained | implied volatility | Investopedia, CBOE | why a chain reprices before earnings |
-| 9 | Gamma | gamma options meaning | gamma | Investopedia | short, honest, when it matters and when it does not |
+| 9 | Gamma | when does gamma matter in options | option gamma | SoFi, tastytrade, Merrill Edge, OIC, Schwab, CME, TradingBlock, Barchart, Option Alpha; thin AI-era glossary sites in the tail | short, honest, when it matters and when it does not |
 | 10 | Assignment | option assignment what happens | assignment | broker help pages, Reddit | the account the morning after, line by line |
 | 11 | Early exercise | early exercise options | exercise | Investopedia, forums | why it is rare and the one case it is not |
 | 12 | Expiration mechanics | what happens options expiration | expiration | broker help pages | ITM by a cent, OTM by a cent, the cutoff |
@@ -130,6 +130,53 @@ phrasing above; whether these results are personalised or localised; whether
 and whether "the whole chain reprices at once" has its own searched phrasing —
 searches for it returned generic IV explainers and skew pages, so the post owns
 the idea with no query to target it.
+
+## Reading for row 9 — gamma options meaning (read 2026-09-19)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| gamma options meaning (the row's old target) | SoFi, tastytrade, Merrill Edge, OIC, Schwab, CME, TradingBlock, Barchart, Roundhill, TradingView support | **hard** — broker and exchange education end to end. Nothing forum-shaped anywhere in the set |
+| option gamma explained | Option Alpha, Merrill Edge, Schwab, Britannica Money, TradingBlock, CME, tastytrade, Seeking Alpha, Barchart | **hard, and avoid the title shape** — nine results whose titles are all some form of "Gamma Explained". Matching the series' `<greek> explained` pattern here buys a tenth identical title with none of the authority |
+| what does gamma mean in options trading | IG, Merrill Edge, SoFi, tastytrade, Schwab (twice), TradingBlock, Barchart, Benzinga | **hard** — broker hubs; hub language, not post language |
+| why does gamma increase near expiration | Option Alpha, OIC, **Quora**, Schwab, TradingBlock, a GEX help-centre article, impliedoptions.com, and **two USPTO patent PDFs** | **winnable** — a Quora thread plus patent PDFs padding the set means nothing authoritative holds the intent. The best long-tail target on this row |
+| when does gamma matter in options trading | tastytrade, Schwab, Barchart, projectoption, then strike.money, CapMint, damanmarkets, optionstrading.org | **winnable** — the tail is thin AI-era glossary sites. Every page answers when gamma **does** matter; none answers when it does not |
+| can gamma be negative / long gamma vs short gamma | Option Alpha, OIC, Schwab, Macroption, TradingBlock, SteadyOptions, MenthorQ, Scribd, a TradingView chart idea | **winnable** — Scribd and a chart idea in the top set is a text-coverage gap. Earns a heading and an FAQ line, never the title |
+| gamma far from the strike / small gamma on an OTM option | Macroption, OIC, TradingBlock, Schwab, marketseasy.in, projectoption, appmosis, FasterCapital | **winnable, thin** — most pages give "gamma is highest at the money" and leave the near-zero rest of the chain as one clause |
+| gamma risk on a credit spread near the short strike | a Substack, TradingBlock, optionstradingiq, stockaverager, MenthorQ, quantstrategy.io, Wikipedia | **winnable but declined as a target** — the demand is real, but every ranking page resolves it into a rule to follow ("close at 21 DTE"). That is advice we do not write; the FAQ answers the mechanics descriptively and stops |
+| gamma squeeze | CMC Markets, SpotGamma, Yahoo Finance, IG, Schwab, AvaTrade, Mott Capital, TradingSim, Motley Fool | **do not target** — different intent (meme-stock market structure, "how to identify one" day-trading framing) and a hard SERP. One FAQ line saying it is a flow phenomenon, not a chain row, is the whole of our treatment |
+| gamma (unqualified) | Merriam-Webster, Wikipedia disambiguation, the gamma function, gamma correction, gamma.app the AI slides tool, an Instagram account | **do not target**: the bare word is a Greek letter and a software brand. The head term for this row is **option gamma**, never "gamma" alone — the same correction row 7 needed for theta |
+
+**Correction to the row as written before the post existed.** The old row named
+Investopedia as who competes. Investopedia did not surface in any of the ten
+reads above. What holds this topic is the broker/exchange education set — SoFi,
+tastytrade, Merrill Edge, Schwab, OIC, CME, TradingBlock, Barchart, Option
+Alpha — plus a glossary tail. The old target query, "gamma options meaning",
+is a phrase that set owns; it is also a phrase no headline can carry without
+reading like keyword syntax. Retargeted to the long tail accordingly.
+
+**The gap.** Every ranking page gives the definition, the speed/acceleration
+metaphor, "gamma is highest at the money", "gamma rises into expiration" and
+"short gamma is risky". Two things almost none of them do. First, they treat
+gamma as a risk that is always present, when on most of a chain most of the
+time it is near zero — the "when it barely matters" case is at best a clause,
+never a section, and that is the searched intent nobody is answering. Second,
+none walks one contract's delta across four adjacent stock prices so the reader
+can check that each dollar really does add about one gamma's worth, and then
+steps away from the strike to show the same figure decaying. Where a page does
+reach the short side it turns it into a management rule; the angle here stays
+descriptive.
+
+**Could not establish:** search volume, difficulty and current position for any
+phrasing above; whether these results are personalised or localised; whether
+"when does gamma matter" or "when does gamma not matter" is the dominant
+phrasing (only the positive form surfaces, which may mean the negative form is
+not searched or may mean nothing answers it); and whether "gamma is near zero
+nearly everywhere" has its own searched phrasing — searches for it returned
+generic gamma explainers, so the post owns the idea with no query to target it.
 
 ## Off-syllabus rows
 
