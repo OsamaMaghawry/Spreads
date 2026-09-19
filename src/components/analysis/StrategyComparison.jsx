@@ -5,7 +5,7 @@ const td = "px-3 py-2 whitespace-nowrap tabular-nums";
 const pct = (v, d = 1) => (v === null || v === undefined || !isFinite(v) ? "—" : `${(v * 100).toFixed(d)}%`);
 const num = (v) => (v === null || v === undefined || !isFinite(v) ? "—" : v.toFixed(2));
 
-export default function StrategyComparison({ rows }) {
+export default function StrategyComparison({ rows, splitCount = 0 }) {
   // Three of these columns are measured over settled trades and three over
   // every row. Unsaid, the table reads as one population and a reader would
   // divide one column by another -- which is how "12 trades, 100% win rate,
@@ -83,6 +83,23 @@ export default function StrategyComparison({ rows }) {
           held by the account rather than by one strategy. The rows will not add up to it, by that
           amount. Annualized and CAGR are withheld on any row carrying that mark &mdash; a
           reversible paper figure must not be compounded into an annual rate.
+        </p>
+      )}
+      {/* A ROW HERE CAN BE STRUCTURALLY MISLEADING, not merely incomplete, and
+          the table has to say so where it happens rather than leave the reader
+          to find the contradiction. The owner did find it: *"the CC never lost
+          2k"* — and he was right, because on his account every covered call was
+          written on shares an assigned put had delivered. The put keeps the
+          share result, the call keeps the buyback cost, and no single strategy
+          row can hold both halves. "By setup" above is where those rows are put
+          back together. */}
+      {splitCount > 0 && (
+        <p className="border-t border-slate-200 px-4 py-2.5 text-[11px] leading-relaxed text-slate-500">
+          {splitCount} position{splitCount === 1 ? "" : "s"} on this page {splitCount === 1 ? "spans" : "span"}{" "}
+          more than one of these rows &mdash; a put assigned into shares and the calls written on
+          those shares are one position filed under two strategies, with the shares&rsquo; result on
+          the put and the call&rsquo;s buyback cost on the call. Neither row states what the position
+          did. &ldquo;By setup&rdquo; above counts {splitCount === 1 ? "it" : "them"} whole.
         </p>
       )}
       {notFinal > 0 && (

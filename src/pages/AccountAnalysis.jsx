@@ -23,6 +23,8 @@ import { capitalAtWork, flowNote } from "@/lib/capital";
 import { dailySeries, bookedCurve } from "@/lib/equityCurve";
 import { windowParts } from "@/lib/windowParts";
 import WindowParts from "@/components/analysis/WindowParts";
+import { setups as buildSetups } from "@/lib/campaigns";
+import SetupBreakdown from "@/components/analysis/SetupBreakdown";
 
 export default function AccountAnalysis() {
   const { id } = useParams();
@@ -360,6 +362,23 @@ export default function AccountAnalysis() {
     [subset, strategy, capital, view, scopedUnrealized, drawdownPoints]
   );
 
+  // The positions behind the rows, grouped back into what they actually were.
+  //
+  // Built from `subset` so the audit split and the date window both apply, and
+  // from the account's WHOLE lot book rather than a windowed slice of it: a
+  // setup is linked through the shares, and shares acquired before the window
+  // still own the calls written on them inside it. Filtering the lots would
+  // silently unlink exactly the positions this grouping exists to hold
+  // together. See src/lib/campaigns.js.
+  const positionSetups = useMemo(
+    () => buildSetups(subset, data?.stockLots),
+    [subset, data]
+  );
+  const splitCount = useMemo(
+    () => positionSetups.filter((s) => s.split.length > 0).length,
+    [positionSetups]
+  );
+
   const comparison = useMemo(() => {
     // Only when looking at everything. Filtering to one strategy and then
     // printing a table of all of them contradicts the filter — on screen it is
@@ -652,7 +671,12 @@ export default function AccountAnalysis() {
             {parts && <WindowParts parts={parts} />}
             {book.lots > 0 && <OpenBookPanel book={book} priced={view === "whole"} />}
             <OpenOptionsPanel book={optionBook} priced={view === "whole"} />
-            {comparison.length > 1 && <StrategyComparison rows={comparison} />}
+            {/* ABOVE the strategy table on purpose. The strategy table is the
+                one that splits a wheel in half, and its own caveat points up
+                here -- a reader must meet the whole position before the table
+                that cannot state it. */}
+            <SetupBreakdown setups={positionSetups} />
+            {comparison.length > 1 && <StrategyComparison rows={comparison} splitCount={splitCount} />}
             <StatCards stats={stats} withheld={withheldFigure} />
             <EquityCurveChart
               curve={curve}
