@@ -211,6 +211,34 @@ export function splitSetups(list) {
   return (list || []).filter((s) => s.split.length > 0 || s.open);
 }
 
+/**
+ * Setups rolled up by ticker, for a table that has to show 135 positions.
+ *
+ * THIS EXISTS AS A TESTED FUNCTION BECAUSE THE FIRST VERSION OF THE PANEL LOST
+ * ROWS. It filtered to multi-leg setups inside the component, which on the
+ * owner's account showed six positions out of 135 under a heading that claimed
+ * to be every setup — *"totally inaccurate setups and results!! NVDA just two
+ * setups!!!!"* The grouping had been right the whole time; the rendering threw
+ * the rest away. A filter living in JSX had no test that could catch that, so
+ * the roll-up lives here, where `every setup appears exactly once` is an
+ * assertion rather than a hope.
+ */
+export function byTicker(list) {
+  const by = new Map();
+  for (const s of list || []) {
+    if (!by.has(s.ticker)) by.set(s.ticker, { ticker: s.ticker, setups: [], legs: 0, booked: 0, open: 0, split: 0 });
+    const b = by.get(s.ticker);
+    b.setups.push(s);
+    b.legs += s.legs.length;
+    b.booked += s.booked;
+    if (s.open) b.open += 1;
+    if (s.split.length > 0) b.split += 1;
+  }
+  return [...by.values()]
+    .map((b) => ({ ...b, setups: b.setups.slice().sort((a, c) => (c.to || "").localeCompare(a.to || "")) }))
+    .sort((a, b) => b.setups.length - a.setups.length || Math.abs(b.booked) - Math.abs(a.booked));
+}
+
 /** Money this grouping says is attributed to a setup rather than to one leg. */
 export function setupTotals(list) {
   const all = list || [];

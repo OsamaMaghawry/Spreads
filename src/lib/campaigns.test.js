@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setups, splitSetups, setupTotals } from "./campaigns.js";
+import { setups, splitSetups, setupTotals, byTicker } from "./campaigns.js";
 
 // Alton's TSLA wheel, 7-18 September 2026, verbatim from production. This is
 // the position the owner was objecting to: two puts assigned into 200 shares,
@@ -155,4 +155,67 @@ test("an empty window is empty, not a setup of nothing", () => {
 test("a withheld row taints the setup it sits in", () => {
   const legs = TSLA_LEGS.map((t) => (t.id === "c1" ? { ...t, integrity_code: "impossible_loss" } : t));
   assert.equal(setups(legs, TSLA_LOTS)[0].withheld, 1);
+});
+
+// ---------------------------------------------------------------------------
+// The roll-up must not lose a position.
+//
+// The first version of the panel filtered to multi-leg setups in JSX and showed
+// six of this account's 135 positions under a heading that claimed to be all of
+// them. These are the assertions that would have caught it.
+// ---------------------------------------------------------------------------
+
+// Twelve NVDA cash-secured puts that expired worthless — no shares, no second
+// leg, nothing to group. Every one is a complete position and must be counted.
+const NVDA_PUTS = Array.from({ length: 12 }, (_, i) => ({
+  id: `n${i}`, ticker: "NVDA", strategy: "cash_secured_put",
+  open_date: `2026-07-${String(6 + i).padStart(2, "0")}`,
+  close_date: `2026-07-${String(10 + i).padStart(2, "0")}`,
+  close_reason: "expired", chain_id: null,
+  realized_pl: 50 + i, premium_pl: 50 + i, early_close_pl: 0, stock_pl: 0
+}));
+
+test("a put that expired worthless is a setup of one, not a row to drop", () => {
+  const list = setups(NVDA_PUTS, []);
+  assert.equal(list.length, 12);
+  assert.equal(list.every((s) => s.legs.length === 1 && s.lots.length === 0), true);
+});
+
+test("the ticker roll-up carries every setup, not just the grouped ones", () => {
+  const list = setups([...NVDA_PUTS, ...TSLA_LEGS, ...SPREADS], TSLA_LOTS);
+  const rolled = byTicker(list);
+  // Nothing is filtered away between the grouping and the table.
+  assert.equal(rolled.reduce((a, b) => a + b.setups.length, 0), list.length);
+  const nvda = rolled.find((b) => b.ticker === "NVDA");
+  assert.equal(nvda.setups.length, 12);
+  assert.equal(nvda.legs, 12);
+  assert.equal(nvda.booked, NVDA_PUTS.reduce((a, t) => a + t.realized_pl, 0));
+  // And no setup is counted twice.
+  const seen = rolled.flatMap((b) => b.setups.map((s) => s.key));
+  assert.equal(new Set(seen).size, seen.length);
+});
+
+test("the ticker totals sum to the account's own booked total", () => {
+  const list = setups([...NVDA_PUTS, ...TSLA_LEGS, ...SPREADS], TSLA_LOTS);
+  const rolled = byTicker(list);
+  const legs = [...NVDA_PUTS, ...TSLA_LEGS, ...SPREADS].reduce((a, t) => a + t.realized_pl, 0);
+  assert.equal(
+    Math.round(rolled.reduce((a, b) => a + b.booked, 0) * 100) / 100,
+    Math.round(legs * 100) / 100
+  );
+});
+
+test("the roll-up flags only the tickers that actually needed grouping", () => {
+  const rolled = byTicker(setups([...NVDA_PUTS, ...TSLA_LEGS, ...SPREADS], TSLA_LOTS));
+  assert.equal(rolled.find((b) => b.ticker === "NVDA").split, 0);
+  assert.equal(rolled.find((b) => b.ticker === "NVDA").open, 0);
+  assert.equal(rolled.find((b) => b.ticker === "TSLA").split, 1);
+  assert.equal(rolled.find((b) => b.ticker === "TSLA").open, 1);
+});
+
+test("the busiest ticker leads, and an empty account rolls up to nothing", () => {
+  const rolled = byTicker(setups([...NVDA_PUTS, ...TSLA_LEGS, ...SPREADS], TSLA_LOTS));
+  assert.equal(rolled[0].ticker, "NVDA");
+  assert.deepEqual(byTicker([]), []);
+  assert.deepEqual(byTicker(null), []);
 });
