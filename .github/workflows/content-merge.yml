@@ -1,42 +1,39 @@
-name: Merge content to staging for review
+name: Merge and publish content
 
-# The daily article pipeline ends on an agent branch: Routine sessions push
-# to their own claude/* branch and are refused on main. This carries that
-# branch as far as it can go without a person -- onto `staging`, where the
-# post renders on the staging blog and the owner can read it as a reader
-# would -- and no further. Production publication stays a decision.
+# The daily article pipeline ends on an agent branch: Routine sessions push to
+# their own claude/* branch and are refused on main. This carries that branch
+# the rest of the way -- onto the trunk, and onto the blog.
 #
-# It used to merge into `main`, which publishes to the live blog, so the
-# owner's review had no place to happen. It also refused any branch carrying
-# a diagram, because the allowlist covered content/blog/ but not the SVGs the
-# posts embed under landing/public/assets/blog/. Every post the content agent
-# wrote between 3 and 7 Sep carried diagrams, so every one of them was
-# refused, and the next day's session found no post and wrote it again. Five
-# rewrites of one article, none of them anywhere a reader could see. Both
-# faults are fixed here: staging is the destination, and the diagrams a post
-# needs count as part of the post.
+# THIS GATE HAS NOW LOST POSTS FOUR TIMES, and the shape of the bug is worth
+# stating because the first three fixes all attacked the wrong half of it.
 #
-# IT HAPPENED AGAIN, 10 and 11 Sep, and the reason it went unnoticed for two
-# days is the important half. The bid-ask-spread post was written, reviewed by
-# the whole chain, and refused BOTH times because the same session had also
-# committed `docs/growth/metrics/*.json` — files the allowlist did not name.
-# The owner: *"The blog hasn't been updated or added any article for the past
-# 2 days. This became really annoying that I keep chasing the agents' work."*
+#   3-7 Sep. The allowlist covered content/blog/ but not the SVGs the posts
+#   embed, so every post carrying a diagram was refused -- which was all of
+#   them. Five rewrites of one article. Fixed by widening the allowlist.
 #
-# He had no way to know. A refusal set `ok=false` and the job still exited 0,
-# so GitHub showed a GREEN TICK on a run that had merged nothing. A silent
-# skip on the one workflow whose entire job is to move work forward is worse
-# than a crash: a crash gets looked at.
+#   10-11 Sep. Refused twice more because the session had also committed
+#   docs/growth/metrics/*.json. The owner: *"The blog hasn't been updated or
+#   added any article for the past 2 days. This became really annoying that I
+#   keep chasing the agents' work."* Worse, a refusal exited 0, so GitHub
+#   showed a GREEN TICK on a run that merged nothing. Fixed by widening the
+#   allowlist again, and by failing loudly.
 #
-# So two changes, and the second matters more than the first:
+#   16-20 Sep. Thirteen consecutive red runs and six days with nothing on the
+#   blog. *"As always, the blog is not posting anything for days. And you keep
+#   saying it's fixed!!!!"*
 #
-#   1. The allowlist gains `docs/growth/`, which is generated reporting the
-#      content session writes as a side effect. It is documentation, not code.
+# The fourth time was not the allowlist. THE DIFF BASE WAS WRONG: the gate
+# measured each branch against `staging` while the branches are cut from
+# `main`, so it attributed all 73 commits of trunk divergence to a post that
+# touched six files. Widening an allowlist can never fix that, which is why
+# the same bug kept returning wearing different paths. See the gate step.
 #
-#   2. A REFUSAL NOW FAILS THE JOB. Red, with the offending paths named in the
-#      run summary. Widening an allowlist only fixes the paths somebody thought
-#      of; failing loudly fixes every path nobody thought of, which is the
-#      class this bug keeps coming back as.
+# The second half of 16-20 Sep was the destination. Content merged to staging,
+# publish-blog only runs on main, and agents branch from main -- so posts that
+# did land were invisible both to readers and to the next day's writer, which
+# is why one article was drafted four times in five days. Both are fixed
+# below: the base is the branch's own fork point, and the destination is the
+# trunk the writers actually read.
 
 on:
   push:
@@ -69,18 +66,44 @@ jobs:
         id: gate
         run: |
           set -euo pipefail
-          git fetch origin "${GITHUB_REF_NAME}"
+          git fetch origin "${GITHUB_REF_NAME}" main staging
           head="origin/${GITHUB_REF_NAME}"
-          base=$(git merge-base HEAD "$head")
+
+          # THE BRANCH'S OWN FORK POINT, not its distance from staging.
+          #
+          # This is the third time this gate has refused a clean post, and the
+          # first two fixes both widened the allowlist -- which was treating the
+          # symptom. The base was wrong.
+          #
+          # `merge-base(staging, branch)` asks "where did this branch and
+          # staging last agree". Content branches are cut from MAIN, and main
+          # and staging diverged at c835e0f with 13 commits on one side and 73
+          # on the other. So that merge-base is weeks old and the diff from it
+          # carries every file that differs between the two trunks -- 37 files
+          # for a branch that changed 6 -- and the gate blamed the post for all
+          # of them. Every run from 16 to 20 September failed this way, thirteen
+          # in a row, while the same gamma article was written from scratch four
+          # times because each session branched from main and could not see the
+          # copy sitting on staging.
+          #
+          # The right question is what THIS BRANCH added, so the base is the
+          # nearest point it forks from either trunk. `--is-ancestor` picks the
+          # more recent of the two candidates, which is the trunk it was
+          # actually cut from, whichever that turns out to be.
+          bm=$(git merge-base "$head" origin/main)
+          bs=$(git merge-base "$head" origin/staging)
+          if git merge-base --is-ancestor "$bs" "$bm"; then base="$bm"; else base="$bs"; fi
+          echo "Branch forks from $(git log --oneline -1 "$base")"
+
           files=$(git diff --name-only "$base" "$head")
-          echo "Changed since staging:"; echo "$files"
+          echo "Changed by this branch:"; echo "$files"
           bad=$(echo "$files" | grep -vE '^(content/blog/|content/PLAN\.md$|docs/seo/|docs/growth/|landing/public/assets/blog/)' || true)
           if [ -n "$bad" ]; then
             {
               echo "## Content NOT merged"
               echo
               echo "This branch carries files outside the content allowlist, so it was left"
-              echo "for a person. **The post on it is not on staging and is not published.**"
+              echo "for a person. **The post on it is not merged and is not published.**"
               echo
               echo '```'
               echo "$bad"
@@ -96,20 +119,55 @@ jobs:
           fi
           echo "ok=true" >> "$GITHUB_OUTPUT"
 
-      - name: Merge into staging
+      # ONE TRUNK, AND IT IS THE ONE THE AGENTS BRANCH FROM.
+      #
+      # Routing content to `staging` was meant to give the owner a review step.
+      # In thirteen days it produced no reviews and two failures instead:
+      #
+      #   Production starved. A post that reached staging stopped there. The
+      #   live blog's last article is dated 14 September because nothing
+      #   carried one to main, and only a push to main runs publish-blog.
+      #
+      #   The article was written four times. Sessions branch from MAIN, so a
+      #   post merged to staging is invisible to the next day's agent. It finds
+      #   no gamma article, writes it again, and the cycle repeats -- 16, 18,
+      #   19 and 20 September, four drafts of one post, none of them readable
+      #   by anybody.
+      #
+      # Both follow from content living on a branch the writers cannot see. The
+      # destination is now the trunk they are cut from, which closes the loop:
+      # merged here, the post is on main, publish-blog puts it on the live blog,
+      # and tomorrow's session sees it already written.
+      #
+      # Review has not been dropped, it has moved earlier. desk-editor,
+      # seo-editor and compliance-gate each pass every post BEFORE it is
+      # committed, and no post merges without all three. To put a human back in
+      # front of publication, set TRUNK to `staging` -- but then somebody must
+      # merge staging to main, or the blog stops again exactly as it did here.
+      - name: Merge into the trunk
         if: steps.gate.outputs.ok == 'true'
+        env:
+          TRUNK: main
         run: |
           set -euo pipefail
           git config user.name "deltamint-content"
           git config user.email "content@deltamint.app"
-          git merge --no-ff "origin/${GITHUB_REF_NAME}" -m "Draft for review: $(git log -1 --format=%s "origin/${GITHUB_REF_NAME}")"
-          git push origin HEAD:staging
+          git checkout -B "$TRUNK" "origin/$TRUNK"
+          git merge --no-ff "origin/${GITHUB_REF_NAME}" -m "Publish: $(git log -1 --format=%s "origin/${GITHUB_REF_NAME}")"
+          git push origin "HEAD:$TRUNK"
 
       # A push made with GITHUB_TOKEN does not trigger other workflows, so the
-      # staging publish is dispatched explicitly -- workflow_dispatch is the one
-      # event that token may raise.
-      - name: Publish to the staging blog
+      # publish is dispatched explicitly -- workflow_dispatch is the one event
+      # that token may raise. Without this the merge lands and nothing renders
+      # it, which is its own silent-failure mode.
+      - name: Publish to the blog
         if: steps.gate.outputs.ok == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run publish-blog-staging.yml --ref staging
+          TRUNK: main
+        run: |
+          if [ "$TRUNK" = "main" ]; then
+            gh workflow run publish-blog.yml --ref main
+          else
+            gh workflow run publish-blog-staging.yml --ref staging
+          fi
