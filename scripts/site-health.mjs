@@ -350,21 +350,32 @@ async function checkCrawlerSurface() {
   // A page carrying noindex is invisible however healthy it looks. The Worker
   // sets this from an env var, so production and staging differ by one value
   // and nothing in the repo proves which way production is set.
-  for (const p of ["/", "/blog"]) {
+  //
+  // EVERY SITEMAP URL, not a token two. Search Console reported "Excluded by
+  // 'noindex' tag -- Source: Website" against this property on 13 Sep while
+  // the homepage and blog index were both clean, which is exactly the shape a
+  // leak on one article takes: the two pages anybody spot-checks look right
+  // and the post nobody re-checks is invisible. Checking the pages we publish
+  // is the only version of this test that can find that.
+  const noindexed = [];
+  const unchecked = [];
+  const pages = locs.length ? locs : [`${base}/`, `${base}/blog`];
+  for (const p of pages) {
     try {
-      const res = await fetch(`${base}${p}`, { redirect: "follow", signal: AbortSignal.timeout(10000) });
+      const res = await fetch(p, { redirect: "follow", signal: AbortSignal.timeout(10000) });
       const header = (res.headers.get("x-robots-tag") || "").toLowerCase();
       const body = await res.text();
       const metaNoindex = /<meta[^>]+name=["']robots["'][^>]+content=["'][^"']*noindex/i.test(body);
       if (/noindex/.test(header) || metaNoindex) {
-        fail(`indexable: ${p}`, `production is serving noindex (${/noindex/.test(header) ? "X-Robots-Tag" : "meta tag"})`);
-      } else {
-        ok(`indexable: ${p}`, "no noindex header or meta tag");
+        noindexed.push(`${p} (${/noindex/.test(header) ? "X-Robots-Tag" : "meta tag"})`);
       }
     } catch (e) {
-      warn(`indexable: ${p}`, `could not be checked: ${e.message}`);
+      unchecked.push(`${p}: ${e.message}`);
     }
   }
+  if (noindexed.length) fail("indexable: published pages", `serving noindex — ${noindexed.join("; ")}`);
+  else ok("indexable: published pages", `${pages.length - unchecked.length} checked, none noindexed`);
+  if (unchecked.length) warn("indexable: not checked", unchecked.join("; "));
 }
 
 // ------------------------------------------------------------------- run
