@@ -347,6 +347,29 @@ async function checkCrawlerSurface() {
     fail("sitemap.xml", `could not be fetched: ${e.message}`);
   }
 
+  // THE DASHBOARD MUST CARRY NOINDEX, and this is the inverse of the check
+  // below: there, a noindex is a bug; here, its ABSENCE is.
+  //
+  // Search Console's 3-month export on 20 Sep showed dashboard.deltamint.app
+  // taking 24 of the property's 77 impressions -- the app root, /register,
+  // /login and /forgot-password -- which is nearly a third of everything this
+  // site was shown for, spent on pages no stranger should ever be offered.
+  // /forgot-password reaching Google is the exact failure public/robots.txt
+  // was rewritten to stop, and nothing has been testing whether the fix holds.
+  for (const p of ["/", "/register", "/forgot-password"]) {
+    const url = `https://dashboard.${APEX}${p}`;
+    try {
+      const res = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(10000) });
+      const header = (res.headers.get("x-robots-tag") || "").toLowerCase();
+      const body = await res.text();
+      const meta = /<meta[^>]+name=["']robots["'][^>]+content=["'][^"']*noindex/i.test(body);
+      if (/noindex/.test(header) || meta) ok(`dashboard noindex: ${p}`, /noindex/.test(header) ? "X-Robots-Tag" : "meta tag");
+      else fail(`dashboard noindex: ${p}`, "the authenticated app is indexable — it can be offered to strangers in search");
+    } catch (e) {
+      warn(`dashboard noindex: ${p}`, `could not be checked: ${e.message}`);
+    }
+  }
+
   // A page carrying noindex is invisible however healthy it looks. The Worker
   // sets this from an env var, so production and staging differ by one value
   // and nothing in the repo proves which way production is set.
