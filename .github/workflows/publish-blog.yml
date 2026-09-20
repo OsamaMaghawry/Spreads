@@ -89,8 +89,14 @@ jobs:
           from email.message import EmailMessage
           m = EmailMessage()
           m["Subject"] = "DeltaMint: the blog did not publish"
-          m["From"] = "DeltaMint <support@deltamint.app>"
-          m["To"] = "support@deltamint.app"
+          # AGENTS, NOT SUPPORT. This is the build telling us our own pipeline
+          # broke -- it carries a run URL and a branch name and no customer
+          # will ever read it. The owner: *"Agents is internal email for our
+          # agentic workflow."* Sending it as support@ also buries real
+          # customer mail under our cron output, since it is addressed to the
+          # same mailbox it claims to come from.
+          m["From"] = "DeltaMint Agents <agents@deltamint.app>"
+          m["To"] = "agents@deltamint.app"
           m.set_content(
               "The publish-blog job failed, so anything written since the last "
               "successful run is still not on the blog.\n\n"

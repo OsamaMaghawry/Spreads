@@ -14,28 +14,39 @@
 import { brevoPayload } from "./emailPayload.ts";
 
 const BREVO_KEY = Deno.env.get("BREVO_API_KEY");
-// The verified sender on the authenticated domain.
+
+// TWO SENDERS, BECAUSE THERE ARE TWO AUDIENCES.
 //
-// NOT `agents@`, at the owner's word: *"can we remove Agents from this email.
-// I want to send with the Support email not Agent. Agents is internal only."*
-// He is right, and it matters more than a label. "Agents" is the name of the
-// review bench -- systems-engineer, investment-analyst, compliance-gate and
-// the rest -- which is how this product is BUILT, not a party a customer has
-// any relationship with. A weekly digest arriving from it tells the reader
-// their account is being handled by something they have never been introduced
-// to, and gives them an address to reply to that nobody reads.
+// The owner asked for one change: *"can we remove Agents from this email. I
+// want to send with the Support email not Agent. Agents is internal only."*
+// The second sentence is a boundary, and the first pass read only the first
+// sentence and moved EVERYTHING to support@ -- including the mail that exists
+// to tell us our own machinery broke. *"Agents is internal email for our
+// agentic workflow. Now everything has changed to Support!!!!!"*
 //
-// `support@deltamint.app` is the address already published in the privacy
-// policy, the terms, the security policy and the site's own structured data,
-// and it is already the authenticated sender for sign-in mail
-// (`.github/workflows/auth-config.yml`). So it is a mailbox that exists, that
-// a reply reaches, and that the reader has already been given -- which is the
-// whole of what a from-address is for.
+// So the rule is by READER, not by sender:
 //
-// This is the sender for EVERY email the product sends, the position-watch
-// alerts included, because they share this module. That is the right outcome:
-// the alerts had no more business coming from `agents@` than the digest did.
-const FROM = Deno.env.get("ALERT_EMAIL_FROM") || "DeltaMint <support@deltamint.app>";
+//   SUPPORT  Anything a customer receives -- the weekly digest, position-watch
+//            alerts, sign-in mail. `support@deltamint.app` is the address
+//            already published in the privacy policy, the terms, the security
+//            policy and the site's structured data, so it is a mailbox that
+//            exists and a reply actually reaches. A customer has no
+//            relationship with "Agents" and should never be handed it as a
+//            reply-to.
+//
+//   AGENTS   Anything the build and the review bench send to ourselves -- a
+//            publish that failed, stored history that drifted. Nobody outside
+//            the team reads these, they name internal jobs and branches, and
+//            filing them under support@ buries real customer mail under our
+//            own cron output.
+//
+// The default is SUPPORT, so a new caller that says nothing sends as the
+// brand. Internal callers opt in explicitly, which is the safer direction to
+// get wrong.
+export const SENDER = {
+  support: Deno.env.get("ALERT_EMAIL_FROM") || "DeltaMint <support@deltamint.app>",
+  agents: Deno.env.get("AGENT_EMAIL_FROM") || "DeltaMint Agents <agents@deltamint.app>"
+} as const;
 
 export interface EmailResult {
   sent: boolean;
@@ -48,7 +59,10 @@ export async function sendEmail(
   to: string,
   subject: string,
   html: string,
-  text?: string
+  text?: string,
+  // Which of the two mailboxes this is from. Omitted means SUPPORT — see
+  // SENDER above for why the customer-facing address is the default.
+  from: string = SENDER.support
 ): Promise<EmailResult> {
   if (!BREVO_KEY) {
     console.warn(`email: BREVO_API_KEY not set; would have sent "${subject}" to ${to}`);
@@ -63,7 +77,7 @@ export async function sendEmail(
         "content-type": "application/json",
         accept: "application/json"
       },
-      body: JSON.stringify(brevoPayload(FROM, to, subject, html, text))
+      body: JSON.stringify(brevoPayload(from, to, subject, html, text))
     });
     // Brevo answers a successful send with 201, not 200.
     if (!res.ok) {
