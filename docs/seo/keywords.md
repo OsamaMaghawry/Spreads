@@ -20,7 +20,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 6 | Delta | option delta explained | delta | Investopedia, OIC | what people use it for: strike selection, not a formula |
 | 7 | Theta | theta decay explained | option theta | Barchart, Schwab, OIC, TradingBlock, tastytrade; thin AI-era blogs in the tail | what decay looks like on a short and a long the same week |
 | 8 | Vega and IV | implied volatility options explained | implied volatility | Investopedia, CBOE | why a chain reprices before earnings |
-| 9 | Gamma | gamma options meaning | gamma | Investopedia | short, honest, when it matters and when it does not |
+| 9 | Gamma | gamma options meaning | option gamma | SoFi, tastytrade, Merrill Edge, Schwab, OIC, CME, TradingBlock, Barchart; Quora and a Substack in the tail | short, honest, when it matters and when it does not |
 | 10 | Assignment | option assignment what happens | assignment | broker help pages, Reddit | the account the morning after, line by line |
 | 11 | Early exercise | early exercise options | exercise | Investopedia, forums | why it is rare and the one case it is not |
 | 12 | Expiration mechanics | what happens options expiration | expiration | broker help pages | ITM by a cent, OTM by a cent, the cutoff |
@@ -130,6 +130,48 @@ phrasing above; whether these results are personalised or localised; whether
 and whether "the whole chain reprices at once" has its own searched phrasing —
 searches for it returned generic IV explainers and skew pages, so the post owns
 the idea with no query to target it.
+
+## Reading for row 9 — gamma options meaning (read 2026-09-20)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| gamma options meaning (target) | SoFi, tastytrade, Merrill Edge, OIC, Schwab, CME, TradingBlock, Barchart, TradingView support | **hard-ish** — broker and exchange education end to end, nearly every title some form of "Gamma Explained"; no glossary page owns the word "meaning" |
+| what is gamma in options trading | SoFi, tastytrade, IG, Merrill Edge, Schwab, CME, TradingBlock, Barchart, Corporate Finance Institute | **hard** — the same broker hub set that owns delta and theta; hub language, not post language |
+| why is gamma highest at the money | Macroption, Option Alpha, Schwab, TradingBlock, OIC, Britannica Money, Barchart, a Scribd upload, a TradingView support locale | **winnable** — a Scribd document in the top set is a text-coverage gap; most answers are two sentences before pivoting to hedging |
+| does gamma increase as expiration approaches | Option Alpha, Schwab, OIC, TradingBlock, Britannica, **Quora**, MenthorQ, impliedoptions, daystoexpiry | **winnable** — a Quora thread plus three one-page affiliate blogs means nothing authoritative holds the intent |
+| do calls and puts have the same gamma | Simpler Trading, Schwab, a financial-planner blog ("Ask the Chief"), **Quora**, tastytrade, OIC, optiontradingtips, OptionsPlay, a Substack, a TradingView chart idea | **winnable** — Quora, a Substack and a chart-idea page in one top set; the sign rule is stated everywhere and contrasted with delta's almost nowhere |
+| when does gamma actually matter / when to ignore gamma | a Substack ("Gamma Without the Hype"), stockalarm, CapMint, SteadyOptions, stockaverager, longbridge, MenthorQ, two TradingView chart ideas | **winnable** — no broker hub competes here at all, and this is the post's angle; the pages that do rank sell urgency ("the hidden risk", "ends accounts") |
+| gamma risk on a credit spread / net gamma of a vertical | optionstradingiq, FasterCapital, an AI-generated guide site, SpotGamma support, TradeAlgo, Wikipedia | **winnable but thin** — the pages that rank turn it into management rules (close at 50–75%, 21 DTE); one bullet of ours touches it descriptively, which is the right size for this post |
+| is gamma per share or per contract | SpotGamma tools, Moontower, Yahoo Finance, Britannica, OIC, SoFi, two contract-multiplier blogs | winnable, thin — answered in passing inside GEX and multiplier pages, never as its own answer |
+| why did my delta change so fast near expiration | Macroption, Barchart, optiontradingtips, OIC, Options Playbook, a Scribd upload, small blogs | **winnable** — the searcher's-words version of this post's core; no page answers it as the question it is asked in |
+| gamma (unqualified) | Merriam-Webster, Wikipedia disambiguation, gamma correction, the gamma function, gamma.app | **do not target**: the bare word is not a finance term at all. Qualify as "option gamma" or "gamma in options" every time |
+| gamma squeeze | SoFi, Schwab, IG, SmartAsset, SpotGamma, TradingSim, AvaTrade, Nasdaq (GameStop) | **do not target**: the dominant finance intent for bare "gamma" is the squeeze, a dealer-hedging story this post does not tell and should not reach for |
+
+**The gap.** Every ranking page gives the same four things: the $1-move
+definition, the speed/acceleration analogy, "gamma is highest at the money and
+near expiration", and long is positive / short is negative. Almost none says
+where gamma stops mattering — the honest answer that for a defined-risk
+position held well before expiration it is background, and that delta and theta
+carry the useful information. The pages that do hold the "when does it matter"
+tail hold it with alarm ("the hidden risk", "runaway gamma ends accounts") or
+with management rules to follow, which is advice we do not write. Two smaller
+unoccupied pieces: nobody shows the identical $1 move on the same at-the-money
+strike at two days-to-expiration with arithmetic a reader can check, and nobody
+contrasts gamma's owned-versus-sold split against delta's call-versus-put split
+— they state each separately in different paragraphs.
+
+**Could not establish:** search volume, difficulty and current position for any
+phrasing above; whether these results are personalised or localised; how much
+of the apparent demand behind "gamma" is squeeze/GEX traffic rather than
+definition traffic (both intents surface, and the squeeze pages are better
+funded, which is a count of pages and not demand); and whether "when gamma does
+not matter" has its own searched phrasing — searches for it returned the
+day-trader and management tail above rather than a phrasing of its own, so the
+post owns the idea with no query that targets it cleanly.
 
 ## Off-syllabus rows
 

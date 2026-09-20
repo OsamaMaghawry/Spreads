@@ -1,0 +1,34 @@
+<svg viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Four horizontal bars showing the gamma of the same hypothetical at-the-money call at four points before expiration, each bar drawn against a light track scaled to 0.15. At 60 days left gamma is about 0.05, a small part of the track. At 30 days left it is about 0.07. At 14 days left it is about 0.10. At 7 days left it is about 0.14, filling most of the track. Each bar is longer than the last as days to expiration falls.">
+  <rect width="720" height="320" fill="#FFFFFF"/>
+
+  <text x="128" y="60" font-size="15" text-anchor="end" fill="#767B8E">days left</text>
+  <text x="640" y="60" font-size="15" fill="#767B8E">gamma</text>
+
+  <!-- 60 days: 0.05 -->
+  <text x="128" y="106" font-size="18" font-weight="600" text-anchor="end" fill="#767B8E">60</text>
+  <rect x="144" y="86" width="480" height="28" rx="4" fill="#F1F2F6"/>
+  <rect x="144" y="86" width="160" height="28" rx="4" fill="#2E8B5F"/>
+  <text x="640" y="106" font-size="18" font-weight="600" fill="#14151C">0.05</text>
+
+  <!-- 30 days: 0.07 -->
+  <text x="128" y="166" font-size="18" font-weight="600" text-anchor="end" fill="#767B8E">30</text>
+  <rect x="144" y="146" width="480" height="28" rx="4" fill="#F1F2F6"/>
+  <rect x="144" y="146" width="224" height="28" rx="4" fill="#2E8B5F"/>
+  <text x="640" y="166" font-size="18" font-weight="600" fill="#14151C">0.07</text>
+
+  <!-- 14 days: 0.10 -->
+  <text x="128" y="226" font-size="18" font-weight="600" text-anchor="end" fill="#767B8E">14</text>
+  <rect x="144" y="206" width="480" height="28" rx="4" fill="#F1F2F6"/>
+  <rect x="144" y="206" width="320" height="28" rx="4" fill="#2E8B5F"/>
+  <text x="640" y="226" font-size="18" font-weight="600" fill="#14151C">0.10</text>
+
+  <!-- 7 days: 0.14 -->
+  <text x="128" y="286" font-size="18" font-weight="600" text-anchor="end" fill="#767B8E">7</text>
+  <rect x="144" y="266" width="480" height="28" rx="4" fill="#F1F2F6"/>
+  <rect x="144" y="266" width="448" height="28" rx="4" fill="#2E8B5F"/>
+  <text x="640" y="286" font-size="18" font-weight="600" fill="#14151C">0.14</text>
+
+  <!-- scale -->
+  <text x="144" y="308" font-size="13" fill="#767B8E">0</text>
+  <text x="624" y="308" font-size="13" text-anchor="end" fill="#767B8E">0.15</text>
+</svg>
