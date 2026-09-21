@@ -3,6 +3,15 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-21 · A tenth foundations post — option assignment, what happens in
+  your account — is live in production: the two-stage OCC/clearing-firm
+  allocation, a short put vs. short call side-by-side, and a worked example
+  showing the option row disappearing and a stock row replacing it line by
+  line. Cleared through desk-editor (three blocking mechanics/arithmetic
+  fixes), seo-editor and compliance-gate before publishing; linked forward
+  from `gamma-options-meaning` and back from `credit-spread-max-loss` and
+  `call-vs-put-option-explained` (`b9c8589`, `816669a`, `06f6345`,
+  `8217143`, `59a5852`).
 - 2026-09-14 · (staging) Reopening a saved order ticket no longer shows a
   false "No ceiling"/"Loss not bounded" risk warning, blank strikes and
   "Delta NaN" for a setup it never actually rebuilt — saved orders now
