@@ -3,6 +3,19 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-20 · (staging) Emails the app sends to itself — a failed blog
+  publish, a drift in stored history — now go to `agents@deltamint.app`
+  instead of the customer-facing `support@` address that the weekly digest,
+  position-watch alerts and sign-in mail use, so internal cron output stops
+  burying customer mail and vice versa (`3a7e7ed`).
+- 2026-09-19 · (staging) Analysis lists every closed setup instead of only
+  the ones spanning more than one leg — a single put that expired worthless
+  now counts alongside a multi-leg spread, rolled up by ticker with tiles
+  that total all of them, not the six it used to keep (`dd706f2`).
+- 2026-09-19 · (staging) A covered call's buyback is grouped with the shares
+  and the puts that funded it into one setup, so a losing buyback inside an
+  overall-profitable campaign no longer reads as an isolated loss on its own
+  (`c0332de`).
 - 2026-09-18 · (staging) Tradier — chosen as the second broker to build
   directly, because its paper and live accounts share one API the way
   Alpaca's do — has a client, order translation and a probe (places

@@ -80,7 +80,7 @@ incomplete.
 
 - **accounts** — AccountForm
 - **admin** — AdminMaintenance, BlogPanel, EngagementPanel, IntegrityPanel, PostPreview, SettingsPanel, SignupsChart, SnapTradePanel, StatTile, UsersPanel
-- **analysis** — BreakdownTable, CaptureBreakdown, DateRangeFilter, EquityCurveChart, ExportPdfButton, OpenBookPanel, OpenOptionsPanel, StatCards, StrategyComparison, ViewSwitch, WindowParts
+- **analysis** — BreakdownTable, CaptureBreakdown, DateRangeFilter, EquityCurveChart, ExportPdfButton, OpenBookPanel, OpenOptionsPanel, SetupBreakdown, StatCards, StrategyComparison, ViewSwitch, WindowParts
 - **billing** — UpgradePrompt
 - **brand** — DeltaMintMark, Wordmark
 - **close** — CloseDialog, LegPicker, LegsQuoteSummary, MultiCloseDialog, OpenOrdersPanel, OrderLog, useCloseOrder, useMultiClose
@@ -94,6 +94,9 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-20 · (staging) Emails the app sends to itself — a failed blog
+- 2026-09-19 · (staging) Analysis lists every closed setup instead of only
+- 2026-09-19 · (staging) A covered call's buyback is grouped with the shares
 - 2026-09-18 · (staging) Tradier — chosen as the second broker to build
 - 2026-09-18 · (staging) SnapTrade — a service that connects to many
 - 2026-09-17 · Stored account history is now frozen against being silently
@@ -101,9 +104,6 @@ From `docs/ops/shipped.md`, newest first.
 - 2026-09-17 · Account Analysis and the weekly digest email now agree with
 - 2026-09-17 · Account Analysis, filtered to the exact week a weekly
 - 2026-09-14 · Closing a position no longer shows a blank white screen: the
-- 2026-09-14 · (staging) Reopening a saved order ticket no longer shows a
-- 2026-09-14 · (staging) An eighth foundations post — implied volatility
-- 2026-09-14 · The Screener is now the Scanner everywhere a user reads it
 
 ## Server functions
 

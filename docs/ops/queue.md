@@ -5,6 +5,22 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Needs owner
 
+- [needs owner] 2026-09-21 · duty-engineer · **`agents@deltamint.app` needs
+  confirming as a verified sender in Brevo.** `3a7e7ed` (2026-09-20, on
+  `staging`) split outbound mail by reader: customer mail (weekly digest,
+  position-watch alerts, sign-in) stays on `support@`; the app's mail to
+  itself (a failed blog publish, drifted stored history) now goes out as
+  `agents@deltamint.app` instead of `support@`. The commit message flags
+  this directly — `agents@` was the original sender before an earlier pass
+  briefly moved everything to `support@`, so it is *expected* to already be
+  verified, but nothing in this session can prove it, and a rejected sender
+  in Brevo fails as a silent logged error, not a visible one. **Owner
+  action:** check Brevo → Senders that `agents@deltamint.app` is verified;
+  if not, verify it or the two internal notices (publish-blog failures,
+  equityHistory drift) stop reaching anyone. Not a duty-engineer fix — no
+  Brevo credentials or dashboard access from this session. Not emailed:
+  internal-tooling visibility only, not money-path or user-visible.
+
 - [needs owner] 2026-09-18 · **Tradier: one secret and the second broker can be measured.** The owner chose Tradier after the broker-API review (`docs/product/broker-apis.md`), for one reason above all: paper and live are the same API, so it can be verified the way everything else here is verified. The client, the order translation and the probe are built and on staging. **Owner:** open a Tradier account, take the **SANDBOX** access token from their developer dashboard, and set it on the **staging** project as `TRADIER_SANDBOX_TOKEN` (Supabase dashboard → Edge Functions → Secrets). It is a credential, so it goes in the dashboard and never into a session, a commit or a chat. A live token, if it ever exists, is a separate secret named `TRADIER_ACCESS_TOKEN` — deliberately separate, so no flag set wrongly can make a sandbox run reach a live account. Once set, the probe answers what SnapTrade could not: whether option positions arrive as options, whether multi-leg orders keep their legs, whether the chain carries deltas, and whether there is a broker-side record of closed positions — the last one matters because this product's whole trade reconstruction exists only because the current broker has none.
 
 - [needs owner] 2026-09-18 · **SnapTrade returns 410 on every holdings route, and only SnapTrade can say why.** With the Robinhood connection live and synced, `/accounts/{id}/holdings`, `/accounts/{id}/positions` and `/accounts/{id}/options` all answer `410 — "This endpoint is no longer available for your account."` Everything else on the same signed connection works: connections, accounts, balances, orders, activities and quotes all return 200. The wording is the finding — it says *for your account*, not *deprecated* — while `getPartnerInfo` for the same client id reports `can_access_holdings: true`. Those two statements contradict each other and no amount of path-guessing settles it. **Owner:** email SnapTrade support quoting client id `OPTVEST-INC-TEST-LPVNS`, the three paths, the 410 and that partner info claims holdings access. Ask which route serves positions for a partner provisioned like ours. Until it is answered, whether an option position arrives with strike, expiry and right is unprovable, and that is the single most important thing this evaluation exists to find out.
