@@ -21,7 +21,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 7 | Theta | theta decay explained | option theta | Barchart, Schwab, OIC, TradingBlock, tastytrade; thin AI-era blogs in the tail | what decay looks like on a short and a long the same week |
 | 8 | Vega and IV | implied volatility options explained | implied volatility | Investopedia, CBOE | why a chain reprices before earnings |
 | 9 | Gamma | gamma options meaning | option gamma | SoFi, tastytrade, Merrill Edge, Schwab, OIC, CME, TradingBlock, Barchart; Quora and a Substack in the tail | short, honest, when it matters and when it does not |
-| 10 | Assignment | option assignment what happens | assignment | broker help pages, Reddit | the account the morning after, line by line |
+| 10 | Assignment | option assignment what happens | option assignment | broker help pages (Robinhood, E*TRADE, Fidelity, Schwab), FINRA and OIC, Nasdaq, Option Alpha, SoFi; Quora, a Substack, Elite Trader and TradingView chart ideas in the tail. No Reddit surfaced | the account the morning after, line by line |
 | 11 | Early exercise | early exercise options | exercise | Investopedia, forums | why it is rare and the one case it is not |
 | 12 | Expiration mechanics | what happens options expiration | expiration | broker help pages | ITM by a cent, OTM by a cent, the cutoff |
 | 13 | Buying power | options buying power requirement | buying power | broker help pages, Reddit | what a CSP and a spread each hold in reserve |
@@ -172,6 +172,54 @@ funded, which is a count of pages and not demand); and whether "when gamma does
 not matter" has its own searched phrasing — searches for it returned the
 day-trader and management tail above rather than a phrasing of its own, so the
 post owns the idea with no query that targets it cleanly.
+
+## Reading for row 10 — option assignment what happens (read 2026-09-21)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| option assignment what happens (target) | Option Alpha, SoFi, OIC, Option Samurai, OptionTradingpedia, Schwab, **FINRA**, Barchart, Nasdaq | **hard-ish** — a YMYL set with a regulator (FINRA) and the exchange body (OIC) on it, almost every title some form of "Options Assignment" or "Understanding Assignment"; nobody holds the "in your account" qualifier |
+| what does it mean to be assigned an option | Option Alpha, SoFi, OIC, Schwab, FINRA, Option Samurai, Nasdaq, plus two Law Insider dictionary entries | **hard** — the definition is settled ground; it earns an H2 inside the post, never the title |
+| how is it decided which seller gets assigned | Option Alpha, SoFi, OIC, FINRA, Option Samurai, optionsdesk, financhill, Nasdaq | **hard on the words, winnable on the answer** — every page says "the OCC assigns at random" and stops there; none separates the two stages (OCC to a clearing firm at random, then the firm to its own customers by a disclosed method, random or FIFO) |
+| what happens when you get assigned on a short put | an SIE exam-prep page, Schwab, optionstradingiq, E*TRADE, OIC, Option Alpha, Fidelity, FasterCapital, Nasdaq, a TradingView chart idea | **winnable** — exam-prep, an AI content farm and a chart-idea page in one top set is a text-coverage gap |
+| what does my account look like after assignment / shares appeared next morning | Robinhood support, Option Samurai, optvana, purepowerpicks, OIC, borntosell, Barchart, Nasdaq | **winnable** — broker help-centre articles and one-page affiliate blogs; none walks the account line by line. This is the post's angle and its home intent |
+| does the cash-secured put collateral come back into buying power | Wealthsimple help, ryanoconnellfinance, OIC, Fidelity (twice), Schwab, WheelMetrics, a Substack ("first hour after assignment… most skip step 2"), a TradingView chart idea | **winnable** — no authority holds it, and the pages that do frame it as steps to take. The post answers it in prose inside the worked example; it deserves the searcher's words in the FAQ |
+| can I buy the option back once I see the assignment notice | Robinhood support, Barchart, Nasdaq (three separate articles), Zacks commentary, a Substack | **winnable, thin** — syndicated commentary and a Substack in the top set; answered in a sentence everywhere, as its own answer nowhere |
+| does being assigned mean I lost money | E*TRADE, **Quora**, Option Samurai, OptionTradingpedia, Tradersfly, TradeSmith, purepowerpicks, Nasdaq, Robinhood | **winnable** — a Quora thread in the top set is winnable intent; the FAQ already carries this phrasing verbatim |
+| got assigned early on a short call / early assignment risk | Schwab, OIC, purepowerpicks, Barchart, Robinhood, a Substack, Zacks, a TradingView chart idea in two locales | winnable, but this is **row 11's ground** (early exercise), not row 10's — one section of this post touches it and hands off |
+| what happens if you get assigned and don't have the money (unqualified) | YNAB budgeting support, Wikipedia "Unbanked" and "Cash account", SEC EDGAR exhibits, Scribd assignment-of-accounts documents, one Elite Trader forum thread | **do not target unqualified** — "cash account" and "assigned" without "option" drift to personal finance and contract law. Qualified with "short put" the Elite Trader thread shows the intent is winnable |
+| partial assignment (contracts) | UpCounsel, US Legal, Law Insider (four results), then FINRA and OIC | **do not target**: "partial assignment" is a contract-law phrase and legal databases own it. The idea stays a paragraph in the post, never a heading |
+| assignment (unqualified) | Law Insider clause libraries, legal dictionaries, scheduling and workforce software | **do not target**: the bare word is not a finance term. The head term for this row is **option assignment**, never "assignment" alone — the same correction rows 7 and 9 needed for "theta" and "gamma" |
+
+**The gap.** Every ranking page gives the same five things: assignment is the
+seller's side of exercise, the OCC assigns at random, a put buys 100 shares and
+a call delivers them, it cannot be refused, and it is likelier near expiration.
+Almost none shows the account itself — one row removed, another arriving, cash
+moving by the strike rather than by the mark, and the old collateral spent
+rather than released. Two smaller pieces of unoccupied ground: the second
+allocation stage (the firm's own disclosed method, random or FIFO, which is why
+"am I assigned because I sold first?" has a real answer) is compressed into the
+word "random" everywhere, and the retrospective timing — instructions accepted
+after the close, allocation overnight, the confirmation dated yesterday — is
+stated as a fact but never as the reason a seller reads about it afterwards.
+Where the competitors do reach the morning after, they turn it into steps to
+take ("what to do when you get assigned", "most skip step 2"); the angle here
+stays descriptive.
+
+**Could not establish:** search volume, difficulty and current position for any
+phrasing above; whether these results are personalised or localised; whether
+the singular "option assignment" or the plural "options assignment" is the
+dominant phrasing — both appear across the ranking titles in roughly equal
+numbers, which is a count of titles and not demand, so the slug was left alone;
+and whether Reddit holds any of this intent. The previous row-10 cell claimed
+Reddit as a competitor: nine phrasings were read, including two that named
+Reddit and r/options in the query, and no Reddit thread surfaced in any of
+them. Broker help centres hold the ground the row attributed to forums. That
+absence is a read of these results pages on one day through one search tool,
+not proof Reddit does not rank.
 
 ## Off-syllabus rows
 

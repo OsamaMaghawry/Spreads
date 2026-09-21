@@ -1,8 +1,8 @@
 ---
 title: "Option assignment: what happens in your account"
 slug: option-assignment-what-happens
-excerpt: Assignment is the seller's side of exercise — the option row disappears, shares and cash move at the strike, and you read about it afterwards.
-meta_description: Assignment is what happens to an option seller when the holder exercises. How the notice is allocated, and what changes in the account line by line.
+excerpt: Option assignment is the seller's side of exercise — the option row disappears, shares and cash move at the strike, and you read about it afterwards.
+meta_description: Option assignment is the seller's side of exercise. Who hands out the notice, why it lands overnight, and what changes in your account line by line.
 author: DeltaMint
 published_at: 2026-09-21T10:00:00+00:00
 category: foundations
@@ -10,7 +10,7 @@ series_order: 10
 tags: assignment, exercise, occ, short options, foundations
 ---
 
-**Assignment** is what happens to the seller of an option when the holder
+**Option assignment** is what happens to the seller of an option when the holder
 exercises it: the obligation is used, 100 shares per contract change hands at
 the strike, and the option position leaves the account. The seller does not
 agree to it, is not asked, and usually reads about it the next morning.
@@ -183,6 +183,7 @@ immediately before an ex-dividend date on a short call.
 - **Can I refuse an assignment, or buy the option back once I see the notice?** No. The contract is settled by the time it appears, and there is no option position left to trade. What you can trade is the stock that replaced it.
 - **Does being assigned mean I lost money?** Not by itself. Assignment is a settlement event: shares change hands at the strike, the credit received stays in the account, and what the new stock position is worth from then on is a separate question with a separate answer every day.
 - **What if I do not have the cash or the shares?** Settlement happens anyway. The purchase is financed or the shares are borrowed, and if the resulting requirement is not met the broker can close the position on its timing rather than yours.
+- **Does the cash I secured against the put come back into my buying power?** No. On an assigned put it is spent on the shares at the strike, and what stands in its place is a 100-share position carrying its own requirement — the hold is replaced rather than returned.
 - **Am I more likely to be assigned because I sold first?** It depends on the firm. The clearing house's own step is random, but a broker allocating first-in, first-out reaches older short positions before newer ones — the method is disclosed in writing, in the account agreement or a separate options disclosure.
 
 ## The bottom line
