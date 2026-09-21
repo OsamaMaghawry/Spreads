@@ -32,7 +32,7 @@ risks](/blog/credit-spread-max-loss) works through separately.
 - The clearing house assigns an exercise notice at random to a firm carrying a matching short position, and that firm then allocates it among its own short customers by a disclosed method — commonly random or first-in, first-out.
 - An assigned short put buys 100 shares per contract at the strike; an assigned short call delivers 100 shares per contract at the strike.
 - The option row disappears without a closing trade, and a stock row appears or changes in its place, carrying its own collateral requirement and no expiration date.
-- Exercise decisions are made after the close and allocated overnight, so the notice arrives while you already hold the result.
+- Exercise instructions are processed after the close and allocation runs overnight, so notice usually arrives after you already hold the result — sometimes a day or more later.
 
 ## What does it mean to be assigned an option?
 
@@ -66,7 +66,7 @@ It is handed out in three steps, overnight:
 
 1. **A holder submits an exercise notice** through their own broker, which passes it to the OCC.
 2. **The OCC assigns that notice at random** to a clearing firm carrying a short position in the same series — the same underlying, expiration, strike and type.
-3. **The firm allocates it among its own short customers** by a method it has to state and apply consistently, commonly random selection or first-in, first-out. Which one your broker uses is in the account agreement you signed.
+3. **The firm allocates it among its own short customers** by a method it has to disclose in writing and apply consistently, commonly random selection or first-in, first-out. Which one your broker uses is in the account agreement or a separate options disclosure it gave you.
 
 Two things follow from that. Nothing visible on your screen tells you whether
 you are next, because the draw happens inside firms you cannot see into. And
@@ -90,12 +90,12 @@ The useful way to read assignment is as a substitution. One row is removed and
 replaced by a different instrument, and cash moves by an amount the strike
 fixed long before any of this happened.
 
-![Line by line, assignment on one hypothetical short 50-strike put replaces the option row with a hundred shares and a five thousand dollar cash movement.](/assets/blog/assignment-account-line-by-line.svg)
+![Line by line, assignment on one hypothetical short 50-strike put replaces the option row with a hundred shares, and the cash held as collateral goes to zero.](/assets/blog/assignment-account-line-by-line.svg)
 
 - **The option row disappears with no closing trade.** There is no exit debit and no fill price for that leg — it was settled, not traded out of.
 - **A stock row appears or changes.** An assigned put leaves you owning 100 shares per contract; an assigned call sends 100 out, or creates a short stock position if you held none.
 - **Cash moves by the strike times 100, per contract.** Not by the option's market value, and not by anything the stock is trading at.
-- **The old collateral is released and the new position brings its own.** A share position is margined on its market value under your broker's rules, so the hold is replaced rather than returned.
+- **The old collateral is released and the new position brings its own.** A share position carries its own requirement under your broker's rules — margined on its market value in a margin account, paid for in full in a cash account — so the hold is replaced rather than returned.
 - **The premium you were paid stays.** On an assigned put it is commonly treated as reducing the cost basis of the shares rather than standing alone — a reporting question, not a mechanical one.
 - **The paperwork is dated yesterday.** The confirmation carries the exercise date, so the shares are yours from before you knew about them.
 
@@ -109,20 +109,28 @@ was a put or a call. The strike sets the amount in both cases.
 | The obligation | Buy 100 shares at the strike | Deliver 100 shares at the strike |
 | Cash | Debit of strike × 100 | Credit of strike × 100 |
 | Share position after | 100 shares arrive | 100 shares leave, or short 100 if you held none |
-| If the account cannot cover it | The purchase is financed, or the broker may close it | A short stock position, borrowed and carrying its costs |
+| If the account cannot cover it | The purchase is financed, or the broker may close it | A short position in a margin account, borrowed and carrying its costs — bought in immediately in a cash account or an IRA |
 | The option row | Gone | Gone |
 
 The short call case is the one worth reading twice. Assigned without the
-shares, the account is short stock — an open-ended exposure with no expiration
-date, a borrow to maintain, and any dividend across an ex-date owed rather than
-received.
+shares in a margin account, the account is short stock — an open-ended
+exposure with no expiration date, a borrow to maintain, and any dividend
+across an ex-date owed rather than received. A cash account or an IRA cannot
+hold that short at all; the broker buys the shares in instead, typically
+right away.
 
 ## Example: a hypothetical short put assigned overnight
 
-Take the hypothetical 50-strike put this series has been using for its
-arithmetic, sold for $1.40 — a $140 credit on one contract — and secured with
-$5,000 of cash. The stock drifts below 50 and on a Thursday, after the close,
-the holder exercises. All figures here are made up to show the movement.
+Take a put on the hypothetical 50-strike series this series has been using
+for its calls, sold for $1.40 — a $140 credit on one contract — and secured
+with $5,000 of cash. Many brokers net the premium against that hold instead,
+so the figure on a real screen is often a little less.
+
+The put is deep in the money with little time value left in it, and on a
+Thursday, after the close, the holder exercises. All figures here are made
+up to show the movement; early exercise like this is the less common case —
+most assignment happens at expiration instead — but it shows the mechanics
+cleanly.
 
 | Account line | Thursday, before the notice | Friday, after it |
 | --- | --- | --- |
@@ -144,8 +152,8 @@ that is your broker's arrangement with you rather than a property of the option.
 
 One figure is easy to forget here: the $5,000 that had been sitting as
 collateral is not released back into buying power. It was spent on the shares,
-and what stands in its place is a $5,000 stock position with its own
-requirement.
+and what stands in its place is a 100-share position that cost $5,000, with
+its own requirement.
 
 ## Why do you find out after it has already happened?
 
@@ -153,8 +161,8 @@ The order of events is fixed, and the part of it that decides your morning runs
 after the session ends. That is not a failing of anyone's software: exercise
 instructions are accepted after the close and processed overnight.
 
-- **The decision is made after the close.** Brokers set their own exercise cutoffs after 4 p.m. Eastern, and the clearing house's own deadline for expiring contracts sits later that evening, so a holder can act on a price nobody can trade against any more.
-- **Allocation runs overnight.** The clearing house assigns, firms allocate, and the notice lands in accounts before the next session opens.
+- **The decision can be made after the close.** A broker must accept a customer's exercise instruction on expiration day until 5:30 p.m. Eastern — well past the 4 p.m. close — and may only set that cutoff earlier, never later, so a holder can act on a price nobody can trade against any more.
+- **Allocation runs overnight.** The clearing house assigns, firms allocate, and the notice usually lands in accounts before the next session opens — though it can be delayed a day or more, which is part of why an uncovered short call is the case to watch for.
 - **You hold the result before you read about it.** The shares or the short stock are dated from the exercise date, so any overnight move — or a whole weekend, at expiration — is already yours.
 - **There is nothing left to manage on the option.** The only position you can trade on Friday is the stock that replaced it.
 
@@ -175,7 +183,7 @@ immediately before an ex-dividend date on a short call.
 - **Can I refuse an assignment, or buy the option back once I see the notice?** No. The contract is settled by the time it appears, and there is no option position left to trade. What you can trade is the stock that replaced it.
 - **Does being assigned mean I lost money?** Not by itself. Assignment is a settlement event: shares change hands at the strike, the credit received stays in the account, and what the new stock position is worth from then on is a separate question with a separate answer every day.
 - **What if I do not have the cash or the shares?** Settlement happens anyway. The purchase is financed or the shares are borrowed, and if the resulting requirement is not met the broker can close the position on its timing rather than yours.
-- **Am I more likely to be assigned because I sold first?** It depends on the firm. The clearing house's own step is random, but a broker allocating first-in, first-out reaches older short positions before newer ones — the method is in the account agreement.
+- **Am I more likely to be assigned because I sold first?** It depends on the firm. The clearing house's own step is random, but a broker allocating first-in, first-out reaches older short positions before newer ones — the method is disclosed in writing, in the account agreement or a separate options disclosure.
 
 ## The bottom line
 

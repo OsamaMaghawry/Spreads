@@ -2,6 +2,7 @@
   <rect width="720" height="240" fill="#FFFFFF"/>
 
   <!-- column headings -->
+  <text x="56" y="28" font-size="14" fill="#767B8E">50 strike</text>
   <text x="352" y="52" font-size="16" text-anchor="middle" fill="#767B8E">shares</text>
   <text x="588" y="52" font-size="16" text-anchor="middle" fill="#767B8E">cash</text>
 

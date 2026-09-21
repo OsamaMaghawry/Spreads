@@ -1,4 +1,4 @@
-<svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A three-row ledger comparing the same hypothetical account before and after assignment on one short 50-strike put. Before the notice the account shows the 50 put at a quantity of minus one, no shares, and five thousand dollars of cash set aside as collateral. After the notice the 50 put row is gone and shows only a dash, the share row shows plus one hundred shares bought at the strike, and the cash row shows five thousand dollars paid out. The option line is replaced by a stock line and a cash movement, with no closing trade in between.">
+<svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A three-row ledger comparing the same hypothetical account before and after assignment on one short 50-strike put. Before the notice the account shows the 50 put at a quantity of minus one, no shares, and five thousand dollars of cash set aside as collateral. After the notice the 50 put row is gone and shows only a dash, the share row shows plus one hundred shares bought at the strike, and the cash balance is zero because the five thousand dollars of collateral was spent buying the shares. The option line is replaced by a stock line, with no closing trade in between.">
   <rect width="720" height="260" fill="#FFFFFF"/>
 
   <!-- column headings -->
@@ -25,5 +25,5 @@
   <rect x="32" y="182" width="656" height="52" rx="8" fill="#F6F7FB" stroke="#E2E5EE"/>
   <text x="56" y="214" font-size="18" fill="#14151C">cash</text>
   <text x="404" y="214" font-size="20" font-weight="600" text-anchor="middle" fill="#767B8E">$5,000 held</text>
-  <text x="628" y="214" font-size="20" font-weight="600" text-anchor="middle" fill="#B4485C">&#8722;$5,000</text>
+  <text x="628" y="214" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">$0</text>
 </svg>
