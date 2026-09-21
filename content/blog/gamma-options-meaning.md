@@ -206,7 +206,8 @@ It closes out the [foundations series](/blog/foundations)'s run through the
 sensitivities that sit on a chain row, after [delta](/blog/option-delta-explained),
 [theta](/blog/theta-decay-explained) and the volatility input that
 [vega](/blog/implied-volatility-options-explained) prices. What happens in
-the account itself when a contract is exercised or assigned is next.
+the account itself [when a short option is
+assigned](/blog/option-assignment-what-happens) is next.
 
 All figures on this page are hypothetical and are there to show the
 mechanics. This post is educational and is not investment advice.

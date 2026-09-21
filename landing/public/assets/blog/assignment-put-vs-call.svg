@@ -1,0 +1,23 @@
+<svg viewBox="0 0 720 240" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Two rows showing which way shares and cash move when a short option is assigned, using a hypothetical 50 strike. An assigned short put takes in one hundred shares and pays out five thousand dollars of cash. An assigned short call delivers one hundred shares out and takes in five thousand dollars of cash. The share movement and the cash movement always point in opposite directions, and the strike sets the amount in both cases.">
+  <rect width="720" height="240" fill="#FFFFFF"/>
+
+  <!-- column headings -->
+  <text x="352" y="52" font-size="16" text-anchor="middle" fill="#767B8E">shares</text>
+  <text x="588" y="52" font-size="16" text-anchor="middle" fill="#767B8E">cash</text>
+
+  <!-- row 1: short put assigned -->
+  <rect x="32" y="72" width="656" height="60" rx="8" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="56" y="108" font-size="18" fill="#14151C">short put</text>
+  <path d="M256 102 L288 102" stroke="#767B8E" stroke-width="2"/>
+  <path d="M288 102 L280 97 L280 107 Z" fill="#767B8E"/>
+  <text x="372" y="108" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">+100</text>
+  <text x="588" y="108" font-size="20" font-weight="600" text-anchor="middle" fill="#B4485C">&#8722;$5,000</text>
+
+  <!-- row 2: short call assigned -->
+  <rect x="32" y="148" width="656" height="60" rx="8" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="56" y="184" font-size="18" fill="#14151C">short call</text>
+  <path d="M288 178 L256 178" stroke="#767B8E" stroke-width="2"/>
+  <path d="M256 178 L264 173 L264 183 Z" fill="#767B8E"/>
+  <text x="372" y="184" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">&#8722;100</text>
+  <text x="588" y="184" font-size="20" font-weight="600" text-anchor="middle" fill="#2E8B5F">+$5,000</text>
+</svg>
