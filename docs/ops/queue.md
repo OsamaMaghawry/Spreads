@@ -301,6 +301,100 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Escalated
 
+- [escalated 2026-09-21] 2026-09-21 · duty-engineer · **Every diagram published
+  on the blog since 14 September is a broken image on `deltamint.app`.** The
+  posts are live; only the pictures inside them are missing. Found by reading
+  the two red CI runs this repo has standing.
+
+  **The mechanism, both halves.** A post's SVGs live in
+  `landing/public/assets/blog/` and reach the internet only when *Deploy landing
+  site* (`deploy-landing.yml`) uploads them with the landing Worker —
+  `landing/wrangler.jsonc` sets `run_worker_first` to `/blog`, `/blog/*` and
+  `/sitemap.xml` only, so `/assets/blog/*.svg` is served purely from the last
+  upload and a missing one returns the 404 page. That workflow has not succeeded
+  since **run #13, 2026-09-14, `c835e0f`**. Two independent things stop it, and
+  both have to be undone for one diagram to appear:
+  1. **It is never started.** `content-merge.yml` merges each post into `main`
+     with the built-in `GITHUB_TOKEN`, and a push made with that token does not
+     start other workflows. The gate knows this — it dispatches
+     `publish-blog.yml` by hand, with a comment saying exactly why — but it does
+     not dispatch `deploy-landing.yml`. Confirmed on the API: today's *Publish
+     blog posts* run #12 has `event=workflow_dispatch` on `59a5852`, and no
+     *Deploy landing site* run exists for that commit at all.
+  2. **When it is started, it refuses.** Run #14 (2026-09-20, `7b15efe`,
+     `event=push`) failed at its first step, *"Refuse to deploy a landing site
+     staging has not served"*: the gate requires `HEAD:landing` to be
+     byte-identical to `origin/staging:landing`, and the content gate merges
+     posts to `main` only, so the two trees can never agree again. Today
+     `git rev-parse origin/main:landing` is `535be8c` against staging's
+     `38f1d12`.
+
+  **What is broken right now** — four files, `git diff --stat c835e0f
+  origin/main -- landing` returns exactly these and nothing else:
+  - `/blog/gamma-options-meaning` → `gamma-across-moneyness.svg`,
+    `gamma-by-dte.svg` (post published 2026-09-20)
+  - `/blog/option-assignment-what-happens` →
+    `assignment-account-line-by-line.svg`, `assignment-put-vs-call.svg`
+    (published 2026-09-21)
+
+  **Not verified against the live site.** `deltamint.app` is 403 at CONNECT from
+  an agent session (standing allowlist item, `docs/context/reachable.md`), so
+  this is read off the deploy history, the wrangler config and the post source,
+  not off a browser. One look at either post settles it. `site-health.yml` is
+  green and does not fetch a post's images, which is why this was invisible.
+
+  **Why not a duty-engineer fix.** Both halves change how the **production**
+  marketing site deploys, and the content gate's destination was deliberately
+  redesigned on 2026-09-20 (`e34b3e9`/`9f9d4c8`, whose own comments argue the
+  trunk choice at length). Design decision with production blast radius —
+  escalate-never-fix.
+
+  **Proposed patch, for the owner to judge** — the smaller of the two is
+  probably enough:
+  ```diff
+  --- a/.github/workflows/content-merge.yml
+  +++ b/.github/workflows/content-merge.yml
+  @@ (after "Publish to the blog")
+  +      # The post's diagrams are static assets on the landing Worker, not rows
+  +      # in the blog table, so publishing the text is only half the job. Same
+  +      # GITHUB_TOKEN limitation, same explicit dispatch.
+  +      - name: Deploy the landing site so the post's diagrams exist
+  +        if: steps.gate.outputs.ok == 'true' && env.TRUNK == 'main'
+  +        env:
+  +          GH_TOKEN: ${{ github.token }}
+  +        run: gh workflow run deploy-landing.yml --ref main
+  ```
+  That alone still fails the staging-first gate, so it needs one of: (a) the
+  content gate also fast-forwards `landing/public/assets/blog/**` onto
+  `staging`, keeping the gate honest; or (b) `deploy-landing.yml`'s gate is
+  narrowed to compare everything in `landing/` **except**
+  `public/assets/blog/**`, on the ground that a blog diagram has already been
+  through desk-editor and compliance-gate and has no code in it. (b) is a real
+  loosening of a deliberate control and is the owner's call, not mine.
+
+  **Today, without changing any workflow:** bring the four files onto `staging`,
+  then re-run *Deploy landing site* on `main` from the Actions tab. I did not do
+  the first half unasked because moving content between trunks is the thing that
+  was just redesigned. **Email attempted and refused** — `sendDigest` on both
+  projects is 403 at CONNECT (re-tested this run, production and staging).
+  Raised instead as a pull request; see the day's ledger.
+
+- [escalated 2026-09-21] 2026-09-21 · duty-engineer · **The staging edge
+  functions have not deployed since 2026-09-20, and nothing will retry.**
+  *Deploy edge functions (staging)* run #148 (`3a7e7ed`, the support/agents
+  sender split) failed at step 6, `npm run context:check` — the generated
+  `docs/product-context.md` was stale in that commit. It has since been
+  regenerated (the 13:08 run today), and all four checks are green at
+  `staging` HEAD, but `deploy-functions-staging.yml` is path-filtered to
+  `supabase/functions/**`, so a later docs-only commit does not re-run it. Net
+  effect: the sender split is correct in the repo and **not live on the staging
+  project**; the next push that touches a function will carry it. Nothing on
+  production is affected. Not fixed here: there is no failing code to fix, and
+  the structural question — whether a stale generated doc should be able to
+  block a code deploy with no retry path — is a design decision.
+  `workflow_dispatch` is refused for this session's token (403, standing item
+  2026-09-14), so the run could not simply be re-run either.
+
 - [fixed 0ac2e27] 2026-09-09 · duty-engineer · **`dumpBrokerFeed` is unauthenticated in production right now.** Verified by reading `supabase/functions/dumpBrokerFeed/index.ts` at `origin/main` (`60814dc`): it takes an `accountId` from the request body, loads that account with the admin client, decrypts its Alpaca credentials and fetches its full activity/position/order history — with no auth check of any kind. Any caller holding the app's public anon key (embedded in every client bundle) can name any account id and trigger this. `systems-engineer` already found and fixed this on `staging` in `af75776` — signed-in + (owner or admin) is now required — but that commit has not been merged to `main`, so production is unprotected until it is. Not a duty-engineer fix (touches credentials/auth, outside plain-bug authority; also the fix already exists and only needs merging, which is the owner's own release step). Proposed action: merge/deploy the `staging` fix to `main` as soon as possible — no schema or behavior change beyond the auth check, `303` server tests green on `staging`. Emailed the owner.
 
   **Confirmed fixed in production, 2026-09-10.** The owner merged `staging` to `main` himself at `0ac2e27` ("Ship staging to production: auth fix, quote sanity, multi-close, Broker tab, universe scan, analytics consent"), which carries `af75776`. `git merge-base --is-ancestor af75776 origin/main` now succeeds. The hole is closed.
