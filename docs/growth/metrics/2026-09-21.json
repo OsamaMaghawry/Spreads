@@ -1,0 +1,20 @@
+{
+  "day": "2026-09-21",
+  "search": {
+    "unavailable": "search console not configured"
+  },
+  "analytics": {
+    "unavailable": "ga4 not configured"
+  },
+  "funnel": {
+    "signedUp": 4,
+    "signedUpLast7": 0,
+    "connected": 4,
+    "traded": 4,
+    "tradedLive": 2,
+    "paying": 0,
+    "bySource": {
+      "unknown": 4
+    }
+  }
+}
