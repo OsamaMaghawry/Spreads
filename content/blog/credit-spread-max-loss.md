@@ -152,9 +152,9 @@ Three consequences follow from that curve:
 The cap is an arithmetic property of the two legs. It is not a mechanism that
 steps in when the short leg is exercised.
 
-Assignment on the short 100 put means buying 100 shares at 100 — a $10,000
-debit in this hypothetical — while the long 95 put stays where it is. Two
-things happen at once:
+[Assignment](/blog/option-assignment-what-happens) on the short 100 put means
+buying 100 shares at 100 — a $10,000 debit in this hypothetical — while the
+long 95 put stays where it is. Two things happen at once:
 
 - **The cap survives.** Shares plus the right to sell them at 95 cannot be
   worth less than $9,500, so the worst case is still the $500 gap less the

@@ -1,0 +1,29 @@
+<svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A three-row ledger comparing the same hypothetical account before and after assignment on one short 50-strike put. Before the notice the account shows the 50 put at a quantity of minus one, no shares, and five thousand dollars of cash set aside as collateral. After the notice the 50 put row is gone and shows only a dash, the share row shows plus one hundred shares bought at the strike, and the cash balance is zero because the five thousand dollars of collateral was spent buying the shares. The option line is replaced by a stock line, with no closing trade in between.">
+  <rect width="720" height="260" fill="#FFFFFF"/>
+
+  <!-- column headings -->
+  <text x="404" y="44" font-size="16" text-anchor="middle" fill="#767B8E">before</text>
+  <text x="628" y="44" font-size="16" text-anchor="middle" fill="#767B8E">after</text>
+
+  <!-- arrow between the two columns -->
+  <line x1="472" y1="38" x2="556" y2="38" stroke="#E1DEF2" stroke-width="2"/>
+  <path d="M556 38 L548 33 L548 43 Z" fill="#767B8E"/>
+
+  <!-- row 1: the option -->
+  <rect x="32" y="62" width="656" height="52" rx="8" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="56" y="94" font-size="18" fill="#14151C">50 put</text>
+  <text x="404" y="94" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">&#8722;1</text>
+  <text x="628" y="94" font-size="20" font-weight="600" text-anchor="middle" fill="#767B8E">&#8212;</text>
+
+  <!-- row 2: the shares -->
+  <rect x="32" y="122" width="656" height="52" rx="8" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="56" y="154" font-size="18" fill="#14151C">shares</text>
+  <text x="404" y="154" font-size="20" font-weight="600" text-anchor="middle" fill="#767B8E">none</text>
+  <text x="628" y="154" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">+100</text>
+
+  <!-- row 3: the cash -->
+  <rect x="32" y="182" width="656" height="52" rx="8" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="56" y="214" font-size="18" fill="#14151C">cash</text>
+  <text x="404" y="214" font-size="20" font-weight="600" text-anchor="middle" fill="#767B8E">$5,000 held</text>
+  <text x="628" y="214" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">$0</text>
+</svg>
