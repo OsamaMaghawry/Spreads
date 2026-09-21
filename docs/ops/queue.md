@@ -377,7 +377,9 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
   the first half unasked because moving content between trunks is the thing that
   was just redesigned. **Email attempted and refused** — `sendDigest` on both
   projects is 403 at CONNECT (re-tested this run, production and staging).
-  Raised instead as a pull request; see the day's ledger.
+  Raised instead as **[PR #11](https://github.com/OsamaMaghawry/Spreads/pull/11)**
+  (`duty/2026-09-21-blog-diagrams` → `main`, docs only, **not merged**), whose
+  description leads with this ask; see the day's ledger.
 
 - [escalated 2026-09-21] 2026-09-21 · duty-engineer · **The staging edge
   functions have not deployed since 2026-09-20, and nothing will retry.**
