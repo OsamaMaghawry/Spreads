@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Loader2, Radar, StopCircle } from "lucide-react";
 import StrategyPicker from "@/components/open/StrategyPicker";
-import ScannerConfig, { SCANNER_DEFAULTS } from "@/components/scanner/ScannerConfig";
+import ScannerConfig, { SCANNER_DEFAULTS, defaultMinRoR } from "@/components/scanner/ScannerConfig";
 import ResultsTable from "@/components/scanner/ResultsTable";
 import TradeDialog from "@/components/scanner/TradeDialog";
 import useMarketScan from "@/components/scanner/useMarketScan";
@@ -56,6 +56,15 @@ export default function Scanner() {
   const applyPreset = (savedStrategy, savedConfig) => {
     setStrategy(savedStrategy);
     setCfg({ ...SCANNER_DEFAULTS, ...savedConfig });
+  };
+
+  // Choosing a strategy re-bases the return-on-risk floor, because the ratio
+  // means a different thing on either side of the choice -- see defaultMinRoR.
+  // Deliberately NOT applied in applyPreset above: a saved preset carries a
+  // floor the trader chose, and overwriting it would make presets lossy.
+  const chooseStrategy = (next) => {
+    setStrategy(next);
+    setCfg((c) => (c.minRoR === defaultMinRoR(strategy) ? { ...c, minRoR: defaultMinRoR(next) } : c));
   };
 
   const filtersFor = (strat) => ({
@@ -156,7 +165,7 @@ export default function Scanner() {
       <div className="grid lg:grid-cols-[340px_1fr] gap-5 items-start">
         <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
           <ScanPresets scope={SCOPE.SCANNER} strategy={strategy} config={cfg} onApply={applyPreset} />
-          <StrategyPicker value={strategy} onChange={setStrategy} withWheel />
+          <StrategyPicker value={strategy} onChange={chooseStrategy} withWheel />
           <ScannerConfig cfg={cfg} set={set} isCondor={isCondor} single={single} strategy={strategy} />
 
           {findingUniverse && (

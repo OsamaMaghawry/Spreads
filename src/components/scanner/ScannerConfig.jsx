@@ -26,6 +26,26 @@ export const SCANNER_DEFAULTS = {
   callRatio: 1
 };
 
+// THE RETURN-ON-RISK FLOOR IS NOT COMPARABLE ACROSS STRATEGIES, so it cannot
+// carry one default across them.
+//
+// On a defined-risk spread the denominator is the width less the credit -- a
+// $1-wide put spread taken for $0.20 risks $80 and returns 25%, so a 15% floor
+// is a real standard that a good setup clears.
+//
+// On a secured position the denominator is the WHOLE STRIKE. A $362.50 put sold
+// for $1.27 risks $36,123 by that measure and returns 0.35%. Nothing a
+// cash-secured put or a covered call can ever do reaches 15%, so the default
+// floor silently removed every one of them from the results -- the scan built
+// them, ranked them, and the screen dropped the lot.
+//
+// The owner: *"I want to make the default risk for any Secured puts or calls
+// to be 0%."* Right, and for the arithmetic reason above rather than as a
+// preference: a floor that no member of a category can clear is not a filter,
+// it is an outage.
+export const defaultMinRoR = (strategy) =>
+  strategy === "cash_secured_put" || strategy === "covered_call" || strategy === "wheel" ? 0 : 15;
+
 // Step per unit, not one step for every field. Days are whole days; deltas are
 // hundredths; strike widths move in half-dollars because listed strikes commonly
 // sit $0.50, $1, $2.50 or $5 apart. A field whose arrows move it by the wrong
@@ -158,6 +178,16 @@ export default function ScannerConfig({ cfg, set, isCondor, single = false, stra
         <div>
           <label className={label}>Min return on risk (%)</label>
           <NumberField value={cfg.minRoR} onChange={(v) => set({ minRoR: v })} step={STEP.ror} min={0} ariaLabel="Minimum return on risk" />
+          {/* Said where the number is typed, because a trader who moves this
+              off zero on a secured position gets an empty screen and no clue
+              why -- the denominator is the collateral, not a spread width. */}
+          {single && (
+            <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+              Measured against the full collateral on a secured position, so the percentages are
+              small by nature. A few tenths of a percent for a week is normal here; 15% is not
+              reachable.
+            </p>
+          )}
         </div>
         {isCondor && (
           <>
