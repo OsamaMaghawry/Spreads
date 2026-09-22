@@ -178,16 +178,6 @@ export default function ScannerConfig({ cfg, set, isCondor, single = false, stra
         <div>
           <label className={label}>Min return on risk (%)</label>
           <NumberField value={cfg.minRoR} onChange={(v) => set({ minRoR: v })} step={STEP.ror} min={0} ariaLabel="Minimum return on risk" />
-          {/* Said where the number is typed, because a trader who moves this
-              off zero on a secured position gets an empty screen and no clue
-              why -- the denominator is the collateral, not a spread width. */}
-          {single && (
-            <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-              Measured against the full collateral on a secured position, so the percentages are
-              small by nature. A few tenths of a percent for a week is normal here; 15% is not
-              reachable.
-            </p>
-          )}
         </div>
         {isCondor && (
           <>
