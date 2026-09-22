@@ -3,6 +3,22 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-22 · (staging) A whole-market scan that finds setups but rejects
+  them all on the return-on-risk floor now says so — how many were found,
+  that none cleared the floor, and what the best one actually was — instead
+  of the same blank "No setups matched your filters" it showed when nothing
+  was built at all. When nothing is built, the screen lists the specific
+  reason each ticker was skipped (delta band, credit floor, risk cap,
+  expiry window), capped at twelve, instead of only a count (`a30530b`).
+- 2026-09-22 · (staging) The whole-market scan now actually scans the whole
+  market — it was cutting off at the first 4,000 of 12,647 listed names,
+  alphabetically (A–F only, missing NVDA, TSLA, SPY and most of the
+  market), because the price snapshots were fetched one after another and
+  more of them timed out; they now fetch eight at a time and the cap moves
+  to 20,000. A name's volume is now judged against the busier of today
+  so far and the last full session, instead of today's running total alone
+  — a liquid name trading heavily by the close no longer reads as "thin
+  volume" just because the scan ran at midday (`daf0282`).
 - 2026-09-22 · (staging) The Scanner's "whole market" sweep now says why it
   found nothing instead of just sitting empty after the spinner stops — a
   server error was being discarded outright and a thrown exception (a
