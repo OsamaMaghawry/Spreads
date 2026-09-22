@@ -5,7 +5,7 @@ import { scanCandidates } from "../_shared/optionScan.ts";
 import { heldShares } from "../_shared/heldShares.ts";
 import { judgeOnLivePrices } from "../_shared/watchRules.ts";
 import {
-  earningsThrough, daysUntil, earningsCoverage,
+  earningsThrough, daysUntil, earningsCoverage, earningsCovered,
   refreshEarningsThrough, refreshEarningsWindow
 } from "../_shared/earnings.ts";
 import { inBackground, awaitUpTo } from "../_shared/background.ts";
@@ -71,7 +71,11 @@ Deno.serve(async (req) => {
         inBackground(refreshEarningsWindow(admin));
       }
 
-      const calendar = await earningsThrough(admin, [...new Set(candidates.map((c) => c.ticker))], latestExpiry);
+      const tickers = [...new Set(candidates.map((c) => c.ticker))];
+      const calendar = await earningsThrough(admin, tickers, latestExpiry);
+      // Which of these the calendar knows at all, so a name it has never heard
+      // of is marked UNKNOWN rather than passing as quiet. See earningsCovered.
+      const covered = await earningsCovered(admin, tickers);
 
       for (const c of candidates) {
         const event = calendar[c.ticker];
@@ -82,6 +86,11 @@ Deno.serve(async (req) => {
             session: event.session,
             daysAway: daysUntil(event.reportDate)
           };
+        } else if (!covered.has(c.ticker)) {
+          // No warning AND no coverage. The screen must not render this the
+          // same as a checked, clear name -- that is the difference between
+          // "nothing is due" and "nobody looked".
+          c.earningsUnknown = true;
         }
       }
     }

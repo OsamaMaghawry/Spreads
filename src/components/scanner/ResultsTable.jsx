@@ -68,7 +68,7 @@ export default function ResultsTable({ candidates, onTrade }) {
                 <td className={`${td} font-semibold text-slate-900`}>
                   <span className="inline-flex items-center gap-1.5">
                     {c.ticker}
-                    <EarningsWarning earnings={c.earnings} ticker={c.ticker} compact />
+                    <EarningsWarning earnings={c.earnings} ticker={c.ticker} unknown={c.earningsUnknown} compact />
                   </span>
                 </td>
                 <td className={`${td} text-slate-500`}>{c.expiry}</td>

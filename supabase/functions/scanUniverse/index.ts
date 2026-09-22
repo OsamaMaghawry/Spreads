@@ -60,8 +60,22 @@ Deno.serve(async (req) => {
     // The whole listed equity universe, once. Alpaca returns it in a single
     // response; there is no pagination on this endpoint.
     const assets = await alpacaFetch(`${base}/assets?status=active&asset_class=us_equity`, account);
-    let symbols = tradableEquities(Array.isArray(assets) ? assets : []);
-    const listed = symbols.length;
+    const all = Array.isArray(assets) ? assets : [];
+
+    // LEVERAGED AND INVERSE FUNDS ARE NOT IN THIS UNIVERSE.
+    //
+    // The owner: *"Filter out any 2x 3x things. Just 1x. Filter out any
+    // Inverse."* An option on a 3x fund prices a different risk from the one
+    // a credit spread is sized against, and a wheel assigned into a
+    // daily-reset leveraged fund holds an instrument built to decay.
+    //
+    // Counted rather than silently removed, and reported beside the other
+    // drop reasons, because a sieve nobody can see the effect of is a sieve
+    // nobody trusts -- the same rule the price and volume filters already
+    // follow.
+    const listed = tradableEquities(all).length;
+    let symbols = tradableEquities(all, { excludeLeveraged: true });
+    const leveraged = listed - symbols.length;
 
     // Capital-per-contract is measured against the account, so the account's
     // own equity is read here rather than trusted from the request body.
@@ -107,12 +121,14 @@ Deno.serve(async (req) => {
 
     return jsonResponse({
       tickers: kept.map((k) => k.symbol),
+      // Folded into the same breakdown the screen already renders, so it reads
+      // as one accounting of where the market went rather than a footnote.
+      dropped: leveraged > 0 ? { ...dropped, "leveraged or inverse fund": leveraged } : dropped,
       // Everything needed for the screen to say where the universe went, which
       // is what makes a filter trustworthy rather than mysterious.
       listed,
       considered,
       kept: kept.length,
-      dropped,
       equity,
       truncated,
       incomplete: failedBatches > 0 || truncated,

@@ -72,6 +72,42 @@ export async function earningsThrough(
   return soonest;
 }
 
+/**
+ * Which of `symbols` the calendar knows about AT ALL, on any date.
+ *
+ * WITHOUT THIS, "NO EARNINGS" AND "NO DATA" ARE THE SAME PIXEL.
+ *
+ * `earningsThrough` returns only reports inside the position's window, and a
+ * candidate it does not name renders no warning -- which a trader reads as
+ * "this one does not report before expiry". For a covered ticker that reading
+ * is correct. For a ticker the provider has never heard of it is a silent
+ * false negative on the single largest one-day move a short-premium position
+ * can take.
+ *
+ * That gap did not matter while the scanner swept fifty mega caps, every one
+ * of them covered. It matters now: the sweep reaches every listed US equity,
+ * and on 22 Sep 2026 the calendar held 5,171 symbols against 12,647 listed
+ * names. Most of the difference is funds and trusts, which genuinely have no
+ * earnings -- but "most" is not "all", and the screen cannot tell which is
+ * which unless it asks.
+ *
+ * Presence on any date is the right question, not presence in the window: a
+ * name that reported last month and is silent until January is covered and
+ * genuinely has nothing due, while a name with no row anywhere is unknown.
+ */
+export async function earningsCovered(admin, symbols: string[]): Promise<Set<string>> {
+  if (symbols.length === 0) return new Set();
+  const { data, error } = await admin
+    .from("earnings_calendar")
+    .select("symbol")
+    .in("symbol", symbols);
+  // Same rule as everywhere else here: a calendar that cannot be read never
+  // fails a scan. An empty set marks every ticker unknown, which is the
+  // truthful answer when the lookup itself did not work.
+  if (error || !data) return new Set();
+  return new Set(data.map((r: any) => r.symbol));
+}
+
 /** Calendar days from today to `date`, floored at zero. */
 export function daysUntil(date: string): number {
   const ms = new Date(`${date}T00:00:00Z`).getTime() - Date.now();
