@@ -120,3 +120,52 @@ test("the asset list survives junk", () => {
   assert.deepEqual(tradableEquities(null), []);
   assert.deepEqual(tradableEquities([null, undefined, {}]), []);
 });
+
+// ---------------------------------------------------------------------------
+// Liquidity is judged on a COMPLETE session.
+//
+// The owner's 22 Sep run, at about 12:44 New York time, priced 3,990 names and
+// kept 6. The largest rejection bucket by a distance was "thin volume" -- 2,914
+// of 3,984 -- measured against `dailyBar.v`, which mid-session is a partial
+// count. The same filter accepts at the close what it rejects at lunchtime.
+// ---------------------------------------------------------------------------
+
+test("a liquid name half way through the session is not called thin", () => {
+  // 2m shares a day; 400k done by noon. A one-million floor must not reject it.
+  const snap = {
+    latestTrade: { p: 50 },
+    dailyBar: { v: 400_000, c: 50 },
+    prevDailyBar: { v: 2_000_000, c: 49 }
+  };
+  assert.equal(readSnapshot(snap).volume, 2_000_000);
+  assert.equal(judge("LIQ", snap, { minVolume: 1_000_000 }).keep, true);
+});
+
+test("a name genuinely below the floor on both sessions is still dropped", () => {
+  const snap = { latestTrade: { p: 50 }, dailyBar: { v: 12_000 }, prevDailyBar: { v: 40_000 } };
+  const j = judge("THIN", snap, { minVolume: 1_000_000 });
+  assert.equal(j.keep, false);
+  assert.equal(j.reason, "thin volume");
+});
+
+test("a name that clears the floor today on its own still counts", () => {
+  // An earnings mover: quiet yesterday, enormous today. Taking the larger of
+  // the two keeps it rather than judging it on the session it was asleep.
+  const snap = { latestTrade: { p: 50 }, dailyBar: { v: 5_000_000 }, prevDailyBar: { v: 20_000 } };
+  assert.equal(judge("MOVER", snap, { minVolume: 1_000_000 }).keep, true);
+});
+
+test("no volume on either session is still unknown, not zero", () => {
+  const snap = { latestTrade: { p: 50 } };
+  assert.equal(readSnapshot(snap).volume, null);
+  // Unknown must fail a floor rather than pass it — the filter exists to
+  // exclude exactly the names that carry no data.
+  assert.equal(judge("NODATA", snap, { minVolume: 1_000_000 }).reason, "no volume data");
+  // And with no floor set it is not a reason to drop anything.
+  assert.equal(judge("NODATA", snap, {}).keep, true);
+});
+
+test("one session present and the other missing is judged on the one there is", () => {
+  assert.equal(readSnapshot({ dailyBar: { v: 3_000_000, c: 10 } }).volume, 3_000_000);
+  assert.equal(readSnapshot({ prevDailyBar: { v: 3_000_000, c: 10 } }).volume, 3_000_000);
+});

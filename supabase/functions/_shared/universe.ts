@@ -66,9 +66,27 @@ export function readSnapshot(s: Snapshot) {
   const ask = num(s?.latestQuote?.ap);
   const close = num(s?.dailyBar?.c) ?? num(s?.prevDailyBar?.c);
   const mid = bid !== null && ask !== null && ask > 0 && bid >= 0 && ask >= bid ? (bid + ask) / 2 : null;
+  // THE BUSIER OF THE TWO SESSIONS, not whatever today has managed so far.
+  //
+  // `dailyBar.v` mid-session is a PARTIAL count. A name that trades two
+  // million shares a day has done perhaps four hundred thousand by noon, so a
+  // one-million floor rejects it at lunchtime and accepts it at the close --
+  // the same filter, the same name, the same day, opposite answers. On the
+  // owner's 12:44 ET run that is 2,914 of 3,984 rejections attributed to
+  // "thin volume", by far the largest bucket, and an unknown share of them
+  // are liquid names measured half way through a session.
+  //
+  // The previous day is a COMPLETE session and is the honest basis for a
+  // liquidity judgement. Taking the larger of the two keeps a name that has
+  // already cleared the floor today -- an earnings mover, say -- while giving
+  // everything else a full day to be judged on.
+  const today = num(s?.dailyBar?.v);
+  const prior = num(s?.prevDailyBar?.v);
+  const volume = today === null && prior === null ? null : Math.max(today ?? 0, prior ?? 0);
+
   return {
     spot: trade ?? mid ?? close,
-    volume: num(s?.dailyBar?.v) ?? num(s?.prevDailyBar?.v),
+    volume,
     // Null rather than 0 when there is no two-sided quote: "unknown width" and
     // "zero width" must not be the same value, or a dead name passes the
     // tightest filter on the screen.

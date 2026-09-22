@@ -20,10 +20,29 @@ import { screenUniverse, tradableEquities } from "../_shared/universe.ts";
 // URL length rather than by a documented limit. A hundred is comfortably inside
 // it and is what getSpots already uses.
 const BATCH = 100;
-// A ceiling on what one call will fetch snapshots for. Without it a bad filter
-// combination asks for a hundred and forty requests and times out the function;
-// with it the answer is complete or it says it was truncated.
-const MAX_SNAPSHOT_SYMBOLS = 4000;
+// How many snapshot batches are in flight at once.
+//
+// THE CAP WAS NEVER THE REAL CONSTRAINT -- SEQUENCING WAS. The batches were
+// fetched one after another, so 127 requests at a few hundred milliseconds
+// each is most of a minute and the ceiling existed to stop that timing out.
+// They are independent reads of different symbols; nothing orders them. Run
+// them in waves and the whole listed market costs about as long as a sixth of
+// it did.
+//
+// Eight rather than "all of them": a hundred and twenty-seven simultaneous
+// requests is how a data provider decides you are abusive, and the point is to
+// finish reliably rather than fastest.
+const CONCURRENCY = 8;
+// A ceiling that now sits above the whole US equity list (12,647 names on
+// 22 Sep 2026) rather than a third of the way through it, so it is a guard
+// against something pathological instead of a routine truncation.
+//
+// At 4,000 it cut the market alphabetically. The owner's run: "3,990 names
+// priced · 6 passed the filters ... Only 4000 of 12647 listed names could be
+// priced". Sorting by symbol and taking the first N is the worst available
+// choice -- it is not a sample of the market, it is the letters A to F, and it
+// excluded NVDA, TSLA, SPY and every other name a scanner exists to find.
+const MAX_SNAPSHOT_SYMBOLS = 20000;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -58,20 +77,30 @@ Deno.serve(async (req) => {
     // Snapshots for everything, in batches. A failed batch drops those names
     // rather than the whole scan -- and they are counted, so a partial answer
     // is never presented as a complete one.
+    const chunks: string[][] = [];
+    for (let i = 0; i < symbols.length; i += BATCH) chunks.push(symbols.slice(i, i + BATCH));
+
     const snapshots: Record<string, any> = {};
     let failedBatches = 0;
-    for (let i = 0; i < symbols.length; i += BATCH) {
-      const chunk = symbols.slice(i, i + BATCH);
-      try {
-        const data = await alpacaFetch(
-          `https://data.alpaca.markets/v2/stocks/snapshots?symbols=${chunk.join(",")}`,
-          account
-        );
-        Object.assign(snapshots, data || {});
-      } catch (e) {
-        failedBatches++;
-        console.error("universe snapshot batch failed", chunk[0], e?.message || e);
-      }
+    for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+      const wave = chunks.slice(i, i + CONCURRENCY);
+      const results = await Promise.all(
+        wave.map((chunk) =>
+          alpacaFetch(
+            `https://data.alpaca.markets/v2/stocks/snapshots?symbols=${chunk.join(",")}`,
+            account
+          ).catch((e) => {
+            // A failed batch drops those names rather than the whole scan --
+            // and is counted, so a partial answer is never presented as a
+            // complete one. Promise.all would reject the whole wave on one
+            // failure, so the catch is per request and inside it.
+            failedBatches++;
+            console.error("universe snapshot batch failed", chunk[0], e?.message || e);
+            return null;
+          })
+        )
+      );
+      for (const data of results) if (data) Object.assign(snapshots, data);
     }
 
     const { kept, dropped, considered } = screenUniverse(snapshots, { ...filters, equity });
