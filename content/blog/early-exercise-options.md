@@ -1,8 +1,8 @@
 ---
-title: "Early exercise: why it is rare, and the one case it is not"
+title: "Early exercise of options: rare, except before a dividend"
 slug: early-exercise-options
 excerpt: Exercising an option before expiration throws away whatever time value is left in it, which is why almost nobody does it — except right before a dividend.
-meta_description: Early exercise means using an American-style option before expiration instead of at it. Why it usually costs the holder money, and the one case it does not.
+meta_description: Exercising an option early throws away the extrinsic value left in it, so it is rare. The exception: a deep in-the-money call before an ex-dividend date.
 author: DeltaMint
 published_at: 2026-09-22T10:00:00+00:00
 category: foundations
@@ -10,9 +10,10 @@ series_order: 11
 tags: exercise, early exercise, american options, dividends, foundations
 ---
 
-**Early exercise** is using an option's right to buy or sell before expiration
-instead of waiting for it. American-style equity options allow it on any
-business day the holder chooses; almost none of them are ever used that way.
+**Early exercise** of an option is using its right to buy or sell before
+expiration instead of waiting for it. Listed American-style stock options
+allow it on any business day the holder chooses; almost none of them are ever
+used that way.
 
 The reason is arithmetic, not habit. Exercising converts an option into
 whatever it is worth today and nothing else, and today's price is rarely the
@@ -27,7 +28,7 @@ dividends, where the arithmetic flips.
 - Early exercise of a put is rarer still, and turns on interest rather than dividends: getting the strike proceeds sooner has to be worth more than the sliver of extrinsic value given up.
 - [Assignment](/blog/option-assignment-what-happens) is the same event seen from the other side. A seller does not choose it, but knowing when a holder has a reason to exercise early tells a seller when to expect the notice.
 
-## What does exercising an option early actually mean?
+## Can you exercise an option before expiration?
 
 An American-style option gives the holder the right to buy (a call) or sell (a
 put) the underlying at the strike, on any business day up to and including
@@ -46,7 +47,7 @@ on the other side of that contract is assigned, with no say in the timing at
 all. This post is about the holder's decision — why it is almost never made
 before expiration, and the one circumstance where it is.
 
-## Why does exercising early almost always cost the holder money?
+## Why does exercising early cost more than selling the option?
 
 Every American option's premium splits into [intrinsic and extrinsic
 value](/blog/intrinsic-vs-extrinsic-value-options). Intrinsic value is what
@@ -78,7 +79,7 @@ A holder who wants out entirely is better off selling the option and, if they
 still want the stock, buying it separately — at the cost of a second spread
 and, unlike exercising, a taxable disposal of the option itself.
 
-## When is early exercise of a call actually worth it?
+## When is early exercise of a call worth it? The dividend case
 
 The one case that regularly overrides the arithmetic above is a dividend. An
 ordinary cash dividend is not built into a stock option's terms — the call
@@ -94,7 +95,7 @@ never have paid. Whether that trade is worth it comes down to one comparison:
 - **The call has to be deep enough in the money that its protection is worth almost nothing.** A call holder's downside stops at the strike; a shareholder's does not. That protection is most of what a call's extrinsic value is made of, so a call with a real chance of finishing out of the money is never an early-exercise candidate, whatever the dividend.
 - **The timing is narrow.** The comparison only favors exercising right before the ex-dividend date. Earlier, the dividend has not moved the arithmetic yet; after, the stock has already priced it in.
 
-## Does the same logic apply to puts?
+## Does early exercise ever make sense on a put?
 
 There is a put version, and it runs on interest rather than dividends. A deep
 in-the-money put with almost no extrinsic value left can be worth exercising
@@ -137,7 +138,7 @@ the comparison flips back to holding the call even before funding cost is
 considered. All figures here are hypothetical, chosen to show the arithmetic
 rather than describe any real contract.
 
-## What this means if you are short the option
+## When is a short call at risk of early assignment?
 
 A seller does not decide any of this, but the same arithmetic explains when a
 short position is actually at risk of an early notice rather than only in

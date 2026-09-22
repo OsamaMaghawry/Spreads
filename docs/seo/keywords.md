@@ -22,7 +22,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 8 | Vega and IV | implied volatility options explained | implied volatility | Investopedia, CBOE | why a chain reprices before earnings |
 | 9 | Gamma | gamma options meaning | option gamma | SoFi, tastytrade, Merrill Edge, Schwab, OIC, CME, TradingBlock, Barchart; Quora and a Substack in the tail | short, honest, when it matters and when it does not |
 | 10 | Assignment | option assignment what happens | option assignment | broker help pages (Robinhood, E*TRADE, Fidelity, Schwab), FINRA and OIC, Nasdaq, Option Alpha, SoFi; Quora, a Substack, Elite Trader and TradingView chart ideas in the tail. No Reddit surfaced | the account the morning after, line by line |
-| 11 | Early exercise | early exercise options | exercise | Investopedia, forums | why it is rare and the one case it is not |
+| 11 | Early exercise | early exercise options (always qualified — see the row 11 reading) | early exercise, option exercise — never "exercise" alone | Wikipedia, Option Alpha, Options Playbook, CFI, Schwab, Fidelity, IBKR, Benzinga, Barchart, optionstradingiq; Carta and equity-comp law firms take half the intent; a Bionic Turtle forum thread in the tail. No Investopedia surfaced | why it is rare, and the one dividend case it is not |
 | 12 | Expiration mechanics | what happens options expiration | expiration | broker help pages | ITM by a cent, OTM by a cent, the cutoff |
 | 13 | Buying power | options buying power requirement | buying power | broker help pages, Reddit | what a CSP and a spread each hold in reserve |
 | 14 | Reading a chain | how to read an option chain | option chain | Investopedia, broker pages | reading without guessing the spot |
@@ -220,6 +220,51 @@ Reddit and r/options in the query, and no Reddit thread surfaced in any of
 them. Broker help centres hold the ground the row attributed to forums. That
 absence is a read of these results pages on one day through one search tool,
 not proof Reddit does not rank.
+
+## Reading for row 11 — early exercise options (read 2026-09-22)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| early exercise options (target) | **Carta, Cooley GO, Morrison Foerster, WilmerHale, Dorsey, Equity Methods**, Wikipedia "Exercise (options)", Corporate Finance Institute (twice) | **hard, and half the results are a different subject** — unqualified, "early exercise" is an employee-equity term and law firms plus Carta own it. Only Wikipedia and CFI answer the listed-options sense |
+| early exercise (unqualified) / exercise (unqualified) | physical fitness — Mayo Clinic, NHS, Harvard Health, MedlinePlus, a Wikipedia disambiguation | **do not target**: the bare word is not a finance term. The head term for this row is **early exercise** or **option exercise**, never "exercise" alone — the same correction rows 7, 9 and 10 needed for "theta", "gamma" and "assignment" |
+| why would you exercise an option early | Option Alpha (twice), Wikipedia, Options Playbook, CFI, iTiger, then Carta and a venture Substack | **winnable-ish** — no broker hub holds it; the ranking pages list reasons ("lock in profits", "liquidity") without the arithmetic that decides between them |
+| should I exercise my call option before expiration | Fidelity, Wikipedia (twice), Options Playbook, OptionsAnimal, Benzinga, iTiger, FXStreet | **winnable** — a syndicated FX site and a one-page broker blog in the top set is a text-coverage gap; the answer is given as a rule of thumb, never shown |
+| is it better to sell or exercise an option | Option Samurai (twice), OptionTradingpedia, Chron, smartsavingadvice, a Substack, an IEEE paper | **winnable** — no authority at all; a small-business column and a Substack hold it. Closest phrasing to this post's core section |
+| early exercise call option dividend | Options Playbook, IBKR guides, Blue Collar Investor, Rival Systems, borntosell, Traders Exclusive, two arXiv papers | **winnable** — practitioner blogs and academic PDFs, no broker hub; the dividend-vs-extrinsic comparison is stated everywhere and worked through nowhere. This is the post's angle and its home intent |
+| can you exercise an option before expiration date | Wikipedia (option style, exercise), OIC, E*TRADE, Schwab, Macroption, **FINRA**, Public help centre | **hard** — the American/European distinction is settled ground, with a regulator on the results. It earns an H2 inside the post, never the title |
+| how often are options exercised early | optionstradingiq, OptionsAnimal, financhill, Robinhood support, Wikipedia, then **two Law Insider contract-clause pages** and a UCLA lecture PDF | **winnable** — legal databases and a maths lecture padding the top set means nothing authoritative holds it; "less often than you would think" is the whole answer everywhere |
+| early exercise put option interest rates deep in the money | Wikipedia, Schwab (interest rates and options), InvestorPlace (2010), **a Bionic Turtle forum thread**, FasterCapital, Scribd, CBOE, arXiv | **winnable** — a forum thread, a Scribd upload and an AI content farm in one top set; the put case is textbook material written for exam candidates, not traders |
+| will my short call get assigned early before ex-dividend date | tastytrade support, Schwab (twice), Option Alpha, Fidelity, Options Playbook, Barchart, Benzinga, an AI-generated "2026 guide" | **hard-ish, and the framing is not ours** — this is the best-covered adjacent intent, and nearly every page is "how to avoid early assignment". One H2 of ours answers when the risk is real, descriptively, and hands off to the assignment post |
+| what happens if I exercise my call option early (do I need the money) | Wikipedia, Public help centre, borntosell, Benzinga, CFI, iTiger, Robinhood support | winnable, thin — the "you need the full strike in cash" answer appears in passing inside broker FAQs, never as its own answer |
+
+**The gap.** Every ranking page in the listed-options half gives the same four
+things: American can be exercised any time, European cannot; exercising
+forfeits time value so selling is usually better; exercise early for a dividend
+the day before the ex-date; deep in-the-money puts for interest. Almost none
+puts a number on the comparison that decides it — the dividend against the
+extrinsic value still in the call, on one contract, with arithmetic a reader
+can check — and none says what exercising costs in cash (the full strike,
+financed for the rest of the contract) next to the gain it captures. Where the
+competitors do reach the seller's side they turn it into avoidance tactics
+("buy to close before the ex-date", "how to avoid early assignment"); the angle
+here stays descriptive, and the dividend section stops at the comparison rather
+than recommending the trade.
+
+**Could not establish:** search volume, difficulty and current position for any
+phrasing above; whether these results are personalised or localised; how the
+mixed intent splits — employee-equity early exercise and listed-option early
+exercise share the phrase, and the equity-comp pages are better funded, which
+is a count of pages and not demand, so every use of the phrase in the title,
+meta and opening is qualified with "option" or "listed"; and whether Reddit or
+Quora hold any of this intent. The previous placeholder row named "Investopedia,
+forums" as the competition: eleven phrasings were read and Investopedia
+surfaced in none of them, while the only forum result anywhere was one Bionic
+Turtle thread on the put case. That absence is a read of these results pages on
+one day through one search tool, not proof those sites do not rank.
 
 ## Off-syllabus rows
 
