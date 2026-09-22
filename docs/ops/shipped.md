@@ -3,6 +3,15 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-22 · (staging) The Scanner's "whole market" sweep now says why it
+  found nothing instead of just sitting empty after the spinner stops — a
+  server error was being discarded outright and a thrown exception (a
+  timeout, a network drop) was being swallowed by an empty `catch`, so a
+  broken sweep and a genuinely empty one looked identical. Also fixed: the
+  truncation notice used to tell the user to narrow their filters, which
+  cannot work — the 4,000-symbol cap is applied before filters run, and the
+  cut is alphabetical, so it now says both of those things instead
+  (`0adf729`).
 - 2026-09-22 · An eleventh foundations post — early exercise, and why it's
   rare except before a dividend — is live on the blog: what American-style
   exercise lets a holder do on any business day, why doing so throws away
