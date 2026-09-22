@@ -9,12 +9,34 @@ controls; additions go to him with the exact hostname.
 The allowlist matches **exact hostnames** — an allowed apex whose site 301s to
 `www.` dies at the hop unless `www.` is also listed.
 
+**The `www.` → apex trap is the single biggest cause of false "reachable" rows
+in this file, and on 2026-09-22 it was found to account for four of them.** A
+row recorded from a bare status code (`301`, `302`, `308`) says only that the
+redirect was issued; the hop to the apex is a *second* CONNECT, and if the apex
+is not allowlisted it is refused. **Test with `curl -sL` and read
+`%{url_effective}` and `%{size_download}`, never the first status line.**
+Affected and re-tested 2026-09-22: `optionstrat`, `marketchameleon`,
+`optionalpha`, `wingmantracker` — all four are `www.`-allowlisted and all four
+are unreachable in practice. The fix in every case is one allowlist addition:
+the apex.
+
+**Net position as of 2026-09-22: no competitor site is directly fetchable.**
+Barchart — the only vendor whose pricing page we had ever fetched at source —
+went behind an AWS WAF challenge some time after 2026-09-01. Everything
+competitor-side is now `reported` via WebSearch until an apex is allowlisted or
+the owner drops a screenshot into `docs/product/research/`. This is recorded
+here, not routed around.
+
 | Host | Status | Tested | Note |
 | --- | --- | --- | --- |
 | **Fetch + real content** | | | Allowlist open AND the site serves us |
-| www.barchart.com | ✅ 200 | 2026-09-01 | Full page. Membership pricing readable without a login at `/membership-comparison` and `/get-barchart-premier`; `/solutions` is the *enterprise* page and carries no consumer prices. `/membership`, `/pricing`, `/premier`, `/subscribe`, `/my/subscribe` all 404 — don't guess the path, follow the `data-ng-href` links off any screener page. **Not** Playwright-screenshottable (see the Chromium row below) |
+| alpaca.markets (incl. `/blog/*`) | ✅ 200 | 2026-09-22 | **Newly useful, and the best competitor route left.** Alpaca publishes a capability write-up for each app that integrates its APIs, so a blocked competitor's own behaviour can be sourced `verified` from the broker: `alpaca.markets/blog/puthouse-integrates-with-alpacas-trading-api-to-automate-options-income-strategies` (27 Jul 2026) describes PutHouse's automation in detail, and `/blog/alpaca-launches-index-options-via-trading-api` (02 Sep 2026) is the source for live index options. Only partners Alpaca has chosen to write up are covered — `?s=<name>` searches for tiblio, quantwheel, wingman and trade-steward all return the same shell page, i.e. no post. Bare `alpaca.markets/blog` index lists only a handful; guess the slug from WebSearch and fetch it directly |
+| docs.alpaca.markets | ✅ 200 | 2026-09-22 | Deep paths fine (`/docs/options-trading` 200, redirecting to `/us/docs/...`). The bare host root returned `000` in the same run — **do not read that as blocked**; use a real doc path |
+| www.barchart.com | ⚠️ **202, empty** | **2026-09-22** | **Regression.** Was ✅ 200 full page on 2026-09-01. `HEAD` still answers 200, and every `GET` (including with a browser UA and `--compressed`) now returns **HTTP 202 with a 2 KB AWS WAF challenge shell** — `window.awsWafCookieDomainList`, `gokuProps`, and a `token.awswaf.com/challenge.js`. Not an allowlist problem and not fixable by an allowlist addition; it is the origin's bot wall, and solving a JS challenge is not something to do. **Consequence: teardown row E6 (Barchart Premier $29.95/mo), our only directly-fetched competitor price, can no longer be re-verified at source.** Worked around by WebSearch (monthly $29.95 re-confirmed 2026-09-22; the annual figure now conflicts — see `docs/product/teardowns/barchart-options-screener.md`). An owner screenshot of `/membership-comparison` would settle it |
 | www.optionstrat.com | ⚠️ 301 → dead | 2026-09-01 | `www.` is allowlisted but OptionStrat 301s *every* path to the apex `optionstrat.com`, which is **not** allowlisted → 403 at CONNECT on the hop. Net effect: OptionStrat is unreachable. The 2026-08-31 row read "✅ 200/301" because only the redirect status was checked, not the hop. Fix is one allowlist addition: `optionstrat.com` |
-| www.marketchameleon.com | ✅ 302 | 2026-08-31 | |
+| www.marketchameleon.com | ⚠️ **301 → dead** | **2026-09-22** | **Corrected.** The 2026-08-31 row read "✅ 302" from the redirect status alone. Every path — `/`, `/Account/Subscribe`, `/Reports/OptionScreener` — redirects to the apex `marketchameleon.com`, which is **not** allowlisted: `connect_rejected` at CONNECT, 0 bytes. Market Chameleon is unreachable. It matters more than it did: it is the competitor that exposes an **ATM bid-ask-spread** screener filter, which is backlog #2's comparison row. Fix is one allowlist addition: `marketchameleon.com` |
+| www.optionalpha.com | ⚠️ **301 → dead** | **2026-09-22** | New row. `www.` answers 301; the hop to the apex `optionalpha.com` is `connect_rejected`. Previously recorded only as an allowlist *ask* in `pricing.md` §6 decision 9. Fix: allowlist `optionalpha.com` |
+| www.wingmantracker.com | ⚠️ **308 → dead** | **2026-09-22** | **Corrected.** The 2026-09-01 row said 403 at CONNECT for both hosts; `www.` in fact answers **308**, and it is the apex hop that is refused. Fix: allowlist `wingmantracker.com` |
 | www.tastylive.com | ✅ 200 | 2026-08-31 | |
 | www.tastytrade.com | ✅ 301 | 2026-08-31 | |
 | www.unusualwhales.com | ✅ 307 | 2026-08-31 | |
@@ -28,8 +50,11 @@ The allowlist matches **exact hostnames** — an allowed apex whose site 301s to
 | **www.sec.gov** | ✅ 200 **with EDGAR UA** | 2026-08-31 | 403 with a normal UA; 200 when the User-Agent is `DeltaMint research osamamaghawry@gmail.com` (SEC EDGAR requires a contact UA). Not a workaround — SEC's stated access rule |
 | **Not on the allowlist — 403 at CONNECT, before the site is ever asked** | | | The gateway refuses the tunnel. Reported, not routed around. Fix is an allowlist addition |
 | tiblio.com / www.tiblio.com | ❌ 403 (policy) | 2026-09-01 | **The closest named competitor** (`docs/context/positioning.md`: screener + Alpaca OAuth + order routing + position tracking, ~$35/mo). A teardown to standard is impossible until this is allowed. Highest-value single addition for vp-product |
-| www.puthouse.com | ❌ 403 (policy) | 2026-09-01 | Second Alpaca-connected competitor named in positioning.md |
-| wingmantracker.com / www.wingmantracker.com | ❌ 403 (policy) | 2026-09-01 | The "Wingman" teardown listed as pending in `docs/product/pricing.md` |
+| www.puthouse.com / puthouse.com | ❌ 403 (policy) | 2026-09-22 | Re-tested, unchanged. Second Alpaca-connected competitor named in positioning.md. **Worked around**: Alpaca's own integration write-up (see the `alpaca.markets` row) yields a `verified` capability description without the vendor site — used for the 2026-09-22 positioning update |
+| wingmantracker.com (apex) | ❌ 403 (policy) | 2026-09-22 | The apex is where the site actually lives; `www.` 308s to it. See the `www.wingmantracker.com` row |
+| optionalpha.com (apex) | ❌ 403 (policy) | 2026-09-22 | See the `www.optionalpha.com` row |
+| marketchameleon.com (apex) | ❌ 403 (policy) | 2026-09-22 | See the `www.marketchameleon.com` row |
+| quantwheel.com | ❌ 403 (policy) | 2026-09-22 | First test. Named in positioning.md and priced `reported, self-inconsistent` in `pricing.md` |
 | optionstrat.com (apex) | ❌ 403 (policy) | 2026-09-01 | See the `www.optionstrat.com` row — the apex is where the content actually lives |
 | **Reached, but the site's own bot-wall refuses (403)** | | | Allowlist is fine; the *origin* blocks datacenter traffic. Not circumventable within the rules — use WebSearch |
 | www.tradersync.com | ❌ 403 (site) | 2026-09-01 | Re-tested; unchanged. Browser UA does not help |
@@ -43,7 +68,7 @@ The allowlist matches **exact hostnames** — an allowed apex whose site 301s to
 | www.theocc.com / infomemo.theocc.com | ❌ 403 (site WAF) | 2026-08-31 | Blocks datacenter traffic; WebSearch for OCC symbology/adjustment facts |
 | www.investopedia.com | ⚠️ 402 | 2026-08-31 | Origin answers but gates content; WebSearch is better here |
 | **Ours** | | | |
-| dashboard.deltamint.app / deltamint.app | ❌ 403 (policy, at CONNECT) | 2026-09-04 | Was ✅ 200 on 2026-08-31; blocked since 31 Aug per `docs/ops/queue.md`'s 2026-09-02 allowlist item (already open, not re-escalated here). Re-tested 04 Sep: `/`, `/blog`, `/pricing` and `dashboard.deltamint.app` all 403 at the proxy CONNECT, same failure mode as the other allowlist rows above — not a site-side issue |
+| dashboard.deltamint.app / deltamint.app | ❌ 403 (policy, at CONNECT) | **2026-09-22** (re-tested; unchanged since 2026-09-04) | Was ✅ 200 on 2026-08-31; blocked since 31 Aug per `docs/ops/queue.md`'s 2026-09-02 allowlist item (already open, not re-escalated here). Re-tested 04 Sep: `/`, `/blog`, `/pricing` and `dashboard.deltamint.app` all 403 at the proxy CONNECT, same failure mode as the other allowlist rows above — not a site-side issue |
 | www.deltamint.app | ⚠️ 522 | 2026-08-31 | Cloudflare has no origin for the www host — cosmetic; canonical is the apex + dashboard |
 | spreads.osamamaghawry.workers.dev | ✅ 301 → dashboard | 2026-08-31 | Canonical redirect confirmed live |
 | yecfbeohyakuoyczvdbj.supabase.co (production project, edge functions incl. `sendDigest`) | ❌ 403 (policy, at CONNECT) | 2026-09-09 | duty-engineer tried to email the owner via `sendDigest` per its brief (`.claude/agents/duty-engineer.md`) over a live production security finding and got `CONNECT tunnel failed, response 403` — same failure mode as `deltamint.app`. Not tested before; needs an allowlist addition alongside the `dashboard.deltamint.app` item already open in `docs/ops/queue.md` if the duty-engineer email step is meant to work from this environment. Worked around by using `PushNotification` to reach the owner directly instead — recorded, not routed around |

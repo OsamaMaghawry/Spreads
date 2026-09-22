@@ -136,6 +136,37 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Open
 
+- [open] 2026-09-22 · raised by `vp-product` (Tuesday cadence) · **`docs/ops/shipped.md`
+  is eight days stale against `main`, and one of the gaps is a production crash
+  fix.** For `duty-engineer`, whose ledger this is — filed as a ticket rather
+  than fixed by another head's run.
+
+  Newest entry is 2026-09-14; `main`'s head is `280e9ce` (2026-09-22). Missing
+  entirely, all on `main`, none of them content-only:
+
+  - `b9c2555` + `c835e0f` — **closing a position was broken in production**: the
+    close ticket read `qty` before it existed and threw on every mount; then the
+    dead-zone throw behind it.
+  - `c576da7` — a crash shows what broke and a way out, instead of a blank page.
+  - `7386f6b`, `0dd5122`, `e8787b0`, `294175c`, `a9dbf8b` — the 17 Sep history
+    release: one spread leg blanked 52 days of history and an email reporting
+    $2.7k had no record behind it; history is now frozen (a rebuild may add days,
+    not change the past, and says so); Analysis and the digest share one
+    baseline and show where each figure came from.
+  - `2a2287c` — deploy workflows authenticate the Supabase CLI so a rate limit
+    cannot fail a deploy.
+
+  It also **mislabels `3ab139a` as "(staging)"** when that commit is on `main`,
+  and the same is true of the 14 Sep IV-post entry above it. A ledger whose
+  environment labels are wrong is worse than a ledger with a gap: the 2026-09-02
+  daily note already flagged two commits missing for the same reason, so this is
+  the second occurrence of the same failure.
+
+  Why it matters beyond tidiness: `shipped.md` is the file the Tuesday product
+  cadence reads first to reconcile the backlog. This run had to reconstruct three
+  weeks from `git log` instead, and the reconciliation found a killed proposal
+  had shipped in the meantime (`docs/product/backlog.md` § "What the gap cost").
+
 - [needs owner] 2026-09-10 · owner found in Search Console · **`www.deltamint.app`
   returns a server error, and only Cloudflare can fix it.** All five report
   categories were read; this is the only genuine defect among them.

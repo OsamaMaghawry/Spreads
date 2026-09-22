@@ -2,11 +2,64 @@
 
 Study date: 2026-08-31. Author: vp-product.
 **Revised 2026-09-01** — see "Revision" below.
+**Re-verification attempted 2026-09-22 and failed** — see "Re-verification,
+2026-09-22" immediately after it. No claim below is withdrawn; one is
+downgraded and one is now disputed.
 
 Research route (2026-08-31): `barchart.com` and `www.barchart.com` were both
 EGRESS_BLOCKED at the proxy, so every Barchart fact below came through
 WebSearch, which returns page substance from Barchart's own pages and from
 third-party reviews. Confidence was graded accordingly.
+
+## Re-verification, 2026-09-22 — the source closed
+
+Every Barchart fact in this teardown was due a re-check three weeks on. The
+re-check could not be done, and that is itself the finding.
+
+**What happened.** `www.barchart.com` is still allowlisted and its origin still
+answers, but every `GET` — `/membership-comparison`, `/get-barchart-premier`,
+`/` — now returns **HTTP 202 with a ~2 KB AWS WAF challenge shell**
+(`window.awsWafCookieDomainList`, `gokuProps`, a `token.awswaf.com/challenge.js`
+include) and no content. `HEAD` still returns 200, which is how a naive check
+would miss it. A browser User-Agent and `--compressed` make no difference.
+Solving a JS bot challenge is not a workaround this org permits, and Playwright
+still cannot render from this environment (`docs/context/reachable.md`).
+Recorded there with the failure mode; the workaround used was WebSearch.
+
+**What that does to the evidence table.** Nothing is withdrawn — a fact verified
+by direct fetch on 2026-09-01 was verified on 2026-09-01, and it does not become
+false because the door closed. But **E6, E7b and the other direct-fetch rows can
+no longer be refreshed**, so their confidence decays from here rather than being
+renewed. Two specifics:
+
+- **E6, monthly: re-confirmed.** Premier **$29.95/mo** and "every options tool
+  is Premier-only" both come back from WebSearch on 2026-09-22 across several
+  independent write-ups plus Barchart's own help article. Confidence
+  `verified (2026-09-01 direct fetch)`, corroborated `reported` 2026-09-22.
+- **E6, annual: now DISPUTED, and this is the one number that matters.** The
+  2026-09-01 direct fetch read **$239.95/yr** and **$419.95/2yr**. Barchart's
+  own help article, via WebSearch on 2026-09-22, reads **$199.95/yr** and
+  **$368.00/2yr**. Both cannot be right. Either Barchart cut its annual rate in
+  the three weeks, or the help article was stale on 1 Sep and the comparison
+  table has since been changed to match it, or one of the two pages has always
+  been wrong. **Consequence for `pricing.md`:** at $199.95 the incumbent's
+  annual is 6.7 months for twelve and our proposed $290 is the *shallowest*
+  annual discount in the anchor set, not the disciplined middle the file argues
+  for. The argument survives; the supporting number does not.
+  **Settled by one owner screenshot** of `www.barchart.com/membership-comparison`
+  → `docs/product/research/barchart-membership-comparison.png`.
+
+**One claim gained corroboration rather than losing it.** E2's filter list and
+the results-page columns: WebSearch on 2026-09-22 independently describes
+Barchart's vertical-spread screeners as identifying *"the strike price and
+bid/ask for each long and short option"*, and the Main View as showing volume
+and open interest per option. That strengthens the matrix row behind backlog #2
+(they show the quoted spread per leg; we show neither), and it is `reported`,
+not `verified`, so it is carried as corroboration and not as a new row.
+
+**No new proposals from this re-verification.** The teardown's three-proposal
+cap was spent on 2026-09-01 and a re-check that fetched nothing has not earned
+a fourth.
 
 ## Revision, 2026-09-01
 

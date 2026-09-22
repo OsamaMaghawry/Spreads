@@ -394,11 +394,28 @@ The `market-watch` agent (`.claude/agents/market-watch.md`) exists to do exactly
 that on a schedule and propose edits here — this file is its output, and nobody
 should be planning against a figure it has not re-verified.
 
-**One correction, August 2026:** the note below that Puthouse is "already
-through Alpaca's OAuth compliance review" was inferred, not checked. Approval is
-not what makes an OAuth app function — see `compliance.md` — so a competitor
-running the flow proves only that their app is published. Treat their approval
-status as unknown.
+**Re-check, 22 September 2026 (vp-product).** Two facts in this file changed and
+are corrected below: what PutHouse actually is, and what Alpaca now lists. One
+thing about *how* this file can be maintained changed too, and it is worth
+knowing before anyone plans a re-verification: **no competitor site is directly
+fetchable from this environment today.** Barchart — the only vendor page we had
+ever fetched at source — went behind an AWS WAF challenge after 1 September;
+Market Chameleon, OptionStrat, Option Alpha and Wingman are all allowlisted on
+`www.` and redirect to an apex that is not, so the redirect dies at the hop;
+Tiblio, PutHouse and QuantWheel are refused outright. See
+`docs/context/reachable.md`. Everything competitor-side is therefore `reported`
+via WebSearch until an apex is allowlisted — with one exception worth
+remembering: **`alpaca.markets` is reachable, and Alpaca publishes capability
+write-ups of the apps that integrate its API**, which is how a blocked
+competitor's behaviour can still be sourced `verified` from the broker.
+
+**One correction, August 2026, kept because the reasoning still binds:** this
+file used to say PutHouse was "already through Alpaca's OAuth compliance
+review". That was inferred, not checked, and the sentence is gone (see the
+rewritten PutHouse entry below). Approval is not what makes an OAuth app
+function — see `compliance.md` — so a competitor running the flow proves only
+that their app is published. **Treat any competitor's Alpaca approval status as
+unknown** unless a source states it.
 
 ### The market, honestly sized
 
@@ -459,10 +476,34 @@ timer. No screener documented here puts an order control on a ranked row for a
 person to look at and press. That distinction is checkable and it is where the
 "ease" claim actually lives.
 
-**Puthouse** is a second Alpaca-connected options tool, already through Alpaca's
-OAuth compliance review. Two approved competitors on this broker means the
-"first on Alpaca" framing is gone entirely — plan on the assumption that broker
-choice confers no advantage.
+**PutHouse** — corrected 22 September 2026, and it is more than a second name on
+the list. It is **an automated wheel bot on Alpaca**: covered calls and
+cash-secured puts run *"from entry to exit without requiring manual order
+placement"*, through Alpaca's Trading and Market Data APIs, sizing trades
+automatically and screening on volatility risk premium, RSI and upcoming
+earnings and corporate events, under preset modes or user-defined criteria, with
+AI-generated explanations of why each trade was placed **or skipped**. Source:
+Alpaca's own announcement of the integration, 27 July 2026, fetched directly
+(`alpaca.markets/blog/puthouse-integrates-with-alpacas-trading-api-to-automate-options-income-strategies`)
+— `verified`, and the vendor's own site is unreachable from here.
+
+Three consequences, none of them comfortable:
+
+- The **automation** roadmap slot — `docs/product/pricing.md` §4's "Live +
+  Automation, $59" — is occupied on our own broker, by something the broker
+  itself has publicly vouched for. Any plan that assumed first-mover on
+  automation-via-Alpaca is void.
+- It competes for the **wheel** user specifically, which is the strategy whose
+  reading *and* writing halves we have just finished building.
+- The "first on Alpaca" framing was already gone; what is new is that broker
+  choice now confers a *disadvantage* in one category — a prospect comparing
+  wheel tools on Alpaca finds an automated one and a manual one.
+
+Its **price is unknown** — no reachable source publishes one. Its **OAuth and
+approval status remain unknown too**: Alpaca's post describes the *Trading API*,
+which is keys, not necessarily Alpaca Connect. The August correction below
+(approval was inferred, not checked) still stands and is not superseded by this
+one.
 
 Adjacent: **QuantWheel** routes to tastytrade; **Option Alpha** runs entries,
 exits and rolls through Tradier and TradeStation, free to users who route there;
@@ -498,7 +539,7 @@ Scored against the above, not against effort spent.
 | Price walking on limit orders | **Table stakes, and that understates it** — Schwab ships WALK LIMIT® as a native order type on thinkorswim, built for multi-leg orders with wide spreads. Not a competitor's feature to be beaten; a broker's order type to be matched |
 | Portfolio statistics | **Conditional** — commodity if it is profit and loss; differentiated only when structure-aware |
 | Constructing candidates from ranges | **Commodity output, better plumbing** — the sweep builds structures from delta and width targets rather than filtering a chain, and prices them at short bid − long ask rather than mid. Real engineering, but Market Chameleon exposes per-leg delta filters over pre-enumerated spreads, so the *customer-visible output* is the same thing: a ranked list of spreads matching delta and width criteria. Do not market this as a differentiator. The executable pricing is the only part a user would feel, and it only shows up as fills matching the screen |
-| Opportunity screening (filtering chains) | **Commodity** — and more so than assumed. Barchart alone gives away ~10 dedicated multi-leg screeners (short and long iron condor, all four verticals) with legs, max profit, max loss and probability of loss; Market Chameleon covers 18 spread types at $69–99/mo |
+| Opportunity screening (filtering chains) | **Commodity** — and more so than assumed. Barchart alone gives away ~10 dedicated multi-leg screeners (short and long iron condor, all four verticals) with legs, max profit, max loss and probability of loss; Market Chameleon covers 18 spread types at $69–99/mo. **Updated 22 Sep 2026:** the *universe* half of the gap is closed — we now sweep every listed US equity behind a price band, a shares-traded floor, a share-quote-width cap and a capital-per-contract cap (`_shared/universe.ts`), not just an S&P 500 list. The *liquidity* half is not: Market Chameleon exposes **ATM bid-ask spread** as a screener filter and Barchart shows bid and ask per spread leg (both `reported`, WebSearch), while our results table shows neither and our width sieve measures the **share's** quote, not the option's. Closing a universe gap did not make this less of a commodity |
 | Pre-trade return on risk | **Commodity** — a competitor gives this away free |
 
 The through-line: competitors optimise the **single-trade lifecycle** — find,
@@ -528,10 +569,20 @@ falsifiable in one search and the first is not.
 - **No data moat.** No historical archive, so no credible backtesting story.
   Defensibility must come from integration depth and operational trust, both
   earned slowly and neither purchasable.
-- **Alpaca is a smaller pond, and it is not empty.** Every competing automation
-  product integrates tastytrade, Tradier, Schwab or TradeStation, and none of
-  them *leads* with Alpaca — but Tiblio already supports it via OAuth, so the
-  white space is narrower than previously recorded. The retail options traders
+- **Alpaca is a smaller pond, it is not empty, and it is deepening.** Every
+  competing automation product integrates tastytrade, Tradier, Schwab or
+  TradeStation, and none of them *leads* with Alpaca — but Tiblio already
+  supports it via OAuth and PutHouse automates the wheel on it, so the white
+  space is narrower than previously recorded. **The pond itself grew on 2 Sep
+  2026:** Alpaca turned on **live** trading for index options via the Trading
+  API — SPX, SPXW, VIX, VIXW, DJX and XSP — cash-settled, European-style (no
+  early assignment), with Section 1256 tax treatment on certain broad-based
+  contracts (verified: `alpaca.markets/blog/alpaca-launches-index-options-via-trading-api`,
+  fetched directly 22 Sep). That is the first thing in a year to make broker
+  choice an *advantage* rather than a tax: it removes assignment — the risk this
+  file names as our un-built edge — and §1256 is the only tax-shaped reason a
+  trader moves a book. Our history reconstruction already knows the cash-settled
+  roots; the Scanner cannot reach them. Backlog #3. The retail options traders
   with real size remain concentrated on the other platforms. Being first can mean
   uncontested or it can mean fishing where there are fewer fish — worth
   establishing empirically before betting the roadmap.

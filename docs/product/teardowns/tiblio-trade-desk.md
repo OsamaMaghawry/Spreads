@@ -152,3 +152,38 @@ rather than investigated further here.
 - **Puthouse's Alpaca approval status** — `positioning.md` already flags this
   as corrected-to-unknown; confirmed again this week by `market-watch`, no
   change.
+
+## Re-verification, 2026-09-22
+
+Re-checked three weeks on. `tiblio.com` and `www.tiblio.com` are still refused
+at CONNECT (re-tested; `docs/context/reachable.md` updated), so this is again a
+WebSearch pass and the confidence grades stand as written.
+
+- **T8, pricing: unchanged and re-confirmed.** $34.95/mo, $349.50/yr, $1 for
+  seven days, one paid tier. Still `reported`.
+- **T4, brokers: unchanged.** Schwab, Tradier, TradeStation, tastytrade, Alpaca
+  via OAuth, with a broker connection unlocking live quotes and automation.
+- **T2, screener: corroborated and slightly sharpened.** Described on
+  2026-09-22 as **seven** screen types built on historical-volatility analysis
+  for puts, calls, spreads and "vol crush" setups, plus premade screens focused
+  on unusual options activity, plus open/closed position tracking with per-
+  strategy win rates and CSV export. Consistent with T2/T7; the count (7) is
+  new and `reported`.
+- **T7 is still unresolved**, and the screenshot named above is still what would
+  settle it. Three weeks of searching has added nothing.
+- **Still zero proposals fed to `../backlog.md` from this teardown.** The
+  reasoning in §5 is unchanged, and this re-check found nothing that would
+  overturn it.
+
+**What did change sits next door, not here.** The competitor that moved is
+**PutHouse**, and it moved because a *reachable* source turned up: Alpaca's own
+write-up of the integration (27 Jul 2026) describes automated covered calls and
+cash-secured puts, entry to exit, no manual order placement, on Alpaca's Trading
+API, with AI explanations of every trade placed or skipped. That is now a
+`verified` row in `positioning.md` and in `pricing.md`'s anchor table, and it
+changes §4 of `pricing.md` (the automation slot on our own broker is occupied).
+It does **not** belong in this file — wrong competitor — and it does not consume
+this teardown's proposal cap. **A PutHouse teardown to this standard is the
+next one due**, and it is blocked on exactly one thing: `puthouse.com` on the
+allowlist. Alpaca's blog gives capability but no pricing, no filter list, no
+universe and no result columns, which is four of the five parts of §1.
