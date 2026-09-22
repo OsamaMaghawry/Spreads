@@ -94,6 +94,9 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-22 · An eleventh foundations post — early exercise, and why it's
+- 2026-09-21 · A tenth foundations post — option assignment, what actually
+- 2026-09-20 · A ninth foundations post — gamma, explained plainly — is
 - 2026-09-20 · (staging) Emails the app sends to itself — a failed blog
 - 2026-09-19 · (staging) Analysis lists every closed setup instead of only
 - 2026-09-19 · (staging) A covered call's buyback is grouped with the shares
@@ -101,9 +104,6 @@ From `docs/ops/shipped.md`, newest first.
 - 2026-09-18 · (staging) SnapTrade — a service that connects to many
 - 2026-09-17 · Stored account history is now frozen against being silently
 - 2026-09-17 · The Account Analysis chart now draws the close a window is
-- 2026-09-17 · Account Analysis and the weekly digest email now agree with
-- 2026-09-17 · Account Analysis, filtered to the exact week a weekly
-- 2026-09-14 · Closing a position no longer shows a blank white screen: the
 
 ## Server functions
 
