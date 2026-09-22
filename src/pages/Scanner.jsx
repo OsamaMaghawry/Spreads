@@ -24,6 +24,11 @@ export default function Scanner() {
   // "why did my scan return so little", and without it the filters are opaque.
   const [universe, setUniverse] = useState(null);
   const [findingUniverse, setFindingUniverse] = useState(false);
+  // Why the whole-market pass failed, when it fails. Separate from the scan
+  // hook's own error because it happens BEFORE a scan starts -- `start()`
+  // clears that one, so reusing it would wipe the message on the next click
+  // and leave the same blank screen this is here to end.
+  const [universeError, setUniverseError] = useState(null);
   const { running, progress, candidates, skippedCount, error, start, stop } = useMarketScan();
 
   useEffect(() => {
@@ -93,6 +98,7 @@ export default function Scanner() {
     if (cfg.universe === "market") {
       setFindingUniverse(true);
       setUniverse(null);
+      setUniverseError(null);
       try {
         const { data } = await invokeFunction("scanUniverse", {
           accountId: accounts[0].id,
@@ -105,12 +111,27 @@ export default function Scanner() {
           }
         });
         setFindingUniverse(false);
-        if (data?.error) return;
+        // THE REASON IS NOT OPTIONAL. Both of these used to return silently --
+        // `if (data?.error) return` threw away a server error, and the catch
+        // below discarded the exception -- so a scan that failed and a scan
+        // that found nothing looked identical: the spinner stopped and the
+        // page sat there. The owner: *"whatever I put in filters, doesn't
+        // show any results."* That is what a swallowed error looks like from
+        // the outside, and it is unanswerable from the outside too, because
+        // the one sentence naming the cause was being dropped on the floor.
+        if (data?.error) {
+          setUniverseError(data.error);
+          return;
+        }
         setUniverse(data);
+        // Not an error: the universe panel below states what was priced, what
+        // passed, and where the rest went, which is a better answer than a
+        // banner repeating it.
         if (!data?.tickers?.length) return;
         start(accounts[0].id, [{ tickers: data.tickers, filters: filtersFor(strategy) }]);
-      } catch {
+      } catch (e) {
         setFindingUniverse(false);
+        setUniverseError(e?.message || String(e));
       }
       return;
     }
@@ -205,6 +226,11 @@ export default function Scanner() {
 
           {accounts.length === 0 && (
             <p className="text-xs text-amber-600">Add a trading account first — market data uses its API keys.</p>
+          )}
+          {universeError && (
+            <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 text-xs text-rose-700 leading-relaxed">
+              <span className="font-medium">The market sweep could not run.</span> {universeError}
+            </div>
           )}
           {error && <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">{error}</div>}
         </div>

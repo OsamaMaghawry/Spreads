@@ -87,8 +87,21 @@ Deno.serve(async (req) => {
       equity,
       truncated,
       incomplete: failedBatches > 0 || truncated,
+      // THE OLD TEXT TOLD THE USER TO DO SOMETHING THAT CANNOT WORK.
+      //
+      // It read "Narrow the filters to cover more of the market", but the
+      // truncation happens HERE, before `screenUniverse` runs -- the cap is on
+      // how many names get priced, not on how many survive. No filter change
+      // reaches the names that were cut, so following that advice changes
+      // nothing and the user concludes the scanner is broken.
+      //
+      // And the cut is ALPHABETICAL, because `tradableEquities` sorts by
+      // symbol and this takes the first N of that. So a truncated sweep covers
+      // the start of the alphabet and silently omits the end of it -- the
+      // opposite of what "scan the entire market" promises, and invisible
+      // unless the message says so.
       note: truncated
-        ? `Only the first ${MAX_SNAPSHOT_SYMBOLS} of ${listed} listed names were priced. Narrow the filters to cover more of the market.`
+        ? `Only ${MAX_SNAPSHOT_SYMBOLS} of ${listed} listed names could be priced in one pass, taken in alphabetical order — names later in the alphabet were not looked at. Filters do not change this; they are applied to the names that were priced.`
         : failedBatches > 0
           ? `${failedBatches} price batches failed, so some names could not be judged and were left out.`
           : null
