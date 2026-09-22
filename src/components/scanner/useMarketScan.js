@@ -12,6 +12,15 @@ export default function useMarketScan() {
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [candidates, setCandidates] = useState([]);
   const [skippedCount, setSkippedCount] = useState(0);
+  // WHY nothing matched, not just how many did not.
+  //
+  // scanCandidates already explains itself: every ticker it rejects comes back
+  // as { ticker, reason } naming the delta band, the credit floor, the risk cap
+  // or the expiry window that excluded it. All of it was reduced to a counter
+  // and dropped. The owner, on a scan that ran correctly and returned 200 with
+  // a full body of reasons: *"I see nothing happening. It is not working
+  // still."* It was working -- it just had no way to say so.
+  const [skipped, setSkipped] = useState([]);
   const [error, setError] = useState(null);
   const stopped = useRef(false);
 
@@ -31,6 +40,7 @@ export default function useMarketScan() {
     setError(null);
     setCandidates([]);
     setSkippedCount(0);
+    setSkipped([]);
     const total = jobs.reduce((n, j) => n + j.tickers.length, 0);
     setProgress({ done: 0, total });
 
@@ -56,6 +66,10 @@ export default function useMarketScan() {
           all = all.slice(0, 100);
           setCandidates([...all]);
           setSkippedCount((n) => n + (data.skipped?.length || 0));
+          // Bounded: a whole-market sweep can skip thousands of names and the
+          // screen only ever shows a handful. Keeping every one would grow
+          // without limit for no gain.
+          if (data.skipped?.length) setSkipped((prev) => (prev.length >= 12 ? prev : [...prev, ...data.skipped].slice(0, 12)));
         } catch (e) {
           if (stopped.current) return;
           setError(e.message); // a failed batch shouldn't kill the sweep
@@ -68,5 +82,5 @@ export default function useMarketScan() {
     if (all.length > 0) playAlert();
   };
 
-  return { running, progress, candidates, skippedCount, error, start, stop };
+  return { running, progress, candidates, skippedCount, skipped, error, start, stop };
 }

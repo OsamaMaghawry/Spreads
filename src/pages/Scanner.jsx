@@ -29,7 +29,7 @@ export default function Scanner() {
   // clears that one, so reusing it would wipe the message on the next click
   // and leave the same blank screen this is here to end.
   const [universeError, setUniverseError] = useState(null);
-  const { running, progress, candidates, skippedCount, error, start, stop } = useMarketScan();
+  const { running, progress, candidates, skippedCount, skipped, error, start, stop } = useMarketScan();
 
   useEffect(() => {
     supabase
@@ -273,12 +273,55 @@ export default function Scanner() {
           ) : shown.length > 0 ? (
             <ResultsTable candidates={shown} onTrade={setTradeSetup} />
           ) : (
-            <div className="px-4 py-16 text-center text-sm text-slate-400">
-              {running
-                ? "Results stream in as tickers are scanned…"
-                : progress.total > 0
-                  ? "No setups matched your filters."
-                  : "Configure your filters and start a scan."}
+            <div className="px-4 py-12 text-sm text-slate-500">
+              {running ? (
+                <p className="text-center text-slate-400">Results stream in as tickers are scanned…</p>
+              ) : progress.total > 0 ? (
+                /* "No setups matched your filters" was the whole answer, and it
+                   is the least useful true sentence this page could print: it
+                   names no filter, so the only way forward is to change one at
+                   random and run again. Two things are now separated, because
+                   they need opposite fixes.
+
+                   FOUND BUT HIDDEN. Setups were built and the return-on-risk
+                   floor above removed them. That is a slider, not a scan.
+
+                   NOT BUILT AT ALL. The engine already says why per ticker --
+                   the delta band, the credit floor, the risk cap, the expiry
+                   window -- and those sentences were being counted and thrown
+                   away. They are the answer to "why is nothing showing". */
+                <div className="space-y-3 max-w-xl mx-auto">
+                  {candidates.length > 0 ? (
+                    <>
+                      <p className="text-center text-slate-700">
+                        {candidates.length} setup{candidates.length === 1 ? "" : "s"} found, none at or above{" "}
+                        {minRoR}% return on risk.
+                      </p>
+                      <p className="text-center text-xs text-slate-400">
+                        The best was {(Math.max(...candidates.map((c) => c.returnOnRisk)) * 100).toFixed(1)}%. Lower
+                        the &ldquo;min return on risk&rdquo; filter to see them.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-center text-slate-700">
+                        No setups matched. {skippedCount > 0 && `${skippedCount} ticker${skippedCount === 1 ? "" : "s"} were passed over — here is why:`}
+                      </p>
+                      {skipped.length > 0 && (
+                        <ul className="space-y-1.5 text-xs text-slate-500 bg-slate-50 rounded-lg p-3">
+                          {skipped.map((sk, i) => (
+                            <li key={`${sk.ticker}-${i}`} className="leading-relaxed">
+                              <span className="font-medium text-slate-700">{sk.ticker}</span> — {sk.reason}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  )}
+                </div>
+              ) : (
+                <p className="text-center text-slate-400">Configure your filters and start a scan.</p>
+              )}
             </div>
           )}
         </div>
