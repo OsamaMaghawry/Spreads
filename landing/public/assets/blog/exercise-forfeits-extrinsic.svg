@@ -15,6 +15,7 @@
   <!-- row 2: exercise the call -->
   <text x="150" y="178" font-size="18" text-anchor="end" fill="#767B8E">exercise the call</text>
   <rect x="166" y="158" width="430" height="30" rx="4" fill="#2E8B5F"/>
+  <text x="588" y="178" font-size="16" font-weight="600" text-anchor="end" fill="#FFFFFF">6.00</text>
   <rect x="596" y="158" width="50" height="30" rx="4" fill="#F7DEE2" stroke="#B4485C" stroke-width="1.5"/>
-  <text x="662" y="178" font-size="18" font-weight="600" fill="#14151C">6.00</text>
+  <text x="621" y="150" font-size="12" font-weight="600" text-anchor="middle" fill="#B4485C">0.70</text>
 </svg>

@@ -65,11 +65,18 @@ too.
 - **Selling captures both parts.** A buyer pays intrinsic value and extrinsic value together, so the seller of that same option receives both.
 - **Exercising captures only intrinsic value.** Whatever extrinsic value remained in the price is given up, not paid to anyone.
 - **The gap grows with time left.** An option with 60 days remaining carries far more to lose than one with two days left, which is part of why early exercise is rarer the further out an expiration sits.
-- **A worthless option has nothing to give up.** Once extrinsic value has decayed close to zero near expiration, the cost of exercising early instead of selling shrinks with it.
+- **An option with no time value left has nothing to give up.** Once extrinsic value has decayed close to zero near expiration, the cost of exercising early instead of selling shrinks with it.
 
 For most positions, for most of a contract's life, that gap makes exercising a
-worse deal than selling. A holder who wants out is better off selling the
-option and, if they still want the stock, buying it separately.
+worse deal than selling — normally by more than the extrinsic value, and never
+by less at the quoted ask. Selling has its own cost, though: it crosses the
+[bid-ask spread](/blog/options-bid-ask-spread) instead of crossing none, and a
+thin, deep in-the-money contract can show a bid sitting below intrinsic value,
+which is the price a seller actually gets.
+
+A holder who wants out entirely is better off selling the option and, if they
+still want the stock, buying it separately — at the cost of a second spread
+and, unlike exercising, a taxable disposal of the option itself.
 
 ## When is early exercise of a call actually worth it?
 
@@ -84,45 +91,51 @@ shareholder before that date, and collects the dividend the call itself would
 never have paid. Whether that trade is worth it comes down to one comparison:
 
 - **The dividend has to beat the extrinsic value forfeited.** Exercising still gives up whatever extrinsic value is left, exactly as described above — the dividend has to be worth more than that to come out ahead.
-- **The call has to be deep enough in the money that it will be exercised anyway.** Giving up any real chance the call finishes out of the money is its own separate cost, on top of the extrinsic value.
+- **The call has to be deep enough in the money that its protection is worth almost nothing.** A call holder's downside stops at the strike; a shareholder's does not. That protection is most of what a call's extrinsic value is made of, so a call with a real chance of finishing out of the money is never an early-exercise candidate, whatever the dividend.
 - **The timing is narrow.** The comparison only favors exercising right before the ex-dividend date. Earlier, the dividend has not moved the arithmetic yet; after, the stock has already priced it in.
 
 ## Does the same logic apply to puts?
 
-There is a put version, and it is rarer still, because it runs on interest
-rather than dividends. A deep in-the-money put with almost no extrinsic value
-left can be worth exercising early so the strike proceeds — cash from
-delivering the shares — arrive sooner and start earning interest, rather than
-sitting inside an unexercised contract.
+There is a put version, and it runs on interest rather than dividends. A deep
+in-the-money put with almost no extrinsic value left can be worth exercising
+early so the strike is received now instead of at expiration, letting that
+cash start earning interest rather than sitting inside an unexercised
+contract.
 
 That only clears the same bar the call version does: the interest earned on
-getting the cash sooner has to exceed the sliver of extrinsic value given up.
-Higher interest rates make it come up more often; a stock that is expensive or
-hard to borrow changes the arithmetic further and is its own separate
-question. Outside of high-rate periods on deep in-the-money puts very late in
-their life, this case is uncommon enough that most holders never meet it.
+getting the cash sooner has to exceed the sliver of extrinsic value given up,
+so higher interest rates make it come up more often. It happens less often
+than the dividend case in practice — partly because the situation itself is
+less common, and research on real exercise behavior has found holders
+routinely fail to exercise even when the arithmetic already favors it.
 
 ## Example: a hypothetical dividend that flips the decision
 
 Take the same hypothetical 50-strike call this series has been using, deep in
 the money with the stock at $56 and 30 days left: a $6.70 premium, $6.00 of it
-intrinsic and $0.70 extrinsic. Now say the company declares a $1.00 per-share
-dividend, ex tomorrow.
+intrinsic and $0.70 extrinsic — $700 and $70 on one contract. Now say the
+company declares a $1.00 per-share dividend, $100 on one contract, ex
+tomorrow.
 
 | | Extrinsic left | Dividend | Larger figure |
 | --- | --- | --- | --- |
-| Before the dividend was announced | $0.70 | — | no comparison to make |
-| The day before the ex-dividend date | $0.70 | $1.00 | the dividend |
+| Per share | $0.70 | $1.00 | the dividend |
+| Per contract (×100) | $70 | $100 | the dividend |
 
 ![Two bars on the same scale: the 0.70 of extrinsic value left on the hypothetical call against a 1.00 dividend going ex the next day, the dividend the longer bar.](/assets/blog/dividend-crosses-extrinsic.svg)
 
 $1.00 is larger than $0.70, so exercising the day before the ex-date and
 collecting the dividend as a shareholder is worth more than holding the call
 through a stock price expected to fall by about that same dollar with nothing
-paid to the call for it. Reverse the numbers — a $0.50 dividend against the
-same $0.70 of extrinsic value — and the comparison flips back to holding the
-call. All figures here are hypothetical, chosen to show the arithmetic rather
-than describe any real contract.
+paid to the call for it. The edge is gross, though: exercising means paying
+the $5,000 strike outright, or financing it, for the four weeks left on the
+contract, and that funding cost eats into the $30-per-contract gap before
+anything else does.
+
+Reverse the dividend — $0.50 against the same $0.70 of extrinsic value — and
+the comparison flips back to holding the call even before funding cost is
+considered. All figures here are hypothetical, chosen to show the arithmetic
+rather than describe any real contract.
 
 ## What this means if you are short the option
 
@@ -136,14 +149,17 @@ about to pay a real dividend, is the position to watch. A short put meeting
 the rate condition above is the mirror case, and shows up far less often.
 
 Outside of those two situations, a short American option being exercised
-early is genuinely unlikely, which is part of why [assignment](/blog/option-assignment-what-happens)
+early is uncommon, which is part of why [assignment](/blog/option-assignment-what-happens)
 generally clusters at or near expiration rather than showing up at random
-points through a contract's life.
+points through a contract's life. A holder is free to exercise for a reason
+that has nothing to do with this arithmetic — to take stock, to close out, or
+by mistake — and a seller has no way to tell the difference from the notice
+itself.
 
 ## Frequently asked questions
 
 - **Can any option be exercised at any time?** Only American-style ones. European-style options, including most broad index contracts, can be exercised only at expiration.
-- **Does exercising early make sense to lock in a gain?** No — selling the option locks in the same intrinsic value plus whatever extrinsic value is still in the price, which is always at least as much.
+- **Does exercising early make sense to lock in a gain?** No — selling the option locks in the same intrinsic value plus whatever extrinsic value is still in the price, normally more and never less at the quoted ask. The one practical exception is a thin, deep in-the-money contract whose bid sits below intrinsic value, which is the price a seller actually gets.
 - **Why would anyone give up extrinsic value on purpose?** Only when something outside the option itself, like a dividend the option is not compensated for, is worth more than what is being given up.
 - **Does early exercise happen on puts as often as calls?** No. The call case is tied to dividends and comes up regularly around ex-dividend dates on optionable stocks; the put case depends on interest rates and is uncommon by comparison.
 
