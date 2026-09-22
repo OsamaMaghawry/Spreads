@@ -94,6 +94,7 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-22 · (staging) The Scanner's "whole market" sweep now says why it
 - 2026-09-22 · An eleventh foundations post — early exercise, and why it's
 - 2026-09-21 · A tenth foundations post — option assignment, what actually
 - 2026-09-20 · A ninth foundations post — gamma, explained plainly — is
@@ -103,7 +104,6 @@ From `docs/ops/shipped.md`, newest first.
 - 2026-09-18 · (staging) Tradier — chosen as the second broker to build
 - 2026-09-18 · (staging) SnapTrade — a service that connects to many
 - 2026-09-17 · Stored account history is now frozen against being silently
-- 2026-09-17 · The Account Analysis chart now draws the close a window is
 
 ## Server functions
 
