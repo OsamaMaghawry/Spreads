@@ -94,16 +94,16 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-22 · (staging) A scanner row with no earnings-calendar coverage
+- 2026-09-22 · (staging) The scanner's return-on-risk explainer note is
+- 2026-09-22 · (staging) A cash-secured put or covered call scan no longer
+- 2026-09-22 · (staging) The whole-market scan now drops leveraged and
 - 2026-09-22 · (staging) A whole-market scan that finds setups but rejects
 - 2026-09-22 · (staging) The whole-market scan now actually scans the whole
 - 2026-09-22 · (staging) The Scanner's "whole market" sweep now says why it
 - 2026-09-22 · An eleventh foundations post — early exercise, and why it's
 - 2026-09-21 · A tenth foundations post — option assignment, what actually
 - 2026-09-20 · A ninth foundations post — gamma, explained plainly — is
-- 2026-09-20 · (staging) Emails the app sends to itself — a failed blog
-- 2026-09-19 · (staging) Analysis lists every closed setup instead of only
-- 2026-09-19 · (staging) A covered call's buyback is grouped with the shares
-- 2026-09-18 · (staging) Tradier — chosen as the second broker to build
 
 ## Server functions
 

@@ -3,6 +3,30 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-22 · (staging) A scanner row with no earnings-calendar coverage
+  now reads "No earnings date" in words, at the quietest weight, instead
+  of a calendar icon next to a bare "Earnings —" that looked like an
+  alert — the em dash was the whole message and too quiet to be read as
+  "we don't know", not "none scheduled" (`56984b9`).
+- 2026-09-22 · (staging) The scanner's return-on-risk explainer note is
+  gone — it was explaining a 0% floor the trader no longer has to reason
+  about now that secured strategies default to it (`c8172cf`).
+- 2026-09-22 · (staging) A cash-secured put or covered call scan no longer
+  comes back empty by design — its return-on-risk floor is measured
+  against the whole strike, not the width less the credit, so the old 15%
+  default was a bar nothing in either strategy could ever clear; it now
+  defaults to 0% on secured strategies. Presets can now be saved for
+  cash-secured puts, covered calls and the wheel — the database was still
+  only accepting spreads and condors, so saving or auto-remembering a scan
+  of any other strategy failed silently (migration `0057`, applied to
+  staging; production is the owner's own call) (`c8d6470`).
+- 2026-09-22 · (staging) The whole-market scan now drops leveraged and
+  inverse funds (2x/3x, "Ultra", "Bull"/"Bear" fund families) by name,
+  since Alpaca's own data carries no leverage flag — matched on word
+  boundaries so a real company like Ultragenyx is never caught by
+  mistake. A ticker the earnings calendar has never covered now reads as
+  "Earnings —, unknown" instead of silently rendering the same as a
+  ticker checked and found clear (`bc97286`).
 - 2026-09-22 · (staging) A whole-market scan that finds setups but rejects
   them all on the return-on-risk floor now says so — how many were found,
   that none cleared the floor, and what the best one actually was — instead
