@@ -3,6 +3,25 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-22 · An eleventh foundations post — early exercise, and why it's
+  rare except before a dividend — is live on the blog: what American-style
+  exercise lets a holder do on any business day, why doing so throws away
+  whatever extrinsic value is left in the contract, and the one dividend
+  case where cashing out early actually wins. Its two diagrams do not
+  render on the live site — the same landing-deploy gap as the two posts
+  below, now three posts and six images deep and still unresolved
+  (`da81319`, reviewed in `8568a79`/`08202d0`/`280e9ce`; see
+  `docs/ops/queue.md`).
+- 2026-09-21 · A tenth foundations post — option assignment, what actually
+  happens in your account — is live on the blog: who is handed the
+  exercise notice and why it's random and always after the fact, and what
+  changes line by line when a short option gets assigned. Same
+  broken-diagrams gap as below (`59a5852`).
+- 2026-09-20 · A ninth foundations post — gamma, explained plainly — is
+  live on the blog: what gamma measures, why it peaks at the money, and
+  why it speeds up as expiration nears. Its two diagrams have never
+  actually reached the live site — the landing-deploy workflow has not
+  succeeded since 14 September (`7b15efe`; see `docs/ops/queue.md`).
 - 2026-09-20 · (staging) Emails the app sends to itself — a failed blog
   publish, a drift in stored history — now go to `agents@deltamint.app`
   instead of the customer-facing `support@` address that the weekly digest,

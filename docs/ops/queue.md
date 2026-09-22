@@ -381,6 +381,34 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
   (`duty/2026-09-21-blog-diagrams` → `main`, docs only, **not merged**), whose
   description leads with this ask; see the day's ledger.
 
+  **Update, 2026-09-22 13:11 UTC — still open, and worse.** A third post
+  published straight through to `main` this morning: *"early exercise
+  options"* (`da81319`/`8568a79`/`08202d0`/`280e9ce`, foundations post 11,
+  text confirmed live via a green `publish-blog.yml` run #16). It carries
+  two more diagrams — `dividend-crosses-extrinsic.svg`,
+  `exercise-forfeits-extrinsic.svg` — that land in the same trap: present on
+  `origin/main:landing/public/assets/blog/` and absent from
+  `origin/staging`'s copy, exactly like the four already named above. That
+  makes **three posts, six images**, all broken on `deltamint.app` since 20
+  September.
+
+  Checked *Deploy landing site*'s run history over the API: **no run has
+  been attempted since #14, the 20 September failure named above.** Nothing
+  in `content-merge.yml` dispatches it — confirmed again reading the
+  workflow file — so every post that merges keeps adding to the pile with
+  no retry of any kind. This is not a new mechanism, just more of the same
+  one; the fix proposed above is unchanged and still needs the owner's
+  call on (a) vs (b).
+
+  Re-tried the brief's exact email recipe this run (`sendDigest` with the
+  production anon key from `.env.production`) — same `CONNECT tunnel
+  failed, response 403` as every prior attempt; no Supabase host is
+  reachable from a session. Posted an update comment on
+  [PR #11](https://github.com/OsamaMaghawry/Spreads/pull/11) instead, since
+  it is still open and unmerged and remains the only channel that reaches
+  the owner. Not re-filing as a new ticket — this is growth of the entry
+  above, not a new finding.
+
 - [escalated 2026-09-21] 2026-09-21 · duty-engineer · **The staging edge
   functions have not deployed since 2026-09-20, and nothing will retry.**
   *Deploy edge functions (staging)* run #148 (`3a7e7ed`, the support/agents
