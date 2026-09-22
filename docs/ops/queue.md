@@ -409,8 +409,9 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
   the owner. Not re-filing as a new ticket — this is growth of the entry
   above, not a new finding.
 
-- [escalated 2026-09-21] 2026-09-21 · duty-engineer · **The staging edge
-  functions have not deployed since 2026-09-20, and nothing will retry.**
+- [escalated 2026-09-21, resolved by later deploy 2026-09-22] 2026-09-21 ·
+  duty-engineer · **The staging edge functions have not deployed since
+  2026-09-20, and nothing will retry.**
   *Deploy edge functions (staging)* run #148 (`3a7e7ed`, the support/agents
   sender split) failed at step 6, `npm run context:check` — the generated
   `docs/product-context.md` was stale in that commit. It has since been
@@ -424,6 +425,15 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
   block a code deploy with no retry path — is a design decision.
   `workflow_dispatch` is refused for this session's token (403, standing item
   2026-09-14), so the run could not simply be re-run either.
+
+  **Resolved itself, 2026-09-22 17:40 UTC.** The owner's own scanner commit
+  `bc97286` touched `supabase/functions/**`, so the path filter fired again:
+  run [#152](https://github.com/OsamaMaghawry/Spreads/actions/runs/35762254518)
+  succeeded (17:40:36→17:42:13 UTC), carrying every function change queued
+  behind the red run #148, including the sender split. The structural
+  question — should a stale generated doc be able to block a deploy with no
+  retry path — is unchanged and still the owner's to decide, but nothing is
+  currently un-deployed because of it.
 
 - [fixed 0ac2e27] 2026-09-09 · duty-engineer · **`dumpBrokerFeed` is unauthenticated in production right now.** Verified by reading `supabase/functions/dumpBrokerFeed/index.ts` at `origin/main` (`60814dc`): it takes an `accountId` from the request body, loads that account with the admin client, decrypts its Alpaca credentials and fetches its full activity/position/order history — with no auth check of any kind. Any caller holding the app's public anon key (embedded in every client bundle) can name any account id and trigger this. `systems-engineer` already found and fixed this on `staging` in `af75776` — signed-in + (owner or admin) is now required — but that commit has not been merged to `main`, so production is unprotected until it is. Not a duty-engineer fix (touches credentials/auth, outside plain-bug authority; also the fix already exists and only needs merging, which is the owner's own release step). Proposed action: merge/deploy the `staging` fix to `main` as soon as possible — no schema or behavior change beyond the auth check, `303` server tests green on `staging`. Emailed the owner.
 
