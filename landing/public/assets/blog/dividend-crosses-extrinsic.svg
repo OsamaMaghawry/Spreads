@@ -1,0 +1,15 @@
+<svg viewBox="0 0 720 220" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Two horizontal bars on the same dollar scale. The extrinsic value left on a hypothetical deep in the money call is 0.70. A hypothetical dividend going ex the next day is 1.00, a longer bar. Once the dividend is larger than the extrinsic value still in the price, exercising the call early to collect the dividend can be worth more than holding the call through the ex-dividend date.">
+  <rect width="720" height="220" fill="#FFFFFF"/>
+
+  <!-- row 1: extrinsic value left -->
+  <text x="220" y="88" font-size="18" text-anchor="end" fill="#767B8E">extrinsic left</text>
+  <rect x="236" y="68" width="480" height="30" fill="#F1F2F6"/>
+  <rect x="236" y="68" width="70" height="30" fill="#767B8E"/>
+  <text x="326" y="88" font-size="18" font-weight="600" fill="#14151C">0.70</text>
+
+  <!-- row 2: dividend -->
+  <text x="220" y="158" font-size="18" text-anchor="end" fill="#767B8E">the dividend</text>
+  <rect x="236" y="138" width="480" height="30" fill="#F1F2F6"/>
+  <rect x="236" y="138" width="100" height="30" fill="#2E8B5F"/>
+  <text x="356" y="158" font-size="18" font-weight="600" fill="#14151C">1.00</text>
+</svg>

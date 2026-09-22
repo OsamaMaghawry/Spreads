@@ -196,8 +196,9 @@ what the stock is doing at the time, because the strike settled that in advance.
 What it leaves behind is a different position than the one you had — stock
 rather than an option, with its own collateral requirement, no expiration date
 and, on a short call assigned without shares, no defined limit. The
-[foundations series](/blog/foundations) carries on from here with why exercising
-early is rare, and the one situation where it is not.
+[foundations series](/blog/foundations) carries on from here with [why exercising
+early is rare, and the one situation where it is
+not](/blog/early-exercise-options).
 
 All figures on this page are hypothetical and are there to show the mechanics.
 This post is educational and is not investment advice.
