@@ -94,6 +94,7 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-22 · (staging) The "No earnings date" badge is gone from the
 - 2026-09-22 · (staging) A scanner row with no earnings-calendar coverage
 - 2026-09-22 · (staging) The scanner's return-on-risk explainer note is
 - 2026-09-22 · (staging) A cash-secured put or covered call scan no longer
@@ -103,7 +104,6 @@ From `docs/ops/shipped.md`, newest first.
 - 2026-09-22 · (staging) The Scanner's "whole market" sweep now says why it
 - 2026-09-22 · An eleventh foundations post — early exercise, and why it's
 - 2026-09-21 · A tenth foundations post — option assignment, what actually
-- 2026-09-20 · A ninth foundations post — gamma, explained plainly — is
 
 ## Server functions
 

@@ -3,6 +3,16 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-22 · (staging) The "No earnings date" badge is gone from the
+  Scanner's results table — the owner found it confusing, and it was: both
+  the badge and its absence meant "no earnings warning to a trader scanning
+  the list", so the difference cost a column of space to communicate
+  something that changed nothing at the point of reading. The real warning
+  now lives in the trade ticket instead, where there's room to say it
+  plainly — a dated announcement inside the position's life still gets its
+  full warning, and a name the earnings calendar has never covered says so
+  and to check before holding through one. The table keeps its amber chip
+  only for a real, dated announcement (`e0d4906`).
 - 2026-09-22 · (staging) A scanner row with no earnings-calendar coverage
   now reads "No earnings date" in words, at the quietest weight, instead
   of a calendar icon next to a bare "Earnings —" that looked like an
