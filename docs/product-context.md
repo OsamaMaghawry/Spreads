@@ -80,7 +80,7 @@ incomplete.
 
 - **accounts** — AccountForm
 - **admin** — AdminMaintenance, BlogPanel, EngagementPanel, IntegrityPanel, PostPreview, SettingsPanel, SignupsChart, SnapTradePanel, StatTile, UsersPanel
-- **analysis** — BreakdownTable, CaptureBreakdown, DateRangeFilter, EquityCurveChart, ExportPdfButton, OpenBookPanel, OpenOptionsPanel, SetupBreakdown, StatCards, StrategyComparison, ViewSwitch, WindowParts
+- **analysis** — AnalysisDisclosure, AnalysisLayoutB, BreakdownTable, CaptureBreakdown, DateRangeFilter, EquityCurveChart, ExportPdfButton, MethodNotes, OpenBookPanel, OpenOptionsPanel, SetupBreakdown, StatCards, StatTiles, StrategyComparison, ViewSwitch, WindowParts
 - **billing** — UpgradePrompt
 - **brand** — DeltaMintMark, Wordmark
 - **close** — CloseDialog, LegPicker, LegsQuoteSummary, MultiCloseDialog, OpenOrdersPanel, OrderLog, useCloseOrder, useMultiClose

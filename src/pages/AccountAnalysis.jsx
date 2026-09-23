@@ -25,6 +25,9 @@ import { windowParts } from "@/lib/windowParts";
 import WindowParts from "@/components/analysis/WindowParts";
 import { setups as buildSetups } from "@/lib/campaigns";
 import SetupBreakdown from "@/components/analysis/SetupBreakdown";
+import AnalysisDisclosure from "@/components/analysis/AnalysisDisclosure";
+import { LAB } from "@/lib/lab";
+import AnalysisLayoutB from "@/components/analysis/AnalysisLayoutB";
 
 export default function AccountAnalysis() {
   const { id } = useParams();
@@ -452,6 +455,20 @@ export default function AccountAnalysis() {
   // names the authority the reader can check against -- their broker's total
   // DOES include this money, because the money moved; what we cannot say is
   // which trade it belongs to.
+  // ONE disclosure element, handed to whichever layout renders it. Built
+  // here rather than inside each layout so the two cannot diverge on a
+  // compliance surface — see AnalysisDisclosure.
+  const disclosure = (
+    <AnalysisDisclosure
+      view={view}
+      stats={stats}
+      book={book}
+      optionBook={optionBook}
+      orphanFigure={orphanFigure}
+      provisionalCount={provisionalCount}
+    />
+  );
+
   const withheldLine = withheldNote(audit, view);
   // The count and the dollars, in the view being shown, in one object so the
   // cards and the note cannot quote different numbers.
@@ -588,6 +605,48 @@ export default function AccountAnalysis() {
       ) : (
         <>
           <StrategyTabs trades={trades} active={strategy} onChange={setStrategy} />
+          {/* TWO LAYOUTS, ONE SET OF FIGURES.
+              Everything above this line — the loading, the windowing, the audit
+              split, every computed statistic — is shared. Only the arrangement
+              differs, so the lab layout cannot show a different number from the
+              one production shows; if it ever did, that would be a bug in the
+              arrangement and not a second opinion about the money.
+              LAB is off in the production build and the module is stubbed out
+              of that bundle entirely. See src/lib/lab.js. */}
+          {LAB ? (
+            <div ref={reportRef} className="bg-white">
+              <AnalysisLayoutB
+                isPaper={Boolean(data?.account?.is_paper)}
+                withheldLine={withheldLine}
+                transfersNote={transfersNote}
+                viewNote={headlineNote}
+                view={view}
+                onViewChange={setView}
+                hasOpen={hasOpen}
+                viewFigure={headline.figure}
+                viewFigureLabel={headline.label}
+                viewMarked={view === "premium" || Boolean(stats?.includesUnrealized)}
+                stats={stats}
+                withheldFigure={withheldFigure}
+                setupCount={positionSetups.length}
+                curve={curve}
+                chartMode={chartMode}
+                onChartMode={setChartMode}
+                hasValueSeries={hasValueSeries && useDaily}
+                chartFallbackReason={chartFallbackReason}
+                windowEnd={windowTo}
+                chartReconcileNote={chartReconcileNote}
+                parts={parts}
+                book={book}
+                optionBook={optionBook}
+                positionSetups={positionSetups}
+                comparison={comparison}
+                splitCount={splitCount}
+                subset={subset}
+                disclosure={disclosure}
+              />
+            </div>
+          ) : (
           <div ref={reportRef} className="space-y-5 bg-white">
             {/* Inside reportRef so it is captured in the export as well. A
                 simulated account must not produce a document that reads like
@@ -711,70 +770,9 @@ export default function AccountAnalysis() {
                 monthly realized P/L — a document shaped exactly like a tax
                 schedule, saying nothing about what it is. This is the page a
                 user forwards to their accountant in March. */}
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] leading-relaxed text-slate-600">
-              <span className="font-semibold text-slate-700">DeltaMint — economic performance report. Not a tax document.</span>{" "}
-              Figures cover only positions an option opened or closed and exclude the rest of this
-              account.{" "}
-              {/* VIEW-AWARE, because the block named a card that does not exist
-                  under one of them and described figures that are no longer
-                  what it says they are. Under Premium only there is no card
-                  called Realized P/L; under Whole view three of the things it
-                  called "money booked" now carry a mark-to-market. */}
-              {view === "premium" ? (
-                <>
-                  This view shows the option legs alone and excludes every share sale, which are the
-                  largest lines on a wheel trader&rsquo;s 1099-B. Nothing here is taxable gain or loss:
-                  wash sales, straddle rules, Section 1256 treatment and the premium&rsquo;s effect on
-                  stock basis at assignment are not applied.
-                </>
-              ) : (
-                <>
-                  P/L here is not taxable gain or loss: wash sales, straddle rules, Section 1256
-                  treatment and cost-basis adjustments on assignment are not applied.
-                  {/* "on shares still held" named the WRONG HALF. On a book
-                      carrying -$287.25 of mark, the share half was +$102.75 and
-                      the option half -$390.00 -- it named the half with the
-                      opposite sign and omitted the half that dominates. This
-                      block sits inside reportRef, so it is what the exported
-                      PDF says. */}
-                  {stats?.includesUnrealized && (
-                    <> The total, return on equity and return on risk also include an{" "}
-                    <strong>unrealized</strong> mark on positions still open
-                    {book.lots > 0 && optionBook.count > 0
-                      ? " — shares held and option legs not yet closed"
-                      : optionBook.count > 0
-                        ? " — option legs not yet closed"
-                        : " — shares still held"}
-                    . Nothing is owed on a position that has not been closed, and that figure moves
-                    with the market until it is.</>
-                  )}
-                </>
-              )}
-              {/* Share results that reached no trade row, so no statistic here
-                  counts them. Real money, in the account, invisible to every
-                  figure on this page -- and the daily chart reads the lots
-                  directly and DOES see it, so unsaid the two disagree in
-                  silence. */}
-              {Math.abs(orphanFigure) >= 0.005 && (
-                <> {fmtMoney(orphanFigure)} of share results could not be matched to an option in this
-                account &mdash; shares bought or sold outside DeltaMint, or a position that began before
-                the broker&rsquo;s activity feed does. That money is in the account and in none of the
-                figures above.</>
-              )}
-              {provisionalCount > 0 && (
-                <> {provisionalCount} position{provisionalCount === 1 ? "" : "s"} closed by assignment
-                {provisionalCount === 1 ? " still has" : " still have"} shares held, so
-                {provisionalCount === 1 ? " its result is" : " their results are"} not final. Anything
-                that calls a trade a win or a loss &mdash; win rate, profit factor, expectancy, payoff,
-                average and largest win and loss, per-trade return, the streaks, and the win-rate
-                columns in the tables above &mdash; is measured without
-                {provisionalCount === 1 ? " it" : " them"}. Anything that measures money booked &mdash;
-                the totals, the equity curve, drawdown, and the per-day and per-month figures &mdash;
-                counts {provisionalCount === 1 ? "it" : "them"} in full.</>
-              )}{" "}
-              Reconcile against your broker&rsquo;s Form 1099-B before using any figure for a return.
-            </div>
+            {disclosure}
           </div>
+          )}
         </>
       )}
     </div>

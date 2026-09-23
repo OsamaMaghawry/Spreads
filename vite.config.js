@@ -35,7 +35,10 @@ export default defineConfig(({ mode }) => {
   //
   // Adding to this list is the whole ceremony for putting work in the lab; the
   // matching LAB check at the call site is what keeps the stub from rendering.
-  const LAB_MODULES = ['@/components/admin/SnapTradePanel'];
+  const LAB_MODULES = [
+    '@/components/admin/SnapTradePanel',
+    '@/components/analysis/AnalysisLayoutB'
+  ];
   const labOn = env.VITE_LAB === '1';
   const labAliases = labOn
     ? {}
