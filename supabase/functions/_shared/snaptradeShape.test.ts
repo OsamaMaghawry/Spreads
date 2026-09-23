@@ -1,0 +1,260 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { redact, brokerRow, brokerMatrix, looksPaper, isPaperAccount, verdicts } from "./snaptradeShape.ts";
+
+// ---------------------------------------------------------------------------
+// Redaction
+// ---------------------------------------------------------------------------
+
+test("a secret is removed by the name of its key, whatever it holds", () => {
+  const out = redact({
+    userId: "u-1",
+    userSecret: "3f8a-not-a-real-secret",
+    accessToken: "abc",
+    consumerKey: "k",
+    nested: { refresh_token: "r", name: "Alpaca Paper" }
+  }) as Record<string, any>;
+  assert.equal(out.userId, "u-1");
+  assert.equal(out.userSecret, "[redacted]");
+  assert.equal(out.accessToken, "[redacted]");
+  assert.equal(out.consumerKey, "[redacted]");
+  assert.equal(out.nested.refresh_token, "[redacted]");
+  // Everything that is not a secret survives, or the record is useless.
+  assert.equal(out.nested.name, "Alpaca Paper");
+});
+
+test("long strings and long arrays are bounded rather than stored whole", () => {
+  const long = "x".repeat(900);
+  assert.match(String(redact(long)), /^x{400}… \(900 chars\)$/);
+  const many = redact(Array.from({ length: 60 }, (_, i) => i)) as unknown[];
+  assert.equal(many.length, 26);
+  assert.equal(many[25], "… 35 more");
+});
+
+test("redaction never throws on the shapes an API actually returns", () => {
+  assert.equal(redact(null), null);
+  assert.equal(redact(undefined), null);
+  assert.deepEqual(redact([]), []);
+  assert.equal(redact(0), 0);
+  assert.equal(redact(false), false);
+});
+
+// ---------------------------------------------------------------------------
+// The brokerage matrix
+// ---------------------------------------------------------------------------
+
+// Two rows in the shape SnapTrade returns, plus a field this file has never
+// seen — which is the case that matters, because their schema is theirs to
+// change.
+const BROKERS = [
+  {
+    id: "1", slug: "ALPACA", name: "Alpaca", display_name: "Alpaca",
+    enabled: true, maintenance_mode: false,
+    allows_trading: false, allows_trading_through_snaptrade_api: false,
+    is_real_time_connection: true, allows_fractional_units: true,
+    brokerage_type: { id: "t1", name: "Traditional Brokerage" },
+    some_new_flag: true
+  },
+  {
+    id: "2", slug: "ROBINHOOD", name: "Robinhood", display_name: "Robinhood",
+    enabled: true, maintenance_mode: false,
+    allows_trading: true, allows_trading_through_snaptrade_api: true,
+    is_real_time_connection: true, allows_fractional_units: true,
+    brokerage_type: { id: "t1", name: "Traditional Brokerage" }
+  },
+  {
+    id: "3", slug: "OFFLINE", name: "Somebody", display_name: "Somebody",
+    enabled: false, maintenance_mode: true,
+    allows_trading: false, brokerage_type: "Crypto Exchange"
+  }
+];
+
+// The first live run reported `authorization_types` as unmapped, which is how
+// it was found. It carries the question `allows_trading` cannot answer: not
+// whether an order can be placed, but whether the broker sanctioned the way it
+// is placed.
+test("how a broker is reached is read, not just whether it can trade", () => {
+  const official = brokerRow({
+    name: "Somebody", allows_trading: true,
+    authorization_types: [{ type: "trade", auth_type: "OAUTH" }, { type: "read", auth_type: "OAUTH" }]
+  } as any);
+  assert.equal(official.tradeAuth, "OAUTH");
+  assert.equal(official.readAuth, "OAUTH");
+  assert.equal(official.officialTrading, true);
+
+  const unofficial = brokerRow({
+    name: "Another", allows_trading: true,
+    authorization_types: [{ type: "trade", auth_type: "UNOFFICIAL_API" }, { type: "read", auth_type: "UNOFFICIAL_API" }]
+  } as any);
+  assert.equal(unofficial.officialTrading, false);
+});
+
+test("broker-issued API keys are sanctioned, not unofficial", () => {
+  // The live run returned a third value, TOKEN, on Binance, Kraken and
+  // Trading212. Those brokers issue API keys for exactly this purpose, so
+  // reading TOKEN as "unofficial" would have overstated the risk on four of
+  // the fifteen tradable brokers. Only an interface the broker never
+  // published is a risk to weigh.
+  const token = brokerRow({
+    name: "Keyed", allows_trading: true,
+    authorization_types: [{ type: "trade", auth_type: "TOKEN" }, { type: "read", auth_type: "TOKEN" }]
+  } as any);
+  assert.equal(token.tradeAuth, "TOKEN");
+  assert.equal(token.officialTrading, true);
+});
+
+test("a broker offering no trading connection is null, not false", () => {
+  // "They do not offer it" and "they offer it unofficially" are different
+  // answers, and only one of them is a risk to weigh.
+  const readOnly = brokerRow({
+    name: "Readonly", allows_trading: false,
+    authorization_types: [{ type: "read", auth_type: "OAUTH" }]
+  } as any);
+  assert.equal(readOnly.tradeAuth, null);
+  assert.equal(readOnly.officialTrading, null);
+  assert.equal(readOnly.readAuth, "OAUTH");
+});
+
+test("the matrix splits tradable reach into sanctioned and unofficial", () => {
+  const m = brokerMatrix([
+    { name: "A", allows_trading: true, authorization_types: [{ type: "trade", auth_type: "OAUTH" }] },
+    { name: "B", allows_trading: true, authorization_types: [{ type: "trade", auth_type: "UNOFFICIAL_API" }] },
+    { name: "C", allows_trading: false, authorization_types: [{ type: "read", auth_type: "OAUTH" }] }
+  ]);
+  assert.equal(m.tradable, 2);
+  assert.equal(m.tradableByOAuth, 1);
+  assert.equal(m.tradableUnofficially, 1);
+});
+
+test("the reach verdict names the unofficial ones, because that is the risk", () => {
+  const m = brokerMatrix([
+    { name: "A", allows_trading: true, authorization_types: [{ type: "trade", auth_type: "UNOFFICIAL_API" }] }
+  ]);
+  const v = verdicts([], m).find((x) => x.question.includes("How many brokers"));
+  assert.match(v!.answer, /1 through an interface the broker never published/);
+});
+
+test("a brokerage row is read into the fields that decide anything", () => {
+  const r = brokerRow(BROKERS[1] as any);
+  assert.equal(r.name, "Robinhood");
+  assert.equal(r.slug, "ROBINHOOD");
+  assert.equal(r.enabled, true);
+  assert.equal(r.trading, true);
+  assert.equal(r.tradingViaApi, true);
+  assert.equal(r.type, "Traditional Brokerage");
+  assert.deepEqual(r.unmapped, []);
+});
+
+test("a field this file has never seen is reported, not dropped", () => {
+  // The whole reason the matrix is trustworthy: a vendor adding
+  // `supports_multileg` next month shows up as a name to go and read, rather
+  // than silently missing from an evaluation that still looks complete.
+  assert.deepEqual(brokerRow(BROKERS[0] as any).unmapped, ["some_new_flag"]);
+  assert.deepEqual(brokerMatrix(BROKERS).fieldsUnmapped, ["some_new_flag"]);
+});
+
+test("a missing boolean is null, never false", () => {
+  // "They did not say" and "they said no" are different answers and only one
+  // of them is evidence.
+  const r = brokerRow(BROKERS[2] as any);
+  assert.equal(r.tradingViaApi, null);
+  assert.equal(r.trading, false);
+  assert.equal(r.realTime, null);
+});
+
+test("the matrix counts reach and puts the tradable brokers first", () => {
+  const m = brokerMatrix(BROKERS);
+  assert.equal(m.total, 3);
+  assert.equal(m.enabled, 2);
+  assert.equal(m.tradable, 1);
+  assert.equal(m.inMaintenance, 1);
+  assert.equal(m.rows[0].name, "Robinhood");
+  assert.ok(m.fieldsSeen.includes("allows_trading"));
+});
+
+test("an empty or malformed brokerage list is counted as nothing, not crashed on", () => {
+  assert.equal(brokerMatrix(null).total, 0);
+  assert.equal(brokerMatrix({ nope: true }).total, 0);
+  assert.equal(brokerMatrix([]).tradable, 0);
+});
+
+// ---------------------------------------------------------------------------
+// The paper gate
+// ---------------------------------------------------------------------------
+
+test("only a plainly simulated account counts as paper", () => {
+  assert.equal(looksPaper("Alpaca Paper"), true);
+  assert.equal(looksPaper("Practice Account"), true);
+  assert.equal(looksPaper(null, "sandbox"), true);
+  assert.equal(looksPaper("Simulated Trading"), true);
+});
+
+test("the broker's own is_paper flag decides, in both directions", () => {
+  // The first connected account returned `is_paper: false` on "Robinhood
+  // Individual". A flag from the source outranks a guess from a name, and it
+  // has to outrank it BOTH ways -- otherwise an account explicitly marked
+  // live but named "... Paper Trading ..." would be promoted to tradable.
+  assert.equal(isPaperAccount({ is_paper: true, name: "Anything", institution_name: "Anything" }), true);
+  assert.equal(isPaperAccount({ is_paper: false, name: "Paper Trading", institution_name: "Demo Broker" }), false);
+});
+
+test("without the flag, the name is the fallback and silence is refused", () => {
+  assert.equal(isPaperAccount({ name: "Alton", institution_name: "Alpaca Paper" }), true);
+  assert.equal(isPaperAccount({ name: "Individual", institution_name: "Robinhood" }), false);
+  assert.equal(isPaperAccount({}), false);
+  assert.equal(isPaperAccount(null), false);
+});
+
+test("anything not plainly simulated is refused, including silence", () => {
+  // Unknown is not paper. Being wrong in this direction costs an evaluation
+  // nothing; being wrong the other way sends a real order to a real account.
+  assert.equal(looksPaper("Alpaca"), false);
+  assert.equal(looksPaper("Robinhood Individual"), false);
+  assert.equal(looksPaper(null, undefined, ""), false);
+  assert.equal(looksPaper(), false);
+});
+
+// ---------------------------------------------------------------------------
+// The verdict
+// ---------------------------------------------------------------------------
+
+const probe = (over: Partial<any> = {}) => ({
+  name: "x", need: "", method: "GET", path: "/", ok: true, status: 200, ms: 10,
+  error: null, sample: null, count: 0, ...over
+});
+
+test("market data is a flat no, whatever else the probes found", () => {
+  const v = verdicts([], null).find((x) => x.question.includes("market data"));
+  assert.equal(v?.state, "no");
+  assert.match(v!.answer, /option chains/);
+});
+
+test("an endpoint that answered with nothing in it is partial, not proof", () => {
+  const v = verdicts([probe({ name: "option positions", count: 0 })], null)
+    .find((x) => x.question.includes("option positions"));
+  assert.equal(v?.state, "partial");
+  assert.match(v!.answer, /holds no option positions/);
+});
+
+test("an endpoint that returned real rows is proof", () => {
+  const v = verdicts([probe({ name: "option positions", count: 3 })], null)
+    .find((x) => x.question.includes("option positions"));
+  assert.equal(v?.state, "yes");
+});
+
+test("nothing tested reads as unknown and says what would settle it", () => {
+  const v = verdicts([], null).find((x) => x.question.includes("multi-leg"));
+  assert.equal(v?.state, "unknown");
+  assert.match(v!.answer, /paper account/);
+});
+
+test("reach is read off the matrix and quoted with real counts", () => {
+  const v = verdicts([], brokerMatrix(BROKERS)).find((x) => x.question.includes("How many brokers"));
+  assert.match(v!.answer, /3 brokerages listed, 2 enabled, 1 able to trade/);
+  assert.match(v!.answer, /1 in maintenance/);
+});
+
+test("no brokerage list means reach is unproven rather than zero", () => {
+  const v = verdicts([], null).find((x) => x.question.includes("How many brokers"));
+  assert.equal(v?.state, "unknown");
+});
