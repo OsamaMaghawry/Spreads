@@ -59,6 +59,7 @@ export async function heldShares(admin: any, account: any) {
     tickers: Object.keys(shares).filter((t) => shares[t] >= 100),
     sharesFree: cover.sharesFree,
     longsFree: cover.longsFree,
-    coverTickers: cover.coverTickers
+    coverTickers: cover.coverTickers,
+    committed: cover.committed
   };
 }

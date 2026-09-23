@@ -150,6 +150,8 @@ Deno.serve(async (req) => {
     // user commits to it; `openPosition`'s preflight checks it again at the
     // order, which is the check that actually binds.
     let shares = 0;
+    let sharesFree = 0;
+    let longCover: any[] = [];
     let basis: number | null = null;
     let basisSource: string | null = null;
     try {
@@ -160,6 +162,12 @@ Deno.serve(async (req) => {
       // product has already settled once.
       const held = await heldShares(admin, account);
       shares = Number(held?.shares?.[symbol] ?? 0) || 0;
+      // What can cover a NEW call is what is left after the calls already
+      // sold have taken theirs -- the Scanner's rule, from the same allocator.
+      // Reading `shares` here priced a second TSLA call as covered by the
+      // hundred shares already behind the first, and never saw a long call.
+      sharesFree = Number(held?.sharesFree?.[symbol] ?? 0) || 0;
+      longCover = held?.longsFree?.[symbol] || [];
       const b = held?.basis?.[symbol];
       if (b && Number(b.basis) > 0) {
         basis = Number(b.basis);
@@ -184,6 +192,8 @@ Deno.serve(async (req) => {
       ladder,
       atTheMoney: atTheMoneyIndex(ladder, spot?.price ?? null),
       shares,
+      sharesFree,
+      longCover,
       basis,
       basisSource
     });

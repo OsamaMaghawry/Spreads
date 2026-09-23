@@ -138,7 +138,7 @@ test("the owner's book: the IBIT long call is free cover, and TSLA is not", () =
   // THE REPORTED FAULT. The Scanner showed TSLA and never IBIT, because it
   // counted shares and skipped every option. The long call is cover.
   assert.deepEqual(c.longsFree.IBIT, [
-    { symbol: "IBIT261218C00050000", ticker: "IBIT", strike: 50, expiry: "2026-12-18", qty: 1, cost: 3.4 }
+    { symbol: "IBIT261218C00050000", ticker: "IBIT", strike: 50, expiry: "2026-12-18", qty: 1, cost: 3.4, mark: null }
   ]);
 
   // THE ONE HE DID NOT REPORT. 100 TSLA shares, all of them already behind the
@@ -207,4 +207,36 @@ test("an adjusted long call is not cover", () => {
   // shares, so counting it as cover for a standard short is a guess.
   const c = freeCallCover([{ symbol: "IBIT1261218C00050000", qty: "1", avg_entry_price: "3.40" }]);
   assert.deepEqual(c.coverTickers, []);
+});
+
+// "I guess you added the long calls and you removed the stocks because Tesla
+// ... it's not showing up anymore." TSLA was left out on purpose; the fault
+// was saying nothing. Every ticker held but spoken for comes back with a reason.
+test("the owner's book: TSLA is named, with the call its shares stand behind", () => {
+  const c = freeCallCover(LIVE_BOOK);
+  assert.deepEqual(c.committed, [{
+    ticker: "TSLA",
+    reason: "Your 100 shares already cover the 390 call (2026-09-23) you sold. Close it or let it expire to write another."
+  }]);
+});
+
+test("a free ticker is never listed as committed", () => {
+  const c = freeCallCover(LIVE_BOOK);
+  assert.ok(!c.committed.some((x) => x.ticker === "IBIT"));
+  const after = freeCallCover(LIVE_BOOK.filter((p) => p.symbol !== "TSLA260923C00390000"));
+  assert.deepEqual(after.committed, []);
+});
+
+test("a long call already covering a short is named, in the singular", () => {
+  const c = freeCallCover([
+    { symbol: "IBIT261218C00050000", qty: "1", avg_entry_price: "3.40" },
+    { symbol: "IBIT261016C00055000", qty: "-1", avg_entry_price: "0.80" }
+  ]);
+  assert.equal(c.committed.length, 1);
+  assert.match(c.committed[0].reason, /^Your long call already covers the 55 call \(2026-10-16\)/);
+});
+
+test("the long's price today travels, for the ticket chart to value it", () => {
+  const c = freeCallCover([{ symbol: "IBIT261218C00050000", qty: "1", avg_entry_price: "3.40", current_price: "4.10" }]);
+  assert.equal(c.longsFree.IBIT[0].mark, 4.1);
 });

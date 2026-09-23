@@ -530,3 +530,71 @@ test("share rows pass through untouched", () => {
   assert.deepEqual(rows[0], shares);
   assert.equal(undatable.length, 0);
 });
+
+// ---------------------------------------------------------------------------
+// A call written against a long call already held. The chart must draw the
+// long under it, or it draws a naked call beneath a bounded max loss.
+// ---------------------------------------------------------------------------
+
+const overLong = {
+  ticker: "IBIT", expiry: "2026-10-16", strategy: "covered_call", spot: 52, credit: 0.8,
+  coveredBy: "long_call", maxRisk: 260, maxProfit: null,
+  cover: { symbol: "IBIT261218C00050000", strike: 50, expiry: "2026-12-18", cost: 3.4, mark: 4.1, contracts: 1 },
+  legs: [{ role: "short_call", symbol: "IBIT261016C00055000", strike: 55, bid: 0.75, ask: 0.85, mid: 0.8, iv: 0.5, ratio: 1, side: "sell" }]
+};
+
+test("a call over a long brings the long, at its cost, with its own expiry", () => {
+  const rows = pendingRows(overLong, 1);
+  assert.equal(rows.length, 2);
+  const cover = rows.find((r) => r.id === "pending-cover");
+  assert.equal(cover.legs[0].side, "long");
+  assert.equal(cover.legs[0].strike, 50);
+  assert.equal(cover.legs[0].entryPrice, 3.4);
+  assert.equal(cover.legs[0].expiry, "2026-12-18");
+  assert.ok(cover.legs[0].iv > 0);
+  assert.ok(!rows.some((r) => r.id === "pending-shares"));
+});
+
+test("the drawn position is bounded above the strike — never a naked call", () => {
+  const rows = pendingRows(overLong, 1);
+  const at = atClose("2026-10-16");
+  for (const price of [60, 80, 150, 400]) {
+    const pl = bookPLAt(rows, price, at);
+    // Above both strikes the pair nets at least the strike gap plus the credit
+    // less the cost -- the same floor as "if assigned", before time value.
+    assert.ok(pl >= 240 - 1e-6, `at ${price} the pair drew ${pl}`);
+  }
+  // And the worst of the curve is not below the stated max loss.
+  const low = bookPLAt(rows, 1, at);
+  assert.ok(low >= -260 - 1e-6, `at $1 the pair drew ${low}`);
+});
+
+test("with no price for the long today, nothing is drawn rather than a naked call", () => {
+  const rows = pendingRows({ ...overLong, cover: { ...overLong.cover, mark: null } }, 1);
+  assert.deepEqual(rows, []);
+});
+
+test("the long's expiry is one of the position's dates, so what is left after is drawn", () => {
+  assert.deepEqual(expiriesOf(overLong), ["2026-10-16", "2026-12-18"]);
+  const when = analysisDates(overLong);
+  assert.equal(when.multi, true);
+  assert.equal(when.far, "2026-12-18");
+});
+
+test("beside the open book, the long is not drawn twice", () => {
+  const rows = pendingRows(overLong, 1);
+  const book = {
+    ticker: "IBIT", spot: 52,
+    rows: [{ id: "open-1", type: "option", qty: 1, legs: [{ symbol: "IBIT261218C00050000", kind: "call", side: "long", strike: 50, entryPrice: 3.4 }] }]
+  };
+  const merged = withPending(book, rows);
+  assert.ok(!merged.rows.some((r) => r.id === "pending-cover"));
+  assert.ok(merged.rows.some((r) => r.id === "pending"));
+  // Held in a different account's book, it is still drawn.
+  const other = withPending({ ...book, rows: [] }, rows);
+  assert.ok(other.rows.some((r) => r.id === "pending-cover"));
+});
+
+test("the long's strike is marked on the chart", () => {
+  assert.ok(ticketMarks(overLong).some((m) => m.label === "L 50C" && m.value === 50));
+});

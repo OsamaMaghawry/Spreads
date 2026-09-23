@@ -196,6 +196,7 @@ export function freeCallCover(positions: any[]) {
   const shares: Record<string, number> = {};
   const legs: any[] = [];
   const cost: Record<string, number> = {};
+  const mark: Record<string, number> = {};
   for (const p of Array.isArray(positions) ? positions : []) {
     const qty = parseFloat(p?.qty);
     if (!isFinite(qty) || qty === 0) continue;
@@ -224,13 +225,18 @@ export function freeCallCover(positions: any[]) {
     // covered call's share basis stands on.
     const avg = parseFloat(p.avg_entry_price);
     if (avg > 0) cost[p.symbol] = avg;
+    // What it is worth now, per share. The ticket's payoff chart values the
+    // long on the short call's expiry, when it still has time left, and needs
+    // today's price to back a volatility out of; the entry cost cannot give it.
+    const now = parseFloat(p.current_price);
+    if (now > 0) mark[p.symbol] = now;
   }
 
-  const { sharesLeft, longsLeft } = allocateCallCover(legs, shares);
+  const { bySymbol, sharesLeft, longsLeft } = allocateCallCover(legs, shares);
 
   const longsFree: Record<string, any[]> = {};
   for (const l of longsLeft) {
-    (longsFree[l.ticker] ||= []).push({ ...l, cost: cost[l.symbol] ?? null });
+    (longsFree[l.ticker] ||= []).push({ ...l, cost: cost[l.symbol] ?? null, mark: mark[l.symbol] ?? null });
   }
   const sharesFree: Record<string, number> = {};
   for (const [t, n] of Object.entries(sharesLeft)) if (n > 0) sharesFree[t] = n;
@@ -242,5 +248,36 @@ export function freeCallCover(positions: any[]) {
     ])
   ].sort();
 
-  return { shares, sharesFree, longsFree, coverTickers };
+  // WHAT IS HELD BUT ALREADY SPOKEN FOR, said out loud. Leaving a ticker out
+  // silently read as a fault: the owner, the day this rule shipped, "you
+  // removed the stocks because Tesla ... it's not showing up anymore". It was
+  // left out on purpose -- his 100 TSLA stood behind a short 390 call -- and
+  // the screen has to say so rather than make him guess.
+  const committed: { ticker: string; reason: string }[] = [];
+  const heldTickers = new Set([
+    ...Object.keys(shares).filter((t) => shares[t] >= SHARES_PER_CONTRACT),
+    ...legs.filter((l) => l.type === "C" && l.qty > 0 && !l.adjusted).map((l) => l.ticker)
+  ]);
+  for (const t of [...heldTickers].sort()) {
+    if (coverTickers.includes(t)) continue;
+    const shorts = Object.values(bySymbol)
+      .filter((c) => c.ticker === t && c.judged && c.covered > 0)
+      .map((c) => {
+        const leg = legs.find((l) => l.symbol === c.symbol);
+        return `${leg?.strike ?? "?"} call (${leg?.expiry ?? "?"})`;
+      });
+    const what = [
+      shares[t] >= SHARES_PER_CONTRACT ? `${shares[t]} shares` : null,
+      legs.some((l) => l.ticker === t && l.type === "C" && l.qty > 0) ? "long call" : null
+    ].filter(Boolean).join(" and ");
+    const verb = what === "long call" ? "covers" : "cover";
+    committed.push({
+      ticker: t,
+      reason: shorts.length
+        ? `Your ${what} already ${verb} the ${shorts.join(", ")} you sold. Close it or let it expire to write another.`
+        : `Your ${what} can't cover a new call right now.`
+    });
+  }
+
+  return { shares, sharesFree, longsFree, coverTickers, committed };
 }

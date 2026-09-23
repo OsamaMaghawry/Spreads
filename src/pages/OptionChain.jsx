@@ -145,7 +145,10 @@ export default function OptionChain() {
     spot: data.spot,
     spotSource: data.spotSource,
     spotAsOf: data.spotAsOf,
-    shares: data.shares,
+    // FREE cover: shares and long calls not already behind a call sold. The
+    // fallback is only for a function older than this page.
+    shares: data.sharesFree ?? data.shares,
+    longCover: data.longCover || [],
     basis: data.basis,
     basisSource: data.basisSource
   }), [data, accountId, accounts]);

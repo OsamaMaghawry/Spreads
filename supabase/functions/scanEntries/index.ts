@@ -39,6 +39,10 @@ Deno.serve(async (req) => {
     // universe is the account, not the request. A cash-secured put scans the
     // requested tickers like a spread does.
     let params = body;
+    // Tickers held but left out because their cover is already behind a call
+    // sold. Returned with every covered-call answer so the screen can name
+    // them; see freeCallCover.
+    let committed: any[] = [];
     if (strategy === "covered_call") {
       const held = await heldShares(admin, account);
       // FREE cover, not held cover. A long call the account owns can cover a
@@ -48,10 +52,11 @@ Deno.serve(async (req) => {
       // TSLA shares already committed to a short 390C.
       if (held.coverTickers.length === 0) {
         return jsonResponse({
-          ok: false, candidates: [], skipped: [],
+          ok: false, candidates: [], skipped: [], committed: held.committed,
           reason: "Nothing free to write a call against — no 100 shares and no long call that isn't already covering one."
         });
       }
+      committed = held.committed;
       params = {
         ...body,
         tickers: held.coverTickers,
@@ -109,7 +114,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return jsonResponse(result);
+    return jsonResponse(committed.length ? { ...result, committed } : result);
   } catch (error) {
     return jsonResponse({ error: error.message }, 500);
   }

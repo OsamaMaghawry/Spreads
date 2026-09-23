@@ -359,3 +359,69 @@ test("a bare short CALL still has no ceiling, because a stock has no top", () =>
   assert.equal(r.setup.unlimitedRisk, true);
   assert.ok(/no ceiling on the loss/.test(r.setup.riskNote));
 });
+
+// ---------------------------------------------------------------------------
+// A call sold against a long call already held. Same arithmetic as the
+// Scanner's buildCallOverLong; the chain must not give a second answer.
+// ---------------------------------------------------------------------------
+
+const ibitCall55 = row({ symbol: "IBIT261016C00055000", strike: 55, type: "C", bid: 0.75, ask: 0.85, mid: 0.8, delta: 0.25 });
+const long50 = { symbol: "IBIT261218C00050000", strike: 50, expiry: "2026-12-18", cost: 3.4, mark: 4.1, qty: 1 };
+const ibit = { ticker: "IBIT", expiry: "2026-10-16", spot: 52, shares: 0 };
+
+test("a call over a free long call is bounded, and priced as the spread it is", () => {
+  const r = contractSetup(ibitCall55, "sell", { ...ibit, longCover: [long50] });
+  assert.equal(r.ok, true);
+  const s = r.setup;
+  assert.equal(s.coveredBy, "long_call");
+  assert.equal(s.unlimitedRisk, false);
+  assert.equal(s.collateral, 340);
+  // 3.40 cost - 0.80 credit, no strike gap (long 50 is under short 55).
+  assert.ok(Math.abs(s.maxRisk - 260) < 1e-9);
+  // Exercise to deliver: 55 - 50 + 0.80 - 3.40 = 2.40 a share, the floor.
+  assert.ok(Math.abs(s.ifAssigned - 240) < 1e-9);
+  assert.equal(s.maxProfit, null);
+  assert.equal(s.maxContracts, 1);
+  assert.equal(s.cover.mark, 4.1);
+});
+
+test("a long struck ABOVE the short adds the gap to the risk", () => {
+  const r = contractSetup(ibitCall55, "sell", { ...ibit, longCover: [{ ...long50, strike: 58 }] });
+  // 3.40 - 0.80 + (58 - 55) = 5.60 a share.
+  assert.ok(Math.abs(r.setup.maxRisk - 560) < 1e-9);
+});
+
+test("a long that expires before the call cannot cover it — the call stays naked", () => {
+  const r = contractSetup(ibitCall55, "sell", { ...ibit, longCover: [{ ...long50, expiry: "2026-10-09" }] });
+  assert.equal(r.setup.unlimitedRisk, true);
+  assert.equal(r.setup.maxRisk, null);
+  assert.equal(r.setup.coveredBy, undefined);
+});
+
+test("a long with no cost on record is not cover — risk cannot be bounded from nothing", () => {
+  const r = contractSetup(ibitCall55, "sell", { ...ibit, longCover: [{ ...long50, cost: null }] });
+  assert.equal(r.setup.unlimitedRisk, true);
+});
+
+test("a credit covering everything the long cost is refused, not ranked as riskless", () => {
+  const r = contractSetup(ibitCall55, "sell", { ...ibit, longCover: [{ ...long50, cost: 0.5 }] });
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /check the quote/);
+});
+
+test("the long covers before shares, as in the Scanner and the allocator", () => {
+  const r = contractSetup(ibitCall55, "sell", { ...ibit, shares: 100, basis: 40, longCover: [long50] });
+  assert.equal(r.setup.coveredBy, "long_call");
+});
+
+test("shares still cover when there is no free long", () => {
+  const r = contractSetup(call380, "sell", { ...ctx, shares: 100, basis: 350, longCover: [] });
+  assert.equal(r.setup.unlimitedRisk, false);
+  assert.equal(r.setup.basis, 350);
+});
+
+test("BUYING a call ignores the long cover entirely", () => {
+  const r = contractSetup(ibitCall55, "buy", { ...ibit, longCover: [long50] });
+  assert.equal(r.setup.strategy, "long_call");
+  assert.equal(r.setup.coveredBy, undefined);
+});

@@ -475,6 +475,7 @@ function buildCallOverLong({ base, ticker, expiry, px, calls, targetDelta, allow
         strike: longStrike,
         expiry: long.expiry,
         cost: longCost,
+        mark: Number(long.mark) > 0 ? Number(long.mark) : null,
         contracts: Number(long.qty) || 0
       },
       // If the short is assigned the account is SHORT 100 shares, not relieved

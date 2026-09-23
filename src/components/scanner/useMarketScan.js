@@ -21,6 +21,10 @@ export default function useMarketScan() {
   // a full body of reasons: *"I see nothing happening. It is not working
   // still."* It was working -- it just had no way to say so.
   const [skipped, setSkipped] = useState([]);
+  // Tickers the account holds but whose cover already stands behind a call it
+  // has sold. Shown whenever a covered-call scan runs, not only when nothing
+  // matched: left out silently, TSLA read as a fault.
+  const [committed, setCommitted] = useState([]);
   const [error, setError] = useState(null);
   const stopped = useRef(false);
 
@@ -41,6 +45,7 @@ export default function useMarketScan() {
     setCandidates([]);
     setSkippedCount(0);
     setSkipped([]);
+    setCommitted([]);
     const total = jobs.reduce((n, j) => n + j.tickers.length, 0);
     setProgress({ done: 0, total });
 
@@ -66,6 +71,12 @@ export default function useMarketScan() {
           all = all.slice(0, 100);
           setCandidates([...all]);
           setSkippedCount((n) => n + (data.skipped?.length || 0));
+          if (data.committed?.length) {
+            setCommitted((prev) => {
+              const have = new Set(prev.map((c) => c.ticker));
+              return [...prev, ...data.committed.filter((c) => !have.has(c.ticker))];
+            });
+          }
           // Bounded: a whole-market sweep can skip thousands of names and the
           // screen only ever shows a handful. Keeping every one would grow
           // without limit for no gain.
@@ -82,5 +93,5 @@ export default function useMarketScan() {
     if (all.length > 0) playAlert();
   };
 
-  return { running, progress, candidates, skippedCount, skipped, error, start, stop };
+  return { running, progress, candidates, skippedCount, skipped, committed, error, start, stop };
 }

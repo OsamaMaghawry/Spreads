@@ -150,6 +150,9 @@ export function contractSetup(row, action, ctx) {
     };
   }
 
+  const long = freeLong(ctx?.longCover, ctx?.expiry);
+  if (long) return callOverLong({ base, leg, price, strike, otm, long, shares, ticker: ctx?.ticker });
+
   return {
     ok: true,
     setup: {
@@ -172,6 +175,79 @@ export function contractSetup(row, action, ctx) {
       breakEvenLow: null,
       breakEvenHigh: strike + price,
       ifCalled: covered ? (strike - basis + price) * 100 : null,
+      otmPct: otm,
+      legs: [leg]
+    }
+  };
+}
+
+/**
+ * The first long call that can cover a call sold for `expiry`: one the account
+ * holds free (not already behind a call it has sold -- the server decides
+ * that, with the allocator the Dashboard uses), expiring ON OR AFTER the new
+ * call, with a cost on record. A long that dies first would leave the short
+ * bare for the rest of its life. Longs cover before shares, as they do in the
+ * Scanner and in the allocator itself.
+ */
+function freeLong(list, expiry) {
+  for (const l of list || []) {
+    if (!(num(l?.cost) > 0) || num(l?.strike) === null || !(num(l?.qty) > 0)) continue;
+    if (String(l.expiry || "") < String(expiry || "")) continue;
+    return l;
+  }
+  return null;
+}
+
+/**
+ * A call sold against a long call already held -- a spread, priced exactly as
+ * `buildCallOverLong` in optionScan.ts prices it, so the chain and the Scanner
+ * give one answer for one position:
+ *
+ *   max loss / share   long cost - credit + max(0, long strike - short strike)
+ *   if assigned        short strike - long strike + credit - long cost
+ *
+ * The first is a bound at the short call's expiry that ignores the long's
+ * remaining time value, so it overstates the risk rather than understating it.
+ * The second is the floor, because exercising the long to deliver forfeits that
+ * time value. No max profit: at the short strike the long has gained too, by an
+ * amount that depends on volatility nobody knows yet.
+ */
+function callOverLong({ base, leg, price, strike, otm, long, shares, ticker }) {
+  const longStrike = num(long.strike);
+  const cost = num(long.cost);
+  const riskPerShare = cost - price + Math.max(0, longStrike - strike);
+  if (!(riskPerShare > 0)) {
+    return {
+      ok: false,
+      reason: `The $${price.toFixed(2)} credit would cover everything your ${ticker} long call cost — check the quote before trusting it.`
+    };
+  }
+  return {
+    ok: true,
+    setup: {
+      ...base,
+      credit: price,
+      collateral: cost * 100,
+      maxRisk: riskPerShare * 100,
+      unlimitedRisk: false,
+      coveredBy: "long_call",
+      cover: {
+        symbol: long.symbol,
+        strike: longStrike,
+        expiry: long.expiry,
+        cost,
+        mark: num(long.mark),
+        contracts: num(long.qty)
+      },
+      ifAssigned: (strike - longStrike + price - cost) * 100,
+      maxProfit: null,
+      basis: null,
+      sharesHeld: shares,
+      basisSource: null,
+      maxContracts: num(long.qty),
+      breakEvenLow: null,
+      breakEvenHigh: null,
+      returnOnCollateral: price / cost,
       otmPct: otm,
       legs: [leg]
     }
