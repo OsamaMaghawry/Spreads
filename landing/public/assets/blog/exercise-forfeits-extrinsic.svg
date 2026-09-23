@@ -1,0 +1,21 @@
+<svg viewBox="0 0 720 240" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Two horizontal bars comparing what a hypothetical deep in the money 50 strike call is worth sold versus exercised. Selling it captures the full 6.70 premium. Exercising it captures only the 6.00 of intrinsic value and forfeits the remaining 0.70 of extrinsic value, shown as a separate light red segment. Exercising early always gives up whatever extrinsic value is still in the price.">
+  <rect width="720" height="240" fill="#FFFFFF"/>
+
+  <!-- legend -->
+  <rect x="40" y="24" width="18" height="18" rx="3" fill="#2E8B5F"/>
+  <text x="66" y="39" font-size="15" fill="#14151C">captured</text>
+  <rect x="176" y="24" width="18" height="18" rx="3" fill="#F7DEE2" stroke="#B4485C" stroke-width="1.5"/>
+  <text x="202" y="39" font-size="15" fill="#14151C">forfeited</text>
+
+  <!-- row 1: sell the call -->
+  <text x="150" y="98" font-size="18" text-anchor="end" fill="#767B8E">sell the call</text>
+  <rect x="166" y="78" width="480" height="30" rx="4" fill="#2E8B5F"/>
+  <text x="662" y="98" font-size="18" font-weight="600" fill="#14151C">6.70</text>
+
+  <!-- row 2: exercise the call -->
+  <text x="150" y="178" font-size="18" text-anchor="end" fill="#767B8E">exercise the call</text>
+  <rect x="166" y="158" width="430" height="30" rx="4" fill="#2E8B5F"/>
+  <text x="588" y="178" font-size="16" font-weight="600" text-anchor="end" fill="#FFFFFF">6.00</text>
+  <rect x="596" y="158" width="50" height="30" rx="4" fill="#F7DEE2" stroke="#B4485C" stroke-width="1.5"/>
+  <text x="621" y="150" font-size="12" font-weight="600" text-anchor="middle" fill="#B4485C">0.70</text>
+</svg>
