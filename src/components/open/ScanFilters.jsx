@@ -60,7 +60,7 @@ export default function ScanFilters({ cfg, set, isCondor, single = false, strate
       )}
       {strategy === "covered_call" && (
         <p className="text-[11px] text-slate-400 leading-relaxed">
-          Scans the shares this account holds, 100 or more, at their cost basis — the tickers above are ignored.
+          Scans this account's free cover — 100+ shares, or a long call — not already behind a call you sold. The tickers above are ignored.
         </p>
       )}
 

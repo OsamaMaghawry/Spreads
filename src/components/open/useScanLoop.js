@@ -17,6 +17,9 @@ export default function useScanLoop() {
   const [nextIn, setNextIn] = useState(0);
   const [candidates, setCandidates] = useState(null);
   const [skipped, setSkipped] = useState([]);
+  // Held tickers left out of a covered-call scan because their cover already
+  // stands behind a call sold. Named, so they do not read as missing.
+  const [committed, setCommitted] = useState([]);
   const [error, setError] = useState(null);
   const stopped = useRef(false);
   const timer = useRef(null);
@@ -49,6 +52,7 @@ export default function useScanLoop() {
     setError(null);
     setCandidates(null);
     setSkipped([]);
+    setCommitted([]);
     setAttempts(0);
 
     const attempt = async () => {
@@ -67,7 +71,16 @@ export default function useScanLoop() {
         }
         setError(null);
         setSkipped(data.skipped || []);
+        setCommitted(data.committed || []);
         const found = data.candidates || [];
+        // The server said why there is nothing to scan -- no free cover at all.
+        // Retrying every 20 seconds cannot change that, and saying nothing
+        // while it does is how a correct answer looks like a broken screen.
+        if (data.reason && found.length === 0) {
+          setError(data.reason);
+          setRunning(false);
+          return;
+        }
         if (found.length > 0) {
           setCandidates(found);
           setRunning(false);
@@ -88,5 +101,5 @@ export default function useScanLoop() {
 
   // The UI says "waiting for the open" rather than counting down to a pass that
   // cannot find anything.
-  return { running, attempts, nextIn, candidates, skipped, error, start, stop, setCandidates, marketOpen: marketIsOpen() };
+  return { running, attempts, nextIn, candidates, skipped, committed, error, start, stop, setCandidates, marketOpen: marketIsOpen() };
 }
