@@ -23,7 +23,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 9 | Gamma | gamma options meaning | option gamma | SoFi, tastytrade, Merrill Edge, Schwab, OIC, CME, TradingBlock, Barchart; Quora and a Substack in the tail | short, honest, when it matters and when it does not |
 | 10 | Assignment | option assignment what happens | option assignment | broker help pages (Robinhood, E*TRADE, Fidelity, Schwab), FINRA and OIC, Nasdaq, Option Alpha, SoFi; Quora, a Substack, Elite Trader and TradingView chart ideas in the tail. No Reddit surfaced | the account the morning after, line by line |
 | 11 | Early exercise | early exercise options (always qualified — see the row 11 reading) | early exercise, option exercise — never "exercise" alone | Wikipedia, Option Alpha, Options Playbook, CFI, Schwab, Fidelity, IBKR, Benzinga, Barchart, optionstradingiq; Carta and equity-comp law firms take half the intent; a Bionic Turtle forum thread in the tail. No Investopedia surfaced | why it is rare, and the one dividend case it is not |
-| 12 | Expiration mechanics | what happens options expiration | expiration | broker help pages | ITM by a cent, OTM by a cent, the cutoff |
+| 12 | Expiration mechanics | what happens at options expiration (also searched as "what happens when options expire") | options expiration — never "expiration" alone | Schwab, E*TRADE, Options Playbook, Option Alpha, IG, VectorVest, tastytrade and SoFi support, Fidelity, Public help; Wikipedia and Schwab on pin risk; two Quora threads and a Substack in the tail. No Investopedia or Reddit surfaced | a cent either side of the strike, the broker's cutoff, and each spread leg settled on its own |
 | 13 | Buying power | options buying power requirement | buying power | broker help pages, Reddit | what a CSP and a spread each hold in reserve |
 | 14 | Reading a chain | how to read an option chain | option chain | Investopedia, broker pages | reading without guessing the spot |
 | 15 | Covered call | covered call explained | covered call | Investopedia, Fidelity, Schwab | mechanics, then the day after assignment |
@@ -265,6 +265,56 @@ forums" as the competition: eleven phrasings were read and Investopedia
 surfaced in none of them, while the only forum result anywhere was one Bionic
 Turtle thread on the put case. That absence is a read of these results pages on
 one day through one search tool, not proof those sites do not rank.
+
+## Reading for row 12 — what happens at options expiration (read 2026-09-23)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| what happens options expiration / what happens at expiration options (target) | Schwab, E*TRADE (twice), Options Playbook, Option Alpha (a calendar page), IG, VectorVest, Bankrate, tastytrade support, StockCram, TradeAlgo, esofund (employee options), a TradingView support locale | **hard-ish** — broker education and help centres hold the top, nearly every title some form of "What Happens When Options Expire"; the tail is thin guide sites rather than authority |
+| options expiration | Schwab, SpotGamma (OPEX), Fidelity ("how to pick an expiration date"), OIC and Macroption calendars, a Cboe calendar PDF, TradingBlock, CME (AM/PM) | **hard, and a different intent** — the bare two-word phrase leans to calendars, OPEX and choosing a date. It is the hub's head term; this post does not chase it |
+| expiration (unqualified) / expiration date | dictionaries (Merriam-Webster, Collins, Cambridge, Dictionary.com, Vocabulary.com), Wikipedia "Expiration" (breathing out) and "Expiration date", food and drug labelling (FDA, NSF, UConn, "Drug expiration"), an expiration-date calculator | **do not target**: the bare word is not a finance term — it is breathing, food, medicine, licences and subscriptions. The head term for this row is **options expiration**, never "expiration" alone — the same correction rows 7, 9, 10 and 11 needed for "theta", "gamma", "assignment" and "exercise" |
+| what happens when an option expires in the money | SoFi support, Options Playbook, Option Samurai, IBKR Quant, VectorVest, Schwab, financhill, Nasdaq (two syndicated columns) | **hard-ish** — broker help and syndicated columns; every page gives the $0.01 rule and stops |
+| option expires one cent in the money automatic exercise | E*TRADE, Fidelity, Public help, EquitiesAmerica, LegalClarity, Zacks, an SEC/OCC rule filing, an EPFL concept page, Law Insider | **winnable** — a legal-content farm, a university concept page and a clause library in one top set is a text-coverage gap |
+| what happens if my option expires out of the money | SoFi support (twice), tastytrade support, Options Playbook, Option Samurai, VectorVest, Wikipedia (pin risk, time value, calendar spread) | hard-ish on the words, but the answer is one sentence everywhere; it earns a bullet, not a heading |
+| what happens if I don't sell my option before expiration | **two Quora threads**, DayTrading.com, Public help, Wikipedia "Put option", StockCram, smartsavingadvice, financhill, Nasdaq | **winnable** — two Quora threads at the top is winnable intent; the searcher's words for the post's "What if I do nothing?" FAQ |
+| can I stop my in the money option from being exercised | OIC FAQ, NASPP (employee equity), Schaeffer's, E*TRADE, Wikipedia (pin risk, exercise), Fidelity, Public help, Robinhood support | **winnable-ish** — broker help pages but no page built around the question; the do-not-exercise instruction is answered in a sentence |
+| do not exercise instruction deadline / 5:30 cutoff | SEC exchange rule filings (BOX, BX, Nasdaq, ISE), FINRA notices (four), AdviceOnly glossary | **do not target as a title** — regulators and rule text own it and a glossary is the only plain-language page. The fact belongs in the body with the broker's-earlier-cutoff caveat, which is where the post has it |
+| option closed exactly at the strike at expiration, assigned or not | cbonds glossary, Schwab, Options Playbook, E*TRADE, Public help, Firstrade help, strikeprice.app, Robinhood, an Option Strategist Substack | **winnable** — a bond glossary, a one-page app blog and a Substack in the top set; the synthesised answer on the page reads "exactly at strike = no assignment", which is the wrong half — the holder can still exercise after the close |
+| what is pin risk options expiration | Wikipedia, Schwab, Option Samurai, BlackBoxStocks, Unusual Whales, ApexVol, a Substack, Public | **hard on the definition** — Wikipedia and Schwab hold it, and the tail is framed as hedges ("3 hedges", "how to deal with it"). The term earns an H2's first sentence, never the title |
+| credit spread expires between the strikes / vertical spread one leg assigned | a Medium post ("Is it safe to let credit spreads expire?"), Schaeffer's, CIBC, Wikipedia, Schwab, Nasdaq, a TradingView chart idea, Barchart; tastytrade, Option Alpha, Robinhood learn, Fidelity, a Damocles blog, The Nest | **winnable** — Medium, a chart idea and The Nest in the top sets; the ranking pages call it the "nightmare scenario" and answer with "close it before", which is advice we do not write. This is the post's home intent |
+| exercised after hours, stock moved after the close | Nasdaq (one column), a Substack, CFI, then after-hours movers lists and TradingView chart ideas | **winnable, thin** — one syndicated column answers it; everything else is unrelated after-hours content. Named in the pin-risk section, not a heading |
+
+**The gap.** Every ranking page gives the same four things: in the money by
+$0.01 is exercised automatically, out of the money expires worthless, standard
+monthlies expire on the third Friday, and "close the position first if you do
+not want the shares". Almost none separates the three closing cases — a cent in,
+exactly at, a cent out — and several state the at-the-strike case wrongly as
+"no assignment" when the holder can still file to exercise until the cutoff.
+Few say the broker's own cutoff can come before FINRA's 5:30 p.m. ceiling, and
+none puts one spread against a run of closing prices so a reader can see each
+leg settled against its own strike, with the between-the-strikes row holding
+shares the defined-risk description never mentioned. Where the competitors do
+reach the spread and pin cases they frame them as alarm ("nightmare scenario",
+"insanely large loss") and answer with management advice (close before the
+bell, hedges to place); the angle here stays descriptive — what the account
+holds on Monday and why.
+
+**Could not establish:** search volume, difficulty and current position for any
+phrasing above; whether these results are personalised or localised; whether
+"what happens at options expiration" or "what happens when options expire" is
+the dominant phrasing — the second leads on ranking-title count, which is a
+count of titles and not demand, and the post's title and slug carry the first,
+so the second is left to body text and the FAQ rather than a slug change; and
+whether Reddit holds any of this intent. The placeholder row named "broker help
+pages" as the competition, which held up; thirteen phrasings were read,
+including one naming Reddit in the query, and no Reddit thread surfaced — the
+forum-style results were two Quora threads and Substacks. Investopedia surfaced
+in none of them. That absence is a read of these results pages on one day
+through one search tool, not proof those sites do not rank.
 
 ## Off-syllabus rows
 
