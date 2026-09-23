@@ -84,7 +84,7 @@ export default function Layout() {
   const panel = (
     <div className="flex h-full flex-col gap-1 p-3">
       <Link to="/" className="mb-2 hidden px-3 py-2 lg:block" onClick={() => setOpen(false)}>
-        <Wordmark size={24} textClass="text-[1.05rem]" />
+        <Wordmark size={16.8} />
       </Link>
       <nav className="flex flex-col gap-0.5">
         {links.map(({ to, label, Icon }) => (
@@ -120,7 +120,7 @@ export default function Layout() {
           <Menu className="h-[1.1rem] w-[1.1rem]" />
         </button>
         <Link to="/">
-          <Wordmark size={22} textClass="text-[1.05rem]" />
+          <Wordmark size={16.8} />
         </Link>
       </header>
 

@@ -119,11 +119,28 @@ p { margin: 0; }
 /* ---------- nav ---------- */
 
 .nav { display: flex; align-items: center; gap: 1rem; padding: 1.25rem 0; }
-.brandmark { display: flex; align-items: center; gap: 0.5rem; text-decoration: none; color: var(--ink); }
+/* THE LOCKUP IS SIZED FROM ONE NUMBER: the font-size on the anchor itself.
+ *
+ * The gap and the mark are both in `em`, so they scale off that and cannot
+ * drift out of proportion. The footer sets a smaller font-size on the anchor
+ * and the whole lockup follows; it used to override the span instead, which
+ * shrank the word and left the mark at nav size.
+ *
+ * 1.111em on the mark is 1.2x the type size once the glyph's own box is
+ * accounted for -- see EM_PER_PX in src/components/brand/DeltaMintMark.jsx,
+ * which the app's lockup derives from the same way. The two must agree: this
+ * header and the app's header are one click apart. */
+.brandmark {
+  display: flex; align-items: center; gap: 0.3em; text-decoration: none;
+  color: var(--ink); font-size: 1.05rem;
+}
+.brandmark svg { height: 1.111em; width: auto; display: block; }
 .brandmark span {
   font-family: "Bricolage Grotesque", sans-serif; font-weight: 700;
-  font-size: 1.05rem; letter-spacing: -0.02em;
+  letter-spacing: -0.02em; line-height: 1;
 }
+/* The second half of the name, in mint. Matches the app exactly. */
+.brandmark .m { color: var(--mint); }
 .nav .right { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; }
 /* Secondary links are hidden on phones rather than wrapped into a second row. */
 .nav a.plain { display: inline-block; color: var(--ink-soft); text-decoration: none; font-size: 0.95rem; padding: 0.5rem 0.65rem; }

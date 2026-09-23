@@ -9,8 +9,57 @@ else is observed current practice.
 
 - Prose and titles: **DeltaMint** — one word, camel-case.
 - The logotype: **deltamint**, lowercase, with **mint** in the green
-  (`#3FA672`) and **delta** in the text colour, beside the twin-peak mark.
+  (`#3FA672`) and **delta** in the text colour, beside the mark.
 - Never: "Delta Mint", "Deltamint", "DELTAMINT".
+
+The marketing site broke this rule for as long as it existed — its nav and
+footer set `DeltaMint`, camel-case and one colour, while the app set the
+logotype the book describes. Two wordmarks one click apart, which is what the
+owner meant on 23 Sep by *"the frontpages have different wordmarks now"*. The
+site now matches the app. Camel-case in the LOGOTYPE remains a live question
+the owner has not settled; the rule above is what ships today.
+
+## The mark and the lockup
+
+The mark is the lowercase Greek **δ** — the letter on every option chain, the
+one the product is named after and reports in its own positions table. It
+replaced a drawn triangle with two mint sprigs on 23 Sep.
+
+It is a baked outline, not a `<text>` element, because a tab strip, an email
+client and the PDF exporter each load no webfonts and would substitute a
+different δ. Extracted once from IBM Plex Sans 700 (U+03B4, OFL).
+
+**The mark is NOT in the wordmark's typeface, and cannot be.** The wordmark is
+Bricolage Grotesque 700; Bricolage ships latin, latin-ext and vietnamese only
+and has no Greek. So the lockup is two typefaces until the owner decides
+either to accept that or to move the wordmark to IBM Plex Sans 700, which
+would make mark and word one drawing used twice. Recorded as an open decision,
+not as settled practice.
+
+### Geometry — derived, never set by hand
+
+A lockup takes **one number**: the wordmark's type size. Everything else
+follows, so the two halves cannot drift apart.
+
+| Quantity | Rule | At 1.05rem (16.8px) |
+| --- | --- | --- |
+| Mark height | `1.2 × type size ÷ 1.0804` | 18.66px |
+| Gap | `0.3 × type size` | 5.04px |
+
+`1.0804` is the mark's effective font size per pixel of rendered height, and
+lives in `EM_PER_PX` in `src/components/brand/DeltaMintMark.jsx`; the landing
+CSS expresses the same two rules as `1.111em` and `0.3em` on `.brandmark`.
+
+Two faults this rule exists to prevent, both live between 22 and 23 Sep:
+
+- **The mark was set independently of the word** — 24/1.05rem in the app
+  header, 22/1.05rem in the drawer, 28/1.125rem on auth, 20/0.95rem in the
+  site footer. Four different relationships, none written down, and the δ ended
+  up at **1.54×** the type size of the word beside it.
+- **The mark's box was square while the letter is not.** The δ is 17.01 units
+  of ink in a 32-unit box, so a square mark carries 7.495 units of transparent
+  padding each side — 5.6px at nav size, silently added to the gap. A tile or
+  favicon wants the square; a lockup crops to the ink (`tight`).
 
 ## Palette (from `tailwind.config.js`, the `dm` scale)
 
