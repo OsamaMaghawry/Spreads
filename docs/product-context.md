@@ -94,16 +94,16 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-23 · (staging) The blog's diagrams can reach the live site again —
+- 2026-09-23 · Unfinished broker work (the SnapTrade and Tradier
+- 2026-09-23 · A twelfth foundations post — what happens at options
+- 2026-09-23 · The logo is now the lowercase Greek delta itself — drawn as a
 - 2026-09-22 · (staging) The "No earnings date" badge is gone from the
 - 2026-09-22 · (staging) A scanner row with no earnings-calendar coverage
 - 2026-09-22 · (staging) The scanner's return-on-risk explainer note is
 - 2026-09-22 · (staging) A cash-secured put or covered call scan no longer
 - 2026-09-22 · (staging) The whole-market scan now drops leveraged and
 - 2026-09-22 · (staging) A whole-market scan that finds setups but rejects
-- 2026-09-22 · (staging) The whole-market scan now actually scans the whole
-- 2026-09-22 · (staging) The Scanner's "whole market" sweep now says why it
-- 2026-09-22 · An eleventh foundations post — early exercise, and why it's
-- 2026-09-21 · A tenth foundations post — option assignment, what actually
 
 ## Server functions
 

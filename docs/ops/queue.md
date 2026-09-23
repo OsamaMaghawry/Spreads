@@ -301,7 +301,7 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Escalated
 
-- [escalated 2026-09-21] 2026-09-21 · duty-engineer · **Every diagram published
+- [escalated 2026-09-21, root cause fixed 2026-09-23 on staging] 2026-09-21 · duty-engineer · **Every diagram published
   on the blog since 14 September is a broken image on `deltamint.app`.** The
   posts are live; only the pictures inside them are missing. Found by reading
   the two red CI runs this repo has standing.
@@ -408,6 +408,27 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
   it is still open and unmerged and remains the only channel that reaches
   the owner. Not re-filing as a new ticket — this is growth of the entry
   above, not a new finding.
+
+  **Update, 2026-09-23 — root cause found, deploy unblocked on staging.**
+  Not duty-engineer's fix — landed directly, evidently by the owner working
+  another session, as `649814e` on `staging`. The actual mechanism, now
+  confirmed rather than proposed: the blog-publishing pipeline commits a
+  post's SVGs straight to `main`; nothing ever put the same files on
+  `staging`; `deploy-landing.yml`'s staging-first gate compares the two
+  trees byte-for-byte and has refused every deploy since 14 September as a
+  result — so it was never the images that were broken, it was the deploy,
+  and every landing change since (including today's full logo change) had
+  been piling up undeployed behind it without a louder failure than a green
+  merge and a quiet skip. The eight images are now copied onto `staging`
+  verbatim from `main`, so `landing/` is byte-identical again
+  (`git diff --stat origin/main origin/staging -- landing/` is empty as of
+  this run) and the gate should pass on the next deploy attempt. **Still not
+  the real fix** — the pipeline still writes only to `main`, so the same gap
+  reopens on the next post with a diagram unless the publishing workflow
+  itself is changed to go through `staging` first, which is still the
+  owner's call (the (a)/(b) choice above is now more directly a "fix the
+  pipeline" question). Not re-verified against the live site — `deltamint.app`
+  is still 403 at CONNECT from this session (unchanged, `docs/context/reachable.md`).
 
 - [escalated 2026-09-21, resolved by later deploy 2026-09-22] 2026-09-21 ·
   duty-engineer · **The staging edge functions have not deployed since
