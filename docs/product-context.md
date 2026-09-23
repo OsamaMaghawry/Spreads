@@ -94,6 +94,9 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-23 · (staging) The Open Position screen now names a ticker a
+- 2026-09-23 · (staging) A call sold against a long call (not just against
+- 2026-09-23 · (staging) The Scanner's covered-call suggestions now count a
 - 2026-09-23 · (staging, lab flag) A reworked Analysis page puts the result and
 - 2026-09-23 · (staging) The blog's diagrams can reach the live site again —
 - 2026-09-23 · Unfinished broker work (the SnapTrade and Tradier
@@ -101,9 +104,6 @@ From `docs/ops/shipped.md`, newest first.
 - 2026-09-23 · The logo is now the lowercase Greek delta itself — drawn as a
 - 2026-09-22 · (staging) The "No earnings date" badge is gone from the
 - 2026-09-22 · (staging) A scanner row with no earnings-calendar coverage
-- 2026-09-22 · (staging) The scanner's return-on-risk explainer note is
-- 2026-09-22 · (staging) A cash-secured put or covered call scan no longer
-- 2026-09-22 · (staging) The whole-market scan now drops leveraged and
 
 ## Server functions
 

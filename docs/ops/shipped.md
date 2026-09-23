@@ -3,6 +3,21 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-23 · (staging) The Open Position screen now names a ticker a
+  covered-call scan skipped instead of just staying silent about it, matching
+  the reason the Scanner already shows; and when the server says there is no
+  free cover at all, the screen shows that and stops, instead of retrying
+  silently every 20 seconds forever (`0dd4b41`).
+- 2026-09-23 · (staging) A call sold against a long call (not just against
+  shares) now prices correctly everywhere it can be sold: the option chain
+  stops treating it as naked-uncovered, and the close ticket's payoff chart
+  now draws the long call's floor instead of showing unlimited loss above the
+  strike on a position that is actually covered (`95a7b3f`).
+- 2026-09-23 · (staging) The Scanner's covered-call suggestions now count a
+  free long call as valid cover (previously only free shares counted, so an
+  account holding a covering long call was told it had nothing to write
+  against) and stop suggesting a second call against shares or a long already
+  backing an existing short call (`3964cb6`).
 - 2026-09-23 · (staging, lab flag) A reworked Analysis page puts the result and
   its chart first, then four stat tiles, then one detail tab at a time, with
   the method notes last — behind the three-noticed wall of banners the owner
