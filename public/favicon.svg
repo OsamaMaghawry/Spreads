@@ -1,9 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 26" width="26" height="26">
-  <!-- Same brandmark as the site nav. A filled background rather than a
-       transparent one so the dark triangle stays visible against a dark
-       browser tab strip. -->
-  <rect width="26" height="26" rx="5" fill="#F6F7FB"/>
-  <path d="M13 8 L21 22 L5 22 Z" fill="none" stroke="#14151C" stroke-width="1.6"/>
-  <path d="M10 15 Q13 10.5 10 6 Q7 10.5 10 15 Z" fill="#2E8B5F"/>
-  <path d="M16 15 Q19 10.5 16 6 Q13 10.5 16 15 Z" fill="#2E8B5F"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- The lowercase Greek delta, the same outline the app header draws, set on
+       a filled brand tile.
+
+       A TILE RATHER THAN A TRANSPARENT MARK, because a tab strip is the one
+       place the background is not ours: Chrome's is near-white in light mode
+       and near-black in dark, and a single-colour letter has to survive both.
+       A violet ground with a white letter reads the same on either, which a
+       violet letter on transparent does not.
+
+       This and the app mark used to disagree: the mark was violet #534AB7 and
+       mint #3FA672 while the icon was ink #14151C and mint #2E8B5F, so the
+       product and its own tab icon were different colours. One pair now. -->
+  <rect width="32" height="32" rx="7" fill="#534AB7"/>
+  <path d="M16.74 13.9Q15.71 13.93 14.99 14.42Q14.27 14.91 13.91 15.72Q13.55 16.53 13.55 17.62V20.12Q13.55 21 13.85 21.62Q14.14 22.25 14.68 22.57Q15.23 22.89 16 22.89Q16.77 22.89 17.32 22.57Q17.86 22.25 18.15 21.62Q18.45 21 18.45 20.12V18.74Q18.45 17.94 18.3 17.24Q18.15 16.53 17.85 15.91Q17.54 15.28 17.02 14.7Q16.51 14.11 15.79 13.55L10.89 9.72V6H21.29V9.06H17.09L14.62 8.77V8.87L17.41 10.57Q18.82 11.45 19.8 12.37Q20.79 13.29 21.39 14.3Q21.98 15.31 22.26 16.4Q22.54 17.49 22.54 18.69Q22.54 20.95 21.76 22.58Q20.97 24.22 19.51 25.11Q18.05 26 16 26Q13.95 26 12.49 25.1Q11.03 24.19 10.24 22.62Q9.46 21.05 9.46 19.03Q9.46 16.96 10.15 15.52Q10.84 14.09 11.96 13.34Q13.07 12.6 14.38 12.6V12.01Z" fill="#FFFFFF"/>
 </svg>
