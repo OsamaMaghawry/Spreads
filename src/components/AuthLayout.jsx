@@ -9,7 +9,7 @@ export default function AuthLayout({ icon: Icon, title, subtitle, footer, childr
         <div className="w-full max-w-md">
           <div className="text-center mb-10">
             <a href="https://deltamint.app" className="flex items-center justify-center mb-6">
-              <Wordmark size={20.2} />
+              <Wordmark size={22.6} />
             </a>
             <div className="flex items-center justify-center mb-4">
               <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-dm-accent">

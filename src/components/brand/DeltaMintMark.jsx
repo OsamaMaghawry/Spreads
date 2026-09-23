@@ -28,32 +28,43 @@ export const DELTA_PATH =
 //
 // A SQUARE BOX IS RIGHT FOR A TILE AND WRONG FOR A LOCKUP. An app icon and a
 // favicon want the letter centred in a square. A lockup does not: the delta is
-// 17.01 units of ink in a 32-unit box, so a square mark carries 7.495 units of
-// transparent padding on each side. At a 24px mark that is 5.6px of space on
-// the right that nobody chose and nobody can see -- it simply adds itself to
-// whatever gap the lockup sets, which is why a 10px gap was really 15.6px.
-// `tight` crops the viewBox to the ink so the gap means what it says.
-export const INK = { x: 7.495, width: 17.01 };
-
-// The mark's EFFECTIVE FONT SIZE, per pixel of rendered height.
+// 17.01 x 26 units of ink in a 32-unit box, so a square mark carries 7.495
+// units of transparent padding to each side and 3 units above and below. At a
+// 24px mark that is 5.6px of space on the right that nobody chose and nobody
+// can see -- it simply adds itself to whatever gap the lockup sets, which is
+// why a 10px gap was really 15.6px -- and 2.25px of invisible space top and
+// bottom that makes any vertical alignment a guess.
 //
-// The glyph fills 26 of the 32 units for a letter 752 of 1000 font units tall,
-// so a mark rendered H pixels high is set at 1.0804 x H. This is the number
-// that lets a lockup size the mark AGAINST THE WORDMARK rather than by eye:
-// without it the two are independent magic numbers and drift apart, which is
-// exactly how the delta ended up at 1.54x the type size of the word beside it.
-export const EM_PER_PX = (26 * (1000 / 752)) / 32;
+// `tight` crops the viewBox to the ink on BOTH axes, so the rendered box IS
+// the letter: its height is the letter's height and its edges are the letter's
+// edges. Nothing about placing it is then approximate.
+export const INK = {
+  x: 7.495,
+  y: 3,
+  width: 17.01,
+  height: 26,
+  // The letter's height as a fraction of its own em: 752 of 1000 font units
+  // (-12 to 740). A mark set at N times some type size therefore stands
+  // 0.752 x N of that type size tall -- which is what lets a lockup place it
+  // against the word by measurement instead of by eye.
+  emHeight: 0.752
+};
 
 // One shape, one fill. The mark stays legible in a single colour, which is what
 // a favicon, a printed page and an email signature all eventually reduce it to.
-// `size` is the rendered HEIGHT; a tight mark's width follows from the ink.
-export default function DeltaMintMark({ size = 26, color = "#534AB7", className = "", tight = false }) {
+//
+// `size` is the rendered HEIGHT. For a tight mark that is the height of the
+// LETTER; for a square one it is the height of the box the letter sits in.
+export default function DeltaMintMark({
+  size = 26, color = "#534AB7", className = "", tight = false, style
+}) {
   return (
     <svg
-      width={tight ? (size * INK.width) / 32 : size}
+      width={tight ? (size * INK.width) / INK.height : size}
       height={size}
-      viewBox={tight ? `${INK.x} 0 ${INK.width} 32` : "0 0 32 32"}
+      viewBox={tight ? `${INK.x} ${INK.y} ${INK.width} ${INK.height}` : "0 0 32 32"}
       className={className}
+      style={style}
       aria-hidden="true"
     >
       <path d={DELTA_PATH} fill={color} />

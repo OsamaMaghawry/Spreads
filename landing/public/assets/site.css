@@ -131,10 +131,37 @@ p { margin: 0; }
  * which the app's lockup derives from the same way. The two must agree: this
  * header and the app's header are one click apart. */
 .brandmark {
-  display: flex; align-items: center; gap: 0.3em; text-decoration: none;
-  color: var(--ink); font-size: 1.18rem;
+  display: flex; align-items: baseline; gap: 0.3em; text-decoration: none;
+  color: var(--ink); font-size: 1.32rem;
 }
-.brandmark svg { height: 1.111em; width: auto; display: block; }
+/* ALIGNED ON INK, NOT ON BOXES.
+ *
+ * `align-items: center` centred the mark's BOX against the text's LINE BOX,
+ * and those are two different things: "deltamint" has no descender, so its ink
+ * sits above the baseline while the line box still reserves descender space
+ * below it. Measured at an 80px lockup, that put the delta 3.5px low -- 2px of
+ * overhang above the word and 9px below, which is what the owner saw.
+ *
+ * So the mark is aligned to the TEXT BASELINE and then placed by measurement.
+ * Bricolage Grotesque 700 sets "deltamint" from -0.014em (the round overshoot
+ * on d, e and a) to 0.7411em (the dot on the i), so the word's ink centre is
+ * 0.3636em above the baseline. The delta's ink is 0.9024em tall at 1.2x, so
+ * its bottom must sit 0.0876em BELOW the baseline for the two centres to meet.
+ *
+ * THOSE ARE THE opsz 21 FIGURES AND THE AXIS MATTERS. Bricolage is a variable
+ * font whose only axis is optical size, and `font-optical-sizing: auto` (the
+ * default) ties opsz to the rendered pixel size -- so the i-dot sits at 0.745em
+ * at opsz 12 and 0.709em at opsz 96, moving the word's ink centre by 0.018em
+ * across the range. Lockups render at 18-24px, where the centre holds within
+ * 0.0013em of 0.3636. Using the axis default (96) instead left the mark 0.016em
+ * low, which is what measuring the real page at two scales caught.
+ *
+ * The delta is taller than the word either way -- it now overhangs 0.0806em
+ * above AND below, equally, instead of lopsidedly. */
+.brandmark svg {
+  height: 0.9024em; width: auto; display: block;
+  position: relative; top: 0.0876em;
+}
 .brandmark span {
   font-family: "Bricolage Grotesque", sans-serif; font-weight: 700;
   letter-spacing: -0.02em; line-height: 1;
