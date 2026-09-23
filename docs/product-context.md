@@ -94,6 +94,7 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-23 · (staging) A covered-call scan (Scanner, Open Position and the
 - 2026-09-23 · (staging) The Open Position screen now names a ticker a
 - 2026-09-23 · (staging) A call sold against a long call (not just against
 - 2026-09-23 · (staging) The Scanner's covered-call suggestions now count a
@@ -103,7 +104,6 @@ From `docs/ops/shipped.md`, newest first.
 - 2026-09-23 · A twelfth foundations post — what happens at options
 - 2026-09-23 · The logo is now the lowercase Greek delta itself — drawn as a
 - 2026-09-22 · (staging) The "No earnings date" badge is gone from the
-- 2026-09-22 · (staging) A scanner row with no earnings-calendar coverage
 
 ## Server functions
 

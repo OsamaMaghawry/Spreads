@@ -3,6 +3,13 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-23 · (staging) A covered-call scan (Scanner, Open Position and the
+  option chain) now shows every ticker an account holds instead of quietly
+  leaving out one whose shares already back a call it sold — that ticker's
+  row is priced on whatever free cover remains and carries a "cover in use"
+  flag naming the call it's behind, so the trader can decide to close that
+  one and write a new one instead of never being shown the choice
+  (`8bff517`).
 - 2026-09-23 · (staging) The Open Position screen now names a ticker a
   covered-call scan skipped instead of just staying silent about it, matching
   the reason the Scanner already shows; and when the server says there is no
