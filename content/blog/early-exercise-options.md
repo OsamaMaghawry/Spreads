@@ -171,8 +171,10 @@ which is why an American-style option is almost always worth more sold than
 exercised. The one regular exception is a call deep enough in the money that
 its remaining extrinsic value has shrunk below an upcoming dividend — a
 narrow, specific comparison, not a general reason to exercise early. The
-[foundations series](/blog/foundations) continues from here with what changes
-in an account on expiration day itself, in the money by a cent or out of it.
+[foundations series](/blog/foundations) continues from here with [what changes
+in an account on expiration day
+itself](/blog/what-happens-options-expiration), in the money by a cent or out
+of it.
 
 All figures on this page are hypothetical and are there to show the
 arithmetic. This post is educational and is not investment advice.

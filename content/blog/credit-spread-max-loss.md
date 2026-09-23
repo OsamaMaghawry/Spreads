@@ -190,8 +190,8 @@ clusters the day before an ex-dividend date, when the dividend exceeds what is
 left of the call's time value. Assigned there, you are short the stock across
 the ex-date and you pay that dividend rather than receive it.
 
-Expiration has a version of this that catches people who did the arithmetic
-correctly. Finish between the strikes — say at 97 — and the short put is in the
+[Expiration has a version of this](/blog/what-happens-options-expiration)
+that catches people who did the arithmetic correctly. Finish between the strikes — say at 97 — and the short put is in the
 money while the long is not. Options a cent or more in the money are exercised
 by exception at the clearing house, and a brokerage may apply its own threshold
 on top, so the short is assigned, the long expires worthless, and Monday opens

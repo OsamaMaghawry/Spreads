@@ -1,0 +1,21 @@
+<svg viewBox="0 0 720 280" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A hypothetical 50/48 put credit spread at an expiration close of 49.99, drawn on one price line. The close sits one cent below the short 50 put's strike, so that leg is in the money and is assigned. The close sits 1.99 above the long 48 put's strike, so that leg is out of the money and expires worthless. The two legs of one spread settle in opposite ways, leaving shares with no put beneath them.">
+  <rect width="720" height="280" fill="#FFFFFF"/>
+
+  <!-- price axis -->
+  <line x1="60" y1="140" x2="660" y2="140" stroke="#767B8E" stroke-width="2"/>
+
+  <!-- long 48 put strike -->
+  <line x1="180" y1="100" x2="180" y2="180" stroke="#2E8B5F" stroke-width="3"/>
+  <text x="180" y="86" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">long 48 put</text>
+  <text x="180" y="208" font-size="17" font-weight="600" text-anchor="middle" fill="#2E8B5F">expires</text>
+
+  <!-- short 50 put strike -->
+  <line x1="480" y1="100" x2="480" y2="180" stroke="#B4485C" stroke-width="3"/>
+  <text x="480" y="86" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">short 50 put</text>
+  <text x="480" y="208" font-size="17" font-weight="600" text-anchor="middle" fill="#B4485C">assigned</text>
+
+  <!-- closing price marker, one cent below 50 -->
+  <circle cx="472" cy="140" r="7" fill="#14151C"/>
+  <line x1="468" y1="147" x2="420" y2="226" stroke="#767B8E" stroke-width="1.5"/>
+  <text x="420" y="248" font-size="16" text-anchor="middle" fill="#767B8E">close 49.99</text>
+</svg>
