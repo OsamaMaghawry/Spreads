@@ -251,7 +251,8 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
                   the screen does not claim otherwise in the meantime. */}
               {coverMoved && (
                 <p className="mt-1.5 text-xs text-amber-700">
-                  Shares and basis above were read on {setup.accountName || "another account"}. On{" "}
+                  {setup.coveredBy === "long_call" ? "The long call covering this" : "Shares and basis above"} were read on{" "}
+                  {setup.accountName || "another account"}. On{" "}
                   {account?.name || "this account"} the cover behind this call may be different — the
                   order is checked against the account you send it to.
                 </p>
@@ -277,11 +278,21 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
                     >
                       {setup.maxContracts}
                     </button>
-                    {` on ${setup.sharesHeld} shares`}
+                    {setup.coveredBy === "long_call" ? " against your long call" : ` on ${setup.sharesHeld} shares`}
                   </>
                 ) : null}
               </label>
               <NumberField value={qty} onChange={setQty} step={1} min={1} max={setup.maxContracts || undefined} ariaLabel="Quantity" />
+              {/* Short on purpose -- the owner: "I don't want the text on the
+                  ticket itself too long". One sentence for what this IS, since
+                  it is filed under covered calls and behaves like a spread; the
+                  arithmetic is in the preview beside it. */}
+              {setup.coveredBy === "long_call" && (
+                <p className="mt-1.5 text-xs text-amber-700">
+                  A spread, not a covered call: if this is assigned you&rsquo;ll be short 100 {setup.ticker} shares,
+                  not delivering shares you own. Your broker must allow spreads (options level 3 on Alpaca).
+                </p>
+              )}
             </div>
 
             <OpenPricing

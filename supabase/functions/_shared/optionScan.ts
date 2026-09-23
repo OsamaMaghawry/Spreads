@@ -150,7 +150,7 @@ export async function findSetup(account, params) {
   const {
     ticker, strategy, dte = 2, targetDelta = 0.18, wingWidth = 1,
     minCredit = 0.2, maxCredit = 4, putRatio = 1, callRatio = 1,
-    sharesByTicker = {}, basisByTicker = {},
+    sharesByTicker = {}, basisByTicker = {}, longCoverByTicker = {},
     // Whether the options market is trading right now. Decided by the caller,
     // which knows the clock; this module stays pure and testable.
     marketOpen = true
@@ -171,7 +171,8 @@ export async function findSetup(account, params) {
   if (needCalls && calls.length === 0) return { ok: false, reason: `No priced call chain for ${ticker} ${expiry}.` };
 
   const built = isSingleStrategy(strategy)
-    ? buildSingle({ ticker, expiry, spot, strategy, puts, calls, targetDelta, basis: basisByTicker[ticker] || null, shares: sharesByTicker[ticker] || 0, marketOpen })
+    ? buildSingle({ ticker, expiry, spot, strategy, puts, calls, targetDelta, basis: basisByTicker[ticker] || null, shares: sharesByTicker[ticker] || 0,
+                  longCover: longCoverByTicker[ticker] || [], marketOpen })
     : buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio, callRatio, marketOpen });
   if (!built.ok) return built;
   return validate(built.setup, minCredit, maxCredit);
@@ -305,7 +306,7 @@ export function buildSetup({ ticker, expiry, spot, strategy, puts, calls, target
 export const SINGLE_STRATEGIES = ["cash_secured_put", "covered_call"];
 export const isSingleStrategy = (s) => SINGLE_STRATEGIES.includes(s);
 
-export function buildSingle({ ticker, expiry, spot, strategy, puts, calls, targetDelta, allowItmShort = false, basis = null, shares = 0, marketOpen = true }: any) {
+export function buildSingle({ ticker, expiry, spot, strategy, puts, calls, targetDelta, allowItmShort = false, basis = null, shares = 0, longCover = [], marketOpen = true }: any) {
   const px = typeof spot === "number" ? spot : spot?.price;
   const base = {
     ticker, expiry, strategy, targetDelta, wingWidth: null,
@@ -353,8 +354,33 @@ export function buildSingle({ ticker, expiry, spot, strategy, puts, calls, targe
 
   if (strategy === "covered_call") {
     if (!calls?.length) return { ok: false, reason: "No priced call chain." };
+
+    // A LONG CALL COVERS FIRST, the order callCover.allocateCallCover uses, so
+    // what the Scanner calls this position is what the Dashboard will call it
+    // once it is open. `longCover` is FREE cover -- longs not already standing
+    // behind a short -- in the allocator's own order.
+    //
+    // Only a long expiring ON OR AFTER this call can cover it. One that dies
+    // first leaves the short bare for the rest of its life, and no broker
+    // treats that as a spread.
+    const longs = (longCover || []).filter((l: any) => l && Number(l.qty) > 0);
+    const eligible = longs.filter((l: any) => String(l.expiry ?? "") >= String(expiry));
+    const priced = eligible.find((l: any) => Number(l.cost) > 0 && l.strike !== null && l.strike !== undefined);
+    if (priced) return buildCallOverLong({ base, ticker, expiry, px, calls, targetDelta, allowItmShort, long: priced });
+
     const held = Number(shares) || 0;
-    if (held < 100) return { ok: false, reason: `Holds ${held} shares of ${ticker} — a covered call needs 100 per contract.` };
+    if (held < 100) {
+      // Say which cover exists and why it does not reach, rather than
+      // reporting a share count to someone whose cover is a long call.
+      if (eligible.length && !priced) {
+        return { ok: false, reason: `No cost on record for your ${ticker} long call — sync the account first.` };
+      }
+      if (longs.length) {
+        const last = longs.map((l: any) => String(l.expiry ?? "")).sort().pop();
+        return { ok: false, reason: `Your ${ticker} long call expires ${last}, before this ${expiry} call — it cannot cover it.` };
+      }
+      return { ok: false, reason: `Holds ${held} free shares of ${ticker} — a covered call needs 100 per contract.` };
+    }
     // The shares' basis, never the spot: what the position risks is what was
     // paid for it, and a call written on that basis is what the wheel measures.
     const b = basis && Number(basis.basis) > 0 ? Number(basis.basis) : null;
@@ -384,6 +410,91 @@ export function buildSingle({ ticker, expiry, spot, strategy, puts, calls, targe
   }
 
   return { ok: false, reason: `Unsupported single-leg strategy ${strategy}.` };
+}
+
+// A call written against a long call the account already holds -- what traders
+// call a poor man's covered call. It is a SPREAD, not a covered call, and every
+// figure here is stated on that footing rather than borrowed from the share
+// version, whose basis, "if called" and risk all assume 100 shares exist.
+//
+// THE RISK, stated as a bound and deliberately a conservative one. At the short
+// call's expiry the pair can lose at most:
+//
+//     what the long cost  -  the credit taken  +  max(0, long strike - short strike)
+//
+// Below both strikes the short expires worthless and the long is worth at least
+// nothing: the loss is the long's cost less the credit. Above both, the short
+// loses (S - Ks) and the long is worth at least its intrinsic (S - Kl), so the
+// pair nets at worst (Kl - Ks) when the short is struck under the long, and
+// never worse than the debit when it is struck over it.
+//
+// The bound IGNORES the time value the long still holds when the short expires,
+// which is real and can be substantial on a long-dated call. So it OVERSTATES
+// the risk, and the return figure understates the trade. That is the direction
+// to be wrong in on a screen that ranks by return on risk: an optimistic bound
+// would put this strategy above safer ones by an amount nobody could check.
+function buildCallOverLong({ base, ticker, expiry, px, calls, targetDelta, allowItmShort, long }: any) {
+  const short: any = nearestDelta(calls, targetDelta);
+  if (!allowItmShort) {
+    const bad = itmShortReason(short, px, true);
+    if (bad) return { ok: false, reason: bad };
+  }
+  const credit = short.bid;
+  const longStrike = Number(long.strike);
+  const longCost = Number(long.cost);
+  const riskPerShare = longCost - credit + Math.max(0, longStrike - short.strike);
+
+  // Credit at or above everything the long cost (plus any strike gap) leaves no
+  // risk on this bound, and a return on zero risk is a division by zero that
+  // would rank first on the screen. Rare, and more often a stale quote than a
+  // gift -- the same test the spreads apply to a credit wider than the width.
+  if (!(riskPerShare > 0)) {
+    return {
+      ok: false,
+      reason: `The $${credit.toFixed(2)} credit would cover everything your ${ticker} long call cost — check the quote before trusting it.`
+    };
+  }
+
+  return {
+    ok: true,
+    setup: {
+      ...base, putRatio: 1, callRatio: 1, credit, width: null,
+      // The capital this position stands on is the long call, not shares.
+      collateral: longCost * 100,
+      maxRisk: riskPerShare * 100,
+      // A diagonal's break-even at the short's expiry depends on what the long
+      // is still worth then, which depends on volatility nobody knows yet.
+      // Printing a number here would be inventing one.
+      breakEvenLow: null,
+      breakEvenHigh: null,
+      returnOnCollateral: credit / longCost,
+      otmPct: px > 0 ? (short.strike - px) / px : null,
+      coveredBy: "long_call",
+      cover: {
+        symbol: long.symbol,
+        strike: longStrike,
+        expiry: long.expiry,
+        cost: longCost,
+        contracts: Number(long.qty) || 0
+      },
+      // If the short is assigned the account is SHORT 100 shares, not relieved
+      // of 100 it owned. Closing that out means exercising the long, which
+      // realizes the strike gap and the credit but forfeits whatever time
+      // value the long still had -- so this is the floor of the outcome, not a
+      // forecast of it. The ticket says so beside the figure.
+      ifAssigned: (short.strike - longStrike + credit - longCost) * 100,
+      // NO max profit, stated as a refusal rather than left to be guessed.
+      // The ticket's fallback for a covered call without shares is "the
+      // credit", and that is false here: with the stock at the short strike
+      // the long has gained too, by an amount that depends on what it is
+      // still worth -- which depends on volatility. spreadSetup sets this key
+      // to null on a diagonal for the same reason, and maxProfitOf honours the
+      // key's PRESENCE, so null here prints "—" instead of a made-up figure.
+      maxProfit: null,
+      maxContracts: Number(long.qty) || 0,
+      legs: [{ role: "short_call", ...short, ratio: 1, side: "sell" }]
+    }
+  };
 }
 
 // Granularity of the sweep inside each requested range. This is an engine
@@ -417,7 +528,7 @@ export async function scanCandidates(account, params) {
     minCredit = 0, maxCredit = 1000, putRatio = 1, callRatio = 1, maxRisk = null,
     // For the wheel's halves: shares held and their basis per ticker, looked
     // up by the caller from the account. Absent for spreads.
-    sharesByTicker = {}, basisByTicker = {},
+    sharesByTicker = {}, basisByTicker = {}, longCoverByTicker = {},
     // Whether the options market is trading right now. Decided by the caller,
     // which knows the clock; this module stays pure and testable.
     marketOpen = true
@@ -461,7 +572,8 @@ export async function scanCandidates(account, params) {
           for (const wingWidth of widths) {
             const built = single
               ? buildSingle({ ticker, expiry, spot, strategy, puts, calls, targetDelta,
-                  basis: basisByTicker[ticker] || null, shares: sharesByTicker[ticker] || 0, marketOpen })
+                  basis: basisByTicker[ticker] || null, shares: sharesByTicker[ticker] || 0,
+                  longCover: longCoverByTicker[ticker] || [], marketOpen })
               : buildSetup({ ticker, expiry, spot, strategy, puts, calls, targetDelta, wingWidth, putRatio, callRatio, marketOpen });
             if (!built.ok) { reasons.add(built.reason); continue; }
             const s = built.setup;

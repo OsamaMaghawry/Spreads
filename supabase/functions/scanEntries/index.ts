@@ -41,10 +41,24 @@ Deno.serve(async (req) => {
     let params = body;
     if (strategy === "covered_call") {
       const held = await heldShares(admin, account);
-      if (held.tickers.length === 0) {
-        return jsonResponse({ ok: false, candidates: [], skipped: [], reason: "This account holds no 100-share lots to write a covered call on." });
+      // FREE cover, not held cover. A long call the account owns can cover a
+      // call written against it, and shares or longs already standing behind a
+      // short call cannot cover a second one -- see freeCallCover. Reading raw
+      // holdings here is what hid the owner's IBIT long call and re-offered
+      // TSLA shares already committed to a short 390C.
+      if (held.coverTickers.length === 0) {
+        return jsonResponse({
+          ok: false, candidates: [], skipped: [],
+          reason: "Nothing free to write a call against — no 100 shares and no long call that isn't already covering one."
+        });
       }
-      params = { ...body, tickers: held.tickers, sharesByTicker: held.shares, basisByTicker: held.basis };
+      params = {
+        ...body,
+        tickers: held.coverTickers,
+        sharesByTicker: held.sharesFree,
+        basisByTicker: held.basis,
+        longCoverByTicker: held.longsFree
+      };
     }
     // Options do not trade outside 09:30-16:00 ET, so outside the session
     // the chain is still quoted at the previous close while the stock has

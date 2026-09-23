@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   sessionWarning, priceWarning, driftWarning, itmShortWarning,
-  adjustedWarning, coverWarning, unacknowledged
+  adjustedWarning, coverWarning, freeCoverWarning, unacknowledged
 } from "./orderWarnings.ts";
 
 // UTC. The session is 13:30–20:00 on a weekday.
@@ -195,4 +195,47 @@ test("a GTC order is told it keeps working", () => {
 
 test("none of it fires while the session is open", () => {
   assert.equal(sessionWarning(WED_MIDSESSION, { orderType: "market" }), null);
+});
+
+
+// Free cover: what the ticket checks a lone short call against now.
+
+test("the owner's second TSLA call: 100 shares held, all committed -- warned", () => {
+  // The silent failure. He held 100 TSLA and was already short the 390C
+  // against them. The old check saw "100 shares, 1 contract" and said nothing.
+  const w = freeCoverWarning({
+    accountName: "Alton Live", ticker: "TSLA", contracts: 1,
+    heldShares: 100, freeShares: 0, longContracts: 0
+  })!;
+  assert.equal(w.code, "short_call_uncovered");
+  assert.equal(w.title, "This call is not covered.");
+  // The reason has to be named, or "holds 100 shares" and "not covered" read
+  // as a contradiction.
+  assert.match(w.detail, /holds 100 TSLA shares, but 100 of them already cover a call you have sold/);
+});
+
+test("a call written against a free long call raises nothing", () => {
+  // The false alarm the old check would have raised on the IBIT trade.
+  assert.equal(
+    freeCoverWarning({
+      accountName: "Alton Live", ticker: "IBIT", contracts: 1,
+      heldShares: 0, freeShares: 0, longContracts: 1
+    }),
+    null
+  );
+});
+
+test("longs and free shares add up, contract for contract", () => {
+  assert.equal(
+    freeCoverWarning({ accountName: "A", ticker: "X", contracts: 3, heldShares: 200, freeShares: 200, longContracts: 1 }),
+    null
+  );
+  const w = freeCoverWarning({ accountName: "A", ticker: "X", contracts: 3, heldShares: 100, freeShares: 100, longContracts: 1 })!;
+  assert.equal(w.title, "Only 2 of 3 calls are covered.");
+  assert.match(w.detail, /1 contract would have nothing behind it/);
+});
+
+test("nothing held at all is described as nothing, not as zero shares committed", () => {
+  const w = freeCoverWarning({ accountName: "A", ticker: "X", contracts: 1, heldShares: 0, freeShares: 0, longContracts: 0 })!;
+  assert.match(w.detail, /^A holds no X shares\./);
 });

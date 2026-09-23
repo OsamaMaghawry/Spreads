@@ -26,7 +26,14 @@ Deno.serve(async (req) => {
     let params = { ...body, ticker: ticker.trim().toUpperCase() };
     if (strategy === "covered_call") {
       const held = await heldShares(admin, account);
-      params = { ...params, sharesByTicker: held.shares, basisByTicker: held.basis };
+      // Free cover, the same inputs the Scanner uses, so the entry finder and
+      // the scan cannot disagree about whether a call may be written.
+      params = {
+        ...params,
+        sharesByTicker: held.sharesFree,
+        basisByTicker: held.basis,
+        longCoverByTicker: held.longsFree
+      };
     }
     // Options do not trade outside 09:30-16:00 ET, so outside the session
     // the chain is still quoted at the previous close while the stock has

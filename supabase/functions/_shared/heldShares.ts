@@ -9,6 +9,7 @@ import { tradingBase, alpacaFetch } from "./alpaca.ts";
 import { selectAllWhere } from "./paging.ts";
 import { parseOCCSymbol } from "./occ.ts";
 import { basisByTicker } from "./wheelBasis.ts";
+import { freeCallCover } from "./callCover.ts";
 
 export async function heldShares(admin: any, account: any) {
   const positions = await alpacaFetch(`${tradingBase(account)}/positions`, account);
@@ -48,5 +49,16 @@ export async function heldShares(admin: any, account: any) {
       basis[sym] = { basis: brokerBasis[sym], brokerBasis: brokerBasis[sym], collected: 0, shares: shares[sym], source: "broker" };
     }
   }
-  return { shares, basis, tickers: Object.keys(shares).filter((t) => shares[t] >= 100) };
+  // `shares` and `tickers` keep their old meaning -- what is HELD -- for the
+  // callers that ask that. Anything deciding whether a NEW call may be written
+  // must read the free-cover fields instead; see freeCallCover.
+  const cover = freeCallCover(positions);
+  return {
+    shares,
+    basis,
+    tickers: Object.keys(shares).filter((t) => shares[t] >= 100),
+    sharesFree: cover.sharesFree,
+    longsFree: cover.longsFree,
+    coverTickers: cover.coverTickers
+  };
 }

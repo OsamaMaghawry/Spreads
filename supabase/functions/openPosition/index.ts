@@ -8,7 +8,7 @@ import { getSpots, spotFromSnapshot, closingSpotFromSnapshot } from "../_shared/
 import { sessionPhase } from "../_shared/watchRules.ts";
 import {
   sessionWarning, priceWarning, driftWarning, itmShortWarning, adjustedWarning,
-  coverWarning, unacknowledged, type OrderWarning
+  freeCoverWarning, unacknowledged, type OrderWarning
 } from "../_shared/orderWarnings.ts";
 import { earningsCoverage, refreshEarningsWindow } from "../_shared/earnings.ts";
 import { inBackground } from "../_shared/background.ts";
@@ -88,8 +88,22 @@ async function preflight(
   if (shortCall) {
     const held = await heldShares(admin, account).catch(() => null);
     if (held) {
-      const have = held.shares[shortCall.occ.ticker] || 0;
-      const note = coverWarning(account.name, shortCall.occ.ticker, have, Number(qty) || 1);
+      const ticker = shortCall.occ.ticker;
+      // FREE cover, not held: shares already behind a short call are not
+      // counted twice, and a long call expiring on or after this one counts.
+      // See freeCoverWarning for the two failures reading `held.shares` caused.
+      const expiry = String(shortCall.occ.expiryFormatted || "");
+      const longContracts = (held.longsFree?.[ticker] || [])
+        .filter((l: any) => String(l.expiry ?? "") >= expiry)
+        .reduce((a: number, l: any) => a + (Number(l.qty) || 0), 0);
+      const note = freeCoverWarning({
+        accountName: account.name,
+        ticker,
+        contracts: Number(qty) || 1,
+        heldShares: held.shares[ticker] || 0,
+        freeShares: held.sharesFree?.[ticker] || 0,
+        longContracts
+      });
       if (note) out.push(note);
     }
   }

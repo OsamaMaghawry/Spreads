@@ -36,6 +36,11 @@ export default function SetupPreview({ setup, qty, live = null }) {
   const unit = unitFor(setup.strategy);
   const single = isSingle(setup.strategy);
   const cc = setup.strategy === "covered_call";
+  // A call written against a LONG CALL is a spread, not a covered call on
+  // shares. Every share figure below -- basis, "if called away", "stock to 0" --
+  // is false for it, so it gets its own rows rather than blanks in theirs.
+  const overLong = cc && setup.coveredBy === "long_call";
+  const onShares = cc && !overLong;
   // "Stock to 0" is the ceiling on a short put and on shares. It is not a
   // ceiling on anything else, so the phrase only appears where it is true.
   const risk = riskState(setup);
@@ -164,9 +169,27 @@ export default function SetupPreview({ setup, qty, live = null }) {
         </span>
         {single ? (
           <>
-            <span className="text-slate-500">{cc ? "Shares at basis" : "Collateral"} / {unit}</span>
+            <span className="text-slate-500">
+              {overLong ? "Long call cost" : onShares ? "Shares at basis" : "Collateral"} / {unit}
+            </span>
             <span className="text-right">{fmtMoney(setup.collateral)}</span>
-            {cc && (
+            {overLong && (
+              <>
+                <span className="text-slate-500">Covered by</span>
+                <span className="text-right">
+                  {setup.ticker} ${setup.cover?.strike} call · {setup.cover?.expiry}
+                </span>
+                {/* The FLOOR, named as one. Exercising the long to meet an
+                    assignment forfeits its remaining time value; selling it
+                    instead keeps that. So this is the worst way out, and a
+                    negative figure here is common and real, not a bug. */}
+                <span className="text-slate-500">If assigned — worst way out</span>
+                <span className={`text-right ${setup.ifAssigned >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                  {fmtMoney(setup.ifAssigned)}
+                </span>
+              </>
+            )}
+            {onShares && (
               <>
                 <span className="text-slate-500">Basis / share ({setup.basisSource === "adjusted" ? "adjusted for premiums" : "broker"})</span>
                 <span className="text-right">{fmtMoney(setup.basis)}</span>
@@ -174,7 +197,10 @@ export default function SetupPreview({ setup, qty, live = null }) {
                 <span className={`text-right ${setup.ifCalled >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{fmtMoney(setup.ifCalled)}</span>
               </>
             )}
-            <span className="text-slate-500">Max loss / {unit}{bounded ? " (stock to 0)" : ""}</span>
+            <span className="text-slate-500">
+              Max loss / {unit}
+              {overLong ? " (at this call's expiry)" : bounded ? " (stock to 0)" : ""}
+            </span>
             <RiskCell value={setup.maxRisk} state={risk} />
           </>
         ) : (
@@ -197,7 +223,7 @@ export default function SetupPreview({ setup, qty, live = null }) {
           {fmtMoney(Math.abs(setup.credit) * qty * 100)}
         </span>
         <span className="text-slate-500">
-          {single ? `Total max loss${bounded ? " (stock to 0)" : ""}` : "Total max risk"}
+          {single ? `Total max loss${overLong ? " (at this call's expiry)" : bounded ? " (stock to 0)" : ""}` : "Total max risk"}
         </span>
         <RiskCell value={scaledRisk(setup.maxRisk, qty)} state={risk} />
         <span className="text-slate-500">Break-even</span>
