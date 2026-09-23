@@ -3,6 +3,18 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-23 · (staging, lab flag) A reworked Analysis page puts the result and
+  its chart first, then four stat tiles, then one detail tab at a time, with
+  the method notes last — behind the three-noticed wall of banners the owner
+  called "chaotic, overwhelming". Each caveat (an unattributed trade, a
+  transfer) now sits on the one figure it actually affects, flagged amber on
+  that tile, instead of stated three times at the top of the page; the same
+  notes still gather in a Method tab and always render into the exported PDF
+  so a disclosure can never silently leave the export. Computes from the same
+  shared figures the current page uses — no number can differ, only the
+  layout — and stays fully behind `LAB_MODULES`, stubbed out of the
+  production bundle (`32ae263`).
+
 - 2026-09-23 · (staging) The blog's diagrams can reach the live site again —
   the real bug was never the pictures, it was the deploy: the publishing
   pipeline commits a post's SVGs straight to `main`, but nothing had ever put

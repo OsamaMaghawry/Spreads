@@ -94,6 +94,7 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-23 · (staging, lab flag) A reworked Analysis page puts the result and
 - 2026-09-23 · (staging) The blog's diagrams can reach the live site again —
 - 2026-09-23 · Unfinished broker work (the SnapTrade and Tradier
 - 2026-09-23 · A twelfth foundations post — what happens at options
@@ -103,7 +104,6 @@ From `docs/ops/shipped.md`, newest first.
 - 2026-09-22 · (staging) The scanner's return-on-risk explainer note is
 - 2026-09-22 · (staging) A cash-secured put or covered call scan no longer
 - 2026-09-22 · (staging) The whole-market scan now drops leveraged and
-- 2026-09-22 · (staging) A whole-market scan that finds setups but rejects
 
 ## Server functions
 
