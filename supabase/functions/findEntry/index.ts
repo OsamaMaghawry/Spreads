@@ -24,22 +24,25 @@ Deno.serve(async (req) => {
     const admin = adminClient();
     const account = await loadAccount(admin, accountId, user.id);
     let params = { ...body, ticker: ticker.trim().toUpperCase() };
+    let inUse: Record<string, string> = {};
     if (strategy === "covered_call") {
       const held = await heldShares(admin, account);
       // Free cover, the same inputs the Scanner uses, so the entry finder and
       // the scan cannot disagree about whether a call may be written.
       params = {
         ...params,
-        sharesByTicker: held.sharesFree,
+        sharesByTicker: held.scan.sharesByTicker,
         basisByTicker: held.basis,
-        longCoverByTicker: held.longsFree
+        longCoverByTicker: held.scan.longCoverByTicker
       };
+      inUse = held.scan.inUse;
     }
     // Options do not trade outside 09:30-16:00 ET, so outside the session
     // the chain is still quoted at the previous close while the stock has
     // moved on. The scan says that rather than reporting the two sources as
     // disagreeing, which reads as a fault.
-    const result = await findSetup(account, { ...params, marketOpen: judgeOnLivePrices() });
+    const result: any = await findSetup(account, { ...params, marketOpen: judgeOnLivePrices() });
+    if (result?.setup && inUse[result.setup.ticker]) result.setup.coverInUse = inUse[result.setup.ticker];
     return jsonResponse(result);
   } catch (error) {
     return jsonResponse({ error: error.message }, 500);

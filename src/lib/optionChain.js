@@ -150,8 +150,15 @@ export function contractSetup(row, action, ctx) {
     };
   }
 
+  // Cover already behind a call sold: priced as covered, flagged, and left to
+  // the trader -- see scanCover. The flag rides on whichever cover is used.
+  const inUse = ctx?.coverInUse || null;
   const long = freeLong(ctx?.longCover, ctx?.expiry);
-  if (long) return callOverLong({ base, leg, price, strike, otm, long, shares, ticker: ctx?.ticker });
+  if (long) {
+    const r = callOverLong({ base, leg, price, strike, otm, long, shares, ticker: ctx?.ticker });
+    if (r.ok && inUse) r.setup.coverInUse = inUse;
+    return r;
+  }
 
   return {
     ok: true,
@@ -175,6 +182,7 @@ export function contractSetup(row, action, ctx) {
       breakEvenLow: null,
       breakEvenHigh: strike + price,
       ifCalled: covered ? (strike - basis + price) * 100 : null,
+      ...(covered && inUse ? { coverInUse: inUse } : {}),
       otmPct: otm,
       legs: [leg]
     }

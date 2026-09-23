@@ -274,10 +274,50 @@ export function freeCallCover(positions: any[]) {
     committed.push({
       ticker: t,
       reason: shorts.length
-        ? `Your ${what} already ${verb} the ${shorts.join(", ")} you sold. Close it or let it expire to write another.`
+        ? `Your ${what} already ${verb} the ${shorts.join(", ")} you sold.`
         : `Your ${what} can't cover a new call right now.`
     });
   }
 
-  return { shares, sharesFree, longsFree, coverTickers, committed };
+  // Every long call held, free or not, in the same shape as longsFree -- for a
+  // ticker whose cover is all in use, so its calls can still be shown.
+  const longsHeld: Record<string, any[]> = {};
+  for (const l of legs) {
+    if (l.type !== "C" || !(l.qty > 0) || l.adjusted) continue;
+    (longsHeld[l.ticker] ||= []).push({
+      symbol: l.symbol, ticker: l.ticker, strike: l.strike ?? null, expiry: l.expiry ?? null,
+      qty: l.qty, cost: cost[l.symbol] ?? null, mark: mark[l.symbol] ?? null
+    });
+  }
+
+  return { shares, sharesFree, longsFree, longsHeld, coverTickers, committed };
+}
+
+/**
+ * What a covered-call SCAN is given: every ticker the account can write a call
+ * on, including ones whose cover is already behind a call it has sold.
+ *
+ * The owner, on those being left out: "Even if I have another covered call ...
+ * just give me [it]. I need to see if I want to close mine and open another one
+ * before the current one expires." Hiding them decided that for him. So they
+ * are shown, each flagged with `inUse` -- the sentence saying what the cover is
+ * already doing -- and the order ticket warns again (freeCoverWarning) before
+ * anything is sent.
+ *
+ * A ticker with free cover is priced on its FREE cover only, so a second
+ * contract is never sized off shares already spoken for. A ticker with none is
+ * priced on what it holds, and flagged.
+ */
+export function scanCover(cover: ReturnType<typeof freeCallCover>) {
+  const inUse: Record<string, string> = {};
+  for (const c of cover.committed || []) inUse[c.ticker] = c.reason;
+  const free = new Set(cover.coverTickers || []);
+  const tickers = [...new Set([...free, ...Object.keys(inUse)])].sort();
+  const sharesByTicker: Record<string, number> = {};
+  const longCoverByTicker: Record<string, any[]> = {};
+  for (const t of tickers) {
+    sharesByTicker[t] = free.has(t) ? (cover.sharesFree[t] || 0) : (cover.shares[t] || 0);
+    longCoverByTicker[t] = free.has(t) ? (cover.longsFree[t] || []) : (cover.longsHeld[t] || []);
+  }
+  return { tickers, sharesByTicker, longCoverByTicker, inUse };
 }

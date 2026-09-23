@@ -9,7 +9,7 @@ import { tradingBase, alpacaFetch } from "./alpaca.ts";
 import { selectAllWhere } from "./paging.ts";
 import { parseOCCSymbol } from "./occ.ts";
 import { basisByTicker } from "./wheelBasis.ts";
-import { freeCallCover } from "./callCover.ts";
+import { freeCallCover, scanCover } from "./callCover.ts";
 
 export async function heldShares(admin: any, account: any) {
   const positions = await alpacaFetch(`${tradingBase(account)}/positions`, account);
@@ -60,6 +60,8 @@ export async function heldShares(admin: any, account: any) {
     sharesFree: cover.sharesFree,
     longsFree: cover.longsFree,
     coverTickers: cover.coverTickers,
-    committed: cover.committed
+    committed: cover.committed,
+    // What a covered-call scan is given -- see scanCover.
+    scan: scanCover(cover)
   };
 }

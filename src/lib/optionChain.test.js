@@ -425,3 +425,17 @@ test("BUYING a call ignores the long cover entirely", () => {
   assert.equal(r.setup.strategy, "long_call");
   assert.equal(r.setup.coveredBy, undefined);
 });
+
+test("shares already behind a call sold still price the ticket, and it says so", () => {
+  const r = contractSetup(call380, "sell", {
+    ...ctx, shares: 100, basis: 350,
+    coverInUse: "Your 100 shares already cover the 390 call (2026-09-23) you sold."
+  });
+  assert.equal(r.setup.unlimitedRisk, false);
+  assert.match(r.setup.coverInUse, /already cover the 390 call/);
+});
+
+test("free cover carries no flag", () => {
+  const r = contractSetup(call380, "sell", { ...ctx, shares: 100, basis: 350 });
+  assert.equal(r.setup.coverInUse, undefined);
+});

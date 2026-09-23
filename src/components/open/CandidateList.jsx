@@ -25,6 +25,14 @@ export default function CandidateList({ candidates, selected, onSelect }) {
             <div className="flex items-center justify-between text-sm">
               <span className="inline-flex items-center gap-1.5 font-semibold text-slate-900">
                 {c.ticker}
+                {c.coverInUse && (
+                  <span
+                    className="rounded border border-amber-300 bg-amber-50 px-1.5 py-px text-[10px] font-medium text-amber-800"
+                    title={c.coverInUse}
+                  >
+                    cover in use
+                  </span>
+                )}
                 <EarningsWarning earnings={c.earnings} ticker={c.ticker} compact />
               </span>
               <span className="text-emerald-600 font-medium tabular-nums">

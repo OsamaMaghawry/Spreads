@@ -29,7 +29,7 @@ export default function Scanner() {
   // clears that one, so reusing it would wipe the message on the next click
   // and leave the same blank screen this is here to end.
   const [universeError, setUniverseError] = useState(null);
-  const { running, progress, candidates, skippedCount, skipped, committed, error, start, stop } = useMarketScan();
+  const { running, progress, candidates, skippedCount, skipped, error, start, stop } = useMarketScan();
 
   useEffect(() => {
     supabase
@@ -259,16 +259,6 @@ export default function Scanner() {
                 <div className="h-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
               </div>
             </div>
-          )}
-
-          {committed.length > 0 && (
-            <ul className="px-4 py-2 border-b border-slate-200 bg-slate-50 text-xs text-slate-500 space-y-1">
-              {committed.map((c) => (
-                <li key={c.ticker}>
-                  <span className="font-medium text-slate-700">{c.ticker} not scanned</span> — {c.reason}
-                </li>
-              ))}
-            </ul>
           )}
 
           {shown.length > 0 && wheel ? (

@@ -151,6 +151,8 @@ Deno.serve(async (req) => {
     // order, which is the check that actually binds.
     let shares = 0;
     let sharesFree = 0;
+    let coverShares = 0;
+    let coverInUse: string | null = null;
     let longCover: any[] = [];
     let basis: number | null = null;
     let basisSource: string | null = null;
@@ -167,7 +169,13 @@ Deno.serve(async (req) => {
       // Reading `shares` here priced a second TSLA call as covered by the
       // hundred shares already behind the first, and never saw a long call.
       sharesFree = Number(held?.sharesFree?.[symbol] ?? 0) || 0;
-      longCover = held?.longsFree?.[symbol] || [];
+      // What a call here is priced against: the free cover, or -- when all of
+      // it is behind a call already sold -- what is held, flagged with
+      // `coverInUse`. The Scanner's rule, from scanCover; the order ticket
+      // warns again before anything is sent.
+      coverShares = Number(held?.scan?.sharesByTicker?.[symbol] ?? sharesFree) || 0;
+      longCover = held?.scan?.longCoverByTicker?.[symbol] || held?.longsFree?.[symbol] || [];
+      coverInUse = held?.scan?.inUse?.[symbol] || null;
       const b = held?.basis?.[symbol];
       if (b && Number(b.basis) > 0) {
         basis = Number(b.basis);
@@ -193,6 +201,8 @@ Deno.serve(async (req) => {
       atTheMoney: atTheMoneyIndex(ladder, spot?.price ?? null),
       shares,
       sharesFree,
+      coverShares,
+      coverInUse,
       longCover,
       basis,
       basisSource

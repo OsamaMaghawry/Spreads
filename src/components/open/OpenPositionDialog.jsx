@@ -49,7 +49,7 @@ export default function OpenPositionDialog({ account, onClose, onDone, prefill =
   const [cfg, setCfg] = useState(DEFAULTS);
   const [qty, setQty] = useState(1);
 
-  const { running, attempts, nextIn, candidates, skipped, committed, error: scanError, start, stop, setCandidates, marketOpen } = useScanLoop();
+  const { running, attempts, nextIn, candidates, skipped, error: scanError, start, stop, setCandidates, marketOpen } = useScanLoop();
   const [setup, setSetup] = useState(null);
   const [error, setError] = useState(null);
 
@@ -384,16 +384,6 @@ export default function OpenPositionDialog({ account, onClose, onDone, prefill =
 
         {(error || scanError) && phase === "idle" && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">{error || scanError}</div>
-        )}
-
-        {committed.length > 0 && phase === "idle" && (
-          <ul className="text-[11px] text-slate-500 leading-relaxed space-y-0.5">
-            {committed.map((c) => (
-              <li key={c.ticker}>
-                <span className="font-medium text-slate-700">{c.ticker} not scanned</span> — {c.reason}
-              </li>
-            ))}
-          </ul>
         )}
 
         {skipped.length > 0 && phase === "idle" && (

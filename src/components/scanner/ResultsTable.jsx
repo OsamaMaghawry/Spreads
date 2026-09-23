@@ -78,6 +78,14 @@ export default function ResultsTable({ candidates, onTrade }) {
                         vs long call
                       </span>
                     )}
+                    {c.coverInUse && (
+                      <span
+                        className="ml-1.5 rounded border border-amber-300 bg-amber-50 px-1.5 py-px text-[10px] font-medium text-amber-800"
+                        title={c.coverInUse}
+                      >
+                        cover in use
+                      </span>
+                    )}
                     <EarningsWarning earnings={c.earnings} ticker={c.ticker} compact />
                   </span>
                 </td>

@@ -39,30 +39,25 @@ Deno.serve(async (req) => {
     // universe is the account, not the request. A cash-secured put scans the
     // requested tickers like a spread does.
     let params = body;
-    // Tickers held but left out because their cover is already behind a call
-    // sold. Returned with every covered-call answer so the screen can name
-    // them; see freeCallCover.
-    let committed: any[] = [];
+    // Held tickers whose cover already stands behind a call sold, with the
+    // sentence saying so. Their setups are shown, flagged -- see scanCover.
+    let inUse: Record<string, string> = {};
     if (strategy === "covered_call") {
       const held = await heldShares(admin, account);
-      // FREE cover, not held cover. A long call the account owns can cover a
-      // call written against it, and shares or longs already standing behind a
-      // short call cannot cover a second one -- see freeCallCover. Reading raw
-      // holdings here is what hid the owner's IBIT long call and re-offered
-      // TSLA shares already committed to a short 390C.
-      if (held.coverTickers.length === 0) {
+      const scan = held.scan;
+      if (scan.tickers.length === 0) {
         return jsonResponse({
-          ok: false, candidates: [], skipped: [], committed: held.committed,
-          reason: "Nothing free to write a call against — no 100 shares and no long call that isn't already covering one."
+          ok: false, candidates: [], skipped: [],
+          reason: "Nothing to write a call against — no 100 shares and no long call in this account."
         });
       }
-      committed = held.committed;
+      inUse = scan.inUse;
       params = {
         ...body,
-        tickers: held.coverTickers,
-        sharesByTicker: held.sharesFree,
+        tickers: scan.tickers,
+        sharesByTicker: scan.sharesByTicker,
         basisByTicker: held.basis,
-        longCoverByTicker: held.longsFree
+        longCoverByTicker: scan.longCoverByTicker
       };
     }
     // Options do not trade outside 09:30-16:00 ET, so outside the session
@@ -114,7 +109,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    return jsonResponse(committed.length ? { ...result, committed } : result);
+    for (const c of result.candidates || []) {
+      if (inUse[c.ticker]) c.coverInUse = inUse[c.ticker];
+    }
+    return jsonResponse(result);
   } catch (error) {
     return jsonResponse({ error: error.message }, 500);
   }

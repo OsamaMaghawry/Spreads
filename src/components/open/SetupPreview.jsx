@@ -156,6 +156,15 @@ export default function SetupPreview({ setup, qty, live = null }) {
         )}
       </div>
 
+      {/* Cover already behind a call sold. Shown, not hidden -- the owner
+          wants to weigh closing that one and writing this. Short on purpose;
+          the order ticket names the rest before anything is sent. */}
+      {setup.coverInUse && (
+        <p className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900">
+          {setup.coverInUse} Close that call first, or this one is uncovered.
+        </p>
+      )}
+
       <div className="grid grid-cols-2 gap-y-1.5 tabular-nums border-t border-slate-200 pt-2">
         {/* Credit and width are quoted per share; risk and totals are per
             contract. Scaling the credit here keeps every dollar figure in this

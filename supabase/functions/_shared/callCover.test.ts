@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { allocateCallCover, coveredByShares, freeCallCover } from "./callCover.ts";
+import { allocateCallCover, coveredByShares, freeCallCover, scanCover } from "./callCover.ts";
 
 const call = (symbol: string, ticker: string, strike: number, qty: number, expiry: string, adjusted = false) => ({
   symbol, ticker, type: "C", strike, qty, expiry, adjusted
@@ -216,7 +216,7 @@ test("the owner's book: TSLA is named, with the call its shares stand behind", (
   const c = freeCallCover(LIVE_BOOK);
   assert.deepEqual(c.committed, [{
     ticker: "TSLA",
-    reason: "Your 100 shares already cover the 390 call (2026-09-23) you sold. Close it or let it expire to write another."
+    reason: "Your 100 shares already cover the 390 call (2026-09-23) you sold."
   }]);
 });
 
@@ -239,4 +239,40 @@ test("a long call already covering a short is named, in the singular", () => {
 test("the long's price today travels, for the ticket chart to value it", () => {
   const c = freeCallCover([{ symbol: "IBIT261218C00050000", qty: "1", avg_entry_price: "3.40", current_price: "4.10" }]);
   assert.equal(c.longsFree.IBIT[0].mark, 4.1);
+});
+
+// "Even if I have another covered call ... just give me [it]. I need to see if I
+// want to close mine and open another one before the current one expires."
+test("the owner's book: the scan is given TSLA too, priced on its shares, and flagged", () => {
+  const s = scanCover(freeCallCover(LIVE_BOOK));
+  assert.deepEqual(s.tickers, ["IBIT", "TSLA"]);
+  assert.equal(s.sharesByTicker.TSLA, 100);
+  assert.match(s.inUse.TSLA, /already cover the 390 call/);
+  // IBIT's long is free: priced on it, and not flagged.
+  assert.equal(s.longCoverByTicker.IBIT.length, 1);
+  assert.equal(s.inUse.IBIT, undefined);
+});
+
+test("a ticker with SOME free cover is sized on the free part only", () => {
+  const s = scanCover(freeCallCover([
+    { symbol: "TSLA", qty: "200", avg_entry_price: "360" },
+    { symbol: "TSLA260923C00390000", qty: "-1", avg_entry_price: "1.45" }
+  ]));
+  assert.equal(s.sharesByTicker.TSLA, 100);
+  assert.equal(s.inUse.TSLA, undefined);
+});
+
+test("a long call already covering a short is still offered, flagged", () => {
+  const s = scanCover(freeCallCover([
+    { symbol: "IBIT261218C00050000", qty: "1", avg_entry_price: "3.40" },
+    { symbol: "IBIT261016C00055000", qty: "-1", avg_entry_price: "0.80" }
+  ]));
+  assert.deepEqual(s.tickers, ["IBIT"]);
+  assert.equal(s.longCoverByTicker.IBIT[0].symbol, "IBIT261218C00050000");
+  assert.match(s.inUse.IBIT, /already covers the 55 call/);
+});
+
+test("nothing held, nothing scanned", () => {
+  const s = scanCover(freeCallCover([{ symbol: "IBIT260925P00047000", qty: "-2", avg_entry_price: "0.18" }]));
+  assert.deepEqual(s.tickers, []);
 });
