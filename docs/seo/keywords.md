@@ -32,9 +32,19 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 18 | Put credit spread | put credit spread explained | credit spread | tastylive, Investopedia | width, credit and the executable price |
 | 19 | Call credit spread | call credit spread explained | credit spread | tastylive | the mirror, and what is different about upside |
 | 20 | Iron condor | iron condor explained | iron condor | Investopedia, tastylive, OptionStrat | two spreads, one risk, per-side netting |
+| 21 | Width: why a $5-wide spread is not five $1-wide spreads | credit spread width (always qualified with "options" or "put/call credit spread" — unqualified it half-reads as bond spreads) | credit spread | Option Alpha (vertical-spread guide), Aeromir, The Option Premium ("$2, $5, or $10 wide?"), an Option Alpha community thread ("$1 spread vs $5 spread"), Schwab, OptionsPlay, a Medium post; TradingView chart ideas in the tail. Unqualified, CME OpenMarkets, FinchTrade and TradingView LIBOR-OIS charts take the bond-spread sense. No broker hub owns the options sense — read as **winnable** | one short strike or five: the same dollar risk built two ways — credit, max loss, fills at the executable price and assignment count side by side, with no width recommended |
+| 22 | Choosing a strike by delta | credit spread delta strike selection (also searched as "what delta to sell put credit spread") | credit spread | The Option Premium, optionstradingiq (twice), CreditSpread.net, strike.money, Data Driven Options (four pages), Traders Exclusive, Wikipedia, a Substack. No broker hub; every page names a number to use (15, 20 or 30 delta) — read as **winnable**, but the results are prescriptions | what the short strike's delta describes and what it does not (the spread's net delta, the long leg, a probability the model assumes) — descriptive, no "best delta"; builds on row 6 |
+| 23 | Days to expiry: the trade-off nobody states plainly | best dte for credit spreads (long tail: "30 dte vs 45 dte credit spread") | days to expiration | YouTube (0DTE videos and a playlist), Days to Expiry (twice), Data Driven Options, advancedautotrades, ApexVol, TradeAlgo, Options Cafe, journalplus; TradingView 0DTE indicator scripts and chart ideas in the tail. A second-hand "tastytrade 45/21" figure repeated across pages; no broker hub on the page — read as **winnable** | what shortens as expiry nears — credit per day, gamma, time for the mark to come back — laid out as the trade itself, with no DTE chosen. The query says "best"; the title answers it without promising one |
+| 24 | Earnings and short premium | selling options before earnings (see the row 24 reading) | earnings options — the IV-crush half is row 8's ground | Yahoo Finance and Barchart syndicated "selling a put before earnings" trade-idea articles (three), Option Alpha ("three best strategies"), Schwab, Option Samurai (twice), Freedom24, great-option-trading-strategies; the adjacent "hold a credit spread through earnings" is OptionsPlay, Theta Profits and affiliate blogs, plus a Blind thread — read as **winnable but crowded with advice** | what the chain prices in before the report (the implied move, read off the straddle) and what the seller is paid for versus exposed to across the gap — never a trade to place around an event |
+| 25 | Calendar spreads | calendar spread explained (qualify as "options calendar spread" — unqualified, Wikipedia and CME also mean futures calendars) | calendar spread | Alpaca, Wikipedia, Option Alpha (call and put guides), TradingBlock, CME course, Fidelity, CFI, an NCSU page; for "when the short option expires": SoFi, OIC, StoneX glossary. Broker and exchange education end to end — read as **hard-ish** | the one income structure you pay for: what the debit buys, and the long option left on its own after the front month settles |
+| 26 | Diagonal spreads | diagonal spread explained (long tail: "calendar vs diagonal spread difference") | diagonal spread | SoFi, wallstreetmojo, TradeStation, Wikipedia, Option Alpha, TradingBlock, Options Playbook, a Seeking Alpha instablog. For the difference query: Religare and Bajaj Broking (Indian brokers), Market Rebellion, Traders Agency, OptionsPlay, great-option-trading-strategies, a Pomegra wiki — head **hard-ish**, difference query **winnable** | a calendar with the strikes pulled apart: what the strike gap adds, and the case where "max loss is the debit" stops holding (long strike further out than the short) |
+| 27 | The poor man's covered call as an income structure | poor mans covered call (searched without the apostrophe; the title keeps "poor man's") | covered call | moomoo, CapTrader, Option Alpha, TradeStation, Option Samurai, TradingBlock, Piranha Profits, Days to Expiry, and Erik Bassett's Medium post ("why I don't use it"); for "short call assigned PMCC": strike.money, BullishBears, optionstradingiq, Data Driven Options and a TradingView chart idea — head **hard-ish** (no Investopedia; Medium in the set), assignment query **winnable** | it is a call diagonal wearing a covered-call name: what assignment on the short call leaves in the account (short shares, not shares called away) and how its max loss differs from the covered call it imitates |
+| 28 | Rolling a short option: what it is and what it is not | rolling options explained (long tail: "is rolling an option just taking a loss", "roll for a credit meaning") | rolling options | Saxo, Wealthsimple, TradeStation, Britannica Money, Option Alpha, Schaeffer's, Options Cafe, Robinhood support (US and GB); the long tails are two Substacks, QuantWheel, Market Rebellion, TickerScribe, Flow Proof, optionstradingiq — head **hard-ish**, long tails **winnable**. Nearly every page carries an "only roll for a credit" rule | a roll is a close and a new open in one ticket: the closed leg's realized result does not disappear into the net credit — stated as mechanics, not as when to roll |
+| 29 | Covered calls on shares you were assigned | covered call after put assignment (not "covered call after assignment" — see Competing today) | covered call | Unqualified "covered call after assignment" reads as the call being assigned: a Quicken community thread, VectorVest, QuantWheel, CashFlowMachine, borntosell, Substacks, TradingView chart ideas. The put-assignment intent ("selling covered calls below cost basis after put assignment"): SpotGamma, a Quora thread, WheelMetrics, Hello Suckers (twice), a Substack — read as **winnable**; Quora in the top set | the three prices on the screen after assignment — the put strike, the premium-adjusted figure, today's stock — and what a call at each strike realizes if the shares are called away |
+| 30 | Cost basis on the wheel: adjusted for every premium | wheel strategy cost basis (see the row 30 reading) | wheel strategy | QuantWheel (twice), MarketXLS, optionstradingiq, TradingOptionsCashflow (twice), OptionWheelLogic, OptionWheelTracker, thewheelstrategy.com. Tracker and spreadsheet vendors only; no broker hub, no regulator — read as **winnable** | two numbers, not one: the running break-even every tracker shows, and the basis the broker reports — which treat put and call premium differently. Descriptive, pointing to IRS Pub. 550 and the broker, never tax advice |
 | M48 | What a credit spread actually risks | credit spread max loss before expiration | credit spread max loss | tastytrade (short put vertical), moomoo, Schwab, broker learn hubs; TradingView chart-idea pages padding the tail | max loss is the expiration number — what the collateral holds, what the mark does, and what assignment changes in between |
 
-Rows 21–65 are added by the Wednesday run as their turn approaches.
+Rows 31–65 are added by the Wednesday run as their turn approaches.
 
 ## Reading for row 6 — option delta explained (read 12 Sep 2026)
 
@@ -315,6 +325,67 @@ including one naming Reddit in the query, and no Reddit thread surfaced — the
 forum-style results were two Quora threads and Substacks. Investopedia surfaced
 in none of them. That absence is a read of these results pages on one day
 through one search tool, not proof those sites do not rank.
+
+## Reading for row 24 — selling options before earnings (read 2026-09-23)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| selling options before earnings (target) | Yahoo Finance and Barchart (three syndicated "selling a put before earnings" trade ideas on named tickers), Option Alpha ("three best strategies"), Schwab, Option Samurai (twice), Freedom24, great-option-trading-strategies | **winnable on authority, hostile on framing** — one broker hub; the rest are trade ideas and strategy lists |
+| should you hold a credit spread through earnings | OptionsPlay, Theta Profits ("post-earnings credit spreads… high win rates"), Explosive Options, Trading Strategy Guides, TradeAlgo, advancedautotrades, a Blind thread, TradingView chart ideas | **winnable** — a Blind thread and chart ideas in the top set; every page answers "avoid it" or "sell after instead", which is advice |
+| expected move earnings / implied move how calculated | moomoo, SpotGamma tool, Options Hawk, optionstradingiq, TradeAlgo, Volatility Box, Options Pilot (twice), Barchart tool pages | winnable, thin — the straddle arithmetic is given everywhere, and it is the descriptive core this post needs |
+
+**The gap.** The results page is advice from top to bottom: sell the put, use
+these three strategies, never hold through, sell after instead. Almost none
+puts the seller's position before and after the report on one chain — the
+premium received, the implied move read off the at-the-money straddle, and
+what a gap of that size (and twice that size) does to the same short put or
+spread. That is the angle. It stays descriptive: no ticker as a setup, no
+"avoid" or "capitalise", no win rate. IV crush is explained in row 8 and linked,
+not re-told.
+
+**Could not establish:** search volume, difficulty and current position for any
+phrasing above; whether these results are personalised or localised; and
+whether "earnings" plus "short premium" or "premium selling" has its own
+phrasing — searches returned the same trade-idea set, so the target stays on
+the plainer "selling options before earnings".
+
+## Reading for row 30 — wheel strategy cost basis (read 2026-09-23)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| wheel strategy cost basis (target) | QuantWheel (twice), MarketXLS, optionstradingiq, TradingOptionsCashflow (twice), OptionWheelLogic, OptionWheelTracker, thewheelstrategy.com | **winnable** — tracker and spreadsheet vendors, each selling the tool that computes the number |
+| does put premium reduce cost basis / covered call premium tax basis | Fidelity, ProShares, coveredge, optionincometools, Wikipedia "Cost basis", LegalClarity, Days to Expiry, a TD advisor PDF, Vanguard | hard-ish — the tax treatment is broker and fund-company ground; cited, never competed for |
+
+**The gap.** Every page in the target set computes one "adjusted cost basis":
+put strike minus every premium collected, covered-call premium included, and
+several call it "your real cost basis" against "the number your broker
+reports". The tax side, on different pages, says the two premiums are treated
+differently: put premium reduces the basis of shares received by assignment,
+while covered-call premium does not touch basis and goes into the sale
+proceeds when the call is assigned (or is its own result if it expires or is
+bought back). So the broker's figure is not "wrong"; it is a different number
+from the running break-even. The angle carries both numbers on one worked
+wheel and says which one each screen shows.
+
+**Restraint, stated:** this row is the closest the income syllabus comes to
+tax. The post describes how the two figures are built, points to IRS
+Publication 550 and the broker's own cost-basis page, and says to confirm with
+a tax adviser. It does not tell anyone how to report, does not cover wash
+sales or qualified-covered-call rules beyond naming them, and the title and
+meta do not use "tax" to pull tax-intent traffic we cannot serve responsibly.
+
+**Could not establish:** search volume, difficulty and current position for any
+phrasing above; whether these results are personalised or localised; and
+whether "wheel strategy break even" is searched separately from "cost basis" —
+the break-even phrasing surfaced the same vendor pages.
 
 ## Off-syllabus rows
 
