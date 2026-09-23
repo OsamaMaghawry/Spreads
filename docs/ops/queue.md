@@ -566,6 +566,19 @@ silence there is not clearance. All of it is still open:
 - [open] 2026-09-08 · head-of-trading · `manageOrder`'s replace path beyond its `> 0` guard, which this pass changed to "finite and non-zero" so a resting credit order can be repriced.
 - [open] 2026-09-08 · **A re-audit before any of this goes to production.** Every fix above was made against a STOP verdict and none of them has been read back by the bench.
 
+Top five from head-of-branding's 2026-W39 full consistency audit
+(`docs/branding/2026-W39.md`), ranked by exposure — the app's own primary
+button colors, an over-cap blog post, a sixth off-scale red, the wordmark's
+own mint mismatched app-vs-site, and the Analysis feature's three names. All
+are code/copy fixes only, no design change, for the duty engineer to apply
+on staging:
+
+- [open] 2026-09-23 · head-of-branding · **Three different "primary action" colors on the login → scan → trade path.** Emerald on the Scanner run button (`src/pages/Scanner.jsx:223`), "Connect Alpaca" submit (`src/components/accounts/AccountForm.jsx:120`), Export PDF (`src/components/analysis/ExportPdfButton.jsx:286`) and `ConfirmSubmit.jsx:16`'s default `tone="emerald"`; shadcn near-black `--primary` (`src/index.css:15`) on Login/Register (`src/pages/Login.jsx:95`); `dm-accent` purple everywhere else. Fix: repoint the app's primary-button/focus-ring styling at `dm-accent` and retire the ad hoc emerald and shadcn-default buttons. Style-only.
+- [open] 2026-09-23 · head-of-branding · **Six foundations blog posts blow brand.md's own 900–1,300-word ceiling**, several worse than `credit-spread-max-loss` (2,143 words), the post the rule cites as the case to prevent: `content/blog/option-assignment-what-happens.md` (2,385 words), `content/blog/gamma-options-meaning.md` (2,122), `content/blog/implied-volatility-options-explained.md` (1,926), `content/blog/early-exercise-options.md` (1,891), `content/blog/what-is-an-options-contract.md` (1,764), `content/blog/what-happens-options-expiration.md` (1,761). Fix: cut or split each to the ceiling, worst two first; add a word-count gate to the daily content pipeline so this stops reaching publish.
+- [open] 2026-09-23 · head-of-branding · **A sixth off-scale red was added to the PDF exporter after brand.md fixed red to mean loss/risk only.** `src/components/analysis/ExportPdfButton.jsx:139,160` hardcodes `rgb(160,60,60)` (`#A03C3C`) for the new "unattributed rows withheld" disclosure text, matching none of `dm-negative` (`#993C1D`), the app's `rose-6xx/7xx`, the landing `--rose`, shadcn `--destructive`, or the PDF's own existing `rgb(180,72,92)` paper banner. Fix: replace `rgb(160,60,60)` with `dm-negative`'s RGB, `rgb(153,60,29)`.
+- [open] 2026-09-23 · head-of-branding · **The wordmark's own "mint" is a different green on the site than in the app.** App: `src/components/brand/Wordmark.jsx:96` renders `dm-mint` = `#3FA672`. Landing: `landing/public/assets/site.css:170` (`.brandmark .m`) resolves `var(--mint)` = `#2E8B5F` light / `#5FC48D` dark (`site.css:19,32`) — neither matches. Fix: set `site.css`'s light-mode `--mint` to `#3FA672` and give dark mode a `dm-mint`-derived equivalent, so the logotype is one color on both domains.
+- [open] 2026-09-23 · head-of-branding · **The Analysis feature carries three names in one user action, including on the PDF that leaves the product.** On-screen H1 "Analysis" (`src/pages/AccountAnalysis.jsx:508`) vs. PDF title prop "Performance Analysis" (`AccountAnalysis.jsx:536`, brand.md's table forbids "performance page") vs. footer text "economic performance report" on both the screen (`AccountAnalysis.jsx:715`) and the PDF (`src/components/analysis/ExportPdfButton.jsx:185`). Fix: change `AccountAnalysis.jsx:536`'s title prop to `` `${name} — Analysis` ``. Do NOT change the "economic performance report" footer wording without desk-editor/compliance-gate sign-off first — it may be a deliberate disclosure choice, not an accident.
+
 
 ## Fixed
 
