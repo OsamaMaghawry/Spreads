@@ -3,6 +3,28 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-23 · Unfinished broker work (the SnapTrade and Tradier
+  evaluations) no longer has to block a small fix from shipping: the app now
+  builds from one shared source tree with a single flag, `VITE_LAB`, that
+  staging turns on and production leaves off — the unfinished code is
+  literally absent from a production build, not just hidden behind a check,
+  and the two edge functions refuse on their own if called directly against
+  an environment that doesn't hold the credentials the work needs
+  (`4fc84f3`, reverted `c655223`, `e87c119`).
+- 2026-09-23 · A twelfth foundations post — what happens at options
+  expiration — is live on the blog: exercise-by-exception at a cent in the
+  money, the two cutoffs (FINRA's 5:30pm and a broker's own, earlier one),
+  each spread leg settling against its own strike independently, and pin
+  risk when the close lands right on a strike; reviewed by desk-editor,
+  seo-editor and compliance-gate first (`63ca49e`).
+- 2026-09-23 · The logo is now the lowercase Greek delta itself — drawn as a
+  glyph in the app's own wordmark font rather than the old triangle-with-two-
+  sprigs mark, which gestured at a delta without being the letter a trader
+  actually reads on an option chain. Its size, spacing and vertical
+  centering next to the wordmark are now derived from one number instead of
+  four different hand-set relationships across the app header, drawer, auth
+  screens and site footer/nav, corrected twice more on the owner's own eye
+  (`386841d`, `9b67a8e`, `507dc15`, `2858a90`).
 - 2026-09-22 · (staging) The "No earnings date" badge is gone from the
   Scanner's results table — the owner found it confusing, and it was: both
   the badge and its absence meant "no earnings warning to a trader scanning
