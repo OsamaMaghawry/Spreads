@@ -20,10 +20,29 @@ import { screenUniverse, tradableEquities } from "../_shared/universe.ts";
 // URL length rather than by a documented limit. A hundred is comfortably inside
 // it and is what getSpots already uses.
 const BATCH = 100;
-// A ceiling on what one call will fetch snapshots for. Without it a bad filter
-// combination asks for a hundred and forty requests and times out the function;
-// with it the answer is complete or it says it was truncated.
-const MAX_SNAPSHOT_SYMBOLS = 4000;
+// How many snapshot batches are in flight at once.
+//
+// THE CAP WAS NEVER THE REAL CONSTRAINT -- SEQUENCING WAS. The batches were
+// fetched one after another, so 127 requests at a few hundred milliseconds
+// each is most of a minute and the ceiling existed to stop that timing out.
+// They are independent reads of different symbols; nothing orders them. Run
+// them in waves and the whole listed market costs about as long as a sixth of
+// it did.
+//
+// Eight rather than "all of them": a hundred and twenty-seven simultaneous
+// requests is how a data provider decides you are abusive, and the point is to
+// finish reliably rather than fastest.
+const CONCURRENCY = 8;
+// A ceiling that now sits above the whole US equity list (12,647 names on
+// 22 Sep 2026) rather than a third of the way through it, so it is a guard
+// against something pathological instead of a routine truncation.
+//
+// At 4,000 it cut the market alphabetically. The owner's run: "3,990 names
+// priced · 6 passed the filters ... Only 4000 of 12647 listed names could be
+// priced". Sorting by symbol and taking the first N is the worst available
+// choice -- it is not a sample of the market, it is the letters A to F, and it
+// excluded NVDA, TSLA, SPY and every other name a scanner exists to find.
+const MAX_SNAPSHOT_SYMBOLS = 20000;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -41,8 +60,22 @@ Deno.serve(async (req) => {
     // The whole listed equity universe, once. Alpaca returns it in a single
     // response; there is no pagination on this endpoint.
     const assets = await alpacaFetch(`${base}/assets?status=active&asset_class=us_equity`, account);
-    let symbols = tradableEquities(Array.isArray(assets) ? assets : []);
-    const listed = symbols.length;
+    const all = Array.isArray(assets) ? assets : [];
+
+    // LEVERAGED AND INVERSE FUNDS ARE NOT IN THIS UNIVERSE.
+    //
+    // The owner: *"Filter out any 2x 3x things. Just 1x. Filter out any
+    // Inverse."* An option on a 3x fund prices a different risk from the one
+    // a credit spread is sized against, and a wheel assigned into a
+    // daily-reset leveraged fund holds an instrument built to decay.
+    //
+    // Counted rather than silently removed, and reported beside the other
+    // drop reasons, because a sieve nobody can see the effect of is a sieve
+    // nobody trusts -- the same rule the price and volume filters already
+    // follow.
+    const listed = tradableEquities(all).length;
+    let symbols = tradableEquities(all, { excludeLeveraged: true });
+    const leveraged = listed - symbols.length;
 
     // Capital-per-contract is measured against the account, so the account's
     // own equity is read here rather than trusted from the request body.
@@ -58,37 +91,62 @@ Deno.serve(async (req) => {
     // Snapshots for everything, in batches. A failed batch drops those names
     // rather than the whole scan -- and they are counted, so a partial answer
     // is never presented as a complete one.
+    const chunks: string[][] = [];
+    for (let i = 0; i < symbols.length; i += BATCH) chunks.push(symbols.slice(i, i + BATCH));
+
     const snapshots: Record<string, any> = {};
     let failedBatches = 0;
-    for (let i = 0; i < symbols.length; i += BATCH) {
-      const chunk = symbols.slice(i, i + BATCH);
-      try {
-        const data = await alpacaFetch(
-          `https://data.alpaca.markets/v2/stocks/snapshots?symbols=${chunk.join(",")}`,
-          account
-        );
-        Object.assign(snapshots, data || {});
-      } catch (e) {
-        failedBatches++;
-        console.error("universe snapshot batch failed", chunk[0], e?.message || e);
-      }
+    for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+      const wave = chunks.slice(i, i + CONCURRENCY);
+      const results = await Promise.all(
+        wave.map((chunk) =>
+          alpacaFetch(
+            `https://data.alpaca.markets/v2/stocks/snapshots?symbols=${chunk.join(",")}`,
+            account
+          ).catch((e) => {
+            // A failed batch drops those names rather than the whole scan --
+            // and is counted, so a partial answer is never presented as a
+            // complete one. Promise.all would reject the whole wave on one
+            // failure, so the catch is per request and inside it.
+            failedBatches++;
+            console.error("universe snapshot batch failed", chunk[0], e?.message || e);
+            return null;
+          })
+        )
+      );
+      for (const data of results) if (data) Object.assign(snapshots, data);
     }
 
     const { kept, dropped, considered } = screenUniverse(snapshots, { ...filters, equity });
 
     return jsonResponse({
       tickers: kept.map((k) => k.symbol),
+      // Folded into the same breakdown the screen already renders, so it reads
+      // as one accounting of where the market went rather than a footnote.
+      dropped: leveraged > 0 ? { ...dropped, "leveraged or inverse fund": leveraged } : dropped,
       // Everything needed for the screen to say where the universe went, which
       // is what makes a filter trustworthy rather than mysterious.
       listed,
       considered,
       kept: kept.length,
-      dropped,
       equity,
       truncated,
       incomplete: failedBatches > 0 || truncated,
+      // THE OLD TEXT TOLD THE USER TO DO SOMETHING THAT CANNOT WORK.
+      //
+      // It read "Narrow the filters to cover more of the market", but the
+      // truncation happens HERE, before `screenUniverse` runs -- the cap is on
+      // how many names get priced, not on how many survive. No filter change
+      // reaches the names that were cut, so following that advice changes
+      // nothing and the user concludes the scanner is broken.
+      //
+      // And the cut is ALPHABETICAL, because `tradableEquities` sorts by
+      // symbol and this takes the first N of that. So a truncated sweep covers
+      // the start of the alphabet and silently omits the end of it -- the
+      // opposite of what "scan the entire market" promises, and invisible
+      // unless the message says so.
       note: truncated
-        ? `Only the first ${MAX_SNAPSHOT_SYMBOLS} of ${listed} listed names were priced. Narrow the filters to cover more of the market.`
+        ? `Only ${MAX_SNAPSHOT_SYMBOLS} of ${listed} listed names could be priced in one pass, taken in alphabetical order — names later in the alphabet were not looked at. Filters do not change this; they are applied to the names that were priced.`
         : failedBatches > 0
           ? `${failedBatches} price batches failed, so some names could not be judged and were left out.`
           : null

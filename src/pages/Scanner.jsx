@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Loader2, Radar, StopCircle } from "lucide-react";
 import StrategyPicker from "@/components/open/StrategyPicker";
-import ScannerConfig, { SCANNER_DEFAULTS } from "@/components/scanner/ScannerConfig";
+import ScannerConfig, { SCANNER_DEFAULTS, defaultMinRoR } from "@/components/scanner/ScannerConfig";
 import ResultsTable from "@/components/scanner/ResultsTable";
 import TradeDialog from "@/components/scanner/TradeDialog";
 import useMarketScan from "@/components/scanner/useMarketScan";
@@ -24,7 +24,12 @@ export default function Scanner() {
   // "why did my scan return so little", and without it the filters are opaque.
   const [universe, setUniverse] = useState(null);
   const [findingUniverse, setFindingUniverse] = useState(false);
-  const { running, progress, candidates, skippedCount, error, start, stop } = useMarketScan();
+  // Why the whole-market pass failed, when it fails. Separate from the scan
+  // hook's own error because it happens BEFORE a scan starts -- `start()`
+  // clears that one, so reusing it would wipe the message on the next click
+  // and leave the same blank screen this is here to end.
+  const [universeError, setUniverseError] = useState(null);
+  const { running, progress, candidates, skippedCount, skipped, error, start, stop } = useMarketScan();
 
   useEffect(() => {
     supabase
@@ -51,6 +56,15 @@ export default function Scanner() {
   const applyPreset = (savedStrategy, savedConfig) => {
     setStrategy(savedStrategy);
     setCfg({ ...SCANNER_DEFAULTS, ...savedConfig });
+  };
+
+  // Choosing a strategy re-bases the return-on-risk floor, because the ratio
+  // means a different thing on either side of the choice -- see defaultMinRoR.
+  // Deliberately NOT applied in applyPreset above: a saved preset carries a
+  // floor the trader chose, and overwriting it would make presets lossy.
+  const chooseStrategy = (next) => {
+    setStrategy(next);
+    setCfg((c) => (c.minRoR === defaultMinRoR(strategy) ? { ...c, minRoR: defaultMinRoR(next) } : c));
   };
 
   const filtersFor = (strat) => ({
@@ -93,6 +107,7 @@ export default function Scanner() {
     if (cfg.universe === "market") {
       setFindingUniverse(true);
       setUniverse(null);
+      setUniverseError(null);
       try {
         const { data } = await invokeFunction("scanUniverse", {
           accountId: accounts[0].id,
@@ -105,12 +120,27 @@ export default function Scanner() {
           }
         });
         setFindingUniverse(false);
-        if (data?.error) return;
+        // THE REASON IS NOT OPTIONAL. Both of these used to return silently --
+        // `if (data?.error) return` threw away a server error, and the catch
+        // below discarded the exception -- so a scan that failed and a scan
+        // that found nothing looked identical: the spinner stopped and the
+        // page sat there. The owner: *"whatever I put in filters, doesn't
+        // show any results."* That is what a swallowed error looks like from
+        // the outside, and it is unanswerable from the outside too, because
+        // the one sentence naming the cause was being dropped on the floor.
+        if (data?.error) {
+          setUniverseError(data.error);
+          return;
+        }
         setUniverse(data);
+        // Not an error: the universe panel below states what was priced, what
+        // passed, and where the rest went, which is a better answer than a
+        // banner repeating it.
         if (!data?.tickers?.length) return;
         start(accounts[0].id, [{ tickers: data.tickers, filters: filtersFor(strategy) }]);
-      } catch {
+      } catch (e) {
         setFindingUniverse(false);
+        setUniverseError(e?.message || String(e));
       }
       return;
     }
@@ -135,7 +165,7 @@ export default function Scanner() {
       <div className="grid lg:grid-cols-[340px_1fr] gap-5 items-start">
         <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
           <ScanPresets scope={SCOPE.SCANNER} strategy={strategy} config={cfg} onApply={applyPreset} />
-          <StrategyPicker value={strategy} onChange={setStrategy} withWheel />
+          <StrategyPicker value={strategy} onChange={chooseStrategy} withWheel />
           <ScannerConfig cfg={cfg} set={set} isCondor={isCondor} single={single} strategy={strategy} />
 
           {findingUniverse && (
@@ -206,6 +236,11 @@ export default function Scanner() {
           {accounts.length === 0 && (
             <p className="text-xs text-amber-600">Add a trading account first — market data uses its API keys.</p>
           )}
+          {universeError && (
+            <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 text-xs text-rose-700 leading-relaxed">
+              <span className="font-medium">The market sweep could not run.</span> {universeError}
+            </div>
+          )}
           {error && <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">{error}</div>}
         </div>
 
@@ -247,12 +282,55 @@ export default function Scanner() {
           ) : shown.length > 0 ? (
             <ResultsTable candidates={shown} onTrade={setTradeSetup} />
           ) : (
-            <div className="px-4 py-16 text-center text-sm text-slate-400">
-              {running
-                ? "Results stream in as tickers are scanned…"
-                : progress.total > 0
-                  ? "No setups matched your filters."
-                  : "Configure your filters and start a scan."}
+            <div className="px-4 py-12 text-sm text-slate-500">
+              {running ? (
+                <p className="text-center text-slate-400">Results stream in as tickers are scanned…</p>
+              ) : progress.total > 0 ? (
+                /* "No setups matched your filters" was the whole answer, and it
+                   is the least useful true sentence this page could print: it
+                   names no filter, so the only way forward is to change one at
+                   random and run again. Two things are now separated, because
+                   they need opposite fixes.
+
+                   FOUND BUT HIDDEN. Setups were built and the return-on-risk
+                   floor above removed them. That is a slider, not a scan.
+
+                   NOT BUILT AT ALL. The engine already says why per ticker --
+                   the delta band, the credit floor, the risk cap, the expiry
+                   window -- and those sentences were being counted and thrown
+                   away. They are the answer to "why is nothing showing". */
+                <div className="space-y-3 max-w-xl mx-auto">
+                  {candidates.length > 0 ? (
+                    <>
+                      <p className="text-center text-slate-700">
+                        {candidates.length} setup{candidates.length === 1 ? "" : "s"} found, none at or above{" "}
+                        {minRoR}% return on risk.
+                      </p>
+                      <p className="text-center text-xs text-slate-400">
+                        The best was {(Math.max(...candidates.map((c) => c.returnOnRisk)) * 100).toFixed(1)}%. Lower
+                        the &ldquo;min return on risk&rdquo; filter to see them.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-center text-slate-700">
+                        No setups matched. {skippedCount > 0 && `${skippedCount} ticker${skippedCount === 1 ? "" : "s"} were passed over — here is why:`}
+                      </p>
+                      {skipped.length > 0 && (
+                        <ul className="space-y-1.5 text-xs text-slate-500 bg-slate-50 rounded-lg p-3">
+                          {skipped.map((sk, i) => (
+                            <li key={`${sk.ticker}-${i}`} className="leading-relaxed">
+                              <span className="font-medium text-slate-700">{sk.ticker}</span> — {sk.reason}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  )}
+                </div>
+              ) : (
+                <p className="text-center text-slate-400">Configure your filters and start a scan.</p>
+              )}
             </div>
           )}
         </div>

@@ -23,7 +23,7 @@ import {
   HISTORY_FINDING_CODES
 } from "../_shared/seriesFreeze.ts";
 import { accountWeek } from "../_shared/weeklyDigest.ts";
-import { sendEmail } from "../_shared/email.ts";
+import { sendEmail, SENDER } from "../_shared/email.ts";
 import {
   sessionDay,
   equityDays,
@@ -690,7 +690,11 @@ async function auditSeries(admin: any, account: any, userId: string, rows: any[]
       const to = settings?.recipient_email;
       if (to) {
         const mail = driftEmail(account.name || account.id, fresh);
-        const result = await sendEmail(to, mail.subject, mail.html, mail.text);
+        // FROM AGENTS, NOT SUPPORT. This says our own stored history moved
+        // under us -- it names accounts, columns and stored days, and it
+        // exists for whoever maintains this, not for a customer. The owner:
+        // *"Agents is internal email for our agentic workflow."*
+        const result = await sendEmail(to, mail.subject, mail.html, mail.text, SENDER.agents);
         console.warn(`equityHistory: ${account.id} drift mail ${result.sent ? "sent" : `not sent (${result.skipped || result.error})`}: ${mail.subject}`);
       } else {
         console.warn(`equityHistory: ${account.id} drift found and no recipient_email set`);
@@ -862,7 +866,9 @@ Deno.serve(async (req) => {
       const to = settings?.recipient_email;
       if (!to) return jsonResponse({ error: "watch_settings.recipient_email is not set" }, 500);
       const mail = sampleDriftEmail("Alpaca Live (907253851)");
-      const result = await sendEmail(to, mail.subject, mail.html, mail.text);
+      // Same sender as the real thing, or the preview would not show what
+      // the real one looks like -- which is the whole point of a preview.
+      const result = await sendEmail(to, mail.subject, mail.html, mail.text, SENDER.agents);
       return jsonResponse({ to, subject: mail.subject, ...result });
     }
 

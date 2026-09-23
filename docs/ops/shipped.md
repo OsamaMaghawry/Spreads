@@ -3,6 +3,171 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-22 · (staging) The "No earnings date" badge is gone from the
+  Scanner's results table — the owner found it confusing, and it was: both
+  the badge and its absence meant "no earnings warning to a trader scanning
+  the list", so the difference cost a column of space to communicate
+  something that changed nothing at the point of reading. The real warning
+  now lives in the trade ticket instead, where there's room to say it
+  plainly — a dated announcement inside the position's life still gets its
+  full warning, and a name the earnings calendar has never covered says so
+  and to check before holding through one. The table keeps its amber chip
+  only for a real, dated announcement (`e0d4906`).
+- 2026-09-22 · (staging) A scanner row with no earnings-calendar coverage
+  now reads "No earnings date" in words, at the quietest weight, instead
+  of a calendar icon next to a bare "Earnings —" that looked like an
+  alert — the em dash was the whole message and too quiet to be read as
+  "we don't know", not "none scheduled" (`56984b9`).
+- 2026-09-22 · (staging) The scanner's return-on-risk explainer note is
+  gone — it was explaining a 0% floor the trader no longer has to reason
+  about now that secured strategies default to it (`c8172cf`).
+- 2026-09-22 · (staging) A cash-secured put or covered call scan no longer
+  comes back empty by design — its return-on-risk floor is measured
+  against the whole strike, not the width less the credit, so the old 15%
+  default was a bar nothing in either strategy could ever clear; it now
+  defaults to 0% on secured strategies. Presets can now be saved for
+  cash-secured puts, covered calls and the wheel — the database was still
+  only accepting spreads and condors, so saving or auto-remembering a scan
+  of any other strategy failed silently (migration `0057`, applied to
+  staging; production is the owner's own call) (`c8d6470`).
+- 2026-09-22 · (staging) The whole-market scan now drops leveraged and
+  inverse funds (2x/3x, "Ultra", "Bull"/"Bear" fund families) by name,
+  since Alpaca's own data carries no leverage flag — matched on word
+  boundaries so a real company like Ultragenyx is never caught by
+  mistake. A ticker the earnings calendar has never covered now reads as
+  "Earnings —, unknown" instead of silently rendering the same as a
+  ticker checked and found clear (`bc97286`).
+- 2026-09-22 · (staging) A whole-market scan that finds setups but rejects
+  them all on the return-on-risk floor now says so — how many were found,
+  that none cleared the floor, and what the best one actually was — instead
+  of the same blank "No setups matched your filters" it showed when nothing
+  was built at all. When nothing is built, the screen lists the specific
+  reason each ticker was skipped (delta band, credit floor, risk cap,
+  expiry window), capped at twelve, instead of only a count (`a30530b`).
+- 2026-09-22 · (staging) The whole-market scan now actually scans the whole
+  market — it was cutting off at the first 4,000 of 12,647 listed names,
+  alphabetically (A–F only, missing NVDA, TSLA, SPY and most of the
+  market), because the price snapshots were fetched one after another and
+  more of them timed out; they now fetch eight at a time and the cap moves
+  to 20,000. A name's volume is now judged against the busier of today
+  so far and the last full session, instead of today's running total alone
+  — a liquid name trading heavily by the close no longer reads as "thin
+  volume" just because the scan ran at midday (`daf0282`).
+- 2026-09-22 · (staging) The Scanner's "whole market" sweep now says why it
+  found nothing instead of just sitting empty after the spinner stops — a
+  server error was being discarded outright and a thrown exception (a
+  timeout, a network drop) was being swallowed by an empty `catch`, so a
+  broken sweep and a genuinely empty one looked identical. Also fixed: the
+  truncation notice used to tell the user to narrow their filters, which
+  cannot work — the 4,000-symbol cap is applied before filters run, and the
+  cut is alphabetical, so it now says both of those things instead
+  (`0adf729`).
+- 2026-09-22 · An eleventh foundations post — early exercise, and why it's
+  rare except before a dividend — is live on the blog: what American-style
+  exercise lets a holder do on any business day, why doing so throws away
+  whatever extrinsic value is left in the contract, and the one dividend
+  case where cashing out early actually wins. Its two diagrams do not
+  render on the live site — the same landing-deploy gap as the two posts
+  below, now three posts and six images deep and still unresolved
+  (`da81319`, reviewed in `8568a79`/`08202d0`/`280e9ce`; see
+  `docs/ops/queue.md`).
+- 2026-09-21 · A tenth foundations post — option assignment, what actually
+  happens in your account — is live on the blog: who is handed the
+  exercise notice and why it's random and always after the fact, and what
+  changes line by line when a short option gets assigned. Same
+  broken-diagrams gap as below (`59a5852`).
+- 2026-09-20 · A ninth foundations post — gamma, explained plainly — is
+  live on the blog: what gamma measures, why it peaks at the money, and
+  why it speeds up as expiration nears. Its two diagrams have never
+  actually reached the live site — the landing-deploy workflow has not
+  succeeded since 14 September (`7b15efe`; see `docs/ops/queue.md`).
+- 2026-09-20 · (staging) Emails the app sends to itself — a failed blog
+  publish, a drift in stored history — now go to `agents@deltamint.app`
+  instead of the customer-facing `support@` address that the weekly digest,
+  position-watch alerts and sign-in mail use, so internal cron output stops
+  burying customer mail and vice versa (`3a7e7ed`).
+- 2026-09-19 · (staging) Analysis lists every closed setup instead of only
+  the ones spanning more than one leg — a single put that expired worthless
+  now counts alongside a multi-leg spread, rolled up by ticker with tiles
+  that total all of them, not the six it used to keep (`dd706f2`).
+- 2026-09-19 · (staging) A covered call's buyback is grouped with the shares
+  and the puts that funded it into one setup, so a losing buyback inside an
+  overall-profitable campaign no longer reads as an isolated loss on its own
+  (`c0332de`).
+- 2026-09-18 · (staging) Tradier — chosen as the second broker to build
+  directly, because its paper and live accounts share one API the way
+  Alpaca's do — has a client, order translation and a probe (places
+  nothing) on staging: it corrects for Tradier's inverted price sign on
+  credit/debit orders, its form-encoded multi-leg order format, and its
+  habit of collapsing a one-item list into a bare object instead of an
+  array. Migration `0056` adds `broker_probes` to record what each
+  candidate broker actually returns (`2c6fd7f`).
+- 2026-09-18 · (staging) SnapTrade — a service that connects to many
+  brokers through one API — was evaluated end to end from a new Admin →
+  SnapTrade panel: signed and authenticated against their live API, one
+  real brokerage (Robinhood) connected and probed. Verdict so far: 15 of
+  their 39 reachable brokers can place an order, but the four largest US
+  options brokers (Schwab, Fidelity, Interactive Brokers, Robinhood) are
+  read-only through them, live Alpaca isn't offered at all, and every
+  holdings/positions route currently answers 410 pending SnapTrade's own
+  explanation. Order placement is double-locked — an explicit confirm
+  flag plus the broker's own paper flag, read fresh on every call — so
+  the evaluation itself can never place a real order. Nothing it returns
+  feeds the dashboard, Analysis or the weekly digest (`cf4aadf`,
+  `b67897f`, `34d4b06`, `d83db11`, `2cc2fd5`, `cde79bf`, `448da9f`,
+  `240b2a3`, `828d287`, `1554f21`, `d6b6663`, migration `0055`).
+- 2026-09-17 · Stored account history is now frozen against being silently
+  rewritten: a nightly rebuild can no longer blank or materially change a
+  day older than the last few trading sessions (the exact bug that had
+  zeroed 52 days of one account's history two lines below) — a
+  disagreement is recorded and the old, good value is kept instead of
+  overwritten. Every previously-sent weekly digest is now re-checked
+  against what's actually stored, and the owner is mailed once if a sent
+  figure no longer matches history, not every night the mismatch persists
+  (`7da283d`/`294175c`, `22c5b44`/`a9dbf8b`).
+- 2026-09-17 · The Account Analysis chart now draws the close a window is
+  measured FROM, not just the days inside it — previously a week's chart
+  started already up most of its gain, so the week looked flat when it
+  wasn't. A new panel under the headline breaks the window's total into
+  the same four parts the weekly digest already emails (premium, shares,
+  mark change, etc.) between that starting close and the window's last
+  close, so a figure like "+$2,455.91 for the week" now shows where it
+  came from instead of just asserting it (`33b1333`/`e8787b0`).
+- 2026-09-17 · Account Analysis and the weekly digest email now agree with
+  each other and explain their own numbers instead of contradicting each
+  other: both now measure a window's change from the same starting
+  balance (previously the chart measured from the first day inside the
+  window while the digest measured from the last day before it), a
+  windowed balance is now labelled "End of window · <date>" instead of
+  reading as today's, the digest's realized figure now excludes the same
+  still-settling trades the page already excludes instead of silently
+  disagreeing with it, and the gap between what trading did and the
+  broker's own account-value change is now named on screen and in the
+  email (fees, interest, dividends, transfers, or a marking difference)
+  instead of left for the reader to notice and distrust (`f6d610c`/`0dd5122`).
+- 2026-09-17 · Account Analysis, filtered to the exact week a weekly
+  digest email described, no longer disagrees with what the email said:
+  a spread's long leg (nested under its parent order rather than
+  carrying its own symbol) was invisible to the nightly history rebuild,
+  so it was treated as held with no known open date and blanked 52 days
+  of stored history to "performance: null" — the Whole view showed
+  nothing for any window while the trades view showed realized money
+  only. The rebuild now matches every leg to its fill the same way trade
+  history already does. The weekly digest also now keeps a permanent
+  record of the exact figures it sent, so what was emailed can be
+  checked later instead of only living in that one inbox (`a1127e8`/
+  `7386f6b`, `ec6b0f3`/`bf9180f`, migration `0054`).
+- 2026-09-14 · Closing a position no longer shows a blank white screen: the
+  close ticket read its own share/contract quantity before the value existed
+  (a JavaScript temporal-dead-zone bug in `CloseDialog`), so every attempt to
+  close crashed the whole page with no message, live on production since the
+  morning's order-card release. The quantity is now read after it is set, and
+  the app gets its first error boundary anywhere — a crash is now caught at
+  the smallest scope, shows what broke with a way back, and is recorded for
+  later instead of unmounting the entire page. A new lint rule
+  (`no-use-before-define` for `let`/`const`/`class` across `src/components`
+  and `src/pages`) stops the same class of bug from shipping again
+  (`c576da7`, `b9c2555`, merged straight to `main` in `c835e0f`).
 - 2026-09-14 · (staging) Reopening a saved order ticket no longer shows a
   false "No ceiling"/"Loss not bounded" risk warning, blank strikes and
   "Delta NaN" for a setup it never actually rebuilt — saved orders now

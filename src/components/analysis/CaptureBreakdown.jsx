@@ -60,8 +60,12 @@ export default function CaptureBreakdown({ trades }) {
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
       <div className="px-4 py-3 border-b border-slate-200">
         <h3 className="text-sm font-medium text-slate-900">Credit capture on early exits</h3>
-        <p className="text-[11px] text-slate-500 mt-0.5">
-          How much of the premium sold was kept when positions were bought back instead of left to expire.
+        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+          How much of the premium sold was kept when positions were bought back instead of left to
+          expire. Every figure here is the option leg alone. Shares delivered by assignment are
+          excluded on purpose &mdash; a ratio that can exceed its own maximum measures nothing
+          &mdash; so a call bought back against shares that rose shows its full cost here and the
+          shares are not in it. For what the whole position did, read &ldquo;By setup&rdquo; above.
         </p>
       </div>
 
@@ -88,7 +92,15 @@ export default function CaptureBreakdown({ trades }) {
               <th className={`${th} text-right`}>Share of early exits</th>
               <th className={`${th} text-right`}>Avg capture</th>
               <th className={`${th} text-right`}>Credit sold</th>
-              <th className={`${th} text-right`}>P/L kept</th>
+              {/* "P/L kept" read as money lost, and on this account the loss
+                  bucket printed -$8,053 -- a number the owner was right to
+                  reject, because it is the OPTION half of 27 buybacks with the
+                  shares behind them deliberately left out (see `optionPL`
+                  above). A covered call bought back into a rally lands here at
+                  its full cost while the shares it was written on, which gained
+                  over the same days, are in another table. The column now says
+                  which half it is measuring. */}
+              <th className={`${th} text-right`}>Option legs only</th>
             </tr>
           </thead>
           <tbody>

@@ -66,9 +66,27 @@ export function readSnapshot(s: Snapshot) {
   const ask = num(s?.latestQuote?.ap);
   const close = num(s?.dailyBar?.c) ?? num(s?.prevDailyBar?.c);
   const mid = bid !== null && ask !== null && ask > 0 && bid >= 0 && ask >= bid ? (bid + ask) / 2 : null;
+  // THE BUSIER OF THE TWO SESSIONS, not whatever today has managed so far.
+  //
+  // `dailyBar.v` mid-session is a PARTIAL count. A name that trades two
+  // million shares a day has done perhaps four hundred thousand by noon, so a
+  // one-million floor rejects it at lunchtime and accepts it at the close --
+  // the same filter, the same name, the same day, opposite answers. On the
+  // owner's 12:44 ET run that is 2,914 of 3,984 rejections attributed to
+  // "thin volume", by far the largest bucket, and an unknown share of them
+  // are liquid names measured half way through a session.
+  //
+  // The previous day is a COMPLETE session and is the honest basis for a
+  // liquidity judgement. Taking the larger of the two keeps a name that has
+  // already cleared the floor today -- an earnings mover, say -- while giving
+  // everything else a full day to be judged on.
+  const today = num(s?.dailyBar?.v);
+  const prior = num(s?.prevDailyBar?.v);
+  const volume = today === null && prior === null ? null : Math.max(today ?? 0, prior ?? 0);
+
   return {
     spot: trade ?? mid ?? close,
-    volume: num(s?.dailyBar?.v) ?? num(s?.prevDailyBar?.v),
+    volume,
     // Null rather than 0 when there is no two-sided quote: "unknown width" and
     // "zero width" must not be the same value, or a dead name passes the
     // tightest filter on the screen.
@@ -130,7 +148,59 @@ export function screenUniverse(snapshots: Record<string, Snapshot>, f: UniverseF
 // including them would spend the whole request budget on certain misses.
 const PRIMARY = new Set(["NASDAQ", "NYSE", "ARCA", "AMEX", "BATS"]);
 
-export function tradableEquities(assets: any[]): string[] {
+// Leveraged and inverse funds, by the only signal Alpaca gives us: the name.
+//
+// The owner: *"Filter out any 2x 3x things. Just 1x. Filter out any Inverse."*
+// He is right that these do not belong in a premium-selling scan. TQQQ moves
+// three times the index and SQQQ moves against it, so an option on either
+// prices a different risk from the one the strategy is built around, and a
+// wheel assigned into a daily-reset leveraged fund is holding an instrument
+// designed to decay.
+//
+// THE ASSET RECORD DOES NOT SAY. Alpaca's /v2/assets carries no leverage or
+// direction flag -- class is "us_equity" for TQQQ exactly as for AAPL -- so
+// the fund's own name is the only evidence available, and matching prose is
+// where this gets dangerous rather than merely imprecise.
+//
+// So every pattern is anchored on a WORD BOUNDARY, and the cost of getting it
+// wrong runs one way only: a fund wrongly kept is a name the trader can skip,
+// while a company wrongly dropped is invisible with no way to find out. That
+// asymmetry is why "Ultra" is `\bULTRA\b` and not a substring -- Ultragenyx
+// Pharmaceutical is a real company whose options a trader may well want, and
+// `includes("ULTRA")` erases it.
+const LEVERAGED_PATTERNS: RegExp[] = [
+  // An explicit multiple: 2X, 3X, -1X, 1.5X. This alone catches every
+  // Direxion Daily Bull/Bear fund and most ProShares Ultra ones, which is why
+  // BULL and BEAR are deliberately NOT matched on their own -- they are
+  // ordinary English and appear in real company names.
+  /\b[-+]?\d+(?:\.\d+)?X\b/,
+  // ProShares' house words. UltraPro and UltraShort are always leveraged;
+  // plain "Ultra" as a whole word is their 2x line.
+  /\bULTRAPRO\b/, /\bULTRASHORT\b/, /\bULTRA\b/,
+  // Direction, stated outright.
+  /\bINVERSE\b/,
+  // "ProShares Short S&P500" is -1x and carries no multiple in its name. As a
+  // whole word at the start of a fund's name this is unambiguous; anywhere
+  // else it is not, so it is anchored to the issuer prefix pattern below.
+  /\bSHORT\b.*\b(?:ETF|FUND|SHARES|INDEX|TRUST)\b/,
+  /\b(?:BULL|BEAR)\b.*\b(?:DAILY|SHARES)\b/
+];
+
+/**
+ * Whether a fund's NAME marks it as leveraged or inverse.
+ *
+ * Deliberately exported and tested on its own: this is the one filter in the
+ * sieve whose input is prose rather than a number, so the cases it must and
+ * must not match are worth stating as assertions rather than trusting to a
+ * regex nobody reads twice.
+ */
+export function isLeveragedOrInverse(name: any): boolean {
+  const n = String(name || "").toUpperCase();
+  if (!n) return false;
+  return LEVERAGED_PATTERNS.some((re) => re.test(n));
+}
+
+export function tradableEquities(assets: any[], opts: { excludeLeveraged?: boolean } = {}): string[] {
   return (assets || [])
     .filter(
       (a) =>
@@ -139,6 +209,10 @@ export function tradableEquities(assets: any[]): string[] {
         a.tradable === true &&
         a.class === "us_equity" &&
         PRIMARY.has(String(a.exchange).toUpperCase()) &&
+        // Off by default so the existing callers and the count of what the
+        // market holds are unchanged; the scan opts in and reports the number
+        // it removed, rather than quietly shrinking the universe.
+        !(opts.excludeLeveraged && isLeveragedOrInverse(a.name)) &&
         // Warrants, units and rights share the equity class and never have
         // listed options. They are identifiable by symbol suffix rather than by
         // any field Alpaca sets.

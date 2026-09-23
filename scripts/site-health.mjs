@@ -266,6 +266,141 @@ async function checkVirusTotal() {
   }
 }
 
+// WHAT A CRAWLER ACTUALLY READS, which nothing here was testing.
+//
+// The owner: *"I see deltamint is buried in the internet and not discoverable
+// whatsoever even pages are linked."* Three searches on 20 Sep -- the brand
+// name, an exact article title, and a site: query -- returned the domain zero
+// times, while this very script reported the apex healthy at HTTP 200.
+//
+// Both can be true, because "the homepage returns 200" and "a search engine
+// can enumerate and fetch every page" are different questions and only the
+// first was ever asked. A crawler starts at robots.txt and the sitemap. The
+// sitemap here is not a file in the repo -- the Worker builds it per request
+// from Supabase -- so it can break in ways no commit would show: the query
+// fails and it serves zero URLs, or it lists posts that 404.
+//
+// These checks answer the second question. They cannot tell us why Google has
+// not indexed the site -- only Search Console knows that -- but they close off
+// the causes that live on our side, with evidence instead of assumption.
+async function checkCrawlerSurface() {
+  const base = `https://${APEX}`;
+
+  // robots.txt must exist, must not disallow the site, and must point at a
+  // sitemap. A production robots.txt reading "Disallow: /" is the single
+  // fastest way to be invisible, and it is one env var away.
+  let robotsText = "";
+  try {
+    const res = await fetch(`${base}/robots.txt`, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) {
+      fail("robots.txt", `HTTP ${res.status} — a crawler cannot read our crawl rules`);
+    } else {
+      robotsText = await res.text();
+      const blanket = /^\s*Disallow:\s*\/\s*$/im.test(robotsText);
+      if (blanket) {
+        fail("robots.txt", "serves a blanket Disallow: / on production — nothing here can be indexed");
+      } else {
+        ok("robots.txt", `HTTP 200, no blanket disallow`);
+      }
+      if (/^\s*Sitemap:\s*\S+/im.test(robotsText)) ok("robots.txt names a sitemap");
+      else warn("robots.txt names a sitemap", "no Sitemap: line — crawlers must discover every URL by link alone");
+    }
+  } catch (e) {
+    fail("robots.txt", `could not be fetched: ${e.message}`);
+  }
+
+  // The sitemap is generated, so an empty one is a live failure and not a
+  // config mistake anybody would see in a diff.
+  let locs = [];
+  try {
+    const res = await fetch(`${base}/sitemap.xml`, { signal: AbortSignal.timeout(15000) });
+    if (!res.ok) {
+      fail("sitemap.xml", `HTTP ${res.status} — the URL list a crawler works from is unavailable`);
+    } else {
+      const xml = await res.text();
+      locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1].trim());
+      const type = (res.headers.get("content-type") || "").toLowerCase();
+      if (!/xml/.test(type)) warn("sitemap.xml content type", `served as ${type || "(none)"} rather than XML`);
+      if (locs.length === 0) {
+        fail("sitemap.xml", "parses to ZERO urls — a crawler is told the site has no pages");
+      } else {
+        ok("sitemap.xml", `${locs.length} url(s)`);
+      }
+      // A sitemap listing URLs that do not resolve teaches a crawler to
+      // distrust it. Sampled rather than exhaustive so this stays a health
+      // check and not a crawl of our own site.
+      const sample = locs.slice(0, 8);
+      const bad = [];
+      for (const loc of sample) {
+        try {
+          const r = await fetch(loc, { redirect: "follow", signal: AbortSignal.timeout(10000) });
+          if (!r.ok) bad.push(`${loc} → HTTP ${r.status}`);
+        } catch (e) {
+          bad.push(`${loc} → ${e.message}`);
+        }
+      }
+      if (sample.length === 0) skip("sitemap urls resolve", "nothing to sample");
+      else if (bad.length === 0) ok("sitemap urls resolve", `${sample.length} sampled, all reachable`);
+      else fail("sitemap urls resolve", bad.join("; "));
+    }
+  } catch (e) {
+    fail("sitemap.xml", `could not be fetched: ${e.message}`);
+  }
+
+  // THE DASHBOARD MUST CARRY NOINDEX, and this is the inverse of the check
+  // below: there, a noindex is a bug; here, its ABSENCE is.
+  //
+  // Search Console's 3-month export on 20 Sep showed dashboard.deltamint.app
+  // taking 24 of the property's 77 impressions -- the app root, /register,
+  // /login and /forgot-password -- which is nearly a third of everything this
+  // site was shown for, spent on pages no stranger should ever be offered.
+  // /forgot-password reaching Google is the exact failure public/robots.txt
+  // was rewritten to stop, and nothing has been testing whether the fix holds.
+  for (const p of ["/", "/register", "/forgot-password"]) {
+    const url = `https://dashboard.${APEX}${p}`;
+    try {
+      const res = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(10000) });
+      const header = (res.headers.get("x-robots-tag") || "").toLowerCase();
+      const body = await res.text();
+      const meta = /<meta[^>]+name=["']robots["'][^>]+content=["'][^"']*noindex/i.test(body);
+      if (/noindex/.test(header) || meta) ok(`dashboard noindex: ${p}`, /noindex/.test(header) ? "X-Robots-Tag" : "meta tag");
+      else fail(`dashboard noindex: ${p}`, "the authenticated app is indexable — it can be offered to strangers in search");
+    } catch (e) {
+      warn(`dashboard noindex: ${p}`, `could not be checked: ${e.message}`);
+    }
+  }
+
+  // A page carrying noindex is invisible however healthy it looks. The Worker
+  // sets this from an env var, so production and staging differ by one value
+  // and nothing in the repo proves which way production is set.
+  //
+  // EVERY SITEMAP URL, not a token two. Search Console reported "Excluded by
+  // 'noindex' tag -- Source: Website" against this property on 13 Sep while
+  // the homepage and blog index were both clean, which is exactly the shape a
+  // leak on one article takes: the two pages anybody spot-checks look right
+  // and the post nobody re-checks is invisible. Checking the pages we publish
+  // is the only version of this test that can find that.
+  const noindexed = [];
+  const unchecked = [];
+  const pages = locs.length ? locs : [`${base}/`, `${base}/blog`];
+  for (const p of pages) {
+    try {
+      const res = await fetch(p, { redirect: "follow", signal: AbortSignal.timeout(10000) });
+      const header = (res.headers.get("x-robots-tag") || "").toLowerCase();
+      const body = await res.text();
+      const metaNoindex = /<meta[^>]+name=["']robots["'][^>]+content=["'][^"']*noindex/i.test(body);
+      if (/noindex/.test(header) || metaNoindex) {
+        noindexed.push(`${p} (${/noindex/.test(header) ? "X-Robots-Tag" : "meta tag"})`);
+      }
+    } catch (e) {
+      unchecked.push(`${p}: ${e.message}`);
+    }
+  }
+  if (noindexed.length) fail("indexable: published pages", `serving noindex — ${noindexed.join("; ")}`);
+  else ok("indexable: published pages", `${pages.length - unchecked.length} checked, none noindexed`);
+  if (unchecked.length) warn("indexable: not checked", unchecked.join("; "));
+}
+
 // ------------------------------------------------------------------- run
 
 checkTrustPages();
@@ -275,6 +410,7 @@ checkNoCredentialFormsOnMarketing();
 if (live) {
   await checkOrigins();
   await checkCanonicalForms();
+  await checkCrawlerSurface();
   await checkMailAuth();
   await checkSafeBrowsing();
   await checkVirusTotal();

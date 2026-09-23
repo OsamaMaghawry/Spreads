@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import SetupPreview from "@/components/open/SetupPreview";
 import ConfirmSubmit from "@/components/common/ConfirmSubmit";
 import PreTradeRisk from "@/components/common/PreTradeRisk";
+import EarningsWarning from "@/components/common/EarningsWarning";
 import NumberField from "@/components/common/NumberField";
 import OpenPricing, { openingDefaults } from "@/components/open/OpenPricing";
 import useOpenOrder from "@/components/open/useOpenOrder";
@@ -192,6 +193,18 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
         </DialogHeader>
 
         <SetupPreview setup={setup} qty={Number(qty) || 1} live={live} />
+
+        {/* EARNINGS BELONGS AT THE DECISION, NOT IN THE LIST.
+            It was a badge in the results table and nowhere else, which put it
+            in the one place it could not be explained -- a scanning column
+            three characters wide -- and left it out of the one screen where
+            money is actually committed. The owner, on the badge: *"What do you
+            mean by 'No earning date'?!! It's so confusing."*
+            Here there is room for the sentence, and it is read at the moment
+            it can change what someone does. */}
+        {phase === "idle" && (
+          <EarningsWarning earnings={setup.earnings} ticker={setup.ticker} unknown={setup.earningsUnknown} />
+        )}
 
         {phase === "idle" && <PreTradeRisk setup={setup} accountId={accountId} qty={qty} />}
 

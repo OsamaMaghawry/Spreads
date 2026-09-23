@@ -5,6 +5,178 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Needs owner
 
+- [needs owner] 2026-09-21 · duty-engineer · **`agents@deltamint.app` needs
+  confirming as a verified sender in Brevo.** `3a7e7ed` (2026-09-20, on
+  `staging`) split outbound mail by reader: customer mail (weekly digest,
+  position-watch alerts, sign-in) stays on `support@`; the app's mail to
+  itself (a failed blog publish, drifted stored history) now goes out as
+  `agents@deltamint.app` instead of `support@`. The commit message flags
+  this directly — `agents@` was the original sender before an earlier pass
+  briefly moved everything to `support@`, so it is *expected* to already be
+  verified, but nothing in this session can prove it, and a rejected sender
+  in Brevo fails as a silent logged error, not a visible one. **Owner
+  action:** check Brevo → Senders that `agents@deltamint.app` is verified;
+  if not, verify it or the two internal notices (publish-blog failures,
+  equityHistory drift) stop reaching anyone. Not a duty-engineer fix — no
+  Brevo credentials or dashboard access from this session. Not emailed:
+  internal-tooling visibility only, not money-path or user-visible.
+
+- [needs owner] 2026-09-18 · **Tradier: one secret and the second broker can be measured.** The owner chose Tradier after the broker-API review (`docs/product/broker-apis.md`), for one reason above all: paper and live are the same API, so it can be verified the way everything else here is verified. The client, the order translation and the probe are built and on staging. **Owner:** open a Tradier account, take the **SANDBOX** access token from their developer dashboard, and set it on the **staging** project as `TRADIER_SANDBOX_TOKEN` (Supabase dashboard → Edge Functions → Secrets). It is a credential, so it goes in the dashboard and never into a session, a commit or a chat. A live token, if it ever exists, is a separate secret named `TRADIER_ACCESS_TOKEN` — deliberately separate, so no flag set wrongly can make a sandbox run reach a live account. Once set, the probe answers what SnapTrade could not: whether option positions arrive as options, whether multi-leg orders keep their legs, whether the chain carries deltas, and whether there is a broker-side record of closed positions — the last one matters because this product's whole trade reconstruction exists only because the current broker has none.
+
+- [needs owner] 2026-09-18 · **SnapTrade returns 410 on every holdings route, and only SnapTrade can say why.** With the Robinhood connection live and synced, `/accounts/{id}/holdings`, `/accounts/{id}/positions` and `/accounts/{id}/options` all answer `410 — "This endpoint is no longer available for your account."` Everything else on the same signed connection works: connections, accounts, balances, orders, activities and quotes all return 200. The wording is the finding — it says *for your account*, not *deprecated* — while `getPartnerInfo` for the same client id reports `can_access_holdings: true`. Those two statements contradict each other and no amount of path-guessing settles it. **Owner:** email SnapTrade support quoting client id `OPTVEST-INC-TEST-LPVNS`, the three paths, the 410 and that partner info claims holdings access. Ask which route serves positions for a partner provisioned like ours. Until it is answered, whether an option position arrives with strike, expiry and right is unprovable, and that is the single most important thing this evaluation exists to find out.
+
+- [fixed 2026-09-18] **SnapTrade: authenticated and measured.** The consumer key was the problem; the owner re-copied it and every signature-verifying endpoint now answers 200. The signing code was correct throughout. Findings: our client id `OPTVEST-INC-TEST-LPVNS` carries trades, holdings, history and reference data, and is allowed 26 of their 39 brokerages. 15 brokerages can place an order; 13 of those through an interface the broker knowingly provides (9 OAuth, 4 broker-issued API keys) and 2 through an interface the broker never published (Stake Australia, Wealthsimple). The four largest US options brokers -- Schwab, Fidelity, Interactive Brokers, Robinhood -- are READ ONLY through SnapTrade. Live Alpaca is not offered at all, only Alpaca Paper. Remaining: connect a broker from Admin to test option positions, order history depth and multi-leg placement, which needs a browser. Superseded entry follows.
+
+- [needs owner] 2026-09-18 · **SnapTrade: the keys are set and every authenticated call is refused.** `SNAPTRADE_CLIENT_ID` reads `OPTVEST-INC-TEST-LPVNS`, which is the right shape for one of their test client ids. Every endpoint that verifies a signature answers 401 code 1076, "Unable to verify signature sent". Fifteen readings of their signing rules were tried against a read-only reference endpoint and all fifteen were refused; a control proved `/` and `/brokerages` do not verify signatures at all, so their 200s never proved anything. The suspect is now the consumer key itself: it is 57 characters with a single printable punctuation mark at index 48, where SnapTrade's own documented example is about fifty characters and entirely alphanumeric. **Owner:** re-copy the consumer key from the SnapTrade dashboard whole and re-set the secret; if it genuinely looks like that there, ask SnapTrade support whether a `-TEST-` client id signs against a different host or needs its own key. The reach data below came back anyway, because their brokerage list needs no signature. Original entry follows.
+
+- [needs owner] 2026-09-18 · **SnapTrade evaluation is built and waiting on two keys.** Set `SNAPTRADE_CLIENT_ID` and `SNAPTRADE_CONSUMER_KEY` as function secrets on the **staging** project (Supabase dashboard → Edge Functions → Secrets). Verified end to end on staging today: the function deploys, both auth paths work, and `action: "status"` answers `configured: false` with those two names. Nothing can be measured until they exist. They are credentials, so they go in the dashboard and never into a session, a commit or a chat. Once set, Admin → SnapTrade → **Run the probe** answers, from their own API: how many brokers they reach, how many of those can place an order, whether an option position comes back as an option, and how their order history depth compares with the reconstruction this product runs. Connecting a broker (the portal link) and anything account-shaped needs a signed-in admin in a browser; the platform can only run the public half.
+
+- [needs owner] 2026-09-17 · duty-engineer · **Migration `0054` needs
+  confirming on production before Saturday 13:00 UTC, or the weekly digest
+  will fail to send to everyone.** `0054_digest_figures_kept.sql` (landed on
+  `main` today in `7386f6b`, alongside the leg-matching fix below) adds
+  `weekly_digest_sends.figures`; `weeklyDigest/index.ts:351` upserts a row
+  naming that column **unconditionally**, on every send — the same shape as
+  the `0053`/`saved_orders.setup` case already found and confirmed this
+  week (queue, 2026-09-14). If `0054` has not been applied on
+  `yecfbeohyakuoyczvdbj` by then, PostgREST answers `PGRST204` and the
+  `weekly-digest` cron job (Saturday 13:00 UTC, `0036_weekly_digest.sql`)
+  fails to upsert for every account — no digest reaches anyone that week,
+  and the same failure repeats every Saturday until the migration is
+  applied. Not a duty-engineer fix — a migration is escalate-never-fix, and
+  production's schema is not readable from this session (`yecfbeohyakuoyczvdbj.supabase.co`
+  is 403 at CONNECT, see the 2026-09-09 item below). **Owner action:**
+  confirm/apply `0054` on production the same way `0051`–`0053` were
+  confirmed on 2026-09-14, before Saturday. Emailed (money/user-path finding
+  with a hard deadline).
+
+- [fixed 2956bfb] 2026-09-17 · owner found · **The weekly digest said Alton
+  made $2.7k+ for the week of 7 September; the Analysis page, filtered to the
+  same window, now shows something else entirely.** Traced end to end; the
+  data changed, on 16 September at 21:30 UTC, and the mechanism is recorded so
+  it is never a mystery again:
+  - `equityHistory.fetchOpenDates` asked the broker for closed orders with
+    `symbols=<OCC contract>`. A spread is ONE parent order whose own `symbol`
+    is not either contract — the contracts sit nested under `legs` — so the
+    filter matched nothing for a leg bought inside a spread.
+  - The long TSLA 370 put (Feb 2027) was bought inside a spread on 14
+    September (sent from `dev-dash` against brokerage account 907253851, which
+    is connected to BOTH projects — a staging order is a real order). It had no
+    fills, so no open date; `dailyPortfolio.ts:984` carries a leg it cannot
+    place in time as held-but-unpriced on EVERY day. The nightly rebuild
+    rewrote all 52 stored days on production (back to 2 July) with
+    `performance: null`, `options_open: null`, `unpriced: ["TSLA270219P00370000"]`.
+    Staging: 53 of 54 days, identically.
+  - So the Whole view shows nothing for any window, and the trades view shows
+    realized money only: about **+$626** of non-provisional realized P/L on
+    trades closed 7–13 Sep (+$786 with the one provisional TSLA assignment).
+    The email's ~$2.7k was `performance` differenced across the week — the
+    open book's move included — and the broker's own equity change for the
+    same days was +$2,706.64 (138,870.97 → 141,577.61).
+  - The email's exact figures are gone from our side: `weekly_digest_sends`
+    recorded who was mailed and when, and the series it was computed from is
+    rewritten in full every night. Only the owner's inbox has them.
+  Fixed in `2956bfb`: `fetchOpenDates` pages every closed order in the window
+  and matches nested legs locally (pure `_shared/legOpenDates.ts`, 8 tests,
+  the owner's spread verbatim); migration `0054` adds
+  `weekly_digest_sends.figures` and the digest stores what it rendered at send
+  time. **Still open, needs a decision:** one unplaceable leg nulling the
+  entire series is honest and catastrophic; the bound belongs to
+  head-of-trading, not a patch.
+
+- [fixed 2026-09-14] 2026-09-14 · duty-engineer · **Production's migration
+  state is unverified** — it was verified the same day, before the merge the
+  entry worries about, by the session that made it: `0051` and `0052` were
+  applied to `yecfbeohyakuoyczvdbj` at 08:55 UTC and read back (15 columns, 4
+  policies, ownership trigger, zero UPDATE policies on `profiles`); `0053` was
+  applied at 14:2x UTC before `c835e0f` was pushed, and `saved_orders` read
+  back with 16 columns. Save for later did not fail. The general worry stands
+  as a process gap — `ship.md` step 1 says "each verified by listing" and no
+  run since 2026-09-09 records the full list being compared; the owner can
+  close that by running the comparison once. Original text kept below.
+
+- [needs owner] 2026-09-14 · duty-engineer · **Production's migration state is
+  unverified, and today's merge put code live that writes a column migration
+  `0053` adds.** Not "production is broken" — I cannot reach the production
+  project from a session (`yecfbeohyakuoyczvdbj.supabase.co` is 403 at CONNECT,
+  see the 2026-09-09 item below) and hold no database credentials, so this is a
+  confirmation request with one specific consequence attached.
+
+  **The specific one.** `src/lib/savedOrders.js:50-70` builds every saved-ticket
+  insert with `setup: setup || null` in the row, unconditionally — the column is
+  named on the wire whether or not a setup exists. That column comes from
+  `0053_saved_orders_setup.sql`, which reached `main` today inside the owner's
+  `c835e0f` merge (14:28 UTC, deployed by 14:30). If production has not run
+  0053, PostgREST answers the insert with `PGRST204` and **Save for later fails
+  for every user on every order**. `c835e0f`'s own message says the change is
+  "additive and nullable, and the reopen path handles a null setup, so the order
+  is safe either way" — that is true of READING a reopened ticket
+  (`OpenPositionDialog.jsx:125-135` falls to `analyticsAbsent`) and not true of
+  SAVING one, because the insert names the column either way. The same applies to
+  `0051_saved_orders.sql` (the table itself) and `0052_saved_orders_tif.sql`,
+  both of which also first reached `main` today.
+
+  **The general one.** The last record anywhere in this repo of production's
+  migration state being verified is the 2026-09-02 item below, closed
+  `fixed 2026-09-09` at `0029`. Since then **24 migrations (`0030`–`0053`) have
+  reached `main`** — `account_equity_daily`, `cash_flows`, the integrity
+  findings tables, the per-account weekly digest, `cron_tickets`, `saved_orders`.
+  `docs/ops/ship.md` step 1 says migrations go first on production, "each
+  verified by listing"; no run since 2026-09-09 records that being done. If the
+  equity chart and the digest have been working in production this week then
+  `0030`–`0050` are plainly applied and only today's three are in question.
+
+  **Owner action:** list the applied migrations on `yecfbeohyakuoyczvdbj` and
+  compare against `supabase/migrations/`; apply anything missing, oldest first.
+  At minimum confirm `0051`, `0052`, `0053`. Not a duty-engineer fix — a
+  migration is escalate-never-fix, and this one is on production besides.
+  **Not emailed — no channel exists.** See the item directly below. Raised
+  instead as PR [#9](https://github.com/OsamaMaghawry/Spreads/pull/9)
+  (`staging` → `main`, docs only, **not merged**), whose description leads with
+  this ask.
+
+- [needs owner] 2026-09-14 · duty-engineer · **The duty engineer can no longer
+  reach the owner at all.** The brief requires an email for a user-visible or
+  money-path finding; the escalation above is one, and it could not be
+  delivered. Three routes tried this run:
+  (1) `sendDigest` on production per the brief's recipe — `CONNECT tunnel
+  failed, response 403`, the standing allowlist item below. **New this run:**
+  the staging project `wpwaomzgpbozzghohwmf.supabase.co` is blocked the same
+  way, so *no* Supabase host is reachable and the brief's step cannot run as
+  written. Recorded in `docs/context/reachable.md`.
+  (2) `email-digest.yml`, this repo's own answer to "an agent physically cannot
+  call sendDigest itself" — `workflow_dispatch` refused with
+  `403 Resource not accessible by integration`; the session token can read
+  Actions and push branches but not dispatch. Its push trigger does not cover
+  `docs/ops/**`, and misfiling an ops escalation into `docs/product/**` to trip
+  a path filter is not an option worth taking.
+  (3) A GitHub issue — refused by the session's own permission system as an
+  external write. Not worked around.
+  What did work: opening a pull request. PR #9 is how this run's escalation
+  reached anywhere the owner is notified. That is a workaround, not a fix — a
+  PR is a poor place to put "production may be broken right now".
+  The 2026-09-09 run that hit (1) used `PushNotification`; that tool is not
+  present in this session. **Owner: one of these needs to exist** — the
+  allowlist addition for `yecfbeohyakuoyczvdbj.supabase.co` (smallest change,
+  already requested below), or `docs/ops/**` added to `email-digest.yml`'s push
+  paths so a pushed ledger mails itself. Until then every duty-engineer
+  escalation is silent until someone reads `docs/ops/queue.md`.
+
+- [fixed 2026-09-14] 2026-09-12 · **`publish-blog.yml`'s failure was NOT the
+  credentials guard, and nothing is waiting on the owner.** The entry below
+  asked for `SUPABASE_SERVICE_ROLE_KEY` to be set. Checked step by step through
+  the Actions API on the exact run it cites (34698751470, `255e3151`,
+  2026-09-12 14:15 UTC): **`Require credentials` passed** — so the secret was
+  already set at the time — and the job failed one step later, in `Publish`.
+  The failure log itself is not readable from here (Actions log downloads
+  redirect to `objects.githubusercontent.com`, which is 403 at CONNECT), but it
+  no longer matters: every `publish-blog` run on `main` since has been green
+  including `Publish` — 34760214212 (13 Sep 13:34), 34825468618 (14 Sep 08:58)
+  and 34855910416 (14 Sep 14:29, on `c835e0f`). The script upserts on slug over
+  all of `content/blog/`, so those green runs republished whatever the 12 Sep
+  run missed; the production blog is current. Do not set the secret again — it
+  is set.
+
 - [needs owner] 2026-09-14 · **`www.deltamint.app` answers HTTP 522** on both
   schemes. A proxied DNS record already exists — 522 rather than NXDOMAIN
   proves it — but it points at an origin Cloudflare cannot reach. Adding a
@@ -45,8 +217,10 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
   522: both are one-way doors cached client-side, where no setting of ours can
   revoke them.
 
-- [needs owner] 2026-09-12 · **`publish-blog.yml` fails on `main` at its
-  credentials guard**: the GitHub Actions secret `SUPABASE_SERVICE_ROLE_KEY`
+- [fixed 2026-09-14] 2026-09-12 · ~~**`publish-blog.yml` fails on `main` at its
+  credentials guard**~~ — **misdiagnosed; see the 2026-09-14 entry above.** The
+  guard passed on the very run cited here; the secret was set. Kept for the
+  record: the GitHub Actions secret `SUPABASE_SERVICE_ROLE_KEY`
   is not set on this repository. (The 2026-09-07 entries below record it being
   added — it is not present now, so it was either removed or added on a
   different repository.) The job refuses rather than writing with an empty key,
@@ -126,6 +300,140 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 - [needs owner] 2026-09-03 · **Decide whether EU/UK visitors need a consent banner before analytics run.** Raised by compliance-gate reviewing cc855e7, severity high, and explicitly not fixable by privacy-policy wording. Google Analytics and Hotjar both fire unconditionally for every visitor to `deltamint.app` — the hostname guard keeps staging out of the data, it is not a consent gate. The policy's remedy is opt-out ("use a blocker"), whereas ePrivacy/GDPR expectations for non-essential cookies, and for session recording in particular, generally call for consent *before* the script runs. Hotjar raises the stakes because it keeps an individual replay of a visit, not only aggregate heatmaps. Note the exposure predates Hotjar: GA has run unconsented since 3 Sep. Options are (a) accept the risk while traffic is small and mostly US, (b) add a consent banner for all visitors, (c) geo-gate the scripts for EU/UK only — Cloudflare gives `request.cf.country` in the landing Worker, so (c) is a small change to `trackingTags(env)` plus the inline snippets. Needs the owner's decision, not an engineer's.
 
 ## Escalated
+
+- [escalated 2026-09-21] 2026-09-21 · duty-engineer · **Every diagram published
+  on the blog since 14 September is a broken image on `deltamint.app`.** The
+  posts are live; only the pictures inside them are missing. Found by reading
+  the two red CI runs this repo has standing.
+
+  **The mechanism, both halves.** A post's SVGs live in
+  `landing/public/assets/blog/` and reach the internet only when *Deploy landing
+  site* (`deploy-landing.yml`) uploads them with the landing Worker —
+  `landing/wrangler.jsonc` sets `run_worker_first` to `/blog`, `/blog/*` and
+  `/sitemap.xml` only, so `/assets/blog/*.svg` is served purely from the last
+  upload and a missing one returns the 404 page. That workflow has not succeeded
+  since **run #13, 2026-09-14, `c835e0f`**. Two independent things stop it, and
+  both have to be undone for one diagram to appear:
+  1. **It is never started.** `content-merge.yml` merges each post into `main`
+     with the built-in `GITHUB_TOKEN`, and a push made with that token does not
+     start other workflows. The gate knows this — it dispatches
+     `publish-blog.yml` by hand, with a comment saying exactly why — but it does
+     not dispatch `deploy-landing.yml`. Confirmed on the API: today's *Publish
+     blog posts* run #12 has `event=workflow_dispatch` on `59a5852`, and no
+     *Deploy landing site* run exists for that commit at all.
+  2. **When it is started, it refuses.** Run #14 (2026-09-20, `7b15efe`,
+     `event=push`) failed at its first step, *"Refuse to deploy a landing site
+     staging has not served"*: the gate requires `HEAD:landing` to be
+     byte-identical to `origin/staging:landing`, and the content gate merges
+     posts to `main` only, so the two trees can never agree again. Today
+     `git rev-parse origin/main:landing` is `535be8c` against staging's
+     `38f1d12`.
+
+  **What is broken right now** — four files, `git diff --stat c835e0f
+  origin/main -- landing` returns exactly these and nothing else:
+  - `/blog/gamma-options-meaning` → `gamma-across-moneyness.svg`,
+    `gamma-by-dte.svg` (post published 2026-09-20)
+  - `/blog/option-assignment-what-happens` →
+    `assignment-account-line-by-line.svg`, `assignment-put-vs-call.svg`
+    (published 2026-09-21)
+
+  **Not verified against the live site.** `deltamint.app` is 403 at CONNECT from
+  an agent session (standing allowlist item, `docs/context/reachable.md`), so
+  this is read off the deploy history, the wrangler config and the post source,
+  not off a browser. One look at either post settles it. `site-health.yml` is
+  green and does not fetch a post's images, which is why this was invisible.
+
+  **Why not a duty-engineer fix.** Both halves change how the **production**
+  marketing site deploys, and the content gate's destination was deliberately
+  redesigned on 2026-09-20 (`e34b3e9`/`9f9d4c8`, whose own comments argue the
+  trunk choice at length). Design decision with production blast radius —
+  escalate-never-fix.
+
+  **Proposed patch, for the owner to judge** — the smaller of the two is
+  probably enough:
+  ```diff
+  --- a/.github/workflows/content-merge.yml
+  +++ b/.github/workflows/content-merge.yml
+  @@ (after "Publish to the blog")
+  +      # The post's diagrams are static assets on the landing Worker, not rows
+  +      # in the blog table, so publishing the text is only half the job. Same
+  +      # GITHUB_TOKEN limitation, same explicit dispatch.
+  +      - name: Deploy the landing site so the post's diagrams exist
+  +        if: steps.gate.outputs.ok == 'true' && env.TRUNK == 'main'
+  +        env:
+  +          GH_TOKEN: ${{ github.token }}
+  +        run: gh workflow run deploy-landing.yml --ref main
+  ```
+  That alone still fails the staging-first gate, so it needs one of: (a) the
+  content gate also fast-forwards `landing/public/assets/blog/**` onto
+  `staging`, keeping the gate honest; or (b) `deploy-landing.yml`'s gate is
+  narrowed to compare everything in `landing/` **except**
+  `public/assets/blog/**`, on the ground that a blog diagram has already been
+  through desk-editor and compliance-gate and has no code in it. (b) is a real
+  loosening of a deliberate control and is the owner's call, not mine.
+
+  **Today, without changing any workflow:** bring the four files onto `staging`,
+  then re-run *Deploy landing site* on `main` from the Actions tab. I did not do
+  the first half unasked because moving content between trunks is the thing that
+  was just redesigned. **Email attempted and refused** — `sendDigest` on both
+  projects is 403 at CONNECT (re-tested this run, production and staging).
+  Raised instead as **[PR #11](https://github.com/OsamaMaghawry/Spreads/pull/11)**
+  (`duty/2026-09-21-blog-diagrams` → `main`, docs only, **not merged**), whose
+  description leads with this ask; see the day's ledger.
+
+  **Update, 2026-09-22 13:11 UTC — still open, and worse.** A third post
+  published straight through to `main` this morning: *"early exercise
+  options"* (`da81319`/`8568a79`/`08202d0`/`280e9ce`, foundations post 11,
+  text confirmed live via a green `publish-blog.yml` run #16). It carries
+  two more diagrams — `dividend-crosses-extrinsic.svg`,
+  `exercise-forfeits-extrinsic.svg` — that land in the same trap: present on
+  `origin/main:landing/public/assets/blog/` and absent from
+  `origin/staging`'s copy, exactly like the four already named above. That
+  makes **three posts, six images**, all broken on `deltamint.app` since 20
+  September.
+
+  Checked *Deploy landing site*'s run history over the API: **no run has
+  been attempted since #14, the 20 September failure named above.** Nothing
+  in `content-merge.yml` dispatches it — confirmed again reading the
+  workflow file — so every post that merges keeps adding to the pile with
+  no retry of any kind. This is not a new mechanism, just more of the same
+  one; the fix proposed above is unchanged and still needs the owner's
+  call on (a) vs (b).
+
+  Re-tried the brief's exact email recipe this run (`sendDigest` with the
+  production anon key from `.env.production`) — same `CONNECT tunnel
+  failed, response 403` as every prior attempt; no Supabase host is
+  reachable from a session. Posted an update comment on
+  [PR #11](https://github.com/OsamaMaghawry/Spreads/pull/11) instead, since
+  it is still open and unmerged and remains the only channel that reaches
+  the owner. Not re-filing as a new ticket — this is growth of the entry
+  above, not a new finding.
+
+- [escalated 2026-09-21, resolved by later deploy 2026-09-22] 2026-09-21 ·
+  duty-engineer · **The staging edge functions have not deployed since
+  2026-09-20, and nothing will retry.**
+  *Deploy edge functions (staging)* run #148 (`3a7e7ed`, the support/agents
+  sender split) failed at step 6, `npm run context:check` — the generated
+  `docs/product-context.md` was stale in that commit. It has since been
+  regenerated (the 13:08 run today), and all four checks are green at
+  `staging` HEAD, but `deploy-functions-staging.yml` is path-filtered to
+  `supabase/functions/**`, so a later docs-only commit does not re-run it. Net
+  effect: the sender split is correct in the repo and **not live on the staging
+  project**; the next push that touches a function will carry it. Nothing on
+  production is affected. Not fixed here: there is no failing code to fix, and
+  the structural question — whether a stale generated doc should be able to
+  block a code deploy with no retry path — is a design decision.
+  `workflow_dispatch` is refused for this session's token (403, standing item
+  2026-09-14), so the run could not simply be re-run either.
+
+  **Resolved itself, 2026-09-22 17:40 UTC.** The owner's own scanner commit
+  `bc97286` touched `supabase/functions/**`, so the path filter fired again:
+  run [#152](https://github.com/OsamaMaghawry/Spreads/actions/runs/35762254518)
+  succeeded (17:40:36→17:42:13 UTC), carrying every function change queued
+  behind the red run #148, including the sender split. The structural
+  question — should a stale generated doc be able to block a deploy with no
+  retry path — is unchanged and still the owner's to decide, but nothing is
+  currently un-deployed because of it.
 
 - [fixed 0ac2e27] 2026-09-09 · duty-engineer · **`dumpBrokerFeed` is unauthenticated in production right now.** Verified by reading `supabase/functions/dumpBrokerFeed/index.ts` at `origin/main` (`60814dc`): it takes an `accountId` from the request body, loads that account with the admin client, decrypts its Alpaca credentials and fetches its full activity/position/order history — with no auth check of any kind. Any caller holding the app's public anon key (embedded in every client bundle) can name any account id and trigger this. `systems-engineer` already found and fixed this on `staging` in `af75776` — signed-in + (owner or admin) is now required — but that commit has not been merged to `main`, so production is unprotected until it is. Not a duty-engineer fix (touches credentials/auth, outside plain-bug authority; also the fix already exists and only needs merging, which is the owner's own release step). Proposed action: merge/deploy the `staging` fix to `main` as soon as possible — no schema or behavior change beyond the auth check, `303` server tests green on `staging`. Emailed the owner.
 
