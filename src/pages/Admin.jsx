@@ -9,7 +9,6 @@ import UsersPanel from "@/components/admin/UsersPanel";
 import BlogPanel from "@/components/admin/BlogPanel";
 import SettingsPanel from "@/components/admin/SettingsPanel";
 import IntegrityPanel from "@/components/admin/IntegrityPanel";
-import SnapTradePanel from "@/components/admin/SnapTradePanel";
 
 const TABS = [
   { key: "engagement", label: "Engagement" },
@@ -19,10 +18,6 @@ const TABS = [
   // readers, so a withheld trade or a frozen account was invisible to everyone
   // including the operator.
   { key: "integrity", label: "Integrity" },
-  // An evaluation, not a feature: does one connection layer in front of many
-  // brokers buy more than it costs. Kept in Admin because it registers users
-  // on a third-party platform and can preview an order.
-  { key: "snaptrade", label: "SnapTrade" },
   { key: "settings", label: "Settings" }
 ];
 
@@ -91,8 +86,6 @@ export default function Admin() {
         <BlogPanel />
       ) : tab === "integrity" ? (
         <IntegrityPanel />
-      ) : tab === "snaptrade" ? (
-        <SnapTradePanel />
       ) : tab === "settings" ? (
         <SettingsPanel />
       ) : !data ? (
