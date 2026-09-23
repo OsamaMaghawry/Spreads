@@ -132,7 +132,7 @@ p { margin: 0; }
  * header and the app's header are one click apart. */
 .brandmark {
   display: flex; align-items: center; gap: 0.3em; text-decoration: none;
-  color: var(--ink); font-size: 1.05rem;
+  color: var(--ink); font-size: 1.18rem;
 }
 .brandmark svg { height: 1.111em; width: auto; display: block; }
 .brandmark span {

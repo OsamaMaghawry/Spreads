@@ -244,7 +244,7 @@ ${body}
 <footer class="site">
   <div class="wrap">
     <div class="frow">
-      <a class="brandmark" href="/" style="margin-right:auto;font-size:.95rem">${MARK}<span>delta<span class="m">mint</span></span></a>
+      <a class="brandmark" href="/" style="margin-right:auto;font-size:1.07rem">${MARK}<span>delta<span class="m">mint</span></span></a>
       <a href="/blog">Blog</a>
       <a href="/terms">Terms</a>
       <a href="/privacy">Privacy</a>
