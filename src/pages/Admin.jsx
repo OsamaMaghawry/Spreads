@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
@@ -9,7 +9,12 @@ import UsersPanel from "@/components/admin/UsersPanel";
 import BlogPanel from "@/components/admin/BlogPanel";
 import SettingsPanel from "@/components/admin/SettingsPanel";
 import IntegrityPanel from "@/components/admin/IntegrityPanel";
-import SnapTradePanel from "@/components/admin/SnapTradePanel";
+import { LAB } from "@/lib/lab";
+
+// Lazy, not static, so the production bundle does not carry a panel it can
+// never render. LAB decides whether the tab exists at all; this decides
+// whether the code is fetched. See src/lib/lab.js.
+const SnapTradePanel = lazy(() => import("@/components/admin/SnapTradePanel"));
 
 const TABS = [
   { key: "engagement", label: "Engagement" },
@@ -21,8 +26,10 @@ const TABS = [
   { key: "integrity", label: "Integrity" },
   // An evaluation, not a feature: does one connection layer in front of many
   // brokers buy more than it costs. Kept in Admin because it registers users
-  // on a third-party platform and can preview an order.
-  { key: "snaptrade", label: "SnapTrade" },
+  // on a third-party platform and can preview an order -- and behind LAB,
+  // because it is unfinished and must not be reachable in production while it
+  // is still being built on staging.
+  ...(LAB ? [{ key: "snaptrade", label: "SnapTrade" }] : []),
   { key: "settings", label: "Settings" }
 ];
 
@@ -91,8 +98,10 @@ export default function Admin() {
         <BlogPanel />
       ) : tab === "integrity" ? (
         <IntegrityPanel />
-      ) : tab === "snaptrade" ? (
-        <SnapTradePanel />
+      ) : LAB && tab === "snaptrade" ? (
+        <Suspense fallback={<div className="py-16 text-center text-sm text-dm-sub">Loading…</div>}>
+          <SnapTradePanel />
+        </Suspense>
       ) : tab === "settings" ? (
         <SettingsPanel />
       ) : !data ? (

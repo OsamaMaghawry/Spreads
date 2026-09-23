@@ -188,8 +188,22 @@ async function runProbe(token: string) {
   return { probes, notes, accountId };
 }
 
+
+// UNFINISHED WORK REFUSES ON ITS OWN, rather than trusting the client.
+//
+// The browser hides this behind VITE_LAB (src/lib/lab.js), but a flag in a
+// bundle is a claim the browser makes -- anyone can call this function
+// directly. So the refusal lives here too, and it keys off the credentials the
+// work actually needs: staging has them set, production does not, so this
+// fails closed in production with no flag to set and nothing to forget. When
+// the integration is finished and production is given credentials on purpose,
+// this guard stops applying by itself.
+const tradierEnabled = () =>
+  ["TRADIER_SANDBOX_TOKEN", "TRADIER_ACCESS_TOKEN"].some((k) => (Deno.env.get(k) || "").trim() !== "");
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (!tradierEnabled()) return jsonResponse({ error: "Tradier is not enabled in this environment." }, 404);
 
   const body = await req.json().catch(() => ({}));
   const action = String(body?.action || "status");

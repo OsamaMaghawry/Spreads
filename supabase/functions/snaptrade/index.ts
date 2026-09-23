@@ -400,8 +400,22 @@ async function runProbe(admin: any, userId: string | null) {
 
 // ---------------------------------------------------------------------------
 
+
+// UNFINISHED WORK REFUSES ON ITS OWN, rather than trusting the client.
+//
+// The browser hides this behind VITE_LAB (src/lib/lab.js), but a flag in a
+// bundle is a claim the browser makes -- anyone can call this function
+// directly. So the refusal lives here too, and it keys off the credentials the
+// work actually needs: staging has them set, production does not, so this
+// fails closed in production with no flag to set and nothing to forget. When
+// the integration is finished and production is given credentials on purpose,
+// this guard stops applying by itself.
+const snaptradeEnabled = () =>
+  ["SNAPTRADE_CLIENT_ID", "SNAPTRADE_CONSUMER_KEY"].some((k) => (Deno.env.get(k) || "").trim() !== "");
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (!snaptradeEnabled()) return jsonResponse({ error: "SnapTrade is not enabled in this environment." }, 404);
 
   // TWO WAYS IN, and the second is strictly narrower.
   //
