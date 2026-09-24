@@ -117,8 +117,10 @@ export default function Billing() {
             <>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { id: "monthly", name: "Monthly", price: money(29), per: "/ month", note: "First 30 days free" },
-                  { id: "annual", name: "Yearly", price: money(290), per: "/ year", note: "Ten months for twelve" }
+                  { id: "monthly", name: "Monthly", price: money(29), per: "/ month", note: "First 7 days free" },
+                  // The trial applies to both intervals (createCheckoutSession),
+                  // so both say so.
+                  { id: "annual", name: "Yearly", price: money(290), per: "/ year", note: "First 7 days free · ten months for twelve" }
                 ].map((p) => (
                   <button
                     key={p.id}

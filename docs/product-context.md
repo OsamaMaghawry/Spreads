@@ -683,7 +683,8 @@ compliance team has since made the in-app disclosure a condition of approval
    `npm run legal:pdf`. Pricing is not on the site, at the owner's instruction,
    so its source is `docs/legal/pricing/index.html` — unpublished — and states
    the prices the product actually charges: Paper free; Live $29/month or
-   $290/year, each with a 30-day free trial.
+   $290/year, each with a 7-day free trial (30 until 24 Sep, at the owner's
+   instruction).
 2. **Manual review of deltamint.app marketing pages for Alpaca branding
    compliance.** Written up in `docs/legal/alpaca-branding-review.md`.
 3. **Authorization disclosure shown in DeltaMint UI before the Alpaca
