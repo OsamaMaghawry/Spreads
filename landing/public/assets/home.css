@@ -321,6 +321,7 @@
   :root[data-theme="dark"] .hero-mobile .brk { background: #121317; color: #C9CCD6; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .hero-mobile .brk { background: #121317; color: #C9CCD6; } }
   .home .hero-mobile .brk-bar { padding: 0 0 6px; max-width: none; }
+  .home .hero-mobile .m-more { margin-top: 10px; text-align: center; font-size: .78rem; color: var(--ink-soft); }
   .home .brk-row { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; font-size: .68rem; padding: 7px 0; border-bottom: 1px solid rgba(120,124,140,.18); white-space: nowrap; }
   .home .brk-row.hd { font-size: .58rem; text-transform: uppercase; letter-spacing: .06em; opacity: .6; }
   .home .brk-row span:nth-child(n+2) { text-align: right; }

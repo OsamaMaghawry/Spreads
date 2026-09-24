@@ -209,7 +209,7 @@ ${g.posts
 <meta property="og:site_name" content="DeltaMint" />
 <meta property="og:url" content="${site}/blog" />
 <meta property="og:title" content="DeltaMint blog" />
-<meta property="og:image" content="${site}/assets/og-card.png?v=b2a42a50de3a" />
+<meta property="og:image" content="${site}/assets/og-card.png?v=c1196ea9ee71" />
 <link rel="alternate" type="application/rss+xml" title="DeltaMint blog" href="${site}/blog/feed.xml" />`,
     body: `<h1>Blog</h1>
 <p class="lede">Options, explained from the first contract to the last position. One post a day, in six series.</p>
@@ -243,7 +243,7 @@ function renderCategory(posts, cat, site, noindex, env = {}) {
 <meta property="og:url" content="${esc(url)}" />
 <meta property="og:title" content="${esc(cat.title)}" />
 <meta property="og:description" content="${esc(cat.intro)}" />
-<meta property="og:image" content="${site}/assets/og-card.png?v=b2a42a50de3a" />
+<meta property="og:image" content="${site}/assets/og-card.png?v=c1196ea9ee71" />
 <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`,
     body: `<p class="crumbs"><a href="/blog">Blog</a> › ${esc(cat.title)}</p>
 <h1>${esc(cat.title)}</h1>
@@ -264,7 +264,7 @@ function renderPost(post, site, noindex, env = {}, all = []) {
   const { prev, next } = neighbours(all, post);
   const more = related(all, post, 3);
   const description = post.meta_description || post.excerpt || "";
-  const image = post.og_image || `${site}/assets/og-card.png?v=b2a42a50de3a`;
+  const image = post.og_image || `${site}/assets/og-card.png?v=c1196ea9ee71`;
 
   // BlogPosting structured data. Finance is YMYL under Google's quality
   // guidelines, so a named author and real dates carry more weight here than
