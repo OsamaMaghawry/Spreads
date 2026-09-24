@@ -24,7 +24,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 10 | Assignment | option assignment what happens | option assignment | broker help pages (Robinhood, E*TRADE, Fidelity, Schwab), FINRA and OIC, Nasdaq, Option Alpha, SoFi; Quora, a Substack, Elite Trader and TradingView chart ideas in the tail. No Reddit surfaced | the account the morning after, line by line |
 | 11 | Early exercise | early exercise options (always qualified — see the row 11 reading) | early exercise, option exercise — never "exercise" alone | Wikipedia, Option Alpha, Options Playbook, CFI, Schwab, Fidelity, IBKR, Benzinga, Barchart, optionstradingiq; Carta and equity-comp law firms take half the intent; a Bionic Turtle forum thread in the tail. No Investopedia surfaced | why it is rare, and the one dividend case it is not |
 | 12 | Expiration mechanics | what happens at options expiration (also searched as "what happens when options expire") | options expiration — never "expiration" alone | Schwab, E*TRADE, Options Playbook, Option Alpha, IG, VectorVest, tastytrade and SoFi support, Fidelity, Public help; Wikipedia and Schwab on pin risk; two Quora threads and a Substack in the tail. No Investopedia or Reddit surfaced | a cent either side of the strike, the broker's cutoff, and each spread leg settled on its own |
-| 13 | Buying power | options buying power requirement | buying power | broker help pages, Reddit | what a CSP and a spread each hold in reserve |
+| 13 | Buying power | options buying power requirement | options buying power, never "buying power" alone | broker help centres (moomoo, Webull, Public, tastytrade, Alpaca, SoFi, iTiger), content blogs (projectfinance, optionstradingiq, Option Samurai); FXStreet and MoneyShow syndication, Substacks, a YouTube video and TradingView chart ideas in the tail. No Reddit or Investopedia surfaced | the same short put held two ways — what each reserves, and why the hold does not shrink as the mark improves |
 | 14 | Reading a chain | how to read an option chain | option chain | Investopedia, broker pages | reading without guessing the spot |
 | 15 | Covered call | covered call explained | covered call | Investopedia, Fidelity, Schwab | mechanics, then the day after assignment |
 | 16 | Cash-secured put | cash secured put explained | cash secured put | Investopedia, Fidelity | what "secured" means in a margin account |
@@ -315,6 +315,55 @@ including one naming Reddit in the query, and no Reddit thread surfaced — the
 forum-style results were two Quora threads and Substacks. Investopedia surfaced
 in none of them. That absence is a read of these results pages on one day
 through one search tool, not proof those sites do not rank.
+
+## Reading for row 13 — options buying power requirement (read 2026-09-24)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| options buying power requirement (target) | moomoo help ("Margin Requirements for Option Strategies"), projectfinance, optionstradingiq, SoFi, Webull help, a personal blog (sheidaei.com), Option Samurai, FXStreet (syndicated), Benzinga | **hard-ish** — broker help and funded content blogs, nearly every title some form of "Option Buying Power"; a personal blog and a syndicated column in the top set, and nobody titles for "requirement" |
+| what is buying power in options trading | Webull help, Simpler Trading, SoFi, projectfinance, Option Samurai, sheidaei.com, optionstradingiq, two TradingView chart ideas | **hard-ish on the definition** — settled ground, but chart-idea pages padding the tail. It earns the first sentence and an H2, never the title |
+| options buying power vs cash balance | projectfinance, PersonalFinanceLab, Option Samurai, SoFi, optionstradingiq, a thinkorswim YouTube video, Grokipedia, iTiger help, Public FAQ | **winnable** — a video and an AI encyclopedia in the top set is a text-coverage gap; the post's first H2 answers it |
+| why did my buying power go down after selling a put | projectfinance, Wikipedia ("Purchasing power", "Put option"), optionstradingiq, Dave Mabe, PersonalFinanceLab, three TradingView chart ideas, a Seeking Alpha user page | **winnable** — nothing authoritative holds the searcher's words; the post's second FAQ is this question |
+| cash secured put buying power | Questrade, SoFi support, Fidelity, ryanoconnellfinance, OIC, Schwab, Chase, Options Playbook, SlashTraders, Goodreads | **hard** — this is row 16's cash-secured-put ground and broker/OIC pages own it; it earns an H2 here, never the title |
+| credit spread buying power requirement | MoneyShow (2016), Schaeffer's, datadrivenoptions, Wikipedia, financialtechwiz, Schwab, FXStreet (twice), a Substack comments page, iTiger help | **winnable** — dated syndication, a comments page and a help snippet; "width less credit" is stated everywhere and worked through almost nowhere |
+| cash secured put vs put credit spread buying power (same strike) | two Substacks, Medium, great-option-trading-strategies, financialtechwiz, a TradingView chart idea in three locales, Nasdaq (twice, one "for small accounts") | **winnable** — no broker hub at all; this is the post's worked example and its home intent. The ranking pages frame it as which to choose for a small account, which is advice we do not write |
+| does buying power reduction come back / when is it released | tastytrade help (negative buying power), Alpaca support, Option Samurai, optionstradingiq, PersonalFinanceLab, Public FAQ, two USPTO patents, Wikipedia "Treasury stock"; on "after it expires worthless": Robinhood, tastytrade, SoFi and Public help, Schwab, Fidelity, OptionTradingpedia | **winnable** — patents and unrelated wiki pages padding one set; in the other, broker help answers expiry timing in passing and never as its own answer |
+| does buying power on a credit spread change as it moves in my favour | Barchart, fe.training (bond spreads), StockTrak, Alpaca learn, MoneyShow, TradeStation, Wikipedia; on a second pass Schwab, Fidelity margin FAQ, TD Ticker Tape, NavigationTrading, FasterCapital, PowerOptions | **winnable, and contested** — no page answers it directly, and a search summary read the opposite of this post's answer, likely conflating the fixed requirement with account-level available buying power moving on unrelated positions. The post's FAQ carries it |
+| naked put margin requirement | Option Alpha, wallstreetmojo, InvestorPlace (2010), Wikipedia, a calculator site, Motley Fool (2016), CFI, FXStreet, a TradingView chart idea | **do not target** — formula intent (20% / 10% rules); the post deliberately does not state broker figures as a rule |
+| buying power reduction / BPR | Panoptic (DeFi protocol docs), two YouTube videos, optionstradingiq, a tastytrade help folder, an acronym site, Wikipedia "BPR" disambiguation | **do not target the acronym** — BPR drifts to DeFi and business-process pages. Spell it out and put the acronym in brackets, as the post does |
+| buying power (unqualified) | study.com, Acorns, Empower, Academy Bank, Wikipedia "Purchasing power", Omni calculator, Investor.gov, "Collective buying power", PPP | **do not target**: the bare phrase means purchasing power and inflation. The head term for this row is **options buying power**, never "buying power" alone — the same correction rows 7, 9, 10, 11 and 12 needed |
+
+**The gap.** Every ranking page gives the same per-strategy list: a bought
+option costs its premium, a spread holds its max loss, a naked option takes the
+20%/10% formula, a covered option needs nothing more. Almost none puts one
+short strike next to itself held two ways, with arithmetic a reader can check
+against the cash balance (the balance goes up by the premium while buying power
+drops by more). Almost none says what ends the hold — close, expiry or
+assignment, not the mark — and the one phrasing that asks it directly returned
+a summary that reads the opposite way. Two smaller unoccupied points: brokers
+reserving buying power against working orders, and the two conditions a spread
+needs to be margined as a spread (same account, long leg lasting at least as
+long). Where the competitors do compare cash-secured puts and spreads, they
+frame it as capital efficiency for small accounts. The angle here stays
+descriptive: what each one holds, not which to run.
+
+**Could not establish:** search volume, difficulty and current position for any
+phrasing above; whether these results are personalised or localised; the full
+text of the two content blogs that recur most (projectfinance did not resolve
+and optionstradingiq is blocked from this environment), so their coverage is
+read from titles and snippets only; and whether "option buying power" or
+"options buying power" is the dominant form — both appear in ranking titles,
+which is a count of titles and not demand, so the slug was left alone. The
+placeholder row named "broker help pages, Reddit". Broker help centres held up;
+twelve phrasings were read, including one naming Reddit in the query, and no
+Reddit thread surfaced — the forum-style results were Substacks, a Medium post
+and TradingView chart ideas. Investopedia surfaced in none of them. That absence
+is a read of these results pages on one day through one search tool, not proof
+those sites do not rank.
 
 ## Off-syllabus rows
 

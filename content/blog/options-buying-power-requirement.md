@@ -1,8 +1,8 @@
 ---
-title: "Options buying power requirement: what a put, a spread and a covered call hold"
+title: "Options buying power requirement: what a put and a spread hold"
 slug: options-buying-power-requirement
 excerpt: A short option reserves part of the account for as long as it is open, and a cash-secured put, a credit spread and a covered call each reserve something different.
-meta_description: The options buying power requirement, explained: a cash-secured put holds the strike, a credit spread holds width minus credit, a covered call holds shares.
+meta_description: "Options buying power requirement: a cash-secured put holds the strike, a credit spread its width less credit, until closed, expired or assigned."
 author: DeltaMint
 category: foundations
 series_order: 13
@@ -12,8 +12,9 @@ tags: buying power, margin, collateral, cash-secured put, credit spread
 **Buying power** is the amount a brokerage account can commit to new
 positions right now, and an option trade's **buying power reduction** (BPR)
 is how much of that amount the trade takes away while it is open. For anyone
-who sells options, BPR decides how much else the account can hold, and it is
-a different number from the cash balance.
+who sells options, **the buying power requirement behind each trade** decides
+how much else the account can hold, and it is a different number from the
+cash balance.
 
 The [previous post on expiration](/blog/what-happens-options-expiration)
 ended with collateral released or replaced. This one covers what that
@@ -27,7 +28,7 @@ collateral is: what each structure holds in reserve, and what ends the hold.
 - A covered call reserves the shares it is written against, not cash.
 - The hold ends at close, expiration or assignment, not when the mark improves.
 
-## Buying power is what the account can still commit, not what it holds
+## Why is buying power different from the cash balance?
 
 The **cash balance** is money in the account. Buying power is what remains
 available for a new trade after everything already open or working has been
@@ -53,7 +54,7 @@ can add its own on top. The figures here follow standard margin-account
 rules; a cash, retirement or portfolio-margin account can treat the same
 position differently.
 
-## A cash-secured put holds the whole strike in reserve
+## How much buying power does a cash-secured put use?
 
 A **cash-secured put** is a short put with enough cash set aside to buy the
 shares if it is assigned. The requirement is the strike times 100, per
@@ -68,7 +69,7 @@ In a margin account a broker can instead margin a short put at a lower
 requirement that moves with the stock. The reserve then no longer covers what
 assignment would cost; "cash-secured" is the version where the two match.
 
-## A credit spread holds only the width, less the credit
+## How much buying power does a credit spread use?
 
 A **credit spread** sells one option and buys another further from the
 money, in the same expiration. The bought leg caps what the pair can lose, so
@@ -92,14 +93,13 @@ stood alone:
 - **Both legs in one account.** A long put elsewhere offsets nothing.
 - **The long leg lasts at least as long.** One that expires first cannot cover the short afterwards, which is why most credit spreads use one expiration.
 
-## Covered calls and naked options hold something other than a width
+## What do covered calls and naked options hold?
 
 A **covered call** is a short call written against 100 shares already in the
 account. The shares are the collateral, delivered at the strike if the call
 is assigned. No cash is reserved, but the shares are committed while the
 call is open, and the premium received adds to buying power rather than
-reserving any of it. Covered calls get a full treatment in the [income
-series](/blog/income).
+reserving any of it. Covered calls get their own post in the income series.
 
 A **naked**, or uncovered, short option has no shares and no long leg behind
 it. Its requirement comes from a formula in exchange and regulatory rules,
@@ -136,7 +136,7 @@ The two cases carry the same obligation to buy at $50 if assigned, and differ
 by $4,720 in what the account can still commit. Neither number says which
 position is preferable; each describes only what is held while it is open.
 
-## The hold ends at close, expiration or assignment, not when the mark improves
+## When does the buying power come back?
 
 Collateral against a short option comes off in one of the same three ways
 any contract leaves the account:
