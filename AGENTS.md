@@ -147,7 +147,9 @@ PDF copies of the Terms and Privacy Policy in `docs/legal/deliverables/` are
 
 - `npm run og:card` after changing the homepage `<title>`, meta description,
   logo or brand colours.
-- `npm run legal:pdf` after editing `landing/public/terms` or `privacy`.
+- `npm run legal:pdf` after editing `landing/public/terms` or `privacy`, or the
+  unpublished pricing schedule in `docs/legal/pricing/` (which must change
+  whenever the prices in `src/pages/Billing.jsx` or the Stripe checkout do).
 
 `npm run content:check` (run before every site deploy) fails if either is out
 of date or was replaced by hand, and names the command. It also fails on

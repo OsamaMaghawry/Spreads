@@ -1,12 +1,17 @@
 {
   "terms": {
-    "inputs": "eb6f59a4c6d36b2a58f629cd9d03a939e81b9723b7fe2fb8f9ccf23d04079298",
-    "pdf": "cf0ab4fe7019092ffd392ef07af72a557a678368dd7ca9063f7e85c35d014a35",
+    "inputs": "ba9260b8a03272b655d7250f6fd93224b27c01a66474354b03beaa139453059e",
+    "pdf": "e99deef6c5f869cb6a910dfabde87337bb0bc9aa18971a4af1518da75678062d",
     "version": "Last updated September 24, 2026"
   },
   "privacy": {
-    "inputs": "298a6a5a7ff3acc2032aca885a4dc52a18554ca281a881b376172240a01e2d70",
-    "pdf": "d74947b2fc1613c650d4fa35822cdb01017d71dfdcb6d353996dee5498033338",
+    "inputs": "ac58da0c9ede39b6d99bb6a42a0da552756517c5b5201f9dcfa59f4463127242",
+    "pdf": "73fc3464dc6a6e9afd3c5488524d21909df2491ad63b0a994e12c500f0893f9b",
     "version": "Last updated September 3, 2026"
+  },
+  "pricing": {
+    "inputs": "9c57f8b821fe78b4237521db20baf5dfca5dad380c39a4c6fd025f67f49ee6d2",
+    "pdf": "e11f863bb1092541bda9b3d7e83f83c9711765b0cca66245621e54a20bbb592c",
+    "version": "Last updated September 24, 2026"
   }
 }
