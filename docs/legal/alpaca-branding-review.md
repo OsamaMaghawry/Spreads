@@ -29,7 +29,7 @@ checked images for the Alpaca logo or likeness.
 
 | # | Where | Finding | Action |
 |---|---|---|---|
-| 1 | Homepage, brokerage section | A redrawn Alpaca logo (yellow circle, alpaca figure) was displayed. | **Removed.** Replaced by the name in plain text, in DeltaMint's own typeface. No Alpaca logo, colour or artwork appears anywhere on the site. |
+| 1 | Homepage, brokerage section | The Alpaca logo is shown as one of DeltaMint's brokerage integration partners. | Kept — this is the integrations display the questionnaire permits. We will replace it with Alpaca's official logo file, or remove it, on request. |
 | 2 | Homepage, brokerage section | The call-to-action read "Connect your Alpaca account now — free". | **Changed** to the neutral "Link your brokerage account — free". |
 | 3 | Homepage, brokerage section | The section was headed "Connect your broker". | **Relabelled** "Brokerage integrations", so the one place the name appears is plainly the integrations display the questionnaire permits. |
 | 4 | Terms of Service | Does not name Alpaca. Refers to "your broker" and "your broker's own connection flow". | None needed. |
@@ -40,11 +40,11 @@ checked images for the Alpaca logo or likeness.
 
 ## Result
 
-After the changes above, the Alpaca name appears **once** on the public site:
-as plain text on the homepage, inside the section headed "Brokerage
-integrations", marked "Live now". There is no Alpaca logo, no Alpaca branding,
-and no reference to Alpaca's services anywhere else, including the Terms and
-Privacy Policy.
+After the changes above, Alpaca appears in **one place** on the public site:
+the homepage section headed "Brokerage integrations", where its name and logo
+identify it as the brokerage DeltaMint connects to, marked "Live now". There is
+no Alpaca name, logo or reference to Alpaca's services anywhere else, including
+the Terms and Privacy Policy.
 
 Elsewhere the site uses neutral language — "link your brokerage account",
 "your broker", "sign in with your brokerage login" — and states on every page
@@ -55,4 +55,4 @@ Inside the signed-in application, Alpaca is named where the user connects and
 manages their Alpaca account, including the authorization disclosure shown
 before the redirect to Alpaca. That is the integration itself, not marketing.
 
-We will remove the remaining mention, or amend any wording, on request.
+We will amend or remove the integration listing, or any wording, on request.
