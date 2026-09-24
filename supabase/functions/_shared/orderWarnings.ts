@@ -245,6 +245,68 @@ export function coverWarning(
   };
 }
 
+/**
+ * A short call measured against FREE cover -- shares and long calls not
+ * already standing behind another short call.
+ *
+ * `coverWarning` above counts held shares, and held is the wrong question twice
+ * over. It raised a false "not covered" on a call written against a long call
+ * the account owns, which teaches the user to click through the one warning
+ * that matters. And it raised NOTHING on the owner's second TSLA call, because
+ * 100 shares held is "enough" for one contract -- enough for the 390C already
+ * sold against them. The second call was naked and the ticket was silent.
+ *
+ * `longContracts` must already be filtered to longs expiring on or after the
+ * call being sold; the caller has the expiries and this stays arithmetic.
+ */
+export function freeCoverWarning({
+  accountName,
+  ticker,
+  contracts,
+  heldShares,
+  freeShares,
+  longContracts
+}: {
+  accountName: string;
+  ticker: string;
+  contracts: number;
+  heldShares: number;
+  freeShares: number;
+  longContracts: number;
+}): OrderWarning | null {
+  const want = Math.max(0, Math.floor(Number(contracts) || 0));
+  if (want === 0) return null;
+  // Longs first, the order callCover allocates in, then shares.
+  const fromLongs = Math.min(want, Math.max(0, Math.floor(Number(longContracts) || 0)));
+  const fromShares = Math.min(want - fromLongs, Math.floor(Math.max(0, Number(freeShares) || 0) / 100));
+  const covered = fromLongs + fromShares;
+  if (covered >= want) return null;
+
+  const held = Math.max(0, Number(heldShares) || 0);
+  const committed = Math.max(0, held - Math.max(0, Number(freeShares) || 0));
+  // The sentence has to name the reason, because the reason is what a reader
+  // would not guess: "holds 100 shares" and "not covered" read as a
+  // contradiction unless the ticket says where the shares went.
+  const sharesClause =
+    held === 0
+      ? `${accountName} holds no ${ticker} shares`
+      : committed > 0
+        ? `${accountName} holds ${held} ${ticker} shares, but ${committed} of them already cover a call you have sold`
+        : `${accountName} holds ${held} ${ticker} shares`;
+  const longClause =
+    fromLongs > 0 ? `, and ${fromLongs} long call${fromLongs > 1 ? "s" : ""} free to cover this` : "";
+
+  return {
+    code: "short_call_uncovered",
+    severity: "serious",
+    title: covered === 0 ? `This call is not covered.` : `Only ${covered} of ${want} calls are covered.`,
+    detail:
+      `${sharesClause}${longClause}. ${want - covered} contract${want - covered > 1 ? "s" : ""} would have ` +
+      `nothing behind ${want - covered > 1 ? "them" : "it"} — the uncovered part has no ceiling on its loss, ` +
+      `and the broker may reject it depending on what this account is approved for.`
+  };
+}
+
 // Which of a list the user has not already seen and accepted.
 export const unacknowledged = (warnings: OrderWarning[], accepted: string[] | boolean | undefined) => {
   if (accepted === true) return [];

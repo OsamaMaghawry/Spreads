@@ -161,8 +161,8 @@ export default function ScannerConfig({ cfg, set, isCondor, single = false, stra
       {(strategy === "covered_call" || strategy === "wheel") && (
         <p className="text-[11px] text-slate-400 leading-relaxed">
           {strategy === "wheel"
-            ? "Puts are scanned on the universe above; calls on the shares this account holds, 100 or more, at their cost basis."
-            : "Scans the shares this account holds, 100 or more, at their cost basis — the universe above is ignored."}
+            ? "Puts are scanned on the universe above; calls on what this account can write against — 100 free shares, or a long call it holds."
+            : "Scans what this account can write a call against — 100 free shares, or a long call it holds. Cover already behind a call you've sold isn't offered twice. The universe above is ignored."}
         </p>
       )}
 

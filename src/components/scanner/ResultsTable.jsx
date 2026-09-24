@@ -68,6 +68,24 @@ export default function ResultsTable({ candidates, onTrade }) {
                 <td className={`${td} font-semibold text-slate-900`}>
                   <span className="inline-flex items-center gap-1.5">
                     {c.ticker}
+                    {/* Filed under covered calls, behaves like a spread: the
+                        row says which, so the two are never read as one. */}
+                    {c.coveredBy === "long_call" && (
+                      <span
+                        className="ml-1.5 rounded border border-amber-300 bg-amber-50 px-1.5 py-px text-[10px] font-medium text-amber-800"
+                        title={`Written against your ${c.ticker} $${c.cover?.strike} call, ${c.cover?.expiry} — a spread, not a covered call on shares.`}
+                      >
+                        vs long call
+                      </span>
+                    )}
+                    {c.coverInUse && (
+                      <span
+                        className="ml-1.5 rounded border border-amber-300 bg-amber-50 px-1.5 py-px text-[10px] font-medium text-amber-800"
+                        title={c.coverInUse}
+                      >
+                        cover in use
+                      </span>
+                    )}
                     <EarningsWarning earnings={c.earnings} ticker={c.ticker} compact />
                   </span>
                 </td>

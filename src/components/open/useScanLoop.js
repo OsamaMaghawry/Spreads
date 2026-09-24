@@ -68,6 +68,14 @@ export default function useScanLoop() {
         setError(null);
         setSkipped(data.skipped || []);
         const found = data.candidates || [];
+        // The server said why there is nothing to scan -- no free cover at all.
+        // Retrying every 20 seconds cannot change that, and saying nothing
+        // while it does is how a correct answer looks like a broken screen.
+        if (data.reason && found.length === 0) {
+          setError(data.reason);
+          setRunning(false);
+          return;
+        }
         if (found.length > 0) {
           setCandidates(found);
           setRunning(false);

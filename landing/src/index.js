@@ -31,6 +31,19 @@ const siteUrl = (request, env) => env.SITE_URL || new URL(request.url).origin;
 // indexed normally.
 const isNoIndex = (env) => env.NOINDEX === "1";
 
+// The static pages name their share image by its production address, because
+// a link preview needs an absolute URL and the same files ship to both sites.
+// On any other site that meant a shared staging link previewed PRODUCTION's
+// card -- so a new card could not be checked before release. The owner, on
+// Telegram: new words from dev-landing, old picture. Off production, the card
+// is served from the site actually being shared. Production never runs this
+// branch for its pages (run_worker_first is off there), and would be a no-op.
+const PROD_ASSETS = "https://deltamint.app/assets/";
+export function rehostAssets(html, site) {
+  if (!site || site === "https://deltamint.app") return html;
+  return html.split(PROD_ASSETS).join(`${site}/assets/`);
+}
+
 // The same EEA/UK/Swiss gate the static pages carry, in one place.
 //
 // It has to run in the BROWSER rather than off `request.cf.country` here,
@@ -196,7 +209,7 @@ ${g.posts
 <meta property="og:site_name" content="DeltaMint" />
 <meta property="og:url" content="${site}/blog" />
 <meta property="og:title" content="DeltaMint blog" />
-<meta property="og:image" content="${site}/assets/og-card.png" />
+<meta property="og:image" content="${site}/assets/og-card.png?v=b2a42a50de3a" />
 <link rel="alternate" type="application/rss+xml" title="DeltaMint blog" href="${site}/blog/feed.xml" />`,
     body: `<h1>Blog</h1>
 <p class="lede">Options, explained from the first contract to the last position. One post a day, in six series.</p>
@@ -230,7 +243,7 @@ function renderCategory(posts, cat, site, noindex, env = {}) {
 <meta property="og:url" content="${esc(url)}" />
 <meta property="og:title" content="${esc(cat.title)}" />
 <meta property="og:description" content="${esc(cat.intro)}" />
-<meta property="og:image" content="${site}/assets/og-card.png" />
+<meta property="og:image" content="${site}/assets/og-card.png?v=b2a42a50de3a" />
 <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`,
     body: `<p class="crumbs"><a href="/blog">Blog</a> › ${esc(cat.title)}</p>
 <h1>${esc(cat.title)}</h1>
@@ -251,7 +264,7 @@ function renderPost(post, site, noindex, env = {}, all = []) {
   const { prev, next } = neighbours(all, post);
   const more = related(all, post, 3);
   const description = post.meta_description || post.excerpt || "";
-  const image = post.og_image || `${site}/assets/og-card.png`;
+  const image = post.og_image || `${site}/assets/og-card.png?v=b2a42a50de3a`;
 
   // BlogPosting structured data. Finance is YMYL under Google's quality
   // guidelines, so a named author and real dates carry more weight here than
@@ -377,7 +390,7 @@ async function handle(request, env, ctx) {
     // invoked for these; on staging it is, purely to stamp the header.
     let asset = await env.ASSETS.fetch(request);
     if ((asset.headers.get("content-type") || "").includes("text/html")) {
-      const text = await asset.text();
+      const text = rehostAssets(await asset.text(), site);
       // Those four pages carry their own hostname-guarded GA and Hotjar
       // snippets inline, precisely because production's run_worker_first
       // means this branch never runs for them. Should that config ever be

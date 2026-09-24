@@ -78,9 +78,9 @@ incomplete.
 
 ## Components, by area
 
-- **accounts** — AccountForm
+- **accounts** — AccountForm, AlpacaConnectConsent
 - **admin** — AdminMaintenance, BlogPanel, EngagementPanel, IntegrityPanel, PostPreview, SettingsPanel, SignupsChart, SnapTradePanel, StatTile, UsersPanel
-- **analysis** — BreakdownTable, CaptureBreakdown, DateRangeFilter, EquityCurveChart, ExportPdfButton, OpenBookPanel, OpenOptionsPanel, SetupBreakdown, StatCards, StrategyComparison, ViewSwitch, WindowParts
+- **analysis** — AnalysisDisclosure, AnalysisLayoutB, BreakdownTable, CaptureBreakdown, DateRangeFilter, EquityCurveChart, ExportPdfButton, MethodNotes, OpenBookPanel, OpenOptionsPanel, SetupBreakdown, StatCards, StatTiles, StrategyComparison, ViewSwitch, WindowParts
 - **billing** — UpgradePrompt
 - **brand** — DeltaMintMark, Wordmark
 - **close** — CloseDialog, LegPicker, LegsQuoteSummary, MultiCloseDialog, OpenOrdersPanel, OrderLog, useCloseOrder, useMultiClose
@@ -94,16 +94,16 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-23 · (staging) A covered-call scan (Scanner, Open Position and the
+- 2026-09-23 · (staging) The Open Position screen now names a ticker a
+- 2026-09-23 · (staging) A call sold against a long call (not just against
+- 2026-09-23 · (staging) The Scanner's covered-call suggestions now count a
+- 2026-09-23 · (staging, lab flag) A reworked Analysis page puts the result and
+- 2026-09-23 · (staging) The blog's diagrams can reach the live site again —
+- 2026-09-23 · Unfinished broker work (the SnapTrade and Tradier
+- 2026-09-23 · A twelfth foundations post — what happens at options
+- 2026-09-23 · The logo is now the lowercase Greek delta itself — drawn as a
 - 2026-09-22 · (staging) The "No earnings date" badge is gone from the
-- 2026-09-22 · (staging) A scanner row with no earnings-calendar coverage
-- 2026-09-22 · (staging) The scanner's return-on-risk explainer note is
-- 2026-09-22 · (staging) A cash-secured put or covered call scan no longer
-- 2026-09-22 · (staging) The whole-market scan now drops leveraged and
-- 2026-09-22 · (staging) A whole-market scan that finds setups but rejects
-- 2026-09-22 · (staging) The whole-market scan now actually scans the whole
-- 2026-09-22 · (staging) The Scanner's "whole market" sweep now says why it
-- 2026-09-22 · An eleventh foundations post — early exercise, and why it's
-- 2026-09-21 · A tenth foundations post — option assignment, what actually
 
 ## Server functions
 
@@ -652,8 +652,8 @@ paying customers. Disk encryption and multi-factor authentication are confirmed;
 the policy marks automatic updates and a password manager as unconfirmed rather
 than claiming them.
 
-**Still needed from the founder:** the connection walkthrough capture — now
-straightforwardly recordable, since the flow works end to end.
+**Still needed from the founder:** a new connection walkthrough capture that
+starts in DeltaMint and shows the disclosure dialog before Alpaca's page.
 
 ### The capture they ask for
 
@@ -666,10 +666,28 @@ The whole flow is recordable, including the callback. An earlier version of this
 file said the callback could not be shown until approval; it can, and a capture
 that stops before it is weaker than one that does not.
 
-The disclosure is **the broker's own page**, not a screen to build. DeltaMint
-sends the user straight to it. There was once a modal repeating that text before
-the redirect; it was removed as a second consent that looked like the broker's
-and was not. Do not reintroduce one.
+The disclosure is shown **in DeltaMint, before the redirect** — the
+`AlpacaConnectConsent` dialog, with Deny and Allow — and Alpaca's own
+authorize page follows it. The capture must start in DeltaMint and show that
+dialog, not start at Alpaca's page.
+
+This was once the other way round: the dialog was removed on 27 Aug as a
+"second consent", on the reading that Alpaca's page was the disclosure. Alpaca's
+compliance team has since made the in-app disclosure a condition of approval
+(see below), so the dialog is back and stays.
+
+### Alpaca compliance conditions — 24 Sep 2026
+
+1. **PDF copies of Terms, Privacy Policy and Pricing schedule** (currently
+   URL-only). Terms and Privacy are rendered from the live pages into
+   `docs/legal/deliverables/`. The pricing page has been unpublished since
+   12 Sep and its figures are a stale proposal, so the schedule waits on the
+   owner's decision about what prices to submit.
+2. **Manual review of deltamint.app marketing pages for Alpaca branding
+   compliance.** Written up in `docs/legal/alpaca-branding-review.md`.
+3. **Authorization disclosure shown in DeltaMint UI before the Alpaca
+   redirect.** Restored (`AlpacaConnectConsent`); needs a new capture that
+   starts in DeltaMint.
 
 ### Rules this imposes on the product
 

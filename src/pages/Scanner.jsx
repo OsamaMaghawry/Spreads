@@ -224,11 +224,11 @@ export default function Scanner() {
             >
               <Radar className="w-4 h-4" />{" "}
               {strategy === "covered_call"
-                ? "Scan shares held"
+                ? "Scan shares and long calls held"
                 : cfg.universe === "market"
                   ? "Scan the entire market"
                   : wheel
-                    ? `Scan ${tickers.length} tickers and shares held`
+                    ? `Scan ${tickers.length} tickers, shares and long calls held`
                     : `Scan ${tickers.length} tickers`}
             </button>
           )}

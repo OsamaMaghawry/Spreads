@@ -39,12 +39,26 @@ Deno.serve(async (req) => {
     // universe is the account, not the request. A cash-secured put scans the
     // requested tickers like a spread does.
     let params = body;
+    // Held tickers whose cover already stands behind a call sold, with the
+    // sentence saying so. Their setups are shown, flagged -- see scanCover.
+    let inUse: Record<string, string> = {};
     if (strategy === "covered_call") {
       const held = await heldShares(admin, account);
-      if (held.tickers.length === 0) {
-        return jsonResponse({ ok: false, candidates: [], skipped: [], reason: "This account holds no 100-share lots to write a covered call on." });
+      const scan = held.scan;
+      if (scan.tickers.length === 0) {
+        return jsonResponse({
+          ok: false, candidates: [], skipped: [],
+          reason: "Nothing to write a call against — no 100 shares and no long call in this account."
+        });
       }
-      params = { ...body, tickers: held.tickers, sharesByTicker: held.shares, basisByTicker: held.basis };
+      inUse = scan.inUse;
+      params = {
+        ...body,
+        tickers: scan.tickers,
+        sharesByTicker: scan.sharesByTicker,
+        basisByTicker: held.basis,
+        longCoverByTicker: scan.longCoverByTicker
+      };
     }
     // Options do not trade outside 09:30-16:00 ET, so outside the session
     // the chain is still quoted at the previous close while the stock has
@@ -95,6 +109,9 @@ Deno.serve(async (req) => {
       }
     }
 
+    for (const c of result.candidates || []) {
+      if (inUse[c.ticker]) c.coverInUse = inUse[c.ticker];
+    }
     return jsonResponse(result);
   } catch (error) {
     return jsonResponse({ error: error.message }, 500);

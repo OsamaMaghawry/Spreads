@@ -219,6 +219,9 @@ export default function TicketAnalysis({ setup, qty = 1, net = null, positions =
   const marks = ticketMarks(setup);
   const collateral = scaledRisk(setup.collateral, qty);
   const unlimitedUpside = setup.strategy === "long_call";
+  // A call written against a long call already held: the long is drawn with
+  // it (see pendingRows), and the share wording below does not apply.
+  const overLong = setup.coveredBy === "long_call";
 
   const nearLabel = `At ${day(when.near)}`;
   const tailLabel = `After it: the ${day(when.far)} leg alone`;
@@ -256,15 +259,24 @@ export default function TicketAnalysis({ setup, qty = 1, net = null, positions =
             value={evens(own.allZeros?.length ? own.allZeros : own.zeros)}
           />
           <Figure
-            label={setup.strategy === "covered_call" ? "Shares at basis" : "Collateral"}
+            label={overLong ? "Long call cost" : setup.strategy === "covered_call" ? "Shares at basis" : "Collateral"}
             value={fmtMoney(collateral)}
           />
         </div>
 
         {maxLoss !== null && when.multi && (
           <p className="text-[11px] text-slate-500">
-            Max loss is the worst the whole position can do over its life, not the worst on{" "}
-            {day(when.near)} — it happens with the stock at zero after that date.
+            {overLong ? (
+              <>
+                Max loss is on {day(when.near)}, counting your {day(when.far)} call at intrinsic value only. It
+                will still have time value then, which is why the line sits above it.
+              </>
+            ) : (
+              <>
+                Max loss is the worst the whole position can do over its life, not the worst on{" "}
+                {day(when.near)} — it happens with the stock at zero after that date.
+              </>
+            )}
           </p>
         )}
 

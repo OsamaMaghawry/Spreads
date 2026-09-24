@@ -234,3 +234,102 @@ test("both shorts of a condor are held to the band", () => {
 test("a leg with no delta is not judged", () => {
   assert.equal(outsideBand({ legs: [{ role: "short_put", side: "sell", delta: null }] }, 0.12, 0.22), null);
 });
+
+// ---------------------------------------------------------------------------
+// A call written against a LONG CALL -- a poor man's covered call.
+//
+// Same JPM chain as above: spot 358, the 0.27-delta call is the 360 at $1.40.
+// Every expected figure is worked by hand in the comment beside it, because the
+// point of these is that the arithmetic is checkable, not that it runs.
+// ---------------------------------------------------------------------------
+
+const LONG_350 = { symbol: "JPM261218C00350000", ticker: "JPM", strike: 350, expiry: "2026-12-18", qty: 1, cost: 12.0 };
+const cc = (extra: any) =>
+  buildSingle({ ticker: "JPM", expiry: EXPIRY, strategy: "covered_call", spot: 358, puts: [], calls: CALLS, targetDelta: 0.27, ...extra });
+
+test("a long call covers a call written against it, and is labelled as that", () => {
+  const r: any = cc({ longCover: [LONG_350] });
+  assert.equal(r.ok, true);
+  const s = r.setup;
+  assert.equal(s.coveredBy, "long_call");
+  assert.equal(s.legs.length, 1);
+  assert.equal(s.legs[0].strike, 360);
+  assert.equal(s.credit, 1.4);
+  // Risk bound: long cost − credit + max(0, long strike − short strike)
+  //            = 12.00 − 1.40 + max(0, 350 − 360) = 10.60 a share
+  assert.equal(Math.round(s.maxRisk), 1060);
+  assert.equal(s.collateral, 1200);                         // the long's cost
+  assert.ok(Math.abs(s.returnOnCollateral - 1.4 / 12) < 1e-9);
+  assert.equal(s.cover.symbol, "JPM261218C00350000");
+  assert.equal(s.maxContracts, 1);
+  // No share figures borrowed from the other kind of covered call.
+  assert.equal(s.basis, undefined);
+  assert.equal(s.ifCalled, undefined);
+  assert.equal(s.breakEvenLow, null);
+});
+
+test("if assigned and the long is exercised, the result can be a LOSS", () => {
+  // (short strike − long strike + credit − long cost) × 100
+  // = (360 − 350 + 1.40 − 12.00) × 100 = −$60.
+  //
+  // The long 350C with the stock at 358 is $8 in the money and was bought for
+  // $12, so $4 of it is time value. Exercising to meet an assignment throws
+  // that away. This is the figure the ticket must print beside the word
+  // "floor": selling the long instead keeps the time value, so this is the
+  // worst way out, not the expected one.
+  const s: any = cc({ longCover: [LONG_350] }).setup;
+  assert.equal(Math.round(s.ifAssigned), -60);
+});
+
+test("a short struck BELOW the long carries the strike gap in its risk", () => {
+  // Long 365C bought for $2.00; the 0.27-delta short is still the 360.
+  // Above both strikes the short loses $5 more than the long gains.
+  //   risk = 2.00 − 1.40 + max(0, 365 − 360) = 5.60 a share
+  const long365 = { ...LONG_350, symbol: "JPM261218C00365000", strike: 365, cost: 2.0 };
+  const s: any = cc({ longCover: [long365] }).setup;
+  assert.equal(Math.round(s.maxRisk), 560);
+});
+
+test("a long call expiring before the short cannot cover it, and says so", () => {
+  const early = { ...LONG_350, symbol: "JPM260821C00350000", expiry: "2026-08-21" };
+  const r: any = cc({ longCover: [early] });
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /expires 2026-08-21, before this 2026-08-28 call/);
+});
+
+test("a long expiring the SAME day as the short covers it", () => {
+  const sameDay = { ...LONG_350, symbol: "JPM260828C00350000", expiry: EXPIRY };
+  assert.equal(cc({ longCover: [sameDay] }).ok, true);
+});
+
+test("a credit covering the long's whole cost is refused, not ranked first", () => {
+  // Long bought for $1.00; the short pays $1.40. Risk bound 1.00 − 1.40 < 0.
+  // Dividing by it would rank this above every other setup on the screen.
+  const cheap = { ...LONG_350, cost: 1.0 };
+  const r: any = cc({ longCover: [cheap] });
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /check the quote/);
+});
+
+test("a long with no cost on record cannot be priced", () => {
+  const r: any = cc({ longCover: [{ ...LONG_350, cost: null }], shares: 0 });
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /No cost on record/);
+});
+
+test("with both a long call and shares, the long covers first", () => {
+  // callCover allocates longs first, so the Dashboard will call the resulting
+  // position covered by the long. The Scanner must describe it the same way.
+  const basis = { basis: 350.5, source: "adjusted" };
+  const s: any = cc({ longCover: [LONG_350], shares: 300, basis }).setup;
+  assert.equal(s.coveredBy, "long_call");
+});
+
+test("shares alone still price exactly as before", () => {
+  // Regression guard: the share path must be untouched by the long-call path.
+  const basis = { basis: 350.5, brokerBasis: 352.5, collected: 200, shares: 300, source: "adjusted" };
+  const s: any = cc({ basis, shares: 300 }).setup;
+  assert.equal(s.coveredBy, undefined);
+  assert.equal(Math.round(s.maxRisk), 34910);
+  assert.equal(Math.round(s.ifCalled), 1090);
+});

@@ -29,22 +29,18 @@ Start with `README.md` for local setup and environment variables.
 
 ## Alpaca OAuth
 
-**Alpaca shows the authorization disclosure. We do not.** Connect goes straight
-to `app.alpaca.markets/oauth/authorize`, with nothing in between — the same as
-every approved app. Alpaca's page renders "Authorize <app>" with the disclosure
-from the registered app name, lists the user's live and paper accounts, and
-carries Allow and Deny.
+**The authorization disclosure is shown in DeltaMint, before the redirect.**
+Connect opens `AlpacaConnectConsent` — Alpaca's disclosure text, Deny and
+Allow — and only Allow calls `startAlpacaOAuth({ acknowledged: true })`, which
+throws without it. Alpaca's own "Authorize <app>" page follows as usual.
 
-The DDQ (v3, page 3) shows that disclosure as a `[Name]` template and says
-*"Acknowledgement of the disclosure must be done prior to a client connecting
-their Alpaca account."* That describes **Alpaca's page**: the acknowledgement is
-its Allow button, which precedes the token exchange that actually connects the
-account. It is not a spec for a screen to build.
-
-There was once an `AlpacaConnectConsent` modal repeating that text before the
-redirect. It was removed: it was a second consent, shown on our domain, that
-looked like Alpaca's and was not. Do not reintroduce it — check a real
-connect flow before concluding otherwise.
+This reverses an earlier rule. On 27 Aug the modal was removed on the reading
+that Alpaca's page *was* the disclosure the DDQ (v3, page 3) meant. Alpaca's
+compliance team, reviewing the application, then set as a condition:
+*"Confirm authorization disclosure is shown in DeltaMint UI before Alpaca
+redirect (video starts at Alpaca auth page)."* The broker's reading of its own
+requirement wins. Do not remove the modal, and do not add a Connect path that
+skips it.
 
 **`env` is deliberately not sent.** That parameter narrows Alpaca's consent
 screen to only a live or only a paper account. Omitting it lists every account
@@ -142,6 +138,23 @@ different id than the one in `.env`.
 marketing site except when showing brokerage integration partners — the
 homepage broker card is that exception. Use "link your brokerage account"
 elsewhere. Never imply DeltaMint is a broker-dealer or give investment advice.
+
+## Generated brand and legal assets: never edit by hand
+
+`landing/public/assets/og-card.png` (the image every shared link shows) and the
+PDF copies of the Terms and Privacy Policy in `docs/legal/deliverables/` are
+**generated**, from the homepage and the legal pages respectively:
+
+- `npm run og:card` after changing the homepage `<title>`, meta description,
+  logo or brand colours.
+- `npm run legal:pdf` after editing `landing/public/terms` or `privacy`.
+
+`npm run content:check` (run before every site deploy) fails if either is out
+of date or was replaced by hand, and names the command. It also fails on
+**retired wording** — old taglines and product descriptions listed in
+`RETIRED` in `scripts/content-check.mjs`. When DeltaMint's description or
+tagline changes, add the old one there in the same commit, so it cannot come
+back on any page, email or the terms.
 
 ## Market prices: one source, and it says where it came from
 

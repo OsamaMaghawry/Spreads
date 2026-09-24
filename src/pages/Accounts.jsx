@@ -7,6 +7,7 @@ import { SAFE_ACCOUNT_COLUMNS } from "@/lib/accountColumns";
 import { Plus, Pencil, Trash2, KeyRound, Link2 } from "lucide-react";
 import ConfirmDeleteAccount from "@/components/common/ConfirmDeleteAccount";
 import AccountForm from "@/components/accounts/AccountForm";
+import AlpacaConnectConsent from "@/components/accounts/AlpacaConnectConsent";
 import { startAlpacaOAuth, describeOAuthConfig } from "@/lib/alpacaOAuth";
 import useAdminSettings from "@/lib/useAdminSettings";
 import usePublicConfig from "@/lib/usePublicConfig";
@@ -35,21 +36,19 @@ export default function Accounts() {
   // the admin-only settings read -- this page renders for everyone.
   const { demoMode } = usePublicConfig();
 
-  // Straight to Alpaca, with nothing in between.
-  //
-  // There used to be a modal here repeating Alpaca's authorization disclosure
-  // before the redirect, on the reading that the DDQ's "[Name]" template was a
-  // screen we had to build and that acknowledgement had to happen before
-  // leaving our app. Watching an approved app connect settles it: Connect goes
-  // directly to app.alpaca.markets, and Alpaca renders "Authorize <app>" with
-  // that disclosure themselves, from the registered app name. The template
-  // describes their page. The acknowledgement the DDQ asks for is the Allow
-  // button on it, which comes before the token exchange that actually connects
-  // the account. Our own copy of it was a second, redundant consent that looked
-  // like Alpaca's but was not.
+  // Connect opens Alpaca's authorization disclosure HERE, in DeltaMint, and
+  // only Allow on it leaves for Alpaca. Alpaca's compliance team required it:
+  // "Confirm authorization disclosure is shown in DeltaMint UI before Alpaca
+  // redirect." See AlpacaConnectConsent for why it was once removed.
+  const [consenting, setConsenting] = useState(false);
   const connect = () => {
+    setConnectError(null);
+    setConsenting(true);
+  };
+  const allow = () => {
+    setConsenting(false);
     try {
-      startAlpacaOAuth();
+      startAlpacaOAuth({ acknowledged: true });
     } catch (e) {
       setConnectError(e.message);
     }
@@ -321,6 +320,10 @@ export default function Accounts() {
           </dl>
           <button onClick={() => setConnectError(null)} className="mt-3 text-xs underline">Dismiss</button>
         </div>
+      )}
+
+      {consenting && (
+        <AlpacaConnectConsent onCancel={() => setConsenting(false)} onContinue={allow} />
       )}
 
       {deleting && (

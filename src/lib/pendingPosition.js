@@ -126,6 +126,44 @@ export function pendingRows(setup, qty = 1, net = undefined) {
     adjusted: false
   }];
 
+  // A CALL OVER A LONG CALL BRINGS THE LONG, for the reason a covered call
+  // brings its shares: without it the chart draws a naked call -- loss falling
+  // without limit above the strike -- under a max loss that is bounded.
+  //
+  // At its COST, because the risk figure is measured from the cost. Valued on
+  // the short's expiry, when the long still has time left, at a volatility
+  // backed out of what it is worth TODAY. With no price today it cannot be
+  // valued, and then nothing is drawn: a chart without the long would be the
+  // naked call again, and that is worse than no chart.
+  if (setup.coveredBy === "long_call") {
+    const c = setup.cover || {};
+    const strike = num(c.strike);
+    const cost = num(c.cost);
+    const mark = num(c.mark);
+    if (strike === null || !(cost > 0) || !(mark > 0) || !c.expiry) return [];
+    const iv = impliedFrom(mark, spot, strike, c.expiry, true);
+    if (!(iv > 0)) return [];
+    rows.push({
+      id: "pending-cover",
+      pending: true,
+      ticker: setup.ticker,
+      type: "option",
+      qty: units,
+      legs: [{
+        kind: "call",
+        side: "long",
+        symbol: c.symbol || null,
+        strike,
+        entryPrice: cost,
+        ratio: 1,
+        expiry: c.expiry,
+        iv
+      }],
+      stockPrice: spot ?? 0,
+      adjusted: false
+    });
+  }
+
   if (setup.strategy === "covered_call" && num(setup.basis) > 0) {
     rows.push({
       id: "pending-shares",
@@ -188,6 +226,9 @@ export function ticketMarks(setup) {
   if (setup?.strategy === "covered_call" && num(setup.basis) > 0) {
     marks.push({ label: "Basis", value: num(setup.basis) });
   }
+  if (setup?.coveredBy === "long_call" && num(setup.cover?.strike) > 0) {
+    marks.push({ label: `L ${num(setup.cover.strike)}C`, value: num(setup.cover.strike) });
+  }
   const seen = new Set();
   return marks.filter((m) => (seen.has(m.value) ? false : seen.add(m.value)));
 }
@@ -211,7 +252,16 @@ export function withPending(book, rows, spot = null) {
   const holdsShares = open.some(
     (r) => r?.type === "shares" && Number(r.shareQty ?? r.qty) > 0
   );
-  const add = holdsShares ? rows.filter((r) => r.id !== "pending-shares") : rows;
+  // The same for the long call under a call written against one: it is an open
+  // position already, and drawing it twice would double the upside.
+  const openSymbols = new Set(
+    open.flatMap((r) => (Array.isArray(r?.legs) ? r.legs : []).map((l) => l?.symbol).filter(Boolean))
+  );
+  const add = rows.filter((r) => {
+    if (r.id === "pending-shares") return !holdsShares;
+    if (r.id === "pending-cover") return !openSymbols.has(r.legs?.[0]?.symbol);
+    return true;
+  });
   const all = [...open, ...add];
   if (!all.length) return null;
   const px = num(book?.spot) || num(spot) || num(rows[0]?.stockPrice) || 0;
@@ -234,6 +284,10 @@ export function withPending(book, rows, spot = null) {
 export function expiriesOf(setup) {
   const dates = (setup?.legs || [])
     .map((l) => l?.expiry || setup?.expiry)
+    // The long call a call is written against is a leg of the position even
+    // though it is not a leg of the order, and it outlives the short: after
+    // the short expires, it is what is left.
+    .concat(setup?.coveredBy === "long_call" && setup?.cover?.expiry ? [setup.cover.expiry] : [])
     .filter(Boolean)
     .map(String);
   // A setup with no per-leg dates falls back to its own, which is one date.

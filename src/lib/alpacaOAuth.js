@@ -4,8 +4,9 @@
 //
 // Account selection (which of the user's live/paper accounts to authorize)
 // happens on Alpaca's own hosted consent page, not here — we don't ask the
-// user paper-vs-live up front. The DDQ disclosure shown before the redirect is
-// a separate requirement; see AlpacaConnectConsent.jsx.
+// user paper-vs-live up front. The authorization disclosure is shown BEFORE the
+// redirect, in DeltaMint, as Alpaca's compliance team requires; see
+// AlpacaConnectConsent.jsx.
 
 const CLIENT_ID = import.meta.env.VITE_ALPACA_OAUTH_CLIENT_ID;
 
@@ -76,7 +77,16 @@ export function describeOAuthConfig() {
   };
 }
 
-export function startAlpacaOAuth() {
+// `acknowledged` is the user's Allow on AlpacaConnectConsent. Required, so a
+// second Connect button added anywhere later cannot reach Alpaca without the
+// disclosure: it fails here, loudly, instead of passing review by accident.
+export function startAlpacaOAuth({ acknowledged = false } = {}) {
+  if (!acknowledged) {
+    throw new Error(
+      "The Alpaca authorization disclosure must be shown and allowed before connecting. " +
+      "Open AlpacaConnectConsent and call this from its Allow button."
+    );
+  }
   // Without this the URLSearchParams below stringifies an undefined CLIENT_ID to
   // the literal "undefined", and the failure only surfaces on Alpaca's side as a
   // generic invalid-client error.

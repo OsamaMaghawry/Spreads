@@ -145,7 +145,12 @@ export default function OptionChain() {
     spot: data.spot,
     spotSource: data.spotSource,
     spotAsOf: data.spotAsOf,
-    shares: data.shares,
+    // Free cover where there is some; where all of it is behind a call already
+    // sold, what is held, with `coverInUse` saying so (see scanCover). The
+    // fallbacks are only for a function older than this page.
+    shares: data.coverShares ?? data.sharesFree ?? data.shares,
+    longCover: data.longCover || [],
+    coverInUse: data.coverInUse || null,
     basis: data.basis,
     basisSource: data.basisSource
   }), [data, accountId, accounts]);

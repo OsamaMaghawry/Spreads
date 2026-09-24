@@ -421,7 +421,7 @@ export default function OpenPositionDialog({ account, onClose, onDone, prefill =
                     >
                       {setup.maxContracts}
                     </button>
-                    {` on ${setup.sharesHeld} shares`}
+                    {setup.coveredBy === "long_call" ? " against your long call" : ` on ${setup.sharesHeld} shares`}
                   </>
                 ) : null}
               </label>

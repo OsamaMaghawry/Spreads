@@ -37,6 +37,8 @@
 // facts have to survive: calling the whole row naked hides a covered
 // contract, calling it covered hides nine unbounded ones.
 
+import { parseOCCSymbol } from "./occ.ts";
+
 export const SHARES_PER_CONTRACT = 100;
 
 // leg: { symbol, ticker, type: "C" | "P", qty (signed), expiry, strike, adjusted }
@@ -132,7 +134,30 @@ export function allocateCallCover(legs: CoverLeg[], shares: Record<string, numbe
     };
   }
 
-  return { bySymbol, sharesLeft };
+  // The long calls NOT yet standing behind a short, after the shorts above
+  // have taken theirs.
+  //
+  // `sharesLeft` has always answered "what can cover a NEW short call?" for
+  // shares; nothing answered it for longs, so every caller that wanted free
+  // cover could only see shares. The Scanner's covered-call mode was the
+  // casualty: a trader holding a long IBIT call to write against was told he
+  // held nothing, while the Dashboard -- reading this same allocation -- would
+  // have called the result covered. Same account, same rule, two answers.
+  //
+  // Contract-for-contract, and a long already covering a short is not offered
+  // twice: that is the whole point of computing it here, after allocation,
+  // rather than listing the account's long calls.
+  const longsLeft = longPool
+    .filter((c) => c.left > 0)
+    .map((c) => ({
+      symbol: c.leg.symbol,
+      ticker: c.leg.ticker,
+      strike: c.leg.strike ?? null,
+      expiry: c.leg.expiry ?? null,
+      qty: c.left
+    }));
+
+  return { bySymbol, sharesLeft, longsLeft };
 }
 
 // How many of `contracts` short calls `shares` alone can cover. The one place
@@ -142,3 +167,157 @@ export function allocateCallCover(legs: CoverLeg[], shares: Record<string, numbe
 // live classifier does.
 export const coveredByShares = (contracts: number, shares: number) =>
   Math.max(0, Math.min(Math.abs(Number(contracts) || 0), Math.floor((Number(shares) || 0) / SHARES_PER_CONTRACT)));
+
+/**
+ * What can cover a NEW short call, read from raw broker positions.
+ *
+ * TWO FAULTS, ONE CAUSE. This file used to answer "which shares does the
+ * account hold?" and every caller took that as "which calls may it write?".
+ * Those are different questions, and the gap between them cost twice:
+ *
+ *   - A LONG CALL IS COVER, and was invisible. The owner, holding one long
+ *     IBIT call to write against: "when I try to scan the covered call on
+ *     DeltaMint, I can't find it ... it shows up only Tesla." Options were
+ *     skipped on the first line of the loop, so the Scanner never saw it --
+ *     while the Dashboard, reading callCover.ts, would have called the very
+ *     position it refused to suggest covered.
+ *
+ *   - COMMITTED SHARES WERE COUNTED AGAIN. The same owner held 100 TSLA and was
+ *     already short the TSLA 390C against them. The Scanner still offered a
+ *     second TSLA covered call, and the order ticket raised nothing, because
+ *     100 shares is "enough" for one contract. It was: for the one already
+ *     sold. The second would have been naked.
+ *
+ * Both are the same fix -- allocate the account's existing short calls against
+ * its cover FIRST, with the one rule the rest of the codebase already uses,
+ * and offer only what is left. Pure, so it can be tested against a real book.
+ */
+export function freeCallCover(positions: any[]) {
+  const shares: Record<string, number> = {};
+  const legs: any[] = [];
+  const cost: Record<string, number> = {};
+  const mark: Record<string, number> = {};
+  for (const p of Array.isArray(positions) ? positions : []) {
+    const qty = parseFloat(p?.qty);
+    if (!isFinite(qty) || qty === 0) continue;
+    const occ = parseOCCSymbol(p.symbol);
+    if (!occ) {
+      // A short stock position covers nothing and is not a share balance.
+      if (qty > 0) {
+        const sym = String(p.symbol).toUpperCase();
+        shares[sym] = (shares[sym] || 0) + qty;
+      }
+      continue;
+    }
+    // Signed, as the broker reports it: negative is short. The same shape
+    // watchRules hands the allocator, so the two cannot read a book differently.
+    legs.push({
+      symbol: p.symbol,
+      ticker: occ.ticker,
+      type: occ.type,
+      qty,
+      expiry: occ.expiryFormatted,
+      strike: occ.strike,
+      adjusted: !!occ.adjusted
+    });
+    // Per-share premium paid. For a long call this is what the position cost,
+    // which is what a call written against it risks -- the same footing a
+    // covered call's share basis stands on.
+    const avg = parseFloat(p.avg_entry_price);
+    if (avg > 0) cost[p.symbol] = avg;
+    // What it is worth now, per share. The ticket's payoff chart values the
+    // long on the short call's expiry, when it still has time left, and needs
+    // today's price to back a volatility out of; the entry cost cannot give it.
+    const now = parseFloat(p.current_price);
+    if (now > 0) mark[p.symbol] = now;
+  }
+
+  const { bySymbol, sharesLeft, longsLeft } = allocateCallCover(legs, shares);
+
+  const longsFree: Record<string, any[]> = {};
+  for (const l of longsLeft) {
+    (longsFree[l.ticker] ||= []).push({ ...l, cost: cost[l.symbol] ?? null, mark: mark[l.symbol] ?? null });
+  }
+  const sharesFree: Record<string, number> = {};
+  for (const [t, n] of Object.entries(sharesLeft)) if (n > 0) sharesFree[t] = n;
+
+  const coverTickers = [
+    ...new Set([
+      ...Object.keys(sharesFree).filter((t) => sharesFree[t] >= 100),
+      ...Object.keys(longsFree).filter((t) => longsFree[t].length > 0)
+    ])
+  ].sort();
+
+  // WHAT IS HELD BUT ALREADY SPOKEN FOR, said out loud. Leaving a ticker out
+  // silently read as a fault: the owner, the day this rule shipped, "you
+  // removed the stocks because Tesla ... it's not showing up anymore". It was
+  // left out on purpose -- his 100 TSLA stood behind a short 390 call -- and
+  // the screen has to say so rather than make him guess.
+  const committed: { ticker: string; reason: string }[] = [];
+  const heldTickers = new Set([
+    ...Object.keys(shares).filter((t) => shares[t] >= SHARES_PER_CONTRACT),
+    ...legs.filter((l) => l.type === "C" && l.qty > 0 && !l.adjusted).map((l) => l.ticker)
+  ]);
+  for (const t of [...heldTickers].sort()) {
+    if (coverTickers.includes(t)) continue;
+    const shorts = Object.values(bySymbol)
+      .filter((c) => c.ticker === t && c.judged && c.covered > 0)
+      .map((c) => {
+        const leg = legs.find((l) => l.symbol === c.symbol);
+        return `${leg?.strike ?? "?"} call (${leg?.expiry ?? "?"})`;
+      });
+    const what = [
+      shares[t] >= SHARES_PER_CONTRACT ? `${shares[t]} shares` : null,
+      legs.some((l) => l.ticker === t && l.type === "C" && l.qty > 0) ? "long call" : null
+    ].filter(Boolean).join(" and ");
+    const verb = what === "long call" ? "covers" : "cover";
+    committed.push({
+      ticker: t,
+      reason: shorts.length
+        ? `Your ${what} already ${verb} the ${shorts.join(", ")} you sold.`
+        : `Your ${what} can't cover a new call right now.`
+    });
+  }
+
+  // Every long call held, free or not, in the same shape as longsFree -- for a
+  // ticker whose cover is all in use, so its calls can still be shown.
+  const longsHeld: Record<string, any[]> = {};
+  for (const l of legs) {
+    if (l.type !== "C" || !(l.qty > 0) || l.adjusted) continue;
+    (longsHeld[l.ticker] ||= []).push({
+      symbol: l.symbol, ticker: l.ticker, strike: l.strike ?? null, expiry: l.expiry ?? null,
+      qty: l.qty, cost: cost[l.symbol] ?? null, mark: mark[l.symbol] ?? null
+    });
+  }
+
+  return { shares, sharesFree, longsFree, longsHeld, coverTickers, committed };
+}
+
+/**
+ * What a covered-call SCAN is given: every ticker the account can write a call
+ * on, including ones whose cover is already behind a call it has sold.
+ *
+ * The owner, on those being left out: "Even if I have another covered call ...
+ * just give me [it]. I need to see if I want to close mine and open another one
+ * before the current one expires." Hiding them decided that for him. So they
+ * are shown, each flagged with `inUse` -- the sentence saying what the cover is
+ * already doing -- and the order ticket warns again (freeCoverWarning) before
+ * anything is sent.
+ *
+ * A ticker with free cover is priced on its FREE cover only, so a second
+ * contract is never sized off shares already spoken for. A ticker with none is
+ * priced on what it holds, and flagged.
+ */
+export function scanCover(cover: ReturnType<typeof freeCallCover>) {
+  const inUse: Record<string, string> = {};
+  for (const c of cover.committed || []) inUse[c.ticker] = c.reason;
+  const free = new Set(cover.coverTickers || []);
+  const tickers = [...new Set([...free, ...Object.keys(inUse)])].sort();
+  const sharesByTicker: Record<string, number> = {};
+  const longCoverByTicker: Record<string, any[]> = {};
+  for (const t of tickers) {
+    sharesByTicker[t] = free.has(t) ? (cover.sharesFree[t] || 0) : (cover.shares[t] || 0);
+    longCoverByTicker[t] = free.has(t) ? (cover.longsFree[t] || []) : (cover.longsHeld[t] || []);
+  }
+  return { tickers, sharesByTicker, longCoverByTicker, inUse };
+}

@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  /* Filled in by scripts/og-card.mjs: the brand fonts from scripts/fonts,
+     the colours from landing/public/assets/site.css, and the two product
+     screens captured from the homepage's own Positions Monitor replica. */
+  {{FONTS}}
+  :root { {{TOKENS}} }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1200px; height: 630px; }
+  body {
+    position: relative; overflow: hidden;
+    font-family: "IBM Plex Sans", sans-serif; color: var(--ink);
+    /* The way Tradier and Alpaca set theirs: a soft brand wash, words left,
+       product right. Violet into mint, the two halves of the lockup. */
+    background:
+      radial-gradient(900px 520px at 88% 30%, var(--mint-soft), transparent 70%),
+      radial-gradient(700px 520px at 10% 100%, var(--brand-soft), transparent 70%),
+      var(--paper);
+  }
+
+  /* ---- words, left ---- */
+  .words { position: absolute; left: 72px; top: 64px; bottom: 56px; width: 470px; display: flex; flex-direction: column; }
+  .brandmark { display: flex; align-items: baseline; gap: 0.3em; font-size: 44px; color: var(--ink); }
+  .brandmark svg { height: 0.9024em; width: auto; display: block; position: relative; top: 0.0876em; }
+  .brandmark span { font-family: "Bricolage Grotesque", sans-serif; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+  .brandmark .m { color: var(--mint); }
+  /* Logo and ONE line, no description: every app prints the page's title and
+     description beneath the card, so drawing them here said it twice. */
+  h1 {
+    margin: auto 0;
+    font-family: "Bricolage Grotesque", sans-serif; font-weight: 700;
+    font-size: 66px; line-height: 1.02; letter-spacing: -0.03em;
+    text-wrap: balance;
+  }
+  .url { font-family: "IBM Plex Mono", monospace; font-weight: 500; font-size: 22px; color: var(--mint); }
+
+  /* ---- product, right ---- */
+  .desk { position: absolute; left: 598px; top: 62px; width: 560px; display: flex; flex-direction: column; align-items: center; }
+  .monitor {
+    width: 100%; background: #16171D; border-radius: 16px; padding: 12px 12px 14px;
+    box-shadow: 0 30px 60px -24px rgba(20, 21, 28, .45);
+  }
+  .monitor img { display: block; width: 100%; border-radius: 6px; }
+  .stand { width: 84px; height: 46px; background: linear-gradient(#2A2B33, #1C1D23); clip-path: polygon(24% 0, 76% 0, 100% 100%, 0 100%); }
+  .foot-bar { width: 190px; height: 10px; border-radius: 5px; background: #1C1D23; }
+  .phone {
+    position: absolute; left: 536px; top: 238px; width: 158px;
+    background: #16171D; border-radius: 30px; padding: 9px;
+    box-shadow: 0 28px 50px -18px rgba(20, 21, 28, .55);
+  }
+  .phone img { display: block; width: 100%; border-radius: 22px; }
+  .phone::before { content: ""; position: absolute; top: 15px; left: 50%; width: 46px; height: 11px; margin-left: -23px; border-radius: 6px; background: #16171D; z-index: 1; }
+  /* The screens carry the homepage's sample account and its figures. A card
+     travels without the page around it, so it says so itself. */
+  .sample { position: absolute; right: 44px; bottom: 36px; font-family: "IBM Plex Mono", monospace; font-size: 15px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-mute); }
+</style>
+</head>
+<body>
+  <div class="words">
+    <div class="brandmark">{{LOCKUP}}</div>
+    <h1>{{TITLE}}</h1>
+    <span class="url">deltamint.app</span>
+  </div>
+  <div class="desk">
+    <div class="monitor"><img src="{{DESKTOP}}" alt="" /></div>
+    <div class="stand"></div><div class="foot-bar"></div>
+  </div>
+  <div class="phone"><img src="{{PHONE}}" alt="" /></div>
+  <span class="sample">Sample account</span>
+</body>
+</html>

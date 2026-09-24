@@ -90,3 +90,26 @@ test("a wrapped list item folds into one <li>", () => {
 test("a paragraph containing a dash is not a list", () => {
   assert.match(markdown("Just a paragraph with a - dash inside it."), /^<p>/);
 });
+
+// The owner shared dev-landing on Telegram and got the new words over the OLD
+// card: the static pages name the card by its production address.
+import { rehostAssets } from "./index.js";
+
+test("off production, the share image is served from the site being shared", () => {
+  const html = '<meta property="og:image" content="https://deltamint.app/assets/og-card.png?v=abc" />';
+  assert.equal(
+    rehostAssets(html, "https://dev-landing.deltamint.app"),
+    '<meta property="og:image" content="https://dev-landing.deltamint.app/assets/og-card.png?v=abc" />'
+  );
+});
+
+test("production pages are left exactly as they are", () => {
+  const html = '<meta property="og:image" content="https://deltamint.app/assets/og-card.png?v=abc" />';
+  assert.equal(rehostAssets(html, "https://deltamint.app"), html);
+  assert.equal(rehostAssets(html, undefined), html);
+});
+
+test("only asset URLs move; links to production pages stay put", () => {
+  const html = '<link rel="canonical" href="https://deltamint.app/terms" />';
+  assert.equal(rehostAssets(html, "https://dev-landing.deltamint.app"), html);
+});
