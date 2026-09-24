@@ -151,7 +151,8 @@ purchase itself is identical; what differs is where the money comes from, and
 that is your broker's arrangement with you rather than a property of the option.
 
 One figure is easy to forget here: the $5,000 that had been sitting as
-collateral is not released back into buying power. It was spent on the shares,
+collateral is not released back into [buying
+power](/blog/options-buying-power-requirement). It was spent on the shares,
 and what stands in its place is a 100-share position that cost $5,000, with
 its own requirement.
 

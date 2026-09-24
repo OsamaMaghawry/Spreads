@@ -95,7 +95,8 @@ as the position is open.
 
 For a vertical with both legs in one account and one expiration, the requirement
 is the full width — $500 in the hypothetical above — with the $120 credit
-applied against it, so the net reduction in buying power is $380. That is the
+applied against it, so the net reduction in [buying
+power](/blog/options-buying-power-requirement) is $380. That is the
 margin-account case. A retirement account will typically hold the whole $500 in
 cash instead, and the exact treatment is your broker's under your agreement with
 them; it is worth reading rather than assuming.

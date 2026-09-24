@@ -1,0 +1,20 @@
+<svg viewBox="0 0 720 280" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Two hypothetical positions short the same 50 put, drawn to one scale. The cash-secured put reserves $5,000, the full strike times 100, shown as a long bar, of which $140 is offset by the premium received, leaving a net $4,860. The 50/48 put credit spread reserves only its $2 width times 100, $200, shown as a bar one twenty-fifth as long, of which $60 is offset by the credit received, leaving a net $140.">
+  <rect width="720" height="280" fill="#FFFFFF"/>
+
+  <!-- shared zero line -->
+  <line x1="200" y1="50" x2="200" y2="240" stroke="#E2E5EE" stroke-width="1.5"/>
+
+  <!-- row 1: cash-secured put, $5,000 at 480px = $4,860 net risk + $140 premium -->
+  <text x="24" y="100" font-size="17" font-weight="600" fill="#14151C">cash-secured 50 put</text>
+  <rect x="200" y="80" width="466.6" height="30" fill="#B4485C"/>
+  <rect x="666.6" y="80" width="13.4" height="30" fill="#2E8B5F"/>
+  <text x="680" y="68" font-size="17" font-weight="600" text-anchor="end" fill="#B4485C">$5,000 held</text>
+  <text x="680" y="132" font-size="15" text-anchor="end" fill="#2E8B5F">less $140 premium</text>
+
+  <!-- row 2: 50/48 spread, $200 width = 19.2px: $140 net risk + $60 credit -->
+  <text x="24" y="190" font-size="17" font-weight="600" fill="#14151C">50/48 put spread</text>
+  <rect x="200" y="170" width="13.4" height="30" fill="#B4485C"/>
+  <rect x="213.4" y="170" width="5.8" height="30" fill="#2E8B5F"/>
+  <text x="232" y="182" font-size="17" font-weight="600" fill="#B4485C">$200 held</text>
+  <text x="232" y="204" font-size="15" fill="#2E8B5F">less $60 credit</text>
+</svg>
