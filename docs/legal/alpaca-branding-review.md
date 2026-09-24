@@ -44,7 +44,7 @@ checked images for the Alpaca logo or likeness.
 
 After the changes above, Alpaca appears in **one place** on the public site:
 the homepage section headed "Brokerage integrations", where its name and logo
-identify it as the brokerage DeltaMint connects to, marked "Live now". There is
+sit under the label "Supported brokers". There is
 no Alpaca name, logo or reference to Alpaca's services anywhere else, including
 the About page, the Terms and the Privacy Policy.
 
