@@ -94,6 +94,7 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-09-24 · A thirteenth foundations post — buying power, margin and
 - 2026-09-24 · The homepage's DeltaMint phone view shows two position cards
 - 2026-09-24 · The site menu gets a Sign up button next to Log in on every
 - 2026-09-24 · The Alpaca branding review is also a PDF (for emailing to
@@ -103,7 +104,6 @@ From `docs/ops/shipped.md`, newest first.
 - 2026-09-24 · The homepage's shared/social preview image now shows the
 - 2026-09-24 · The shared/social preview card is simpler: just the δ logo
 - 2026-09-24 · Links to the staging site now preview staging's own share
-- 2026-09-24 · The Alpaca logo is back in the homepage's brokerage
 
 ## Server functions
 

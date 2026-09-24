@@ -3,6 +3,12 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-24 · A thirteenth foundations post — buying power, margin and
+  collateral for options — is live on the blog: why buying power and cash
+  balance diverge, what a cash-secured put, a credit spread and a covered
+  call each hold in reserve, and what ends the hold (close, expiration or
+  assignment); reviewed by seo-editor and desk-editor first (`26a7513`,
+  `490b7fd`, `dacb16e`, `cda8571`).
 - 2026-09-24 · The homepage's DeltaMint phone view shows two position cards
   (the NVDA iron condor, the AMD covered call) instead of four, with a
   "+ 2 more positions" line so the account summary total still matches what
