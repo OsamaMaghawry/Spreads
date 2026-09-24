@@ -29,22 +29,18 @@ Start with `README.md` for local setup and environment variables.
 
 ## Alpaca OAuth
 
-**Alpaca shows the authorization disclosure. We do not.** Connect goes straight
-to `app.alpaca.markets/oauth/authorize`, with nothing in between — the same as
-every approved app. Alpaca's page renders "Authorize <app>" with the disclosure
-from the registered app name, lists the user's live and paper accounts, and
-carries Allow and Deny.
+**The authorization disclosure is shown in DeltaMint, before the redirect.**
+Connect opens `AlpacaConnectConsent` — Alpaca's disclosure text, Deny and
+Allow — and only Allow calls `startAlpacaOAuth({ acknowledged: true })`, which
+throws without it. Alpaca's own "Authorize <app>" page follows as usual.
 
-The DDQ (v3, page 3) shows that disclosure as a `[Name]` template and says
-*"Acknowledgement of the disclosure must be done prior to a client connecting
-their Alpaca account."* That describes **Alpaca's page**: the acknowledgement is
-its Allow button, which precedes the token exchange that actually connects the
-account. It is not a spec for a screen to build.
-
-There was once an `AlpacaConnectConsent` modal repeating that text before the
-redirect. It was removed: it was a second consent, shown on our domain, that
-looked like Alpaca's and was not. Do not reintroduce it — check a real
-connect flow before concluding otherwise.
+This reverses an earlier rule. On 27 Aug the modal was removed on the reading
+that Alpaca's page *was* the disclosure the DDQ (v3, page 3) meant. Alpaca's
+compliance team, reviewing the application, then set as a condition:
+*"Confirm authorization disclosure is shown in DeltaMint UI before Alpaca
+redirect (video starts at Alpaca auth page)."* The broker's reading of its own
+requirement wins. Do not remove the modal, and do not add a Connect path that
+skips it.
 
 **`env` is deliberately not sent.** That parameter narrows Alpaca's consent
 screen to only a live or only a paper account. Omitting it lists every account
