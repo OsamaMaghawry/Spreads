@@ -34,9 +34,14 @@ Deno.serve(async (req) => {
       line_items: [{ price, quantity: 1 }],
       allow_promotion_codes: true,
       subscription_data: {
-        // 30 days free is the offer on the page; the trial is Stripe's, not
-        // a flag of ours, so the invoice and the portal both say the same.
-        trial_period_days: 30,
+        // 7 days free, on both intervals: the offer on the billing page and in
+        // the pricing schedule. It was 30, which the owner never asked for --
+        // "I don't want it for now. Make it 7 days initially till I see what I
+        // am going to do about it and how it plays out with the free Demo
+        // version." The trial is Stripe's, not a flag of ours, so the invoice
+        // and the portal both say the same. A trial already started keeps its
+        // own end date; this applies to checkouts from now on.
+        trial_period_days: 7,
         metadata: { user_id: user.id, plan: "live" }
       },
       metadata: { user_id: user.id, plan: "live" },

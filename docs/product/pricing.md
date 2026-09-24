@@ -49,7 +49,13 @@ Why free: the activation metric is signup → broker connected → first trade.
 Every step of it must be free, or the criterion the backlog is ranked by is
 the thing we charged for.
 
-### Live — $29/month or $290/year, first 30 days free
+### Live — $29/month or $290/year, first 7 days free
+
+> 24 Sep 2026, the owner: the 30-day trial was never his decision. "I don't
+> want it for now. Make it 7 days initially till I see what I am going to do
+> about it and how it plays out with the free Demo version that we say always
+> free." Set in `createCheckoutSession` (`trial_period_days: 7`), the billing
+> page and the pricing schedule.
 
 Everything in Paper, on a live account, plus what only a live book needs:
 
