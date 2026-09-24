@@ -59,7 +59,9 @@ const read = (rel) => readFileSync(path.join(SITE, rel));
 // Everything a PDF is made from. Changing any of it makes the PDF stale.
 function inputsFor(doc) {
   return sha(JSON.stringify({
-    page: sha(read(`${doc.slug}/index.html`)),
+    // The share-image version in the page's meta tags is not part of the
+    // agreement; a new card must not make the legal PDFs stale.
+    page: sha(read(`${doc.slug}/index.html`).toString("utf8").replace(/og-card\.png\?v=[0-9a-f]+/g, "og-card.png")),
     css: sha(read("assets/site.css")),
     fonts: FACES.map(([, , f]) => sha(readFileSync(path.join(FONT_DIR, f)))),
     print: PRINT_CSS,
