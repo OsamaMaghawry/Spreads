@@ -1,6 +1,6 @@
 {
-  "inputs": "53d63846208af4d425ce8411bf5d4d284d94d70f3839407fe4821cc40f2a1def",
-  "png": "5b50e8e934300eae85b4e61c4bfec6ad88c56685fbd4b7e4982d4398093086b8",
+  "inputs": "4a31e78d9f6eef2514d3e12ad0c173d26e981b6222f8b7519954d254e00f9762",
+  "png": "05143a81780b9999a3e665ba886acf8b3f2062e6963f369821e568647259c1f9",
   "title": "Find, Trade & Track Options Positions",
   "description": "A scanner that finds trades based on your rules, orders that work to a fill with your broker, and a book that's really easy to understand and evaluate."
 }
