@@ -80,7 +80,7 @@ That net figure is the spread's [maximum loss at
 expiration](/blog/credit-spread-max-loss): the collateral is sized to the
 worst the two legs can settle for together.
 
-![A hypothetical cash-secured 50 put reserves $5,000, while a 50/48 put spread on the same short strike reserves $200, less a $60 credit.](/assets/blog/buying-power-put-vs-spread.svg)
+![A hypothetical cash-secured 50 put reserves $5,000, less a $140 premium, while a 50/48 put spread on the same short strike reserves $200, less a $60 credit.](/assets/blog/buying-power-put-vs-spread.svg)
 
 Both positions in that picture are short the same 50 put. One reserves
 everything assignment could cost; the other reserves only the width, because
@@ -90,14 +90,15 @@ Miss either of two conditions and the short leg can be margined as if it
 stood alone:
 
 - **Both legs in one account.** A long put elsewhere offsets nothing.
-- **The long leg lasts at least as long.** One that expires first cannot cover the short afterwards.
+- **The long leg lasts at least as long.** One that expires first cannot cover the short afterwards, which is why most credit spreads use one expiration.
 
 ## Covered calls and naked options hold something other than a width
 
 A **covered call** is a short call written against 100 shares already in the
 account. The shares are the collateral, delivered at the strike if the call
 is assigned. No cash is reserved, but the shares are committed while the
-call is open. Covered calls get a full treatment in the [income
+call is open, and the premium received adds to buying power rather than
+reserving any of it. Covered calls get a full treatment in the [income
 series](/blog/income).
 
 A **naked**, or uncovered, short option has no shares and no long leg behind
@@ -108,25 +109,28 @@ belong to each broker and vary too much to state as a rule.
 
 ## Example: one hypothetical account, short the same 50 put two ways
 
-Take a hypothetical margin account with $10,000 in cash and nothing open. The
-premiums below are round numbers chosen to show the arithmetic, not prices
-taken from a model or a market.
+Take a hypothetical margin account with $10,000 in cash and nothing open, so
+$10,000 of option buying power — a margin account's stock buying power is
+typically larger, because shares can be bought partly on credit. The
+premiums below are round numbers chosen to show the arithmetic.
 
 **Case one, a cash-secured put.** The account sells one 50 put for $1.40.
 The premium brings the cash balance to $10,140, and $5,000 is reserved
-against assignment. Buying power falls to $5,140, a net reduction of $4,860.
+against assignment. Option buying power falls to $5,140, a net reduction of
+$4,860.
 
 **Case two, a put credit spread.** The account instead sells the 50 put and
 buys the 48 put in one order, for a net credit of $0.60. The cash balance
-becomes $10,060, and $200, the $2 width times 100, is reserved. Buying power
-falls to $9,860, a net reduction of $140, which is (2.00 − 0.60) × 100.
+becomes $10,060, and $200, the $2 width times 100, is reserved. Option
+buying power falls to $9,860, a net reduction of $140, which is
+(2.00 − 0.60) × 100.
 
 | | Cash-secured 50 put | 50/48 put credit spread | Covered call on 100 shares |
 | --- | --- | --- | --- |
 | What is reserved | $5,000 in cash | $200, the width | The 100 shares |
-| Net reduction in this example | $4,860 | $140 | None beyond the shares |
+| Net reduction | $4,860 | $140 | Shares committed, not cash |
 | Moves with the stock | No | No | The shares' own margin value does |
-| If the short leg is assigned | $5,000 buys 100 shares at $50 | Shares bought at $50, long 48 put still held | Shares delivered at the call's strike |
+| If the short leg is assigned | $5,000 buys 100 shares at $50 | Shares bought at $50, long 48 put still held; the shares bring their own requirement | Shares delivered at the call's strike |
 
 The two cases carry the same obligation to buy at $50 if assigned, and differ
 by $4,720 in what the account can still commit. Neither number says which
