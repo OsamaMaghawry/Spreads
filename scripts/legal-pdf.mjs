@@ -104,7 +104,7 @@ function fontCss() {
 const TYPES = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon", ".woff2": "font/woff2" };
 
 // The site as the Worker serves it: /terms -> terms/index.html.
-function serve() {
+export function serve() {
   return new Promise((resolve) => {
     const server = createServer((req, res) => {
       const url = new URL(req.url, "http://x");

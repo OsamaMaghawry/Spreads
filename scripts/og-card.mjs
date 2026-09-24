@@ -37,6 +37,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const HOME = path.join(root, "landing/public/index.html");
 const CSS = path.join(root, "landing/public/assets/site.css");
+const HOME_CSS = path.join(root, "landing/public/assets/home.css");
 const TEMPLATE = path.join(root, "scripts/og-card/template.html");
 const FONT_DIR = path.join(root, "scripts/fonts");
 const PNG = path.join(root, "landing/public/assets/og-card.png");
@@ -49,7 +50,7 @@ const FONTS = [
   ["IBM Plex Sans", "400 500", "plex-sans.woff2"],
   ["IBM Plex Mono", "500", "plex-mono-500.woff2"]
 ];
-const TOKENS = ["paper", "ink", "ink-soft", "line", "brand", "mint"];
+const TOKENS = ["paper", "ink", "ink-soft", "ink-mute", "line", "brand", "brand-soft", "mint", "mint-soft"];
 
 const sha = (buf) => createHash("sha256").update(buf).digest("hex");
 const decode = (s) => s
@@ -82,6 +83,12 @@ export function cardInputs() {
     lockup: mark.trim().replace(/\s+/g, " "),
     tokens,
     template: readFileSync(TEMPLATE, "utf8"),
+    // The product shown on the card is the homepage's own Positions Monitor
+    // replica, captured at generation time -- so when the homepage's product
+    // picture changes, the card is stale too.
+    // The card's own version tag is written into the homepage after the card
+    // is made, so it is left out here or every card would be born stale.
+    product: sha(readFileSync(HOME, "utf8").replace(/og-card\.png\?v=[0-9a-f]+/g, "og-card.png")) + sha(readFileSync(HOME_CSS)) + sha(readFileSync(CSS)),
     fonts: FONTS.map(([, , f]) => sha(readFileSync(path.join(FONT_DIR, f)))).join(",")
   };
 }
@@ -182,6 +189,49 @@ export function checkCard() {
   return staleReference(cardInputs(), versionOf(png));
 }
 
+// The Positions Monitor, as the homepage renders it: desktop from the hero's
+// wipe with only the DeltaMint side showing, phone from the hero's mobile
+// view. Both are the site's own sample account.
+async function captureProduct(chromium) {
+  const { serve } = await import("./legal-pdf.mjs");
+  const server = await serve();
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const browser = await chromium.launch();
+  const open = async (viewport, scale) => {
+    const p = await browser.newPage({ viewport, deviceScaleFactor: scale });
+    await p.route("https://fonts.googleapis.com/**", (r) => r.fulfill({ status: 302, headers: { location: `${base}/__fonts.css` } }));
+    await p.route(/googletagmanager|hotjar|gstatic/, (r) => r.abort());
+    await p.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+    await p.goto(`${base}/`, { waitUntil: "networkidle" });
+    await p.evaluate(() => document.fonts.ready);
+    return p;
+  };
+  try {
+    const d = await open({ width: 1280, height: 900 }, 2);
+    await d.addStyleTag({ content: `
+      #wipe { --x: 0% !important; cursor: default; }
+      #wipe .layer.brk, #wipe .handle, #wipe .wipe-lab, #wipe .wipe-range { display: none !important; }
+      #wipe .layer.dm { clip-path: none !important; padding-top: 22px !important; }` });
+    // Crop by sizing the element itself, not by clipping the window: a clip
+    // below the fold is silently cut short.
+    const wipeW = await d.$eval("#wipe", (e) => e.getBoundingClientRect().width);
+    await d.addStyleTag({ content: `#wipe { height: ${Math.round(wipeW * 0.62)}px !important; overflow: hidden !important; }` });
+    const desktop = await (await d.$("#wipe")).screenshot();
+
+    const m = await open({ width: 390, height: 844 }, 3);
+    const dm = await m.$('.hero-mobile .seg-b[data-view="dm"]');
+    if (dm) { await dm.click(); await m.waitForTimeout(400); }
+    const phoneW = await m.$eval(".hero-mobile .screen", (e) => e.getBoundingClientRect().width);
+    await m.addStyleTag({ content: `.hero-mobile .seg { display: none !important; }
+      .hero-mobile .screen { height: ${Math.round(phoneW * 2.05)}px !important; overflow: hidden !important; }` });
+    const phone = await (await m.$(".hero-mobile .screen")).screenshot();
+    return { desktop, phone };
+  } finally {
+    await browser.close();
+    server.close();
+  }
+}
+
 async function generate() {
   const require = createRequire(import.meta.url);
   let chromium;
@@ -195,7 +245,12 @@ async function generate() {
   }).join("\n");
   // Every placeholder, every occurrence, and replaced through a function so a
   // "$" in the copy is never read as a replacement pattern.
-  const fill = { FONTS: fontCss, TOKENS: i.tokens, LOCKUP: i.lockup, TITLE: escape(i.title), DESCRIPTION: escape(i.description) };
+  const shots = await captureProduct(chromium);
+  const img = (buf) => `data:image/png;base64,${buf.toString("base64")}`;
+  const fill = {
+    FONTS: fontCss, TOKENS: i.tokens, LOCKUP: i.lockup, TITLE: escape(i.title), DESCRIPTION: escape(i.description),
+    DESKTOP: img(shots.desktop), PHONE: img(shots.phone)
+  };
   const html = i.template.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in fill ? fill[k] : m));
   if (/\{\{\w+\}\}/.test(html)) throw new Error("og-card: template has a placeholder the generator does not fill.");
 
