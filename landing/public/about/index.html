@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>About DeltaMint — Options Trading Software for Your Own Brokerage Account</title>
+<meta name="description" content="What DeltaMint does and does not do: a Strategy Scanner built on your rules, orders you confirm and your broker executes, and every position shown as the structure you traded." />
+<link rel="canonical" href="https://deltamint.app/about" />
+
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="DeltaMint" />
+<meta property="og:url" content="https://deltamint.app/about" />
+<meta property="og:title" content="About DeltaMint" />
+<meta property="og:description" content="What DeltaMint does and does not do: a Strategy Scanner built on your rules, orders you confirm and your broker executes, and every position shown as the structure you traded." />
+<meta property="og:image" content="https://deltamint.app/assets/og-card.png?v=b2a42a50de3a" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://deltamint.app/assets/og-card.png?v=b2a42a50de3a" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link href="/assets/site.css" rel="stylesheet">
+<style>
+  .about { padding: 56px 0 88px; max-width: 880px; }
+  .about .eyebrow { margin-bottom: 10px; }
+  .about h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.08; letter-spacing: -0.025em; text-wrap: balance; }
+  .about .lede { margin-top: 18px; font-size: 18px; line-height: 1.6; color: var(--ink-soft); max-width: 680px; }
+  .about h2 { font-size: 22px; letter-spacing: -0.015em; margin: 56px 0 8px; }
+  .about h3 { font-size: 16px; margin: 0 0 6px; }
+  .about p, .about li { font-size: 15.5px; line-height: 1.7; color: var(--ink-soft); }
+  .about p + p { margin-top: 10px; }
+  .about ul { padding-left: 20px; margin: 10px 0 0; }
+  .about li { margin: 6px 0; }
+  .about li strong, .about p strong { color: var(--ink); font-weight: 500; }
+  .about a:not(.btn) { color: var(--brand); }
+  /* The four things the product does, in the order a trade happens. */
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 32px; }
+  .step { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 16px 18px; }
+  .step .k { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--brand); }
+  .step h3 { margin-top: 6px; }
+  .step p { font-size: 14px; line-height: 1.55; }
+  .feature { display: grid; grid-template-columns: 200px 1fr; gap: 8px 28px; padding: 22px 0; border-top: 1px solid var(--line); }
+  .feature:first-of-type { border-top: 0; }
+  .feature .name { font-family: "Bricolage Grotesque", sans-serif; font-weight: 700; font-size: 17px; color: var(--ink); }
+  .feature .name span { display: block; font-family: "IBM Plex Mono", monospace; font-weight: 400; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-mute); margin-top: 4px; }
+  .isnt { margin-top: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 6px 22px 16px; }
+  .about .cta { margin-top: 48px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+  .about .cta p { font-size: 14px; margin: 0; }
+  @media (max-width: 860px) {
+    .about { padding: 36px 0 64px; }
+    .steps { grid-template-columns: 1fr 1fr; }
+    .feature { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 480px) { .steps { grid-template-columns: 1fr; } }
+</style>
+  <!-- Non-essential analytics do not run for visitors in the EEA, the UK or
+       Switzerland, where consent is required BEFORE a tracker loads and an
+       opt-out in the privacy policy is not enough. The country comes from
+       Cloudflare's own /cdn-cgi/trace on this origin — no third party is
+       contacted to decide, which would be the same problem one step earlier.
+
+       It fails CLOSED: if the lookup fails, or returns a country we cannot
+       read, nothing loads. An unknown visitor is treated as a protected one.
+
+       This wraps the hostname guard rather than replacing it — staging still
+       records nothing, for the reason each tag's own comment gives below. -->
+  <script>
+    window.dmAnalyticsAllowed = function (start) {
+      if (location.hostname !== 'deltamint.app' && location.hostname !== 'www.deltamint.app') return;
+      var GATED = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV',
+                   'LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','GB','IS','LI','NO','CH','GI','JE','GG','IM'];
+      fetch('/cdn-cgi/trace')
+        .then(function (r) { return r.text(); })
+        .then(function (t) {
+          var m = /(?:^|\n)loc=([A-Z]{2})/.exec(t);
+          if (m && GATED.indexOf(m[1]) === -1) start();
+        })
+        .catch(function () {});
+    };
+  </script>
+
+  <!-- Google Analytics 4.
+       Inline here because the Worker does not run for these pages on
+       production: wrangler.jsonc lists only /blog, /blog/* and /sitemap.xml
+       under run_worker_first, so the homepage and pricing are served straight
+       from assets. The blog's copy is injected by analyticsTag() in
+       landing/src/index.js from GA_MEASUREMENT_ID.
+
+       Guarded by hostname because this same public/ directory is served by
+       the staging Worker at dev-landing.deltamint.app and by local preview.
+       Without the guard, every dev page view would be filed in the property
+       as if it were a customer, and the numbers the growth cadence reports
+       would be our own traffic. GA_MEASUREMENT_ID is likewise set only in
+       wrangler.jsonc, never in wrangler.staging.jsonc, so both halves are
+       gated the same way. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    window.dmAnalyticsAllowed(function () {
+      var gaScript = document.createElement('script');
+      gaScript.async = true;
+      gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-TJLVFXVFL6';
+      document.head.appendChild(gaScript);
+      gtag('js', new Date());
+      gtag('config', 'G-TJLVFXVFL6');
+    });
+  </script>
+
+  <!-- Hotjar: heatmaps and session replay, marketing pages and blog only.
+
+       Deliberately NOT on dashboard.deltamint.app. That is a separate Worker
+       and it stays untracked: it is where positions, order tickets and account
+       balances are on screen, and none of that belongs in a replay held by a
+       third party. Hotjar sees the pages a stranger reads before signing up,
+       and nothing after.
+
+       Inline here for the same reason as the GA tag above: production's
+       run_worker_first lists only /blog, /blog/* and /sitemap.xml, so the
+       Worker never runs for this page. The blog's copy is injected by
+       hotjarTag() in landing/src/index.js from HOTJAR_SITE_ID.
+
+       Same hostname guard as the GA tag, and for the same reason: this
+       public/ directory is also served by the staging Worker at
+       dev-landing.deltamint.app, so without it every dev page view would
+       become a recorded session in the account. HOTJAR_SITE_ID is likewise
+       set only in wrangler.jsonc, never in wrangler.staging.jsonc. -->
+  <script>
+    window.dmAnalyticsAllowed(function () {
+      (function(h,o,t,j,a,r){
+          h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};
+          h._hjSettings={hjid:6773356,hjsv:6};
+          a=o.getElementsByTagName('head')[0];
+          r=o.createElement('script');r.async=1;
+          r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv;
+          a.appendChild(r);
+      })(window,document,'https://static.hotjar.com/c/hotjar-','.js?sv=');
+    });
+  </script>
+</head>
+<body>
+
+<div class="wrap">
+  <nav class="nav">
+    <a class="brandmark" href="/">
+      <svg viewBox="7.495 3 17.01 26" aria-hidden="true"><path d="M16.97 13.27Q15.62 13.3 14.69 13.94Q13.75 14.58 13.29 15.64Q12.82 16.69 12.82 18.11V21.36Q12.82 22.5 13.2 23.31Q13.58 24.12 14.29 24.54Q15 24.95 16 24.95Q17 24.95 17.71 24.54Q18.42 24.12 18.8 23.31Q19.18 22.5 19.18 21.36V19.56Q19.18 18.52 18.99 17.61Q18.8 16.69 18.4 15.88Q18.01 15.07 17.33 14.31Q16.66 13.55 15.72 12.82L9.36 7.84V3H22.88V6.98H17.42L14.2 6.6V6.73L17.83 8.95Q19.66 10.09 20.94 11.28Q22.22 12.47 23 13.79Q23.78 15.1 24.14 16.52Q24.51 17.94 24.51 19.49Q24.51 22.43 23.49 24.56Q22.47 26.68 20.56 27.84Q18.66 29 16 29Q13.34 29 11.44 27.82Q9.53 26.65 8.51 24.61Q7.49 22.57 7.49 19.94Q7.49 17.24 8.39 15.38Q9.29 13.51 10.74 12.54Q12.2 11.57 13.89 11.57V10.81Z" fill="var(--brand)"/></svg>
+      <span>delta<span class="m">mint</span></span>
+    </a>
+    <div class="right">
+      <div class="navlinks" id="navmenu">
+        <a class="plain" href="/">Home</a>
+        <a class="plain" href="/about" aria-current="page">About</a>
+        <a class="plain" href="/blog">Blog</a>
+        <a class="btn btn-ghost" href="https://dashboard.deltamint.app/login">Log in</a>
+      </div>
+      <button class="burger" type="button" aria-label="Menu" aria-expanded="false" aria-controls="navmenu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+      </button>
+      <noscript><style>@media (max-width:40rem){.nav .navlinks{display:flex;position:static;flex-direction:row;min-width:0;padding:0;border:0;background:none;box-shadow:none}.burger{display:none}}</style></noscript>
+    </div>
+  </nav>
+</div>
+
+<div class="wrap">
+<main class="about">
+  <p class="eyebrow">About</p>
+  <h1>Software for options traders who trade in their own brokerage account</h1>
+  <p class="lede">DeltaMint helps you find trades that match rules you set, send and work those orders with your broker, and read every position as the structure you traded — through to the closed record. Your money and your positions stay at your broker the whole time.</p>
+
+  <div class="steps">
+    <div class="step"><div class="k">Find</div><h3>Strategy Scanner</h3><p>Sweeps option chains for setups that meet your rules.</p></div>
+    <div class="step"><div class="k">Trade</div><h3>The order ticket</h3><p>Every leg quoted live, priced the way you choose, sent only when you confirm.</p></div>
+    <div class="step"><div class="k">Track</div><h3>Dashboard</h3><p>Your broker's list of legs, grouped back into the trades you placed.</p></div>
+    <div class="step"><div class="k">Review</div><h3>History and Analysis</h3><p>Closed trades rebuilt from your broker's own records.</p></div>
+  </div>
+
+  <h2>What it does</h2>
+
+  <section class="feature">
+    <div class="name">Strategy Scanner<span>Find</span></div>
+    <div>
+      <p>You set the rules — strategy, days to expiry, short-strike delta, wing width, minimum credit, maximum risk — and the Scanner sweeps a list of tickers, expiry by expiry, for setups that meet them. It builds put and call credit spreads, iron condors, cash-secured puts and covered calls, including covered calls written against a long call you already hold.</p>
+      <ul>
+        <li><strong>Priced at the side that trades.</strong> A credit is the short bid less the long ask, not the midpoint.</li>
+        <li><strong>Earnings flagged.</strong> A report due before expiry is shown on the row, not hidden by a filter.</li>
+        <li><strong>Nothing skipped silently.</strong> A ticker that produced no setup says which rule excluded it.</li>
+      </ul>
+      <p>Results are ranked by return on risk so you can sort what matched your filters. The ranking is arithmetic on your rules, not a recommendation.</p>
+    </div>
+  </section>
+
+  <section class="feature">
+    <div class="name">Option chain<span>Find</span></div>
+    <div>
+      <p>Every listed strike and expiry for a ticker, with the current price marked between the in-the-money and out-of-the-money strikes. Pick one contract for a single option, or two for a vertical, calendar or diagonal spread, and open the same ticket the Scanner uses.</p>
+    </div>
+  </section>
+
+  <section class="feature">
+    <div class="name">The order ticket<span>Trade</span></div>
+    <div>
+      <p>Before anything is sent you see every leg quoted live, the most the position can lose, its break-even, a payoff chart, and the order as a share of your account.</p>
+      <ul>
+        <li><strong>You choose the price.</strong> Set a limit and it rests where you put it, or let the ticket work toward a fill in small steps — never past the floor you set.</li>
+        <li><strong>Checked again at the moment you send.</strong> If the stock has moved, a short strike is now in the money, or the shares behind a covered call already cover another call, the ticket says so and waits for you.</li>
+        <li><strong>Nothing is sent without your confirmation.</strong> Every order goes to your broker and is executed there, under your broker's terms.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="feature">
+    <div class="name">Dashboard<span>Track</span></div>
+    <div>
+      <p>A broker lists your account one leg at a time. The Dashboard groups those legs back into what you traded — spreads, iron condors, cash-secured puts, covered calls and shares from assignment — and shows each one on a strike ladder with its break-even, maximum risk, capital tied up and live price.</p>
+      <ul>
+        <li><strong>Cost basis that remembers.</strong> Shares from an assigned put show the basis less the premiums collected on that name, labelled as adjusted beside the broker's own figure.</li>
+        <li><strong>Close any way you need.</strong> Close a whole structure or a single leg, at a price you set or worked toward a fill.</li>
+        <li><strong>Honest when it cannot know.</strong> A figure without a trusted price shows a dash, and an uncovered call is shown as having no ceiling on its loss.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="feature">
+    <div class="name">Trade History and Analysis<span>Review</span></div>
+    <div>
+      <p>Closed trades are rebuilt from your broker's own account activity, including assignment, exercise and expiry, and each result is split into premium, early close and assignment. Analysis turns that record into statistics — win rate, return on risk, drawdown, credit kept — by month, by ticker and by strategy, with a PDF export.</p>
+      <p>These figures are for your own review. They are not tax reporting; your broker's 1099 is the record for that.</p>
+    </div>
+  </section>
+
+  <h2>How it connects to your broker</h2>
+  <p>You link your brokerage account through your broker's own sign-in and consent screen. DeltaMint never sees your brokerage password, and the access it is given is encrypted at rest. Paper and live accounts both connect, and you can disconnect at any time, from DeltaMint or from your broker.</p>
+  <p>Your money and securities stay with your broker. DeltaMint reads your positions and sends the orders you confirm; your broker holds the account and executes every trade.</p>
+
+  <h2>What DeltaMint is not</h2>
+  <div class="isnt">
+    <ul>
+      <li><strong>Not a broker-dealer.</strong> DeltaMint does not hold funds or securities, open or maintain brokerage accounts, or execute trades itself.</li>
+      <li><strong>Not investment advice.</strong> Nothing in DeltaMint recommends a security, a strategy or a trade. What appears is what matched rules you set.</li>
+      <li><strong>No signals or copy trading.</strong> There is no following other traders and no one else's trades placed in your account.</li>
+      <li><strong>No action you did not set.</strong> Where DeltaMint adjusts a working order, it carries out limits you configured, at your direction.</li>
+    </ul>
+  </div>
+
+  <h2>Who it is for</h2>
+  <p>People who already trade options in their own account and want their book to read the way they traded it: sellers of premium through spreads, iron condors and the wheel, and anyone tired of reconstructing a four-legged position from four separate lines on a broker's screen.</p>
+  <p>Options involve substantial risk and are not suitable for every investor. Before trading, read <a href="https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document">Characteristics and Risks of Standardized Options</a>.</p>
+
+  <div class="cta">
+    <a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=about">Start free on a paper account</a>
+    <p>Questions? <a href="mailto:support@deltamint.app">support@deltamint.app</a></p>
+  </div>
+</main>
+</div>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="frow">
+      <a class="brandmark" href="/" style="margin-right:auto;font-size:1.20rem">
+        <svg viewBox="7.495 3 17.01 26" aria-hidden="true"><path d="M16.97 13.27Q15.62 13.3 14.69 13.94Q13.75 14.58 13.29 15.64Q12.82 16.69 12.82 18.11V21.36Q12.82 22.5 13.2 23.31Q13.58 24.12 14.29 24.54Q15 24.95 16 24.95Q17 24.95 17.71 24.54Q18.42 24.12 18.8 23.31Q19.18 22.5 19.18 21.36V19.56Q19.18 18.52 18.99 17.61Q18.8 16.69 18.4 15.88Q18.01 15.07 17.33 14.31Q16.66 13.55 15.72 12.82L9.36 7.84V3H22.88V6.98H17.42L14.2 6.6V6.73L17.83 8.95Q19.66 10.09 20.94 11.28Q22.22 12.47 23 13.79Q23.78 15.1 24.14 16.52Q24.51 17.94 24.51 19.49Q24.51 22.43 23.49 24.56Q22.47 26.68 20.56 27.84Q18.66 29 16 29Q13.34 29 11.44 27.82Q9.53 26.65 8.51 24.61Q7.49 22.57 7.49 19.94Q7.49 17.24 8.39 15.38Q9.29 13.51 10.74 12.54Q12.2 11.57 13.89 11.57V10.81Z" fill="var(--brand)"/></svg>
+        <span>delta<span class="m">mint</span></span>
+      </a>
+      <a href="/about">About</a>
+      <a href="/blog">Blog</a>
+      <a href="/terms">Terms</a>
+      <a href="/privacy">Privacy</a>
+      <a href="https://dashboard.deltamint.app">Open the app</a>
+    </div>
+    <p class="fine">DeltaMint is a software tool, not a broker-dealer, and does not provide investment advice. Options trading involves substantial risk of loss and is not suitable for every investor. Trades are placed through your own brokerage account, under that broker's terms.</p>
+  </div>
+</footer>
+
+<script src="/assets/site.js" defer></script>
+</body>
+</html>

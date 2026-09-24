@@ -224,7 +224,9 @@ ${head}
     <a class="brandmark" href="/">${MARK}<span>delta<span class="m">mint</span></span></a>
     <div class="right">
       <div class="navlinks" id="navmenu">
-        <a class="plain" href="/blog">Blog</a>
+        <a class="plain" href="/">Home</a>
+        <a class="plain" href="/about">About</a>
+        <a class="plain" href="/blog" aria-current="page">Blog</a>
         <a class="btn btn-ghost" href="https://dashboard.deltamint.app/login">Log in</a>
       </div>
       <button class="burger" type="button" aria-label="Menu" aria-expanded="false" aria-controls="navmenu">
@@ -245,6 +247,7 @@ ${body}
   <div class="wrap">
     <div class="frow">
       <a class="brandmark" href="/" style="margin-right:auto;font-size:1.20rem">${MARK}<span>delta<span class="m">mint</span></span></a>
+      <a href="/about">About</a>
       <a href="/blog">Blog</a>
       <a href="/terms">Terms</a>
       <a href="/privacy">Privacy</a>
