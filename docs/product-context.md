@@ -94,16 +94,16 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
-- 2026-09-23 · (staging) A covered-call scan (Scanner, Open Position and the
-- 2026-09-23 · (staging) The Open Position screen now names a ticker a
-- 2026-09-23 · (staging) A call sold against a long call (not just against
-- 2026-09-23 · (staging) The Scanner's covered-call suggestions now count a
-- 2026-09-23 · (staging, lab flag) A reworked Analysis page puts the result and
-- 2026-09-23 · (staging) The blog's diagrams can reach the live site again —
-- 2026-09-23 · Unfinished broker work (the SnapTrade and Tradier
-- 2026-09-23 · A twelfth foundations post — what happens at options
-- 2026-09-23 · The logo is now the lowercase Greek delta itself — drawn as a
-- 2026-09-22 · (staging) The "No earnings date" badge is gone from the
+- 2026-09-24 · The homepage's DeltaMint phone view shows two position cards
+- 2026-09-24 · The site menu gets a Sign up button next to Log in on every
+- 2026-09-24 · The Alpaca branding review is also a PDF (for emailing to
+- 2026-09-24 · The free trial on checkout is 7 days, not 30, on both the
+- 2026-09-24 · A new About page explains the product step by step (Scanner,
+- 2026-09-24 · A pricing schedule now exists as a PDF for Alpaca's
+- 2026-09-24 · The homepage's shared/social preview image now shows the
+- 2026-09-24 · The shared/social preview card is simpler: just the δ logo
+- 2026-09-24 · Links to the staging site now preview staging's own share
+- 2026-09-24 · The Alpaca logo is back in the homepage's brokerage
 
 ## Server functions
 

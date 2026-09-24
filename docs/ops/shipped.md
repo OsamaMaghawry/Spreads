@@ -3,6 +3,51 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-24 · The homepage's DeltaMint phone view shows two position cards
+  (the NVDA iron condor, the AMD covered call) instead of four, with a
+  "+ 2 more positions" line so the account summary total still matches what
+  the cards don't show; desktop is unchanged (`c5ea547`).
+- 2026-09-24 · The site menu gets a Sign up button next to Log in on every
+  page, and the homepage broker card now says "Supported brokers" above the
+  logo instead of a "Live now" tag (`821fd62`).
+- 2026-09-24 · The Alpaca branding review is also a PDF (for emailing to
+  Alpaca) and now covers the new About page (`7a3d2ba`).
+- 2026-09-24 · The free trial on checkout is 7 days, not 30, on both the
+  monthly and yearly plan, and the Terms now say billing is monthly or
+  yearly instead of only monthly (`8c918dc`).
+- 2026-09-24 · A new About page explains the product step by step (Scanner,
+  option chain, order ticket, Dashboard, Trade History, Analysis) without
+  performance figures or naming the broker; Home and About join Blog in
+  every page's menu (`d9b71e6`).
+- 2026-09-24 · A pricing schedule now exists as a PDF for Alpaca's
+  compliance review, built from the product's actual prices (not the stale
+  pricing page draft); it isn't linked from the site since pricing isn't
+  live yet (`c6e8df5`).
+- 2026-09-24 · The homepage's shared/social preview image now shows the
+  actual product — the Positions Monitor on desktop and on a phone — the way
+  Tradier and Alpaca show theirs, instead of a plain word/logo card
+  (`fa9d66b`).
+- 2026-09-24 · The shared/social preview card is simpler: just the δ logo
+  and the homepage headline, sized to read at thumbnail size, instead of
+  repeating the page description a second time (`2435efe`).
+- 2026-09-24 · Links to the staging site now preview staging's own share
+  image instead of production's, previewers (Telegram/WhatsApp/iMessage/X/
+  LinkedIn) pick up a changed image instead of showing a stale cached one,
+  and links to the app itself now carry a real preview card (`abee00f`).
+- 2026-09-24 · The Alpaca logo is back in the homepage's brokerage
+  integrations section (using Alpaca's own artwork), after briefly being
+  replaced with plain text (`7433d2e`).
+- 2026-09-24 · The homepage's share image and the Terms/Privacy/Pricing PDFs
+  are now generated from their actual source (the page content, the site's
+  fonts and colors) instead of being hand-made copies that silently went
+  stale after a rebrand (`df68c09`).
+- 2026-09-24 · PDF copies of the Terms of Service and Privacy Policy are now
+  available for Alpaca's compliance review, matching the live pages
+  word-for-word; the homepage's broker section no longer shows a redrawn
+  copy of Alpaca's logo (`38679e2`).
+- 2026-09-24 · Connecting a brokerage through Alpaca shows DeltaMint's own
+  authorization disclosure dialog before redirecting to Alpaca, per Alpaca
+  compliance's requirement (`c6f07b8`).
 - 2026-09-23 · (staging) A covered-call scan (Scanner, Open Position and the
   option chain) now shows every ticker an account holds instead of quietly
   leaving out one whose shares already back a call it sold — that ticker's
