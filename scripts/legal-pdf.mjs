@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// PDF copies of the Terms of Service and the Privacy Policy, GENERATED from the
-// pages the site serves -- for a broker's compliance file, or anyone else who
+// PDF copies of the Terms of Service, the Privacy Policy and the pricing
+// schedule, GENERATED from their HTML sources -- for a broker's compliance file, or anyone else who
 // needs the agreement as a document rather than a URL.
 //
 // Alpaca's compliance team asked for exactly this ("Provide PDF copies of
@@ -32,9 +32,14 @@ const FONT_DIR = path.join(root, "scripts/fonts");
 const OUT = path.join(root, "docs/legal/deliverables");
 const STAMP = path.join(root, "docs/legal/deliverables/legal-pdf.stamp.json");
 
+// `source` is the page's HTML. Terms and Privacy are the published pages. The
+// pricing schedule is NOT published -- pricing is not on the site yet, at the
+// owner's instruction -- so its source lives in docs/legal/pricing and its
+// PDF names no public address.
 export const DOCS = [
-  { slug: "terms", title: "Terms of Service", file: "DeltaMint-Terms-of-Service.pdf" },
-  { slug: "privacy", title: "Privacy Policy", file: "DeltaMint-Privacy-Policy.pdf" }
+  { slug: "terms", title: "Terms of Service", file: "DeltaMint-Terms-of-Service.pdf", source: "landing/public/terms/index.html", published: true },
+  { slug: "privacy", title: "Privacy Policy", file: "DeltaMint-Privacy-Policy.pdf", source: "landing/public/privacy/index.html", published: true },
+  { slug: "pricing", title: "Pricing schedule", file: "DeltaMint-Pricing-Schedule.pdf", source: "docs/legal/pricing/index.html", published: false }
 ];
 
 // Faces the legal pages ask Google Fonts for, served from scripts/fonts.
@@ -55,13 +60,16 @@ const PRINT_CSS = `
 
 const sha = (buf) => createHash("sha256").update(buf).digest("hex");
 const read = (rel) => readFileSync(path.join(SITE, rel));
+const sourceOf = (doc) => readFileSync(path.join(root, doc.source));
+// Where the generator's local server serves each document from.
+const routeOf = (doc) => (doc.published ? `/${doc.slug}` : `/__doc/${doc.slug}`);
 
 // Everything a PDF is made from. Changing any of it makes the PDF stale.
 function inputsFor(doc) {
   return sha(JSON.stringify({
     // The share-image version in the page's meta tags is not part of the
     // agreement; a new card must not make the legal PDFs stale.
-    page: sha(read(`${doc.slug}/index.html`).toString("utf8").replace(/og-card\.png\?v=[0-9a-f]+/g, "og-card.png")),
+    page: sha(sourceOf(doc).toString("utf8").replace(/og-card\.png\?v=[0-9a-f]+/g, "og-card.png")),
     css: sha(read("assets/site.css")),
     fonts: FACES.map(([, , f]) => sha(readFileSync(path.join(FONT_DIR, f)))),
     print: PRINT_CSS,
@@ -72,9 +80,9 @@ function inputsFor(doc) {
 // The version date the page itself states -- printed on every sheet so a
 // reader can tell which version of the agreement they hold.
 function versionOf(doc) {
-  const html = read(`${doc.slug}/index.html`).toString("utf8");
+  const html = sourceOf(doc).toString("utf8");
   const d = html.match(/<div class="updated">([^<]+)<\/div>/)?.[1]?.trim();
-  if (!d) throw new Error(`legal-pdf: landing/public/${doc.slug}/index.html has no "Last updated" line.`);
+  if (!d) throw new Error(`legal-pdf: ${doc.source} has no "Last updated" line.`);
   return d;
 }
 
@@ -114,10 +122,12 @@ export function serve() {
       }
       if (url.pathname.startsWith("/__fonts/")) file = path.join(FONT_DIR, path.basename(url.pathname));
       else {
-        file = path.join(SITE, decodeURIComponent(url.pathname));
+        const unpublished = DOCS.find((d) => !d.published && url.pathname.replace(/\/+$/, "") === `/__doc/${d.slug}`);
+        file = unpublished ? path.join(root, unpublished.source) : path.join(SITE, decodeURIComponent(url.pathname));
         if (!path.extname(file)) file = path.join(file, "index.html");
       }
-      if (!file.startsWith(SITE) && !file.startsWith(FONT_DIR)) { res.writeHead(403); return res.end(); }
+      const allowed = file.startsWith(SITE) || file.startsWith(FONT_DIR) || DOCS.some((d) => file === path.join(root, d.source));
+      if (!allowed) { res.writeHead(403); return res.end(); }
       if (!existsSync(file)) { res.writeHead(404); return res.end(); }
       res.writeHead(200, { "content-type": TYPES[path.extname(file)] || "application/octet-stream" });
       res.end(readFileSync(file));
@@ -144,7 +154,7 @@ async function generate() {
   const stamp = {};
   try {
     for (const doc of DOCS) {
-      await page.goto(`${base}/${doc.slug}`, { waitUntil: "networkidle" });
+      await page.goto(`${base}${routeOf(doc)}`, { waitUntil: "networkidle" });
       await page.addStyleTag({ content: PRINT_CSS });
       const loaded = await page.evaluate(async () => {
         const faces = [...document.fonts];
@@ -158,8 +168,8 @@ async function generate() {
       const version = versionOf(doc);
       const pdf = await page.pdf({
         format: "Letter", printBackground: true, displayHeaderFooter: true,
-        headerTemplate: `<div style="${small}"><span>DeltaMint — ${doc.title}</span><span>https://deltamint.app/${doc.slug}</span></div>`,
-        footerTemplate: `<div style="${small}"><span>Copy of https://deltamint.app/${doc.slug} · ${version}</span><span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span></div>`,
+        headerTemplate: `<div style="${small}"><span>DeltaMint — ${doc.title}</span><span>${doc.published ? `https://deltamint.app/${doc.slug}` : "deltamint.app"}</span></div>`,
+        footerTemplate: `<div style="${small}"><span>${doc.published ? `Copy of https://deltamint.app/${doc.slug}` : `DeltaMint ${doc.title.toLowerCase()}`} · ${version}</span><span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span></div>`,
         margin: { top: "0.75in", bottom: "0.75in", left: "0.6in", right: "0.6in" }
       });
       writeFileSync(path.join(OUT, doc.file), pdf);

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>DeltaMint — Pricing schedule</title>
+<!-- NOT PUBLISHED. The source of docs/legal/deliverables/DeltaMint-Pricing-Schedule.pdf
+     (npm run legal:pdf). It lives outside landing/public on purpose: pricing is
+     not on the site yet, at the owner's instruction. Every figure here is the
+     one the product charges -- src/pages/Billing.jsx and the Stripe checkout in
+     supabase/functions/createCheckoutSession -- and must change with them. -->
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link href="/assets/site.css" rel="stylesheet">
+<style>
+  .doc { padding: 48px 56px 80px; max-width: 760px; }
+  .doc h1 { font-size: 26px; }
+  .doc .updated { margin: 10px 0 32px; font-size: 12px; color: var(--dm-sub); }
+  .doc h2 { font-size: 15px; margin: 32px 0 10px; }
+  .doc p, .doc li { font-size: 13px; line-height: 1.75; color: var(--dm-sub); }
+  .doc ul { padding-left: 20px; margin: 8px 0; }
+  .fees { width: 100%; border-collapse: collapse; margin: 14px 0 6px; font-size: 13px; }
+  .fees th { text-align: left; font-weight: 500; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-mute); border-bottom: 1px solid var(--line); padding: 8px 12px 8px 0; }
+  .fees td { border-bottom: 1px solid var(--line-soft); padding: 11px 12px 11px 0; vertical-align: top; color: var(--dm-sub); line-height: 1.55; }
+  .fees td.plan { color: var(--ink); font-weight: 500; white-space: nowrap; }
+  .fees td.price { color: var(--ink); font-family: "IBM Plex Mono", monospace; white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <nav class="nav">
+    <a class="brandmark" href="/">
+      <svg viewBox="7.495 3 17.01 26" aria-hidden="true"><path d="M16.97 13.27Q15.62 13.3 14.69 13.94Q13.75 14.58 13.29 15.64Q12.82 16.69 12.82 18.11V21.36Q12.82 22.5 13.2 23.31Q13.58 24.12 14.29 24.54Q15 24.95 16 24.95Q17 24.95 17.71 24.54Q18.42 24.12 18.8 23.31Q19.18 22.5 19.18 21.36V19.56Q19.18 18.52 18.99 17.61Q18.8 16.69 18.4 15.88Q18.01 15.07 17.33 14.31Q16.66 13.55 15.72 12.82L9.36 7.84V3H22.88V6.98H17.42L14.2 6.6V6.73L17.83 8.95Q19.66 10.09 20.94 11.28Q22.22 12.47 23 13.79Q23.78 15.1 24.14 16.52Q24.51 17.94 24.51 19.49Q24.51 22.43 23.49 24.56Q22.47 26.68 20.56 27.84Q18.66 29 16 29Q13.34 29 11.44 27.82Q9.53 26.65 8.51 24.61Q7.49 22.57 7.49 19.94Q7.49 17.24 8.39 15.38Q9.29 13.51 10.74 12.54Q12.2 11.57 13.89 11.57V10.81Z" fill="var(--brand)"/></svg>
+      <span>delta<span class="m">mint</span></span>
+    </a>
+  </nav>
+</div>
+
+<div class="wrap">
+<div class="doc">
+  <p class="eyebrow">Legal</p>
+  <h1>Pricing schedule</h1>
+  <div class="updated">Last updated September 24, 2026</div>
+
+  <p>DeltaMint is software sold by subscription. This schedule lists every fee DeltaMint charges. Fees are for access to the software only.</p>
+
+  <h2>1. Plans and fees</h2>
+  <table class="fees">
+    <thead><tr><th>Plan</th><th>Price</th><th>Billing</th><th>What it covers</th></tr></thead>
+    <tbody>
+      <tr><td class="plan">Paper</td><td class="price">$0</td><td>No charge</td><td>The full product against paper (simulated) brokerage accounts. No time limit, no usage limit.</td></tr>
+      <tr><td class="plan">Live — monthly</td><td class="price">$29 / month</td><td>Billed monthly, in advance</td><td>The same product, with orders placed in live brokerage accounts.</td></tr>
+      <tr><td class="plan">Live — yearly</td><td class="price">$290 / year</td><td>Billed yearly, in advance</td><td>As Live — monthly, paid for twelve months at once.</td></tr>
+    </tbody>
+  </table>
+  <p>Prices are in US dollars.</p>
+
+  <h2>2. Free trial</h2>
+  <p>Both Live plans begin with a 30-day free trial. The first charge is made when the trial ends, unless the subscription is cancelled before then.</p>
+
+  <h2>3. What is never charged</h2>
+  <ul>
+    <li>No commission, and no fee per contract, per order or per trade.</li>
+    <li>No share of trading profits, and nothing contingent on trading activity or volume.</li>
+    <li>No charge on any plan to close, cancel or price a position, or to view history, analysis or PDF exports.</li>
+  </ul>
+
+  <h2>4. Brokerage fees</h2>
+  <p>DeltaMint is not a broker-dealer. Any commissions, fees, interest or spreads charged by your broker or other third parties are separate from DeltaMint&rsquo;s fees, are set by them, and are your responsibility.</p>
+
+  <h2>5. Payment and cancellation</h2>
+  <p>Subscriptions are paid by card through our payment processor. Your card details go directly to the processor; we never receive or store your card number.</p>
+  <p>A subscription may be cancelled at any time, effective at the end of the current billing period. Paper use continues free after a Live subscription ends.</p>
+
+  <h2>6. Contact</h2>
+  <p>Questions about fees or billing may be sent to <a href="mailto:support@deltamint.app">support@deltamint.app</a>.</p>
+</div>
+</div>
+
+<footer class="site">
+  <div class="wrap">
+    <p class="fine">DeltaMint is a software tool, not a broker-dealer, and does not provide investment advice. Options trading involves substantial risk of loss and is not suitable for every investor. Trades are placed through your own brokerage account, under that broker's terms.</p>
+  </div>
+</footer>
+
+</body>
+</html>

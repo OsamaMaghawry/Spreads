@@ -334,7 +334,7 @@ function renderSitemap(posts, site) {
   // No /pricing. The page is unlinked and redirected while the product is a
   // demo -- listing it here would keep handing it to search engines, which is
   // the opposite of hiding it.
-  const staticPaths = ["/", "/blog", "/terms", "/privacy"];
+  const staticPaths = ["/", "/about", "/blog", "/terms", "/privacy"];
   const hubs = groupByCategory(posts).map((c) => `  <url><loc>${site}/blog/${c.slug}</loc></url>`);
   const urls = [
     ...staticPaths.map((p) => `  <url><loc>${site}${p}</loc></url>`),

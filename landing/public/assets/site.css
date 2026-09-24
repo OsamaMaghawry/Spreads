@@ -172,6 +172,8 @@ p { margin: 0; }
 /* Secondary links are hidden on phones rather than wrapped into a second row. */
 .nav a.plain { display: inline-block; color: var(--ink-soft); text-decoration: none; font-size: 0.95rem; padding: 0.5rem 0.65rem; }
 .nav a.plain:hover { color: var(--brand); }
+/* The page you are on, said by the menu. */
+.nav a.plain[aria-current="page"] { color: var(--ink); font-weight: 500; }
 .nav .navlinks { display: flex; align-items: center; gap: 0.25rem; }
 .nav .navlinks .btn { margin-left: 0.4rem; }
 .burger { display: none; }

@@ -679,10 +679,11 @@ compliance team has since made the in-app disclosure a condition of approval
 ### Alpaca compliance conditions — 24 Sep 2026
 
 1. **PDF copies of Terms, Privacy Policy and Pricing schedule** (currently
-   URL-only). Terms and Privacy are rendered from the live pages into
-   `docs/legal/deliverables/`. The pricing page has been unpublished since
-   12 Sep and its figures are a stale proposal, so the schedule waits on the
-   owner's decision about what prices to submit.
+   URL-only). All three are generated into `docs/legal/deliverables/` by
+   `npm run legal:pdf`. Pricing is not on the site, at the owner's instruction,
+   so its source is `docs/legal/pricing/index.html` — unpublished — and states
+   the prices the product actually charges: Paper free; Live $29/month or
+   $290/year, each with a 30-day free trial.
 2. **Manual review of deltamint.app marketing pages for Alpaca branding
    compliance.** Written up in `docs/legal/alpaca-branding-review.md`.
 3. **Authorization disclosure shown in DeltaMint UI before the Alpaca
