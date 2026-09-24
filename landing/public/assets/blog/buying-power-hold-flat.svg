@@ -1,0 +1,20 @@
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="The life of a hypothetical credit spread from the fill to expiration. The collateral held against it is a flat line at the same level for the whole period, while the spread's mark wanders up and down beneath it. The collateral drops to zero only at expiration, when the position ends and the reserve is released.">
+  <rect width="720" height="300" fill="#FFFFFF"/>
+
+  <!-- time axis -->
+  <line x1="60" y1="240" x2="660" y2="240" stroke="#767B8E" stroke-width="2"/>
+  <text x="80" y="268" font-size="16" text-anchor="middle" fill="#767B8E">fill</text>
+  <text x="560" y="268" font-size="16" text-anchor="middle" fill="#767B8E">expiration</text>
+
+  <!-- collateral: flat, then released -->
+  <line x1="80" y1="80" x2="560" y2="80" stroke="#B4485C" stroke-width="4"/>
+  <line x1="560" y1="80" x2="560" y2="240" stroke="#B4485C" stroke-width="2" stroke-dasharray="6 5"/>
+  <line x1="560" y1="240" x2="650" y2="240" stroke="#B4485C" stroke-width="4"/>
+  <text x="90" y="66" font-size="17" font-weight="600" fill="#B4485C">collateral held</text>
+  <text x="610" y="226" font-size="16" font-weight="600" text-anchor="middle" fill="#B4485C">released</text>
+
+  <!-- the mark wanders underneath -->
+  <polyline points="80,190 130,172 180,198 230,150 280,168 330,128 380,176 430,204 480,186 530,214 560,228"
+            fill="none" stroke="#767B8E" stroke-width="2.5"/>
+  <text x="330" y="118" font-size="16" text-anchor="middle" fill="#767B8E">spread's mark</text>
+</svg>

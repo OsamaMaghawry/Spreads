@@ -186,8 +186,8 @@ change that runs to the broker's cutoff, never later than 5:30 p.m. Eastern.
 Spreads do not get special treatment. Each leg is judged on its own, which is
 why a close between the strikes or at the short strike leaves an account
 holding something the spread was never meant to hold. The [foundations
-series](/blog/foundations) continues with the buying power and collateral
-behind these positions.
+series](/blog/foundations) continues with the [buying power and
+collateral](/blog/options-buying-power-requirement) behind these positions.
 
 All figures on this page are hypothetical and are there to show the
 mechanics. This post is educational and is not investment advice.
