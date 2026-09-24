@@ -192,7 +192,7 @@ function isNegated(text, index) {
 }
 
 // The broker may be named where an integration is genuinely being described —
-// which is exactly what a "Connect your broker" section does. The rule exists
+// which is exactly what the homepage "Brokerage integrations" section does. The rule exists
 // to stop the name being used as marketing weight, not to hide the integration.
 // "Alpaca-only for now" and "routes through Alpaca" are the honest-limitation
 // disclosures the playbook requires in forum replies — accuracy, not weight.
