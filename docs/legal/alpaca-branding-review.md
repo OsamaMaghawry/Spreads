@@ -17,6 +17,7 @@ Every page a visitor can reach on deltamint.app without signing in:
 | Surface | Pages |
 |---|---|
 | Homepage | `/` |
+| About | `/about` |
 | Legal | `/terms`, `/privacy` |
 | Blog | `/blog` and all 15 published articles |
 | Sign-up and sign-in | `dashboard.deltamint.app/register`, `/login`, password reset |
@@ -34,9 +35,10 @@ checked images for the Alpaca logo or likeness.
 | 3 | Homepage, brokerage section | The section was headed "Connect your broker". | **Relabelled** "Brokerage integrations", so the one place the name appears is plainly the integrations display the questionnaire permits. |
 | 4 | Terms of Service | Does not name Alpaca. Refers to "your broker" and "your broker's own connection flow". | None needed. |
 | 5 | Privacy Policy | Does not name Alpaca. | None needed. |
-| 6 | Blog (15 articles) | No mention of Alpaca in any title, description or body. | None needed. |
-| 7 | Sign-up, sign-in, password reset | No mention of Alpaca. | None needed. |
-| 8 | Titles, descriptions, share image, sitemap | No mention of Alpaca. | None needed. |
+| 6 | About page | Does not name Alpaca. Describes the connection as "your broker's own sign-in and consent screen". | None needed. |
+| 7 | Blog (15 articles) | No mention of Alpaca in any title, description or body. | None needed. |
+| 8 | Sign-up, sign-in, password reset | No mention of Alpaca. | None needed. |
+| 9 | Titles, descriptions, share image, sitemap | No mention of Alpaca. | None needed. |
 
 ## Result
 
@@ -44,7 +46,7 @@ After the changes above, Alpaca appears in **one place** on the public site:
 the homepage section headed "Brokerage integrations", where its name and logo
 identify it as the brokerage DeltaMint connects to, marked "Live now". There is
 no Alpaca name, logo or reference to Alpaca's services anywhere else, including
-the Terms and Privacy Policy.
+the About page, the Terms and the Privacy Policy.
 
 Elsewhere the site uses neutral language — "link your brokerage account",
 "your broker", "sign in with your brokerage login" — and states on every page
