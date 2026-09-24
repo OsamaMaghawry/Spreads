@@ -20,6 +20,8 @@
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { checkCard } from "./og-card.mjs";
+import { checkLegalPdfs } from "./legal-pdf.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2).filter((a) => !a.startsWith("-"));
@@ -415,6 +417,67 @@ const targets = args.length > 0
 
 if (targets.length === 0) skip("content", "nothing to check yet — no blog drafts and no marketing pages found");
 targets.filter(existsSync).forEach(checkFile);
+
+// ---------------------------------------------------------------------------
+// STALE POSITIONING. The owner, finding the share image still saying "credit
+// spreads and iron condors" beside the old logo weeks after both changed: "Why
+// we don't update our things. Do I have to do it every time?" Two checks, so
+// the answer is no.
+//
+// 1. The share image is generated from the homepage (scripts/og-card.mjs). If
+//    the homepage headline, description, logo or colours moved and the card
+//    did not, this fails with the command that regenerates it.
+// 2. Wording we have retired. When the product's description or tagline
+//    changes, the OLD one goes on this list once, and it can never quietly
+//    come back on a page, an email, the app or the terms. Only positioning
+//    statements belong here -- blog posts may still explain what an iron
+//    condor is; they may not say that is all DeltaMint does.
+// ---------------------------------------------------------------------------
+const RETIRED = [
+  { re: /risk in plain sight/i, why: "the pre-September tagline" },
+  { re: /\boptions income\b/i, why: "the pre-September tagline" },
+  { re: /scanned, grouped,? and sized/i, why: "the old spreads-and-condors-only description" },
+  { re: /sells? defined-risk option spreads/i, why: "describes DeltaMint as spreads-only; it also covers cash-secured puts, covered calls and single options" }
+];
+const PRODUCT_SURFACES = ["landing/public", "landing/src", "src", "index.html", "supabase/functions"];
+const TEXT_FILE = /\.(html|js|jsx|ts|mjs|css|svg|txt|xml|json|md)$/;
+
+if (args.length === 0) {
+  const why = checkCard();
+  if (why) fail("share image (og-card.png)", why);
+  else ok("share image (og-card.png) — generated from the current homepage");
+  // The same rule for the PDF copies of the Terms and Privacy Policy that go
+  // to a broker's compliance file: a legal page edited without its PDF is a
+  // stale agreement waiting to be sent.
+  const legal = checkLegalPdfs();
+  if (legal) fail("legal PDFs (docs/legal/deliverables)", legal);
+  else ok("legal PDFs — generated from the current Terms and Privacy pages");
+
+  const surfaceFiles = PRODUCT_SURFACES.flatMap((p) => {
+    const abs = path.join(root, p);
+    if (!existsSync(abs)) return [];
+    return statSync(abs).isDirectory() ? walk(abs) : [abs];
+  }).filter((f) => TEXT_FILE.test(f) && !/\.test\./.test(f));
+  let stale = 0;
+  for (const f of surfaceFiles) {
+    const text = readFileSync(f, "utf8");
+    for (const r of RETIRED) {
+      if (r.re.test(text)) {
+        stale += 1;
+        fail(`${path.relative(root, f)} · retired wording`, `"${text.match(r.re)[0]}" — ${r.why}`);
+      }
+    }
+  }
+  if (stale === 0) ok(`retired wording — none across ${surfaceFiles.length} product files`);
+}
+
+function walk(dir) {
+  return readdirSync(dir).flatMap((n) => {
+    if (n === "node_modules" || n.startsWith(".")) return [];
+    const f = path.join(dir, n);
+    return statSync(f).isDirectory() ? walk(f) : [f];
+  });
+}
 
 const mark = { ok: "  ok  ", fail: " FAIL ", skip: " skip " };
 for (const r of results) {

@@ -139,6 +139,23 @@ marketing site except when showing brokerage integration partners — the
 homepage broker card is that exception. Use "link your brokerage account"
 elsewhere. Never imply DeltaMint is a broker-dealer or give investment advice.
 
+## Generated brand and legal assets: never edit by hand
+
+`landing/public/assets/og-card.png` (the image every shared link shows) and the
+PDF copies of the Terms and Privacy Policy in `docs/legal/deliverables/` are
+**generated**, from the homepage and the legal pages respectively:
+
+- `npm run og:card` after changing the homepage `<title>`, meta description,
+  logo or brand colours.
+- `npm run legal:pdf` after editing `landing/public/terms` or `privacy`.
+
+`npm run content:check` (run before every site deploy) fails if either is out
+of date or was replaced by hand, and names the command. It also fails on
+**retired wording** — old taglines and product descriptions listed in
+`RETIRED` in `scripts/content-check.mjs`. When DeltaMint's description or
+tagline changes, add the old one there in the same commit, so it cannot come
+back on any page, email or the terms.
+
 ## Market prices: one source, and it says where it came from
 
 Every price the product shows or acts on comes from `_shared/marketPrice.ts`
