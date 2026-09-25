@@ -3,7 +3,7 @@
 
   <!-- shaded band: strikes below the platform's price -->
   <rect x="60" y="110" width="288" height="100" fill="#F1F2F6"/>
-  <text x="204" y="142" font-size="15" text-anchor="middle" fill="#767B8E">shaded in the money</text>
+  <text x="204" y="142" font-size="15" text-anchor="middle" fill="#767B8E">shaded calls in the money</text>
 
   <!-- strike axis -->
   <line x1="60" y1="170" x2="660" y2="170" stroke="#C9CEDC" stroke-width="1.5"/>

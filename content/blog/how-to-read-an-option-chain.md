@@ -21,10 +21,10 @@ a made-up ticker, XYZ, and names three places a chain is easy to misread.
 
 ## Key takeaways
 
-- A seller trades at the bid and a buyer at the ask; the mark between them is not an offer.
+- A seller who needs to fill now gets the bid and a buyer pays the ask; the mark between them is not an offer.
 - The last price is the most recent trade, which may have printed before the stock moved.
 - In-the-money shading follows the stock price the platform last received, which can be delayed.
-- The same strike costs more on a later expiration, and two rows read together are a spread.
+- The same strike costs more on a later expiration, and a spread is priced from two rows at once.
 
 ## How is an option chain laid out?
 
@@ -44,15 +44,17 @@ on each side commonly include:
 
 Volume and open interest describe activity, not direction. Some pages read
 open interest as a map of support and resistance, which is a claim about
-where a stock will go; this post does not make it. Here they show only
-whether anyone has traded a row today.
+where a stock will go; this post does not make it. Here, volume is used
+only to tell whether a row has traded today, and open interest is not read
+at all.
 
 ## Example: one hypothetical XYZ chain across two expirations
 
 Take a hypothetical stock, XYZ, quoted at $50.00 at 3:30 p.m. At 10:05 a.m.
 it traded at $48.50. The prices below sit near a standard pricing model at
-the 40% implied volatility this series has used, and show how a chain reads,
-not what any contract is worth. First, the expiration 30 days out:
+the 40% implied volatility this series has used, with interest rates and
+dividends set to zero, and show how a chain reads, not what any contract is
+worth. First, the expiration 30 days out:
 
 | Call bid | Call ask | Call last | Strike | Put bid | Put ask | Put last |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -63,9 +65,10 @@ not what any contract is worth. First, the expiration 30 days out:
 | 0.85 | 0.93 | 0.90 | 54 | 4.80 | 4.98 | 4.90 |
 
 Read across the rows rather than down one column, and the table has a shape.
-Calls get cheaper as the strike rises and puts get dearer, because with XYZ
-at $50 the 46 call and the 54 put are both already in the money. At the 50
-strike the call and the put quote the same bid and ask, which is roughly
+Calls get cheaper as the strike rises and puts get dearer, because the
+right to buy at a lower price, or to sell at a higher one, is worth more;
+with XYZ at $50, the 46 call and the 54 put are already in the money. At the
+50 strike the call and the put quote the same bid and ask, which is roughly
 what happens at the strike nearest the stock.
 
 Two cells break the pattern. The 52 call's last trade, 0.95, sits below its
@@ -115,8 +118,8 @@ spread's [maximum loss at expiration](/blog/credit-spread-max-loss).
 ## Why is the last price different from the bid and ask?
 
 The last price is a record of the most recent trade, not a quote. On a busy
-contract it usually sits inside the bid and ask. On a quiet one it can be
-hours or days old, and it stays on screen until someone trades again.
+contract it usually sits at or inside the bid and ask. On a quiet one it can
+be hours or days old, and it stays on screen until someone trades again.
 
 The trouble is that the stock keeps moving while the last price sits still.
 The 52 call in the example traded at 0.95 when XYZ was $48.50. By 3:30 p.m.,
@@ -131,7 +134,9 @@ carries the same distortion. The chain itself shows when a last is stale:
 
 - **Zero volume today.** The last price is from an earlier session.
 - **The last trade's time.** Often shown in the contract's detail view.
-- **A last outside the bid and ask.** The market that set it has since moved.
+- **A last outside the bid and ask.** Usually the market that set it has
+  since moved; a leg of a spread order can also print outside that single
+  leg's quote.
 
 ## What does the shaded area on an option chain mean?
 
@@ -142,7 +147,7 @@ trading. The gap opens in ordinary ways:
 
 - **Delayed quotes.** A 15-minute-delayed feed shades against a 15-minute-old price.
 - **Before the open.** It may follow the prior close or a thin pre-market trade.
-- **After the close.** Options stop trading; the stock can keep trading after hours.
+- **After the close.** Most stock options stop trading at 4:00 p.m. ET; the stock can keep trading after hours.
 
 Change one assumption in the example: a delayed feed shows XYZ at $49.90
 while the stock trades at $50.30. The 50 call is left unshaded, out of the money by the platform's reckoning,
