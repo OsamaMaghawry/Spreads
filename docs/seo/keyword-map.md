@@ -272,7 +272,7 @@ Character counts are the title length.
 
 **18. Reading an option chain**
 - Target query: `how to read an option chain` · Title: **How to read an option
-  chain, column by column** (45) · slug `how-to-read-an-option-chain` ·
+  chain without guessing** (46) · slug `how-to-read-an-option-chain` ·
   `foundations` (syll. 14)
 - SERP 9 Sep: Lightspeed, MarketChameleon, AvaTrade, Wealthsimple, TradingView.
   Broker and platform education, no UGC. **Mid, leaning hard.** Realistic at
