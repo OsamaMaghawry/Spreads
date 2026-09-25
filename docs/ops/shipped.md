@@ -3,6 +3,15 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-25 · A fourteenth foundations post — how to read an option chain —
+  is live on the blog, closing the foundations series: which price on each
+  row is live (bid to sell, ask to buy, mark as a reference only) versus the
+  last-trade price that can print stale, what the in-the-money shading
+  actually follows (the platform's last-received stock price, which can lag
+  a delayed feed or an after-hours move) and two checks that don't depend on
+  it, and why the same strike costs more on a later expiration; reviewed by
+  seo-editor and desk-editor before publishing (`fd32cd0`, `8b8267b`,
+  `55791f3`, `c1bf803`).
 - 2026-09-23 · (staging) A covered-call scan (Scanner, Open Position and the
   option chain) now shows every ticker an account holds instead of quietly
   leaving out one whose shares already back a call it sold — that ticker's
