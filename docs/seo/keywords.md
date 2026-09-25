@@ -25,7 +25,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 11 | Early exercise | early exercise options (always qualified — see the row 11 reading) | early exercise, option exercise — never "exercise" alone | Wikipedia, Option Alpha, Options Playbook, CFI, Schwab, Fidelity, IBKR, Benzinga, Barchart, optionstradingiq; Carta and equity-comp law firms take half the intent; a Bionic Turtle forum thread in the tail. No Investopedia surfaced | why it is rare, and the one dividend case it is not |
 | 12 | Expiration mechanics | what happens at options expiration (also searched as "what happens when options expire") | options expiration — never "expiration" alone | Schwab, E*TRADE, Options Playbook, Option Alpha, IG, VectorVest, tastytrade and SoFi support, Fidelity, Public help; Wikipedia and Schwab on pin risk; two Quora threads and a Substack in the tail. No Investopedia or Reddit surfaced | a cent either side of the strike, the broker's cutoff, and each spread leg settled on its own |
 | 13 | Buying power | options buying power requirement | options buying power, never "buying power" alone | broker help centres (moomoo, Webull, Public, tastytrade, Alpaca, SoFi, iTiger), content blogs (projectfinance, optionstradingiq, Option Samurai); FXStreet and MoneyShow syndication, Substacks, a YouTube video and TradingView chart ideas in the tail. No Reddit or Investopedia surfaced | the same short put held two ways — what each reserves, and why the hold does not shrink as the mark improves |
-| 14 | Reading a chain | how to read an option chain | option chain | Investopedia, broker pages | reading without guessing the spot |
+| 14 | Reading a chain | how to read an option chain | option chain (US-listed context in the copy — the bare phrase leans to NSE/Nifty live-data pages); never "chain" alone | broker and platform education (Merrill Edge, Robinhood, Wealthsimple, moomoo, Schwab, Lightspeed, TradingBlock, AvaTrade, IBKR glossary), Market Chameleon, Yahoo Finance; Indian live-chain pages (NSE, Groww, ICICI Direct, Kotak) on the bare phrase; TradingView chart ideas, Quora and thin guide blogs in the tail. No Investopedia or Reddit surfaced | a fuller hypothetical chain (several strikes, two expirations) read across: which price is executable, why "last" and the ITM shading can mislead about where the stock is, and the same strike repriced by date |
 | 15 | Covered call | covered call explained | covered call | Investopedia, Fidelity, Schwab | mechanics, then the day after assignment |
 | 16 | Cash-secured put | cash secured put explained | cash secured put | Investopedia, Fidelity | what "secured" means in a margin account |
 | 17 | The wheel | wheel strategy options | wheel strategy | Reddit, YouTube, QuantWheel | the cost basis after each turn |
@@ -364,6 +364,61 @@ Reddit thread surfaced — the forum-style results were Substacks, a Medium post
 and TradingView chart ideas. Investopedia surfaced in none of them. That absence
 is a read of these results pages on one day through one search tool, not proof
 those sites do not rank.
+
+## Reading for row 14 — how to read an option chain (read 2026-09-25)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| how to read an option chain (target) | Market Chameleon (learn), Lightspeed, Wealthsimple, Merrill Edge, AvaTrade, Schwab ("options chain and Trade Builder"), TradingBlock, a BANKNIFTY TradingView chart idea in two locales | **hard-ish** — broker and platform education holds the top, every title some form of "How to Read an Options Chain"; the tail is a chart idea about an Indian index, not authority |
+| option chain / options chain | Wealthsimple, Merrill Edge, moomoo learn, IBKR glossary, Fidelity's live chain tool, TradingBlock, **NSE India's live option chain**, Robinhood learn, a TradingView chart idea | **hard, and a split intent** — half definition pages, half live-data tools (Fidelity, NSE). It is the hub's head term; this post does not chase it |
+| chain (unqualified) | Merriam-Webster, Wikipedia (Chain, disambiguation, nautical, unit of length, chain drive, jack chain), a jewellery shop | **do not target**: the bare word is metal links, bicycles, retail chains and a unit of length. The head term is **option chain**, never "chain" alone — the same correction rows 7, 9–13 needed |
+| option chain analysis nifty / option chain open interest support resistance | ICICI Direct, research360, NSE, Groww, Kotak Neo, NiftyTrader, Paytm Money, intradayscreener, MunafaSutra; on the OI phrasing Upstox, IIFL, elearnmarkets, unofficed, a Quora thread, Whalesbook, a moneycontrol piece on TradingView | **do not target** — the drift for "option chain" is not a dictionary sense but the Indian index-derivatives market, and its dominant use is reading OI as support and resistance, which is a signal claim we do not make. Copy says US-listed options and a hypothetical ticker so the post does not read as a Nifty page |
+| what is an options chain | Wealthsimple, Merrill Edge, Tradier KB, TradingBlock, Nasdaq's live chain, Blue Collar Investor, bullishbears, Robinhood learn, a TradingView chart idea | **hard-ish on the definition** — settled ground; it earns the first sentence, never the title |
+| how to read an options chain for beginners | Wealthsimple, Yahoo Finance (two pieces), AvaTrade, stockaverager, TradingView chart ideas in three locales | **hard-ish** — same broker set plus Yahoo; the chart-idea padding is the only weakness. "Beginners" stays out of the title — the reader has scam antibodies and knows what a call is by post 14 |
+| option chain columns explained (named Reddit in the query) | TradingView chart ideas in six locales (Indian tickers mostly), Scribd, TradingView support | **winnable** — no Reddit thread and no broker page; chart ideas and a Scribd upload hold it. An H2 that walks the columns left to right answers it |
+| option chain bid ask mark last price which one to use | Robinhood support ("Options chain metrics", three locales), moomoo, Tackle Trading, an **Elite Trader thread**, OIC, Benzinga (a syndicated "Last price" column) | **winnable** — a forum thread and a help article in three locales; the answer (last can be stale, bid/ask is the live market) is stated everywhere but never shown on a chain where the last price is from before the stock moved |
+| why is the last price on an option different from the bid and ask | Saxo, Cheddar Flow, OIC, OptionTradingpedia, Wikipedia "Financial quote", Benzinga, Robinhood, FXStreet, TradingView support | **winnable** — no page is built around the question; the post's FAQ carries it |
+| what does the shaded area on an option chain mean | thinkorswim manual, TradeStation help, Upstox, bullishbears, TC2000 help, finwiz, Yahoo Finance, StockCharts ChartSchool, TradingView chart ideas | **winnable** — platform manuals answer it one platform at a time; none says the shading is keyed to the underlying's price the platform last saw, which is where "without guessing" lives |
+| where is the stock price on the option chain / at-the-money strike | FOREX.com, Barchart (strike selection), Carta (equity comp), Fidelity, cbonds glossary, Wikipedia, SoFi, moomoo | **winnable, thin** — nothing answers the question as asked; results drift to strike selection (advice) and employee equity |
+| volume vs open interest option chain | Option Alpha, Religare, moomoo, SoFi, Nubra, options-strategies.com, optionstrading.org, TradingView scripts | **hard-ish** — settled and well covered, and half the pages turn it into sentiment signals. It earns one H2 or a table row, descriptive only |
+| same strike different price different expiration | Upstox community, Wikipedia (straddle, volatility smile, options strategy, ratio spread), two Quora threads (one asking why chain prices differ from the order screen), StockCharts, OptionsPlay | **winnable** — a community thread, two Quora threads and unrelated wiki pages; the post's second-expiration example is this question. Theta and IV are rows 7 and 8, so link, do not re-teach |
+| option chain weekly vs monthly expirations, reading across expirations | Yahoo Finance, QuantWheel (a 2026 beginner guide), MetroTrade (futures options), Barchart ("Selecting the right expiration"), MarketXLS and TradingBlock expiration calendars, optionstrading.org, a BANKNIFTY chart idea | **hard-ish, and drifting** — the results lean to calendars and choosing a date (advice) rather than reading the date selector on a chain. One sentence on the selector and the third-Friday monthly, linking row 12 |
+
+**The gap.** Every ranking page gives the same column glossary: calls on the
+left, puts on the right, strikes down the middle, then bid, ask, last, volume,
+open interest, IV and the Greeks, each defined in a sentence. Almost none reads
+across a chain as a whole — several strikes, two expirations — with numbers a
+reader can check. None puts the three quiet mis-readings side by side: a "last"
+price printed before the stock moved, so a row looks cheap or rich against a
+spot it was never traded at; the in-the-money shading keyed to the underlying
+price the platform last saw, not necessarily where the stock is now (delayed
+quotes, pre-market, after hours); and the mark shown as if it were a price, when
+the executable price for a seller is the bid and for a buyer the ask (row 5's
+ground, linked, not re-taught). Nobody shows reading two rows at once, which is
+what a spread is. Where the competitors go past the glossary they turn the chain
+into a signal — OI as support and resistance, "unusual" volume as sentiment,
+"how to pick the right strike" — which is prescriptive and, in the Nifty pages,
+a claim about direction. The angle here stays descriptive: what each column is,
+which number on the row is the live market, and how to find where the stock is
+from the chain itself without guessing.
+
+**Could not establish:** search volume, difficulty and current position for any
+phrasing above; whether these results are personalised or localised — the NSE
+and Nifty pages may be weighted by locale or may be the global norm for the bare
+phrase, and one search tool on one day cannot say which; and whether "option
+chain" or "options chain" is the dominant form — both appear in ranking titles
+in roughly equal measure, which is a count of titles and not demand, so the
+target keeps the plan's "option chain" and the body uses both naturally. The
+placeholder row named "Investopedia, broker pages". Broker pages held up;
+fifteen searches were run (two grouped into the Nifty row), including one naming Reddit in the query, and
+neither Investopedia nor a Reddit thread surfaced in any of them — the
+forum-style results were an Elite Trader thread, Quora threads and an Upstox
+community post. That absence is a read of these results pages on one day
+through one search tool, not proof those sites do not rank.
 
 ## Off-syllabus rows
 
