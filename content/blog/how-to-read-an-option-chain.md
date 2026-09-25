@@ -2,7 +2,7 @@
 title: "How to read an option chain without guessing"
 slug: how-to-read-an-option-chain
 excerpt: An option chain lists every contract on one stock by strike and expiration, and reading it well means knowing which number on each row is the live market.
-meta_description: "How to read an option chain for US-listed options: which price is live, why the last price and the shading can mislead, and one strike on two dates."
+meta_description: "How to read an option chain for US-listed options: which price is live, why the last price and shading can mislead, and why later expirations cost more."
 author: DeltaMint
 category: foundations
 series_order: 14
@@ -75,7 +75,9 @@ Two cells break the pattern. The 52 call's last trade, 0.95, sits below its
 bid of 1.42, and the 48 put's last, 1.95, sits above its ask of 1.43. Both
 printed at 10:05, when XYZ was $48.50, and neither has traded since.
 
-Now switch the expiration selector to the date 58 days out. The same strikes
+## Why does the same strike cost more on a later expiration?
+
+Switch the expiration selector to the date 58 days out. The same strikes
 reprice, shown as bid/ask beside the 30-day quotes:
 
 | Strike | Call, 30 days | Call, 58 days | Put, 30 days | Put, 58 days |
