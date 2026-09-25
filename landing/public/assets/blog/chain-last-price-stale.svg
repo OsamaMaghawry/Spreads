@@ -1,0 +1,26 @@
+<svg viewBox="0 0 720 310" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="The price of one hypothetical 52-strike call through a trading day. At 10:05, with XYZ at 48.50, the call trades at 0.95 and that trade becomes its last price. At 15:30, with XYZ at 50.00, the live quote has risen to 1.42 bid and 1.52 ask, but no one has traded the call since, so a dashed line carries the last price across the day unchanged at 0.95, sitting below the bid.">
+  <rect width="720" height="310" fill="#FFFFFF"/>
+
+  <!-- time axis -->
+  <line x1="80" y1="250" x2="660" y2="250" stroke="#E2E5EE" stroke-width="1.5"/>
+  <line x1="170" y1="244" x2="170" y2="256" stroke="#767B8E" stroke-width="1.5"/>
+  <line x1="560" y1="244" x2="560" y2="256" stroke="#767B8E" stroke-width="1.5"/>
+  <text x="170" y="276" font-size="15" text-anchor="middle" fill="#767B8E">10:05</text>
+  <text x="170" y="298" font-size="15" font-weight="600" text-anchor="middle" fill="#14151C">XYZ 48.50</text>
+  <text x="560" y="276" font-size="15" text-anchor="middle" fill="#767B8E">15:30</text>
+  <text x="560" y="298" font-size="15" font-weight="600" text-anchor="middle" fill="#14151C">XYZ 50.00</text>
+
+  <!-- the trade at 10:05, carried forward as the last price -->
+  <line x1="170" y1="210" x2="600" y2="210" stroke="#B4485C" stroke-width="2.5" stroke-dasharray="7 6"/>
+  <circle cx="170" cy="210" r="7" fill="#14151C"/>
+  <text x="170" y="192" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">printed 0.95</text>
+  <text x="612" y="216" font-size="17" font-weight="600" fill="#B4485C">last 0.95</text>
+
+  <!-- the live quote at 15:30 -->
+  <rect x="540" y="96" width="40" height="20" fill="#F1F2F6"/>
+  <line x1="540" y1="96" x2="580" y2="96" stroke="#14151C" stroke-width="3"/>
+  <line x1="540" y1="116" x2="580" y2="116" stroke="#14151C" stroke-width="3"/>
+  <text x="592" y="101" font-size="17" font-weight="600" fill="#14151C">ask 1.52</text>
+  <text x="592" y="124" font-size="17" font-weight="600" fill="#14151C">bid 1.42</text>
+  <line x1="560" y1="122" x2="560" y2="204" stroke="#767B8E" stroke-width="1.5" stroke-dasharray="3 5"/>
+</svg>

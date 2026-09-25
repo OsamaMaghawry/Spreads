@@ -120,7 +120,8 @@ Next in the [foundations series](/blog/foundations): the premium splits into two
 parts, and [intrinsic and extrinsic
 value](/blog/intrinsic-vs-extrinsic-value-options) is where the $640 and the $65
 come from. If the two sides of a contract are still hazy, [calls and puts from
-both sides](/blog/call-vs-put-option-explained) comes before this one.
+both sides](/blog/call-vs-put-option-explained) comes before this one. A
+whole chain, several strikes and two expirations read together, is in [how to read an option chain](/blog/how-to-read-an-option-chain).
 
 All figures on this page are hypothetical and are there to show the arithmetic.
 This post is educational and is not investment advice.
