@@ -177,8 +177,8 @@ naked option.
 
 Whatever the structure, the hold lasts until the position is closed, expires
 or is assigned, and a good mark along the way does not shorten it. The
-[foundations series](/blog/foundations) continues with reading an option
-chain.
+[foundations series](/blog/foundations) continues with [how to read an
+option chain](/blog/how-to-read-an-option-chain).
 
 All figures on this page are hypothetical and are there to show the
 mechanics. This post is educational and is not investment advice.
