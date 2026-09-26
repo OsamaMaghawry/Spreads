@@ -279,13 +279,17 @@ Character counts are the title length.
   9–12 months, not 6.
 
 **19. The covered call**
-- Target query: `covered call explained` · Title: **What a covered call does,
-  and what it does the day after** (56) · slug `covered-call-explained` ·
+- Target query: `covered call explained` · Title: **Covered call explained,
+  through to the day after assignment** (59) · slug `covered-call-explained` ·
   `income` (syll. 15)
-- **Hard.** Not SERP-read on 9 Sep; `keywords.md` records Investopedia,
-  Fidelity and Schwab holding it, and nothing suggests that changed. Write it
-  because the income cluster needs its spine, and expect the traffic to arrive
-  through post 12 and the hub, not through this title.
+- **Hard on the head term, winnable on the assignment angle.** SERP-read
+  2026-09-26 — see `docs/seo/keywords.md`'s "Reading for row 15": Fidelity,
+  Schwab, Chase, CIBC, TD, Wealthsimple and CFI hold the bare target query,
+  but "what happens to the account after assignment / shares called away" is a
+  text-coverage gap (two Quora threads, tool blogs, no broker page walks the
+  account line by line). Write to that gap, not the head term; expect traffic
+  to arrive through the hub and the assignment/chain posts as much as the
+  title itself.
 
 **20. The put credit spread**
 - Target query: `put credit spread explained` · Title: **What a put credit

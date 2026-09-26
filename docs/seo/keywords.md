@@ -26,7 +26,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 12 | Expiration mechanics | what happens at options expiration (also searched as "what happens when options expire") | options expiration — never "expiration" alone | Schwab, E*TRADE, Options Playbook, Option Alpha, IG, VectorVest, tastytrade and SoFi support, Fidelity, Public help; Wikipedia and Schwab on pin risk; two Quora threads and a Substack in the tail. No Investopedia or Reddit surfaced | a cent either side of the strike, the broker's cutoff, and each spread leg settled on its own |
 | 13 | Buying power | options buying power requirement | options buying power, never "buying power" alone | broker help centres (moomoo, Webull, Public, tastytrade, Alpaca, SoFi, iTiger), content blogs (projectfinance, optionstradingiq, Option Samurai); FXStreet and MoneyShow syndication, Substacks, a YouTube video and TradingView chart ideas in the tail. No Reddit or Investopedia surfaced | the same short put held two ways — what each reserves, and why the hold does not shrink as the mark improves |
 | 14 | Reading a chain | how to read an option chain | option chain (US-listed context in the copy — the bare phrase leans to NSE/Nifty live-data pages); never "chain" alone | broker and platform education (Merrill Edge, Robinhood, Wealthsimple, moomoo, Schwab, Lightspeed, TradingBlock, AvaTrade, IBKR glossary), Market Chameleon, Yahoo Finance; Indian live-chain pages (NSE, Groww, ICICI Direct, Kotak) on the bare phrase; TradingView chart ideas, Quora and thin guide blogs in the tail. No Investopedia or Reddit surfaced | a fuller hypothetical chain (several strikes, two expirations) read across: which price is executable, why "last" and the ITM shading can mislead about where the stock is, and the same strike repriced by date |
-| 15 | Covered call | covered call explained | covered call | Investopedia, Fidelity, Schwab | mechanics, then the day after assignment |
+| 15 | Covered call | covered call explained | covered call | Fidelity, Schwab (two pages), Chase, CIBC, TD, Wealthsimple, CFI, Benzinga, Raisin; on the assignment phrasings QuantWheel, VectorVest, CashFlowMachine, WheelMetrics, Option Alpha, OIC, two Quora threads. investopedia.com itself did not surface — only a cach3 mirror of it, on a query naming Investopedia. No Reddit surfaced | mechanics, then the day after assignment |
 | 16 | Cash-secured put | cash secured put explained | cash secured put | Investopedia, Fidelity | what "secured" means in a margin account |
 | 17 | The wheel | wheel strategy options | wheel strategy | Reddit, YouTube, QuantWheel | the cost basis after each turn |
 | 18 | Put credit spread | put credit spread explained | credit spread | tastylive, Investopedia | width, credit and the executable price |
@@ -419,6 +419,62 @@ neither Investopedia nor a Reddit thread surfaced in any of them — the
 forum-style results were an Elite Trader thread, Quora threads and an Upstox
 community post. That absence is a read of these results pages on one day
 through one search tool, not proof those sites do not rank.
+
+## Reading for row 15 — covered call explained (read 2026-09-26)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| covered call explained (target) | Chase, Fidelity, TD, Wealthsimple, StockTrak, Schwab ("Covered Call Strategy Basics"), CIBC Investor's Edge, Benzinga, Corporate Finance Institute | **hard** — bank and broker education end to end, plus CFI and a syndicated column; nearly every title is "What is a covered call" and several add "when to use one", which is advice framing we do not write |
+| covered call / what is a covered call | Fidelity, Schwab (twice), Chase, CIBC, Madison Funds, Raisin, Lyn Alden, CFI (two URLs), Law Insider, Benzinga | **hard** — the same set, plus a fund manager and a contract-clause dictionary. It is the hub's head term; this post does not chase it |
+| what happens when a covered call is assigned | QuantWheel, Fidelity ("Anatomy of a Covered Call"), Schwab, VectorVest, OIC, Options Playbook (rolling), CashFlowMachine, borntosell, Nasdaq | **hard-ish** — broker and OIC pages hold the top, but half the set is one-page tool and affiliate blogs. The synthesised answer calls assignment "the maximum profit scenario… not something to be concerned about", which is reassurance, not mechanics |
+| covered call assigned, what does my account look like after shares called away | Schwab, Option Alpha, QuantWheel, WheelMetrics, CashFlowMachine, Barchart, two TD adviser PDFs, a TradingView chart idea | **winnable** — adviser PDFs and a chart idea in the top set are a text-coverage gap; "shares gone, cash deposited" is one sentence everywhere, and no page walks the account line by line. This is the post's angle and its home intent |
+| my covered call was assigned, shares called away, now what | Schwab (twice), Option Alpha, QuantWheel, **two Quora threads** (one: "what does it mean if your stock is 'called away'"), VectorVest, WheelMetrics, CashFlowMachine | **winnable** — two Quora threads are winnable intent. The ranking pages answer "now what" with re-entry and the wheel, which is advice; the post stops at what the account holds. "Called away" is the searcher's word |
+| do you keep the premium if a covered call is assigned | Fidelity, OIC, Schwab, QuantWheel, VectorVest, a MarketBeat trial page, Raisin, a TradingView chart idea, a Scribd broker guide | **winnable** — a trial page, a chart idea and a Scribd upload in the top set; the post's first FAQ carries this verbatim |
+| covered call break even price calculation | Wikipedia ("Stock option return"), Fidelity, six calculator pages (optionsmath, AllInvestView, optionprofitcalc, IncomeTrader, mytimecalculator, TradeAlgo), FasterCapital | **do not target as a title** — calculator intent. Every page calls it "lowering your cost basis" and "downside protection"; the post's arithmetic answers it in the body |
+| does a covered call lower cost basis (taxes) | a TurboTax community thread, Fidelity (tax implications), great-option-trading-strategies, LegalClarity, daystoexpiry (Form 8949), a TD adviser PDF, Benzinga, a Substack comments page | **winnable on the words, but tax intent** — a forum thread and a comments page rank. The searcher wants reporting rules the post deliberately leaves to a tax professional, so it stays a statement heading, not the question |
+| covered call vs naked call | Study.com (twice), Share India, thestockdork ("2026 guide"), Wealthfit, borntosell, Seeking Alpha instablogs (twice), Motley Fool (2016) | **winnable** — exam-prep, an Indian broker blog, instablogs and a dated column; no US broker hub. Answered in the post's first H2 and FAQ. The ranking pages call covered calls "conservative and low-risk", which the post does not say |
+| does a covered call protect against the stock falling | Chase, heygotrade ("Covered Calls Explained"), Schwab (twice), **ProShares ("Covered Call ETFs: The Myth of Downside Protection")**, Benzinga, FXStreet (2017), Motley Fool (2009) | **winnable** — dated syndication in the top set. The honest answer ("only by the premium") is rare; most pages call it a cushion or protection. The FAQ carries it verbatim |
+| why is covered call upside capped / max profit | tastytrade, TradingBlock (guide and calculator), ryanoconnellfinance, OIC, Traders Agency, projectoption, optionprofitcalc, a TradingView chart idea | **hard-ish** — broker education plus funded blogs; the formula is stated everywhere, and against the shares held alone almost nowhere |
+| covered call early assignment before ex-dividend | Schwab, Fidelity, Option Samurai, VectorVest, Blue Collar Investor, great-option-trading-strategies, borntosell, ApexVol, a Substack, Benzinga | **row 11's ground and keyword-map item 12's** — nearly every page is "how to avoid" it (buy back, schedule around the ex-date). One paragraph of the post touches it and hands off |
+| how does a covered call end (expire, assigned, buy back) | Option Alpha, CIBC, Schwab ("Beyond the Basics"), Options Playbook (rolling), optionstradingiq (exit strategies), theoptionsbench, optionspilot (twice) | **winnable** — two pages from one app blog and a guide site in the top set; the ranking pages turn "how it ends" into exit and roll strategies. The post's H2 answers it descriptively |
+| can I sell my shares with a covered call open | Wealthsimple help, Lyn Alden, TC2000 help, Schwab, Options Playbook, CashFlowMachine, Benzinga, a TradingView chart idea in two locales | winnable, thin — help centres answer it one platform at a time; the post has one sentence on it in the covered-vs-naked section, which is the right size |
+| covered call reddit / r/options beginner (named Reddit in the query) | Benzinga, CFI, TradingView chart ideas in six locales (Indian tickers), a Seeking Alpha instablog | **no Reddit surfaced** — the forum-style results are chart ideas. The chart-idea padding is a text-coverage gap |
+
+**The gap.** Every ranking page gives the same five things: own 100 shares, sell
+one call, keep the premium, the upside is capped at the strike, and "if
+assigned, the shares are sold at the strike". Most then tell the reader when to
+use it ("neutral to slightly bullish"), what to do next (roll, re-enter, run the
+wheel), or call it income, "guaranteed income", "conservative and low-risk", or
+"downside protection". Almost none puts one position at two closing prices, plus
+one below cost, with arithmetic a reader can check against the shares held
+alone. None walks the account the morning after assignment line by line: zero
+shares, cash at the strike, the short call gone, and the premium sitting weeks
+earlier in history as a separate row. Two smaller points nobody occupies: the
+downside cushion is exactly the premium and "nothing more" (only ProShares, on
+covered-call ETFs, argues it against the "protection" framing), and "lowers
+your cost basis" is a way of thinking about break-even, not a tax statement
+(the pages that separate the two are tax pages, not strategy pages). The angle
+here stays descriptive: mechanics, then the account after assignment, and no
+next trade.
+
+**Could not establish:** search volume, difficulty and current position for any
+phrasing above; whether these results are personalised or localised; whether
+"covered call" or "covered calls" is the dominant form (both appear in ranking
+titles, which is a count of titles and not demand, so the slug keeps the
+plan's singular); and how much of the bare head term's demand is covered-call
+ETF traffic (JEPI-style products). ProShares and Madison Funds surfaced, but
+the ETF phrasing itself was not read. The placeholder row named "Investopedia,
+Fidelity, Schwab". Fidelity and Schwab held up. Investopedia surfaced only as a
+cach3 mirror of an old article, on a query that named Investopedia, and in none
+of the other fourteen searches. No Reddit thread surfaced in any search,
+including one naming Reddit in the query. The forum-style results were two
+Quora threads, a TurboTax community thread and TradingView chart ideas. That
+absence is a read of these results pages on one day through one search tool,
+not proof those sites do not rank.
 
 ## Off-syllabus rows
 

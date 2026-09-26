@@ -182,8 +182,8 @@ against a stock price the platform may have received a while ago. The
 guessing starts when one is taken for another.
 
 A spread is two rows priced at once, and the same care applies to both.
-This post closes the [foundations series](/blog/foundations); the income
-series opens with the covered call.
+This post closes the [foundations series](/blog/foundations); the [income
+series](/blog/income) opens with [the covered call](/blog/covered-call-explained).
 
 All figures on this page are hypothetical and are there to show the
 mechanics. This post is educational and is not investment advice.
