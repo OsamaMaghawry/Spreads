@@ -99,7 +99,7 @@ A **covered call** is a short call written against 100 shares already in the
 account. The shares are the collateral, delivered at the strike if the call
 is assigned. No cash is reserved, but the shares are committed while the
 call is open, and the premium received adds to buying power rather than
-reserving any of it. Covered calls get their own post in the income series.
+reserving any of it. [Covered calls](/blog/covered-call-explained) get their own post in the income series.
 
 A **naked**, or uncovered, short option has no shares and no long leg behind
 it. Its requirement comes from a formula in exchange and regulatory rules,
