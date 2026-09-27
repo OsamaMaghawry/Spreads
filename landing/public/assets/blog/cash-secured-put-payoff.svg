@@ -1,0 +1,25 @@
+<svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Gain or loss at expiration, per share, of a hypothetical cash-secured 50 put sold for 1.40. Below the 50 strike the line falls dollar for dollar with the stock, crossing zero at a break-even of 48.60. At and above the strike the line is flat at 1.40, the premium, however high the stock goes. A red wedge below the strike shows the loss growing as the stock falls further, and a green band above the strike shows the flat premium kept.">
+  <rect width="720" height="340" fill="#FFFFFF"/>
+
+  <!-- zero line and strike guide -->
+  <line x1="80" y1="183" x2="660" y2="183" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="328.6" y1="40" x2="328.6" y2="290" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="328.6" y="312" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">50</text>
+
+  <!-- loss growing below the strike -->
+  <polygon points="270.6,183 80,183 80,275" fill="#B4485C" fill-opacity="0.16"/>
+
+  <!-- premium kept at and above the strike -->
+  <polygon points="328.6,155 660,155 660,183 328.6,183" fill="#2E8B5F" fill-opacity="0.18"/>
+  <text x="494" y="145" font-size="15" font-weight="600" text-anchor="middle" fill="#2E8B5F">premium kept</text>
+
+  <!-- payoff line -->
+  <path d="M80 275 L328.6 155 L660 155" fill="none" stroke="#14151C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- break-even -->
+  <circle cx="270.6" cy="183" r="6" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="258" y="170" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">break-even 48.60</text>
+
+  <!-- axis label -->
+  <text x="370" y="332" font-size="15" text-anchor="middle" fill="#767B8E">stock price at expiration</text>
+</svg>
