@@ -27,7 +27,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 13 | Buying power | options buying power requirement | options buying power, never "buying power" alone | broker help centres (moomoo, Webull, Public, tastytrade, Alpaca, SoFi, iTiger), content blogs (projectfinance, optionstradingiq, Option Samurai); FXStreet and MoneyShow syndication, Substacks, a YouTube video and TradingView chart ideas in the tail. No Reddit or Investopedia surfaced | the same short put held two ways — what each reserves, and why the hold does not shrink as the mark improves |
 | 14 | Reading a chain | how to read an option chain | option chain (US-listed context in the copy — the bare phrase leans to NSE/Nifty live-data pages); never "chain" alone | broker and platform education (Merrill Edge, Robinhood, Wealthsimple, moomoo, Schwab, Lightspeed, TradingBlock, AvaTrade, IBKR glossary), Market Chameleon, Yahoo Finance; Indian live-chain pages (NSE, Groww, ICICI Direct, Kotak) on the bare phrase; TradingView chart ideas, Quora and thin guide blogs in the tail. No Investopedia or Reddit surfaced | a fuller hypothetical chain (several strikes, two expirations) read across: which price is executable, why "last" and the ITM shading can mislead about where the stock is, and the same strike repriced by date |
 | 15 | Covered call | covered call explained | covered call | Fidelity, Schwab (two pages), Chase, CIBC, TD, Wealthsimple, CFI, Benzinga, Raisin; on the assignment phrasings QuantWheel, VectorVest, CashFlowMachine, WheelMetrics, Option Alpha, OIC, two Quora threads. investopedia.com itself did not surface — only a cach3 mirror of it, on a query naming Investopedia. No Reddit surfaced | mechanics, then the day after assignment |
-| 16 | Cash-secured put | cash secured put explained | cash secured put | Investopedia, Fidelity | what "secured" means in a margin account |
+| 16 | Cash-secured put | cash secured put explained (also searched as "what is a cash secured put") | cash-secured put; never "CSP" alone (see the row 16 reading) | Fidelity (two pages), Britannica Money, OIC, IBKR glossary, Chase, Schwab, Firstrade, Options Playbook, SoFi, Questrade, Nasdaq; on the assignment and comparison phrasings QuantWheel, WheelMetrics, IncomeNavigator, VectorVest, Option Samurai, calculator sites and Substacks. investopedia.com did not surface, not even on a query naming it. No Reddit surfaced | what "secured" means next to a naked put, the reserve that does not shrink, the premium as the only cushion (not a discount), and the account the morning after assignment: the reserve spent, not released |
 | 17 | The wheel | wheel strategy options | wheel strategy | Reddit, YouTube, QuantWheel | the cost basis after each turn |
 | 18 | Put credit spread | put credit spread explained | credit spread | tastylive, Investopedia | width, credit and the executable price |
 | 19 | Call credit spread | call credit spread explained | credit spread | tastylive | the mirror, and what is different about upside |
@@ -475,6 +475,72 @@ including one naming Reddit in the query. The forum-style results were two
 Quora threads, a TurboTax community thread and TradingView chart ideas. That
 absence is a read of these results pages on one day through one search tool,
 not proof those sites do not rank.
+
+## Reading for row 16 — cash-secured put explained (read 2026-09-27)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| cash secured put explained (target) | Britannica Money ("Cash-Secured Put Options Explained"), Fidelity, OIC, IBKR glossary, Chase, Firstrade, Schwab ("Managing Cash-Secured Puts for Income Strategies"), Options Playbook, Nasdaq | **hard** — broker, bank and exchange education end to end, plus Britannica holding the exact "Explained" title. Nearly every snippet says "neutral-to-bullish" or "buy the stock below today's price", which is outlook and advice framing we do not write |
+| what is a cash secured put / cash secured put (head) | SoFi (support article and learn page), Fidelity (two URLs), IBKR, OIC, Chase, Schwab, Firstrade, Lightspeed, Britannica, Benzinga, Nasdaq, one Substack | **hard** — the same set. It is the hub's head term; this post does not chase it. The synthesised answer calls the strategy "relatively conservative, income-generating", which the post does not say |
+| what happens when a cash secured put is assigned | Schwab, Fidelity, OIC, **QuantWheel ("CSP Assignment [2026]")**, SoFi support, Chase, **WheelMetrics**, **IncomeNavigator**, Nasdaq | **hard-ish** — broker and OIC pages hold the top, but three one-page wheel-tool blogs hold the rest. Same shape as row 15's assignment phrasing. Also keyword-map item 13's target (`cash-secured-put-assigned`); see Could not establish |
+| cash secured put assigned, what does my account look like (shares, cash, buying power) | Questrade, SoFi support, Wealthsimple help ("Sell a secured put"), Fidelity (two), Schwab, Chase, OIC, Options Playbook, Public | **winnable on the answer** — help centres answer it one platform at a time. The synthesised answer reads "your buying power is restored as the obligation is fulfilled", which is the wrong half: on assignment the reserve is spent on the shares, which carry their own requirement. No page walks the account line by line. This is the post's angle and its home intent |
+| cash secured put margin account, what does "secured" mean | Wealthsimple help, ryanoconnellfinance, Questrade, Fidelity, Chase, IBKR, Schwab, **WheelYield ("Margin Puts vs Cash-Secured Puts")**, Nasdaq | **winnable-ish** — two help centres, a personal-brand blog and a wheel-tool site in the top set; "secured" is defined in one sentence everywhere and set against the naked put's moving requirement almost nowhere. The placeholder angle's home; the post's first H2 answers it |
+| cash secured put vs naked put | OIC (both strategy pages), TrendSpider learning centre, Questrade, Britannica, OptionsPlay, WheelMetrics, borntosell, Motley Fool (2016) | **winnable** — a charting vendor's learning centre, a wheel-tool blog and a 2016 column in the top set. Several pages separate the two by intent ("a CSP writer wants the stock"), which is motive, not mechanics. The post's FAQ carries it |
+| do you keep the premium on a cash secured put if assigned | Fidelity (two), Firstrade, OIC, Britannica, Schwab, Chase, Options Playbook (two) | **hard on the words, settled on the answer** — "yes" everywhere. One FAQ line, never a heading |
+| does the premium count toward cash secured put collateral | Britannica, ryanoconnellfinance, Dividend.com, Fidelity (two), IQ Calculators, AllInvestView, Public, a Spanish Substack | **winnable, and contested** — calculators and a Substack in the top set, and the synthesised answer read "no" flatly while quoting a Fidelity-style example in which the premium is netted against the deposit. Broker-dependent in fact; the post's "many brokers let the credit count toward the reserve at the open" is the defensible wording |
+| cash secured put break even calculation | QuantWheel (two), optionsmath, AllInvestView, sellputcalculator, seekreturns, InsiderFinance, optionprofitcalc, daystoexpiry | **do not target as a title** — calculator intent end to end, and several pages pivot to "return on capital = premium ÷ cash", an annualisable yield figure the claims discipline keeps us away from. The post's arithmetic answers it in the body |
+| cash secured put max loss, what if the stock drops a lot | moomoo learn, OIC, ryanoconnellfinance, Schwab, OptionStrat, Fidelity, optionprofitcalc, InsiderFinance, Nasdaq ("for small accounts") | **winnable-ish** — broker pages, but calculators pad half the set. "(strike − premium) × 100" is stated everywhere; the premium set against the size of the fall on one position with checkable arithmetic is not. Best fit for a question heading over the post's payoff section |
+| can a cash secured put be assigned early | Fidelity, OIC, Schwab, ryanoconnellfinance, QuantWheel, **a YouTube video**, daystoexpiry, Nasdaq, a Substack ("first hour after assignment… most skip step 2") | **winnable** — a video and a Substack in the top set. The synthesised answer says early put assignment "often occurs on the ex-dividend date", which is the call case, not the put case; the put case is interest on the strike proceeds, which is what the post says. Row 11's ground; one FAQ line hands off |
+| cash secured put vs covered call | Saxo, VectorVest, Option Samurai, IncomeShares, Longbridge, themanwire, daystoexpiry ("Which Is Better?"), stockgro, Benzinga | **winnable** — no US broker hub; content and tool blogs, most titled "which is better / which should you use", which is a recommendation we do not write. The post's comparison H2 answers it descriptively |
+| is a cash secured put the same risk as a covered call (put-call parity) | E*TRADE, an OIC PDF, Wikipedia, optvana, coveredcallcalculator.net, sophie-ai-finance, themanwire, TradeAlgo, OptionsPilot | **winnable, thin** — AI-era guide sites dominate. The equivalence is asserted everywhere and shown on one strike almost nowhere; out of scope for this post beyond its comparison table |
+| sell puts to buy stock at a discount | Saxo case study, E*TRADE, Fidelity, OIC, Options Playbook, SlashTraders ("a discount on top of a discount"), an adviser site, Piranha Profits, InsiderFinance | **do not target** — row 44's ground ("sell puts to buy stock"), and the framing is the discount the post's payoff section argues against. The post names the idea only to say the premium is compensation for an obligation, not a discount |
+| cash secured put in a cash account / IRA approval level | SoFi, options-america, tastytrade help (account levels), TradeAlgo (three broker-named guides), coveredcallcalculator.net, OptionsPilot, Wikipedia (CBOE PutWrite Index) | **do not target** — broker-by-broker approval tables; answering it means naming brokers and their levels, which the post rightly does not do. One sentence in the post covers the general case |
+| cash secured put reddit / r/options beginner (named Reddit in the query) | two Substacks, Goodreads, Nasdaq, Yahoo Finance syndication, Barchart, TradingView chart ideas (SENSEX) in two locales, a Gumroad course page | **no Reddit surfaced** — Goodreads, a course page and chart ideas in the top set; the text-coverage gap is real but the intent is a beginner walk-through, which the post already is |
+| CSP (unqualified) / CSP options meaning | Questrade, TradesViz, Option Alpha, then **MDN "Content Security Policy"** and a Law Insider "CSOP option" entry | **do not target the acronym** — "CSP" drifts to web security and UK share schemes even with "options" beside it. Spell out "cash-secured put"; the post never uses the acronym, which is right |
+| cash secured put investopedia (named Investopedia in the query) | Seeking Alpha (2012), IBKR, Fidelity (two), OIC, Chase, a TradingView chart idea, Benzinga, Yahoo syndication | **no Investopedia surfaced**, not even as a mirror — contradicting the placeholder row's "Investopedia, Fidelity" |
+
+**The gap.** Every ranking page gives the same five things: sell a put, set
+aside strike × 100, keep the premium, if assigned buy at the strike, "effective
+cost = strike − premium". Most then frame it by outlook and motive
+("neutral-to-bullish", "get paid to buy stocks at a discount", "relatively
+conservative income") or turn "what next" into rolling and the wheel. Almost
+none says the premium is the only cushion and is compensation for the
+obligation rather than a discount — the pages that reach a large fall state
+the max-loss formula and stop. None walks the account the morning after
+assignment line by line, and the one synthesised answer on the account
+phrasing gets the buying-power half wrong: the reserve is spent on shares, not
+restored. Two smaller unoccupied points: the reserve is fixed at the strike
+from the fill to the close and does not shrink as the put goes the seller's
+way (row 13's point, linked), and early put assignment is driven by interest
+on the strike proceeds, not the ex-dividend date the synthesised answer
+borrowed from the call case. The angle here stays descriptive: what "secured"
+reserves, what the premium does and does not do, and what the account holds
+afterwards — no outlook, no "discount", no yield.
+
+**Could not establish:** search volume, difficulty and current position for any
+phrasing above; whether these results are personalised or localised; whether
+"cash secured put" or "cash-secured put" is the dominant typed form — search
+treats the hyphen as a separator and ranking titles use both, so the slug and
+title keep the hyphen, which reads correctly; whether "cash secured put" or
+"cash secured puts" is dominant (both appear in titles, a count of titles and
+not demand); and how this post and keyword-map item 13
+(`cash-secured-put-assigned`, target "what happens when a cash secured put is
+assigned") will split the assignment intent — this post's final sections
+already answer item 13's query, so two pages on one domain may compete for it.
+That is a planning question for the map, not a finding against this post. The
+placeholder row named "Investopedia, Fidelity". Fidelity held up, twice over.
+Twenty-one searches were run (the bare head term grouped with "what is";
+two more — how a cash-secured put ends, and the premium as a discount — added
+only a Sarwa help page, a Montréal Exchange PDF, Piranha Profits and repeats,
+so they are not tabled), one naming Investopedia and one naming Reddit in
+the query, and neither Investopedia nor a Reddit thread surfaced in any of them
+— the forum-style results were Substacks, a YouTube video, Goodreads and
+TradingView chart ideas. That absence is a read of these results pages on one
+day through one search tool, not proof those sites do not rank.
 
 ## Off-syllabus rows
 

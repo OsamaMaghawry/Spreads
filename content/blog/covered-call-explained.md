@@ -158,5 +158,10 @@ The position ends with the shares kept and uncovered, or delivered at the
 strike. The day after assignment, the account holds cash; the shares, the
 short call and the covered call are gone.
 
+The income series continues with the [cash-secured
+put](/blog/cash-secured-put-explained), the put-side counterpart: cash
+reserved instead of shares, and an obligation to buy at the strike instead
+of to sell.
+
 All figures on this page are hypothetical and are there to show the
 mechanics. This post is educational and is not investment advice.

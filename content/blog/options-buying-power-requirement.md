@@ -68,6 +68,8 @@ it, so opening the position needs the strike amount less the credit.
 In a margin account a broker can instead margin a short put at a lower
 requirement that moves with the stock. The reserve then no longer covers what
 assignment would cost; "cash-secured" is the version where the two match.
+The [cash-secured put post](/blog/cash-secured-put-explained) follows one
+through to assignment.
 
 ## How much buying power does a credit spread use?
 
