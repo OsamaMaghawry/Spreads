@@ -25,7 +25,7 @@ post did: with what the account actually holds afterward.
 
 - "Secured" means the full purchase cost sits in cash already, not on margin.
 - The premium is kept whether or not the put is ever assigned.
-- Below the strike, the position loses with the stock dollar for dollar, cushioned only by the premium.
+- Below the strike, the position falls with the stock dollar for dollar, cushioned only by the premium.
 - At or above the strike, the most the put returns is the premium already collected.
 - After assignment the account holds shares bought at the strike, not cash.
 
@@ -78,14 +78,14 @@ the other.
 | The put | Expires worthless | Assigned |
 | The cash reserved | Released, $5,000 free again | Spent, $5,000 buys 100 shares |
 | The $140 premium | Kept | Kept |
-| Stock trading below $50 | Not owned, no exposure | 100 shares owned at an effective $48.60 |
+| Stock finishing below $50 | Did not happen | 100 shares owned at an effective $48.60 |
 | What the account holds | Cash only, no position | 100 shares, no short put |
 
 In the first case nothing is bought: the put disappears and the $5,000
 reserve is free again. In the second, the shares arrive at $50.00 while the
-stock trades at $47.00, an unrealized $2.40 per share below the effective
-cost — smaller than the $5.00 a trader who simply bought at $52.00 would be
-under.
+stock trades at $47.00, an unrealized $1.60 per share below the effective
+$48.60 cost — smaller than the $5.00 a trader who simply bought at $52.00
+would be under.
 
 ## A cash-secured put trades premium for a purchase obligation, not a discount
 
@@ -103,10 +103,10 @@ the $10.00 per-share gap. The reserved cash does not grow to protect against
 that outcome; it only ever covers the $50.00 purchase.
 
 That single line of protection does not change with the size of the move. A
-stock that finishes $2 below the strike costs the position the same $1.40
-cushion as one that finishes $12 below it — only the size of the unrealized
-loss on the shares changes, not what the premium was compensating for in
-the first place.
+stock that finishes $2 below the strike gets the same $1.40 cushion as one
+that finishes $12 below it — only the size of the unrealized loss on the
+shares changes, not what the premium was compensating for in the first
+place.
 
 ## How does a cash-secured put end?
 
@@ -136,11 +136,11 @@ does, the account shows:
 - **Short put.** Gone. Assignment removed the line; nothing is left to buy back.
 - **Buying power.** The $5,000 reserve does not return — it is now shares instead of cash, and the shares carry their own requirement, as the [assignment post](/blog/option-assignment-what-happens) walks through.
 
-The account history typically records the reserve's release and the share
-purchase as one event, weeks after the premium that started the position,
-so reading the whole trade back from the history takes some assembly. The
-premium itself sits in a separate row, dated the day the put was sold, and
-nothing in the ledger ties the two rows together automatically.
+The account history typically records the assignment and the share purchase
+at the strike as one or two rows, weeks after the premium that started the
+position, so reading the whole trade back from the history takes some
+assembly. The premium itself sits in a separate row, dated the day the put
+was sold, and nothing in the ledger ties the rows together automatically.
 
 ## Cash-secured put vs covered call: the same premium, opposite obligation
 
@@ -154,7 +154,7 @@ return. What differs is which side of owning the stock each one sits on.
 | Obligation if assigned | Buy 100 shares at the strike | Sell 100 shares at the strike |
 | Before assignment | No shares owned | Shares owned |
 | After assignment | Shares owned, cash spent | Cash held, shares gone |
-| What caps the return | The premium, above the strike | The strike plus the premium, above the strike |
+| What caps the return | The premium, above the strike | Strike minus share cost, plus the premium |
 
 Selling a cash-secured put to acquire shares and later selling a covered
 call against those same shares is the pattern most people mean by "the
