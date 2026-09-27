@@ -1,8 +1,8 @@
 ---
-title: "Cash-secured put explained, from the reserved cash to assignment"
+title: "Cash-secured put explained, from reserved cash to assignment"
 slug: cash-secured-put-explained
 excerpt: A cash-secured put is a short put backed by cash equal to the strike, and it ends with that cash spent on shares or the premium simply kept.
-meta_description: "Cash-secured put explained: the strike times 100 held in reserve, the premium kept either way, and what the account holds after assignment."
+meta_description: "Cash-secured put explained: the strike times 100 held until the put ends, the premium kept either way, and that cash spent on shares if assigned."
 author: DeltaMint
 category: income
 series_order: 16
@@ -166,6 +166,7 @@ wheel" — each leg is one of these two positions, in sequence.
 - **Does the cash reserve grow if the stock keeps falling?** No. It is fixed at the strike times 100 from the moment the put is sold.
 - **Can a cash-secured put be assigned early?** Yes, on American-style options, though it is uncommon outside a deep in-the-money put.
 - **Cash-secured put vs a naked put?** A cash-secured put has the full purchase cost already reserved; a naked put is backed by a smaller, moving margin requirement instead.
+- **What happens when a cash-secured put is assigned?** The reserved cash buys 100 shares at the strike, the short put disappears, and the premium already received stays in the account.
 
 ## The bottom line
 

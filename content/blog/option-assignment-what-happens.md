@@ -121,10 +121,11 @@ right away.
 
 ## Example: a hypothetical short put assigned overnight
 
-Take a put on the hypothetical 50-strike series this series has been using
-for its calls, sold for $1.40 — a $140 credit on one contract — and secured
-with $5,000 of cash. Many brokers net the premium against that hold instead,
-so the figure on a real screen is often a little less.
+Take a [cash-secured put](/blog/cash-secured-put-explained) on the
+hypothetical 50-strike series this series has been using for its calls,
+sold for $1.40 — a $140 credit on one contract — and secured with $5,000 of
+cash. Many brokers net the premium against that hold instead, so the figure
+on a real screen is often a little less.
 
 The put is deep in the money with little time value left in it, and on a
 Thursday, after the close, the holder exercises. All figures here are made
