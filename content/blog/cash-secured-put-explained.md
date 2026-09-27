@@ -156,9 +156,9 @@ return. What differs is which side of owning the stock each one sits on.
 | After assignment | Shares owned, cash spent | Cash held, shares gone |
 | What caps the return | The premium, above the strike | Strike minus share cost, plus the premium |
 
-Selling a cash-secured put to acquire shares and later selling a covered
-call against those same shares is the pattern most people mean by "the
-wheel" — each leg is one of these two positions, in sequence.
+Selling a cash-secured put to acquire shares, then later selling a covered
+call against those same shares, chains the two positions together — put
+first, call second, on the same underlying stock.
 
 ## Frequently asked questions
 
