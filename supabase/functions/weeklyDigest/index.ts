@@ -51,8 +51,17 @@ const brokerHeaders = (a: any) =>
         "Content-Type": "application/json"
       };
 
+// Every broker call is bounded. On Saturday 26 September a broker call for the
+// FIRST account never answered; with no limit the run waited on it until the
+// platform killed the whole function at 150 seconds, before a single row was
+// written -- so every user's email was lost to one account's hung request, and
+// nothing recorded that the run had failed. A call that has not answered in
+// BROKER_TIMEOUT_MS is a failed call: the snapshot says which part is missing,
+// exactly as it does for a broker error, and the run moves on.
+const BROKER_TIMEOUT_MS = 8000;
+
 async function brokerGet(url: string, account: any) {
-  const res = await fetch(url, { headers: brokerHeaders(account) });
+  const res = await fetch(url, { headers: brokerHeaders(account), signal: AbortSignal.timeout(BROKER_TIMEOUT_MS) });
   const text = await res.text();
   if (!res.ok) throw new Error(`Alpaca ${res.status}`);
   return text ? JSON.parse(text) : null;
@@ -278,10 +287,17 @@ Deno.serve(async (req) => {
         for (const a of userAccounts) {
           const base = brokerBase(a);
           const failed: string[] = [];
-          const acct = await brokerGet(`${base}/account`, a).catch(() => { failed.push("account value"); return null; });
-          const positions = await brokerGet(`${base}/positions`, a).catch(() => { failed.push("positions"); return null; });
-          const openOrders = await brokerGet(`${base}/orders?status=open&nested=true&limit=100`, a)
-            .catch(() => { failed.push("open orders"); return null; });
+          // Together, not one after another: an unreachable broker costs one
+          // timeout per account, not three.
+          const [acct, positions, openOrders] = await Promise.all([
+            brokerGet(`${base}/account`, a).catch(() => { failed.push("account value"); return null; }),
+            brokerGet(`${base}/positions`, a).catch(() => { failed.push("positions"); return null; }),
+            brokerGet(`${base}/orders?status=open&nested=true&limit=100`, a)
+              .catch(() => { failed.push("open orders"); return null; })
+          ]);
+          // Said in the same order every time, whichever call gave up first.
+          const ORDER = ["account value", "positions", "open orders"];
+          failed.sort((x, y) => ORDER.indexOf(x) - ORDER.indexOf(y));
           snaps.set(a.id, snapshotOf(acct, positions, openOrders, failed));
         }
 
