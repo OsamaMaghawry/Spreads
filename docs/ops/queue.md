@@ -5,6 +5,58 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Needs owner
 
+- [needs owner] 2026-09-28 · reality check (2026-W40) · **Migration `0054`'s
+  hard deadline — confirm on production before Sat 19 Sep 13:00 UTC or the
+  weekly-digest cron fails to send to everyone — passed nine days ago and
+  nothing in the repo says which way it went.** `grep -n "0054"` across
+  every `docs/ops/2026-09-*.md` ledger from 21–25 Sep returns nothing; the
+  item was last mentioned 18 Sep. Two Saturday sends (19 and 26 Sep) may
+  both have silently failed for every subscriber. Not checkable from a
+  session — production Supabase is 403 at CONNECT (`docs/reality/2026-W40.md`
+  §0/§1). **Owner action:** confirm whether `0054` is applied on
+  `yecfbeohyakuoyczvdbj`, and whether the 19/26 Sep digests actually sent;
+  backfill if not. Emailed (money-path, hard deadline already missed).
+
+- [needs owner] 2026-09-28 · reality check (2026-W40) · **Every weekly
+  strategy cadence has now failed to reach `main` for a fourth consecutive
+  week (W36→W39), including this exact reality-check job's own last two
+  editions (`docs/reality/2026-W38.md`, `2026-W39.md`, both still only on
+  orphan branches).** W39's own board pack already named this as "a third
+  straight week" — that finding itself never reached `main` either, so it
+  went unseen by anyone reading only the default branch. Confirmed this run:
+  W39's reality check, growth play, product backlog, branding audit,
+  seo review, trading audit and board pack all exist, all on time, all on
+  separate `claude/*` branches, none an ancestor of `origin/main`
+  (`docs/reality/2026-W40.md` §6). `docs/product/backlog.md` on `main`
+  still opens "Last run: 2026-09-01." One piece of stranded work (the
+  SnapTrade/Tradier branch, ~6,600 lines, W39's PR #9 concern) did land on
+  `main` since — by manual rescue, not by any pipeline mechanism. Branch
+  count: 74 `claude/*` branches today vs 54 a week ago, 49 the week before,
+  20 two weeks before that — accelerating. **Owner action:** either repeat
+  the one-time `ad3eb33` report-cherry-pick for the five stranded W39
+  branches (and this report, once merged from its own branch), or build the
+  missing mechanism — nothing in this org merges a report branch to `main`
+  the way `content-merge.yml` does for blog posts. Not a duty-engineer fix
+  (structural, cross-cutting). Emailed (this is the report's own headline
+  finding).
+
+- [needs owner] 2026-09-28 · reality check (2026-W40) · **`docs/context/
+  handoff.md` is now four weeks stale (unedited since 31 Aug) and two prior
+  reality checks (W38, W39) already flagged this without effect, because
+  neither reached `main`.** Two of its four "waiting on the owner" items are
+  actually resolved (Brevo digest key, `/forgot-password` noindex); one —
+  Brevo SMTP creds for Supabase Auth sign-in/reset mail — is a genuinely
+  separate, still-open blocker that two prior reports conflated with the
+  resolved digest-key item (`.github/workflows/auth-config.yml`'s
+  `SUPABASE_ACCESS_TOKEN` gets a 403 from the Auth Management API; it needs
+  a distinct `SUPABASE_MANAGEMENT_TOKEN` that does not exist). The AMD
+  ticket (wees08@gmail.com) has had no new evidence in over three weeks.
+  Not a duty-engineer fix (docs ownership, not a bug). **Proposed action:**
+  next session that touches `docs/context/` rewrites it to point at
+  `docs/ops/queue.md`'s "Needs owner" section for current state, and either
+  sets `SUPABASE_MANAGEMENT_TOKEN` or drops the auth-config item, per the
+  owner's call.
+
 - [needs owner] 2026-09-21 · duty-engineer · **`agents@deltamint.app` needs
   confirming as a verified sender in Brevo.** `3a7e7ed` (2026-09-20, on
   `staging`) split outbound mail by reader: customer mail (weekly digest,
@@ -465,6 +517,26 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Open
 
+- [open] 2026-09-28 · reality check (2026-W40) · **`content/PLAN.md`'s
+  Published table has no row for `what-is-an-options-contract.md`**
+  (foundations · 1, `published_at: 2026-09-07`, present and live-shaped on
+  `main` today). Grepped the table directly: zero rows for that slug, only
+  other posts' link mentions. **This is the third week this exact gap has
+  existed** — first found in `docs/reality/2026-W38.md` (14 Sep), which
+  never reached `main` (see the cadence-stranding ticket above), so the ask
+  was never seen by anyone working from the default branch. One-line fix:
+  add the missing row, same shape as its neighbours.
+
+- [open] 2026-09-28 · reality check (2026-W40) · **`docs/ops/queue.md`'s
+  own header says entries are "oldest first"; the "Needs owner" and
+  "Escalated" sections actually run newest-first** (newest entries at the
+  top of each section). Not a functional bug — every entry is still dated
+  and readable — but the stated convention doesn't match the file, which
+  could mislead anyone skimming for the oldest open item. Whoever next
+  edits the header should fix the sentence to match actual practice, or
+  reorder the sections to match the sentence — either is fine, they should
+  just agree.
+
 - [needs owner] 2026-09-10 · owner found in Search Console · **`www.deltamint.app`
   returns a server error, and only Cloudflare can fix it.** All five report
   categories were read; this is the only genuine defect among them.
@@ -502,6 +574,30 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
   Now monitored: `site:health --live` checks both www forms daily at 06:17 UTC
   (`scripts/site-health.mjs`), so this cannot again be discovered by a crawler
   weeks after the fact.
+
+  **Update, 2026-09-28 (reality check 2026-W40) — likely fixed.**
+  `curl -D - https://www.deltamint.app` from this session now returns
+  **HTTP/2 301** → `location: https://deltamint.app/`, not the 522 this
+  entry describes — the exact Redirect Rule outcome asked for above.
+  Not re-verified against Google (Search Console is unreachable from a
+  session) and not cross-checked against `http://` explicitly this run, but
+  the specific defect named here — an orphaned proxied hostname timing out
+  — appears resolved. Leaving this `open` rather than marking it `fixed`
+  since no commit or ledger entry anywhere records the Cloudflare change
+  being made, so there's no commit to cite; whoever confirms it live should
+  close it properly.
+
+- [open] 2026-09-28 · reality check (2026-W40) · **Two duty-engineer hours
+  are silently missing from otherwise-complete ledgers, unexplained.**
+  `docs/ops/2026-09-24.md` has no `18:00 UTC` run (jumps 17:11 → 19:11);
+  `docs/ops/2026-09-25.md` has no `19:00 UTC` run (jumps 18:10 → 20:11).
+  Every weekday from 14–25 Sep otherwise has a complete ledger. Neither gap
+  is mentioned in the run before or after it — the next run's "What
+  changed" section talks about the elapsed time since the *previous logged*
+  run as though nothing were missing. Not a live-money finding, so not
+  emailed; noted so a repeat isn't invisible again. **Proposed action:**
+  next duty-engineer run that notices a >65-minute gap since its own prior
+  ledger entry should say so explicitly rather than silently proceeding.
 
 - [fixed a19d911] 2026-09-10 · **`dashboard.deltamint.app/login` filed as
   "duplicate without user-selected canonical"** — already fixed, awaiting
