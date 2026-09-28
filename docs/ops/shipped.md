@@ -3,6 +3,12 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-27 · The Saturday weekly digest no longer goes silent for
+  everyone when one account's broker connection hangs: each broker call
+  now gives up after 8 seconds instead of running until the platform kills
+  the whole function, and an account's three broker calls run together
+  instead of one after another, so one slow or dead connection costs a
+  single timeout, not the entire run (`c062ebe`).
 - 2026-09-24 · A thirteenth foundations post — buying power, margin and
   collateral for options — is live on the blog: why buying power and cash
   balance diverge, what a cash-secured put, a credit spread and a covered
