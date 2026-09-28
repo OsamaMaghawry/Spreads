@@ -12,6 +12,8 @@ Last run: **2026-09-01** (vp-product, Tuesday cadence).
 
 ## Open proposals
 
+*Reconciled 2026-09-28 (end of day, no ranking change): none of the three proposals has shipped. Evidence: no `scan_runs` table in `supabase/migrations/` (latest is 0057), no width or probability field in `src/components/scanner/`; the scanner changes since 09-01 (`c8d6470`, `bc97286`, `3964cb6`, `8bff517`) added risk floors, covered-call cover handling and a leveraged-fund filter, not exit width, POP or scan recording.*
+
 **Three of five slots used.** Two deliberately left empty — this run killed one
 proposal and found that a second's test rested on data that does not exist, so
 the honest state is fewer, better-tested entries, not five.

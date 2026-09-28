@@ -142,6 +142,7 @@ History** and bans "journal" and "log".
 | W5 | After-close daily report: headline, "Needs a look", "Everything else", judged on closing prices | `_shared/watchReport.ts` | main | PAID |
 | W6 | Recipient is one global address — the owner's. No per-user recipient, no screen reads `alerts` | `watch_settings.recipient_email` | main | NOT YET SELLABLE until W6 is decided |
 | W7 | `sendDigest`, the agents' path to the owner | `sendDigest/index.ts` | main | internal |
+| W8 | Weekly summary email built per account from `account_equity_daily` and `trade_records` (no broker call for the figures except a holdings snapshot; each broker call times out at 8s and the email names what it could not read). Ships delivering to the owner only, as a review copy | `weeklyDigest/index.ts`, migration 0036 | main | NOT YET SELLABLE — no user receives it |
 
 ## Back-office (not sellable)
 

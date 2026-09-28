@@ -3,6 +3,11 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-28 · New blog post: the wheel strategy explained, with two diagrams, and a cross-link from the covered-call post (`9a76e9d`).
+- 2026-09-27 · The Saturday weekly digest no longer goes silent when one account's broker connection hangs: each broker call gives up after 8 seconds instead of running until the platform kills the function, and an account's three broker calls run together, so one dead connection costs a single timeout, not the whole run. The digest is still a review copy sent to the owner, not to users (`c062ebe`).
+- 2026-09-27 · New blog post: cash-secured puts explained (income series, #16), reviewed by desk-editor, seo-editor and compliance-gate before publishing (`b9f5ccb`).
+- 2026-09-26 · New blog post: covered calls explained, opening the income series (`9a80d10`).
+- 2026-09-25 · New blog post: how to read an option chain (foundations #14), reviewed by desk-editor and seo-editor first (`c1bf803`).
 - 2026-09-24 · A thirteenth foundations post — buying power, margin and
   collateral for options — is live on the blog: why buying power and cash
   balance diverge, what a cash-secured put, a credit spread and a covered
