@@ -161,7 +161,8 @@ short call and the covered call are gone.
 The income series continues with the [cash-secured
 put](/blog/cash-secured-put-explained), the put-side counterpart: cash
 reserved instead of shares, and an obligation to buy at the strike instead
-of to sell.
+of to sell. The [wheel strategy](/blog/wheel-strategy-explained) then runs
+the two in sequence on one stock.
 
 All figures on this page are hypothetical and are there to show the
 mechanics. This post is educational and is not investment advice.

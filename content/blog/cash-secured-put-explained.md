@@ -158,7 +158,9 @@ return. What differs is which side of owning the stock each one sits on.
 
 Selling a cash-secured put to acquire shares, then later selling a covered
 call against those same shares, chains the two positions together — put
-first, call second, on the same underlying stock.
+first, call second, on the same underlying stock. The [wheel
+strategy](/blog/wheel-strategy-explained) follows this same 50 put past
+assignment and into a covered call on the shares it delivered.
 
 ## Frequently asked questions
 
