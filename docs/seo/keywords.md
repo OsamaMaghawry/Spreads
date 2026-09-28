@@ -28,7 +28,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 14 | Reading a chain | how to read an option chain | option chain (US-listed context in the copy — the bare phrase leans to NSE/Nifty live-data pages); never "chain" alone | broker and platform education (Merrill Edge, Robinhood, Wealthsimple, moomoo, Schwab, Lightspeed, TradingBlock, AvaTrade, IBKR glossary), Market Chameleon, Yahoo Finance; Indian live-chain pages (NSE, Groww, ICICI Direct, Kotak) on the bare phrase; TradingView chart ideas, Quora and thin guide blogs in the tail. No Investopedia or Reddit surfaced | a fuller hypothetical chain (several strikes, two expirations) read across: which price is executable, why "last" and the ITM shading can mislead about where the stock is, and the same strike repriced by date |
 | 15 | Covered call | covered call explained | covered call | Fidelity, Schwab (two pages), Chase, CIBC, TD, Wealthsimple, CFI, Benzinga, Raisin; on the assignment phrasings QuantWheel, VectorVest, CashFlowMachine, WheelMetrics, Option Alpha, OIC, two Quora threads. investopedia.com itself did not surface — only a cach3 mirror of it, on a query naming Investopedia. No Reddit surfaced | mechanics, then the day after assignment |
 | 16 | Cash-secured put | cash secured put explained (also searched as "what is a cash secured put") | cash-secured put; never "CSP" alone (see the row 16 reading) | Fidelity (two pages), Britannica Money, OIC, IBKR glossary, Chase, Schwab, Firstrade, Options Playbook, SoFi, Questrade, Nasdaq; on the assignment and comparison phrasings QuantWheel, WheelMetrics, IncomeNavigator, VectorVest, Option Samurai, calculator sites and Substacks. investopedia.com did not surface, not even on a query naming it. No Reddit surfaced | what "secured" means next to a naked put, the reserve that does not shrink, the premium as the only cushion (not a discount), and the account the morning after assignment: the reserve spent, not released |
-| 17 | The wheel | wheel strategy options | wheel strategy | Reddit, YouTube, QuantWheel | the cost basis after each turn |
+| 17 | The wheel | wheel strategy explained (also searched as "how does the wheel strategy work"); the planned "wheel strategy options" returns the head-term results page — see the row 17 reading | wheel strategy; "wheel strategy options" is head-term intent and an exact-match domain (wheelstrategyoptions.com) ranks on it | moomoo, Alpaca, Schwab ("Three Things to Know"), CapTrader, OptionsPlay, Option Alpha, SteadyOptions, TrendSpider, Snider Advisors, Ryan O'Connell; wheel-tool blogs hold most of the rest (QuantWheel, WheelMetrics, IncomeNavigator, optionstradingiq, Option Wheel Logic, wingmantracker, InsiderFinance, tracker and calculator sites) plus Substacks, Medium, Gumroad course pages and TradingView chart ideas. No Investopedia and no Reddit surfaced, including on queries naming each. **Compliance hold on the term itself, not settled here — see the row 17 reading** | one hypothetical XYZ position carried through every hand-off (reusing the 50 put from row 16): what the account holds at each turn, and what a fall between turns does to the call that comes next — described as a manual sequence of two already-explained trades, never as something DeltaMint scans for, places or automates. Cumulative adjusted cost basis is row 30's, not this post's |
 | 18 | Put credit spread | put credit spread explained | credit spread | tastylive, Investopedia | width, credit and the executable price |
 | 19 | Call credit spread | call credit spread explained | credit spread | tastylive | the mirror, and what is different about upside |
 | 20 | Iron condor | iron condor explained | iron condor | Investopedia, tastylive, OptionStrat | two spreads, one risk, per-side netting |
@@ -541,6 +541,120 @@ the query, and neither Investopedia nor a Reddit thread surfaced in any of them
 — the forum-style results were Substacks, a YouTube video, Goodreads and
 TradingView chart ideas. That absence is a read of these results pages on one
 day through one search tool, not proof those sites do not rank.
+
+## Reading for row 17 — wheel strategy explained (read 2026-09-28)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size.
+
+**Read this first — a compliance question this map cannot answer.**
+`content/PLAN.md` ("Rules a writer keeps hitting") says: *"The wheel's scanner
+and order placement are on staging as of 2 Sep; say 'the wheel' only once they
+are live."* As of this reading they are still staging-only
+(`docs/ops/shipped.md`, 2 Sep and 22 Sep entries); only the adjusted
+cost-basis display for wheel positions reached production. `docs/product-context.md`
+names "The Wheel" as a scan mode of the Strategy Scanner. On 27 Sep
+compliance-gate held a purely descriptive sentence naming "the wheel" in
+`cash-secured-put-explained` under that rule, and it was cut. Every phrasing
+in the table below contains the word "wheel"; a post that avoids it ranks for
+nothing on this topic and reads evasive to a trader. So describing the wheel
+as a generic, manual, industry-standard sequence (sell a cash-secured put,
+take assignment, sell a covered call, repeat) through the reader's own
+brokerage account, never as a DeltaMint feature, is a **necessary** condition
+for this post, but on the 27 Sep precedent it is not shown to be
+**sufficient**. Whether the rule bars the generic strategy name or only
+product claims about it is a call for compliance-gate and, above it, the
+owner. It is not an SEO question and no angle below settles it. If the rule
+stands as enforced on 27 Sep, row 17 cannot be written yet. Holding it and
+taking row 18 next is a plan decision for desk-editor. The study below stands
+either way and is ready for when the rule clears.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| wheel strategy options (the planned target) | moomoo learn ("Options Wheel Strategy Explained"), Alpaca learn, CapTrader, Schwab ("Three Things to Know About the Wheel Strategy"), a Medium essay, OptionsPlay, WheelMetrics ("The Complete Guide"), **wheelstrategyoptions.com** (an exact-match-domain screener/tracker), a Substack | **hard, and it is the head term**. It returns the same set as "what is the wheel strategy in options", item for item, so it is head-term intent, not a long tail. An exact-match domain holds it. It belongs to the `income` hub; this post does not chase it |
+| what is the wheel strategy in options | the identical nine results | **hard**. Same page. Nearly every synthesised line says "consistent income", "profits even if the market doesn't move", "stocks you'd be comfortable owning" — income, outcome and advice framing we do not write |
+| wheel strategy explained (proposed target) | moomoo, Alpaca, CapTrader, Schwab, SteadyOptions, WheelMetrics, InsiderFinance, optionstrading.org, a Substack ("the options wheel strategy explained") | **hard-ish**. Two brokers and Schwab hold the top, but most of the rest is content and tool blogs, and a Substack in the set is a text-coverage gap. It matches the sibling pattern ("covered call explained", "cash secured put explained"), and the post's definition-first shape answers it. The synthesised answer ends "only utilize the wheel strategy when you expect calm market conditions", which is outlook advice |
+| how does the options wheel strategy work step by step | Alpaca, **Option Alpha** ("How to Trade the Options Wheel Strategy"), Schwab, moomoo, **QuantWheel** ("How the Options Wheel Works [2026]"), optionincome.io, Option Wheel Logic ("Complete 2026 Guide"), wingmantracker, InsiderFinance | **winnable-ish**. Five of nine are one-product tool blogs with "[2026]" / "Complete Guide" titles. Every step list stays abstract or switches to a new real ticker each step (AAPL $180 → $170 put), so no single position is carried through. This is the post's home intent; the question fits an H2 near verbatim ("How does the wheel strategy work?") |
+| what happens after put assignment in the wheel strategy | Schwab, QuantWheel (twice: CSP assignment, how the wheel works), WheelMetrics (twice), IncomeNavigator, theoptionpremium (Substack), Rockwell Trading, optionstrading.org | **winnable on the answer**. The same wheel-tool set as row 16's assignment phrasing. The synthesised answer goes straight to "immediately sell covered calls" and "each cycle ratcheting the cost basis lower until the stock recovers", which is a next-trade instruction plus an outcome promise. Overlaps row 16's closing sections and keyword-map item 13 (`cash-secured-put-assigned`); this post links back, it does not re-walk the morning after |
+| wheel strategy covered call strike below cost basis after assignment | **SpotGamma** ("What to Do When the Stock Drops Below Your Cost Basis"), theoptionpremium, WheelMetrics (twice), GenZTrade, Equity Rank, Options Drill (an app), a wheelstrategyoptions.com calculator, a Substack FAQ | **winnable, and the gap's centre**. No broker hub surfaced; every page frames it as what to do ("never sell below cost basis", "the clean play"). The mechanical fact — a call struck at or above the effective cost pays little once the stock has fallen, and one struck near the stock can deliver the shares below that cost — sits inside advice everywhere and stands alone nowhere. The post states it descriptively on the one hypothetical |
+| wheel strategy risks / what if the stock drops after assignment | Schwab (US and international), Ryan O'Connell, Rockwell Trading ("What To Do If The Market Crashes"), optionstradingiq ("2026 Update"), Options Cafe, fattail.ai ("Fails Most Traders"), beststockstrategy ("Why It Underperforms"), a Substack FAQ | **winnable-ish**. Broker pages at the top, then critics and tool blogs. The critics argue with performance claims ("underperforming buy-and-hold by 30% or more") and the defenders with "less risky than holding the stock". Both are outcome claims. The descriptive version (the downside is the shares' downside, cushioned only by the premiums taken, and a covered call cannot follow the stock down) is what rows 15 and 16 already said for each leg; this post applies it across the hand-off |
+| wheel strategy vs covered calls vs cash secured puts | OptionsPlay, optvana, Option Wheel Logic, Longbridge, OptionsWheelTrader, Piranha Profits, coveredcallcalculator.net, themanwire, OptionsPilot | **winnable**. No US broker hub. Most titles are "which fits you / which comes first", a recommendation we do not write. The answer is structural (the wheel is the two, in sequence, on one name), so one sentence and a link to each sibling answers it, not a heading |
+| options wheel strategy example with numbers (one full cycle) | stockalarm, QuantWheel, optionstradingiq, TradingOptionsCashflow ("with Spreadsheet"), SteadyOptions, wingmantracker, optionincometools ("Worked Examples"), WheelMetrics, optionincome.io | **winnable-ish**. Tool and content blogs only. The examples use real tickers (MSFT $420 → $400 put) or a fresh hypothetical per step, and most end at "you keep the $800 premium as profit". None carries one hypothetical from reserved cash back to cash with the account written out at each hand-off. That is the gap the worked example fills |
+| wheel strategy covered call assigned, shares called away, what next | Option Alpha, Schwab, optionstradingiq, theoptionpremium, WheelMetrics (three pages), CashFlowMachine, MenthorQ | **hard-ish on the words, advice on the answer**. Every page answers "restart the cycle: sell a put". The post ends at "back in cash, the obligation gone", which is row 15's endpoint, and names the next trade only as what the sequence describes, not as a step to take |
+| is the wheel strategy safe / worth it | a Medium essay ("Is It A Good Idea?"), **Early Retirement Now** ("Why the Wheel Strategy Doesn't Work"), Schwab, fattail.ai, beststockstrategy, two Substacks, a TradingView chart idea | **do not target**. A verdict query. Answering it either way is a performance judgment the claims discipline keeps us out of |
+| wheel strategy how much capital do you need | QuantWheel, optionstradingiq, Options Cafe ("With $5,000"), WheelMetrics, GammaLedger, Wealth Engine Pro ("Small Account $5K–$25K"), two Substacks, a TradingView chart idea | **do not target as a heading**. The mechanical half (strike × 100 per contract, row 13's and row 16's point) is one FAQ line. The rest is account-size recommendations ("$20,000–$25,000 is a practical starting point"), which is advice |
+| wheel strategy returns per month | a Substack ("Realistic Returns… $50K, $100K, $250K"), QuantWheel ("Real Monthly Income Data"), InvestingWithAI, WheelMetrics, wheelstrategyoptions.com ("1–4% Monthly"), daystoexpiry, a Gumroad course | **do not target, and do not echo**. Return figures and "typical" ranges, the exact thing the compliance rules forbid, real or illustrative |
+| wheel strategy cost basis (adjusted, tracking) | QuantWheel (two), MarketXLS, TradingOptionsCashflow, Option Wheel Logic tracker, ThetaHarvester, OptionWheelTracker (two), wheelstrategyoptions.com tracker | **row 30's ground, not this post's**. Tracker and spreadsheet vendors end to end. This post shows one effective cost at the assignment hand-off (strike − put premium, already in row 16) and hands the running basis forward to row 30 |
+| wheel strategy bot / automated scanner | Option Alpha (bot template), a GitHub repo, WheelBot, **a YouTube video** (PeakBot), OptionBots ("Best Options Bots for the Wheel 2026"), PeakBot, TradeAlgo | **do not target, and keep it out of the post entirely**. This is DeltaMint's own staging feature's ground (scan plus order placement), and the rule above forbids even implying it. No "automate", "scan for" or "let a tool run it" in the copy |
+| wheel strategy reddit (named Reddit in the query) | a Substack FAQ, TradingView chart ideas (two locales), an FXStreet video page (2021), two more Substacks, two Gumroad course pages, Barchart syndication ("how are traders making passive income") | **no Reddit surfaced**. Course pages and chart ideas in the top set. The text-coverage gap is real, but the intent is the same beginner walk-through as the target |
+| wheel strategy investopedia (named Investopedia in the query) | CapTrader, TrendSpider learning centre, Schwab, moomoo, SteadyOptions, optionstradingiq, Snider Advisors, InsiderFinance, thewheelstrategy.com, a Substack | **no Investopedia surfaced**, not even as a mirror |
+
+**The gap.** Every ranking page gives the same three steps: sell a
+cash-secured put, take assignment, sell covered calls, and "repeat
+indefinitely". Nearly all then sell it as "consistent income", "passive
+income" or "profits even if the market doesn't move", and tell the reader
+when to run it ("calm or mildly bullish markets"), what to pick ("stocks
+you'd be happy to own") and how much to start with. The worked examples
+either use a real ticker or switch hypotheticals between steps. No page
+carries one position from reserved cash back to cash with the account
+written out at each hand-off: (1) cash reserved, short put; (2) 100 shares
+at the strike, reserve spent, the put's premium already in history; (3)
+shares plus a short call; (4) cash at the call strike, shares gone. The
+mechanical point every page buries inside advice is the fall between turns.
+Once assigned below the strike, the covered call that comes next has to be
+struck somewhere relative to both the stock and the effective cost. A strike
+at or above that cost pays less, one near the stock can deliver the shares
+below it, and neither undoes the fall. Stated descriptively on one
+hypothetical, with no "what to do", that is unoccupied. The angle stays
+descriptive: two trades already explained, run in sequence on one name, and
+what the account holds at each turn. No income, yield, outlook, stock
+selection or next-trade instruction. No product: the wheel is described as
+something a trader runs by hand in their own brokerage account.
+
+**Notes for content-engine (not SEO findings, recorded so the writer does
+not have to rediscover them):**
+
+- *Reuse the thread.* Row 16's put is the natural first turn: the 50 put
+  sold for $1.40 with XYZ at $52.00, $5,000 reserved, assigned at a $47.00
+  close, 100 shares at $50.00 with an effective $48.60. Reusing it lets the
+  post link to row 16 for the morning after rather than re-walk it.
+- *Do not reuse row 15's call quote for the second turn.* The 52 call at
+  $1.42 was quoted with XYZ at $50.00 against shares bought at $48.00. After
+  row 16's assignment, XYZ is at $47.00 and the shares cost $50.00. Carrying
+  $1.42 over would contradict both posts. The second-turn call needs a fresh
+  hypothetical quote, consistent with the ~40% IV the sibling posts already
+  carry. Pricing it is desk-editor's (and, if contested, head-of-trading's)
+  job, not this map's.
+- *Leave the running adjusted cost basis to row 30* (`wheel strategy cost
+  basis`). The placeholder angle here ("the cost basis after each turn") was
+  row 30's target restated. This post shows one effective cost at the
+  hand-off and links forward.
+- *Links that exist:* `/blog/income`, `cash-secured-put-explained`,
+  `covered-call-explained`, `option-assignment-what-happens`,
+  `options-buying-power-requirement`. Both income siblings should get a
+  "Read next" back.
+
+**Could not establish:** search volume, difficulty and current position for any
+phrasing above; whether these results are personalised or localised; whether
+"wheel strategy" or "options wheel" / "the wheel" is the dominant typed form.
+Ranking titles use all three, which is a count of titles and not demand, so
+the proposed slug `wheel-strategy-explained` follows the sibling pattern.
+Also not established: how much of the head term's demand is tool and bot
+shopping rather than learning (the exact-match domain, the tracker vendors
+and the bot results suggest a commercial share, but that is a read of titles,
+not intent data); and how rows 16, 17 and item 13 will split the
+put-assignment intent. This post should link to row 16 for that and not
+compete for it. The placeholder row named "Reddit, YouTube, QuantWheel".
+QuantWheel held up (four URLs across the phrasings). YouTube surfaced once,
+on the bot query only. No Reddit thread surfaced in any of the eighteen
+searches, including one naming Reddit in the query. The forum-style results
+were Substacks, Medium, Gumroad course pages and TradingView chart ideas.
+Investopedia did not surface either, including on a query naming it. Those
+absences are a read of these results pages on one day through one search
+tool, not proof those sites do not rank. Finally, and outside this map's
+remit: whether the "say 'the wheel' only once they are live" rule covers the
+generic strategy name. See the note at the top of this reading.
 
 ## Off-syllabus rows
 
