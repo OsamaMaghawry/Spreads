@@ -52,7 +52,7 @@ including at expiration itself, if the underlying finishes between the strikes.
 
 ## Where the max loss number comes from: width, minus credit, times 100
 
-Take a hypothetical put spread, purely for the arithmetic. Short the 100 put,
+Take a hypothetical [put credit spread](/blog/put-credit-spread-explained), purely for the arithmetic. Short the 100 put,
 long the 95 put, same expiration, one contract, $1.20 of credit: $120 received
 and a $5.00 width. At expiration there are three cases, each settling at a
 figure you can write down in advance.
