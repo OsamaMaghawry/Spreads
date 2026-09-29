@@ -1,5 +1,7 @@
 # Every feature, and what it is worth — 2026-09-02
 
+> **Corrections 2026-09-29** (inventory not redone): **S2** — universe is now also the whole listed market (`scanUniverse`, `_shared/universe.ts`; leveraged/inverse funds dropped by name), not only 50 / ~500 / custom. **S3, T1** — covered-call, cash-secured-put and wheel scanning are on `main`, not staging. **S4** — filters also include, on the whole-market pass, a volume floor and an underlying quote-width cap; still no option-leg width, OI or IV filter. **S14** still true: no scan is recorded. **C1** — Connect now shows DeltaMint's own disclosure dialog before the broker redirect. Everything else unchanged.
+
 Owned by `vp-product`. Read from the code on `main` at `3a22207` plus the
 `staging` delta (`git diff --stat main staging` = one migration and the
 generated context file; everything shipped on 2 Sep is on `main`). This is the

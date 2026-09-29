@@ -1,4 +1,13 @@
-# Pricing — the proposal, 2026-09-02
+# Pricing — the proposal, 2026-09-02 (reviewed 2026-09-29: no change to any number)
+
+> **2026-09-29 review.** Nothing moved a price. Since 2 Sep: the trial went
+> 30 → 7 days (owner, 24 Sep; decision 3 below corrected to match), checkout
+> and webhook code exist (`createCheckoutSession`, `stripeWebhook`) with
+> `billing_enforced` still an operator switch, and a pricing-schedule PDF was
+> made for Alpaca's review. Funnel: 0 paying, 1 live trader, 4 signups ever, so
+> the §5 kill test has no data yet. Tiblio/QuantWheel/Option Alpha prices are
+> still `reported`, not re-verified (hosts still blocked, 29 Sep). Decisions
+> 1, 8 and 9 remain open and are the only ones waiting on the owner.
 
 Owned by `vp-product`; decided by the owner; a standing item at the Friday
 board. **No agent, including this one, ever sets or publishes a price.** The
@@ -165,8 +174,8 @@ accounts. A $59 subscriber counts once.
 1. Replace the live pricing page at the Stripe switch, or reduce it now to
    one line. Not leave it.
 2. Live at $29 / $290, held for 60 days.
-3. Charge from the first live connection after the switch date; 30 days
-   free on Live; everyone connected before the switch free for 90 days.
+3. Charge from the first live connection after the switch date; **7 days**
+   free on Live (the owner cut it from 30 on 24 Sep — see §2); everyone connected before the switch free for 90 days.
 4. Kill test: fewer than 8 paid Live subscriptions at day 60 → $19.
 5. Wheel execution inside Live, no separate price.
 6. No bot yet; "Automation — in development"; revisit at 40 paid, at $59.

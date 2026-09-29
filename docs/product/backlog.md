@@ -8,11 +8,40 @@ recorded below, as prominently as additions.
 Every entry carries: the user problem in the user's words, its evidence, the
 smallest test that could disprove it, the kill criterion, and a cost guess.
 
-Last run: **2026-09-01** (vp-product, Tuesday cadence).
+Last run: **2026-09-29** (vp-product, Tuesday cadence). Previous: 2026-09-01.
+
+## Reconciliation — 2026-09-29 (against `docs/ops/shipped.md`, 9 Sep – 24 Sep)
+
+Read from the code on `main`, not from the shipped lines alone.
+
+| Proposal | Verdict | Evidence |
+| --- | --- | --- |
+| #1 Exit cost (quoted width) on scan results | **Left — but a neighbour half-shipped.** The whole-market sweep (`dcf0f17`, fixed `daf0282`, all on `main`) added a *stock-level* sieve: volume floor and `maxSpreadPct` on the underlying's quote (`_shared/universe.ts`). Nothing shows or filters the *option legs'* bid-ask. `scanner/ResultsTable.jsx` still renders no bid, ask or leg width (its "Width" column is strike distance). | Code read 2026-09-29 |
+| #2 POP column and sort | **Left.** No probability anywhere in `ResultsTable.jsx` or `optionScan.ts`; `impliedVol()` still falls back to a silent `0.25` (`optionScan.ts:31-36`), so kill criterion 2 still stands. | Code read |
+| #3 Record what was scanned | **Left, and the case got much stronger.** No `scan_runs` in migrations `0001–0057`. Meanwhile the sweep silently scanned only A–F of 12,647 names from 9 Sep to 22 Sep (cap of 4,000, alphabetical; missing NVDA, TSLA, SPY) and a server error was discarded outright, so "broken" and "empty" looked identical (`daf0282`, `0adf729`). Nothing recorded a scan, so nobody could have seen it in data; it took the owner's eye. | shipped.md 2026-09-22 |
+| Ideas: "Expand scan universe beyond S&P 500" | **Shipped — closed.** Whole market on `main`; leveraged/inverse funds dropped by name (`bc97286`). Demand was never measured (still no scan log), the gap simply closed. Teardown row E8 no longer describes a gap. | shipped.md 2026-09-09, 09-22 |
+
+Also shipped this window and relevant to the criterion: the Alpaca
+authorization disclosure now shows in DeltaMint before the redirect
+(`c6f07b8`, at Alpaca compliance's demand). It adds one click to the first
+activation step, so **connect-step drop-off is now worth watching**; the funnel
+cannot see it (no step between "signed up" and "connected").
+
+**Funnel, 2026-09-29 snapshot:** 4 signed up ever, **0 in the last 7 days**,
+3 connected, 3 traded, 1 traded live, 0 paying, source unknown for all four.
+On n=4 activation is not the visible constraint; arrivals are. That is
+vp-growth's question, not a backlog slot. It does mean every proposal below is
+argued from competitor behaviour and one support incident, not from volume, and
+should be sized accordingly.
+
+**No sixth proposal this run.** Two candidates were considered and left out for
+lack of evidence: user-facing alerts (a decision for the owner, see
+`pricing.md` §6 item 8, not a build to queue until decided) and an OI floor
+(stays in `ideas.md`).
 
 ## Open proposals
 
-**Three of five slots used.** Two deliberately left empty — this run killed one
+**Three of five slots used, unchanged since 1 Sep.** Two deliberately left empty — this run killed one
 proposal and found that a second's test rested on data that does not exist, so
 the honest state is fewer, better-tested entries, not five.
 
@@ -73,6 +102,7 @@ What changed this run, in one line each:
   candidate is under 15% of the credit, the exit give-up is noise against the
   trade's own economics and the column earns nothing — kill, and the AMD
   incident is a close-dialog problem that `76fbdeb` already fixed.
+- **Update 2026-09-29:** the whole-market sweep widens the set of names the scanner can surface, including thinner ones; the stock-level quote-width sieve does not bound option-leg width. The test is unchanged and still un-run (needs the owner's paper-account payload; nothing here can reach it).
 - **Cost guess:** test ~half a day, zero production risk. Feature (width
   column + "max width" filter field + the top-10 sort unchanged) ~2 days, no
   new data source. An OI floor on top of that is a further day and *does*
@@ -142,6 +172,7 @@ What changed this run, in one line each:
   three answers above, it is measurement for its own sake — kill it and accept
   that screener proposals stay argued from competitor behaviour rather than
   our own usage.
+- **Update 2026-09-29:** the 9–22 Sep A–F truncation is a real instance of the failure this instrument exists to catch; ranking unchanged (zero direct activation effect), but the owner should weigh it as a defect-detector, not analytics.
 - **Cost guess:** ~half a day of code. **Not free:** it is a migration plus an
   edge-function deploy, so it needs the owner's explicit approval and the
   staging path, per `AGENTS.md`. Ranked last precisely because its direct

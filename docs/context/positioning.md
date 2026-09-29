@@ -15,6 +15,34 @@ not what makes an OAuth app function — see `compliance.md` — so a competitor
 running the flow proves only that their app is published. Treat their approval
 status as unknown.
 
+## Update 2026-09-29 — what changed in *our* product since the August read
+
+Competitor prices and features were **not** re-verified this run: tiblio.com,
+puthouse.com and optionstrat.com are still refused at the proxy
+(`reachable.md`), so every competitor fact above is still the August read. Only
+our side moved, and it is checked against the code on `main`.
+
+- **Screening universe: gap closed.** The Scanner can sweep the whole listed
+  market (price, volume and quote-width sieve, then the chain), not the S&P 500
+  list. Barchart's universe advantage (teardown row E8) is gone. It does not
+  change the "Opportunity screening — Commodity" verdict; it removes a
+  reason to lose to it.
+- **The wheel is now two-sided in our product.** Cash-secured puts, covered
+  calls and a wheel scan run in the Scanner, held as what they are with an
+  adjusted basis, and covered calls count held shares or a long call as cover.
+  QuantWheel's whole business is this and does not route to Alpaca (August
+  read). Still inside Live at $29; still not a moat, because a rules engine
+  can copy it.
+- **"End-of-session assignment de-risking" is no longer "not built" — it is
+  half built.** `positionWatch` detects short-through-strike, near-strike and
+  earnings-before-expiry every 15 minutes and mails a daily report. It only
+  detects, and it mails the owner's address, not the user's
+  (`watch_settings.recipient_email`). Until the owner decides who it mails it is
+  not a customer-facing edge.
+- **Nothing else moved.** Position grouping, price walking and the
+  after-the-fill claim stand as written; still no data moat, still one broker,
+  and Tiblio still holds screen → order → hold on Alpaca.
+
 ## The market, honestly sized
 
 There is no measurable "multi-leg options strategies market"; nobody clears or
@@ -108,7 +136,7 @@ Scored against the above, not against effort spent.
 | Feature | Verdict |
 | --- | --- |
 | Real-time comprehension of many holdings | **Real edge** — removes a scaling constraint; pain grows with position count, so per-trade tools never feel it |
-| End-of-session assignment de-risking | **Real edge** — runs when the user cannot, against a quantifiable loss; more valuable as 0DTE share rises. **Not yet built.** |
+| End-of-session assignment de-risking | **Real edge** — runs when the user cannot, against a quantifiable loss; more valuable as 0DTE share rises. **Half built (29 Sep): detection ships, owner-only email, no action.** |
 | Grouping legs into structures | **Foundation** — the primitive the two above depend on; pairing by order provenance rather than guessing strikes is a genuine technical position |
 | Price walking on limit orders | **Table stakes, and that understates it** — Schwab ships WALK LIMIT® as a native order type on thinkorswim, built for multi-leg orders with wide spreads. Not a competitor's feature to be beaten; a broker's order type to be matched |
 | Portfolio statistics | **Conditional** — commodity if it is profit and loss; differentiated only when structure-aware |
