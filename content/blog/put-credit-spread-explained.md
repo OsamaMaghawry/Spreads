@@ -25,7 +25,7 @@ from.
 
 - A put credit spread is a short put plus a cheaper long put at a lower strike; the long put is what caps the loss.
 - Maximum loss is the width times 100, less the credit, and any expiration close at or below the lower strike reaches it.
-- The credit that can be counted on is the short put's bid less the long put's ask; the mark is a reference, not an offer.
+- The credit the quotes are offering now is the short put's bid less the long put's ask; the mark is a reference, not an offer.
 - Width sets the risk: on the same short strike, a wider spread brings in more credit and carries a larger maximum loss.
 - Between the strikes at expiration the long put is gone and the short put may still deliver shares.
 
@@ -95,7 +95,7 @@ expiration, each leg settled against its own strike:
 
 Reading that table across matters more than any single row. The best case is
 fixed at $81 and reached over a wide range of closes, from $50.00 upward. The
-worst case is fixed at $119 and reached below $48.00. Everything in between is
+worst case is fixed at $119 and reached at $48.00 or lower. Everything in between is
 the slope, $1 of result for every $0.01 of the stock's move, and nothing the
 stock does outside those two prices changes either figure. That is what
 "defined risk" means for the structure: two known plateaus and a line joining
@@ -111,7 +111,7 @@ the stock finishes, against the $81 already received.
 The credit that counts is the one the quotes will pay now. The 0.81 above is one of three credits the same two rows can produce, which
 is the point of reading the chain before sending an order:
 
-- **Bid on the short, ask on the long.** 2.24 − 1.43 = 0.81. Order screens often label this the natural price. Both numbers are live offers, and this is the credit an order that must fill immediately can expect.
+- **Bid on the short, ask on the long.** 2.24 − 1.43 = 0.81. Order screens often label this the natural price. Both numbers are live offers, and this is the credit the quotes show for an order that fills immediately, provided the quotes and size hold.
 - **Marks.** 2.29 − 1.38 = 0.91. Neither row is offering it; it is a midpoint of two quotes.
 - **Last prices.** On a quiet contract a last can be hours old, and the chain post shows the same spread pricing at 0.36 from a stale 48 put.
 
@@ -179,7 +179,7 @@ position that must be funded, and it can move against the trader before the
 market reopens. Three cases decide when this matters:
 
 - **At expiration.** Options a cent or more in the money are typically exercised by exception, as the [expiration post](/blog/what-happens-options-expiration) sets out, and a broker may apply its own threshold.
-- **Before expiration.** The short put can be [assigned early](/blog/option-assignment-what-happens); it is uncommon, and it is worth knowing when it becomes likely.
+- **Before expiration.** The short put can be [assigned early](/blog/option-assignment-what-happens); it is uncommon, and the conditions that make it likely are in that post.
 - **After assignment.** If the short put was assigned early and the long put is still held, the shares and the put together keep the loss within the cap, but the position is now shares and a put rather than two options. After an expiration assignment between the strikes, the long put has expired, and nothing caps the loss on the shares.
 
 Nothing in the credit or the width warns about this case: both figures are
@@ -206,7 +206,7 @@ paid at the fill, the width sets the most the legs can settle against each
 other, and the maximum loss is the width less the credit, the same figure as
 the net buying power reduction on a margin account.
 
-Two numbers are worth checking before the size of a position is read at all:
+Two numbers decide what a position's figures mean:
 which prices the credit was built from, and the width behind it. The rest,
 including what happens between the strikes, follows from those two.
 
