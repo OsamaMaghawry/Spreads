@@ -126,7 +126,7 @@ Pin risk has three parts, and each one follows from the rules above:
 
 ## Example: one hypothetical spread and five closing prices
 
-Take a hypothetical put credit spread on the 50-strike series this series has
+Take a hypothetical [put credit spread](/blog/put-credit-spread-explained) on the 50-strike series this series has
 been using: short one 50 put, long one 48 put, same expiration. The spread is
 $2 wide, so its maximum loss at expiration is $200 per spread less the credit
 received. The credit does not change anything below, so it is left out.

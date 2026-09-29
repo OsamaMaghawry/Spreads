@@ -1,0 +1,19 @@
+<svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Two credits for the same hypothetical 50/48 put credit spread on one number line, per share. On the left, 0.81, built from the short put's bid and the long put's ask, which are live offers, giving a maximum loss of $119. On the right, 0.91, built from the two marks, which nobody has offered, giving a maximum loss of $109. The band between them is where a limit price may or may not fill.">
+  <rect width="720" height="260" fill="#FFFFFF"/>
+
+  <!-- the band between the two credits -->
+  <rect x="254" y="128" width="290" height="24" fill="#E2E5EE"/>
+  <text x="399" y="145" font-size="15" text-anchor="middle" fill="#767B8E">fill not assured</text>
+
+  <!-- live offers -->
+  <line x1="254" y1="100" x2="254" y2="176" stroke="#2E8B5F" stroke-width="3"/>
+  <circle cx="254" cy="140" r="8" fill="#2E8B5F"/>
+  <text x="254" y="82" font-size="18" font-weight="600" text-anchor="middle" fill="#2E8B5F">0.81 live offers</text>
+  <text x="254" y="210" font-size="16" font-weight="600" text-anchor="middle" fill="#B4485C">max loss $119</text>
+
+  <!-- marks -->
+  <line x1="544" y1="100" x2="544" y2="176" stroke="#767B8E" stroke-width="3" stroke-dasharray="4 4"/>
+  <circle cx="544" cy="140" r="8" fill="#FFFFFF" stroke="#767B8E" stroke-width="3"/>
+  <text x="544" y="82" font-size="18" font-weight="600" text-anchor="middle" fill="#767B8E">0.91 mark</text>
+  <text x="544" y="210" font-size="16" font-weight="600" text-anchor="middle" fill="#B4485C">max loss $109</text>
+</svg>

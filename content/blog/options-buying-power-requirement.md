@@ -121,7 +121,7 @@ The premium brings the cash balance to $10,140, and $5,000 is reserved
 against assignment. Option buying power falls to $5,140, a net reduction of
 $4,860.
 
-**Case two, a put credit spread.** The account instead sells the 50 put and
+**Case two, a [put credit spread](/blog/put-credit-spread-explained).** The account instead sells the 50 put and
 buys the 48 put in one order, for a net credit of $0.60. The cash balance
 becomes $10,060, and $200, the $2 width times 100, is reserved. Option
 buying power falls to $9,860, a net reduction of $140, which is

@@ -1,0 +1,28 @@
+<svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Gain or loss at expiration, per share, of a hypothetical 50/48 put credit spread opened for a 0.81 credit. At and above the 50 strike the line is flat at a 0.81 gain, the credit kept. Between the strikes it slopes down, crossing zero at a break-even of 49.19. At and below the 48 strike it is flat at a 1.19 loss, the maximum loss, however far the stock falls.">
+  <rect width="720" height="340" fill="#FFFFFF"/>
+
+  <!-- zero line and strike guides -->
+  <line x1="80" y1="165" x2="660" y2="165" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="297.5" y1="40" x2="297.5" y2="290" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="442.5" y1="40" x2="442.5" y2="290" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="297.5" y="312" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">48</text>
+  <text x="442.5" y="312" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">50</text>
+
+  <!-- loss below the break-even, capped at the 48 strike -->
+  <polygon points="383.8,165 297.5,248.3 80,248.3 80,165" fill="#B4485C" fill-opacity="0.16"/>
+  <text x="190" y="273" font-size="15" font-weight="600" text-anchor="middle" fill="#B4485C">max loss 1.19</text>
+
+  <!-- credit kept at and above the 50 strike -->
+  <polygon points="442.5,165 660,165 660,108.3 442.5,108.3" fill="#2E8B5F" fill-opacity="0.18"/>
+  <text x="551" y="98" font-size="15" font-weight="600" text-anchor="middle" fill="#2E8B5F">credit kept 0.81</text>
+
+  <!-- payoff line -->
+  <path d="M80 248.3 L297.5 248.3 L442.5 108.3 L660 108.3" fill="none" stroke="#14151C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- break-even -->
+  <circle cx="383.8" cy="165" r="6" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="371" y="152" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">break-even 49.19</text>
+
+  <!-- axis label -->
+  <text x="370" y="332" font-size="15" text-anchor="middle" fill="#767B8E">stock price at expiration</text>
+</svg>

@@ -29,7 +29,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 15 | Covered call | covered call explained | covered call | Fidelity, Schwab (two pages), Chase, CIBC, TD, Wealthsimple, CFI, Benzinga, Raisin; on the assignment phrasings QuantWheel, VectorVest, CashFlowMachine, WheelMetrics, Option Alpha, OIC, two Quora threads. investopedia.com itself did not surface — only a cach3 mirror of it, on a query naming Investopedia. No Reddit surfaced | mechanics, then the day after assignment |
 | 16 | Cash-secured put | cash secured put explained (also searched as "what is a cash secured put") | cash-secured put; never "CSP" alone (see the row 16 reading) | Fidelity (two pages), Britannica Money, OIC, IBKR glossary, Chase, Schwab, Firstrade, Options Playbook, SoFi, Questrade, Nasdaq; on the assignment and comparison phrasings QuantWheel, WheelMetrics, IncomeNavigator, VectorVest, Option Samurai, calculator sites and Substacks. investopedia.com did not surface, not even on a query naming it. No Reddit surfaced | what "secured" means next to a naked put, the reserve that does not shrink, the premium as the only cushion (not a discount), and the account the morning after assignment: the reserve spent, not released |
 | 17 | The wheel | wheel strategy explained (also searched as "how does the wheel strategy work"); the planned "wheel strategy options" returns the head-term results page — see the row 17 reading | wheel strategy; "wheel strategy options" is head-term intent and an exact-match domain (wheelstrategyoptions.com) ranks on it | moomoo, Alpaca, Schwab ("Three Things to Know"), CapTrader, OptionsPlay, Option Alpha, SteadyOptions, TrendSpider, Snider Advisors, Ryan O'Connell; wheel-tool blogs hold most of the rest (QuantWheel, WheelMetrics, IncomeNavigator, optionstradingiq, Option Wheel Logic, wingmantracker, InsiderFinance, tracker and calculator sites) plus Substacks, Medium, Gumroad course pages and TradingView chart ideas. No Investopedia and no Reddit surfaced, including on queries naming each. **Compliance hold on the term itself, not settled here — see the row 17 reading** | one hypothetical XYZ position carried through every hand-off (reusing the 50 put from row 16): what the account holds at each turn, and what a fall between turns does to the call that comes next — described as a manual sequence of two already-explained trades, never as something DeltaMint scans for, places or automates. Cumulative adjusted cost basis is row 30's, not this post's |
-| 18 | Put credit spread | put credit spread explained | credit spread | tastylive, Investopedia | width, credit and the executable price |
+| 18 | Put credit spread | put credit spread explained (also searched as "what is a put credit spread"; broker hubs title it "bull put spread" and "short put vertical" — see the row 18 reading) | options credit spread; never "credit spread" alone — the bare phrase is bond credit spreads | CIBC Investor's Edge, SoFi, StoneX glossary, OIC, Schwab, Fidelity, Option Alpha, moomoo, Alpaca learn, Nasdaq; tastytrade.com on "short put vertical"; on the fill phrasings Robinhood and IBKR help pages and TradingView chart ideas. No investopedia.com, tastylive.com or Reddit page surfaced | one hypothetical 50/48 spread read off row 14's chain: the credit the bid and ask pay against the mark, max loss and break-even from that fill, and what width changes. The between-the-strikes close is row 12's home intent, handed to it |
 | 19 | Call credit spread | call credit spread explained | credit spread | tastylive | the mirror, and what is different about upside |
 | 20 | Iron condor | iron condor explained | iron condor | Investopedia, tastylive, OptionStrat | two spreads, one risk, per-side netting |
 | M48 | What a credit spread actually risks | credit spread max loss before expiration | credit spread max loss | tastytrade (short put vertical), moomoo, Schwab, broker learn hubs; TradingView chart-idea pages padding the tail | max loss is the expiration number — what the collateral holds, what the mark does, and what assignment changes in between |
@@ -655,6 +655,46 @@ absences are a read of these results pages on one day through one search
 tool, not proof those sites do not rank. Finally, and outside this map's
 remit: whether the "say 'the wheel' only once they are live" rule covers the
 generic strategy name. See the note at the top of this reading.
+
+## Reading for row 18 — put credit spread explained (read 2026-09-29)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| put credit spread explained (target) | an Instagram tag page, CIBC Investor's Edge, SoFi, StoneX glossary, OIC, Schwab ("The Credit Put Spread"), a Substack, Nasdaq, a MarketBeat trial page | **hard-ish** — bank and broker education hold the top, but a tag page, a Substack and a trial page in one set is a text-coverage gap. The synthesised answer opens "neutral to bullish" and "income", framing we do not write |
+| what is a put credit spread | CIBC, StoneX, Schwab, OIC, the same Substack, MarketBeat, a zetamarkets Substack | **hard on the definition** — earns the first sentence and the first FAQ, never the title |
+| put credit spread max loss | moomoo, Simpler Trading, Schwab, Option Alpha, Alpaca learn, OIC, a Series 7 exam-prep video, Fidelity, Nasdaq | **hard** — width less credit is stated everywhere; an FAQ line in the searcher's words, the before-expiration half is M48's and is linked |
+| put credit spread break even | Option Alpha (strategy page and a dedicated break-even page), OIC, Schwab, Macroption, Wikipedia, moomoo | **hard** — an FAQ line, never a heading |
+| credit spread limit order mark vs natural price | Robinhood learn and support, OptionTradingpedia, a 2020 blog, IBKR spread-order notes, Wikipedia "Order (exchange)", an arXiv paper | **winnable** — help pages answer it one platform at a time; nobody prices one spread both ways on one chain. This is the post's angle and home intent |
+| why won't my put credit spread fill at the mid price | Schwab (off-topic), Robinhood support, TradingView chart ideas in several locales | **winnable** — chart ideas fill the set; demand theme E nearly verbatim. The post answers "may fill, or may not" and does not title a question asserting it will not |
+| put credit spread width, wider vs narrower | SMB Training, Aeromir, a Substack, Wheel Strategist, TradingView chart ideas, Barchart | **winnable, framing not ours** — every page is which width to choose, with return percentages and account-size allocations; a question heading answered descriptively takes the intent without the advice |
+| put credit spread expires between the strikes | CIBC, Schaeffer's, OIC, Fidelity, Wikipedia, Schwab, Barchart | **hard-ish, and row 12's home intent** — answered elsewhere as "close it before expiration"; kept as a statement heading and linked to row 12 |
+| bull put spread / short put vertical | OIC, Fidelity, Option Alpha, SoFi, Wikipedia, TradingBlock; tastytrade.com on "short put vertical" | **hard, a name we mention, not adopt** — "bull" is an outlook; named once in the FAQ |
+| put credit spread vs cash secured put | Medium, LinkedIn, great-option-trading-strategies, ApexVol, daystoexpiry, a Substack, a TradingView chart idea | **winnable** — no broker hub; framed elsewhere as advice for small accounts. The FAQ answers it descriptively |
+| put credit spread example with numbers | Wikipedia, moomoo, StoneX, Schwab, Fidelity, SoFi, Options Cafe, financialtechwiz | **hard-ish** — none builds the credit from a chain's bid and ask; the worked example fills that |
+| credit spread (unqualified) | study.com, Wall Street Prep, Wikipedia (bonds and options), MacroMicro, Schwab, CFI | **do not target** — the bare phrase is bond spreads first; the head term is **options credit spread**. Rows 19 and 20 need the same qualifier |
+| put credit spread investopedia tastylive; put credit spread reddit | a YouTube tutorial, datadrivenoptions, SJ Options, Substacks, MarketBeat, chart ideas; on Reddit, Wikipedia, Goodreads, Substacks, a Gumroad course page | **no investopedia.com, tastylive.com or Reddit page surfaced** — one search tool, one day, not proof they do not rank |
+
+**The gap.** Every ranking page gives the same four things: sell a put, buy a
+lower one, max loss is width less credit, break-even is short strike less
+credit. Most then frame it by outlook, call the credit "income" and turn the
+rest into rules (30 delta, 45 DTE, close at 50%). Worked examples use a fresh
+round-number credit per page; none builds the credit from a chain's own
+quotes, shows that the same two rows give three credits (bid and ask, marks,
+stale lasts) of which only one is on offer, or that each cent between them
+moves the max loss and break-even by $1 a spread. The angle here stays
+descriptive: which prices the credit is built from, what width does to the max
+loss on the same short strike, and, briefly and handing off to row 12, the
+close between the strikes. No outlook, no return figure, no management rule.
+
+**Could not establish:** volume, difficulty or position for any phrasing;
+whether results are personalised; which of "put credit spread", "bull put
+spread" and "credit put spread" is typed most (ranking titles use all three,
+a count of titles and not demand); whether "natural price" is searched outside
+the platforms whose help pages use it.
 
 ## Off-syllabus rows
 

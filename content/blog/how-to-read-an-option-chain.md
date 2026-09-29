@@ -105,7 +105,8 @@ On the 50 call it is 2.29, and nobody has offered to trade at 2.29. A limit
 order placed there may fill, and may not.
 
 A spread is two rows read at once, so the choice of number compounds. Take
-a hypothetical 50/48 put credit spread on the 30-day chain, short the 50 put
+a hypothetical 50/48 [put credit
+spread](/blog/put-credit-spread-explained) on the 30-day chain, short the 50 put
 and long the 48 put. The same table prices it three ways:
 
 - **Sell at the bid, buy at the ask.** 2.24 less 1.43 is a 0.81 credit, $81 per spread.
