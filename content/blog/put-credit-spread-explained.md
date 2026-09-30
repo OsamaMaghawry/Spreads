@@ -210,5 +210,7 @@ Two numbers decide what a position's figures mean:
 which prices the credit was built from, and the width behind it. The rest,
 including what happens between the strikes, follows from those two.
 
+The same arithmetic on the call side, where the risk has no floor of its own, is the [call credit spread](/blog/call-credit-spread-explained).
+
 All figures on this page are hypothetical and are there to show the
 mechanics. This post is educational and is not investment advice.

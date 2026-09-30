@@ -37,7 +37,7 @@ already in the account, so assignment is settled by delivering them.
 The alternative is a **naked call**, a short call with no shares behind it.
 If a naked call is assigned, the seller has to deliver shares they do not
 own, which in a margin account means a short stock position at the strike.
-Because a stock has no ceiling, neither does that exposure.
+Because a stock has no ceiling, neither does that exposure. A long call above a short call, instead of shares, is what caps it in a [call credit spread](/blog/call-credit-spread-explained).
 
 The difference shows up in what backs the obligation. On a covered call the
 100 shares are the collateral, and brokers commonly hold them against the
