@@ -31,7 +31,16 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 17 | The wheel | wheel strategy explained (also searched as "how does the wheel strategy work"); the planned "wheel strategy options" returns the head-term results page — see the row 17 reading | wheel strategy; "wheel strategy options" is head-term intent and an exact-match domain (wheelstrategyoptions.com) ranks on it | moomoo, Alpaca, Schwab ("Three Things to Know"), CapTrader, OptionsPlay, Option Alpha, SteadyOptions, TrendSpider, Snider Advisors, Ryan O'Connell; wheel-tool blogs hold most of the rest (QuantWheel, WheelMetrics, IncomeNavigator, optionstradingiq, Option Wheel Logic, wingmantracker, InsiderFinance, tracker and calculator sites) plus Substacks, Medium, Gumroad course pages and TradingView chart ideas. No Investopedia and no Reddit surfaced, including on queries naming each. **Compliance hold on the term itself, not settled here — see the row 17 reading** | one hypothetical XYZ position carried through every hand-off (reusing the 50 put from row 16): what the account holds at each turn, and what a fall between turns does to the call that comes next — described as a manual sequence of two already-explained trades, never as something DeltaMint scans for, places or automates. Cumulative adjusted cost basis is row 30's, not this post's |
 | 18 | Put credit spread | put credit spread explained (also searched as "what is a put credit spread"; broker hubs title it "bull put spread" and "short put vertical" — see the row 18 reading) | options credit spread; never "credit spread" alone — the bare phrase is bond credit spreads | CIBC Investor's Edge, SoFi, StoneX glossary, OIC, Schwab, Fidelity, Option Alpha, moomoo, Alpaca learn, Nasdaq; tastytrade.com on "short put vertical"; on the fill phrasings Robinhood and IBKR help pages and TradingView chart ideas. No investopedia.com, tastylive.com or Reddit page surfaced | one hypothetical 50/48 spread read off row 14's chain: the credit the bid and ask pay against the mark, max loss and break-even from that fill, and what width changes. The between-the-strikes close is row 12's home intent, handed to it |
 | 19 | Call credit spread | call credit spread explained | options credit spread; never "credit spread" alone | Option Alpha, OIC, Fidelity, CIBC, Schwab, StoneX, SoFi, Wikipedia; tastytrade on "short call vertical"; probabilityofprofit, piranhaprofits and Substacks in the tail (read 30 Sep 2026) | the mirror, and what is different about upside: why the long call is the only cap, credit built from live bid/ask, short stock after assignment |
-| 20 | Iron condor | iron condor explained | iron condor | Investopedia, tastylive, OptionStrat | two spreads, one risk, per-side netting |
+| 20 | Iron condor | iron condor explained | iron condor | Option Alpha, Alpaca Learn, TradeStation (two pages), Fidelity, CFI, Motley Fool, Nasdaq; a Substack in the tail. Read 30 Sep 2026: **no Investopedia, tastylive or OptionStrat surfaced** — the earlier cell was a guess | two spreads, one risk: the wings cannot both lose, so max loss is one side's width minus the total credit |
+| 21 | Spread width | credit spread width (also searched as "$5 wide vs $1 wide credit spread") | options credit spread; never "credit spread" alone | Option Alpha community thread, theoptionpremium, Wheel Strategist, TradeAlgo; TradingView chart ideas in the tail. No broker hub, no Investopedia | **winnable** — forum and small-blog ground. Width changes max loss, credit and contract count, not just "breathing room"; say what the account holds at each width |
+| 22 | Strike by delta | credit spread delta strike selection | delta, options credit spread | optionstradingiq (two pages), theoptionpremium, CreditSpread.net, strike.money, Wikipedia, datadrivenoptions. No broker hub | **winnable** but crowded with affiliates who state delta as probability without qualification. Angle: what delta is used for, and where "delta = chance of profit" stops being true (the credit shifts the break-even); links `option-delta-explained` |
+| 23 | Days to expiry | best dte for credit spreads ("best DTE" is trader shorthand; write "days to expiration" once) | days to expiration | daystoexpiry (two pages), datadrivenoptions, advancedautotrades, apexvol; YouTube 0DTE videos and a TradingView indicator in the tail | **winnable**; results repeat "30–45 DTE" as consensus and quote a win rate from an unsourced backtest. Do not repeat it: the post explains the trade-off (decay per day vs time to be wrong), no number as a recommendation |
+| 24 | Earnings | selling options before earnings | earnings options strategy | Yahoo Finance, Option Alpha, Schwab, Option Samurai (two pages), protraderdashboard, great-option-trading-strategies, Barchart | **hard-ish** — Schwab and Yahoo hold the head. Angle: the IV crush is priced in; what a short position holds through the gap, and the defined-risk vs naked difference. Compliance care: no "edge" claim |
+| 25 | Calendar spread | calendar spread explained | calendar spread, time spread | Alpaca Learn, Wikipedia, Option Alpha (call and put pages), TradingBlock, CME, Fidelity, CFI | **hard** — Wikipedia, CME and Fidelity hold it. Angle: a debit position whose risk is the debit, read leg by leg after the short expires; cross-link to the wheel and `theta-decay-explained` |
+| 26 | Diagonal spread | diagonal spread explained | diagonal spread | SoFi, TradeStation (two pages), Wikipedia, Option Alpha, TradingBlock, Options Playbook, StockGro, Seeking Alpha | **hard-ish** — broker education, but no page treats it as the structure between a vertical and a calendar with an account-level walkthrough. Post 27 (PMCC) is this post's applied case |
+| 27 | Poor man's covered call | poor man's covered call (quote the name once; call it a long-call diagonal thereafter) | covered call | moomoo, Option Alpha, TradeStation (Apr 2026), TradingBlock, Option Samurai, optionsprofitcalculator, Piranha Profits, daystoexpiry; a Medium "why I don't use it" post | **winnable in the tail** — the Medium counter-view ranks, so a sober risk-first treatment has room. The "70–80% less capital" line repeated in results is a capital claim, not a return claim: do not repeat it unqualified |
+| 28 | Rolling | rolling options explained | rolling options | Saxo, Wealthsimple, TradeStation, Britannica Money, Option Alpha, Schaeffer's, Options Cafe, Robinhood support (US and UK) | **hard** — broker hubs own it. Angle: a roll is two orders and one new position, so the record shows a close and an open; what it does to max loss and buying power; never "roll to avoid a loss" as advice |
+| 29 | Covered call after assignment | covered call after assignment (also searched as "what to do after covered call assignment") | covered call | tastytrade support, VectorVest, QuantWheel, theoptionpremium, WheelMetrics, ThetaPal, CashFlowMachine, OptionWheelTracker, Born to Sell | **winnable** — small content sites, no major broker hub. Results say "strike at or above cost basis" as a rule; our angle describes the account the day after and the two basis figures, leaves the rule out. Overlaps the wheel post (17) — link, do not repeat |
 | M48 | What a credit spread actually risks | credit spread max loss before expiration | credit spread max loss | tastytrade (short put vertical), moomoo, Schwab, broker learn hubs; TradingView chart-idea pages padding the tail | max loss is the expiration number — what the collateral holds, what the mark does, and what assignment changes in between |
 
 Rows 21–65 are added by the Wednesday run as their turn approaches.
@@ -695,6 +704,26 @@ whether results are personalised; which of "put credit spread", "bull put
 spread" and "credit put spread" is typed most (ranking titles use all three,
 a count of titles and not demand); whether "natural price" is searched outside
 the platforms whose help pages use it.
+
+## Reading for rows 20–29 (read 30 Sep 2026, one query per row)
+
+One WebSearch result set per row, taken on 30 Sep. This records **which domains
+surface**, not positions and not demand size: there is no rank tracker or volume
+tool here, and Search Console is not connected (see
+`docs/growth/metrics/README.md`).
+
+What the numbers contradicted: row 20's competing cell named Investopedia,
+tastylive and OptionStrat, none of which surfaced for "iron condor explained";
+it is replaced above. Across all ten reads no Reddit thread and no Investopedia
+page surfaced, which is consistent with earlier readings.
+
+Winnable by this read: 21 (width), 23 (DTE), 27 (PMCC tail), 29 (after
+assignment). Hard: 25 (calendar), 28 (rolling). Mixed: 20, 22, 24, 26.
+
+**Not established:** volume, difficulty, personalisation, and whether the ranking
+pages are current; for 22 and 23, the statistics quoted by the ranking pages
+were not verified and are not to be reused in a post.
+
 
 ## Off-syllabus rows
 
