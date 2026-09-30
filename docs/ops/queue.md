@@ -586,6 +586,11 @@ silence there is not clearance. All of it is still open:
 - [open] 2026-09-08 · tax-accountant · The tax framing of a ratio close.
 - [open] 2026-09-08 · head-of-trading · `manageOrder`'s replace path beyond its `> 0` guard, which this pass changed to "finite and non-zero" so a resting credit order can be repriced.
 - [open] 2026-09-08 · **A re-audit before any of this goes to production.** Every fix above was made against a STOP verdict and none of them has been read back by the bench.
+- [open] 2026-09-30 · head-of-branding (W40) · `AccountAnalysis.jsx:553` titles the export `${name} — Performance Analysis`; brand.md forbids "performance page", the feature is Analysis. Fix: `${name} — Analysis` / `"Analysis"`. · docs/branding/2026-W40.md #1
+- [open] 2026-09-30 · head-of-branding (W40) · "DeltaMint — economic performance report" (`AnalysisDisclosure.jsx:25`, `ExportPdfButton.jsx:185`) is a third name for Analysis. Fix: "DeltaMint — Analysis." Do not apply until desk-editor/compliance-gate confirm the phrase is not a deliberate disclosure choice. · W40 #2
+- [open] 2026-09-30 · head-of-branding (W40) · `AccountAnalysis.jsx:512` reads "Crunching performance…"; every other loading state is "Loading…". Fix: `"Loading…"`. · W40 #3
+- [open] 2026-09-30 · head-of-branding (W40) · `supabase/auth/confirm-signup.html:18` link colour `#4f46e5` is not `dm-accent`. Fix: `#534AB7`. · W40 #4
+- [open] 2026-09-30 · head-of-branding (W40) · `ExportPdfButton.jsx:130` PAPER TRADING banner `setTextColor(180, 72, 92)` is not `dm-negative` (`#993C1D`). Fix: `setTextColor(153, 60, 29)`. · W40 #5
 
 
 ## Fixed
