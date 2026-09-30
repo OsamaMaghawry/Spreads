@@ -1,0 +1,21 @@
+<svg viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Gain or loss at expiration, per share, of a hypothetical short 52 call alone against the 52/54 call credit spread, for stock prices from 50 to 58. The short call alone starts at a 1.42 gain and keeps losing 1 for every 1 the stock rises above the 52 strike, reaching a 4.58 loss at 58 with no floor. The spread starts at a 0.49 gain and stops losing at 1.51 from the 54 strike upward.">
+  <rect width="720" height="360" fill="#FFFFFF"/>
+
+  <!-- zero line and strike guides -->
+  <line x1="80" y1="165" x2="660" y2="165" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="225" y1="40" x2="225" y2="300" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="370" y1="40" x2="370" y2="300" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="225" y="328" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">52</text>
+  <text x="370" y="328" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">54</text>
+
+  <!-- short call alone: no floor -->
+  <path d="M80 122.4 L225 122.4 L660 302.4" fill="none" stroke="#B4485C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="10 6"/>
+  <text x="560" y="292" font-size="15" font-weight="600" text-anchor="end" fill="#B4485C">short 52 call alone: no floor</text>
+
+  <!-- spread: floor at the 54 strike -->
+  <path d="M80 150.3 L225 150.3 L370 210.3 L660 210.3" fill="none" stroke="#14151C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="660" y="196" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">52/54 spread: floor at 1.51</text>
+
+  <!-- axis label -->
+  <text x="370" y="352" font-size="15" text-anchor="middle" fill="#767B8E">stock price at expiration</text>
+</svg>
