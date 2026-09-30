@@ -3,6 +3,13 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-09-30 · A call credit spread post — how it differs from a short call, with payoff and comparison diagrams — is live on the blog and cross-linked from the put credit spread and covered call posts (`c0bda8a`).
+- 2026-09-29 · A put credit spread explained post is live on the blog, with compliance-gate wording fixes applied (`fa37328`, `efe925c`).
+- 2026-09-28 · A wheel strategy explained post is live on the blog (`9a76e9d`).
+- 2026-09-27 · The weekly digest build bounds every broker call at 8 seconds and runs them together, so one hung account no longer loses every user's email; the digest still goes to the owner as a review copy only (`c062ebe`).
+- 2026-09-27 · A cash-secured put explained post is live on the blog (`939ba76`, `b9f5ccb`).
+- 2026-09-26 · A covered call explained post is live and opens the income series (`1a94220`).
+- 2026-09-25 · A how-to-read-an-option-chain post is live on the blog, foundations #14 (`81819dd`, `c1bf803`).
 - 2026-09-24 · A thirteenth foundations post — buying power, margin and
   collateral for options — is live on the blog: why buying power and cash
   balance diverge, what a cash-secured put, a credit spread and a covered
