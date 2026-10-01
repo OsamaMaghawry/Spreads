@@ -1,0 +1,36 @@
+<svg viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Gain or loss at expiration, per share, of a hypothetical 46/48/52/54 iron condor opened for a 1.03 credit. Between the 48 and 52 strikes the line is flat at a 1.03 gain, the whole credit. It slopes down on each side, crossing zero at break-evens of 46.97 and 53.03, and is flat at a 0.97 loss, the maximum, at and beyond the 46 and 54 strikes.">
+  <rect width="720" height="360" fill="#FFFFFF"/>
+
+  <!-- zero line and strike guides -->
+  <line x1="80" y1="165" x2="660" y2="165" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="176.7" y1="40" x2="176.7" y2="300" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="273.3" y1="40" x2="273.3" y2="300" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="466.7" y1="40" x2="466.7" y2="300" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="563.3" y1="40" x2="563.3" y2="300" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="176.7" y="328" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">46</text>
+  <text x="273.3" y="328" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">48</text>
+  <text x="466.7" y="328" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">52</text>
+  <text x="563.3" y="328" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">54</text>
+
+  <!-- credit kept between the short strikes -->
+  <polygon points="223.5,165 273.3,92.9 466.7,92.9 516.5,165" fill="#2E8B5F" fill-opacity="0.18"/>
+  <text x="370" y="76" font-size="15" font-weight="600" text-anchor="middle" fill="#2E8B5F">credit kept 1.03</text>
+
+  <!-- losses beyond the break-evens, capped at the long strikes -->
+  <polygon points="80,165 80,232.9 176.7,232.9 223.5,165" fill="#B4485C" fill-opacity="0.16"/>
+  <polygon points="516.5,165 563.3,232.9 660,232.9 660,165" fill="#B4485C" fill-opacity="0.16"/>
+  <text x="128" y="258" font-size="15" font-weight="600" text-anchor="middle" fill="#B4485C">max loss 0.97</text>
+  <text x="612" y="258" font-size="15" font-weight="600" text-anchor="middle" fill="#B4485C">max loss 0.97</text>
+
+  <!-- payoff line -->
+  <path d="M80 232.9 L176.7 232.9 L273.3 92.9 L466.7 92.9 L563.3 232.9 L660 232.9" fill="none" stroke="#14151C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- break-evens -->
+  <circle cx="223.5" cy="165" r="6" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <circle cx="516.5" cy="165" r="6" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="213" y="150" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">46.97</text>
+  <text x="527" y="150" font-size="15" font-weight="600" text-anchor="start" fill="#14151C">53.03</text>
+
+  <!-- axis label -->
+  <text x="370" y="352" font-size="15" text-anchor="middle" fill="#767B8E">stock price at expiration</text>
+</svg>
