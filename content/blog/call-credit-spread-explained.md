@@ -182,5 +182,8 @@ against: a put spread's loss is bounded by zero anyway, while a short call's
 is bounded only by the leg bought above it. The rest follows from that
 and from which prices the credit was built on.
 
+Paired with a [put credit spread](/blog/put-credit-spread-explained) below the stock on the
+same expiration, it becomes an [iron condor](/blog/iron-condor-explained).
+
 All figures on this page are hypothetical and are there to show the
 mechanics. This post is educational and is not investment advice.

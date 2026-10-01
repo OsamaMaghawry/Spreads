@@ -1,0 +1,29 @@
+<svg viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Gain or loss at expiration, per share, of the two spreads inside a hypothetical iron condor, and their sum. The 48/46 put spread alone gains 0.54 and loses at most 1.46 below the 46 strike. The 52/54 call spread alone gains 0.49 and loses at most 1.51 above the 54 strike. Added together, the condor gains 1.03 between 48 and 52 and loses at most 0.97, because the stock can only finish on one side.">
+  <rect width="720" height="360" fill="#FFFFFF"/>
+
+  <!-- zero line and strike guides -->
+  <line x1="80" y1="165" x2="660" y2="165" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="176.7" y1="40" x2="176.7" y2="300" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="273.3" y1="40" x2="273.3" y2="300" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="466.7" y1="40" x2="466.7" y2="300" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="563.3" y1="40" x2="563.3" y2="300" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="176.7" y="328" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">46</text>
+  <text x="273.3" y="328" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">48</text>
+  <text x="466.7" y="328" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">52</text>
+  <text x="563.3" y="328" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">54</text>
+
+  <!-- put spread alone -->
+  <path d="M80 267.2 L176.7 267.2 L273.3 127.2 L660 127.2" fill="none" stroke="#767B8E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="10 6"/>
+  <text x="80" y="292" font-size="15" font-weight="600" text-anchor="start" fill="#767B8E">put spread alone</text>
+
+  <!-- call spread alone -->
+  <path d="M80 130.7 L466.7 130.7 L563.3 270.7 L660 270.7" fill="none" stroke="#B4485C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="10 6"/>
+  <text x="660" y="292" font-size="15" font-weight="600" text-anchor="end" fill="#B4485C">call spread alone</text>
+
+  <!-- the sum -->
+  <path d="M80 232.9 L176.7 232.9 L273.3 92.9 L466.7 92.9 L563.3 232.9 L660 232.9" fill="none" stroke="#14151C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="370" y="76" font-size="15" font-weight="600" text-anchor="middle" fill="#14151C">condor: the two added</text>
+
+  <!-- axis label -->
+  <text x="370" y="352" font-size="15" text-anchor="middle" fill="#767B8E">stock price at expiration</text>
+</svg>
