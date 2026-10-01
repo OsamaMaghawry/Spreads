@@ -9,6 +9,7 @@ Every entry carries: the user problem in the user's words, its evidence, the
 smallest test that could disprove it, the kill criterion, and a cost guess.
 
 Last run: **2026-09-01** (vp-product, Tuesday cadence).
+Last reconciled against shipments: **2026-10-01** (end-of-day pass) — nothing shipped in the last 26 hours touches proposals #1–#3; all three unchanged and still unshipped (no width column, no POP, no `scan_runs` in `origin/main`).
 
 ## Open proposals
 

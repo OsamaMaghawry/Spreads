@@ -3,6 +3,7 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-10-01 · A fourteenth-plus foundations post — iron condor explained: two credit spreads on one stock and expiration, both break-evens, and why max loss is one width less the whole credit — is live on the blog, with two diagrams; the put- and call-credit-spread posts now link to it (`9675d2b`, published `d203ed6`).
 - 2026-09-24 · A thirteenth foundations post — buying power, margin and
   collateral for options — is live on the blog: why buying power and cash
   balance diverge, what a cash-secured put, a credit spread and a covered
