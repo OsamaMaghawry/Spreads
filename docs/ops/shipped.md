@@ -593,3 +593,4 @@ English. Newest first.
 - 2026-09-02 · The after-close report reads as a headline, "Needs a look" and "Everything else", judged on closing prices (`f1515e4`).
 - 2026-09-02 · Set your own price on open and close, with bid/mid/ask chips, a stepper and a verdict on whether it crosses (`dc26117`).
 - 2026-09-02 · The dashboard refreshes continuously in the background; the 60-second timer is gone (`dc26117`).
+- 2026-10-02 · Signing in no longer reloads the page: the login screen moves into the app in place, and opening /login while already signed in goes straight through; fixes the loop where a correct sign-in landed back on the login form with no error (`d803583` on staging).
