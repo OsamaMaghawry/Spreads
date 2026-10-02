@@ -3,6 +3,10 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-10-02 · (staging) Signing in moves straight into the app with no page reload, and opening `/login` while signed in goes through — the owner had been bounced back to the login form six times on an iPad because the reloaded page did not find the new session (`d803583`). Not yet on `main`.
+- 2026-10-02 · (staging) The Strategies table on Analysis adds up: the column is "Booked P/L", the All row is the sum of the rows, and under it "Still open, at today's prices" plus "Account result" show booked + open = the figure at the top of the page ("—" if anything open has no price) (`e7cdd3f`). Not yet on `main`.
+- 2026-10-02 · A credit-spread-width post is live on the blog, the twenty-first in the syllabus (`b5e953a`, `37d20e3`). The income series ran daily before it: iron condor (`9675d2b`), call credit spread (`c0bda8a`), put credit spread (`fa37328`), wheel (`f778f68`, `9a76e9d`), cash-secured put (`939ba76`), covered call (`1a94220`) and how to read an option chain (`81819dd`), 25 Sep – 1 Oct.
+- 2026-09-27 · The weekly digest email no longer loses everyone's mail when one broker call hangs: a call gives up after 8 seconds, the email says which part it could not read, and an account's three calls run together (`c062ebe`; reached `main` in the staging merge `2c6e494`).
 - 2026-09-24 · A thirteenth foundations post — buying power, margin and
   collateral for options — is live on the blog: why buying power and cash
   balance diverge, what a cash-secured put, a credit spread and a covered

@@ -114,7 +114,7 @@ History** and bans "journal" and "log".
 | A5 | Credit-capture breakdown by bucket, held vs closed early | `analysis/CaptureBreakdown.jsx` | main | PAID |
 | A6 | Equity curve of realised P/L | `analysis/EquityCurveChart.jsx` | main | PAID |
 | A7 | By-month and by-ticker tables | `analysis/BreakdownTable.jsx` | main | PAID |
-| A8 | Strategy comparison | `analysis/StrategyComparison.jsx` | main | PAID |
+| A8 | Strategy comparison; on `staging` (`e7cdd3f`) the column is Booked P/L, the All row is the sum of the rows, and the open mark sits on its own lines under the table (Still open, Account result) | `analysis/StrategyComparison.jsx` | main (booked/open split on staging) | PAID |
 | A9 | Date range filter; ROE withheld on a filtered view | `analysis/DateRangeFilter.jsx` | main | PAID |
 | A10 | PDF export, A4, paginated, paper banner, full disclaimer on every page | `analysis/ExportPdfButton.jsx` | main | PAID — the old page sold it as Desk-only |
 
