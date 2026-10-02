@@ -1,0 +1,21 @@
+<svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Credit per share for the same 50 to 45 put exposure built two ways on one hypothetical chain. One 50/45 spread pays 1.67. Five one-dollar-wide spreads laddered from 50 to 45 pay 0.39, 0.32, 0.25, 0.19 and 0.14, a total of 1.29. The 0.38 difference is the bid-ask spread paid on the four middle strikes, each sold in one spread and bought in the next.">
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#B4485C" stroke-width="1.4" opacity="0.45"/>
+    </pattern>
+  </defs>
+  <rect width="720" height="260" fill="#FFFFFF"/>
+  <text x="158" y="75" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">one 50/45 spread</text>
+  <rect x="170" y="50" width="450.9" height="38" fill="#2E8B5F" fill-opacity="0.85"/>
+  <text x="629.9" y="76" font-size="18" font-weight="600" fill="#14151C">1.67</text>
+  <text x="158" y="155" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">five 1-wide spreads</text>
+  <rect x="170.0" y="130" width="105.3" height="38" fill="#2E8B5F" fill-opacity="0.85" stroke="#FFFFFF" stroke-width="2"/>
+  <rect x="275.3" y="130" width="86.4" height="38" fill="#2E8B5F" fill-opacity="0.85" stroke="#FFFFFF" stroke-width="2"/>
+  <rect x="361.7" y="130" width="67.5" height="38" fill="#2E8B5F" fill-opacity="0.85" stroke="#FFFFFF" stroke-width="2"/>
+  <rect x="429.2" y="130" width="51.3" height="38" fill="#2E8B5F" fill-opacity="0.85" stroke="#FFFFFF" stroke-width="2"/>
+  <rect x="480.5" y="130" width="37.8" height="38" fill="#2E8B5F" fill-opacity="0.85" stroke="#FFFFFF" stroke-width="2"/>
+  <text x="344.1" y="195" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">1.29</text>
+  <rect x="518.3" y="130" width="102.6" height="38" fill="url(#hatch)" stroke="#B4485C" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="569.6" y="195" font-size="15" font-weight="600" text-anchor="middle" fill="#B4485C">0.38 given up</text>
+  <text x="170" y="245" font-size="15" fill="#767B8E">credit per share</text>
+</svg>

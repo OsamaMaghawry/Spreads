@@ -160,7 +160,8 @@ How to weigh a credit against the risk behind it is its own subject:
 capital](/blog/return-on-risk-vs-return-on-capital) works it through, and the
 [max loss post](/blog/credit-spread-max-loss) covers what the figure does not
 describe before expiration. The width is fixed at the fill, and it is the
-number the maximum loss is built from.
+number the maximum loss is built from. The [credit spread width
+post](/blog/credit-spread-width) takes this same 50 short put across $1, $2 and $5 widths.
 
 One consequence is easy to overlook. Two spreads with the same short strike
 have the same first leg, the same obligation to buy at $50.00, and they still

@@ -82,6 +82,8 @@ Which is why the same credit on a different width is a different position:
 - **$0.35 on a $2.50-wide spread** — the plateau sits at $215, more than three
   times as far down, for identical income.
 
+On a real chain the same short strike does not pay the same credit at every width; the [credit spread width post](/blog/credit-spread-width) prices $1, $2 and $5 widths from one chain's quotes.
+
 Ranking positions on that basis is its own subject, and
 [return on risk against return on capital](/blog/return-on-risk-vs-return-on-capital)
 is where it is worked through.
