@@ -32,6 +32,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 18 | Put credit spread | put credit spread explained (also searched as "what is a put credit spread"; broker hubs title it "bull put spread" and "short put vertical" — see the row 18 reading) | options credit spread; never "credit spread" alone — the bare phrase is bond credit spreads | CIBC Investor's Edge, SoFi, StoneX glossary, OIC, Schwab, Fidelity, Option Alpha, moomoo, Alpaca learn, Nasdaq; tastytrade.com on "short put vertical"; on the fill phrasings Robinhood and IBKR help pages and TradingView chart ideas. No investopedia.com, tastylive.com or Reddit page surfaced | one hypothetical 50/48 spread read off row 14's chain: the credit the bid and ask pay against the mark, max loss and break-even from that fill, and what width changes. The between-the-strikes close is row 12's home intent, handed to it |
 | 19 | Call credit spread | call credit spread explained | options credit spread; never "credit spread" alone | Option Alpha, OIC, Fidelity, CIBC, Schwab, StoneX, SoFi, Wikipedia; tastytrade on "short call vertical"; probabilityofprofit, piranhaprofits and Substacks in the tail (read 30 Sep 2026) | the mirror, and what is different about upside: why the long call is the only cap, credit built from live bid/ask, short stock after assignment |
 | 20 | Iron condor | iron condor explained | iron condor | Option Alpha, IG, Wealthsimple, CFI, Motley Fool, Nasdaq, Robinhood learn, Schwab, Fidelity, IBKR, TradeStation; Macroption and calculator sites on max loss and break-evens; Investopedia, tastylive and OptionStrat did not surface (read 1 Oct 2026) | two spreads, one max loss: one width less the WHOLE credit, not two widths and not that side's credit; bid/ask pricing of all four legs; the wider wing sets the loss when wings differ |
+| 21 | Credit spread width | credit spread width (also searched as "$1 spread vs $5 spread" and "one $5 wide spread vs five $1 wide spreads" — see the row 21 reading) | options credit spread; never "credit spread" alone, and never "spread width" alone — the bare phrase drifts to bid-ask spreads, bond spreads and farm spreaders | Option Alpha (bull put and bear call strategy pages, and a community thread on "$1 spread vs $5 spread"), a Substack (theoptionpremium, "Credit Spread Width: $2, $5, or $10 Wide?") on nearly every phrasing, Alpaca learn, SpotGamma support, StoneX glossary, Wikipedia, OptionsPlay, ApexVol, Aeromir, SMB Training, Wheel Strategist, TradeStation; tastytrade.com on "vertical spread width max loss". No investopedia.com, tastylive.com or Reddit page surfaced (read 2 Oct 2026) | one 50 short put at three widths on the hypothetical chain: the credit grows more slowly than the width, the bid-ask takes a larger share of a narrow spread, and "five $1-wide" is read both ways — five contracts of one spread, and a five-spread ladder that pays like one $5-wide at expiration for less credit. No "which width", no return-on-capital percentage, no win rate |
 | M48 | What a credit spread actually risks | credit spread max loss before expiration | credit spread max loss | tastytrade (short put vertical), moomoo, Schwab, broker learn hubs; TradingView chart-idea pages padding the tail | max loss is the expiration number — what the collateral holds, what the mark does, and what assignment changes in between |
 
 Rows 21–65 are added by the Wednesday run as their turn approaches.
@@ -695,6 +696,40 @@ whether results are personalised; which of "put credit spread", "bull put
 spread" and "credit put spread" is typed most (ranking titles use all three,
 a count of titles and not demand); whether "natural price" is searched outside
 the platforms whose help pages use it.
+
+## Reading for row 21 — credit spread width (read 2026-10-02)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size. Sixteen searches, one tool, one day.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| credit spread width (target) | Option Alpha strategy pages, OptionsPlay, a theoptionpremium Substack titled for width, finchtrade, ApexVol, a LIBOR-OIS chart idea | **hard-ish** — the only page titled for width is a Substack; bond-spread results pad the tail |
+| options credit spread width explained | SpotGamma support, Alpaca learn, Option Alpha, StoneX glossary, Wikipedia | **hard-ish** — the "options" qualifier removes the bond drift; glossaries define width in a sentence and move on |
+| what is the width of a credit spread | Alpaca learn, theoptionpremium, finchtrade, advancedautotrades, Barchart, chart ideas | **winnable on the words** — earns the first sentence and the first FAQ, never the title |
+| how wide should a credit spread be | theoptionpremium, Aeromir, ApexVol, an SPY chart idea | **do not target** — "should" asks for a recommendation; the post answers what width changes, never which to pick |
+| one $5 wide spread vs five $1 wide spreads | an Option Alpha community thread, Aeromir, theoptionpremium, chart ideas | **winnable, the post's home intent** — the thread reads "five $1 spreads" only as five contracts of one spread; nobody reads the ladder version |
+| is a $5 wide spread the same as five $1 wide spreads (ladder) | TradeStation insights, the Option Alpha thread, sheidaei.com, theoptionpremium | **winnable, thin** — no page shows the middle strikes each crossing the bid-ask. "Ladder" drifts to unrelated results, so it stays in the body, never a title or heading |
+| does a wider credit spread collect more premium | arXiv and patent noise, theoptionpremium, datadrivenoptions | **winnable** — half the set is bond noise |
+| spread width (unqualified) | SpotGamma, Option Alpha, ATAS order-flow, a fertiliser-spreader page | **do not target** — half options, half bid-ask and farm equipment |
+| credit spread width investopedia tastylive | bond "credit spreads widening" pages, CFI, Wikipedia "Yield spread" | **entirely bond intent** — never "widening" in a title, heading or meta |
+
+**The gap.** Every ranking page gives the same four things: width is the
+distance between the strikes, max loss is width less credit times 100, wider
+spreads collect more credit but not in proportion, and narrower spreads allow
+more contracts for the same risk. Most then say which width to use or quote
+return percentages and win rates. None prices several widths from one chain's
+bid and ask on one short strike; none relates the bid-ask cost to width; the
+forum thread argues only the five-contracts reading; and none shows that a
+ladder pays like one wide spread at a lower credit. The angle stays
+descriptive, with arithmetic a reader can check.
+
+**Could not establish:** volume, difficulty or position for any phrasing;
+whether results are personalised; whether "credit spread width", "spread width"
+or "wing width" is typed most; and whether the Option Alpha thread is the only
+forum holding the question. The absence of investopedia.com, tastylive.com and
+Reddit is a read of one day's results, not proof they do not rank.
 
 ## Off-syllabus rows
 

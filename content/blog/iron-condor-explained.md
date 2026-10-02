@@ -171,7 +171,7 @@ because the stock finishes on only one side.
 
 The two-sided picture is simple at expiration and less so before it. The
 structure is one position carrying two ways to be wrong, a distinction the
-[income series](/blog/income) returns to as it moves from structures to widths,
+[income series](/blog/income) returns to as it moves from structures to [widths](/blog/credit-spread-width),
 strikes and days to expiration.
 
 All figures on this page are hypothetical and are there to show the
