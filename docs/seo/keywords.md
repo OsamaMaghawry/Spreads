@@ -33,6 +33,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 19 | Call credit spread | call credit spread explained | options credit spread; never "credit spread" alone | Option Alpha, OIC, Fidelity, CIBC, Schwab, StoneX, SoFi, Wikipedia; tastytrade on "short call vertical"; probabilityofprofit, piranhaprofits and Substacks in the tail (read 30 Sep 2026) | the mirror, and what is different about upside: why the long call is the only cap, credit built from live bid/ask, short stock after assignment |
 | 20 | Iron condor | iron condor explained | iron condor | Option Alpha, IG, Wealthsimple, CFI, Motley Fool, Nasdaq, Robinhood learn, Schwab, Fidelity, IBKR, TradeStation; Macroption and calculator sites on max loss and break-evens; Investopedia, tastylive and OptionStrat did not surface (read 1 Oct 2026) | two spreads, one max loss: one width less the WHOLE credit, not two widths and not that side's credit; bid/ask pricing of all four legs; the wider wing sets the loss when wings differ |
 | 21 | Credit spread width | credit spread width (also searched as "$1 spread vs $5 spread" and "one $5 wide spread vs five $1 wide spreads" — see the row 21 reading) | options credit spread; never "credit spread" alone, and never "spread width" alone — the bare phrase drifts to bid-ask spreads, bond spreads and farm spreaders | Option Alpha (bull put and bear call strategy pages, and a community thread on "$1 spread vs $5 spread"), a Substack (theoptionpremium, "Credit Spread Width: $2, $5, or $10 Wide?") on nearly every phrasing, Alpaca learn, SpotGamma support, StoneX glossary, Wikipedia, OptionsPlay, ApexVol, Aeromir, SMB Training, Wheel Strategist, TradeStation; tastytrade.com on "vertical spread width max loss". No investopedia.com, tastylive.com or Reddit page surfaced (read 2 Oct 2026) | one 50 short put at three widths on the hypothetical chain: the credit grows more slowly than the width, the bid-ask takes a larger share of a narrow spread, and "five $1-wide" is read both ways — five contracts of one spread, and a five-spread ladder that pays like one $5-wide at expiration for less credit. No "which width", no return-on-capital percentage, no win rate |
+| 22 | Choosing a strike by delta | credit spread delta strike selection (also searched as "how to choose strikes for a credit spread" and "is delta probability of profit credit spread" — see the row 22 reading) | options credit spread; never "credit spread delta" alone — the bare phrase returns CME/patent margin filings and bond-spread papers | a theoptionpremium Substack ("Credit Spread Strike Selection: A Probability-Based Approach") on nearly every phrasing, datadrivenoptions (three pages), optionspilot, ApexVol, journalplus, advancedautotrades, optionstradingiq, creditspread.net, impliedoptions, OptionsPlay, CIBC Investor's Edge, Wikipedia, strike.money, optionjournal, TradeStation insights; Macroption and Pomegra on delta-vs-probability; an Elite Trader thread ("The best delta for a credit spread?") and TradingView chart ideas in the tail. No investopedia.com, tastylive.com or Reddit page surfaced (read 3 Oct 2026) | one hypothetical put spread read at four short-strike deltas on the series' chain: what the short strike's delta says and does not say. It is not the spread's probability of profit, because the break-even sits below the short strike and the long strike sets max loss. The same delta sits at a different dollar distance at a different IV, and it drifts after the fill. No "which delta", no win rate, no probability-of-profit table, no return figure |
 | M48 | What a credit spread actually risks | credit spread max loss before expiration | credit spread max loss | tastytrade (short put vertical), moomoo, Schwab, broker learn hubs; TradingView chart-idea pages padding the tail | max loss is the expiration number — what the collateral holds, what the mark does, and what assignment changes in between |
 
 Rows 21–65 are added by the Wednesday run as their turn approaches.
@@ -730,6 +731,38 @@ whether results are personalised; whether "credit spread width", "spread width"
 or "wing width" is typed most; and whether the Option Alpha thread is the only
 forum holding the question. The absence of investopedia.com, tastylive.com and
 Reddit is a read of one day's results, not proof they do not rank.
+
+## Reading for row 22 — credit spread delta strike selection (read 2026-10-03)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size. Seventeen searches, one tool, one day.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| credit spread delta strike selection (target) | strike.money, optionstradingiq, theoptionpremium, Wikipedia, impliedoptions, datadrivenoptions, advancedautotrades; two arXiv credit-risk papers in the tail | **winnable** — no broker hub; content blogs and a Substack, all titled as a method, opening with a "sweet spot" delta range, framing we do not write |
+| how to choose strikes for a credit spread | CIBC Investor's Edge, StockTrak, theoptionpremium, Wikipedia, OptionsPlay, quantmatter, financialtechwiz, advancedautotrades | **hard-ish** — one bank hub, the rest blogs; every page ends in a delta range plus a DTE rule |
+| what delta to sell credit spread / 30 delta credit spread | an Elite Trader thread, Wikipedia, theoptionpremium, datadrivenoptions, journalplus, ApexVol, optionspilot, TradingView chart ideas | **do not target** — asks for a recommendation; every answer is one, with probability-of-profit and return percentages. An FAQ line only |
+| is delta probability of profit credit spread | theoptionpremium, datadrivenoptions, creditspread.net, journalplus, ApexVol, advancedautotrades, optionspilot, tradealgo | **winnable, the post's home intent** — nearly every page says "roughly 100 minus the short delta" and stops; none separates short strike, break-even and long strike. The generic ITM question stays row 6's |
+| same delta different strike distance high IV low IV | theoptionpremium, journalplus, advancedautotrades, datadrivenoptions, daystoexpiry | **winnable** — the only page that states it wraps it in IV-rank entry rules |
+| short strike delta vs long strike delta / net delta | a VolArchitect Substack, datadrivenoptions, theoptionpremium, journalplus, ApexVol | **winnable, thin** — one Substack computes net delta |
+| why did my short put delta go up after entry | optionstradingiq, datadrivenoptions, Traders Exclusive, daystoexpiry, optionspilot | **winnable** — every page pivots to rolling rules; the gamma post owns the mechanism |
+| credit spread delta (unqualified) | USPTO margining patents, an arXiv paper | **do not target** — no options-education page surfaced |
+| investopedia / tastylive / reddit variants | the same blog set; Wikipedia; TradingView chart ideas | **no investopedia.com, tastylive.com or Reddit page surfaced** — one tool, one day, not proof they do not rank |
+
+**The gap.** Every ranking page says delta is roughly the chance the short
+strike finishes in the money, so probability of profit is "about 100 minus
+delta", and then gives a "sweet spot" range, usually with win rates or expected
+value. None notes that a credit spread has three different probabilities: the
+short strike, the break-even (short strike less the credit) and the long strike.
+None prices the same delta at two volatility levels on one chain to show the
+dollar distance moving under a fixed number. The angle stays descriptive.
+
+**Could not establish:** volume, difficulty or position for any phrasing;
+whether results are personalised; which of "credit spread strike selection",
+"credit spread delta" and "what delta to sell" is typed most; whether r/thetagang
+threads rank (none surfaced); whether "three probabilities" has its own searched
+phrasing.
 
 ## Off-syllabus rows
 

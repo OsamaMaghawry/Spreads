@@ -189,7 +189,8 @@ credit and on the wide one as a twentieth.
 A spread is one position with one width. Splitting it into narrower spreads
 changes the credit, the number of fills and the collateral even where the
 expiration payoff is the same. The [income series](/blog/income) continues from
-width to the next choice a spread makes, which strike to sell.
+width to the next choice a spread makes, which strike to sell, and
+[how delta describes it](/blog/credit-spread-delta-strike-selection).
 
 All figures on this page are hypothetical and are there to show the
 mechanics. This post is educational and is not investment advice.
