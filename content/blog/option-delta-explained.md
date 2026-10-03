@@ -128,7 +128,8 @@ The same number states a trade-off rather than settling it. A strike further
 from the stock shows a smaller delta in magnitude and carries a smaller
 premium; a nearer strike shows a larger delta and a larger premium — for a put
 as much as a call, since a −0.10 delta is smaller in magnitude than a −0.30
-one. Which of those a trader wants is not something delta answers.
+one. Which of those a trader wants is not something delta answers. The [credit spread
+version of this question](/blog/credit-spread-delta-strike-selection) is worked through on one chain.
 
 ## Frequently asked questions
 
