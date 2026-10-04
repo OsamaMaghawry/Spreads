@@ -95,7 +95,7 @@ exactly what the larger gamma number describes.
 For a strike sitting at the money, gamma does not stay level as the calendar
 runs down. It grows, the same way [theta accelerates](/blog/theta-decay-explained)
 for the same strikes — the two are different views of the same shrinking
-window of time.
+window of time. The [credit spread DTE post](/blog/credit-spread-dte) shows the same rise in a spread's delta at the short strike.
 
 Hold the stock at the $50 strike and change only the days remaining:
 
