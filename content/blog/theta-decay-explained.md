@@ -138,7 +138,7 @@ from every other input on the chain row.
 Three things move the daily figure, and they interact rather than acting one
 at a time.
 
-- **Days to expiration.** Near the money, a shorter-dated option decays faster per day, as the table above shows; a longer-dated one decays slower but for more days.
+- **Days to expiration.** Near the money, a shorter-dated option decays faster per day, as the table above shows; a longer-dated one decays slower but for more days. [On a credit spread](/blog/credit-spread-dte) the same shape applies to the spread's mark.
 - **Moneyness.** At-the-money strikes carry the most extrinsic value and the largest theta at a given expiration; deep in- or out-of-the-money strikes carry less of each, and their daily decay does not accelerate the same way into expiration.
 - **Implied volatility.** A higher IV means more extrinsic value is priced into the option to begin with, so there is more of it for theta to remove each day.
 

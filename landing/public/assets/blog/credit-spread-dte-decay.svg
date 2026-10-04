@@ -1,0 +1,18 @@
+<svg viewBox="0 0 720 290" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="The same hypothetical 46/44 put credit spread with the stock flat at 50, valued at five points in its life. The mark is $57 with 60 days left, $50 with 45, $39 with 30, $20 with 14 and $7 with 7. The premium left to decay shrinks slowly at first and quickly at the end.">
+  <rect width="720" height="290" fill="#FFFFFF"/>
+  <text x="158" y="41" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">60 days</text>
+  <rect x="170" y="24" width="342.0" height="24" fill="#2E8B5F" fill-opacity="0.85"/>
+  <text x="520.0" y="41" font-size="14" font-weight="600" fill="#14151C">$57</text>
+  <text x="158" y="89" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">45 days</text>
+  <rect x="170" y="72" width="300.0" height="24" fill="#2E8B5F" fill-opacity="0.85"/>
+  <text x="478.0" y="89" font-size="14" font-weight="600" fill="#14151C">$50</text>
+  <text x="158" y="137" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">30 days</text>
+  <rect x="170" y="120" width="234.0" height="24" fill="#2E8B5F" fill-opacity="0.85"/>
+  <text x="412.0" y="137" font-size="14" font-weight="600" fill="#14151C">$39</text>
+  <text x="158" y="185" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">14 days</text>
+  <rect x="170" y="168" width="120.0" height="24" fill="#2E8B5F" fill-opacity="0.85"/>
+  <text x="298.0" y="185" font-size="14" font-weight="600" fill="#14151C">$20</text>
+  <text x="158" y="233" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">7 days</text>
+  <rect x="170" y="216" width="42.0" height="24" fill="#2E8B5F" fill-opacity="0.85"/>
+  <text x="220.0" y="233" font-size="14" font-weight="600" fill="#14151C">$7</text>
+</svg>

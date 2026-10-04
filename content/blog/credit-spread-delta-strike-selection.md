@@ -120,6 +120,6 @@ The practical consequence is about the word "chosen". A strike picked at 0.22 de
 
 Delta describes a short strike's position on a scale that survives a change of stock, expiration or volatility, which a dollar distance cannot. On the hypothetical chain, a $2-wide spread's credit fell from 0.81 to 0.13 as the short delta fell from 0.48 to 0.12, and its maximum loss rose from $119 to $187.
 
-The label also leaves things out: it names one leg, it is a model's output, and it changes every day. The [income series](/blog/income) continues from where the short strike sits to when it expires, and how the time left changes what the same spread is.
+The label also leaves things out: it names one leg, it is a model's output, and it changes every day. The [income series](/blog/income) continues from where the short strike sits to [when it expires, and how the time left changes what the same spread is](/blog/credit-spread-dte).
 
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.
