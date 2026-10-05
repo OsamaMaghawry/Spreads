@@ -595,3 +595,5 @@ English. Newest first.
 - 2026-09-02 · The dashboard refreshes continuously in the background; the 60-second timer is gone (`dc26117`).
 - 2026-10-02 · Signing in no longer reloads the page: the login screen moves into the app in place, and opening /login while already signed in goes straight through; fixes the loop where a correct sign-in landed back on the login form with no error (`d803583` on staging).
 - 2026-10-02 · The Strategies tab now adds up: each strategy row shows booked P/L, the All row is their sum, and under the table "Still open, at today's prices" plus "Account result" tie it to the figure at the top of the page (`e7cdd3f` on staging).
+- 2026-10-04 · New blog post on days to expiration for credit spreads, with two diagrams (`e88c543`, published `cc1c7e8`).
+- 2026-10-05 · New blog post on selling options before earnings, with two diagrams (`8c3bb78`, published `7818884`).
