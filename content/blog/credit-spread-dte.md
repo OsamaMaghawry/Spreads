@@ -97,6 +97,6 @@ Two cautions apply to every figure here. The numbers come from one model at one 
 
 DTE changes a credit spread in three ways that point in different directions. The premium shrinks as the days go, from about $57 to $7 on the example. The dollars lost per day rise, from $0.41 to $1.88. And a $4 fall to the short strike costs more the nearer expiration is, $39 at 60 days against $65 at 7.
 
-So the question to ask of any DTE is what it trades, and not whether it is correct. The [income series](/blog/income) continues from the calendar to the events that sit on it, starting with earnings, one of the dates a spread's expiration can be chosen around.
+So the question to ask of any DTE is what it trades, and not whether it is correct. The [income series](/blog/income) continues from the calendar to the events that sit on it, starting with [earnings](/blog/selling-options-before-earnings), one of the dates a spread's expiration can be chosen around.
 
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.

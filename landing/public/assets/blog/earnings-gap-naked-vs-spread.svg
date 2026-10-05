@@ -1,0 +1,25 @@
+<svg viewBox="0 0 720 385" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Gain or loss at expiration, per share, of a hypothetical naked XYZ 50 put sold for 2.36 against a 50/48 put credit spread sold for 0.91, for stock prices from 40 to 52. The naked put keeps 2.36 at 50 and above, then loses 1 for every 1 the stock falls, reaching a 7.64 loss at 40 with no floor. The spread keeps 0.91 at 50 and above and stops losing at 1.09 from the 48 strike down. A dashed line marks a gap open at 44, below both strikes.">
+  <rect width="720" height="385" fill="#FFFFFF"/>
+
+  <!-- zero line and strike guides -->
+  <line x1="80" y1="110" x2="660" y2="110" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="466.67" y1="40" x2="466.67" y2="320" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="563.33" y1="40" x2="563.33" y2="320" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="466.67" y="345" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">48</text>
+  <text x="563.33" y="345" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">50</text>
+
+  <!-- gap open at 44 -->
+  <line x1="273.33" y1="40" x2="273.33" y2="320" stroke="#B4485C" stroke-width="2" stroke-dasharray="6 6"/>
+  <text x="273.33" y="30" font-size="15" font-weight="600" text-anchor="middle" fill="#B4485C">gap to 44</text>
+
+  <!-- naked 50 put: no floor -->
+  <path d="M80 308.64 L563.33 48.64 L660 48.64" fill="none" stroke="#B4485C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="10 6"/>
+  <text x="300" y="240" font-size="15" font-weight="600" fill="#B4485C">naked put</text>
+
+  <!-- 50/48 spread: floor at 1.09 -->
+  <path d="M80 138.34 L466.67 138.34 L563.33 86.34 L660 86.34" fill="none" stroke="#14151C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="90" y="160" font-size="15" font-weight="600" fill="#14151C">spread: floor 1.09</text>
+
+  <!-- axis label -->
+  <text x="370" y="375" font-size="15" text-anchor="middle" fill="#767B8E">stock at expiration</text>
+</svg>
