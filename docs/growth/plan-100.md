@@ -41,6 +41,18 @@ switch. The arithmetic is shown so the replacement is one edit.
 | ← Signups connecting a live account | 25 % (the rest stay on paper, at least at first) | **~2,700 signups** |
 | ← Visitors signing up | 3 % (intent-matched educational traffic) | **~90,000 visitors** over 17 weeks ≈ **5,300 a week** ≈ **760 a day** |
 
+**Status, 2026-10-05 (vp-growth, weekly revision):** no benchmark above is
+replaced. The newest snapshot (`docs/growth/metrics/2026-10-05.json`, on
+`main`; `staging` is stale on this path) shows `signedUp: 4`, `signedUpLast7: 0`
+— the funnel has been flat at 4 signups, ever, since 2026-09-08 (four weeks).
+Measured so far: 4 signed up → 3 connected → 3 traded → 1 traded live → 0
+paying. At n=4 these are counts, not rates; substituting "75 % signup→connected"
+or "25 % signup→live" for the 25 % benchmark would read as more certain than
+it is. Visitors are still unmeasured (Search Console and GA4 read "not
+configured" in every snapshot), so the 3 % visitor→signup step cannot be
+replaced either. Next revision point: first week with ≥ 30 signups or any
+GA4 session count.
+
 Two levers change this by more than any channel does:
 
 - **Signup → live**: if the product's own paper experience pushes the rate
