@@ -1,0 +1,25 @@
+<svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="The price of one hypothetical XYZ 50 put split into time value and intrinsic value at three moments. The afternoon before earnings, with implied volatility at 80 percent, it is 2.36, all time value. The morning after, with the stock opening unchanged at 50 and implied volatility back at 40 percent, it is 1.10, still all time value. The morning after a gap open at 44, it is 6.01: 6.00 of intrinsic value and 0.01 of time value.">
+  <rect width="720" height="260" fill="#FFFFFF"/>
+
+  <!-- legend -->
+  <rect x="170" y="18" width="16" height="16" fill="#2E8B5F" fill-opacity="0.85"/>
+  <text x="194" y="31" font-size="14" fill="#767B8E">time value</text>
+  <rect x="300" y="18" width="16" height="16" fill="#B4485C" fill-opacity="0.85"/>
+  <text x="324" y="31" font-size="14" fill="#767B8E">intrinsic value</text>
+
+  <!-- before the date: 2.36, all time value -->
+  <text x="158" y="83" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">Before</text>
+  <rect x="170" y="64" width="165.2" height="28" fill="#2E8B5F" fill-opacity="0.85"/>
+  <text x="343.2" y="83" font-size="14" font-weight="600" fill="#14151C">2.36</text>
+
+  <!-- opens at 50: 1.10, all time value -->
+  <text x="158" y="143" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">Opens at 50</text>
+  <rect x="170" y="124" width="77.0" height="28" fill="#2E8B5F" fill-opacity="0.85"/>
+  <text x="255.0" y="143" font-size="14" font-weight="600" fill="#14151C">1.10</text>
+
+  <!-- opens at 44: 6.00 intrinsic + 0.01 time value -->
+  <text x="158" y="203" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">Opens at 44</text>
+  <rect x="170" y="184" width="420.0" height="28" fill="#B4485C" fill-opacity="0.85"/>
+  <rect x="590" y="184" width="0.7" height="28" fill="#2E8B5F" fill-opacity="0.85"/>
+  <text x="598.7" y="203" font-size="14" font-weight="600" fill="#14151C">6.01</text>
+</svg>

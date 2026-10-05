@@ -132,7 +132,7 @@ together rather than one strike at a time.
 - **The near expiration usually rises most in IV terms.** One announcement is a larger share of the movement expected over a week than of the movement expected over a quarter, so the front expirations lift further in percentage terms.
 - **The longer expiration usually carries more vega.** More days left means more extrinsic value at stake, so a smaller IV move there can still be worth more in dollars.
 - **The same inputs unwind afterwards.** Once the result is public the uncertainty it carried is gone, IV falls back, and the contracts reprice down on that alone — a move traders call IV crush, or a volatility
-crush.
+crush. [What that does to a seller, priced](/blog/selling-options-before-earnings).
 
 The last point is the one that surprises people, because it can happen on a
 day the stock barely moves. Both legs of the repricing are mechanical: an

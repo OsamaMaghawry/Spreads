@@ -35,6 +35,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 21 | Credit spread width | credit spread width (also searched as "$1 spread vs $5 spread" and "one $5 wide spread vs five $1 wide spreads" — see the row 21 reading) | options credit spread; never "credit spread" alone, and never "spread width" alone — the bare phrase drifts to bid-ask spreads, bond spreads and farm spreaders | Option Alpha (bull put and bear call strategy pages, and a community thread on "$1 spread vs $5 spread"), a Substack (theoptionpremium, "Credit Spread Width: $2, $5, or $10 Wide?") on nearly every phrasing, Alpaca learn, SpotGamma support, StoneX glossary, Wikipedia, OptionsPlay, ApexVol, Aeromir, SMB Training, Wheel Strategist, TradeStation; tastytrade.com on "vertical spread width max loss". No investopedia.com, tastylive.com or Reddit page surfaced (read 2 Oct 2026) | one 50 short put at three widths on the hypothetical chain: the credit grows more slowly than the width, the bid-ask takes a larger share of a narrow spread, and "five $1-wide" is read both ways — five contracts of one spread, and a five-spread ladder that pays like one $5-wide at expiration for less credit. No "which width", no return-on-capital percentage, no win rate |
 | 22 | Choosing a strike by delta | credit spread delta strike selection (also searched as "how to choose strikes for a credit spread" and "is delta probability of profit credit spread" — see the row 22 reading) | options credit spread; never "credit spread delta" alone — the bare phrase returns CME/patent margin filings and bond-spread papers | a theoptionpremium Substack ("Credit Spread Strike Selection: A Probability-Based Approach") on nearly every phrasing, datadrivenoptions (three pages), optionspilot, ApexVol, journalplus, advancedautotrades, optionstradingiq, creditspread.net, impliedoptions, OptionsPlay, CIBC Investor's Edge, Wikipedia, strike.money, optionjournal, TradeStation insights; Macroption and Pomegra on delta-vs-probability; an Elite Trader thread ("The best delta for a credit spread?") and TradingView chart ideas in the tail. No investopedia.com, tastylive.com or Reddit page surfaced (read 3 Oct 2026) | one hypothetical put spread read at four short-strike deltas on the series' chain: what the short strike's delta says and does not say. It is not the spread's probability of profit, because the break-even sits below the short strike and the long strike sets max loss. The same delta sits at a different dollar distance at a different IV, and it drifts after the fill. No "which delta", no win rate, no probability-of-profit table, no return figure |
 | 23 | Days to expiry for credit spreads | credit spread dte (target phrasing "best dte for credit spreads" is a recommendation query — answered descriptively; also searched as "30 vs 45 dte credit spread" and "21 dte rule" — see the row 23 reading) | options credit spread; never "dte" alone | daystoexpiry (four pages: best DTE, 21 DTE rule, theta curve, gamma near expiration), datadrivenoptions, apexvol, tradealgo, advancedautotrades, journalplus, OptionsPlay, sellcallput, TradingView chart ideas in the tail. No investopedia.com, tastylive.com or Reddit page surfaced (read 4 Oct 2026) | one hypothetical 46/44 put spread priced at 60, 45, 30, 21, 14 and 7 days: the mark falls, the daily decay in dollars rises, a $4 fall to the short strike costs more as expiry nears, and the spread delta at the strike goes from 0.11 to 0.29. No "which DTE", no study statistics, no return figure |
+| 24 | Earnings and short premium | selling options before earnings (also searched as "holding short options through earnings", "does IV crush help option sellers if the stock moves past the strike" and "credit spread through earnings" — see the row 24 reading). Recommended slug `selling-options-before-earnings` | trading options around earnings (the broker-hub set: Schwab, Fidelity, Wealthsimple); never "earnings" alone, and "IV crush" stays row 8's (`implied-volatility-options-explained` already titles "before earnings") | Nasdaq and Barchart syndicated "selling a [ticker] put before earnings" articles and a Yahoo Finance trade write-up hold the exact phrase; Option Samurai, daystoexpiry, QuantWheel, CashFlowMachine, TradingBlock ("Bad for Buyers, Great for Sellers"), SpotGamma, SoFi, moomoo learn and community, advancedautotrades, Volatility Box, fattail.ai, impliedoptions, optionspilot, MenthorQ, SteadyOptions, Market Rebellion, Option Alpha, Finimize/IG, Schwab, Fidelity, Wealthsimple; TradingView chart ideas in the tail. No investopedia.com, tastylive.com or Reddit page surfaced (read 5 Oct 2026) | one hypothetical XYZ 50 put, sold naked and as a 50/48 put credit spread, priced on the series' chain the week before a date and the morning after: what the IV run-up added to the premium, what the crush removes when the stock does not move, and what a gap through both strikes does to each. The naked put's loss runs to the stock's opening price; the spread's stops at width less credit. The crush takes extrinsic value only, and a gap adds intrinsic value the crush cannot take. A gap also opens below any stop, so the only cap is the long leg. No "sell or avoid", no entry window, no expected-move probability, no return figure |
 | M48 | What a credit spread actually risks | credit spread max loss before expiration | credit spread max loss | tastytrade (short put vertical), moomoo, Schwab, broker learn hubs; TradingView chart-idea pages padding the tail | max loss is the expiration number — what the collateral holds, what the mark does, and what assignment changes in between |
 
 Rows 21–65 are added by the Wednesday run as their turn approaches.
@@ -787,6 +788,74 @@ whether results are personalised; which of "credit spread strike selection",
 "credit spread delta" and "what delta to sell" is typed most; whether r/thetagang
 threads rank (none surfaced); whether "three probabilities" has its own searched
 phrasing.
+
+## Reading for row 24 — selling options before earnings (read 2026-10-05)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size. Nine searches, one tool, one day.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| selling options before earnings (target) | Nasdaq (two "Selling a [ticker] Put Option Before Earnings" pieces), Barchart syndication of the same series (four), a Yahoo Finance trade write-up, Option Samurai ("Pre-Earnings Option Strategy"), daystoexpiry | **winnable-ish** — no broker hub and no exchange page. Syndicated single-ticker trade articles hold most of it, every one a real ticker sold at a real strike. The synthesised answer says "capitalize on the inflated premium", "keeps the entire premium as profit" and "close or roll 1–2 weeks before", all advice or outcome framing we do not write. Real demand theme: growth/playbook.md theme C ("burned holding through earnings") |
+| is it a good idea to sell options before earnings | the same Nasdaq/Barchart set, Schwab ("Tools for Trading Options Around Earnings"), Finimize/IG, TradingBlock, Option Samurai, SteadyOptions | **do not target** — asks for a verdict. Same set as the target plus two hubs. FAQ-level at most, and answered with the mechanism, not a yes or no |
+| selling puts before earnings IV crush gap risk | TradingBlock ("IV Crush… Great for Sellers"), QuantWheel ("When to Sell Cash Secured Puts… (2026)"), CashFlowMachine, impliedoptions, SpotGamma, advancedautotrades (two), Volatility Box ("How to Profit"), Barchart | **winnable** — tool and content blogs. The synthesised answer quotes "8–12% gaps", "time value can drop 30–50% overnight" and an "optimal entry window 1–3 days before", unsourced figures and timing advice. None prices one position both ways |
+| holding short options through earnings what happens | Market Rebellion, SteadyOptions ("Myths and Reality"), CountdownTrader, purepowerpicks, TradingView chart ideas | **winnable, the post's home intent** — thin, mostly strategy and coaching pages. One says outright "never hold naked options through earnings"; that is a rule we do not repeat. Fits an H2 near verbatim ("What happens to a short option through earnings?") |
+| does IV crush help option sellers if the stock moves past the strike | moomoo learn, REX Shares, TradingBlock, QuantWheel ("The Most Consistent Profit Opportunity"), SoFi, tradersagency, fattail.ai, a payoff calculator, advancedautotrades | **winnable** — the right question; answers stop at "the directional loss overwhelms the crush" in a sentence. None splits the morning-after mark into intrinsic gained and extrinsic lost with numbers |
+| credit spread through earnings / gap past short strike | Wikipedia, OIC, Option Alpha (two), impliedoptions ("Credit Spread Entries for Earnings"), StockTrak, Fidelity (two), Public, OptionsPlay | **hard-ish** — strategy pages from hubs. The one earnings-specific page calls the long leg "a hard stop-loss" and spreads "superior to naked options", a verdict we do not write. "Long leg caps the loss" is the mechanism, said without "superior" |
+| naked put vs put credit spread earnings gap | optionstrategist, Wikipedia, Schwab, journalplus, options.cafe, piranhaprofits, impliedoptions, financialtechwiz | **winnable** — one page has a naked-put gap example, on SPY with a return-on-margin percentage. No hypothetical prices the same short put both ways through one gap |
+| why do options get more expensive before earnings | Option Alpha ("Three Best Option Strategies"), moomoo community, Finimize/IG, Wealthsimple, Fidelity, Thetix, MenthorQ, Phil Stock World, chart ideas | **row 8's intent, not this post's.** `implied-volatility-options-explained` titles "why a chain reprices before earnings"; this post links to it for the run-up and does not compete for the phrase |
+| earnings expected move straddle | optionshawk, an Elite Trader thread, optionspilot (three pages), Volatility Box, a calculator, Yahoo Finance | **do not target** — calculator intent, and every page turns the straddle into a "68% of the time" range. At most one descriptive sentence on what the straddle price implies, with no probability attached |
+| investopedia / tastylive / reddit variants | SpotGamma, SoFi, moomoo community, Option Samurai, BullishBears, MenthorQ, TradingView chart ideas; the Reddit query returned TradingView chart ideas in ten locales | **no investopedia.com, tastylive.com or Reddit page surfaced** — one tool, one day, not proof they do not rank |
+
+**The gap.** Every ranking page names the same three things: IV rises into
+the date, collapses after it, and the stock can gap. Then nearly all of them
+turn those three into a trade ("capitalize on", "optimal entry window",
+"close 5–7 days before", "never hold naked through earnings") or into a
+verdict ("great for sellers", "superior to naked options"), often with
+unsourced percentages. None takes one hypothetical short put, prices it
+before the date and the morning after at a no-move open and a gap open, and
+splits each mark into intrinsic and extrinsic value. None sets the naked put
+and the 50/48 spread side by side through the same gap, to show which loss
+runs to the opening print and which stops at the width. And none states
+plainly that a stop order does not fill at the strike across a gap. That is
+the angle. It stays descriptive and stays on the seller's position. The
+repricing itself is row 8's, and this post links to it.
+
+**Title / meta proposed.** Title "Selling options before earnings: the crush
+and the gap" (54 chars). Meta "Selling options before earnings: why the
+premium is there, what IV crush takes back, and what a gap past the short
+strike does to a naked put and to a spread." (158 chars). Slug
+`selling-options-before-earnings`. It follows the exact-target pattern of
+`credit-spread-dte` and `cash-secured-put-explained`, and it is not yet
+published, so no redirect is in play.
+
+**Links.** Out: `implied-volatility-options-explained` (the run-up and
+the crush), `credit-spread-max-loss`, `put-credit-spread-explained`,
+`cash-secured-put-explained`,
+`options-buying-power-requirement`, `/blog/income`. In:
+`credit-spread-dte`'s closing paragraph already promises "starting with
+earnings" and links only `/blog/income`, so it should link this slug once
+the post exists. `implied-volatility-options-explained`'s earnings H2 is
+the natural second backlink.
+
+**Restraint, deliberate.** These are not targeted even where they surface:
+"IV crush" in the title (row 8's, and the crowded "how to profit / how to
+avoid" tail); "best", "strategy" or "play" in any title or heading; the
+entry-window and close-before-earnings timing rules; expected-move
+probabilities; every real ticker in the ranking set (the worked example
+stays XYZ). The demand theme's "burned" wording stays in the playbook. In
+the post, the risk is stated as a mechanism, not as a scare line. Whether
+the post may mention that DeltaMint flags earnings before expiry is a
+product claim for compliance-gate, not settled here.
+
+**Could not establish:** volume, difficulty or position for any phrasing;
+whether results are personalised; whether "selling options before earnings",
+"selling puts before earnings" or "holding through earnings" is typed most
+(the ranking titles favour "selling a put before earnings", a count of titles
+and not demand); whether r/thetagang or r/options threads rank (none
+surfaced, and the Reddit-named query returned chart ideas); the bare
+"earnings options" head term was not read on its own.
 
 ## Off-syllabus rows
 
