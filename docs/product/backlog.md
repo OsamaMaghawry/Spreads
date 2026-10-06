@@ -8,7 +8,9 @@ recorded below, as prominently as additions.
 Every entry carries: the user problem in the user's words, its evidence, the
 smallest test that could disprove it, the kill criterion, and a cost guess.
 
-Last run: **2026-09-01** (vp-product, Tuesday cadence).
+Last run: **2026-09-01** (vp-product, Tuesday cadence). Reconciled against shipments **2026-10-06** (end-of-day pass; no proposals added).
+
+**Reconciliation note, 2026-10-06 — #1 is NOT shipped, but its neighbour is.** The Scanner's whole-market sweep (`dcf0f17`, on `main`; `src/components/scanner/ScannerConfig.jsx` "Quote no wider than (%)", default 1%, `_shared/universe.ts` `maxSpreadPct`) filters on the *underlying stock's* quote width before the chain fetch. That is a universe gate, not the option-leg exit cost proposal #1 asks to show per result. #1 stays open and unchanged; its test (width as a share of credit on the top 10) is still the one that settles it. #2 and #3: no evidence of shipping found in `docs/ops/shipped.md` or the code. Slot count unchanged: three of five.
 
 ## Open proposals
 
