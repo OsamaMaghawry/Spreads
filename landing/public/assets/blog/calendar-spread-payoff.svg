@@ -1,0 +1,29 @@
+<svg viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Gain or loss per share at the near expiration of a hypothetical XYZ calendar spread: short the 30-day 50 call, long the 60-day 50 call, opened for a 0.94 debit with implied volatility held at 40 percent. The line is a hill peaking at a 1.35 gain with the stock at 50, crossing zero near 46.70 and 53.80, and flattening toward a 0.94 loss, the debit, far below or far above the strike.">
+  <rect width="720" height="360" fill="#FFFFFF"/>
+
+  <!-- zero line and strike guide -->
+  <line x1="80" y1="200" x2="660" y2="200" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="370" y1="40" x2="370" y2="310" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="370" y="332" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">50</text>
+
+  <!-- gain between the break-evens -->
+  <polygon points="274,200 312,156.0 370,65.0 428,147.0 480,200" fill="#2E8B5F" fill-opacity="0.18"/>
+  <text x="382" y="62" font-size="15" font-weight="600" text-anchor="start" fill="#2E8B5F">peak 1.35</text>
+
+  <!-- losses outside, capped by the debit -->
+  <polygon points="80,200 80,289.0 138,280.0 196,258.0 254,219.0 274,200" fill="#B4485C" fill-opacity="0.16"/>
+  <polygon points="480,200 544,242.0 602,266.0 660,279.0 660,200" fill="#B4485C" fill-opacity="0.16"/>
+  <text x="100" y="300" font-size="15" font-weight="600" fill="#B4485C">loss capped at 0.94 in model</text>
+
+  <!-- payoff line -->
+  <path d="M80 289.0 L80 289.0 L138 280.0 L196 258.0 L254 219.0 L312 156.0 L370 65.0 L428 147.0 L486 205.0 L544 242.0 L602 266.0 L660 279.0" fill="none" stroke="#14151C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- break-evens -->
+  <circle cx="274" cy="200" r="6" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <circle cx="480" cy="200" r="6" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="262" y="186" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">46.70</text>
+  <text x="492" y="186" font-size="15" font-weight="600" text-anchor="start" fill="#14151C">53.80</text>
+
+  <!-- axis label -->
+  <text x="370" y="354" font-size="15" text-anchor="middle" fill="#767B8E">stock price at near expiration</text>
+</svg>
