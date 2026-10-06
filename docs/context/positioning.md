@@ -15,6 +15,25 @@ not what makes an OAuth app function — see `compliance.md` — so a competitor
 running the flow proves only that their app is published. Treat their approval
 status as unknown.
 
+**Update, 6 October 2026 (vp-product, reconciled against shipped work).**
+Three facts moved:
+
+- **The universe gap to Barchart closed.** The Scanner now sweeps the whole
+  listed market, not the S&P 500 (`scanUniverse`, shipped 9 and 22 Sep). It is
+  still a pure screener output — see the "Opportunity screening" row, which
+  stands.
+- **A second broker is in build, not shipped.** Tradier (paper and live on one
+  API) has a client and probe behind `VITE_LAB` on staging; SnapTrade was
+  evaluated and cannot place orders at Schwab, Fidelity, IBKR or Robinhood
+  (`docs/product/broker-apis.md`). Production is still Alpaca-only, so the
+  "smaller pond" weakness below is unchanged until Tradier reaches `main`.
+- **Tiblio's facts are now contested.** A 6 Oct web search (secondary sources,
+  `reported`; `tiblio.com` still 403 at the proxy) shows tiers at $38 / $69 /
+  $99 a month and a Tradier partnership, and does not mention Alpaca. Our
+  "$35/month, connects to Alpaca" below is from August and may be stale or
+  wrong. Do not plan against either until `market-watch` verifies it. Barchart
+  Premier re-checked unchanged: $29.95 / $239.95 / $419.95, 30-day trial.
+
 ## The market, honestly sized
 
 There is no measurable "multi-leg options strategies market"; nobody clears or

@@ -9,7 +9,7 @@ with a user:
 
 - Alert center in the app (the `positionWatch` alerts table will need a surface)
 - Multi-broker support beyond Alpaca (the positioning doc's admitted biggest gap)
-- Expand scan universe beyond the S&P 500 list in `src/lib/sp500.js` —
+- ~~Expand scan universe beyond the S&P 500 list~~ — **shipped 2026-09-09 as the whole-market scan** (see backlog Killed). Original note: `src/lib/sp500.js` —
   **returned from the backlog 2026-09-01.** Carries a verified competitor fact
   (teardown row E8: Barchart sweeps the full optionable US+Canada universe,
   ETFs and indices included) but no way to test demand: nothing records a scan,
@@ -25,3 +25,5 @@ with a user:
   activation; needs a user asking for it before it competes for a slot.
 - Debit-spread support surfaced properly (riskOf math exists; UX does not)
 - Index/cash-settled products once Alpaca takes them out of paper-only
+- Record scans (`scan_runs`) — killed from the backlog 2026-10-06; n≈4 users makes any log meaningless. Revisit at ~30 active scanners.
+- Email alerts to subscribers rather than the owner (watch W6, pricing decision 8) — the most paid-shaped thing built and still unsellable. No user has asked; promote on first request or when Live is switched on.

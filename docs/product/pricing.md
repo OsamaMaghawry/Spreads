@@ -1,4 +1,4 @@
-# Pricing — the proposal, 2026-09-02
+# Pricing — the proposal, 2026-09-02 (reconciled 2026-10-06)
 
 Owned by `vp-product`; decided by the owner; a standing item at the Friday
 board. **No agent, including this one, ever sets or publishes a price.** The
@@ -23,6 +23,29 @@ why, is in §3.
   every broker call runs on the user's own token or keys, and the price
   stream is the free IEX feed. The earlier premise that "free costs us
   broker traffic" was wrong.
+
+**Reconciled 2026-10-06.** Nothing moves the $29 / $290 proposal; four things
+changed around it:
+
+- The trial is **7 days**, owner's call of 24 Sep (`8c918dc`); §6 item 3 below
+  still says 30 and is corrected there.
+- A global **Demo mode** (12 Sep, `95b03b7`) makes every live account
+  watch-only site-wide while paper trades normally. The owner's 24 Sep note
+  refers to "the free Demo version we say always free". This sits on the
+  Paper/Live line decision 2 already draws, but it is a single admin switch,
+  not a tier. Open question for the owner, not a proposal: does "always free"
+  mean Paper only, or live-account watch-only too? Until answered, the Live
+  page cannot promise what is free.
+- A pricing-schedule PDF for Alpaca's review exists, built from the product's
+  actual prices (24 Sep). The 2 Sep "stale page" ticket is still the open risk:
+  the old Paper/Pro/Desk page has not been shown replaced in anything read
+  this run.
+- Anchors: Barchart Premier re-checked unchanged. Tiblio now reads $38/$69/$99
+  from secondary sources (reported), not $34.95. If the $38 entry tier holds,
+  $29 sits $9 under it. Not enough to move a number; marked unverified.
+
+No paying users (funnel 6 Oct: 0 paying, 1 traded live), so no price test has
+a denominator yet. Decisions not reopened.
 
 ## 2. The packages — two tiers
 
@@ -98,7 +121,7 @@ One line on the page, no price, no date. See §4.
 | Barchart Premier | $29.95/mo; $239.95/yr; 30-day trial; every options tool in this one tier | **verified** — vendor page | 2026-09-02 |
 | Barchart Plus | $9.99/mo — no options tools at all | **verified** — same page | 2026-09-02 |
 | Barchart Free | $0, metered at 20 page views a day | **verified** — same page | 2026-09-02 |
-| Tiblio | $34.95/mo, $349.50/yr, $1 for 7 days; screen → order → hold on Alpaca | reported — host blocked | 2026-09-02 |
+| Tiblio | $34.95/mo, $349.50/yr, $1 for 7 days (2 Sep) — **contested:** web search 6 Oct shows $38 / $69 / $99 and a Tradier partnership | reported — host blocked, conflicting | 2026-10-06 |
 | Option Alpha | from $39/mo, bot builder included | reported — host blocked | 2026-09-02 |
 | OptionStrat | $39.99/mo Live Tools | reported — host blocked | 2026-08-31 |
 | QuantWheel | ~$37/mo Advanced; sources disagree ($19/$31 elsewhere) | reported, self-inconsistent | 2026-09-02 |
@@ -165,8 +188,8 @@ accounts. A $59 subscriber counts once.
 1. Replace the live pricing page at the Stripe switch, or reduce it now to
    one line. Not leave it.
 2. Live at $29 / $290, held for 60 days.
-3. Charge from the first live connection after the switch date; 30 days
-   free on Live; everyone connected before the switch free for 90 days.
+3. Charge from the first live connection after the switch date; 7 days
+   free on Live (owner, 24 Sep); everyone connected before the switch free for 90 days.
 4. Kill test: fewer than 8 paid Live subscriptions at day 60 → $19.
 5. Wheel execution inside Live, no separate price.
 6. No bot yet; "Automation — in development"; revisit at 40 paid, at $59.
