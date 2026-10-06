@@ -103,6 +103,6 @@ Paying for the shares takes $5,000 the spread itself never required, so an accou
 
 The premium on an option sold before earnings is time value the announcement put there. IV crush takes it back whether the stock moves or not. A gap past the strike adds intrinsic value, which only the stock price can take back.
 
-On the hypothetical XYZ, the same 50 put sold before the date was marked $126 better on an unchanged open and $365 worse on a gap to $44. As a 50/48 spread, the same two openings were $17 better and $104 worse, with $109 the most it could lose. The [income series](/blog/income) continues with calendar spreads.
+On the hypothetical XYZ, the same 50 put sold before the date was marked $126 better on an unchanged open and $365 worse on a gap to $44. As a 50/48 spread, the same two openings were $17 better and $104 worse, with $109 the most it could lose. The [income series](/blog/income) continues with [calendar spreads](/blog/calendar-spread-explained).
 
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.

@@ -36,6 +36,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 22 | Choosing a strike by delta | credit spread delta strike selection (also searched as "how to choose strikes for a credit spread" and "is delta probability of profit credit spread" — see the row 22 reading) | options credit spread; never "credit spread delta" alone — the bare phrase returns CME/patent margin filings and bond-spread papers | a theoptionpremium Substack ("Credit Spread Strike Selection: A Probability-Based Approach") on nearly every phrasing, datadrivenoptions (three pages), optionspilot, ApexVol, journalplus, advancedautotrades, optionstradingiq, creditspread.net, impliedoptions, OptionsPlay, CIBC Investor's Edge, Wikipedia, strike.money, optionjournal, TradeStation insights; Macroption and Pomegra on delta-vs-probability; an Elite Trader thread ("The best delta for a credit spread?") and TradingView chart ideas in the tail. No investopedia.com, tastylive.com or Reddit page surfaced (read 3 Oct 2026) | one hypothetical put spread read at four short-strike deltas on the series' chain: what the short strike's delta says and does not say. It is not the spread's probability of profit, because the break-even sits below the short strike and the long strike sets max loss. The same delta sits at a different dollar distance at a different IV, and it drifts after the fill. No "which delta", no win rate, no probability-of-profit table, no return figure |
 | 23 | Days to expiry for credit spreads | credit spread dte (target phrasing "best dte for credit spreads" is a recommendation query — answered descriptively; also searched as "30 vs 45 dte credit spread" and "21 dte rule" — see the row 23 reading) | options credit spread; never "dte" alone | daystoexpiry (four pages: best DTE, 21 DTE rule, theta curve, gamma near expiration), datadrivenoptions, apexvol, tradealgo, advancedautotrades, journalplus, OptionsPlay, sellcallput, TradingView chart ideas in the tail. No investopedia.com, tastylive.com or Reddit page surfaced (read 4 Oct 2026) | one hypothetical 46/44 put spread priced at 60, 45, 30, 21, 14 and 7 days: the mark falls, the daily decay in dollars rises, a $4 fall to the short strike costs more as expiry nears, and the spread delta at the strike goes from 0.11 to 0.29. No "which DTE", no study statistics, no return figure |
 | 24 | Earnings and short premium | selling options before earnings (also searched as "holding short options through earnings", "does IV crush help option sellers if the stock moves past the strike" and "credit spread through earnings" — see the row 24 reading). Recommended slug `selling-options-before-earnings` | trading options around earnings (the broker-hub set: Schwab, Fidelity, Wealthsimple); never "earnings" alone, and "IV crush" stays row 8's (`implied-volatility-options-explained` already titles "before earnings") | Nasdaq and Barchart syndicated "selling a [ticker] put before earnings" articles and a Yahoo Finance trade write-up hold the exact phrase; Option Samurai, daystoexpiry, QuantWheel, CashFlowMachine, TradingBlock ("Bad for Buyers, Great for Sellers"), SpotGamma, SoFi, moomoo learn and community, advancedautotrades, Volatility Box, fattail.ai, impliedoptions, optionspilot, MenthorQ, SteadyOptions, Market Rebellion, Option Alpha, Finimize/IG, Schwab, Fidelity, Wealthsimple; TradingView chart ideas in the tail. No investopedia.com, tastylive.com or Reddit page surfaced (read 5 Oct 2026) | one hypothetical XYZ 50 put, sold naked and as a 50/48 put credit spread, priced on the series' chain the week before a date and the morning after: what the IV run-up added to the premium, what the crush removes when the stock does not move, and what a gap through both strikes does to each. The naked put's loss runs to the stock's opening price; the spread's stops at width less credit. The crush takes extrinsic value only, and a gap adds intrinsic value the crush cannot take. A gap also opens below any stop, so the only cap is the long leg. No "sell or avoid", no entry window, no expected-move probability, no return figure |
+| 25 | Calendar spreads | calendar spread explained (also searched as "what is a calendar spread", "is a calendar spread a debit or credit spread", "calendar spread max loss break even" and "calendar spread IV crush" — see the row 25 reading). Slug `calendar-spread-explained` | calendar spread / time spread; never "calendar" alone, which drifts to futures calendar spreads and calendar-template pages | Wikipedia (also the top result on the futures sense), Alpaca learn, SoFi, Fidelity (Viewpoints and the strategy guide), OIC, CME Group (futures-options course), TradeStation, TradingBlock, moomoo learn, StoneX glossary, CFI, Option Alpha, Option Samurai, OptionsPlay, strike.money, ryanoconnellfinance, optionstradingiq, fattail.ai, apexvol, journalplus, MenthorQ, optionsdecay; calculator sites (optionprofitcalc, theoptionsbench, insiderfinance) on break-evens; Barchart/Yahoo "calendar spread screener results" syndication and TradingView chart ideas in the tail. tastytrade's help centre surfaced once; no investopedia.com, tastylive.com or Reddit page surfaced (read 6 Oct 2026) | one hypothetical XYZ 50 call calendar (30/60 days, 0.94 debit) on the series' chain, read by a seller of credit spreads: a debit, not a credit; a hill at the near expiration, not a ramp, with break-evens found by pricing because there is no closed-form formula; net long vega, the reverse of the short premium in rows 23–24, so an IV drop costs it money with the stock still on the strike. No "when to enter", no IV-rank entry rule, no profit target, no win rate, no return figure |
 | M48 | What a credit spread actually risks | credit spread max loss before expiration | credit spread max loss | tastytrade (short put vertical), moomoo, Schwab, broker learn hubs; TradingView chart-idea pages padding the tail | max loss is the expiration number — what the collateral holds, what the mark does, and what assignment changes in between |
 
 Rows 21–65 are added by the Wednesday run as their turn approaches.
@@ -856,6 +857,80 @@ whether results are personalised; whether "selling options before earnings",
 and not demand); whether r/thetagang or r/options threads rank (none
 surfaced, and the Reddit-named query returned chart ideas); the bare
 "earnings options" head term was not read on its own.
+
+## Reading for row 25 — calendar spread explained (read 2026-10-06)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size. Eleven searches, one tool, one day.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| calendar spread explained (target) | Wikipedia, Alpaca learn, SoFi, ryanoconnellfinance, ektinteractive, explainoptions (glossary page titled with the exact phrase), stocksmantra, CFI, an NC State financial-math page | **winnable-ish** — one broker learn page and one fintech hub, the rest glossaries and blogs. Wikipedia leads with the futures sense. Every page defines the structure and says it "profits from time decay"; the synthesised answer calls it "a bet on time and implied volatility" |
+| what is a calendar spread (options) | Fidelity Viewpoints, Alpaca learn, moomoo learn, a TradeStation PDF, CME Group, StoneX glossary, TradingBlock, insiderfinance | **hard** — a broker and exchange hub set. The post's first H2 already asks it verbatim, which is as far as a new domain goes here |
+| is a calendar spread a debit or credit spread | Alpaca learn, TradeStation, SoFi, strike.money, Option Alpha (put calendar, call diagonal), Wikipedia, Option Samurai | **winnable as an FAQ line** — every answer says "long calendar: debit; short calendar: credit". The post's FAQ names the long/short distinction, as the ranking pages all do |
+| calendar spread max loss break even | OIC, TradingBlock, Wikipedia, five calculator pages (ryanoconnellfinance, theoptionsbench, optionprofitcalc twice, insiderfinance), optionsdecay | **winnable, partly calculator intent** — the pages agree max loss is about the debit and that the break-evens "have no closed-form formula and must be found numerically". None prints a priced table across stock prices; the post does |
+| calendar spread implied volatility vega long vol | ryanoconnellfinance, optionstradingiq, Wikipedia (net volatility), fattail.ai, optionsdecay, theoptionsbench, MenthorQ, journalplus, apexvol | **winnable** — content blogs. All say "net long vega" and then turn it into an entry rule ("enter when IV rank is 20–50", "avoid IV rank above 70"). None prices one calendar at three IV levels at the near expiration |
+| calendar spread earnings IV crush (lost money) | strike.money (double calendar), tradersagency, optionstradingiq ("How to Capitalize"), fattail.ai, two calculators, optionspilot ("and How to Profit"), TradingView chart ideas | **winnable, the post's sharpest intent** — fattail.ai states in a sentence that a calendar "can lose money even when [the index] sits perfectly on the strike"; nobody shows it in numbers. Connects to row 24 and to playbook theme C, from the other side of the vega |
+| calendar spread vs credit spread | Alpaca learn, strike.money, Wikipedia, Fidelity (short calendar with puts), Option Alpha (adjusting lesson), StoneX, Option Samurai, OptionsPlay (calendar and diagonal); a yield-spread page in the tail | **winnable, thin** — no page compares them; the synthesised answer could not find a credit-spread definition in the set. This is the series reader's own question |
+| calendar spread payoff diagram (tent) | strike.money, optionstradingiq, ryanoconnellfinance, myoptiondiary, fattail.ai, a TD Ameritrade Ticker Tape archive page, calculators, a spam calendar-template domain | **winnable** — the pages call it a "tent" or "bell"; the post says "hill". Both are plain; the H2 need not chase "tent" |
+| calendar spread early assignment ex-dividend | Fidelity (strategy guide and Viewpoints), OIC, Alpaca learn, ryanoconnellfinance, Option Samurai, optionstradingiq, two generic dividend-risk pages | **hard-ish, hub-held** — Fidelity and OIC cover it. A bullet in the post, not a target. The synthesised answer drifts into "buy it back or roll it the day before", advice we do not write |
+| calendar spread reddit | Wikipedia, TradingView, Barchart and Yahoo Finance "Calendar Spread Screener Results" syndication (five), Benzinga | **do not target** — no forum page; screener-output syndication fills it, every piece a real ticker |
+| investopedia / tastylive variants | Wikipedia, tastytrade help centre, aquafutures, a YouTube video ("Stop Selling Premium: When to Trade a Calendar Spread"), abovethegreenline, CFI, a legal dictionary | **no investopedia.com, tastylive.com or Reddit page surfaced** — one tool, one day, not proof they do not rank. The synthesised answer attributed "45% success rates" to tastylive research; no such page surfaced and the figure is not repeated |
+
+**The gap.** Every ranking page gives the same definition: same strike, two
+expirations, net debit, profits from the near leg's faster decay, max loss about
+the debit, "net long vega". Then most turn it into a trade: IV-rank entry bands,
+"enter when IV is low and expected to rise", a 20–30% stop, a 50%-of-max exit,
+success rates. None is written for the reader who has just sold credit spreads.
+None sets the calendar beside one: a debit and not a credit, a hill and not a
+ramp, long vega where the short premium of rows 23–24 was short it. None prices
+one calendar at three IV levels on the near expiration to show the IV result
+moving the outcome as much as the stock does. The calculator pages say the
+break-evens must be found numerically; none prints the table. That is the angle,
+kept descriptive.
+
+**Title / meta proposed.** Title "Calendar spread explained: one strike, two
+dates, long vega" (59 chars): singular, to match the searched phrase and the
+glossary titles; the earlier "sell the near month, own the far" (60) repeated the
+definition that every result already carries; the post now carries this title. Meta "Calendar spread explained
+on one hypothetical call: the debit paid, the hill-shaped payoff,
+and why an IV drop hurts it at the strike." (135 chars). Slug
+`calendar-spread-explained` is the exact target and matches the
+`-explained` pattern of rows 15–20. The post is not yet published, so no
+redirect is in play.
+
+**Headings.** "What is a calendar spread, and what does it cost?" matches the hub query
+verbatim; keep it. Applied: "Why is the payoff a hill, and where does it break
+even?" (carries the max-loss / break-even phrasing) and "How does implied
+volatility change a calendar spread?" (names the subject). The FAQ line "Is a calendar spread a debit or a credit
+spread?" is the searched question verbatim; keep it, and its answer now carries
+the long/short distinction.
+
+**Links.** Out: `theta-decay-explained`, `implied-volatility-options-explained`,
+`intrinsic-vs-extrinsic-value-options`, `credit-spread-width`,
+`credit-spread-max-loss`, `put-credit-spread-explained`,
+`options-bid-ask-spread`, `options-buying-power-requirement`,
+`early-exercise-options`, `selling-options-before-earnings`, `/blog/income`;
+all resolve. In: `selling-options-before-earnings` now links "calendar
+spreads" to `/blog/calendar-spread-explained` in its closing line. No other post has a
+natural anchor; `implied-volatility-options-explained`'s sign table (long and
+short vega) would need a new sentence, not a link only.
+
+**Restraint, deliberate.** These are not targeted even where they surface:
+"time spread" or "horizontal spread" in the title (named in the first paragraph,
+which is enough); "IV crush" in the title (row 8's and row 24's); "strategy",
+"income", "profit" or "best" in any title or heading; the IV-rank entry bands,
+stop-loss percentages and 50%-of-max exits every ranking page carries; the
+tastylive success-rate figure; "tent" for "hill"; the double calendar and the
+futures sense; every real ticker in the screener syndication.
+
+**Could not establish:** volume, difficulty or position for any phrasing;
+whether results are personalised; whether "calendar spread explained", "what is
+a calendar spread" or "calendar spread options" is typed most; whether r/options
+or r/thetagang threads rank (none surfaced, and the Reddit-named query returned
+screener syndication); whether "calendar spread vs credit spread" has demand of
+its own or only surfaces because both words match.
 
 ## Off-syllabus rows
 
