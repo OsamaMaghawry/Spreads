@@ -94,6 +94,7 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-10-06 · New blog post: the diagonal spread explained, with two diagrams comparing it to a calendar spread (`4cef92c`).
 - 2026-09-28 · New blog post: the wheel strategy explained, with two diagrams, and a cross-link from the covered-call post (`9a76e9d`).
 - 2026-09-27 · The Saturday weekly digest no longer goes silent for
 - 2026-09-24 · A thirteenth foundations post — buying power, margin and
@@ -103,7 +104,6 @@ From `docs/ops/shipped.md`, newest first.
 - 2026-09-24 · The free trial on checkout is 7 days, not 30, on both the
 - 2026-09-24 · A new About page explains the product step by step (Scanner,
 - 2026-09-24 · A pricing schedule now exists as a PDF for Alpaca's
-- 2026-09-24 · The homepage's shared/social preview image now shows the
 
 ## Server functions
 
