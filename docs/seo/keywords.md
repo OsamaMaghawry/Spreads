@@ -37,6 +37,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 23 | Days to expiry for credit spreads | credit spread dte (target phrasing "best dte for credit spreads" is a recommendation query — answered descriptively; also searched as "30 vs 45 dte credit spread" and "21 dte rule" — see the row 23 reading) | options credit spread; never "dte" alone | daystoexpiry (four pages: best DTE, 21 DTE rule, theta curve, gamma near expiration), datadrivenoptions, apexvol, tradealgo, advancedautotrades, journalplus, OptionsPlay, sellcallput, TradingView chart ideas in the tail. No investopedia.com, tastylive.com or Reddit page surfaced (read 4 Oct 2026) | one hypothetical 46/44 put spread priced at 60, 45, 30, 21, 14 and 7 days: the mark falls, the daily decay in dollars rises, a $4 fall to the short strike costs more as expiry nears, and the spread delta at the strike goes from 0.11 to 0.29. No "which DTE", no study statistics, no return figure |
 | 24 | Earnings and short premium | selling options before earnings (also searched as "holding short options through earnings", "does IV crush help option sellers if the stock moves past the strike" and "credit spread through earnings" — see the row 24 reading). Recommended slug `selling-options-before-earnings` | trading options around earnings (the broker-hub set: Schwab, Fidelity, Wealthsimple); never "earnings" alone, and "IV crush" stays row 8's (`implied-volatility-options-explained` already titles "before earnings") | Nasdaq and Barchart syndicated "selling a [ticker] put before earnings" articles and a Yahoo Finance trade write-up hold the exact phrase; Option Samurai, daystoexpiry, QuantWheel, CashFlowMachine, TradingBlock ("Bad for Buyers, Great for Sellers"), SpotGamma, SoFi, moomoo learn and community, advancedautotrades, Volatility Box, fattail.ai, impliedoptions, optionspilot, MenthorQ, SteadyOptions, Market Rebellion, Option Alpha, Finimize/IG, Schwab, Fidelity, Wealthsimple; TradingView chart ideas in the tail. No investopedia.com, tastylive.com or Reddit page surfaced (read 5 Oct 2026) | one hypothetical XYZ 50 put, sold naked and as a 50/48 put credit spread, priced on the series' chain the week before a date and the morning after: what the IV run-up added to the premium, what the crush removes when the stock does not move, and what a gap through both strikes does to each. The naked put's loss runs to the stock's opening price; the spread's stops at width less credit. The crush takes extrinsic value only, and a gap adds intrinsic value the crush cannot take. A gap also opens below any stop, so the only cap is the long leg. No "sell or avoid", no entry window, no expected-move probability, no return figure |
 | 25 | Calendar spreads | calendar spread explained (also searched as "what is a calendar spread", "is a calendar spread a debit or credit spread", "calendar spread max loss break even" and "calendar spread IV crush" — see the row 25 reading). Slug `calendar-spread-explained` | calendar spread / time spread; never "calendar" alone, which drifts to futures calendar spreads and calendar-template pages | Wikipedia (also the top result on the futures sense), Alpaca learn, SoFi, Fidelity (Viewpoints and the strategy guide), OIC, CME Group (futures-options course), TradeStation, TradingBlock, moomoo learn, StoneX glossary, CFI, Option Alpha, Option Samurai, OptionsPlay, strike.money, ryanoconnellfinance, optionstradingiq, fattail.ai, apexvol, journalplus, MenthorQ, optionsdecay; calculator sites (optionprofitcalc, theoptionsbench, insiderfinance) on break-evens; Barchart/Yahoo "calendar spread screener results" syndication and TradingView chart ideas in the tail. tastytrade's help centre surfaced once; no investopedia.com, tastylive.com or Reddit page surfaced (read 6 Oct 2026) | one hypothetical XYZ 50 call calendar (30/60 days, 0.94 debit) on the series' chain, read by a seller of credit spreads: a debit, not a credit; a hill at the near expiration, not a ramp, with break-evens found by pricing because there is no closed-form formula; net long vega, the reverse of the short premium in rows 23–24, so an IV drop costs it money with the stock still on the strike. No "when to enter", no IV-rank entry rule, no profit target, no win rate, no return figure |
+| 26 | Diagonal spreads | diagonal spread explained (also searched as "what is a diagonal spread", "diagonal spread vs calendar spread", "is a diagonal spread a debit or credit spread", "diagonal spread max loss" and "call diagonal spread break even" — see the row 26 reading). Slug `diagonal-spread-explained` | diagonal spread; never "diagonal" alone. "Poor man's covered call" is a later syllabus post's, not this row's | Indian broker learning centres (Motilal Oswal, Religare, Angel One, Upstox, 5paisa, Bajaj Broking/Finserv), daytrading.com, CapTrader glossary, SoFi, TradeStation, Webull courseware, moomoo learn, tastylive/tastytrade, Fidelity strategy guide, Option Alpha, optionstradingiq, Market Chameleon, thismatter, supermoney, wallstreetmojo, Wikipedia, Nasdaq and Shmoop glossaries, QuantInsti; Barchart "bullish diagonal trade" syndication and TradingView chart ideas in the tail. No investopedia.com or Reddit page surfaced (read 7 Oct 2026) | one hypothetical 48/52 call diagonal (60/30 days, 2.80 debit) on the series' chain, set beside row 25's 0.94 calendar: a tilted payoff, not a hill, peaking at the short strike and staying above its cost on the upside because the 4.00 strike gap exceeds the debit; a break-even near 49.08 found by pricing, against the 50.80 the "long strike plus debit" shortcut gives; net long vega priced at three IV levels. Long-strike-below-short version only. No "when to use", no directional call, no adjustment rule, no return figure |
 | M48 | What a credit spread actually risks | credit spread max loss before expiration | credit spread max loss | tastytrade (short put vertical), moomoo, Schwab, broker learn hubs; TradingView chart-idea pages padding the tail | max loss is the expiration number — what the collateral holds, what the mark does, and what assignment changes in between |
 
 Rows 21–65 are added by the Wednesday run as their turn approaches.
@@ -931,6 +932,94 @@ a calendar spread" or "calendar spread options" is typed most; whether r/options
 or r/thetagang threads rank (none surfaced, and the Reddit-named query returned
 screener syndication); whether "calendar spread vs credit spread" has demand of
 its own or only surfaces because both words match.
+
+## Reading for row 26 — diagonal spread explained (read 2026-10-07)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size. Fourteen searches, one tool, one day.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| diagonal spread explained (target) | daytrading.com, Motilal Oswal (twice), CapTrader glossary, Upstox, Religare, Angel One (two mirror hosts), a spam host | **winnable** — no US broker hub and no Investopedia page; Indian broker learning centres and glossaries. Every page gives the same definition (calendar plus vertical, "profits from time decay and possibly price movement") and the four-type list |
+| what is a diagonal spread (options) | Religare, supermoney, daytrading.com, SoFi, Motilal Oswal, TradeStation, thismatter, Angel One | **hard-ish** — SoFi and TradeStation are hub pages; the rest are glossaries. The post's first H2 asks it verbatim, which is as far as a new domain goes here |
+| diagonal spread vs calendar spread | Religare (two URLs), Bajaj Finserv, Bajaj Broking, daytrading.com, wallstreetmojo, Market Rebellion, two scraped-content hosts | **winnable, the series reader's question** — the pages compare in prose ("calendar: no big move; diagonal: a directional move") and call diagonal "more complex". None prices the two on one chain or shows the right side changing sign |
+| is a diagonal spread a debit or credit spread | TradeStation (three URLs), Webull courseware (two), SoFi (two), thismatter, Angel One | **winnable as an FAQ line** — every answer is "either, depending on strikes and dates; the bullish call version is usually a debit". The FAQ line matches the phrasing and says the same |
+| diagonal spread max loss | Webull courseware (two), moomoo learn, 5paisa, optionstradingiq (a dedicated page), SoFi, TradeStation, tastylive, CapTrader | **mixed** — broker hubs, plus one content blog. The synthesised answer repeats a "width plus net debit" max-loss figure for debit diagonals next to "the debit paid"; the pages do not agree on it. The post states the debit with its conditions (both legs held, long strike below short, early assignment) and does not chase a formula |
+| call diagonal spread break even | Market Chameleon, deltavalue.de, moomoo learn, Motilal Oswal (twice), 5paisa, TradingView chart ideas (four) | **winnable, the post's sharpest intent** — the pages give "long strike plus net debit" as an estimate and then say the break-even "can only be estimated" because the long leg's time value is unknown. None prints the priced break-even; the post's 49.08 against the shortcut's 50.80 is that gap in one number |
+| diagonal spread payoff diagram at front month expiration | Option Alpha (strategy pages and lesson), QuantInsti, Webull, an m-x.ca bulletin, Options Playbook, a spam host | **winnable** — curved-payoff diagrams with no stock-price table. Option Alpha's text says the peak is "just under the short strike" |
+| diagonal spread implied volatility vega | optionstradingiq (put diagonal, call diagonal), Market Chameleon video, CapTrader, Barchart "TSLA/UBER/ADBE/HOOD bullish diagonal trade targets" syndication (four), unofficed | **winnable** — every page says "long vega"; the syndication pieces are real-ticker trade ideas. None prices one diagonal at three IV levels |
+| diagonal spread early assignment dividend short call | optionstradingiq, m-x.ca PDF, Options Playbook, Schwab (three regional hosts), Fidelity (short diagonal with calls), Benzinga | **hard-ish, hub-held** — Schwab and Fidelity. A bullet in the post, not a target. The synthesised answer drifts into "close or roll before the ex-date", advice we do not write |
+| diagonal spread vs poor man's covered call | tastylive episode, MarketBeat (two), Option Alpha, Barchart ("Bull Call Diagonal Spread (Poor Man's Covered Call)"), lambdafin, a video page, a crypto-exchange doc | **later post's ground** — the pages call the two "the same strategy" and carry a "20% of the capital for 80% of the exposure" line. The post keeps one FAQ line pointing forward; the figure is not repeated |
+| long call diagonal spread example | tastylive (two), Fidelity, tastytrade (two), Webull, SoFi, MarketBeat, unofficed | **hard** — the US broker-hub set, with worked examples. Not targeted |
+| diagonal spread vs vertical / credit spread | Option Alpha, optionstradingiq ("bull put credit spread vs diagonal"), Saxo, lynxbroker.de, Webull, Angel One | **winnable, thin** — one content blog compares a put credit spread with a put diagonal; none uses the call side |
+| diagonal spread reddit | Wikipedia, Shmoop, SoFi, supermoney, Motilal Oswal, Nasdaq glossary, boerse.de, Religare | **do not target** — no forum page; glossary set. The Nasdaq glossary's example (buy an April call, sell a July call) has the dates the wrong way round |
+| investopedia diagonal spread | heygotrade (Indonesian), Nasdaq glossary, Shmoop (three), Upstox, QuantInsti (two), InCred | **no investopedia.com or Reddit page surfaced** — one tool, one day, not proof they do not rank. tastylive did surface, on the max-loss and example phrasings |
+
+**The gap.** Every ranking page gives the same definition: different strikes
+and dates, a calendar plus a vertical, "profits from time decay and possibly
+direction", four named types. Then the answers diverge where numbers would
+settle it: max loss is "the debit" on some pages and "width plus debit" on
+others; the break-even is "long strike plus debit" and, in the next sentence,
+"can only be estimated". None prices one diagonal across stock prices at the
+near expiration, none sets it beside a calendar on the same chain, and none
+says why the call version above the short strike stays ahead of its cost (the
+strike gap is larger than the debit) or when it would not. That is the
+angle, kept descriptive: the shape, the priced break-even against the
+shortcut, and the long vega.
+
+**Title / meta proposed.** Title "Diagonal spread explained: a calendar with a
+tilt" (49 chars) kept: the exact target at the front, and "calendar" carries
+the vs-calendar phrasing without a keyword-syntax "vs". Meta changed from
+"Diagonal spread explained on one hypothetical call: the debit, why its payoff
+tilts instead of forming a hill, and how it differs from a calendar." (it
+repeated row 25's opening template) to "A diagonal spread priced on one
+hypothetical call: the debit, a payoff that tilts, a break-even found by
+pricing, and how it differs from a calendar." (149 chars), which carries the
+break-even gap. Slug `diagonal-spread-explained` is the exact target and
+matches rows 15–25. The post is not yet published, so no redirect is in play.
+
+**Headings.** "What is a diagonal spread, and how is it priced?" matches the
+hub query verbatim; keep it. Applied: "Why does the payoff tilt, and where
+does it break even?" (was "...instead of forming a hill?"; carries the
+break-even phrasing, as row 25's heading did) and "How does a diagonal spread
+differ from a calendar spread?" (names both structures in full, the searched
+pair). The FAQ line "Is a diagonal spread a debit or a credit spread?" now
+matches the searched question. The FAQ line comparing a diagonal and a calendar
+was removed: it duplicated the H2 that now asks the same thing, and the post
+was over its word range.
+
+**Body.** The upside paragraph now says the floor exists because the 4.00 gap
+is more than the 2.80 debit, and the break-even paragraph sets the priced 49.08
+against the 50.80 shortcut. Both checked against a Black-Scholes fit at 40%
+(break-even 49.08, 0.00 to two decimals).
+
+**Links.** Out: `calendar-spread-explained`, `call-credit-spread-explained`
+(new, on "call credit spread" in the first paragraph), `credit-spread-width`
+(new, on "distance between the strikes"), `intrinsic-vs-extrinsic-value-options`,
+`implied-volatility-options-explained`, `options-bid-ask-spread`,
+`selling-options-before-earnings`, `early-exercise-options`,
+`options-buying-power-requirement`, `/blog/income`; all resolve. In:
+`calendar-spread-explained` now links "diagonal spreads" in its closing line.
+No link was added from `call-credit-spread-explained` or `credit-spread-width`:
+the only anchor in the call credit spread post would turn it into a credit
+diagonal with the long strike *above* the short, the variant this post
+excludes, and the width post has no anchor without a new sentence.
+
+**Restraint, deliberate.** These are not targeted even where they surface:
+"poor man's covered call" or "PMCC" in the title or a heading (a later post's);
+"strategy", "bullish", "income", "profit" or "how to use" in any title or
+heading; "vs" in keyword syntax in the title; the "width plus debit" max-loss
+formula; the "20% of the capital for 80% of the exposure" line; the "close or
+roll before the ex-date" advice; the four-type list; every real ticker in the
+Barchart syndication.
+
+**Could not establish:** volume, difficulty or position for any phrasing;
+whether results are personalised or localised (the Indian broker set may be
+regional); whether "diagonal spread explained", "what is a diagonal spread" or
+"diagonal spread options" is typed most; whether r/options or r/thetagang
+threads rank (none surfaced, and the Reddit-named query returned glossaries);
+whether Investopedia ranks for the head term (none surfaced).
 
 ## Off-syllabus rows
 

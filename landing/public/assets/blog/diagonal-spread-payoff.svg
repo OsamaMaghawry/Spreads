@@ -1,0 +1,26 @@
+<svg viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Gain or loss per share at the near expiration of a hypothetical XYZ diagonal spread: long the 60-day 48 call, short the 30-day 52 call, opened for a 2.80 debit with implied volatility held at 40 percent. The line rises from a 2.49 loss with the stock at 42, crosses zero near 49.08, peaks at a 2.02 gain with the stock at 52, then levels off near a 1.2 gain in the model well above the short strike.">
+  <rect width="720" height="360" fill="#FFFFFF"/>
+
+  <!-- zero line and strike guides -->
+  <line x1="80" y1="150" x2="660" y2="150" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="254" y1="30" x2="254" y2="310" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="370" y1="30" x2="370" y2="310" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="254" y="332" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">48 long</text>
+  <text x="370" y="332" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">52 short</text>
+
+  <!-- gain above zero -->
+  <polygon points="285,150 312,115.2 341,73.7 370,28.8 399,40.8 428,50.3 457,57.7 486,63.2 515,67.4 544,70.5 573,72.8 602,74.4 631,75.5 660,76.3 660,150" fill="#2E8B5F" fill-opacity="0.18"/>
+  <!-- loss below zero -->
+  <polygon points="80,150 80,299.4 109,289.9 138,277.2 167,260.8 196,240.3 225,215.5 254,186.3 283,152.8 285,150" fill="#B4485C" fill-opacity="0.16"/>
+  <text x="380" y="24" font-size="15" font-weight="600" text-anchor="start" fill="#2E8B5F">peak 2.02</text>
+  <text x="92" y="200" font-size="15" font-weight="600" fill="#B4485C">loss toward 2.80</text>
+
+  <!-- payoff line -->
+  <path d="M80 299.4 L109 289.9 L138 277.2 L167 260.8 L196 240.3 L225 215.5 L254 186.3 L283 152.8 L312 115.2 L341 73.7 L370 28.8 L399 40.8 L428 50.3 L457 57.7 L486 63.2 L515 67.4 L544 70.5 L573 72.8 L602 74.4 L631 75.5 L660 76.3" fill="none" stroke="#14151C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- break-even -->
+  <circle cx="285" cy="150" r="6" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="273" y="138" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">49.08</text>
+
+  <text x="370" y="354" font-size="15" text-anchor="middle" fill="#767B8E">stock price at near expiration</text>
+</svg>
