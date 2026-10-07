@@ -3,6 +3,9 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-10-07 · New blog post: the diagonal spread explained, with two diagrams comparing it to a calendar spread (`fcada92`, published `4cef92c`).
+- 2026-10-06 · New blog post explaining the calendar spread, in the income series (`3fe4342`, published `94d12e4`).
+- 2026-10-05 · New blog post on selling options before earnings, in the income series (`8c3bb78`).
 - 2026-09-24 · A thirteenth foundations post — buying power, margin and
   collateral for options — is live on the blog: why buying power and cash
   balance diverge, what a cash-secured put, a credit spread and a covered
