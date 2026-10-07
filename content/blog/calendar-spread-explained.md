@@ -107,6 +107,6 @@ A calendar has a defined worst case, but it has a few mechanics that a single-ex
 
 A long calendar spread pays a debit, which is its maximum loss while both legs are held as a spread. It gains when the near leg's time value drains faster than the far leg's, and it is worth most with the stock at the strike on the near expiration.
 
-On the hypothetical XYZ, a 0.94 debit became a 1.35 gain with the stock unchanged at 50 and implied volatility at 40%, and a 0.58 loss with the stock at 44. The same position moved by 0.57 for ten points of implied volatility, which is an exposure a credit spread largely offsets. The [income series](/blog/income) continues with diagonal spreads, which change the strike as well as the date.
+On the hypothetical XYZ, a 0.94 debit became a 1.35 gain with the stock unchanged at 50 and implied volatility at 40%, and a 0.58 loss with the stock at 44. The same position moved by 0.57 for ten points of implied volatility, which is an exposure a credit spread largely offsets. The [income series](/blog/income) continues with [diagonal spreads](/blog/diagonal-spread-explained), which change the strike as well as the date.
 
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.
