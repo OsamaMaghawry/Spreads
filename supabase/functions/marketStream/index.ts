@@ -16,6 +16,7 @@
 // symbols asked for and relays them. It cannot place, change or cancel anything.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { decryptSecret } from "../_shared/crypto.ts";
+import { isConnectorToken } from "../_shared/connectorToken.ts";
 
 // The free IEX feed. SIP is a paid entitlement and returns an auth error rather
 // than falling back, so the feed is a deliberate choice here, not a default.
@@ -28,6 +29,8 @@ const ALPACA_STREAM = "wss://stream.data.alpaca.markets/v2/iex";
 async function userFromQuery(url: URL) {
   const token = url.searchParams.get("token");
   if (!token) return null;
+  // Not for a third-party app's token -- see connectorToken.ts.
+  if (isConnectorToken(token)) return null;
   const client = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_ANON_KEY")!,

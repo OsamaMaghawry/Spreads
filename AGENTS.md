@@ -188,6 +188,22 @@ Rules that keep that from coming back:
 
 Tests: `marketPrice.test.ts` and `optionScan.test.ts`, both runnable under Node.
 
+## The Claude connector: its token reads, nothing else
+
+`supabase/functions/mcp` is a read-only MCP server for Claude, signed in through
+Supabase Auth's OAuth server (staging only for now; `docs/product/connector.md`).
+The token Claude holds is an ordinary login token plus a `client_id` claim, so
+read-only is kept by two rules that every change must respect:
+
+- **Functions:** check callers with `requireUser` (or `requireAdmin`), which
+  refuses connector tokens. A function that verifies a token any other way must
+  apply `isConnectorToken` too; `connectorToken.test.ts` fails until it does.
+- **Tables:** a migration that creates a table with RLS also adds its
+  `connector_no_insert/update/delete` restrictive policies (copy them from
+  migration 0058). The same test fails the build until it does. Do not write
+  `drop policy if exists` for them: through Supabase's SQL endpoint that stalled
+  until timeout.
+
 ## Admin access
 
 The first operator account is created in the Supabase dashboard, not by signing

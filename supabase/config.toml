@@ -22,3 +22,14 @@ verify_jwt = false
 # signature Stripe puts on it (STRIPE_WEBHOOK_SECRET) before reading the body,
 # and it is the only writer of the subscriptions table.
 verify_jwt = false
+
+[functions.mcp]
+# The Claude connector. An MCP client finds where to sign in from the 401 it
+# gets on its first request: the response must carry a WWW-Authenticate header
+# pointing at this function's OAuth metadata. The gateway's own 401 carries no
+# such pointer, so with the check on, Claude could never discover the sign-in
+# and the connector could not be added at all. The function verifies the
+# bearer token itself on every request (userFor, via Supabase Auth) before
+# doing anything, and its tools only read. It also refuses to run outside the
+# staging project until it is released on purpose.
+verify_jwt = false

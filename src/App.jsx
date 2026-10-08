@@ -23,6 +23,9 @@ import OptionChain from '@/pages/OptionChain';
 import BlogPreview from './pages/BlogPreview';
 import Admin from './pages/Admin';
 import OAuthCallback from './pages/OAuthCallback';
+// The Claude connector's approval page. In LAB_MODULES (vite.config.js): not in the production build.
+import OAuthConsent from '@/pages/OAuthConsent';
+import { LAB } from '@/lib/lab';
 import Billing from './pages/Billing';
 import Settings from './pages/Settings';
 
@@ -44,6 +47,9 @@ const AuthenticatedApp = () => {
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      {/* Outside ProtectedRoute: a signed-out visitor is sent to log in WITH the
+          authorization_id, which ProtectedRoute's bare redirect would drop. */}
+      {LAB && <Route path="/oauth/consent" element={<OAuthConsent />} />}
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         {/* Outside Layout on purpose: a preview has to read like the blog page
             it will become, not like a dashboard screen. */}

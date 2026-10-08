@@ -55,6 +55,7 @@ nothing contingent on trading activity.
 - ForgotPassword
 - Login
 - OAuthCallback
+- OAuthConsent
 - OptionChain
 - Register
 - ResetPassword
@@ -121,16 +122,17 @@ so a change to shared code requires redeploying all of them.
 - **findEntry** — Scans the live chain and returns the delta-targeted setup for one strategy.
 - **manageOrder** — Reads the status of a working order, cancels it, or replaces its price or size.
 - **marketStream** — Live underlying prices, relayed from Alpaca's stream.
+- **mcp** — THE CLAUDE CONNECTOR.
 - **migrateCredentials** — Encrypts credentials that are still stored in plaintext, across every user's accounts, without involving those users.
 - **oauthDiag** — Answers one question: does Alpaca recognise this app's OAuth credentials? The authorize page cannot answer it.
 - **openPosition** — (no summary comment)
 - **opsHealth** — Read-only health for the duty engineer: last-24h order errors, alerts, connection issues and the watch's last runs, as counts and messages, never user data.
-- **optionChain** — The option chain for one underlying, as a ladder.
+- **optionChain** — The option chain for one underlying, as a ladder, with what the account holds of it.
 - **positionWatch** — The money-safety watch.
 - **publicConfig** — The operator switches a signed-in customer's browser legitimately needs.
 - **refreshEarnings** — Refreshes the cached earnings calendar for the next 90 days from the provider.
 - **saveAccount** — Creating and editing a trading account.
-- **scanEntries** — (no summary comment)
+- **scanEntries** — Sweeps multiple tickers across DTE / delta / width ranges and returns ranked setups, each flagged if the underlying reports earnings before it expires.
 - **scanUniverse** — Which tickers are worth scanning, out of the whole market.
 - **sendDigest** — The one way an agent reaches the owner.
 - **snaptrade** — SnapTrade, held against what this product actually needs.
