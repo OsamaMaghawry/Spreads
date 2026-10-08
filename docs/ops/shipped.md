@@ -599,3 +599,5 @@ English. Newest first.
 - 2026-10-04 · New blog post on days to expiration for credit spreads, with two diagrams (`e88c543`, published `cc1c7e8`).
 - 2026-10-05 · New blog post on selling options before earnings, with two diagrams (`8c3bb78`, published `7818884`).
 - 2026-10-06 · New blog post explaining the calendar spread, in the income series (`3fe4342`, published `94d12e4`)
+- 2026-10-08 · (staging) Claude connector, read-only: Claude can read your positions and, with get_trade_history, every closed trade as Trade History shows it (`40cda26`, `e5fff7a`).
+- 2026-10-08 · (staging) A "Works with Claude" section and /connect setup page on the staging site, and a "Use with Claude" page in the app lab with a Disconnect button for connected apps (`6411671`).
