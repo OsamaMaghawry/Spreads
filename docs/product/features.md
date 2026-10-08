@@ -154,6 +154,13 @@ dump (`dumpBrokerFeed`, migration 0024 on staging); last-active stamping via
 a security-definer RPC. `oauthDiag` is reachable by any signed-in user —
 handed to systems-engineer.
 
+## Claude connector (staging only — not sellable, not claimable)
+
+Read-only: `list_accounts`, `get_positions`, `get_trade_history`,
+`find_trades`, `get_option_chain`, built on the same shared code as the app
+(`supabase/functions/_shared/connectorTools.ts`). The `mcp` function returns
+404 off staging; production has no OAuth server. See `docs/product/connector.md`.
+
 ## What this inventory says about packaging
 
 - Everything that activates a user — screening, connecting, placing and

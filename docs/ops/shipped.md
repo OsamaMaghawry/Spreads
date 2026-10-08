@@ -3,6 +3,9 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-10-08 · (staging) Claude connector, read-only: Claude can read your positions and, with get_trade_history, every closed trade as Trade History shows it (`40cda26`, `e5fff7a`).
+- 2026-10-08 · (staging) A "Works with Claude" section and /connect setup page on the staging site, and a "Use with Claude" page in the app lab with a Disconnect button for connected apps (`6411671`).
+- 2026-10-08 · (staging) Claude connector now has our own address: paste dev-landing.deltamint.app/mcp instead of the long function URL; the old URL keeps working (`21a827d`).
 - 2026-09-24 · A thirteenth foundations post — buying power, margin and
   collateral for options — is live on the blog: why buying power and cash
   balance diverge, what a cash-secured put, a credit spread and a covered

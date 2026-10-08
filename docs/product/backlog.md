@@ -8,7 +8,16 @@ recorded below, as prominently as additions.
 Every entry carries: the user problem in the user's words, its evidence, the
 smallest test that could disprove it, the kill criterion, and a cost guess.
 
-Last run: **2026-09-01** (vp-product, Tuesday cadence).
+Last run: **2026-09-01** (vp-product, Tuesday cadence). Reconciled against
+shipments 2026-10-08 (end-of-day pass; no proposals added or changed).
+
+**Reconciliation 2026-10-08.** No proposal shipped or half-shipped. #1 stays
+open: the 2026-09-09 whole-market scan filters on the *underlying stock's*
+quoted width (`maxSpreadPct` in `_shared/universe.ts`), not the option legs'
+exit cost, and `src/components/scanner/ResultsTable.jsx` still shows no
+bid/ask or width. #2 and #3 untouched (no POP column, no `scan_runs` table;
+latest migration is 0057). The Claude connector (staging only) matches no
+proposal here. The Tuesday run is overdue — last full run 2026-09-01.
 
 ## Open proposals
 
