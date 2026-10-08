@@ -1,5 +1,6 @@
 import { esc, markdown, formatDate, page } from "./render.js";
 import { CATEGORIES, categoryBySlug, groupByCategory, postsInCategory, neighbours, related, renderFeed } from "./blog.js";
+import { connectorEnabled, injectConnector, renderConnectPage } from "./connector.js";
 
 // Blog routes for the marketing site.
 //
@@ -381,6 +382,13 @@ async function handle(request, env, ctx) {
     });
   }
 
+  // The Claude connector's page, on a deployment that has the connector
+  // (staging only today -- see connector.js). Elsewhere /connect is the 404.
+  if (path === "/connect" && connectorEnabled(env)) {
+    const r = html(renderConnectPage(env, site, noindex));
+    return noindex ? withNoIndexHeader(r) : r;
+  }
+
   const isBlogPath = path === "/blog" || path.startsWith("/blog/") || path === "/sitemap.xml";
   // The home and pricing pages are static assets; their tracking tags are
   // injected below on the way out, for any that the page does not already
@@ -390,7 +398,9 @@ async function handle(request, env, ctx) {
     // invoked for these; on staging it is, purely to stamp the header.
     let asset = await env.ASSETS.fetch(request);
     if ((asset.headers.get("content-type") || "").includes("text/html")) {
-      const text = rehostAssets(await asset.text(), site);
+      const rehosted = rehostAssets(await asset.text(), site);
+      // The homepage's connector section, where the connector exists.
+      const text = path === "/" && connectorEnabled(env) ? injectConnector(rehosted) : rehosted;
       // Those four pages carry their own hostname-guarded GA and Hotjar
       // snippets inline, precisely because production's run_worker_first
       // means this branch never runs for them. Should that config ever be

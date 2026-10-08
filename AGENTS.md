@@ -204,6 +204,11 @@ read-only is kept by two rules that every change must respect:
   `drop policy if exists` for them: through Supabase's SQL endpoint that stalled
   until timeout.
 
+Where people see it: the homepage section and `/connect` on the marketing site
+appear only where `CONNECTOR_MCP_URL` is set (the staging Worker), and the app's
+"Use with Claude" page and Dashboard card are lab modules. Don't make any of
+them public before the release list in the doc is done.
+
 ## Admin access
 
 The first operator account is created in the Supabase dashboard, not by signing

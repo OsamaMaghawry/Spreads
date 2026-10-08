@@ -25,6 +25,7 @@ import Admin from './pages/Admin';
 import OAuthCallback from './pages/OAuthCallback';
 // The Claude connector's approval page. In LAB_MODULES (vite.config.js): not in the production build.
 import OAuthConsent from '@/pages/OAuthConsent';
+import ConnectClaude from '@/pages/ConnectClaude';
 import { LAB } from '@/lib/lab';
 import Billing from './pages/Billing';
 import Settings from './pages/Settings';
@@ -60,6 +61,8 @@ const AuthenticatedApp = () => {
           <Route path="/billing" element={<Billing />} />
           {/* The weekly email's unsubscribe link lands here with ?email=off. */}
           <Route path="/settings" element={<Settings />} />
+          {/* Claude connector setup and disconnect. LAB, like the connector. */}
+          {LAB && <Route path="/connect-claude" element={<ConnectClaude />} />}
           <Route path="/oauth/callback" element={<OAuthCallback />} />
           <Route path="/scanner" element={<Scanner />} />
           {/* Renamed from Screener on 14 Sep. The old path stays as a redirect

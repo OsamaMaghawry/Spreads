@@ -122,7 +122,9 @@ const MARK = `<svg viewBox="7.495 3 17.01 26" aria-hidden="true"><path d="M16.97
 // visibly a different site. The disclaimer text is copied verbatim from
 // landing/public/index.html — it is a compliance line, not decoration, and the
 // two must not drift apart.
-export function page({ title, description, canonical, head = "", body }) {
+// `current` marks the menu item for the page being shown; null marks none.
+export function page({ title, description, canonical, head = "", body, current = "blog" }) {
+  const here = (k) => (current === k ? ' aria-current="page"' : "");
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -224,9 +226,9 @@ ${head}
     <a class="brandmark" href="/">${MARK}<span>delta<span class="m">mint</span></span></a>
     <div class="right">
       <div class="navlinks" id="navmenu">
-        <a class="plain" href="/">Home</a>
-        <a class="plain" href="/about">About</a>
-        <a class="plain" href="/blog" aria-current="page">Blog</a>
+        <a class="plain" href="/"${here("home")}>Home</a>
+        <a class="plain" href="/about"${here("about")}>About</a>
+        <a class="plain" href="/blog"${here("blog")}>Blog</a>
         <a class="btn btn-ghost" href="https://dashboard.deltamint.app/login">Log in</a>
         <a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=nav">Sign up</a>
       </div>

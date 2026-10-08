@@ -67,6 +67,24 @@ advice-style wording.
 - Production has no OAuth server switched on, so nothing could start a
   connection there.
 
+## Where users find it (staging)
+
+- **Marketing site:** a "Works with Claude" section on the homepage
+  (dev-landing.deltamint.app/#claude) and a setup page at `/connect` with the
+  address to copy, the steps, and what Claude can and can't do. Both come from
+  `landing/src/connector.js`, which does nothing unless `CONNECTOR_MCP_URL` is
+  set. Only `landing/wrangler.staging.jsonc` sets it, and production's Worker
+  isn't even invoked for `/` or `/connect`. `landing/src/connector.test.js`
+  holds both.
+- **App:** "Use with Claude" in the menu (`/connect-claude`,
+  `src/pages/ConnectClaude.jsx`) with the same steps, plus **Connected apps**:
+  the list of apps the user approved (`supabase.auth.oauth.listGrants`) and a
+  Disconnect button (`revokeGrant`), which ends that app's access at once.
+- **Dashboard:** a one-line card pointing to that page
+  (`src/components/dashboard/ConnectorNudge.jsx`). Dismissing it is remembered
+  in that browser.
+- All three app pieces are lab modules, so the production build has none.
+
 ## How sign-in works
 
 ```
@@ -103,12 +121,14 @@ keys. Supabase's logs show which.
 - **Alpaca:** confirm that passing their market data (quotes, chains) to a
   user's AI assistant is allowed under the data agreement. Ask in the existing
   review thread.
-- **Revoking access:** a "Connected apps" list in Settings
-  (`supabase.auth.oauth.listGrants/revokeGrant`). Today the user can disconnect
-  from Claude's side only.
+- **Revoking access:** built ("Connected apps" on `/connect-claude`). Before
+  release, test Disconnect end to end: after it, Claude's next call must get 401.
 - **Pricing:** decide whether it's a Live-plan feature.
-- **Release:** apply migration 0058 to production, remove the lab entry and the
-  staging-ref check, and enable the OAuth server on production.
+- **Release:** apply migration 0058 to production, remove the lab entries and the
+  staging-ref check, enable the OAuth server on production, and set
+  `CONNECTOR_MCP_URL` in `landing/wrangler.jsonc` (and add `/` and `/connect`
+  to its `run_worker_first`). The landing test will need its production
+  assertions changed on purpose.
 
 ## Phase 2 (not built)
 

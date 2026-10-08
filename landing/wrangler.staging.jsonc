@@ -26,6 +26,12 @@
     // Staging Supabase project — never production's. Same public-by-
     // construction reasoning as landing/wrangler.jsonc.
     "SUPABASE_URL": "https://wpwaomzgpbozzghohwmf.supabase.co",
-    "SUPABASE_ANON_KEY": "sb_publishable_kT2Ov5TjG-6MxfU3X-L3HA_BDmlchL1"
+    "SUPABASE_ANON_KEY": "sb_publishable_kT2Ov5TjG-6MxfU3X-L3HA_BDmlchL1",
+    // The Claude connector: its address, and the dashboard it pairs with.
+    // Set here and NOT in wrangler.jsonc: the connector runs only on the
+    // staging project, so the homepage section and /connect exist only on
+    // this deployment. See src/connector.js.
+    "CONNECTOR_MCP_URL": "https://wpwaomzgpbozzghohwmf.supabase.co/functions/v1/mcp",
+    "CONNECTOR_APP_URL": "https://dev-dash.deltamint.app"
   }
 }

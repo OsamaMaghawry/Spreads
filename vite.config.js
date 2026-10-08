@@ -38,7 +38,9 @@ export default defineConfig(({ mode }) => {
   const LAB_MODULES = [
     '@/components/admin/SnapTradePanel',
     '@/components/analysis/AnalysisLayoutB',
-    '@/pages/OAuthConsent'
+    '@/pages/OAuthConsent',
+    '@/pages/ConnectClaude',
+    '@/components/dashboard/ConnectorNudge'
   ];
   const labOn = env.VITE_LAB === '1';
   const labAliases = labOn
