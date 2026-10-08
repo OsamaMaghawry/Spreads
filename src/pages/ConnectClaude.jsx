@@ -18,7 +18,9 @@ import { supabase } from "@/lib/supabaseClient";
 // the server keeps those promises on its own (connectorToken.ts, migration
 // 0058). Change them together or not at all.
 
-const MCP_URL = `${String(import.meta.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "")}/functions/v1/mcp`;
+// Our address, not the Supabase function's: the marketing site passes /mcp
+// through to it (landing/src/connector.js).
+const MCP_URL = `${String(import.meta.env.VITE_SITE_URL || "https://deltamint.app").replace(/\/+$/, "")}/mcp`;
 
 const CAN = [
   "List your connected accounts, balances and buying power",

@@ -151,3 +151,16 @@ export function toolContent(r: ToolResult) {
   if (r.isError) out.isError = true;
   return out;
 }
+
+// The connector's address as Claude should know it. People paste our site's
+// /mcp into Claude, and the site passes the request through, naming itself in
+// X-DeltaMint-Public-Origin (landing/src/connector.js). The sign-in pointers
+// must then name that same address: Claude checks that the metadata's
+// `resource` is the URL it connected to (RFC 9728). Only origins on `allowed`
+// are believed; anything else, a direct call included, gets the function's own
+// address, which keeps working.
+export function connectorAddresses(origin: string | null, ownResource: string, allowed: readonly string[]) {
+  return origin && allowed.includes(origin)
+    ? { resource: `${origin}/mcp`, metadata: `${origin}/.well-known/oauth-protected-resource/mcp` }
+    : { resource: ownResource, metadata: `${ownResource}/.well-known/oauth-protected-resource` };
+}

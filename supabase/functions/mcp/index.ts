@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { adminClient } from "../_shared/supabaseClients.ts";
 import { bearerToken, connectorClientId } from "../_shared/connectorToken.ts";
-import { handleMessage } from "../_shared/mcpProtocol.ts";
+import { connectorAddresses, handleMessage } from "../_shared/mcpProtocol.ts";
 import { connectorTools, CONNECTOR_INSTRUCTIONS, type ConnectorDeps } from "../_shared/connectorTools.ts";
 import { scanEntriesFor } from "../_shared/entryScan.ts";
 import { readChainFor } from "../_shared/chainRead.ts";
@@ -9,11 +9,13 @@ import { syncAccountsFor } from "../_shared/accountSync.ts";
 import { fetchTrades } from "../_shared/tradeSync.ts";
 
 // THE CLAUDE CONNECTOR. A remote MCP server: Claude (claude.ai, the desktop
-// and mobile apps) adds this URL as a custom connector, the user signs in to
-// DeltaMint and approves it, and Claude can then read the user's accounts,
+// and mobile apps) adds our address as a custom connector, the user signs in
+// to DeltaMint and approves it, and Claude can then read the user's accounts,
 // positions and option chains and run the Strategy Scanner on their filters.
 //
-//   https://<project>.supabase.co/functions/v1/mcp
+//   https://dev-landing.deltamint.app/mcp   (what people paste; staging)
+//     -> passed through by the landing Worker (landing/src/connector.js) to
+//   https://<project>.supabase.co/functions/v1/mcp   (this; still answers too)
 //
 // Plan, phases and the owner's steps: docs/product/connector.md.
 //
@@ -38,7 +40,9 @@ const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
 const enabled = () => SUPABASE_URL.includes(`://${STAGING_REF}.supabase.co`);
 
 const RESOURCE = `${SUPABASE_URL}/functions/v1/mcp`;
-const METADATA = `${RESOURCE}/.well-known/oauth-protected-resource`;
+// Our sites whose /mcp passes through to here (connectorAddresses). Production
+// joins this list when the connector is released.
+const PUBLIC_ORIGINS = ["https://dev-landing.deltamint.app"];
 const AUTH_SERVER = `${SUPABASE_URL}/auth/v1`;
 // Supabase's scopes describe ID-token contents, not access to data (that is
 // the policies' job). `email` is enough to sign in; asking for `openid` would
@@ -57,13 +61,13 @@ const CORS = {
 const json = (body: unknown, status = 200, extra: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json", ...extra } });
 
-const unauthorized = (why: "missing" | "invalid") =>
+const unauthorized = (why: "missing" | "invalid", metadata: string) =>
   json(
     { error: why === "missing" ? "Sign in to DeltaMint to use this connector." : "This sign-in has expired or was revoked." },
     401,
     {
       "WWW-Authenticate":
-        `Bearer resource_metadata="${METADATA}", scope="${SCOPE}"` +
+        `Bearer resource_metadata="${metadata}", scope="${SCOPE}"` +
         (why === "invalid" ? `, error="invalid_token"` : "")
     }
   );
@@ -121,11 +125,12 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
 
   const path = new URL(req.url).pathname.replace(/\/+$/, "");
+  const address = connectorAddresses(req.headers.get("X-DeltaMint-Public-Origin"), RESOURCE, PUBLIC_ORIGINS);
 
   // RFC 9728: where this resource says to sign in. Public by design.
   if (path.endsWith("/.well-known/oauth-protected-resource")) {
     return json({
-      resource: RESOURCE,
+      resource: address.resource,
       authorization_servers: [AUTH_SERVER],
       scopes_supported: [SCOPE],
       bearer_methods_supported: ["header"],
@@ -138,9 +143,9 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Use POST." }, 405, { Allow: "POST, OPTIONS" });
 
   const token = bearerToken(req.headers.get("Authorization"));
-  if (!token) return unauthorized("missing");
+  if (!token) return unauthorized("missing", address.metadata);
   const user = await userFor(token);
-  if (!user) return unauthorized("invalid");
+  if (!user) return unauthorized("invalid", address.metadata);
 
   let message: any;
   try {

@@ -204,8 +204,9 @@ read-only is kept by two rules that every change must respect:
   `drop policy if exists` for them: through Supabase's SQL endpoint that stalled
   until timeout.
 
-Where people see it: the homepage section and `/connect` on the marketing site
-appear only where `CONNECTOR_MCP_URL` is set (the staging Worker), and the app's
+Where people see it: the homepage section, `/connect` and the connector's
+address (`<site>/mcp`, passed through to the function) exist on the marketing
+site only where `CONNECTOR_UPSTREAM` is set (the staging Worker), and the app's
 "Use with Claude" page and Dashboard card are lab modules. Don't make any of
 them public before the release list in the doc is done.
 

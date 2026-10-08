@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { handleMessage, negotiateVersion, checkArgs, SUPPORTED_PROTOCOL_VERSIONS } from "./mcpProtocol.ts";
+import { handleMessage, negotiateVersion, checkArgs, connectorAddresses, SUPPORTED_PROTOCOL_VERSIONS } from "./mcpProtocol.ts";
 import {
   connectorTools, CONNECTOR_INSTRUCTIONS, SCANNER_DEFAULTS, MAX_TICKERS, daysTo, shapeChain, type ConnectorDeps
 } from "./connectorTools.ts";
@@ -331,4 +331,17 @@ test("trade history says when the broker sync failed instead of passing old rows
   const r = await call(deps, "get_trade_history");
   assert.match(r.text, /last sync from the broker failed \(401 from broker\)/);
   assert.equal(r.data.sync_error, "401 from broker");
+});
+
+test("connector address: our site when it is on the list, the function's own otherwise", () => {
+  const own = "https://ref.supabase.co/functions/v1/mcp";
+  const allowed = ["https://dev-landing.deltamint.app"];
+  assert.deepEqual(connectorAddresses("https://dev-landing.deltamint.app", own, allowed), {
+    resource: "https://dev-landing.deltamint.app/mcp",
+    metadata: "https://dev-landing.deltamint.app/.well-known/oauth-protected-resource/mcp"
+  });
+  const fallback = { resource: own, metadata: `${own}/.well-known/oauth-protected-resource` };
+  for (const origin of [null, "", "https://evil.example", "https://dev-landing.deltamint.app.evil.example", "http://dev-landing.deltamint.app"]) {
+    assert.deepEqual(connectorAddresses(origin, own, allowed), fallback, String(origin));
+  }
 });

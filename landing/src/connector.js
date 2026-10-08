@@ -1,15 +1,23 @@
-// The Claude connector on the marketing site: a homepage section and /connect.
+// The Claude connector on the marketing site: a homepage section, /connect,
+// and the connector's own address, <site>/mcp.
+//
+// OUR ADDRESS, SUPABASE'S SERVER. The connector runs as a Supabase function
+// (supabase/functions/mcp), but the address people paste into Claude is this
+// site's /mcp. The Worker passes those requests through unchanged and says
+// which site they came through (ORIGIN_HEADER); the function then names this
+// address, not its own, in the sign-in pointers it gives Claude. Sign-in itself
+// is still Supabase Auth, which Claude finds from there.
 //
 // STAGING ONLY, BY CONFIGURATION, NOT BY BRANCH. The connector itself runs only
-// on the staging Supabase project (supabase/functions/mcp), so nothing about it
-// may appear on deltamint.app yet. But the landing deploy refuses to ship any
-// tree that differs from staging's, so the pages cannot simply differ between
-// the two. They don't: this module ships to both, and it does nothing unless
-// CONNECTOR_MCP_URL is set -- which only wrangler.staging.jsonc does.
+// on the staging Supabase project, so nothing about it may appear on
+// deltamint.app yet. But the landing deploy refuses to ship any tree that
+// differs from staging's, so the pages cannot simply differ between the two.
+// They don't: this module ships to both, and it does nothing unless
+// CONNECTOR_UPSTREAM is set -- which only wrangler.staging.jsonc does.
 //
 // Belt and braces: production's run_worker_first covers /blog and the sitemap
-// only, so this Worker is never even invoked for "/" or "/connect" there. On
-// staging it runs ahead of every page, which is where these two hooks live.
+// only, so this Worker is never even invoked for "/", "/connect" or "/mcp"
+// there. On staging it runs ahead of every page, which is where these hooks live.
 //
 // The words follow docs/context/compliance.md: matches to the user's filters,
 // never "best" or a recommendation; DeltaMint is software, not a broker-dealer.
@@ -18,7 +26,55 @@
 
 import { esc, page } from "./render.js";
 
-export const connectorEnabled = (env) => Boolean(env && env.CONNECTOR_MCP_URL);
+export const connectorEnabled = (env) => Boolean(env && env.CONNECTOR_UPSTREAM);
+
+// The address people paste into Claude.
+export const connectorAddress = (site) => `${String(site).replace(/\/+$/, "")}/mcp`;
+
+// Tells the function which of our sites a request came through. The function
+// believes it only for origins on its own list (supabase/functions/mcp).
+export const ORIGIN_HEADER = "X-DeltaMint-Public-Origin";
+
+// /mcp itself, and the two places a client may look for its sign-in pointer
+// (RFC 9728: the path-suffixed form first, then the bare one).
+const METADATA_PATHS = ["/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-protected-resource"];
+export const isConnectorPath = (path) => path === "/mcp" || METADATA_PATHS.includes(path);
+
+// Only what the protocol needs crosses, in either direction. No cookies of
+// this site go to Supabase, and nothing of Supabase's but the answer comes back.
+const REQUEST_HEADERS = ["authorization", "content-type", "accept", "mcp-protocol-version", "mcp-session-id", "last-event-id", "user-agent"];
+const RESPONSE_HEADERS = [
+  "content-type", "www-authenticate", "mcp-session-id", "mcp-protocol-version", "allow",
+  "access-control-allow-origin", "access-control-allow-methods", "access-control-allow-headers", "access-control-expose-headers"
+];
+
+export async function proxyConnector(request, env, path) {
+  const upstream = String(env.CONNECTOR_UPSTREAM).replace(/\/+$/, "");
+  const target = path === "/mcp" ? upstream : `${upstream}/.well-known/oauth-protected-resource`;
+  const headers = new Headers();
+  for (const name of REQUEST_HEADERS) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  headers.set(ORIGIN_HEADER, new URL(request.url).origin);
+  const method = request.method;
+  const body = method === "GET" || method === "HEAD" ? undefined : await request.arrayBuffer();
+  let res;
+  try {
+    res = await fetch(target, { method, headers, body, redirect: "manual" });
+  } catch {
+    return new Response(JSON.stringify({ error: "DeltaMint could not be reached. Try again in a moment." }), {
+      status: 502,
+      headers: { "content-type": "application/json", "cache-control": "no-store" }
+    });
+  }
+  const out = new Headers({ "cache-control": "no-store" });
+  for (const name of RESPONSE_HEADERS) {
+    const value = res.headers.get(name);
+    if (value) out.set(name, value);
+  }
+  return new Response(res.body, { status: res.status, headers: out });
+}
 
 // Where the homepage section goes: a comment in landing/public/index.html,
 // inert wherever this Worker does not run.
@@ -150,7 +206,7 @@ const CONNECT_CSS = `
 const appUrl = (env) => String(env.CONNECTOR_APP_URL || "https://dashboard.deltamint.app").replace(/\/+$/, "");
 
 export function renderConnectPage(env, site, noindex) {
-  const url = String(env.CONNECTOR_MCP_URL);
+  const url = connectorAddress(site);
   const app = appUrl(env);
   const body = `
 <article class="doc">

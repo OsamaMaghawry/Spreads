@@ -1,6 +1,6 @@
 import { esc, markdown, formatDate, page } from "./render.js";
 import { CATEGORIES, categoryBySlug, groupByCategory, postsInCategory, neighbours, related, renderFeed } from "./blog.js";
-import { connectorEnabled, injectConnector, renderConnectPage } from "./connector.js";
+import { connectorEnabled, injectConnector, isConnectorPath, proxyConnector, renderConnectPage } from "./connector.js";
 
 // Blog routes for the marketing site.
 //
@@ -386,6 +386,11 @@ async function handle(request, env, ctx) {
   // (staging only today -- see connector.js). Elsewhere /connect is the 404.
   if (path === "/connect" && connectorEnabled(env)) {
     const r = html(renderConnectPage(env, site, noindex));
+    return noindex ? withNoIndexHeader(r) : r;
+  }
+  // The connector's own address: passed through to the Supabase function.
+  if (connectorEnabled(env) && isConnectorPath(path)) {
+    const r = await proxyConnector(request, env, path);
     return noindex ? withNoIndexHeader(r) : r;
   }
 

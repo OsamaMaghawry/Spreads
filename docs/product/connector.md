@@ -72,10 +72,10 @@ advice-style wording.
 - **Marketing site:** a "Works with Claude" section on the homepage
   (dev-landing.deltamint.app/#claude) and a setup page at `/connect` with the
   address to copy, the steps, and what Claude can and can't do. Both come from
-  `landing/src/connector.js`, which does nothing unless `CONNECTOR_MCP_URL` is
+  `landing/src/connector.js`, which does nothing unless `CONNECTOR_UPSTREAM` is
   set. Only `landing/wrangler.staging.jsonc` sets it, and production's Worker
-  isn't even invoked for `/` or `/connect`. `landing/src/connector.test.js`
-  holds both.
+  isn't even invoked for `/`, `/connect` or `/mcp`.
+  `landing/src/connector.test.js` holds all of it.
 - **App:** "Use with Claude" in the menu (`/connect-claude`,
   `src/pages/ConnectClaude.jsx`) with the same steps, plus **Connected apps**:
   the list of apps the user approved (`supabase.auth.oauth.listGrants`) and a
@@ -85,10 +85,27 @@ advice-style wording.
   in that browser.
 - All three app pieces are lab modules, so the production build has none.
 
+## The address
+
+People paste **`https://dev-landing.deltamint.app/mcp`** (production, later:
+`https://deltamint.app/mcp`). The landing Worker passes `/mcp` and the two
+`/.well-known/oauth-protected-resource` paths through to the Supabase function,
+adding `X-DeltaMint-Public-Origin`. The function believes that header only for
+origins in its `PUBLIC_ORIGINS` list, and then names our address in its sign-in
+pointers; Claude requires the metadata to name the URL it connected to.
+
+The Supabase address (`…supabase.co/functions/v1/mcp`) still answers, so a
+connection made with it keeps working, but nothing shows it any more.
+
+Sign-in itself still runs on Supabase Auth: while signing in, the browser
+passes through a `…supabase.co/auth/v1/oauth/authorize` link for a moment
+before landing on our approval page. Hiding that too needs Supabase's custom
+domain add-on (a paid add-on), which would move the whole API to our domain.
+
 ## How sign-in works
 
 ```
-Claude ──POST /functions/v1/mcp──▶ 401 + "sign in here" (metadata URL)
+Claude ──POST dev-landing.deltamint.app/mcp──▶ 401 + "sign in here" (metadata URL)
 Claude ──reads metadata──▶ authorization server = Supabase Auth (staging)
 Claude ──registers itself, opens the browser──▶ dev-dash.deltamint.app/oauth/consent
 User   ──signs in if needed, sees what Claude can and cannot do──▶ Allow / Deny
@@ -107,8 +124,8 @@ why) and checks the token itself on every request.
 2. **Authentication → URL Configuration:** check the Site URL is
    `https://dev-dash.deltamint.app`.
 3. **In Claude:** Settings → Connectors → Add custom connector →
-   `https://wpwaomzgpbozzghohwmf.supabase.co/functions/v1/mcp`. Sign in with your
-   staging DeltaMint login and press Allow.
+   `https://dev-landing.deltamint.app/mcp`. Sign in with your staging
+   DeltaMint login and press Allow.
 
 If sign-in fails at the token step, the likely cause is the requested scope. The
 server asks for `email`, not `openid`, because ID tokens need asymmetric signing
@@ -125,10 +142,12 @@ keys. Supabase's logs show which.
   release, test Disconnect end to end: after it, Claude's next call must get 401.
 - **Pricing:** decide whether it's a Live-plan feature.
 - **Release:** apply migration 0058 to production, remove the lab entries and the
-  staging-ref check, enable the OAuth server on production, and set
-  `CONNECTOR_MCP_URL` in `landing/wrangler.jsonc` (and add `/` and `/connect`
-  to its `run_worker_first`). The landing test will need its production
-  assertions changed on purpose.
+  staging-ref check, enable the OAuth server on production, add
+  `https://deltamint.app` to the function's `PUBLIC_ORIGINS`, and set
+  `CONNECTOR_UPSTREAM` in `landing/wrangler.jsonc` (and add `/`, `/connect`,
+  `/mcp` and `/.well-known/oauth-protected-resource*` to its
+  `run_worker_first`). The landing test will need its production assertions
+  changed on purpose.
 
 ## Phase 2 (not built)
 
