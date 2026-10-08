@@ -6,6 +6,7 @@ import { connectorTools, CONNECTOR_INSTRUCTIONS, type ConnectorDeps } from "../_
 import { scanEntriesFor } from "../_shared/entryScan.ts";
 import { readChainFor } from "../_shared/chainRead.ts";
 import { syncAccountsFor } from "../_shared/accountSync.ts";
+import { fetchTrades } from "../_shared/tradeSync.ts";
 
 // THE CLAUDE CONNECTOR. A remote MCP server: Claude (claude.ai, the desktop
 // and mobile apps) adds this URL as a custom connector, the user signs in to
@@ -91,6 +92,25 @@ function depsFor(userId: string): ConnectorDeps {
     syncAccounts: () => syncAccountsFor(admin, userId),
     scan: (body) => scanEntriesFor(admin, userId, body),
     chain: (body) => readChainFor(admin, userId, body),
+    // The History page's own read (tradeHistory -> fetchTrades), minus the
+    // broker refresh it triggers: the connector reads, it does not sync.
+    // pickAccount has already confirmed the account is this user's; the
+    // user_id filter below repeats that check where the data is read.
+    tradeHistory: async (accountId) => {
+      const { data: acct, error } = await admin
+        .from("trading_accounts")
+        .select("id, trades_synced_at, trades_sync_error")
+        .eq("id", accountId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!acct) throw new Error("Account not found.");
+      return {
+        trades: await fetchTrades(admin, accountId),
+        syncedAt: acct.trades_synced_at || null,
+        syncError: acct.trades_sync_error || null
+      };
+    },
     now: () => new Date()
   };
 }

@@ -16,10 +16,13 @@ production. Production fails closed in three places (below).
 
 > "Show me the TSLA chain for next Friday."
 
+> "How have my covered calls on TSLA done since August, and what's my win rate?"
+
 | Tool | What it does | Built on |
 |---|---|---|
 | `list_accounts` | The user's connected accounts, paper or live | `trading_accounts` |
 | `get_positions` | Open positions grouped as the Dashboard groups them, with credit, max loss, P/L, break-even, balances | `_shared/accountSync.ts` (the Dashboard's `syncAccounts`) |
+| `get_trade_history` | Every closed trade, newest first, paged; totals by category as Trade History shows them and the win rate as Analysis counts it | `_shared/tradeSync.ts` `fetchTrades` (Trade History's read), without its broker refresh |
 | `find_trades` | The Strategy Scanner on the user's filters: put/call spreads, iron condors, cash-secured puts, covered calls | `_shared/entryScan.ts` (the Scanner's `scanEntries`) |
 | `get_option_chain` | One expiry's chain around the money, plus shares held and basis | `_shared/chainRead.ts` (the app's `optionChain`) |
 

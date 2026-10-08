@@ -19,6 +19,7 @@ function fakeDeps(over: Partial<ConnectorDeps> = {}): ConnectorDeps & { calls: a
     syncAccounts: async () => ({ accounts: [], syncedAt: NOW.toISOString() }),
     scan: async (body) => { calls.push(body); return { status: 200, body: { ok: true, candidates: [], skipped: [] } }; },
     chain: async (body) => { calls.push(body); return { status: 200, body: { ladder: [], expiries: [] } }; },
+    tradeHistory: async () => ({ trades: [], syncedAt: NOW.toISOString(), syncError: null }),
     now: () => NOW,
     ...over
   } as any;
@@ -61,7 +62,7 @@ test("notifications get no response; bad messages and methods get JSON-RPC error
 test("every tool is listed, and every one is marked read-only", async () => {
   const res: any = await handleMessage(rpc("tools/list"), { tools: connectorTools(), ctx: fakeDeps(), server, instructions: "" });
   const names = res.result.tools.map((t: any) => t.name);
-  assert.deepEqual(names, ["list_accounts", "get_positions", "find_trades", "get_option_chain"]);
+  assert.deepEqual(names, ["list_accounts", "get_positions", "get_trade_history", "find_trades", "get_option_chain"]);
   for (const t of res.result.tools) {
     assert.equal(t.annotations.readOnlyHint, true, t.name);
     assert.equal(t.annotations.destructiveHint, false, t.name);
@@ -269,4 +270,65 @@ test("days to expiry are calendar days in UTC", () => {
   assert.equal(daysTo("2026-10-08", NOW), 0);
   assert.equal(daysTo("2026-10-16", NOW), 8);
   assert.equal(daysTo("not a date", NOW), null);
+});
+
+// ---------- trade history ----------
+
+const T = (o: any) => ({
+  ticker: "SPY", strategy: "spreads", qty: 1, short_strike: 570, long_strike: 568, net_credit: 0.5, close_debit: 0.1,
+  realized_pl: 40, premium_pl: 50, early_close_pl: -10, stock_pl: 0, close_reason: "closed",
+  provisional: false, integrity_code: null, open_date: "2026-09-01", close_date: "2026-09-05", ...o
+});
+
+const HISTORY = [
+  T({ close_date: "2026-09-05" }),
+  T({ close_date: "2026-09-12", realized_pl: -60, premium_pl: 40, early_close_pl: -100 }),
+  T({ close_date: "2026-09-19", ticker: "TSLA", strategy: "cash_secured_put", long_strike: 0, realized_pl: 0, premium_pl: 0, early_close_pl: 0 }),
+  // Assigned, shares still held: money counts, the outcome does not yet.
+  T({ close_date: "2026-09-26", ticker: "TSLA", strategy: "cash_secured_put", long_strike: 0, provisional: true, realized_pl: 120, premium_pl: 120, early_close_pl: 0 }),
+  // Flagged by the integrity checks: in the totals, out of the win rate.
+  T({ close_date: "2026-10-01", integrity_code: "impossible_loss", realized_pl: -999 }),
+  T({ close_date: "2026-10-02", ticker: "TSLA", strategy: "covered_call", long_strike: 0, realized_pl: 79, premium_pl: 86, early_close_pl: -7 })
+];
+
+test("trade history: every closed trade, newest first, totals and win rate as the app counts them", async () => {
+  const deps = fakeDeps({ tradeHistory: async () => ({ trades: HISTORY, syncedAt: "2026-10-08T07:00:00Z", syncError: null }) });
+  const r = await call(deps, "get_trade_history");
+  assert.equal(r.isError, false);
+  assert.equal(r.data.synced_at, "2026-10-08T07:00:00Z");
+  assert.deepEqual(r.data.trades.map((t: any) => t.close_date), ["2026-10-02", "2026-10-01", "2026-09-26", "2026-09-19", "2026-09-12", "2026-09-05"]);
+  const s = r.data.summary;
+  assert.equal(s.trades, 6);
+  assert.equal(s.realized_pl, 40 - 60 + 0 + 120 - 999 + 79);
+  // Counted: the four final, unflagged trades -- 2 wins (40, 79), 1 loss (-60), 1 flat (0).
+  assert.deepEqual([s.win_rate.wins, s.win_rate.losses, s.win_rate.flat, s.win_rate.counted, s.win_rate.not_counted], [2, 1, 1, 4, 2]);
+  assert.equal(s.win_rate.percent, 50);
+  assert.deepEqual(s.by_category.map((c: any) => [c.category, c.trades]), [["Spreads", 3], ["Cash-secured puts", 2], ["Covered calls", 1]]);
+  const csp = r.data.trades.find((t: any) => t.close_date === "2026-09-26");
+  assert.equal(csp.result_final, false);
+  assert.equal(csp.counts_in_win_rate, false);
+  assert.equal(csp.long_strike, null, "a single leg has no long strike, not a $0 one");
+  assert.equal(r.data.trades.find((t: any) => t.close_date === "2026-10-01").integrity_flag, "impossible_loss");
+});
+
+test("trade history: filters and pages, with the summary over every match", async () => {
+  const deps = fakeDeps({ tradeHistory: async () => ({ trades: HISTORY, syncedAt: null, syncError: null }) });
+  const tsla = await call(deps, "get_trade_history", { ticker: "tsla", limit: 2 });
+  assert.equal(tsla.data.summary.trades, 3);
+  assert.equal(tsla.data.returned, 2);
+  assert.equal(tsla.data.more, true);
+  assert.match(tsla.text, /offset 2 for the next page/);
+  const next = await call(deps, "get_trade_history", { ticker: "TSLA", limit: 2, offset: 2 });
+  assert.deepEqual(next.data.trades.map((t: any) => t.close_date), ["2026-09-19"]);
+  assert.equal(next.data.more, false);
+  const window = await call(deps, "get_trade_history", { from_date: "2026-09-10", to_date: "2026-09-30", category: "cash_secured_put" });
+  assert.deepEqual(window.data.trades.map((t: any) => t.close_date), ["2026-09-26", "2026-09-19"]);
+  assert.match((await call(deps, "get_trade_history", { from_date: "Sept 1" })).text, /YYYY-MM-DD/);
+});
+
+test("trade history says when the broker sync failed instead of passing old rows off as current", async () => {
+  const deps = fakeDeps({ tradeHistory: async () => ({ trades: HISTORY, syncedAt: "2026-10-01T00:00:00Z", syncError: "401 from broker" }) });
+  const r = await call(deps, "get_trade_history");
+  assert.match(r.text, /last sync from the broker failed \(401 from broker\)/);
+  assert.equal(r.data.sync_error, "401 from broker");
 });

@@ -31,6 +31,9 @@ export type ConnectorDeps = {
   syncAccounts: () => Promise<{ accounts: any[]; syncedAt: string }>;
   scan: (body: Record<string, unknown>) => Promise<{ status: number; body: any }>;
   chain: (body: Record<string, unknown>) => Promise<{ status: number; body: any }>;
+  // The account's stored trade records -- the rows Trade History shows -- and
+  // when they were last synced from the broker. Never triggers a sync.
+  tradeHistory: (accountId: string) => Promise<{ trades: any[]; syncedAt: string | null; syncError: string | null }>;
   now: () => Date;
 };
 
@@ -237,6 +240,88 @@ export function shapeChain(b: any, eachSide: number) {
   };
 }
 
+// ---------- shaping: trade history ----------
+
+// The History page's categories (src/lib/strategies.js), by the stored key.
+export const TRADE_CATEGORIES: Record<string, string> = {
+  spreads: "Spreads",
+  cash_secured_put: "Cash-secured puts",
+  covered_call: "Covered calls",
+  long_put: "Long puts",
+  long_call: "Long calls",
+  wheel: "Wheel (not yet synced)",
+  unknown: "Untagged"
+};
+const categoryOf = (t: any) => (TRADE_CATEGORIES[t?.strategy] ? t.strategy : "unknown");
+const sum = (rows: any[], f: string) => rows.reduce((a, r) => a + (Number(r[f]) || 0), 0);
+
+// Analysis counts a trade towards the win rate only when its result is final
+// (not provisional: no shares from an assignment still held) and not flagged by
+// the integrity checks; a win is realized P/L above zero. Same rule here, so
+// the rate Claude quotes is the rate DeltaMint shows (src/lib/analytics.js).
+const settled = (t: any) => !t.provisional && !t.integrity_code;
+
+export function shapeTrade(t: any) {
+  const strike = (v: unknown) => (Number(v) > 0 ? r2(v) : null);
+  return {
+    ticker: t.ticker,
+    category: TRADE_CATEGORIES[categoryOf(t)],
+    open_date: t.open_date ?? null,
+    close_date: t.close_date ?? null,
+    expiry: t.expiry ?? null,
+    how_it_closed: t.close_reason ?? null,
+    quantity: r2(t.qty),
+    short_strike: strike(t.short_strike),
+    long_strike: strike(t.long_strike),
+    short_symbol: t.short_symbol || null,
+    long_symbol: t.long_symbol || null,
+    // Per share, as the broker quotes options; the P/L fields are dollars.
+    credit_per_share: r2(t.net_credit),
+    close_cost_per_share: r2(t.close_debit),
+    realized_pl: r2(t.realized_pl),
+    premium_pl: r2(t.premium_pl),
+    early_close_pl: r2(t.early_close_pl),
+    assignment_pl: r2(t.stock_pl),
+    result_final: !t.provisional,
+    counts_in_win_rate: settled(t),
+    integrity_flag: t.integrity_code || null
+  };
+}
+
+export function summarizeTrades(rows: any[]) {
+  const s = rows.filter(settled);
+  const wins = s.filter((t) => (Number(t.realized_pl) || 0) > 0).length;
+  const losses = s.filter((t) => (Number(t.realized_pl) || 0) < 0).length;
+  const by = Object.keys(TRADE_CATEGORIES)
+    .map((k) => {
+      const g = rows.filter((t) => categoryOf(t) === k);
+      return g.length
+        ? {
+            category: TRADE_CATEGORIES[k], trades: g.length, realized_pl: r2(sum(g, "realized_pl")),
+            premium_pl: r2(sum(g, "premium_pl")), early_close_pl: r2(sum(g, "early_close_pl")), assignment_pl: r2(sum(g, "stock_pl"))
+          }
+        : null;
+    })
+    .filter(Boolean);
+  const dates = rows.map((t) => t.close_date).filter(Boolean).sort();
+  return {
+    trades: rows.length,
+    first_close: dates[0] ?? null,
+    last_close: dates[dates.length - 1] ?? null,
+    realized_pl: r2(sum(rows, "realized_pl")),
+    premium_pl: r2(sum(rows, "premium_pl")),
+    early_close_pl: r2(sum(rows, "early_close_pl")),
+    assignment_pl: r2(sum(rows, "stock_pl")),
+    win_rate: {
+      wins, losses, flat: s.length - wins - losses, counted: s.length,
+      not_counted: rows.length - s.length,
+      percent: s.length ? r2((wins / s.length) * 100) : null,
+      rule: "Final results only: a trade still holding shares from an assignment, or flagged by DeltaMint's integrity checks, is left out, as on the Analysis page. A win is realized P/L above zero."
+    },
+    by_category: by
+  };
+}
+
 // ---------- the tools ----------
 
 const ACCOUNT_ID = {
@@ -279,6 +364,63 @@ export function connectorTools(): Tool<ConnectorDeps>[] {
           text: `${pick.account!.name}: ${n} open position(s), read from the broker at ${syncedAt}.`,
           data: { account: accountLabel(pick.account!), as_of: syncedAt, ...snap },
           isError: "error" in snap
+        };
+      }
+    },
+
+    {
+      name: "get_trade_history",
+      title: "Get closed trades",
+      description:
+        "Reads the user's closed trades -- the rows DeltaMint's Trade History page shows -- newest first, with each trade's dates, strikes, credit, how it closed, and realized P/L split into premium, early-close and assignment parts. " +
+        "Filter by close date, ticker or category; page through long histories with offset. The summary covers every matching trade, not just the page: totals by category as the History page shows them, and the win rate counted the way DeltaMint's Analysis page counts it. " +
+        "Records are as of the last sync from the broker (synced_at); trades closed since then appear after DeltaMint next syncs.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          account_id: ACCOUNT_ID,
+          from_date: { type: "string", description: "Earliest close date, YYYY-MM-DD." },
+          to_date: { type: "string", description: "Latest close date, YYYY-MM-DD." },
+          ticker: { type: "string", description: "Only this underlying, e.g. \"TSLA\"." },
+          category: { type: "string", enum: Object.keys(TRADE_CATEGORIES), description: "Only this category: spreads, cash_secured_put, covered_call, long_put, long_call." },
+          limit: { type: "integer", description: "Trades to return in this page, 1-500. Default 100." },
+          offset: { type: "integer", description: "Trades to skip, for the next page. Default 0." }
+        },
+        additionalProperties: false
+      },
+      run: async (args, deps): Promise<ToolResult> => {
+        const pick = await pickAccount(deps, args.account_id);
+        if ("error" in pick) return { text: pick.error as string, isError: true };
+        const day = /^\d{4}-\d{2}-\d{2}$/;
+        for (const k of ["from_date", "to_date"]) {
+          if (args[k] !== undefined && !day.test(String(args[k]))) return { text: `${k} must be YYYY-MM-DD.`, isError: true };
+        }
+        const { trades, syncedAt, syncError } = await deps.tradeHistory(pick.account!.id);
+        const ticker = typeof args.ticker === "string" ? args.ticker.trim().toUpperCase() : null;
+        const rows = trades
+          .filter((t: any) => t.close_date)
+          .filter((t: any) => !args.from_date || String(t.close_date) >= String(args.from_date))
+          .filter((t: any) => !args.to_date || String(t.close_date) <= String(args.to_date))
+          .filter((t: any) => !ticker || String(t.ticker).toUpperCase() === ticker)
+          .filter((t: any) => !args.category || categoryOf(t) === args.category)
+          .sort((a: any, b: any) => String(b.close_date).localeCompare(String(a.close_date)));
+        const limit = Math.max(1, Math.min(500, typeof args.limit === "number" ? args.limit : 100));
+        const offset = Math.max(0, typeof args.offset === "number" ? args.offset : 0);
+        const page = rows.slice(offset, offset + limit);
+        const more = offset + page.length < rows.length;
+        return {
+          text:
+            `${rows.length} closed trade(s) match; showing ${page.length ? `${offset + 1}-${offset + page.length}` : "none"}, newest first.` +
+            (more ? ` Call again with offset ${offset + page.length} for the next page.` : "") +
+            (syncError ? ` The last sync from the broker failed (${syncError}); these are the records from before it.` : ""),
+          data: {
+            account: accountLabel(pick.account!),
+            synced_at: syncedAt,
+            sync_error: syncError,
+            summary: summarizeTrades(rows),
+            offset, returned: page.length, more,
+            trades: page.map(shapeTrade)
+          }
         };
       }
     },
