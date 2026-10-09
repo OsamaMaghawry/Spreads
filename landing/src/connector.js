@@ -201,10 +201,7 @@ const SECTION_CSS = `
 <style>
   .cx-box { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 28px; align-items: start; }
   .cx-lede { color: var(--ink-soft); font-size: 1.05rem; line-height: 1.6; margin: 14px 0 0; }
-  .cx-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 22px; }
-  .cx-chip { font-size: .82rem; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); }
-  .cx-ctas { display: flex; flex-wrap: wrap; gap: 10px; }
-  .cx-note { margin-top: 12px; font-size: .82rem; color: var(--ink-mute); }
+  .cx-ctas { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
   .cx-chat { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 16px; display: grid; gap: 12px; min-width: 0; }
   .cx-bar { display: flex; gap: 6px; }
   .cx-bar i { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
@@ -221,14 +218,13 @@ const SECTION_CSS = `
   .cx-table .r { text-align: right; }
   .cx-foot { font-size: .78rem; color: var(--ink-mute); }
   @media (max-width: 860px) { .cx-box { grid-template-columns: 1fr; } }
-  /* Phone: drop the days column (the request names the window) and the words
-     "put spread", so RoR -- the ranking -- stays in view without scrolling. */
+  /* Phone: drop the words "put spread", so RoR -- the ranking -- stays in view. */
   @media (max-width: 560px) {
     .cx-table { font-size: .78rem; }
     .cx-chat { padding: 12px; }
     .cx-table th, .home .cx-table tbody tr td { padding: 6px 4px; }
     .cx-table th { letter-spacing: 0; }
-    .cx-table .cx-days, .cx-table .cx-kind { display: none; }
+    .cx-table .cx-kind { display: none; }
   }
 </style>`;
 
@@ -240,7 +236,7 @@ const strikes = (structure) => {
 
 export function connectorSection() {
   const rows = SAMPLE_ROWS.map(
-    (r) => `<tr><td>${esc(r[0])}</td><td>${strikes(r[1])}</td><td class="r cx-days">${esc(r[2])}</td><td class="r">${esc(r[3])}</td><td class="r">${esc(r[4])}</td><td class="r">${esc(r[5])}</td><td class="r">${esc(r[6])}</td></tr>`
+    (r) => `<tr><td>${esc(r[0])}</td><td>${strikes(r[1])}</td><td class="r">${esc(r[3])}</td><td class="r">${esc(r[4])}</td><td class="r">${esc(r[5])}</td><td class="r">${esc(r[6])}</td></tr>`
   ).join("");
   return `
 <!-- CONNECTOR (rendered by the staging Worker: landing/src/connector.js) -->
@@ -250,23 +246,20 @@ export function connectorSection() {
       <div>
         <div class="eyebrow">Works with Claude</div>
         <h2>Ask Claude. It reads your DeltaMint account.</h2>
-        <p class="cx-lede">Connect DeltaMint to Claude once. Then ask in plain English: Claude runs the Strategy Scanner on your filters, reads your positions and your closed trades, and answers in the chat. It is read-only — nothing it does can place, change or cancel an order.</p>
-        <div class="cx-chips">${EXAMPLES.map((e) => `<span class="cx-chip">${esc(e)}</span>`).join("")}</div>
+        <p class="cx-lede">Connect once, ask in plain English. Read-only: it can't place trades.</p>
         <div class="cx-ctas">
           <a class="h-btn h-btn-brand" href="/connect">Connect to Claude</a>
-          <a class="h-btn h-btn-ghost" href="/connect#can">What it can and can't do</a>
         </div>
-        <p class="cx-note">You sign in to DeltaMint and approve the connection. Disconnect any time.</p>
       </div>
       <div class="cx-chat" aria-label="Sample conversation">
         <div class="cx-bar" aria-hidden="true"><i></i><i></i><i></i></div>
-        <div class="cx-ask">Find put credit spreads on SPY and QQQ, 7 to 14 days out, short delta under 0.20.</div>
-        <div class="cx-tool">DeltaMint · <b>find_trades</b> · put_spread · SPY, QQQ · 7–14 days</div>
+        <div class="cx-ask">Put spreads on SPY and QQQ, 7–14 days, delta under 0.20</div>
+        <div class="cx-tool">DeltaMint · <b>Strategy Scanner</b></div>
         <div class="cx-tablewrap"><table class="cx-table">
-          <thead><tr><th>Ticker</th><th>Spread</th><th class="r cx-days">Days</th><th class="r">Δ</th><th class="r">Credit</th><th class="r">Max loss</th><th class="r">RoR</th></tr></thead>
+          <thead><tr><th>Ticker</th><th>Spread</th><th class="r">Δ</th><th class="r">Credit</th><th class="r">Max loss</th><th class="r">RoR</th></tr></thead>
           <tbody>${rows}</tbody>
         </table></div>
-        <div class="cx-foot">Sample answer. Days to expiry, short delta, credit and max loss per contract, return on risk (RoR). Matches to the filters you give, ranked by RoR, with live bid/ask and the time it was read — not advice.</div>
+        <div class="cx-foot">Sample answer. Not advice.</div>
       </div>
     </div>
   </div>
