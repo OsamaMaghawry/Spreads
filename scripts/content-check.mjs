@@ -401,6 +401,20 @@ function checkFile(file) {
         fail(`${rel} · front-matter`, `no '${key}:' — publish-blog.mjs needs it to file the post under the right hub`);
       }
     }
+    // Optional. Google shows about 60 characters of a title; the comment it
+    // is stored in (landing/src/render.js) must not be closed early by it.
+    const search = raw.match(/^search_title:\s*(.+)$/m);
+    if (search) {
+      const st = search[1].trim().replace(/^["']|["']$/g, "");
+      if (st.length > 60) {
+        clean = false;
+        fail(`${rel} · front-matter`, `search_title is ${st.length} characters; Google shows about 60`);
+      }
+      if (st.includes("--")) {
+        clean = false;
+        fail(`${rel} · front-matter`, "search_title may not contain '--' (it is stored inside an HTML comment)");
+      }
+    }
     const meta = raw.match(/^meta_description:\s*(.+)$/m);
     if (meta && meta[1].trim().length > 160) {
       clean = false;

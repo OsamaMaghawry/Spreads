@@ -38,6 +38,7 @@
 // would recreate exactly the failure this script exists to prevent.
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { withSearchTitle } from "../landing/src/render.js";
 
 const DIR = "content/blog";
 const url = process.env.SUPABASE_URL;
@@ -97,7 +98,9 @@ for (const file of files) {
     // fine. Set it explicitly; never rely on the column default.
     status: 'published',
     excerpt: meta.excerpt || null,
-    body,
+    // `search_title:` rides at the top of the body: the table has no column
+    // for it. landing/src/render.js splitSearchTitle() reads it back.
+    body: withSearchTitle(meta.search_title, body),
     author: meta.author || "DeltaMint",
     meta_description: meta.meta_description || null,
     og_image: meta.og_image || null,

@@ -20,6 +20,26 @@ export function esc(s) {
     .replace(/"/g, "&quot;");
 }
 
+// A post's SEARCH TITLE: the line given to Google in <title>, written in the
+// words people search, while the page keeps its own headline in the <h1>. Big
+// sites do this; Google may still pick a heading instead, but it chooses from
+// what the page offers. Optional -- a post without one uses its headline.
+//
+// It travels at the top of the stored body because blog_posts has no column
+// for it: publish-blog.mjs writes `search_title:` from the front matter as
+// this one comment line, and everything that renders a body splits it off
+// first (the post page, the admin preview). Never shown as text.
+const SEARCH_TITLE = /^<!-- search_title: (.+?) -->[ \t]*(?:\r?\n)*/;
+
+export function splitSearchTitle(body) {
+  const src = String(body || "");
+  const m = src.match(SEARCH_TITLE);
+  return m ? { searchTitle: m[1].trim(), body: src.slice(m[0].length) } : { searchTitle: null, body: src };
+}
+
+export const withSearchTitle = (searchTitle, body) =>
+  searchTitle ? `<!-- search_title: ${searchTitle} -->\n\n${body}` : body;
+
 // Deliberately a subset, not a full CommonMark implementation: headings,
 // emphasis, links, lists, code and quotes cover what a post needs, and every
 // output tag is one this function emits itself. Author input is escaped first,
