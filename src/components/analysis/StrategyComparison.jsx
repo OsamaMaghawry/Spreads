@@ -5,7 +5,12 @@ const td = "px-3 py-2 whitespace-nowrap tabular-nums";
 const pct = (v, d = 1) => (v === null || v === undefined || !isFinite(v) ? "—" : `${(v * 100).toFixed(d)}%`);
 const num = (v) => (v === null || v === undefined || !isFinite(v) ? "—" : v.toFixed(2));
 
-export default function StrategyComparison({ rows, splitCount = 0 }) {
+// `openMark`: what everything still open is worth at today's prices, added
+// under the table so the rows, their total and the account result read as one
+// sum. undefined = the page is not adding the open book here (premium view, a
+// date window, nothing open), so no lines are drawn; null = something open has
+// no price, so the two lines print "—" rather than a total missing a part.
+export default function StrategyComparison({ rows, splitCount = 0, openMark }) {
   // Three of these columns are measured over settled trades and three over
   // every row. Unsaid, the table reads as one population and a reader would
   // divide one column by another -- which is how "12 trades, 100% win rate,
@@ -20,7 +25,10 @@ export default function StrategyComparison({ rows, splitCount = 0 }) {
   // Every row is measured under the selected view, so the P/L column means the
   // whole position or the option legs alone depending on the control above.
   const view = (whole || rows[0])?.stats?.view;
-  const marked = !!(whole || rows[0])?.stats?.includesUnrealized;
+  const showOpen = openMark !== undefined && !!whole;
+  const openKnown = typeof openMark === "number" && isFinite(openMark);
+  const accountResult = showOpen && openKnown ? whole.stats.totalPL + openMark : null;
+  const signed = (v) => (v === null ? "text-slate-500" : v >= 0 ? "text-emerald-600" : "text-rose-600");
   return (
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
       <h3 className="text-sm font-medium text-slate-900 px-4 py-3 border-b border-slate-200">Strategy comparison</h3>
@@ -31,7 +39,7 @@ export default function StrategyComparison({ rows, splitCount = 0 }) {
               <th className={th}>Strategy</th>
               <th className={`${th} text-right`}>Trades</th>
               <th className={`${th} text-right`}>Win rate</th>
-              <th className={`${th} text-right`}>{view === "premium" ? "Option-leg P/L" : marked ? "Total P/L" : "Realized P/L"}</th>
+              <th className={`${th} text-right`}>{view === "premium" ? "Option-leg P/L" : "Booked P/L"}</th>
               <th className={`${th} text-right`}>Expectancy</th>
               <th className={`${th} text-right`}>Profit factor</th>
               <th className={`${th} text-right`}>Return on risk</th>
@@ -60,31 +68,36 @@ export default function StrategyComparison({ rows, splitCount = 0 }) {
                     performance claim. The rule landed on the cards and missed
                     this table -- which is the one that goes into the exported
                     PDF. */}
-                <td className={`${td} text-right`}>
-                  {stats.includesUnrealized ? "—" : pct(stats.annualized, 0)}
-                </td>
-                <td className={`${td} text-right`}>
-                  {stats.includesUnrealized ? "—" : pct(stats.cagr, 0)}
-                </td>
+                <td className={`${td} text-right`}>{pct(stats.annualized, 0)}</td>
+                <td className={`${td} text-right`}>{pct(stats.cagr, 0)}</td>
                 <td className={`${td} text-right text-rose-600`}>{fmtMoney(stats.maxDrawdown ? -stats.maxDrawdown : 0)}</td>
               </tr>
             ))}
           </tbody>
+          {/* The rows above are closed trades only, so "All strategies" is
+              their sum. What is still open belongs to the account, not to one
+              strategy, so it is added here once, and the last line is the
+              same account result the top of the page gives. */}
+          {showOpen && (
+            <tfoot className="border-t-2 border-slate-200">
+              <tr className="border-b border-slate-100">
+                <td className={`${td} text-slate-600`} colSpan={3}>Still open, at today&rsquo;s prices</td>
+                <td className={`${td} text-right ${signed(openKnown ? openMark : null)}`}>
+                  {openKnown ? fmtMoney(openMark) : "—"}
+                </td>
+                <td colSpan={7} />
+              </tr>
+              <tr>
+                <td className={`${td} font-semibold text-slate-900`} colSpan={3}>Account result</td>
+                <td className={`${td} text-right font-semibold ${signed(accountResult)}`}>
+                  {accountResult === null ? "—" : fmtMoney(accountResult)}
+                </td>
+                <td colSpan={7} />
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
-      {/* The all-strategies row carries the mark on shares still held; the
-          strategy rows cannot, because a share lot is held by the account and
-          not by a strategy. Said here, or the rows visibly fail to add up to
-          the row above them with nothing on screen to explain it. */}
-      {marked && (
-        <p className="border-t border-slate-200 px-4 py-2.5 text-[11px] leading-relaxed text-slate-500">
-          The all-strategies row includes the unrealized mark on positions still open; the
-          individual strategy rows are money booked only, because a share lot or an option leg is
-          held by the account rather than by one strategy. The rows will not add up to it, by that
-          amount. Annualized and CAGR are withheld on any row carrying that mark &mdash; a
-          reversible paper figure must not be compounded into an annual rate.
-        </p>
-      )}
       {/* A ROW HERE CAN BE STRUCTURALLY MISLEADING, not merely incomplete, and
           the table has to say so where it happens rather than leave the reader
           to find the contradiction. The owner did find it: *"the CC never lost

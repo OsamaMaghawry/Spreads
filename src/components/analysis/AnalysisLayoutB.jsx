@@ -72,6 +72,7 @@ export default function AnalysisLayoutB({
   positionSetups,
   comparison,
   splitCount,
+  comparisonOpenMark,
   subset,
   disclosure
 }) {
@@ -195,7 +196,7 @@ export default function AnalysisLayoutB({
 
           {tab === "strategies" &&
             (comparison.length > 1 ? (
-              <StrategyComparison rows={comparison} splitCount={splitCount} />
+              <StrategyComparison rows={comparison} splitCount={splitCount} openMark={comparisonOpenMark} />
             ) : (
               <p className="rounded-xl border border-dm-line bg-white px-4 py-8 text-center text-sm text-dm-sub">
                 One strategy in this window — there is nothing to compare it against.

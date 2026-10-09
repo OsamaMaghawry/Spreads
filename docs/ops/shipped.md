@@ -3,6 +3,14 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-10-06 · New blog post: the diagonal spread explained, with two diagrams comparing it to a calendar spread (`4cef92c`).
+- 2026-09-28 · New blog post: the wheel strategy explained, with two diagrams, and a cross-link from the covered-call post (`9a76e9d`).
+- 2026-09-27 · The Saturday weekly digest no longer goes silent for
+  everyone when one account's broker connection hangs: each broker call
+  now gives up after 8 seconds instead of running until the platform kills
+  the whole function, and an account's three broker calls run together
+  instead of one after another, so one slow or dead connection costs a
+  single timeout, not the entire run (`c062ebe`).
 - 2026-09-24 · A thirteenth foundations post — buying power, margin and
   collateral for options — is live on the blog: why buying power and cash
   balance diverge, what a cash-secured put, a credit spread and a covered
@@ -586,3 +594,11 @@ English. Newest first.
 - 2026-09-02 · The after-close report reads as a headline, "Needs a look" and "Everything else", judged on closing prices (`f1515e4`).
 - 2026-09-02 · Set your own price on open and close, with bid/mid/ask chips, a stepper and a verdict on whether it crosses (`dc26117`).
 - 2026-09-02 · The dashboard refreshes continuously in the background; the 60-second timer is gone (`dc26117`).
+- 2026-10-02 · Signing in no longer reloads the page: the login screen moves into the app in place, and opening /login while already signed in goes straight through; fixes the loop where a correct sign-in landed back on the login form with no error (`d803583` on staging).
+- 2026-10-02 · The Strategies tab now adds up: each strategy row shows booked P/L, the All row is their sum, and under the table "Still open, at today's prices" plus "Account result" tie it to the figure at the top of the page (`e7cdd3f` on staging).
+- 2026-10-04 · New blog post on days to expiration for credit spreads, with two diagrams (`e88c543`, published `cc1c7e8`).
+- 2026-10-05 · New blog post on selling options before earnings, with two diagrams (`8c3bb78`, published `7818884`).
+- 2026-10-06 · New blog post explaining the calendar spread, in the income series (`3fe4342`, published `94d12e4`)
+- 2026-10-08 · (staging) Claude connector, read-only: Claude can read your positions and, with get_trade_history, every closed trade as Trade History shows it (`40cda26`, `e5fff7a`).
+- 2026-10-08 · (staging) A "Works with Claude" section and /connect setup page on the staging site, and a "Use with Claude" page in the app lab with a Disconnect button for connected apps (`6411671`).
+- 2026-10-08 · (staging) Claude connector now has our own address: paste dev-landing.deltamint.app/mcp instead of the long function URL; the old URL keeps working (`21a827d`).

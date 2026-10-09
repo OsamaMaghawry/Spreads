@@ -51,10 +51,12 @@ nothing contingent on trading activity.
 - Admin
 - Billing
 - BlogPreview
+- ConnectClaude
 - Dashboard
 - ForgotPassword
 - Login
 - OAuthCallback
+- OAuthConsent
 - OptionChain
 - Register
 - ResetPassword
@@ -85,7 +87,7 @@ incomplete.
 - **brand** — DeltaMintMark, Wordmark
 - **close** — CloseDialog, LegPicker, LegsQuoteSummary, MultiCloseDialog, OpenOrdersPanel, OrderLog, useCloseOrder, useMultiClose
 - **common** — ConfirmAction, ConfirmDeleteAccount, ConfirmSubmit, EarningsWarning, ErrorBoundary, NumberField, PreTradeRisk, PriceControl, RiskMeter, ScanPresets, StaleDataNotice
-- **dashboard** — AccountSection, AccountSummaryCard, BrokerTable, CardLegs, LegRows, MasterSummary, OrderGroup, PayoffChart, PositionCard, PositionCards, SavedOrderGroup, SpreadStructure, SpreadTable, StrikeLadder, TickerPanel, useLegQuotes
+- **dashboard** — AccountSection, AccountSummaryCard, BrokerTable, CardLegs, ConnectorNudge, LegRows, MasterSummary, OrderGroup, PayoffChart, PositionCard, PositionCards, SavedOrderGroup, SpreadStructure, SpreadTable, StrikeLadder, TickerPanel, useLegQuotes
 - **history** — RebuildPreview, StockLotsTable, StrategyTabs, TradeHistoryTable
 - **open** — CandidateList, OpenPositionDialog, OpenPricing, OrderWarnings, RestingOrder, ScanFilters, SetupPreview, StrategyPicker, TicketAnalysis, useLiveSetup, useOpenOrder, useScanLoop
 - **scanner** — ResultsTable, ScannerConfig, TradeDialog, useMarketScan
@@ -94,6 +96,9 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-10-06 · New blog post: the diagonal spread explained, with two diagrams comparing it to a calendar spread (`4cef92c`).
+- 2026-09-28 · New blog post: the wheel strategy explained, with two diagrams, and a cross-link from the covered-call post (`9a76e9d`).
+- 2026-09-27 · The Saturday weekly digest no longer goes silent for
 - 2026-09-24 · A thirteenth foundations post — buying power, margin and
 - 2026-09-24 · The homepage's DeltaMint phone view shows two position cards
 - 2026-09-24 · The site menu gets a Sign up button next to Log in on every
@@ -101,9 +106,6 @@ From `docs/ops/shipped.md`, newest first.
 - 2026-09-24 · The free trial on checkout is 7 days, not 30, on both the
 - 2026-09-24 · A new About page explains the product step by step (Scanner,
 - 2026-09-24 · A pricing schedule now exists as a PDF for Alpaca's
-- 2026-09-24 · The homepage's shared/social preview image now shows the
-- 2026-09-24 · The shared/social preview card is simpler: just the δ logo
-- 2026-09-24 · Links to the staging site now preview staging's own share
 
 ## Server functions
 
@@ -121,16 +123,17 @@ so a change to shared code requires redeploying all of them.
 - **findEntry** — Scans the live chain and returns the delta-targeted setup for one strategy.
 - **manageOrder** — Reads the status of a working order, cancels it, or replaces its price or size.
 - **marketStream** — Live underlying prices, relayed from Alpaca's stream.
+- **mcp** — THE CLAUDE CONNECTOR.
 - **migrateCredentials** — Encrypts credentials that are still stored in plaintext, across every user's accounts, without involving those users.
 - **oauthDiag** — Answers one question: does Alpaca recognise this app's OAuth credentials? The authorize page cannot answer it.
 - **openPosition** — (no summary comment)
 - **opsHealth** — Read-only health for the duty engineer: last-24h order errors, alerts, connection issues and the watch's last runs, as counts and messages, never user data.
-- **optionChain** — The option chain for one underlying, as a ladder.
+- **optionChain** — The option chain for one underlying, as a ladder, with what the account holds of it.
 - **positionWatch** — The money-safety watch.
 - **publicConfig** — The operator switches a signed-in customer's browser legitimately needs.
 - **refreshEarnings** — Refreshes the cached earnings calendar for the next 90 days from the provider.
 - **saveAccount** — Creating and editing a trading account.
-- **scanEntries** — (no summary comment)
+- **scanEntries** — Sweeps multiple tickers across DTE / delta / width ranges and returns ranked setups, each flagged if the underlying reports earnings before it expires.
 - **scanUniverse** — Which tickers are worth scanning, out of the whole market.
 - **sendDigest** — The one way an agent reaches the owner.
 - **snaptrade** — SnapTrade, held against what this product actually needs.

@@ -399,19 +399,22 @@ export default function AccountAnalysis() {
       )
       .map((r) => ({
         label: r.label,
-        // The comparison follows the view too. A per-strategy row takes no mark:
-        // the book is not attributable to a strategy, and only the
-        // all-strategies row covers the same account the mark does.
+        // No row takes the mark on what is still open, the all-strategies row
+        // included, so that row is the sum of the rows under it. The owner,
+        // shown five rows summing to +$1,506.91 under an "All strategies" of
+        // -$103.59: *"This calculation doesn't add up, does it?"* It did not.
+        // The mark is added once, below the table, as its own line -- see
+        // `openMark` on StrategyComparison.
         // The all-strategies row is the same population as the cards above, so
         // it takes the same drawdown basis. Without this the card and the row
         // printed two different Max drawdowns under one name on one screen.
         stats: computeStats(r.trades, r.whole ? equity : 0, view, {
-          unrealized: r.whole ? scopedUnrealized : null,
+          unrealized: null,
           dailyPoints: r.whole ? drawdownPoints : null
         })
       }))
       .filter((r) => r.stats);
-  }, [trades, strategy, equity, view, scopedUnrealized, drawdownPoints]);
+  }, [trades, strategy, equity, view, drawdownPoints]);
 
   const provisionalCount = useMemo(() => subset.filter((t) => t.provisional).length, [subset]);
 
@@ -642,6 +645,7 @@ export default function AccountAnalysis() {
                 positionSetups={positionSetups}
                 comparison={comparison}
                 splitCount={splitCount}
+                comparisonOpenMark={view === "whole" && scoped && hasOpen ? liveMark : undefined}
                 subset={subset}
                 disclosure={disclosure}
               />
@@ -735,7 +739,17 @@ export default function AccountAnalysis() {
                 here -- a reader must meet the whole position before the table
                 that cannot state it. */}
             <SetupBreakdown setups={positionSetups} />
-            {comparison.length > 1 && <StrategyComparison rows={comparison} splitCount={splitCount} />}
+            {comparison.length > 1 && (
+              <StrategyComparison
+                rows={comparison}
+                splitCount={splitCount}
+                // Only where the page itself adds the open book to the closed
+                // trades: whole view, no date window. Null when part of what is
+                // open has no price -- the table then says so rather than
+                // printing a total that dropped it.
+                openMark={view === "whole" && scoped && hasOpen ? liveMark : undefined}
+              />
+            )}
             <StatCards stats={stats} withheld={withheldFigure} />
             <EquityCurveChart
               curve={curve}

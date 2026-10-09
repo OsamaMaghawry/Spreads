@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { LogIn, Mail, Lock, Loader2 } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 import { safeReturnTo } from "@/lib/authReturnTo";
+import { useAuth } from "@/lib/AuthContext";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -14,6 +15,19 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const returnTo = safeReturnTo();
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+
+  // Into the app the moment the app itself knows you are signed in -- no page
+  // reload. On 2 October the owner signed in six times on staging, every one
+  // accepted by the server, and landed back here each time with no error: the
+  // old code reloaded the page straight after sign-in, and the reloaded page
+  // did not find the login the browser had just been handed. Staying on the
+  // same page uses the session already in hand. It also sends anyone who opens
+  // /login while still signed in straight through.
+  useEffect(() => {
+    if (isAuthenticated) navigate(returnTo, { replace: true });
+  }, [isAuthenticated, returnTo, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,7 +36,7 @@ export default function Login() {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      window.location.href = returnTo;
+      // The effect above moves on once the sign-in reaches the app.
     } catch (err) {
       setError(err.message || "Invalid email or password");
     } finally {
