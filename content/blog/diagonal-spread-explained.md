@@ -109,12 +109,12 @@ With the long strike below the short strike, the position has a defined worst ca
 
 - **Is a diagonal spread a debit or a credit spread?** It depends on the strikes and dates. The version here, buying the later, lower-strike call and selling the nearer, higher-strike call, is a debit. Other arrangements can be a credit and have different risks.
 - **What is the most a long diagonal spread can lose?** The debit paid, in this model, while both legs are held and the long strike is below the short strike. A dividend owed after early assignment can change that.
-- **Is a diagonal spread the same as a poor man's covered call?** The structure is related: a long, later-dated, deep in-the-money call against a nearer short call. That use is a later post in this series.
+- **Is a diagonal spread the same as a poor man's covered call?** The structure is related: a long, later-dated, deep in-the-money call against a nearer short call. That use is the [poor man's covered call](/blog/poor-mans-covered-call), the next post in this series.
 
 ## The bottom line
 
 A diagonal spread changes both the strike and the date, keeping a calendar's time-value gap and adding a lean. The long-strike-below-short version pays a larger debit and, in the model at the near expiration, stays ahead of its cost at higher stock prices where a calendar is behind.
 
-On the hypothetical XYZ, a 2.80 debit became a 2.02 gain at the short strike of 52 and a 2.12 loss at 44, and moved about 0.5 for ten points of implied volatility. The [income series](/blog/income) continues with the poor man's covered call, which is a diagonal built around a deep in-the-money long call.
+On the hypothetical XYZ, a 2.80 debit became a 2.02 gain at the short strike of 52 and a 2.12 loss at 44, and moved about 0.5 for ten points of implied volatility. The [income series](/blog/income) continues with the [poor man's covered call](/blog/poor-mans-covered-call), which is a diagonal built around a deep in-the-money long call.
 
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.
