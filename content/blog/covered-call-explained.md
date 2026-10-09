@@ -1,8 +1,9 @@
 ---
 title: "Covered call explained, through to the day after assignment"
+search_title: "When do covered calls get assigned? And what you keep"
 slug: covered-call-explained
 excerpt: A covered call is one call sold against 100 shares already owned, and it ends with the shares kept or delivered at the strike, the premium kept either way.
-meta_description: "One call sold against 100 shares owned: the premium is kept either way, the rise above the strike goes to the call holder, and assignment leaves only cash."
+meta_description: "A covered call is assigned when the stock finishes above the strike, usually at expiration, sometimes before a dividend. The premium is kept either way."
 author: DeltaMint
 category: income
 series_order: 15
@@ -144,6 +145,7 @@ started them, and reading them back as one position is left to the trader.
 
 - **What does "called away" mean on a covered call?** The call was assigned and the shares were delivered at the strike.
 - **Is the premium kept if a covered call is assigned?** Yes; it was paid at the fill.
+- **When do covered calls get assigned?** Usually at expiration, when the stock finishes above the strike. It can also happen on any trading day before that, which is rarer.
 - **Can a covered call be assigned early?** Yes, on American-style options, most often before an ex-dividend date.
 - **Covered call vs naked call?** A covered call has the shares to deliver; a naked call does not.
 - **Does a covered call protect against a falling stock?** Only by the premium received.
