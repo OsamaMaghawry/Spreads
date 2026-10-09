@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { markdown, splitSearchTitle } from "../../../landing/src/render.js";
+import { markdown } from "../../../landing/src/render.js";
 
 // The post as the blog will actually render it, before it is published.
 //
@@ -17,11 +17,10 @@ import { markdown, splitSearchTitle } from "../../../landing/src/render.js";
 // been deployed yet will show its caption and a broken image — which is the
 // truth about that post, not a defect in the preview.
 export default function PostPreview({ post, site, chrome = true }) {
-  const { searchTitle, body } = useMemo(() => splitSearchTitle(post.body), [post.body]);
   const html = useMemo(() => {
-    const rendered = markdown(body);
+    const rendered = markdown(post.body || "");
     return site ? rendered.replace(/src="\/assets\//g, `src="${site}/assets/`) : rendered;
-  }, [body, site]);
+  }, [post.body, site]);
 
   const date = post.published_at ? new Date(post.published_at) : new Date();
 
@@ -33,11 +32,6 @@ export default function PostPreview({ post, site, chrome = true }) {
             Preview
           </span>
           <span>rendered with the blog&rsquo;s own renderer — this is what publishing produces</span>
-        </div>
-      )}
-      {chrome && searchTitle && (
-        <div className="border-b border-dm-line px-4 py-2 text-[12px] text-dm-sub">
-          Title in Google: <span className="font-medium text-dm-text">{searchTitle}</span>
         </div>
       )}
 

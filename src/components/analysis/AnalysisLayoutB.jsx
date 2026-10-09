@@ -8,7 +8,7 @@ import OpenBookPanel from "./OpenBookPanel";
 import OpenOptionsPanel from "./OpenOptionsPanel";
 import SetupBreakdown from "./SetupBreakdown";
 import StrategyComparison from "./StrategyComparison";
-import TradeEndings from "./TradeEndings";
+import CaptureBreakdown from "./CaptureBreakdown";
 import BreakdownTable from "./BreakdownTable";
 import { fmtMoney } from "@/lib/format";
 
@@ -178,7 +178,7 @@ export default function AnalysisLayoutB({
           {tab === "summary" && (
             <>
               {parts && <WindowParts parts={parts} />}
-              <TradeEndings trades={subset} view={view} />
+              <CaptureBreakdown trades={subset} />
             </>
           )}
 
