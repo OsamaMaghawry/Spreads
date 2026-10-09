@@ -4,14 +4,19 @@ import { readFileSync } from "node:fs";
 import worker from "./index.js";
 import { CONNECTOR_MARK, ORIGIN_HEADER, connectorEnabled, connectorSection, injectConnector, renderConnectPage } from "./connector.js";
 
-// The Claude connector exists only on the staging Supabase project, so its
-// homepage section and /connect page must exist only on dev-landing. The
-// landing tree is identical in both deployments (the deploy gate demands it);
-// what differs is one variable, set only in wrangler.staging.jsonc.
+// The Claude connector runs on both Supabase projects, each fronted by its
+// own site: deltamint.app/mcp reaches production's function, dev-landing's
+// /mcp reaches staging's. The landing tree is identical in both deployments
+// (the deploy gate demands it); what differs is the variables in the two
+// wrangler files, and the worst mistake available is crossing them.
 
 const read = (rel) => readFileSync(new URL(rel, import.meta.url), "utf8");
+const jsonc = (rel) => JSON.parse(read(rel).replace(/^\s*\/\/.*$/gm, ""));
 const UPSTREAM = "https://wpwaomzgpbozzghohwmf.supabase.co/functions/v1/mcp";
+const PROD_UPSTREAM = "https://yecfbeohyakuoyczvdbj.supabase.co/functions/v1/mcp";
 const STAGING = { SITE_URL: "https://dev-landing.deltamint.app", NOINDEX: "1", CONNECTOR_UPSTREAM: UPSTREAM, CONNECTOR_APP_URL: "https://dev-dash.deltamint.app" };
+const LIVE = { SITE_URL: "https://deltamint.app", CONNECTOR_UPSTREAM: PROD_UPSTREAM, CONNECTOR_APP_URL: "https://dashboard.deltamint.app" };
+// A deployment without the variable: the code must then do nothing at all.
 const PRODUCTION = { SITE_URL: "https://deltamint.app" };
 
 const HOME = `<html><head></head><body><main>${CONNECTOR_MARK}</main></body></html>`;
@@ -20,20 +25,45 @@ const assets = (body, type = "text/html; charset=utf-8", status = 200) => ({
 });
 const get = (path, env) => worker.fetch(new Request(`https://example.test${path}`), env, {});
 
-test("production has no connector variable; staging has it", () => {
-  const prod = read("../wrangler.jsonc");
-  const staging = read("../wrangler.staging.jsonc");
-  assert.doesNotMatch(prod, /CONNECTOR_UPSTREAM/);
-  assert.match(staging, /"CONNECTOR_UPSTREAM":\s*"https:\/\/wpwaomzgpbozzghohwmf\.supabase\.co\/functions\/v1\/mcp"/);
+test("each site passes /mcp to its own project, never the other's", () => {
+  const prod = jsonc("../wrangler.jsonc").vars;
+  const staging = jsonc("../wrangler.staging.jsonc").vars;
+  assert.equal(prod.CONNECTOR_UPSTREAM, PROD_UPSTREAM);
+  assert.equal(prod.CONNECTOR_APP_URL, "https://dashboard.deltamint.app");
+  assert.equal(staging.CONNECTOR_UPSTREAM, UPSTREAM);
+  assert.equal(staging.CONNECTOR_APP_URL, "https://dev-dash.deltamint.app");
+  // Each upstream is the same project the deployment's blog already reads.
+  assert.ok(prod.CONNECTOR_UPSTREAM.startsWith(prod.SUPABASE_URL + "/"));
+  assert.ok(staging.CONNECTOR_UPSTREAM.startsWith(staging.SUPABASE_URL + "/"));
   assert.equal(connectorEnabled(PRODUCTION), false);
   assert.equal(connectorEnabled(STAGING), true);
 });
 
-test("production never invokes the Worker for the homepage, /connect or /mcp", () => {
-  const prod = JSON.parse(read("../wrangler.jsonc").replace(/^\s*\/\/.*$/gm, ""));
-  const first = prod.assets.run_worker_first;
+test("production invokes the Worker for the homepage and the connector, and nothing else new", () => {
+  const first = jsonc("../wrangler.jsonc").assets.run_worker_first;
   assert.ok(Array.isArray(first), "run_worker_first must stay a path list on production");
-  assert.ok(!first.some((p) => p === "/" || p === "/*" || /^\/(connect|mcp|\.well-known)/.test(p)), JSON.stringify(first));
+  assert.ok(!first.includes("/*"), "static pages stay static");
+  for (const p of ["/", "/connect", "/mcp", "/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp"]) {
+    assert.ok(first.includes(p), `${p} must reach the Worker on production`);
+  }
+});
+
+test("production Worker: deltamint.app/mcp on the page, the homepage's analytics not doubled", async () => {
+  const live = read("../public/index.html");
+  const env = { ...LIVE, GA_MEASUREMENT_ID: "G-TJLVFXVFL6", HOTJAR_SITE_ID: "6773356", ASSETS: assets(live) };
+  const home = await (await get("/", env)).text();
+  assert.match(home, /Works with Claude/);
+  const count = (text, needle) => text.split(needle).length - 1;
+  for (const needle of ["G-TJLVFXVFL6", "hjid:6773356", "dmAnalyticsAllowed=function"]) {
+    assert.equal(count(home, needle), count(live, needle), `${needle} appears a different number of times`);
+  }
+  const res = await get("/connect", { ...LIVE, ASSETS: assets(HOME) });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("X-Robots-Tag"), null);
+  const page = await res.text();
+  assert.ok(page.includes(`<code id="cx-mcp">https://deltamint.app/mcp</code>`));
+  assert.match(page, /https:\/\/dashboard\.deltamint\.app\/connect-claude/);
+  assert.doesNotMatch(page, /noindex|dev-dash|dev-landing|supabase/i);
 });
 
 test("the homepage carries the marker exactly once, and staging fills it", () => {
@@ -137,10 +167,16 @@ test("without the variable, /mcp is never passed anywhere", async () => {
 
 // The function believes the origin header only for sites on its own list.
 // Both halves must name the same header, and the list must hold this site.
-test("the function trusts this site's origin header", () => {
+// The function believes the header only from the one site paired with its
+// project. That pairing must be the one the wrangler files make.
+test("the function pairs each project with the site that fronts it", () => {
   const fn = read("../../supabase/functions/mcp/index.ts");
   assert.ok(fn.includes(`"${ORIGIN_HEADER}"`), "header name differs between Worker and function");
-  assert.match(fn, /PUBLIC_ORIGINS = \[[^\]]*"https:\/\/dev-landing\.deltamint\.app"/);
+  for (const file of ["../wrangler.jsonc", "../wrangler.staging.jsonc"]) {
+    const { SITE_URL, CONNECTOR_UPSTREAM } = jsonc(file).vars;
+    const ref = new URL(CONNECTOR_UPSTREAM).hostname.split(".")[0];
+    assert.ok(fn.includes(`${ref}: "${SITE_URL}"`), `${file}: the function does not pair ${ref} with ${SITE_URL}`);
+  }
 });
 
 test("the sample answer adds up: credit, max loss and return on risk agree", () => {

@@ -8,16 +8,13 @@
 // address, not its own, in the sign-in pointers it gives Claude. Sign-in itself
 // is still Supabase Auth, which Claude finds from there.
 //
-// STAGING ONLY, BY CONFIGURATION, NOT BY BRANCH. The connector itself runs only
-// on the staging Supabase project, so nothing about it may appear on
-// deltamint.app yet. But the landing deploy refuses to ship any tree that
-// differs from staging's, so the pages cannot simply differ between the two.
-// They don't: this module ships to both, and it does nothing unless
-// CONNECTOR_UPSTREAM is set -- which only wrangler.staging.jsonc does.
-//
-// Belt and braces: production's run_worker_first covers /blog and the sitemap
-// only, so this Worker is never even invoked for "/", "/connect" or "/mcp"
-// there. On staging it runs ahead of every page, which is where these hooks live.
+// SWITCHED ON BY CONFIGURATION, NOT BY BRANCH. The landing deploy refuses any
+// tree that differs from staging's, so the code is the same everywhere and
+// does nothing unless CONNECTOR_UPSTREAM is set. Each deployment sets it to
+// its own project's function: wrangler.jsonc to production's,
+// wrangler.staging.jsonc to staging's (connector.test.js holds them apart).
+// Production's run_worker_first names "/", "/connect" and the connector paths,
+// because elsewhere its Worker does not run at all; staging's runs everywhere.
 //
 // The words follow docs/context/compliance.md: matches to the user's filters,
 // never "best" or a recommendation; DeltaMint is software, not a broker-dealer.

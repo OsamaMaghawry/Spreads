@@ -4,8 +4,9 @@ Lets a DeltaMint user ask Claude, in plain English, to read their account and
 run the Strategy Scanner. Like OptionClaws, except it knows the user's own
 account: what they hold, what covers what, their cost basis.
 
-**Status: phase 1, read-only, staging only** (`wpwaomzgpbozzghohwmf`). Not in
-production. Production fails closed in three places (below).
+**Status: phase 1, read-only, on production and staging** (released 9 Oct, at
+the owner's word: "Push the MCP as well"). It works on production once the
+owner switches on the OAuth server there (below).
 
 ## What a user can ask
 
@@ -59,23 +60,24 @@ advice-style wording.
    while a normal login could delete them (the test was rolled back). A test
    fails the build if a new table lacks the three policies.
 
-## Staging only
+## Where it runs
 
-- The `mcp` function returns 404 on any project but staging.
-- The approval page is a lab module (`LAB_MODULES`). It isn't in the production
-  build.
-- Production has no OAuth server switched on, so nothing could start a
-  connection there.
+- The `mcp` function answers on the production and staging projects only
+  (`SITE_BY_PROJECT`), each paired with its own site; 404 anywhere else.
+- Migration 0058 is on both databases. On production it was applied without
+  `broker_probes`, `snaptrade_probes` and `snaptrade_users`, which exist only on
+  staging (lab broker work). Whoever brings those tables to production adds
+  their three policies; the check at the end of this doc lists any table
+  without them.
 
-## Where users find it (staging)
+## Where users find it
 
 - **Marketing site:** a "Works with Claude" section on the homepage
-  (dev-landing.deltamint.app/#claude) and a setup page at `/connect` with the
-  address to copy, the steps, and what Claude can and can't do. Both come from
+  (deltamint.app/#claude) and a setup page at `/connect` with the address to
+  copy, the steps, and what Claude can and can't do. Both come from
   `landing/src/connector.js`, which does nothing unless `CONNECTOR_UPSTREAM` is
-  set. Only `landing/wrangler.staging.jsonc` sets it, and production's Worker
-  isn't even invoked for `/`, `/connect` or `/mcp`.
-  `landing/src/connector.test.js` holds all of it.
+  set; each wrangler file sets it to its own project's function.
+  `landing/src/connector.test.js` holds the two apart.
 - **App:** "Use with Claude" in the menu (`/connect-claude`,
   `src/pages/ConnectClaude.jsx`) with the same steps, plus **Connected apps**:
   the list of apps the user approved (`supabase.auth.oauth.listGrants`) and a
@@ -83,16 +85,15 @@ advice-style wording.
 - **Dashboard:** a one-line card pointing to that page
   (`src/components/dashboard/ConnectorNudge.jsx`). Dismissing it is remembered
   in that browser.
-- All three app pieces are lab modules, so the production build has none.
 
 ## The address
 
-People paste **`https://dev-landing.deltamint.app/mcp`** (production, later:
-`https://deltamint.app/mcp`). The landing Worker passes `/mcp` and the two
-`/.well-known/oauth-protected-resource` paths through to the Supabase function,
-adding `X-DeltaMint-Public-Origin`. The function believes that header only for
-origins in its `PUBLIC_ORIGINS` list, and then names our address in its sign-in
-pointers; Claude requires the metadata to name the URL it connected to.
+People paste **`https://deltamint.app/mcp`** (staging:
+`https://dev-landing.deltamint.app/mcp`). The landing Worker passes `/mcp` and
+the two `/.well-known/oauth-protected-resource` paths through to the Supabase
+function, adding `X-DeltaMint-Public-Origin`. The function believes that header
+only from the site paired with its project, and then names our address in its
+sign-in pointers; Claude requires the metadata to name the URL it connected to.
 
 The Supabase address (`…supabase.co/functions/v1/mcp`) still answers, so a
 connection made with it keeps working, but nothing shows it any more.
@@ -105,9 +106,9 @@ domain add-on (a paid add-on), which would move the whole API to our domain.
 ## How sign-in works
 
 ```
-Claude ──POST dev-landing.deltamint.app/mcp──▶ 401 + "sign in here" (metadata URL)
-Claude ──reads metadata──▶ authorization server = Supabase Auth (staging)
-Claude ──registers itself, opens the browser──▶ dev-dash.deltamint.app/oauth/consent
+Claude ──POST deltamint.app/mcp──▶ 401 + "sign in here" (metadata URL)
+Claude ──reads metadata──▶ authorization server = Supabase Auth
+Claude ──registers itself, opens the browser──▶ dashboard.deltamint.app/oauth/consent
 User   ──signs in if needed, sees what Claude can and cannot do──▶ Allow / Deny
 Supabase ──issues a token to Claude──▶ Claude calls the tools with it
 ```
@@ -115,39 +116,40 @@ Supabase ──issues a token to Claude──▶ Claude calls the tools with it
 The `mcp` function runs with `verify_jwt = false` (`supabase/config.toml` says
 why) and checks the token itself on every request.
 
-## To switch it on (owner, staging only)
+## To switch it on (owner, once per project)
 
-1. **Supabase dashboard → the staging project → Authentication → OAuth Server:**
+Done on staging. For production, the same in the production project:
+
+1. **Supabase dashboard → the project → Authentication → OAuth Server:**
    - turn on the OAuth 2.1 server;
    - set Authorization Path to `/oauth/consent`;
    - turn on dynamic client registration.
-2. **Authentication → URL Configuration:** check the Site URL is
-   `https://dev-dash.deltamint.app`.
+2. **Authentication → URL Configuration:** check the Site URL is the app:
+   `https://dashboard.deltamint.app` (staging: `https://dev-dash.deltamint.app`).
 3. **In Claude:** Settings → Connectors → Add custom connector →
-   `https://dev-landing.deltamint.app/mcp`. Sign in with your staging
-   DeltaMint login and press Allow.
+   `https://deltamint.app/mcp`. Sign in with your DeltaMint login and press
+   Allow.
 
 If sign-in fails at the token step, the likely cause is the requested scope. The
 server asks for `email`, not `openid`, because ID tokens need asymmetric signing
 keys. Supabase's logs show which.
 
-## Before production (phase 1 → customers)
+## Release list
 
-- **Privacy Policy:** say that account data is sent to the AI app the user
-  connects, and only when they connect it. Then regenerate the PDFs.
-- **Alpaca:** confirm that passing their market data (quotes, chains) to a
-  user's AI assistant is allowed under the data agreement. Ask in the existing
-  review thread.
-- **Revoking access:** built ("Connected apps" on `/connect-claude`). Before
-  release, test Disconnect end to end: after it, Claude's next call must get 401.
-- **Pricing:** decide whether it's a Live-plan feature.
-- **Release:** apply migration 0058 to production, remove the lab entries and the
-  staging-ref check, enable the OAuth server on production, add
-  `https://deltamint.app` to the function's `PUBLIC_ORIGINS`, and set
-  `CONNECTOR_UPSTREAM` in `landing/wrangler.jsonc` (and add `/`, `/connect`,
-  `/mcp` and `/.well-known/oauth-protected-resource*` to its
-  `run_worker_first`). The landing test will need its production assertions
-  changed on purpose.
+- **Privacy Policy:** done 9 Oct (section 4, an AI assistant you connect;
+  section 5, how to disconnect). PDF regenerated. The copy sent to Alpaca
+  earlier predates it.
+- **Migration 0058 on production, lab entries removed, function enabled on
+  production, landing configured:** done 9 Oct.
+- **OAuth server on production:** the owner's step above.
+- **Still open, released without at the owner's word:**
+  - **Alpaca:** confirm that passing their market data (quotes, chains) to a
+    user's AI assistant is allowed under the data agreement. Ask in the
+    existing review thread.
+  - **Disconnect end to end:** after Disconnect on `/connect-claude`, Claude's
+    next call must get 401. Not yet tried by a person.
+  - **Pricing:** whether it's a Live-plan feature. Nothing on the site says
+    it's free or paid.
 
 ## Phase 2 (not built)
 

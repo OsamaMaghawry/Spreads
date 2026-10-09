@@ -5,8 +5,7 @@ import { Plug, X } from "lucide-react";
 // One line on the Dashboard that says DeltaMint works from Claude, with the
 // way in and a way to make it go away for good.
 //
-// LAB. In LAB_MODULES (vite.config.js) and rendered only when LAB is on, like
-// the page it points to (src/pages/ConnectClaude.jsx).
+// The page it points to is src/pages/ConnectClaude.jsx.
 //
 // Dismissal is remembered in this browser only. Storage can be missing or
 // throw (private mode, blocked site data); then the card simply shows again

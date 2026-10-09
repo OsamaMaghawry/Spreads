@@ -15,9 +15,8 @@ import AuthLayout from "@/components/AuthLayout";
 // app will and will not be able to do, and the person chooses. Supabase issues
 // the token only after Allow; Deny sends Claude an access_denied.
 //
-// LAB. Listed in LAB_MODULES (vite.config.js) and routed only when LAB is on,
-// so the production build does not contain it. Production has no OAuth server
-// switched on either, so nothing could send anyone here.
+// Nothing reaches this page unless the project's OAuth server is switched on
+// with this as its authorization path (docs/product/connector.md).
 //
 // The list of what the connector cannot do is a promise the server keeps on
 // its own: the token is refused by every function that can act on an account

@@ -191,7 +191,7 @@ Tests: `marketPrice.test.ts` and `optionScan.test.ts`, both runnable under Node.
 ## The Claude connector: its token reads, nothing else
 
 `supabase/functions/mcp` is a read-only MCP server for Claude, signed in through
-Supabase Auth's OAuth server (staging only for now; `docs/product/connector.md`).
+Supabase Auth's OAuth server (`docs/product/connector.md`).
 The token Claude holds is an ordinary login token plus a `client_id` claim, so
 read-only is kept by two rules that every change must respect:
 
@@ -205,10 +205,10 @@ read-only is kept by two rules that every change must respect:
   until timeout.
 
 Where people see it: the homepage section, `/connect` and the connector's
-address (`<site>/mcp`, passed through to the function) exist on the marketing
-site only where `CONNECTOR_UPSTREAM` is set (the staging Worker), and the app's
-"Use with Claude" page and Dashboard card are lab modules. Don't make any of
-them public before the release list in the doc is done.
+address (`<site>/mcp`, passed through to the function) on the marketing site,
+and "Use with Claude" and a Dashboard card in the app. Each site passes `/mcp`
+to its own project's function; `landing/src/connector.test.js` fails if the
+two are ever crossed.
 
 ## Admin access
 

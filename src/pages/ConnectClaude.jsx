@@ -5,9 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 // "Use with Claude": how to connect DeltaMint to Claude, and the switch to
 // disconnect it again.
 //
-// LAB. In LAB_MODULES (vite.config.js) and routed only when LAB is on: the
-// connector runs only on the staging project (supabase/functions/mcp), so the
-// production build does not contain this page. docs/product/connector.md.
+// docs/product/connector.md.
 //
 // The list of connected apps comes from Supabase Auth's OAuth server
 // (listGrants), and Disconnect revokes the grant there (revokeGrant), which
