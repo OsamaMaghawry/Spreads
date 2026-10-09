@@ -82,7 +82,7 @@ incomplete.
 
 - **accounts** — AccountForm, AlpacaConnectConsent
 - **admin** — AdminMaintenance, BlogPanel, ConnectorPanel, EngagementPanel, IntegrityPanel, PostPreview, SettingsPanel, SignupsChart, SnapTradePanel, StatTile, UsersPanel
-- **analysis** — AnalysisDisclosure, AnalysisLayoutB, BreakdownTable, CaptureBreakdown, DateRangeFilter, EquityCurveChart, ExportPdfButton, MethodNotes, OpenBookPanel, OpenOptionsPanel, SetupBreakdown, StatCards, StatTiles, StrategyComparison, ViewSwitch, WindowParts
+- **analysis** — AnalysisDisclosure, AnalysisLayoutB, BreakdownTable, DateRangeFilter, EquityCurveChart, ExportPdfButton, MethodNotes, OpenBookPanel, OpenOptionsPanel, SetupBreakdown, StatCards, StatTiles, StrategyComparison, TradeEndings, ViewSwitch, WindowParts
 - **billing** — UpgradePrompt
 - **brand** — DeltaMintMark, Wordmark
 - **close** — CloseDialog, LegPicker, LegsQuoteSummary, MultiCloseDialog, OpenOrdersPanel, OrderLog, useCloseOrder, useMultiClose

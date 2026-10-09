@@ -143,8 +143,7 @@ export function computeStats(trades, equity = 0, view = "whole", extra = {}) {
   // premium sold was kept, so its numerator has to be the option legs in both
   // views. Fold assigned shares into it and a put assigned into stock that
   // recovered reports capture far above 100% — a ratio exceeding its own
-  // maximum measures nothing. CaptureBreakdown has always computed it this way;
-  // the headline card disagreed with the table underneath it until now.
+  // maximum measures nothing.
   const optionLegPL = sorted.reduce(
     (a, t) => a + (t.premium_pl || 0) + (t.early_close_pl || 0),
     0

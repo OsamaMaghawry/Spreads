@@ -9,7 +9,7 @@
 // email, and that looked like enough. It was not: the bench found the same
 // account reading -$1,003 on Trade History and -$814 on Analysis, because
 // `AccountHistory`, `TradeHistoryTable`, `openBook`, `headline`,
-// `CaptureBreakdown`, `equityCurve` and the PDF all sum the same rows through
+// `TradeEndings`, `equityCurve` and the PDF all sum the same rows through
 // other paths. Patching each of them is how the seventh one gets missed.
 //
 // So the rule is: SPLIT ONCE, AS HIGH AS POSSIBLE. A page filters its rows at
