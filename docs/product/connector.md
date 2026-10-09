@@ -124,8 +124,12 @@ Done on staging. For production, the same in the production project:
    - turn on the OAuth 2.1 server;
    - set Authorization Path to `/oauth/consent`;
    - turn on dynamic client registration.
-2. **Authentication → URL Configuration:** check the Site URL is the app:
+2. **Authentication → URL Configuration:** the app's address must be the Site
+   URL or one of the Redirect URLs, written exactly, with no trailing slash:
    `https://dashboard.deltamint.app` (staging: `https://dev-dash.deltamint.app`).
+   Supabase compares the approval page's Origin header against these two
+   settings only (`validateRequestOrigin` in supabase/auth). Missing, the
+   approval page shows "unauthorized request origin" (production, 9 Oct).
 3. **In Claude:** Settings → Connectors → Add custom connector →
    `https://deltamint.app/mcp`. Sign in with your DeltaMint login and press
    Allow.
