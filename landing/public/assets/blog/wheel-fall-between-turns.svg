@@ -1,0 +1,33 @@
+<svg viewBox="0 0 720 280" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A price line from 46 to 51 for hypothetical XYZ after a 50 put was assigned. The stock sits at 47. A dashed line marks the effective cost of 48.60, the 50 strike less the 1.40 put premium. A red band between 47 and 48.60 shows the shares sitting 1.60 below the effective cost. Two call strikes are marked: 48, below the effective cost and inside the band, and 50, above it. Neither strike changes where the stock is.">
+  <rect width="720" height="280" fill="#FFFFFF"/>
+
+  <!-- shares sitting below the effective cost: stock 47 up to effective cost 48.60 -->
+  <rect x="196" y="120" width="185.6" height="50" fill="#B4485C" fill-opacity="0.16"/>
+  <text x="288.8" y="110" font-size="15" font-weight="600" text-anchor="middle" fill="#B4485C">1.60 below effective cost</text>
+
+  <!-- effective cost -->
+  <line x1="381.6" y1="64" x2="381.6" y2="170" stroke="#14151C" stroke-width="2" stroke-dasharray="5 5"/>
+  <text x="392" y="70" font-size="15" font-weight="600" text-anchor="start" fill="#14151C">effective cost 48.60</text>
+
+  <!-- price axis 46 to 51, 116px per dollar -->
+  <line x1="80" y1="170" x2="660" y2="170" stroke="#C9CEDC" stroke-width="2"/>
+  <text x="80" y="198" font-size="15" text-anchor="middle" fill="#767B8E">46</text>
+  <text x="196" y="198" font-size="15" text-anchor="middle" fill="#767B8E">47</text>
+  <text x="312" y="198" font-size="15" text-anchor="middle" fill="#767B8E">48</text>
+  <text x="428" y="198" font-size="15" text-anchor="middle" fill="#767B8E">49</text>
+  <text x="544" y="198" font-size="15" text-anchor="middle" fill="#767B8E">50</text>
+  <text x="660" y="198" font-size="15" text-anchor="middle" fill="#767B8E">51</text>
+
+  <!-- call strikes -->
+  <rect x="309" y="156" width="6" height="28" fill="#14151C"/>
+  <rect x="541" y="156" width="6" height="28" fill="#14151C"/>
+  <text x="312" y="232" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">48 call</text>
+  <text x="544" y="232" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">50 call</text>
+
+  <!-- stock now -->
+  <circle cx="196" cy="170" r="8" fill="#14151C"/>
+  <text x="196" y="232" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">stock</text>
+
+  <!-- axis label -->
+  <text x="370" y="268" font-size="15" text-anchor="middle" fill="#767B8E">XYZ price</text>
+</svg>

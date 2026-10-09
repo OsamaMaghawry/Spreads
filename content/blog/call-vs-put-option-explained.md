@@ -103,11 +103,13 @@ when sold, the account holds collateral behind it for as long as the position
 stays open.
 
 The second asymmetry is about who decides. The buyer chooses whether to
-exercise. The seller learns about it afterwards, through **assignment** — the
-notice that the obligation has been used and 100 shares have changed hands at
-the strike. Assignment is allocated at random among everyone short that
-contract. It is not sent by the buyer who exercised, and the two sides are
-never paired to each other.
+exercise. The seller learns about it afterwards, through
+[assignment](/blog/option-assignment-what-happens) — the notice that the
+obligation has been used and 100 shares have changed hands at the strike. The
+clearing house assigns the notice at random to a firm carrying a matching
+short position, and that firm allocates it among its own short customers by
+its own disclosed method. It is not sent by the buyer who exercised, and the
+two sides are never paired to each other.
 
 ## Frequently asked questions
 

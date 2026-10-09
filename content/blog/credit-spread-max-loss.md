@@ -52,7 +52,7 @@ including at expiration itself, if the underlying finishes between the strikes.
 
 ## Where the max loss number comes from: width, minus credit, times 100
 
-Take a hypothetical put spread, purely for the arithmetic. Short the 100 put,
+Take a hypothetical [put credit spread](/blog/put-credit-spread-explained), purely for the arithmetic. Short the 100 put,
 long the 95 put, same expiration, one contract, $1.20 of credit: $120 received
 and a $5.00 width. At expiration there are three cases, each settling at a
 figure you can write down in advance.
@@ -82,6 +82,8 @@ Which is why the same credit on a different width is a different position:
 - **$0.35 on a $2.50-wide spread** — the plateau sits at $215, more than three
   times as far down, for identical income.
 
+On a real chain the same short strike does not pay the same credit at every width; the [credit spread width post](/blog/credit-spread-width) prices $1, $2 and $5 widths from one chain's quotes.
+
 Ranking positions on that basis is its own subject, and
 [return on risk against return on capital](/blog/return-on-risk-vs-return-on-capital)
 is where it is worked through.
@@ -95,7 +97,8 @@ as the position is open.
 
 For a vertical with both legs in one account and one expiration, the requirement
 is the full width — $500 in the hypothetical above — with the $120 credit
-applied against it, so the net reduction in buying power is $380. That is the
+applied against it, so the net reduction in [buying
+power](/blog/options-buying-power-requirement) is $380. That is the
 margin-account case. A retirement account will typically hold the whole $500 in
 cash instead, and the exact treatment is your broker's under your agreement with
 them; it is worth reading rather than assuming.
@@ -152,9 +155,9 @@ Three consequences follow from that curve:
 The cap is an arithmetic property of the two legs. It is not a mechanism that
 steps in when the short leg is exercised.
 
-Assignment on the short 100 put means buying 100 shares at 100 — a $10,000
-debit in this hypothetical — while the long 95 put stays where it is. Two
-things happen at once:
+[Assignment](/blog/option-assignment-what-happens) on the short 100 put means
+buying 100 shares at 100 — a $10,000 debit in this hypothetical — while the
+long 95 put stays where it is. Two things happen at once:
 
 - **The cap survives.** Shares plus the right to sell them at 95 cannot be
   worth less than $9,500, so the worst case is still the $500 gap less the
@@ -190,8 +193,8 @@ clusters the day before an ex-dividend date, when the dividend exceeds what is
 left of the call's time value. Assigned there, you are short the stock across
 the ex-date and you pay that dividend rather than receive it.
 
-Expiration has a version of this that catches people who did the arithmetic
-correctly. Finish between the strikes — say at 97 — and the short put is in the
+[Expiration has a version of this](/blog/what-happens-options-expiration)
+that catches people who did the arithmetic correctly. Finish between the strikes — say at 97 — and the short put is in the
 money while the long is not. Options a cent or more in the money are exercised
 by exception at the clearing house, and a brokerage may apply its own threshold
 on top, so the short is assigned, the long expires worthless, and Monday opens

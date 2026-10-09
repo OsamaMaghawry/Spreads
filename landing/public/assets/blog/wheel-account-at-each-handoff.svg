@@ -1,0 +1,41 @@
+<svg viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A four-column ledger of one hypothetical account through each hand-off of the wheel, premiums aside. After the put is sold: one short 50 put, no shares, no call, and five thousand dollars of cash held as the reserve. After the put is assigned: the put is gone, one hundred shares are owned, and cash is zero because the reserve bought the shares. After the call is sold: the same one hundred shares and one short 50 call, cash still zero. After the call is assigned: no put, no shares, no call, and five thousand dollars of cash back from delivering the shares at the strike.">
+  <rect width="720" height="320" fill="#FFFFFF"/>
+
+  <!-- stage headings -->
+  <text x="256" y="44" font-size="16" text-anchor="middle" fill="#767B8E">put sold</text>
+  <text x="386" y="44" font-size="16" text-anchor="middle" fill="#767B8E">assigned</text>
+  <text x="516" y="44" font-size="16" text-anchor="middle" fill="#767B8E">call sold</text>
+  <text x="646" y="44" font-size="16" text-anchor="middle" fill="#767B8E">called away</text>
+
+  <!-- row 1: the put -->
+  <rect x="24" y="62" width="672" height="52" rx="8" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="44" y="94" font-size="18" fill="#14151C">50 put</text>
+  <text x="256" y="94" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">&#8722;1</text>
+  <text x="386" y="94" font-size="20" font-weight="600" text-anchor="middle" fill="#767B8E">&#8212;</text>
+  <text x="516" y="94" font-size="20" font-weight="600" text-anchor="middle" fill="#767B8E">&#8212;</text>
+  <text x="646" y="94" font-size="20" font-weight="600" text-anchor="middle" fill="#767B8E">&#8212;</text>
+
+  <!-- row 2: the shares -->
+  <rect x="24" y="122" width="672" height="52" rx="8" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="44" y="154" font-size="18" fill="#14151C">shares</text>
+  <text x="256" y="154" font-size="20" font-weight="600" text-anchor="middle" fill="#767B8E">&#8212;</text>
+  <text x="386" y="154" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">+100</text>
+  <text x="516" y="154" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">+100</text>
+  <text x="646" y="154" font-size="20" font-weight="600" text-anchor="middle" fill="#767B8E">&#8212;</text>
+
+  <!-- row 3: the call -->
+  <rect x="24" y="182" width="672" height="52" rx="8" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="44" y="214" font-size="18" fill="#14151C">50 call</text>
+  <text x="256" y="214" font-size="20" font-weight="600" text-anchor="middle" fill="#767B8E">&#8212;</text>
+  <text x="386" y="214" font-size="20" font-weight="600" text-anchor="middle" fill="#767B8E">&#8212;</text>
+  <text x="516" y="214" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">&#8722;1</text>
+  <text x="646" y="214" font-size="20" font-weight="600" text-anchor="middle" fill="#767B8E">&#8212;</text>
+
+  <!-- row 4: the cash -->
+  <rect x="24" y="242" width="672" height="52" rx="8" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="44" y="274" font-size="18" fill="#14151C">cash, premiums aside</text>
+  <text x="256" y="274" font-size="18" font-weight="600" text-anchor="middle" fill="#767B8E">$5,000 held</text>
+  <text x="386" y="274" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">$0</text>
+  <text x="516" y="274" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">$0</text>
+  <text x="646" y="274" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">$5,000</text>
+</svg>

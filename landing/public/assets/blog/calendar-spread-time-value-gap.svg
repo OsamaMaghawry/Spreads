@@ -1,0 +1,16 @@
+<svg viewBox="0 0 720 230" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="The time value of the two legs of a hypothetical calendar spread, long the 60-day 50 call (far, grey) and short the 30-day 50 call (near, dark), with the stock at 50 and implied volatility at 40 percent. On day 0 the far leg is worth 3.23 and the near leg 2.29, a gap of 0.94 that is the debit paid. Thirty days later, with the stock still at 50, the near leg has expired worth 0.00 and the far leg is worth 2.29, so the gap has grown to 2.29.">
+  <rect width="720" height="230" fill="#FFFFFF"/>
+  <text x="158" y="43" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">Far, 0</text>
+  <rect x="170" y="24" width="323" height="28" fill="#767B8E" fill-opacity="0.85"/>
+  <text x="501" y="43" font-size="14" font-weight="600" fill="#14151C">3.23</text>
+  <text x="158" y="93" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">Near, 0</text>
+  <rect x="170" y="74" width="229" height="28" fill="#14151C" fill-opacity="0.85"/>
+  <text x="407" y="93" font-size="14" font-weight="600" fill="#14151C">2.29</text>
+  <text x="158" y="157" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">Far, 30</text>
+  <rect x="170" y="138" width="229" height="28" fill="#767B8E" fill-opacity="0.85"/>
+  <text x="407" y="157" font-size="14" font-weight="600" fill="#14151C">2.29</text>
+  <text x="158" y="207" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">Near, 30</text>
+  <text x="178" y="207" font-size="14" font-weight="600" fill="#14151C">0.00</text>
+  <text x="470" y="93" font-size="15" font-weight="600" fill="#14151C">gap 0.94</text>
+  <text x="470" y="207" font-size="15" font-weight="600" fill="#14151C">gap 2.29</text>
+</svg>

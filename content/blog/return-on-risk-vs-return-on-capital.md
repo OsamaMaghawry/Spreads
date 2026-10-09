@@ -28,7 +28,7 @@ them is not the credit, which is identical in all three. It is what sits under
 the line:
 
 - **Premium collected has no denominator at all.** It is the credit, full stop. Ranking by it is ranking by the numerator of a fraction whose bottom half nobody looked at.
-- **Return on capital divides the credit by what the position ties up** — the buying power reduction your brokerage account actually applies. That is a real number and it matters for planning, but it is a number your broker computes under your margin agreement, and it changes when the agreement does.
+- **Return on capital divides the credit by what the position ties up** — the [buying power reduction](/blog/options-buying-power-requirement) your brokerage account actually applies. That is a real number and it matters for planning, but it is a number your broker computes under your margin agreement, and it changes when the agreement does.
 - **Return on risk divides the credit by the most the structure can lose.** For a vertical credit spread that is the distance between the strikes, times 100, minus the credit received. It is fixed at the moment of the fill and it does not move again for the life of the trade.
 
 The middle one moves for reasons that have nothing to do with the trade. The

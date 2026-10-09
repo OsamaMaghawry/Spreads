@@ -1,0 +1,19 @@
+<svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Gain or loss at expiration, per share, of three hypothetical put credit spreads that share a 50 short put. The $1-wide 50/49 collects a 0.39 credit above 50 and loses at most 0.61 at 49 and below. The $2-wide 50/48 collects 0.81 and loses at most 1.19 at 48 and below. The $5-wide 50/45 collects 1.67 and loses at most 3.33 at 45 and below. The credit rises with width, the maximum loss rises faster, and the slope between the strikes grows longer.">
+  <rect width="720" height="340" fill="#FFFFFF"/>
+  <line x1="80" y1="130.9" x2="660" y2="130.9" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="208.9" y1="40" x2="208.9" y2="290" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="208.9" y="312" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">45</text>
+  <line x1="402.2" y1="40" x2="402.2" y2="290" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="402.2" y="312" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">48</text>
+  <line x1="466.7" y1="40" x2="466.7" y2="290" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="466.7" y="312" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">49</text>
+  <line x1="531.1" y1="40" x2="531.1" y2="290" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="531.1" y="312" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">50</text>
+  <path d="M80.0 282.3 L208.9 282.3 L531.1 55.0 L660.0 55.0" fill="none" stroke="#14151C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M80.0 185.0 L402.2 185.0 L531.1 94.1 L660.0 94.1" fill="none" stroke="#767B8E" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M80.0 158.6 L466.7 158.6 L531.1 113.2 L660.0 113.2" fill="none" stroke="#767B8E" stroke-width="3" stroke-dasharray="2 7" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="656" y="46.0" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">$5 wide</text>
+  <text x="656" y="85.1" font-size="15" font-weight="600" text-anchor="end" fill="#767B8E">$2 wide</text>
+  <text x="656" y="108" font-size="15" font-weight="600" text-anchor="end" fill="#767B8E">$1 wide</text>
+  <text x="370" y="334" font-size="15" text-anchor="middle" fill="#767B8E">stock price at expiration</text>
+</svg>
