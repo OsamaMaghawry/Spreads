@@ -5,8 +5,17 @@
 // (supabase/functions/mcp), but the address people paste into Claude is this
 // site's /mcp. The Worker passes those requests through unchanged and says
 // which site they came through (ORIGIN_HEADER); the function then names this
-// address, not its own, in the sign-in pointers it gives Claude. Sign-in itself
-// is still Supabase Auth, which Claude finds from there.
+// address, not its own, in the sign-in pointers it gives Claude.
+//
+// SIGN-IN UNDER OUR NAME TOO. Supabase Auth still issues the tokens, but this
+// site is the authorization server Claude is told about: its metadata names
+// this site as issuer and this site's /oauth/authorize as where the browser
+// goes. That is the one step a person sees -- the phone asks "Claude wants to
+// use deltamint.app to sign in" -- and the Worker takes it server-side, asking
+// Supabase for the authorization and sending the browser straight to our
+// approval page. The owner: "I don't want any Supabase name during the
+// process." Registration and token exchange are Claude's servers talking to
+// Supabase's; no person sees them, so they go direct.
 //
 // SWITCHED ON BY CONFIGURATION, NOT BY BRANCH. The landing deploy refuses any
 // tree that differs from staging's, so the code is the same everywhere and
@@ -35,7 +44,21 @@ export const ORIGIN_HEADER = "X-DeltaMint-Public-Origin";
 // /mcp itself, and the two places a client may look for its sign-in pointer
 // (RFC 9728: the path-suffixed form first, then the bare one).
 const METADATA_PATHS = ["/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-protected-resource"];
-export const isConnectorPath = (path) => path === "/mcp" || METADATA_PATHS.includes(path);
+// This site as authorization server: where a client reads its metadata (RFC
+// 8414, or OpenID discovery as a fallback), and the sign-in step itself.
+const AUTH_METADATA_PATHS = ["/.well-known/oauth-authorization-server", "/.well-known/openid-configuration"];
+const AUTHORIZE_PATH = "/oauth/authorize";
+export const isConnectorPath = (path) =>
+  path === "/mcp" || METADATA_PATHS.includes(path) || AUTH_METADATA_PATHS.includes(path) || path === AUTHORIZE_PATH;
+
+// Supabase Auth on the same project as the function /mcp passes through to.
+const authBase = (env) => `${new URL(String(env.CONNECTOR_UPSTREAM)).origin}/auth/v1`;
+
+const unreachable = () =>
+  new Response(JSON.stringify({ error: "DeltaMint could not be reached. Try again in a moment." }), {
+    status: 502,
+    headers: { "content-type": "application/json", "cache-control": "no-store" }
+  });
 
 // Only what the protocol needs crosses, in either direction. No cookies of
 // this site go to Supabase, and nothing of Supabase's but the answer comes back.
@@ -46,6 +69,8 @@ const RESPONSE_HEADERS = [
 ];
 
 export async function proxyConnector(request, env, path) {
+  if (AUTH_METADATA_PATHS.includes(path)) return authServerMetadata(request, env);
+  if (path === AUTHORIZE_PATH) return startSignIn(request, env);
   const upstream = String(env.CONNECTOR_UPSTREAM).replace(/\/+$/, "");
   const target = path === "/mcp" ? upstream : `${upstream}/.well-known/oauth-protected-resource`;
   const headers = new Headers();
@@ -60,10 +85,7 @@ export async function proxyConnector(request, env, path) {
   try {
     res = await fetch(target, { method, headers, body, redirect: "manual" });
   } catch {
-    return new Response(JSON.stringify({ error: "DeltaMint could not be reached. Try again in a moment." }), {
-      status: 502,
-      headers: { "content-type": "application/json", "cache-control": "no-store" }
-    });
+    return unreachable();
   }
   const out = new Headers({ "cache-control": "no-store" });
   for (const name of RESPONSE_HEADERS) {
@@ -72,6 +94,89 @@ export async function proxyConnector(request, env, path) {
   }
   return new Response(res.body, { status: res.status, headers: out });
 }
+
+// Supabase's own metadata, with this site as issuer and as the place the
+// browser goes. Everything else -- registration, tokens, keys -- still names
+// Supabase, because only Claude's servers use those. Fetched each time (it is
+// small and cached a few minutes) so a setting changed in the dashboard, such
+// as dynamic registration, shows here without a deploy. If Supabase's OAuth
+// server is off, its refusal is passed on as it is.
+async function authServerMetadata(request, env) {
+  const site = new URL(request.url).origin;
+  let res;
+  try {
+    res = await fetch(`${new URL(String(env.CONNECTOR_UPSTREAM)).origin}/.well-known/oauth-authorization-server/auth/v1`, {
+      headers: { accept: "application/json" }
+    });
+  } catch {
+    return unreachable();
+  }
+  if (!res.ok) {
+    return new Response(await res.text(), {
+      status: res.status,
+      headers: { "content-type": res.headers.get("content-type") || "application/json", "cache-control": "no-store" }
+    });
+  }
+  const meta = await res.json();
+  meta.issuer = site;
+  meta.authorization_endpoint = `${site}${AUTHORIZE_PATH}`;
+  return new Response(JSON.stringify(meta), {
+    headers: { "content-type": "application/json", "cache-control": "public, max-age=300" }
+  });
+}
+
+// The step a person sees. Supabase is asked server-side, so the browser never
+// visits it: its answer is a redirect, either to our approval page (sent to
+// this deployment's dashboard by name, whatever Site URL the project holds) or
+// back to Claude with an error, which is passed on unchanged.
+async function startSignIn(request, env) {
+  const search = new URL(request.url).search;
+  let res;
+  try {
+    res = await fetch(`${authBase(env)}/oauth/authorize${search}`, {
+      redirect: "manual",
+      headers: { accept: "application/json", "user-agent": request.headers.get("user-agent") || "" }
+    });
+  } catch {
+    return unreachable();
+  }
+  const location = res.headers.get("location");
+  if (res.status >= 300 && res.status < 400 && location) {
+    return new Response(null, { status: 302, headers: { location: onOurApp(location, env), "cache-control": "no-store" } });
+  }
+  // Refused before it could redirect: an unknown app or a return address it
+  // did not register. Said here, in our words.
+  let why = "";
+  try {
+    const body = await res.json();
+    why = String(body.msg || body.error_description || body.error || "");
+  } catch { /* not JSON: no detail to add */ }
+  return new Response(signInProblem(why), {
+    status: res.status >= 400 ? res.status : 400,
+    headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" }
+  });
+}
+
+// Supabase redirects to <Site URL>/oauth/consent. Send the browser to this
+// deployment's own dashboard instead, so no other host appears on the way.
+export function onOurApp(location, env) {
+  let url;
+  try {
+    url = new URL(location);
+  } catch {
+    return location;
+  }
+  if (url.pathname.replace(/\/+$/, "") !== "/oauth/consent" || !url.searchParams.get("authorization_id")) return location;
+  return `${appUrl(env)}/oauth/consent${url.search}`;
+}
+
+const signInProblem = (why) => `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
+<title>Sign-in could not start — DeltaMint</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;background:#f5f6fa;color:#1b1c2b;margin:0;display:grid;place-items:center;min-height:100vh}
+main{max-width:420px;margin:24px;padding:28px;background:#fff;border:1px solid #e3e5ef;border-radius:14px}h1{font-size:20px;margin:0 0 10px}p{line-height:1.55;color:#4a4d63}</style>
+</head><body><main><h1>Sign-in could not start</h1>
+<p>DeltaMint could not start this sign-in${why ? ` (${esc(why)})` : ""}. Go back to Claude and choose Connect again.</p></main></body></html>`;
 
 // Where the homepage section goes: a comment in landing/public/index.html,
 // inert wherever this Worker does not run.

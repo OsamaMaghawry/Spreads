@@ -22,9 +22,10 @@ import { fetchTrades } from "../_shared/tradeSync.ts";
 //
 // SIGN-IN is Supabase Auth's OAuth 2.1 server, not code here. This function is
 // the "protected resource": an unauthenticated request gets a 401 naming the
-// metadata document below, the metadata names Supabase Auth as the
-// authorization server, and Claude does discovery, registration, the user's
-// approval (src/pages/OAuthConsent.jsx) and the token exchange from there.
+// metadata document below, the metadata names our site as the authorization
+// server (it fronts Supabase Auth so a person signing in sees only our name:
+// landing/src/connector.js), and Claude does discovery, registration, the
+// user's approval (src/pages/OAuthConsent.jsx) and the token exchange from there.
 // That is also why this function runs with verify_jwt off (supabase/config.toml):
 // the gateway's own 401 carries no metadata pointer, so Claude could never
 // find where to sign in. The token is checked here instead, on every request.
@@ -132,13 +133,13 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
 
   const path = new URL(req.url).pathname.replace(/\/+$/, "");
-  const address = connectorAddresses(req.headers.get("X-DeltaMint-Public-Origin"), RESOURCE, PUBLIC_ORIGINS);
+  const address = connectorAddresses(req.headers.get("X-DeltaMint-Public-Origin"), RESOURCE, AUTH_SERVER, PUBLIC_ORIGINS);
 
   // RFC 9728: where this resource says to sign in. Public by design.
   if (path.endsWith("/.well-known/oauth-protected-resource")) {
     return json({
       resource: address.resource,
-      authorization_servers: [AUTH_SERVER],
+      authorization_servers: [address.authServer],
       scopes_supported: [SCOPE],
       bearer_methods_supported: ["header"],
       resource_name: "DeltaMint",
