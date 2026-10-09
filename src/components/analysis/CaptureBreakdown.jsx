@@ -1,71 +1,42 @@
+import { Fragment, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
-import { heldToExpiry } from "@/lib/analytics";
+import { captureBreakdown, tradeLabel } from "@/lib/capture";
 
 const th = "px-3 py-2 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
 const td = "px-3 py-2 whitespace-nowrap tabular-nums";
 const pct = (v, d = 1) => (v === null || v === undefined || !isFinite(v) ? "—" : `${(v * 100).toFixed(d)}%`);
+const tone = (v) => (v >= 0 ? "text-emerald-600" : "text-rose-600");
+const signed = (v) => (v >= 0 ? `+${fmtMoney(v)}` : fmtMoney(v));
 
-const BUCKETS = [
-  { label: "Loss (< 0%)", min: -Infinity, max: 0 },
-  { label: "0 – 50%", min: 0, max: 0.5 },
-  { label: "50 – 70%", min: 0.5, max: 0.7 },
-  { label: "70 – 80%", min: 0.7, max: 0.8 },
-  { label: "80 – 90%", min: 0.8, max: 0.9 },
-  { label: "90 – 100%", min: 0.9, max: Infinity }
-];
-
-// Per-trade share of the sold credit that was actually kept.
-//
-// Deliberately the option result — premium less what closing it cost — and not
-// the position's total. Once shares delivered on assignment are folded in, a
-// put assigned and sold at a profit reports capture well above 100%, and a
-// ratio that can exceed its own maximum measures nothing.
-const optionPL = (t) => (Number(t.premium_pl) || 0) + (Number(t.early_close_pl) || 0);
-
-const rowsOf = (trades) =>
-  trades
-    .map((t) => {
-      const credit = (t.net_credit || 0) * (t.qty || 0) * 100;
-      return credit > 0 ? { credit, pl: optionPL(t), capture: optionPL(t) / credit } : null;
-    })
-    .filter(Boolean);
-
-const agg = (rows) => {
-  const credit = rows.reduce((a, r) => a + r.credit, 0);
-  const pl = rows.reduce((a, r) => a + r.pl, 0);
-  return {
-    trades: rows.length,
-    credit,
-    pl,
-    weighted: credit > 0 ? pl / credit : null,
-    avg: rows.length ? rows.reduce((a, r) => a + r.capture, 0) / rows.length : null
-  };
+const STRATEGY = {
+  spreads: "spread",
+  covered_call: "covered call",
+  cash_secured_put: "cash-secured put",
+  iron_condor: "iron condor"
 };
 
+// What share of the premium sold was kept. Grouping, the reason a buyback on
+// expiry day counts as held to expiry, and the line that ties the table to
+// the booked total: src/lib/capture.js.
 export default function CaptureBreakdown({ trades }) {
-  const early = rowsOf(trades.filter((t) => !heldToExpiry(t)));
-  const expired = rowsOf(trades.filter(heldToExpiry));
-  const all = agg([...early, ...expired]);
-  const e = agg(early);
-  const x = agg(expired);
-  if (all.trades === 0) return null;
+  const [open, setOpen] = useState(null);
+  const b = captureBreakdown(trades);
+  if (b.all.trades === 0) return null;
+  const r = b.reconcile;
 
   const summary = [
-    { label: "Held to expiry", data: x, note: "Expired, assigned or exercised" },
-    { label: "Closed early", data: e, note: "Bought back before expiry" },
-    { label: "All trades", data: all, note: "Overall credit capture" }
+    { label: "Held to expiry day", data: b.held, note: "Expired, assigned, or bought back on expiry day" },
+    { label: "Closed early", data: b.early, note: "Bought back before expiry day" },
+    { label: "All trades", data: b.all, note: "Overall credit capture" }
   ];
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
       <div className="px-4 py-3 border-b border-slate-200">
-        <h3 className="text-sm font-medium text-slate-900">Credit capture on early exits</h3>
+        <h3 className="text-sm font-medium text-slate-900">Credit capture</h3>
         <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-          How much of the premium sold was kept when positions were bought back instead of left to
-          expire. Every figure here is the option leg alone. Shares delivered by assignment are
-          excluded on purpose &mdash; a ratio that can exceed its own maximum measures nothing
-          &mdash; so a call bought back against shares that rose shows its full cost here and the
-          shares are not in it. For what the whole position did, read &ldquo;By setup&rdquo; above.
+          Share of the premium sold that was kept. Option legs only; shares are added in the last line.
         </p>
       </div>
 
@@ -87,42 +58,72 @@ export default function CaptureBreakdown({ trades }) {
         <table className="w-full text-sm text-slate-700">
           <thead className="bg-slate-50">
             <tr className="border-b border-slate-200 text-left">
-              <th className={th}>Credit kept (early exits)</th>
+              <th className={th}>Kept, early exits</th>
               <th className={`${th} text-right`}>Trades</th>
-              <th className={`${th} text-right`}>Share of early exits</th>
+              <th className={`${th} text-right`}>Share</th>
               <th className={`${th} text-right`}>Avg capture</th>
               <th className={`${th} text-right`}>Credit sold</th>
-              {/* "P/L kept" read as money lost, and on this account the loss
-                  bucket printed -$8,053 -- a number the owner was right to
-                  reject, because it is the OPTION half of 27 buybacks with the
-                  shares behind them deliberately left out (see `optionPL`
-                  above). A covered call bought back into a rally lands here at
-                  its full cost while the shares it was written on, which gained
-                  over the same days, are in another table. The column now says
-                  which half it is measuring. */}
-              <th className={`${th} text-right`}>Option legs only</th>
+              <th className={`${th} text-right`}>Option P/L</th>
             </tr>
           </thead>
           <tbody>
-            {BUCKETS.map((b) => {
-              const rows = early.filter((r) => r.capture >= b.min && r.capture < b.max);
-              const a = agg(rows);
+            {b.buckets.map((k) => {
+              const expanded = open === k.label;
               return (
-                <tr key={b.label} className="border-b border-slate-100 last:border-0">
-                  <td className={`${td} font-medium text-slate-900`}>{b.label}</td>
-                  <td className={`${td} text-right`}>{a.trades}</td>
-                  <td className={`${td} text-right`}>{pct(e.trades ? a.trades / e.trades : 0, 0)}</td>
-                  <td className={`${td} text-right`}>{pct(a.avg)}</td>
-                  <td className={`${td} text-right`}>{fmtMoney(a.credit)}</td>
-                  <td className={`${td} text-right ${a.pl >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                    {fmtMoney(a.pl)}
-                  </td>
-                </tr>
+                <Fragment key={k.label}>
+                  <tr className="border-b border-slate-100">
+                    <td className={`${td} font-medium text-slate-900`}>
+                      {k.trades > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setOpen(expanded ? null : k.label)}
+                          aria-expanded={expanded}
+                          className="inline-flex items-center gap-1 hover:text-slate-600"
+                        >
+                          <ChevronRight className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-90" : ""}`} aria-hidden="true" />
+                          {k.label}
+                        </button>
+                      ) : (
+                        <span className="pl-[18px]">{k.label}</span>
+                      )}
+                    </td>
+                    <td className={`${td} text-right`}>{k.trades}</td>
+                    <td className={`${td} text-right`}>{pct(b.early.trades ? k.trades / b.early.trades : 0, 0)}</td>
+                    <td className={`${td} text-right`}>{pct(k.avg)}</td>
+                    <td className={`${td} text-right`}>{fmtMoney(k.credit)}</td>
+                    <td className={`${td} text-right ${tone(k.pl)}`}>{fmtMoney(k.pl)}</td>
+                  </tr>
+                  {expanded &&
+                    k.rows.map(({ trade: t, credit, pl, capture }) => (
+                      <tr key={t.id || `${t.trade_key}-${t.open_date}-${t.short_symbol}`} className="border-b border-slate-100 bg-slate-50/60 text-xs">
+                        <td className={`${td} pl-8`}>
+                          <span className="text-slate-900">{tradeLabel(t)}</span>
+                          <span className="text-slate-400"> · {STRATEGY[t.strategy] || t.strategy}</span>
+                        </td>
+                        <td className={`${td} text-right text-slate-500`} colSpan={2}>
+                          {t.open_date} → {String(t.close_date).slice(0, 10)}
+                        </td>
+                        <td className={`${td} text-right`}>{pct(capture)}</td>
+                        <td className={`${td} text-right`}>
+                          {fmtMoney(credit)}
+                          <span className="text-slate-400"> · paid {fmtMoney(-(Number(t.early_close_pl) || 0))}</span>
+                        </td>
+                        <td className={`${td} text-right ${tone(pl)}`}>{fmtMoney(pl)}</td>
+                      </tr>
+                    ))}
+                </Fragment>
               );
             })}
           </tbody>
         </table>
       </div>
+
+      {r.adds && (
+        <p className="px-4 py-3 border-t border-slate-200 text-[11px] text-slate-500 leading-relaxed tabular-nums">
+          Early exits {signed(r.early)} · held to expiry day {signed(r.held)} · options bought {signed(r.bought)} · shares{" "}
+          {signed(r.shares)} = <span className={`font-medium ${tone(r.total)}`}>{signed(r.total)}</span> booked on closed trades.
+        </p>
+      )}
     </div>
   );
 }
