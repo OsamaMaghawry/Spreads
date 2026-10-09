@@ -81,7 +81,7 @@ incomplete.
 ## Components, by area
 
 - **accounts** — AccountForm, AlpacaConnectConsent
-- **admin** — AdminMaintenance, BlogPanel, EngagementPanel, IntegrityPanel, PostPreview, SettingsPanel, SignupsChart, SnapTradePanel, StatTile, UsersPanel
+- **admin** — AdminMaintenance, BlogPanel, ConnectorPanel, EngagementPanel, IntegrityPanel, PostPreview, SettingsPanel, SignupsChart, SnapTradePanel, StatTile, UsersPanel
 - **analysis** — AnalysisDisclosure, AnalysisLayoutB, BreakdownTable, CaptureBreakdown, DateRangeFilter, EquityCurveChart, ExportPdfButton, MethodNotes, OpenBookPanel, OpenOptionsPanel, SetupBreakdown, StatCards, StatTiles, StrategyComparison, ViewSwitch, WindowParts
 - **billing** — UpgradePrompt
 - **brand** — DeltaMintMark, Wordmark
@@ -181,6 +181,7 @@ revoked from the browser role entirely.
 - **snaptrade_users** — user_id, snaptrade_user_id, user_secret, registered_at, deleted_at
 - **snaptrade_probes** — id, ran_by, ran_at, report
 - **broker_probes** — id, broker, ran_at, report
+- **connector_calls** — id, at, user_id, client_id, tool, ok, ms, args
 
 ## Analytics vocabulary
 

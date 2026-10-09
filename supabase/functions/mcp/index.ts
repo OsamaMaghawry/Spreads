@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { adminClient } from "../_shared/supabaseClients.ts";
 import { bearerToken, connectorClientId } from "../_shared/connectorToken.ts";
-import { connectorAddresses, handleMessage } from "../_shared/mcpProtocol.ts";
+import { callSucceeded, connectorAddresses, handleMessage, recordedArgs } from "../_shared/mcpProtocol.ts";
 import { connectorTools, CONNECTOR_INSTRUCTIONS, type ConnectorDeps } from "../_shared/connectorTools.ts";
 import { scanEntriesFor } from "../_shared/entryScan.ts";
 import { readChainFor } from "../_shared/chainRead.ts";
@@ -164,16 +164,35 @@ Deno.serve(async (req) => {
 
   const opts = { tools: connectorTools(), ctx: depsFor(user.id), server: SERVER, instructions: CONNECTOR_INSTRUCTIONS };
   const batch = Array.isArray(message) ? message : [message];
-  for (const m of batch) {
-    if (m?.method === "tools/call") {
-      // Who asked for what, for the record. Arguments are filters and tickers.
-      console.log(JSON.stringify({
-        connector: "tools/call", user: user.id, client: connectorClientId(token),
-        tool: m.params?.name, args: m.params?.arguments ?? {}
-      }));
+  const answered = await Promise.all(batch.map(async (m) => {
+    const started = Date.now();
+    const reply = await handleMessage(m, opts);
+    return { m, reply, ms: Date.now() - started };
+  }));
+
+  // Who asked for what, for Admin's "AI connector" tab (migration 0059).
+  // Written before answering, because an edge function may be stopped once
+  // its response is sent; a failed write is logged and never fails the call.
+  const client = connectorClientId(token);
+  const calls = answered
+    .filter(({ m }) => m?.method === "tools/call")
+    .map(({ m, reply, ms }) => ({
+      user_id: user.id,
+      client_id: client,
+      tool: String(m.params?.name ?? "unknown"),
+      ok: callSucceeded(reply),
+      ms,
+      args: recordedArgs(m.params?.arguments)
+    }));
+  if (calls.length) {
+    try {
+      const { error } = await adminClient().from("connector_calls").insert(calls);
+      if (error) console.error(`connector_calls: ${error.message}`);
+    } catch (e) {
+      console.error(`connector_calls: ${(e as Error)?.message || e}`);
     }
   }
-  const replies = (await Promise.all(batch.map((m) => handleMessage(m, opts)))).filter((r) => r !== null);
+  const replies = answered.map(({ reply }) => reply).filter((r) => r !== null);
 
   // Only notifications: accepted, nothing to say.
   if (replies.length === 0) return new Response(null, { status: 202, headers: CORS });
