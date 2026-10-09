@@ -73,7 +73,7 @@ export default function EquityCurveChart({
   const shortDay = (d) =>
     new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
   const todayET = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-  const behindToday = Boolean(lastDay) && !windowEnd && lastDay < todayET;
+  const behindToday = Boolean(lastDay) && !windowEnd && !curve.live && lastDay < todayET;
   const change = curve.change;
   // An account-value line is coloured by what the window did, not by whether a
   // balance is above zero — every balance is above zero, so colouring by `end`
@@ -129,8 +129,10 @@ export default function EquityCurveChart({
           <div className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">
             {windowEnd && isValue
               ? `End of window · ${windowEnd}`
-              : lastDay
-                ? `At the ${shortDay(lastDay)} close`
+              : curve.live
+                ? (isValue ? "Today" : "Now")
+                : lastDay
+                  ? `At the ${shortDay(lastDay)} close`
                 : isValue ? "Today" : "Ends at"}
           </div>
           <div

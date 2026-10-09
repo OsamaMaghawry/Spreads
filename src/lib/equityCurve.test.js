@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { seriesColumn, dailySeries, bookedCurve } from "./equityCurve.js";
+import { seriesColumn, dailySeries, bookedCurve, withLivePoint } from "./equityCurve.js";
 
 const SERIES = [
   { day: "2026-09-01", equity: 140000, premium_cum: 300, performance: 300, unpriced: [] },
@@ -203,4 +203,41 @@ test("baselineKnown separates 'the window starts at zero' from 'we could not loo
   );
   assert.equal(blind.baselineKnown, false);
   assert.equal(blind.end, -949.09);
+});
+
+// The owner's 9 Oct page: the stored line ended on the 8th at $1,597 while the
+// premium headline read $88 after the day's TSLA close.
+const oct = [
+  { day: "2026-10-07", premium_cum: 1513, performance: 546.91, equity: 143254.05 },
+  { day: "2026-10-08", premium_cum: 1597, performance: -202.09, equity: 142044.01 }
+];
+
+test("the line ends on the live figure the headline shows", () => {
+  const c = withLivePoint(dailySeries(oct, "premium", "performance"), { date: "2026-10-09", value: 88 });
+  assert.equal(c.end, 88);
+  assert.equal(c.points.length, 3);
+  assert.deepEqual(c.points[2], { date: "2026-10-09", value: 88, unpriced: [], live: true });
+  assert.equal(c.live, true);
+  // Change is measured from the same first point as before.
+  assert.equal(c.change, 88 - 1513);
+});
+
+test("a stored point for today is replaced, not duplicated", () => {
+  const withToday = [...oct, { day: "2026-10-09", premium_cum: 90, performance: 300, equity: 142900 }];
+  const c = withLivePoint(dailySeries(withToday, "whole", "performance"), { date: "2026-10-09", value: 347.1 });
+  assert.equal(c.points.length, 3);
+  assert.equal(c.end, 347.1);
+});
+
+test("the balance line ends on the live balance and its change follows", () => {
+  const base = dailySeries(oct, "whole", "value");
+  const c = withLivePoint(base, { date: "2026-10-09", value: 142960.46 });
+  assert.equal(c.end, 142960.46);
+  assert.ok(Math.abs(c.change - (base.change + (142960.46 - base.end))) < 1e-9);
+});
+
+test("no live figure, no change to the line", () => {
+  const base = dailySeries(oct, "premium", "performance");
+  assert.equal(withLivePoint(base, { date: "2026-10-09", value: null }), base);
+  assert.equal(withLivePoint(base, null), base);
 });

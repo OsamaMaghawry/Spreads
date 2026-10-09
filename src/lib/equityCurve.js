@@ -236,3 +236,34 @@ export function bookedCurve(trades, view) {
     unpricedTickers: []
   };
 }
+
+/**
+ * The stored line, ending on the live figure.
+ *
+ * The stored series gains a day only once that close is stored, and on 9 Oct
+ * it still ended on the 8th that evening -- so the chart's last point was
+ * yesterday while the headline above it was today. The owner, reading
+ * "$88.00" over a line that "Ends at $1,597.00": "Still contradiction to me".
+ * Two right numbers for two different moments, on one card, is a
+ * contradiction to anyone reading it.
+ *
+ * So the line ends where the headline is: today's point is the live figure,
+ * replacing a stored one for the same day if there is one. `change` moves by
+ * the same amount as the end, because both lines measure change from a point
+ * this does not touch.
+ *
+ * @param curve  a `dailySeries` result
+ * @param live   { date: "YYYY-MM-DD", value } -- the figure the page shows now
+ */
+export function withLivePoint(curve, live) {
+  const value = live?.value;
+  const date = day(live?.date);
+  if (!curve || !Array.isArray(curve.points) || !curve.points.length) return curve;
+  if (!date || typeof value !== "number" || !Number.isFinite(value)) return curve;
+  const points = [...curve.points.filter((p) => p.date < date), { date, value, unpriced: [], live: true }];
+  const change =
+    curve.change === null || curve.change === undefined || curve.end === null || curve.end === undefined
+      ? null
+      : curve.change + (value - curve.end);
+  return { ...curve, points, end: value, change, live: true };
+}

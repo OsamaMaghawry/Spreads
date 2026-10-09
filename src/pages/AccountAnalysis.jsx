@@ -20,7 +20,7 @@ import { openBook, openOptions, openMark, premiumOnly, realizedShares, orphanedS
 import { analysisHeadline } from "@/lib/headline";
 import { splitWithheld, withheldNote } from "@/lib/integrity";
 import { capitalAtWork, flowNote } from "@/lib/capital";
-import { dailySeries, bookedCurve } from "@/lib/equityCurve";
+import { dailySeries, bookedCurve, withLivePoint } from "@/lib/equityCurve";
 import { windowParts } from "@/lib/windowParts";
 import WindowParts from "@/components/analysis/WindowParts";
 import { setups as buildSetups } from "@/lib/campaigns";
@@ -508,6 +508,25 @@ export default function AccountAnalysis() {
   // renders whether or not this page shows a view switch — see below.
   const headlineNote = headline.note ? `${headline.note}${unpricedDetail}` : null;
 
+  // THE CHART ENDS ON THE HEADLINE. The stored line stops at the last close
+  // it has stored -- on 9 Oct, the 8th, all evening -- so it ended on
+  // yesterday under a headline that is today, and the owner read two right
+  // numbers as one contradiction. Today's point is the live figure: the
+  // headline on the performance line, the broker's balance on the value line.
+  // Only where the headline IS today's whole figure -- no date window, and in
+  // the whole view only when the open book is priced into it. Otherwise the
+  // line keeps its stored end and says which close that is.
+  const todayET = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const liveEnd =
+    !useDaily || range.from || range.to
+      ? null
+      : chartMode === "value"
+        ? (equity > 0 ? equity : null)
+        : view === "premium" || stats?.includesUnrealized
+          ? headline.figure
+          : null;
+  const chartCurve = liveEnd === null || liveEnd === undefined ? curve : withLivePoint(curve, { date: todayET, value: liveEnd });
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-32 gap-3 text-slate-500">
@@ -632,7 +651,7 @@ export default function AccountAnalysis() {
                 stats={stats}
                 withheldFigure={withheldFigure}
                 setupCount={positionSetups.length}
-                curve={curve}
+                curve={chartCurve}
                 chartMode={chartMode}
                 onChartMode={setChartMode}
                 hasValueSeries={hasValueSeries && useDaily}
@@ -752,7 +771,7 @@ export default function AccountAnalysis() {
             )}
             <StatCards stats={stats} withheld={withheldFigure} />
             <EquityCurveChart
-              curve={curve}
+              curve={chartCurve}
               view={view}
               mode={chartMode}
               onModeChange={setChartMode}
