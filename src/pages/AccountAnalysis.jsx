@@ -12,7 +12,7 @@ import StrategyComparison from "@/components/analysis/StrategyComparison";
 import StrategyTabs from "@/components/history/StrategyTabs";
 import ExportPdfButton from "@/components/analysis/ExportPdfButton";
 import DateRangeFilter from "@/components/analysis/DateRangeFilter";
-import CaptureBreakdown from "@/components/analysis/CaptureBreakdown";
+import TradeEndings from "@/components/analysis/TradeEndings";
 import OpenBookPanel from "@/components/analysis/OpenBookPanel";
 import OpenOptionsPanel from "@/components/analysis/OpenOptionsPanel";
 import ViewSwitch from "@/components/analysis/ViewSwitch";
@@ -761,7 +761,7 @@ export default function AccountAnalysis() {
               reconcileNote={chartReconcileNote}
               windowEnd={range.to || null}
             />
-            <CaptureBreakdown trades={subset} />
+            <TradeEndings trades={subset} view={view} />
             <div className="grid gap-4 lg:grid-cols-2">
               {/* `computeStats` buckets these under the selected view at the
                   source, so there is no second pass here correcting the first

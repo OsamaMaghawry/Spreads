@@ -2,12 +2,6 @@
 
 const days = (a, b) => Math.max(0, Math.round((new Date(b) - new Date(a)) / 86400000));
 
-// Only 'closed' means the position was bought back before expiry. Expired,
-// assigned and exercised were all carried to the end — an assigned short in
-// particular was held to the last minute, so counting it as an early exit
-// would misstate exactly the discipline these figures are meant to measure.
-export const heldToExpiry = (t) => t.close_reason !== 'closed';
-
 /**
  * @param trades  closed trade_records
  * @param equity  account equity, or 0 to withhold return on equity
@@ -149,8 +143,7 @@ export function computeStats(trades, equity = 0, view = "whole", extra = {}) {
   // premium sold was kept, so its numerator has to be the option legs in both
   // views. Fold assigned shares into it and a put assigned into stock that
   // recovered reports capture far above 100% — a ratio exceeding its own
-  // maximum measures nothing. CaptureBreakdown has always computed it this way;
-  // the headline card disagreed with the table underneath it until now.
+  // maximum measures nothing.
   const optionLegPL = sorted.reduce(
     (a, t) => a + (t.premium_pl || 0) + (t.early_close_pl || 0),
     0
