@@ -21,6 +21,22 @@ export function sameLegs(a: string[], b: string[]) {
 export const orderSymbols = (o: any) =>
   Array.isArray(o?.legs) && o.legs.length ? o.legs.map((l: any) => l.symbol) : [o?.symbol];
 
+// An order's limit in the debit convention every walk uses: positive is paid,
+// negative is received. A multi-leg order already carries it signed. A
+// single-leg order does not -- its limit is a positive price either way and
+// its side says which way the money goes -- so a sell is negated here.
+//
+// Read unsigned, a long TSLA put being sold at $28.65 came back as a $28.65
+// DEBIT on 9 Oct. The ticket printed "+$28.65" beside "-$28.63", and the
+// resumed walk, taking the higher of the two, started at the furthest it is
+// allowed to concede: the bid less $0.05, on the first step.
+export function signedLimit(o: any): number {
+  const price = parseFloat(o?.limit_price);
+  if (!isFinite(price)) return NaN;
+  const singleLeg = !(Array.isArray(o?.legs) && o.legs.length);
+  return singleLeg && o?.side === "sell" ? -Math.abs(price) : price;
+}
+
 // Orders newest first, as Alpaca returns them with direction=desc.
 //
 // The scan stops at the first FILLED order on this leg set: anything older
@@ -32,7 +48,7 @@ export function resumableLimit(orders: any[], symbols: string[]): number | null 
   for (const o of orders) {
     if (!sameLegs(orderSymbols(o), symbols)) continue;
     if (o.status === "filled") break;
-    const price = parseFloat(o.limit_price);
+    const price = signedLimit(o);
     if (!isFinite(price)) continue;
     // Furthest along the walk, which is upward in this convention whether the
     // net is a debit or a credit.

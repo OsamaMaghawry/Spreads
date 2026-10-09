@@ -64,3 +64,17 @@ test("orderSymbols reads a leg list or falls back to the order's own symbol", ()
   assert.deepEqual(orderSymbols(mleg("1")), [SHORT, LONG]);
   assert.deepEqual(orderSymbols(single(SHORT, "1")), [SHORT]);
 });
+
+test("selling a long option to close resumes as a credit, not a debit", () => {
+  // 9 Oct, live: a long TSLA put sold at $28.65 then $28.83 resumed as a
+  // +$28.65 debit, and the walk opened at the bid less $0.05.
+  const PUT = "TSLA270219P00370000";
+  const sell = (limit: string) => ({ status: "canceled", limit_price: limit, symbol: PUT, side: "sell" });
+  assert.equal(resumableLimit([sell("28.65"), sell("28.83")], [PUT]), -28.65);
+});
+
+test("buying a short option back to close stays a debit", () => {
+  const CALL = "TSLA261009C00382500";
+  const buy = (limit: string) => ({ status: "canceled", limit_price: limit, symbol: CALL, side: "buy" });
+  assert.equal(resumableLimit([buy("0.40"), buy("0.45")], [CALL]), 0.45);
+});

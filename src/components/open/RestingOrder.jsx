@@ -12,7 +12,9 @@ import PriceControl from "@/components/common/PriceControl";
 export default function RestingOrder({ credit, onCredit, quote, unit, qty, side = "credit", onUpdate, multiplier = 100 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  const ready = typeof credit === "number" && credit > 0;
+  // Non-zero rather than positive: a close that pays you is negative here, and
+  // `> 0` left "Update price" disabled on every one of them.
+  const ready = typeof credit === "number" && Number.isFinite(credit) && credit !== 0;
 
   const update = async () => {
     setBusy(true);

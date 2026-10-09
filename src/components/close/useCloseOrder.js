@@ -187,7 +187,12 @@ export default function useCloseOrder() {
     // Zero is not a price; a negative one is a credit, which is legitimate.
     if (!Number.isFinite(next) || next === 0) throw new Error("Enter a price.");
     try {
-      const res = await invoke("manageOrder", { accountId: r.accountId, orderId: r.orderId, action: "replace", limitPrice: next });
+      // The amount, unsigned. manageOrder refuses anything at or below zero
+      // and takes the sign from the order being replaced, which is the only
+      // thing that knows whether the broker wrote it signed (multi-leg) or as a
+      // positive price with a side (single leg). Sent signed, a close that
+      // pays you could not be repriced from this ticket at all.
+      const res = await invoke("manageOrder", { accountId: r.accountId, orderId: r.orderId, action: "replace", limitPrice: Math.abs(next) });
       restingRef.current = { ...r, orderId: res.orderId };
       addLog(`Price changed to ${priceLabel(next)} — now working as ${res.orderId}`);
       return res;
