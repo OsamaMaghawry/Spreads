@@ -38,6 +38,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 24 | Earnings and short premium | selling options before earnings (also searched as "holding short options through earnings", "does IV crush help option sellers if the stock moves past the strike" and "credit spread through earnings" — see the row 24 reading). Recommended slug `selling-options-before-earnings` | trading options around earnings (the broker-hub set: Schwab, Fidelity, Wealthsimple); never "earnings" alone, and "IV crush" stays row 8's (`implied-volatility-options-explained` already titles "before earnings") | Nasdaq and Barchart syndicated "selling a [ticker] put before earnings" articles and a Yahoo Finance trade write-up hold the exact phrase; Option Samurai, daystoexpiry, QuantWheel, CashFlowMachine, TradingBlock ("Bad for Buyers, Great for Sellers"), SpotGamma, SoFi, moomoo learn and community, advancedautotrades, Volatility Box, fattail.ai, impliedoptions, optionspilot, MenthorQ, SteadyOptions, Market Rebellion, Option Alpha, Finimize/IG, Schwab, Fidelity, Wealthsimple; TradingView chart ideas in the tail. No investopedia.com, tastylive.com or Reddit page surfaced (read 5 Oct 2026) | one hypothetical XYZ 50 put, sold naked and as a 50/48 put credit spread, priced on the series' chain the week before a date and the morning after: what the IV run-up added to the premium, what the crush removes when the stock does not move, and what a gap through both strikes does to each. The naked put's loss runs to the stock's opening price; the spread's stops at width less credit. The crush takes extrinsic value only, and a gap adds intrinsic value the crush cannot take. A gap also opens below any stop, so the only cap is the long leg. No "sell or avoid", no entry window, no expected-move probability, no return figure |
 | 25 | Calendar spreads | calendar spread explained (also searched as "what is a calendar spread", "is a calendar spread a debit or credit spread", "calendar spread max loss break even" and "calendar spread IV crush" — see the row 25 reading). Slug `calendar-spread-explained` | calendar spread / time spread; never "calendar" alone, which drifts to futures calendar spreads and calendar-template pages | Wikipedia (also the top result on the futures sense), Alpaca learn, SoFi, Fidelity (Viewpoints and the strategy guide), OIC, CME Group (futures-options course), TradeStation, TradingBlock, moomoo learn, StoneX glossary, CFI, Option Alpha, Option Samurai, OptionsPlay, strike.money, ryanoconnellfinance, optionstradingiq, fattail.ai, apexvol, journalplus, MenthorQ, optionsdecay; calculator sites (optionprofitcalc, theoptionsbench, insiderfinance) on break-evens; Barchart/Yahoo "calendar spread screener results" syndication and TradingView chart ideas in the tail. tastytrade's help centre surfaced once; no investopedia.com, tastylive.com or Reddit page surfaced (read 6 Oct 2026) | one hypothetical XYZ 50 call calendar (30/60 days, 0.94 debit) on the series' chain, read by a seller of credit spreads: a debit, not a credit; a hill at the near expiration, not a ramp, with break-evens found by pricing because there is no closed-form formula; net long vega, the reverse of the short premium in rows 23–24, so an IV drop costs it money with the stock still on the strike. No "when to enter", no IV-rank entry rule, no profit target, no win rate, no return figure |
 | 26 | Diagonal spreads | diagonal spread explained (also searched as "what is a diagonal spread", "diagonal spread vs calendar spread", "is a diagonal spread a debit or credit spread", "diagonal spread max loss" and "call diagonal spread break even" — see the row 26 reading). Slug `diagonal-spread-explained` | diagonal spread; never "diagonal" alone. "Poor man's covered call" is a later syllabus post's, not this row's | Indian broker learning centres (Motilal Oswal, Religare, Angel One, Upstox, 5paisa, Bajaj Broking/Finserv), daytrading.com, CapTrader glossary, SoFi, TradeStation, Webull courseware, moomoo learn, tastylive/tastytrade, Fidelity strategy guide, Option Alpha, optionstradingiq, Market Chameleon, thismatter, supermoney, wallstreetmojo, Wikipedia, Nasdaq and Shmoop glossaries, QuantInsti; Barchart "bullish diagonal trade" syndication and TradingView chart ideas in the tail. No investopedia.com or Reddit page surfaced (read 7 Oct 2026) | one hypothetical 48/52 call diagonal (60/30 days, 2.80 debit) on the series' chain, set beside row 25's 0.94 calendar: a tilted payoff, not a hill, peaking at the short strike and staying above its cost on the upside because the 4.00 strike gap exceeds the debit; a break-even near 49.08 found by pricing, against the 50.80 the "long strike plus debit" shortcut gives; net long vega priced at three IV levels. Long-strike-below-short version only. No "when to use", no directional call, no adjustment rule, no return figure |
+| 27 | The poor man's covered call as an income structure | poor mans covered call (searched with and without the apostrophe; also as "what is a poor man's covered call", "poor man's covered call explained", "pmcc vs covered call", "pmcc max loss" and "poor man's covered call assignment" — see the row 27 reading). Slug `poor-mans-covered-call` | poor man's covered call, always spelled out; never "PMCC" alone — the bare acronym returns the product moment correlation coefficient (A-level statistics) and "pmcc max loss" returns probable-maximum-loss insurance pages. "pmcc vs covered call" is row 43's investor framing, not this row's | Option Alpha, tastylive (concepts page, definitions page, show episodes), moomoo learn (US and CA), Options Playbook blog, IG (EN and UK "options need-to-knows"), Bajaj Finserv, Market Rebellion, MarketBeat (two), OptionStrat blog (two), Saxo, FXStreet video, optionstradingiq ("risks of"), CapTrader, tapeboard glossary, deltavalue.de, kylascanlon, angelinvestorsnetwork glossary, seeitmarket, a Rockwell Trading podcast, a teamblind thread and an Elite Trader thread; TradingView real-ticker "trade idea" charts in the tail. No investopedia.com or Reddit page surfaced, including on queries naming each (read 9 Oct 2026) | one hypothetical XYZ PMCC (long 120-day 40 call at 10.90, short 30-day 52 call at 1.47, 9.43 debit) beside a covered call on the same stock and the same short call: $943 against $4,853 at the fill; the upside ending 0.90 lower, which is the long call's extrinsic value; the "long strike plus debit below the short strike" rule checked by pricing against a 46/50 version that breaks it and loses on a large rise; assignment leaving short stock, settled by exercise (forfeiting extrinsic) or by buying shares; and what the long call does not copy — dividends, votes, permanence, IV-independence. No "when to use", no delta or DTE selection rule, no capital-efficiency ratio, no return figure |
 | M48 | What a credit spread actually risks | credit spread max loss before expiration | credit spread max loss | tastytrade (short put vertical), moomoo, Schwab, broker learn hubs; TradingView chart-idea pages padding the tail | max loss is the expiration number — what the collateral holds, what the mark does, and what assignment changes in between |
 
 Rows 21–65 are added by the Wednesday run as their turn approaches.
@@ -1020,6 +1021,84 @@ regional); whether "diagonal spread explained", "what is a diagonal spread" or
 "diagonal spread options" is typed most; whether r/options or r/thetagang
 threads rank (none surfaced, and the Reddit-named query returned glossaries);
 whether Investopedia ranks for the head term (none surfaced).
+
+## Reading for row 27 — poor man's covered call (read 2026-10-09)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size. Eleven searches, one tool, one day.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| poor man's covered call (target, head phrase) | Option Alpha, tastylive concepts page, moomoo learn (US and CA), Bajaj Finserv, Options Playbook blog (dated Aug 2026), kylascanlon, angelinvestorsnetwork glossary, a video-transcript host | **hard-ish** — tastylive and Option Alpha are the two pages the community quotes, and moomoo holds two slots. The phrase is the head term and the target at once: there is no longer-tail form of it that changes the page set |
+| what is a poor man's covered call | the same set, same order | **same intent as the head phrase** — the first H2 asks it verbatim, which is as far as a new domain goes here |
+| poor man's covered call explained | FXStreet video, a Rockwell Trading podcast episode, OptionStrat blog (two, one a real-ticker "ALGN" write-up), Saxo, a tastylive show episode, a podcast host | **winnable** — video, podcast and blog pages; no broker hub holds it. The pages state the shape in prose and quote a long-call delta (0.70 to 0.95) without pricing a payoff |
+| pmcc explained | A-level statistics revision pages (savemyexams, simplestudy, stem.org.uk, a GeoGebra worksheet, Brainscape flashcards) | **do not target** — "PMCC" alone is the product moment correlation coefficient. The acronym appears once in the post, in brackets after the full name, and never in the title, a heading or the meta |
+| pmcc vs covered call | Market Rebellion, IG (two regional hosts), moomoo (three URLs), Option Alpha, tastylive definitions, Bajaj Finserv | **row 43's ground, partly** — the comparison is the investing post's planned target. The pages compare in prose: "significantly less money", "reduces the maximum loss potential", "requires careful management". None prices both on one stock. This post compares them at the short call's expiration only, as mechanics |
+| pmcc max loss | SEC XBRL filings, actuarial PDFs and Verisk "probable maximum loss" docs on the first read; on the options sense IG, tastylive, CapTrader, TradingView real-ticker charts | **winnable as an FAQ line, written in full** — the bare acronym drifts to insurance. CapTrader and a TradingView chart give "the net debit"; the post says the same with its condition (the model, and a dividend owed after early assignment). The FAQ asks "max loss" with the name spelled out |
+| poor man's covered call short strike above long strike plus debit rule | a moomoo community webinar recap, tapeboard glossary (two URLs), deltavalue.de, TradingView GLD and OIH charts, kylascanlon | **winnable, the post's sharpest intent** — the rule is stated as "(long strike + net debit) < short strike" and checked against one set of numbers, or replaced by a "pay no more than 75% of the width" guideline. None shows a version that breaks it and what that costs on a rally. The post prices both: 49.43 below 52 holds, a 46/50 at a 4.38 debit against a 4.00 gap does not, and settles at a 0.38 loss on assignment |
+| poor man's covered call short call assigned what happens | Options Playbook, a teamblind thread, an Elite Trader thread, optionstradingiq ("risks of"), tapeboard, OptionStrat, TradingView | **winnable** — the forum threads are the beginner's question verbatim. The pages agree on "short stock, then exercise the long or buy shares" and that exercising throws away the long call's time value. The synthesised answer drifts into "avoid assignment", "roll before expiration" and "close before the ex-date" — advice we do not write. The post prices the two settlement routes and shows the difference is the forfeited extrinsic value |
+| poor man's covered call dividends extrinsic value risks | optionstradingiq, IG (two), Option Alpha, kylascanlon, tapeboard (two), a TradingView SNAP chart, a picks site | **winnable** — dividends lost, early assignment before an ex-date, and the long call's decay are named, never priced. The post's "what it does not copy" list and IV table are that gap |
+| poor man's covered call reddit | Option Alpha, seeitmarket, tastylive, Saxo, Bajaj Finserv, a TradingView chart, MarketBeat, IG, angelinvestorsnetwork | **do not target** — no r/options or r/thetagang thread surfaced. MarketBeat's URL carries "strategy for income", the framing this post avoids |
+| investopedia poor man's covered call | Option Alpha, IG (two), angelinvestorsnetwork, MarketBeat (two), tastylive definitions, a video host, tapeboard | **no investopedia.com or Reddit page surfaced** — one tool, one day, not proof they do not rank |
+
+**The gap.** Every ranking page gives the same structure (a long, deep
+in-the-money call; a shorter, out-of-the-money short call; "a diagonal used to
+replicate a covered call"), a capital comparison in prose, and a list of named
+risks. Then the numbers stop: the break-even is "long strike plus debit, as an
+approximation", the strike rule is checked on one example or swapped for a
+75%-of-width guideline, and dividends, decay and IV are listed without a
+price. None sets the structure beside a covered call on the same stock and the
+same short call, so none shows that the upside ends lower by exactly the long
+call's extrinsic value, and none prices a version that breaks the strike rule.
+That is the angle, kept descriptive.
+
+**Title / meta proposed.** Title "Poor man's covered call: a long call in
+place of 100 shares" (59 chars): the full head phrase at the front, the
+mechanism after the colon, no "PMCC", no "strategy", no "income". The
+syllabus topic line says "as an income structure"; the category carries that,
+and "income" in a title reads as an income claim. Meta "A poor man's covered
+call priced on one hypothetical stock: the debit against 100 shares, the
+strike-gap rule checked by pricing, and what it does not copy." (158 chars).
+Slug `poor-mans-covered-call` is the exact target with the apostrophe
+dropped, matching the syllabus phrase. Not yet published, so no redirect is in
+play.
+
+**Headings.** "What is a poor man's covered call, and what does it cost?" matches
+the definitional query verbatim. "How does it compare with a covered call when
+the short call expires?" carries the "vs covered call" intent in a trader's
+words without keyword-syntax "vs". "Why must the strike gap be larger than the
+debit?" is the rule phrasing in plain words. "What happens if the short call is
+assigned?" matches the forum question. FAQ lines carry "diagonal spread" (row
+26's link), "max loss" and assignment.
+
+**Links.** Out: `/blog/income`, `covered-call-explained`,
+`diagonal-spread-explained`, `intrinsic-vs-extrinsic-value-options`,
+`option-delta-explained`, `options-bid-ask-spread`,
+`options-buying-power-requirement`, `option-assignment-what-happens`,
+`early-exercise-options`, `implied-volatility-options-explained`. In: none
+added by the writer (scope was `content/blog/poor-mans-covered-call.md` only);
+`diagonal-spread-explained`'s FAQ and bottom line already point forward to
+this post in plain text and are the natural place for the reciprocal link,
+left to the review chain.
+
+**Restraint, deliberate.** These are not targeted even where they surface:
+"PMCC" in the title, a heading or the meta (the acronym belongs to statistics
+and insurance on its own); "strategy", "income", "bullish", "leverage",
+"profit" or "how to trade" in any title or heading; "vs" in keyword syntax;
+the "20% of the capital for 80% of the exposure" line and any capital-to-
+exposure ratio; long-call delta or DTE selection guidelines (0.70, 0.80,
+0.95; "6–12 months"); the "75% of the width" rule of thumb; "roll the short
+call", "avoid assignment" and "close before the ex-date" advice; the "who it
+suits" framing; every real ticker in the TradingView and OptionStrat pages.
+
+**Could not establish:** volume, difficulty or position for any phrasing;
+whether "poor mans covered call" without the apostrophe is typed more than the
+apostrophe form (the two returned the same page set); whether results are
+personalised or localised (Bajaj Finserv may be regional); whether r/options
+or r/thetagang threads rank (none surfaced, and the Reddit-named query
+returned the head-term set); whether Investopedia ranks for the head term
+(none surfaced).
 
 ## Off-syllabus rows
 

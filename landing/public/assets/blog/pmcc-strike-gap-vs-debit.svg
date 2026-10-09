@@ -1,0 +1,21 @@
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Two hypothetical XYZ poor man's covered calls, each drawn as the strike gap the pair settles at when the short call is assigned and the long call exercised, against the net debit paid. The 40/52 version has a 12.00 gap against a 9.43 debit, leaving 2.57 per share. The 46/50 version has a 4.00 gap against a 4.38 debit, leaving a 0.38 loss per share, because the debit is larger than the gap.">
+  <rect width="720" height="300" fill="#FFFFFF"/>
+
+  <!-- scale: 40 px per point, origin x=110 -->
+  <!-- row 1: 40/52 -->
+  <text x="96" y="76" font-size="18" font-weight="600" text-anchor="end" fill="#14151C">40/52</text>
+  <rect x="110" y="40" width="480" height="30" fill="#2E8B5F" fill-opacity="0.85"/>
+  <text x="600" y="62" font-size="16" font-weight="600" fill="#2E8B5F">gap 12.00</text>
+  <rect x="110" y="78" width="377.2" height="30" fill="#B4485C" fill-opacity="0.85"/>
+  <text x="497" y="100" font-size="16" font-weight="600" fill="#B4485C">debit 9.43</text>
+
+  <!-- row 2: 46/50 -->
+  <text x="96" y="206" font-size="18" font-weight="600" text-anchor="end" fill="#14151C">46/50</text>
+  <rect x="110" y="170" width="160" height="30" fill="#2E8B5F" fill-opacity="0.85"/>
+  <text x="280" y="192" font-size="16" font-weight="600" fill="#2E8B5F">gap 4.00</text>
+  <rect x="110" y="208" width="175.2" height="30" fill="#B4485C" fill-opacity="0.85"/>
+  <text x="295" y="230" font-size="16" font-weight="600" fill="#B4485C">debit 4.38</text>
+
+  <line x1="110" y1="30" x2="110" y2="250" stroke="#C9CEDC" stroke-width="1.5"/>
+  <text x="360" y="284" font-size="15" text-anchor="middle" fill="#767B8E">per share, assigned and exercised</text>
+</svg>
