@@ -111,7 +111,7 @@ History** and bans "journal" and "log".
 | A2 | One population rule: win/loss on settled rows only, money booked on every row, and the cards say which | `analytics.js`, `analysis/StatCards.jsx` | main | FREE (integrity) |
 | A3 | Peak concurrent capital at risk | `analytics.js` | main | PAID |
 | A4 | Annualised and CAGR withheld below 30 trades and 90 days | `analytics.js`, `StatCards.jsx` | main | FREE (compliance) |
-| A5 | Credit-capture breakdown by bucket, held vs closed early | `analysis/CaptureBreakdown.jsx` | main | PAID |
+| A5 | "How your trades ended": every closed trade in one of five rows (expired worthless, assigned, bought back on expiry day, bought back earlier, options bought), each opening to its trades worst first; the rows sum to the booked total. Replaces the credit-capture bucket table; an expiry-day buyback counts as held to expiry | `src/lib/tradeEndings.js`, `pages/AccountAnalysis.jsx` | staging (not on `main`) | PAID |
 | A6 | Equity curve of realised P/L | `analysis/EquityCurveChart.jsx` | main | PAID |
 | A7 | By-month and by-ticker tables | `analysis/BreakdownTable.jsx` | main | PAID |
 | A8 | Strategy comparison | `analysis/StrategyComparison.jsx` | main | PAID |
@@ -143,6 +143,16 @@ History** and bans "journal" and "log".
 | W6 | Recipient is one global address — the owner's. No per-user recipient, no screen reads `alerts` | `watch_settings.recipient_email` | main | NOT YET SELLABLE until W6 is decided |
 | W7 | `sendDigest`, the agents' path to the owner | `sendDigest/index.ts` | main | internal |
 
+## Claude connector
+
+| # | What the user gets | Where | Live | Call |
+| --- | --- | --- | --- | --- |
+| K1 | Ask Claude in plain English: it runs the Strategy Scanner on the user's filters, reads open positions as the Dashboard groups them, option chains, and closed trades with totals and win rate. Read-only: no tool places, changes or cancels an order | `supabase/functions/mcp`, `_shared/mcpProtocol.ts`, `docs/product/connector.md` | main; sign-in under deltamint.app/mcp | FREE (activation) — gating undecided |
+| K2 | Disconnect from the app's "Use with Claude" page | `src/pages` (lab) | staging (per shipped.md 2026-10-08) | FREE |
+| K3 | Owner sees who connected, who is using it now, and requests per day and tool | `components/admin/ConnectorPanel.jsx`, migration 0059 | main code; table on staging only | owner-only |
+
+*Unverified from code:* whether the OAuth server is switched on in the production Supabase project (`connector.md` calls it the owner's step) — until it is, K1 does not work on production.
+
 ## Back-office (not sellable)
 
 Admin with server re-authorisation; activation funnel (signed up → connected
@@ -151,7 +161,7 @@ signups chart; users table with CRM notes, status, tags and connection
 issues; role management; blog CMS and the publish workflow; operator
 switches; credential migration and key rotation; earnings refresh; broker-feed
 dump (`dumpBrokerFeed`, migration 0024 on staging); last-active stamping via
-a security-definer RPC. `oauthDiag` is reachable by any signed-in user —
+a security-definer RPC; an AI-connector usage tab (K3). `oauthDiag` is reachable by any signed-in user —
 handed to systems-engineer.
 
 ## What this inventory says about packaging
