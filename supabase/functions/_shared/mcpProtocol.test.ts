@@ -335,13 +335,15 @@ test("trade history says when the broker sync failed instead of passing old rows
 
 test("connector address: our site when it is on the list, the function's own otherwise", () => {
   const own = "https://ref.supabase.co/functions/v1/mcp";
+  const ownAuth = "https://ref.supabase.co/auth/v1";
   const allowed = ["https://dev-landing.deltamint.app"];
-  assert.deepEqual(connectorAddresses("https://dev-landing.deltamint.app", own, allowed), {
+  assert.deepEqual(connectorAddresses("https://dev-landing.deltamint.app", own, ownAuth, allowed), {
     resource: "https://dev-landing.deltamint.app/mcp",
-    metadata: "https://dev-landing.deltamint.app/.well-known/oauth-protected-resource/mcp"
+    metadata: "https://dev-landing.deltamint.app/.well-known/oauth-protected-resource/mcp",
+    authServer: "https://dev-landing.deltamint.app"
   });
-  const fallback = { resource: own, metadata: `${own}/.well-known/oauth-protected-resource` };
+  const fallback = { resource: own, metadata: `${own}/.well-known/oauth-protected-resource`, authServer: ownAuth };
   for (const origin of [null, "", "https://evil.example", "https://dev-landing.deltamint.app.evil.example", "http://dev-landing.deltamint.app"]) {
-    assert.deepEqual(connectorAddresses(origin, own, allowed), fallback, String(origin));
+    assert.deepEqual(connectorAddresses(origin, own, ownAuth, allowed), fallback, String(origin));
   }
 });

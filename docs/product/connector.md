@@ -98,17 +98,23 @@ sign-in pointers; Claude requires the metadata to name the URL it connected to.
 The Supabase address (`…supabase.co/functions/v1/mcp`) still answers, so a
 connection made with it keeps working, but nothing shows it any more.
 
-Sign-in itself still runs on Supabase Auth: while signing in, the browser
-passes through a `…supabase.co/auth/v1/oauth/authorize` link for a moment
-before landing on our approval page. Hiding that too needs Supabase's custom
-domain add-on (a paid add-on), which would move the whole API to our domain.
+Sign-in is under our name too (9 Oct; the owner: "I don't want any Supabase
+name during the process"). Supabase Auth still issues the tokens, but our site
+is the authorization server Claude is told about: `/.well-known/oauth-authorization-server`
+on our site is Supabase's metadata with our site as issuer and
+`<site>/oauth/authorize` as the sign-in step. The phone says "Claude wants to
+use deltamint.app to sign in"; the Worker asks Supabase for the authorization
+server-side and sends the browser straight to our approval page on the
+dashboard (by name, whatever Site URL the project holds). Registration and
+token exchange are Claude's servers talking to Supabase's and go direct.
 
 ## How sign-in works
 
 ```
 Claude ──POST deltamint.app/mcp──▶ 401 + "sign in here" (metadata URL)
-Claude ──reads metadata──▶ authorization server = Supabase Auth
-Claude ──registers itself, opens the browser──▶ dashboard.deltamint.app/oauth/consent
+Claude ──reads metadata──▶ authorization server = deltamint.app (fronting Supabase Auth)
+Claude ──registers itself (with Supabase, server to server)
+Claude ──opens the browser at deltamint.app/oauth/authorize──▶ dashboard.deltamint.app/oauth/consent
 User   ──signs in if needed, sees what Claude can and cannot do──▶ Allow / Deny
 Supabase ──issues a token to Claude──▶ Claude calls the tools with it
 ```

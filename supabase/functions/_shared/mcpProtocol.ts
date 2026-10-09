@@ -156,11 +156,13 @@ export function toolContent(r: ToolResult) {
 // /mcp into Claude, and the site passes the request through, naming itself in
 // X-DeltaMint-Public-Origin (landing/src/connector.js). The sign-in pointers
 // must then name that same address: Claude checks that the metadata's
-// `resource` is the URL it connected to (RFC 9728). Only origins on `allowed`
-// are believed; anything else, a direct call included, gets the function's own
-// address, which keeps working.
-export function connectorAddresses(origin: string | null, ownResource: string, allowed: readonly string[]) {
+// `resource` is the URL it connected to (RFC 9728). The site is also named as
+// the authorization server: it fronts Supabase Auth's sign-in so the person
+// signing in sees only our name (landing/src/connector.js). Only origins on
+// `allowed` are believed; anything else, a direct call included, gets the
+// function's own address and Supabase Auth itself, which keep working.
+export function connectorAddresses(origin: string | null, ownResource: string, ownAuthServer: string, allowed: readonly string[]) {
   return origin && allowed.includes(origin)
-    ? { resource: `${origin}/mcp`, metadata: `${origin}/.well-known/oauth-protected-resource/mcp` }
-    : { resource: ownResource, metadata: `${ownResource}/.well-known/oauth-protected-resource` };
+    ? { resource: `${origin}/mcp`, metadata: `${origin}/.well-known/oauth-protected-resource/mcp`, authServer: origin }
+    : { resource: ownResource, metadata: `${ownResource}/.well-known/oauth-protected-resource`, authServer: ownAuthServer };
 }
