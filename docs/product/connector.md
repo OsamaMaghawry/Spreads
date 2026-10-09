@@ -167,6 +167,18 @@ Draft orders. Claude saves a setup as a draft in DeltaMint, and the user reviews
 and sends it from the app. Claude never sends an order. This needs a deliberate
 exception to lock 3 for `saved_orders` only, plus its own review.
 
+## Who uses it
+
+Admin → **AI connector** (`src/components/admin/ConnectorPanel.jsx`): people
+connected, by app; in use now (a request in the last 5 minutes); active today,
+7 and 30 days; requests per day and by tool; and each person's app, connection
+date and last use. Connections come from Supabase Auth's own record of each
+approval (`auth.oauth_consents`); usage from `connector_calls`, one row per
+tool call written by the `mcp` function, kept 90 days by a daily job. Both are
+read through `public.connector_stats()`, which only the service role can run
+(migration 0059). Each assistant names itself when it registers, so ChatGPT
+or Grok appear under their own names with nothing to change.
+
 ## Checks
 
 Tables in the database without the connector policies (should return nothing):

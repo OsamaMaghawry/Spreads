@@ -166,3 +166,25 @@ export function connectorAddresses(origin: string | null, ownResource: string, o
     ? { resource: `${origin}/mcp`, metadata: `${origin}/.well-known/oauth-protected-resource/mcp`, authServer: origin }
     : { resource: ownResource, metadata: `${ownResource}/.well-known/oauth-protected-resource`, authServer: ownAuthServer };
 }
+
+// THE USAGE RECORD (migration 0059, connector_calls): one row per tools/call,
+// read by Admin's "AI connector" tab.
+//
+// A call failed if the answer is a JSON-RPC error or a tool result marked
+// isError (a bad argument, a broker that refused); anything else succeeded.
+export function callSucceeded(reply: any): boolean {
+  return Boolean(reply) && !reply.error && !(reply.result && reply.result.isError);
+}
+
+// The arguments as stored: the filters and tickers asked for, or a note that
+// they were too large to keep. Never more than `max` characters of JSON.
+export function recordedArgs(args: unknown, max = 2000): unknown {
+  if (args === undefined || args === null) return null;
+  try {
+    const text = JSON.stringify(args);
+    return text.length <= max ? args : { truncated: true, chars: text.length };
+  } catch {
+    return { unreadable: true };
+  }
+}
+

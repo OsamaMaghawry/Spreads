@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { handleMessage, negotiateVersion, checkArgs, connectorAddresses, SUPPORTED_PROTOCOL_VERSIONS } from "./mcpProtocol.ts";
+import { handleMessage, negotiateVersion, checkArgs, connectorAddresses, callSucceeded, recordedArgs, SUPPORTED_PROTOCOL_VERSIONS } from "./mcpProtocol.ts";
 import {
   connectorTools, CONNECTOR_INSTRUCTIONS, SCANNER_DEFAULTS, MAX_TICKERS, daysTo, shapeChain, type ConnectorDeps
 } from "./connectorTools.ts";
@@ -347,3 +347,17 @@ test("connector address: our site when it is on the list, the function's own oth
     assert.deepEqual(connectorAddresses(origin, own, ownAuth, allowed), fallback, String(origin));
   }
 });
+
+test("usage record: a call failed on a protocol error or a tool error, succeeded otherwise", () => {
+  assert.equal(callSucceeded({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: "ok" }] } }), true);
+  assert.equal(callSucceeded({ jsonrpc: "2.0", id: 1, result: { content: [], isError: true } }), false);
+  assert.equal(callSucceeded({ jsonrpc: "2.0", id: 1, error: { code: -32601, message: "Unknown tool" } }), false);
+  assert.equal(callSucceeded(null), false);
+});
+
+test("usage record: arguments kept when small, replaced by a note when not", () => {
+  assert.deepEqual(recordedArgs({ tickers: ["SPY"], strategy: "put_spread" }), { tickers: ["SPY"], strategy: "put_spread" });
+  assert.equal(recordedArgs(undefined), null);
+  assert.deepEqual(recordedArgs({ blob: "x".repeat(3000) }), { truncated: true, chars: 3011 });
+});
+

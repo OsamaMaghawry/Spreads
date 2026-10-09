@@ -277,6 +277,14 @@ Deno.serve(async (req) => {
         });
       }
 
+      // The AI connector (supabase/functions/mcp): who connected which app,
+      // who used it and when, which tools. One read, migration 0059.
+      case "connectorStats": {
+        const { data, error } = await admin.rpc("connector_stats");
+        if (error) throw new Error(error.message);
+        return jsonResponse(data);
+      }
+
       case "userDetail": {
         const [{ data: notes, error: nErr }, { data: crm, error: cErr }, { data: issues, error: iErr }] =
           await Promise.all([
