@@ -21,10 +21,17 @@
     // an unstated platform default, which is not a contract. It is one now.
     "html_handling": "auto-trailing-slash",
     "binding": "ASSETS",
-    // Only these paths invoke the Worker. Everything else — the homepage,
-    // pricing, terms, privacy, css, images — is served straight from static
-    // assets exactly as before, with no Worker execution and no cost.
-    "run_worker_first": ["/blog", "/blog/*", "/sitemap.xml"]
+    // Only these paths invoke the Worker. Everything else — pricing, terms,
+    // privacy, css, images — is served straight from static assets, with no
+    // Worker execution and no cost. The homepage is on the list for its
+    // "Works with Claude" section; /connect, /mcp and the two sign-in pointer
+    // paths are the Claude connector (src/connector.js). The homepage's own
+    // GA and Hotjar snippets are not injected twice: index.js checks.
+    "run_worker_first": [
+      "/blog", "/blog/*", "/sitemap.xml",
+      "/", "/connect", "/mcp",
+      "/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp"
+    ]
   },
   "vars": {
     // The canonical host for canonical tags, OG URLs and the sitemap. Set
@@ -47,6 +54,10 @@
     // separate Worker and is deliberately never given a site id, because
     // replaying a page that shows someone's positions is not something we
     // want a third party holding.
-    "HOTJAR_SITE_ID": "6773356"
+    "HOTJAR_SITE_ID": "6773356",
+    // The Claude connector: the production function /mcp is passed through
+    // to, and the dashboard it pairs with. People only see deltamint.app/mcp.
+    "CONNECTOR_UPSTREAM": "https://yecfbeohyakuoyczvdbj.supabase.co/functions/v1/mcp",
+    "CONNECTOR_APP_URL": "https://dashboard.deltamint.app"
   }
 }

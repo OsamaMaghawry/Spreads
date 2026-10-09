@@ -6,8 +6,6 @@ import MasterSummary from "@/components/dashboard/MasterSummary";
 import AccountSummaryCard from "@/components/dashboard/AccountSummaryCard";
 import useLiveSync from "@/lib/useLiveSync";
 import StaleDataNotice from "@/components/common/StaleDataNotice";
-import { LAB } from "@/lib/lab";
-// LAB module: stubbed out of the production build (vite.config.js).
 import ConnectorNudge from "@/components/dashboard/ConnectorNudge";
 
 export default function Dashboard() {
@@ -86,7 +84,7 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
-          {LAB && <ConnectorNudge />}
+          <ConnectorNudge />
           <MasterSummary accounts={accounts} />
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider pt-1">Per-account summary</h2>
           <div className="space-y-4">

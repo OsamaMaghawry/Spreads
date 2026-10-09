@@ -5,7 +5,6 @@ import {
   LayoutDashboard, KeyRound, LogOut, Radar, ShieldCheck, CreditCard, ListOrdered,
   Menu, X, Plug
 } from "lucide-react";
-import { LAB } from "@/lib/lab";
 import Wordmark from "@/components/brand/Wordmark";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
 import useIsAdmin from "@/lib/useIsAdmin";
@@ -68,8 +67,7 @@ export default function Layout() {
     { to: "/scanner", label: "Strategy Scanner", Icon: Radar },
     { to: "/chain", label: "Option chain", Icon: ListOrdered },
     { to: "/accounts", label: "Accounts", Icon: KeyRound },
-    // The Claude connector exists only on staging; see src/pages/ConnectClaude.jsx.
-    ...(LAB ? [{ to: "/connect-claude", label: "Use with Claude", Icon: Plug }] : []),
+    { to: "/connect-claude", label: "Use with Claude", Icon: Plug },
     ...(billingVisible ? [{ to: "/billing", label: "Billing", Icon: CreditCard }] : []),
     ...(isAdmin ? [{ to: "/admin", label: "Admin", Icon: ShieldCheck }] : [])
   ];

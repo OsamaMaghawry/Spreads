@@ -13,7 +13,8 @@ import { fetchTrades } from "../_shared/tradeSync.ts";
 // to DeltaMint and approves it, and Claude can then read the user's accounts,
 // positions and option chains and run the Strategy Scanner on their filters.
 //
-//   https://dev-landing.deltamint.app/mcp   (what people paste; staging)
+//   https://deltamint.app/mcp               (what people paste; production)
+//   https://dev-landing.deltamint.app/mcp   (the same, on staging)
 //     -> passed through by the landing Worker (landing/src/connector.js) to
 //   https://<project>.supabase.co/functions/v1/mcp   (this; still answers too)
 //
@@ -32,17 +33,23 @@ import { fetchTrades } from "../_shared/tradeSync.ts";
 // Claude holds is refused by every other function (connectorToken.ts) and
 // cannot write to the database (migration 0058).
 //
-// STAGING ONLY until it is released on purpose. Fails closed anywhere else.
+// ON THE TWO KNOWN PROJECTS ONLY, each paired with the one site that fronts
+// it. Fails closed on any other project, e.g. a branch or a restored copy.
 
-const STAGING_REF = "wpwaomzgpbozzghohwmf";
+const SITE_BY_PROJECT: Record<string, string> = {
+  yecfbeohyakuoyczvdbj: "https://deltamint.app",
+  wpwaomzgpbozzghohwmf: "https://dev-landing.deltamint.app"
+};
 const SUPABASE_URL = (Deno.env.get("SUPABASE_URL") || "").replace(/\/+$/, "");
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
-const enabled = () => SUPABASE_URL.includes(`://${STAGING_REF}.supabase.co`);
+const PROJECT = Object.keys(SITE_BY_PROJECT).find((ref) => SUPABASE_URL.includes(`://${ref}.supabase.co`));
+const enabled = () => Boolean(PROJECT);
 
 const RESOURCE = `${SUPABASE_URL}/functions/v1/mcp`;
-// Our sites whose /mcp passes through to here (connectorAddresses). Production
-// joins this list when the connector is released.
-const PUBLIC_ORIGINS = ["https://dev-landing.deltamint.app"];
+// The site whose /mcp passes through to this project (connectorAddresses).
+// Only that origin is believed; production's function never names staging's
+// address, nor the other way round.
+const PUBLIC_ORIGINS = PROJECT ? [SITE_BY_PROJECT[PROJECT]] : [];
 const AUTH_SERVER = `${SUPABASE_URL}/auth/v1`;
 // Supabase's scopes describe ID-token contents, not access to data (that is
 // the policies' job). `email` is enough to sign in; asking for `openid` would
@@ -135,7 +142,7 @@ Deno.serve(async (req) => {
       scopes_supported: [SCOPE],
       bearer_methods_supported: ["header"],
       resource_name: "DeltaMint",
-      resource_documentation: "https://deltamint.app/about"
+      resource_documentation: PROJECT ? `${SITE_BY_PROJECT[PROJECT]}/connect` : undefined
     });
   }
 

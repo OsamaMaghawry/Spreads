@@ -37,10 +37,7 @@ export default defineConfig(({ mode }) => {
   // matching LAB check at the call site is what keeps the stub from rendering.
   const LAB_MODULES = [
     '@/components/admin/SnapTradePanel',
-    '@/components/analysis/AnalysisLayoutB',
-    '@/pages/OAuthConsent',
-    '@/pages/ConnectClaude',
-    '@/components/dashboard/ConnectorNudge'
+    '@/components/analysis/AnalysisLayoutB'
   ];
   const labOn = env.VITE_LAB === '1';
   const labAliases = labOn

@@ -383,7 +383,7 @@ async function handle(request, env, ctx) {
   }
 
   // The Claude connector's page, on a deployment that has the connector
-  // (staging only today -- see connector.js). Elsewhere /connect is the 404.
+  // (see connector.js). Elsewhere /connect is the 404.
   if (path === "/connect" && connectorEnabled(env)) {
     const r = html(renderConnectPage(env, site, noindex));
     return noindex ? withNoIndexHeader(r) : r;
@@ -399,8 +399,9 @@ async function handle(request, env, ctx) {
   // injected below on the way out, for any that the page does not already
   // carry itself.
   if (!isBlogPath) {
-    // Anything else is a static asset. On production the Worker is not even
-    // invoked for these; on staging it is, purely to stamp the header.
+    // Anything else is a static asset. On production the Worker is invoked
+    // only for the homepage among these (its connector section); on staging it
+    // is invoked for all of them, purely to stamp the header.
     let asset = await env.ASSETS.fetch(request);
     if ((asset.headers.get("content-type") || "").includes("text/html")) {
       const rehosted = rehostAssets(await asset.text(), site);
