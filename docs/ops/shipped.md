@@ -606,3 +606,4 @@ English. Newest first.
 - 2026-10-09 · (staging) The homepage "Works with Claude" section is shorter: headline, one line, one button and a sample answer (`feca0a5`).
 - 2026-10-09 · (staging) Site icons (favicon, touch icon) are no longer cut off at the bottom, and are regenerated from one source (`fc5aaab`).
 - 2026-10-09 · (staging) Blog posts can carry a separate search title from their headline; three posts got titles and answers matching what people search (`ad09b44`, `e8ec29c`) — awaiting owner approval of the titles.
+- 2026-10-09 · (staging) Admin has an "AI connector" tab: who connected Claude (or another AI app), who is using it right now, active users over 1/7/30 days, and requests per day and per tool (`07250ca`).
