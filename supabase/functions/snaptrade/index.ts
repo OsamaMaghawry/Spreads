@@ -487,6 +487,11 @@ async function runProbe(admin: any, userId: string | null) {
     .map((a, i) => ({ a, s: summary[i] }))
     .sort((x, y) => (Number(y.s.balance) || 0) - (Number(x.s.balance) || 0))
     .slice(0, 4);
+  // Option rows per account, from the summary below, so the parity pass
+  // further down rebuilds only accounts that traded options: a share-only
+  // paper account carries thousands of rows and would spend the function's
+  // time limit proving nothing.
+  const optionRowsById = new Map<string, number>();
   for (const [n, { a, s }] of ordered.entries()) {
     const id = String(a.id);
     const tag = (name: string) => (n === 0 ? name : `${name} · ${s.institution || s.name}`);
@@ -556,6 +561,7 @@ async function runProbe(admin: any, userId: string | null) {
       count: rowsOf(acts.data),
       sample: acts.ok ? activitySummary(acts.data) : redact(acts.data)
     });
+    if (acts.ok) optionRowsById.set(id, activitySummary(acts.data).optionRows);
   }
 
   // THE TEST THAT DECIDES THE ANY-BROKER PLAN. For every SnapTrade account
@@ -567,6 +573,7 @@ async function runProbe(admin: any, userId: string | null) {
   for (const { a, s } of ordered) {
     const number = String((a as Record<string, unknown>).number ?? "").trim();
     if (!number || !userId) continue;
+    if (!optionRowsById.get(String(a.id))) continue;
     const { data: mine } = await admin
       .from("trading_accounts")
       .select("id, name")
