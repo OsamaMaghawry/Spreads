@@ -146,10 +146,22 @@ async function scopedFor(admin: any, account: any) {
   return { userId: user.snapTradeUserId, userSecret: user.userSecret };
 }
 
+// The Dashboard refreshes continuously and waits for its slowest account.
+// SnapTrade's own copy of a broker account moves about once a day on the plan
+// in use, so re-reading it on every refresh bought nothing and cost seventeen
+// seconds on the first real run (10 Oct). Each instance keeps the last read
+// for a few minutes, and no single call may hold the page past the timeout.
+const READ_CACHE_MS = 5 * 60_000;
+const READ_TIMEOUT_MS = 8_000;
+const lastRead = new Map<string, { at: number; value: any }>();
+
 // Everything syncOne fetches from Alpaca, from SnapTrade instead.
 export async function fetchSnapTradeRaw(admin: any, account: any) {
-  const scoped = await scopedFor(admin, account);
   const id = account.snaptrade_account_id;
+  const hit = lastRead.get(id);
+  if (hit && Date.now() - hit.at < READ_CACHE_MS) return hit.value;
+
+  const scoped = { ...(await scopedFor(admin, account)), timeoutMs: READ_TIMEOUT_MS };
   const [acct, balances, positions, orders, activities] = await Promise.all([
     snapFetch<any>({ path: `/accounts/${id}`, ...scoped }),
     snapFetch<any>({ path: `/accounts/${id}/balances`, ...scoped }),
@@ -158,7 +170,7 @@ export async function fetchSnapTradeRaw(admin: any, account: any) {
     snapFetch<any>({ path: `/accounts/${id}/activities`, query: { start_date: "2024-01-01", limit: 1000 }, ...scoped })
   ]);
   if (!positions.ok) throw new Error(`SnapTrade positions: ${positions.status} ${positions.error || ""}`.trim());
-  return {
+  const value = {
     info: toAlpacaInfo(acct.ok ? acct.data : null, listOf(balances.data)),
     positions: toAlpacaPositions(listOf(positions.data)),
     activities: toEngineActivities(listOf(activities.data)).activities,
@@ -166,6 +178,8 @@ export async function fetchSnapTradeRaw(admin: any, account: any) {
     filledOrders: toAlpacaMultiLegOrders(listOf(orders.data)),
     freshness: (positions.data as any)?.data_freshness ?? null
   };
+  lastRead.set(id, { at: Date.now(), value });
+  return value;
 }
 
 // The whole history, for the trade engine. Paged, because an account with
