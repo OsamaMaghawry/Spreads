@@ -88,7 +88,7 @@ export default function Accounts() {
     const notes = [];
     if (n) notes.push(`Added ${n} account${n === 1 ? "" : "s"}, read-only.`);
     if (res.data?.waiting?.length) {
-      notes.push(`${list(res.data.waiting)}: connected, but no accounts have arrived from the broker yet. A new connection can take a few minutes.`);
+      notes.push(`${list(res.data.waiting)}: connected, but no accounts have arrived from the broker yet. Most brokers send them within minutes; Interactive Brokers can take one to three days.`);
     }
     if (res.data?.refused?.length) notes.push(`${list(res.data.refused)} could not be added.`);
     if (res.data?.broken?.length) notes.push(`${list(res.data.broken)}: the connection was cut off. Connect it again with "Another broker".`);
@@ -357,9 +357,14 @@ export default function Accounts() {
                     on its own consent screen, so renaming here is the only way
                     to tell two connected accounts apart by anything but their
                     number. */}
-                <button onClick={() => setEditing(a)} className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors">
-                  <Pencil className="w-4 h-4" />
-                </button>
+                {/* Not on a read-only account: the editor is built around
+                    Alpaca keys, and saving keys onto a SnapTrade row would
+                    turn it into something it is not. */}
+                {a.provider !== "snaptrade" && (
+                  <button onClick={() => setEditing(a)} className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors">
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                )}
                 {/* One click opens a dialog that names the account and says
                     what is lost. The old two-step turned the trash icon into
                     "Confirm delete" in the same position, so a second click
