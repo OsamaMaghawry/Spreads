@@ -58,6 +58,58 @@ const sampleOf = (data: unknown): unknown => {
   return redact(data);
 };
 
+// Current positions as a whole: how many, of which instrument types, and the
+// first few options -- the shape spread grouping and the open book read.
+const positionSummary = (data: unknown) => {
+  const d = data as Record<string, unknown> | unknown[] | null;
+  const rows: Record<string, unknown>[] = Array.isArray(d)
+    ? (d as Record<string, unknown>[])
+    : Array.isArray((d as Record<string, unknown>)?.data)
+      ? ((d as Record<string, unknown>).data as Record<string, unknown>[])
+      : [];
+  const kinds: Record<string, number> = {};
+  const options: Record<string, unknown>[] = [];
+  for (const r of rows) {
+    const inst = (r?.instrument ?? r?.symbol ?? {}) as Record<string, unknown>;
+    const kind = String(inst?.kind ?? inst?.type ?? r?.kind ?? r?.type ?? "unknown");
+    kinds[kind] = (kinds[kind] || 0) + 1;
+    if (/option/i.test(kind) || r?.option_symbol || inst?.option_symbol) options.push(r);
+  }
+  return { rows: rows.length, kinds, optionRows: options.length, optionSamples: options.slice(0, 3).map((r) => redact(r)), firstRow: rows[0] ? redact(rows[0]) : null };
+};
+
+// Orders as a whole, for the one question history alone cannot answer: does
+// a spread come back as one order with its legs, or as unrelated fills?
+const orderSummary = (data: unknown) => {
+  const rows: Record<string, unknown>[] = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+  const actions: Record<string, number> = {};
+  const statuses: Record<string, number> = {};
+  const grouped: Record<string, unknown>[] = [];
+  let options = 0;
+  for (const r of rows) {
+    actions[String(r?.action ?? "unknown")] = (actions[String(r?.action ?? "unknown")] || 0) + 1;
+    statuses[String(r?.status ?? "unknown")] = (statuses[String(r?.status ?? "unknown")] || 0) + 1;
+    if (r?.option_symbol) options += 1;
+    const kids = r?.child_brokerage_order_ids;
+    if (r?.brokerage_group_order_id || (Array.isArray(kids) && kids.length) || (kids && !Array.isArray(kids))) grouped.push(r);
+  }
+  const groups = new Map<string, number>();
+  for (const r of grouped) {
+    const g = String(r?.brokerage_group_order_id ?? "");
+    if (g) groups.set(g, (groups.get(g) || 0) + 1);
+  }
+  return {
+    rows: rows.length,
+    optionOrders: options,
+    actions,
+    statuses,
+    withGroupOrChildIds: grouped.length,
+    distinctGroups: groups.size,
+    largestGroup: Math.max(0, ...groups.values()),
+    groupedSamples: grouped.slice(0, 3).map((r) => redact(r))
+  };
+};
+
 // An activity list as a whole: how many rows, of which types, over which
 // dates, how many name an option contract, and the first few that do.
 const activitySummary = (data: unknown) => {
@@ -435,6 +487,39 @@ async function runProbe(admin: any, userId: string | null) {
     probes.push(await probe(tag("recent orders"), "Is there a fast path for an order placed seconds ago?", { path: `/accounts/${id}/recentOrders`, ...scoped }));
     probes.push(await probe(tag("activities"), "Do assignments, expiries and dividends arrive as their own events?", { path: `/accounts/${id}/activities`, ...scoped }));
     probes.push(await probe(tag("quotes"), "Is there a usable price, or must a data feed come from elsewhere?", { path: `/accounts/${id}/quotes`, query: { symbols: "AAPL", use_ticker: true }, ...scoped }));
+
+    // THE CURRENT POSITIONS ROUTE. Every route above answers new customers
+    // 410 "This endpoint is no longer available for your account": SnapTrade
+    // retired them for sign-ups after mid-2026 and replaced them with one
+    // unified call that returns shares and options together. Found 10 Oct,
+    // a Saturday, from their reference rather than their support desk.
+    const pos = await snapFetch<unknown>({ path: `/accounts/${id}/positions/all`, ...scoped });
+    probes.push({
+      name: tag("positions (all, current route)"),
+      need: "Do share lots and option positions arrive from the route SnapTrade supports now, with strike, expiry and right?",
+      method: "GET",
+      path: `/accounts/${id}/positions/all`,
+      ok: pos.ok,
+      status: pos.status,
+      ms: pos.ms,
+      error: pos.error,
+      count: rowsOf(pos.data),
+      sample: pos.ok ? positionSummary(pos.data) : redact(pos.data)
+    });
+
+    const ord = await snapFetch<unknown>({ path: `/accounts/${id}/orders`, query: { days: 90 }, ...scoped });
+    probes.push({
+      name: tag("orders (summary)"),
+      need: "Does a spread come back as one order with its legs, or as unrelated single fills?",
+      method: "GET",
+      path: `/accounts/${id}/orders`,
+      ok: ord.ok,
+      status: ord.status,
+      ms: ord.ms,
+      error: ord.error,
+      count: rowsOf(ord.data),
+      sample: ord.ok ? orderSummary(ord.data) : redact(ord.data)
+    });
 
     // THE WHOLE HISTORY, SUMMARISED. One sampled row says an endpoint
     // answers; it cannot say whether months of options trading come back --
