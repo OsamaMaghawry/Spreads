@@ -58,6 +58,33 @@ const sampleOf = (data: unknown): unknown => {
   return redact(data);
 };
 
+// An activity list as a whole: how many rows, of which types, over which
+// dates, how many name an option contract, and the first few that do.
+const activitySummary = (data: unknown) => {
+  const d = data as Record<string, unknown> | unknown[] | null;
+  const rows: Record<string, unknown>[] = Array.isArray(d)
+    ? (d as Record<string, unknown>[])
+    : Array.isArray((d as Record<string, unknown>)?.data)
+      ? ((d as Record<string, unknown>).data as Record<string, unknown>[])
+      : [];
+  const types: Record<string, number> = {};
+  const options: Record<string, unknown>[] = [];
+  for (const r of rows) {
+    const t = String(r?.type ?? "unknown");
+    types[t] = (types[t] || 0) + 1;
+    if (r?.option_symbol) options.push(r);
+  }
+  const dates = rows.map((r) => String(r?.trade_date ?? r?.settlement_date ?? "")).filter(Boolean).sort();
+  return {
+    rows: rows.length,
+    optionRows: options.length,
+    types,
+    first: dates[0] ?? null,
+    last: dates[dates.length - 1] ?? null,
+    optionSamples: options.slice(0, 5).map((r) => redact(r))
+  };
+};
+
 async function probe(name: string, need: string, call: SnapCall): Promise<ProbeResult> {
   const res = await snapFetch(call);
   return {
@@ -377,23 +404,55 @@ async function runProbe(admin: any, userId: string | null) {
     return { probes, matrix: matrixOut, verdicts: verdicts(probes, matrixOut), notes, accounts: summary };
   }
 
-  const id = String(accounts[0].id);
-  notes.push(`Account-scoped probes ran against "${summary[0].institution} — ${summary[0].name}".`);
+  // EVERY CONNECTED ACCOUNT, not the first one. The first was a Robinhood
+  // account holding nothing, so on 18 Sep every account-scoped answer came
+  // back empty and said nothing about options. On 10 Oct the owner connected
+  // an Alpaca account too, whose months of options trades DeltaMint already
+  // holds -- the one account where SnapTrade's answer can
+  // be checked line by line against figures known to be right. Largest
+  // balance first, so the account with the most in it answers under the
+  // names the verdicts read; the rest are suffixed with their institution.
+  const ordered = accounts
+    .map((a, i) => ({ a, s: summary[i] }))
+    .sort((x, y) => (Number(y.s.balance) || 0) - (Number(x.s.balance) || 0))
+    .slice(0, 4);
+  for (const [n, { a, s }] of ordered.entries()) {
+    const id = String(a.id);
+    const tag = (name: string) => (n === 0 ? name : `${name} · ${s.institution || s.name}`);
+    notes.push(`Account-scoped probes ran against "${s.institution} — ${s.name}".`);
 
-  probes.push(await probe("balances", "Does cash arrive per currency, the way the dashboard needs it?", { path: `/accounts/${id}/balances`, ...scoped }));
-  // POSITIONS MOVED. `/accounts/{id}/positions` and `/accounts/{id}/options`
-  // both answer 410 "This endpoint is no longer available for your account"
-  // -- not empty, gone. `/accounts/{id}/holdings` is the consolidated
-  // replacement and returns balances, positions and option positions
-  // together. Both old paths stay in the probe: a 410 is a finding about
-  // their API's churn, which is part of what is being judged here.
-  probes.push(await probe("holdings (positions + options)", "Do share lots and option positions arrive, and are options returned as options — strike, expiry, right?", { path: `/accounts/${id}/holdings`, ...scoped }));
-  probes.push(await probe("positions (deprecated path)", "Is the older per-endpoint route still served?", { path: `/accounts/${id}/positions`, ...scoped }));
-  probes.push(await probe("option positions (deprecated path)", "Is the older per-endpoint route still served?", { path: `/accounts/${id}/options`, ...scoped }));
-  probes.push(await probe("orders (90 days)", "How far back does order history go, and do multi-leg orders keep their legs?", { path: `/accounts/${id}/orders`, query: { days: 90 }, ...scoped }));
-  probes.push(await probe("recent orders", "Is there a fast path for an order placed seconds ago?", { path: `/accounts/${id}/recentOrders`, ...scoped }));
-  probes.push(await probe("activities", "Do assignments, expiries and dividends arrive as their own events?", { path: `/accounts/${id}/activities`, ...scoped }));
-  probes.push(await probe("quotes", "Is there a usable price, or must a data feed come from elsewhere?", { path: `/accounts/${id}/quotes`, query: { symbols: "AAPL", use_ticker: true }, ...scoped }));
+    probes.push(await probe(tag("balances"), "Does cash arrive per currency, the way the dashboard needs it?", { path: `/accounts/${id}/balances`, ...scoped }));
+    // POSITIONS MOVED. `/accounts/{id}/positions` and `/accounts/{id}/options`
+    // both answer 410 "This endpoint is no longer available for your account"
+    // -- not empty, gone. `/accounts/{id}/holdings` is the consolidated
+    // replacement and returns balances, positions and option positions
+    // together. Both old paths stay in the probe: a 410 is a finding about
+    // their API's churn, which is part of what is being judged here.
+    probes.push(await probe(tag("holdings (positions + options)"), "Do share lots and option positions arrive, and are options returned as options — strike, expiry, right?", { path: `/accounts/${id}/holdings`, ...scoped }));
+    probes.push(await probe(tag("positions (deprecated path)"), "Is the older per-endpoint route still served?", { path: `/accounts/${id}/positions`, ...scoped }));
+    probes.push(await probe(tag("option positions (deprecated path)"), "Is the older per-endpoint route still served?", { path: `/accounts/${id}/options`, ...scoped }));
+    probes.push(await probe(tag("orders (90 days)"), "How far back does order history go, and do multi-leg orders keep their legs?", { path: `/accounts/${id}/orders`, query: { days: 90 }, ...scoped }));
+    probes.push(await probe(tag("recent orders"), "Is there a fast path for an order placed seconds ago?", { path: `/accounts/${id}/recentOrders`, ...scoped }));
+    probes.push(await probe(tag("activities"), "Do assignments, expiries and dividends arrive as their own events?", { path: `/accounts/${id}/activities`, ...scoped }));
+    probes.push(await probe(tag("quotes"), "Is there a usable price, or must a data feed come from elsewhere?", { path: `/accounts/${id}/quotes`, query: { symbols: "AAPL", use_ticker: true }, ...scoped }));
+
+    // THE WHOLE HISTORY, SUMMARISED. One sampled row says an endpoint
+    // answers; it cannot say whether months of options trading come back --
+    // fills, expiries, assignments -- each with its contract named.
+    const acts = await snapFetch<unknown>({ path: `/accounts/${id}/activities`, query: { start_date: "2026-01-01", limit: 1000 }, ...scoped });
+    probes.push({
+      name: tag("activities since January (summary)"),
+      need: "Does a whole options history arrive -- fills, expiries, assignments -- with strike, expiry and right on each row?",
+      method: "GET",
+      path: `/accounts/${id}/activities`,
+      ok: acts.ok,
+      status: acts.status,
+      ms: acts.ms,
+      error: acts.error,
+      count: rowsOf(acts.data),
+      sample: acts.ok ? activitySummary(acts.data) : redact(acts.data)
+    });
+  }
 
   return { probes, matrix: matrixOut, verdicts: verdicts(probes, matrixOut), notes, accounts: summary };
 }
