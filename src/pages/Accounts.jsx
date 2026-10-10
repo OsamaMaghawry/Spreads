@@ -72,16 +72,27 @@ export default function Accounts() {
     setLinking(false);
     setLinkNote(res.data?.error || res.error?.message || "The broker list could not be opened.");
   };
-  const importLinked = useCallback(async () => {
-    setLinking(true);
+  // `quiet` is the check on every visit: it says nothing unless there is
+  // something to say, because the portal does not always send the user back
+  // here, and a connection made there should still arrive.
+  const importLinked = useCallback(async ({ quiet = false } = {}) => {
+    if (!quiet) setLinking(true);
     const res = await invokeFunction("brokerLink", { action: "import" });
     setLinking(false);
     if (res.data?.error || res.error) {
-      setLinkNote(res.data?.error || res.error?.message);
+      if (!quiet) setLinkNote(res.data?.error || res.error?.message);
       return false;
     }
     const n = res.data?.imported || 0;
-    setLinkNote(n ? `Added ${n} account${n === 1 ? "" : "s"}, read-only.` : "No new accounts to add.");
+    const list = (names) => [...new Set(names)].join(", ");
+    const notes = [];
+    if (n) notes.push(`Added ${n} account${n === 1 ? "" : "s"}, read-only.`);
+    if (res.data?.waiting?.length) {
+      notes.push(`${list(res.data.waiting)}: connected, but no accounts have arrived from the broker yet. A new connection can take a few minutes.`);
+    }
+    if (res.data?.broken?.length) notes.push(`${list(res.data.broken)}: the connection was cut off. Connect it again with "Another broker".`);
+    if (notes.length) setLinkNote(notes.join(" "));
+    else if (!quiet) setLinkNote("No new accounts to add.");
     return true;
   }, []);
 
@@ -96,14 +107,15 @@ export default function Accounts() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Back from the broker's portal: add what was connected, then tidy the URL
-  // so a refresh does not run it again.
+  // Add whatever has been connected at the broker since the last visit. Back
+  // from the portal (?linked=1) it reports even when there is nothing new;
+  // otherwise it speaks only when something changed.
   useEffect(() => {
     if (!LAB) return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get("linked") !== "1") return;
-    window.history.replaceState(null, "", window.location.pathname);
-    importLinked().then(() => load());
+    const back = params.get("linked") === "1";
+    if (back) window.history.replaceState(null, "", window.location.pathname);
+    importLinked({ quiet: !back }).then(() => load());
   }, [importLinked, load]);
 
   // Credentials are encrypted server-side, so writes go through the saveAccount

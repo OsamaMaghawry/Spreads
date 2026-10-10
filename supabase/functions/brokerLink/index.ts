@@ -72,16 +72,26 @@ Deno.serve(async (req) => {
 
       // Bring every account the user has connected at SnapTrade into DeltaMint,
       // once each. Re-running adds only what is new.
+      //
+      // Also says which connections have no accounts yet. A new connection can
+      // exist before its broker has sent any accounts (Interactive Brokers on
+      // 10 Oct), and without this the page reads "nothing to add" while the
+      // user is looking at a connection they just made.
       case "import": {
         const snap = await loadSnapUser(admin, user.id);
-        if (!snap) return jsonResponse({ imported: 0, accounts: [] });
-        const res = await snapFetch<Record<string, unknown>[]>({
-          path: "/accounts",
-          userId: snap.snapTradeUserId,
-          userSecret: snap.userSecret
-        });
+        if (!snap) return jsonResponse({ imported: 0, accounts: [], waiting: [], broken: [] });
+        const scoped = { userId: snap.snapTradeUserId, userSecret: snap.userSecret };
+        const [res, auths] = await Promise.all([
+          snapFetch<Record<string, unknown>[]>({ path: "/accounts", ...scoped }),
+          snapFetch<Record<string, unknown>[]>({ path: "/authorizations", ...scoped })
+        ]);
         if (!res.ok) return jsonResponse({ error: `Your broker accounts could not be read (${res.status}).` }, 502);
         const theirs = Array.isArray(res.data) ? res.data : [];
+        const connections = auths.ok && Array.isArray(auths.data) ? auths.data : [];
+        const brokerOf = (c: any) => String(c?.brokerage?.display_name || c?.brokerage?.name || "A broker");
+        const withAccounts = new Set(theirs.map((a: any) => String(a.brokerage_authorization ?? "")));
+        const waiting = connections.filter((c: any) => !c.disabled && !withAccounts.has(String(c.id))).map(brokerOf);
+        const broken = connections.filter((c: any) => c.disabled).map(brokerOf);
 
         const { data: ours, error: readError } = await admin
           .from("trading_accounts")
@@ -107,7 +117,9 @@ Deno.serve(async (req) => {
         }
         return jsonResponse({
           imported: rows.length,
-          accounts: theirs.map((a) => ({ name: label(a), paper: isPaperAccount(a), alreadyAdded: have.has(String(a.id)) }))
+          accounts: theirs.map((a) => ({ name: label(a), paper: isPaperAccount(a), alreadyAdded: have.has(String(a.id)) })),
+          waiting,
+          broken
         });
       }
 
