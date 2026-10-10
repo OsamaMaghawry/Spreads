@@ -295,6 +295,10 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
   // is the second half of the same rule, because a screen that turns an absent
   // price into $0.00 fabricates a P/L just as confidently.
   const midDebit = quote?.midDebit ?? null;
+  // Every price on this ticket is a debit underneath: positive is paid,
+  // negative is received. On screen a negative one is money coming to you, and
+  // it says so -- "-$28.63" on a long put being sold read as an order to pay.
+  const px = (d) => (typeof d === "number" && d < 0 ? `${fmtMoney(-d)} (you receive)` : fmtMoney(d));
   const haveMid = typeof midDebit === "number" && Number.isFinite(midDebit);
   // The shared control speaks bid/ask/mid/last; spreadQuote speaks in debits.
   // Mapped here rather than teaching the control about spreads, so the open
@@ -318,12 +322,14 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
   // of "Set my price" is to see what THIS number yields, and a box above it
   // frozen at the mid contradicts it. Manual with a price -> that price;
   // anything else -> the mid, as before.
-  const manualReadyForPl = priceMode === "manual" && typeof manualPrice === "number" && manualPrice > 0;
+  // Non-zero, not positive: a close that pays you is a negative number here,
+  // and `> 0` left the P/L rows on the mid whatever price was set.
+  const manualReadyForPl = priceMode === "manual" && typeof manualPrice === "number" && Number.isFinite(manualPrice) && manualPrice !== 0;
   // Null when there is neither a price the user chose nor a market to fall back
   // on. Every P/L below is then withheld rather than computed against zero.
   const plDebit = manualReadyForPl ? manualPrice : haveMid ? midDebit : null;
   const havePl = plDebit !== null;
-  const plAt = manualReadyForPl ? `at ${fmtMoney(manualPrice)}` : "(mid)";
+  const plAt = manualReadyForPl ? `at ${px(manualPrice)}` : "(mid)";
   // Shares are not contracts: one unit is one share, so the 100x option
   // multiplier does not apply, and the result of selling them is measured
   // against the basis rather than against a credit that was never received.
@@ -334,6 +340,10 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
   // debit vertical, a ratio whose long is worth more than its shorts, and any
   // net-long position -- and the whole-position readout had no word for it.
   const closeIsCredit = !isShares && haveMid && midDebit < 0;
+  // Which way the walk gives ground, in the words of the side being traded:
+  // a close that pays you concedes toward the bid, one you pay toward the ask.
+  const walkToward = closeIsCredit ? "bid" : "ask";
+  const walkLimit = closeIsCredit ? "Never asks less than the bid − $0.05." : "Never bids above the ask + $0.05.";
 
   const multiplier = isShares ? 1 : 100;
   const plPerContract = !havePl
@@ -533,13 +543,13 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
                       </span>
                       <span className="text-right">{fmtMoney(Math.abs(spread.netCredit))}</span>
                       <span className="text-slate-500">
-                        {closeIsCredit ? "Mid credit to close" : "Mid debit to close"}
+                        {closeIsCredit ? "You receive, at the mid" : "Mid debit to close"}
                       </span>
                       <span className={`text-right ${closeIsCredit ? "text-emerald-600" : ""}`}>
                         {haveMid ? fmtMoney(Math.abs(midDebit)) : "—"}
                       </span>
                       <span className="text-slate-500">
-                        {closeIsCredit ? "Credit range (bid / ask)" : "Bid / Ask debit"}
+                        {closeIsCredit ? "You receive, bid / ask" : "Bid / Ask debit"}
                       </span>
                       <span className="text-right">
                         {closeIsCredit
@@ -687,12 +697,12 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
                     // there. The version of this sentence that claimed the
                     // ceiling while displaying a start above it is what made
                     // $9.89 look deliberate.
-                    ? `Your last attempt was ${fmtMoney(lastDebit)}, which is past what the market will bear — starting at ${fmtMoney(startDebit)} instead and stepping every 30s until it fills. Never bids above the ask + $0.05. Stops after 10 min.`
-                    : `Limit resumes from your last attempt at ${fmtMoney(lastDebit)} — starting at ${fmtMoney(startDebit)} and stepping toward the ask every 30s until it fills. Never bids above the ask + $0.05. Stops after 10 min.`
+                    ? `Your last attempt was ${px(lastDebit)}, which is past what the market will bear — starting at ${px(startDebit)} instead and stepping every 30s until it fills. ${walkLimit} Stops after 10 min.`
+                    : `Limit resumes from your last attempt at ${px(lastDebit)} — starting at ${px(startDebit)} and stepping toward the ${walkToward} every 30s until it fills. ${walkLimit} Stops after 10 min.`
                   : !haveMid
                     ? "There is no two-sided market for these legs right now, so the walk has nothing to start from. Set a price yourself, or wait for the market to open."
                     : closeIsCredit
-                      ? `Closing this PAYS you. The limit starts at the mid credit (${fmtMoney(Math.abs(midDebit))}) and gives up a little every 30s until it fills. Never concedes past the bid − $0.05. Stops after 10 min.`
+                      ? `Closing this pays you. The limit starts at the mid (${px(midDebit)}) and asks a little less every 30s until it fills. ${walkLimit} Stops after 10 min.`
                       : `Limit starts at the mid debit (${fmtMoney(midDebit)}) and steps toward the ask every 30s until it fills — bigger steps on a wider market. Never bids above the ask + $0.05. Stops after 10 min.`
                 : "Market executes immediately at the current best price — may slip toward the ask."}
             </p>
@@ -710,7 +720,7 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
                       ? manualReady
                         // "Sell" on shares: it is what the order does, and
                         // "Close 10 shares" reads like closing an account.
-                        ? `${isShares ? "Sell" : "Close"} ${qty} ${unit}${qty > 1 ? "s" : ""} at ${fmtMoney(startDebit)}`
+                        ? `${isShares ? "Sell" : "Close"} ${qty} ${unit}${qty > 1 ? "s" : ""} at ${px(startDebit)}`
                         : "Set a price first"
                       : `${isShares ? "Sell" : "Close"} ${qty} ${unit}${qty > 1 ? "s" : ""} (${priceMode === "market" ? "market" : "walk"})`
               }
@@ -718,8 +728,8 @@ export default function CloseDialog({ account, spread, onClose, onDone, prefill 
                 priceMode === "market"
                   ? "Market order at the current best price"
                   : priceMode === "manual"
-                    ? `Limit order resting at ${manualReady ? fmtMoney(startDebit) : "—"} — not walked`
-                    : `Limit order starting at ${fmtMoney(startDebit)}, walked toward the ask`
+                    ? `Limit order resting at ${manualReady ? px(startDebit) : "—"} — not walked`
+                    : `Limit order starting at ${px(startDebit)}, walked toward the ${walkToward}`
               } · close ${
                 customLegs ? `${customLegs.length} leg${customLegs.length > 1 ? "s" : ""} of` : ""
               } ${qty} ${spread.ticker} ${unit}${qty > 1 ? "s" : ""} on ${account.name}.`}

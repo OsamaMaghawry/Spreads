@@ -61,6 +61,19 @@ export default function EquityCurveChart({
 
   const isValue = curve.mode === "value";
   const end = curve.end;
+  // WHICH CLOSE THE LINE ENDS ON. The stored series gains a day only after
+  // that day's close is stored in the evening, so through a session it ends
+  // on YESTERDAY while the headline above is live. The owner, 9 Oct, reading
+  // "$88.00" over a line that "Ends at $1,597.00", and "$347.10" over
+  // "-$202.09": "it seems not accurate to me". Each pair was right for its own
+  // day and neither said which day that was. The booked line (a strategy tab)
+  // is built from the same trades as the headline and ends on it, so it keeps
+  // its plain label.
+  const lastDay = curve.mode === "booked" ? null : points[points.length - 1]?.date || null;
+  const shortDay = (d) =>
+    new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  const todayET = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const behindToday = Boolean(lastDay) && !windowEnd && !curve.live && lastDay < todayET;
   const change = curve.change;
   // An account-value line is coloured by what the window did, not by whether a
   // balance is above zero — every balance is above zero, so colouring by `end`
@@ -68,9 +81,13 @@ export default function EquityCurveChart({
   const positive = (isValue ? (change ?? 0) : (end ?? 0)) >= 0;
   const color = positive ? "#059669" : "#e11d48";
 
+  // The Analysis page draws only the booked line now: the headline's own
+  // figure, built up close by close, so it ends on the number above it.
   const title = isValue
     ? "Account value, end of each day"
-    : view === "premium"
+    : curve.mode === "booked" && view !== "premium"
+      ? "Profit on closed trades, over time"
+      : view === "premium"
       ? "Option legs, cumulative"
       : "Strategy performance, cumulative";
 
@@ -79,7 +96,7 @@ export default function EquityCurveChart({
     : view === "premium"
       ? "Credits taken and debits paid on closed option trades. Shares are not in this line."
       : curve.mode === "booked"
-        ? "Money booked by this strategy, in the order it booked it"
+        ? "Each trade counted on the day it closed. Ends on the figure above."
         // "the mark on shares still held" omitted the OPTION legs still open,
         // which this line has carried since `options_open` was added to the
         // stored series. That omission is load-bearing: this subtitle is the
@@ -114,7 +131,13 @@ export default function EquityCurveChart({
               figure two inches above. A windowed balance is the window's end,
               and says so with the date. */}
           <div className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">
-            {isValue ? (windowEnd ? `End of window · ${windowEnd}` : "Today") : "Ends at"}
+            {windowEnd && isValue
+              ? `End of window · ${windowEnd}`
+              : curve.live
+                ? (isValue ? "Today" : "Now")
+                : lastDay
+                  ? `At the ${shortDay(lastDay)} close`
+                : isValue ? "Today" : "Ends at"}
           </div>
           <div
             className={`text-lg font-semibold tabular-nums ${
@@ -225,6 +248,11 @@ export default function EquityCurveChart({
             page decides, and passes the sentence or nothing. */}
         {reconcileNote && (
           <p className="text-[11px] text-slate-500 leading-relaxed">{reconcileNote}</p>
+        )}
+        {behindToday && (
+          <p className="text-[11px] text-slate-500 leading-relaxed">
+            Today is in the total at the top of the page. This line adds it in the evening, once today's close is stored.
+          </p>
         )}
         {curve.mode === "booked" && fallbackReason && (
           <p className="text-[11px] text-amber-700 leading-relaxed">{fallbackReason}</p>

@@ -250,7 +250,7 @@ test("the function pairs each project with the site that fronts it", () => {
 
 test("the sample answer adds up: credit, max loss and return on risk agree", () => {
   const html = connectorSection();
-  const rows = [...html.matchAll(/<tr><td>(\w+)<\/td><td>(\d+)\/(\d+)<span class="cx-kind"> put spread<\/span><\/td><td class="r cx-days">\d+<\/td><td class="r">[\d.]+<\/td><td class="r">\$(\d+)<\/td><td class="r">\$(\d+)<\/td><td class="r">([\d.]+)%<\/td><\/tr>/g)];
+  const rows = [...html.matchAll(/<tr><td>(\w+)<\/td><td>(\d+)\/(\d+)<span class="cx-kind"> put spread<\/span><\/td><td class="r">[\d.]+<\/td><td class="r">\$(\d+)<\/td><td class="r">\$(\d+)<\/td><td class="r">([\d.]+)%<\/td><\/tr>/g)];
   assert.equal(rows.length, 3);
   for (const [, , hi, lo, credit, loss, ror] of rows) {
     const width = (Number(hi) - Number(lo)) * 100;

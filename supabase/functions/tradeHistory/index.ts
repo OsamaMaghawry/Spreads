@@ -1,7 +1,8 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { selectAllWhere } from "../_shared/paging.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
-import { tradingBase, loadAccount } from "../_shared/alpaca.ts";
+import { tradingBase, loadAccount, alpacaFetch } from "../_shared/alpaca.ts";
+import { syncDue, activityTime } from "../_shared/syncDue.ts";
 import { awaitUpTo } from "../_shared/background.ts";
 import { reconstruct } from "../_shared/tradeReconstruction.ts";
 import { isAdminUser } from "../_shared/admin.ts";
@@ -141,8 +142,18 @@ Deno.serve(async (req) => {
     // leave it null and every single page load re-ran the whole broker sweep --
     // about 112 requests -- forever, silently. Backing off on the *attempt*
     // means a broken sync costs one sweep per interval instead of one per view.
-    const dueForRetry = Date.now() - attemptedAt > STALE_AFTER_MS;
-    const stale = (!syncedAt || Date.now() - syncedAt > STALE_AFTER_MS) && dueForRetry;
+    //
+    // And the clock is not the only reason: a trade at the broker since the
+    // last sync means the store is already wrong (see _shared/syncDue.ts). One
+    // small request answers that, asked only when the clock alone says fresh.
+    const timing = { now: Date.now(), syncedAt, attemptedAt, staleAfterMs: STALE_AFTER_MS };
+    const lastActivityAt = syncDue(timing)
+      ? 0
+      : await alpacaFetch(
+          `${base}/account/activities?activity_types=FILL,OPEXP,OPASN,OPEXC&direction=desc&page_size=1`,
+          account
+        ).then((a: any) => activityTime(Array.isArray(a) ? a[0] : null), () => 0);
+    const stale = syncDue({ ...timing, lastActivityAt });
 
     let syncError: string | null = account.trades_sync_error || null;
 

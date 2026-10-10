@@ -58,6 +58,11 @@ Against the study, check:
   BlogPosting JSON-LD, canonical, OG tags (`landing/src/index.js`) — check
   the post's fields feed it well (a meta_description that is empty or
   duplicated across posts is a finding).
+- **Search title**: `search_title:` in the front matter is what goes in
+  `<title>` and og:title; the page keeps `title:` as its headline. Use it
+  when Search Console shows people reaching the post with words its headline
+  doesn't contain (owner, 9 Oct: impressions with no clicks). At most 60
+  characters; `npm run content:check` enforces it.
 
 ## What you return
 

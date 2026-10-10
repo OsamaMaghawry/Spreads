@@ -113,3 +113,41 @@ test("only asset URLs move; links to production pages stay put", () => {
   const html = '<link rel="canonical" href="https://deltamint.app/terms" />';
   assert.equal(rehostAssets(html, "https://dev-landing.deltamint.app"), html);
 });
+
+// SEARCH TITLE. The line Google gets in <title> can differ from the headline
+// on the page, the way big sites do it. It is stored as a comment line at the
+// top of the body (no column for it), so it must never reach the page as text.
+import { splitSearchTitle, withSearchTitle } from "./render.js";
+import { renderPost } from "./index.js";
+
+const POST = {
+  slug: "what-is-an-options-contract",
+  title: "What is an options contract — and what lands in your account",
+  category: "foundations",
+  author: "DeltaMint",
+  published_at: "2026-09-08T10:00:00Z",
+  excerpt: "Every field but the price is fixed.",
+  meta_description: "One option contract is 100 shares."
+};
+
+test("search title: stored at the top of the body, read back exactly", () => {
+  const body = withSearchTitle("How many shares in an option contract?", "First paragraph.\n\n## A heading");
+  assert.deepEqual(splitSearchTitle(body), { searchTitle: "How many shares in an option contract?", body: "First paragraph.\n\n## A heading" });
+  assert.deepEqual(splitSearchTitle("No marker."), { searchTitle: null, body: "No marker." });
+  assert.equal(withSearchTitle(undefined, "Body."), "Body.");
+});
+
+test("search title: Google gets it, the page keeps its headline, the marker never shows", () => {
+  const html = renderPost({ ...POST, body: withSearchTitle("How many shares in an option contract? 100", "One contract is 100 shares.") }, "https://deltamint.app", false);
+  assert.match(html, /<title>How many shares in an option contract\? 100<\/title>/);
+  assert.match(html, /<meta property="og:title" content="How many shares in an option contract\? 100" \/>/);
+  assert.match(html, /<h1>What is an options contract — and what lands in your account<\/h1>/);
+  assert.match(html, /<p>One contract is 100 shares\.<\/p>/);
+  assert.doesNotMatch(html, /search_title/);
+});
+
+test("search title: a post without one uses its headline for both", () => {
+  const html = renderPost({ ...POST, body: "One contract is 100 shares." }, "https://deltamint.app", false);
+  assert.match(html, /<title>What is an options contract — and what lands in your account<\/title>/);
+  assert.match(html, /<h1>What is an options contract — and what lands in your account<\/h1>/);
+});

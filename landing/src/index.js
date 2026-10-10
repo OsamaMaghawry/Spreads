@@ -1,4 +1,4 @@
-import { esc, markdown, formatDate, page } from "./render.js";
+import { esc, markdown, formatDate, page, splitSearchTitle } from "./render.js";
 import { CATEGORIES, categoryBySlug, groupByCategory, postsInCategory, neighbours, related, renderFeed } from "./blog.js";
 import { connectorEnabled, injectConnector, isConnectorPath, proxyConnector, renderConnectPage } from "./connector.js";
 
@@ -259,8 +259,11 @@ ${list
   });
 }
 
-function renderPost(post, site, noindex, env = {}, all = []) {
+export function renderPost(post, site, noindex, env = {}, all = []) {
   const url = `${site}/blog/${post.slug}`;
+  // What Google is given as the title, and the body without its marker line.
+  const { searchTitle, body } = splitSearchTitle(post.body);
+  const shareTitle = searchTitle || post.title;
   const cat = categoryBySlug(post.category);
   const { prev, next } = neighbours(all, post);
   const more = related(all, post, 3);
@@ -303,25 +306,26 @@ function renderPost(post, site, noindex, env = {}, all = []) {
     // No " — DeltaMint" suffix on a post page: it costs 12 characters of a
     // ~60-character title budget, forever, for a brand nobody searches yet.
     // og:site_name, the JSON-LD publisher and the breadcrumb all carry it.
-    title: post.title,
+    // The search title, when the post has one; the headline stays the <h1>.
+    title: shareTitle,
     description,
     canonical: url,
     head: `${robotsMeta(noindex)}${trackingTags(env)}<meta property="og:type" content="article" />
 <meta property="og:site_name" content="DeltaMint" />
 <meta property="og:url" content="${esc(url)}" />
-<meta property="og:title" content="${esc(post.title)}" />
+<meta property="og:title" content="${esc(shareTitle)}" />
 <meta property="og:description" content="${esc(description)}" />
 <meta property="og:image" content="${esc(image)}" />
 <meta property="article:published_time" content="${esc(post.published_at)}" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="${esc(post.title)}" />
+<meta name="twitter:title" content="${esc(shareTitle)}" />
 <meta name="twitter:description" content="${esc(description)}" />
 <meta name="twitter:image" content="${esc(image)}" />
 <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>${crumbs ? `\n<script type="application/ld+json">${JSON.stringify(crumbs)}</script>` : ""}`,
     body: `${cat ? `<p class="crumbs"><a href="/blog">Blog</a> › <a href="/blog/${cat.slug}">${esc(cat.title)}</a></p>` : ""}
 <h1>${esc(post.title)}</h1>
 <div class="meta">${esc(formatDate(post.published_at))}${post.author ? ` · ${esc(post.author)}` : ""}</div>
-${markdown(post.body)}
+${markdown(body)}
 ${prev || next ? `<nav class="readnext">${prev ? `<a class="prev" href="/blog/${esc(prev.slug)}"><span>Previous</span>${esc(prev.title)}</a>` : "<span></span>"}${next ? `<a class="next" href="/blog/${esc(next.slug)}"><span>Read next</span>${esc(next.title)}</a>` : ""}</nav>` : ""}
 ${more.length ? `<section class="related"><h2>More to read</h2><ul>${more.map((p) => `<li><a href="/blog/${esc(p.slug)}">${esc(p.title)}</a></li>`).join("")}</ul></section>` : ""}
 <p class="startfree"><a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=blog/${esc(post.slug)}">Start free on a paper account</a></p>

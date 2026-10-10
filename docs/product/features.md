@@ -111,7 +111,7 @@ History** and bans "journal" and "log".
 | A2 | One population rule: win/loss on settled rows only, money booked on every row, and the cards say which | `analytics.js`, `analysis/StatCards.jsx` | main | FREE (integrity) |
 | A3 | Peak concurrent capital at risk | `analytics.js` | main | PAID |
 | A4 | Annualised and CAGR withheld below 30 trades and 90 days | `analytics.js`, `StatCards.jsx` | main | FREE (compliance) |
-| A5 | Credit-capture breakdown by bucket, held vs closed early | `analysis/CaptureBreakdown.jsx` | main | PAID |
+| A5 | How trades ended: expired, assigned, bought back on expiry day or earlier, options bought — rows add up to the booked total, each opens to its trades | `analysis/TradeEndings.jsx` | staging | PAID |
 | A6 | Equity curve of realised P/L | `analysis/EquityCurveChart.jsx` | main | PAID |
 | A7 | By-month and by-ticker tables | `analysis/BreakdownTable.jsx` | main | PAID |
 | A8 | Strategy comparison | `analysis/StrategyComparison.jsx` | main | PAID |

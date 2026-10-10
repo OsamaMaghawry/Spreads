@@ -204,3 +204,4 @@ test("baselineKnown separates 'the window starts at zero' from 'we could not loo
   assert.equal(blind.baselineKnown, false);
   assert.equal(blind.end, -949.09);
 });
+

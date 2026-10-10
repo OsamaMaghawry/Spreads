@@ -47,11 +47,6 @@ export default function PriceControl({
   // it cannot price anything yet.
   const empty = typeof price !== "number" || !Number.isFinite(price);
 
-  // Stepping from nothing needs a starting point, and the mid is the honest one.
-  // Only a real market may seed a starting point. Without the `priced` guard a
-  // one-sided quote's fabricated mid became the number the stepper opened on.
-  const from = () =>
-    empty ? (priced && typeof mid === "number" ? mid : priced && typeof bid === "number" ? bid : 0.01) : price;
   // A close that PAYS the account is a negative number here, and clamping to a
   // cent floor made one impossible to express: no seed, no chips, and anything
   // typed rewritten to $0.01. Someone reading "mid credit $8.00" off the screen
@@ -63,10 +58,37 @@ export default function PriceControl({
   // out of a missing quote must not decide whether a number is a debit or a
   // credit, because that decision flips the sign of what gets submitted.
   const credit = priced && typeof mid === "number" ? mid < 0 : side === "credit";
+
+  // A CLOSE THAT PAYS YOU, SHOWN AS WHAT IT IS. Underneath it is a negative
+  // debit, and that is how it reached the screen: "Limit debit $-28.72" on a
+  // long TSLA put being sold, while the Orders tab showed the same order as
+  // "$29.00 credit". The owner, 9 Oct: "sometimes it puts minus, sometimes
+  // positive". From here on everything this control shows, steps and reads
+  // back is the positive amount received, and the market is turned round to
+  // match -- what a seller is paid now is the contract's bid, which in the
+  // debit convention arrived as the ask. Only onChange converts back, so the
+  // caller and the order keep the convention they already work in.
+  const flip = credit && side === "debit";
+  const show = (v) => (flip && typeof v === "number" ? -v : v);
+  const sBid = flip ? show(ask) : bid;
+  const sAsk = flip ? show(bid) : ask;
+  const sMid = show(mid);
+  const sLast = show(last);
+  const sPrice = empty ? price : show(price);
+  const sSide = flip ? "credit" : side;
+
+  // Stepping from nothing needs a starting point, and the mid is the honest one.
+  // Only a real market may seed a starting point. Without the `priced` guard a
+  // one-sided quote's fabricated mid became the number the stepper opened on.
+  const from = () =>
+    empty ? (priced && typeof sMid === "number" ? sMid : priced && typeof sBid === "number" ? sBid : 0.01) : sPrice;
+
+  // Takes the number as SHOWN.
   const set = (v) => {
     const n = round2(v);
     if (!Number.isFinite(n)) return;
-    onChange(credit ? Math.min(-0.01, n) : Math.max(0.01, n));
+    if (flip) onChange(-Math.max(0.01, n));
+    else onChange(credit ? Math.min(-0.01, n) : Math.max(0.01, n));
   };
 
   const chips = [
@@ -78,15 +100,15 @@ export default function PriceControl({
     // it, a MID chip reading $373.01, derived from a bid of $746.01 and an ask
     // of nothing. Last stays: it is a price that really was tried, and it is
     // true whether or not there is a market now.
-    ...(priced ? [{ label: "Bid", value: bid }, { label: "Mid", value: mid }, { label: "Ask", value: ask }] : []),
-    { label: "Last", value: last }
+    ...(priced ? [{ label: "Bid", value: sBid }, { label: "Mid", value: sMid }, { label: "Ask", value: sAsk }] : []),
+    { label: "Last", value: sLast }
     // Non-zero rather than positive: on a credit-to-close structure every one
     // of these is negative and the whole row used to disappear.
   ].filter((c) => typeof c.value === "number" && isFinite(c.value) && c.value !== 0);
 
-  const pos = markPosition({ price, bid, ask });
-  const verdict = verdictFor({ price, bid, ask, side });
-  const noun = nounOverride || (side === "credit" ? "Limit credit" : "Limit debit");
+  const pos = markPosition({ price: sPrice, bid: sBid, ask: sAsk });
+  const verdict = verdictFor({ price: sPrice, bid: sBid, ask: sAsk, side: sSide });
+  const noun = nounOverride || (flip ? "You receive" : side === "credit" ? "Limit credit" : "Limit debit");
 
   return (
     <div>
@@ -98,7 +120,7 @@ export default function PriceControl({
         <button
           type="button"
           onClick={() => set(from() - (empty ? 0 : STEP))}
-          aria-label={`Lower the ${side === "credit" ? "credit" : "limit"} by one cent`}
+          aria-label={`Lower the ${sSide === "credit" ? "credit" : "limit"} by one cent`}
           className="w-11 flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
         >
           <Minus className="w-4 h-4" />
@@ -111,8 +133,8 @@ export default function PriceControl({
             step="0.01"
             min="0.01"
             placeholder="—"
-            value={draft !== null ? draft : empty ? "" : price.toFixed(2)}
-            onFocus={() => setDraft(empty ? "" : String(price))}
+            value={draft !== null ? draft : empty ? "" : sPrice.toFixed(2)}
+            onFocus={() => setDraft(empty ? "" : String(sPrice))}
             onBlur={() => setDraft(null)}
             onChange={(e) => {
               const v = e.target.value;
@@ -131,7 +153,7 @@ export default function PriceControl({
         <button
           type="button"
           onClick={() => set(from() + (empty ? 0 : STEP))}
-          aria-label={`Raise the ${side === "credit" ? "credit" : "limit"} by one cent`}
+          aria-label={`Raise the ${sSide === "credit" ? "credit" : "limit"} by one cent`}
           className="w-11 flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -175,11 +197,11 @@ export default function PriceControl({
             />
             <input
               type="range"
-              aria-label={`Drag to set the ${side === "credit" ? "credit" : "limit"}`}
-              min={round2(bid - Math.max(ask - bid, 0.01) * (8 / 84))}
-              max={round2(ask + Math.max(ask - bid, 0.01) * (8 / 84))}
+              aria-label={`Drag to set the ${sSide === "credit" ? "credit" : "limit"}`}
+              min={round2(sBid - Math.max(sAsk - sBid, 0.01) * (8 / 84))}
+              max={round2(sAsk + Math.max(sAsk - sBid, 0.01) * (8 / 84))}
               step="0.01"
-              value={empty ? (typeof mid === "number" ? mid : bid) : price}
+              value={empty ? (typeof sMid === "number" ? sMid : sBid) : sPrice}
               onChange={(e) => {
                 const v = parseFloat(e.target.value);
                 if (isFinite(v)) set(v);
@@ -188,9 +210,9 @@ export default function PriceControl({
             />
           </div>
           <div className="flex justify-between mt-1.5 text-[10px] tabular-nums text-slate-400">
-            <span>bid {fmtMoney(bid)}</span>
-            <span>mid {fmtMoney(mid)}</span>
-            <span>ask {fmtMoney(ask)}</span>
+            <span>bid {fmtMoney(sBid)}</span>
+            <span>mid {fmtMoney(sMid)}</span>
+            <span>ask {fmtMoney(sAsk)}</span>
           </div>
         </div>
       )}
@@ -217,7 +239,8 @@ export default function PriceControl({
         {!empty && (
           <>
             {" "}
-            Total {fmtMoney(price * multiplier * (Number(qty) || 1))} to {side === "credit" ? "collect on" : "close"}{" "}
+            Total {fmtMoney(sPrice * multiplier * (Number(qty) || 1))}{" "}
+            {flip ? "you receive for closing" : side === "credit" ? "to collect on" : "to close"}{" "}
             {Number(qty) || 1} {unit}
             {(Number(qty) || 1) > 1 ? "s" : ""}.
           </>
