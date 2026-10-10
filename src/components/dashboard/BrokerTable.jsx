@@ -284,7 +284,7 @@ export default function BrokerTable({ rows, coverage, onClose, onCloseMany }) {
                     type="checkbox"
                     checked={picked.includes(r.symbol)}
                     onChange={() => toggle(r.symbol)}
-                    disabled={noneAvailable(r)}
+                    disabled={!onClose || noneAvailable(r)}
                     title={noneAvailable(r) ? `None of this line is available to close — ${WHY_HELD}.` : undefined}
                     aria-label={`Select ${label(r)} for closing`}
                     className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
@@ -322,12 +322,14 @@ export default function BrokerTable({ rows, coverage, onClose, onCloseMany }) {
                   {r.unrealizedPL != null ? fmtMoney(r.unrealizedPL) : "—"}
                 </td>
                 <td className={`${td} text-right`}>
-                  <button
-                    onClick={() => onClose(closeTicketFor(r))}
-                    className="text-xs font-medium rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-rose-700 hover:bg-rose-100 transition-colors"
-                  >
-                    Close
-                  </button>
+                  {onClose && (
+                    <button
+                      onClick={() => onClose(closeTicketFor(r))}
+                      className="text-xs font-medium rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-rose-700 hover:bg-rose-100 transition-colors"
+                    >
+                      Close
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

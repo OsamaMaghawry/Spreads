@@ -9,6 +9,7 @@ import { brokerView, coverageGaps } from "./brokerView.ts";
 import { bookRiskByTicker, bookRiskTotal } from "./bookRisk.ts";
 import { selectAllWhere } from "./paging.ts";
 import { legsOf } from "./positionLegs.ts";
+import { fetchSnapTradeRaw } from "./snaptradeAccount.ts";
 
 // The live picture of every account a user owns -- positions paired into
 // structures, credit and risk per position, totals that net a ticker's condors
@@ -21,16 +22,23 @@ export async function syncAccountsFor(admin: any, userId: string) {
 
   // This function reads the accounts itself rather than going through
   // loadAccount, so it has to decrypt the stored credentials the same way.
-  const results = await Promise.all(
-    (accounts || []).map(async (a) =>
-      syncOne({
-        ...a,
-        api_key: await decryptSecret(a.api_key),
-        api_secret: await decryptSecret(a.api_secret),
-        oauth_access_token: await decryptSecret(a.oauth_access_token)
-      })
-    )
+  const decrypted = await Promise.all(
+    (accounts || []).map(async (a) => ({
+      ...a,
+      api_key: await decryptSecret(a.api_key),
+      api_secret: await decryptSecret(a.api_secret),
+      oauth_access_token: await decryptSecret(a.oauth_access_token)
+    }))
   );
+  // WHERE A SNAPTRADE ACCOUNT'S PRICES COME FROM. SnapTrade reads positions
+  // and history, not quotes, so the underlying's price and each option's
+  // mark come from the same user's own directly connected account when they
+  // have one -- their data, their entitlement. Without one, the broker's own
+  // last price on each position stands in and moneyness is left unknown.
+  const dataAccount = decrypted.find(
+    (a) => (a.provider || "alpaca") === "alpaca" && (a.oauth_access_token || a.api_key)
+  ) || null;
+  const results = await Promise.all(decrypted.map((a) => syncOne(a, dataAccount)));
   return { accounts: results, syncedAt: new Date().toISOString() };
 }
 
@@ -55,7 +63,7 @@ const symbolsOf = (s: any): string[] => [
   )
 ];
 
-async function syncOne(account) {
+async function syncOne(account, dataAccount: any = null) {
   // The wheel-basis and stress-move lookups below read the database, and this
   // function is called per account without the request handler's client. A
   // free `admin` here bundled cleanly and took every account down with
@@ -65,13 +73,19 @@ async function syncOne(account) {
   const base = tradingBase(account);
   const empty = { credit: 0, risk: 0, closeCost: 0, pl: 0, expirationPL: 0, collateral: 0, notional: 0, stressMove: 0.15, riskComplete: true, undefinedRisk: [], books: [], bookRisk: { risk: 0, complete: true, unpriceable: [], unbounded: [] } };
   try {
-    const [info, positions, activities, openOrders, filledOrders] = await Promise.all([
-      alpacaFetch(`${base}/account`, account),
-      alpacaFetch(`${base}/positions`, account),
-      alpacaFetch(`${base}/account/activities/FILL?page_size=100`, account).catch(() => []),
-      alpacaFetch(`${base}/orders?status=open&nested=true&limit=100`, account).catch(() => []),
-      alpacaFetch(`${base}/orders?status=closed&nested=true&limit=200&direction=desc`, account).catch(() => [])
-    ]);
+    // A SnapTrade account arrives already translated into these five
+    // shapes (see snaptradeAccount.ts), so everything below runs unchanged.
+    const viaSnapTrade = account.provider === "snaptrade";
+    const marketAccount = viaSnapTrade ? dataAccount : account;
+    const [info, positions, activities, openOrders, filledOrders] = viaSnapTrade
+      ? await fetchSnapTradeRaw(admin, account).then((r) => [r.info, r.positions, r.activities, r.openOrders, r.filledOrders])
+      : await Promise.all([
+          alpacaFetch(`${base}/account`, account),
+          alpacaFetch(`${base}/positions`, account),
+          alpacaFetch(`${base}/account/activities/FILL?page_size=100`, account).catch(() => []),
+          alpacaFetch(`${base}/orders?status=open&nested=true&limit=100`, account).catch(() => []),
+          alpacaFetch(`${base}/orders?status=closed&nested=true&limit=200&direction=desc`, account).catch(() => [])
+        ]);
 
     const openList = Array.isArray(openOrders) ? openOrders : [];
     const orderSymbols = (o: any) => (Array.isArray(o.legs) && o.legs.length ? o.legs.map((l: any) => l.symbol) : [o.symbol]);
@@ -200,7 +214,7 @@ async function syncOne(account) {
     // The same helper the scanner uses. These were separate implementations
     // with opposite field priorities, so the dashboard and the trade dialog
     // could show a $9 difference for one stock at one moment.
-    const spots = await getSpots(account, tickers);
+    const spots = marketAccount ? await getSpots(marketAccount, tickers) : {};
 
     for (const o of orders) {
       const sp = o.ticker ? spots[o.ticker] : null;
@@ -211,8 +225,8 @@ async function syncOne(account) {
     // Every option leg across every position, priced in one request. Marking
     // each leg from the broker's stale per-position price and subtracting is
     // what produced an $85 loss on a spread that was near break-even.
-    const legQuotes = await getOptionQuotes(
-      account,
+    const legQuotes = !marketAccount ? {} : await getOptionQuotes(
+      marketAccount,
       spreads.flatMap(symbolsOf).filter((sym: string) => sym && parseOCCSymbol(sym))
     ).catch((e) => {
       console.error("option quotes fetch failed", account.id, e?.message || e);
@@ -626,6 +640,10 @@ async function syncOne(account) {
       name: account.name,
       type: account.is_paper ? "Paper" : "Live",
       ok: true,
+      // Read through SnapTrade: shown, never traded. The screens hide every
+      // order control on it; loadAccount refuses them regardless.
+      readOnly: viaSnapTrade,
+      source: viaSnapTrade ? "snaptrade" : "alpaca",
       equity,
       // Equity if the market froze now, time value vanished and every spread
       // settled at intrinsic value: swap mark-to-market P/L for expiration P/L.
@@ -654,6 +672,8 @@ async function syncOne(account) {
       name: account.name,
       type: account.is_paper ? "Paper" : "Live",
       ok: false,
+      readOnly: account.provider === "snaptrade",
+      source: account.provider === "snaptrade" ? "snaptrade" : "alpaca",
       error: e.message,
       equity: 0, cash: 0, buyingPower: 0, optionsBuyingPower: 0,
       spreads: [], orders: [], broker: [], coverage: [], totals: { ...empty }, riskPct: 0, plPct: 0

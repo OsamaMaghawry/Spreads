@@ -132,7 +132,7 @@ export async function getSpreadQuote(account, shortSymbol, longSymbol, callShort
 // The admin (service-role) client bypasses RLS, so this ownership check is
 // what actually scopes access per-user (Base44's asServiceRole had no such
 // check — every authenticated user could load any account).
-export async function loadAccount(admin, accountId, userId) {
+export async function loadAccount(admin, accountId, userId, { readOnly = false } = {}) {
   const { data, error } = await admin
     .from("trading_accounts")
     .select("*")
@@ -141,6 +141,18 @@ export async function loadAccount(admin, accountId, userId) {
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new Error("Trading account not found");
+  // An account read through SnapTrade has no Alpaca credentials, and nothing
+  // that loads an account through here -- orders, quotes, chains, scans --
+  // may act on it. Refused by name, so the message says why rather than
+  // failing later as an unexplained 401 from a broker it was never meant for.
+  // `readOnly` is for the callers that only READ what is stored or what
+  // SnapTrade serves -- trade history -- and never touch Alpaca for it.
+  if (data.provider === "snaptrade") {
+    if (readOnly) return { ...data, api_key: null, api_secret: null, oauth_access_token: null };
+    throw new Error(
+      "This account is connected read-only through SnapTrade. Placing orders and live quotes need an account connected directly."
+    );
+  }
 
   // Credentials are stored encrypted; they exist in plaintext only in this
   // function's memory, for the duration of this request.

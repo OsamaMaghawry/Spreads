@@ -35,7 +35,9 @@ export default function Scanner() {
     supabase
       .from("trading_accounts")
       .select(SAFE_ACCOUNT_COLUMNS)
-      .then(({ data }) => setAccounts(data || []));
+      // A read-only account (SnapTrade) has no market data and takes no
+      // orders, so it cannot run a scan or place what a scan finds.
+      .then(({ data }) => setAccounts((data || []).filter((a) => a.provider !== "snaptrade")));
   }, []);
 
   const isCondor = strategy === "iron_condor";

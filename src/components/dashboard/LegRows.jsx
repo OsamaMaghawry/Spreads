@@ -78,12 +78,16 @@ export default function LegRows({ spread, colSpan, onCloseLeg }) {
                 <span className={`text-right font-semibold ${pl > 0 ? "text-emerald-600" : pl < 0 ? "text-rose-600" : ""}`}>
                   {fmtMoney(pl)}
                 </span>
-                <button
-                  onClick={() => onCloseLeg(l)}
-                  className="text-[11px] font-medium px-2.5 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors"
-                >
-                  Close leg
-                </button>
+                {onCloseLeg ? (
+                  <button
+                    onClick={() => onCloseLeg(l)}
+                    className="text-[11px] font-medium px-2.5 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors"
+                  >
+                    Close leg
+                  </button>
+                ) : (
+                  <span />
+                )}
               </div>
             );
           })}

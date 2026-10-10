@@ -259,12 +259,14 @@ export default function SpreadTable({ spreads: allSpreads, accountId, onClose, o
                 {fmtMoney(s.expirationPL)}
               </td>
               <td className={td}>
-                <button
-                  onClick={() => onClose(s)}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors"
-                >
-                  Close
-                </button>
+                {onClose && (
+                  <button
+                    onClick={() => onClose(s)}
+                    className="text-xs font-medium px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors"
+                  >
+                    Close
+                  </button>
+                )}
               </td>
             </tr>,
             isOpen ? (
@@ -272,7 +274,7 @@ export default function SpreadTable({ spreads: allSpreads, accountId, onClose, o
                 key={`${key}_legs`}
                 spread={{ ...s, accountId }}
                 colSpan={COL_COUNT}
-                onCloseLeg={(leg) => onClose({ ...s, presetLegSymbol: leg.symbol })}
+                onCloseLeg={onClose ? (leg) => onClose({ ...s, presetLegSymbol: leg.symbol }) : undefined}
               />
             ) : null
             ];

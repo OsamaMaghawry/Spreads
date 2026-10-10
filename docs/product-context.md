@@ -116,6 +116,7 @@ so a change to shared code requires redeploying all of them.
 - **adminData** — Back-office reads and writes: users and their activity, engagement figures, blog posts, and the internal customer record.
 - **alpacaOAuthCallback** — One token, two endpoints.
 - **billingPortal** — Opens Stripe's customer portal so a subscriber can change card, switch interval or cancel.
+- **brokerLink** — Connect any broker, read-only.
 - **closeSpread** — Submits the closing order for a position: the whole structure by default, or just the legs the caller picked when only one side needs unwinding.
 - **createCheckoutSession** — Starts a Stripe Checkout for the Live plan and returns the page to send the user to.
 - **dumpBrokerFeed** — Captures a broker activity feed so a refused sync can be diagnosed off-box.
@@ -152,7 +153,7 @@ encrypted with AES-256-GCM before storage, with the key held in the edge
 function environment rather than the database, and the credential columns are
 revoked from the browser role entirely.
 
-- **trading_accounts** — id, user_id, name, api_key, api_secret, is_paper, spreads_client_prefix, wheel_client_prefix, created_at, oauth_access_token, api_key_hint, is_oauth, broker_account_number, trades_synced_at, trades_sync_error, broker_account_id
+- **trading_accounts** — id, user_id, name, api_key, api_secret, is_paper, spreads_client_prefix, wheel_client_prefix, created_at, oauth_access_token, api_key_hint, is_oauth, broker_account_number, trades_synced_at, trades_sync_error, broker_account_id, provider, snaptrade_account_id
 - **trade_records** — id, user_id, account_id, strategy, trade_key, ticker, expiry, short_symbol, long_symbol, short_strike, long_strike, qty, open_date, close_date, short_entry, long_entry, net_credit, short_exit, long_exit, close_debit, realized_pl, close_reason, created_at, chain_id, unpaired, premium_pl, early_close_pl, stock_pl, acquired_chain_id, provisional, integrity_code
 - **profiles** — id, role, created_at, last_active_at, signup_source, weekly_digest_opt_out
 - **earnings_calendar** — symbol, report_date, session, fetched_at

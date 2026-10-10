@@ -3,6 +3,7 @@ import { selectAllWhere } from "../_shared/paging.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { tradingBase, loadAccount, alpacaFetch } from "../_shared/alpaca.ts";
 import { syncDue, activityTime } from "../_shared/syncDue.ts";
+import { fetchSnapTradeHistory } from "../_shared/snaptradeAccount.ts";
 import { awaitUpTo } from "../_shared/background.ts";
 import { reconstruct } from "../_shared/tradeReconstruction.ts";
 import { isAdminUser } from "../_shared/admin.ts";
@@ -52,8 +53,17 @@ Deno.serve(async (req) => {
     if (!accountId) return jsonResponse({ error: "accountId is required" }, 400);
 
     const admin = adminClient();
-    const account = await loadAccount(admin, accountId, user.id);
+    const account = await loadAccount(admin, accountId, user.id, { readOnly: true });
     const base = tradingBase(account);
+    // A SnapTrade account's history comes from SnapTrade, translated into the
+    // rows the engine reads (snaptradeHistory.ts). It has no order prefixes
+    // and no separate settlement feed, so those two arrive empty -- exactly
+    // what an Alpaca account with no prefixes configured sends.
+    const viaSnapTrade = account.provider === "snaptrade";
+    const brokerData = async () =>
+      viaSnapTrade
+        ? { orderStrategy: {}, activities: (await fetchSnapTradeHistory(admin, account)).activities, settlementFeed: "unavailable", flows: null }
+        : await fetchBrokerData(account, base);
 
     const accountInfo = { id: account.id, name: account.name, is_paper: account.is_paper };
 
@@ -83,7 +93,7 @@ Deno.serve(async (req) => {
     // own activities beside what this code made of them. Admin-only in the UI —
     // it is the tool that found these defects, not a control a reader needs.
     if (preview) {
-      const { orderStrategy, activities, settlementFeed } = await fetchBrokerData(account, base);
+      const { orderStrategy, activities, settlementFeed } = await brokerData();
       const { records, stockLots, orphanedStockPL, settlementChecks, breaches } =
         reconstruct(activities, orderStrategy, accountId);
       const stored = await fetchTrades(admin, accountId, false);
@@ -147,7 +157,8 @@ Deno.serve(async (req) => {
     // last sync means the store is already wrong (see _shared/syncDue.ts). One
     // small request answers that, asked only when the clock alone says fresh.
     const timing = { now: Date.now(), syncedAt, attemptedAt, staleAfterMs: STALE_AFTER_MS };
-    const lastActivityAt = syncDue(timing)
+    // SnapTrade refreshes once a day, so the clock is the only question there.
+    const lastActivityAt = syncDue(timing) || viaSnapTrade
       ? 0
       : await alpacaFetch(
           `${base}/account/activities?activity_types=FILL,OPEXP,OPASN,OPEXC&direction=desc&page_size=1`,
@@ -164,9 +175,11 @@ Deno.serve(async (req) => {
         .eq("id", accountId);
 
       const work = (async () => {
-        const { orderStrategy, activities, flows } = await fetchBrokerData(account, base);
+        const { orderStrategy, activities, flows } = await brokerData();
         const { records, stockLots, breaches, orphanedStockPL, lotOwners } = reconstruct(activities, orderStrategy, accountId);
-        await writeCashFlows(admin, accountId, user.id, flows);
+        // No cash-flow feed is read from SnapTrade yet, and an empty list must
+        // not be written as "there were none".
+        if (flows) await writeCashFlows(admin, accountId, user.id, flows);
         return writeResults(admin, accountId, user.id, records, stockLots, breaches, orphanedStockPL, lotOwners);
       })().catch(async (err) => {
         // The failure has to land somewhere a person can see. Previously it was

@@ -11,6 +11,7 @@ import AlpacaConnectConsent from "@/components/accounts/AlpacaConnectConsent";
 import { startAlpacaOAuth, describeOAuthConfig } from "@/lib/alpacaOAuth";
 import useAdminSettings from "@/lib/useAdminSettings";
 import usePublicConfig from "@/lib/usePublicConfig";
+import { LAB } from "@/lib/lab";
 
 export default function Accounts() {
   const [accounts, setAccounts] = useState(null);
@@ -54,6 +55,36 @@ export default function Accounts() {
     }
   };
 
+  // ANY OTHER BROKER, READ-ONLY (lab). SnapTrade's portal connects the
+  // broker; its Done button returns here with ?linked=1, and the accounts it
+  // connected are added as DeltaMint accounts that are read and never traded.
+  // See supabase/functions/brokerLink.
+  const [linking, setLinking] = useState(false);
+  const [linkNote, setLinkNote] = useState(null);
+  const connectOther = async () => {
+    setLinking(true);
+    setLinkNote(null);
+    const res = await invokeFunction("brokerLink", { action: "connect" });
+    if (res.data?.url) {
+      window.location.href = res.data.url;
+      return;
+    }
+    setLinking(false);
+    setLinkNote(res.data?.error || res.error?.message || "The broker list could not be opened.");
+  };
+  const importLinked = useCallback(async () => {
+    setLinking(true);
+    const res = await invokeFunction("brokerLink", { action: "import" });
+    setLinking(false);
+    if (res.data?.error || res.error) {
+      setLinkNote(res.data?.error || res.error?.message);
+      return false;
+    }
+    const n = res.data?.imported || 0;
+    setLinkNote(n ? `Added ${n} account${n === 1 ? "" : "s"}, read-only.` : "No new accounts to add.");
+    return true;
+  }, []);
+
   const load = useCallback(async () => {
     const { data, error } = await supabase
       .from("trading_accounts")
@@ -64,6 +95,16 @@ export default function Accounts() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Back from the broker's portal: add what was connected, then tidy the URL
+  // so a refresh does not run it again.
+  useEffect(() => {
+    if (!LAB) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("linked") !== "1") return;
+    window.history.replaceState(null, "", window.location.pathname);
+    importLinked().then(() => load());
+  }, [importLinked, load]);
 
   // Credentials are encrypted server-side, so writes go through the saveAccount
   // function rather than straight to the table.
@@ -114,6 +155,16 @@ export default function Accounts() {
           >
             <Link2 className="w-4 h-4" /> Connect Alpaca
           </button>
+          {LAB && (
+            <button
+              onClick={connectOther}
+              disabled={linking}
+              title="Schwab, Fidelity, Interactive Brokers, Robinhood and more — read-only"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm hover:bg-slate-100 transition-colors disabled:opacity-60"
+            >
+              <Link2 className="w-4 h-4" /> {linking ? "Opening…" : "Another broker"}
+            </button>
+          )}
           {manualKeys && (
             <button
               onClick={() => setEditing("new")}
@@ -124,6 +175,15 @@ export default function Accounts() {
           )}
         </div>
       </div>
+
+      {LAB && linkNote && (
+        <div className="flex items-center gap-3 rounded-lg border border-dm-line bg-white px-4 py-2.5 text-sm text-slate-700">
+          <span>{linkNote}</span>
+          <button onClick={() => importLinked().then(() => load())} className="ml-auto text-xs underline text-slate-500 hover:text-slate-800">
+            Check again
+          </button>
+        </div>
+      )}
 
       {/* Alpaca reports an unregistered redirect URI and an unrecognised client
           id as the same "unknown client" page, on their domain, naming neither.
@@ -230,11 +290,19 @@ export default function Accounts() {
                   }`}>
                     {a.is_paper ? "Paper" : "Live"}
                   </span>
+                  {a.provider === "snaptrade" && (
+                    <span
+                      title="Read through SnapTrade: positions, history and Analysis. DeltaMint places no orders on it."
+                      className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                    >
+                      Read-only
+                    </span>
+                  )}
                   {/* In demo, a live account is read-only for OPENING and
                       nothing else: it still syncs, still shows its positions,
                       and can still be closed out of. Saying that on the row
                       itself beats letting someone find out at a ticket. */}
-                  {!a.is_paper && demoMode && (
+                  {!a.is_paper && demoMode && a.provider !== "snaptrade" && (
                     <span
                       title="Demo mode: no new order is sent to a live account. Closing is never blocked."
                       className="rounded-full border border-dm-line bg-dm-accent/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-dm-accent"
@@ -246,7 +314,7 @@ export default function Accounts() {
                       order function decides, and it also knows whether billing
                       is being enforced yet. Hidden in demo, where no plan
                       changes anything. */}
-                  {!a.is_paper && !demoMode && (
+                  {!a.is_paper && !demoMode && a.provider !== "snaptrade" && (
                     <Link
                       to="/billing"
                       title={plan === "live" ? "Live plan active" : "No Live plan — opening live positions needs one once billing is enforced"}
@@ -261,7 +329,9 @@ export default function Accounts() {
                   )}
                 </div>
                 <div className="text-xs text-slate-500 font-mono mt-1 truncate">
-                  {a.is_oauth
+                  {a.provider === "snaptrade"
+                    ? `Via SnapTrade${a.broker_account_number ? ` · ${a.broker_account_number}` : ""}`
+                    : a.is_oauth
                     ? a.broker_account_number
                       ? `Alpaca OAuth · ${a.broker_account_number}`
                       : "Connected via Alpaca OAuth"

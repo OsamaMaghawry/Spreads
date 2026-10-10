@@ -80,7 +80,11 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
     () => [...new Set((account.spreads || []).map((s) => s.ticker).filter(Boolean))],
     [account.spreads]
   );
-  const { prices, status } = useMarketStream(account.ok ? account.id : null, tickers);
+  // A read-only account (connected through SnapTrade) has no order path, so
+  // nothing on it offers to close, and no stream: the socket is opened on the
+  // account's own Alpaca keys, which it does not have.
+  const closeSpread = account.readOnly ? undefined : (spread) => onCloseSpread(account, spread);
+  const { prices, status } = useMarketStream(account.ok && !account.readOnly ? account.id : null, tickers);
 
   // Overlay the streamed spot onto each position, so every card, table row and
   // strike ladder reads the same number without any of them knowing a socket
@@ -186,7 +190,15 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
               and needs no announcement; the case worth a badge is the other
               one, where the numbers on screen are refreshed periodically rather
               than tick by tick. */}
-          {account.ok && tickers.length > 0 && status !== "live" && (
+          {account.readOnly && (
+            <span
+              title="Read from your broker through SnapTrade. DeltaMint shows this account and never trades it; your broker may report changes with a delay."
+              className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border bg-slate-100 text-slate-600 border-slate-200"
+            >
+              Read-only
+            </span>
+          )}
+          {account.ok && !account.readOnly && tickers.length > 0 && status !== "live" && (
             <span
               title="Not streaming — prices come from the periodic refresh instead, so they update every few seconds rather than tick by tick."
               className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border bg-slate-100 text-slate-500 border-slate-200"
@@ -274,7 +286,9 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
       {!account.ok ? (
         <div className="px-5 py-6 flex items-center gap-3 text-amber-600 text-sm">
           <AlertTriangle className="w-4 h-4 shrink-0" />
-          {/rate limit/i.test(account.error || "")
+          {account.readOnly
+            ? `Your broker could not be read just now. If this keeps happening, connect it again from Accounts. (${account.error})`
+            : /rate limit/i.test(account.error || "")
             ? "Alpaca is rate-limiting this account right now — data will reappear on the next refresh."
             : `Connection failed — check the API keys for this account. (${account.error})`}
         </div>
@@ -282,8 +296,8 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
         <BrokerTable
           rows={account.broker || []}
           coverage={account.coverage || []}
-          onClose={(spread) => onCloseSpread(account, spread)}
-          onCloseMany={(legs, held) => onCloseMany?.(account, legs, account.broker || [], held)}
+          onClose={closeSpread}
+          onCloseMany={account.readOnly ? undefined : (legs, held) => onCloseMany?.(account, legs, account.broker || [], held)}
         />
       ) : tab === "orders" ? (
         orders.length === 0 ? (
@@ -347,14 +361,14 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
         <PositionCards
           spreads={spreads}
           accountId={account.id}
-          onClose={(spread) => onCloseSpread(account, spread)}
+          onClose={closeSpread}
           onTicker={setTicker}
         />
       ) : (
         <SpreadTable
           spreads={spreads}
           accountId={account.id}
-          onClose={(spread) => onCloseSpread(account, spread)}
+          onClose={closeSpread}
           onTicker={setTicker}
         />
       )}

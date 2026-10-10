@@ -62,12 +62,14 @@ export default function CardLegs({ spread, accountId, onCloseLeg }) {
                 value={fmtMoney(pl)}
                 tone={pl > 0 ? "text-emerald-600 font-semibold" : pl < 0 ? "text-rose-600 font-semibold" : ""}
               />
-              <button
-                onClick={() => onCloseLeg(l)}
-                className="ml-auto rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700 transition-colors hover:bg-rose-100"
-              >
-                Close leg
-              </button>
+              {onCloseLeg && (
+                <button
+                  onClick={() => onCloseLeg(l)}
+                  className="ml-auto rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700 transition-colors hover:bg-rose-100"
+                >
+                  Close leg
+                </button>
+              )}
             </div>
           );
         })}
