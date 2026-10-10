@@ -183,7 +183,7 @@ export default function SnapTradePanel() {
                       ? <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">disabled</span>
                       : <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">live</span>}
                     <span className="text-dm-sub">
-                      {(links.accounts || []).filter((a) => a.institution === c.broker).length} account(s)
+                      {(links.accounts || []).filter((a) => a.connection === c.id).length} account(s)
                     </span>
                   </li>
                 ))}

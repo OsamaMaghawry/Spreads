@@ -779,6 +779,9 @@ Deno.serve(async (req) => {
             id: String(a.id ?? ""),
             name: String(a.name ?? ""),
             institution: String(a.institution_name ?? ""),
+            // Which connection it came through: two connections to the same
+            // broker share an institution name, so that cannot count them.
+            connection: String(a.brokerage_authorization ?? ""),
             paper: isPaperAccount(a)
           }))
         });
