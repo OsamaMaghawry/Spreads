@@ -1,8 +1,9 @@
 ---
 title: What is an options contract — and what lands in your account
+search_title: "How many shares in an option contract? 100, with exceptions"
 slug: what-is-an-options-contract
 excerpt: Every field on a listed option is fixed before you arrive except the price, and what lands in your account afterwards depends on which side of it you took.
-meta_description: An options contract is standardised — every field but the price is fixed before you trade it. What the 100 multiplier costs, and what a sold one ties up.
+meta_description: "A standard option contract is 100 shares, so a $1.20 quote costs $120. The exceptions: contracts adjusted for a split or merger, and index options."
 author: DeltaMint
 published_at: 2026-09-07T16:03:54+00:00
 category: foundations
@@ -63,7 +64,7 @@ of your fill, and never need to find them again to get out.
 | Exercise style | Exchange, at listing | No |
 | Premium | The two people trading it | Constantly, while it stays listed |
 
-## One contract is 100 shares, so a $1.20 quote costs $120
+## How many shares is one contract? 100, so a $1.20 quote costs $120
 
 The most common early mistake is not conceptual, it is arithmetic. Option prices
 are quoted per share and traded per contract, and nothing on the screen shouts
@@ -164,6 +165,12 @@ collateral requirement and no expiration date at all.
 
 Which exit is likely, and what each costs, are separate questions with separate
 posts. The set itself never gets longer than three.
+
+## Frequently asked questions
+
+- **Are all call options for 100 shares?** Calls and puts on US stocks and ETFs are standardised at 100 shares per contract. The exceptions are contracts adjusted after a split, merger or special dividend, which can deliver a different number of shares, and index options, which settle in cash with no shares at all.
+- **How many shares are in one option contract?** 100, unless the contract was adjusted for a corporate action. An adjusted contract usually trades under a changed symbol, such as XYZ1.
+- **Does one contract cost 100 times the quote?** Yes. A quote of $1.20 is per share, so one contract costs $120 before fees.
 
 ## What the contract itself refuses to tell you
 
