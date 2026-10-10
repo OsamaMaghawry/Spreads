@@ -906,7 +906,13 @@ Deno.serve(async (req) => {
     if (!accountId) return jsonResponse({ error: "accountId is required" }, 400);
 
     const admin = adminClient();
-    const account = await loadAccount(admin, accountId, user.id);
+    const account = await loadAccount(admin, accountId, user.id, { readOnly: true });
+    // An account read through SnapTrade has no daily account-value history to
+    // rebuild from (that comes from Alpaca's portfolio history), so there is no
+    // series rather than an error. Analysis draws from its closed trades.
+    if (account.provider === "snaptrade") {
+      return jsonResponse({ series: [], syncedAt: null, days: 0, unavailable: "read-only account" });
+    }
 
     const syncedAt = account.equity_synced_at ? Date.parse(account.equity_synced_at) : 0;
     const stale = !syncedAt || Date.now() - syncedAt > STALE_AFTER_MS;

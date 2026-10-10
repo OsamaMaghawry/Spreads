@@ -62,7 +62,9 @@ export default function OptionChain() {
   useEffect(() => {
     invokeFunction("syncAccounts", {})
       .then((r) => {
-        const list = r?.data?.accounts || [];
+        // A read-only account (through SnapTrade) has no live quotes to read
+        // a chain with.
+        const list = (r?.data?.accounts || []).filter((a) => !a.readOnly);
         setAccounts(list);
         setAccountId((cur) => cur || list[0]?.id || "");
       })
