@@ -90,6 +90,7 @@ export default function Accounts() {
     if (res.data?.waiting?.length) {
       notes.push(`${list(res.data.waiting)}: connected, but no accounts have arrived from the broker yet. A new connection can take a few minutes.`);
     }
+    if (res.data?.refused?.length) notes.push(`${list(res.data.refused)} could not be added.`);
     if (res.data?.broken?.length) notes.push(`${list(res.data.broken)}: the connection was cut off. Connect it again with "Another broker".`);
     if (notes.length) setLinkNote(notes.join(" "));
     else if (!quiet) setLinkNote("No new accounts to add.");

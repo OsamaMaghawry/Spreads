@@ -95,14 +95,25 @@ Deno.serve(async (req) => {
 
         const { data: ours, error: readError } = await admin
           .from("trading_accounts")
-          .select("id, snaptrade_account_id")
-          .eq("user_id", user.id)
-          .not("snaptrade_account_id", "is", null);
+          .select("id, snaptrade_account_id, broker_account_number, is_paper")
+          .eq("user_id", user.id);
         if (readError) throw new Error(readError.message);
-        const have = new Set((ours || []).map((r: any) => r.snaptrade_account_id));
+        const have = new Set((ours || []).filter((r: any) => r.snaptrade_account_id).map((r: any) => r.snaptrade_account_id));
+
+        // An account already connected directly stays connected directly. The
+        // same broker account read a second way would show every position
+        // twice, and the direct connection is the one that can trade. One row
+        // per broker account is also what the database holds to
+        // (trading_accounts_user_broker_account_number_idx).
+        const numberKey = (n: unknown, paper: boolean) => `${String(n)}|${paper}`;
+        const direct = new Set(
+          (ours || []).filter((r: any) => r.broker_account_number).map((r: any) => numberKey(r.broker_account_number, r.is_paper))
+        );
+        const isDirect = (a: Record<string, unknown>) => !!a.number && direct.has(numberKey(a.number, isPaperAccount(a)));
+        const alreadyConnected = theirs.filter((a) => !have.has(String(a.id)) && isDirect(a)).map(label);
 
         const rows = theirs
-          .filter((a) => a.id && !have.has(String(a.id)))
+          .filter((a) => a.id && !have.has(String(a.id)) && !isDirect(a))
           .map((a) => ({
             user_id: user.id,
             name: label(a),
@@ -111,12 +122,19 @@ Deno.serve(async (req) => {
             snaptrade_account_id: String(a.id),
             broker_account_number: a.number ? String(a.number) : null
           }));
-        if (rows.length) {
-          const { error } = await admin.from("trading_accounts").insert(rows);
-          if (error) throw new Error(error.message);
+        // One at a time, so one account the database refuses does not keep
+        // the others out.
+        let imported = 0;
+        const refused: string[] = [];
+        for (const row of rows) {
+          const { error } = await admin.from("trading_accounts").insert(row);
+          if (error) refused.push(row.name);
+          else imported += 1;
         }
         return jsonResponse({
-          imported: rows.length,
+          imported,
+          alreadyConnected,
+          refused,
           accounts: theirs.map((a) => ({ name: label(a), paper: isPaperAccount(a), alreadyAdded: have.has(String(a.id)) })),
           waiting,
           broken
