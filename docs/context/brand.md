@@ -188,7 +188,17 @@ The table above previously listed "dashboard" as the thing NOT to say, and the
 nav had been saying it anyway while the page heading said the other — so the
 two names were being used against each other in one click. One name, his.
 
-### The two Analysis views
+### The two Analysis views (retired 9 Oct)
+
+**Retired.** On 9 Oct the owner, faced with four totals on one screen ("I have
+2000 something ... 1500 ... 300 ... 88. What the hell?"), approved one number:
+Analysis now leads with **Profit on closed trades** — every closed trade,
+shares sold included, the same figure the chart ends on and the cards
+measure — with **Still open: $X at today's prices** on its own line, added to
+nothing. The switch is gone from the page. The names below stay registered so
+older copy and the PDF history read consistently; do not bring the switch back
+without the owner.
+
 
 | Canonical | Not |
 | --- | --- |
