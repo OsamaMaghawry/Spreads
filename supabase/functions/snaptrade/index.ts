@@ -27,6 +27,8 @@ import { isServiceRole } from "../_shared/serviceRole.ts";
 import { redeemCronTicket } from "../_shared/cronTicket.ts";
 import { encryptSecret, decryptSecret } from "../_shared/crypto.ts";
 import { snapFetch, snapCredentials, type SnapCall } from "../_shared/snaptrade.ts";
+import { toEngineActivities, compareTrades } from "../_shared/snaptradeHistory.ts";
+import { reconstruct } from "../_shared/tradeReconstruction.ts";
 import {
   redact,
   brokerMatrix,
@@ -556,7 +558,64 @@ async function runProbe(admin: any, userId: string | null) {
     });
   }
 
-  return { probes, matrix: matrixOut, verdicts: verdicts(probes, matrixOut), notes, accounts: summary };
+  // THE TEST THAT DECIDES THE ANY-BROKER PLAN. For every SnapTrade account
+  // DeltaMint also reads natively -- matched by broker account number, among
+  // the running admin's own accounts -- rebuild its trades from SnapTrade's
+  // history with the same engine, and compare with what DeltaMint stored.
+  // Only up to the last day SnapTrade has, because it refreshes once a day.
+  const parity: Record<string, unknown>[] = [];
+  for (const { a, s } of ordered) {
+    const number = String((a as Record<string, unknown>).number ?? "").trim();
+    if (!number || !userId) continue;
+    const { data: mine } = await admin
+      .from("trading_accounts")
+      .select("id, name")
+      .eq("user_id", userId)
+      .eq("broker_account_number", number)
+      .limit(1);
+    const dm = mine?.[0];
+    if (!dm) continue;
+
+    const rows: Record<string, unknown>[] = [];
+    let failed: string | null = null;
+    for (let page = 0, offset = 0; page < 20; page++) {
+      const res = await snapFetch<unknown>({
+        path: `/accounts/${String(a.id)}/activities`,
+        query: { start_date: "2024-01-01", limit: 1000, offset },
+        ...scoped
+      });
+      if (!res.ok) { failed = res.error || `HTTP ${res.status}`; break; }
+      const list = listOf(res.data);
+      rows.push(...list);
+      if (list.length < 1000) break;
+      offset += list.length;
+    }
+    if (failed) { parity.push({ account: dm.name, error: failed }); continue; }
+
+    const { activities, skipped } = toEngineActivities(rows);
+    const rebuilt = reconstruct(activities, {}, dm.id);
+    const { data: stored } = await admin
+      .from("trade_records")
+      .select("short_symbol, long_symbol, close_date, close_reason, qty, realized_pl")
+      .eq("account_id", dm.id);
+    const lastDay = activities
+      .map((x) => String(x.transaction_time || x.date || "").slice(0, 10))
+      .filter(Boolean)
+      .sort()
+      .pop() || "";
+    parity.push({
+      account: dm.name,
+      snapTradeAccount: `${s.institution} — ${s.name}`,
+      activities: rows.length,
+      engineRows: activities.length,
+      skipped,
+      throughDay: lastDay || null,
+      comparison: compareTrades(stored || [], rebuilt.records || [], { to: lastDay })
+    });
+  }
+  if (parity.length) notes.push(`Parity: ${parity.length} account(s) rebuilt from SnapTrade and compared with DeltaMint's own records.`);
+
+  return { probes, matrix: matrixOut, verdicts: verdicts(probes, matrixOut), notes, accounts: summary, parity };
 }
 
 // ---------------------------------------------------------------------------
