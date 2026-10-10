@@ -2,15 +2,13 @@ import { useState } from "react";
 import StatTiles from "./StatTiles";
 import MethodNotes, { methodNotes } from "./MethodNotes";
 import EquityCurveChart from "./EquityCurveChart";
-import ViewSwitch from "./ViewSwitch";
-import WindowParts from "./WindowParts";
+import ProfitHeadline from "./ProfitHeadline";
 import OpenBookPanel from "./OpenBookPanel";
 import OpenOptionsPanel from "./OpenOptionsPanel";
 import SetupBreakdown from "./SetupBreakdown";
 import StrategyComparison from "./StrategyComparison";
 import TradeEndings from "./TradeEndings";
 import BreakdownTable from "./BreakdownTable";
-import { fmtMoney } from "@/lib/format";
 
 // CHART FIRST, METHOD LAST.
 //
@@ -49,37 +47,22 @@ export default function AnalysisLayoutB({
   isPaper,
   withheldLine,
   transfersNote,
-  viewNote,
   view,
-  onViewChange,
-  hasOpen,
-  viewFigure,
-  viewFigureLabel,
-  viewMarked,
+  stillOpen,
   stats,
   withheldFigure,
   setupCount,
   curve,
-  chartMode,
-  onChartMode,
-  hasValueSeries,
-  chartFallbackReason,
-  windowEnd,
-  chartReconcileNote,
-  parts,
   book,
   optionBook,
   positionSetups,
   comparison,
   splitCount,
-  comparisonOpenMark,
   subset,
   disclosure
 }) {
   const [tab, setTab] = useState("summary");
-  const notes = methodNotes({ withheldLine, transfersNote, viewNote });
-  const total = stats.view === "premium" ? "Option-leg P/L" : stats.includesUnrealized ? "Total" : "Realized";
-  const positive = stats.totalPL >= 0;
+  const notes = methodNotes({ withheldLine, transfersNote, viewNote: null });
 
   return (
     <div className="space-y-4 bg-white">
@@ -94,50 +77,10 @@ export default function AnalysisLayoutB({
 
       {/* ---- the answer, then the chart it came from ---- */}
       <div className="rounded-xl border border-dm-line bg-white px-4 pb-3 pt-4">
-        <div className="flex flex-wrap items-end gap-x-5 gap-y-2">
-          <div>
-            <div className="text-[10px] uppercase tracking-[0.14em] text-dm-sub">
-              {total} &middot; {stats.view === "premium" ? "premium only" : "whole view"}
-            </div>
-            <div
-              className={`mt-1 font-heading text-[40px] font-bold leading-none tabular-nums ${
-                positive ? "text-dm-positive" : "text-dm-negative"
-              }`}
-            >
-              {fmtMoney(stats.totalPL)}
-            </div>
-          </div>
-          <div className="pb-1 text-[11.5px] leading-snug text-dm-sub">
-            {stats.trades} closed trade{stats.trades === 1 ? "" : "s"}
-            <br />
-            over {stats.spanDays} day{stats.spanDays === 1 ? "" : "s"}
-          </div>
-          {/* The switch belongs beside the figure it redefines, not in a panel
-              of its own two screens away. */}
-          {hasOpen && (
-            <div className="ml-auto pb-0.5">
-              <ViewSwitch
-                value={view}
-                onChange={onViewChange}
-                figure={viewFigure}
-                figureLabel={viewFigureLabel}
-                marked={viewMarked}
-              />
-            </div>
-          )}
-        </div>
+        <ProfitHeadline figure={stats.totalPL} trades={stats.trades} spanDays={stats.spanDays} stillOpen={stillOpen} />
 
         <div className="mt-3">
-          <EquityCurveChart
-            curve={curve}
-            view={view}
-            mode={chartMode}
-            onModeChange={onChartMode}
-            hasValueSeries={hasValueSeries}
-            fallbackReason={chartFallbackReason}
-            windowEnd={windowEnd}
-            reconcileNote={chartReconcileNote}
-          />
+          <EquityCurveChart curve={curve} view={view} />
         </div>
       </div>
 
@@ -177,7 +120,6 @@ export default function AnalysisLayoutB({
         <div className="space-y-4 pt-4">
           {tab === "summary" && (
             <>
-              {parts && <WindowParts parts={parts} />}
               <TradeEndings trades={subset} view={view} />
             </>
           )}
@@ -196,7 +138,7 @@ export default function AnalysisLayoutB({
 
           {tab === "strategies" &&
             (comparison.length > 1 ? (
-              <StrategyComparison rows={comparison} splitCount={splitCount} openMark={comparisonOpenMark} />
+              <StrategyComparison rows={comparison} splitCount={splitCount} />
             ) : (
               <p className="rounded-xl border border-dm-line bg-white px-4 py-8 text-center text-sm text-dm-sub">
                 One strategy in this window — there is nothing to compare it against.

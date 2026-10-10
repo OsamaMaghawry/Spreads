@@ -29,7 +29,7 @@ export default function StatCards({ stats, withheld = null }) {
     ? "Option-leg P/L"
     : stats.includesUnrealized
       ? "Total P/L"
-      : "Realized P/L";
+      : "Profit on closed trades";
   const totalSub = premium
     ? "Credits taken less debits paid, closed trades"
     : stats.includesUnrealized

@@ -81,9 +81,13 @@ export default function EquityCurveChart({
   const positive = (isValue ? (change ?? 0) : (end ?? 0)) >= 0;
   const color = positive ? "#059669" : "#e11d48";
 
+  // The Analysis page draws only the booked line now: the headline's own
+  // figure, built up close by close, so it ends on the number above it.
   const title = isValue
     ? "Account value, end of each day"
-    : view === "premium"
+    : curve.mode === "booked" && view !== "premium"
+      ? "Profit on closed trades, over time"
+      : view === "premium"
       ? "Option legs, cumulative"
       : "Strategy performance, cumulative";
 
@@ -92,7 +96,7 @@ export default function EquityCurveChart({
     : view === "premium"
       ? "Credits taken and debits paid on closed option trades. Shares are not in this line."
       : curve.mode === "booked"
-        ? "Money booked by this strategy, in the order it booked it"
+        ? "Each trade counted on the day it closed. Ends on the figure above."
         // "the mark on shares still held" omitted the OPTION legs still open,
         // which this line has carried since `options_open` was added to the
         // stored series. That omission is load-bearing: this subtitle is the
