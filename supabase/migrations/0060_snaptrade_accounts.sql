@@ -28,6 +28,18 @@ alter table public.trading_accounts
 alter table public.trading_accounts
   add column if not exists snaptrade_account_id text;
 
+-- A row must still say how it is reached. 0003's rule demanded Alpaca keys or
+-- a token on every row, which refused the first SnapTrade import on staging
+-- (10 Oct); a SnapTrade row is reached by its SnapTrade account id instead.
+alter table public.trading_accounts
+  drop constraint if exists trading_accounts_credentials_present;
+alter table public.trading_accounts
+  add constraint trading_accounts_credentials_present check (
+    oauth_access_token is not null
+    or (api_key is not null and api_secret is not null)
+    or (provider = 'snaptrade' and snaptrade_account_id is not null)
+  );
+
 -- One DeltaMint row per SnapTrade account per user, so importing twice adds
 -- nothing.
 create unique index if not exists trading_accounts_snaptrade_account_uidx

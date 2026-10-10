@@ -80,7 +80,7 @@ export default function Accounts() {
     const res = await invokeFunction("brokerLink", { action: "import" });
     setLinking(false);
     if (res.data?.error || res.error) {
-      if (!quiet) setLinkNote(res.data?.error || res.error?.message);
+      setLinkNote(res.data?.error || res.error?.message);
       return false;
     }
     const n = res.data?.imported || 0;
