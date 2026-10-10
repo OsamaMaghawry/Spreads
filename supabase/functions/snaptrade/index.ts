@@ -60,13 +60,22 @@ const sampleOf = (data: unknown): unknown => {
 
 // Current positions as a whole: how many, of which instrument types, and the
 // first few options -- the shape spread grouping and the open book read.
+// The list inside a response, wherever they put it: the bare array, or the
+// first array-valued key -- the same places `rowsOf` counts from. The first
+// version looked only at a bare array or `.data`, and read 0 rows from a
+// response `rowsOf` counted 52 in.
+const listOf = (data: unknown): Record<string, unknown>[] => {
+  if (Array.isArray(data)) return data as Record<string, unknown>[];
+  if (data && typeof data === "object") {
+    for (const v of Object.values(data as Record<string, unknown>)) {
+      if (Array.isArray(v)) return v as Record<string, unknown>[];
+    }
+  }
+  return [];
+};
+
 const positionSummary = (data: unknown) => {
-  const d = data as Record<string, unknown> | unknown[] | null;
-  const rows: Record<string, unknown>[] = Array.isArray(d)
-    ? (d as Record<string, unknown>[])
-    : Array.isArray((d as Record<string, unknown>)?.data)
-      ? ((d as Record<string, unknown>).data as Record<string, unknown>[])
-      : [];
+  const rows = listOf(data);
   const kinds: Record<string, number> = {};
   const options: Record<string, unknown>[] = [];
   for (const r of rows) {
@@ -75,7 +84,15 @@ const positionSummary = (data: unknown) => {
     kinds[kind] = (kinds[kind] || 0) + 1;
     if (/option/i.test(kind) || r?.option_symbol || inst?.option_symbol) options.push(r);
   }
-  return { rows: rows.length, kinds, optionRows: options.length, optionSamples: options.slice(0, 3).map((r) => redact(r)), firstRow: rows[0] ? redact(rows[0]) : null };
+  return {
+    rows: rows.length,
+    // Where the list sat, so the next reader of this record does not have to guess.
+    keys: data && typeof data === "object" && !Array.isArray(data) ? Object.keys(data as Record<string, unknown>) : ["(array)"],
+    kinds,
+    optionRows: options.length,
+    optionSamples: options.slice(0, 3).map((r) => redact(r)),
+    firstRows: rows.slice(0, 2).map((r) => redact(r))
+  };
 };
 
 // Orders as a whole, for the one question history alone cannot answer: does
