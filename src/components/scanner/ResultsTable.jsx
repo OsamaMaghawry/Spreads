@@ -104,12 +104,16 @@ export default function ResultsTable({ candidates, onTrade }) {
                 <td className={`${td} text-right`}>{fmtMoney(c.credit * 100)}</td>
                 <td className={`${td} text-right`}>{fmtMoney(c.maxRisk)}</td>
                 <td className={td}>
-                  <button
-                    onClick={() => onTrade(c)}
-                    className="text-xs font-medium px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
-                  >
-                    Trade
-                  </button>
+                  {/* No Trade button when every connected account is
+                      read-only: DeltaMint cannot place it there. */}
+                  {onTrade && (
+                    <button
+                      onClick={() => onTrade(c)}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                    >
+                      Trade
+                    </button>
+                  )}
                 </td>
               </tr>
             );

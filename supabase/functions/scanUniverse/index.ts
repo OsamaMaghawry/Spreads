@@ -14,6 +14,8 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { tradingBase, alpacaFetch, loadAccount } from "../_shared/alpaca.ts";
+import { dataAccountFor } from "../_shared/marketData.ts";
+import { fetchSnapTradeRaw } from "../_shared/snaptradeAccount.ts";
 import { screenUniverse, tradableEquities } from "../_shared/universe.ts";
 
 // Snapshots take a symbol list in the query string, so the batch is bounded by
@@ -54,7 +56,11 @@ Deno.serve(async (req) => {
     if (!accountId) return jsonResponse({ error: "accountId is required" }, 400);
 
     const admin = adminClient();
-    const account = await loadAccount(admin, accountId, user.id);
+    // The user's own account answers "how much capital"; the data account
+    // only supplies the listing and prices. One and the same unless the
+    // account is read-only (marketData.ts).
+    const own = await loadAccount(admin, accountId, user.id, { readOnly: true });
+    const account = await dataAccountFor(admin, own);
     const base = tradingBase(account);
 
     // The whole listed equity universe, once. Alpaca returns it in a single
@@ -81,7 +87,11 @@ Deno.serve(async (req) => {
     // own equity is read here rather than trusted from the request body.
     let equity = Number(filters.equity) || null;
     if (filters.maxCapitalPct != null && !equity) {
-      const info = await alpacaFetch(`${base}/account`, account).catch(() => null);
+      // NEVER the data account's: for a read-only user that is someone else's
+      // account. Their own equity comes from their own broker.
+      const info = own.provider === "snaptrade"
+        ? await fetchSnapTradeRaw(admin, own).then((r) => r.info).catch(() => null)
+        : await alpacaFetch(`${tradingBase(own)}/account`, own).catch(() => null);
       equity = info ? Number(info.equity) || null : null;
     }
 

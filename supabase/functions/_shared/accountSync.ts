@@ -10,6 +10,7 @@ import { bookRiskByTicker, bookRiskTotal } from "./bookRisk.ts";
 import { selectAllWhere } from "./paging.ts";
 import { legsOf } from "./positionLegs.ts";
 import { fetchSnapTradeRaw } from "./snaptradeAccount.ts";
+import { houseDataAccount } from "./marketData.ts";
 
 // The live picture of every account a user owns -- positions paired into
 // structures, credit and risk per position, totals that net a ticker's condors
@@ -35,9 +36,14 @@ export async function syncAccountsFor(admin: any, userId: string) {
   // mark come from the same user's own directly connected account when they
   // have one -- their data, their entitlement. Without one, the broker's own
   // last price on each position stands in and moneyness is left unknown.
-  const dataAccount = decrypted.find(
+  let dataAccount = decrypted.find(
     (a) => (a.provider || "alpaca") === "alpaca" && (a.oauth_access_token || a.api_key)
   ) || null;
+  // No Alpaca account of their own: the house account prices their positions
+  // for the staging test, market data only (marketData.ts).
+  if (!dataAccount && decrypted.some((a) => a.provider === "snaptrade")) {
+    dataAccount = await houseDataAccount(admin).catch(() => null);
+  }
   const results = await Promise.all(decrypted.map((a) => syncOne(a, dataAccount)));
   return { accounts: results, syncedAt: new Date().toISOString() };
 }

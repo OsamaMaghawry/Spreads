@@ -2,6 +2,7 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { resumableLimit } from "../_shared/resumeLimit.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { getSpreadQuote, getLegsQuote, loadAccount, tradingBase, alpacaFetch } from "../_shared/alpaca.ts";
+import { dataAccountFor } from "../_shared/marketData.ts";
 
 // Prices a position for closing: what the legs are worth right now, plus the
 // highest limit already tried on them so a retry resumes rather than restarts.
@@ -32,19 +33,24 @@ Deno.serve(async (req) => {
 
     const admin = adminClient();
     const account = await loadAccount(admin, accountId, user.id, { readOnly: true });
-    // A read-only account has no live quotes of its own. Saying so, rather
-    // than letting the quote path throw a 500, lets the legs show "—".
-    if (account.provider === "snaptrade") {
-      return jsonResponse({ error: "Live quotes are not available for a read-only account yet.", unavailable: true }, 404);
+    // Quotes through the data account (marketData.ts): the account itself,
+    // or for a read-only one, the user's own Alpaca account or the house one.
+    let data;
+    try {
+      data = await dataAccountFor(admin, account);
+    } catch (e) {
+      return jsonResponse({ error: (e as Error).message, unavailable: true }, 404);
     }
     const symbols = customLegs
       ? customLegs.map((l) => l.symbol)
       : [shortSymbol, longSymbol, callShortSymbol, callLongSymbol].filter(Boolean);
     const [quote, lastDebit] = await Promise.all([
       customLegs
-        ? getLegsQuote(account, customLegs)
-        : getSpreadQuote(account, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, putRatio || 1, callRatio || 1),
-      lastAttemptDebit(account, symbols)
+        ? getLegsQuote(data, customLegs)
+        : getSpreadQuote(data, shortSymbol, longSymbol, callShortSymbol, callLongSymbol, putRatio || 1, callRatio || 1),
+      // The user's own order history, never the data account's: a read-only
+      // account has none here.
+      account.provider === "snaptrade" ? Promise.resolve(null) : lastAttemptDebit(account, symbols)
     ]);
     if (!quote) return jsonResponse({ error: "No quote available for these contracts" }, 404);
     // A leg with no offer is not a quote, and must not reach the ticket as one:

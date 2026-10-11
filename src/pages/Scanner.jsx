@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Loader2, Radar, StopCircle } from "lucide-react";
 import StrategyPicker from "@/components/open/StrategyPicker";
@@ -15,6 +15,10 @@ import { isSingle, STRATEGY_LABEL } from "@/lib/setupUnit";
 
 export default function Scanner() {
   const [accounts, setAccounts] = useState([]);
+  const tradable = useMemo(() => accounts.filter((a) => a.provider !== "snaptrade"), [accounts]);
+  // An account that can trade scans with its own data; a read-only one only
+  // when it is all there is.
+  const scanAccount = tradable[0] || accounts[0];
   const [strategy, setStrategy] = useState("put_spread");
   const [cfg, setCfg] = useState(SCANNER_DEFAULTS);
   const [tradeSetup, setTradeSetup] = useState(null);
@@ -35,9 +39,10 @@ export default function Scanner() {
     supabase
       .from("trading_accounts")
       .select(SAFE_ACCOUNT_COLUMNS)
-      // A read-only account (SnapTrade) has no market data and takes no
-      // orders, so it cannot run a scan or place what a scan finds.
-      .then(({ data }) => setAccounts((data || []).filter((a) => a.provider !== "snaptrade")));
+      // Read-only accounts (SnapTrade) can scan: the server prices the scan
+      // through a data account (marketData.ts). They take no orders, so the
+      // Trade button offers only the accounts that can.
+      .then(({ data }) => setAccounts(data || []));
   }, []);
 
   const isCondor = strategy === "iron_condor";
@@ -112,7 +117,7 @@ export default function Scanner() {
       setUniverseError(null);
       try {
         const { data } = await invokeFunction("scanUniverse", {
-          accountId: accounts[0].id,
+          accountId: scanAccount.id,
           filters: {
             maxSpot: cfg.maxSpot === "" ? null : Number(cfg.maxSpot),
             minSpot: cfg.minSpot === "" ? null : Number(cfg.minSpot),
@@ -139,14 +144,14 @@ export default function Scanner() {
         // passed, and where the rest went, which is a better answer than a
         // banner repeating it.
         if (!data?.tickers?.length) return;
-        start(accounts[0].id, [{ tickers: data.tickers, filters: filtersFor(strategy) }]);
+        start(scanAccount.id, [{ tickers: data.tickers, filters: filtersFor(strategy) }]);
       } catch (e) {
         setFindingUniverse(false);
         setUniverseError(e?.message || String(e));
       }
       return;
     }
-    start(accounts[0].id, jobs());
+    start(scanAccount.id, jobs());
   };
 
   const minRoR = Number(cfg.minRoR) || 0;
@@ -273,7 +278,7 @@ export default function Scanner() {
                       {strat === "cash_secured_put" ? "Puts to sell" : "Calls on shares you hold"} · {rows.length}
                     </div>
                     {rows.length > 0 ? (
-                      <ResultsTable candidates={rows} onTrade={setTradeSetup} />
+                      <ResultsTable candidates={rows} onTrade={tradable.length ? setTradeSetup : undefined} />
                     ) : (
                       <div className="px-4 py-6 text-xs text-slate-400">{running ? "Scanning…" : `No ${STRATEGY_LABEL[strat].toLowerCase()} matched.`}</div>
                     )}
@@ -282,7 +287,7 @@ export default function Scanner() {
               })}
             </div>
           ) : shown.length > 0 ? (
-            <ResultsTable candidates={shown} onTrade={setTradeSetup} />
+            <ResultsTable candidates={shown} onTrade={tradable.length ? setTradeSetup : undefined} />
           ) : (
             <div className="px-4 py-12 text-sm text-slate-500">
               {running ? (
@@ -339,7 +344,7 @@ export default function Scanner() {
       </div>
 
       {tradeSetup && (
-        <TradeDialog setup={tradeSetup} accounts={accounts} onClose={() => setTradeSetup(null)} />
+        <TradeDialog setup={tradeSetup} accounts={tradable} onClose={() => setTradeSetup(null)} />
       )}
     </div>
   );

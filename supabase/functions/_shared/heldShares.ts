@@ -10,9 +10,14 @@ import { selectAllWhere } from "./paging.ts";
 import { parseOCCSymbol } from "./occ.ts";
 import { basisByTicker } from "./wheelBasis.ts";
 import { freeCallCover, scanCover } from "./callCover.ts";
+import { fetchSnapTradeRaw } from "./snaptradeAccount.ts";
 
 export async function heldShares(admin: any, account: any) {
-  const positions = await alpacaFetch(`${tradingBase(account)}/positions`, account);
+  // A read-only account's own shares come from SnapTrade, already in Alpaca's
+  // shape. Never from the account that supplies its prices (marketData.ts).
+  const positions = account?.provider === "snaptrade"
+    ? (await fetchSnapTradeRaw(admin, account)).positions
+    : await alpacaFetch(`${tradingBase(account)}/positions`, account);
   const shares: Record<string, number> = {};
   const brokerBasis: Record<string, number> = {};
   for (const p of Array.isArray(positions) ? positions : []) {

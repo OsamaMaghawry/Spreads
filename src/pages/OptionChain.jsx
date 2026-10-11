@@ -46,6 +46,7 @@ const dte = (d) => {
 export default function OptionChain() {
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState("");
+  const tradable = useMemo(() => accounts.filter((a) => !a.readOnly), [accounts]);
   const [ticker, setTicker] = useState("");
   const [query, setQuery] = useState("");
   const [expiry, setExpiry] = useState("");
@@ -62,11 +63,12 @@ export default function OptionChain() {
   useEffect(() => {
     invokeFunction("syncAccounts", {})
       .then((r) => {
-        // A read-only account (through SnapTrade) has no live quotes to read
-        // a chain with.
-        const list = (r?.data?.accounts || []).filter((a) => !a.readOnly);
+        // Read-only accounts (through SnapTrade) are listed too: the server
+        // prices their chain through a data account (marketData.ts). They
+        // cannot be traded, so the ticket offers only the accounts that can.
+        const list = r?.data?.accounts || [];
         setAccounts(list);
-        setAccountId((cur) => cur || list[0]?.id || "");
+        setAccountId((cur) => cur || (list.find((a) => !a.readOnly) || list[0])?.id || "");
       })
       .catch(() => setAccounts([]));
   }, []);
@@ -324,7 +326,8 @@ export default function OptionChain() {
             </button>
             <button
               type="button"
-              disabled={!ticket?.ok}
+              disabled={!ticket?.ok || tradable.length === 0}
+              title={tradable.length === 0 ? "Your connected accounts are read-only, so DeltaMint cannot place this. Place it at your broker." : undefined}
               onClick={() => setTicketOpen(true)}
               className="px-3.5 py-1.5 rounded-lg bg-white text-slate-900 text-sm font-medium disabled:opacity-40"
             >
@@ -429,11 +432,11 @@ export default function OptionChain() {
           reader goes back to change a strike, so it clears nothing. The one
           case where the legs really are spent is an order that reached the
           broker — filled, or left working — and only that clears them. */}
-      {ticketOpen && ticket?.ok && accounts.length > 0 && (
+      {ticketOpen && ticket?.ok && tradable.length > 0 && (
         <TradeDialog
           setup={ticket.setup}
-          accounts={accounts}
-          defaultAccountId={accountId}
+          accounts={tradable}
+          defaultAccountId={tradable.some((a) => a.id === accountId) ? accountId : tradable[0].id}
           // What this account already holds, so the ticket's Advanced analysis
           // can draw the whole name rather than the order in isolation.
           // `syncAccounts` already returned these when the page loaded.

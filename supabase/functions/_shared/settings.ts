@@ -75,6 +75,15 @@ export const WEEKLY_DIGEST_DELIVERY = "weekly_digest_delivery";
 // here, and the table is service-role only regardless.
 export const DIGEST_RELAY = "digest_relay";
 
+// The account whose market data prices a read-only (SnapTrade) user's
+// Scanner, Option chain and leg quotes when that user has no Alpaca account of
+// their own: the owner's, for the friends test on staging (11 Oct, "keep using
+// mine as a test"). A trading_accounts id, or absent -- and absent everywhere
+// but staging. Read for MARKET DATA ONLY; see marketData.ts for the rule that
+// keeps that account's positions and balances away from anyone else. Not in
+// WRITABLE_SETTINGS: it is set by hand, on purpose, and removed the same way.
+export const HOUSE_DATA_ACCOUNT = "house_data_account";
+
 // The keys an administrator may set through the panel. An allowlist rather
 // than "whatever key was posted", so the settings table cannot be used as a
 // general-purpose write target by anything holding an admin session.
@@ -106,6 +115,10 @@ export async function readSettings(admin: Admin) {
           : "owner",
     // Shape-checked here so a malformed row reads as "no relay" rather than
     // reaching a fetch as undefined.
+    houseDataAccountId: (() => {
+      const v = byKey.get(HOUSE_DATA_ACCOUNT);
+      return typeof v === "string" && v.trim() ? v.trim() : null;
+    })(),
     digestRelay: (() => {
       const v = byKey.get(DIGEST_RELAY) as { url?: string; key?: string } | undefined;
       return v && typeof v.url === "string" && v.url ? { url: v.url, key: String(v.key || "") } : null;

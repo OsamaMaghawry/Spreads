@@ -1,4 +1,5 @@
 import { loadAccount, alpacaFetch, tradingBase } from "./alpaca.ts";
+import { dataAccountFor } from "./marketData.ts";
 import { getSpot } from "./marketPrice.ts";
 import { chainLadder, atTheMoneyIndex } from "./optionChain.ts";
 import { heldShares } from "./heldShares.ts";
@@ -121,9 +122,12 @@ export async function readChainFor(admin: any, userId: string, body: any) {
     return reply({ error: `${ticker} is not a symbol.` }, 400);
   }
 
-  const account = await loadAccount(admin, accountId, userId);
+  // Prices through the data account; the user's own shares (covered calls)
+  // from their own account. One and the same unless it is read-only.
+  const account = await loadAccount(admin, accountId, userId, { readOnly: true });
+  const data = await dataAccountFor(admin, account);
 
-  const { expiries, truncated } = await fetchExpiries(account, symbol);
+  const { expiries, truncated } = await fetchExpiries(data, symbol);
   if (!expiries.length) {
     return reply({ error: `No listed options for ${symbol}.` }, 404);
   }
@@ -134,9 +138,9 @@ export async function readChainFor(admin: any, userId: string, body: any) {
     : expiries.find((d) => d >= today) || expiries[0];
 
   const [spot, snapshots, oi] = await Promise.all([
-    getSpot(account, symbol),
-    fetchSnapshots(account, symbol, chosen),
-    fetchContracts(account, symbol, chosen)
+    getSpot(data, symbol),
+    fetchSnapshots(data, symbol, chosen),
+    fetchContracts(data, symbol, chosen)
   ]);
 
   const ladder = chainLadder(snapshots, spot?.price ?? null, oi);

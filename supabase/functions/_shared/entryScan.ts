@@ -1,4 +1,5 @@
 import { loadAccount } from "./alpaca.ts";
+import { dataAccountFor } from "./marketData.ts";
 import { scanCandidates } from "./optionScan.ts";
 import { heldShares } from "./heldShares.ts";
 import { judgeOnLivePrices } from "./watchRules.ts";
@@ -32,7 +33,11 @@ export async function scanEntriesFor(admin: any, userId: string, body: any) {
     return reply({ error: "Unsupported strategy" }, 400);
   }
 
-  const account = await loadAccount(admin, accountId, userId);
+  // The user's own account decides WHAT is scanned (its shares, for covered
+  // calls); the data account only prices it. Different accounts only for a
+  // read-only one -- see marketData.ts.
+  const account = await loadAccount(admin, accountId, userId, { readOnly: true });
+  const dataAccount = await dataAccountFor(admin, account);
 
   // A covered call is written on shares the account already holds, so its
   // universe is the account, not the request. A cash-secured put scans the
@@ -63,7 +68,7 @@ export async function scanEntriesFor(admin: any, userId: string, body: any) {
   // the chain is still quoted at the previous close while the stock has
   // moved on. The scan says that rather than reporting the two sources as
   // disagreeing, which reads as a fault.
-  const result = await scanCandidates(account, { ...params, marketOpen: judgeOnLivePrices() });
+  const result = await scanCandidates(dataAccount, { ...params, marketOpen: judgeOnLivePrices() });
 
   // Annotate rather than filter: an earnings release inside the holding
   // period is a risk the trader should see and decide on, not one the
