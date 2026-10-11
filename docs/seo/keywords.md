@@ -39,6 +39,7 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 25 | Calendar spreads | calendar spread explained (also searched as "what is a calendar spread", "is a calendar spread a debit or credit spread", "calendar spread max loss break even" and "calendar spread IV crush" — see the row 25 reading). Slug `calendar-spread-explained` | calendar spread / time spread; never "calendar" alone, which drifts to futures calendar spreads and calendar-template pages | Wikipedia (also the top result on the futures sense), Alpaca learn, SoFi, Fidelity (Viewpoints and the strategy guide), OIC, CME Group (futures-options course), TradeStation, TradingBlock, moomoo learn, StoneX glossary, CFI, Option Alpha, Option Samurai, OptionsPlay, strike.money, ryanoconnellfinance, optionstradingiq, fattail.ai, apexvol, journalplus, MenthorQ, optionsdecay; calculator sites (optionprofitcalc, theoptionsbench, insiderfinance) on break-evens; Barchart/Yahoo "calendar spread screener results" syndication and TradingView chart ideas in the tail. tastytrade's help centre surfaced once; no investopedia.com, tastylive.com or Reddit page surfaced (read 6 Oct 2026) | one hypothetical XYZ 50 call calendar (30/60 days, 0.94 debit) on the series' chain, read by a seller of credit spreads: a debit, not a credit; a hill at the near expiration, not a ramp, with break-evens found by pricing because there is no closed-form formula; net long vega, the reverse of the short premium in rows 23–24, so an IV drop costs it money with the stock still on the strike. No "when to enter", no IV-rank entry rule, no profit target, no win rate, no return figure |
 | 26 | Diagonal spreads | diagonal spread explained (also searched as "what is a diagonal spread", "diagonal spread vs calendar spread", "is a diagonal spread a debit or credit spread", "diagonal spread max loss" and "call diagonal spread break even" — see the row 26 reading). Slug `diagonal-spread-explained` | diagonal spread; never "diagonal" alone. "Poor man's covered call" is a later syllabus post's, not this row's | Indian broker learning centres (Motilal Oswal, Religare, Angel One, Upstox, 5paisa, Bajaj Broking/Finserv), daytrading.com, CapTrader glossary, SoFi, TradeStation, Webull courseware, moomoo learn, tastylive/tastytrade, Fidelity strategy guide, Option Alpha, optionstradingiq, Market Chameleon, thismatter, supermoney, wallstreetmojo, Wikipedia, Nasdaq and Shmoop glossaries, QuantInsti; Barchart "bullish diagonal trade" syndication and TradingView chart ideas in the tail. No investopedia.com or Reddit page surfaced (read 7 Oct 2026) | one hypothetical 48/52 call diagonal (60/30 days, 2.80 debit) on the series' chain, set beside row 25's 0.94 calendar: a tilted payoff, not a hill, peaking at the short strike and staying above its cost on the upside because the 4.00 strike gap exceeds the debit; a break-even near 49.08 found by pricing, against the 50.80 the "long strike plus debit" shortcut gives; net long vega priced at three IV levels. Long-strike-below-short version only. No "when to use", no directional call, no adjustment rule, no return figure |
 | 27 | The poor man's covered call as an income structure | poor mans covered call (searched with and without the apostrophe; also as "what is a poor man's covered call", "poor man's covered call explained", "pmcc vs covered call", "pmcc max loss" and "poor man's covered call assignment" — see the row 27 reading). Slug `poor-mans-covered-call` | poor man's covered call, always spelled out; never "PMCC" alone — the bare acronym returns the product moment correlation coefficient (A-level statistics) and "pmcc max loss" returns probable-maximum-loss insurance pages. "pmcc vs covered call" is row 43's investor framing, not this row's | Option Alpha, tastylive (concepts page, definitions page, show episodes), moomoo learn (US and CA), Options Playbook blog, IG (EN and UK "options need-to-knows"), Bajaj Finserv, Market Rebellion, MarketBeat (two), OptionStrat blog (two), Saxo, FXStreet video, optionstradingiq ("risks of"), CapTrader, tapeboard glossary, deltavalue.de, kylascanlon, angelinvestorsnetwork glossary, seeitmarket, a Rockwell Trading podcast, a teamblind thread and an Elite Trader thread; TradingView real-ticker "trade idea" charts in the tail. No investopedia.com or Reddit page surfaced, including on queries naming each (read 9 Oct 2026) | one hypothetical XYZ PMCC (long 120-day 40 call at 10.90, short 30-day 52 call at 1.47, 9.43 debit) beside a covered call on the same stock and the same short call: $943 against $4,853 at the fill; the upside ending 0.90 lower, which is the long call's extrinsic value; the "long strike plus debit below the short strike" rule checked by pricing against a 46/50 version that breaks it and loses on a large rise; assignment leaving short stock, settled by exercise (forfeiting extrinsic) or by buying shares; and what the long call does not copy — dividends, votes, permanence, IV-independence. No "when to use", no delta or DTE selection rule, no capital-efficiency ratio, no return figure |
+| 28 | Rolling a short option: what it is and what it is not | rolling options explained (also searched as "what does it mean to roll an option", "roll a short put", "rolling a covered call", "does rolling an option realize a loss" and "is rolling an option the same as closing and opening a new position" — see the row 28 reading). Recommended slug `rolling-options-explained` | rolling options; never "roll" or "rolling" alone. "Roll protective put" is row 38's; "rolling for a credit" and "when to roll" are advice intent, not targeted | Saxo (four-part "Rolling options explained" series, several regional hosts), QuantWheel (six URLs, including an exact-match "rolling-options-explained"), incomeshares (exact-match, two languages), Wealthsimple (two hosts), Nasdaq, TradeStation insights, Robinhood support (four regional hosts), moomoo (learn and support), Fidelity and Options Playbook (covered call and cash-secured put rolling), Option Alpha, optionstradingiq, tastylive ("defending positions"), Britannica Money, MarketBeat, strike.money, CFI, Achievable (FINRA Series 9 course), ApexVol roll calculator, thetaedge, a Substack, a beehiiv newsletter, a Rockwell Trading podcast; NexusFi, a Reddit mirror of r/Optionswheel and r/CoveredCalls, and TradingView chart ideas in the tail. No investopedia.com page surfaced, including on a query naming it (read 11 Oct 2026) | one roll ticket on one hypothetical XYZ short put, priced by Black-Scholes, read as two legs: the closing leg bought back at a loss, the opening leg sold for more than that, and the net credit as the difference between them. The credit is not a profit, because the closing leg's loss is realized on that ticket. What opens is a new position with a new date, strike and collateral, not the old one continued. No "when to roll", no roll trigger (delta, DTE, percentage down), no "roll for a credit" rule, no tax claim, no return figure |
 | M48 | What a credit spread actually risks | credit spread max loss before expiration | credit spread max loss | tastytrade (short put vertical), moomoo, Schwab, broker learn hubs; TradingView chart-idea pages padding the tail | max loss is the expiration number — what the collateral holds, what the mark does, and what assignment changes in between |
 
 Rows 21–65 are added by the Wednesday run as their turn approaches.
@@ -1099,6 +1100,98 @@ personalised or localised (Bajaj Finserv may be regional); whether r/options
 or r/thetagang threads rank (none surfaced, and the Reddit-named query
 returned the head-term set); whether Investopedia ranks for the head term
 (none surfaced).
+
+## Reading for row 28 — rolling options (read 2026-10-11)
+
+Results pages read that day, not measured. No rank tracker, no volume tool and
+no Search Console connection here, so this records **which domains surface**,
+not positions and not demand size. Eleven searches, one tool, one day.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| rolling options explained (target) | Saxo ("Rolling options explained, part 1"), QuantWheel (`/learn/rolling-options-explained/`), incomeshares (exact-match slug, EN and ES), Wealthsimple (two hosts), Nasdaq ("Everything You Need to Know About Rolling Options"), CFI (rolling LEAPs), a Substack ("Option Basics Part 6") | **hard-ish** — two pages carry the exact phrase in the slug and Saxo in the title, but no Investopedia and no broker hub at the top. The synthesised answer leads with "why traders do it" and a "down 20–50% with 7–21 days left" rule of thumb |
+| what does it mean to roll an option | Saxo ("managing risk and extending profit"), TradeStation insights (three URLs), the same Substack, optionpit ("Close & Roll"), strike.money, QuantWheel | **winnable as the first H2, verbatim** — definitional, and answered in one line everywhere: close the current contract, open another, usually as one order. The worked examples are long calls rolled up "to lock in gains", which is not this post's case |
+| roll a short put | Saxo part 4 FAQ (two hosts), Options Playbook (intro and "rolling a cash-secured put"), TD Ameritrade tickertape (two URLs), Option Alpha short-put page, a NexusFi thread, a Reddit mirror of r/Optionswheel, a TradingView chart | **winnable** — forum threads and an old tickertape article surface. The answers are triggers (delta 0.25–0.35, 21 DTE) and "a credit is a good sign; slipping toward a debit is a signal" — advice we do not write. Options Playbook's 50 put rolled to a 47.50 90 days out is the one priced example, and it is not split into its two legs |
+| rolling a covered call | Fidelity, moomoo learn (US and CA, "How and When to Roll"), Options Playbook, thetaedge (two hosts), QuantWheel, a beehiiv newsletter, a Rockwell Trading podcast | **hard, and not this post's case** — Fidelity and moomoo hold it, and every title carries "how and when". The post uses a short put; a covered call roll gets one FAQ line, mechanics only, linking row 15 |
+| rolling options for a credit | QuantWheel (two), optionstradingiq, Britannica Money ("Ready to roll?"), Option Alpha, Robinhood support (three regional hosts) | **do not target** — the phrasing is a goal ("aim for net credit rolls"), and the pages treat a credit as a sign of health and a debit as a warning. The post describes what the credit is made of. The phrase is not used in the title, a heading or the meta |
+| does rolling an option realize a loss | Robinhood support (four hosts: "any time you roll an option, you're realizing a gain or loss and then establishing a new position"), moomoo support, CapTrader, a 2013 Montreal Exchange bulletin, strike.money | **winnable, the post's sharpest intent** — the broker help pages state it in one sentence and stop. None prices the closed leg's loss beside the net credit on one ticket |
+| rolling for a credit is not a profit loss on the closed leg | Robinhood, tastylive ("How To Defend An Option Position": rolling "locks in a losing trade" and "improves our breakeven & cost basis"), ApexVol roll calculator, an ASX options course PDF, Alpaca support, QuantWheel, an r/CoveredCalls thread mirror | **winnable** — the Reddit comment says it plainest ("it does get rid of a big red number... because you have closed that position at a loss"). tastylive's "improves cost basis" framing is the one the post does not adopt: it carries a loss into a new position's arithmetic. QuantWheel's "without adding risk to the position" is the claim the post's numbers contradict |
+| is rolling an option the same as closing and opening a new position | Achievable (FINRA Series 9 course), MarketBeat ("How and When to Roll"), QuantWheel (three), Wealthsimple, incomeshares, the Substack | **winnable as an H2** — the pages agree it is a close and an open, then frame the difference as intent ("a roll keeps you in the trade"). The post frames it as execution only: one ticket, one net price, two legs each filled at its own bid or ask. The "keeps you in the trade" framing is the one it says is not so |
+| roll vs close and reopen option same thing | software month-end and case-management pages (Deltek, Tyler, Interfolio) | **do not target** — the bare "roll vs close" drifts out of options entirely. The intent lives in the previous phrasing |
+| rolling options wash sale tax | thetaedge, TurboTax community (two), InvestmentNews, a teamblind thread, a Reddit snapshot mirror, a Series 7 course page, scraped PDFs | **do not target, and make no claim** — the pages disagree on whether a new strike or date is "substantially identical", and none is an IRS ruling. The post says the closed leg's gain or loss is realized in the account, and that tax treatment is outside it and a matter for a tax professional. No "wash sale" in a title, heading or meta |
+| investopedia rolling options reddit | QuantWheel (three), Wealthsimple (two), strike.money, the Substack, Robinhood (two) | **no investopedia.com or reddit.com page surfaced** — Reddit appears only through mirrors. One tool, one day, not proof they do not rank |
+
+**The gap.** Every ranking page defines a roll in one line (close one
+contract, open another, usually as one order), then spends the rest on why
+and when: triggers, "roll for a credit", "a debit is a warning", "keeps you in
+the trade". The broker help pages (Robinhood, moomoo) say in one sentence
+that a roll realizes a gain or loss on the closed contract, and stop there.
+None prices one roll ticket as its two legs. So none shows the closing leg's
+loss beside the opening leg's premium, with the net credit as the difference.
+None sets the new position's date, strike, collateral and max loss beside the
+old one. That is the angle, kept descriptive: a roll is one ticket carrying a
+closing leg and an opening leg; the net credit is not a profit, because the
+loss on the closed leg is realized on the same ticket; what opens is a new
+position, not the old one continued.
+
+**Title / meta proposed.** Title "Rolling options explained: a closing leg and
+a new position" (59 chars): the exact target at the front, the post's claim
+after the colon, no "for a credit", no "when", no "strategy", no "manage".
+Meta "A roll priced on one hypothetical XYZ short put: the loss realized on the
+leg bought back, why the net credit is not a profit, and the new position it
+opens." (157 chars). Slug `rolling-options-explained` is the exact target.
+Two competitor pages use the same slug, which is a reason to win on the
+gap, not a reason to change the slug. Not yet published, so no redirect is in
+play. `search_title:` not needed: the title already carries the target
+phrase, and there is no Search Console data for this URL.
+
+**Headings.** "What does it mean to roll an option?" matches the definitional
+query verbatim. "Is a roll the same as closing and opening a new trade?"
+carries the "same as closing and opening" phrasing in a trader's words.
+"Does rolling an option realize a loss?" matches the broker-help question
+verbatim and is where the closed leg is priced. "Is the credit from a roll a
+profit?" asks the gap question without "roll for a credit" syntax. "What
+changes in the new position?" covers date, strike, collateral and max loss.
+FAQ lines carry "short put" and "covered call" (mechanics only, one line
+each), and tax ("the realized gain or loss is in the account; how it is taxed
+is not covered here").
+
+**Links.** Out: `/blog/managing`, `cash-secured-put-explained` (the short put
+and its reserve), `covered-call-explained` (the FAQ line),
+`options-buying-power-requirement` (the new strike's collateral),
+`options-bid-ask-spread` (each leg filled at its own side),
+`intrinsic-vs-extrinsic-value-options` (why the bought-back put costs more),
+`theta-decay-explained` and `implied-volatility-options-explained` (what the
+opening leg's premium is made of), `what-happens-options-expiration`,
+`option-assignment-what-happens`, `options-journal-splits-spreads-into-legs`
+(the roll as one ticket with several legs — that post already names rolls),
+`credit-spread-max-loss` (the new position's max loss on a spread). In:
+`options-journal-splits-spreads-into-legs` ("Rolls and partial closes are
+where it actually bites") is the natural reciprocal; `cash-secured-put-
+explained`, `wheel-strategy-explained` and `poor-mans-covered-call` mention
+or sit next to rolling and can link back. Row 38 ("roll protective put") will
+link here when written. Reciprocal links are left to the review chain.
+
+**Restraint, deliberate.** These are not targeted even where they surface:
+"when to roll", "how and when to roll", "rolling for a credit" and "roll for a
+credit" in any title, heading or meta; "defending", "repairing" or "managing a
+losing trade" framings; "avoid assignment"; "keeps you in the trade",
+"extends the trade" and "buys time" as descriptions of what a roll is;
+tastylive's "improves cost basis" and QuantWheel's "without adding risk";
+every roll trigger that surfaced (delta 0.25–0.35, 21 DTE, "down 20–50% with
+7–21 days left", "50% of max profit"); "roll up and out" or "down and out" as
+recommendations (they are named only as directions of the opening leg);
+"wash sale" or any tax treatment claim; every real ticker in the TradingView,
+Options Playbook and forum pages.
+
+**Could not establish:** volume, difficulty or position for any phrasing;
+whether "rolling options explained" or "what does it mean to roll an option"
+is typed more (the two return overlapping but different sets); whether
+results are personalised or localised (Saxo surfaced on MENA, SG and AU hosts,
+Robinhood on US, GB and SG); whether r/options, r/thetagang or r/Optionswheel
+threads rank directly (only mirrors surfaced); whether Investopedia ranks for
+the head term (none surfaced); whether the Saxo series and the QuantWheel
+cluster hold the top slots or are only what this tool returns first.
 
 ## Off-syllabus rows
 

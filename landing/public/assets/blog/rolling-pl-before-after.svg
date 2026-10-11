@@ -1,0 +1,17 @@
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Premium against the cost to close, per share, on one hypothetical XYZ short 50 put before and after a same-strike roll. Before, 2.29 was collected and 3.30 would close it, a 1.01 loss. After, 3.32 has been collected net and 4.33 would close the new put, still a 1.01 loss. The roll left the profit and loss where it was.">
+  <rect width="720" height="300" fill="#FFFFFF"/>
+  <text x="110" y="48" font-size="17" font-weight="600" fill="#14151C">Before</text>
+  <rect x="110" y="60" width="91.6" height="30" fill="#2E8B5F" fill-opacity="0.85"/>
+  <text x="211.6" y="81" font-size="16" font-weight="600" fill="#2E8B5F">2.29 kept</text>
+  <rect x="110" y="98" width="132.0" height="30" fill="#B4485C" fill-opacity="0.85"/>
+  <text x="252.0" y="119" font-size="16" font-weight="600" fill="#B4485C">3.30 to close</text>
+  <text x="372.0" y="119" font-size="16" font-weight="600" fill="#14151C">−1.01</text>
+  <text x="110" y="158" font-size="17" font-weight="600" fill="#14151C">After</text>
+  <rect x="110" y="170" width="132.8" height="30" fill="#2E8B5F" fill-opacity="0.85"/>
+  <text x="252.8" y="191" font-size="16" font-weight="600" fill="#2E8B5F">3.32</text>
+  <rect x="110" y="208" width="173.2" height="30" fill="#B4485C" fill-opacity="0.85"/>
+  <text x="293.2" y="229" font-size="16" font-weight="600" fill="#B4485C">4.33</text>
+  <text x="413.2" y="229" font-size="16" font-weight="600" fill="#14151C">−1.01</text>
+  <line x1="110" y1="20" x2="110" y2="262" stroke="#C9CEDC" stroke-width="1.5"/>
+  <text x="400" y="288" font-size="15" text-anchor="middle" fill="#767B8E">XYZ at 47</text>
+</svg>
