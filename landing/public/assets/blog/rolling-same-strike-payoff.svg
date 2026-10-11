@@ -1,0 +1,15 @@
+<svg viewBox="0 0 720 380" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Gain or loss per share at expiration for one hypothetical XYZ short 50 put, as originally sold for 2.29 and as rolled with 3.32 kept in total. Both lines slope down one for one below 50. The rolled line sits 1.03 higher everywhere, with a break-even at 46.68 against 47.71, but it expires 30 days later.">
+  <rect width="720" height="380" fill="#FFFFFF"/>
+  <rect x="80" y="20" width="580" height="100" fill="#2E8B5F" fill-opacity="0.07"/>
+  <rect x="80" y="120" width="580" height="210" fill="#B4485C" fill-opacity="0.06"/>
+  <line x1="80" y1="120" x2="660" y2="120" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="333.8" y1="20" x2="333.8" y2="330" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="442.5" y1="20" x2="442.5" y2="330" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="333.8" y="352" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">47 now</text>
+  <text x="442.5" y="352" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">50 strike</text>
+  <path d="M80.0 312.8 L116.2 287.8 L152.5 262.8 L188.8 237.8 L225.0 212.8 L261.2 187.8 L297.5 162.8 L333.8 137.8 L370.0 112.8 L406.2 87.8 L442.5 62.8 L478.8 62.8 L515.0 62.8 L551.2 62.8 L587.5 62.8 L623.8 62.8 L660.0 62.8" fill="none" stroke="#767B8E" stroke-width="3"/>
+  <path d="M80.0 287.0 L116.2 262.0 L152.5 237.0 L188.8 212.0 L225.0 187.0 L261.2 162.0 L297.5 137.0 L333.8 112.0 L370.0 87.0 L406.2 62.0 L442.5 37.0 L478.8 37.0 L515.0 37.0 L551.2 37.0 L587.5 37.0 L623.8 37.0 L660.0 37.0" fill="none" stroke="#14151C" stroke-width="3"/>
+  <text x="650" y="29.0" font-size="16" font-weight="600" text-anchor="end" fill="#14151C">rolled 3.32</text>
+  <text x="650" y="84.8" font-size="16" font-weight="600" text-anchor="end" fill="#767B8E">original 2.29</text>
+  <text x="370" y="374" font-size="15" text-anchor="middle" fill="#767B8E">stock at expiration</text>
+</svg>

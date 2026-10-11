@@ -116,7 +116,7 @@ cash becomes:
 
 - **It expires out of the money.** The put disappears, and the $5,000 reserve returns to buying power.
 - **It is assigned.** The $5,000 buys 100 shares at the strike, and the reserve is spent rather than released.
-- **The seller buys it back.** That costs whatever the market asks then; the reserve is released once the closing order fills.
+- **The seller buys it back.** That costs whatever the market asks then; the reserve is released once the closing order fills. Buying it back and selling a later put on the same ticket is a [roll](/blog/rolling-options-explained).
 
 Assignment need not wait for expiration. An American-style put can be
 exercised on any trading day, though early exercise of a put is

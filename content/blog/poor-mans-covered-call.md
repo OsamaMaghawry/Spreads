@@ -115,6 +115,6 @@ The covered call's result at that date does not depend on implied volatility; th
 
 A poor man's covered call swaps 100 shares for a deep in-the-money call, so it ties up a debit rather than the share price. On the hypothetical XYZ that was $943 against $4,853 for the covered call, both after the same 1.47 credit.
 
-The swap changes the position. Its upside ends lower by the long call's time value, it decays and expires, it is exposed to implied volatility, and a large rise loses money if the strike gap is smaller than the debit. The [income series](/blog/income) continues with rolling a short option.
+The swap changes the position. Its upside ends lower by the long call's time value, it decays and expires, it is exposed to implied volatility, and a large rise loses money if the strike gap is smaller than the debit. The [income series](/blog/income) continues with [rolling a short option](/blog/rolling-options-explained).
 
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.
