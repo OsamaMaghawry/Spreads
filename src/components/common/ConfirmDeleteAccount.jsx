@@ -53,6 +53,13 @@ export default function ConfirmDeleteAccount({ account, onCancel, onConfirm }) {
             </div>
           </div>
 
+          {account.provider === "snaptrade" && (
+            <p className="text-xs leading-relaxed text-slate-600">
+              This also disconnects the broker login behind it, so any other accounts that came
+              through the same login are removed too.
+            </p>
+          )}
+
           <p className="text-xs leading-relaxed text-slate-600">
             Nothing happens at your broker. No position is sold, no order is cancelled, and
             no money moves — DeltaMint just stops reading this account.

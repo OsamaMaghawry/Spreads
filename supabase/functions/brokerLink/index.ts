@@ -33,6 +33,17 @@ function returnTo(req: Request): string | null {
   return /^https:\/\/[a-z0-9.-]+\.deltamint\.app$/i.test(origin) ? `${origin}/accounts?linked=1` : null;
 }
 
+async function removedConnections(admin: any, userId: string): Promise<Set<string>> {
+  const { data } = await admin.from("snaptrade_users").select("removed_connections").eq("user_id", userId).maybeSingle();
+  return new Set((data?.removed_connections || []).map(String));
+}
+
+async function rememberRemoved(admin: any, userId: string, connection: string) {
+  const list = [...(await removedConnections(admin, userId)), connection];
+  const { error } = await admin.from("snaptrade_users").update({ removed_connections: [...new Set(list)] }).eq("user_id", userId);
+  if (error) throw new Error(error.message);
+}
+
 const label = (a: Record<string, unknown>) => {
   const inst = String(a.institution_name ?? "").trim();
   const name = String(a.name ?? "").trim();
@@ -46,7 +57,8 @@ Deno.serve(async (req) => {
   try {
     const user = await requireUser(req);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
-    const { action } = await req.json().catch(() => ({ action: null }));
+    const body = await req.json().catch(() => ({}));
+    const action = body?.action ?? null;
     const admin = adminClient();
 
     switch (action) {
@@ -86,8 +98,14 @@ Deno.serve(async (req) => {
           snapFetch<Record<string, unknown>[]>({ path: "/authorizations", ...scoped })
         ]);
         if (!res.ok) return jsonResponse({ error: `Your broker accounts could not be read (${res.status}).` }, 502);
-        const theirs = Array.isArray(res.data) ? res.data : [];
-        const connections = auths.ok && Array.isArray(auths.data) ? auths.data : [];
+        const theirsAll = Array.isArray(res.data) ? res.data : [];
+        // A connection the user removed here stays removed. SnapTrade deletes
+        // a connection asynchronously, so for a while it is still listed, and
+        // the import on every visit would otherwise bring it straight back --
+        // which is what the owner hit on 11 Oct.
+        const removed = await removedConnections(admin, user.id);
+        const theirs = theirsAll.filter((a: any) => !removed.has(String(a.brokerage_authorization ?? "")));
+        const connections = (auths.ok && Array.isArray(auths.data) ? auths.data : []).filter((c: any) => !removed.has(String(c.id)));
         const brokerOf = (c: any) => String(c?.brokerage?.display_name || c?.brokerage?.name || "A broker");
         const withAccounts = new Set(theirs.map((a: any) => String(a.brokerage_authorization ?? "")));
         const waiting = connections.filter((c: any) => !c.disabled && !withAccounts.has(String(c.id))).map(brokerOf);
@@ -139,6 +157,50 @@ Deno.serve(async (req) => {
           waiting,
           broken
         });
+      }
+
+      // Remove a read-only account: disconnect the broker login behind it at
+      // SnapTrade, which frees the connection, and remove every DeltaMint
+      // account that came through that login. Deleting only the DeltaMint row
+      // left the connection in place, so the next import added it back.
+      case "remove": {
+        const accountId = String(body?.accountId ?? "");
+        const { data: row, error: rowError } = await admin
+          .from("trading_accounts")
+          .select("id, provider, snaptrade_account_id")
+          .eq("id", accountId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (rowError) throw new Error(rowError.message);
+        if (!row || row.provider !== "snaptrade") return jsonResponse({ error: "Account not found." }, 404);
+
+        let siblings: string[] = [String(row.snaptrade_account_id)];
+        const snap = await loadSnapUser(admin, user.id);
+        if (snap) {
+          const scoped = { userId: snap.snapTradeUserId, userSecret: snap.userSecret };
+          const res = await snapFetch<Record<string, unknown>[]>({ path: "/accounts", ...scoped });
+          const theirs = res.ok && Array.isArray(res.data) ? res.data : [];
+          const mine = theirs.find((a: any) => String(a.id) === String(row.snaptrade_account_id)) as any;
+          const connection = mine?.brokerage_authorization ? String(mine.brokerage_authorization) : null;
+          if (connection) {
+            siblings = theirs.filter((a: any) => String(a.brokerage_authorization) === connection).map((a: any) => String(a.id));
+            let del = await snapFetch({ path: `/connection/${connection}`, method: "DELETE", ...scoped });
+            if (!del.ok && del.status === 404) del = await snapFetch({ path: `/authorizations/${connection}`, method: "DELETE", ...scoped });
+            if (!del.ok && del.status !== 404) {
+              return jsonResponse({ error: `SnapTrade would not disconnect it (${del.status}). Try again in a minute.` }, 502);
+            }
+            await rememberRemoved(admin, user.id, connection);
+          }
+        }
+
+        const { data: gone, error: delError } = await admin
+          .from("trading_accounts")
+          .delete()
+          .eq("user_id", user.id)
+          .in("snaptrade_account_id", siblings)
+          .select("name");
+        if (delError) throw new Error(delError.message);
+        return jsonResponse({ removed: (gone || []).map((r: any) => r.name) });
       }
 
       default:

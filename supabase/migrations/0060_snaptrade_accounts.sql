@@ -51,3 +51,10 @@ create unique index if not exists trading_accounts_snaptrade_account_uidx
 -- invisible until granted. The Accounts page needs `provider` to mark a row
 -- read-only; SnapTrade's own account id stays server-side.
 grant select (provider) on public.trading_accounts to authenticated;
+
+-- Connections the user removed from DeltaMint. SnapTrade deletes a connection
+-- asynchronously and keeps listing it for a while, and the Accounts page
+-- imports on every visit, so without this a removed account came straight
+-- back (staging, 11 Oct).
+alter table public.snaptrade_users
+  add column if not exists removed_connections text[] not null default '{}';

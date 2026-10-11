@@ -135,8 +135,17 @@ export default function Accounts() {
   };
 
   const remove = async (account) => {
-    const { error } = await supabase.from("trading_accounts").delete().eq("id", account.id);
-    if (error) throw new Error(error.message);
+    if (account.provider === "snaptrade") {
+      // Disconnects the broker login at SnapTrade as well; deleting the row
+      // alone let the next import add it straight back.
+      const res = await invokeFunction("brokerLink", { action: "remove", accountId: account.id });
+      if (res.data?.error || res.error) throw new Error(res.data?.error || res.error?.message);
+      const names = res.data?.removed || [];
+      setLinkNote(names.length ? `Disconnected: ${names.join(", ")}.` : "Disconnected.");
+    } else {
+      const { error } = await supabase.from("trading_accounts").delete().eq("id", account.id);
+      if (error) throw new Error(error.message);
+    }
     setDeleting(null);
     load();
   };
