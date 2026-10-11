@@ -183,6 +183,9 @@ export function optionUnitFit(rows: any[], cash: number | null, equity: number |
   };
 }
 
+const RECENT_DAYS = 90;
+const recentStart = () => new Date(Date.now() - RECENT_DAYS * 86_400_000).toISOString().slice(0, 10);
+
 // Everything syncOne fetches from Alpaca, from SnapTrade instead.
 export async function fetchSnapTradeRaw(admin: any, account: any) {
   const id = account.snaptrade_account_id;
@@ -196,7 +199,12 @@ export async function fetchSnapTradeRaw(admin: any, account: any) {
     snapFetch<any>({ path: `/accounts/${id}/balances`, ...scoped }),
     snapFetch<any>({ path: `/accounts/${id}/positions/all`, ...scoped }),
     snapFetch<any>({ path: `/accounts/${id}/orders`, query: { days: 90 }, ...scoped }),
-    snapFetch<any>({ path: `/accounts/${id}/activities`, query: { start_date: "2024-01-01", limit: 1000 }, ...scoped })
+    // Recent activity only. The Dashboard reads fills for open dates, the
+    // same job Alpaca's last-100-fills page does on the native path; asking
+    // from 2024 returned the OLDEST thousand rows on an account with years of
+    // history, and took up to 8 s (a friend's Robinhood account, 11 Oct).
+    // The whole history is fetchSnapTradeHistory's job, not this one's.
+    snapFetch<any>({ path: `/accounts/${id}/activities`, query: { start_date: recentStart(), limit: 1000 }, ...scoped })
   ]);
 
   // One line per read, for diagnosing a real account without reading it:
