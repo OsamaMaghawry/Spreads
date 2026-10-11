@@ -5,6 +5,9 @@ import { loadAllAccounts } from "../_shared/accounts.ts";
 import { paperOnlyMode } from "../_shared/settings.ts";
 import { reconstruct } from "../_shared/tradeReconstruction.ts";
 import { fetchBrokerData, writeResults, writeCashFlows } from "../_shared/tradeSync.ts";
+import { fetchSnapTradeHistory, fetchSnapTradeRaw } from "../_shared/snaptradeAccount.ts";
+import { selectAllWhere } from "../_shared/paging.ts";
+import { snapCredentials } from "../_shared/snaptrade.ts";
 
 // Keeping every connected account's history current, without anybody looking.
 //
@@ -69,6 +72,43 @@ async function syncOne(admin, account) {
   }
 }
 
+// An account read through SnapTrade (read-only, staging lab). It holds no
+// Alpaca credentials, so loadAllAccounts never returns it, and its history
+// comes from SnapTrade's activity feed through the same engine the History
+// page uses. Without this its history was built only when its owner opened
+// Trade History, so Claude and the weekly email saw nothing for it.
+//
+// The positions read after it is only for the log line fetchSnapTradeRaw
+// writes (counts, timings and the option price unit, never an amount), which
+// is how a real account is checked without anyone reading it.
+async function syncSnapTradeOne(admin, account) {
+  const started = Date.now();
+  try {
+    await admin
+      .from("trading_accounts")
+      .update({ trades_sync_attempted_at: new Date().toISOString() })
+      .eq("id", account.id);
+    const { activities } = await fetchSnapTradeHistory(admin, account);
+    const { records, stockLots, breaches, orphanedStockPL, lotOwners } = reconstruct(activities, {}, account.id);
+    await writeResults(admin, account.id, account.user_id, records, stockLots, breaches, orphanedStockPL, lotOwners);
+    await admin
+      .from("trading_accounts")
+      .update({ trades_synced_at: new Date().toISOString(), trades_sync_error: null })
+      .eq("id", account.id);
+    await fetchSnapTradeRaw(admin, account).catch((e) => console.error(`snaptrade positions read failed for ${account.id}: ${e?.message || e}`));
+    return { account: account.id, ok: true, source: "snaptrade", activities: activities.length, trades: records.length, ms: Date.now() - started };
+  } catch (e) {
+    const message = e?.message || String(e);
+    console.error(`syncTrades (snaptrade) failed for ${account.id}: ${message}`);
+    await admin
+      .from("trading_accounts")
+      .update({ trades_sync_error: message })
+      .eq("id", account.id)
+      .then(() => {}, () => {});
+    return { account: account.id, ok: false, source: "snaptrade", error: message, ms: Date.now() - started };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -98,10 +138,23 @@ Deno.serve(async (req) => {
     const results = [];
     for (const account of due) results.push(await syncOne(admin, account));
 
+    // SnapTrade accounts, same freshness rule and the same paper-only switch.
+    // Only where SnapTrade is configured: production has no keys, and no
+    // `provider` column until 0060, so there this is skipped before it asks.
+    const snapAccounts = !snapCredentials() ? [] : (await selectAllWhere(admin, "trading_accounts", "*", "id", (q) => {
+      const linked = q.eq("provider", "snaptrade").not("snaptrade_account_id", "is", null);
+      return paperOnly ? linked.eq("is_paper", true) : linked;
+    })).filter((a) => {
+      if (cutoff === null) return true;
+      const at = a.trades_synced_at ? Date.parse(a.trades_synced_at) : 0;
+      return !at || at < cutoff;
+    });
+    for (const account of snapAccounts) results.push(await syncSnapTradeOne(admin, account));
+
     const failed = results.filter((r) => !r.ok);
     return jsonResponse({
       accounts: accounts.length,
-      attempted: due.length,
+      attempted: due.length + snapAccounts.length,
       skippedFresh: accounts.length - due.length,
       failed: failed.length,
       results
