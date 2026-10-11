@@ -31,7 +31,12 @@ Deno.serve(async (req) => {
     }
 
     const admin = adminClient();
-    const account = await loadAccount(admin, accountId, user.id);
+    const account = await loadAccount(admin, accountId, user.id, { readOnly: true });
+    // A read-only account has no live quotes of its own. Saying so, rather
+    // than letting the quote path throw a 500, lets the legs show "—".
+    if (account.provider === "snaptrade") {
+      return jsonResponse({ error: "Live quotes are not available for a read-only account yet.", unavailable: true }, 404);
+    }
     const symbols = customLegs
       ? customLegs.map((l) => l.symbol)
       : [shortSymbol, longSymbol, callShortSymbol, callLongSymbol].filter(Boolean);

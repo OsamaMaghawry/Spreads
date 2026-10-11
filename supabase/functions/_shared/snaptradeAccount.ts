@@ -152,14 +152,43 @@ async function scopedFor(admin: any, account: any) {
 // seconds on the first real run (10 Oct). Each instance keeps the last read
 // for a few minutes, and no single call may hold the page past the timeout.
 const READ_CACHE_MS = 5 * 60_000;
+// A failed read is remembered too, for less time: an account whose broker is
+// not answering otherwise costs the full timeout on every refresh, and the
+// page waits for it (a friend's six Robinhood accounts, 11 Oct: 8 s a refresh).
+const FAILED_READ_CACHE_MS = 2 * 60_000;
 const READ_TIMEOUT_MS = 8_000;
-const lastRead = new Map<string, { at: number; value: any }>();
+const lastRead = new Map<string, { at: number; value?: any; error?: string }>();
+
+/**
+ * Which price unit makes the account add up: cash + shares + options x M
+ * against the broker's own total. Option prices per share (the assumption
+ * flagged on every option row) fit at M = 100; per contract at M = 1. Pure,
+ * so a test can pin it, and it returns only relative errors -- what it is
+ * logged for must not carry anyone's amounts.
+ */
+export function optionUnitFit(rows: any[], cash: number | null, equity: number | null) {
+  const options = (rows || []).filter((r) => contractOf(r));
+  if (!options.length || cash === null || equity === null || Math.abs(equity) < 1) return null;
+  const value = (r: any) => (num(r?.price) ?? 0) * (num(r?.units) ?? 0);
+  const shares = (rows || []).filter((r) => !contractOf(r)).reduce((t, r) => t + value(r), 0);
+  const optionsRaw = options.reduce((t, r) => t + value(r), 0);
+  const err = (m: number) => Math.abs(cash + shares + optionsRaw * m - equity) / Math.abs(equity);
+  const perShare = err(100);
+  const perContract = err(1);
+  return {
+    options: options.length,
+    perShareError: Math.round(perShare * 1000) / 1000,
+    perContractError: Math.round(perContract * 1000) / 1000,
+    fits: perShare < perContract ? "per share" : "per contract"
+  };
+}
 
 // Everything syncOne fetches from Alpaca, from SnapTrade instead.
 export async function fetchSnapTradeRaw(admin: any, account: any) {
   const id = account.snaptrade_account_id;
   const hit = lastRead.get(id);
-  if (hit && Date.now() - hit.at < READ_CACHE_MS) return hit.value;
+  if (hit?.error && Date.now() - hit.at < FAILED_READ_CACHE_MS) throw new Error(hit.error);
+  if (hit && !hit.error && Date.now() - hit.at < READ_CACHE_MS) return hit.value;
 
   const scoped = { ...(await scopedFor(admin, account)), timeoutMs: READ_TIMEOUT_MS };
   const [acct, balances, positions, orders, activities] = await Promise.all([
@@ -169,10 +198,34 @@ export async function fetchSnapTradeRaw(admin: any, account: any) {
     snapFetch<any>({ path: `/accounts/${id}/orders`, query: { days: 90 }, ...scoped }),
     snapFetch<any>({ path: `/accounts/${id}/activities`, query: { start_date: "2024-01-01", limit: 1000 }, ...scoped })
   ]);
-  if (!positions.ok) throw new Error(`SnapTrade positions: ${positions.status} ${positions.error || ""}`.trim());
+
+  // One line per read, for diagnosing a real account without reading it:
+  // timings, statuses, counts and the option price unit -- never an amount,
+  // a symbol or an account number.
+  const rows = listOf(positions.data);
+  const info = toAlpacaInfo(acct.ok ? acct.data : null, listOf(balances.data));
+  const kinds: Record<string, number> = {};
+  for (const r of rows) {
+    const k = String((r as any)?.instrument?.kind ?? (r as any)?.instrument?.type ?? "unknown");
+    kinds[k] = (kinds[k] || 0) + 1;
+  }
+  const call = (r: any) => `${r.ok ? r.status : r.status || r.error}/${r.ms}ms`;
+  console.log(JSON.stringify({
+    snaptradeRead: String(id).slice(0, 8),
+    account: call(acct), balances: call(balances), positions: call(positions), orders: call(orders), activities: call(activities),
+    rows: rows.length, kinds,
+    activityRows: listOf(activities.data).length,
+    unit: optionUnitFit(rows, num(info.cash), acct.ok ? num((acct.data as any)?.balance?.total?.amount) : null)
+  }));
+
+  if (!positions.ok) {
+    const error = `SnapTrade positions: ${positions.status} ${positions.error || ""}`.trim();
+    lastRead.set(id, { at: Date.now(), error });
+    throw new Error(error);
+  }
   const value = {
-    info: toAlpacaInfo(acct.ok ? acct.data : null, listOf(balances.data)),
-    positions: toAlpacaPositions(listOf(positions.data)),
+    info,
+    positions: toAlpacaPositions(rows),
     activities: toEngineActivities(listOf(activities.data)).activities,
     openOrders: [],
     filledOrders: toAlpacaMultiLegOrders(listOf(orders.data)),

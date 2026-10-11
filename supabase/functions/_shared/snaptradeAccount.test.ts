@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { toAlpacaPositions, toAlpacaInfo, toAlpacaMultiLegOrders, contractOf, listOf } from "./snaptradeAccount.ts";
+import { toAlpacaPositions, toAlpacaInfo, toAlpacaMultiLegOrders, contractOf, listOf, optionUnitFit } from "./snaptradeAccount.ts";
 
 // A share row exactly as /positions/all returned it for the owner's paper
 // account on 10 Oct.
@@ -62,4 +62,14 @@ test("legs sharing a group id become one multi-leg order", () => {
     ["AMD260918C00527500", "sell"],
     ["AMD260918C00530000", "buy"]
   ]);
+});
+
+test("the option price unit is read from whether the account adds up", () => {
+  const short = { units: "-1", price: "0.40", instrument: { kind: "option", symbol: "TSLA  261009C00382500" } };
+  // cash 1,000 + 100 AMZN at 262.43 - one short call at 0.40/share ($40)
+  const equity = 1000 + 26243 - 40;
+  const fit = optionUnitFit([amzn, short], 1000, equity)!;
+  assert.equal(fit.fits, "per share");
+  assert.equal(fit.perShareError, 0);
+  assert.equal(optionUnitFit([amzn], 1000, 27243), null);
 });
