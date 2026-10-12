@@ -49,6 +49,24 @@ Two levers change this by more than any channel does:
   promise are there to push 15 % toward 25 %. At 25 %, 400 live connections
   suffice.
 
+## Measured rates (revised 12 Oct 2026)
+
+Source: `docs/growth/metrics/2026-10-11.json`. The sample is four accounts,
+so these are recorded as they stand but replace nothing until the sample is
+larger. A dash means not measurable yet, not zero.
+
+| Step | Benchmark | Measured | n |
+| --- | --- | --- | --- |
+| Visitors → signup | 3 % | — (GA4 and Search Console not configured) | 0 visitors seen |
+| Signup → account connected | not in the chain | 75 % | 3 of 4 |
+| Signup → live account traded | 25 % (connect live) | 25 % (traded live; used as the proxy for connecting live) | 1 of 4 |
+| Live → paying | 15 % | 0 % (billing not live) | 0 of 1 |
+
+Signups in the last 7 days: 0. All four `signup_source` values are unknown.
+The first benchmark that can be replaced is visitor → signup, and it waits
+on the Google credentials (see `growth/plays/2026-W42.md`). The 31 Oct
+checkpoint, "measured rates replace every benchmark", is at risk on that alone.
+
 ## Where 760 visitors a day come from
 
 Organic search from a domain this young, with ~100 posts by December,
