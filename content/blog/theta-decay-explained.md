@@ -3,7 +3,7 @@ title: "Theta decay explained: why an option loses value every day"
 slug: theta-decay-explained
 excerpt: Theta estimates the value an option loses from one day passing, and the same number that costs a buyer money is what a seller was paid to accept.
 meta_description: Theta decay is what an option loses from one day passing. The same contract long and short in its final week, and why the daily figure speeds up.
-author: Osama Maghawry
+author: Osama Safwat Maghawry
 published_at: 2026-09-13T10:00:00+00:00
 category: foundations
 series_order: 7

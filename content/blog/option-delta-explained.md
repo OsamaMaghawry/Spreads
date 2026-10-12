@@ -3,7 +3,7 @@ title: "Option delta explained: what it measures and what it's for"
 slug: option-delta-explained
 excerpt: Delta estimates how much an option's price moves for a $1 move in the stock, and it is the number traders use to compare strikes across different stocks and expirations.
 meta_description: Delta estimates an option's price move for a $1 move in the stock. What the sign means, and why strike distance is quoted in delta, not dollars.
-author: Osama Maghawry
+author: Osama Safwat Maghawry
 published_at: 2026-09-12T10:20:00+00:00
 category: foundations
 series_order: 6

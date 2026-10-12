@@ -3,7 +3,7 @@ title: "Cash-secured put explained, from reserved cash to assignment"
 slug: cash-secured-put-explained
 excerpt: A cash-secured put is a short put backed by cash equal to the strike, and it ends with that cash spent on shares or the premium simply kept.
 meta_description: "Cash-secured put explained: the strike times 100 held until the put ends, the premium kept either way, and that cash spent on shares if assigned."
-author: Osama Maghawry
+author: Osama Safwat Maghawry
 category: income
 series_order: 16
 tags: cash-secured put, income, assignment, buying power, options

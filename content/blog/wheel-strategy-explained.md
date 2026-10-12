@@ -3,7 +3,7 @@ title: "Wheel strategy explained: one position, put to call to cash"
 slug: wheel-strategy-explained
 excerpt: The wheel strategy is a cash-secured put followed, if assigned, by a covered call on the same shares, moving one account from cash to shares and back.
 meta_description: "Wheel strategy explained on one hypothetical position: cash reserved, shares after assignment, a covered call, then cash again, the account at each step."
-author: Osama Maghawry
+author: Osama Safwat Maghawry
 category: income
 series_order: 17
 tags: wheel strategy, cash-secured put, covered call, assignment, options

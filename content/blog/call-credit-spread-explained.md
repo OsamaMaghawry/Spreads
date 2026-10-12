@@ -3,7 +3,7 @@ title: "Call credit spread explained: what the long call caps"
 slug: call-credit-spread-explained
 excerpt: A call credit spread sells one call and buys a cheaper one above it, so the account is paid at the fill and the loss is capped at the strikes' gap less that credit.
 meta_description: "Call credit spread explained on one hypothetical chain: max loss, break-even, why the long call is the only cap, and assignment into short shares."
-author: Osama Maghawry
+author: Osama Safwat Maghawry
 category: income
 series_order: 19
 tags: call credit spread, options credit spread, max loss, short call, options

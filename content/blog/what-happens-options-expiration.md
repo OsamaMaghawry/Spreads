@@ -3,7 +3,7 @@ title: "What happens at options expiration: a cent either side"
 slug: what-happens-options-expiration
 excerpt: At expiration every open option is settled against one closing price, and a single cent on either side of the strike decides whether it becomes shares or disappears.
 meta_description: What happens at options expiration: a cent in the money is exercised automatically, a cent out expires. The cutoff, pin risk, and each spread leg on its own.
-author: Osama Maghawry
+author: Osama Safwat Maghawry
 published_at: 2026-09-23T10:00:00+00:00
 category: foundations
 series_order: 12

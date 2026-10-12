@@ -3,7 +3,7 @@ title: "Diagonal spread explained: a calendar with a tilt"
 slug: diagonal-spread-explained
 excerpt: A diagonal spread sells a near expiration and buys a later one at a different strike, which keeps a calendar's time decay but tilts its payoff toward one side of the stock price.
 meta_description: "A diagonal spread priced on one hypothetical call: the debit, a payoff that tilts, a break-even found by pricing, and how it differs from a calendar."
-author: Osama Maghawry
+author: Osama Safwat Maghawry
 category: income
 series_order: 26
 tags: diagonal spread, calendar spread, time decay, long vega, call options

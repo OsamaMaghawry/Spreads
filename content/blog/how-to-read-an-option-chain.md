@@ -3,7 +3,7 @@ title: "How to read an option chain without guessing"
 slug: how-to-read-an-option-chain
 excerpt: An option chain lists every contract on one stock by strike and expiration, and reading it well means knowing which number on each row is the live market.
 meta_description: "How to read an option chain for US-listed options: which price is live, why the last price and shading can mislead, and why later expirations cost more."
-author: Osama Maghawry
+author: Osama Safwat Maghawry
 category: foundations
 series_order: 14
 tags: option chain, bid ask, last price, expiration, foundations

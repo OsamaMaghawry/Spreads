@@ -3,7 +3,7 @@ title: "Credit spread strike selection by delta: what it tells you"
 slug: credit-spread-delta-strike-selection
 excerpt: Delta lets a trader describe a credit spread's short strike on a scale that travels between stocks, but it belongs to one leg, it is a model's estimate, and it moves.
 meta_description: "A short strike's delta is not the spread's probability of profit; the break-even and long strike differ. What delta does tell you, on one example chain."
-author: Osama Maghawry
+author: Osama Safwat Maghawry
 category: income
 series_order: 22
 tags: credit spread delta, strike selection, option delta, put credit spread, short strike
