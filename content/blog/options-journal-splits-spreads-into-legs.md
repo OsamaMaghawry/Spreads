@@ -3,7 +3,7 @@ title: Why your broker shows a spread as two separate legs
 slug: options-journal-splits-spreads-into-legs
 excerpt: A spread is one position, not two legs - but if a tool rebuilds it by matching strikes instead of reading the order it came from, it will eventually invent one.
 meta_description: Your broker's fill feed doesn't say which legs were one order. Why syncs split spreads, and what strike-guessing invents after a roll.
-author: DeltaMint
+author: Osama Maghawry
 published_at: 2026-08-29T19:22:12+00:00
 category: managing
 series_order: 50

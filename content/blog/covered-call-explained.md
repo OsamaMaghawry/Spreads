@@ -4,7 +4,7 @@ search_title: "When do covered calls get assigned? And what you keep"
 slug: covered-call-explained
 excerpt: A covered call is one call sold against 100 shares already owned, and it ends with the shares kept or delivered at the strike, the premium kept either way.
 meta_description: "A covered call is assigned when the stock finishes above the strike, usually at expiration, sometimes before a dividend. The premium is kept either way."
-author: DeltaMint
+author: Osama Maghawry
 category: income
 series_order: 15
 tags: covered call, income, assignment, cost basis, options

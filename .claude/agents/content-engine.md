@@ -82,7 +82,7 @@ slug: ...
 excerpt: one sentence, plain
 meta_description: under 160 characters, written for a search result
 search_title: optional, at most 60 characters; the title Google is given, in the words people search, when it should differ from the headline above
-author: DeltaMint
+author: Osama Maghawry
 category: one of foundations | income | hedging | investing | managing | measuring
 series_order: the post's number in content/PLAN.md
 tags: comma-separated, lowercase, at most five

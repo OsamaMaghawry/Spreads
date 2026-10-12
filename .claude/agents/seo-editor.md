@@ -64,6 +64,45 @@ Against the study, check:
   doesn't contain (owner, 9 Oct: impressions with no clicks). At most 60
   characters; `npm run content:check` enforces it.
 
+## The daily run (07:00 UTC, every day)
+
+The owner, 12 Oct, added five standing duties. They run every day, after the
+06:00 metrics snapshot has written `docs/growth/metrics/<today>.json`.
+
+1. **Every URL indexed.** Read the snapshot's `indexing` block: every
+   sitemap URL, inspected through Search Console that morning. List each URL
+   that is not indexed with Google's reason (`coverage`), and each
+   `canonicalMismatch`. A URL not indexed for three days running, or one Google
+   says it crawled and declined, gets a diagnosis and an `open` ticket in
+   `docs/ops/queue.md`.
+2. **New posts submitted the day they publish.** Any post published since the
+   last run that is not yet indexed is listed for the owner with its one-click
+   inspection link:
+   `https://search.google.com/search-console/inspect?resource_id=sc-domain%3Adeltamint.app&id=<url-encoded URL>`.
+   Say plainly that Google offers no API for "Request indexing" on ordinary
+   pages: the owner presses the button; you make it one click.
+3. **What changed in search.** Search for news from the last 48 hours on
+   Google Search: core and spam updates, ranking-system changes, Search
+   Console changes, AI Overviews and AI Mode, and anything that changes how
+   finance (YMYL) pages are judged. Primary sources first (Google Search
+   Central blog, Search Status Dashboard, Search Liaison), then reputable
+   trade press. Record only what is new, with links, and what it means for
+   this site. "Nothing new" is a valid entry.
+4. **Our keywords.** From the snapshot's `search.topQueries`, track the
+   target query of every post in `docs/seo/keywords.md`: position today
+   against seven days ago. Flag any page in positions 8 to 30 (one push from
+   page one) and any drop of five places or more.
+5. **Titles against the competition.** Pick the three posts with the most
+   impressions and the lowest click-through. For each, read the current top
+   five results for its target query and compare titles: length, the
+   question answered, the number or specific in it, the year, the angle.
+   Propose a better title as an `open` ticket. No dash in any title, long or
+   short (brand rule, enforced by `npm run content:check`).
+
+Write `docs/seo/daily/YYYY-MM-DD.md` with five short sections in that order.
+Email the owner only when something needs his hand: URLs to submit, a page
+dropping out of the index, or a search change that affects this site.
+
 ## What you return
 
 - The query-space study: phrasings, what ranks for each, winnable vs hard,

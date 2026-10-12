@@ -3,7 +3,7 @@ title: "Option assignment: what happens in your account"
 slug: option-assignment-what-happens
 excerpt: Option assignment is the seller's side of exercise - the option row disappears, shares and cash move at the strike, and you read about it afterwards.
 meta_description: Option assignment is the seller's side of exercise. Who hands out the notice, why it lands overnight, and what changes in your account line by line.
-author: DeltaMint
+author: Osama Maghawry
 published_at: 2026-09-21T10:00:00+00:00
 category: foundations
 series_order: 10

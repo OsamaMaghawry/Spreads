@@ -4,7 +4,7 @@ search_title: "Strike price, expiration date and premium, explained"
 slug: option-strike-price-expiration-premium
 excerpt: Three numbers describe every listed option - the strike shares would change hands at, the last day the contract exists, and the price of the contract itself.
 meta_description: "Is there a strike date? No. An option has a strike price, where shares change hands, an expiration date, its last day, and a premium, its price."
-author: DeltaMint
+author: Osama Maghawry
 published_at: 2026-09-09T10:56:26+00:00
 category: foundations
 series_order: 3

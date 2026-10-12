@@ -3,7 +3,7 @@ title: "Credit spread width: one $5-wide vs five $1-wide spreads"
 slug: credit-spread-width
 excerpt: The width of a credit spread sets its maximum loss, the credit grows more slowly than the width, and five $1-wide spreads pay a different credit from one $5-wide spread that ends in the same place.
 meta_description: "Credit spread width sets the max loss. On one hypothetical put chain: why credit grows slower than width, and why five $1-wide spreads are not one $5-wide."
-author: DeltaMint
+author: Osama Maghawry
 category: income
 series_order: 21
 tags: options credit spread, credit spread width, spread width, wing width, max loss
