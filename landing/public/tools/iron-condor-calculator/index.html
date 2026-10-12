@@ -77,6 +77,30 @@
       "mainEntity": [
         {
           "@type": "Question",
+          "name": "What is an iron condor?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Four options on the same stock and expiration: a put credit spread below the stock price and a call credit spread above it, opened together for one credit. It makes its max profit if the stock finishes between the two short strikes, and the options bought on each side cap the loss."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How does an iron condor work?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "You sell a put spread below the stock and a call spread above it for one credit. If the stock finishes between the two short strikes, every option expires worthless and you keep the credit. If it moves past either side, that side loses, up to the wider wing minus the credit."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "When do traders use an iron condor?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "When they expect a stock to stay within a range until expiration. The position gains as time passes and as implied volatility falls, and loses if the stock moves past either breakeven."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "How do you calculate the breakeven of an iron condor?",
           "acceptedAnswer": {
             "@type": "Answer",
@@ -289,6 +313,14 @@
   </section>
 
   <section class="explain">
+    <h2>How an iron condor works</h2>
+    <p>An iron condor is two credit spreads opened as one position.</p>
+    <ol>
+      <li><strong>Open.</strong> Sell an out-of-the-money put and an out-of-the-money call, and buy a put further below and a call further above, all on the same expiration, for one total credit. Most brokers hold the width of the wider wing.</li>
+      <li><strong>While it is open.</strong> As long as the stock stays between the short strikes, the position gains as time passes and as implied volatility falls. A move towards either short strike makes that side lose value against you.</li>
+      <li><strong>At expiration.</strong> Between the short strikes, all four options expire worthless and you keep the credit. Past a short strike, that side's spread is in the money; past its long strike, that side is at its max loss. Only one side can be in the money.</li>
+    </ol>
+
     <h2>How to calculate an iron condor</h2>
     <p>An iron condor is a put credit spread below the stock and a call credit spread above it, opened together for one credit. At expiration the stock can only finish past one of the short strikes, so only one wing can lose, and the max loss is set by the wider wing.</p>
     <pre class="formula">Max profit      = total credit × 100 × contracts
@@ -331,6 +363,12 @@ Return on risk  = max profit / max loss</pre>
     </ul>
 
     <h2>Frequently asked questions</h2>
+    <h3>What is an iron condor?</h3>
+    <p>Four options on the same stock and expiration: a put credit spread below the stock price and a call credit spread above it, opened together for one credit. It makes its max profit if the stock finishes between the two short strikes, and the options bought on each side cap the loss.</p>
+    <h3>How does an iron condor work?</h3>
+    <p>You sell a put spread below the stock and a call spread above it for one credit. If the stock finishes between the two short strikes, every option expires worthless and you keep the credit. If it moves past either side, that side loses, up to the wider wing minus the credit.</p>
+    <h3>When do traders use an iron condor?</h3>
+    <p>When they expect a stock to stay within a range until expiration. The position gains as time passes and as implied volatility falls, and loses if the stock moves past either breakeven.</p>
     <h3>How do you calculate the breakeven of an iron condor?</h3>
     <p>An iron condor has two breakevens. The lower one is the short put strike minus the total credit; the upper one is the short call strike plus the total credit. Use the credit for all four legs, not one side's.</p>
     <h3>What is the max loss on an iron condor?</h3>

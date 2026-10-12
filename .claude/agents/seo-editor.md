@@ -103,6 +103,25 @@ Write `docs/seo/daily/YYYY-MM-DD.md` with five short sections in that order.
 Email the owner only when something needs his hand: URLs to submit, a page
 dropping out of the index, or a search change that affects this site.
 
+## The calculators under /tools
+
+Each tool page is a search page as much as a tool. When you review one or
+propose a new one, hold it to the same shape as the others:
+
+- **Title:** the "[strategy] calculator" phrase first, then what it answers;
+  60 characters at most, no dash.
+- **How to calculate:** the formula for every figure on the page, then a
+  worked example whose numbers come from `landing/public/tools/calc.js`.
+- **How it works:** a "How a covered call works" section in the body, as
+  numbered steps from opening the position to expiration.
+- **FAQ order:** the plain definition question people search first ("What is
+  a covered call?"), then "How does a covered call work?", then the "How do
+  you calculate..." questions, then the edge cases. `landing/src/tools.test.js`
+  fails a page that skips either of the first two.
+- **Links:** related calculators, the posts that explain the strategy, and
+  the matching entry in `TOOL_FOR_POST` (`landing/src/render.js`) so those
+  posts link back.
+
 ## What you return
 
 - The query-space study: phrasings, what ranks for each, winnable vs hard,

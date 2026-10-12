@@ -356,3 +356,14 @@ test("blog pages carry the menu, its stylesheet and the Tools footer link", asyn
   assert.match(toolBox("iron-condor-explained"), /href="\/tools\/iron-condor-calculator"/);
   assert.equal(toolBox("not-a-post"), "");
 });
+
+test("each tool page explains what it is and how it works before the arithmetic", () => {
+  for (const f of toolFiles) {
+    const ld = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(read(f))[1]);
+    const first = ld["@graph"].find((n) => n["@type"] === "FAQPage").mainEntity[0].name;
+    assert.match(first, /^What (is|does|are) /, `${f} FAQ starts with "${first}"`);
+    const second = ld["@graph"].find((n) => n["@type"] === "FAQPage").mainEntity[1].name;
+    assert.match(second, /^How does .+ work\?$/, `${f} FAQ's second question is "${second}"`);
+    assert.match(read(f), /<h2>How [^<]+ works<\/h2>\s*<p>[^<]+<\/p>\s*<ol>/, `${f} has no "How it works" steps`);
+  }
+});

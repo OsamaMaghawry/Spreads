@@ -77,6 +77,22 @@
       "mainEntity": [
         {
           "@type": "Question",
+          "name": "What is annualized return on an options trade?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The return a trade earns over the time it is open, scaled to a full year so trades of different lengths can be compared. A return of 2% in 30 days is about 24.3% annualized, simple. It describes the trade's rate, not what an account will earn in a year."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How does annualizing a return work?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "You take the return for the time the trade is open and scale it to 365 days. A return of 2% over 30 days becomes 2% times 365 / 30, about 24.3% annualized. Compounding instead assumes each period's premium is reinvested, which gives a slightly higher figure."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "How do you annualize an option premium return?",
           "acceptedAnswer": {
             "@type": "Answer",
@@ -271,6 +287,14 @@
   </section>
 
   <section class="explain">
+    <h2>How annualized return works</h2>
+    <p>Annualizing takes three steps.</p>
+    <ol>
+      <li><strong>Return for the period.</strong> Divide the premium by the capital the trade ties up.</li>
+      <li><strong>Scale it to a year.</strong> Multiply by 365 and divide by the days the money is tied up: how many trades of that length fit into a year.</li>
+      <li><strong>Compare.</strong> Annualized figures for trades of different lengths can be set side by side. Their period returns cannot, because a 7 day trade and a 45 day trade tie the money up for different lengths of time.</li>
+    </ol>
+
     <h2>How to annualize an options return</h2>
     <p>An option seller's return depends on how long the money is tied up. Annualizing puts a 7 day trade and a 45 day trade on the same scale, so you can compare what each pays for the time it takes.</p>
     <pre class="formula">Return for the period = premium / capital
@@ -307,6 +331,10 @@ Compounded            = (1 + premium / capital) ^ (365 / days) - 1</pre>
     </ul>
 
     <h2>Frequently asked questions</h2>
+    <h3>What is annualized return on an options trade?</h3>
+    <p>The return a trade earns over the time it is open, scaled to a full year so trades of different lengths can be compared. A return of 2% in 30 days is about 24.3% annualized, simple. It describes the trade's rate, not what an account will earn in a year.</p>
+    <h3>How does annualizing a return work?</h3>
+    <p>You take the return for the time the trade is open and scale it to 365 days. A return of 2% over 30 days becomes 2% times 365 / 30, about 24.3% annualized. Compounding instead assumes each period's premium is reinvested, which gives a slightly higher figure.</p>
     <h3>How do you annualize an option premium return?</h3>
     <p>Divide the premium by the capital it ties up, then multiply by 365 and divide by the days. $150 on $5,000 for 30 days is 3.0% for the period and 36.5% annualized.</p>
     <h3>Should I use simple or compounded annualized return?</h3>

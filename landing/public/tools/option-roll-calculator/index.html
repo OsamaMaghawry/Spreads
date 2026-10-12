@@ -77,6 +77,22 @@
       "mainEntity": [
         {
           "@type": "Question",
+          "name": "What does rolling an option mean?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Closing an option position and opening a similar one, usually with a later expiration and often at a different strike, in one order. Option sellers roll to give a trade more time, or to move a short strike further from the stock price."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How does rolling an option work?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "You buy back the option you are short and sell a new one, usually further out in time, in a single order. The difference between the two prices is the roll's net credit or debit, and the new position's breakeven counts all the premium kept across both."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "How do you calculate the net credit of a roll?",
           "acceptedAnswer": {
             "@type": "Answer",
@@ -288,6 +304,15 @@
   </section>
 
   <section class="explain">
+    <h2>How rolling an option works</h2>
+    <p>A roll is two trades sent as one order.</p>
+    <ol>
+      <li><strong>Close the old option.</strong> Buy back the option you are short. Its gain or loss is realized on this trade.</li>
+      <li><strong>Open the new one.</strong> Sell a similar option, usually with a later expiration and often at a different strike.</li>
+      <li><strong>One net price.</strong> Both legs go in as one order. If the new option brings in more than the old one costs to close, the roll is a net credit; if less, a net debit.</li>
+      <li><strong>What you hold after.</strong> The new strike and expiration, carrying all the premium kept so far. That total sets the new breakeven.</li>
+    </ol>
+
     <h2>How to calculate a roll</h2>
     <p>A roll closes the option you are short and opens another, usually further out in time and often at a different strike. It is two trades, sent as one order. These are the numbers that decide what it did:</p>
     <pre class="formula">Net credit (or debit) = new premium - cost to close
@@ -317,6 +342,10 @@ New breakeven, call   = new strike + total premium kept</pre>
     </ul>
 
     <h2>Frequently asked questions</h2>
+    <h3>What does rolling an option mean?</h3>
+    <p>Closing an option position and opening a similar one, usually with a later expiration and often at a different strike, in one order. Option sellers roll to give a trade more time, or to move a short strike further from the stock price.</p>
+    <h3>How does rolling an option work?</h3>
+    <p>You buy back the option you are short and sell a new one, usually further out in time, in a single order. The difference between the two prices is the roll's net credit or debit, and the new position's breakeven counts all the premium kept across both.</p>
     <h3>How do you calculate the net credit of a roll?</h3>
     <p>Subtract the cost of buying back your current option from the premium of the new one. Selling the new put for $3.00 after buying the old one back for $2.50 is a $0.50 net credit, $50 per contract.</p>
     <h3>What does rolling do to my breakeven?</h3>
