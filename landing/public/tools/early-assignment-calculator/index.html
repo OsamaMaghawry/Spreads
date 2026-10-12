@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Early Assignment Risk Calculator: Dividend vs Time Value</title>
+<meta name="description" content="Free early assignment calculator for short calls before an ex-dividend date. Compare the dividend with the call's remaining time value, or the put at the same strike, to see whether early exercise is likely and what is at stake." />
+<link rel="canonical" href="https://deltamint.app/tools/early-assignment-calculator" />
+
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="DeltaMint" />
+<meta property="og:url" content="https://deltamint.app/tools/early-assignment-calculator" />
+<meta property="og:title" content="Early assignment risk calculator" />
+<meta property="og:description" content="Free early assignment calculator for short calls before an ex-dividend date. Compare the dividend with the call's remaining time value, or the put at the same strike, to see whether early exercise is likely and what is at stake." />
+<meta property="og:image" content="https://deltamint.app/assets/og-card.png?v=c1196ea9ee71" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://deltamint.app/assets/og-card.png?v=c1196ea9ee71" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link href="/assets/site.css" rel="stylesheet">
+<link href="/assets/menu.css" rel="stylesheet">
+<link href="/tools/tools.css" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebApplication",
+      "name": "Early assignment risk calculator",
+      "url": "https://deltamint.app/tools/early-assignment-calculator",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Any",
+      "description": "Free early assignment calculator for short calls before an ex-dividend date. Compare the dividend with the call's remaining time value, or the put at the same strike, to see whether early exercise is likely and what is at stake.",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "DeltaMint",
+        "url": "https://deltamint.app/"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://deltamint.app/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Tools",
+          "item": "https://deltamint.app/tools"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Early assignment risk calculator",
+          "item": "https://deltamint.app/tools/early-assignment-calculator"
+        }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "When is a short call likely to be assigned early?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "When it is in the money just before an ex-dividend date and the dividend is larger than the call's remaining time value. Deep in-the-money calls close to expiration, with almost no time value left, are the usual candidates."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do you calculate the time value of an option?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Subtract the intrinsic value from the option's price. For a call, intrinsic value is the stock price minus the strike, or zero if the call is out of the money. What is left is time value, also called extrinsic value."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why compare the dividend with the put at the same strike?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Because that put prices what the call holder gives up by exercising: the protection against the stock falling below the strike. When the dividend is worth more than that put, exercising early pays the holder."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What happens if my covered call is assigned early?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Your shares are sold at the strike the next business day and you keep the premium you were paid. You do not receive the upcoming dividend, because you no longer own the shares on the ex-date."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What happens if the short call in my spread is assigned early?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "You are short 100 shares per contract and owe the dividend on them. Your long call still limits the price risk; closing the stock and the long call, or exercising the long call, resolves the position."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can puts be assigned early too?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, mainly deep in-the-money puts with little time value, more often when interest rates are high. Dividends work the other way for puts: a put holder usually waits until after the ex-date, when the stock drops by the dividend."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
+  <!-- Non-essential analytics do not run for visitors in the EEA, the UK or
+       Switzerland, where consent is required BEFORE a tracker loads and an
+       opt-out in the privacy policy is not enough. The country comes from
+       Cloudflare's own /cdn-cgi/trace on this origin — no third party is
+       contacted to decide, which would be the same problem one step earlier.
+
+       It fails CLOSED: if the lookup fails, or returns a country we cannot
+       read, nothing loads. An unknown visitor is treated as a protected one.
+
+       This wraps the hostname guard rather than replacing it — staging still
+       records nothing, for the reason each tag's own comment gives below. -->
+  <script>
+    window.dmAnalyticsAllowed = function (start) {
+      if (location.hostname !== 'deltamint.app' && location.hostname !== 'www.deltamint.app') return;
+      var GATED = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV',
+                   'LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','GB','IS','LI','NO','CH','GI','JE','GG','IM'];
+      fetch('/cdn-cgi/trace')
+        .then(function (r) { return r.text(); })
+        .then(function (t) {
+          var m = /(?:^|\n)loc=([A-Z]{2})/.exec(t);
+          if (m && GATED.indexOf(m[1]) === -1) start();
+        })
+        .catch(function () {});
+    };
+  </script>
+
+  <!-- Google Analytics 4.
+       Inline here because the Worker does not run for these pages on
+       production: wrangler.jsonc lists only /blog, /blog/* and /sitemap.xml
+       under run_worker_first, so the homepage and pricing are served straight
+       from assets. The blog's copy is injected by analyticsTag() in
+       landing/src/index.js from GA_MEASUREMENT_ID.
+
+       Guarded by hostname because this same public/ directory is served by
+       the staging Worker at dev-landing.deltamint.app and by local preview.
+       Without the guard, every dev page view would be filed in the property
+       as if it were a customer, and the numbers the growth cadence reports
+       would be our own traffic. GA_MEASUREMENT_ID is likewise set only in
+       wrangler.jsonc, never in wrangler.staging.jsonc, so both halves are
+       gated the same way. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    window.dmAnalyticsAllowed(function () {
+      var gaScript = document.createElement('script');
+      gaScript.async = true;
+      gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-TJLVFXVFL6';
+      document.head.appendChild(gaScript);
+      gtag('js', new Date());
+      gtag('config', 'G-TJLVFXVFL6');
+    });
+  </script>
+
+  <!-- Hotjar: heatmaps and session replay, marketing pages and blog only.
+
+       Deliberately NOT on dashboard.deltamint.app. That is a separate Worker
+       and it stays untracked: it is where positions, order tickets and account
+       balances are on screen, and none of that belongs in a replay held by a
+       third party. Hotjar sees the pages a stranger reads before signing up,
+       and nothing after.
+
+       Inline here for the same reason as the GA tag above: production's
+       run_worker_first lists only /blog, /blog/* and /sitemap.xml, so the
+       Worker never runs for this page. The blog's copy is injected by
+       hotjarTag() in landing/src/index.js from HOTJAR_SITE_ID.
+
+       Same hostname guard as the GA tag, and for the same reason: this
+       public/ directory is also served by the staging Worker at
+       dev-landing.deltamint.app, so without it every dev page view would
+       become a recorded session in the account. HOTJAR_SITE_ID is likewise
+       set only in wrangler.jsonc, never in wrangler.staging.jsonc. -->
+  <script>
+    window.dmAnalyticsAllowed(function () {
+      (function(h,o,t,j,a,r){
+          h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};
+          h._hjSettings={hjid:6773356,hjsv:6};
+          a=o.getElementsByTagName('head')[0];
+          r=o.createElement('script');r.async=1;
+          r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv;
+          a.appendChild(r);
+      })(window,document,'https://static.hotjar.com/c/hotjar-','.js?sv=');
+    });
+  </script>
+</head>
+<body>
+
+<div class="wrap">
+  <nav class="nav">
+    <a class="brandmark" href="/">
+      <svg viewBox="7.495 3 17.01 26" aria-hidden="true"><path d="M16.97 13.27Q15.62 13.3 14.69 13.94Q13.75 14.58 13.29 15.64Q12.82 16.69 12.82 18.11V21.36Q12.82 22.5 13.2 23.31Q13.58 24.12 14.29 24.54Q15 24.95 16 24.95Q17 24.95 17.71 24.54Q18.42 24.12 18.8 23.31Q19.18 22.5 19.18 21.36V19.56Q19.18 18.52 18.99 17.61Q18.8 16.69 18.4 15.88Q18.01 15.07 17.33 14.31Q16.66 13.55 15.72 12.82L9.36 7.84V3H22.88V6.98H17.42L14.2 6.6V6.73L17.83 8.95Q19.66 10.09 20.94 11.28Q22.22 12.47 23 13.79Q23.78 15.1 24.14 16.52Q24.51 17.94 24.51 19.49Q24.51 22.43 23.49 24.56Q22.47 26.68 20.56 27.84Q18.66 29 16 29Q13.34 29 11.44 27.82Q9.53 26.65 8.51 24.61Q7.49 22.57 7.49 19.94Q7.49 17.24 8.39 15.38Q9.29 13.51 10.74 12.54Q12.2 11.57 13.89 11.57V10.81Z" fill="var(--brand)"/></svg>
+      <span>delta<span class="m">mint</span></span>
+    </a>
+    <div class="right">
+      <div class="navlinks" id="navmenu">
+        <a class="plain" href="/">Home</a>
+        <a class="plain" href="/about">About</a>
+        <a class="plain" href="/blog">Blog</a>
+        <details class="tools" data-here>
+          <summary>Tools</summary>
+          <div class="drop">
+            <a class="all" href="/tools">All free tools</a>
+            <a href="/tools/credit-spread-calculator">Credit spread calculator</a>
+            <a href="/tools/iron-condor-calculator">Iron condor calculator</a>
+            <a href="/tools/covered-call-calculator">Covered call calculator</a>
+            <a href="/tools/cash-secured-put-calculator">Cash secured put calculator</a>
+            <a href="/tools/expected-move-calculator">Expected move calculator</a>
+            <a href="/tools/annualized-return-calculator">Annualized return calculator</a>
+            <a href="/tools/option-roll-calculator">Option roll calculator</a>
+            <a href="/tools/early-assignment-calculator" aria-current="page">Early assignment risk calculator</a>
+          </div>
+        </details>
+        <a class="btn btn-ghost" href="https://dashboard.deltamint.app/login">Log in</a>
+        <a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=nav">Sign up</a>
+      </div>
+      <button class="burger" type="button" aria-label="Menu" aria-expanded="false" aria-controls="navmenu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+      </button>
+      <noscript><style>@media (max-width:40rem){.nav .navlinks{display:flex;position:static;flex-direction:row;min-width:0;padding:0;border:0;background:none;box-shadow:none}.burger{display:none}}</style></noscript>
+    </div>
+  </nav>
+</div>
+
+<div class="wrap">
+<main class="calc">
+  <ol class="crumbs"><li><a href="/">Home</a></li><li><a href="/tools">Tools</a></li><li aria-current="page">Early assignment risk calculator</li></ol>
+  <p class="eyebrow">Free tool</p>
+  <h1>Early assignment risk calculator</h1>
+  <p class="lede">Is a short call likely to be assigned before the ex-dividend date? Compare the dividend with the time value the holder would give up, and see what is at stake if they exercise.</p>
+
+  <section class="panel" aria-label="Calculator">
+    <form class="inputs" id="calc" novalidate>
+      <div class="fields">
+        <label><span>Stock price</span><input name="price" inputmode="decimal" value="52" autocomplete="off"></label>
+        <label><span>Short call strike</span><input name="strike" inputmode="decimal" value="45" autocomplete="off"></label>
+        <label><span>Call price now <em>(bid or mid)</em></span><input name="callPrice" inputmode="decimal" value="7.30" autocomplete="off"></label>
+        <label><span>Dividend per share</span><input name="dividend" inputmode="decimal" value="0.72" autocomplete="off"></label>
+        <label><span>Put at the same strike <em>(optional, more exact)</em></span><input name="putPrice" inputmode="decimal" value="" autocomplete="off"></label>
+        <label><span>Contracts</span><input name="qty" inputmode="numeric" value="1" autocomplete="off"></label>
+      </div>
+      <p class="err" id="err" role="alert" hidden></p>
+    </form>
+
+    <div class="out" aria-live="polite">
+      <div class="verdict" id="verdict" data-level="high"><b id="verdictTitle">High: the dividend is worth more than the time value left</b><p id="verdictText">The $0.72 dividend is larger than the call's remaining time value ($0.30). A holder who exercises the day before the ex-date collects a dividend worth more than what they give up, so early assignment is likely.</p></div>
+      <div class="figs">
+        <div class="fig"><span>Intrinsic value</span><b id="intrinsic">$7.00</b><small>stock price minus strike</small></div>
+        <div class="fig"><span>Time value</span><b id="extrinsic">$0.30</b><small>call price minus intrinsic value</small></div>
+        <div class="fig"><span>Dividend</span><b id="dividend">$0.72</b><small>per share</small></div>
+        <div class="fig bad"><span>Time value minus dividend</span><b id="gap">-$0.42</b><small id="gapNote">below zero: exercise pays the holder</small></div>
+        <div class="fig"><span>Dividend at stake</span><b id="atStake">$72.00</b><small>owed, or missed, if assigned the day before the ex-date</small></div>
+        <div class="fig"><span>Test used</span><b id="test">time value</b><small>add the put price for the more exact test</small></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="explain">
+    <h2>How to tell if a short call will be assigned early</h2>
+    <p>Most options are not exercised before expiration, because exercising throws away whatever time value the option has left. The exception is a call in the money just before an ex-dividend date. A holder who exercises the day before becomes a shareholder in time to receive the dividend. If the dividend is worth more than the time value given up, exercising early pays.</p>
+    <pre class="formula">Intrinsic value = stock price - strike          (0 if out of the money)
+Time value      = call price - intrinsic value
+Risk is high when: dividend > time value</pre>
+
+    <h2>The more exact test: the put at the same strike</h2>
+    <p>The call's time value is the common stand-in, and it errs towards warning. The precise comparison is with the put at the same strike and expiration: by exercising, the holder gives up the protection the call gave them, and the put is what that protection costs. When the dividend is larger than that put, early exercise pays. Enter the put's price and the calculator uses it instead.</p>
+
+    <h2>Worked example</h2>
+    <p>Hypothetical: a stock at $52 pays a $0.72 dividend tomorrow. You are short the $45 call, which trades at $7.30.</p>
+    <ul>
+      <li><strong>Intrinsic value:</strong> $52 - $45 = $7.00.</li>
+      <li><strong>Time value:</strong> $7.30 - $7.00 = $0.30.</li>
+      <li><strong>Test:</strong> the $0.72 dividend is larger than the $0.30 of time value, so a holder is better off exercising today and collecting the dividend. Early assignment is likely.</li>
+      <li><strong>At stake:</strong> $72.00 per contract: missed on a covered call, or owed on the short call of a spread.</li>
+    </ul>
+
+    <h2>What it means for your position</h2>
+    <dl>
+      <dt>Covered call</dt><dd>Your shares are sold at the strike and you keep the premium, but you do not receive the dividend. The result is the same as being called at expiration, a few days early.</dd>
+      <dt>Call spread</dt><dd>You are left short 100 shares per contract on the ex-date and owe the dividend on them. Your long call still caps the price risk, but not the dividend, so the loss can exceed the spread's max loss by that amount.</dd>
+    </dl>
+    <p>Traders who want to avoid it usually close or roll the call before the ex-date. The <a href="/tools/option-roll-calculator">option roll calculator</a> shows what a roll does to the numbers.</p>
+
+    <h2>What the calculator does not tell you</h2>
+    <ul>
+      <li><strong>Exactly who is assigned.</strong> Exercise notices are allocated among short holders; a likely exercise does not mean every short contract is assigned.</li>
+      <li><strong>Interest and borrow costs.</strong> High interest rates make early call exercise slightly less attractive, and hard-to-borrow stocks can be exercised for other reasons.</li>
+      <li><strong>Assignment at other times.</strong> Deep in-the-money options with almost no time value can be assigned on any day, dividend or not.</li>
+    </ul>
+
+    <h2>Frequently asked questions</h2>
+    <h3>When is a short call likely to be assigned early?</h3>
+    <p>When it is in the money just before an ex-dividend date and the dividend is larger than the call's remaining time value. Deep in-the-money calls close to expiration, with almost no time value left, are the usual candidates.</p>
+    <h3>How do you calculate the time value of an option?</h3>
+    <p>Subtract the intrinsic value from the option's price. For a call, intrinsic value is the stock price minus the strike, or zero if the call is out of the money. What is left is time value, also called extrinsic value.</p>
+    <h3>Why compare the dividend with the put at the same strike?</h3>
+    <p>Because that put prices what the call holder gives up by exercising: the protection against the stock falling below the strike. When the dividend is worth more than that put, exercising early pays the holder.</p>
+    <h3>What happens if my covered call is assigned early?</h3>
+    <p>Your shares are sold at the strike the next business day and you keep the premium you were paid. You do not receive the upcoming dividend, because you no longer own the shares on the ex-date.</p>
+    <h3>What happens if the short call in my spread is assigned early?</h3>
+    <p>You are short 100 shares per contract and owe the dividend on them. Your long call still limits the price risk; closing the stock and the long call, or exercising the long call, resolves the position.</p>
+    <h3>Can puts be assigned early too?</h3>
+    <p>Yes, mainly deep in-the-money puts with little time value, more often when interest rates are high. Dividends work the other way for puts: a put holder usually waits until after the ex-date, when the stock drops by the dividend.</p>
+
+    <h2>Related calculators</h2>
+    <ul class="related">
+      <li><a href="/tools/covered-call-calculator"><b>Covered call calculator</b><small>Return if called and if the stock stays flat, both annualized, plus your downside cushion.</small></a></li>
+      <li><a href="/tools/credit-spread-calculator"><b>Credit spread calculator</b><small>Max profit, max loss, breakeven and return on risk for a put or call credit spread.</small></a></li>
+      <li><a href="/tools/option-roll-calculator"><b>Option roll calculator</b><small>The net credit or debit of a roll, and where your breakeven moves.</small></a></li>
+      <li><a href="/tools/iron-condor-calculator"><b>Iron condor calculator</b><small>Both breakevens, the max loss on either wing and the profit zone.</small></a></li>
+    </ul>
+
+    <h2>Further reading</h2>
+    <ul>
+      <li><a href="/blog/early-exercise-options">Early exercise of options: rare, except before a dividend</a></li>
+      <li><a href="/blog/option-assignment-what-happens">Option assignment: what happens in your account</a></li>
+      <li><a href="/blog/intrinsic-vs-extrinsic-value-options">Intrinsic vs extrinsic value in options</a></li>
+      <li><a href="/blog/covered-call-explained">Covered call explained, through to the day after assignment</a></li>
+    </ul>
+
+    <div class="cta">
+      <a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=tools-early-assignment">Track your real positions in DeltaMint</a>
+      <p>Free on a paper account. DeltaMint shows every open options position in your account in one place, with the legs of each spread grouped together.</p>
+    </div>
+
+    <p class="fine">For education only. Not investment advice, and not a recommendation to buy or sell any security. Figures are at expiration and leave out commissions and fees. Options involve substantial risk and are not suitable for every investor; read <a href="https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document">Characteristics and Risks of Standardized Options</a>.</p>
+  </section>
+</main>
+</div>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="frow">
+      <a class="brandmark" href="/" style="margin-right:auto;font-size:1.20rem">
+        <svg viewBox="7.495 3 17.01 26" aria-hidden="true"><path d="M16.97 13.27Q15.62 13.3 14.69 13.94Q13.75 14.58 13.29 15.64Q12.82 16.69 12.82 18.11V21.36Q12.82 22.5 13.2 23.31Q13.58 24.12 14.29 24.54Q15 24.95 16 24.95Q17 24.95 17.71 24.54Q18.42 24.12 18.8 23.31Q19.18 22.5 19.18 21.36V19.56Q19.18 18.52 18.99 17.61Q18.8 16.69 18.4 15.88Q18.01 15.07 17.33 14.31Q16.66 13.55 15.72 12.82L9.36 7.84V3H22.88V6.98H17.42L14.2 6.6V6.73L17.83 8.95Q19.66 10.09 20.94 11.28Q22.22 12.47 23 13.79Q23.78 15.1 24.14 16.52Q24.51 17.94 24.51 19.49Q24.51 22.43 23.49 24.56Q22.47 26.68 20.56 27.84Q18.66 29 16 29Q13.34 29 11.44 27.82Q9.53 26.65 8.51 24.61Q7.49 22.57 7.49 19.94Q7.49 17.24 8.39 15.38Q9.29 13.51 10.74 12.54Q12.2 11.57 13.89 11.57V10.81Z" fill="var(--brand)"/></svg>
+        <span>delta<span class="m">mint</span></span>
+      </a>
+      <a href="/about">About</a>
+      <a href="/blog">Blog</a>
+      <a href="/tools">Tools</a>
+      <a href="/terms">Terms</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/contact">Contact</a>
+      <a href="https://dashboard.deltamint.app">Open the app</a>
+    </div>
+    <p class="fine">DeltaMint is a software tool, not a broker-dealer, and does not provide investment advice. Options trading involves substantial risk of loss and is not suitable for every investor. Trades are placed through your own brokerage account, under that broker's terms.</p>
+  </div>
+</footer>
+
+<script type="module">
+import { earlyAssignment } from "/tools/calc.js";
+import { money, set, reader, wire } from "/tools/ui.js";
+const form = document.getElementById("calc");
+const num = reader(form);
+const verdict = document.getElementById("verdict");
+const TITLE = {
+  high: "High: the dividend is worth more than the time value left",
+  lower: "Lower: the time value left is worth more than the dividend",
+  low: "Low: the call is out of the money"
+};
+wire(form, () => earlyAssignment({ price: num("price"), strike: num("strike"), callPrice: num("callPrice"), dividend: num("dividend"), putPrice: num("putPrice"), qty: num("qty") }), (r) => {
+  const what = r.test === "put" ? "the put at the same strike (" + money(r.gauge) + ")" : "the call's remaining time value (" + money(r.gauge) + ")";
+  verdict.dataset.level = r.level;
+  set("verdictTitle", TITLE[r.level]);
+  set("verdictText", r.level === "low"
+    ? "Exercising would mean paying more than the market price for the shares, so a holder has no reason to do it for the dividend."
+    : r.level === "high"
+      ? "The " + money(r.dividend) + " dividend is larger than " + what + ". A holder who exercises the day before the ex-date collects a dividend worth more than what they give up, so early assignment is likely." + (r.belowIntrinsic ? " The call price entered is below its intrinsic value, so it counts as having no time value." : "")
+      : "The " + money(r.dividend) + " dividend is smaller than " + what + ". Exercising would cost the holder more than the dividend pays. That can change as the ex-date nears and time value shrinks.");
+  set("intrinsic", money(r.intrinsic));
+  set("extrinsic", money(r.extrinsic));
+  set("dividend", money(r.dividend));
+  set("gap", money(r.gap));
+  const g = document.getElementById("gap").parentElement;
+  g.classList.toggle("bad", r.gap < 0);
+  g.classList.toggle("good", r.gap >= 0);
+  set("gapNote", r.test === "put" ? "put price minus dividend; below zero: exercise pays the holder" : "below zero: exercise pays the holder");
+  set("atStake", money(r.atStake));
+  set("test", r.test === "put" ? "put price" : "time value");
+});
+</script>
+<script src="/assets/site.js" defer></script>
+</body>
+</html>

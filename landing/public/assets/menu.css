@@ -1,0 +1,43 @@
+/* Tools: a menu inside the menu, listing every free calculator. A <details>
+   so it opens and closes with no script and every link is in the page for a
+   crawler; site.js only closes it on an outside tap or Escape.
+
+   Its own file, loaded after site.css by the pages that carry the menu,
+   rather than added to site.css: the Terms and Privacy PDFs are stamped from
+   site.css (scripts/legal-pdf.mjs), and a menu is no reason to reissue a
+   signed agreement. */
+.nav .tools { position: relative; }
+.nav .tools > summary {
+  list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 0.3rem;
+  color: var(--ink-soft); font-size: 0.95rem; padding: 0.5rem 0.65rem; border-radius: 8px;
+}
+.nav .tools > summary::-webkit-details-marker { display: none; }
+.nav .tools > summary::after {
+  content: ""; width: 0.38rem; height: 0.38rem; margin-top: -0.2rem;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg);
+}
+.nav .tools[open] > summary::after { transform: rotate(225deg); margin-top: 0.2rem; }
+.nav .tools > summary:hover, .nav .tools[open] > summary { color: var(--brand); }
+.nav .tools > summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.nav .tools[data-here] > summary { color: var(--ink); font-weight: 500; }
+.nav .tools .drop {
+  position: absolute; top: calc(100% + 0.35rem); left: 50%; transform: translateX(-50%); z-index: 45;
+  display: flex; flex-direction: column; gap: 0.1rem; width: 17.5rem; padding: 0.35rem;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+}
+.nav .tools .drop a { display: block; padding: 0.5rem 0.7rem; border-radius: 8px; color: var(--ink-soft); text-decoration: none; font-size: 0.92rem; }
+.nav .tools .drop a:hover { background: var(--line-soft); color: var(--brand); }
+.nav .tools .drop a[aria-current="page"] { color: var(--ink); font-weight: 500; }
+.nav .tools .drop a.all { color: var(--brand); font-weight: 500; border-bottom: 1px solid var(--line); border-radius: 8px 8px 0 0; margin-bottom: 0.2rem; }
+
+/* Same breakpoint as the phone menu in site.css. Inside that panel the tools
+   list opens in place, indented, rather than as a second floating box, and
+   the panel scrolls if the open list is taller than the screen. */
+@media (max-width: 40rem) {
+  .nav .navlinks { max-height: calc(100vh - 5.5rem); overflow-y: auto; }
+  .nav .tools > summary { display: flex; justify-content: space-between; padding: 0.62rem 0.7rem; }
+  .nav .tools .drop {
+    position: static; transform: none; width: auto; padding: 0 0 0.3rem 0.6rem;
+    border: 0; box-shadow: none; background: none;
+  }
+}

@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Credit Spread Calculator: Max Loss, Max Profit and Break-even</title>
-<meta name="description" content="Free credit spread calculator: max profit, max loss, break-even, return on risk and collateral for a put or call credit spread, with the payoff at expiration." />
+<title>Credit Spread Calculator for Options: Max Loss and Breakeven</title>
+<meta name="description" content="Free options credit spread calculator for put credit spreads (bull put) and call credit spreads (bear call): max profit, max loss, breakeven, return on risk and collateral, with the payoff at expiration." />
 <link rel="canonical" href="https://deltamint.app/tools/credit-spread-calculator" />
 
 <link rel="icon" href="/favicon.ico" sizes="any">
@@ -15,7 +15,7 @@
 <meta property="og:site_name" content="DeltaMint" />
 <meta property="og:url" content="https://deltamint.app/tools/credit-spread-calculator" />
 <meta property="og:title" content="Credit spread calculator" />
-<meta property="og:description" content="Free credit spread calculator: max profit, max loss, break-even, return on risk and collateral for a put or call credit spread, with the payoff at expiration." />
+<meta property="og:description" content="Free options credit spread calculator for put credit spreads (bull put) and call credit spreads (bear call): max profit, max loss, breakeven, return on risk and collateral, with the payoff at expiration." />
 <meta property="og:image" content="https://deltamint.app/assets/og-card.png?v=c1196ea9ee71" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:image" content="https://deltamint.app/assets/og-card.png?v=c1196ea9ee71" />
@@ -24,78 +24,110 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
 <link href="/assets/site.css" rel="stylesheet">
+<link href="/assets/menu.css" rel="stylesheet">
+<link href="/tools/tools.css" rel="stylesheet">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
-  "@type": "WebApplication",
-  "name": "Credit spread calculator",
-  "url": "https://deltamint.app/tools/credit-spread-calculator",
-  "applicationCategory": "FinanceApplication",
-  "operatingSystem": "Any",
-  "description": "Free credit spread calculator: max profit, max loss, break-even, return on risk and collateral for a put or call credit spread, with the payoff at expiration.",
-  "offers": {
-    "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "USD"
-  },
-  "publisher": {
-    "@type": "Organization",
-    "name": "DeltaMint",
-    "url": "https://deltamint.app/"
-  }
+  "@graph": [
+    {
+      "@type": "WebApplication",
+      "name": "Credit spread calculator",
+      "url": "https://deltamint.app/tools/credit-spread-calculator",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Any",
+      "description": "Free options credit spread calculator for put credit spreads (bull put) and call credit spreads (bear call): max profit, max loss, breakeven, return on risk and collateral, with the payoff at expiration.",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "DeltaMint",
+        "url": "https://deltamint.app/"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://deltamint.app/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Tools",
+          "item": "https://deltamint.app/tools"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Credit spread calculator",
+          "item": "https://deltamint.app/tools/credit-spread-calculator"
+        }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How do you calculate the max loss on a credit spread?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Subtract the credit from the width between the strikes, then multiply by 100 and by the number of contracts. A $5 wide spread sold for $1.20 has a max loss of $3.80 a share, $380 per contract."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do you calculate the breakeven of a put credit spread?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Short put strike minus the credit received. For a call credit spread it is the short call strike plus the credit. At expiration the position makes money on the safe side of that price and loses on the other."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is a bull put spread the same as a put credit spread?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. A bull put spread and a put credit spread are the same position: sell a put, buy a lower strike put. A bear call spread is the same as a call credit spread: sell a call, buy a higher strike call."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How much collateral does a credit spread need?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Usually the width of the spread times 100 per contract. Some brokers reduce it by the credit you received, so the amount held equals the max loss. Your broker's figure is the one that applies to your account."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can a credit spread lose more than its max loss?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Not at expiration, before fees. Before expiration the screen shows a mark, and an early assignment on the short leg can briefly turn it into a stock position, which is covered in what max loss covers before expiration."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does return on risk tell me the chance of profit?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. Return on risk compares what the spread pays with what it can lose. A spread with a short strike close to the stock price pays more for the same risk precisely because it is more likely to finish against you."
+          }
+        }
+      ]
+    }
+  ]
 }
 </script>
-<style>
-  .calc { padding: 48px 0 88px; max-width: 980px; }
-  .calc .eyebrow { margin-bottom: 10px; }
-  .calc h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.08; letter-spacing: -0.025em; text-wrap: balance; }
-  .calc .lede { margin-top: 14px; font-size: 17px; line-height: 1.6; color: var(--ink-soft); max-width: 640px; }
-  .panel { margin-top: 28px; display: grid; gap: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; box-shadow: var(--shadow); }
-  .inputs fieldset { border: 0; padding: 0; margin: 0 0 14px; display: flex; flex-wrap: wrap; gap: 8px; }
-  .inputs legend { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-mute); margin-bottom: 8px; }
-  .kind label { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 14px; color: var(--ink); cursor: pointer; }
-  .kind label:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
-  .kind label span { font-size: 12px; color: var(--ink-mute); }
-  .kind input { accent-color: var(--brand); }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .grid label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-soft); }
-  .grid label em { font-style: normal; color: var(--ink-mute); }
-  .grid .wide { grid-column: 1 / -1; }
-  .grid input { font: 500 16px/1.2 "IBM Plex Mono", monospace; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 100%; box-sizing: border-box; font-variant-numeric: tabular-nums; }
-  .grid input:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
-  .err { margin: 12px 0 0; font-size: 14px; color: var(--rose); background: var(--rose-soft); border-radius: 10px; padding: 8px 12px; }
-  .figs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .fig { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
-  .fig span { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-mute); }
-  .fig b { font: 600 22px/1.2 "IBM Plex Mono", monospace; color: var(--ink); font-variant-numeric: tabular-nums; }
-  .fig small { font-size: 12px; color: var(--ink-mute); line-height: 1.4; }
-  .fig.good b { color: var(--mint); }
-  .fig.bad b { color: var(--rose); }
-  .chart { margin: 14px 0 0; }
-  .chart svg { width: 100%; height: auto; display: block; }
-  .chart figcaption { font-size: 12.5px; color: var(--ink-mute); margin-top: 6px; line-height: 1.5; }
-  .explain { max-width: 720px; }
-  .explain h2 { font-size: 22px; letter-spacing: -0.015em; margin: 48px 0 10px; }
-  .explain p, .explain li, .explain dd { font-size: 15.5px; line-height: 1.7; color: var(--ink-soft); }
-  .explain dl { margin: 8px 0 0; display: grid; grid-template-columns: 1fr; gap: 2px 18px; }
-  .explain dt { font-weight: 500; color: var(--ink); margin-top: 10px; }
-  .explain dd { margin: 0; }
-  .explain ul { padding-left: 20px; }
-  .explain li { margin: 6px 0; }
-  .explain li strong { color: var(--ink); font-weight: 500; }
-  .explain a:not(.btn) { color: var(--brand); }
-  .explain .cta { margin-top: 40px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
-  .explain .cta p { font-size: 14px; margin: 0; }
-  .explain .fine { margin-top: 32px; font-size: 13px; color: var(--ink-mute); }
-  @media (min-width: 860px) {
-    .panel { grid-template-columns: 360px 1fr; padding: 24px; gap: 28px; }
-    .figs { grid-template-columns: repeat(3, 1fr); }
-    .explain dl { grid-template-columns: 160px 1fr; }
-    .explain dt { margin-top: 0; padding-top: 10px; }
-    .explain dd { padding-top: 10px; }
-  }
-  @media (max-width: 420px) { .grid { grid-template-columns: 1fr; } }
-</style>
   <!-- Non-essential analytics do not run for visitors in the EEA, the UK or
        Switzerland, where consent is required BEFORE a tracker loads and an
        opt-out in the privacy policy is not enough. The country comes from
@@ -193,6 +225,20 @@
         <a class="plain" href="/">Home</a>
         <a class="plain" href="/about">About</a>
         <a class="plain" href="/blog">Blog</a>
+        <details class="tools" data-here>
+          <summary>Tools</summary>
+          <div class="drop">
+            <a class="all" href="/tools">All free tools</a>
+            <a href="/tools/credit-spread-calculator" aria-current="page">Credit spread calculator</a>
+            <a href="/tools/iron-condor-calculator">Iron condor calculator</a>
+            <a href="/tools/covered-call-calculator">Covered call calculator</a>
+            <a href="/tools/cash-secured-put-calculator">Cash secured put calculator</a>
+            <a href="/tools/expected-move-calculator">Expected move calculator</a>
+            <a href="/tools/annualized-return-calculator">Annualized return calculator</a>
+            <a href="/tools/option-roll-calculator">Option roll calculator</a>
+            <a href="/tools/early-assignment-calculator">Early assignment risk calculator</a>
+          </div>
+        </details>
         <a class="btn btn-ghost" href="https://dashboard.deltamint.app/login">Log in</a>
         <a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=nav">Sign up</a>
       </div>
@@ -206,23 +252,24 @@
 
 <div class="wrap">
 <main class="calc">
+  <ol class="crumbs"><li><a href="/">Home</a></li><li><a href="/tools">Tools</a></li><li aria-current="page">Credit spread calculator</li></ol>
   <p class="eyebrow">Free tool</p>
   <h1>Credit spread calculator</h1>
-  <p class="lede">Max profit, max loss, break-even and return on risk for a put or call credit spread, with the payoff at expiration drawn for you. Nothing to sign up for.</p>
+  <p class="lede">Max profit, max loss, breakeven and return on risk for a put credit spread (bull put) or a call credit spread (bear call), with the payoff at expiration drawn for you. Nothing to sign up for.</p>
 
   <section class="panel" aria-label="Calculator">
     <form class="inputs" id="calc" novalidate>
       <fieldset class="kind">
         <legend>Spread</legend>
-        <label><input type="radio" name="kind" value="put" checked> Put credit spread <span>bullish</span></label>
-        <label><input type="radio" name="kind" value="call"> Call credit spread <span>bearish</span></label>
+        <label><input type="radio" name="kind" value="put" checked> Put credit spread <span>bull put</span></label>
+        <label><input type="radio" name="kind" value="call"> Call credit spread <span>bear call</span></label>
       </fieldset>
-      <div class="grid">
-        <label>Short strike (sold)<input name="short" inputmode="decimal" value="95"></label>
-        <label>Long strike (bought)<input name="long" inputmode="decimal" value="90"></label>
-        <label>Credit received, per share<input name="credit" inputmode="decimal" value="1.20"></label>
-        <label>Contracts<input name="qty" inputmode="numeric" value="1"></label>
-        <label class="wide">Stock price now <em>(optional, for the chart)</em><input name="spot" inputmode="decimal" value="100"></label>
+      <div class="fields">
+        <label><span>Short strike (sold)</span><input name="short" inputmode="decimal" value="95" autocomplete="off"></label>
+        <label><span>Long strike (bought)</span><input name="long" inputmode="decimal" value="90" autocomplete="off"></label>
+        <label><span>Credit received, per share</span><input name="credit" inputmode="decimal" value="1.20" autocomplete="off"></label>
+        <label><span>Contracts</span><input name="qty" inputmode="numeric" value="1" autocomplete="off"></label>
+        <label class="wide"><span>Stock price now <em>(optional, for the chart)</em></span><input name="spot" inputmode="decimal" value="100" autocomplete="off"></label>
       </div>
       <p class="err" id="err" role="alert" hidden></p>
     </form>
@@ -231,46 +278,96 @@
       <div class="figs">
         <div class="fig good"><span>Max profit</span><b id="maxProfit">$120.00</b><small>if the stock finishes past the short strike</small></div>
         <div class="fig bad"><span>Max loss</span><b id="maxLoss">$380.00</b><small>if it finishes past the long strike</small></div>
-        <div class="fig"><span>Break-even</span><b id="breakEven">$93.80</b><small id="beNote">short strike minus the credit</small></div>
+        <div class="fig"><span>Breakeven</span><b id="breakEven">$93.80</b><small id="beNote">short strike minus the credit</small></div>
         <div class="fig"><span>Return on risk</span><b id="ror">31.6%</b><small>max profit / max loss</small></div>
         <div class="fig"><span>Width</span><b id="width">$5.00</b><small>between the strikes</small></div>
         <div class="fig"><span>Collateral</span><b id="collateral">$500.00</b><small>width × 100 × contracts; some brokers net the credit</small></div>
       </div>
       <figure class="chart">
         <svg id="chart" viewBox="0 0 640 280" role="img" aria-label="Profit and loss at expiration by stock price"></svg>
-        <figcaption>Profit or loss at expiration, by where the stock finishes. Before expiration the position is worth its market price, which can sit anywhere between these two lines.</figcaption>
+        <figcaption>Profit or loss at expiration, by where the stock finishes. Before expiration the spread is worth its market price, which can sit anywhere between the two flat lines.</figcaption>
       </figure>
     </div>
   </section>
 
   <section class="explain">
-    <h2>How each number is worked out</h2>
+    <h2>How to calculate a credit spread</h2>
     <p>A credit spread is two options on the same stock and expiration: you sell one and buy one further from the money, and you are paid a credit for the pair. Every figure above comes from the two strikes and that credit.</p>
+    <pre class="formula">Width          = short strike - long strike   (as a positive number)
+Max profit     = credit × 100 × contracts
+Max loss       = (width - credit) × 100 × contracts
+Breakeven, put  = short strike - credit
+Breakeven, call = short strike + credit
+Return on risk = max profit / max loss</pre>
     <dl>
-      <dt>Width</dt><dd>The distance between the strikes. A 95/90 put spread is $5 wide.</dd>
       <dt>Max profit</dt><dd>The credit you received, times 100 shares per contract. You keep all of it if both options expire worthless.</dd>
       <dt>Max loss</dt><dd>Width minus credit, times 100. On a $5 spread sold for $1.20 that is $3.80 a share, or $380 a contract.</dd>
-      <dt>Break-even</dt><dd>For a put credit spread, the short strike minus the credit. For a call credit spread, the short strike plus the credit.</dd>
+      <dt>Breakeven</dt><dd>For a put credit spread, the short strike minus the credit. For a call credit spread, the short strike plus the credit.</dd>
       <dt>Return on risk</dt><dd>Max profit divided by max loss. It says what the trade pays for what it puts at stake, not how likely it is to pay.</dd>
       <dt>Collateral</dt><dd>What a broker typically holds while the spread is open: the width times 100. Some brokers reduce that by the credit received, which makes it equal to the max loss.</dd>
     </dl>
 
+    <h2>Worked example: a put credit spread</h2>
+    <p>Hypothetical: a stock trades at $100. You sell the 95 put and buy the 90 put for a $1.20 credit, one contract. You collect $120.00. If the stock finishes above $95, both puts expire worthless and you keep it. If it finishes below $90, the spread is worth its full $5 and you lose $380.00. Between the strikes the result moves dollar for dollar, crossing zero at $93.80.</p>
+    <div class="table"><table>
+      <thead><tr><th>Stock at expiration</th><th>Spread value</th><th>Profit or loss</th></tr></thead>
+      <tbody>
+        <tr><td>$85.00</td><td>$5.00</td><td>-$380.00</td></tr>
+        <tr><td>$90.00</td><td>$5.00</td><td>-$380.00</td></tr>
+        <tr><td>$92.00</td><td>$3.00</td><td>-$180.00</td></tr>
+        <tr><td>$93.80</td><td>$1.20</td><td>-$0.00</td></tr>
+        <tr><td>$95.00</td><td>$0.00</td><td>$120.00</td></tr>
+        <tr><td>$100.00</td><td>$0.00</td><td>$120.00</td></tr>
+      </tbody>
+    </table></div>
+
+    <h2>Worked example: a call credit spread</h2>
+    <p>Hypothetical: the same $100 stock. You sell the 105 call and buy the 110 call for $1.10. Max profit is $110.00, max loss is $390.00, and the breakeven is $106.10, the short strike plus the credit. Return on risk is 28.2%.</p>
+
     <h2>What the calculator does not tell you</h2>
     <ul>
       <li><strong>The odds.</strong> Return on risk is not a probability. A high return on risk usually means the short strike is close to the stock price.</li>
-      <li><strong>The path before expiration.</strong> These are expiration figures. Before then the spread is marked at its market price, which can show a loss bigger than you expect while the stock is between the strikes. <a href="/blog/credit-spread-max-loss">Why a spread can show more than its max loss before expiration</a>.</li>
+      <li><strong>The path before expiration.</strong> These are expiration figures. Before then the spread is marked at its market price, which can show a loss bigger than you expect while the stock is between the strikes.</li>
       <li><strong>Fees and assignment.</strong> Commissions and fees are not included. A short option can be assigned early, most often around a dividend, which turns one leg into shares until you act.</li>
     </ul>
 
-    <h2>Worked example</h2>
-    <p>Hypothetical: a stock trades at $100. You sell the 95 put and buy the 90 put for a $1.20 credit, one contract. You collect $120. If the stock finishes above $95, both puts expire worthless and you keep $120. If it finishes below $90, the spread is worth its full $5 and you lose $380. Between the strikes the result moves dollar for dollar, crossing zero at $93.80.</p>
+    <h2>Frequently asked questions</h2>
+    <h3>How do you calculate the max loss on a credit spread?</h3>
+    <p>Subtract the credit from the width between the strikes, then multiply by 100 and by the number of contracts. A $5 wide spread sold for $1.20 has a max loss of $3.80 a share, $380 per contract.</p>
+    <h3>How do you calculate the breakeven of a put credit spread?</h3>
+    <p>Short put strike minus the credit received. For a call credit spread it is the short call strike plus the credit. At expiration the position makes money on the safe side of that price and loses on the other.</p>
+    <h3>Is a bull put spread the same as a put credit spread?</h3>
+    <p>Yes. A bull put spread and a put credit spread are the same position: sell a put, buy a lower strike put. A bear call spread is the same as a call credit spread: sell a call, buy a higher strike call.</p>
+    <h3>How much collateral does a credit spread need?</h3>
+    <p>Usually the width of the spread times 100 per contract. Some brokers reduce it by the credit you received, so the amount held equals the max loss. Your broker's figure is the one that applies to your account.</p>
+    <h3>Can a credit spread lose more than its max loss?</h3>
+    <p>Not at expiration, before fees. Before expiration the screen shows a mark, and an early assignment on the short leg can briefly turn it into a stock position, which is covered in <a href="/blog/credit-spread-max-loss">what max loss covers before expiration</a>.</p>
+    <h3>Does return on risk tell me the chance of profit?</h3>
+    <p>No. Return on risk compares what the spread pays with what it can lose. A spread with a short strike close to the stock price pays more for the same risk precisely because it is more likely to finish against you.</p>
+
+    <h2>Related calculators</h2>
+    <ul class="related">
+      <li><a href="/tools/iron-condor-calculator"><b>Iron condor calculator</b><small>Both breakevens, the max loss on either wing and the profit zone.</small></a></li>
+      <li><a href="/tools/option-roll-calculator"><b>Option roll calculator</b><small>The net credit or debit of a roll, and where your breakeven moves.</small></a></li>
+      <li><a href="/tools/annualized-return-calculator"><b>Annualized return calculator</b><small>Turn a premium and the days it takes into a yearly rate, simple and compounded.</small></a></li>
+      <li><a href="/tools/expected-move-calculator"><b>Expected move calculator</b><small>The one standard deviation range from implied volatility or a straddle price.</small></a></li>
+    </ul>
+
+    <h2>Further reading</h2>
+    <ul>
+      <li><a href="/blog/put-credit-spread-explained">Put credit spread explained: width, credit and the fill</a></li>
+      <li><a href="/blog/call-credit-spread-explained">Call credit spread explained: what the long call caps</a></li>
+      <li><a href="/blog/credit-spread-max-loss">Credit spread max loss before expiration: what it covers</a></li>
+      <li><a href="/blog/credit-spread-width">Credit spread width: one $5-wide vs five $1-wide spreads</a></li>
+      <li><a href="/blog/return-on-risk-vs-return-on-capital">Return on risk vs return on capital on credit spreads</a></li>
+    </ul>
 
     <div class="cta">
-      <a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=calculator">Track your real spreads in DeltaMint</a>
+      <a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=tools-credit-spread">Track your real spreads in DeltaMint</a>
       <p>Free on a paper account. DeltaMint shows every open spread as one position with its live max loss.</p>
     </div>
 
-    <p class="fine">For education only. Not investment advice, and not a recommendation to buy or sell any security. Options involve substantial risk and are not suitable for every investor; read <a href="https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document">Characteristics and Risks of Standardized Options</a>.</p>
+    <p class="fine">For education only. Not investment advice, and not a recommendation to buy or sell any security. Figures are at expiration and leave out commissions and fees. Options involve substantial risk and are not suitable for every investor; read <a href="https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document">Characteristics and Risks of Standardized Options</a>.</p>
   </section>
 </main>
 </div>
@@ -284,6 +381,7 @@
       </a>
       <a href="/about">About</a>
       <a href="/blog">Blog</a>
+      <a href="/tools">Tools</a>
       <a href="/terms">Terms</a>
       <a href="/privacy">Privacy</a>
       <a href="/contact">Contact</a>
@@ -293,113 +391,31 @@
   </div>
 </footer>
 
-<script>
-(function () {
-  var form = document.getElementById("calc");
-  var err = document.getElementById("err");
-  var svg = document.getElementById("chart");
-  var NS = "http://www.w3.org/2000/svg";
-  var money = function (v) { return (v < 0 ? "-$" : "$") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
-  var num = function (name) { var v = parseFloat(String(form.elements[name].value).replace(/[$,\s]/g, "")); return isFinite(v) ? v : NaN; };
-  var set = function (id, text) { document.getElementById(id).textContent = text; };
-  var el = function (tag, attrs, text) { var n = document.createElementNS(NS, tag); for (var k in attrs) n.setAttribute(k, attrs[k]); if (text != null) n.textContent = text; return n; };
-
-  function read() {
-    var kind = form.elements.kind.value, short = num("short"), long = num("long"), credit = num("credit");
-    var qty = Math.max(1, Math.round(num("qty") || 1)), spot = num("spot");
-    if (!(short > 0) || !(long > 0)) return { error: "Enter both strikes." };
-    if (kind === "put" && !(short > long)) return { error: "For a put credit spread the short (sold) strike is the higher one." };
-    if (kind === "call" && !(short < long)) return { error: "For a call credit spread the short (sold) strike is the lower one." };
-    var width = Math.abs(short - long);
-    if (!(credit > 0)) return { error: "Enter the credit you received, per share (for example 1.20)." };
-    if (!(credit < width)) return { error: "The credit cannot be as large as the width between the strikes." };
-    return { kind: kind, short: short, long: long, credit: credit, qty: qty, spot: spot > 0 ? spot : null, width: width };
+<script type="module">
+import { creditSpread } from "/tools/calc.js";
+import { money, pct, set, reader, wire, drawPayoff } from "/tools/ui.js";
+const form = document.getElementById("calc");
+const num = reader(form);
+// Switching the kind flips the example strikes so the form stays valid.
+form.addEventListener("change", (e) => {
+  if (e.target.name !== "kind") return;
+  const a = num("short"), b = num("long");
+  if ((e.target.value === "call" && a > b) || (e.target.value === "put" && a < b)) {
+    form.elements.short.value = e.target.value === "call" ? 105 : 95;
+    form.elements.long.value = e.target.value === "call" ? 110 : 90;
   }
-
-  // P/L at expiration, per position, for a stock price s.
-  function pl(t, s) {
-    var intrinsic = t.kind === "put"
-      ? Math.max(0, t.short - s) - Math.max(0, t.long - s)
-      : Math.max(0, s - t.short) - Math.max(0, s - t.long);
-    return (t.credit - intrinsic) * 100 * t.qty;
-  }
-
-  function draw(t, be) {
-    while (svg.firstChild) svg.removeChild(svg.firstChild);
-    // Drawn at the width it is shown at, so the labels stay readable on a phone
-    // instead of shrinking with a fixed 640-wide drawing.
-    var W = Math.round(Math.min(640, Math.max(300, svg.getBoundingClientRect().width || 640)));
-    var H = W < 480 ? 240 : 280, L = 64, R = 16, T = 16, B = 40;
-    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
-    var lo = Math.min(t.short, t.long), hi = Math.max(t.short, t.long);
-    var pad = Math.max(t.width * 1.5, hi * 0.04);
-    var x0 = lo - pad, x1 = hi + pad;
-    if (t.spot) { x0 = Math.min(x0, t.spot - t.width * 0.5); x1 = Math.max(x1, t.spot + t.width * 0.5); }
-    var maxP = t.credit * 100 * t.qty, maxL = -(t.width - t.credit) * 100 * t.qty;
-    var y0 = maxL * 1.2, y1 = maxP * 1.6;
-    var X = function (s) { return L + (s - x0) / (x1 - x0) * (W - L - R); };
-    var Y = function (v) { return T + (y1 - v) / (y1 - y0) * (H - T - B); };
-    var css = function (v) { return "var(" + v + ")"; };
-
-    // Profit and loss regions, then the axis and the payoff line.
-    var pts = [x0, lo, hi, x1].map(function (s) { return [X(s), Y(pl(t, s))]; });
-    var line = pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
-    var clip = function (id, top) { var c = el("clipPath", { id: id }); c.appendChild(el("rect", { x: L, y: top ? T : Y(0), width: W - L - R, height: top ? Y(0) - T : H - B - Y(0) })); return c; };
-    var defs = el("defs", {}); defs.appendChild(clip("above", true)); defs.appendChild(clip("below", false)); svg.appendChild(defs);
-    var area = "M" + X(x0) + "," + Y(0) + " L" + line.replace(/ /g, " L") + " L" + X(x1) + "," + Y(0) + " Z";
-    svg.appendChild(el("path", { d: area, fill: css("--mint-soft"), "clip-path": "url(#above)" }));
-    svg.appendChild(el("path", { d: area, fill: css("--rose-soft"), "clip-path": "url(#below)" }));
-    svg.appendChild(el("line", { x1: L, x2: W - R, y1: Y(0), y2: Y(0), stroke: css("--line"), "stroke-width": 1 }));
-    svg.appendChild(el("polyline", { points: line, fill: "none", stroke: css("--brand"), "stroke-width": 2.5, "stroke-linejoin": "round" }));
-
-    // Labels: max profit and max loss on the left, strikes and break-even below.
-    var text = function (x, y, s, anchor, color) { svg.appendChild(el("text", { x: x, y: y, "text-anchor": anchor || "middle", "font-size": 12, "font-family": "IBM Plex Mono, monospace", fill: css(color || "--ink-mute") }, s)); };
-    text(L - 8, Y(maxP) + 4, money(maxP), "end", "--mint");
-    text(L - 8, Y(maxL) + 4, money(maxL), "end", "--rose");
-    text(L - 8, Y(0) + 4, "$0", "end");
-    var tick = function (s, label, color) { svg.appendChild(el("line", { x1: X(s), x2: X(s), y1: T, y2: H - B, stroke: css("--line"), "stroke-dasharray": "3 4" })); text(X(s), H - B + 16, label, "middle", color); };
-    tick(t.short, String(t.short));
-    tick(t.long, String(t.long));
-    svg.appendChild(el("circle", { cx: X(be), cy: Y(0), r: 4, fill: css("--brand") }));
-    text(X(be), H - 6, "break-even " + be.toFixed(2), "middle", "--brand");
-    if (t.spot && t.spot >= x0 && t.spot <= x1) {
-      svg.appendChild(el("line", { x1: X(t.spot), x2: X(t.spot), y1: T, y2: H - B, stroke: css("--ink-soft"), "stroke-width": 1.5 }));
-      text(X(t.spot), T + 10, "now " + t.spot, "middle", "--ink-soft");
-    }
-  }
-
-  function update() {
-    var t = read();
-    if (t.error) { err.textContent = t.error; err.hidden = false; return; }
-    err.hidden = true;
-    var maxP = t.credit * 100 * t.qty, maxL = (t.width - t.credit) * 100 * t.qty;
-    var be = t.kind === "put" ? t.short - t.credit : t.short + t.credit;
-    set("maxProfit", money(maxP));
-    set("maxLoss", money(maxL));
-    set("breakEven", money(be));
-    set("beNote", t.kind === "put" ? "short strike minus the credit" : "short strike plus the credit");
-    set("ror", (maxP / maxL * 100).toFixed(1) + "%");
-    set("width", money(t.width));
-    set("collateral", money(t.width * 100 * t.qty));
-    draw(t, be);
-  }
-
-  // Switching the kind flips the example strikes so the form stays valid.
-  form.addEventListener("change", function (e) {
-    if (e.target.name === "kind") {
-      var a = num("short"), b = num("long");
-      if ((e.target.value === "call" && a > b) || (e.target.value === "put" && a < b)) {
-        form.elements.short.value = e.target.value === "call" ? 105 : 95;
-        form.elements.long.value = e.target.value === "call" ? 110 : 90;
-      }
-    }
-    update();
-  });
-  form.addEventListener("input", update);
-  var resized; window.addEventListener("resize", function () { clearTimeout(resized); resized = setTimeout(update, 150); });
-  form.addEventListener("submit", function (e) { e.preventDefault(); });
-  update();
-})();
+});
+wire(form, () => creditSpread({ kind: form.elements.kind.value, short: num("short"), long: num("long"), credit: num("credit"), qty: num("qty") }), (r) => {
+  set("maxProfit", money(r.maxProfit));
+  set("maxLoss", money(r.maxLoss));
+  set("breakEven", money(r.breakEven));
+  set("beNote", r.kind === "put" ? "short strike minus the credit" : "short strike plus the credit");
+  set("ror", pct(r.ror));
+  set("width", money(r.width));
+  set("collateral", money(r.collateral));
+  const spot = num("spot");
+  drawPayoff(document.getElementById("chart"), { pl: r.pl, kinks: r.kinks, breakEvens: [r.breakEven], spot: spot > 0 ? spot : null });
+});
 </script>
 <script src="/assets/site.js" defer></script>
 </body>

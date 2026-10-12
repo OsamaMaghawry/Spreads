@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Expected Move Calculator: Implied Volatility or Straddle</title>
+<meta name="description" content="Free expected move calculator. Turn a stock price, implied volatility and days to expiration into the one standard deviation range, or work it back from the at-the-money straddle price." />
+<link rel="canonical" href="https://deltamint.app/tools/expected-move-calculator" />
+
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="DeltaMint" />
+<meta property="og:url" content="https://deltamint.app/tools/expected-move-calculator" />
+<meta property="og:title" content="Expected move calculator" />
+<meta property="og:description" content="Free expected move calculator. Turn a stock price, implied volatility and days to expiration into the one standard deviation range, or work it back from the at-the-money straddle price." />
+<meta property="og:image" content="https://deltamint.app/assets/og-card.png?v=c1196ea9ee71" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://deltamint.app/assets/og-card.png?v=c1196ea9ee71" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link href="/assets/site.css" rel="stylesheet">
+<link href="/assets/menu.css" rel="stylesheet">
+<link href="/tools/tools.css" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebApplication",
+      "name": "Expected move calculator",
+      "url": "https://deltamint.app/tools/expected-move-calculator",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Any",
+      "description": "Free expected move calculator. Turn a stock price, implied volatility and days to expiration into the one standard deviation range, or work it back from the at-the-money straddle price.",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "DeltaMint",
+        "url": "https://deltamint.app/"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://deltamint.app/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Tools",
+          "item": "https://deltamint.app/tools"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Expected move calculator",
+          "item": "https://deltamint.app/tools/expected-move-calculator"
+        }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How do you calculate the expected move of a stock?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Multiply the stock price by the implied volatility and by the square root of the days to expiration divided by 365. A $190 stock with 30% implied volatility and 30 days left has an expected move of about $16.34 either way."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do you calculate the expected move from a straddle?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Add the at-the-money call and put prices. That straddle price is a rough expected move on its own; dividing it by 0.798 converts it to a one standard deviation move, the same measure the implied volatility method gives."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How often does a stock stay within its expected move?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Under the model's bell curve, about 68% of the time for one standard deviation and 95% for two. Those are the model's numbers, not a promise; earnings and news produce moves outside the range more often than the curve allows."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Should I use calendar days or trading days?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "This calculator uses calendar days over 365, which matches days to expiration. Some traders use trading days over 252. For the same expiration the two give close results; mixing them, such as trading days over 365, does not."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I find the expected move for earnings?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Use the implied volatility, or the straddle, of the first expiration after the earnings date. Most of that expiration's move is priced into the report itself, so the range can be much wider than usual."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is the expected move the same as the probability of profit?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. The expected move describes where the market prices the stock. A trade's chance of profit depends on its own strikes, credit or debit, and breakeven."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
+  <!-- Non-essential analytics do not run for visitors in the EEA, the UK or
+       Switzerland, where consent is required BEFORE a tracker loads and an
+       opt-out in the privacy policy is not enough. The country comes from
+       Cloudflare's own /cdn-cgi/trace on this origin — no third party is
+       contacted to decide, which would be the same problem one step earlier.
+
+       It fails CLOSED: if the lookup fails, or returns a country we cannot
+       read, nothing loads. An unknown visitor is treated as a protected one.
+
+       This wraps the hostname guard rather than replacing it — staging still
+       records nothing, for the reason each tag's own comment gives below. -->
+  <script>
+    window.dmAnalyticsAllowed = function (start) {
+      if (location.hostname !== 'deltamint.app' && location.hostname !== 'www.deltamint.app') return;
+      var GATED = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV',
+                   'LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','GB','IS','LI','NO','CH','GI','JE','GG','IM'];
+      fetch('/cdn-cgi/trace')
+        .then(function (r) { return r.text(); })
+        .then(function (t) {
+          var m = /(?:^|\n)loc=([A-Z]{2})/.exec(t);
+          if (m && GATED.indexOf(m[1]) === -1) start();
+        })
+        .catch(function () {});
+    };
+  </script>
+
+  <!-- Google Analytics 4.
+       Inline here because the Worker does not run for these pages on
+       production: wrangler.jsonc lists only /blog, /blog/* and /sitemap.xml
+       under run_worker_first, so the homepage and pricing are served straight
+       from assets. The blog's copy is injected by analyticsTag() in
+       landing/src/index.js from GA_MEASUREMENT_ID.
+
+       Guarded by hostname because this same public/ directory is served by
+       the staging Worker at dev-landing.deltamint.app and by local preview.
+       Without the guard, every dev page view would be filed in the property
+       as if it were a customer, and the numbers the growth cadence reports
+       would be our own traffic. GA_MEASUREMENT_ID is likewise set only in
+       wrangler.jsonc, never in wrangler.staging.jsonc, so both halves are
+       gated the same way. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    window.dmAnalyticsAllowed(function () {
+      var gaScript = document.createElement('script');
+      gaScript.async = true;
+      gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-TJLVFXVFL6';
+      document.head.appendChild(gaScript);
+      gtag('js', new Date());
+      gtag('config', 'G-TJLVFXVFL6');
+    });
+  </script>
+
+  <!-- Hotjar: heatmaps and session replay, marketing pages and blog only.
+
+       Deliberately NOT on dashboard.deltamint.app. That is a separate Worker
+       and it stays untracked: it is where positions, order tickets and account
+       balances are on screen, and none of that belongs in a replay held by a
+       third party. Hotjar sees the pages a stranger reads before signing up,
+       and nothing after.
+
+       Inline here for the same reason as the GA tag above: production's
+       run_worker_first lists only /blog, /blog/* and /sitemap.xml, so the
+       Worker never runs for this page. The blog's copy is injected by
+       hotjarTag() in landing/src/index.js from HOTJAR_SITE_ID.
+
+       Same hostname guard as the GA tag, and for the same reason: this
+       public/ directory is also served by the staging Worker at
+       dev-landing.deltamint.app, so without it every dev page view would
+       become a recorded session in the account. HOTJAR_SITE_ID is likewise
+       set only in wrangler.jsonc, never in wrangler.staging.jsonc. -->
+  <script>
+    window.dmAnalyticsAllowed(function () {
+      (function(h,o,t,j,a,r){
+          h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};
+          h._hjSettings={hjid:6773356,hjsv:6};
+          a=o.getElementsByTagName('head')[0];
+          r=o.createElement('script');r.async=1;
+          r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv;
+          a.appendChild(r);
+      })(window,document,'https://static.hotjar.com/c/hotjar-','.js?sv=');
+    });
+  </script>
+</head>
+<body>
+
+<div class="wrap">
+  <nav class="nav">
+    <a class="brandmark" href="/">
+      <svg viewBox="7.495 3 17.01 26" aria-hidden="true"><path d="M16.97 13.27Q15.62 13.3 14.69 13.94Q13.75 14.58 13.29 15.64Q12.82 16.69 12.82 18.11V21.36Q12.82 22.5 13.2 23.31Q13.58 24.12 14.29 24.54Q15 24.95 16 24.95Q17 24.95 17.71 24.54Q18.42 24.12 18.8 23.31Q19.18 22.5 19.18 21.36V19.56Q19.18 18.52 18.99 17.61Q18.8 16.69 18.4 15.88Q18.01 15.07 17.33 14.31Q16.66 13.55 15.72 12.82L9.36 7.84V3H22.88V6.98H17.42L14.2 6.6V6.73L17.83 8.95Q19.66 10.09 20.94 11.28Q22.22 12.47 23 13.79Q23.78 15.1 24.14 16.52Q24.51 17.94 24.51 19.49Q24.51 22.43 23.49 24.56Q22.47 26.68 20.56 27.84Q18.66 29 16 29Q13.34 29 11.44 27.82Q9.53 26.65 8.51 24.61Q7.49 22.57 7.49 19.94Q7.49 17.24 8.39 15.38Q9.29 13.51 10.74 12.54Q12.2 11.57 13.89 11.57V10.81Z" fill="var(--brand)"/></svg>
+      <span>delta<span class="m">mint</span></span>
+    </a>
+    <div class="right">
+      <div class="navlinks" id="navmenu">
+        <a class="plain" href="/">Home</a>
+        <a class="plain" href="/about">About</a>
+        <a class="plain" href="/blog">Blog</a>
+        <details class="tools" data-here>
+          <summary>Tools</summary>
+          <div class="drop">
+            <a class="all" href="/tools">All free tools</a>
+            <a href="/tools/credit-spread-calculator">Credit spread calculator</a>
+            <a href="/tools/iron-condor-calculator">Iron condor calculator</a>
+            <a href="/tools/covered-call-calculator">Covered call calculator</a>
+            <a href="/tools/cash-secured-put-calculator">Cash secured put calculator</a>
+            <a href="/tools/expected-move-calculator" aria-current="page">Expected move calculator</a>
+            <a href="/tools/annualized-return-calculator">Annualized return calculator</a>
+            <a href="/tools/option-roll-calculator">Option roll calculator</a>
+            <a href="/tools/early-assignment-calculator">Early assignment risk calculator</a>
+          </div>
+        </details>
+        <a class="btn btn-ghost" href="https://dashboard.deltamint.app/login">Log in</a>
+        <a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=nav">Sign up</a>
+      </div>
+      <button class="burger" type="button" aria-label="Menu" aria-expanded="false" aria-controls="navmenu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+      </button>
+      <noscript><style>@media (max-width:40rem){.nav .navlinks{display:flex;position:static;flex-direction:row;min-width:0;padding:0;border:0;background:none;box-shadow:none}.burger{display:none}}</style></noscript>
+    </div>
+  </nav>
+</div>
+
+<div class="wrap">
+<main class="calc">
+  <ol class="crumbs"><li><a href="/">Home</a></li><li><a href="/tools">Tools</a></li><li aria-current="page">Expected move calculator</li></ol>
+  <p class="eyebrow">Free tool</p>
+  <h1>Expected move calculator</h1>
+  <p class="lede">How far the options market prices a stock to move by expiration: the one standard deviation range from implied volatility, or worked back from the at-the-money straddle.</p>
+
+  <section class="panel" aria-label="Calculator">
+    <form class="inputs" id="calc" novalidate>
+      <fieldset class="kind">
+        <legend>Work it out from</legend>
+        <label><input type="radio" name="method" value="iv" checked> Implied volatility</label>
+        <label><input type="radio" name="method" value="straddle"> Straddle price</label>
+      </fieldset>
+      <div class="fields">
+        <label><span>Stock price</span><input name="price" inputmode="decimal" value="190" autocomplete="off"></label>
+        <label><span>Days to expiration</span><input name="days" inputmode="numeric" value="30" autocomplete="off"></label>
+        <label class="wide" id="ivField"><span>Implied volatility, %</span><input name="iv" inputmode="decimal" value="30" autocomplete="off"></label>
+        <label class="wide" id="straddleField"><span>At-the-money straddle (call + put)</span><input name="straddle" inputmode="decimal" value="13.04" autocomplete="off"></label>
+      </div>
+      <p class="err" id="err" role="alert" hidden></p>
+    </form>
+
+    <div class="out" aria-live="polite">
+      <div class="figs">
+        <div class="fig good"><span>Expected move</span><b id="move">±$16.34</b><small>one standard deviation</small></div>
+        <div class="fig"><span>As a percent</span><b id="movePct">±8.6%</b><small>of the stock price</small></div>
+        <div class="fig"><span>1 sd range</span><b id="range1">$173.66 to $206.34</b><small>about 68% of outcomes, under the model</small></div>
+        <div class="fig"><span>2 sd range</span><b id="range2">$157.32 to $222.68</b><small>about 95% of outcomes, under the model</small></div>
+        <div class="fig"><span>One day</span><b id="dayMove">±$2.98</b><small>one standard deviation, one calendar day</small></div>
+        <div class="fig"><span>Straddle at this IV</span><b id="other">≈ $13.04</b><small id="otherNote">what an at-the-money straddle would roughly cost</small></div>
+      </div>
+      <figure class="chart">
+        <svg id="chart" viewBox="0 0 640 240" role="img" aria-label="The expected move as a bell curve around today's price"></svg>
+        <figcaption>The range the model assigns to the stock at expiration. Real prices gap and trend more than a bell curve allows, especially around earnings.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="explain">
+    <h2>How to calculate the expected move</h2>
+    <p>The expected move is the one standard deviation range implied by option prices. It comes from three numbers: the stock price, the implied volatility of the expiration you care about, and the days left until it.</p>
+    <pre class="formula">Expected move = stock price × implied volatility × √(days to expiration / 365)
+Range         = stock price ± expected move
+Two sd range  = stock price ± 2 × expected move</pre>
+    <p>Enter implied volatility as a percent and the calculator converts it: 30% is 0.30 in the formula. Days are calendar days, the same count as days to expiration.</p>
+
+    <h2>Worked example</h2>
+    <p>Hypothetical: a stock at $190 with 30% implied volatility on the expiration 30 days out.</p>
+    <pre class="formula">$190 × 0.30 × √(30 / 365) = $190 × 0.30 × 0.2867 = $16.34</pre>
+    <p>The one standard deviation range is $173.66 to $206.34. Under the model's assumptions the stock finishes inside it about 68% of the time, and inside $157.32 to $222.68 about 95% of the time.</p>
+    <div class="table"><table>
+      <thead><tr><th>Days to expiration</th><th>Expected move</th><th>Range</th></tr></thead>
+      <tbody>
+        <tr><td>7</td><td>±$7.89</td><td>$182.11 to $197.89</td></tr>
+        <tr><td>14</td><td>±$11.16</td><td>$178.84 to $201.16</td></tr>
+        <tr><td>30</td><td>±$16.34</td><td>$173.66 to $206.34</td></tr>
+        <tr><td>45</td><td>±$20.01</td><td>$169.99 to $210.01</td></tr>
+        <tr><td>60</td><td>±$23.11</td><td>$166.89 to $213.11</td></tr>
+        <tr><td>90</td><td>±$28.30</td><td>$161.70 to $218.30</td></tr>
+      </tbody>
+    </table></div>
+    <p>The move grows with the square root of time, not in a straight line: four times the days is twice the move.</p>
+
+    <h2>From the straddle price</h2>
+    <p>Many traders read the expected move straight off the at-the-money straddle, the call plus the put at the strike nearest the stock price. That is a quick estimate of the average size of the move. It runs smaller than one standard deviation: under the standard model a straddle costs about 0.8 of a one standard deviation move.</p>
+    <pre class="formula">One sd move ≈ straddle price / 0.798   (about straddle × 1.25)</pre>
+    <p>This calculator makes that conversion, so both methods answer the same question and agree with each other. Some charting sites quote 85% of the straddle instead; that is a convention, and it gives a narrower range than the one standard deviation figure.</p>
+
+    <h2>What the expected move does not tell you</h2>
+    <ul>
+      <li><strong>It is not a forecast.</strong> It is what option prices imply today, under a model that assumes moves follow a bell curve. Real moves have fatter tails: big gaps happen more often than the curve suggests.</li>
+      <li><strong>It changes.</strong> Implied volatility moves every day, and drops sharply after earnings, so the range for the same expiration changes with it.</li>
+      <li><strong>It is not a probability of profit.</strong> Whether a trade makes money depends on its strikes and premium. The expected move tells you where the market prices the stock, not what any position will do.</li>
+    </ul>
+
+    <h2>Frequently asked questions</h2>
+    <h3>How do you calculate the expected move of a stock?</h3>
+    <p>Multiply the stock price by the implied volatility and by the square root of the days to expiration divided by 365. A $190 stock with 30% implied volatility and 30 days left has an expected move of about $16.34 either way.</p>
+    <h3>How do you calculate the expected move from a straddle?</h3>
+    <p>Add the at-the-money call and put prices. That straddle price is a rough expected move on its own; dividing it by 0.798 converts it to a one standard deviation move, the same measure the implied volatility method gives.</p>
+    <h3>How often does a stock stay within its expected move?</h3>
+    <p>Under the model's bell curve, about 68% of the time for one standard deviation and 95% for two. Those are the model's numbers, not a promise; earnings and news produce moves outside the range more often than the curve allows.</p>
+    <h3>Should I use calendar days or trading days?</h3>
+    <p>This calculator uses calendar days over 365, which matches days to expiration. Some traders use trading days over 252. For the same expiration the two give close results; mixing them, such as trading days over 365, does not.</p>
+    <h3>How do I find the expected move for earnings?</h3>
+    <p>Use the implied volatility, or the straddle, of the first expiration after the earnings date. Most of that expiration's move is priced into the report itself, so the range can be much wider than usual.</p>
+    <h3>Is the expected move the same as the probability of profit?</h3>
+    <p>No. The expected move describes where the market prices the stock. A trade's chance of profit depends on its own strikes, credit or debit, and breakeven.</p>
+
+    <h2>Related calculators</h2>
+    <ul class="related">
+      <li><a href="/tools/iron-condor-calculator"><b>Iron condor calculator</b><small>Both breakevens, the max loss on either wing and the profit zone.</small></a></li>
+      <li><a href="/tools/credit-spread-calculator"><b>Credit spread calculator</b><small>Max profit, max loss, breakeven and return on risk for a put or call credit spread.</small></a></li>
+      <li><a href="/tools/cash-secured-put-calculator"><b>Cash secured put calculator</b><small>Return on the cash held, annualized, and your cost basis if assigned.</small></a></li>
+      <li><a href="/tools/covered-call-calculator"><b>Covered call calculator</b><small>Return if called and if the stock stays flat, both annualized, plus your downside cushion.</small></a></li>
+    </ul>
+
+    <h2>Further reading</h2>
+    <ul>
+      <li><a href="/blog/implied-volatility-options-explained">Implied volatility explained: why a chain reprices before earnings</a></li>
+      <li><a href="/blog/selling-options-before-earnings">Selling options before earnings: the crush and the gap</a></li>
+      <li><a href="/blog/credit-spread-delta-strike-selection">Credit spread strike selection by delta: what it tells you</a></li>
+      <li><a href="/blog/theta-decay-explained">Theta decay explained: why an option loses value every day</a></li>
+    </ul>
+
+    <div class="cta">
+      <a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=tools-expected-move">Track your real positions in DeltaMint</a>
+      <p>Free on a paper account. DeltaMint shows every open options position in your account in one place, with the legs of each spread grouped together.</p>
+    </div>
+
+    <p class="fine">For education only. Not investment advice, and not a recommendation to buy or sell any security. Figures are at expiration and leave out commissions and fees. Options involve substantial risk and are not suitable for every investor; read <a href="https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document">Characteristics and Risks of Standardized Options</a>.</p>
+  </section>
+</main>
+</div>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="frow">
+      <a class="brandmark" href="/" style="margin-right:auto;font-size:1.20rem">
+        <svg viewBox="7.495 3 17.01 26" aria-hidden="true"><path d="M16.97 13.27Q15.62 13.3 14.69 13.94Q13.75 14.58 13.29 15.64Q12.82 16.69 12.82 18.11V21.36Q12.82 22.5 13.2 23.31Q13.58 24.12 14.29 24.54Q15 24.95 16 24.95Q17 24.95 17.71 24.54Q18.42 24.12 18.8 23.31Q19.18 22.5 19.18 21.36V19.56Q19.18 18.52 18.99 17.61Q18.8 16.69 18.4 15.88Q18.01 15.07 17.33 14.31Q16.66 13.55 15.72 12.82L9.36 7.84V3H22.88V6.98H17.42L14.2 6.6V6.73L17.83 8.95Q19.66 10.09 20.94 11.28Q22.22 12.47 23 13.79Q23.78 15.1 24.14 16.52Q24.51 17.94 24.51 19.49Q24.51 22.43 23.49 24.56Q22.47 26.68 20.56 27.84Q18.66 29 16 29Q13.34 29 11.44 27.82Q9.53 26.65 8.51 24.61Q7.49 22.57 7.49 19.94Q7.49 17.24 8.39 15.38Q9.29 13.51 10.74 12.54Q12.2 11.57 13.89 11.57V10.81Z" fill="var(--brand)"/></svg>
+        <span>delta<span class="m">mint</span></span>
+      </a>
+      <a href="/about">About</a>
+      <a href="/blog">Blog</a>
+      <a href="/tools">Tools</a>
+      <a href="/terms">Terms</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/contact">Contact</a>
+      <a href="https://dashboard.deltamint.app">Open the app</a>
+    </div>
+    <p class="fine">DeltaMint is a software tool, not a broker-dealer, and does not provide investment advice. Options trading involves substantial risk of loss and is not suitable for every investor. Trades are placed through your own brokerage account, under that broker's terms.</p>
+  </div>
+</footer>
+
+<script type="module">
+import { expectedMove, expectedMoveFromStraddle } from "/tools/calc.js";
+import { money, pct, set, reader, wire, drawBell } from "/tools/ui.js";
+const form = document.getElementById("calc");
+const num = reader(form);
+const ivField = document.getElementById("ivField"), straddleField = document.getElementById("straddleField");
+const mode = () => form.elements.method.value;
+const show = () => { ivField.hidden = mode() !== "iv"; straddleField.hidden = mode() !== "straddle"; };
+form.addEventListener("change", show);
+show();
+wire(form, () => mode() === "iv"
+  ? expectedMove({ price: num("price"), iv: num("iv"), days: num("days") })
+  : expectedMoveFromStraddle({ price: num("price"), straddle: num("straddle"), days: num("days") }), (r) => {
+  set("move", "±" + money(r.move));
+  set("movePct", "±" + pct(r.movePct));
+  set("range1", money(r.low) + " to " + money(r.high));
+  set("range2", money(r.low2) + " to " + money(r.high2));
+  set("dayMove", "±" + money(r.dayMove));
+  if (mode() === "iv") {
+    document.querySelector("#other").previousElementSibling.textContent = "Straddle at this IV";
+    set("other", "≈ " + money(r.straddleEstimate));
+    set("otherNote", "what an at-the-money straddle would roughly cost");
+  } else {
+    document.querySelector("#other").previousElementSibling.textContent = "Implied volatility";
+    set("other", pct(r.iv / 100));
+    set("otherNote", "the volatility this straddle price implies");
+  }
+  drawBell(document.getElementById("chart"), { price: r.price, move: r.move });
+});
+</script>
+<script src="/assets/site.js" defer></script>
+</body>
+</html>

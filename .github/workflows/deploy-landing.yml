@@ -79,7 +79,7 @@ jobs:
       # The Worker's own request-handling tests (routing, canonical tags,
       # X-Robots-Tag, blog rendering) — cheap, and they run against the exact
       # source about to be uploaded.
-      - run: node --test landing/src/blog.test.js
+      - run: node --test landing/src/blog.test.js landing/src/tools.test.js
 
       # Skips rather than fails when the token is absent, so this workflow can
       # live on main before the secret exists, and so forks — which never

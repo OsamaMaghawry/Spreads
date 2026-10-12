@@ -143,6 +143,59 @@ const MARK = `<svg viewBox="7.495 3 17.01 26" aria-hidden="true"><path d="M16.97
 // landing/public/index.html — it is a compliance line, not decoration, and the
 // two must not drift apart.
 // `current` marks the menu item for the page being shown; null marks none.
+// The free calculators under /tools, in menu order. The static pages in
+// landing/public carry the same list written out; tools.test.js fails if the
+// two ever disagree.
+export const TOOLS = [
+  ["credit-spread-calculator", "Credit spread calculator"],
+  ["iron-condor-calculator", "Iron condor calculator"],
+  ["covered-call-calculator", "Covered call calculator"],
+  ["cash-secured-put-calculator", "Cash secured put calculator"],
+  ["expected-move-calculator", "Expected move calculator"],
+  ["annualized-return-calculator", "Annualized return calculator"],
+  ["option-roll-calculator", "Option roll calculator"],
+  ["early-assignment-calculator", "Early assignment risk calculator"]
+];
+
+// The calculator that works out the numbers a post explains, shown at the
+// foot of that post. A post not listed simply has none.
+export const TOOL_FOR_POST = {
+  "put-credit-spread-explained": "credit-spread-calculator",
+  "call-credit-spread-explained": "credit-spread-calculator",
+  "credit-spread-max-loss": "credit-spread-calculator",
+  "credit-spread-width": "credit-spread-calculator",
+  "credit-spread-dte": "credit-spread-calculator",
+  "credit-spread-delta-strike-selection": "credit-spread-calculator",
+  "iron-condor-explained": "iron-condor-calculator",
+  "covered-call-explained": "covered-call-calculator",
+  "cash-secured-put-explained": "cash-secured-put-calculator",
+  "wheel-strategy-explained": "cash-secured-put-calculator",
+  "implied-volatility-options-explained": "expected-move-calculator",
+  "selling-options-before-earnings": "expected-move-calculator",
+  "return-on-risk-vs-return-on-capital": "annualized-return-calculator",
+  "theta-decay-explained": "annualized-return-calculator",
+  "rolling-options-explained": "option-roll-calculator",
+  "early-exercise-options": "early-assignment-calculator",
+  "option-assignment-what-happens": "early-assignment-calculator",
+  "intrinsic-vs-extrinsic-value-options": "early-assignment-calculator"
+};
+
+export function toolBox(slug) {
+  const tool = TOOLS.find(([s]) => s === TOOL_FOR_POST[slug]);
+  if (!tool) return "";
+  return `<p class="toolbox"><span>Work it out</span><a href="/tools/${tool[0]}">${tool[1]}</a> Free, no sign up. Enter your own strikes and premium.</p>`;
+}
+
+function toolsMenu() {
+  return `<details class="tools">
+          <summary>Tools</summary>
+          <div class="drop">
+            <a class="all" href="/tools">All free tools</a>
+${TOOLS.map(([s, n]) => `            <a href="/tools/${s}">${n}</a>`).join("\n")}
+          </div>
+        </details>`;
+}
+
 export function page({ title, description, canonical, head = "", body, current = "blog" }) {
   const here = (k) => (current === k ? ' aria-current="page"' : "");
   return `<!doctype html>
@@ -160,6 +213,7 @@ export function page({ title, description, canonical, head = "", body, current =
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
 <link href="/assets/site.css" rel="stylesheet">
+<link href="/assets/menu.css" rel="stylesheet">
 ${head}
 <style>
   /* Reading size. The blog was set at 14px, which is a UI size, not a
@@ -236,6 +290,9 @@ ${head}
   .postlist h2 a:hover { color: var(--brand); }
   .postlist .when { font-size: 13px; color: var(--ink-mute); }
   .postlist p { margin: 6px 0 0; }
+  .toolbox { margin: 36px 0 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); font-size: 15px; color: var(--ink-soft); }
+  .toolbox span { display: block; font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-mute); margin-bottom: 4px; }
+  .toolbox a { color: var(--brand); font-weight: 500; margin-right: 6px; }
   @media (max-width: 860px) { .doc { padding-left: 24px; padding-right: 24px; } }
 </style>
 </head>
@@ -249,6 +306,7 @@ ${head}
         <a class="plain" href="/"${here("home")}>Home</a>
         <a class="plain" href="/about"${here("about")}>About</a>
         <a class="plain" href="/blog"${here("blog")}>Blog</a>
+        ${toolsMenu()}
         <a class="btn btn-ghost" href="https://dashboard.deltamint.app/login">Log in</a>
         <a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=nav">Sign up</a>
       </div>
@@ -272,9 +330,9 @@ ${body}
       <a class="brandmark" href="/" style="margin-right:auto;font-size:1.20rem">${MARK}<span>delta<span class="m">mint</span></span></a>
       <a href="/about">About</a>
       <a href="/blog">Blog</a>
+      <a href="/tools">Tools</a>
       <a href="/terms">Terms</a>
       <a href="/privacy">Privacy</a>
-      <a href="/tools/credit-spread-calculator">Spread calculator</a>
       <a href="/contact">Contact</a>
       <a href="https://dashboard.deltamint.app">Open the app</a>
     </div>

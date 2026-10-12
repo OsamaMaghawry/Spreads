@@ -1,4 +1,4 @@
-import { esc, markdown, formatDate, page, splitSearchTitle } from "./render.js";
+import { esc, markdown, formatDate, page, splitSearchTitle, toolBox, TOOLS } from "./render.js";
 import { CATEGORIES, categoryBySlug, groupByCategory, postsInCategory, neighbours, related, renderFeed } from "./blog.js";
 import { connectorEnabled, injectConnector, isConnectorPath, proxyConnector, renderConnectPage } from "./connector.js";
 
@@ -328,6 +328,7 @@ export function renderPost(post, site, noindex, env = {}, all = []) {
 <h1>${esc(post.title)}</h1>
 <div class="meta">${esc(formatDate(post.published_at))}${post.author ? ` · ${esc(post.author)}` : ""}</div>
 ${markdown(body)}
+${toolBox(post.slug)}
 ${prev || next ? `<nav class="readnext">${prev ? `<a class="prev" href="/blog/${esc(prev.slug)}"><span>Previous</span>${esc(prev.title)}</a>` : "<span></span>"}${next ? `<a class="next" href="/blog/${esc(next.slug)}"><span>Read next</span>${esc(next.title)}</a>` : ""}</nav>` : ""}
 ${more.length ? `<section class="related"><h2>More to read</h2><ul>${more.map((p) => `<li><a href="/blog/${esc(p.slug)}">${esc(p.title)}</a></li>`).join("")}</ul></section>` : ""}
 <p class="startfree"><a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=blog/${esc(post.slug)}">Start free on a paper account</a></p>
@@ -341,7 +342,7 @@ function renderSitemap(posts, site) {
   // No /pricing. The page is unlinked and redirected while the product is a
   // demo -- listing it here would keep handing it to search engines, which is
   // the opposite of hiding it.
-  const staticPaths = ["/", "/about", "/blog", "/terms", "/privacy", "/contact", "/tools/credit-spread-calculator"];
+  const staticPaths = ["/", "/about", "/blog", "/terms", "/privacy", "/contact", "/tools", ...TOOLS.map(([slug]) => `/tools/${slug}`)];
   const hubs = groupByCategory(posts).map((c) => `  <url><loc>${site}/blog/${c.slug}</loc></url>`);
   const urls = [
     ...staticPaths.map((p) => `  <url><loc>${site}${p}</loc></url>`),

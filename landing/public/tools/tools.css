@@ -1,0 +1,102 @@
+/* The free calculators under /tools. Colours and type come from site.css
+   tokens, so both themes follow the rest of the site. */
+
+.calc { padding: 32px 0 88px; max-width: 980px; }
+.crumbs { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--ink-mute); display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; padding: 0; list-style: none; }
+.crumbs li + li::before { content: "/"; margin-right: 6px; color: var(--line); }
+.crumbs a { color: var(--ink-soft); text-decoration: none; }
+.crumbs a:hover { color: var(--brand); }
+.calc .eyebrow { margin-bottom: 10px; }
+.calc h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.08; letter-spacing: -0.025em; text-wrap: balance; }
+.calc .lede { margin-top: 14px; font-size: 17px; line-height: 1.6; color: var(--ink-soft); max-width: 660px; }
+
+/* ---------- the calculator panel ---------- */
+.calc .panel { margin-top: 28px; display: grid; gap: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; box-shadow: var(--shadow); }
+.inputs fieldset { border: 0; padding: 0; margin: 0 0 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+.inputs legend { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-mute); margin-bottom: 8px; }
+.kind label { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 14px; color: var(--ink); cursor: pointer; }
+.kind label:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
+.kind label span { font-size: 12px; color: var(--ink-mute); }
+.kind input { accent-color: var(--brand); }
+.kind label:focus-within { outline: 2px solid var(--brand); outline-offset: 1px; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.fields label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-soft); }
+.fields label em { font-style: normal; color: var(--ink-mute); }
+.fields .wide { grid-column: 1 / -1; }
+.fields input { font: 500 16px/1.2 "IBM Plex Mono", monospace; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 100%; box-sizing: border-box; font-variant-numeric: tabular-nums; }
+.fields input:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+.err { margin: 12px 0 0; font-size: 14px; color: var(--rose); background: var(--rose-soft); border-radius: 10px; padding: 8px 12px; }
+.out[data-stale] .figs, .out[data-stale] .chart, .out[data-stale] .verdict { opacity: .35; }
+
+.figs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.fig { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fig span { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-mute); }
+.fig b { font: 600 22px/1.2 "IBM Plex Mono", monospace; color: var(--ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.fig small { font-size: 12px; color: var(--ink-mute); line-height: 1.4; }
+.fig.good b { color: var(--mint); }
+.fig.bad b { color: var(--rose); }
+
+.verdict { border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; border: 1px solid var(--line); }
+.verdict b { display: block; font: 600 20px/1.25 "Bricolage Grotesque", system-ui, sans-serif; }
+.verdict p { margin: 4px 0 0; font-size: 14px; line-height: 1.55; color: var(--ink-soft); }
+.verdict[data-level="high"] { background: var(--rose-soft); border-color: transparent; }
+.verdict[data-level="high"] b { color: var(--rose); }
+.verdict[data-level="lower"] { background: var(--brand-soft); border-color: transparent; }
+.verdict[data-level="low"] { background: var(--mint-soft); border-color: transparent; }
+.verdict[data-level="low"] b { color: var(--mint); }
+
+.chart { margin: 14px 0 0; }
+.chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.chart figcaption { font-size: 12.5px; color: var(--ink-mute); margin-top: 6px; line-height: 1.5; }
+
+/* ---------- the explanation below ---------- */
+.explain { max-width: 720px; }
+.explain h2 { font-size: 22px; letter-spacing: -0.015em; margin: 48px 0 10px; text-wrap: balance; }
+.explain h3 { font-size: 17px; margin: 22px 0 6px; color: var(--ink); text-wrap: balance; }
+.explain p, .explain li, .explain dd { font-size: 15.5px; line-height: 1.7; color: var(--ink-soft); }
+.explain dl { margin: 8px 0 0; display: grid; grid-template-columns: 1fr; gap: 2px 18px; }
+.explain dt { font-weight: 500; color: var(--ink); margin-top: 10px; }
+.explain dd { margin: 0; }
+.explain ul, .explain ol { padding-left: 20px; }
+.explain li { margin: 6px 0; }
+.explain li strong { color: var(--ink); font-weight: 500; }
+.explain a:not(.btn) { color: var(--brand); }
+.formula { margin: 12px 0; padding: 12px 14px; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; font: 500 14px/1.7 "IBM Plex Mono", monospace; color: var(--ink); overflow-x: auto; white-space: pre; }
+.explain table { border-collapse: collapse; width: 100%; font-size: 14.5px; margin: 10px 0; font-variant-numeric: tabular-nums; }
+.explain .table { overflow-x: auto; }
+.explain th, .explain td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); color: var(--ink-soft); }
+.explain th { color: var(--ink); font-weight: 500; }
+.explain .cta { margin-top: 40px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+.explain .cta p { font-size: 14px; margin: 0; }
+.explain .fine { margin-top: 32px; font-size: 13px; color: var(--ink-mute); }
+
+.related { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 8px; }
+.related li { margin: 0; }
+.related a { display: block; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; text-decoration: none; background: var(--surface); }
+.related a:hover { border-color: var(--brand); }
+.related b { display: block; color: var(--ink); font-weight: 500; font-size: 15px; }
+.related small { display: block; color: var(--ink-mute); font-size: 13px; line-height: 1.5; margin-top: 2px; }
+
+/* ---------- the /tools index ---------- */
+.toolgrid { list-style: none; padding: 0; margin: 28px 0 0; display: grid; grid-template-columns: 1fr; gap: 12px; }
+.toolgrid a { display: flex; flex-direction: column; gap: 6px; height: 100%; box-sizing: border-box; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); text-decoration: none; box-shadow: var(--shadow); }
+.toolgrid a:hover { border-color: var(--brand); }
+.toolgrid b { font: 600 18px/1.25 "Bricolage Grotesque", system-ui, sans-serif; color: var(--ink); }
+.toolgrid span { font-size: 14.5px; line-height: 1.55; color: var(--ink-soft); }
+.toolgrid em { font-style: normal; font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--brand); margin-top: auto; padding-top: 6px; }
+
+@media (min-width: 640px) {
+  .toolgrid { grid-template-columns: 1fr 1fr; }
+  .related { grid-template-columns: 1fr 1fr; }
+}
+@media (min-width: 860px) {
+  .calc .panel { grid-template-columns: 360px 1fr; padding: 24px; gap: 28px; }
+  .figs { grid-template-columns: repeat(3, 1fr); }
+  .explain dl { grid-template-columns: 170px 1fr; }
+  .explain dt { margin-top: 0; padding-top: 10px; }
+  .explain dd { padding-top: 10px; }
+}
+@media (max-width: 420px) { .fields { grid-template-columns: 1fr; } }
+.fig-note { font-size: 12.5px; line-height: 1.5; color: var(--ink-mute); margin: 10px 0 0; }
+/* `hidden` loses to `.fields label { display: flex }` without this. */
+.fields label[hidden] { display: none; }

@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Options Annualized Return Calculator: Simple and Compounded</title>
+<meta name="description" content="Free annualized return calculator for options sellers. Turn a premium, the capital it ties up and the days to expiration into a yearly rate, simple and compounded, to compare trades of different lengths." />
+<link rel="canonical" href="https://deltamint.app/tools/annualized-return-calculator" />
+
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="DeltaMint" />
+<meta property="og:url" content="https://deltamint.app/tools/annualized-return-calculator" />
+<meta property="og:title" content="Annualized return calculator" />
+<meta property="og:description" content="Free annualized return calculator for options sellers. Turn a premium, the capital it ties up and the days to expiration into a yearly rate, simple and compounded, to compare trades of different lengths." />
+<meta property="og:image" content="https://deltamint.app/assets/og-card.png?v=c1196ea9ee71" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://deltamint.app/assets/og-card.png?v=c1196ea9ee71" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link href="/assets/site.css" rel="stylesheet">
+<link href="/assets/menu.css" rel="stylesheet">
+<link href="/tools/tools.css" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebApplication",
+      "name": "Annualized return calculator",
+      "url": "https://deltamint.app/tools/annualized-return-calculator",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Any",
+      "description": "Free annualized return calculator for options sellers. Turn a premium, the capital it ties up and the days to expiration into a yearly rate, simple and compounded, to compare trades of different lengths.",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "DeltaMint",
+        "url": "https://deltamint.app/"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://deltamint.app/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Tools",
+          "item": "https://deltamint.app/tools"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Annualized return calculator",
+          "item": "https://deltamint.app/tools/annualized-return-calculator"
+        }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How do you annualize an option premium return?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Divide the premium by the capital it ties up, then multiply by 365 and divide by the days. $150 on $5,000 for 30 days is 3.0% for the period and 36.5% annualized."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Should I use simple or compounded annualized return?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Simple is the common convention for comparing trades and the more conservative of the two. Compounded assumes each period's premium is reinvested at the same rate, which real trading rarely allows."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What capital should I use for a credit spread?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The collateral your broker holds, usually the width times 100. If your broker nets the credit, the amount held equals the max loss, and dividing by that gives the return on risk instead."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why do short-dated options annualize so high?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Because the same premium arrives over fewer days. A 2% period return is about 104% annualized over 7 days and 12% over 60 days. The shorter trade is not safer for it; it simply repeats more often on paper."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Should I use 365 or 252 days?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Use 365 when you count calendar days to expiration, which is how expirations are quoted. Use 252 only if you count trading days. Mixing the two overstates or understates the result."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
+  <!-- Non-essential analytics do not run for visitors in the EEA, the UK or
+       Switzerland, where consent is required BEFORE a tracker loads and an
+       opt-out in the privacy policy is not enough. The country comes from
+       Cloudflare's own /cdn-cgi/trace on this origin — no third party is
+       contacted to decide, which would be the same problem one step earlier.
+
+       It fails CLOSED: if the lookup fails, or returns a country we cannot
+       read, nothing loads. An unknown visitor is treated as a protected one.
+
+       This wraps the hostname guard rather than replacing it — staging still
+       records nothing, for the reason each tag's own comment gives below. -->
+  <script>
+    window.dmAnalyticsAllowed = function (start) {
+      if (location.hostname !== 'deltamint.app' && location.hostname !== 'www.deltamint.app') return;
+      var GATED = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV',
+                   'LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','GB','IS','LI','NO','CH','GI','JE','GG','IM'];
+      fetch('/cdn-cgi/trace')
+        .then(function (r) { return r.text(); })
+        .then(function (t) {
+          var m = /(?:^|\n)loc=([A-Z]{2})/.exec(t);
+          if (m && GATED.indexOf(m[1]) === -1) start();
+        })
+        .catch(function () {});
+    };
+  </script>
+
+  <!-- Google Analytics 4.
+       Inline here because the Worker does not run for these pages on
+       production: wrangler.jsonc lists only /blog, /blog/* and /sitemap.xml
+       under run_worker_first, so the homepage and pricing are served straight
+       from assets. The blog's copy is injected by analyticsTag() in
+       landing/src/index.js from GA_MEASUREMENT_ID.
+
+       Guarded by hostname because this same public/ directory is served by
+       the staging Worker at dev-landing.deltamint.app and by local preview.
+       Without the guard, every dev page view would be filed in the property
+       as if it were a customer, and the numbers the growth cadence reports
+       would be our own traffic. GA_MEASUREMENT_ID is likewise set only in
+       wrangler.jsonc, never in wrangler.staging.jsonc, so both halves are
+       gated the same way. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    window.dmAnalyticsAllowed(function () {
+      var gaScript = document.createElement('script');
+      gaScript.async = true;
+      gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-TJLVFXVFL6';
+      document.head.appendChild(gaScript);
+      gtag('js', new Date());
+      gtag('config', 'G-TJLVFXVFL6');
+    });
+  </script>
+
+  <!-- Hotjar: heatmaps and session replay, marketing pages and blog only.
+
+       Deliberately NOT on dashboard.deltamint.app. That is a separate Worker
+       and it stays untracked: it is where positions, order tickets and account
+       balances are on screen, and none of that belongs in a replay held by a
+       third party. Hotjar sees the pages a stranger reads before signing up,
+       and nothing after.
+
+       Inline here for the same reason as the GA tag above: production's
+       run_worker_first lists only /blog, /blog/* and /sitemap.xml, so the
+       Worker never runs for this page. The blog's copy is injected by
+       hotjarTag() in landing/src/index.js from HOTJAR_SITE_ID.
+
+       Same hostname guard as the GA tag, and for the same reason: this
+       public/ directory is also served by the staging Worker at
+       dev-landing.deltamint.app, so without it every dev page view would
+       become a recorded session in the account. HOTJAR_SITE_ID is likewise
+       set only in wrangler.jsonc, never in wrangler.staging.jsonc. -->
+  <script>
+    window.dmAnalyticsAllowed(function () {
+      (function(h,o,t,j,a,r){
+          h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};
+          h._hjSettings={hjid:6773356,hjsv:6};
+          a=o.getElementsByTagName('head')[0];
+          r=o.createElement('script');r.async=1;
+          r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv;
+          a.appendChild(r);
+      })(window,document,'https://static.hotjar.com/c/hotjar-','.js?sv=');
+    });
+  </script>
+</head>
+<body>
+
+<div class="wrap">
+  <nav class="nav">
+    <a class="brandmark" href="/">
+      <svg viewBox="7.495 3 17.01 26" aria-hidden="true"><path d="M16.97 13.27Q15.62 13.3 14.69 13.94Q13.75 14.58 13.29 15.64Q12.82 16.69 12.82 18.11V21.36Q12.82 22.5 13.2 23.31Q13.58 24.12 14.29 24.54Q15 24.95 16 24.95Q17 24.95 17.71 24.54Q18.42 24.12 18.8 23.31Q19.18 22.5 19.18 21.36V19.56Q19.18 18.52 18.99 17.61Q18.8 16.69 18.4 15.88Q18.01 15.07 17.33 14.31Q16.66 13.55 15.72 12.82L9.36 7.84V3H22.88V6.98H17.42L14.2 6.6V6.73L17.83 8.95Q19.66 10.09 20.94 11.28Q22.22 12.47 23 13.79Q23.78 15.1 24.14 16.52Q24.51 17.94 24.51 19.49Q24.51 22.43 23.49 24.56Q22.47 26.68 20.56 27.84Q18.66 29 16 29Q13.34 29 11.44 27.82Q9.53 26.65 8.51 24.61Q7.49 22.57 7.49 19.94Q7.49 17.24 8.39 15.38Q9.29 13.51 10.74 12.54Q12.2 11.57 13.89 11.57V10.81Z" fill="var(--brand)"/></svg>
+      <span>delta<span class="m">mint</span></span>
+    </a>
+    <div class="right">
+      <div class="navlinks" id="navmenu">
+        <a class="plain" href="/">Home</a>
+        <a class="plain" href="/about">About</a>
+        <a class="plain" href="/blog">Blog</a>
+        <details class="tools" data-here>
+          <summary>Tools</summary>
+          <div class="drop">
+            <a class="all" href="/tools">All free tools</a>
+            <a href="/tools/credit-spread-calculator">Credit spread calculator</a>
+            <a href="/tools/iron-condor-calculator">Iron condor calculator</a>
+            <a href="/tools/covered-call-calculator">Covered call calculator</a>
+            <a href="/tools/cash-secured-put-calculator">Cash secured put calculator</a>
+            <a href="/tools/expected-move-calculator">Expected move calculator</a>
+            <a href="/tools/annualized-return-calculator" aria-current="page">Annualized return calculator</a>
+            <a href="/tools/option-roll-calculator">Option roll calculator</a>
+            <a href="/tools/early-assignment-calculator">Early assignment risk calculator</a>
+          </div>
+        </details>
+        <a class="btn btn-ghost" href="https://dashboard.deltamint.app/login">Log in</a>
+        <a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=nav">Sign up</a>
+      </div>
+      <button class="burger" type="button" aria-label="Menu" aria-expanded="false" aria-controls="navmenu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+      </button>
+      <noscript><style>@media (max-width:40rem){.nav .navlinks{display:flex;position:static;flex-direction:row;min-width:0;padding:0;border:0;background:none;box-shadow:none}.burger{display:none}}</style></noscript>
+    </div>
+  </nav>
+</div>
+
+<div class="wrap">
+<main class="calc">
+  <ol class="crumbs"><li><a href="/">Home</a></li><li><a href="/tools">Tools</a></li><li aria-current="page">Annualized return calculator</li></ol>
+  <p class="eyebrow">Free tool</p>
+  <h1>Annualized return calculator for options</h1>
+  <p class="lede">Turn a premium, the capital it ties up and the days until expiration into a yearly rate, simple and compounded, so trades of different lengths can be compared on equal terms.</p>
+
+  <section class="panel" aria-label="Calculator">
+    <form class="inputs" id="calc" novalidate>
+      <div class="fields">
+        <label><span>Premium received, $ <em>(total)</em></span><input name="premium" inputmode="decimal" value="150" autocomplete="off"></label>
+        <label><span>Capital tied up, $ <em>(collateral)</em></span><input name="capital" inputmode="decimal" value="5000" autocomplete="off"></label>
+        <label class="wide"><span>Days held or to expiration</span><input name="days" inputmode="numeric" value="30" autocomplete="off"></label>
+      </div>
+      <p class="fig-note">Premium is per share × 100 × contracts: $1.50 on one contract is 150.</p>
+      <p class="err" id="err" role="alert" hidden></p>
+    </form>
+
+    <div class="out" aria-live="polite">
+      <div class="figs">
+        <div class="fig"><span>For the period</span><b id="period">3.0%</b><small>premium / capital</small></div>
+        <div class="fig good"><span>Annualized, simple</span><b id="simple">36.5%</b><small>× 365 / days</small></div>
+        <div class="fig"><span>Annualized, compounded</span><b id="compound">43.3%</b><small>if every period's premium were reinvested</small></div>
+        <div class="fig"><span>Per day</span><b id="perDay">$5.00</b><small>premium / days</small></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="explain">
+    <h2>How to annualize an options return</h2>
+    <p>An option seller's return depends on how long the money is tied up. Annualizing puts a 7 day trade and a 45 day trade on the same scale, so you can compare what each pays for the time it takes.</p>
+    <pre class="formula">Return for the period = premium / capital
+Simple annualized     = premium / capital × 365 / days
+Compounded            = (1 + premium / capital) ^ (365 / days) - 1</pre>
+    <p>Simple annualizing is the common convention and the one most brokers and calculators show. Compounding assumes every period's premium is added to the capital and earns at the same rate, which makes it always a little higher.</p>
+
+    <h2>What counts as capital</h2>
+    <dl>
+      <dt>Cash-secured put</dt><dd>The strike × 100 per contract, the cash the broker holds.</dd>
+      <dt>Covered call</dt><dd>The value of the 100 shares per contract, at the price you paid or today's price.</dd>
+      <dt>Credit spread</dt><dd>The collateral, width × 100. If your broker nets the credit, use the max loss instead. <a href="/blog/return-on-risk-vs-return-on-capital">Return on risk and return on capital</a> are different numbers for the same spread.</dd>
+    </dl>
+
+    <h2>Worked example</h2>
+    <p>Hypothetical: you collect $150.00 on a position that ties up $5,000.00 for 30 days. That is 3.0% for the period. Simple annualized: 3.0% × 365 / 30 = 36.5%. Compounded: (1.03)^(365 / 30) - 1 = 43.3%.</p>
+    <div class="table"><table>
+      <thead><tr><th>Days</th><th>For the period</th><th>Simple annualized</th><th>Compounded</th></tr></thead>
+      <tbody>
+        <tr><td>7</td><td>2.0%</td><td>104.3%</td><td>180.8%</td></tr>
+        <tr><td>14</td><td>2.0%</td><td>52.1%</td><td>67.6%</td></tr>
+        <tr><td>30</td><td>2.0%</td><td>24.3%</td><td>27.2%</td></tr>
+        <tr><td>45</td><td>2.0%</td><td>16.2%</td><td>17.4%</td></tr>
+        <tr><td>60</td><td>2.0%</td><td>12.2%</td><td>12.8%</td></tr>
+      </tbody>
+    </table></div>
+    <p>The table holds the premium at $100 on $5,000 and changes only the days. Shorter trades annualize far higher because the same premium arrives in fewer days. That is why short-dated options look so attractive on an annualized basis, and why the figure needs reading with care.</p>
+
+    <h2>What annualizing does not tell you</h2>
+    <ul>
+      <li><strong>It assumes repetition.</strong> The yearly figure assumes the same trade on the same terms every period, with no losses. One assignment or max loss can take back many periods of premium.</li>
+      <li><strong>It is not a forecast.</strong> It describes the trade's terms, not what an account will do over a year.</li>
+      <li><strong>Fees and idle cash.</strong> Commissions and the days between trades, when the cash earns nothing, are not included.</li>
+    </ul>
+
+    <h2>Frequently asked questions</h2>
+    <h3>How do you annualize an option premium return?</h3>
+    <p>Divide the premium by the capital it ties up, then multiply by 365 and divide by the days. $150 on $5,000 for 30 days is 3.0% for the period and 36.5% annualized.</p>
+    <h3>Should I use simple or compounded annualized return?</h3>
+    <p>Simple is the common convention for comparing trades and the more conservative of the two. Compounded assumes each period's premium is reinvested at the same rate, which real trading rarely allows.</p>
+    <h3>What capital should I use for a credit spread?</h3>
+    <p>The collateral your broker holds, usually the width times 100. If your broker nets the credit, the amount held equals the max loss, and dividing by that gives the return on risk instead.</p>
+    <h3>Why do short-dated options annualize so high?</h3>
+    <p>Because the same premium arrives over fewer days. A 2% period return is about 104% annualized over 7 days and 12% over 60 days. The shorter trade is not safer for it; it simply repeats more often on paper.</p>
+    <h3>Should I use 365 or 252 days?</h3>
+    <p>Use 365 when you count calendar days to expiration, which is how expirations are quoted. Use 252 only if you count trading days. Mixing the two overstates or understates the result.</p>
+
+    <h2>Related calculators</h2>
+    <ul class="related">
+      <li><a href="/tools/cash-secured-put-calculator"><b>Cash secured put calculator</b><small>Return on the cash held, annualized, and your cost basis if assigned.</small></a></li>
+      <li><a href="/tools/covered-call-calculator"><b>Covered call calculator</b><small>Return if called and if the stock stays flat, both annualized, plus your downside cushion.</small></a></li>
+      <li><a href="/tools/credit-spread-calculator"><b>Credit spread calculator</b><small>Max profit, max loss, breakeven and return on risk for a put or call credit spread.</small></a></li>
+      <li><a href="/tools/iron-condor-calculator"><b>Iron condor calculator</b><small>Both breakevens, the max loss on either wing and the profit zone.</small></a></li>
+    </ul>
+
+    <h2>Further reading</h2>
+    <ul>
+      <li><a href="/blog/return-on-risk-vs-return-on-capital">Return on risk vs return on capital on credit spreads</a></li>
+      <li><a href="/blog/theta-decay-explained">Theta decay explained: why an option loses value every day</a></li>
+      <li><a href="/blog/credit-spread-dte">DTE for credit spreads: what changes with time left</a></li>
+      <li><a href="/blog/wheel-strategy-explained">Wheel strategy explained: one position, put to call to cash</a></li>
+    </ul>
+
+    <div class="cta">
+      <a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=tools-annualized-return">Track your real positions in DeltaMint</a>
+      <p>Free on a paper account. DeltaMint shows every open options position in your account in one place, with the legs of each spread grouped together.</p>
+    </div>
+
+    <p class="fine">For education only. Not investment advice, and not a recommendation to buy or sell any security. Figures are at expiration and leave out commissions and fees. Options involve substantial risk and are not suitable for every investor; read <a href="https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document">Characteristics and Risks of Standardized Options</a>.</p>
+  </section>
+</main>
+</div>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="frow">
+      <a class="brandmark" href="/" style="margin-right:auto;font-size:1.20rem">
+        <svg viewBox="7.495 3 17.01 26" aria-hidden="true"><path d="M16.97 13.27Q15.62 13.3 14.69 13.94Q13.75 14.58 13.29 15.64Q12.82 16.69 12.82 18.11V21.36Q12.82 22.5 13.2 23.31Q13.58 24.12 14.29 24.54Q15 24.95 16 24.95Q17 24.95 17.71 24.54Q18.42 24.12 18.8 23.31Q19.18 22.5 19.18 21.36V19.56Q19.18 18.52 18.99 17.61Q18.8 16.69 18.4 15.88Q18.01 15.07 17.33 14.31Q16.66 13.55 15.72 12.82L9.36 7.84V3H22.88V6.98H17.42L14.2 6.6V6.73L17.83 8.95Q19.66 10.09 20.94 11.28Q22.22 12.47 23 13.79Q23.78 15.1 24.14 16.52Q24.51 17.94 24.51 19.49Q24.51 22.43 23.49 24.56Q22.47 26.68 20.56 27.84Q18.66 29 16 29Q13.34 29 11.44 27.82Q9.53 26.65 8.51 24.61Q7.49 22.57 7.49 19.94Q7.49 17.24 8.39 15.38Q9.29 13.51 10.74 12.54Q12.2 11.57 13.89 11.57V10.81Z" fill="var(--brand)"/></svg>
+        <span>delta<span class="m">mint</span></span>
+      </a>
+      <a href="/about">About</a>
+      <a href="/blog">Blog</a>
+      <a href="/tools">Tools</a>
+      <a href="/terms">Terms</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/contact">Contact</a>
+      <a href="https://dashboard.deltamint.app">Open the app</a>
+    </div>
+    <p class="fine">DeltaMint is a software tool, not a broker-dealer, and does not provide investment advice. Options trading involves substantial risk of loss and is not suitable for every investor. Trades are placed through your own brokerage account, under that broker's terms.</p>
+  </div>
+</footer>
+
+<script type="module">
+import { annualizedReturn } from "/tools/calc.js";
+import { money, pct, set, reader, wire } from "/tools/ui.js";
+const form = document.getElementById("calc");
+const num = reader(form);
+wire(form, () => annualizedReturn({ premium: num("premium"), capital: num("capital"), days: num("days") }), (r) => {
+  set("period", pct(r.period, 2));
+  set("simple", pct(r.simple));
+  set("compound", pct(r.compound));
+  set("perDay", money(r.perDay));
+});
+</script>
+<script src="/assets/site.js" defer></script>
+</body>
+</html>
