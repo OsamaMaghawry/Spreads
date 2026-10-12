@@ -3,6 +3,11 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-10-12 · New blog post on the covered call after assignment, with two diagrams (`3018359`, published `63920f2`).
+- 2026-10-12 · Free credit spread calculator on the public site, no login: put or call credit spread in, max profit, max loss, break-even, return on risk and collateral out, with the payoff drawn (`e0a2d4b`).
+- 2026-10-12 · Seven more free options calculators (iron condor, covered call, cash-secured put, expected move, annualized return, roll, early assignment) and a Tools menu in the site header; each explains what it is and how it works before the arithmetic (`57bc2cc`, `9e2e792`).
+- 2026-10-12 · Every landing page answers at its canonical address without a redirect (/about, not /about/ via a 307) (`ac5c068`).
+- 2026-10-12 · Every blog post carries the author byline Osama Maghawry, with a person in the structured data; articles no longer use long dashes, and a post is re-written when its author changes (`dd8a330`, `6b14f25`, `15a8d18`, `52b63eb`).
 - 2026-10-06 · New blog post: the diagonal spread explained, with two diagrams comparing it to a calendar spread (`4cef92c`).
 - 2026-09-28 · New blog post: the wheel strategy explained, with two diagrams, and a cross-link from the covered-call post (`9a76e9d`).
 - 2026-09-27 · The Saturday weekly digest no longer goes silent for

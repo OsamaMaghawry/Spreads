@@ -143,6 +143,13 @@ History** and bans "journal" and "log".
 | W6 | Recipient is one global address — the owner's. No per-user recipient, no screen reads `alerts` | `watch_settings.recipient_email` | main | NOT YET SELLABLE until W6 is decided |
 | W7 | `sendDigest`, the agents' path to the owner | `sendDigest/index.ts` | main | internal |
 
+## Public site (landing, no login)
+
+| # | What it does | Code | Where | Call |
+| --- | --- | --- | --- | --- |
+| P1 | Eight free calculators — credit spread, iron condor, covered call, cash-secured put, expected move, annualized return, roll, early-assignment risk — each with a payoff or worked arithmetic. Pure arithmetic on numbers the visitor types; no quotes, no account, nothing saved | `landing/public/tools/*`, `tools/calc.js` | main | FREE — top of funnel, a commodity by design; pre-trade return on risk is already a commodity (positioning.md) |
+| P2 | Blog with author byline, six categories, RSS | `content/blog/`, `landing/src/` | main | FREE |
+
 ## Back-office (not sellable)
 
 Admin with server re-authorisation; activation funnel (signed up → connected
