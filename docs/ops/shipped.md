@@ -615,3 +615,4 @@ English. Newest first.
 - 2026-10-12 · (staging) More free options calculators and a Tools menu in the site header; each calculator explains what it is and how it works before the arithmetic (`b8820d7`, `6084471`).
 - 2026-10-12 · (staging) Every landing page now answers at its canonical address without a redirect (/about, not /about/ via a 307), matching the canonical tags and sitemap (`a8a999e`).
 - 2026-10-12 · (staging) Every blog post is by Osama Maghawry, with a person in the structured data; articles no longer use long dashes (`08671a1`, `a479172`).
+- 2026-10-12 · (staging) Owner-only market emails: a brief before the bell and alerts on held stocks; quiet holdings collapse to one line (`70e97b1`, `d581d24`). Not yet customer-facing.
