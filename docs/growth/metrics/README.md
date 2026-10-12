@@ -4,9 +4,9 @@ Written daily by `.github/workflows/metrics-snapshot.yml`. Agents read
 these files; the Google credentials never leave CI. A dash means the source
 is not connected yet, not zero.
 
-## Latest — 2026-10-11
+## Latest — 2026-10-12
 
-- Search Console, last 28 days: search console not configured
+- Search Console, last 28 days: 170 impressions, 1 clicks, CTR 0.6%
 - GA4, last 28 days: ga4 not configured
 - Funnel: 4 signed up (0 this week) → 3 connected → 3 traded → 1 traded live → 0 paying
 - Target (docs/growth/plan-100.md): 100 paying by 2026-12-31.
@@ -15,7 +15,6 @@ is not connected yet, not zero.
 
 | Day | Impressions | Clicks | Sessions | Signed up | Connected | Traded live | Paying |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-09-12 | — | — | — | 4 | 4 | 1 | 0 |
 | 2026-09-13 | — | — | — | 4 | 4 | 2 | 0 |
 | 2026-09-14 | — | — | — | 4 | 4 | 2 | 0 |
 | 2026-09-15 | — | — | — | 4 | 4 | 2 | 0 |
@@ -45,3 +44,4 @@ is not connected yet, not zero.
 | 2026-10-09 | — | — | — | 4 | 3 | 1 | 0 |
 | 2026-10-10 | — | — | — | 4 | 3 | 1 | 0 |
 | 2026-10-11 | — | — | — | 4 | 3 | 1 | 0 |
+| 2026-10-12 | 4 | 0 | — | 4 | 3 | 1 | 0 |
