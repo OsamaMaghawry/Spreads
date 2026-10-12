@@ -125,7 +125,7 @@ if (!rows.length) {
 // Without this the script cannot tell a new post from an unchanged one, and
 // an upsert treats both the same: it rewrites the row and, with it, the date.
 const existingRes = await fetch(
-  `${url}/rest/v1/blog_posts?select=slug,title,body,excerpt,meta_description,category,tags,series_order,status,published_at`,
+  `${url}/rest/v1/blog_posts?select=slug,title,body,excerpt,author,meta_description,og_image,category,tags,series_order,status,published_at`,
   { headers: { apikey: key, Authorization: `Bearer ${key}` } }
 );
 if (!existingRes.ok) {
@@ -135,9 +135,12 @@ if (!existingRes.ok) {
 const existing = new Map((await existingRes.json()).map((r) => [r.slug, r]));
 
 // The fields this script is responsible for. `published_at` is deliberately
-// absent: it is compared by nobody and written only on a first insert.
+// absent: it is compared by nobody and written only on a first insert. Every
+// other column the row above sets belongs here: one left out is never
+// re-written once a post exists (author changed in every file, and the
+// staging table kept "DeltaMint" on all of them).
 const FIELDS = [
-  "title", "body", "excerpt", "meta_description", "category", "series_order", "status"
+  "title", "body", "excerpt", "author", "meta_description", "og_image", "category", "series_order", "status"
 ];
 const same = (a, b) =>
   FIELDS.every((f) => (a[f] ?? null) === (b[f] ?? null)) &&
