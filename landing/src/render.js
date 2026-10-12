@@ -274,6 +274,7 @@ ${body}
       <a href="/blog">Blog</a>
       <a href="/terms">Terms</a>
       <a href="/privacy">Privacy</a>
+      <a href="/tools/credit-spread-calculator">Spread calculator</a>
       <a href="/contact">Contact</a>
       <a href="https://dashboard.deltamint.app">Open the app</a>
     </div>

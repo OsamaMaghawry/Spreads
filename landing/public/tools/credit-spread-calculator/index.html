@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Credit Spread Calculator: Max Loss, Max Profit and Break-even</title>
+<meta name="description" content="Free credit spread calculator: max profit, max loss, break-even, return on risk and collateral for a put or call credit spread, with the payoff at expiration." />
+<link rel="canonical" href="https://deltamint.app/tools/credit-spread-calculator" />
+
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="DeltaMint" />
+<meta property="og:url" content="https://deltamint.app/tools/credit-spread-calculator" />
+<meta property="og:title" content="Credit spread calculator" />
+<meta property="og:description" content="Free credit spread calculator: max profit, max loss, break-even, return on risk and collateral for a put or call credit spread, with the payoff at expiration." />
+<meta property="og:image" content="https://deltamint.app/assets/og-card.png?v=c1196ea9ee71" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://deltamint.app/assets/og-card.png?v=c1196ea9ee71" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link href="/assets/site.css" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Credit spread calculator",
+  "url": "https://deltamint.app/tools/credit-spread-calculator",
+  "applicationCategory": "FinanceApplication",
+  "operatingSystem": "Any",
+  "description": "Free credit spread calculator: max profit, max loss, break-even, return on risk and collateral for a put or call credit spread, with the payoff at expiration.",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "DeltaMint",
+    "url": "https://deltamint.app/"
+  }
+}
+</script>
+<style>
+  .calc { padding: 48px 0 88px; max-width: 980px; }
+  .calc .eyebrow { margin-bottom: 10px; }
+  .calc h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.08; letter-spacing: -0.025em; text-wrap: balance; }
+  .calc .lede { margin-top: 14px; font-size: 17px; line-height: 1.6; color: var(--ink-soft); max-width: 640px; }
+  .panel { margin-top: 28px; display: grid; gap: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; box-shadow: var(--shadow); }
+  .inputs fieldset { border: 0; padding: 0; margin: 0 0 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .inputs legend { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-mute); margin-bottom: 8px; }
+  .kind label { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 14px; color: var(--ink); cursor: pointer; }
+  .kind label:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
+  .kind label span { font-size: 12px; color: var(--ink-mute); }
+  .kind input { accent-color: var(--brand); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-soft); }
+  .grid label em { font-style: normal; color: var(--ink-mute); }
+  .grid .wide { grid-column: 1 / -1; }
+  .grid input { font: 500 16px/1.2 "IBM Plex Mono", monospace; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 100%; box-sizing: border-box; font-variant-numeric: tabular-nums; }
+  .grid input:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+  .err { margin: 12px 0 0; font-size: 14px; color: var(--rose); background: var(--rose-soft); border-radius: 10px; padding: 8px 12px; }
+  .figs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .fig { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+  .fig span { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-mute); }
+  .fig b { font: 600 22px/1.2 "IBM Plex Mono", monospace; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .fig small { font-size: 12px; color: var(--ink-mute); line-height: 1.4; }
+  .fig.good b { color: var(--mint); }
+  .fig.bad b { color: var(--rose); }
+  .chart { margin: 14px 0 0; }
+  .chart svg { width: 100%; height: auto; display: block; }
+  .chart figcaption { font-size: 12.5px; color: var(--ink-mute); margin-top: 6px; line-height: 1.5; }
+  .explain { max-width: 720px; }
+  .explain h2 { font-size: 22px; letter-spacing: -0.015em; margin: 48px 0 10px; }
+  .explain p, .explain li, .explain dd { font-size: 15.5px; line-height: 1.7; color: var(--ink-soft); }
+  .explain dl { margin: 8px 0 0; display: grid; grid-template-columns: 1fr; gap: 2px 18px; }
+  .explain dt { font-weight: 500; color: var(--ink); margin-top: 10px; }
+  .explain dd { margin: 0; }
+  .explain ul { padding-left: 20px; }
+  .explain li { margin: 6px 0; }
+  .explain li strong { color: var(--ink); font-weight: 500; }
+  .explain a:not(.btn) { color: var(--brand); }
+  .explain .cta { margin-top: 40px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+  .explain .cta p { font-size: 14px; margin: 0; }
+  .explain .fine { margin-top: 32px; font-size: 13px; color: var(--ink-mute); }
+  @media (min-width: 860px) {
+    .panel { grid-template-columns: 360px 1fr; padding: 24px; gap: 28px; }
+    .figs { grid-template-columns: repeat(3, 1fr); }
+    .explain dl { grid-template-columns: 160px 1fr; }
+    .explain dt { margin-top: 0; padding-top: 10px; }
+    .explain dd { padding-top: 10px; }
+  }
+  @media (max-width: 420px) { .grid { grid-template-columns: 1fr; } }
+</style>
+  <!-- Non-essential analytics do not run for visitors in the EEA, the UK or
+       Switzerland, where consent is required BEFORE a tracker loads and an
+       opt-out in the privacy policy is not enough. The country comes from
+       Cloudflare's own /cdn-cgi/trace on this origin — no third party is
+       contacted to decide, which would be the same problem one step earlier.
+
+       It fails CLOSED: if the lookup fails, or returns a country we cannot
+       read, nothing loads. An unknown visitor is treated as a protected one.
+
+       This wraps the hostname guard rather than replacing it — staging still
+       records nothing, for the reason each tag's own comment gives below. -->
+  <script>
+    window.dmAnalyticsAllowed = function (start) {
+      if (location.hostname !== 'deltamint.app' && location.hostname !== 'www.deltamint.app') return;
+      var GATED = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV',
+                   'LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','GB','IS','LI','NO','CH','GI','JE','GG','IM'];
+      fetch('/cdn-cgi/trace')
+        .then(function (r) { return r.text(); })
+        .then(function (t) {
+          var m = /(?:^|\n)loc=([A-Z]{2})/.exec(t);
+          if (m && GATED.indexOf(m[1]) === -1) start();
+        })
+        .catch(function () {});
+    };
+  </script>
+
+  <!-- Google Analytics 4.
+       Inline here because the Worker does not run for these pages on
+       production: wrangler.jsonc lists only /blog, /blog/* and /sitemap.xml
+       under run_worker_first, so the homepage and pricing are served straight
+       from assets. The blog's copy is injected by analyticsTag() in
+       landing/src/index.js from GA_MEASUREMENT_ID.
+
+       Guarded by hostname because this same public/ directory is served by
+       the staging Worker at dev-landing.deltamint.app and by local preview.
+       Without the guard, every dev page view would be filed in the property
+       as if it were a customer, and the numbers the growth cadence reports
+       would be our own traffic. GA_MEASUREMENT_ID is likewise set only in
+       wrangler.jsonc, never in wrangler.staging.jsonc, so both halves are
+       gated the same way. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    window.dmAnalyticsAllowed(function () {
+      var gaScript = document.createElement('script');
+      gaScript.async = true;
+      gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-TJLVFXVFL6';
+      document.head.appendChild(gaScript);
+      gtag('js', new Date());
+      gtag('config', 'G-TJLVFXVFL6');
+    });
+  </script>
+
+  <!-- Hotjar: heatmaps and session replay, marketing pages and blog only.
+
+       Deliberately NOT on dashboard.deltamint.app. That is a separate Worker
+       and it stays untracked: it is where positions, order tickets and account
+       balances are on screen, and none of that belongs in a replay held by a
+       third party. Hotjar sees the pages a stranger reads before signing up,
+       and nothing after.
+
+       Inline here for the same reason as the GA tag above: production's
+       run_worker_first lists only /blog, /blog/* and /sitemap.xml, so the
+       Worker never runs for this page. The blog's copy is injected by
+       hotjarTag() in landing/src/index.js from HOTJAR_SITE_ID.
+
+       Same hostname guard as the GA tag, and for the same reason: this
+       public/ directory is also served by the staging Worker at
+       dev-landing.deltamint.app, so without it every dev page view would
+       become a recorded session in the account. HOTJAR_SITE_ID is likewise
+       set only in wrangler.jsonc, never in wrangler.staging.jsonc. -->
+  <script>
+    window.dmAnalyticsAllowed(function () {
+      (function(h,o,t,j,a,r){
+          h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};
+          h._hjSettings={hjid:6773356,hjsv:6};
+          a=o.getElementsByTagName('head')[0];
+          r=o.createElement('script');r.async=1;
+          r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv;
+          a.appendChild(r);
+      })(window,document,'https://static.hotjar.com/c/hotjar-','.js?sv=');
+    });
+  </script>
+</head>
+<body>
+
+<div class="wrap">
+  <nav class="nav">
+    <a class="brandmark" href="/">
+      <svg viewBox="7.495 3 17.01 26" aria-hidden="true"><path d="M16.97 13.27Q15.62 13.3 14.69 13.94Q13.75 14.58 13.29 15.64Q12.82 16.69 12.82 18.11V21.36Q12.82 22.5 13.2 23.31Q13.58 24.12 14.29 24.54Q15 24.95 16 24.95Q17 24.95 17.71 24.54Q18.42 24.12 18.8 23.31Q19.18 22.5 19.18 21.36V19.56Q19.18 18.52 18.99 17.61Q18.8 16.69 18.4 15.88Q18.01 15.07 17.33 14.31Q16.66 13.55 15.72 12.82L9.36 7.84V3H22.88V6.98H17.42L14.2 6.6V6.73L17.83 8.95Q19.66 10.09 20.94 11.28Q22.22 12.47 23 13.79Q23.78 15.1 24.14 16.52Q24.51 17.94 24.51 19.49Q24.51 22.43 23.49 24.56Q22.47 26.68 20.56 27.84Q18.66 29 16 29Q13.34 29 11.44 27.82Q9.53 26.65 8.51 24.61Q7.49 22.57 7.49 19.94Q7.49 17.24 8.39 15.38Q9.29 13.51 10.74 12.54Q12.2 11.57 13.89 11.57V10.81Z" fill="var(--brand)"/></svg>
+      <span>delta<span class="m">mint</span></span>
+    </a>
+    <div class="right">
+      <div class="navlinks" id="navmenu">
+        <a class="plain" href="/">Home</a>
+        <a class="plain" href="/about">About</a>
+        <a class="plain" href="/blog">Blog</a>
+        <a class="btn btn-ghost" href="https://dashboard.deltamint.app/login">Log in</a>
+        <a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=nav">Sign up</a>
+      </div>
+      <button class="burger" type="button" aria-label="Menu" aria-expanded="false" aria-controls="navmenu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+      </button>
+      <noscript><style>@media (max-width:40rem){.nav .navlinks{display:flex;position:static;flex-direction:row;min-width:0;padding:0;border:0;background:none;box-shadow:none}.burger{display:none}}</style></noscript>
+    </div>
+  </nav>
+</div>
+
+<div class="wrap">
+<main class="calc">
+  <p class="eyebrow">Free tool</p>
+  <h1>Credit spread calculator</h1>
+  <p class="lede">Max profit, max loss, break-even and return on risk for a put or call credit spread, with the payoff at expiration drawn for you. Nothing to sign up for.</p>
+
+  <section class="panel" aria-label="Calculator">
+    <form class="inputs" id="calc" novalidate>
+      <fieldset class="kind">
+        <legend>Spread</legend>
+        <label><input type="radio" name="kind" value="put" checked> Put credit spread <span>bullish</span></label>
+        <label><input type="radio" name="kind" value="call"> Call credit spread <span>bearish</span></label>
+      </fieldset>
+      <div class="grid">
+        <label>Short strike (sold)<input name="short" inputmode="decimal" value="95"></label>
+        <label>Long strike (bought)<input name="long" inputmode="decimal" value="90"></label>
+        <label>Credit received, per share<input name="credit" inputmode="decimal" value="1.20"></label>
+        <label>Contracts<input name="qty" inputmode="numeric" value="1"></label>
+        <label class="wide">Stock price now <em>(optional, for the chart)</em><input name="spot" inputmode="decimal" value="100"></label>
+      </div>
+      <p class="err" id="err" role="alert" hidden></p>
+    </form>
+
+    <div class="out" aria-live="polite">
+      <div class="figs">
+        <div class="fig good"><span>Max profit</span><b id="maxProfit">$120.00</b><small>if the stock finishes past the short strike</small></div>
+        <div class="fig bad"><span>Max loss</span><b id="maxLoss">$380.00</b><small>if it finishes past the long strike</small></div>
+        <div class="fig"><span>Break-even</span><b id="breakEven">$93.80</b><small id="beNote">short strike minus the credit</small></div>
+        <div class="fig"><span>Return on risk</span><b id="ror">31.6%</b><small>max profit / max loss</small></div>
+        <div class="fig"><span>Width</span><b id="width">$5.00</b><small>between the strikes</small></div>
+        <div class="fig"><span>Collateral</span><b id="collateral">$500.00</b><small>width × 100 × contracts; some brokers net the credit</small></div>
+      </div>
+      <figure class="chart">
+        <svg id="chart" viewBox="0 0 640 280" role="img" aria-label="Profit and loss at expiration by stock price"></svg>
+        <figcaption>Profit or loss at expiration, by where the stock finishes. Before expiration the position is worth its market price, which can sit anywhere between these two lines.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="explain">
+    <h2>How each number is worked out</h2>
+    <p>A credit spread is two options on the same stock and expiration: you sell one and buy one further from the money, and you are paid a credit for the pair. Every figure above comes from the two strikes and that credit.</p>
+    <dl>
+      <dt>Width</dt><dd>The distance between the strikes. A 95/90 put spread is $5 wide.</dd>
+      <dt>Max profit</dt><dd>The credit you received, times 100 shares per contract. You keep all of it if both options expire worthless.</dd>
+      <dt>Max loss</dt><dd>Width minus credit, times 100. On a $5 spread sold for $1.20 that is $3.80 a share, or $380 a contract.</dd>
+      <dt>Break-even</dt><dd>For a put credit spread, the short strike minus the credit. For a call credit spread, the short strike plus the credit.</dd>
+      <dt>Return on risk</dt><dd>Max profit divided by max loss. It says what the trade pays for what it puts at stake, not how likely it is to pay.</dd>
+      <dt>Collateral</dt><dd>What a broker typically holds while the spread is open: the width times 100. Some brokers reduce that by the credit received, which makes it equal to the max loss.</dd>
+    </dl>
+
+    <h2>What the calculator does not tell you</h2>
+    <ul>
+      <li><strong>The odds.</strong> Return on risk is not a probability. A high return on risk usually means the short strike is close to the stock price.</li>
+      <li><strong>The path before expiration.</strong> These are expiration figures. Before then the spread is marked at its market price, which can show a loss bigger than you expect while the stock is between the strikes. <a href="/blog/credit-spread-max-loss">Why a spread can show more than its max loss before expiration</a>.</li>
+      <li><strong>Fees and assignment.</strong> Commissions and fees are not included. A short option can be assigned early, most often around a dividend, which turns one leg into shares until you act.</li>
+    </ul>
+
+    <h2>Worked example</h2>
+    <p>Hypothetical: a stock trades at $100. You sell the 95 put and buy the 90 put for a $1.20 credit, one contract. You collect $120. If the stock finishes above $95, both puts expire worthless and you keep $120. If it finishes below $90, the spread is worth its full $5 and you lose $380. Between the strikes the result moves dollar for dollar, crossing zero at $93.80.</p>
+
+    <div class="cta">
+      <a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=calculator">Track your real spreads in DeltaMint</a>
+      <p>Free on a paper account. DeltaMint shows every open spread as one position with its live max loss.</p>
+    </div>
+
+    <p class="fine">For education only. Not investment advice, and not a recommendation to buy or sell any security. Options involve substantial risk and are not suitable for every investor; read <a href="https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document">Characteristics and Risks of Standardized Options</a>.</p>
+  </section>
+</main>
+</div>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="frow">
+      <a class="brandmark" href="/" style="margin-right:auto;font-size:1.20rem">
+        <svg viewBox="7.495 3 17.01 26" aria-hidden="true"><path d="M16.97 13.27Q15.62 13.3 14.69 13.94Q13.75 14.58 13.29 15.64Q12.82 16.69 12.82 18.11V21.36Q12.82 22.5 13.2 23.31Q13.58 24.12 14.29 24.54Q15 24.95 16 24.95Q17 24.95 17.71 24.54Q18.42 24.12 18.8 23.31Q19.18 22.5 19.18 21.36V19.56Q19.18 18.52 18.99 17.61Q18.8 16.69 18.4 15.88Q18.01 15.07 17.33 14.31Q16.66 13.55 15.72 12.82L9.36 7.84V3H22.88V6.98H17.42L14.2 6.6V6.73L17.83 8.95Q19.66 10.09 20.94 11.28Q22.22 12.47 23 13.79Q23.78 15.1 24.14 16.52Q24.51 17.94 24.51 19.49Q24.51 22.43 23.49 24.56Q22.47 26.68 20.56 27.84Q18.66 29 16 29Q13.34 29 11.44 27.82Q9.53 26.65 8.51 24.61Q7.49 22.57 7.49 19.94Q7.49 17.24 8.39 15.38Q9.29 13.51 10.74 12.54Q12.2 11.57 13.89 11.57V10.81Z" fill="var(--brand)"/></svg>
+        <span>delta<span class="m">mint</span></span>
+      </a>
+      <a href="/about">About</a>
+      <a href="/blog">Blog</a>
+      <a href="/terms">Terms</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/contact">Contact</a>
+      <a href="https://dashboard.deltamint.app">Open the app</a>
+    </div>
+    <p class="fine">DeltaMint is a software tool, not a broker-dealer, and does not provide investment advice. Options trading involves substantial risk of loss and is not suitable for every investor. Trades are placed through your own brokerage account, under that broker's terms.</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var form = document.getElementById("calc");
+  var err = document.getElementById("err");
+  var svg = document.getElementById("chart");
+  var NS = "http://www.w3.org/2000/svg";
+  var money = function (v) { return (v < 0 ? "-$" : "$") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+  var num = function (name) { var v = parseFloat(String(form.elements[name].value).replace(/[$,\s]/g, "")); return isFinite(v) ? v : NaN; };
+  var set = function (id, text) { document.getElementById(id).textContent = text; };
+  var el = function (tag, attrs, text) { var n = document.createElementNS(NS, tag); for (var k in attrs) n.setAttribute(k, attrs[k]); if (text != null) n.textContent = text; return n; };
+
+  function read() {
+    var kind = form.elements.kind.value, short = num("short"), long = num("long"), credit = num("credit");
+    var qty = Math.max(1, Math.round(num("qty") || 1)), spot = num("spot");
+    if (!(short > 0) || !(long > 0)) return { error: "Enter both strikes." };
+    if (kind === "put" && !(short > long)) return { error: "For a put credit spread the short (sold) strike is the higher one." };
+    if (kind === "call" && !(short < long)) return { error: "For a call credit spread the short (sold) strike is the lower one." };
+    var width = Math.abs(short - long);
+    if (!(credit > 0)) return { error: "Enter the credit you received, per share (for example 1.20)." };
+    if (!(credit < width)) return { error: "The credit cannot be as large as the width between the strikes." };
+    return { kind: kind, short: short, long: long, credit: credit, qty: qty, spot: spot > 0 ? spot : null, width: width };
+  }
+
+  // P/L at expiration, per position, for a stock price s.
+  function pl(t, s) {
+    var intrinsic = t.kind === "put"
+      ? Math.max(0, t.short - s) - Math.max(0, t.long - s)
+      : Math.max(0, s - t.short) - Math.max(0, s - t.long);
+    return (t.credit - intrinsic) * 100 * t.qty;
+  }
+
+  function draw(t, be) {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    // Drawn at the width it is shown at, so the labels stay readable on a phone
+    // instead of shrinking with a fixed 640-wide drawing.
+    var W = Math.round(Math.min(640, Math.max(300, svg.getBoundingClientRect().width || 640)));
+    var H = W < 480 ? 240 : 280, L = 64, R = 16, T = 16, B = 40;
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    var lo = Math.min(t.short, t.long), hi = Math.max(t.short, t.long);
+    var pad = Math.max(t.width * 1.5, hi * 0.04);
+    var x0 = lo - pad, x1 = hi + pad;
+    if (t.spot) { x0 = Math.min(x0, t.spot - t.width * 0.5); x1 = Math.max(x1, t.spot + t.width * 0.5); }
+    var maxP = t.credit * 100 * t.qty, maxL = -(t.width - t.credit) * 100 * t.qty;
+    var y0 = maxL * 1.2, y1 = maxP * 1.6;
+    var X = function (s) { return L + (s - x0) / (x1 - x0) * (W - L - R); };
+    var Y = function (v) { return T + (y1 - v) / (y1 - y0) * (H - T - B); };
+    var css = function (v) { return "var(" + v + ")"; };
+
+    // Profit and loss regions, then the axis and the payoff line.
+    var pts = [x0, lo, hi, x1].map(function (s) { return [X(s), Y(pl(t, s))]; });
+    var line = pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
+    var clip = function (id, top) { var c = el("clipPath", { id: id }); c.appendChild(el("rect", { x: L, y: top ? T : Y(0), width: W - L - R, height: top ? Y(0) - T : H - B - Y(0) })); return c; };
+    var defs = el("defs", {}); defs.appendChild(clip("above", true)); defs.appendChild(clip("below", false)); svg.appendChild(defs);
+    var area = "M" + X(x0) + "," + Y(0) + " L" + line.replace(/ /g, " L") + " L" + X(x1) + "," + Y(0) + " Z";
+    svg.appendChild(el("path", { d: area, fill: css("--mint-soft"), "clip-path": "url(#above)" }));
+    svg.appendChild(el("path", { d: area, fill: css("--rose-soft"), "clip-path": "url(#below)" }));
+    svg.appendChild(el("line", { x1: L, x2: W - R, y1: Y(0), y2: Y(0), stroke: css("--line"), "stroke-width": 1 }));
+    svg.appendChild(el("polyline", { points: line, fill: "none", stroke: css("--brand"), "stroke-width": 2.5, "stroke-linejoin": "round" }));
+
+    // Labels: max profit and max loss on the left, strikes and break-even below.
+    var text = function (x, y, s, anchor, color) { svg.appendChild(el("text", { x: x, y: y, "text-anchor": anchor || "middle", "font-size": 12, "font-family": "IBM Plex Mono, monospace", fill: css(color || "--ink-mute") }, s)); };
+    text(L - 8, Y(maxP) + 4, money(maxP), "end", "--mint");
+    text(L - 8, Y(maxL) + 4, money(maxL), "end", "--rose");
+    text(L - 8, Y(0) + 4, "$0", "end");
+    var tick = function (s, label, color) { svg.appendChild(el("line", { x1: X(s), x2: X(s), y1: T, y2: H - B, stroke: css("--line"), "stroke-dasharray": "3 4" })); text(X(s), H - B + 16, label, "middle", color); };
+    tick(t.short, String(t.short));
+    tick(t.long, String(t.long));
+    svg.appendChild(el("circle", { cx: X(be), cy: Y(0), r: 4, fill: css("--brand") }));
+    text(X(be), H - 6, "break-even " + be.toFixed(2), "middle", "--brand");
+    if (t.spot && t.spot >= x0 && t.spot <= x1) {
+      svg.appendChild(el("line", { x1: X(t.spot), x2: X(t.spot), y1: T, y2: H - B, stroke: css("--ink-soft"), "stroke-width": 1.5 }));
+      text(X(t.spot), T + 10, "now " + t.spot, "middle", "--ink-soft");
+    }
+  }
+
+  function update() {
+    var t = read();
+    if (t.error) { err.textContent = t.error; err.hidden = false; return; }
+    err.hidden = true;
+    var maxP = t.credit * 100 * t.qty, maxL = (t.width - t.credit) * 100 * t.qty;
+    var be = t.kind === "put" ? t.short - t.credit : t.short + t.credit;
+    set("maxProfit", money(maxP));
+    set("maxLoss", money(maxL));
+    set("breakEven", money(be));
+    set("beNote", t.kind === "put" ? "short strike minus the credit" : "short strike plus the credit");
+    set("ror", (maxP / maxL * 100).toFixed(1) + "%");
+    set("width", money(t.width));
+    set("collateral", money(t.width * 100 * t.qty));
+    draw(t, be);
+  }
+
+  // Switching the kind flips the example strikes so the form stays valid.
+  form.addEventListener("change", function (e) {
+    if (e.target.name === "kind") {
+      var a = num("short"), b = num("long");
+      if ((e.target.value === "call" && a > b) || (e.target.value === "put" && a < b)) {
+        form.elements.short.value = e.target.value === "call" ? 105 : 95;
+        form.elements.long.value = e.target.value === "call" ? 110 : 90;
+      }
+    }
+    update();
+  });
+  form.addEventListener("input", update);
+  var resized; window.addEventListener("resize", function () { clearTimeout(resized); resized = setTimeout(update, 150); });
+  form.addEventListener("submit", function (e) { e.preventDefault(); });
+  update();
+})();
+</script>
+<script src="/assets/site.js" defer></script>
+</body>
+</html>
