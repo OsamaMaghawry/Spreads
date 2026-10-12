@@ -3,7 +3,7 @@ title: "Put credit spread explained: width, credit and the fill"
 slug: put-credit-spread-explained
 excerpt: A put credit spread sells one put and buys a cheaper one below it, so the account is paid at the fill and the loss is capped at the strikes' gap less that credit.
 meta_description: "Put credit spread explained on one hypothetical chain: the credit live quotes pay versus the mark, the max loss, the break-even, and what width changes."
-author: Osama Maghawry
+author: Osama Safwat Maghawry
 category: income
 series_order: 18
 tags: put credit spread, credit spread, max loss, width, options

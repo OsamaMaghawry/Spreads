@@ -3,7 +3,7 @@ title: "Early exercise of options: rare, except before a dividend"
 slug: early-exercise-options
 excerpt: Exercising an option before expiration throws away whatever time value is left in it, which is why almost nobody does it - except right before a dividend.
 meta_description: Exercising an option early throws away the extrinsic value left in it, so it is rare. The exception: a deep in-the-money call before an ex-dividend date.
-author: Osama Maghawry
+author: Osama Safwat Maghawry
 published_at: 2026-09-22T10:00:00+00:00
 category: foundations
 series_order: 11

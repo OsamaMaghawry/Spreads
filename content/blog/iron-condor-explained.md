@@ -3,7 +3,7 @@ title: "Iron condor explained: two credit spreads, one max loss"
 slug: iron-condor-explained
 excerpt: An iron condor is a put credit spread and a call credit spread on the same stock and expiration, and because the stock can finish on only one side, the maximum loss is one width less the whole credit.
 meta_description: "Iron condor explained on one hypothetical chain: four legs, both break-evens, and why the max loss is one width less the whole credit, not two widths."
-author: Osama Maghawry
+author: Osama Safwat Maghawry
 category: income
 series_order: 20
 tags: iron condor, options credit spread, max loss, put credit spread, call credit spread

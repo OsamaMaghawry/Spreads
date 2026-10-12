@@ -3,7 +3,7 @@ title: "Poor man's covered call: a long call in place of 100 shares"
 slug: poor-mans-covered-call
 excerpt: A poor man's covered call sells a near-dated call against a long, deep in-the-money call instead of 100 shares, a diagonal spread that copies part of a covered call and not all of it.
 meta_description: "A poor man's covered call priced on one hypothetical stock: the debit against 100 shares, the strike-gap rule checked by pricing, and what it does not copy."
-author: Osama Maghawry
+author: Osama Safwat Maghawry
 category: income
 series_order: 27
 tags: poor mans covered call, diagonal spread, covered call, deep in the money call, extrinsic value

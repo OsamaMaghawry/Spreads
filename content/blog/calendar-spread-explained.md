@@ -3,7 +3,7 @@ title: "Calendar spread explained: one strike, two dates, long vega"
 slug: calendar-spread-explained
 excerpt: A calendar spread sells a near expiration and buys a later one at the same strike, so it profits from the gap between two rates of decay and carries a payoff shaped like a hill, not a ramp.
 meta_description: "Calendar spread explained on one hypothetical call: the debit paid, the hill-shaped payoff, and why an IV drop hurts it at the strike."
-author: Osama Maghawry
+author: Osama Safwat Maghawry
 category: income
 series_order: 25
 tags: calendar spread, time spread, long vega, theta, call options

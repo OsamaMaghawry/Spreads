@@ -3,7 +3,7 @@ title: "DTE for credit spreads: what changes with time left"
 slug: credit-spread-dte
 excerpt: The days left on a credit spread decide how much premium it holds, how fast that premium drains, and how hard a move in the stock hits it. Each of those moves in a different direction.
 meta_description: "Days to expiration (DTE) changes a credit spread's credit, its daily decay and its risk near the short strike. One hypothetical put spread, 60 to 7 DTE."
-author: Osama Maghawry
+author: Osama Safwat Maghawry
 category: income
 series_order: 23
 tags: credit spread dte, days to expiration, theta decay, gamma, put credit spread
