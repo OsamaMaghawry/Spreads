@@ -166,6 +166,228 @@
         "clicks": 0,
         "impressions": 1,
         "position": 37
+      },
+      {
+        "query": "how many shares in an option contract",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 36
+      },
+      {
+        "query": "how many shares in one option contract",
+        "clicks": 0,
+        "impressions": 3,
+        "position": 37.7
+      },
+      {
+        "query": "how many shares in option contract",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 33
+      },
+      {
+        "query": "how many shares is 1 option contract",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 33
+      },
+      {
+        "query": "how many shares is one option contract",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 35
+      },
+      {
+        "query": "how many shares per option contract",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 31
+      },
+      {
+        "query": "how to read options quotes",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 68
+      },
+      {
+        "query": "mint94762",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 45
+      },
+      {
+        "query": "option assignment",
+        "clicks": 0,
+        "impressions": 3,
+        "position": 45.3
+      },
+      {
+        "query": "option assignment meaning",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 48.5
+      },
+      {
+        "query": "option decay curve",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 94
+      },
+      {
+        "query": "option gamma definition",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 78
+      },
+      {
+        "query": "options assignment",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 51
+      },
+      {
+        "query": "options contract 100 shares",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 30.5
+      },
+      {
+        "query": "options gamma definition",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 74
+      },
+      {
+        "query": "put credit spread",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 35
+      },
+      {
+        "query": "put credit spreads",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 43.5
+      },
+      {
+        "query": "short gamma meaning",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 78.5
+      },
+      {
+        "query": "standard us equity option contract represents 100 shares",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 78
+      },
+      {
+        "query": "strike date option",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 63
+      },
+      {
+        "query": "theta decay",
+        "clicks": 0,
+        "impressions": 4,
+        "position": 90.8
+      },
+      {
+        "query": "total gamma option",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 86
+      },
+      {
+        "query": "what are stock contracts",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 45
+      },
+      {
+        "query": "what does delta mean in stocks",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 79
+      },
+      {
+        "query": "what happens when call options expire out of the money",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 40
+      },
+      {
+        "query": "what is a contract in stock trading",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 47
+      },
+      {
+        "query": "what is a contract in stocks",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 49
+      },
+      {
+        "query": "what is a option contract",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 32
+      },
+      {
+        "query": "what is an option contract",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 48
+      },
+      {
+        "query": "what is an options assignment",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 46
+      },
+      {
+        "query": "what is gamma in finance",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 74
+      },
+      {
+        "query": "what is gamma in options",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 94
+      },
+      {
+        "query": "what is intrinsic value in options",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 42
+      },
+      {
+        "query": "what is options assignment",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 48
+      },
+      {
+        "query": "when do covered calls get assigned",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 27
+      },
+      {
+        "query": "when do options get assigned",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 48
+      },
+      {
+        "query": "wrong",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 2
       }
     ],
     "topPages": [
@@ -275,6 +497,139 @@
         "impressions": 4
       }
     ]
+  },
+  "indexing": {
+    "sitemap": "https://deltamint.app/sitemap.xml",
+    "checked": 51,
+    "indexed": 26,
+    "notIndexed": [
+      {
+        "url": "https://deltamint.app/about",
+        "coverage": "Discovered - currently not indexed",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/contact",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/tools",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/tools/credit-spread-calculator",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/tools/iron-condor-calculator",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/tools/covered-call-calculator",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/tools/cash-secured-put-calculator",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/tools/expected-move-calculator",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/tools/annualized-return-calculator",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/tools/option-roll-calculator",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/tools/early-assignment-calculator",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/covered-call-after-assignment",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/rolling-options-explained",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/poor-mans-covered-call",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/diagonal-spread-explained",
+        "coverage": "Discovered - currently not indexed",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/calendar-spread-explained",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/selling-options-before-earnings",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/credit-spread-dte",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/credit-spread-delta-strike-selection",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/credit-spread-width",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/iron-condor-explained",
+        "coverage": "Discovered - currently not indexed",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/wheel-strategy-explained",
+        "coverage": "Discovered - currently not indexed",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/cash-secured-put-explained",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/options-buying-power-requirement",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/early-exercise-options",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      }
+    ],
+    "canonicalMismatch": []
   },
   "analytics": {
     "unavailable": "ga4 not configured"
