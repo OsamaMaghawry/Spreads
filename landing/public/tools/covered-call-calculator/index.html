@@ -77,6 +77,30 @@
       "mainEntity": [
         {
           "@type": "Question",
+          "name": "What is a covered call?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Selling a call option on shares you already own, one contract per 100 shares. You are paid a premium up front, and in return agree to sell the shares at the strike if the stock is above it at expiration. The shares cover the call, which is where the name comes from."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How does a covered call work?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "You own 100 shares and sell one call against them, collecting the premium up front. If the stock finishes below the strike, the call expires and you keep the shares and the premium. If it finishes above, your shares are sold at the strike and you keep the premium plus the gain up to the strike."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why do traders sell covered calls?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "To collect premium on shares they hold, in exchange for giving up any gain above the strike. The premium lowers the breakeven a little, but it does not protect against a large fall in the stock."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "How do you calculate a covered call return?",
           "acceptedAnswer": {
             "@type": "Answer",
@@ -286,6 +310,16 @@
   </section>
 
   <section class="explain">
+    <h2>How a covered call works</h2>
+    <p>A covered call follows the same few steps every time.</p>
+    <ol>
+      <li><strong>Own the shares.</strong> 100 shares for each contract you plan to sell, already held or bought at the same time as the call.</li>
+      <li><strong>Sell the call.</strong> Pick a strike, usually above the current price, and an expiration. The premium is paid into your account at once and is yours to keep whatever happens next.</li>
+      <li><strong>Below the strike at expiration.</strong> The call expires worthless. You keep the shares and the premium, and can sell another call.</li>
+      <li><strong>Above the strike at expiration.</strong> The shares are called away: sold at the strike. You keep the premium and the gain up to the strike, but not any rise above it.</li>
+      <li><strong>Before expiration.</strong> You can buy the call back at any time to keep the shares, or roll it to a later date or a higher strike.</li>
+    </ol>
+
     <h2>How to calculate covered call returns</h2>
     <p>A covered call is 100 shares you own and one call you sell against them, per contract. There are two outcomes worth measuring at expiration: the stock finishes above the strike and the shares are called away, or it finishes where it is and you keep both the shares and the premium.</p>
     <pre class="formula">Return if called = (strike - stock price + premium) / stock price
@@ -316,6 +350,12 @@ Max profit       = (strike - stock price + premium) × 100 × contracts</pre>
     </ul>
 
     <h2>Frequently asked questions</h2>
+    <h3>What is a covered call?</h3>
+    <p>Selling a call option on shares you already own, one contract per 100 shares. You are paid a premium up front, and in return agree to sell the shares at the strike if the stock is above it at expiration. The shares cover the call, which is where the name comes from.</p>
+    <h3>How does a covered call work?</h3>
+    <p>You own 100 shares and sell one call against them, collecting the premium up front. If the stock finishes below the strike, the call expires and you keep the shares and the premium. If it finishes above, your shares are sold at the strike and you keep the premium plus the gain up to the strike.</p>
+    <h3>Why do traders sell covered calls?</h3>
+    <p>To collect premium on shares they hold, in exchange for giving up any gain above the strike. The premium lowers the breakeven a little, but it does not protect against a large fall in the stock.</p>
     <h3>How do you calculate a covered call return?</h3>
     <p>For the shares being called away: strike minus stock price plus premium, divided by the stock price. For the stock staying flat: premium divided by the stock price. Both assume you hold to expiration.</p>
     <h3>How do you annualize a covered call return?</h3>

@@ -77,6 +77,30 @@
       "mainEntity": [
         {
           "@type": "Question",
+          "name": "What is early assignment?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Being assigned on an option you sold before its expiration date. Most US stock options are American style, so the holder can exercise on any business day; when they do, the exercise is assigned to someone short that option, chosen by the clearing house and then by the broker."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How does early assignment work?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The holder of an option exercises it before expiration, and the exercise is assigned to someone short that option. If that is you, a short call becomes a sale of 100 shares per contract at the strike, and a short put a purchase, and you see it in your account the next business day."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is an ex-dividend date?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The first day a stock trades without its next dividend. To receive the dividend you must own the shares before that day, which is why a call holder who wants it has to exercise no later than the business day before."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "When is a short call likely to be assigned early?",
           "acceptedAnswer": {
             "@type": "Answer",
@@ -284,6 +308,15 @@
   </section>
 
   <section class="explain">
+    <h2>How early assignment works</h2>
+    <p>Early assignment follows the same path every time.</p>
+    <ol>
+      <li><strong>The holder exercises.</strong> Most US stock options are American style, so whoever owns the option can exercise it on any business day before expiration.</li>
+      <li><strong>A seller is chosen.</strong> The clearing house assigns the exercise to a broker with customers short that option, and the broker picks one of them, at random or first in, first out.</li>
+      <li><strong>Your position changes overnight.</strong> You learn of it the next business day: a short call becomes a sale of 100 shares per contract at the strike; a short put becomes a purchase.</li>
+      <li><strong>Dividends are the usual reason.</strong> Holders of in-the-money calls exercise just before an ex-dividend date when the dividend is worth more than the time value they give up. That is the case this calculator checks.</li>
+    </ol>
+
     <h2>How to tell if a short call will be assigned early</h2>
     <p>Most options are not exercised before expiration, because exercising throws away whatever time value the option has left. The exception is a call in the money just before an ex-dividend date. A holder who exercises the day before becomes a shareholder in time to receive the dividend. If the dividend is worth more than the time value given up, exercising early pays.</p>
     <pre class="formula">Intrinsic value = stock price - strike          (0 if out of the money)
@@ -317,6 +350,12 @@ Risk is high when: dividend > time value</pre>
     </ul>
 
     <h2>Frequently asked questions</h2>
+    <h3>What is early assignment?</h3>
+    <p>Being assigned on an option you sold before its expiration date. Most US stock options are American style, so the holder can exercise on any business day; when they do, the exercise is assigned to someone short that option, chosen by the clearing house and then by the broker.</p>
+    <h3>How does early assignment work?</h3>
+    <p>The holder of an option exercises it before expiration, and the exercise is assigned to someone short that option. If that is you, a short call becomes a sale of 100 shares per contract at the strike, and a short put a purchase, and you see it in your account the next business day.</p>
+    <h3>What is an ex-dividend date?</h3>
+    <p>The first day a stock trades without its next dividend. To receive the dividend you must own the shares before that day, which is why a call holder who wants it has to exercise no later than the business day before.</p>
     <h3>When is a short call likely to be assigned early?</h3>
     <p>When it is in the money just before an ex-dividend date and the dividend is larger than the call's remaining time value. Deep in-the-money calls close to expiration, with almost no time value left, are the usual candidates.</p>
     <h3>How do you calculate the time value of an option?</h3>

@@ -77,6 +77,22 @@
       "mainEntity": [
         {
           "@type": "Question",
+          "name": "What is a credit spread in options?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Two options of the same type, two puts or two calls, on the same stock and expiration: you sell one and buy one further out of the money, and receive a net credit for the pair. The option you buy caps the loss. A put credit spread makes its max profit if the stock stays above the short strike; a call credit spread if it stays below."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How does a credit spread work?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "You sell an option and buy a further out-of-the-money one of the same type and expiration, and keep the net credit if the stock stays on the safe side of the short strike until expiration. If the stock moves past the long strike you lose the width minus the credit. You can close the spread at any time before then."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "How do you calculate the max loss on a credit spread?",
           "acceptedAnswer": {
             "@type": "Answer",
@@ -291,6 +307,14 @@
   </section>
 
   <section class="explain">
+    <h2>How a credit spread works</h2>
+    <p>A credit spread is opened, held and settled in three stages.</p>
+    <ol>
+      <li><strong>Open.</strong> Sell one option and buy another of the same type and expiration further out of the money, for a net credit. The credit is paid into your account at once, and the broker holds collateral equal to the width.</li>
+      <li><strong>While it is open.</strong> The spread's value moves with the stock, with time and with implied volatility. You can close it at any time by buying it back; the credit minus the cost to close is your profit or loss.</li>
+      <li><strong>At expiration.</strong> If the stock is on the safe side of the short strike, both options expire worthless and you keep the credit. Past the long strike, the spread is worth its full width and you lose the max loss. In between, the result is partial.</li>
+    </ol>
+
     <h2>How to calculate a credit spread</h2>
     <p>A credit spread is two options on the same stock and expiration: you sell one and buy one further from the money, and you are paid a credit for the pair. Every figure above comes from the two strikes and that credit.</p>
     <pre class="formula">Width          = short strike - long strike   (as a positive number)
@@ -332,6 +356,10 @@ Return on risk = max profit / max loss</pre>
     </ul>
 
     <h2>Frequently asked questions</h2>
+    <h3>What is a credit spread in options?</h3>
+    <p>Two options of the same type, two puts or two calls, on the same stock and expiration: you sell one and buy one further out of the money, and receive a net credit for the pair. The option you buy caps the loss. A put credit spread makes its max profit if the stock stays above the short strike; a call credit spread if it stays below.</p>
+    <h3>How does a credit spread work?</h3>
+    <p>You sell an option and buy a further out-of-the-money one of the same type and expiration, and keep the net credit if the stock stays on the safe side of the short strike until expiration. If the stock moves past the long strike you lose the width minus the credit. You can close the spread at any time before then.</p>
     <h3>How do you calculate the max loss on a credit spread?</h3>
     <p>Subtract the credit from the width between the strikes, then multiply by 100 and by the number of contracts. A $5 wide spread sold for $1.20 has a max loss of $3.80 a share, $380 per contract.</p>
     <h3>How do you calculate the breakeven of a put credit spread?</h3>

@@ -77,6 +77,30 @@
       "mainEntity": [
         {
           "@type": "Question",
+          "name": "What is the expected move in options?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The range the options market prices a stock to move within by a given expiration, usually one standard deviation either way of today's price. It comes from implied volatility, or from the price of the at-the-money straddle."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How does the expected move work?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Option prices imply how much the market expects a stock to move. Taking the implied volatility, scaling it from a year down to the days until expiration and applying it to today's price gives a dollar range either side of the price: the expected move."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is implied volatility?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The volatility that today's option prices imply: the yearly standard deviation of the stock's moves that an option pricing model needs to arrive at the market price. Higher implied volatility means more expensive options and a wider expected move."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "How do you calculate the expected move of a stock?",
           "acceptedAnswer": {
             "@type": "Answer",
@@ -290,6 +314,14 @@
   </section>
 
   <section class="explain">
+    <h2>How the expected move works</h2>
+    <p>The expected move turns option prices into a price range.</p>
+    <ol>
+      <li><strong>Option prices carry the market's view of movement.</strong> The more movement traders price in, the more options cost. That priced-in movement, stated per year, is implied volatility.</li>
+      <li><strong>Scale it to the days left.</strong> Volatility grows with the square root of time, so multiplying by the square root of days over 365 turns the yearly figure into a move by the expiration you care about.</li>
+      <li><strong>Read it as a range.</strong> Today's price plus or minus that move is the one standard deviation range the market is pricing. Traders compare their strikes with it to see whether a strike sits inside or outside the range.</li>
+    </ol>
+
     <h2>How to calculate the expected move</h2>
     <p>The expected move is the one standard deviation range implied by option prices. It comes from three numbers: the stock price, the implied volatility of the expiration you care about, and the days left until it.</p>
     <pre class="formula">Expected move = stock price × implied volatility × √(days to expiration / 365)
@@ -327,6 +359,12 @@ Two sd range  = stock price ± 2 × expected move</pre>
     </ul>
 
     <h2>Frequently asked questions</h2>
+    <h3>What is the expected move in options?</h3>
+    <p>The range the options market prices a stock to move within by a given expiration, usually one standard deviation either way of today's price. It comes from implied volatility, or from the price of the at-the-money straddle.</p>
+    <h3>How does the expected move work?</h3>
+    <p>Option prices imply how much the market expects a stock to move. Taking the implied volatility, scaling it from a year down to the days until expiration and applying it to today's price gives a dollar range either side of the price: the expected move.</p>
+    <h3>What is implied volatility?</h3>
+    <p>The volatility that today's option prices imply: the yearly standard deviation of the stock's moves that an option pricing model needs to arrive at the market price. Higher implied volatility means more expensive options and a wider expected move.</p>
     <h3>How do you calculate the expected move of a stock?</h3>
     <p>Multiply the stock price by the implied volatility and by the square root of the days to expiration divided by 365. A $190 stock with 30% implied volatility and 30 days left has an expected move of about $16.34 either way.</p>
     <h3>How do you calculate the expected move from a straddle?</h3>

@@ -77,6 +77,22 @@
       "mainEntity": [
         {
           "@type": "Question",
+          "name": "What is a cash-secured put?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Selling a put option while holding enough cash to buy the shares if you are assigned: the strike times 100 per contract. You are paid a premium up front. If the stock is below the strike at expiration you buy the shares at the strike; if not, you keep the premium and the cash is released."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How does a cash-secured put work?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "You sell a put and hold the cash to buy the shares, collecting the premium up front. If the stock stays above the strike, the put expires and you keep the premium. If it finishes below, you buy the shares at the strike, at an effective cost of the strike minus the premium."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "How do you calculate the return on a cash-secured put?",
           "acceptedAnswer": {
             "@type": "Answer",
@@ -286,6 +302,16 @@
   </section>
 
   <section class="explain">
+    <h2>How a cash-secured put works</h2>
+    <p>A cash-secured put follows the same few steps every time.</p>
+    <ol>
+      <li><strong>Sell the put.</strong> Pick a strike, usually below the current price, and an expiration. The premium is paid into your account at once.</li>
+      <li><strong>The cash is held.</strong> The broker sets aside the strike times 100 per contract, the money you would need to buy the shares.</li>
+      <li><strong>Above the strike at expiration.</strong> The put expires worthless. You keep the premium and the cash is released.</li>
+      <li><strong>Below the strike at expiration.</strong> You are assigned and buy 100 shares per contract at the strike with the held cash. Your cost per share is the strike minus the premium.</li>
+      <li><strong>Before expiration.</strong> You can buy the put back at any time to end the obligation, or roll it to a later date or a lower strike.</li>
+    </ol>
+
     <h2>How to calculate a cash-secured put</h2>
     <p>Selling a cash-secured put means agreeing to buy 100 shares per contract at the strike, and holding the cash to do it. You are paid the premium up front. If the stock finishes above the strike you keep the premium and the cash is released; below it, you are assigned and buy the shares.</p>
     <pre class="formula">Cash held           = strike × 100 × contracts
@@ -327,6 +353,10 @@ Max loss            = (strike - premium) × 100 × contracts</pre>
     </ul>
 
     <h2>Frequently asked questions</h2>
+    <h3>What is a cash-secured put?</h3>
+    <p>Selling a put option while holding enough cash to buy the shares if you are assigned: the strike times 100 per contract. You are paid a premium up front. If the stock is below the strike at expiration you buy the shares at the strike; if not, you keep the premium and the cash is released.</p>
+    <h3>How does a cash-secured put work?</h3>
+    <p>You sell a put and hold the cash to buy the shares, collecting the premium up front. If the stock stays above the strike, the put expires and you keep the premium. If it finishes below, you buy the shares at the strike, at an effective cost of the strike minus the premium.</p>
     <h3>How do you calculate the return on a cash-secured put?</h3>
     <p>Divide the premium by the strike. A $1.00 premium on a $50 strike is 2.0% of the $5,000 held per contract. To annualize it, multiply by 365 and divide by the days to expiration.</p>
     <h3>What is my cost basis if a cash-secured put is assigned?</h3>
