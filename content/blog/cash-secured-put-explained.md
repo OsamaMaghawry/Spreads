@@ -32,7 +32,7 @@ post did: with what the account actually holds afterward.
 ## What does "secured" mean in a cash-secured put?
 
 A put seller takes on an obligation: buy 100 shares at the strike if
-assigned. "Cash-secured" describes how that obligation is backed — with cash
+assigned. "Cash-secured" describes how that obligation is backed - with cash
 already reserved in the account, rather than with margin.
 
 The alternative is a **naked put**, a short put with no cash set aside
@@ -50,7 +50,7 @@ post](/blog/options-buying-power-requirement) covers in more detail:
 - **The hold ends at close, expiration or assignment.** A good mark along the way releases nothing.
 
 A cash account can typically sell a cash-secured put without any special
-margin approval, because nothing is borrowed against it — the reserve is
+margin approval, because nothing is borrowed against it - the reserve is
 cash the account already holds. That usually makes it one of the lower
 options approval tiers a broker offers, well below what a naked call or an
 uncovered straddle requires, since the broker is never exposed beyond the
@@ -64,7 +64,7 @@ trades at $52.00. Selling one 30-day 50 put for $1.40 brings in
 obligation to buy 100 shares at $50 if assigned.
 
 Two numbers follow. The break-even, if assigned, is $50.00 − $1.40 = $48.60
-per share — less than the $52.00 the stock traded at when the put was sold.
+per share - less than the $52.00 the stock traded at when the put was sold.
 The most the put alone can return is the $140 premium, however high XYZ
 goes, because nothing above the strike is owed and nothing above the strike
 is collected.
@@ -84,7 +84,7 @@ the other.
 In the first case nothing is bought: the put disappears and the $5,000
 reserve is free again. In the second, the shares arrive at $50.00 while the
 stock trades at $47.00, an unrealized $1.60 per share below the effective
-$48.60 cost — smaller than the $5.00 a trader who simply bought at $52.00
+$48.60 cost - smaller than the $5.00 a trader who simply bought at $52.00
 would be under.
 
 ## A cash-secured put trades premium for a purchase obligation, not a discount
@@ -95,7 +95,7 @@ that same premium and nothing more.
 
 ![Below the 50 strike a hypothetical cash-secured put loses with the stock dollar for dollar, crossing zero at a break-even of 48.60, then flattens at the 1.40 premium kept for every price at or above the strike.](/assets/blog/cash-secured-put-payoff.svg)
 
-The premium is not a discount on the stock — it is compensation for taking
+The premium is not a discount on the stock - it is compensation for taking
 on the obligation to buy at a fixed price no matter how far the stock falls.
 If XYZ closes at $40.00, the put is assigned at $50.00 regardless, the
 $5,000 buys shares worth $4,000, and the $140 premium offsets only $1.40 of
@@ -104,7 +104,7 @@ that outcome; it only ever covers the $50.00 purchase.
 
 That single line of protection does not change with the size of the move. A
 stock that finishes $2 below the strike gets the same $1.40 cushion as one
-that finishes $12 below it — only the size of the unrealized loss on the
+that finishes $12 below it - only the size of the unrealized loss on the
 shares changes, not what the premium was compensating for in the first
 place.
 
@@ -134,7 +134,7 @@ does, the account shows:
 - **Cash.** Down $5,000, spent on the shares; the $140 premium is already in from weeks earlier.
 - **Shares.** 100 XYZ, bought at $50.00 regardless of the $47.00 close.
 - **Short put.** Gone. Assignment removed the line; nothing is left to buy back.
-- **Buying power.** The $5,000 reserve does not return — it is now shares instead of cash, and the shares carry their own requirement, as the [assignment post](/blog/option-assignment-what-happens) walks through.
+- **Buying power.** The $5,000 reserve does not return - it is now shares instead of cash, and the shares carry their own requirement, as the [assignment post](/blog/option-assignment-what-happens) walks through.
 
 The account history typically records the assignment and the share purchase
 at the strike as one or two rows, weeks after the premium that started the
@@ -157,7 +157,7 @@ return. What differs is which side of owning the stock each one sits on.
 | What caps the return | The premium, above the strike | Strike minus share cost, plus the premium |
 
 Selling a cash-secured put to acquire shares, then later selling a covered
-call against those same shares, chains the two positions together — put
+call against those same shares, chains the two positions together - put
 first, call second, on the same underlying stock. The [wheel
 strategy](/blog/wheel-strategy-explained) follows this same 50 put past
 assignment and into a covered call on the shares it delivered.

@@ -112,7 +112,7 @@ belong to each broker and vary too much to state as a rule.
 ## Example: one hypothetical account, short the same 50 put two ways
 
 Take a hypothetical margin account with $10,000 in cash and nothing open, so
-$10,000 of option buying power — a margin account's stock buying power is
+$10,000 of option buying power - a margin account's stock buying power is
 typically larger, because shares can be bought partly on credit. The
 premiums below are round numbers chosen to show the arithmetic.
 

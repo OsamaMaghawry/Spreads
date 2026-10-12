@@ -21,7 +21,7 @@ as the stock does.
 
 ## Key takeaways
 
-- Delta estimates the option's price change for a $1 move in the stock, per share — about $30 on one contract at 0.30.
+- Delta estimates the option's price change for a $1 move in the stock, per share - about $30 on one contract at 0.30.
 - Calls carry delta between 0 and 1, puts between 0 and −1. The sign is a direction, not a size.
 - The estimate holds for a small move only, because delta drifts as the stock moves.
 - Delta near 0.50 means the strike sits near the stock price; near 1 or near 0 means deep in or far out of the money.
@@ -42,7 +42,7 @@ price change over an actual afternoon mixes delta with everything else at once.
 - **It moves with time too.** The same strike on the same stock shows a different delta a week later.
 
 A displayed delta is itself computed from a price, and on a wide quote that
-price is usually the midpoint — the number the [bid-ask
+price is usually the midpoint - the number the [bid-ask
 spread](/blog/options-bid-ask-spread) post described as one nobody offered.
 
 ## Why do calls and puts carry opposite signs?
@@ -52,8 +52,8 @@ value when the stock falls, so its delta is negative. Nothing deeper is
 happening than the direction the contract points.
 
 Selling flips the exposure a trader tracks. A sold option is the mirror of the
-bought one — the side covered in [calls and puts from both
-sides](/blog/call-vs-put-option-explained) — so the position's delta carries
+bought one - the side covered in [calls and puts from both
+sides](/blog/call-vs-put-option-explained) - so the position's delta carries
 the opposite sign to the contract's.
 
 | Position | The contract's delta | Position gains when | Position delta |
@@ -69,7 +69,7 @@ long put both carry negative.
 
 That is why delta is often quoted as share-equivalent exposure. A short put on
 a contract showing −0.20 leaves the position at +0.20, which behaves like
-roughly 20 shares of stock — for the next small move, and no further.
+roughly 20 shares of stock - for the next small move, and no further.
 
 ## Example: one call's delta at three stock prices
 
@@ -106,7 +106,7 @@ prices the option, from the same inputs.
 - **It is not a forecast.** An estimate drawn from today's prices says nothing about what a particular stock will do.
 
 So a strike showing 0.15 delta is sometimes described as roughly a 15-in-100
-chance of finishing in the money. That is a rough label and nothing more — not
+chance of finishing in the money. That is a rough label and nothing more - not
 a promise, and not a measurement of anything.
 
 ## How do traders use delta to compare strikes?
@@ -126,7 +126,7 @@ describe short strikes in the 15 to 20 delta range, or an at-the-money leg as
 
 The same number states a trade-off rather than settling it. A strike further
 from the stock shows a smaller delta in magnitude and carries a smaller
-premium; a nearer strike shows a larger delta and a larger premium — for a put
+premium; a nearer strike shows a larger delta and a larger premium - for a put
 as much as a call, since a −0.10 delta is smaller in magnitude than a −0.30
 one. Which of those a trader wants is not something delta answers. The [credit spread
 version of this question](/blog/credit-spread-delta-strike-selection) is worked through on one chain.

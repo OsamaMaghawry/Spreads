@@ -16,20 +16,20 @@ percentage. It is not measured from the stock's history and it is not a
 forecast: it is the volatility figure that makes a pricing model return the
 price the contract is actually trading at.
 
-**Vega** is the sensitivity that goes with it — the estimated change in an
+**Vega** is the sensitivity that goes with it - the estimated change in an
 option's price for a one-point change in implied volatility, quoted per share
 like the premium.
 
 Because implied volatility is solved backwards out of the price, the two move
 together by construction. A premium that changes while the stock and the
-calendar both stand still is, in this language, an implied volatility change
-— over a longer stretch the passage of time moves the price too, which is
+calendar both stand still is, in this language, an implied volatility change -
+over a longer stretch the passage of time moves the price too, which is
 what [the previous post](/blog/theta-decay-explained) covers on its own.
 
 ## Key takeaways
 
 - Implied volatility is derived from the option's price, not from the stock's past. It is often shortened to IV on a chain.
-- Vega estimates the price change for one point of IV, per share — about $6 on one contract at 0.06.
+- Vega estimates the price change for one point of IV, per share - about $6 on one contract at 0.06.
 - IV only moves extrinsic value, so a rise lifts every premium on the chain at once while intrinsic value sits unchanged.
 - Vega is largest at the money in dollar terms; strikes far out of the money hold less premium but move more in proportion, while deep in-the-money strikes move least in proportion because most of their premium is intrinsic.
 - A scheduled event inside an option's remaining life raises the movement priced into every contract covering it, and the same contracts reprice down once the outcome is known.
@@ -37,8 +37,8 @@ what [the previous post](/blog/theta-decay-explained) covers on its own.
 ## What does implied volatility actually measure?
 
 It measures what the market is charging for uncertainty, expressed in the
-units a pricing model takes as an input. Every other input — stock price,
-strike, days remaining, rates — is observable, so implied volatility is the
+units a pricing model takes as an input. Every other input - stock price,
+strike, days remaining, rates - is observable, so implied volatility is the
 one left over when the model is run in reverse from the traded price.
 
 - **It is derived, not observed.** Nobody quotes IV directly. A price is quoted, and IV is what falls out of it.
@@ -60,7 +60,7 @@ expectation of movement, in the same units, whatever the stock is worth.
 
 Vega does for IV what delta does for the stock price: it converts a change in
 one input into an estimated change in the premium. A contract showing a vega
-of 0.06 is expected to gain about $0.06 a share — $6 on 100 shares — for each
+of 0.06 is expected to gain about $0.06 a share - $6 on 100 shares - for each
 point IV rises, with everything else held still.
 
 - **It touches extrinsic value only.** Intrinsic value is arithmetic against the strike, described in the [intrinsic and extrinsic value](/blog/intrinsic-vs-extrinsic-value-options) post, and no volatility figure changes it.
@@ -85,14 +85,14 @@ again.
 
 It also shrinks as expiration approaches. With a day to go there is little
 extrinsic value left to revalue, so even a large move in implied volatility
-changes that contract's price very little in dollar terms — though what
+changes that contract's price very little in dollar terms - though what
 extrinsic value remains can still swing hard in percentage terms.
 
 ## Example: one hypothetical chain priced at two volatility levels
 
 Take three calls on the hypothetical 50-strike series used earlier in this
 series, all with 30 days left and the stock sitting at $50. Only the
-volatility assumption changes — 40% in one column, 60% in the other. The
+volatility assumption changes - 40% in one column, 60% in the other. The
 stock price, the strikes and the calendar are identical in both.
 
 ![The same three strikes on one hypothetical chain all cost more at 60 percent implied volatility than at 40 percent, with the stock price unchanged.](/assets/blog/iv-reprices-the-chain.svg)
@@ -104,7 +104,7 @@ stock price, the strikes and the calendar are identical in both.
 | $55 (out of the money) | $0.68 | $1.64 | +$0.96 |
 
 Check the middle row against vega. The at-the-money call's vega is about 0.06
-a share, and 20 points of IV at roughly $0.057 a point comes to about $1.14 —
+a share, and 20 points of IV at roughly $0.057 a point comes to about $1.14 -
 which is exactly the gap between the two columns, or $114 on one contract.
 That estimate lands this cleanly only because vega itself barely moves across
 this 20-point range at the money; away from the money vega shifts more as IV
@@ -113,7 +113,7 @@ changes, so a single point figure is a local estimate, the same limitation
 
 The top row moved least in dollars, and the reason is in the split. With the
 stock at $50, the 45-strike call holds $5.00 of intrinsic value and $0.53 of
-extrinsic on top of it, and the whole $0.82 landed on that second figure —
+extrinsic on top of it, and the whole $0.82 landed on that second figure -
 $0.53 became $1.35, while the intrinsic $5.00 did not move at all.
 
 The bottom row moved least in dollars after it, but most in proportion: $0.68
@@ -131,7 +131,7 @@ together rather than one strike at a time.
 - **The stock does not have to move at all.** IV is an input alongside the stock price; raise it with the stock unchanged and every premium on the chain rises, as the table above shows.
 - **The near expiration usually rises most in IV terms.** One announcement is a larger share of the movement expected over a week than of the movement expected over a quarter, so the front expirations lift further in percentage terms.
 - **The longer expiration usually carries more vega.** More days left means more extrinsic value at stake, so a smaller IV move there can still be worth more in dollars.
-- **The same inputs unwind afterwards.** Once the result is public the uncertainty it carried is gone, IV falls back, and the contracts reprice down on that alone — a move traders call IV crush, or a volatility
+- **The same inputs unwind afterwards.** Once the result is public the uncertainty it carried is gone, IV falls back, and the contracts reprice down on that alone - a move traders call IV crush, or a volatility
 crush. [What that does to a seller, priced](/blog/selling-options-before-earnings).
 
 The last point is the one that surprises people, because it can happen on a
@@ -141,7 +141,7 @@ input went up on the calendar, and it came down on the news.
 An IV move also arrives everywhere at once on a book of more than one
 position. Contracts on the same underlying share an expectation, so someone
 holding several of them sees one input revalue every line in the same moment
-rather than line by line — a problem of scale taken up in the [after the
+rather than line by line - a problem of scale taken up in the [after the
 fill](/blog/managing) posts rather than this one.
 
 ## Does high implied volatility mean the stock will move?
@@ -161,7 +161,7 @@ reason the premium is negotiated at all.
 ## Frequently asked questions
 
 - **Does implied volatility scale by 100 like the premium?** No. It is an annualised percentage that already applies to the whole quote; vega, delta and the premium itself are the figures quoted per share and multiplied by 100 for one contract.
-- **Where does the IV on my chain come from?** It is back-solved from the option's price with a model, usually from the midpoint of the [bid and the ask](/blog/options-bid-ask-spread) — a price nobody actually offered.
+- **Where does the IV on my chain come from?** It is back-solved from the option's price with a model, usually from the midpoint of the [bid and the ask](/blog/options-bid-ask-spread) - a price nobody actually offered.
 - **Why did my option lose value when the stock moved my way?** One possibility is that IV fell by enough to outweigh what [delta](/blog/option-delta-explained) added. Both inputs pull on the same premium at once.
 - **Does every strike on one expiration show the same IV?** No. Strikes usually show different figures, a pattern called the volatility skew or smile, even though they all cover the same period.
 

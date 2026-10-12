@@ -45,7 +45,7 @@
   <rect x="464" y="180" width="220" height="20" rx="4" fill="#FBE7EB" stroke="#B4485C"/>
   <rect x="464" y="180" width="220" height="20" rx="4" fill="url(#hatchbs)"/>
   <text x="574" y="194" font-size="11" font-weight="500" fill="#B4485C" text-anchor="middle">collateral, bar not to a dollar scale</text>
-  <text x="388" y="218" font-size="11.5" fill="#B4485C">Held until the line leaves the account — how much depends on the structure.</text>
+  <text x="388" y="218" font-size="11.5" fill="#B4485C">Held until the line leaves the account - how much depends on the structure.</text>
 
   <text x="388" y="250" font-size="11.5" font-weight="500" fill="#14151C">Someone else decides, and you are told after.</text>
 

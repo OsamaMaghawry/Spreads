@@ -1,7 +1,7 @@
 ---
 title: Why your broker shows a spread as two separate legs
 slug: options-journal-splits-spreads-into-legs
-excerpt: A spread is one position, not two legs — but if a tool rebuilds it by matching strikes instead of reading the order it came from, it will eventually invent one.
+excerpt: A spread is one position, not two legs - but if a tool rebuilds it by matching strikes instead of reading the order it came from, it will eventually invent one.
 meta_description: Your broker's fill feed doesn't say which legs were one order. Why syncs split spreads, and what strike-guessing invents after a roll.
 author: DeltaMint
 published_at: 2026-08-29T19:22:12+00:00
@@ -10,8 +10,8 @@ series_order: 50
 tags: spread pairing, journaling, broker feed, rolls, partial closes
 ---
 
-You sent one order — a credit spread. The broker filled it as several
-executions, and somewhere downstream — a journal, a tracker, a dashboard — a
+You sent one order - a credit spread. The broker filled it as several
+executions, and somewhere downstream - a journal, a tracker, a dashboard - a
 piece of software has to put them back together. How it does that is not a
 detail. It decides whether your book shows the positions you actually have.
 
@@ -25,8 +25,8 @@ to it, and the executions that fill it reference it. That is provenance: the
 legs are one position because they were submitted as one order, and no
 inference is required to know it.
 
-Guessing works from resemblance instead. It takes a flat list of executions —
-short put here, long put there, same symbol, same expiry, plausible width — and
+Guessing works from resemblance instead. It takes a flat list of executions -
+short put here, long put there, same symbol, same expiry, plausible width - and
 decides that the ones which look like a spread probably are one. On a clean
 account with a handful of positions, resemblance and provenance agree, which is
 exactly why the difference is invisible until it isn't.
@@ -38,7 +38,7 @@ comparing two ways of loading the same account into a journal found that a
 manual CSV upload grouped their spreads correctly, while the automatic broker
 sync split the same trades into legs. Nothing was wrong with the account:
 
-- **The CSV was a per-order export** — one row, both legs, already tied together — so the grouping was carried in the file.
+- **The CSV was a per-order export**: one row, both legs, already tied together - so the grouping was carried in the file.
 - **The sync pulled individual executions** from the activities feed and rebuilt the pairing from what the executions looked like. Whatever order tie the feed carried, the sync didn't use it.
 
 Same data, same trades, two different books. The one that came from the file
@@ -50,7 +50,7 @@ away.
 The first one is the loudest, and it is the one worth drawing. **Invented
 spreads** come from pairing each short leg to the first protective long the tool
 finds rather than the nearest one. Run two put spreads on the same underlying
-and expiry — say one at 100/95 and, opened a week later, another at 105/100 —
+and expiry - say one at 100/95 and, opened a week later, another at 105/100 -
 and a first-match pairing can bolt the 105 short onto the 95 long.
 
 The result is a 10-wide spread that was never traded, sitting in the book with
@@ -60,10 +60,10 @@ while the two positions you actually have are nowhere.
 ![Left: pairing each short to its nearest protective long reconstructs the two $5-wide spreads actually traded. Right: first-match pairing invents a $10-wide spread that never existed, shows the 100 short as naked and drops the 100 long's cost.](/assets/blog/nearest-long-pairing.svg)
 
 The other three are quieter, and quiet is what makes them expensive. Nothing
-about them looks broken on screen — a wrong pairing produces rows that balance,
+about them looks broken on screen - a wrong pairing produces rows that balance,
 in the format you expect, in the place you expect them:
 
-- **Orphaned shorts.** The mirror image. When the guess consumes the wrong long, some real short is left with nothing behind it. A short call with no long against it and no shares behind it is a naked position, and a book that shows one when you do not have one is worse than a book that shows nothing — you will go looking for a risk that isn't there and stop trusting the screen when you can't find it.
+- **Orphaned shorts.** The mirror image. When the guess consumes the wrong long, some real short is left with nothing behind it. A short call with no long against it and no shares behind it is a naked position, and a book that shows one when you do not have one is worse than a book that shows nothing - you will go looking for a risk that isn't there and stop trusting the screen when you can't find it.
 - **Dropped costs.** The failure that flatters. If an unmatched long leg is simply discarded rather than written down, the position keeps the full credit from the short and loses the debit paid for the protection. The recorded trade collects more than the real one did and shows a smaller risk than the real one carried. The arithmetic is quietly wrong in the direction nobody audits.
 - **Wheel legs merged into option legs.** When a short put is assigned, two separate things happen: the option's premium is kept in full, and a stock position appears at the strike. They are different numbers with different outcomes. Adding them into one realised figure hides which half of the cycle did what, and once merged they cannot be pulled apart again.
 
@@ -76,7 +76,7 @@ routinely.
 near long, open the far short, open the far long. To a strike-matcher those
 arrive as four executions with two shorts and two longs on the same underlying,
 often at the same strikes, differing only by expiration. Ignore expiry for a
-moment — as any pairing heuristic that leans on strike proximity is tempted to —
+moment - as any pairing heuristic that leans on strike proximity is tempted to -
 and it can pair the closing short against the opening long, produce a spread that
 existed for zero seconds, and leave the position you rolled into unaccounted for.
 
@@ -107,8 +107,8 @@ order id cannot settle on its own:
 - **Nothing unmatched gets thrown away from the record.** In the trade history an unpaired leg is written down and flagged as unpaired, because a visible orphan is a question you can answer and a dropped one is a cost that silently never happened.
 - **Premium and shares stay as separate linked records.** An assigned short keeps its full premium, the result lands on the stock, and both stay legible afterwards.
 
-The point of all of it is narrow. The unit is the position you put on — through
-a roll, through a partial close, through an assignment — not the executions your
+The point of all of it is narrow. The unit is the position you put on - through
+a roll, through a partial close, through an assignment - not the executions your
 broker happened to report it in.
 
 This post is educational and is not investment advice.

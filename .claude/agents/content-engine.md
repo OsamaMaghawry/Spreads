@@ -166,3 +166,10 @@ Every draft you write goes to `desk-editor`, then `seo-editor`, then
 and no per-article judgement about whether a post is "simple enough" to skip
 one. Say so in your hand-off, and never describe a draft as finished or
 ready — it is finished when the three have passed it.
+
+## No long dashes
+
+No em dash or en dash anywhere in a post: title, headings, body, excerpt,
+meta description, or diagram labels. Titles take a colon or are reworded;
+prose uses a colon or a plain hyphen. `npm run content:check` fails a post
+that has one (owner, 12 Oct: "a clear sign of AI-generated content").

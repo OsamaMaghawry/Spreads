@@ -10,7 +10,7 @@ series_order: 4
 tags: intrinsic value, extrinsic value, time value, premium, foundations
 ---
 
-**Intrinsic value** is the part of an option's premium backed by the gap between the stock price and the strike — what the contract would be worth if it expired right now.
+**Intrinsic value** is the part of an option's premium backed by the gap between the stock price and the strike - what the contract would be worth if it expired right now.
 **Extrinsic value**, also called time value, is the whole of the rest.
 
 The two always add up to the premium, so any quote can be split in two with
@@ -20,7 +20,7 @@ market is charging for the time still left.
 ## Key takeaways
 
 - Intrinsic value is the gap between the stock price and the strike in the direction the option points, and it is never less than zero.
-- Extrinsic value is the premium minus the intrinsic value — what is paid on top of what the contract is worth today.
+- Extrinsic value is the premium minus the intrinsic value - what is paid on top of what the contract is worth today.
 - At expiration, extrinsic value is zero. The option is worth exactly its intrinsic value.
 - The buyer pays the extrinsic value and the seller receives it. That is the part of the premium that can be lost while the stock does nothing at all.
 
@@ -28,7 +28,7 @@ market is charging for the time still left.
 
 For a call, intrinsic value is the stock price minus the strike. For a put, it
 is the strike minus the stock price. If that subtraction comes out negative,
-the intrinsic value is zero — never a negative number.
+the intrinsic value is zero - never a negative number.
 
 The reason is that an option is a right and nobody is forced to use one. A call
 struck at $50 with the stock at $48 is not worth minus $2; it is simply worth
@@ -70,14 +70,14 @@ parts by subtraction.
 
 Check the middle row. The stock is $52 and the strike is $50, so intrinsic
 value is $2.00 a share, or $200 for the 100 shares one contract covers. The
-premium is $3.40, so the remaining $1.40 — $140 — is extrinsic.
+premium is $3.40, so the remaining $1.40 - $140 - is extrinsic.
 
 The top row has no intrinsic value at all. With the stock at $48 the right to
 buy at $50 is worth nothing today, so the entire $1.20 is a payment for the
 month that remains.
 
 The bottom row is the one people find surprising. Six dollars in the money, the
-contract still carries $0.70 of extrinsic value — but far less than either
+contract still carries $0.70 of extrinsic value - but far less than either
 row above it, because most of what that premium buys is already banked as
 intrinsic.
 
@@ -87,8 +87,8 @@ At expiration there is no time left, so there is nothing left to pay for.
 Extrinsic value is zero by definition, and the option is worth its intrinsic
 value exactly.
 
-For the middle row above, that means the contract settles at $2.00 a share —
-$200 — if the stock is still at $52 on the last day. The $140 of extrinsic
+For the middle row above, that means the contract settles at $2.00 a share -
+$200 - if the stock is still at $52 on the last day. The $140 of extrinsic
 value that was in the price 30 days earlier is not there to be recovered.
 
 ## Why is my option losing value when the stock isn't moving?

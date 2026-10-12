@@ -1,7 +1,7 @@
 <svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="The same put credit spread marked with time still to run: a smooth curve that stays strictly inside the expiration payoff, showing a mark worse than the credit received at prices where expiration has not yet decided anything, and a flat point today near 102.5.">
   <rect width="720" height="340" fill="#FFFFFF"/>
 
-  <text x="24" y="30" font-size="13.5" font-weight="600" fill="#14151C">The same spread before expiration — short 100 put, long 95 put, $1.20 credit</text>
+  <text x="24" y="30" font-size="13.5" font-weight="600" fill="#14151C">The same spread before expiration - short 100 put, long 95 put, $1.20 credit</text>
   <text x="24" y="50" font-size="11.5" fill="#767B8E">Profit and loss, one contract. Illustrative marks, not a forecast.</text>
 
   <!-- strike guides -->
@@ -36,19 +36,19 @@
   <line x1="283" y1="204" x2="279" y2="209" stroke="#767B8E" stroke-width="1"/>
   <text x="270" y="150" font-size="11" text-anchor="end" fill="#B4485C">about −$198 marked</text>
   <text x="270" y="224" font-size="11" text-anchor="end" fill="#767B8E">−$380 at expiration</text>
-  <text x="118" y="243" font-size="11" fill="#4B4F60">At the long strike the mark is already worse than the credit — and nothing has been decided.</text>
+  <text x="118" y="243" font-size="11" fill="#4B4F60">At the long strike the mark is already worse than the credit - and nothing has been decided.</text>
 
   <!-- the zero crossing: flat today, at about 102.5 -->
   <line x1="532" y1="106" x2="532" y2="188" stroke="#C9CEDC" stroke-width="1" stroke-dasharray="2 4"/>
   <circle cx="532" cy="100" r="3.4" fill="#FFFFFF" stroke="#14151C" stroke-width="1.4"/>
-  <text x="344" y="200" font-size="11" fill="#4B4F60">Flat today only at about 102.5 —</text>
+  <text x="344" y="200" font-size="11" fill="#4B4F60">Flat today only at about 102.5 - </text>
   <text x="344" y="214" font-size="11" fill="#767B8E">a price at which expiration would pay the full $120.</text>
 
   <!-- what leaving would cost, up at 105 -->
   <circle cx="617" cy="87" r="3.2" fill="#FFFFFF" stroke="#2E8B5F" stroke-width="1.4"/>
   <line x1="617" y1="91" x2="617" y2="107" stroke="#767B8E" stroke-width="1"/>
   <text x="545" y="120" font-size="11" fill="#4B4F60">At 105 it would still cost</text>
-  <text x="545" y="134" font-size="11" fill="#4B4F60">about $0.75 to buy back —</text>
+  <text x="545" y="134" font-size="11" fill="#4B4F60">about $0.75 to buy back - </text>
   <text x="545" y="148" font-size="11" fill="#767B8E">the obligation is open</text>
 
   <!-- price axis -->

@@ -2,7 +2,7 @@
 title: "Credit spread max loss before expiration: what it covers"
 slug: credit-spread-max-loss
 excerpt: Max loss is an exact figure that describes one moment; the collateral, the mark and an assignment notice each behave differently from it.
-meta_description: Credit spread max loss is width minus credit, times 100 — the expiration number. What the collateral holds and what the mark does in the weeks before it.
+meta_description: Credit spread max loss is width minus credit, times 100 - the expiration number. What the collateral holds and what the mark does in the weeks before it.
 author: DeltaMint
 published_at: 2026-09-02T23:33:09+00:00
 category: managing
@@ -13,14 +13,14 @@ tags: credit spread, max loss, assignment, defined risk, collateral
 The max loss on a vertical credit spread is the width between the strikes,
 times 100, less the credit received. It is an exact figure, and it describes
 exactly one moment: expiration. The structure underneath it is two options on
-the same underlying, in the same expiration, in the same class, in equal size —
+the same underlying, in the same expiration, in the same class, in equal size -
 one sold, one bought further from the money. The money arrives at the fill,
 which is why the credit is the first thing anybody looks at.
 
 The credit is the smaller half of the story. It is what was received; what was
 undertaken is the distance between the two strikes, fixed at the fill and
 unmoved by anything the underlying does afterwards. Everything the position can
-cost is contained in that width — and almost nothing about how it behaves in the
+cost is contained in that width - and almost nothing about how it behaves in the
 weeks before expiration is.
 
 So: where the max loss figure comes from, what your account holds against it
@@ -37,7 +37,7 @@ The leg you bought is a right, and a right does nothing on its own. It marks up
 as the underlying falls through it and pays only when it is exercised or sold.
 It caps the arithmetic; it does not intervene.
 
-| | Short leg — the one you sold | Long leg — the one you bought |
+| | Short leg - the one you sold | Long leg - the one you bought |
 | --- | --- | --- |
 | What it is | An obligation | A right |
 | Cash at the fill | Premium in | Premium out |
@@ -47,7 +47,7 @@ It caps the arithmetic; it does not intervene.
 
 Read the table as one sentence: the bad outcome is triggered by a stranger, and
 the protection has to be acted on by you. That asymmetry is why the loss is
-capped only when both legs settle together, and messier everywhere else —
+capped only when both legs settle together, and messier everywhere else -
 including at expiration itself, if the underlying finishes between the strikes.
 
 ## Where the max loss number comes from: width, minus credit, times 100
@@ -61,13 +61,13 @@ Above 100, both puts expire worthless, the obligation lapses and the $120 stays.
 That is the most the structure can produce, and it was known at the fill.
 
 Below 95, both puts are in the money. The one you sold takes shares in at 100;
-the one you bought sends them out at 95. The pair settles for exactly the width
-— $500 — however far below 95 the underlying went. Against the $120 already
+the one you bought sends them out at 95. The pair settles for exactly the width -
+$500 - however far below 95 the underlying went. Against the $120 already
 received, that is $380 gone: five dollars of width, less a dollar twenty of
 credit, times a hundred shares per contract.
 
 Between the strikes the result slides between those two, passing through zero at
-the short strike less the credit — 98.80.
+the short strike less the credit - 98.80.
 
 ![The payoff of a hypothetical $5-wide put credit spread at expiration: $120 kept above the short strike, the $380 max loss below the long strike, and a break-even at 98.80.](/assets/blog/credit-spread-expiration-payoff.svg)
 
@@ -78,8 +78,8 @@ the only thing offsetting it.
 
 Which is why the same credit on a different width is a different position:
 
-- **$0.35 on a $1-wide spread** — the plateau sits at $65.
-- **$0.35 on a $2.50-wide spread** — the plateau sits at $215, more than three
+- **$0.35 on a $1-wide spread**: the plateau sits at $65.
+- **$0.35 on a $2.50-wide spread**: the plateau sits at $215, more than three
   times as far down, for identical income.
 
 On a real chain the same short strike does not pay the same credit at every width; the [credit spread width post](/blog/credit-spread-width) prices $1, $2 and $5 widths from one chain's quotes.
@@ -96,7 +96,7 @@ outstanding, and the account holds something against that obligation for as long
 as the position is open.
 
 For a vertical with both legs in one account and one expiration, the requirement
-is the full width — $500 in the hypothetical above — with the $120 credit
+is the full width - $500 in the hypothetical above - with the $120 credit
 applied against it, so the net reduction in [buying
 power](/blog/options-buying-power-requirement) is $380. That is the
 margin-account case. A retirement account will typically hold the whole $500 in
@@ -113,16 +113,16 @@ total is what matters to the account, not any single row.
 
 One more thing that hold is not: a denominator. The credit set against it is not
 a return. It has no holding period attached, and it says nothing about how often
-the losing case arrives — only about what is posted while you wait to find out.
+the losing case arrives - only about what is posted while you wait to find out.
 
 ## Before expiration the cap is a boundary, not your current profit and loss
 
-The payoff diagram describes one instant — the last one. Every day until then,
+The payoff diagram describes one instant - the last one. Every day until then,
 what your screen shows is a mark: what it would cost, right now, to buy the
 spread back.
 
 A mark is not a realisation. Part of what it prices is
-[extrinsic value](/blog/intrinsic-vs-extrinsic-value-options) — the portion of a
+[extrinsic value](/blog/intrinsic-vs-extrinsic-value-options) - the portion of a
 premium not backed by anything today, which is zero at expiration. A spread
 marked against you by more than the credit has lost nothing yet: finish above
 the short strike and it still pays the whole $120, and the intervening mark
@@ -144,8 +144,8 @@ Three consequences follow from that curve:
 - **Volatility moves the mark, not just price.** A spread can be marked worse
   on a volatility expansion with the underlying unchanged.
 - **Flat today is not break-even at expiration.** With time left, the price at
-  which the position is flat sits above the short strike — about 102.5 on the
-  curve above — and walks toward 98.80 only as that time passes.
+  which the position is flat sits above the short strike - about 102.5 on the
+  curve above - and walks toward 98.80 only as that time passes.
 - **The mark is not the exit price.** Closing pays the ask on the leg bought
   back and takes the bid on the leg sold, so a thin long wing costs real money
   to leave that [no mid-price mark shows](/blog/options-bid-ask-spread).
@@ -156,7 +156,7 @@ The cap is an arithmetic property of the two legs. It is not a mechanism that
 steps in when the short leg is exercised.
 
 [Assignment](/blog/option-assignment-what-happens) on the short 100 put means
-buying 100 shares at 100 — a $10,000 debit in this hypothetical — while the
+buying 100 shares at 100 - a $10,000 debit in this hypothetical - while the
 long 95 put stays where it is. Two things happen at once:
 
 - **The cap survives.** Shares plus the right to sell them at 95 cannot be
@@ -177,7 +177,7 @@ Four mechanics are worth having straight beforehand rather than after.
 The holder hands back whatever time value is left in the put, so exercising
 early pays only when there is almost none left to hand back and the interest
 earned on the strike proceeds outweighs it: a deep in-the-money put, late in its
-life, when rates are high — plus names that are hard to borrow, where borrowing
+life, when rates are high - plus names that are hard to borrow, where borrowing
 costs distort the same arithmetic.
 
 **The notice is retrospective.** Exercise decisions are made after the close and
@@ -194,21 +194,21 @@ left of the call's time value. Assigned there, you are short the stock across
 the ex-date and you pay that dividend rather than receive it.
 
 [Expiration has a version of this](/blog/what-happens-options-expiration)
-that catches people who did the arithmetic correctly. Finish between the strikes — say at 97 — and the short put is in the
+that catches people who did the arithmetic correctly. Finish between the strikes - say at 97 - and the short put is in the
 money while the long is not. Options a cent or more in the money are exercised
 by exception at the clearing house, and a brokerage may apply its own threshold
 on top, so the short is assigned, the long expires worthless, and Monday opens
 with 100 shares at a cost of 100 and nothing underneath them.
 
 This is the case where the cap stops applying. The long put is gone and the $380
-went with it. From that Monday the exposure is the stock's — $10,000 of it, all
-the way down to zero — across a weekend gap no holder can trade. A position that
+went with it. From that Monday the exposure is the stock's - $10,000 of it, all
+the way down to zero - across a weekend gap no holder can trade. A position that
 was defined-risk on Friday afternoon is not defined-risk on Monday morning, and
 nothing in the max loss number says so.
 
 The decision belongs to the holder and can be made after the 4pm close, on a
-price that moved once you had stopped watching. Most broad-based index options —
-SPX, NDX, RUT — do none of this: European-style and cash-settled, so no early
+price that moved once you had stopped watching. Most broad-based index options -
+SPX, NDX, RUT - do none of this: European-style and cash-settled, so no early
 assignment and no stock to inherit. Not all index options, though. OEX is
 American-style and can be assigned early, and an AM-settled expiration carries
 its own version of the surprise, since the settlement value comes from Friday's
@@ -225,7 +225,7 @@ The figure also sits outside fees. Commissions both ways, plus assignment or
 exercise charges, leave the realised number worse than the formula. An assigned
 $10,000 stock position carries margin interest for as long as it is financed,
 and a seller left short the stock across an ex-date owes the dividend on top of
-everything else. And the formula assumes the deliverable is 100 shares — after a
+everything else. And the formula assumes the deliverable is 100 shares - after a
 split, a merger or a special dividend, an adjusted contract can deliver
 something else and width × 100 stops describing it.
 
@@ -237,7 +237,7 @@ account but in the record kept of it:
 [a journal that rebuilds spreads from the legs by resemblance](/blog/options-journal-splits-spreads-into-legs)
 can report a max loss belonging to no trade anyone made.
 
-Those risk figures — the max loss, and what it is a share of — are what
+Those risk figures - the max loss, and what it is a share of - are what
 DeltaMint puts on the screen, at three moments:
 
 - **Choosing.** Candidates are ranked by return on risk, with the max loss

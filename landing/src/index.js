@@ -160,7 +160,7 @@ const robotsMeta = (noindex) => (noindex ? '<meta name="robots" content="noindex
 function notFound(site) {
   return new Response(
     page({
-      title: "Not found — DeltaMint",
+      title: "Not found | DeltaMint",
       description: "That page could not be found.",
       canonical: `${site}/blog`,
       head: '<meta name="robots" content="noindex">',
@@ -203,8 +203,8 @@ ${g.posts
     : `    <p>No posts yet.</p>`;
 
   return page({
-    title: "Blog — DeltaMint",
-    description: "Options, explained from the first contract to the last position — for people who trade through their own account.",
+    title: "Blog | DeltaMint",
+    description: "Options, explained from the first contract to the last position, for people who trade through their own account.",
     canonical: `${site}/blog`,
     head: `${robotsMeta(noindex)}${trackingTags(env)}<meta property="og:type" content="website" />
 <meta property="og:site_name" content="DeltaMint" />
@@ -236,7 +236,7 @@ function renderCategory(posts, cat, site, noindex, env = {}) {
     }
   };
   return page({
-    title: `${cat.title} — DeltaMint`,
+    title: `${cat.title} | DeltaMint`,
     description: cat.intro,
     canonical: url,
     head: `${robotsMeta(noindex)}${trackingTags(env)}<meta property="og:type" content="website" />
@@ -471,7 +471,7 @@ async function handle(request, env, ctx) {
     // might then de-index it. 503 with no cache tells it to come back.
     return new Response(
       page({
-        title: "Temporarily unavailable — DeltaMint",
+        title: "Temporarily unavailable | DeltaMint",
         description: "The blog is temporarily unavailable.",
         canonical: `${site}/blog`,
         head: '<meta name="robots" content="noindex">',

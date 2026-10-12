@@ -6,10 +6,10 @@
   <text x="40" y="44" font-size="12.5" font-weight="600" fill="#2E8B5F">Before: one position, two legs</text>
 
   <rect x="40" y="66" width="200" height="30" rx="6" fill="#FFFFFF" stroke="#4B4F60"/>
-  <text x="140" y="85" font-size="11.5" text-anchor="middle" fill="#14151C">Short 100 put — obligation</text>
+  <text x="140" y="85" font-size="11.5" text-anchor="middle" fill="#14151C">Short 100 put - obligation</text>
 
   <rect x="40" y="114" width="200" height="30" rx="6" fill="#FFFFFF" stroke="#4B4F60"/>
-  <text x="140" y="133" font-size="11.5" text-anchor="middle" fill="#14151C">Long 95 put — a right</text>
+  <text x="140" y="133" font-size="11.5" text-anchor="middle" fill="#14151C">Long 95 put - a right</text>
 
   <path d="M240 81 C 264 81, 264 129, 240 129" fill="none" stroke="#2E8B5F" stroke-width="2"/>
   <text x="272" y="109" font-size="11" font-weight="500" fill="#2E8B5F">$5 wide</text>
@@ -33,14 +33,14 @@
   <text x="420" y="96" font-size="11.5" font-weight="500" fill="#B4485C">$10,000 debit, settled next day</text>
 
   <rect x="408" y="118" width="210" height="30" rx="6" fill="#FFFFFF" stroke="#4B4F60"/>
-  <text x="513" y="137" font-size="11.5" text-anchor="middle" fill="#14151C">Long 95 put — still yours</text>
+  <text x="513" y="137" font-size="11.5" text-anchor="middle" fill="#14151C">Long 95 put - still yours</text>
 
   <text x="408" y="176" font-size="11.5" fill="#4B4F60">The put still floors the shares at $9,500,</text>
   <text x="408" y="193" font-size="11.5" fill="#4B4F60">so the capped figure is unchanged: $380.</text>
   <text x="408" y="217" font-size="11.5" font-weight="500" fill="#B4485C">But the $380 hold is replaced by a $10,000</text>
   <text x="408" y="233" font-size="11.5" font-weight="500" fill="#B4485C">settlement to fund or margin; short of that,</text>
   <text x="408" y="249" font-size="11.5" font-weight="500" fill="#B4485C">the broker may liquidate to meet the call.</text>
-  <text x="408" y="273" font-size="11" fill="#767B8E">The notice usually arrives before the open —</text>
+  <text x="408" y="273" font-size="11" fill="#767B8E">The notice usually arrives before the open - </text>
   <text x="408" y="289" font-size="11" fill="#767B8E">the shares are held through the gap regardless.</text>
 
   <text x="24" y="326" font-size="11" fill="#767B8E">Hypothetical figures, mechanics only. Fees are not included. Assignment is the holder's decision, made after the close.</text>

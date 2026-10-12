@@ -86,11 +86,11 @@ call rises with it, and the line goes flat.
 ![A covered call tracks the shares below the 52 strike, sitting 1.42 higher, then goes flat above the strike while the shares alone keep rising.](/assets/blog/covered-call-payoff.svg)
 
 Against the shares held alone, the covered call only falls behind above
-$53.42 — the $52 strike plus the $1.42 premium already banked. The cushion
+$53.42 - the $52 strike plus the $1.42 premium already banked. The cushion
 is exactly the premium and nothing more. If XYZ closes at
 $45.00, the shares are worth $4,500 against the $4,800 paid, the $142 premium
 offsets part of that, and the position sits $158 below its cost. The shares
-can still fall to zero; the call does nothing about that beyond the $1.42 —
+can still fall to zero; the call does nothing about that beyond the $1.42 -
 small, next to the full value of 100 shares.
 
 ## How does a covered call end?
@@ -122,7 +122,7 @@ It is not a statement about tax records. How a premium is reported depends
 on how the call ends, and is a question for a tax professional. This post
 says "effective break-even" and leaves the reported basis alone.
 
-Nor does the premium stand on its own as income — it is one half of a
+Nor does the premium stand on its own as income - it is one half of a
 position whose other half is 100 shares of downside.
 
 ## What does the account look like the day after assignment?
