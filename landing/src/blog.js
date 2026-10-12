@@ -6,11 +6,11 @@
 // other value, so nothing here needs a fallback branch for an unknown one.
 
 export const CATEGORIES = [
-  { slug: "foundations", title: "Options, from the start", intro: "Contracts, prices, Greeks, volatility, assignment and margin — the vocabulary everything else uses." },
+  { slug: "foundations", title: "Options, from the start", intro: "Contracts, prices, Greeks, volatility, assignment and margin: the vocabulary everything else uses." },
   { slug: "income", title: "Income strategies", intro: "Selling premium: covered calls, cash-secured puts, the wheel, credit spreads, condors and calendars." },
   { slug: "hedging", title: "Hedging with options", intro: "Protecting what you hold: protective puts, collars, spreads as insurance, and what volatility products do and do not do." },
   { slug: "investing", title: "Options for investors", intro: "Long-dated positions and stock replacement for people who hold for years." },
-  { slug: "managing", title: "After the fill", intro: "Holding, rolling, adjusting, closing — and what breaks when the position count outgrows attention." },
+  { slug: "managing", title: "After the fill", intro: "Holding, rolling, adjusting and closing, and what breaks when the position count outgrows attention." },
   { slug: "measuring", title: "Measuring results", intro: "What a result is, return on risk, capital at risk, and records that mean something." }
 ];
 
@@ -106,7 +106,7 @@ export function renderFeed(posts, site) {
   <channel>
     <title>DeltaMint blog</title>
     <link>${site}/blog</link>
-    <description>Options, explained from the first contract to the last position — for people who trade through their own account.</description>
+    <description>Options, explained from the first contract to the last position, for people who trade through their own account.</description>
     <language>en</language>
 ${items}
   </channel>

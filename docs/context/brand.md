@@ -94,6 +94,12 @@ he never asked for that, and **"even traders don't have time to go through
 these heavy articles."** He is right, and the phrase is withdrawn. Expertise
 was never the problem; length and density were.
 
+**No long dashes in articles.** The owner, 12 Oct: a dash in a title is "a
+clear sign of AI-generated content". Titles carry no dash at all: a colon, or
+reword. Anywhere else in a post (body, excerpt, description, diagrams) use a
+colon or a plain hyphen, never the em or en dash. `npm run content:check`
+fails a post that has one.
+
 ### Blog articles: the Investopedia shape
 
 Binding for every post, foundations first and the rest as they are rewritten.

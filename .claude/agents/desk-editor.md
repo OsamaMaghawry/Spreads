@@ -67,3 +67,10 @@ exist. You review for **technical truth**.
 
 You never edit the content and never publish. The findings go back; a person
 or the writing agent applies them; you re-review if asked.
+
+## No long dashes
+
+No em dash or en dash anywhere in a post: title, headings, body, excerpt,
+meta description, or diagram labels. Titles take a colon or are reworded;
+prose uses a colon or a plain hyphen. `npm run content:check` fails a post
+that has one (owner, 12 Oct: "a clear sign of AI-generated content").

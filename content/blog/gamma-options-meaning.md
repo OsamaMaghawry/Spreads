@@ -1,7 +1,7 @@
 ---
 title: "Option gamma explained: what it measures and when it matters"
 slug: gamma-options-meaning
-excerpt: Gamma is the estimated change in an option's delta for a $1 move in the stock — the number that says how fast delta's own estimate goes stale.
+excerpt: Gamma is the estimated change in an option's delta for a $1 move in the stock - the number that says how fast delta's own estimate goes stale.
 meta_description: Gamma measures how fast an option's delta changes for a $1 stock move. Why it peaks at the money, grows near expiration, and when it's worth watching.
 author: DeltaMint
 published_at: 2026-09-20T10:00:00+00:00
@@ -31,15 +31,15 @@ trading signal, and nothing here should be read as one.
 
 ## Key takeaways
 
-- Gamma estimates the change in an option's delta for a $1 move in the stock — how fast delta itself drifts.
+- Gamma estimates the change in an option's delta for a $1 move in the stock - how fast delta itself drifts.
 - Gamma is largest for strikes near the money and smaller for strikes far in or out of the money.
 - Gamma grows as expiration approaches, for a strike sitting near the stock price.
-- Unlike delta, gamma does not flip sign between calls and puts — it splits owned from sold instead.
+- Unlike delta, gamma does not flip sign between calls and puts - it splits owned from sold instead.
 - A long option carries positive gamma; a short option carries negative gamma, which is the mechanism behind the phrase "gamma risk."
 
 ## What does gamma measure in options?
 
-Gamma measures delta's own sensitivity — it is the rate of change of one
+Gamma measures delta's own sensitivity - it is the rate of change of one
 estimate, expressed as a second estimate. The [delta
 post](/blog/option-delta-explained) described delta as local: accurate for
 the next small move, stale by the end of a large one. Gamma is the number
@@ -52,10 +52,10 @@ the stock has actually moved.
 
 - **It is model output, not a rule.** Gamma comes from the same pricing model that produces delta and theta, computed from the same live inputs.
 - **It is quoted per share, like delta.** A gamma of 0.07 means delta is expected to rise by about 0.07 for a $1 rise in the stock, per share.
-- **It does not price the position on its own.** It tells you how delta moves, and delta is what converts the next dollar of stock movement into money — one step removed.
+- **It does not price the position on its own.** It tells you how delta moves, and delta is what converts the next dollar of stock movement into money - one step removed.
 
 Nothing about gamma is exotic. It is the same idea as noticing that a car's
-speed changes at some rate — gamma is that rate, applied to delta instead of
+speed changes at some rate - gamma is that rate, applied to delta instead of
 speed.
 
 That is also why gamma is sometimes called a second-order figure and delta a
@@ -79,22 +79,22 @@ stock prices.
 | $56 | Deep in the money | 0.85 | 0.04 |
 
 Read the pattern against delta's own curve. Far out of the money, delta is low
-and the premium barely responds to a $1 move — but delta itself still has real
+and the premium barely responds to a $1 move - but delta itself still has real
 room to climb, which is why the $44 row's gamma is not far below the
 at-the-money row's. Deep in the money, delta sits near one and has almost
 nowhere left to go, so gamma falls to its smallest reading there instead. The
 middle row is where delta is doing the most turning per dollar, which is
 exactly what the larger gamma number describes.
 
-- **Far out of the money.** The premium barely responds to a $1 move, though delta itself still has room to climb — gamma stays meaningful here, just smaller than at the money.
-- **At the money.** Delta sits near the middle of its range, and gamma peaks — this is where a $1 move reshapes the estimate the most.
-- **Deep in the money.** Delta is already near one, with little room left to rise — gamma falls to its smallest reading of the three.
+- **Far out of the money.** The premium barely responds to a $1 move, though delta itself still has room to climb - gamma stays meaningful here, just smaller than at the money.
+- **At the money.** Delta sits near the middle of its range, and gamma peaks - this is where a $1 move reshapes the estimate the most.
+- **Deep in the money.** Delta is already near one, with little room left to rise - gamma falls to its smallest reading of the three.
 
 ## Why does gamma increase as expiration approaches?
 
 For a strike sitting at the money, gamma does not stay level as the calendar
 runs down. It grows, the same way [theta accelerates](/blog/theta-decay-explained)
-for the same strikes — the two are different views of the same shrinking
+for the same strikes - the two are different views of the same shrinking
 window of time. The [credit spread DTE post](/blog/credit-spread-dte) shows the same rise in a spread's delta at the short strike.
 
 Hold the stock at the $50 strike and change only the days remaining:
@@ -110,8 +110,8 @@ Hold the stock at the $50 strike and change only the days remaining:
 
 With months left, an at-the-money strike still has room to drift in or out of
 the money without its delta needing to move far to reflect that. With a week
-left, the same strike is close to a binary outcome — finish above 50 or
-below it — and delta has to travel most of its full range to keep describing
+left, the same strike is close to a binary outcome - finish above 50 or
+below it - and delta has to travel most of its full range to keep describing
 that, which is why the rate of change is largest right there.
 
 Compare that to a strike sitting well away from the stock. The less time is
@@ -139,13 +139,13 @@ sides.
 
 Read the last column: owning either kind of option means delta moves in the
 position's favor as the stock moves, most sharply near the strike. Selling
-either kind flips that — delta moves against the position instead, which is
+either kind flips that - delta moves against the position instead, which is
 the mechanism traders mean by "short gamma" or "negative gamma."
 
 ## Example: the same $1 move, two different delta swings
 
-Take the at-the-money call from the table above at two of those points — 60
-days left and 7 days left — and estimate what one $1 rise in the stock does
+Take the at-the-money call from the table above at two of those points - 60
+days left and 7 days left - and estimate what one $1 rise in the stock does
 to delta at each.
 
 | Days to expiration | Delta before the move | Estimated delta after a $1 rise |
@@ -153,12 +153,12 @@ to delta at each.
 | 60 | 0.53 | 0.58 |
 | 7 | 0.51 | 0.65 |
 
-Both rows start a little above 0.50 — an at-the-money call's delta always
-does, and slightly more so the more time is left — because both strikes sit
+Both rows start a little above 0.50 - an at-the-money call's delta always
+does, and slightly more so the more time is left - because both strikes sit
 at the money before the stock moves. The difference is what the identical $1
 move does next. With 60
 days left, delta nudges up by about the gamma shown for that row, 0.05. With
-7 days left, the same $1 move pushes delta up by about 0.14 — nearly three
+7 days left, the same $1 move pushes delta up by about 0.14 - nearly three
 times as much, from an identical starting point.
 
 Nothing about the stock's actual behavior differed between the two rows. The
@@ -172,7 +172,7 @@ holding a short option close to expiration. For anyone else, delta and theta
 carry most of the useful information and gamma is background.
 
 - **It matters for a short option near expiration.** A negative-gamma position's delta can swing quickly as the stock crosses the strike in the final days, which is part of why a short leg close to the money in its last week behaves less predictably than the same leg did a month earlier.
-- **It matters less for a defined-risk spread.** A vertical holds one long leg against the short one, and the long leg's own positive gamma offsets part of the short leg's negative gamma, so the position's net gamma is smaller in magnitude than the short leg's alone — the narrower the spread, the more of it cancels, though rarely all of it.
+- **It matters less for a defined-risk spread.** A vertical holds one long leg against the short one, and the long leg's own positive gamma offsets part of the short leg's negative gamma, so the position's net gamma is smaller in magnitude than the short leg's alone - the narrower the spread, the more of it cancels, though rarely all of it.
 - **It matters less for a position held well before expiration.** Far from expiration, gamma is small everywhere on the chain, so delta's estimate does not go stale quickly regardless of moneyness.
 - **It is not a number to trade on its own.** Gamma describes how an existing position's exposure will shift; it is not a signal about which direction a stock is headed.
 
@@ -197,7 +197,7 @@ or slower than they have been.
 ## The bottom line
 
 Gamma is the estimated change in an option's delta for a $1 move in the
-stock, and it is largest for strikes at the money with little time left —
+stock, and it is largest for strikes at the money with little time left -
 exactly where delta is turning the fastest. It does not split calls from
 puts the way delta does; it splits owned from sold, with a long position
 carrying positive gamma and a short one carrying negative gamma.

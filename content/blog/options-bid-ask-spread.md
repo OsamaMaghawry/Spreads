@@ -11,8 +11,8 @@ tags: bid ask spread, liquidity, limit order, execution, foundations
 ---
 
 **The bid-ask spread** is the gap between the best price a buyer is currently
-willing to pay for an option — the **bid** — and the best price a seller is
-currently willing to accept — the **ask**. Both are live prices for that one
+willing to pay for an option - the **bid** - and the best price a seller is
+currently willing to accept - the **ask**. Both are live prices for that one
 contract, right now.
 
 The quote is two numbers because a trade needs two sides. Anything that has to
@@ -47,7 +47,7 @@ split, and a fourth compounds it:
 
 ## What does the bid-ask spread actually cost?
 
-Nothing on a confirmation is labelled "spread" — the cost sits inside the fill
+Nothing on a confirmation is labelled "spread" - the cost sits inside the fill
 price, unnoticed next to commissions itemised to the cent.
 
 A market order, or a limit order priced through the quote, is asking to trade
@@ -57,7 +57,7 @@ size showing: the buyer pays the ask, the seller receives the bid.
 ![An order that has to fill immediately deals at the far side of the quote, twenty cents from the other side.](/assets/blog/bid-ask-executable-price.svg)
 
 Treat the midpoint as a rough estimate of the contract's value and each crossing
-sits about half the spread away from it — above the mid when buying, below it
+sits about half the spread away from it - above the mid when buying, below it
 when selling.
 
 ## Example: one round trip with the quote unmoved
@@ -65,7 +65,7 @@ when selling.
 Take the hypothetical chain row from the [strike, expiry and premium
 post](/blog/option-strike-price-expiration-premium): an XYZ December 50 call
 quoted 2.10 bid, 2.30 ask. The midpoint is 2.20, and the spread is 0.20 a
-share — $20 on the 100 shares one contract covers.
+share - $20 on the 100 shares one contract covers.
 
 Buy that contract at the ask and immediately sell it at the bid, with the quote
 unchanged:
@@ -86,8 +86,8 @@ at the midpoint is a credit nobody received.
 
 That distinction carries into anything built from a quoted premium. Split a
 price into [intrinsic and extrinsic
-value](/blog/intrinsic-vs-extrinsic-value-options) and which price you split —
-bid, mid or ask — decides whether the answer describes a fill or an estimate.
+value](/blog/intrinsic-vs-extrinsic-value-options) and which price you split -
+bid, mid or ask - decides whether the answer describes a fill or an estimate.
 
 ## What makes one option's quote wider than another's?
 
@@ -101,23 +101,23 @@ the same chain, on the same afternoon, in a fairly consistent pattern.
 | Time to expiration | Near-dated, actively quoted expirations | Long-dated expirations |
 | The underlying | Large-cap stocks and major index funds | Small or thinly traded names |
 
-One more effect surprises people. A multi-leg order — a spread submitted as one
-ticket — is quoted as a net price whose width reflects both legs, so two
+One more effect surprises people. A multi-leg order - a spread submitted as one
+ticket - is quoted as a net price whose width reflects both legs, so two
 contracts each quoted 0.20 wide do not combine into a 0.20-wide market.
 
 ## What can a trader do about the spread?
 
 The mechanic available is the limit order: an instruction to trade at a stated
-price or better rather than at whatever is showing. Priced inside the quote — at
-the midpoint, or a cent or two toward it — it asks the other side to come
+price or better rather than at whatever is showing. Priced inside the quote - at
+the midpoint, or a cent or two toward it - it asks the other side to come
 partway.
 
 What you give up is certainty about the fill. A limit inside the spread trades
-only if someone comes to it — which may take seconds, the session, or never,
+only if someone comes to it - which may take seconds, the session, or never,
 and on a contract that trades only a handful of times a day, never is
 ordinary.
 
-- **It is usually paid twice.** Entry and exit are separate crossings —
+- **It is usually paid twice.** Entry and exit are separate crossings -
   unless the position expires worthless or is assigned, when there is no
   closing trade.
 - **It is independent of the trade.** The spread is a cost of transacting, not
@@ -140,7 +140,7 @@ The bid-ask spread is the gap between the two live prices on a contract, and
 crossing it is the cost of trading without waiting. It is not charged, not
 itemised, and not optional for anyone transacting immediately.
 
-Reading a quote as one number — the midpoint — makes anything built on it
+Reading a quote as one number - the midpoint - makes anything built on it
 slightly optimistic at both ends. Next in the [foundations
 series](/blog/foundations): [option delta](/blog/option-delta-explained), the
 number on that same chain row that says how a price moves when the stock does.

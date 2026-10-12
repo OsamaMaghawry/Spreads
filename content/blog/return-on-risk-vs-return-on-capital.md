@@ -10,7 +10,7 @@ series_order: 59
 tags: return on risk, credit spreads, position sizing, max loss, ranking
 ---
 
-Premium collected, return on capital, return on risk — three ways to rank a
+Premium collected, return on capital, return on risk - three ways to rank a
 credit spread, used interchangeably and not the same number. The argument over
 which to sort by usually stays theoretical. It stops being theoretical when there are twenty
 spreads open at once and the question is which of them is doing the most work
@@ -28,12 +28,12 @@ them is not the credit, which is identical in all three. It is what sits under
 the line:
 
 - **Premium collected has no denominator at all.** It is the credit, full stop. Ranking by it is ranking by the numerator of a fraction whose bottom half nobody looked at.
-- **Return on capital divides the credit by what the position ties up** — the [buying power reduction](/blog/options-buying-power-requirement) your brokerage account actually applies. That is a real number and it matters for planning, but it is a number your broker computes under your margin agreement, and it changes when the agreement does.
+- **Return on capital divides the credit by what the position ties up**: the [buying power reduction](/blog/options-buying-power-requirement) your brokerage account actually applies. That is a real number and it matters for planning, but it is a number your broker computes under your margin agreement, and it changes when the agreement does.
 - **Return on risk divides the credit by the most the structure can lose.** For a vertical credit spread that is the distance between the strikes, times 100, minus the credit received. It is fixed at the moment of the fill and it does not move again for the life of the trade.
 
 The middle one moves for reasons that have nothing to do with the trade. The
-same cash-secured put reads one way in a cash account, where the full strike —
-give or take the premium — is parked, and another way under portfolio margin.
+same cash-secured put reads one way in a cash account, where the full strike -
+give or take the premium - is parked, and another way under portfolio margin.
 Nothing about the position changed. The denominator did.
 
 Nothing does that to the third. No margin treatment alters it, no broker policy
@@ -45,7 +45,7 @@ in.
 
 ## The same credit on a $1-wide and a $5-wide spread
 
-Take a hypothetical put spread, purely to show the arithmetic — no view about
+Take a hypothetical put spread, purely to show the arithmetic - no view about
 the underlying, no suggestion the trade is worth doing, and no claim about what
 it would have made.
 
@@ -57,7 +57,7 @@ Now the same $0.35 of credit on a $5-wide spread. Still $35 received. The most
 the structure can lose is now $500 less the credit: $465. Roughly thirteen
 dollars at risk for every dollar of credit.
 
-![The same $35 credit on two widths: the $1-wide spread has $65 behind it, the $5-wide has $465 — about seven times the risk for the identical premium.](/assets/blog/same-credit-two-widths.svg)
+![The same $35 credit on two widths: the $1-wide spread has $65 behind it, the $5-wide has $465 - about seven times the risk for the identical premium.](/assets/blog/same-credit-two-widths.svg)
 
 Side by side, sorted three ways:
 
@@ -87,8 +87,8 @@ Entry return on risk is a screening number, and it stops being interesting the
 moment the order fills. Both halves of the fraction have a different meaning
 afterwards.
 
-- **The denominator does not move.** Max loss was set at entry and stays there — that is the useful thing about defined risk, and it is why the number is worth holding onto.
-- **The numerator does.** What is still collectible is not the original credit but what it would cost to close the spread right now — the slice of the credit that has not yet been captured and still decays toward zero.
+- **The denominator does not move.** Max loss was set at entry and stays there - that is the useful thing about defined risk, and it is why the number is worth holding onto.
+- **The numerator does.** What is still collectible is not the original credit but what it would cost to close the spread right now - the slice of the credit that has not yet been captured and still decays toward zero.
 
 Put the hypothetical numbers back on it. A spread that took in $35 and can be
 bought back for $5 has $5 of the original credit still on the table, against a

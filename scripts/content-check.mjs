@@ -326,6 +326,30 @@ function checkFile(file) {
       fail(`${rel} · length`, `${words} words of prose; a post is at least ${MIN_WORDS} — below that it reads as a note`);
     }
 
+    // NO LONG DASHES. The owner, 12 Oct: a dash in a title is "a clear sign of
+    // AI-generated content", and he wants none anywhere in an article. Titles
+    // take a colon or are reworded; prose uses a colon or a plain hyphen. The
+    // diagrams a post shows are part of the post.
+    const LONG_DASH = /[\u2014\u2013]/;
+    for (const key of ["title", "search_title"]) {
+      const t = raw.match(new RegExp(`^${key}:\\s*(.*)$`, "m"))?.[1] || "";
+      if (LONG_DASH.test(t) || /\s-\s/.test(t)) {
+        clean = false;
+        fail(`${rel} · dash in ${key}`, `${t} -> use ":" or reword; a title carries no dash`);
+      }
+    }
+    const dashed = raw.split("\n").find((l) => LONG_DASH.test(l));
+    if (dashed) {
+      clean = false;
+      fail(`${rel} · long dash`, `${dashed.trim().slice(0, 90)} -> use ":" or a plain "-"`);
+    }
+    for (const { src, text: label } of svgProse(file)) {
+      if (LONG_DASH.test(label)) {
+        clean = false;
+        fail(`${rel} · long dash`, `in ${src} -> use ":" or a plain "-"`);
+      }
+    }
+
     // Lists, counted as blocks rather than items: three bullets in a row are
     // one list, and one list in a post of six sections is a garnish.
     const lines = body.split("\n");
