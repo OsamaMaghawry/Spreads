@@ -37,7 +37,7 @@ jobs:
 
       - run: npm ci
       - run: npm run content:check
-      - run: node --test landing/src/blog.test.js
+      - run: node --test landing/src/blog.test.js landing/src/tools.test.js
 
       - name: Deploy to dev-landing.deltamint.app
         run: |

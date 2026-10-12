@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Iron Condor Calculator: Breakevens, Max Profit and Max Loss</title>
+<meta name="description" content="Free iron condor calculator. Enter four strikes and the credit to get both breakevens, max profit, max loss on either wing, return on risk and the payoff at expiration." />
+<link rel="canonical" href="https://deltamint.app/tools/iron-condor-calculator" />
+
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="DeltaMint" />
+<meta property="og:url" content="https://deltamint.app/tools/iron-condor-calculator" />
+<meta property="og:title" content="Iron condor calculator" />
+<meta property="og:description" content="Free iron condor calculator. Enter four strikes and the credit to get both breakevens, max profit, max loss on either wing, return on risk and the payoff at expiration." />
+<meta property="og:image" content="https://deltamint.app/assets/og-card.png?v=c1196ea9ee71" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://deltamint.app/assets/og-card.png?v=c1196ea9ee71" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link href="/assets/site.css" rel="stylesheet">
+<link href="/assets/menu.css" rel="stylesheet">
+<link href="/tools/tools.css" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebApplication",
+      "name": "Iron condor calculator",
+      "url": "https://deltamint.app/tools/iron-condor-calculator",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Any",
+      "description": "Free iron condor calculator. Enter four strikes and the credit to get both breakevens, max profit, max loss on either wing, return on risk and the payoff at expiration.",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "DeltaMint",
+        "url": "https://deltamint.app/"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://deltamint.app/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Tools",
+          "item": "https://deltamint.app/tools"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Iron condor calculator",
+          "item": "https://deltamint.app/tools/iron-condor-calculator"
+        }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How do you calculate the breakeven of an iron condor?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "An iron condor has two breakevens. The lower one is the short put strike minus the total credit; the upper one is the short call strike plus the total credit. Use the credit for all four legs, not one side's."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is the max loss on an iron condor?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The width of the wider wing minus the total credit, times 100 per contract. Only one side can finish in the money at expiration, so you never lose on both wings at once."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How much margin does an iron condor need?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Most brokers hold the width of the wider wing times 100 per condor. Some reduce that by the credit received, which makes it equal to the max loss. Your broker's figure is the one that applies."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is a higher return on risk better on an iron condor?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Not by itself. Return on risk rises when the short strikes sit closer to the stock price, which also makes it more likely the stock finishes past one of them. The calculator does not estimate that likelihood."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is the difference between an iron condor and an iron butterfly?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "An iron butterfly sells the put and the call at the same strike, usually at the money, so the profit zone is narrower and the credit is larger. Enter the same strike for the short put and the short call and the calculator handles it."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can an iron condor lose on both sides?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "At expiration, no: the stock finishes in one place. Before expiration, a rise in implied volatility can raise the value of both spreads together, so the position can show a loss with the stock between the short strikes."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
+  <!-- Non-essential analytics do not run for visitors in the EEA, the UK or
+       Switzerland, where consent is required BEFORE a tracker loads and an
+       opt-out in the privacy policy is not enough. The country comes from
+       Cloudflare's own /cdn-cgi/trace on this origin — no third party is
+       contacted to decide, which would be the same problem one step earlier.
+
+       It fails CLOSED: if the lookup fails, or returns a country we cannot
+       read, nothing loads. An unknown visitor is treated as a protected one.
+
+       This wraps the hostname guard rather than replacing it — staging still
+       records nothing, for the reason each tag's own comment gives below. -->
+  <script>
+    window.dmAnalyticsAllowed = function (start) {
+      if (location.hostname !== 'deltamint.app' && location.hostname !== 'www.deltamint.app') return;
+      var GATED = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV',
+                   'LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','GB','IS','LI','NO','CH','GI','JE','GG','IM'];
+      fetch('/cdn-cgi/trace')
+        .then(function (r) { return r.text(); })
+        .then(function (t) {
+          var m = /(?:^|\n)loc=([A-Z]{2})/.exec(t);
+          if (m && GATED.indexOf(m[1]) === -1) start();
+        })
+        .catch(function () {});
+    };
+  </script>
+
+  <!-- Google Analytics 4.
+       Inline here because the Worker does not run for these pages on
+       production: wrangler.jsonc lists only /blog, /blog/* and /sitemap.xml
+       under run_worker_first, so the homepage and pricing are served straight
+       from assets. The blog's copy is injected by analyticsTag() in
+       landing/src/index.js from GA_MEASUREMENT_ID.
+
+       Guarded by hostname because this same public/ directory is served by
+       the staging Worker at dev-landing.deltamint.app and by local preview.
+       Without the guard, every dev page view would be filed in the property
+       as if it were a customer, and the numbers the growth cadence reports
+       would be our own traffic. GA_MEASUREMENT_ID is likewise set only in
+       wrangler.jsonc, never in wrangler.staging.jsonc, so both halves are
+       gated the same way. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    window.dmAnalyticsAllowed(function () {
+      var gaScript = document.createElement('script');
+      gaScript.async = true;
+      gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-TJLVFXVFL6';
+      document.head.appendChild(gaScript);
+      gtag('js', new Date());
+      gtag('config', 'G-TJLVFXVFL6');
+    });
+  </script>
+
+  <!-- Hotjar: heatmaps and session replay, marketing pages and blog only.
+
+       Deliberately NOT on dashboard.deltamint.app. That is a separate Worker
+       and it stays untracked: it is where positions, order tickets and account
+       balances are on screen, and none of that belongs in a replay held by a
+       third party. Hotjar sees the pages a stranger reads before signing up,
+       and nothing after.
+
+       Inline here for the same reason as the GA tag above: production's
+       run_worker_first lists only /blog, /blog/* and /sitemap.xml, so the
+       Worker never runs for this page. The blog's copy is injected by
+       hotjarTag() in landing/src/index.js from HOTJAR_SITE_ID.
+
+       Same hostname guard as the GA tag, and for the same reason: this
+       public/ directory is also served by the staging Worker at
+       dev-landing.deltamint.app, so without it every dev page view would
+       become a recorded session in the account. HOTJAR_SITE_ID is likewise
+       set only in wrangler.jsonc, never in wrangler.staging.jsonc. -->
+  <script>
+    window.dmAnalyticsAllowed(function () {
+      (function(h,o,t,j,a,r){
+          h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};
+          h._hjSettings={hjid:6773356,hjsv:6};
+          a=o.getElementsByTagName('head')[0];
+          r=o.createElement('script');r.async=1;
+          r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv;
+          a.appendChild(r);
+      })(window,document,'https://static.hotjar.com/c/hotjar-','.js?sv=');
+    });
+  </script>
+</head>
+<body>
+
+<div class="wrap">
+  <nav class="nav">
+    <a class="brandmark" href="/">
+      <svg viewBox="7.495 3 17.01 26" aria-hidden="true"><path d="M16.97 13.27Q15.62 13.3 14.69 13.94Q13.75 14.58 13.29 15.64Q12.82 16.69 12.82 18.11V21.36Q12.82 22.5 13.2 23.31Q13.58 24.12 14.29 24.54Q15 24.95 16 24.95Q17 24.95 17.71 24.54Q18.42 24.12 18.8 23.31Q19.18 22.5 19.18 21.36V19.56Q19.18 18.52 18.99 17.61Q18.8 16.69 18.4 15.88Q18.01 15.07 17.33 14.31Q16.66 13.55 15.72 12.82L9.36 7.84V3H22.88V6.98H17.42L14.2 6.6V6.73L17.83 8.95Q19.66 10.09 20.94 11.28Q22.22 12.47 23 13.79Q23.78 15.1 24.14 16.52Q24.51 17.94 24.51 19.49Q24.51 22.43 23.49 24.56Q22.47 26.68 20.56 27.84Q18.66 29 16 29Q13.34 29 11.44 27.82Q9.53 26.65 8.51 24.61Q7.49 22.57 7.49 19.94Q7.49 17.24 8.39 15.38Q9.29 13.51 10.74 12.54Q12.2 11.57 13.89 11.57V10.81Z" fill="var(--brand)"/></svg>
+      <span>delta<span class="m">mint</span></span>
+    </a>
+    <div class="right">
+      <div class="navlinks" id="navmenu">
+        <a class="plain" href="/">Home</a>
+        <a class="plain" href="/about">About</a>
+        <a class="plain" href="/blog">Blog</a>
+        <details class="tools" data-here>
+          <summary>Tools</summary>
+          <div class="drop">
+            <a class="all" href="/tools">All free tools</a>
+            <a href="/tools/credit-spread-calculator">Credit spread calculator</a>
+            <a href="/tools/iron-condor-calculator" aria-current="page">Iron condor calculator</a>
+            <a href="/tools/covered-call-calculator">Covered call calculator</a>
+            <a href="/tools/cash-secured-put-calculator">Cash secured put calculator</a>
+            <a href="/tools/expected-move-calculator">Expected move calculator</a>
+            <a href="/tools/annualized-return-calculator">Annualized return calculator</a>
+            <a href="/tools/option-roll-calculator">Option roll calculator</a>
+            <a href="/tools/early-assignment-calculator">Early assignment risk calculator</a>
+          </div>
+        </details>
+        <a class="btn btn-ghost" href="https://dashboard.deltamint.app/login">Log in</a>
+        <a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=nav">Sign up</a>
+      </div>
+      <button class="burger" type="button" aria-label="Menu" aria-expanded="false" aria-controls="navmenu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+      </button>
+      <noscript><style>@media (max-width:40rem){.nav .navlinks{display:flex;position:static;flex-direction:row;min-width:0;padding:0;border:0;background:none;box-shadow:none}.burger{display:none}}</style></noscript>
+    </div>
+  </nav>
+</div>
+
+<div class="wrap">
+<main class="calc">
+  <ol class="crumbs"><li><a href="/">Home</a></li><li><a href="/tools">Tools</a></li><li aria-current="page">Iron condor calculator</li></ol>
+  <p class="eyebrow">Free tool</p>
+  <h1>Iron condor calculator</h1>
+  <p class="lede">Both breakevens, the max profit, the max loss on either wing and the profit zone for an iron condor, from four strikes and the total credit. The payoff at expiration is drawn below.</p>
+
+  <section class="panel" aria-label="Calculator">
+    <form class="inputs" id="calc" novalidate>
+      <div class="fields">
+        <label><span>Long put (bought)</span><input name="longPut" inputmode="decimal" value="90" autocomplete="off"></label>
+        <label><span>Short put (sold)</span><input name="shortPut" inputmode="decimal" value="95" autocomplete="off"></label>
+        <label><span>Short call (sold)</span><input name="shortCall" inputmode="decimal" value="105" autocomplete="off"></label>
+        <label><span>Long call (bought)</span><input name="longCall" inputmode="decimal" value="110" autocomplete="off"></label>
+        <label><span>Total credit, per share</span><input name="credit" inputmode="decimal" value="1.80" autocomplete="off"></label>
+        <label><span>Contracts</span><input name="qty" inputmode="numeric" value="1" autocomplete="off"></label>
+        <label class="wide"><span>Stock price now <em>(optional, for the chart)</em></span><input name="spot" inputmode="decimal" value="100" autocomplete="off"></label>
+      </div>
+      <p class="err" id="err" role="alert" hidden></p>
+    </form>
+
+    <div class="out" aria-live="polite">
+      <div class="figs">
+        <div class="fig good"><span>Max profit</span><b id="maxProfit">$180.00</b><small>if the stock finishes between the short strikes</small></div>
+        <div class="fig bad"><span>Max loss</span><b id="maxLoss">$320.00</b><small>wider wing minus the credit</small></div>
+        <div class="fig"><span>Return on risk</span><b id="ror">56.3%</b><small>max profit / max loss</small></div>
+        <div class="fig"><span>Lower breakeven</span><b id="lowerBE">$93.20</b><small>short put minus the credit</small></div>
+        <div class="fig"><span>Upper breakeven</span><b id="upperBE">$106.80</b><small>short call plus the credit</small></div>
+        <div class="fig"><span>Profit zone</span><b id="zone">$13.60</b><small id="zoneNote">between the breakevens</small></div>
+      </div>
+      <p class="fig-note" id="wingNote"></p>
+      <figure class="chart">
+        <svg id="chart" viewBox="0 0 640 280" role="img" aria-label="Profit and loss at expiration by stock price"></svg>
+        <figcaption>Profit or loss at expiration, by where the stock finishes. Only one wing can finish against you, so the loss is capped by the wider one.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="explain">
+    <h2>How to calculate an iron condor</h2>
+    <p>An iron condor is a put credit spread below the stock and a call credit spread above it, opened together for one credit. At expiration the stock can only finish past one of the short strikes, so only one wing can lose, and the max loss is set by the wider wing.</p>
+    <pre class="formula">Max profit      = total credit × 100 × contracts
+Max loss        = (wider wing width - total credit) × 100 × contracts
+Lower breakeven = short put strike - total credit
+Upper breakeven = short call strike + total credit
+Profit zone     = upper breakeven - lower breakeven
+Return on risk  = max profit / max loss</pre>
+    <p>Use the total credit for all four legs in every formula, not the credit of one side. That is what moves both breakevens out: the credit from the call spread also protects the put side, and the other way round.</p>
+
+    <h2>Worked example</h2>
+    <p>Hypothetical: a stock trades at $100. You buy the 90 put, sell the 95 put, sell the 105 call and buy the 110 call for a total credit of $1.80. Both wings are $5 wide.</p>
+    <ul>
+      <li><strong>Max profit:</strong> $1.80 × 100 = $180.00, kept if the stock finishes between $95 and $105.</li>
+      <li><strong>Max loss:</strong> ($5.00 - $1.80) × 100 = $320.00, if it finishes below $90 or above $110.</li>
+      <li><strong>Breakevens:</strong> $95 - $1.80 = $93.20 and $105 + $1.80 = $106.80, a profit zone $13.60 wide.</li>
+      <li><strong>Return on risk:</strong> $180.00 / $320.00 = 56.3%.</li>
+    </ul>
+    <div class="table"><table>
+      <thead><tr><th>Stock at expiration</th><th>Profit or loss</th></tr></thead>
+      <tbody>
+        <tr><td>$85.00</td><td>-$320.00</td></tr>
+        <tr><td>$92.00</td><td>-$120.00</td></tr>
+        <tr><td>$93.20</td><td>$0.00</td></tr>
+        <tr><td>$100.00</td><td>$180.00</td></tr>
+        <tr><td>$106.80</td><td>$0.00</td></tr>
+        <tr><td>$108.00</td><td>-$120.00</td></tr>
+        <tr><td>$115.00</td><td>-$320.00</td></tr>
+      </tbody>
+    </table></div>
+
+    <h2>Unequal wings</h2>
+    <p>When one wing is wider, the loss on that side is larger and the broker usually holds the wider width. With a $10 put wing and a $5 call wing for the same $1.80, the put side can lose $820 and the call side $320. The calculator shows both under the figures, so you can see which side carries the risk.</p>
+
+    <h2>What the calculator does not tell you</h2>
+    <ul>
+      <li><strong>The odds.</strong> A wider profit zone and a higher return on risk pull against each other; the calculator shows both, but neither is a probability. The <a href="/tools/expected-move-calculator">expected move calculator</a> shows how far the market prices the stock to move.</li>
+      <li><strong>Before expiration.</strong> A jump in implied volatility can lift the value of both spreads at once, so the condor can show a loss while the stock is still between the short strikes.</li>
+      <li><strong>Fees and assignment.</strong> Four legs means four commissions each way where your broker charges them. A short leg that goes in the money can be assigned early.</li>
+    </ul>
+
+    <h2>Frequently asked questions</h2>
+    <h3>How do you calculate the breakeven of an iron condor?</h3>
+    <p>An iron condor has two breakevens. The lower one is the short put strike minus the total credit; the upper one is the short call strike plus the total credit. Use the credit for all four legs, not one side's.</p>
+    <h3>What is the max loss on an iron condor?</h3>
+    <p>The width of the wider wing minus the total credit, times 100 per contract. Only one side can finish in the money at expiration, so you never lose on both wings at once.</p>
+    <h3>How much margin does an iron condor need?</h3>
+    <p>Most brokers hold the width of the wider wing times 100 per condor. Some reduce that by the credit received, which makes it equal to the max loss. Your broker's figure is the one that applies.</p>
+    <h3>Is a higher return on risk better on an iron condor?</h3>
+    <p>Not by itself. Return on risk rises when the short strikes sit closer to the stock price, which also makes it more likely the stock finishes past one of them. The calculator does not estimate that likelihood.</p>
+    <h3>What is the difference between an iron condor and an iron butterfly?</h3>
+    <p>An iron butterfly sells the put and the call at the same strike, usually at the money, so the profit zone is narrower and the credit is larger. Enter the same strike for the short put and the short call and the calculator handles it.</p>
+    <h3>Can an iron condor lose on both sides?</h3>
+    <p>At expiration, no: the stock finishes in one place. Before expiration, a rise in implied volatility can raise the value of both spreads together, so the position can show a loss with the stock between the short strikes.</p>
+
+    <h2>Related calculators</h2>
+    <ul class="related">
+      <li><a href="/tools/credit-spread-calculator"><b>Credit spread calculator</b><small>Max profit, max loss, breakeven and return on risk for a put or call credit spread.</small></a></li>
+      <li><a href="/tools/expected-move-calculator"><b>Expected move calculator</b><small>The one standard deviation range from implied volatility or a straddle price.</small></a></li>
+      <li><a href="/tools/annualized-return-calculator"><b>Annualized return calculator</b><small>Turn a premium and the days it takes into a yearly rate, simple and compounded.</small></a></li>
+      <li><a href="/tools/option-roll-calculator"><b>Option roll calculator</b><small>The net credit or debit of a roll, and where your breakeven moves.</small></a></li>
+    </ul>
+
+    <h2>Further reading</h2>
+    <ul>
+      <li><a href="/blog/iron-condor-explained">Iron condor explained: two credit spreads, one max loss</a></li>
+      <li><a href="/blog/credit-spread-width">Credit spread width: one $5-wide vs five $1-wide spreads</a></li>
+      <li><a href="/blog/return-on-risk-vs-return-on-capital">Return on risk vs return on capital on credit spreads</a></li>
+      <li><a href="/blog/options-buying-power-requirement">Options buying power requirement: what a put and a spread hold</a></li>
+    </ul>
+
+    <div class="cta">
+      <a class="btn btn-primary" href="https://dashboard.deltamint.app/register?ref=tools-iron-condor">Track your real spreads in DeltaMint</a>
+      <p>Free on a paper account. DeltaMint shows every open spread as one position with its live max loss.</p>
+    </div>
+
+    <p class="fine">For education only. Not investment advice, and not a recommendation to buy or sell any security. Figures are at expiration and leave out commissions and fees. Options involve substantial risk and are not suitable for every investor; read <a href="https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document">Characteristics and Risks of Standardized Options</a>.</p>
+  </section>
+</main>
+</div>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="frow">
+      <a class="brandmark" href="/" style="margin-right:auto;font-size:1.20rem">
+        <svg viewBox="7.495 3 17.01 26" aria-hidden="true"><path d="M16.97 13.27Q15.62 13.3 14.69 13.94Q13.75 14.58 13.29 15.64Q12.82 16.69 12.82 18.11V21.36Q12.82 22.5 13.2 23.31Q13.58 24.12 14.29 24.54Q15 24.95 16 24.95Q17 24.95 17.71 24.54Q18.42 24.12 18.8 23.31Q19.18 22.5 19.18 21.36V19.56Q19.18 18.52 18.99 17.61Q18.8 16.69 18.4 15.88Q18.01 15.07 17.33 14.31Q16.66 13.55 15.72 12.82L9.36 7.84V3H22.88V6.98H17.42L14.2 6.6V6.73L17.83 8.95Q19.66 10.09 20.94 11.28Q22.22 12.47 23 13.79Q23.78 15.1 24.14 16.52Q24.51 17.94 24.51 19.49Q24.51 22.43 23.49 24.56Q22.47 26.68 20.56 27.84Q18.66 29 16 29Q13.34 29 11.44 27.82Q9.53 26.65 8.51 24.61Q7.49 22.57 7.49 19.94Q7.49 17.24 8.39 15.38Q9.29 13.51 10.74 12.54Q12.2 11.57 13.89 11.57V10.81Z" fill="var(--brand)"/></svg>
+        <span>delta<span class="m">mint</span></span>
+      </a>
+      <a href="/about">About</a>
+      <a href="/blog">Blog</a>
+      <a href="/tools">Tools</a>
+      <a href="/terms">Terms</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/contact">Contact</a>
+      <a href="https://dashboard.deltamint.app">Open the app</a>
+    </div>
+    <p class="fine">DeltaMint is a software tool, not a broker-dealer, and does not provide investment advice. Options trading involves substantial risk of loss and is not suitable for every investor. Trades are placed through your own brokerage account, under that broker's terms.</p>
+  </div>
+</footer>
+
+<script type="module">
+import { ironCondor } from "/tools/calc.js";
+import { money, pct, set, reader, wire, drawPayoff } from "/tools/ui.js";
+const form = document.getElementById("calc");
+const num = reader(form);
+wire(form, () => ironCondor({ longPut: num("longPut"), shortPut: num("shortPut"), shortCall: num("shortCall"), longCall: num("longCall"), credit: num("credit"), qty: num("qty") }), (r) => {
+  const spot = num("spot");
+  set("maxProfit", money(r.maxProfit));
+  set("maxLoss", money(r.maxLoss));
+  set("ror", pct(r.ror));
+  set("lowerBE", r.lowerBreakEven == null ? "none" : money(r.lowerBreakEven));
+  set("upperBE", r.upperBreakEven == null ? "none" : money(r.upperBreakEven));
+  set("zone", r.profitZone == null ? "open" : money(r.profitZone));
+  set("zoneNote", r.profitZone != null && spot > 0 ? "between the breakevens, " + pct(r.profitZone / spot) + " of the stock price" : "between the breakevens");
+  set("wingNote", "Put wing " + money(r.putWidth) + " wide, call wing " + money(r.callWidth) + " wide. Loss if the stock finishes past the put side: " + money(r.putSideLoss) + "; past the call side: " + money(r.callSideLoss) + ". Most brokers hold the wider wing, " + money(r.collateral) + ".");
+  drawPayoff(document.getElementById("chart"), { pl: r.pl, kinks: r.kinks, breakEvens: [r.lowerBreakEven, r.upperBreakEven], spot: spot > 0 ? spot : null });
+});
+</script>
+<script src="/assets/site.js" defer></script>
+</body>
+</html>
