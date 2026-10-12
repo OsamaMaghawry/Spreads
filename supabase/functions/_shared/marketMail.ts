@@ -280,15 +280,21 @@ export function renderBrief(b: BriefInput): { subject: string; html: string; tex
 
   const calendar = m.calendar.length
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${m.calendar.map((c) => `
-        <tr><td style="padding:6px 0;border-top:1px solid ${BRAND.line};width:80px;font:500 13px ${MONO};color:${BRAND.accent};vertical-align:top;">${esc(noLongDashes(c.time_et))}</td>
+        <tr><td style="padding:6px 10px 6px 0;border-top:1px solid ${BRAND.line};width:96px;white-space:nowrap;font:600 13px ${FONT};color:${BRAND.accent};vertical-align:top;">${esc(noLongDashes(c.time_et))}</td>
             <td style="padding:6px 0;border-top:1px solid ${BRAND.line};font:400 14px/1.5 ${FONT};color:${BRAND.text};">${esc(noLongDashes(c.event))}</td></tr>`).join("")}</table>`
     : para("Nothing scheduled that we could confirm.");
 
+  // Before the open the move is pre-market; a preview sent later says "today".
+  const moveWord = etClock(b.date).minutes < 9 * 60 + 30 ? "pre-market" : "today";
   const accountBlocks = b.accounts.map((a) => {
     const head = `<div style="font:600 15px ${FONT};color:${BRAND.text};margin:0 0 4px;">${esc(a.name)}${a.isPaper ? ` <span style="font:600 10px ${FONT};letter-spacing:.06em;color:${BRAND.accent};background:#EDECF9;border-radius:6px;padding:2px 6px;vertical-align:middle;">PAPER</span>` : ""}</div>`;
     if (a.error) return `${head}<div style="font:400 13px ${FONT};color:${BRAND.negative};margin:0 0 14px;">Could not read this account this morning.</div>`;
     if (!a.holdings.length) return `${head}<div style="font:400 13px ${FONT};color:${BRAND.sub};margin:0 0 14px;">No open stock or option positions.</div>`;
-    const rows = a.holdings.map((h) => {
+    const { shown, quiet } = splitQuiet(a.holdings, b);
+    const quietLine = quiet.length
+      ? `<tr><td style="padding:10px 0;border-top:1px solid ${BRAND.line};font:400 13px/1.6 ${FONT};color:${BRAND.sub};">No company news since the close: <span style="font:500 12px ${MONO};color:${BRAND.text};">${esc(quiet.map((h) => h.symbol).join(", "))}</span></td></tr>`
+      : "";
+    const rows = shown.map((h) => {
       const note = b.notes.get(h.symbol);
       const mv = b.moves.get(h.symbol);
       const er = b.earnings[h.symbol];
@@ -296,13 +302,13 @@ export function renderBrief(b: BriefInput): { subject: string; html: string; tex
       <tr><td style="padding:10px 0;border-top:1px solid ${BRAND.line};vertical-align:top;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
           <td style="font:700 14px ${MONO};color:${BRAND.text};">${esc(h.symbol)}${er ? ` <span style="font:600 10px ${FONT};letter-spacing:.04em;color:#854F0B;background:#FDF6E9;border-radius:6px;padding:2px 6px;">EARNINGS ${esc(shortDate(er))}</span>` : ""}</td>
-          <td align="right" style="font:600 13px ${MONO};color:${tone(mv?.change ?? null)};">${mv && mv.change != null ? `${esc(pct(mv.change))} <span style="font:400 11px ${FONT};color:${BRAND.sub};">pre-market</span>` : ""}</td>
+          <td align="right" style="font:600 13px ${MONO};color:${tone(mv?.change ?? null)};">${mv && mv.change != null ? `${esc(pct(mv.change))} <span style="font:400 11px ${FONT};color:${BRAND.sub};">${moveWord}</span>` : ""}</td>
         </tr></table>
         <div style="font:400 12px ${FONT};color:${BRAND.sub};margin:3px 0 6px;">${esc(h.lines.join(" · "))}</div>
         <div style="font:400 14px/1.55 ${FONT};color:${note?.text ? BRAND.text : BRAND.sub};">${note?.text ? esc(noLongDashes(note.text)) + note.urls.map(link).join("") : "No company news since the last close."}</div>
       </td></tr>`;
     }).join("");
-    return `${head}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;">${rows}</table>`;
+    return `${head}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;">${rows}${quietLine}</table>`;
   }).join("");
 
   const top = `
@@ -347,10 +353,16 @@ export function renderBrief(b: BriefInput): { subject: string; html: string; tex
     ...b.accounts.flatMap((a) => [
       `  ${a.name}${a.isPaper ? " (paper)" : ""}`,
       ...(a.error ? ["    Could not read this account this morning."]
-        : a.holdings.length ? a.holdings.map((h) => {
-            const note = b.notes.get(h.symbol);
-            return `    ${h.symbol}: ${h.lines.join("; ")}\n      ${note?.text ? noLongDashes(note.text) : "No company news since the last close."}`;
-          }) : ["    No open stock or option positions."]),
+        : a.holdings.length ? (() => {
+            const { shown, quiet } = splitQuiet(a.holdings, b);
+            return [
+              ...shown.map((h) => {
+                const note = b.notes.get(h.symbol);
+                return `    ${h.symbol}: ${h.lines.join("; ")}\n      ${note?.text ? noLongDashes(note.text) : "No company news since the last close."}`;
+              }),
+              ...(quiet.length ? [`    No company news since the close: ${quiet.map((h) => h.symbol).join(", ")}`] : [])
+            ];
+          })() : ["    No open stock or option positions."]),
       ""
     ]),
     "Written with AI from the sources linked, which can be wrong or late.",
@@ -359,6 +371,23 @@ export function renderBrief(b: BriefInput): { subject: string; html: string; tex
   ].filter((s) => s !== null).join("\n");
 
   return { subject, html, text };
+}
+
+// A stock gets its own row when there is something to say about it: its own
+// news, earnings within two weeks, a pre-market move of 3% or more, or an
+// option position on it. Shares with none of those go on one line, so an
+// account holding fifty stocks still reads in a minute.
+export const QUIET_MOVE = 0.03;
+export function splitQuiet(holdings: HoldingLine[], b: Pick<BriefInput, "notes" | "moves" | "earnings">) {
+  const shown: HoldingLine[] = [];
+  const quiet: HoldingLine[] = [];
+  for (const h of holdings) {
+    const move = b.moves.get(h.symbol)?.change;
+    const loud = !!b.notes.get(h.symbol)?.text || !!b.earnings[h.symbol] ||
+      (move != null && Math.abs(move) >= QUIET_MOVE) || h.lines.some((l) => !/ shares$/.test(l));
+    (loud ? shown : quiet).push(h);
+  }
+  return { shown, quiet };
 }
 
 const shortDate = (ymd: string) => {

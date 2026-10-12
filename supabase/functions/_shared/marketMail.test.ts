@@ -103,3 +103,23 @@ test("an alert names the symbol, the move and where it is held", () => {
   assert.ok(html.includes("-4.0%") && html.includes("Robinhood") && html.includes("11:02 AM ET"));
   assert.ok(text.includes("Robinhood: Short 1 put 220, Oct 17"));
 });
+
+test("quiet shares go on one line; news, earnings, big moves and options get a row", async () => {
+  const { splitQuiet } = await import("./marketMail.ts");
+  const holdings = [
+    { symbol: "A", lines: ["10 shares"] },
+    { symbol: "B", lines: ["10 shares"] },
+    { symbol: "C", lines: ["10 shares"] },
+    { symbol: "D", lines: ["10 shares"] },
+    { symbol: "E", lines: ["Short 1 put 30, Oct 16"] },
+    { symbol: "F", lines: ["10 shares"] }
+  ];
+  const { shown, quiet } = splitQuiet(holdings, {
+    notes: new Map([["A", { symbol: "A", text: "A raised guidance.", urls: [] }], ["F", { symbol: "F", text: null, urls: [] }]]),
+    moves: new Map([["B", moveFromSnapshot("B", { latestTrade: { p: 104 }, prevDailyBar: { c: 100 } })],
+                    ["C", moveFromSnapshot("C", { latestTrade: { p: 101 }, prevDailyBar: { c: 100 } })]]),
+    earnings: { D: "2026-10-20" }
+  });
+  assert.deepEqual(shown.map((h) => h.symbol), ["A", "B", "D", "E"]);
+  assert.deepEqual(quiet.map((h) => h.symbol), ["C", "F"]);
+});
