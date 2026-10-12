@@ -113,6 +113,10 @@ async function checkCanonicalForms() {
   const cases = [
     [`http://${APEX}/terms`, "http is upgraded"],
     [`https://${APEX}/terms/`, "a trailing slash resolves to the canonical form"],
+    // The canonical form itself must answer without a redirect. Until 12 Oct
+    // it did not: every folder page answered /about with 307 -> /about/.
+    [`https://${APEX}/about`, "a page's canonical form is served as is"],
+    [`https://${APEX}/tools/credit-spread-calculator`, "a tool page's canonical form is served as is"],
     [`http://${APEX}/`, "http on the apex is upgraded"],
     // www answered 5xx to Googlebot on 29 Aug and 1 Sep 2026 -- the only
     // genuine error in the whole Search Console report, and invisible from
@@ -155,8 +159,12 @@ async function checkCanonicalForms() {
       warn(`canonical: ${what}`, `${landed} declares no canonical tag`);
       continue;
     }
-    const declared = m[1].replace(/\/$/, "");
-    const arrived = landed.replace(/\/$/, "");
+    // Compared exactly. This used to strip a trailing slash from both sides,
+    // which made /about/ and /about look like one URL -- and so passed every
+    // day while the site redirected each canonical to its slashed twin. To
+    // Google they are two URLs.
+    const declared = m[1];
+    const arrived = landed;
     if (declared !== arrived) {
       fail(
         `canonical: ${what}`,

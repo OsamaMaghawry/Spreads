@@ -19,7 +19,14 @@
     // link use the canonical form -- so they are almost certainly redirects
     // Google is reporting for information. "Almost certainly" was resting on
     // an unstated platform default, which is not a contract. It is one now.
-    "html_handling": "auto-trailing-slash",
+    //
+    // It was the wrong one until 12 Oct. Every page here is a folder index
+    // (about/index.html), and auto-trailing-slash serves a folder index WITH
+    // the slash: /about answered 307 -> /about/, the reverse of the canonical,
+    // the sitemap and every internal link. drop-trailing-slash serves
+    // about/index.html at /about and redirects /about/ there. Checked with
+    // `wrangler dev` on both settings before changing it.
+    "html_handling": "drop-trailing-slash",
     "binding": "ASSETS",
     // Only these paths invoke the Worker. Everything else — pricing, terms,
     // privacy, css, images — is served straight from static assets, with no
