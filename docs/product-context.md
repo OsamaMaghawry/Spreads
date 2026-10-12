@@ -123,6 +123,7 @@ so a change to shared code requires redeploying all of them.
 - **equityHistory** — (no summary comment)
 - **findEntry** — Scans the live chain and returns the delta-targeted setup for one strategy.
 - **manageOrder** — Reads the status of a working order, cancels it, or replaces its price or size.
+- **marketMail** — The market emails.
 - **marketStream** — Live underlying prices, relayed from Alpaca's stream.
 - **mcp** — THE CLAUDE CONNECTOR.
 - **migrateCredentials** — Encrypts credentials that are still stored in plaintext, across every user's accounts, without involving those users.
@@ -183,6 +184,9 @@ revoked from the browser role entirely.
 - **snaptrade_probes** — id, ran_by, ran_at, report
 - **broker_probes** — id, broker, ran_at, report
 - **connector_calls** — id, at, user_id, client_id, tool, ok, ms, args
+- **market_mail_runs** — day, research, research_urls, research_at, market, market_at, locked_until, last_error, updated_at
+- **market_mail_log** — id, kind, user_id, ref, symbol, subject, sent_at
+- **market_news_seen** — news_id, symbol, major, title, what, seen_at
 
 ## Analytics vocabulary
 
