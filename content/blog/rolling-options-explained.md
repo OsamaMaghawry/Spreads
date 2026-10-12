@@ -104,6 +104,6 @@ A covered call rolls the same way: buy back the short call, sell a later one, an
 
 A roll closes one short option and opens another on one ticket. On the hypothetical XYZ put, a same-strike roll paid a 1.03 credit and left the position exactly 1.01 behind, where it was before.
 
-What the roll does is trade days for premium: 30 more days of the same obligation, a break-even moved from 47.71 to 46.68, and the same $5,000 behind it. Whether that is a credit or a debit depends on the strike and the date chosen, and the loss already taken stays taken. The [income series](/blog/income) continues with covered calls on shares that were assigned.
+What the roll does is trade days for premium: 30 more days of the same obligation, a break-even moved from 47.71 to 46.68, and the same $5,000 behind it. Whether that is a credit or a debit depends on the strike and the date chosen, and the loss already taken stays taken. The [income series](/blog/income) continues with [covered calls on shares that were assigned](/blog/covered-call-after-assignment).
 
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.

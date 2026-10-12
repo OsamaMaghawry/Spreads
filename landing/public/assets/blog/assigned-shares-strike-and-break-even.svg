@@ -1,0 +1,20 @@
+<svg viewBox="0 0 720 310" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A price line from 46 to 53 for hypothetical XYZ after a 50 put was assigned. Along the top, the stock at 47, the effective cost of 48.60 and the assignment price of 50. Below, one row per call strike, 48, 50 and 52, each with a bar at the strike and a red dot at the break-even once the call premium is counted: 46.94, 47.62 and 48.06. A higher strike brings in less premium, so its break-even sits higher.">
+  <rect width="720" height="310" fill="#FFFFFF"/>
+  <line x1="295.4" y1="40" x2="295.4" y2="280" stroke="#14151C" stroke-width="2" stroke-dasharray="5 5"/>
+  <line x1="411.4" y1="40" x2="411.4" y2="280" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <circle cx="162.9" cy="64" r="8" fill="#14151C"/>
+  <text x="162.9" y="34" font-size="16" font-weight="600" text-anchor="middle" fill="#14151C">stock 47</text>
+  <text x="303.4" y="34" font-size="16" font-weight="600" text-anchor="start" fill="#14151C">effective cost 48.60</text>
+  <line x1="80" y1="150" x2="660" y2="150" stroke="#C9CEDC" stroke-width="2"/>
+  <rect x="242.7" y="136" width="6" height="28" fill="#14151C"/>
+  <circle cx="157.9" cy="150" r="7" fill="#B4485C"/>
+  <text x="80" y="126" font-size="16" font-weight="600" fill="#14151C">48 call: 46.94</text>
+  <line x1="80" y1="205" x2="660" y2="205" stroke="#C9CEDC" stroke-width="2"/>
+  <rect x="408.4" y="191" width="6" height="28" fill="#14151C"/>
+  <circle cx="214.2" cy="205" r="7" fill="#B4485C"/>
+  <text x="80" y="181" font-size="16" font-weight="600" fill="#14151C">50 call: 47.62</text>
+  <line x1="80" y1="260" x2="660" y2="260" stroke="#C9CEDC" stroke-width="2"/>
+  <rect x="574.1" y="246" width="6" height="28" fill="#14151C"/>
+  <circle cx="250.7" cy="260" r="7" fill="#B4485C"/>
+  <text x="80" y="236" font-size="16" font-weight="600" fill="#14151C">52 call: 48.06</text>
+</svg>

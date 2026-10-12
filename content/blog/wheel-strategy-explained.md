@@ -142,5 +142,7 @@ What the sequence does not change is the shares' downside between turns. A
 fall after the put is assigned stays with the shares, and the covered call
 that follows only sets the price at which they would leave.
 
+The [covered call after assignment post](/blog/covered-call-after-assignment) adds a 52 call and shows where each strike moves the break-even.
+
 All figures on this page are hypothetical and are there to show the
 mechanics. This post is educational and is not investment advice.
