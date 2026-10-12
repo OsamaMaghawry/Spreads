@@ -4,7 +4,7 @@ search_title: "How many shares in an option contract? 100, with exceptions"
 slug: what-is-an-options-contract
 excerpt: Every field on a listed option is fixed before you arrive except the price, and what lands in your account afterwards depends on which side of it you took.
 meta_description: "A standard option contract is 100 shares, so a $1.20 quote costs $120. The exceptions: contracts adjusted for a split or merger, and index options."
-author: DeltaMint
+author: Osama Maghawry
 published_at: 2026-09-07T16:03:54+00:00
 category: foundations
 series_order: 1

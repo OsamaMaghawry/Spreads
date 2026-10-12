@@ -54,8 +54,10 @@ async function searchConsole(token) {
   const [d1, d28, queries, pages] = await Promise.all([
     q({ startDate: start1, endDate: end }),
     q({ startDate: start28, endDate: end }),
-    q({ startDate: start28, endDate: end, dimensions: ["query"], rowLimit: 25 }),
-    q({ startDate: start28, endDate: end, dimensions: ["page"], rowLimit: 25 })
+    // Wide enough to track every query and page we appear for while the site
+    // is small; the daily SEO run reads positions from here.
+    q({ startDate: start28, endDate: end, dimensions: ["query"], rowLimit: 250 }),
+    q({ startDate: start28, endDate: end, dimensions: ["page"], rowLimit: 100 })
   ]);
   const t28 = total(d28);
   return {
@@ -64,6 +66,50 @@ async function searchConsole(token) {
     last28: { ...t28, ctr: t28.impressions ? t28.clicks / t28.impressions : 0, position: d28[0]?.position ?? null },
     topQueries: queries.map((r) => ({ query: r.keys[0], clicks: r.clicks, impressions: r.impressions, position: Math.round(r.position * 10) / 10 })),
     topPages: pages.map((r) => ({ page: r.keys[0], clicks: r.clicks, impressions: r.impressions }))
+  };
+}
+
+// --- Indexing: every URL in the sitemap, inspected ------------------------
+// The owner, 12 Oct: "always index or test on a daily basis the urls and make
+// sure all are indexed". Search Console's URL Inspection API answers, per URL,
+// whether Google has it indexed, when it last crawled it and which canonical
+// it chose. It cannot ASK Google to index a page -- that button has no API for
+// ordinary pages -- so a page not indexed is listed for a person to submit.
+const SITEMAP = process.env.SITEMAP_URL || "https://deltamint.app/sitemap.xml";
+
+async function indexing(token) {
+  const xml = await (await fetch(SITEMAP)).text();
+  const urls = [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)].map((m) => m[1]).slice(0, 300);
+  const inspect = async (url) => {
+    const res = await fetch("https://searchconsole.googleapis.com/v1/urlInspection/index:inspect", {
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ inspectionUrl: url, siteUrl: SITE })
+    });
+    if (!res.ok) return { url, error: `${res.status}` };
+    const r = (await res.json()).inspectionResult?.indexStatusResult || {};
+    return {
+      url,
+      verdict: r.verdict || null,
+      coverage: r.coverageState || null,
+      lastCrawl: r.lastCrawlTime || null,
+      googleCanonical: r.googleCanonical || null,
+      userCanonical: r.userCanonical || null
+    };
+  };
+  // A few at a time: the API allows 600 a minute, and a sitemap of a few
+  // dozen URLs is done in seconds this way.
+  const out = [];
+  for (let i = 0; i < urls.length; i += 5) out.push(...(await Promise.all(urls.slice(i, i + 5).map(inspect))));
+  const indexed = out.filter((r) => r.verdict === "PASS");
+  return {
+    sitemap: SITEMAP,
+    checked: out.length,
+    indexed: indexed.length,
+    notIndexed: out.filter((r) => r.verdict !== "PASS").map(({ url, coverage, lastCrawl, error }) => ({ url, coverage: coverage || error || null, lastCrawl })),
+    // Google indexed a different URL than the page names as canonical.
+    canonicalMismatch: out
+      .filter((r) => r.googleCanonical && r.userCanonical && r.googleCanonical !== r.userCanonical)
+      .map(({ url, googleCanonical, userCanonical }) => ({ url, googleCanonical, userCanonical }))
   };
 }
 
@@ -135,6 +181,7 @@ const token = sa ? await googleToken(sa, ["https://www.googleapis.com/auth/webma
 const snapshot = {
   day,
   search: await safely("search console", () => searchConsole(token), !!token),
+  indexing: await safely("url inspection", () => indexing(token), !!token),
   analytics: await safely("ga4", () => analytics(token), !!token && !!GA4),
   funnel: await safely("supabase", funnel, !!SUPABASE_URL && !!SERVICE_KEY)
 };
@@ -157,6 +204,7 @@ is not connected yet, not zero.
 ## Latest — ${latest.day}
 
 - Search Console, last 28 days: ${latest.search?.last28 ? `${latest.search.last28.impressions} impressions, ${latest.search.last28.clicks} clicks, CTR ${(latest.search.last28.ctr * 100).toFixed(1)}%` : latest.search?.unavailable || "—"}
+- Indexing: ${latest.indexing?.checked ? `${latest.indexing.indexed} of ${latest.indexing.checked} sitemap URLs indexed` : latest.indexing?.unavailable || "—"}${(latest.indexing?.notIndexed || []).map((r) => `\n  - not indexed: ${r.url} (${r.coverage || "unknown"})`).join("")}
 - GA4, last 28 days: ${latest.analytics?.last28 ? `${latest.analytics.last28.users} users, ${latest.analytics.last28.sessions} sessions` : latest.analytics?.unavailable || "—"}
 - Funnel: ${latest.funnel?.signedUp !== undefined ? `${latest.funnel.signedUp} signed up (${latest.funnel.signedUpLast7} this week) → ${latest.funnel.connected} connected → ${latest.funnel.traded} traded → ${latest.funnel.tradedLive} traded live → ${latest.funnel.paying} paying` : latest.funnel?.unavailable || "—"}
 - Target (docs/growth/plan-100.md): 100 paying by 2026-12-31.

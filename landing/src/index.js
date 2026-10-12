@@ -281,10 +281,12 @@ export function renderPost(post, site, noindex, env = {}, all = []) {
     image,
     datePublished: post.published_at,
     dateModified: post.updated_at || post.published_at,
-    // Organization, not Person: every post is authored "DeltaMint", and a
-    // Person by that name is an entity mismatch. Name a real author in the
-    // front matter if a byline is ever wanted.
-    author: { "@type": "Organization", name: post.author },
+    // A named person when the post has one (the owner, from 12 Oct: Google
+    // weighs who wrote a finance page), the brand as an Organization when it
+    // does not -- a Person called "DeltaMint" is an entity mismatch.
+    author: post.author && post.author !== "DeltaMint"
+      ? { "@type": "Person", name: post.author }
+      : { "@type": "Organization", name: post.author || "DeltaMint" },
     publisher: { "@type": "Organization", name: "DeltaMint", url: site },
     mainEntityOfPage: { "@type": "WebPage", "@id": url },
     articleSection: cat ? cat.title : undefined,
