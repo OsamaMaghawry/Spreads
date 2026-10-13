@@ -724,10 +724,18 @@ function tagStructures(rows) {
     if (!shares) return;
     const repairs = group.filter((r) => r.type === "call_ratio_spread" && r.coverShares > 0);
     if (repairs.length) {
-      [shares, ...repairs].forEach((r) => {
-        r.structure = "stock_repair";
-        r.structureLabel = "Stock repair";
-      });
+      // A PROTECTED REPAIR: the repair plus a put bought on the same expiry,
+      // at or below the repair's long call, as a floor. The owner asked for
+      // "Repair and Protect" together; it is opened as one order and lands as
+      // the ratio row plus a long put, tagged with the shares as one trade.
+      const putFor = (rep) => group.find((r) =>
+        r.single && r.type === KINDS.LONG_OPTION && r.legs?.[0]?.kind === "put" && r.expiry === rep.expiry &&
+        Number(r.legs[0].strike) <= Number(rep.longStrike) && !r.structure);
+      const puts = repairs.map(putFor).filter(Boolean);
+      const name = puts.length
+        ? { structure: "protected_repair", structureLabel: "Protected repair" }
+        : { structure: "stock_repair", structureLabel: "Stock repair" };
+      [shares, ...repairs, ...puts].forEach((r) => Object.assign(r, name));
       return;
     }
 

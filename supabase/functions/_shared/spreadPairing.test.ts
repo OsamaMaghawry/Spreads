@@ -352,6 +352,26 @@ test("a stock repair placed by hand is one position, not three", () => {
   for (const r of out) assert.equal(r.structure, "stock_repair");
 });
 
+test("a stock repair with a put bought below it is one protected repair", () => {
+  const positions = [
+    { symbol: "TSLA", qty: "210", qty_available: "210", avg_entry_price: "364.31", current_price: "367.77", market_value: "77232" },
+    { symbol: "TSLA260918C00352500", qty: "1", avg_entry_price: "13.57", current_price: "17.85" },
+    { symbol: "TSLA260918C00375000", qty: "-2", avg_entry_price: "8.69", current_price: "12.10" },
+    { symbol: "TSLA260918P00330000", qty: "1", avg_entry_price: "6.10", current_price: "5.20" }
+  ];
+  const out = pairSpreads(positions, [], [], { cash: 0 });
+  assert.equal(out.length, 3);
+  for (const r of out) {
+    assert.equal(r.structure, "protected_repair");
+    assert.equal(r.structureLabel, "Protected repair");
+  }
+  // A put on another expiry is not part of it.
+  const other = positions.map((p) => (p.symbol.endsWith("P00330000") ? { ...p, symbol: "TSLA261016P00330000" } : p));
+  const split = pairSpreads(other, [], [], { cash: 0 });
+  assert.equal(split.find((r) => r.type === "call_ratio_spread").structure, "stock_repair");
+  assert.equal(split.find((r) => r.legs?.[0]?.kind === "put").structure, undefined);
+});
+
 test("a ratio in an account holding no stock is not claimed as a repair", () => {
   // Without the shares the same two legs could be anything, so the pairing
   // does not guess: they go through the cover rule and come out as what can

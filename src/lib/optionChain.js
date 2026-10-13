@@ -638,6 +638,146 @@ export function repairSetup(legs, ctx) {
 }
 
 /**
+ * A protected repair: the stock repair plus a put bought below it as a floor,
+ * one order of three contracts per 100 shares -- put bought, call bought, two
+ * calls sold, all on one expiry.
+ *
+ * The owner asked for "Repair and Protect" together. There is no standard
+ * name for it; it is a collar plus a call spread, and "Protected repair" is
+ * what the product calls it. Measured with the shares, against their cost,
+ * per share at expiry:
+ *
+ *   at or below the floor    floor - basis + net          (the worst case)
+ *   floor to the long call   price - basis + net
+ *   long call to the short   2 x price - basis - long + net
+ *   at or above the short    2 x short - basis - long + net  (the best case)
+ *
+ * `legs` are the chain's picks with `qty`: the put and the call bought at the
+ * same count, the calls sold at twice it.
+ */
+export function protectedRepairSetup(legs, ctx) {
+  const picked = (legs || []).filter(Boolean);
+  const typeOf = (l) => (l.row.type === "P" || l.row.type === "put" ? "P" : "C");
+  const put = picked.find((l) => typeOf(l) === "P" && l.action === "buy");
+  const long = picked.find((l) => typeOf(l) === "C" && l.action === "buy");
+  const short = picked.find((l) => typeOf(l) === "C" && l.action === "sell");
+  if (picked.length !== 3 || !put || !long || !short) {
+    return { ok: false, reason: "A protected repair is a put bought, a call bought and two calls sold." };
+  }
+  const qtyOf = (l) => Math.max(1, Math.floor(Number(l.qty)) || 1);
+  const units = qtyOf(long);
+  if (qtyOf(put) !== units || qtyOf(short) !== 2 * units) {
+    return { ok: false, reason: "A protected repair buys one put and one call for every two calls sold." };
+  }
+  const expiryOf = (l) => String(l.expiry || l.row.expiry || ctx?.expiry || "");
+  const expiry = expiryOf(long);
+  if (expiryOf(put) !== expiry || expiryOf(short) !== expiry) {
+    return { ok: false, reason: "Pick all three contracts on the same expiry." };
+  }
+  const F = Number(put.row.strike);
+  const K1 = Number(long.row.strike);
+  const K2 = Number(short.row.strike);
+  if (!(F <= K1 && K1 < K2)) {
+    return { ok: false, reason: "The put must be at or below the call bought, and the calls sold above it." };
+  }
+  const putMid = num(put.row.mid);
+  const longMid = num(long.row.mid);
+  const shortMid = num(short.row.mid);
+  if (putMid === null || longMid === null || shortMid === null) {
+    const dead = [put, long, short].find((l) => num(l.row.mid) === null).row.symbol;
+    return { ok: false, reason: `No two-sided market on ${dead}. Nothing to price it from.` };
+  }
+  const shares = Number(ctx?.shares) || 0;
+  if (shares < units * 100) {
+    return {
+      ok: false,
+      reason: `Each protected repair sells one call more than it buys, covered by 100 free ${ctx?.ticker || ""} shares. ` +
+        `${ctx?.accountName || "This account"} has ${shares} free.`
+    };
+  }
+
+  const spot = num(ctx?.spot);
+  const basis = num(ctx?.basis);
+  const fromBasis = basis !== null && basis > 0;
+  const ref = fromBasis ? basis : spot;
+  if (!(ref > 0)) return { ok: false, reason: "No price to measure it from." };
+  const net = Math.round((2 * shortMid - longMid - putMid) * 10000) / 10000;
+  const worst = F - ref + net;
+  const best = 2 * K2 - ref - K1 + net;
+  let breakEven = null;
+  if (worst < 0) {
+    if (ref - net <= K1) breakEven = ref - net;
+    else if ((ref + K1 - net) / 2 <= K2) breakEven = (ref + K1 - net) / 2;
+  }
+
+  const leg = (l, side, role, ratio) => ({
+    role,
+    symbol: l.row.symbol,
+    strike: Number(l.row.strike),
+    expiry,
+    type: typeOf(l) === "P" ? "put" : "call",
+    bid: num(l.row.bid),
+    ask: num(l.row.ask),
+    mid: num(l.row.mid),
+    delta: num(l.row.delta),
+    iv: num(l.row.iv),
+    ratio,
+    side
+  });
+
+  return {
+    ok: true,
+    setup: {
+      ticker: ctx?.ticker,
+      expiry,
+      expiries: [expiry],
+      structure: "protected_repair",
+      strategy: "protected_repair",
+      units,
+      targetDelta: null,
+      wingWidth: null,
+      width: null,
+      spot,
+      spotSource: ctx?.spotSource ?? null,
+      spotAsOf: ctx?.spotAsOf ?? null,
+      putRatio: 1,
+      callRatio: 1,
+      fromChain: true,
+      accountId: ctx?.accountId ?? null,
+      accountName: ctx?.accountName ?? null,
+      credit: net,
+      debit: net < 0 ? Math.abs(net) : null,
+      collateral: null,
+      floor: F,
+      cap: K2,
+      basis: fromBasis ? basis : null,
+      basisSource: ctx?.basisSource ?? null,
+      sharesHeld: shares,
+      sharesPerUnit: 100,
+      maxContracts: Math.floor(shares / 100),
+      repairBreakEven: breakEven === null ? null : r2(breakEven),
+      repairCap: r2(best * 100),
+      worstFromBasis: r2(worst * 100),
+      maxRisk: r2(Math.max(0, -worst) * 100),
+      maxProfit: r2(best * 100),
+      unlimitedRisk: false,
+      riskNote: fromBasis ? null : "Your cost for these shares is not known, so this is measured from today's price.",
+      breakEvenLow: breakEven === null ? null : r2(breakEven),
+      breakEvenHigh: null,
+      short_symbol: short.row.symbol,
+      long_symbol: long.row.symbol,
+      short_strike: K2,
+      long_strike: K1,
+      legs: [
+        leg(short, "sell", "short_call", 2),
+        leg(long, "buy", "long_call", 1),
+        leg(put, "buy", "long_put", 1)
+      ]
+    }
+  };
+}
+
+/**
  * What every builder above reads from one `optionChain` response: the price,
  * the shares and long calls free to cover a call sold, and the basis, all on
  * the account the chain was read for.

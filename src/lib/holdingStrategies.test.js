@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { collarCandidates, repairCandidates, repairOutcome, repairPLAt, expiryNear, holdingActions } from "./holdingStrategies.js";
+import { collarCandidates, repairCandidates, repairOutcome, repairPLAt, expiryNear, holdingActions, floorPut } from "./holdingStrategies.js";
 
 test("holding actions: a round lot held long; repair only below cost", () => {
   const lot = { shares: true, shareQty: 200, qty: 200, shareBasis: 120, longCurrentPrice: 100 };
@@ -97,4 +97,42 @@ test("repair candidates: the long nearest the price, shorts up to the basis and 
 test("repair: nothing to repair above the basis", () => {
   assert.match(repairCandidates(ladder, 100, 95).reason, /not below their cost/);
   assert.match(repairCandidates(ladder, 100, null).reason, /not below their cost/);
+});
+
+// ---------------------------------------------------------------------------
+// Protected repair: the repair plus a put bought as a floor.
+// ---------------------------------------------------------------------------
+
+test("protected repair outcome: a floor under the loss, the put paid out of the net", () => {
+  // Bought at 120, now 100. Buy the 100 call, sell two 110s, buy the 90 put,
+  // for a 1.00 credit all in.
+  const o = repairOutcome({ basis: 120, spot: 100, longStrike: 100, shortStrike: 110, net: 1, floor: 90 });
+  assert.equal(o.worstPerShare, -29);
+  assert.equal(o.breakEven, 109.5);
+  assert.equal(o.capPerShare, 1);
+  // Without the floor there is no worst: the shares can go to zero.
+  assert.equal(repairOutcome({ basis: 120, spot: 100, longStrike: 100, shortStrike: 110, net: 1 }).worstPerShare, null);
+  // A floor above the call bought is not this trade.
+  assert.equal(repairOutcome({ basis: 120, spot: 100, longStrike: 100, shortStrike: 110, net: 1, floor: 101 }), null);
+});
+
+test("protected repair at a price: flat below the floor", () => {
+  // INTC, cost 107: buy the 101 call, sell two 106s, buy the 90 put; 3.03 debit all in.
+  const r = { basis: 107, longStrike: 101, shortStrike: 106, net: -3.03, floor: 90 };
+  assert.deepEqual(repairPLAt(r, 85), { withRepair: -20.03, sharesAlone: -22 });
+  assert.deepEqual(repairPLAt(r, 90), { withRepair: -20.03, sharesAlone: -17 });
+  assert.deepEqual(repairPLAt(r, 95), { withRepair: -15.03, sharesAlone: -12 });
+  assert.deepEqual(repairPLAt(r, 110), { withRepair: 0.97, sharesAlone: 3 });
+});
+
+test("protected repair candidates: the put's cost comes off every net", () => {
+  const put = floorPut(ladder, 101, 0.1);
+  assert.equal(put.strike, 90);
+  const r = repairCandidates(ladder, 101, 118, put);
+  assert.equal(r.put.strike, 90);
+  // Two 105s at 2.50, less the 100 call at 4.50 and the 90 put at 1.60.
+  assert.equal(r.shorts[0].net, -1.1);
+  assert.equal(r.shorts[0].worstPerShare, -29.1);
+  // A put above the call bought is refused, with a reason.
+  assert.match(repairCandidates(ladder, 101, 118, ladder[4].put).reason, /Pick a lower floor/);
 });

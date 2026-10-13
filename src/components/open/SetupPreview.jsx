@@ -47,7 +47,9 @@ export default function SetupPreview({ setup, qty, live = null }) {
   const collar = setup.strategy === "collar";
   // A stock repair is the shares plus a 1x2 call ratio, measured the same way
   // -- see repairSetup.
-  const repair = setup.strategy === "stock_repair";
+  const repair = setup.strategy === "stock_repair" || setup.strategy === "protected_repair";
+  // The same plus a put bought as a floor -- see protectedRepairSetup.
+  const floored = setup.strategy === "protected_repair";
   // "Stock to 0" is the ceiling on a short put and on shares. It is not a
   // ceiling on anything else, so the phrase only appears where it is true.
   const risk = riskState(setup);
@@ -220,9 +222,15 @@ export default function SetupPreview({ setup, qty, live = null }) {
               At or above {setup.short_strike} / {unit}, {setup.basis != null ? "against your cost" : "from today\u2019s price"}
             </span>
             <span className={`text-right font-semibold ${setup.repairCap >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{fmtMoney(setup.repairCap)}</span>
+            {floored && (
+              <>
+                <span className="text-slate-500">Floor (put bought)</span>
+                <span className="text-right">{fmtMoney(setup.floor)}</span>
+              </>
+            )}
             <span className="text-slate-500">Shares covering the extra call</span>
             <span className="text-right">{qty * (setup.sharesPerUnit || 100)} of {setup.sharesHeld}</span>
-            <span className="text-slate-500">Max loss / {unit} (stock to 0)</span>
+            <span className="text-slate-500">Max loss / {unit} ({floored ? `at or below ${setup.floor}` : "stock to 0"})</span>
             <RiskCell value={setup.maxRisk} state={risk} />
           </>
         ) : single ? (
@@ -281,7 +289,7 @@ export default function SetupPreview({ setup, qty, live = null }) {
           {fmtMoney(Math.abs(setup.credit) * qty * 100)}
         </span>
         <span className="text-slate-500">
-          {single ? `Total max loss${overLong ? " (at this call's expiry)" : bounded ? " (stock to 0)" : ""}` : repair ? "Total max loss (stock to 0)" : "Total max risk"}
+          {single ? `Total max loss${overLong ? " (at this call's expiry)" : bounded ? " (stock to 0)" : ""}` : repair ? `Total max loss (${floored ? `at or below ${setup.floor}` : "stock to 0"})` : "Total max risk"}
         </span>
         <RiskCell value={scaledRisk(setup.maxRisk, qty)} state={risk} />
         <span className="text-slate-500">Break-even</span>

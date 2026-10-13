@@ -42,6 +42,22 @@ export function expiryNear(expiries, today, days = 45) {
 }
 
 /**
+ * The put for a floor `protect` below the price: the highest strike at or
+ * below `spot * (1 - protect)` with a two-sided market -- as close to the
+ * floor asked for as the listed strikes allow, never closer to the money.
+ */
+export function floorPut(ladder, spot, protect) {
+  const s = num(spot);
+  const p = num(protect);
+  if (!s || !(s > 0) || p === null || p < 0 || p >= 1) return null;
+  const target = s * (1 - p);
+  return (Array.isArray(ladder) ? ladder : [])
+    .map((r) => r.put)
+    .filter((r) => r && mid(r) !== null && Number(r.strike) <= target)
+    .sort((a, b) => Number(b.strike) - Number(a.strike))[0] || null;
+}
+
+/**
  * Collar candidates for a protection level.
  *
  * The put is the highest strike at or below `spot * (1 - protect)` with a
@@ -58,10 +74,7 @@ export function collarCandidates(ladder, spot, protect) {
   if (!s || !(s > 0) || p === null || p < 0 || p >= 1) return { put: null, calls: [], reason: "No price to measure the floor from." };
   const target = s * (1 - p);
   const rows = Array.isArray(ladder) ? ladder : [];
-  const put = rows
-    .map((r) => r.put)
-    .filter((r) => r && mid(r) !== null && Number(r.strike) <= target)
-    .sort((a, b) => Number(b.strike) - Number(a.strike))[0] || null;
+  const put = floorPut(rows, s, p);
   if (!put) return { put: null, calls: [], target: r2(target), reason: `No put with a market at or below ${r2(target)} on this expiry.` };
 
   const all = rows
@@ -97,20 +110,27 @@ export function collarCandidates(ladder, spot, protect) {
  * `breakEven` is where that crosses zero; null when the cap itself is below
  * zero, i.e. the repair narrows the loss but cannot close it.
  */
-export function repairOutcome({ basis, spot, longStrike, shortStrike, net }) {
+export function repairOutcome({ basis, spot, longStrike, shortStrike, net, floor = null }) {
   const B = num(basis);
   const K1 = num(longStrike);
   const K2 = num(shortStrike);
+  const F = num(floor);
   const n = num(net) ?? 0;
   if (B === null || K1 === null || K2 === null || !(K2 > K1)) return null;
+  if (F !== null && F > K1) return null;
   const cap = 2 * K2 - B - K1 + n;
+  // With a put bought (a protected repair), nothing below the floor gets worse:
+  // the put pays a dollar for every dollar the shares lose under it.
+  const worst = F === null ? null : F - B + n;
   let breakEven = null;
-  if (B - n <= K1) breakEven = B - n;
+  if (worst !== null && worst >= 0) breakEven = null;
+  else if (B - n <= K1) breakEven = B - n;
   else if ((B + K1 - n) / 2 <= K2) breakEven = (B + K1 - n) / 2;
   const s = num(spot);
   return {
     breakEven: breakEven === null ? null : r2(breakEven),
     capPerShare: r2(cap),
+    worstPerShare: worst === null ? null : r2(worst),
     // How much of the way from today's price back to the basis the repair
     // removes from what the stock has to do to break even.
     recovered: breakEven !== null && s !== null && B > s ? (B - breakEven) / (B - s) : null
@@ -127,15 +147,16 @@ export function repairOutcome({ basis, spot, longStrike, shortStrike, net }) {
  * adds exactly its net to whatever the shares have lost; this is what puts
  * that on screen.
  */
-export function repairPLAt({ basis, longStrike, shortStrike, net }, price) {
+export function repairPLAt({ basis, longStrike, shortStrike, net, floor = null }, price) {
   const B = num(basis);
   const K1 = num(longStrike);
   const K2 = num(shortStrike);
+  const F = num(floor);
   const S = num(price);
   if (B === null || K1 === null || K2 === null || S === null) return null;
   const n = num(net) ?? 0;
   const sharesAlone = S - B;
-  const options = Math.max(0, S - K1) - 2 * Math.max(0, S - K2) + n;
+  const options = Math.max(0, S - K1) - 2 * Math.max(0, S - K2) + (F === null ? 0 : Math.max(0, F - S)) + n;
   return { withRepair: r2(sharesAlone + options), sharesAlone: r2(sharesAlone) };
 }
 
@@ -147,7 +168,7 @@ export function repairPLAt({ basis, longStrike, shortStrike, net }, price) {
  * small loss leaves one strike or none to choose from. Above the basis the
  * trade is the same 1x2: it gives up less of the upside, for less premium.
  */
-export function repairCandidates(ladder, spot, basis) {
+export function repairCandidates(ladder, spot, basis, put = null) {
   const s = num(spot);
   const B = num(basis);
   if (!s || !(s > 0)) return { long: null, shorts: [], reason: "No price to build a repair from." };
@@ -164,8 +185,10 @@ export function repairCandidates(ladder, spot, basis) {
   const within = above.filter((r) => Number(r.strike) <= B);
   const shorts = [...within, ...above.filter((r) => Number(r.strike) > B).slice(0, 2)]
     .map((row) => {
-      const net = r2(2 * mid(row) - mid(long));
-      return { row, strike: Number(row.strike), net, ...repairOutcome({ basis: B, spot: s, longStrike: long.strike, shortStrike: row.strike, net }) };
+      // A put bought for a floor is paid for out of the same net.
+      const net = r2(2 * mid(row) - mid(long) - (put ? mid(put) : 0));
+      const floor = put ? Number(put.strike) : null;
+      return { row, strike: Number(row.strike), net, ...repairOutcome({ basis: B, spot: s, longStrike: long.strike, shortStrike: row.strike, net, floor }) };
     });
   // Suggested: the lowest break-even among those done for no money; if none
   // is, the one costing least.
@@ -173,8 +196,12 @@ export function repairCandidates(ladder, spot, basis) {
   const pick = free.length
     ? free.reduce((a, b) => (b.breakEven < a.breakEven ? b : a))
     : shorts.reduce((a, b) => (a === null || b.net > a.net ? b : a), null);
+  if (put && Number(put.strike) > Number(long.strike)) {
+    return { long, shorts: [], reason: `The put at ${put.strike} is above the call bought at ${long.strike}. Pick a lower floor.` };
+  }
   return {
     long,
+    put,
     shorts,
     suggestedStrike: pick ? pick.strike : null,
     reason: shorts.length ? null : "No call above the price has a market on this expiry."

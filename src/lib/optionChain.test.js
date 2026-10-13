@@ -658,3 +658,55 @@ test("a repair with no basis on record is measured from today's price, and says 
   assert.equal(r.setup.repairBreakEven, 399);
   assert.match(r.setup.riskNote, /today's price/);
 });
+
+// ---------------------------------------------------------------------------
+// protectedRepairSetup — the repair plus a put bought as a floor
+// ---------------------------------------------------------------------------
+
+import { protectedRepairSetup } from "./optionChain.js";
+
+const protectedLegs = (u = 1) => [
+  { row: P(380, 4), action: "buy", qty: u },
+  { row: C(400, 12), action: "buy", qty: u },
+  { row: C(410, 6.5), action: "sell", qty: 2 * u }
+];
+
+test("a protected repair: one order of three contracts, a floor, a cap, against the basis", () => {
+  const r = protectedRepairSetup(protectedLegs(), below);
+  assert.equal(r.ok, true);
+  const s = r.setup;
+  assert.equal(s.strategy, "protected_repair");
+  assert.deepEqual(s.legs.map((l) => `${l.side} ${l.type} ${l.strike} x${l.ratio}`), ["sell call 410 x2", "buy call 400 x1", "buy put 380 x1"]);
+  assert.equal(s.units, 1);
+  // 13 in for the two 410s, 12 out for the 400 call, 4 out for the put.
+  assert.equal(s.credit, -3);
+  assert.equal(s.debit, 3);
+  // Worst at or below 380: 380 - 420 - 3 = -43 a share.
+  assert.equal(s.worstFromBasis, -4300);
+  assert.equal(s.maxRisk, 4300);
+  // Best at or above 410: 820 - 420 - 400 - 3 = -3: the floor costs the
+  // repair its recovery here, and the ticket says so rather than hiding it.
+  assert.equal(s.repairCap, -300);
+  assert.equal(s.repairBreakEven, null);
+  // Two units: quantities 2, 2 and 4, still one order of 1:1:2.
+  assert.equal(protectedRepairSetup(protectedLegs(2), below).setup.units, 2);
+});
+
+test("a protected repair with a break-even", () => {
+  // A cheaper put: 13 - 12 - 1 = 0 net. (420 + 400) / 2 = 410: at the short.
+  const legs = [{ row: P(370, 1), action: "buy", qty: 1 }, { row: C(400, 12), action: "buy", qty: 1 }, { row: C(410, 6.5), action: "sell", qty: 2 }];
+  const s = protectedRepairSetup(legs, below).setup;
+  assert.equal(s.repairBreakEven, 410);
+  assert.equal(s.repairCap, 0);
+  assert.equal(s.maxRisk, 5000);
+});
+
+test("a protected repair is refused in the wrong shape or without the shares", () => {
+  assert.match(protectedRepairSetup(protectedLegs(), { ...below, shares: 50 }).reason, /50 free/);
+  const wrongQty = protectedLegs().map((l, i) => (i === 2 ? { ...l, qty: 3 } : l));
+  assert.match(protectedRepairSetup(wrongQty, below).reason, /two calls sold/);
+  const highPut = [{ row: P(405, 9), action: "buy", qty: 1 }, ...protectedLegs().slice(1)];
+  assert.match(protectedRepairSetup(highPut, below).reason, /at or below the call bought/);
+  const otherExpiry = [{ row: P(380, 4, "2026-11-20"), action: "buy", qty: 1 }, ...protectedLegs().slice(1)];
+  assert.match(protectedRepairSetup(otherExpiry, below).reason, /same expiry/);
+});

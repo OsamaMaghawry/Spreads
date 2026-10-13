@@ -3,7 +3,7 @@ import { expiryOf } from "./occ.js";
 
 // Setups whose options are written against shares the account holds, 100 per
 // unit: drawn with those shares, never as the bare options.
-const SHARE_BACKED = ["covered_call", "collar", "stock_repair"];
+const SHARE_BACKED = ["covered_call", "collar", "stock_repair", "protected_repair"];
 
 // An order that has not been placed, priced the same way an open one is.
 //
@@ -174,7 +174,7 @@ export function pendingRows(setup, qty = 1, net = undefined) {
   // drawn at it then; a covered call has always required the basis.
   const shareBasis = num(setup.basis) > 0
     ? num(setup.basis)
-    : setup.strategy === "collar" || setup.strategy === "stock_repair" ? num(setup.spot) : null;
+    : SHARE_BACKED.includes(setup.strategy) && setup.strategy !== "covered_call" ? num(setup.spot) : null;
   if (SHARE_BACKED.includes(setup.strategy) && shareBasis > 0) {
     rows.push({
       id: "pending-shares",

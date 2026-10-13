@@ -35,7 +35,9 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
   const [accountId, setAccountId] = useState(
     accounts.some((a) => a.id === defaultAccountId) ? defaultAccountId : accounts[0]?.id || ""
   );
-  const [qty, setQty] = useState(1);
+  // A setup built for a count (a protected repair opened for 2 x 100 shares)
+  // opens at that count; everything else at 1.
+  const [qty, setQty] = useState(setup.units || 1);
   // A QUANTITY PER LEG, on the option chain's two-leg tickets. The owner:
   // "buying 1 Call vs selling 2 calls ... to be able to control the quantity
   // for each leg". It is still one multi-leg order: spreadSetup turns the two
@@ -74,7 +76,7 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
   // A setup built from holdings (a covered call's cover and basis) belongs to
   // the account those holdings were read on.
   const coverMoved =
-    !!setup.accountId && setup.accountId !== accountId && ["covered_call", "collar", "stock_repair"].includes(setup.strategy);
+    !!setup.accountId && setup.accountId !== accountId && ["covered_call", "collar", "stock_repair", "protected_repair"].includes(setup.strategy);
 
   // Walk by default, exactly as on the close ticket and Open Position. The
   // start and floor defaults are explained in OpenPricing.
