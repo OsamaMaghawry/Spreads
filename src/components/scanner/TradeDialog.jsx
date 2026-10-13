@@ -10,7 +10,6 @@ import useOpenOrder from "@/components/open/useOpenOrder";
 import useLiveSetup from "@/components/open/useLiveSetup";
 import { saveOrder } from "@/lib/savedOrders";
 import { toast } from "@/components/ui/use-toast";
-import RestingOrder from "@/components/open/RestingOrder";
 import OrderSent from "@/components/open/OrderSent";
 import OrderLog from "@/components/close/OrderLog";
 import UpgradePrompt from "@/components/billing/UpgradePrompt";
@@ -94,12 +93,6 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
   // Live under the ticket while it is priced and while a hand-priced order
   // rests; a Scanner row can be minutes old by the time it is opened.
   const live = useLiveSetup(accountId, setup, phase === "idle" || resting);
-
-  // "Change price" starts from where the order actually rests: after a walk
-  // that is the price it conceded to, not the one it started from.
-  useEffect(() => {
-    if (resting && typeof restingAt === "number") setLimitCredit(restingAt);
-  }, [resting, restingAt]);
 
   useEffect(() => {
     const d = openingDefaults(setup);
@@ -438,16 +431,8 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
             log={log}
             phase={phase}
             onDone={leave}
-            changePrice={
-              <RestingOrder
-                credit={limitCredit}
-                onCredit={setLimitCredit}
-                quote={live.quote}
-                unit={unit}
-                qty={Number(qty) || 1}
-                onUpdate={replacePrice}
-              />
-            }
+            quote={live.quote}
+            onUpdate={replacePrice}
           />
         )}
 

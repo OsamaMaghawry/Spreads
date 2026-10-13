@@ -16,7 +16,6 @@ import useOpenOrder from "./useOpenOrder";
 import useLiveSetup from "./useLiveSetup";
 import { saveOrder, deleteSavedOrder } from "@/lib/savedOrders";
 import { toast } from "@/components/ui/use-toast";
-import RestingOrder from "./RestingOrder";
 import OrderSent from "./OrderSent";
 import OrderLog from "@/components/close/OrderLog";
 import UpgradePrompt from "@/components/billing/UpgradePrompt";
@@ -85,12 +84,6 @@ export default function OpenPositionDialog({ account, onClose, onDone, prefill =
   // and while a hand-priced order rests (so its price can be changed against
   // the quote as it is now). Off during a walk: the walk requotes itself.
   const live = useLiveSetup(account.id, setup, !!setup && (phase === "idle" || resting));
-
-  // "Change price" starts from where the order actually rests: after a walk
-  // that is the price it conceded to, not the one it started from.
-  useEffect(() => {
-    if (resting && typeof restingAt === "number") setLimitCredit(restingAt);
-  }, [resting, restingAt]);
 
   // A different setup is a different price. Reseeding on the setup rather than
   // on every render is what lets a hand-set credit survive a re-render.
@@ -503,16 +496,8 @@ export default function OpenPositionDialog({ account, onClose, onDone, prefill =
             log={log}
             phase={phase}
             onDone={leave}
-            changePrice={
-              <RestingOrder
-                credit={limitCredit}
-                onCredit={setLimitCredit}
-                quote={live.quote}
-                unit={unit}
-                qty={Number(qty) || 1}
-                onUpdate={replacePrice}
-              />
-            }
+            quote={live.quote}
+            onUpdate={replacePrice}
           />
         )}
 
