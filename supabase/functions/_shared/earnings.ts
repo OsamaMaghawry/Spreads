@@ -119,9 +119,38 @@ export function daysUntil(date: string): number {
 // rest. Halving the slice keeps the busiest week (~750) clear of that ceiling,
 // and 13 requests still sit far inside the per-minute rate limit.
 const SLICE_DAYS = 7;
+// The provider's result cap. A response this size is a truncated one.
+export const PROVIDER_CAP = 1500;
 const ymd = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 const addDays = (date: string, n: number) =>
   ymd(new Date(`${date}T00:00:00Z`).getTime() + n * 86400000);
+
+/**
+ * One slice from the provider, and whether it came back whole.
+ *
+ * A week was assumed to stay under the cap; peak season does not. On staging
+ * the refresh of 12 Oct 2026 got 1,499 rows for the week of 2 Nov -- the cap,
+ * less one duplicate -- so that week's earliest reporters were simply not in
+ * the cache. A slice that hits the cap is walked again a day at a time, and
+ * reported incomplete only if a single day still hits it.
+ */
+export async function fetchSlice(
+  from: string,
+  to: string,
+  fetcher: (from: string, to: string) => Promise<EarningsEvent[]> = fetchProviderWindow
+): Promise<{ events: EarningsEvent[]; complete: boolean }> {
+  const events = await fetcher(from, to);
+  if (events.length < PROVIDER_CAP) return { events, complete: true };
+  if (from === to) return { events, complete: false };
+  const all: EarningsEvent[] = [];
+  let complete = true;
+  for (let day = from; day <= to; day = addDays(day, 1)) {
+    const one = await fetcher(day, day);
+    if (one.length >= PROVIDER_CAP) complete = false;
+    all.push(...one);
+  }
+  return { events: all, complete };
+}
 
 /**
  * Repopulates the cache for an explicit date range, in short slices.
@@ -152,7 +181,7 @@ export async function refreshEarningsRange(
     const sliceEnd = addDays(sliceFrom, SLICE_DAYS - 1);
     const sliceTo = sliceEnd > to ? to : sliceEnd;
 
-    const events = await fetchProviderWindow(sliceFrom, sliceTo);
+    const { events, complete } = await fetchSlice(sliceFrom, sliceTo);
 
     // The provider lists some symbols twice for one date — a restatement, or
     // the same report filed under two quarters. Postgres rejects an upsert
@@ -190,10 +219,12 @@ export async function refreshEarningsRange(
     // had dropped a fortnight earlier.
     //
     // The slice just fetched is the provider's whole list for those dates, so
-    // anything in it not refreshed by this run has been withdrawn. An empty
-    // slice deletes nothing: that is far likelier a provider fault than a
-    // week with no US earnings, and keeping a stale row errs toward a warning.
-    if (deduped.length > 0) {
+    // anything in it not refreshed by this run has been withdrawn -- but only
+    // if the list is whole. A truncated slice (see fetchSlice) deletes
+    // nothing, or real dates the provider cut off would go with the stale
+    // ones. Nor does an empty slice: that is far likelier a provider fault
+    // than a week with no US earnings, and a stale row errs toward a warning.
+    if (complete && deduped.length > 0) {
       const { error, count } = await admin
         .from("earnings_calendar")
         .delete({ count: "exact" })
