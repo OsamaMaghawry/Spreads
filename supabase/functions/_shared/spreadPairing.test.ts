@@ -426,3 +426,30 @@ test("without an order behind them, a long below a short is left to the cover ru
   assert.equal(out.find((o) => o.type === "call_spread"), undefined);
   assert.equal(out.find((o) => o.shortSymbol === "NVDA260918C00220000").type, KINDS.COVERED_CALL);
 });
+
+// ---------------------------------------------------------------------------
+// A collar: shares, a put bought, a call sold, one expiry
+// ---------------------------------------------------------------------------
+
+test("shares with a put bought and a call sold on one expiry are tagged a collar", () => {
+  const positions = [
+    { symbol: "TSLA", qty: "100", qty_available: "100", avg_entry_price: "380", current_price: "400", market_value: "40000" },
+    { symbol: "TSLA261120P00380000", qty: "1", avg_entry_price: "6", current_price: "6" },
+    { symbol: "TSLA261120C00430000", qty: "-1", avg_entry_price: "7", current_price: "7" }
+  ];
+  const out = pairSpreads(positions, [], [], { cash: 0 });
+  assert.equal(out.length, 3);
+  for (const r of out) assert.equal(r.structure, "collar", `${r.type} is not tagged`);
+  assert.ok(out.some((r) => r.type === KINDS.COVERED_CALL));
+  assert.ok(out.some((r) => r.type === KINDS.LONG_OPTION));
+});
+
+test("a put and a call on different expiries are not called a collar", () => {
+  const positions = [
+    { symbol: "TSLA", qty: "100", qty_available: "100", avg_entry_price: "380", current_price: "400", market_value: "40000" },
+    { symbol: "TSLA261218P00380000", qty: "1", avg_entry_price: "8", current_price: "8" },
+    { symbol: "TSLA261120C00430000", qty: "-1", avg_entry_price: "7", current_price: "7" }
+  ];
+  const out = pairSpreads(positions, [], [], { cash: 0 });
+  assert.ok(out.every((r) => r.structure !== "collar"));
+});

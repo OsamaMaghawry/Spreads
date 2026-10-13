@@ -566,3 +566,139 @@ export function spreadSetup(legs, ctx) {
     }
   };
 }
+
+/**
+ * A collar on shares the account holds: one put BOUGHT below the price as a
+ * floor, one call SOLD above it as a cap, per 100 shares, one order.
+ *
+ * The owner: "I want to build the Collar strategy ... apply it on my holding."
+ * The two option legs on their own are a synthetic short with a naked call in
+ * it, so this refuses unless the account holds the shares that make the call
+ * covered: a collar is the shares plus the two legs, never the legs alone.
+ *
+ * Measured like the covered call (contractSetup): against what the shares
+ * cost where the basis is known, because that is what the trader actually
+ * locks in; and from today's price, because that is what the collar itself
+ * adds or gives up from here. Both are per collar (100 shares), at expiry.
+ *
+ *   net       call premium in, less put premium out (positive is a credit)
+ *   floor     the put strike: below it the put pays a dollar for every dollar
+ *             the shares lose
+ *   cap       the call strike: above it the shares are called away
+ *   worst     floor - basis + net    (at or below the put strike)
+ *   best      cap   - basis + net    (at or above the call strike)
+ */
+export function collarSetup(legs, ctx) {
+  const picked = (legs || []).filter(Boolean);
+  if (picked.length !== 2) return { ok: false, reason: "A collar is one put bought and one call sold." };
+  const typeOf = (l) => (l.row.type === "P" || l.row.type === "put" ? "P" : "C");
+  const put = picked.find((l) => typeOf(l) === "P");
+  const call = picked.find((l) => typeOf(l) === "C");
+  if (!put || !call) return { ok: false, reason: "A collar is one put and one call." };
+  if (put.action !== "buy" || call.action !== "sell") {
+    return { ok: false, reason: "A collar buys the put and sells the call. Other put and call pairs are not supported here." };
+  }
+  const expiryOf = (l) => String(l.expiry || l.row.expiry || ctx?.expiry || "");
+  if (expiryOf(put) !== expiryOf(call)) {
+    return { ok: false, reason: "Pick the put and the call on the same expiry for a collar." };
+  }
+  const putStrike = Number(put.row.strike);
+  const callStrike = Number(call.row.strike);
+  if (!(putStrike <= callStrike)) {
+    return { ok: false, reason: "The put's strike must be at or below the call's: the put is the floor, the call the cap." };
+  }
+  const putMid = num(put.row.mid);
+  const callMid = num(call.row.mid);
+  if (putMid === null || callMid === null) {
+    const dead = putMid === null ? put.row.symbol : call.row.symbol;
+    return { ok: false, reason: `No two-sided market on ${dead}. Nothing to price the collar from.` };
+  }
+
+  const shares = Number(ctx?.shares) || 0;
+  if (shares < 100) {
+    return {
+      ok: false,
+      reason: `A collar needs 100 free ${ctx?.ticker || ""} shares per contract in ${ctx?.accountName || "this account"}, ` +
+        `which has ${shares}. Without them the call is not covered.`
+    };
+  }
+
+  const expiry = expiryOf(put);
+  const spot = num(ctx?.spot);
+  const basis = num(ctx?.basis);
+  const credit = Math.round((callMid - putMid) * 10000) / 10000;
+  const per = (v) => (v === null ? null : r2(v * 100));
+  const fromBasis = basis !== null && basis > 0;
+  const worstBasis = fromBasis ? per(putStrike - basis + credit) : null;
+  const bestBasis = fromBasis ? per(callStrike - basis + credit) : null;
+  const worstSpot = spot ? per(putStrike - spot + credit) : null;
+  const bestSpot = spot ? per(callStrike - spot + credit) : null;
+  // The figure the shared risk panels read: the worst case against the basis
+  // where it is known, from today's price where it is not. A worst case that
+  // is a gain (a collar locking in profit) is no risk at all.
+  const worst = fromBasis ? worstBasis : worstSpot;
+  const ref = fromBasis ? basis : spot;
+
+  const leg = (l, side) => ({
+    role: side === "sell" ? "short_call" : "long_put",
+    symbol: l.row.symbol,
+    strike: Number(l.row.strike),
+    expiry,
+    type: side === "sell" ? "call" : "put",
+    bid: num(l.row.bid),
+    ask: num(l.row.ask),
+    mid: num(l.row.mid),
+    delta: num(l.row.delta),
+    iv: num(l.row.iv),
+    ratio: 1,
+    side
+  });
+
+  return {
+    ok: true,
+    setup: {
+      ticker: ctx?.ticker,
+      expiry,
+      expiries: [expiry],
+      structure: "collar",
+      strategy: "collar",
+      targetDelta: null,
+      wingWidth: null,
+      width: null,
+      spot,
+      spotSource: ctx?.spotSource ?? null,
+      spotAsOf: ctx?.spotAsOf ?? null,
+      putRatio: 1,
+      callRatio: 1,
+      fromChain: true,
+      accountId: ctx?.accountId ?? null,
+      accountName: ctx?.accountName ?? null,
+      credit,
+      debit: credit < 0 ? Math.abs(credit) : null,
+      collateral: null,
+      floor: putStrike,
+      cap: callStrike,
+      basis: fromBasis ? basis : null,
+      basisSource: ctx?.basisSource ?? null,
+      sharesHeld: shares,
+      maxContracts: Math.floor(shares / 100),
+      worstFromBasis: worstBasis,
+      bestFromBasis: bestBasis,
+      worstFromSpot: worstSpot,
+      bestFromSpot: bestSpot,
+      maxRisk: worst === null ? null : Math.max(0, -worst),
+      maxProfit: fromBasis ? bestBasis : bestSpot,
+      unlimitedRisk: false,
+      riskNote: fromBasis
+        ? null
+        : "No cost basis on record for these shares, so the worst and best cases are measured from today's price.",
+      // Where the shares plus the collar come out even, against the reference
+      // price, when that point lies between the floor and the cap.
+      breakEvenLow: ref !== null && ref - credit >= putStrike && ref - credit <= callStrike ? r2(ref - credit) : null,
+      breakEvenHigh: null,
+      returnOnCollateral: null,
+      otmPct: spot ? (spot - putStrike) / spot : null,
+      legs: [leg(put, "buy"), leg(call, "sell")]
+    }
+  };
+}

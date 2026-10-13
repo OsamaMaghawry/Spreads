@@ -541,3 +541,59 @@ test("a missing or nonsense quantity reads as one", () => {
   assert.equal(r.setup.units, 1);
   assert.equal(r.setup.structure, "vertical");
 });
+
+// ---------------------------------------------------------------------------
+// collarSetup — a put bought and a call sold on shares held
+// ---------------------------------------------------------------------------
+
+import { collarSetup } from "./optionChain.js";
+
+const held = { ...ctx, ticker: "TSLA", spot: 400, shares: 200, basis: 380, basisSource: "broker", accountName: "Paper" };
+
+test("a collar: floor, cap and net, measured against the basis and from today", () => {
+  // Buy the 380 put for 6, sell the 430 call for 7: a 1.00 credit.
+  const r = collarSetup([{ row: P(380, 6), action: "buy" }, { row: C(430, 7), action: "sell" }], held);
+  assert.equal(r.ok, true);
+  const s = r.setup;
+  assert.equal(s.strategy, "collar");
+  assert.equal(s.credit, 1);
+  assert.equal(s.floor, 380);
+  assert.equal(s.cap, 430);
+  // Against the 380 basis: worst 380 - 380 + 1 = +1 a share (a gain), best 51.
+  assert.equal(s.worstFromBasis, 100);
+  assert.equal(s.bestFromBasis, 5100);
+  assert.equal(s.maxRisk, 0);
+  // From today's 400: worst -19, best +31.
+  assert.equal(s.worstFromSpot, -1900);
+  assert.equal(s.bestFromSpot, 3100);
+  assert.equal(s.maxContracts, 2);
+  assert.deepEqual(s.legs.map((l) => `${l.side} ${l.type} ${l.strike}`), ["buy put 380", "sell call 430"]);
+  // Even at 379 against the basis: outside the floor, so no break-even shown.
+  assert.equal(s.breakEvenLow, null);
+});
+
+test("a collar costing money, with the basis above the price", () => {
+  const r = collarSetup([{ row: P(370, 8), action: "buy" }, { row: C(420, 5), action: "sell" }], { ...held, basis: 410 });
+  const s = r.setup;
+  assert.equal(s.credit, -3);
+  assert.equal(s.debit, 3);
+  // Worst against 410: 370 - 410 - 3 = -43 a share.
+  assert.equal(s.maxRisk, 4300);
+  assert.equal(s.bestFromBasis, 700);
+  assert.equal(s.breakEvenLow, 413);
+});
+
+test("no basis on record: measured from today's price, and said so", () => {
+  const r = collarSetup([{ row: P(380, 6), action: "buy" }, { row: C(430, 7), action: "sell" }], { ...held, basis: null });
+  assert.equal(r.setup.maxRisk, 1900);
+  assert.equal(r.setup.maxProfit, 3100);
+  assert.match(r.setup.riskNote, /today's price/);
+});
+
+test("a collar is refused without the shares, or the wrong way round", () => {
+  const legs = [{ row: P(380, 6), action: "buy" }, { row: C(430, 7), action: "sell" }];
+  assert.match(collarSetup(legs, { ...held, shares: 50 }).reason, /100 free/);
+  assert.match(collarSetup([{ row: P(380, 6), action: "sell" }, { row: C(430, 7), action: "buy" }], held).reason, /buys the put/);
+  assert.match(collarSetup([{ row: P(440, 6), action: "buy" }, { row: C(430, 7), action: "sell" }], held).reason, /at or below/);
+  assert.match(collarSetup([{ row: P(380, 6, "2026-11-20"), action: "buy" }, { row: C(430, 7), action: "sell" }], held).reason, /same expiry/);
+});

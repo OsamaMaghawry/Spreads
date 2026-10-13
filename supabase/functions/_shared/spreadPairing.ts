@@ -723,11 +723,30 @@ function tagStructures(rows) {
     const shares = group.find((r) => r.type === KINDS.SHARES && Math.abs(r.qty) >= 100);
     if (!shares) return;
     const repairs = group.filter((r) => r.type === "call_ratio_spread" && r.coverShares > 0);
-    if (!repairs.length) return;
-    [shares, ...repairs].forEach((r) => {
-      r.structure = "stock_repair";
-      r.structureLabel = "Stock repair";
-    });
+    if (repairs.length) {
+      [shares, ...repairs].forEach((r) => {
+        r.structure = "stock_repair";
+        r.structureLabel = "Stock repair";
+      });
+      return;
+    }
+
+    // A COLLAR: the shares, a put bought below them and a call sold against
+    // them on the same expiry. The owner opens it from the option chain as one
+    // order; it lands as three rows (the put is a long option, the call a
+    // covered call), each keeping its own honest figures, tagged as the one
+    // trade they are -- the same treatment as the stock repair above.
+    const singles = group.filter((r) => r.single);
+    for (const call of singles.filter((r) => r.type === KINDS.COVERED_CALL)) {
+      const put = singles.find((r) =>
+        r.type === KINDS.LONG_OPTION && r.legs?.[0]?.kind === "put" && r.expiry === call.expiry &&
+        Number(r.legs[0].strike) <= Number(call.legs?.[0]?.strike) && !r.structure);
+      if (!put) continue;
+      [shares, put, call].forEach((r) => {
+        r.structure = "collar";
+        r.structureLabel = "Collar";
+      });
+    }
   });
 
   return rows;

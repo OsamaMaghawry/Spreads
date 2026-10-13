@@ -21,6 +21,7 @@ export const isSingle = (strategy) => SINGLE_STRATEGIES.includes(strategy);
 
 export function unitFor(strategy) {
   if (strategy === "iron_condor") return "condor";
+  if (strategy === "collar") return "collar";
   if (strategy === "cash_secured_put" || strategy === "long_put") return "put";
   if (strategy === "covered_call" || strategy === "long_call") return "call";
   return "spread";
@@ -33,7 +34,8 @@ export const STRATEGY_LABEL = {
   cash_secured_put: "Cash-secured put",
   covered_call: "Covered call",
   long_put: "Long put",
-  long_call: "Long call"
+  long_call: "Long call",
+  collar: "Collar"
 };
 
 // The legs being sold -- one for a wheel half, one per side of a spread, two

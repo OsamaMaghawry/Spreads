@@ -3,7 +3,7 @@ import { Search, RefreshCw, AlertTriangle, X } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { fmtMoney } from "@/lib/format";
 import TradeDialog from "@/components/scanner/TradeDialog";
-import { contractSetup, spreadSetup } from "@/lib/optionChain";
+import { contractSetup, spreadSetup, collarSetup } from "@/lib/optionChain";
 
 // The option chain, as a ladder, with every strike tradeable.
 //
@@ -171,9 +171,11 @@ export default function OptionChain() {
   // One tested builder per shape; never inline arithmetic on this page.
   const ticket = useMemo(() => {
     if (!ctx || picked.length === 0) return null;
-    return picked.length === 1
-      ? contractSetup(picked[0].row, picked[0].action, ctx)
-      : spreadSetup(picked, ctx);
+    if (picked.length === 1) return contractSetup(picked[0].row, picked[0].action, ctx);
+    // A put and a call together are a collar on the shares this account
+    // holds; two of the same type are a spread. See collarSetup.
+    const types = new Set(picked.map((p) => (p.row.type === "P" ? "P" : "C")));
+    return types.size === 2 ? collarSetup(picked, ctx) : spreadSetup(picked, ctx);
   }, [picked, ctx]);
 
   return (
@@ -182,7 +184,7 @@ export default function OptionChain() {
         <h1 className="font-heading text-xl font-bold tracking-[-0.02em] text-dm-text">Option chain</h1>
         <p className="text-xs text-slate-500 mt-0.5">
           Every listed strike, every listed expiry. Pick one leg for a single option, two of the same
-          type for a vertical spread.
+          type for a spread, or buy a put and sell a call for a collar on shares you hold.
         </p>
       </div>
 
@@ -315,7 +317,7 @@ export default function OptionChain() {
           {ticket?.ok ? (
             <span className="text-xs text-slate-300">
               {picked.length === 2
-                ? `${ticket.setup.ratioLabel ? `${ticket.setup.ratioLabel} ratio` : ticket.setup.structure}${ticket.setup.units > 1 ? ` × ${ticket.setup.units}` : ""} · `
+                ? `${ticket.setup.ratioLabel ? `${ticket.setup.ratioLabel} ratio` : ticket.setup.structure}${ticket.setup.units > 1 ? ` × ${ticket.setup.units}` : ""}${ticket.setup.strategy === "collar" ? ` ${ticket.setup.floor}/${ticket.setup.cap}` : ""} · `
                 : ""}
               {ticket.setup.credit >= 0
                 ? `credit ${n2(ticket.setup.credit)}`
@@ -419,7 +421,8 @@ export default function OptionChain() {
             in the money ·{" "}
             <strong className="text-emerald-700">B</strong> buys,{" "}
             <strong className="text-rose-700">S</strong> sells, both at the midpoint — you set the
-            limit on the ticket. Pick two legs of the same type for a vertical. Every listed strike
+            limit on the ticket. Pick two legs of the same type for a vertical, or B a put and S a
+            call for a collar on shares you hold. Every listed strike
             is shown, including those with no market; those price no ticket and read
             &ldquo;—&rdquo;. Nothing on this screen is a recommendation.
           </p>

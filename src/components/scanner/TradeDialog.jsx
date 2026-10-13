@@ -74,7 +74,7 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
   // A setup built from holdings (a covered call's cover and basis) belongs to
   // the account those holdings were read on.
   const coverMoved =
-    !!setup.accountId && setup.accountId !== accountId && setup.strategy === "covered_call";
+    !!setup.accountId && setup.accountId !== accountId && (setup.strategy === "covered_call" || setup.strategy === "collar");
 
   // Walk by default, exactly as on the close ticket and Open Position. The
   // start and floor defaults are explained in OpenPricing.

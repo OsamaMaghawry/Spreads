@@ -41,6 +41,10 @@ export default function SetupPreview({ setup, qty, live = null }) {
   // is false for it, so it gets its own rows rather than blanks in theirs.
   const overLong = cc && setup.coveredBy === "long_call";
   const onShares = cc && !overLong;
+  // A collar is the shares plus a floor and a cap. Its figures include the
+  // shares, measured against what they cost where that is known and from
+  // today's price as well -- see collarSetup.
+  const collar = setup.strategy === "collar";
   // "Stock to 0" is the ceiling on a short put and on shares. It is not a
   // ceiling on anything else, so the phrase only appears where it is true.
   const risk = riskState(setup);
@@ -176,7 +180,32 @@ export default function SetupPreview({ setup, qty, live = null }) {
         <span className={`text-right font-medium ${debit ? "text-slate-900" : "text-emerald-600"}`}>
           {fmtMoney(Math.abs(setup.credit) * 100)}
         </span>
-        {single ? (
+        {collar ? (
+          <>
+            <span className="text-slate-500">Floor (put bought)</span>
+            <span className="text-right">{fmtMoney(setup.floor)}</span>
+            <span className="text-slate-500">Cap (call sold)</span>
+            <span className="text-right">{fmtMoney(setup.cap)}</span>
+            {setup.basis != null && (
+              <>
+                <span className="text-slate-500">Worst / {unit}, against your {fmtMoney(setup.basis)} basis</span>
+                <span className={`text-right font-semibold ${setup.worstFromBasis >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{fmtMoney(setup.worstFromBasis)}</span>
+                <span className="text-slate-500">Best / {unit}, against your basis</span>
+                <span className={`text-right ${setup.bestFromBasis >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{fmtMoney(setup.bestFromBasis)}</span>
+              </>
+            )}
+            {setup.worstFromSpot != null && (
+              <>
+                <span className="text-slate-500">Worst / {unit}, from today&rsquo;s price</span>
+                <span className={`text-right ${setup.worstFromSpot >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{fmtMoney(setup.worstFromSpot)}</span>
+                <span className="text-slate-500">Best / {unit}, from today&rsquo;s price</span>
+                <span className={`text-right ${setup.bestFromSpot >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{fmtMoney(setup.bestFromSpot)}</span>
+              </>
+            )}
+            <span className="text-slate-500">Shares covered</span>
+            <span className="text-right">{qty * 100} of {setup.sharesHeld}</span>
+          </>
+        ) : single ? (
           <>
             <span className="text-slate-500">
               {overLong ? "Long call cost" : onShares ? "Shares at basis" : "Collateral"} / {unit}
