@@ -33,6 +33,44 @@ export async function fetchProviderWindow(from: string, to: string): Promise<Ear
     }));
 }
 
+// Two cached reports for one symbol this close together are one quarter's
+// report whose date moved, not two reports: companies report quarterly.
+export const SAME_QUARTER_DAYS = 45;
+
+type CachedRow = { symbol: string; report_date: string; session: string | null; fetched_at: string };
+
+/**
+ * The rows still current, once moved dates are set aside.
+ *
+ * The cache is keyed on (symbol, date), so a report that moves leaves its old
+ * date behind until a refresh re-reads that week (refreshEarningsRange now
+ * removes it then). Until it does, every lookup took the SOONEST row -- the
+ * stale one. On 13 Oct 2026 INTC had 21, 22 and 29 Oct cached; Intel had
+ * confirmed the 29th on 6 Oct, and the tickets warned of the 21st. The owner:
+ * "This earning is not correct."
+ *
+ * So among a symbol's rows, the most recently fetched wins, and any row within
+ * SAME_QUARTER_DAYS of a newer-fetched one is the same report, superseded.
+ */
+export function currentReports(rows: CachedRow[]): CachedRow[] {
+  const days = (a: string, b: string) =>
+    Math.abs(new Date(`${a}T00:00:00Z`).getTime() - new Date(`${b}T00:00:00Z`).getTime()) / 86400000;
+  const bySymbol: Record<string, CachedRow[]> = {};
+  for (const r of rows) (bySymbol[r.symbol] = bySymbol[r.symbol] || []).push(r);
+  const out: CachedRow[] = [];
+  for (const list of Object.values(bySymbol)) {
+    const newestFirst = [...list].sort((a, b) =>
+      String(b.fetched_at).localeCompare(String(a.fetched_at)) || a.report_date.localeCompare(b.report_date));
+    const kept: CachedRow[] = [];
+    for (const r of newestFirst) {
+      if (kept.some((k) => days(k.report_date, r.report_date) < SAME_QUARTER_DAYS)) continue;
+      kept.push(r);
+    }
+    out.push(...kept);
+  }
+  return out;
+}
+
 /**
  * Which of `symbols` report on or before `throughDate`, from the cache.
  *
@@ -48,20 +86,25 @@ export async function earningsThrough(
   if (symbols.length === 0) return {};
 
   const today = new Date().toISOString().slice(0, 10);
+  // Read a quarter's margin past the window: a report moved from inside it to
+  // just outside it must still be seen, or the stale date inside would stand.
   const { data, error } = await admin
     .from("earnings_calendar")
-    .select("symbol, report_date, session")
+    .select("symbol, report_date, session, fetched_at")
     .in("symbol", symbols)
     .gte("report_date", today)
-    .lte("report_date", throughDate)
+    .lte("report_date", addDays(throughDate, SAME_QUARTER_DAYS))
     .order("report_date", { ascending: true });
 
   // A missing calendar must never fail a scan or block an order. Absence of a
   // warning is not a promise there is no announcement, and the UI says so.
   if (error || !data) return {};
 
+  const current = currentReports(data)
+    .filter((r) => r.report_date <= throughDate)
+    .sort((a, b) => a.report_date.localeCompare(b.report_date));
   const soonest: Record<string, EarningsEvent> = {};
-  for (const row of data) {
+  for (const row of current) {
     if (soonest[row.symbol]) continue;          // ordered ascending, first wins
     soonest[row.symbol] = {
       symbol: row.symbol,
