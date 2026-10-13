@@ -336,6 +336,25 @@ export function excessShortCalls(
   return { contracts, expiry };
 }
 
+// The broker's refusal, said the way a trader can act on it.
+//
+// Alpaca answers a call it will not cover with `403 {"code":40310000,
+// "message":"account not eligible to trade uncovered option contracts"}`, and
+// the ticket printed that JSON as the whole explanation. What it means: the
+// shares or long calls that would cover this call are already covering others
+// -- including calls in orders still working, which the broker holds cover
+// for. Anything else passes through unchanged.
+export function brokerRefusal(message: string, ticker?: string | null): string {
+  const m = String(message || "");
+  if (/uncovered option contracts/i.test(m)) {
+    const name = ticker ? `${ticker} ` : "";
+    return `Your broker refused this order: it would leave a call uncovered. Its ${name}shares and long calls are ` +
+      `already covering other calls, including calls in orders still working. Cancel the working order that holds ` +
+      `them (Orders tab), or sell fewer calls.`;
+  }
+  return m;
+}
+
 // Which of a list the user has not already seen and accepted.
 export const unacknowledged = (warnings: OrderWarning[], accepted: string[] | boolean | undefined) => {
   if (accepted === true) return [];

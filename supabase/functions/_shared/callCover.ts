@@ -53,6 +53,8 @@ export type CoverLeg = {
   expiry?: string | null;
   strike?: number | null;
   adjusted?: boolean;
+  // A claim from an order still working, not a position (workingCallClaims).
+  working?: boolean;
 };
 
 export type Cover = {
@@ -192,7 +194,51 @@ export const coveredByShares = (contracts: number, shares: number) =>
  * its cover FIRST, with the one rule the rest of the codebase already uses,
  * and offer only what is left. Pure, so it can be tested against a real book.
  */
-export function freeCallCover(positions: any[]) {
+/**
+ * Calls that orders STILL WORKING at the broker will sell, as short call legs
+ * the allocator can charge against shares and long calls like any other.
+ *
+ * The broker does: it holds cover for a working order that sells a call, and
+ * refuses a new order the cover no longer stretches to. Counting positions
+ * only, the screen said "100 of 100 free" while Alpaca had those shares behind
+ * a two-collar order still resting, and the owner's stock repair came back
+ * "account not eligible to trade uncovered option contracts". Per order: the
+ * calls it opens short, less the calls it opens long (a vertical's long covers
+ * its own short), times the units not yet filled -- what is filled is already
+ * a position. Calls being closed are not claims.
+ */
+export function workingCallClaims(orders: any[]) {
+  const out: CoverLeg[] = [];
+  for (const o of Array.isArray(orders) ? orders : []) {
+    const units = Math.max(0, (parseFloat(o?.qty) || 0) - (parseFloat(o?.filled_qty) || 0));
+    if (!(units > 0)) continue;
+    const legs = o.order_class === "mleg" && Array.isArray(o.legs)
+      ? o.legs
+      : [{ symbol: o.symbol, side: o.side, ratio_qty: 1, position_intent: o.position_intent }];
+    const byTicker: Record<string, { sold: number; bought: number; expiry: string | null; strike: number | null }> = {};
+    for (const l of legs) {
+      const occ = parseOCCSymbol(l?.symbol);
+      if (!occ || occ.type !== "C") continue;
+      const ratio = Math.max(1, Math.floor(parseFloat(l.ratio_qty) || 1));
+      const t = (byTicker[occ.ticker] ||= { sold: 0, bought: 0, expiry: null, strike: null });
+      if (l.side === "sell" && l.position_intent !== "sell_to_close") {
+        t.sold += ratio;
+        if (t.expiry === null || occ.expiryFormatted < t.expiry) { t.expiry = occ.expiryFormatted; t.strike = occ.strike; }
+      } else if (l.side === "buy" && l.position_intent !== "buy_to_close") {
+        t.bought += ratio;
+      }
+    }
+    for (const [ticker, t] of Object.entries(byTicker)) {
+      const net = (t.sold - t.bought) * units;
+      if (net > 0) {
+        out.push({ symbol: `working:${o.id}:${ticker}`, ticker, type: "C", qty: -net, expiry: t.expiry, strike: t.strike, adjusted: false, working: true });
+      }
+    }
+  }
+  return out;
+}
+
+export function freeCallCover(positions: any[], workingOrders: any[] = []) {
   const shares: Record<string, number> = {};
   const legs: any[] = [];
   const cost: Record<string, number> = {};
@@ -232,6 +278,9 @@ export function freeCallCover(positions: any[]) {
     if (now > 0) mark[p.symbol] = now;
   }
 
+  // Calls that orders still working will sell take their cover first-come,
+  // exactly as a short already open would.
+  legs.push(...workingCallClaims(workingOrders));
   const { bySymbol, sharesLeft, longsLeft } = allocateCallCover(legs, shares);
 
   const longsFree: Record<string, any[]> = {};
@@ -264,7 +313,7 @@ export function freeCallCover(positions: any[]) {
       .filter((c) => c.ticker === t && c.judged && c.covered > 0)
       .map((c) => {
         const leg = legs.find((l) => l.symbol === c.symbol);
-        return `${leg?.strike ?? "?"} call (${leg?.expiry ?? "?"})`;
+        return `${leg?.strike ?? "?"} call (${leg?.expiry ?? "?"})${leg?.working ? " in an order still working" : ""}`;
       });
     const what = [
       shares[t] >= SHARES_PER_CONTRACT ? `${shares[t]} shares` : null,

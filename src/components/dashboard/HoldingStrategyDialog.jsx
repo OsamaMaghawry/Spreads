@@ -121,7 +121,11 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
   const spot = num(data?.spot);
   const basis = num(data?.basis) ?? num(position.shareBasis);
   const basisSource = num(data?.basis) !== null ? data.basisSource : position.basisSource;
-  const free = Number(ctx?.shares) || 0;
+  // FREE, as the broker counts it: shares not already covering a call, open
+  // or in an order still working (workingCallClaims). The ticket's `shares`
+  // falls back to everything held when none is free, so it can warn; this
+  // figure is the one that decides how many can be sent.
+  const free = Number(data?.sharesFree ?? ctx?.shares) || 0;
   const maxUnits = Math.floor(free / 100);
 
   // The floor's steps: listed puts with a market, at or below today's price.
@@ -238,7 +242,7 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
           ) : (
             <Fact term="Held" value={`${position.qty} shares`} />
           )}
-          <Fact term="Free to write against" value={`${free} shares`} note={free < position.qty ? "rest back calls already sold" : null} />
+          <Fact term="Free to write against" value={`${free} shares`} note={free < position.qty ? "rest cover other calls" : null} />
         </dl>
 
         {loading && !data && <p className="text-sm text-slate-500">Reading the {ticker} chain…</p>}
@@ -365,12 +369,13 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
             )}
 
             {found?.reason && <p className="text-xs text-amber-700 leading-relaxed">{found.reason}</p>}
-            {repair && maxUnits === 0 && (
+            {maxUnits === 0 && (
               <Bullets
                 className="text-xs text-amber-700"
                 items={[
-                  "Each repair needs 100 free shares to cover the extra call sold.",
-                  `All your ${ticker} shares already back calls you have sold.`
+                  `Each ${repair ? "repair" : "collar"} needs 100 free shares to cover the call sold.`,
+                  data?.coverInUse || `All your ${ticker} shares already cover other calls.`,
+                  "Your broker will refuse it until some are free: cancel a working order, or close a call."
                 ]}
               />
             )}
@@ -519,7 +524,7 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
               <button
                 type="button"
                 onClick={openTicket}
-                disabled={!chosen || loading || (repair && maxUnits === 0)}
+                disabled={!chosen || loading || maxUnits === 0}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Open ticket

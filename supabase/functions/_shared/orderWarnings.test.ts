@@ -266,3 +266,14 @@ test("puts, back ratios and a condor raise nothing", () => {
   assert.equal(excessShortCalls([call("sell", 1), call("buy", 2)], 1), null);
   assert.equal(excessShortCalls([put("sell"), put("buy"), call("sell"), call("buy")], 1), null);
 });
+
+import { brokerRefusal } from "./orderWarnings.ts";
+
+test("the broker's uncovered refusal is said plainly; anything else passes through", () => {
+  const raw = 'Alpaca 403: {"code":40310000,"message":"account not eligible to trade uncovered option contracts"}';
+  const said = brokerRefusal(raw, "INTC");
+  assert.match(said, /would leave a call uncovered/);
+  assert.match(said, /INTC shares/);
+  assert.match(said, /orders still working/);
+  assert.equal(brokerRefusal("Alpaca 422: insufficient buying power"), "Alpaca 422: insufficient buying power");
+});

@@ -276,3 +276,51 @@ test("nothing held, nothing scanned", () => {
   const s = scanCover(freeCallCover([{ symbol: "IBIT260925P00047000", qty: "-2", avg_entry_price: "0.18" }]));
   assert.deepEqual(s.tickers, []);
 });
+
+// ---------------------------------------------------------------------------
+// Orders still working hold cover too.
+// ---------------------------------------------------------------------------
+
+import { workingCallClaims } from "./callCover.ts";
+
+// The owner's Alton Live on 13 Oct 2026: 200 INTC, one 110 call sold (a
+// collar that filled), and a two-collar order still resting -- two more 105
+// calls to be sold. The broker had no shares left for a repair's extra call.
+const intcBook = [
+  { symbol: "INTC", qty: "200" },
+  { symbol: "INTC271217C00110000", qty: "-1" },
+  { symbol: "INTC271217P00100000", qty: "1" }
+];
+const twoCollars = {
+  id: "c2", order_class: "mleg", qty: "2", filled_qty: "0",
+  legs: [
+    { symbol: "INTC270917P00100000", side: "buy", ratio_qty: "1", position_intent: "buy_to_open" },
+    { symbol: "INTC270917C00105000", side: "sell", ratio_qty: "1", position_intent: "sell_to_open" }
+  ]
+};
+
+test("a working order that sells calls holds shares, as a short call already open does", () => {
+  assert.equal(freeCallCover(intcBook).sharesFree.INTC, 100);
+  const withOrder = freeCallCover(intcBook, [twoCollars]);
+  assert.equal(withOrder.sharesFree.INTC, undefined);
+  assert.ok(!withOrder.coverTickers.includes("INTC"));
+  // And says where they went.
+  assert.match(withOrder.committed.find((c) => c.ticker === "INTC").reason, /105 call \(2027-09-17\) in an order still working/);
+});
+
+test("working claims: net short calls per order, unfilled units only, closes ignored", () => {
+  // A vertical covers its own short: no claim.
+  const vertical = { id: "v", order_class: "mleg", qty: "3", filled_qty: "0", legs: [
+    { symbol: "INTC261120C00100000", side: "buy", ratio_qty: "1", position_intent: "buy_to_open" },
+    { symbol: "INTC261120C00105000", side: "sell", ratio_qty: "1", position_intent: "sell_to_open" }
+  ] };
+  assert.deepEqual(workingCallClaims([vertical]), []);
+  // A 1x2 claims its extra call per unit, less what has filled.
+  const ratio = { ...vertical, id: "r", qty: "3", filled_qty: "1", legs: [vertical.legs[0], { ...vertical.legs[1], ratio_qty: "2" }] };
+  assert.equal(workingCallClaims([ratio])[0].qty, -2);
+  // A plain covered call order claims its contracts; a call being bought back does not.
+  assert.equal(workingCallClaims([{ id: "s", symbol: "INTC261120C00110000", side: "sell", qty: "2", filled_qty: "0", position_intent: "sell_to_open" }])[0].qty, -2);
+  assert.deepEqual(workingCallClaims([{ id: "b", symbol: "INTC261120C00110000", side: "buy", qty: "1", filled_qty: "0", position_intent: "buy_to_close" }]), []);
+  // Stock orders and puts are not call claims.
+  assert.deepEqual(workingCallClaims([{ id: "x", symbol: "INTC", side: "sell", qty: "100", filled_qty: "0" }]), []);
+});

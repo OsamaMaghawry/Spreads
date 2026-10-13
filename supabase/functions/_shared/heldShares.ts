@@ -15,9 +15,18 @@ import { fetchSnapTradeRaw } from "./snaptradeAccount.ts";
 export async function heldShares(admin: any, account: any) {
   // A read-only account's own shares come from SnapTrade, already in Alpaca's
   // shape. Never from the account that supplies its prices (marketData.ts).
-  const positions = account?.provider === "snaptrade"
-    ? (await fetchSnapTradeRaw(admin, account)).positions
-    : await alpacaFetch(`${tradingBase(account)}/positions`, account);
+  const snap = account?.provider === "snaptrade";
+  const [positions, workingOrders] = await Promise.all([
+    snap
+      ? fetchSnapTradeRaw(admin, account).then((r) => r.positions)
+      : alpacaFetch(`${tradingBase(account)}/positions`, account),
+    // Orders still working hold cover at the broker (see workingCallClaims).
+    // A read-only account places nothing here. A failed read leaves the old
+    // positions-only answer rather than failing the caller.
+    snap
+      ? Promise.resolve([])
+      : alpacaFetch(`${tradingBase(account)}/orders?status=open&nested=true&limit=500`, account).catch(() => [])
+  ]);
   const shares: Record<string, number> = {};
   const brokerBasis: Record<string, number> = {};
   for (const p of Array.isArray(positions) ? positions : []) {
@@ -57,7 +66,7 @@ export async function heldShares(admin: any, account: any) {
   // `shares` and `tickers` keep their old meaning -- what is HELD -- for the
   // callers that ask that. Anything deciding whether a NEW call may be written
   // must read the free-cover fields instead; see freeCallCover.
-  const cover = freeCallCover(positions);
+  const cover = freeCallCover(positions, Array.isArray(workingOrders) ? workingOrders : []);
   return {
     shares,
     basis,

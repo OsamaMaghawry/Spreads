@@ -8,7 +8,7 @@ import { getSpots, spotFromSnapshot, closingSpotFromSnapshot } from "../_shared/
 import { sessionPhase } from "../_shared/watchRules.ts";
 import {
   sessionWarning, priceWarning, driftWarning, itmShortWarning, adjustedWarning,
-  freeCoverWarning, excessShortCalls, unacknowledged, type OrderWarning
+  freeCoverWarning, excessShortCalls, unacknowledged, brokerRefusal, type OrderWarning
 } from "../_shared/orderWarnings.ts";
 import { earningsCoverage, refreshEarningsWindow } from "../_shared/earnings.ts";
 import { inBackground } from "../_shared/background.ts";
@@ -266,6 +266,7 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ orderId: order.id, status: order.status });
   } catch (error) {
-    return jsonResponse({ error: error.message }, 500);
+    // Said plainly where the broker's own words are no help (brokerRefusal).
+    return jsonResponse({ error: brokerRefusal(error.message) }, 500);
   }
 });
