@@ -11,6 +11,7 @@ import useLiveSetup from "@/components/open/useLiveSetup";
 import { saveOrder } from "@/lib/savedOrders";
 import { toast } from "@/components/ui/use-toast";
 import RestingOrder from "@/components/open/RestingOrder";
+import OrderSent from "@/components/open/OrderSent";
 import OrderLog from "@/components/close/OrderLog";
 import UpgradePrompt from "@/components/billing/UpgradePrompt";
 import TicketAnalysis from "@/components/open/TicketAnalysis";
@@ -88,11 +89,17 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
   const [saveError, setSaveError] = useState(null);
   const [saveBusy, setSaveBusy] = useState(false);
   const [minCredit, setMinCredit] = useState(null);
-  const { phase, log, upgrade, resting, warnings, run, stop, reset, replacePrice, sendAnyway } = useOpenOrder();
+  const { phase, log, upgrade, resting, restingAt, warnings, run, stop, reset, replacePrice, sendAnyway } = useOpenOrder();
 
   // Live under the ticket while it is priced and while a hand-priced order
   // rests; a Scanner row can be minutes old by the time it is opened.
   const live = useLiveSetup(accountId, setup, phase === "idle" || resting);
+
+  // "Change price" starts from where the order actually rests: after a walk
+  // that is the price it conceded to, not the one it started from.
+  useEffect(() => {
+    if (resting && typeof restingAt === "number") setLimitCredit(restingAt);
+  }, [resting, restingAt]);
 
   useEffect(() => {
     const d = openingDefaults(setup);
@@ -129,9 +136,14 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
   // Same rules as Open Position: a walk cannot be dismissed; a resting order
   // is left working (the log says so); a failure returns to the ticket with
   // the setup and price kept; filled or detached leaves.
+  //
+  // A RESTING ORDER LEAVES IN ONE STEP. The X, a click outside and Done all
+  // close the ticket and leave the order working. It used to take "Stop
+  // watching" and then a second screen saying the same thing.
+  const leave = () => { reset(); onClose({ phase: "detached" }); };
   const handleDismiss = () => {
     if (phase === "working") {
-      if (resting) stop();
+      if (resting) leave();
       return;
     }
     // Nothing was sent, so the X means "back to the ticket", not "leave".
@@ -416,14 +428,17 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
           </>
         )}
 
-        {phase !== "idle" && (
-          <div className="space-y-4">
-            <OrderLog log={log} phase={phase} />
-            {phase === "warned" && (
-              <OrderWarnings warnings={warnings} onSend={sendAnyway} onBack={reset} />
-            )}
-            {phase === "failed" && upgrade && <UpgradePrompt message={upgrade} />}
-            {phase === "working" && resting && (
+        {phase === "working" && resting && (
+          <OrderSent
+            price={restingAt ?? limitCredit}
+            priced={priced}
+            size={sizeText}
+            accountName={account?.name}
+            timeInForce={timeInForce}
+            log={log}
+            phase={phase}
+            onDone={leave}
+            changePrice={
               <RestingOrder
                 credit={limitCredit}
                 onCredit={setLimitCredit}
@@ -432,10 +447,21 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
                 qty={Number(qty) || 1}
                 onUpdate={replacePrice}
               />
+            }
+          />
+        )}
+
+        {phase !== "idle" && !(phase === "working" && resting) && (
+          <div className="space-y-4">
+            <OrderLog log={log} phase={phase} />
+            {phase === "warned" && (
+              <OrderWarnings warnings={warnings} onSend={sendAnyway} onBack={reset} />
             )}
+            {phase === "failed" && upgrade && <UpgradePrompt message={upgrade} />}
             {phase === "working" ? (
+              // Only a walk still conceding reaches here: stopping it cancels.
               <button onClick={stop} className="w-full py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm transition-colors">
-                {resting ? "Stop watching — the order keeps working" : "Stop & cancel order"}
+                Stop &amp; cancel order
               </button>
             ) : phase === "failed" ? (
               <div className="flex gap-3">

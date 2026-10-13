@@ -67,6 +67,8 @@ export default function useOpenOrder() {
   // — and a condition that is new is still put to them once.
   const ackRef = useRef([]);
   const [resting, setResting] = useState(false); // a hand-priced order is resting and being watched
+  // The price it rests at, so the ticket can say so in one line.
+  const [restingAt, setRestingAt] = useState(null);
   const stopRef = useRef(false);
   // Which order the resting watcher follows. A replace swaps the id under the
   // loop, so the loop reads it fresh on every poll rather than closing over it.
@@ -120,10 +122,11 @@ export default function useOpenOrder() {
   // Follows an order the user priced themselves without ever touching it. Same
   // rule as the close ticket: a resting price is an instruction, so Stop detaches
   // the watcher and leaves the order working rather than cancelling it.
-  async function watchResting(accountId, orderId, qty) {
+  async function watchResting(accountId, orderId, qty, price = null) {
     const gen = genRef.current;
     restingRef.current = { accountId, orderId, qty };
     setResting(true);
+    if (price !== null) setRestingAt(price);
     let lastStatus = null;
     let filledSoFar = 0;
     try {
@@ -177,7 +180,11 @@ export default function useOpenOrder() {
     if (!(price > 0)) throw new Error("Enter a credit above zero.");
     try {
       const res = await invoke("manageOrder", { accountId: r.accountId, orderId: r.orderId, action: "replace", limitPrice: price });
-      restingRef.current = { ...r, orderId: res.orderId };
+      // `manual`: the trader has taken the price over. A walk resting at its
+      // floor sees this and hands the order to the plain watcher, rather than
+      // polling the order the broker just retired and calling it "canceled".
+      restingRef.current = { ...r, orderId: res.orderId, manual: true };
+      setRestingAt(price);
       addLog(`Price changed to ${money(price)} credit — now working as ${res.orderId}`);
       return res;
     } catch (e) {
@@ -197,6 +204,8 @@ export default function useOpenOrder() {
     } = args;
     stopRef.current = false;
     genRef.current += 1;
+    const gen = genRef.current;
+    setRestingAt(null);
     setLog([]);
     setUpgrade(null);
     setWarnings([]);
@@ -239,7 +248,7 @@ export default function useOpenOrder() {
 
       if (priceMode === "manual") {
         addLog(`Order resting at ${money(credit)} credit (${orderId})`);
-        await watchResting(accountId, orderId, qty);
+        await watchResting(accountId, orderId, qty, credit);
         return;
       }
 
@@ -260,11 +269,35 @@ export default function useOpenOrder() {
       let holding = false;
 
       while (true) {
+        // The trader changed the price of the order resting at the floor: it
+        // is theirs now, and the walk steps away.
+        if (restingRef.current?.manual) {
+          const r = restingRef.current;
+          await watchResting(accountId, r.orderId, r.qty, null);
+          return;
+        }
         if (stopRef.current) {
+          // RESTING IS NOT CANCELLING. Once the walk has stopped conceding the
+          // order sits at its price, and the ticket says it will be left
+          // there. Closing the window used to land here and cancel it -- the
+          // owner: "it says, when reaching the limit, we will leave the order,
+          // but when trying to exit the window, it cancels it." Only a walk
+          // still conceding is cancelled, and only by the explicit button.
+          if (holding) {
+            if (gen === genRef.current) {
+              addLog(`Left working at ${money(credit)} credit — cancel it from the Orders tab if you no longer want it.`);
+              restingRef.current = null;
+              setResting(false);
+              setPhase("detached");
+            }
+            return;
+          }
           await finishUnfilled(accountId, orderId, qty, filledSoFar, "Stopped by user — canceling.");
           return;
         }
-        if (Date.now() - start > MAX_TIME) {
+        // The time limit is for a walk that is still conceding. One resting at
+        // its price is kept, the same as a hand-priced order.
+        if (!holding && Date.now() - start > MAX_TIME) {
           await finishUnfilled(
             accountId, orderId, qty, filledSoFar,
             `Timeout reached (${MAX_TIME / 60000} min) — canceling. Nobody is left holding anything.`
@@ -313,6 +346,13 @@ export default function useOpenOrder() {
           const proposed = nextCredit(credit, asCredit, minCredit);
 
           if (proposed < credit) {
+            // Walking again after a pause: no longer resting, so no longer
+            // something closing the window may simply leave behind.
+            if (holding) {
+              restingRef.current = null;
+              setResting(false);
+              setRestingAt(null);
+            }
             holding = false;
             addLog(`Conceding (step ${steps}): ${money(credit)} → ${money(proposed)} credit`);
             const cancelResult = await ensureCanceled(accountId, orderId);
@@ -353,14 +393,21 @@ export default function useOpenOrder() {
             }
           } else if (!holding) {
             holding = true;
-            addLog(`At your floor (${money(credit)}) — resting here and following the market.`);
+            // Said truthfully: the walk also pauses at the market's bid when
+            // that is above the floor, and would concede again if it fell.
+            addLog(
+              minCredit !== null && minCredit !== undefined && credit <= round2(minCredit)
+                ? `At your floor (${money(credit)}) — the order rests here.`
+                : `Holding at ${money(credit)} — the bid is there. Conceding again only if it moves.`
+            );
+            setRestingAt(credit);
             // The walk is finished conceding: from here the order simply rests
             // at this limit. That is the same state a hand-priced order is in,
             // so it must be leavable the same way. Until this, `resting` stayed
             // false once the walk ran out of steps, handleDismiss took the
             // "walking" branch and returned, and the X did nothing at all — the
             // ticket could only be escaped by cancelling a good resting order.
-            restingRef.current = { accountId, orderId, qty };
+            restingRef.current = { accountId, orderId, qty: qty - filledSoFar };
             setResting(true);
           }
           lastWalk = Date.now();
@@ -402,6 +449,7 @@ export default function useOpenOrder() {
     stopRef.current = true;
     restingRef.current = null;
     setResting(false);
+    setRestingAt(null);
     setPhase("idle");
     setLog([]);
     setUpgrade(null);
@@ -412,5 +460,5 @@ export default function useOpenOrder() {
     // It clears when the ticket does, because the hook goes with it.
   };
 
-  return { phase, log, upgrade, resting, warnings, run, stop, reset, replacePrice, sendAnyway };
+  return { phase, log, upgrade, resting, restingAt, warnings, run, stop, reset, replacePrice, sendAnyway };
 }

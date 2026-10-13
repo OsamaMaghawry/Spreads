@@ -17,6 +17,7 @@ import useLiveSetup from "./useLiveSetup";
 import { saveOrder, deleteSavedOrder } from "@/lib/savedOrders";
 import { toast } from "@/components/ui/use-toast";
 import RestingOrder from "./RestingOrder";
+import OrderSent from "./OrderSent";
 import OrderLog from "@/components/close/OrderLog";
 import UpgradePrompt from "@/components/billing/UpgradePrompt";
 import OrderWarnings from "./OrderWarnings";
@@ -78,12 +79,18 @@ export default function OpenPositionDialog({ account, onClose, onDone, prefill =
   const [saveBusy, setSaveBusy] = useState(false);
   const [limitCredit, setLimitCredit] = useState(null);
   const [minCredit, setMinCredit] = useState(null);
-  const { phase, log, upgrade, resting, warnings, run, stop: stopOrder, reset, replacePrice, sendAnyway } = useOpenOrder();
+  const { phase, log, upgrade, resting, restingAt, warnings, run, stop: stopOrder, reset, replacePrice, sendAnyway } = useOpenOrder();
 
   // The market under the chosen setup, live while the ticket is being priced
   // and while a hand-priced order rests (so its price can be changed against
   // the quote as it is now). Off during a walk: the walk requotes itself.
   const live = useLiveSetup(account.id, setup, !!setup && (phase === "idle" || resting));
+
+  // "Change price" starts from where the order actually rests: after a walk
+  // that is the price it conceded to, not the one it started from.
+  useEffect(() => {
+    if (resting && typeof restingAt === "number") setLimitCredit(restingAt);
+  }, [resting, restingAt]);
 
   // A different setup is a different price. Reseeding on the setup rather than
   // on every render is what lets a hand-set credit survive a re-render.
@@ -301,9 +308,13 @@ export default function OpenPositionDialog({ account, onClose, onDone, prefill =
   //                and losing the setup over a refused order is what sent the
   //                user back to the account page with nothing to retry.
   //   filled / detached -- leave and refresh.
+  //
+  // A resting order leaves in ONE step, here as on the chain's ticket: Done,
+  // the X or a click outside closes and leaves the order working.
+  const leave = () => { reset(); onDone(); };
   const handleDismiss = () => {
     if (phase === "working") {
-      if (resting) stopOrder();
+      if (resting) leave();
       return;
     }
     // Nothing was sent, so the X means "back to the ticket", not "leave".
@@ -483,14 +494,16 @@ export default function OpenPositionDialog({ account, onClose, onDone, prefill =
           </>
         )}
 
-        {phase !== "idle" && (
-          <div className="space-y-4">
-            <OrderLog log={log} phase={phase} />
-            {phase === "warned" && (
-              <OrderWarnings warnings={warnings} onSend={sendAnyway} onBack={reset} />
-            )}
-            {phase === "failed" && upgrade && <UpgradePrompt message={upgrade} />}
-            {phase === "working" && resting && setup && (
+        {phase === "working" && resting && setup && (
+          <OrderSent
+            price={restingAt ?? limitCredit}
+            size={`${qty} ${setup.ticker} ${unit}${Number(qty) > 1 ? "s" : ""}`}
+            accountName={account.name}
+            timeInForce={timeInForce}
+            log={log}
+            phase={phase}
+            onDone={leave}
+            changePrice={
               <RestingOrder
                 credit={limitCredit}
                 onCredit={setLimitCredit}
@@ -499,10 +512,21 @@ export default function OpenPositionDialog({ account, onClose, onDone, prefill =
                 qty={Number(qty) || 1}
                 onUpdate={replacePrice}
               />
+            }
+          />
+        )}
+
+        {phase !== "idle" && !(phase === "working" && resting) && (
+          <div className="space-y-4">
+            <OrderLog log={log} phase={phase} />
+            {phase === "warned" && (
+              <OrderWarnings warnings={warnings} onSend={sendAnyway} onBack={reset} />
             )}
+            {phase === "failed" && upgrade && <UpgradePrompt message={upgrade} />}
             {phase === "working" ? (
+              // Only a walk still conceding reaches here: stopping it cancels.
               <button onClick={stopOrder} className="w-full py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm transition-colors">
-                {resting ? "Stop watching — the order keeps working" : "Stop & cancel order"}
+                Stop &amp; cancel order
               </button>
             ) : phase === "failed" ? (
               <div className="flex gap-3">

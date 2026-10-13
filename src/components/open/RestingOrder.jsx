@@ -31,8 +31,7 @@ export default function RestingOrder({ credit, onCredit, quote, unit, qty, side 
   return (
     <div className="border border-slate-200 rounded-lg p-3 space-y-3">
       <p className="text-xs text-slate-500 leading-relaxed">
-        Your order is resting at the broker. Change the {side === "credit" ? "credit" : "price"} here and it is
-        replaced at the new one — nothing is walked, and cancelling it is still yours to do from the Orders tab.
+        Set a new {side === "credit" ? "credit" : "price"} and press Update: the broker replaces the order at it.
       </p>
       <PriceControl price={credit} onChange={onCredit} quote={quote} unit={unit} qty={qty} multiplier={multiplier} side={side} id="resting-price" />
       {error && (
