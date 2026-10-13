@@ -1,4 +1,4 @@
-# Pricing — the proposal, 2026-09-02
+# Pricing — the proposal, 2026-09-02 (reconciled 2026-10-13)
 
 Owned by `vp-product`; decided by the owner; a standing item at the Friday
 board. **No agent, including this one, ever sets or publishes a price.** The
@@ -7,6 +7,30 @@ Admin and the page ships through the normal release path.
 
 Supersedes the 1 Sep pitch ("The Nineteen Dollar Case"). What changed, and
 why, is in §3.
+
+
+## 0. Reconciled 2026-10-13 — what moved, and what did not
+
+**No decided item is reopened. The price stays Paper $0 / Live $29 / $290.**
+Four things moved since 2 Sep; none is new evidence against a decision.
+
+- **Trial is 7 days, not 30** (owner, 24 Sep; `createCheckoutSession`). Decision 3 below
+  is superseded on that one clause by the owner's own word. Everything else in 3 stands.
+- **Live is not sellable today.** Demo mode (12 Sep) blocks every live order
+  site-wide, billing is hidden (`billing_visible` off), and the funnel (13 Oct)
+  shows 1 live trader, 0 paying, 0 signups in 7 days. The 60-day kill test
+  (fewer than 8 paid at day 60 → $19) cannot start until the switch is
+  flipped; its clock is not running. This is the state of the world, not a
+  reason to change a number.
+- **Tiblio may have moved up.** Reported (not verified) tiers $38 / $69 / $99
+  against $34.95 here. If true, $29 is further under the direct competitor.
+  One unverified third-party listing is not new evidence; decision 2 is held.
+- **Two product facts to weigh when the owner flips the switch:** the Claude
+  connector (read-only, 9 Oct) is free to every user and is not in the tier
+  list; and wheel scanning/ticketing shipped, so decision 5 (wheel execution
+  inside Live) is now describable. Proposal: connector stays in Paper, because it
+  is read-only and a reason to sign up, not a reason to pay. Decision for the
+  owner only if he wants it gated; default is no.
 
 ## 1. Current state
 

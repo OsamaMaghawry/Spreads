@@ -15,6 +15,45 @@ not what makes an OAuth app function — see `compliance.md` — so a competitor
 running the flow proves only that their app is published. Treat their approval
 status as unknown.
 
+## What changed, 13 October 2026 (vp-product reconciliation)
+
+Read against `docs/ops/shipped.md` and the code on `main`. Our side is from
+the repo; competitor items are `reported` (web search; Tiblio, OptionStrat
+and our own hosts are still unreachable, see `reachable.md`).
+
+- **Our product moved on the contested half.** The Scanner now sweeps the
+  whole listed market (not only the S&P 500), and scans cash-secured puts and
+  covered calls as well as spreads (the wheel). The table above that calls
+  screening "commodity" still holds: this is breadth, not an edge.
+- **A Claude connector shipped (9 Oct, read-only).** A user asks Claude, in
+  plain English, about their own grouped positions, closed-trade history, the
+  chain and the Scanner. It cannot place orders by construction
+  (`docs/product/connector.md`). It is new, but it is **not a moat**: Tradier
+  and tastytrade both now host first-party MCP servers for their own accounts
+  (reported: tradier.com/individuals/mcp-server, tastytrade.com/mcp-server),
+  and tastytrade's routes orders. What the broker servers lack, and ours has,
+  is the grouped-position view. That is the same "after the fill" edge as
+  before, delivered through a new door, not a new edge. Usage is measurable
+  (Admin → AI connector); no figure yet.
+- **Live ordering is switched off, not absent.** Demo mode (12 Sep) refuses
+  every live-money order and holds live prices back site-wide; paper trades
+  normally. As of the 13 Oct funnel, 1 user has traded on a live account.
+  Anything in this file that says we compete on live execution is true of
+  the code and untrue of what a stranger can use today.
+- **Second broker.** Tradier is built on staging (client, order translation,
+  probe). SnapTrade was evaluated and rejected as a path: of 39 reachable
+  brokers only 15 can place orders, Schwab, Fidelity, IBKR and Robinhood are
+  read-only through it, and live Alpaca is not offered. Broker breadth is
+  still the admitted gap; no second broker is live.
+- **Competitors, not re-verified this run.** Tiblio's price is now reported
+  inconsistently ($38 data plan / $69 Trade Desk with Option Bot / $99 bundle
+  per NexusFi; "from $49.99" per another directory), against the $34.95 in
+  `pricing.md`. If the NexusFi tiers are right, Tiblio went up and the
+  `$29` Live anchor has more room, not less. **Unverified**: the vendor page is
+  blocked. `market-watch` should re-check when Tiblio is allowlisted.
+- **The position claim to lead with is unchanged**: what happens after the
+  fill. It has no new evidence either way.
+
 ## The market, honestly sized
 
 There is no measurable "multi-leg options strategies market"; nobody clears or

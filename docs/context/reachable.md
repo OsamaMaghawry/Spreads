@@ -114,3 +114,11 @@ Attempted, not finished. What is established:
   Do not write a play that depends on agent-side Reddit reads. Posting the queued
   replies is a browser step the owner does himself and needs none of this; if
   Reddit is ever wanted as a channel beyond that, he will say so.
+
+## Re-tested 2026-10-13 (vp-product)
+
+| Host | Status | Note |
+| --- | --- | --- |
+| www.tiblio.com | ❌ 403 at CONNECT | Unchanged since 1 Sep. Worked around with WebSearch (aggregator listings, `reported` only). |
+| optionstrat.com | ❌ 403 at CONNECT | Unchanged. |
+| yecfbeohyakuoyczvdbj.supabase.co | ❌ 403 at CONNECT | The production Supabase host, where `sendDigest` lives. The owner email step cannot reach it from a session; recorded 9 Sep by duty-engineer, still true. Fallback: PushNotification. |

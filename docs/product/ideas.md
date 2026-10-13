@@ -9,13 +9,10 @@ with a user:
 
 - Alert center in the app (the `positionWatch` alerts table will need a surface)
 - Multi-broker support beyond Alpaca (the positioning doc's admitted biggest gap)
-- Expand scan universe beyond the S&P 500 list in `src/lib/sp500.js` —
-  **returned from the backlog 2026-09-01.** Carries a verified competitor fact
-  (teardown row E8: Barchart sweeps the full optionable US+Canada universe,
-  ETFs and indices included) but no way to test demand: nothing records a scan,
-  and `scan_last_used` keeps one overwritten row per user, not a history. It
-  returns to the backlog when `scan_runs` exists and the number clears the bar,
-  or when a user asks for it in their own words.
+- ~~Expand scan universe beyond the S&P 500~~ — **shipped 2026-09-09** (whole-market
+  sweep). Removed from consideration.
+- Record every scan (`scan_runs`) — **killed from the backlog 2026-10-13**; three
+  users who have traded make the log unreadable. Returns at roughly 20 weekly scanners.
 - An open-interest / volume floor on scan results, Barchart-style (row E3) —
   parked behind the cheaper width test in backlog #1; needs a new field plumbed
   from Alpaca's `/options/contracts`, where width needs nothing.

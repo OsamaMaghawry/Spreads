@@ -8,24 +8,36 @@ recorded below, as prominently as additions.
 Every entry carries: the user problem in the user's words, its evidence, the
 smallest test that could disprove it, the kill criterion, and a cost guess.
 
-Last run: **2026-09-01** (vp-product, Tuesday cadence).
+Last run: **2026-10-13** (vp-product, Tuesday cadence). Previous: 2026-09-01.
+
+## Reconciliation, 2026-10-13 — what six weeks of shipping did to each proposal
+
+Read against `docs/ops/shipped.md` (1 Sep to 13 Oct), the commit log, and the
+scanner code on `main` (`src/components/scanner/`, `supabase/functions/_shared/optionScan.ts`).
+
+| Proposal | Verdict | Evidence |
+| --- | --- | --- |
+| #1 Quoted exit width on scan rows | **Left, half-adjacent.** Not shipped. What shipped is a *stock*-level quote-width filter in the whole-market first pass (9 Sep, `dcf0f17`; `ScannerConfig.jsx` `maxSpreadPct`, default 1 %). That screens the underlying, not the option legs. `ResultsTable.jsx`'s "Width" column is the strike distance, not the quoted width. No option bid/ask width, volume or OI filter exists. | grep of `src/components/scanner`, `optionScan.ts` |
+| #2 Probability-of-profit column | **Left.** No POP anywhere in the scanner. `impliedVol()` still falls back to 0.25 silently (`optionScan.ts:31-36`), so kill criterion 2 still stands untested. | same |
+| #3 Record what was scanned | **Left, now killed** (below). No `scan_runs`, no migration past `0059` touches scans. | `supabase/migrations/` |
+| (ideas) Expand the scan universe | **Shipped.** The Scanner can sweep the whole listed market (9 Sep). Removed from `ideas.md`. The option-level OI floor half is still unbuilt. | shipped.md 2026-09-09, 2026-09-22 |
+
+The one fact that changes the ranking arithmetic, from the 13 Oct funnel
+snapshot (`docs/growth/metrics/2026-10-13.json`): **4 signups ever, 3 connected,
+3 traded, 1 on a live account, 0 signups in the last 7 days, 0 paying.**
+Activation (signup → connected → first trade) is 3 of 4. The binding
+constraint is the top of the funnel, not the middle. Every proposal below is
+ranked by its effect on activation, and its honest value today is small
+because the denominator is three people. They stay because their tests cost
+nothing and run on the owner's own paper account, not because they will move
+the number this month. Acquisition is `vp-growth`'s question; it is handed
+over, not investigated here.
 
 ## Open proposals
 
-**Three of five slots used.** Two deliberately left empty — this run killed one
-proposal and found that a second's test rested on data that does not exist, so
-the honest state is fewer, better-tested entries, not five.
-
-What changed this run, in one line each:
-
-- **#1 re-scoped and strengthened.** It now has a *real user*, not a
-  constructed one, and the mechanism moved from open interest to quoted
-  width — which is cheaper to measure and is what actually cost the user money.
-- **#2 (was #3) test made cheaper** and given a second kill criterion found in
-  our own `impliedVol` code.
-- **#3 is new** and exists because this run discovered that no scan is
-  recorded anywhere.
-- **Universe demand instrumentation: killed.** See below.
+**Two of five slots used.** Fewer, better-tested entries beat five padded ones.
+A third was killed this run; no new proposal had evidence. Not filling the slots
+is deliberate.
 
 ### 1. Show the executable exit cost on scan results (quoted width), and let the user floor it
 
@@ -114,40 +126,27 @@ What changed this run, in one line each:
 - **Cost guess:** test ~a day; feature ~2 days, no new data source — *if*
   kill criterion 2 does not fire.
 
-### 3. Record what was scanned (the measurement three questions need)
-
-- **User problem:** none. This is not a user-facing proposal and scores zero
-  on the ranking criterion. It is here because this run discovered that we
-  cannot answer *any* question about how the screener is actually used, and
-  the owner should decide that knowingly rather than inherit it.
-- **Evidence — our code, read 2026-09-01:**
-  - `supabase/functions/scanEntries/index.ts` and `findEntry/index.ts` insert
-    **nothing**. A scan leaves no trace on the server.
-  - `scan_last_used` (migration `0006`) has primary key `(user_id, scope)` and
-    is **upserted on every scan** (`src/lib/scanPresets.js` `saveLastUsed`).
-    It is one row per user, overwritten each time — the most recent
-    configuration, never a history.
-  - Consequence: "what share of scans use a custom universe", "what share of
-    top-10 results are illiquid", "does POP ranking change what people trade"
-    are all unanswerable from the database. `funnel-instrumentation` cannot be
-    commissioned on any screener question today. This is what killed the
-    universe proposal below.
-- **Smallest test:** there isn't one — this *is* the instrument. The smallest
-  **version** is one table and one insert: `scan_runs(user_id, scope, strategy,
-  universe, ticker_count, candidate_count, top jsonb, created_at)`, where
-  `top` is the first ten candidates with legs, bid, ask and RoR. Written from
-  `scanEntries` with its own failure swallowed, exactly the pattern
-  `_shared/orderAttempts.ts` already established for `order_attempts`.
-- **Kill criterion:** if the owner would not act differently on any of the
-  three answers above, it is measurement for its own sake — kill it and accept
-  that screener proposals stay argued from competitor behaviour rather than
-  our own usage.
-- **Cost guess:** ~half a day of code. **Not free:** it is a migration plus an
-  edge-function deploy, so it needs the owner's explicit approval and the
-  staging path, per `AGENTS.md`. Ranked last precisely because its direct
-  effect on activation is zero.
-
 ## Killed
+
+### Record what was scanned (`scan_runs`) — killed 2026-10-13
+
+Opened 2026-09-01 as the instrument the other screener questions needed. Its
+own kill criterion was: *"if the owner would not act differently on any of
+the answers, it is measurement for its own sake."* The evidence that now
+stops supporting it:
+
+- The funnel (13 Oct) is 4 signups ever and 3 users who have traded. A scan
+  log over three people answers "what share of scans use a custom universe" or
+  "what share of top-10 results are illiquid" with an anecdote, not a rate.
+  Nothing the owner could decide would differ on a sample that small.
+- Proposals #1 and #2 were rewritten on 1 Sep to need no scan log at all;
+  their tests run on the owner's own paper account.
+- It costs a migration plus a deploy, so owner approval and the staging
+  path, for a measurement with no reader.
+
+**Returned to `ideas.md`.** It comes back when there are roughly 20 users
+running scans a week, or when a proposal appears whose test cannot be run any
+other way.
 
 ### Universe demand instrumentation — killed 2026-09-01
 
