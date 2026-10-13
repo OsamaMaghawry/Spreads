@@ -68,6 +68,9 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
   // down according to Chain steps ... or give the option to switch".
   const [floorMode, setFloorMode] = useState("pct");
   const [floorStrike, setFloorStrike] = useState(null);
+  // Repair: the call bought. Null is the default, the strike nearest today's
+  // price; a number is the trader's own choice, kept across expiries.
+  const [longPick, setLongPick] = useState(null);
   // Repair only: also buy a put as a floor (a protected repair).
   const [floored, setFloored] = useState(false);
   const [strike, setStrike] = useState(null);
@@ -136,10 +139,10 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
   const found = useMemo(() => {
     if (!data) return null;
     if (!repair) return floorRow ? { put: floorRow, ...collarCalls(data.ladder, spot, floorRow) } : { put: null, calls: [], reason: noPut };
-    if (!floored) return repairCandidates(data.ladder, spot, basis);
+    if (!floored) return repairCandidates(data.ladder, spot, basis, null, longPick);
     if (!floorRow) return { long: null, shorts: [], reason: noPut };
-    return repairCandidates(data.ladder, spot, basis, floorRow);
-  }, [data, repair, floored, spot, basis, floorRow, noPut]);
+    return repairCandidates(data.ladder, spot, basis, floorRow, longPick);
+  }, [data, repair, floored, spot, basis, floorRow, noPut, longPick]);
 
   const setMode = (m) => {
     // Switching to a strike starts from the put the percentage had chosen.
@@ -277,6 +280,32 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
                   onStrike={(k) => { setFloorStrike(k); pick(null); }}
                   ladder={data.ladder}
                   spot={spot}
+                />
+              </div>
+            )}
+
+            {repair && found?.longStrikes?.length > 0 && (
+              <div className="rounded-lg border border-slate-200 px-3 py-2.5 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs text-slate-500">The call you buy</span>
+                  {found.long && Number(found.long.strike) !== found.nearestStrike ? (
+                    <button type="button" onClick={() => { setLongPick(null); pick(null); }} className="text-[11px] font-medium text-emerald-700 hover:underline">
+                      Back to nearest today ({found.nearestStrike})
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-slate-400">Nearest to today&rsquo;s price</span>
+                  )}
+                </div>
+                <StrikeStepper
+                  strikes={found.longStrikes}
+                  value={found.long ? Number(found.long.strike) : null}
+                  onChange={(k) => { setLongPick(k); pick(null); }}
+                  ariaLabel="Call strike"
+                  optionLabel={(k) => {
+                    const row = data.ladder.find((r) => Number(r.strike) === k)?.call;
+                    const away = spot ? (k - spot) / spot : null;
+                    return `${k} call · ${fmtMoney(num(row?.mid))}${away === null ? "" : ` · ${pct(Math.abs(away))} ${away >= 0 ? "above" : "below"}`}`;
+                  }}
                 />
               </div>
             )}
@@ -585,14 +614,51 @@ function Outcomes({ ticker, spot, shares, caption, column, floor, breakEven, bes
   );
 }
 
+// A listed strike, stepped one chain strike at a time with − and +, or picked
+// from the list between them.
+function StrikeStepper({ strikes, value, onChange, ariaLabel, optionLabel }) {
+  const at = strikes.indexOf(value);
+  const step = (d) => {
+    const i = at < 0 ? strikes.length - 1 : Math.min(strikes.length - 1, Math.max(0, at + d));
+    if (strikes[i] !== undefined) onChange(strikes[i]);
+  };
+  return (
+    <div className="flex items-stretch gap-1.5">
+      <button
+        type="button"
+        onClick={() => step(-1)}
+        disabled={at <= 0}
+        aria-label={`Lower ${ariaLabel.toLowerCase()}`}
+        className="rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+      >
+        −
+      </button>
+      <select
+        value={value ?? ""}
+        onChange={(e) => onChange(Number(e.target.value))}
+        aria-label={ariaLabel}
+        className={`${input} tabular-nums`}
+      >
+        {strikes.map((k) => (
+          <option key={k} value={k}>{optionLabel(k)}</option>
+        ))}
+      </select>
+      <button
+        type="button"
+        onClick={() => step(1)}
+        disabled={at < 0 || at >= strikes.length - 1}
+        aria-label={`Higher ${ariaLabel.toLowerCase()}`}
+        className="rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
 // The floor: a percentage below today, or a listed put strike stepped through
 // the chain one strike at a time (or picked from the list).
 function FloorPicker({ mode, onMode, pctValue, onPct, strikes, strike, onStrike, ladder, spot }) {
-  const at = strikes.indexOf(strike);
-  const step = (d) => {
-    const i = at < 0 ? strikes.length - 1 : Math.min(strikes.length - 1, Math.max(0, at + d));
-    if (strikes[i] !== undefined) onStrike(strikes[i]);
-  };
   const putMid = (k) => num(putAtStrike(ladder, k)?.mid);
   const below = (k) => (spot ? ` · ${pct((spot - k) / spot)} below` : "");
   return (
@@ -619,38 +685,13 @@ function FloorPicker({ mode, onMode, pctValue, onPct, strikes, strike, onStrike,
       {mode === "pct" ? (
         <FloorLevels value={pctValue} onChange={onPct} />
       ) : (
-        <div className="flex items-stretch gap-1.5">
-          <button
-            type="button"
-            onClick={() => step(-1)}
-            disabled={at <= 0}
-            aria-label="Lower strike"
-            className="rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-          >
-            −
-          </button>
-          <select
-            value={strike ?? ""}
-            onChange={(e) => onStrike(Number(e.target.value))}
-            aria-label="Put strike"
-            className={`${input} tabular-nums`}
-          >
-            {strikes.map((k) => (
-              <option key={k} value={k}>
-                {k} put · {fmtMoney(putMid(k))}{below(k)}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={() => step(1)}
-            disabled={at < 0 || at >= strikes.length - 1}
-            aria-label="Higher strike"
-            className="rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-          >
-            +
-          </button>
-        </div>
+        <StrikeStepper
+          strikes={strikes}
+          value={strike}
+          onChange={onStrike}
+          ariaLabel="Put strike"
+          optionLabel={(k) => `${k} put · ${fmtMoney(putMid(k))}${below(k)}`}
+        />
       )}
     </div>
   );

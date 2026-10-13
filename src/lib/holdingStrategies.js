@@ -230,7 +230,12 @@ export function repairPLAt({ basis, longStrike, shortStrike, net, floor = null }
  * small loss leaves one strike or none to choose from. Above the basis the
  * trade is the same 1x2: it gives up less of the upside, for less premium.
  */
-export function repairCandidates(ladder, spot, basis, put = null) {
+//
+// `longStrike` moves the call bought off the default. The owner: "today's
+// price is already changed presession ... Make the default the nearest one
+// but give me the option to move it." A strike this expiry does not list
+// resolves to the listed one nearest it.
+export function repairCandidates(ladder, spot, basis, put = null, longStrike = null) {
   const s = num(spot);
   const B = num(basis);
   if (!s || !(s > 0)) return { long: null, shorts: [], reason: "No price to build a repair from." };
@@ -239,8 +244,11 @@ export function repairCandidates(ladder, spot, basis, put = null) {
     .map((r) => r.call)
     .filter((r) => r && mid(r) !== null)
     .sort((a, b) => Number(a.strike) - Number(b.strike));
-  const long = calls.reduce((best, r) =>
-    best === null || Math.abs(Number(r.strike) - s) < Math.abs(Number(best.strike) - s) ? r : best, null);
+  const nearestTo = (x) => calls.reduce((best, r) =>
+    best === null || Math.abs(Number(r.strike) - x) < Math.abs(Number(best.strike) - x) ? r : best, null);
+  const nearest = nearestTo(s);
+  const want = num(longStrike);
+  const long = want === null ? nearest : nearestTo(want);
   if (!long) return { long: null, shorts: [], reason: "No call with a market on this expiry." };
 
   const above = calls.filter((r) => Number(r.strike) > Number(long.strike));
@@ -263,6 +271,10 @@ export function repairCandidates(ladder, spot, basis, put = null) {
   }
   return {
     long,
+    // The default, so the screen can say when the trader has moved off it.
+    nearestStrike: nearest ? Number(nearest.strike) : null,
+    // Every call that can be bought here, for the strike field's steps.
+    longStrikes: calls.map((r) => Number(r.strike)),
     put,
     shorts,
     suggestedStrike: pick ? pick.strike : null,

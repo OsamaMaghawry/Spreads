@@ -172,3 +172,19 @@ test("collar at a price: flat below the floor and above the cap", () => {
   // A floor above the cost: never a loss, so no break-even.
   assert.equal(collarBreakEven({ basis: 80, floor: 90, cap: 115, net: 0 }), null);
 });
+
+test("repair: the call bought defaults to the nearest strike and can be moved", () => {
+  const near = repairCandidates(ladder, 101, 118);
+  assert.equal(near.long.strike, 100);
+  assert.equal(near.nearestStrike, 100);
+  assert.deepEqual(near.longStrikes, [85, 90, 95, 100, 105, 110, 115, 120, 125]);
+  // Moved down a strike: the calls sold start above it.
+  const moved = repairCandidates(ladder, 101, 118, null, 95);
+  assert.equal(moved.long.strike, 95);
+  assert.equal(moved.nearestStrike, 100);
+  assert.equal(moved.shorts[0].strike, 100);
+  // Two 100s at 4.50 against the 95 at 7.50: a 1.50 credit.
+  assert.equal(moved.shorts[0].net, 1.5);
+  // A strike this expiry does not list: the nearest listed one.
+  assert.equal(repairCandidates(ladder, 101, 118, null, 96).long.strike, 95);
+});
