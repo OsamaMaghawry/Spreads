@@ -5,7 +5,7 @@ import NumberField from "@/components/common/NumberField";
 import EarningsWarning from "@/components/common/EarningsWarning";
 import { invokeFunction } from "@/lib/functions";
 import { chainContext, collarSetup, repairSetup, protectedRepairSetup, withEarnings } from "@/lib/optionChain";
-import { collarCandidates, repairCandidates, repairPLAt, expiryNear, floorPut } from "@/lib/holdingStrategies";
+import { repairCandidates, repairPLAt, expiryNear, floorPut, putStrikes, putAtStrike, collarCalls, collarPLAt, collarBreakEven } from "@/lib/holdingStrategies";
 import { fmtMoney } from "@/lib/format";
 
 // Protect and Repair, from a share holding on the dashboard.
@@ -63,6 +63,11 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [protect, setProtect] = useState(0.1);
+  // How the floor is chosen: a percentage below today, or a listed strike
+  // stepped through the chain. The owner: "a price field that can go up and
+  // down according to Chain steps ... or give the option to switch".
+  const [floorMode, setFloorMode] = useState("pct");
+  const [floorStrike, setFloorStrike] = useState(null);
   // Repair only: also buy a put as a floor (a protected repair).
   const [floored, setFloored] = useState(false);
   const [strike, setStrike] = useState(null);
@@ -116,14 +121,33 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
   const free = Number(ctx?.shares) || 0;
   const maxUnits = Math.floor(free / 100);
 
+  // The floor's steps: listed puts with a market, at or below today's price.
+  const putChoices = useMemo(() => (data ? putStrikes(data.ladder, spot ?? Infinity) : []), [data, spot]);
+  // The put the floor resolves to, by either route. A strike the new expiry
+  // does not list falls to the next one down (putAtStrike), never up.
+  const floorRow = useMemo(() => {
+    if (!data) return null;
+    return floorMode === "strike" ? putAtStrike(data.ladder, floorStrike) : floorPut(data.ladder, spot, protect);
+  }, [data, floorMode, floorStrike, spot, protect]);
+  const noPut = floorMode === "strike"
+    ? "No put with a market at or below that strike on this expiry."
+    : `No put with a market ${pct(protect)} or more below today on this expiry.`;
+
   const found = useMemo(() => {
     if (!data) return null;
-    if (!repair) return collarCandidates(data.ladder, spot, protect);
+    if (!repair) return floorRow ? { put: floorRow, ...collarCalls(data.ladder, spot, floorRow) } : { put: null, calls: [], reason: noPut };
     if (!floored) return repairCandidates(data.ladder, spot, basis);
-    const put = floorPut(data.ladder, spot, protect);
-    if (!put) return { long: null, shorts: [], reason: `No put with a market ${pct(protect)} or more below today on this expiry.` };
-    return repairCandidates(data.ladder, spot, basis, put);
-  }, [data, repair, floored, spot, basis, protect]);
+    if (!floorRow) return { long: null, shorts: [], reason: noPut };
+    return repairCandidates(data.ladder, spot, basis, floorRow);
+  }, [data, repair, floored, spot, basis, floorRow, noPut]);
+
+  const setMode = (m) => {
+    // Switching to a strike starts from the put the percentage had chosen.
+    if (m === "strike" && floorStrike === null) setFloorStrike(floorRow ? Number(floorRow.strike) : putChoices[putChoices.length - 1] ?? null);
+    setFloorMode(m);
+    setStrike(null);
+    setLegs(null);
+  };
 
   const rows = repair ? found?.shorts || [] : found?.calls || [];
   const preset = repair ? found?.suggestedStrike : found?.zeroCostStrike ?? rows[0]?.strike ?? null;
@@ -144,8 +168,8 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
           { row: chosen.row, action: "sell", expiry, qty: 2 * n }
         ]
       : [
-          { row: found.put, action: "buy", expiry },
-          { row: chosen.row, action: "sell", expiry }
+          { row: found.put, action: "buy", expiry, qty: n },
+          { row: chosen.row, action: "sell", expiry, qty: n }
         ]);
   };
 
@@ -228,25 +252,34 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
                   ))}
                 </select>
               </div>
-              {repair ? (
-                <div>
-                  <label className={label}>Repairs (100 shares each)</label>
-                  <NumberField
-                    value={units}
-                    onChange={setUnits}
-                    step={1}
-                    min={1}
-                    max={Math.max(1, maxUnits)}
-                    ariaLabel="Number of repairs"
-                  />
-                </div>
-              ) : (
-                <div>
-                  <span className={label}>Floor below today&rsquo;s price</span>
-                  <FloorLevels value={protect} onChange={(p) => { setProtect(p); pick(null); }} />
-                </div>
-              )}
+              <div>
+                <label className={label}>{repair ? "Repairs" : "Collars"} (100 shares each, up to {Math.max(1, maxUnits)})</label>
+                <NumberField
+                  value={units}
+                  onChange={setUnits}
+                  step={1}
+                  min={1}
+                  max={Math.max(1, maxUnits)}
+                  ariaLabel={repair ? "Number of repairs" : "Number of collars"}
+                />
+              </div>
             </div>
+
+            {!repair && (
+              <div className="rounded-lg border border-slate-200 px-3 py-2.5">
+                <FloorPicker
+                  mode={floorMode}
+                  onMode={setMode}
+                  pctValue={protect}
+                  onPct={(p) => { setProtect(p); pick(null); }}
+                  strikes={putChoices}
+                  strike={floorRow ? Number(floorRow.strike) : floorStrike}
+                  onStrike={(k) => { setFloorStrike(k); pick(null); }}
+                  ladder={data.ladder}
+                  spot={spot}
+                />
+              </div>
+            )}
 
             {repair && (
               <div className="rounded-lg border border-slate-200 px-3 py-2.5 space-y-2">
@@ -260,10 +293,17 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
                   Add protection (buy a put)
                 </label>
                 {floored && (
-                  <div>
-                    <span className={label}>Floor below today&rsquo;s price</span>
-                    <FloorLevels value={protect} onChange={(p) => { setProtect(p); pick(null); }} />
-                  </div>
+                  <FloorPicker
+                    mode={floorMode}
+                    onMode={setMode}
+                    pctValue={protect}
+                    onPct={(p) => { setProtect(p); pick(null); }}
+                    strikes={putChoices}
+                    strike={floorRow ? Number(floorRow.strike) : floorStrike}
+                    onStrike={(k) => { setFloorStrike(k); pick(null); }}
+                    ladder={data.ladder}
+                    spot={spot}
+                  />
                 )}
               </div>
             )}
@@ -284,9 +324,9 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
             ) : (
               found?.put && (
                 <p className="text-sm text-slate-700">
-                  Buy the <strong>{found.put.strike} put</strong> at {fmtMoney(num(found.put.mid))}
+                  Buy <strong>{n} × {found.put.strike} put</strong> at {fmtMoney(num(found.put.mid))}
                   {spot ? <span className="text-slate-500"> · {pct((spot - found.put.strike) / spot)} below today</span> : null}
-                  , and sell one of these calls against each 100 shares:
+                  , and sell {n} of one of these calls:
                 </p>
               )
             )}
@@ -331,8 +371,8 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
                     {rows.map((c) => {
                       const on = chosen?.strike === c.strike;
                       const ref = basis !== null && basis > 0 ? basis : spot;
-                      const worst = !repair && ref ? (found.put.strike - ref + c.net) * 100 : null;
-                      const best = !repair && ref ? (c.strike - ref + c.net) * 100 : null;
+                      const worst = !repair && ref ? (found.put.strike - ref + c.net) * 100 * n : null;
+                      const best = !repair && ref ? (c.strike - ref + c.net) * 100 * n : null;
                       return (
                         <tr
                           key={c.strike}
@@ -377,15 +417,39 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
               </div>
             )}
 
-            {repair && chosen && found?.long && basis !== null && spot !== null && (
-              <RepairOutcomes
-                ticker={ticker}
-                spot={spot}
-                shares={n * 100}
-                repair={{ basis, longStrike: Number(found.long.strike), shortStrike: chosen.strike, net: chosen.net, floor: floored && found.put ? Number(found.put.strike) : null }}
-                breakEven={chosen.breakEven}
-              />
-            )}
+            {repair && chosen && found?.long && basis !== null && spot !== null && (() => {
+              const r = { basis, longStrike: Number(found.long.strike), shortStrike: chosen.strike, net: chosen.net, floor: floored && found.put ? Number(found.put.strike) : null };
+              return (
+                <Outcomes
+                  ticker={ticker}
+                  spot={spot}
+                  shares={n * 100}
+                  caption={`sell 2× ${r.shortStrike}${r.floor ? `, put ${r.floor}` : ""}`}
+                  column="With repair"
+                  floor={r.floor}
+                  breakEven={chosen.breakEven}
+                  best={r.shortStrike}
+                  plAt={(price) => { const x = repairPLAt(r, price); return x && { strategy: x.withRepair, shares: x.sharesAlone }; }}
+                />
+              );
+            })()}
+
+            {!repair && chosen && found?.put && basis !== null && spot !== null && (() => {
+              const c = { basis, floor: Number(found.put.strike), cap: chosen.strike, net: chosen.net };
+              return (
+                <Outcomes
+                  ticker={ticker}
+                  spot={spot}
+                  shares={n * 100}
+                  caption={`put ${c.floor}, call ${c.cap}`}
+                  column="With collar"
+                  floor={c.floor}
+                  breakEven={collarBreakEven(c)}
+                  best={c.cap}
+                  plAt={(price) => { const x = collarPLAt(c, price); return x && { strategy: x.withStrategy, shares: x.sharesAlone }; }}
+                />
+              );
+            })()}
 
             {rows.length > 0 && (
               <Bullets
@@ -405,7 +469,7 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
                       "Prices are midpoints. You set your price on the ticket."
                     ]
                   : [
-                      `Per 100 shares at expiry, against ${basis !== null && basis > 0 ? `your cost of ${fmtMoney(basis)}` : "today's price (your cost is not known)"}.`,
+                      `At expiry, for ${n * 100} shares, against ${basis !== null && basis > 0 ? `your cost of ${fmtMoney(basis)}` : "today's price (your cost is not known)"}.`,
                       "Worst: the stock ends at or below the put.",
                       "Best: the stock ends at or above the call.",
                       "Prices are midpoints. You set your price on the ticket."
@@ -468,53 +532,126 @@ function Bullets({ items, className = "text-xs" }) {
   );
 }
 
-// What the selected repair does at a few prices at expiry, beside the shares
+// What the selected trade does at a few prices at expiry, beside the shares
 // alone -- the falls included. The owner: "what about expiry came at 95, 90
-// or even 85; what happens then? Repair doesn't protect."
-function RepairOutcomes({ ticker, spot, shares, repair, breakEven }) {
+// or even 85; what happens then? Repair doesn't protect." Shared by the
+// collar and the repair; `plAt(price)` gives both columns per share.
+function Outcomes({ ticker, spot, shares, caption, column, floor, breakEven, best, plAt }) {
   const points = [
     { label: "Down 15%", price: Math.round(spot * 0.85) },
     { label: "Down 10%", price: Math.round(spot * 0.9) },
     { label: "Down 5%", price: Math.round(spot * 0.95) },
     { label: "Today", price: spot },
-    ...(repair.floor !== null && repair.floor !== undefined ? [{ label: "Floor (put)", price: repair.floor }] : []),
-    ...(breakEven !== null && breakEven > spot ? [{ label: "Break-even", price: breakEven }] : []),
-    { label: "Best case", price: repair.shortStrike, above: true }
+    ...(floor !== null && floor !== undefined ? [{ label: "Floor (put)", price: floor, below: true }] : []),
+    ...(breakEven !== null && breakEven !== undefined ? [{ label: "Break-even", price: breakEven }] : []),
+    { label: "Best case", price: best, above: true }
   ].sort((a, b) => a.price - b.price);
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200">
       <table className="w-full text-xs tabular-nums">
         <caption className="caption-top bg-slate-50 px-3 py-2 text-left text-[11px] font-medium text-slate-600">
-          If {ticker} ends at… (sell 2× {repair.shortStrike}{repair.floor ? `, put ${repair.floor}` : ""}, {shares} shares)
+          If {ticker} ends at… ({caption}, {shares} shares)
         </caption>
         <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
           <tr>
             <th className="px-3 py-2 text-left font-medium">{ticker} at</th>
-            <th className="whitespace-nowrap px-3 py-2 text-right font-medium">With repair</th>
+            <th className="whitespace-nowrap px-3 py-2 text-right font-medium">{column}</th>
             <th className="whitespace-nowrap px-3 py-2 text-right font-medium">Shares only</th>
           </tr>
         </thead>
         <tbody>
           {points.map((pt) => {
-            const r = repairPLAt(repair, pt.price);
-            // A floor point can land on a rounded "down" point; one row each.
+            const r = plAt(pt.price);
             if (!r) return null;
             // The break-even is shown rounded to the cent, and the P/L at the
             // rounded price can be a cent or two off zero. Zero is what it is.
-            const withRepair = pt.label === "Break-even" ? 0 : r.withRepair;
+            const value = pt.label === "Break-even" ? 0 : r.strategy;
             return (
               <tr key={`${pt.label}_${pt.price}`} className="border-t border-slate-100">
                 <td className="whitespace-nowrap px-3 py-1.5 text-left">
-                  <span className="block font-semibold text-slate-900">{fmtMoney(pt.price)}{pt.above ? " or more" : ""}</span>
+                  <span className="block font-semibold text-slate-900">
+                    {fmtMoney(pt.price)}{pt.above ? " or more" : pt.below ? " or less" : ""}
+                  </span>
                   <span className="block text-[10px] text-slate-400">{pt.label}</span>
                 </td>
-                <td className={`whitespace-nowrap px-3 py-1.5 text-right font-semibold ${tone(withRepair)}`}>{signed(withRepair * shares)}</td>
-                <td className={`whitespace-nowrap px-3 py-1.5 text-right ${tone(r.sharesAlone)}`}>{signed(r.sharesAlone * shares)}</td>
+                <td className={`whitespace-nowrap px-3 py-1.5 text-right font-semibold ${tone(value)}`}>{signed(value * shares)}</td>
+                <td className={`whitespace-nowrap px-3 py-1.5 text-right ${tone(r.shares)}`}>{signed(r.shares * shares)}</td>
               </tr>
             );
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// The floor: a percentage below today, or a listed put strike stepped through
+// the chain one strike at a time (or picked from the list).
+function FloorPicker({ mode, onMode, pctValue, onPct, strikes, strike, onStrike, ladder, spot }) {
+  const at = strikes.indexOf(strike);
+  const step = (d) => {
+    const i = at < 0 ? strikes.length - 1 : Math.min(strikes.length - 1, Math.max(0, at + d));
+    if (strikes[i] !== undefined) onStrike(strikes[i]);
+  };
+  const putMid = (k) => num(putAtStrike(ladder, k)?.mid);
+  const below = (k) => (spot ? ` · ${pct((spot - k) / spot)} below` : "");
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs text-slate-500">Floor: the put you buy</span>
+        <div className="flex gap-0.5 rounded-md border border-slate-200 bg-slate-100 p-0.5" role="radiogroup" aria-label="Choose the floor by">
+          {[["pct", "% below today"], ["strike", "Strike"]].map(([id, text]) => (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={mode === id}
+              onClick={() => onMode(id)}
+              className={`rounded px-2 py-1 text-[11px] font-medium transition-colors ${
+                mode === id ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              {text}
+            </button>
+          ))}
+        </div>
+      </div>
+      {mode === "pct" ? (
+        <FloorLevels value={pctValue} onChange={onPct} />
+      ) : (
+        <div className="flex items-stretch gap-1.5">
+          <button
+            type="button"
+            onClick={() => step(-1)}
+            disabled={at <= 0}
+            aria-label="Lower strike"
+            className="rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+          >
+            −
+          </button>
+          <select
+            value={strike ?? ""}
+            onChange={(e) => onStrike(Number(e.target.value))}
+            aria-label="Put strike"
+            className={`${input} tabular-nums`}
+          >
+            {strikes.map((k) => (
+              <option key={k} value={k}>
+                {k} put · {fmtMoney(putMid(k))}{below(k)}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => step(1)}
+            disabled={at < 0 || at >= strikes.length - 1}
+            aria-label="Higher strike"
+            className="rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+          >
+            +
+          </button>
+        </div>
+      )}
     </div>
   );
 }

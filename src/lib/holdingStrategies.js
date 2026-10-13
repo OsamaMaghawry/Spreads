@@ -58,6 +58,90 @@ export function floorPut(ladder, spot, protect) {
 }
 
 /**
+ * The listed put strikes with a two-sided market, at or below `max`, low to
+ * high: the steps of the floor's strike field. The owner: "a price field
+ * that can go up and down according to Chain steps instead of forcing a
+ * percentage below the current price."
+ */
+export function putStrikes(ladder, max = Infinity) {
+  const m = num(max) ?? Infinity;
+  return [...new Set((Array.isArray(ladder) ? ladder : [])
+    .map((r) => r.put)
+    .filter((r) => r && mid(r) !== null && Number(r.strike) <= m)
+    .map((r) => Number(r.strike)))]
+    .sort((a, b) => a - b);
+}
+
+/**
+ * The put at `strike`, or, where that strike has no market on this expiry
+ * (an expiry changed under a chosen strike), the highest one below it that
+ * does -- never a higher one, which would lift the floor unasked.
+ */
+export function putAtStrike(ladder, strike) {
+  const k = num(strike);
+  if (k === null) return null;
+  return (Array.isArray(ladder) ? ladder : [])
+    .map((r) => r.put)
+    .filter((r) => r && mid(r) !== null && Number(r.strike) <= k)
+    .sort((a, b) => Number(b.strike) - Number(a.strike))[0] || null;
+}
+
+/**
+ * The calls above the price, each priced against a chosen put: its net (call
+ * in, put out, positive a credit). The ZERO-COST call is the highest strike
+ * that still pays for the put: the most upside left for no money. Five calls
+ * are offered around it, so a trader can give up a little upside for a credit
+ * or keep more for a small debit.
+ */
+export function collarCalls(ladder, spot, put) {
+  const s = num(spot);
+  if (!s || !(s > 0) || !put || mid(put) === null) return { calls: [], zeroCostStrike: null, reason: "No put to price the calls against." };
+  const all = (Array.isArray(ladder) ? ladder : [])
+    .map((r) => r.call)
+    .filter((r) => r && mid(r) !== null && Number(r.strike) > s && Number(r.strike) >= Number(put.strike))
+    .sort((a, b) => Number(a.strike) - Number(b.strike))
+    .map((row) => ({
+      row,
+      strike: Number(row.strike),
+      net: r2(mid(row) - mid(put)),
+      capPct: (Number(row.strike) - s) / s
+    }));
+  let zero = -1;
+  all.forEach((c, i) => { if (c.net >= 0) zero = i; });
+  const from = zero < 0 ? 0 : Math.max(0, zero - 2);
+  return {
+    calls: all.slice(from, from + 5),
+    zeroCostStrike: zero < 0 ? null : all[zero].strike,
+    reason: zero < 0 ? "No call above the price pays for this put on this expiry: each of these costs money." : null
+  };
+}
+
+/**
+ * The shares plus a collar at one price at expiry, per share, against the
+ * basis, with the shares alone beside it.
+ */
+export function collarPLAt({ basis, floor, cap, net }, price) {
+  const B = num(basis);
+  const F = num(floor);
+  const K = num(cap);
+  const S = num(price);
+  if (B === null || F === null || K === null || S === null) return null;
+  const n = num(net) ?? 0;
+  const sharesAlone = S - B;
+  return { withStrategy: r2(sharesAlone + Math.max(0, F - S) - Math.max(0, S - K) + n), sharesAlone: r2(sharesAlone) };
+}
+
+/** Where a collar breaks even at expiry, or null if it is always a gain or never one. */
+export function collarBreakEven({ basis, floor, cap, net }) {
+  const B = num(basis);
+  const F = num(floor);
+  const K = num(cap);
+  if (B === null || F === null || K === null) return null;
+  const be = B - (num(net) ?? 0);
+  return be > F && be < K ? r2(be) : null;
+}
+
+/**
  * Collar candidates for a protection level.
  *
  * The put is the highest strike at or below `spot * (1 - protect)` with a
@@ -73,31 +157,9 @@ export function collarCandidates(ladder, spot, protect) {
   const p = num(protect);
   if (!s || !(s > 0) || p === null || p < 0 || p >= 1) return { put: null, calls: [], reason: "No price to measure the floor from." };
   const target = s * (1 - p);
-  const rows = Array.isArray(ladder) ? ladder : [];
-  const put = floorPut(rows, s, p);
+  const put = floorPut(ladder, s, p);
   if (!put) return { put: null, calls: [], target: r2(target), reason: `No put with a market at or below ${r2(target)} on this expiry.` };
-
-  const all = rows
-    .map((r) => r.call)
-    .filter((r) => r && mid(r) !== null && Number(r.strike) > s)
-    .sort((a, b) => Number(a.strike) - Number(b.strike))
-    .map((row) => ({
-      row,
-      strike: Number(row.strike),
-      net: r2(mid(row) - mid(put)),
-      capPct: (Number(row.strike) - s) / s
-    }));
-  let zero = -1;
-  all.forEach((c, i) => { if (c.net >= 0) zero = i; });
-  const from = zero < 0 ? 0 : Math.max(0, zero - 2);
-  const calls = all.slice(from, from + 5);
-  return {
-    put,
-    target: r2(target),
-    calls,
-    zeroCostStrike: zero < 0 ? null : all[zero].strike,
-    reason: zero < 0 ? "No call above the price pays for this put on this expiry: each of these costs money." : null
-  };
+  return { put, target: r2(target), ...collarCalls(ladder, s, put) };
 }
 
 /**

@@ -922,12 +922,19 @@ export function collarSetup(legs, ctx) {
     return { ok: false, reason: `No two-sided market on ${dead}. Nothing to price the collar from.` };
   }
 
+  // How many collars: one put per call sold, each pair on 100 shares. Protect
+  // on the dashboard opens with a count; the chain picks one of each.
+  const qtyOf = (l) => Math.max(1, Math.floor(Number(l.qty)) || 1);
+  const units = qtyOf(put);
+  if (qtyOf(call) !== units) {
+    return { ok: false, reason: "A collar buys one put for each call sold." };
+  }
   const shares = Number(ctx?.shares) || 0;
-  if (shares < 100) {
+  if (shares < units * 100) {
     return {
       ok: false,
       reason: `A collar needs 100 free ${ctx?.ticker || ""} shares per contract in ${ctx?.accountName || "this account"}, ` +
-        `which has ${shares}. Without them the call is not covered.`
+        `${units * 100} for ${units}, and it has ${shares}. Without them the call is not covered.`
     };
   }
 
@@ -970,6 +977,7 @@ export function collarSetup(legs, ctx) {
       expiries: [expiry],
       structure: "collar",
       strategy: "collar",
+      units,
       targetDelta: null,
       wingWidth: null,
       width: null,

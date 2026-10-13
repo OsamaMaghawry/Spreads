@@ -782,3 +782,10 @@ test("anything else is left exactly as picked", () => {
   const otherExp = [{ ...set[0], qty: 1 }, set[1], { ...set[2], expiry: "2026-11-20" }];
   assert.equal(chainLegQuantities(otherExp), otherExp);
 });
+
+test("a collar for a count: one put per call, 100 free shares each", () => {
+  const legs = (q) => [{ row: P(380, 6), action: "buy", qty: q }, { row: C(430, 7), action: "sell", qty: q }];
+  assert.equal(collarSetup(legs(2), held).setup.units, 2);
+  assert.match(collarSetup(legs(3), held).reason, /300 for 3/);
+  assert.match(collarSetup([{ row: P(380, 6), action: "buy", qty: 1 }, { row: C(430, 7), action: "sell", qty: 2 }], held).reason, /one put for each call/);
+});

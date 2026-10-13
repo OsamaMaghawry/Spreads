@@ -136,3 +136,39 @@ test("protected repair candidates: the put's cost comes off every net", () => {
   // A put above the call bought is refused, with a reason.
   assert.match(repairCandidates(ladder, 101, 118, ladder[4].put).reason, /Pick a lower floor/);
 });
+
+// ---------------------------------------------------------------------------
+// The floor by strike, stepped through the chain, and the collar's outcomes.
+// ---------------------------------------------------------------------------
+
+import { putStrikes, putAtStrike, collarCalls, collarPLAt, collarBreakEven } from "./holdingStrategies.js";
+
+test("put strikes: the chain's steps with a market, at or below a ceiling", () => {
+  assert.deepEqual(putStrikes(ladder, 101), [85, 90, 95, 100]);
+  // The 125 has no put market and is never offered.
+  assert.deepEqual(putStrikes(ladder), [85, 90, 95, 100, 105, 110, 115, 120]);
+});
+
+test("put at a strike: exact where listed, else the next one down, never up", () => {
+  assert.equal(putAtStrike(ladder, 95).strike, 95);
+  assert.equal(putAtStrike(ladder, 97.5).strike, 95);
+  assert.equal(putAtStrike(ladder, 80), null);
+});
+
+test("collar calls against a chosen put: same nets as the percentage route", () => {
+  const byPct = collarCandidates(ladder, 100, 0.1);
+  const byStrike = collarCalls(ladder, 100, putAtStrike(ladder, 90));
+  assert.deepEqual(byStrike.calls.map((c) => c.net), byPct.calls.map((c) => c.net));
+  assert.equal(byStrike.zeroCostStrike, 105);
+});
+
+test("collar at a price: flat below the floor and above the cap", () => {
+  // Cost 107, buy the 90 put, sell the 115 call for a 0.73 credit.
+  const c = { basis: 107, floor: 90, cap: 115, net: 0.73 };
+  assert.deepEqual(collarPLAt(c, 80), { withStrategy: -16.27, sharesAlone: -27 });
+  assert.deepEqual(collarPLAt(c, 90), { withStrategy: -16.27, sharesAlone: -17 });
+  assert.deepEqual(collarPLAt(c, 120), { withStrategy: 8.73, sharesAlone: 13 });
+  assert.equal(collarBreakEven(c), 106.27);
+  // A floor above the cost: never a loss, so no break-even.
+  assert.equal(collarBreakEven({ basis: 80, floor: 90, cap: 115, net: 0 }), null);
+});
