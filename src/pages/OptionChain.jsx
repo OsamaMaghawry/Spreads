@@ -3,7 +3,7 @@ import { Search, RefreshCw, AlertTriangle, X } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { fmtMoney } from "@/lib/format";
 import TradeDialog from "@/components/scanner/TradeDialog";
-import { contractSetup, spreadSetup, collarSetup } from "@/lib/optionChain";
+import { contractSetup, collarSetup, repairSetup, chainContext } from "@/lib/optionChain";
 
 // The option chain, as a ladder, with every strike tradeable.
 //
@@ -147,35 +147,23 @@ export default function OptionChain() {
     setPicked((cur) => cur.map((p) => (p.row.symbol === symbol && p.action === action ? { ...p, qty: q } : p)));
   }, []);
 
-  const ctx = useMemo(() => data && ({
-    ticker: data.ticker,
-    expiry: data.expiry,
-    // Which account the shares, basis and cover below were read on. The ticket
-    // can be sent to any of them, and says so if the one chosen is not this
-    // one — a covered call is only covered where the shares are.
-    accountId,
-    accountName: accounts.find((a) => a.id === accountId)?.name || null,
-    spot: data.spot,
-    spotSource: data.spotSource,
-    spotAsOf: data.spotAsOf,
-    // Free cover where there is some; where all of it is behind a call already
-    // sold, what is held, with `coverInUse` saying so (see scanCover). The
-    // fallbacks are only for a function older than this page.
-    shares: data.coverShares ?? data.sharesFree ?? data.shares,
-    longCover: data.longCover || [],
-    coverInUse: data.coverInUse || null,
-    basis: data.basis,
-    basisSource: data.basisSource
-  }), [data, accountId, accounts]);
+  // Which account the shares, basis and cover were read on. The ticket can be
+  // sent to any of them, and says so if the one chosen is not this one — a
+  // covered call is only covered where the shares are.
+  const ctx = useMemo(
+    () => chainContext(data, accountId, accounts.find((a) => a.id === accountId)?.name || null),
+    [data, accountId, accounts]
+  );
 
   // One tested builder per shape; never inline arithmetic on this page.
   const ticket = useMemo(() => {
     if (!ctx || picked.length === 0) return null;
     if (picked.length === 1) return contractSetup(picked[0].row, picked[0].action, ctx);
     // A put and a call together are a collar on the shares this account
-    // holds; two of the same type are a spread. See collarSetup.
+    // holds; two of the same type are a spread, and a 1x2 call ratio over
+    // free shares a stock repair. See collarSetup and repairSetup.
     const types = new Set(picked.map((p) => (p.row.type === "P" ? "P" : "C")));
-    return types.size === 2 ? collarSetup(picked, ctx) : spreadSetup(picked, ctx);
+    return types.size === 2 ? collarSetup(picked, ctx) : repairSetup(picked, ctx);
   }, [picked, ctx]);
 
   return (

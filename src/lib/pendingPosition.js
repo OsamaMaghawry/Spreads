@@ -1,6 +1,10 @@
 import { bsPrice, impliedVol, tteYears, RISK_FREE } from "./blackScholes.js";
 import { expiryOf } from "./occ.js";
 
+// Setups whose options are written against shares the account holds, 100 per
+// unit: drawn with those shares, never as the bare options.
+const SHARE_BACKED = ["covered_call", "collar", "stock_repair"];
+
 // An order that has not been placed, priced the same way an open one is.
 //
 // The dashboard can already draw what a ticker is doing: `tickerBook` prices
@@ -164,14 +168,21 @@ export function pendingRows(setup, qty = 1, net = undefined) {
     });
   }
 
-  if (setup.strategy === "covered_call" && num(setup.basis) > 0) {
+  // A collar and a stock repair bring theirs for the same reason: without the
+  // shares one is a synthetic short and the other a naked call. Both builders
+  // measure from today's price when the cost is not known, so the shares are
+  // drawn at it then; a covered call has always required the basis.
+  const shareBasis = num(setup.basis) > 0
+    ? num(setup.basis)
+    : setup.strategy === "collar" || setup.strategy === "stock_repair" ? num(setup.spot) : null;
+  if (SHARE_BACKED.includes(setup.strategy) && shareBasis > 0) {
     rows.push({
       id: "pending-shares",
       pending: true,
       ticker: setup.ticker,
       type: "shares",
       shareQty: units * 100,
-      shareBasis: num(setup.basis),
+      shareBasis,
       stockPrice: num(setup.spot) ?? 0,
       adjusted: false
     });
@@ -223,7 +234,7 @@ export function ticketMarks(setup) {
     label: `${l.side === "sell" ? "S" : "L"} ${num(l.strike)}${kindOfLeg(l) === "call" ? "C" : "P"}`,
     value: num(l.strike)
   })).filter((m) => m.value > 0);
-  if (setup?.strategy === "covered_call" && num(setup.basis) > 0) {
+  if (SHARE_BACKED.includes(setup?.strategy) && num(setup.basis) > 0) {
     marks.push({ label: "Basis", value: num(setup.basis) });
   }
   if (setup?.coveredBy === "long_call" && num(setup.cover?.strike) > 0) {

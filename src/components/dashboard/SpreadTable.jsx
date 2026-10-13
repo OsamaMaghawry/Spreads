@@ -5,13 +5,14 @@ import SpreadStructure from "./SpreadStructure";
 import { isSingle, kindOf, riskText, riskIsUnbounded, isStockRisk, basisNote, stressText, stressNote, movePct, showsStress, moneynessCell, moneynessNote } from "@/lib/positionKind";
 import LegRows from "./LegRows";
 import { dayChange, dayChangeLabel } from "@/lib/dayChange";
+import { holdingActions } from "@/lib/holdingStrategies";
 
 const th = "px-2.5 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-medium whitespace-nowrap";
 const td = "px-2.5 py-4 whitespace-nowrap tabular-nums";
 
 const COL_COUNT = 21;
 
-export default function SpreadTable({ spreads: allSpreads, accountId, onClose, onTicker }) {
+export default function SpreadTable({ spreads: allSpreads, accountId, onClose, onTicker, onHolding }) {
   const [expanded, setExpanded] = useState({});
   const [filter, setFilter] = useState(null);
   const toggle = (key) => setExpanded((e) => ({ ...e, [key]: !e[key] }));
@@ -259,14 +260,34 @@ export default function SpreadTable({ spreads: allSpreads, accountId, onClose, o
                 {fmtMoney(s.expirationPL)}
               </td>
               <td className={td}>
-                {onClose && (
-                  <button
-                    onClick={() => onClose(s)}
-                    className="text-xs font-medium px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors"
-                  >
-                    Close
-                  </button>
-                )}
+                <div className="flex items-center gap-1.5">
+                  {onHolding && holdingActions(s).protect && (
+                    <button
+                      onClick={() => onHolding("protect", s)}
+                      title="Buy a put as a floor under these shares, paid for by selling a call"
+                      className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors"
+                    >
+                      Protect
+                    </button>
+                  )}
+                  {onHolding && holdingActions(s).repair && (
+                    <button
+                      onClick={() => onHolding("repair", s)}
+                      title="Lower the price these shares need to get back to, with a 1×2 call ratio"
+                      className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors"
+                    >
+                      Repair
+                    </button>
+                  )}
+                  {onClose && (
+                    <button
+                      onClick={() => onClose(s)}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors"
+                    >
+                      Close
+                    </button>
+                  )}
+                </div>
               </td>
             </tr>,
             isOpen ? (

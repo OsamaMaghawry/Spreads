@@ -598,3 +598,34 @@ test("beside the open book, the long is not drawn twice", () => {
 test("the long's strike is marked on the chart", () => {
   assert.ok(ticketMarks(overLong).some((m) => m.label === "L 50C" && m.value === 50));
 });
+
+// ---------------------------------------------------------------------------
+// Collars and stock repairs are drawn with the shares that back them.
+// ---------------------------------------------------------------------------
+
+test("a stock repair brings its shares, so the drawn position is flat above the calls sold", () => {
+  const repair = {
+    ticker: "TSLA", expiry: "2026-10-16", strategy: "stock_repair", spot: 400, basis: 420, credit: 1,
+    legs: [
+      { role: "short_call", symbol: "TSLA261016C00410000", strike: 410, mid: 6.5, iv: 0.4, ratio: 2, side: "sell" },
+      { role: "long_call", symbol: "TSLA261016C00400000", strike: 400, mid: 12, iv: 0.4, ratio: 1, side: "buy" }
+    ]
+  };
+  const rows = pendingRows(repair, 2);
+  const shares = rows.find((r) => r.id === "pending-shares");
+  assert.equal(shares.shareQty, 200);
+  assert.equal(shares.shareBasis, 420);
+  assert.deepEqual(ticketMarks(repair).filter((m) => m.label === "Basis").map((m) => m.value), [420]);
+});
+
+test("a collar with no basis draws its shares at today's price; a covered call still needs the basis", () => {
+  const collar = {
+    ticker: "TSLA", expiry: "2026-10-16", strategy: "collar", spot: 400, basis: null, credit: 1,
+    legs: [
+      { role: "long_put", symbol: "TSLA261016P00380000", strike: 380, mid: 6, iv: 0.4, ratio: 1, side: "buy" },
+      { role: "short_call", symbol: "TSLA261016C00430000", strike: 430, mid: 7, iv: 0.4, ratio: 1, side: "sell" }
+    ]
+  };
+  assert.equal(pendingRows(collar, 1).find((r) => r.id === "pending-shares").shareBasis, 400);
+  assert.ok(!pendingRows({ ...collar, strategy: "covered_call", legs: [collar.legs[1]] }, 1).some((r) => r.id === "pending-shares"));
+});

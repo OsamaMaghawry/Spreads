@@ -10,6 +10,7 @@ import { spreadLegs } from "@/lib/spreadLegs";
 import useMarketStream from "@/lib/useMarketStream";
 import TickerPanel from "./TickerPanel";
 import BrokerTable from "./BrokerTable";
+import HoldingStrategyDialog from "./HoldingStrategyDialog";
 import { AlertTriangle, LayoutGrid, Table2 } from "lucide-react";
 
 // A streamed trade older than this is not a live price any more. Thirty seconds
@@ -84,6 +85,10 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
   // nothing on it offers to close, and no stream: the socket is opened on the
   // account's own Alpaca keys, which it does not have.
   const closeSpread = account.readOnly ? undefined : (spread) => onCloseSpread(account, spread);
+  // Protect (a collar) and Repair (a 1x2 call ratio) on a share holding. Same
+  // rule as Close: an account DeltaMint cannot trade offers neither.
+  const [holding, setHolding] = useState(null);
+  const onHolding = account.readOnly ? undefined : (kind, position) => setHolding({ kind, position });
   const { prices, status } = useMarketStream(account.ok && !account.readOnly ? account.id : null, tickers);
 
   // Overlay the streamed spot onto each position, so every card, table row and
@@ -363,6 +368,7 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
           accountId={account.id}
           onClose={closeSpread}
           onTicker={setTicker}
+          onHolding={onHolding}
         />
       ) : (
         <SpreadTable
@@ -370,6 +376,7 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
           accountId={account.id}
           onClose={closeSpread}
           onTicker={setTicker}
+          onHolding={onHolding}
         />
       )}
 
@@ -381,6 +388,18 @@ export default function AccountSection({ account, onCloseSpread, onCloseMany, on
         open={!!ticker}
         onOpenChange={(v) => !v && setTicker(null)}
       />
+
+      {holding && (
+        <HoldingStrategyDialog
+          kind={holding.kind}
+          position={holding.position}
+          account={account}
+          onClose={({ sent } = {}) => {
+            setHolding(null);
+            if (sent) onOrdersChanged?.();
+          }}
+        />
+      )}
     </section>
   );
 }

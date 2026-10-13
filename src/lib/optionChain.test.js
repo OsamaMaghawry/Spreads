@@ -597,3 +597,64 @@ test("a collar is refused without the shares, or the wrong way round", () => {
   assert.match(collarSetup([{ row: P(440, 6), action: "buy" }, { row: C(430, 7), action: "sell" }], held).reason, /at or below/);
   assert.match(collarSetup([{ row: P(380, 6, "2026-11-20"), action: "buy" }, { row: C(430, 7), action: "sell" }], held).reason, /same expiry/);
 });
+
+// ---------------------------------------------------------------------------
+// repairSetup — shares below cost plus a 1x2 call ratio
+// ---------------------------------------------------------------------------
+
+import { repairSetup } from "./optionChain.js";
+
+// Bought at 420, now 400. Buy the 400 call for 12, sell two 410s at 6.50.
+const below = { ...ctx, ticker: "TSLA", spot: 400, shares: 200, basis: 420, basisSource: "broker", accountName: "Paper" };
+const repairLegs = (buyQty = 1, sellQty = 2) => [
+  { row: C(400, 12), action: "buy", qty: buyQty },
+  { row: C(410, 6.5), action: "sell", qty: sellQty }
+];
+
+test("a stock repair over free shares: bounded, measured with the shares, against the basis", () => {
+  const r = repairSetup(repairLegs(), below);
+  assert.equal(r.ok, true);
+  const s = r.setup;
+  assert.equal(s.strategy, "stock_repair");
+  // The order itself is untouched: one unit of a 1:2.
+  assert.equal(s.structure, "ratio");
+  assert.equal(s.units, 1);
+  assert.deepEqual(s.legs.map((l) => `${l.side} ${l.strike} x${l.ratio}`), ["sell 410 x2", "buy 400 x1"]);
+  assert.equal(s.credit, 1);
+  // (420 + 400 - 1) / 2 = 409.50: break-even falls from 420.
+  assert.equal(s.repairBreakEven, 409.5);
+  assert.equal(s.breakEvenLow, 409.5);
+  // At or above 410: 2 x 410 - 420 - 400 + 1 = +1 a share.
+  assert.equal(s.repairCap, 100);
+  assert.equal(s.maxProfit, 100);
+  // Shares to zero, less the credit: 419 a share.
+  assert.equal(s.maxRisk, 41900);
+  assert.equal(s.unlimitedRisk, false);
+  assert.equal(s.sharesHeld, 200);
+});
+
+test("a repair the shares do not cover stays the naked ratio it is", () => {
+  const r = repairSetup(repairLegs(), { ...below, shares: 50 });
+  assert.equal(r.setup.strategy, "call_spread");
+  assert.equal(r.setup.maxRisk, null);
+  // Two units need 200 shares: 200 held is enough, 150 is not.
+  assert.equal(repairSetup(repairLegs(2, 4), below).setup.strategy, "stock_repair");
+  assert.equal(repairSetup(repairLegs(2, 4), { ...below, shares: 150 }).setup.strategy, "call_spread");
+});
+
+test("only a 1x2 call ratio is a repair", () => {
+  // A plain vertical, a 1x3 and a put ratio are passed through unchanged.
+  assert.equal(repairSetup(repairLegs(1, 1), below).setup.structure, "vertical");
+  assert.equal(repairSetup(repairLegs(1, 3), below).setup.strategy, "call_spread");
+  const puts = [{ row: P(400, 12), action: "buy", qty: 1 }, { row: P(390, 6.5), action: "sell", qty: 2 }];
+  assert.equal(repairSetup(puts, below).setup.strategy, "put_spread");
+});
+
+test("a repair with no basis on record is measured from today's price, and says so", () => {
+  const r = repairSetup(repairLegs(), { ...below, basis: null });
+  assert.equal(r.setup.basis, null);
+  // (400 + 400 - 1) / 2 would be 399.50, below the long strike: there the
+  // break-even is the price less the credit.
+  assert.equal(r.setup.repairBreakEven, 399);
+  assert.match(r.setup.riskNote, /today's price/);
+});

@@ -1,0 +1,359 @@
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import TradeDialog from "@/components/scanner/TradeDialog";
+import NumberField from "@/components/common/NumberField";
+import { invokeFunction } from "@/lib/functions";
+import { chainContext, collarSetup, repairSetup } from "@/lib/optionChain";
+import { collarCandidates, repairCandidates, expiryNear } from "@/lib/holdingStrategies";
+import { fmtMoney } from "@/lib/format";
+
+// Protect and Repair, from a share holding on the dashboard.
+//
+// The owner: "I want to build the Collar strategy ... apply it on my holding"
+// and "how we can build stock repair strategy". Both read the chain once for
+// the shares' ticker, offer strikes (holdingStrategies.js), and hand the pick
+// to the ordinary ticket, built by the same tested builders the option chain
+// uses (collarSetup, repairSetup). Nothing here sends an order: the ticket
+// does, with its usual preview, pricing and broker checks.
+
+const label = "text-xs text-slate-500 block mb-1.5";
+const input = "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500";
+const LEVELS = [0.05, 0.1, 0.15, 0.2];
+
+const num = (v) => {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+const pct = (v) => `${(v * 100).toFixed(1).replace(/\.0$/, "")}%`;
+const todayNY = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
+const dte = (d) => Math.round((Date.parse(`${d}T00:00:00Z`) - Date.parse(`${todayNY()}T00:00:00Z`)) / 86400000);
+const signed = (v) => (v === null ? "—" : `${v > 0 ? "+" : v < 0 ? "−" : ""}${fmtMoney(Math.abs(v))}`);
+const netText = (n) => (n > 0 ? `${fmtMoney(n)} credit` : n < 0 ? `${fmtMoney(-n)} debit` : "Even");
+const tone = (v) => (v > 0 ? "text-emerald-700" : v < 0 ? "text-rose-700" : "text-slate-700");
+
+export default function HoldingStrategyDialog({ kind, position, account, onClose }) {
+  const repair = kind === "repair";
+  const ticker = position.ticker;
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [protect, setProtect] = useState(0.1);
+  const [strike, setStrike] = useState(null);
+  const [units, setUnits] = useState("1");
+  // The legs on the open ticket. Null while the finder is showing.
+  const [legs, setLegs] = useState(null);
+
+  const read = useCallback(async (expiry) => {
+    const r = await invokeFunction("optionChain", { accountId: account.id, ticker, expiry });
+    if (r.data?.error) throw new Error(r.data.error);
+    return r.data;
+  }, [account.id, ticker]);
+
+  // The function opens on the nearest expiry; the finder wants about six
+  // weeks out, so the first read is for the list and the second for the date.
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        let d = await read(undefined);
+        const near = expiryNear(d.expiries, todayNY());
+        if (near && near !== d.expiry) d = await read(near);
+        if (live) setData(d);
+      } catch (e) {
+        if (live) setError(e.message || "Could not read the chain.");
+      } finally {
+        if (live) setLoading(false);
+      }
+    })();
+    return () => { live = false; };
+  }, [read]);
+
+  const changeExpiry = async (expiry) => {
+    setLoading(true);
+    setError(null);
+    try {
+      setData(await read(expiry));
+      setStrike(null);
+      setLegs(null);
+    } catch (e) {
+      setError(e.message || "Could not read the chain.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const ctx = useMemo(() => chainContext(data, account.id, account.name), [data, account.id, account.name]);
+  const spot = num(data?.spot);
+  const basis = num(data?.basis) ?? num(position.shareBasis);
+  const basisSource = num(data?.basis) !== null ? data.basisSource : position.basisSource;
+  const free = Number(ctx?.shares) || 0;
+  const maxUnits = Math.floor(free / 100);
+
+  const found = useMemo(() => {
+    if (!data) return null;
+    return repair ? repairCandidates(data.ladder, spot, basis) : collarCandidates(data.ladder, spot, protect);
+  }, [data, repair, spot, basis, protect]);
+
+  const rows = repair ? found?.shorts || [] : found?.calls || [];
+  const preset = repair ? found?.suggestedStrike : found?.zeroCostStrike ?? rows[0]?.strike ?? null;
+  const chosen = rows.find((c) => c.strike === strike) || rows.find((c) => c.strike === preset) || null;
+  const n = Math.max(1, Math.min(maxUnits || 1, Math.floor(Number(units)) || 1));
+
+  // A new strike or floor is a new trade: a ticket that could not be built for
+  // the last one has nothing to say about it.
+  const pick = (k) => { setStrike(k); setLegs(null); };
+
+  const openTicket = () => {
+    if (!chosen) return;
+    const expiry = data.expiry;
+    setLegs(repair
+      ? [
+          { row: found.long, action: "buy", expiry, qty: n },
+          { row: chosen.row, action: "sell", expiry, qty: 2 * n }
+        ]
+      : [
+          { row: found.put, action: "buy", expiry },
+          { row: chosen.row, action: "sell", expiry }
+        ]);
+  };
+
+  const ticket = useMemo(() => {
+    if (!legs || !ctx) return null;
+    return repair ? repairSetup(legs, ctx) : collarSetup(legs, ctx);
+  }, [legs, ctx, repair]);
+
+  const setLegQty = useCallback((symbol, action, q) => {
+    const v = Math.max(1, Math.min(99, Math.floor(Number(q)) || 1));
+    setLegs((cur) => cur && cur.map((l) => (l.row.symbol === symbol && l.action === action ? { ...l, qty: v } : l)));
+  }, []);
+
+  if (legs && ticket?.ok) {
+    return (
+      <TradeDialog
+        setup={ticket.setup}
+        onLegQty={repair ? setLegQty : null}
+        accounts={[account]}
+        defaultAccountId={account.id}
+        positions={account.spreads ?? null}
+        onClose={({ phase } = {}) => {
+          // An order at the broker is the end of it; anything else is a step
+          // back to the strikes, as closing a ticket is on the chain.
+          if (phase === "filled" || phase === "detached") onClose({ sent: true });
+          else setLegs(null);
+        }}
+      />
+    );
+  }
+
+  const down = spot !== null && basis !== null && basis > 0 ? (basis - spot) / basis : null;
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose({})}>
+      {/* min-w-0 on every child: the dialog is a grid, and a grid item will not
+          shrink below its content, so the strike table would widen the whole
+          dialog past a phone's edge instead of scrolling inside its own box. */}
+      <DialogContent className="bg-white border-slate-200 text-slate-700 sm:max-w-xl max-h-[90vh] overflow-y-auto [&>*]:min-w-0">
+        <DialogHeader>
+          <DialogTitle className="text-slate-900">{repair ? "Repair" : "Protect"} {ticker}</DialogTitle>
+          <DialogDescription className="text-xs text-slate-500 leading-relaxed">
+            {repair
+              ? "A stock repair: for each 100 shares, buy one call near today's price and sell two above it. Done for little or nothing, it lowers the price the stock has to get back to for you to break even, and gives up any gain above the calls sold."
+              : "A collar: buy a put as a floor under your shares and sell a call to pay for it. The call caps what the shares can earn until it expires; if the stock is above it then, the shares are called away at that price."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+          <Fact term="Price" value={fmtMoney(spot)} note={data?.spotAsOf ? `as of ${new Date(data.spotAsOf).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : null} />
+          <Fact term="Your cost" value={fmtMoney(basis)} note={basis === null ? null : basisSource === "adjusted" ? "after premiums" : "per broker"} />
+          {repair ? (
+            <Fact term="Below cost" value={down === null ? "—" : pct(down)} tone="text-rose-700" />
+          ) : (
+            <Fact term="Held" value={`${position.qty} shares`} />
+          )}
+          <Fact term="Free to write against" value={`${free} shares`} note={free < position.qty ? "rest back calls already sold" : null} />
+        </dl>
+
+        {loading && !data && <p className="text-sm text-slate-500">Reading the {ticker} chain…</p>}
+        {error && <p className="text-sm text-rose-700">{error}</p>}
+
+        {data && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={label} htmlFor="hs-expiry">Expiry</label>
+                <select id="hs-expiry" value={data.expiry} disabled={loading} onChange={(e) => changeExpiry(e.target.value)} className={input}>
+                  {(data.expiries || []).map((d) => (
+                    <option key={d} value={d}>{d} · {dte(d)} days</option>
+                  ))}
+                </select>
+              </div>
+              {repair ? (
+                <div>
+                  <label className={label}>Repairs (100 shares each)</label>
+                  <NumberField
+                    value={units}
+                    onChange={setUnits}
+                    step={1}
+                    min={1}
+                    max={Math.max(1, maxUnits)}
+                    ariaLabel="Number of repairs"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <span className={label}>Floor below today&rsquo;s price</span>
+                  <div className="flex gap-1 rounded-lg border border-slate-200 bg-slate-100 p-0.5" role="radiogroup" aria-label="Floor below today's price">
+                    {LEVELS.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        role="radio"
+                        aria-checked={protect === p}
+                        onClick={() => { setProtect(p); pick(null); }}
+                        className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium tabular-nums transition-colors ${
+                          protect === p ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                        }`}
+                      >
+                        {pct(p)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {repair ? (
+              found?.long && (
+                <p className="text-sm text-slate-700">
+                  Buy <strong>{n} × {found.long.strike} call</strong> at {fmtMoney(num(found.long.mid))}, and sell twice as many of one of these:
+                </p>
+              )
+            ) : (
+              found?.put && (
+                <p className="text-sm text-slate-700">
+                  Buy the <strong>{found.put.strike} put</strong> at {fmtMoney(num(found.put.mid))}
+                  {spot ? <span className="text-slate-500"> · {pct((spot - found.put.strike) / spot)} below today</span> : null}
+                  , and sell one of these calls against each 100 shares:
+                </p>
+              )
+            )}
+
+            {found?.reason && <p className="text-xs text-amber-700 leading-relaxed">{found.reason}</p>}
+            {repair && maxUnits === 0 && (
+              <p className="text-xs text-amber-700 leading-relaxed">
+                Each repair sells one call more than it buys, and that call is covered by 100 of your shares. None of
+                your {ticker} shares are free: all of them already back calls you have sold.
+              </p>
+            )}
+
+            {rows.length > 0 && (
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <table className="w-full text-xs tabular-nums">
+                  <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
+                    {repair ? (
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium">Sell 2×</th>
+                        <th className="whitespace-nowrap px-3 py-2 text-right font-medium">Net / share</th>
+                        <th className="px-3 py-2 text-right font-medium">New break-even</th>
+                        <th className="px-3 py-2 text-right font-medium">Most at expiry</th>
+                      </tr>
+                    ) : (
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium">Sell call</th>
+                        <th className="whitespace-nowrap px-3 py-2 text-right font-medium">Net / share</th>
+                        <th className="px-3 py-2 text-right font-medium">Worst</th>
+                        <th className="px-3 py-2 text-right font-medium">Best</th>
+                      </tr>
+                    )}
+                  </thead>
+                  <tbody>
+                    {rows.map((c) => {
+                      const on = chosen?.strike === c.strike;
+                      const ref = basis !== null && basis > 0 ? basis : spot;
+                      const worst = !repair && ref ? (found.put.strike - ref + c.net) * 100 : null;
+                      const best = !repair && ref ? (c.strike - ref + c.net) * 100 : null;
+                      return (
+                        <tr
+                          key={c.strike}
+                          onClick={() => pick(c.strike)}
+                          className={`cursor-pointer border-t border-slate-100 ${on ? "bg-emerald-50" : "hover:bg-slate-50"}`}
+                        >
+                          <td className="px-3 py-2 text-left">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input type="radio" name="hs-strike" checked={on} onChange={() => pick(c.strike)} className="accent-emerald-600" />
+                              <span className="font-semibold text-slate-900">{c.strike}</span>
+                              {!repair && spot ? <span className="text-slate-400">+{pct(c.capPct)}</span> : null}
+                              {!repair && c.strike === found.zeroCostStrike && (
+                                <span className="whitespace-nowrap rounded-full border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[10px] font-semibold text-teal-700">Zero cost</span>
+                              )}
+                              {repair && c.strike === found.suggestedStrike && c.net >= 0 && (
+                                <span title="The lowest break-even among those that take in a credit or cost nothing" className="whitespace-nowrap rounded-full border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[10px] font-semibold text-teal-700">Lowest at no cost</span>
+                              )}
+                            </label>
+                          </td>
+                          <td className={`whitespace-nowrap px-3 py-2 text-right ${tone(c.net)}`}>{netText(c.net)}</td>
+                          {repair ? (
+                            <>
+                              <td className="whitespace-nowrap px-3 py-2 text-right text-slate-900">
+                                {c.breakEven === null ? <span className="text-slate-400" title="The most this can make at expiry does not reach your cost.">Not reached</span> : fmtMoney(c.breakEven)}
+                              </td>
+                              <td className={`whitespace-nowrap px-3 py-2 text-right ${tone(c.capPerShare)}`}>{signed(c.capPerShare * 100 * n)}</td>
+                            </>
+                          ) : (
+                            <>
+                              <td className={`whitespace-nowrap px-3 py-2 text-right ${tone(worst)}`}>{signed(worst)}</td>
+                              <td className={`whitespace-nowrap px-3 py-2 text-right ${tone(best)}`}>{signed(best)}</td>
+                            </>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {rows.length > 0 && (
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                {repair
+                  ? `At expiry, against your cost of ${fmtMoney(basis)}. Most at expiry is for ${n * 100} shares with the stock at or above the calls sold; above them the extra call takes every further dollar the shares make. Priced at the midpoint; the ticket sets the price you send.`
+                  : `Per 100 shares at expiry, against ${basis !== null && basis > 0 ? `your cost of ${fmtMoney(basis)}` : "today's price (your cost is not known)"}. Worst is with the stock at or below the put, best at or above the call. Priced at the midpoint; the ticket sets the price you send.`}
+              </p>
+            )}
+
+            {legs && ticket && !ticket.ok && <p className="text-xs text-rose-700">{ticket.reason}</p>}
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => onClose({})}
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={openTicket}
+                disabled={!chosen || loading || (repair && maxUnits === 0)}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Open ticket
+              </button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function Fact({ term, value, note, tone: cls = "text-slate-900" }) {
+  return (
+    <div>
+      <dt className="text-[10px] uppercase tracking-wider text-slate-500">{term}</dt>
+      <dd className={`text-sm font-medium tabular-nums ${cls}`}>{value}</dd>
+      {note && <dd className="text-[10px] text-slate-400">{note}</dd>}
+    </div>
+  );
+}

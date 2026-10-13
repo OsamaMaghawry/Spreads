@@ -568,6 +568,102 @@ export function spreadSetup(legs, ctx) {
 }
 
 /**
+ * A stock repair: shares held below cost, plus one call bought near the price
+ * and two sold above it, per 100 shares, on one expiry.
+ *
+ * spreadSetup prices the 1x2 on its own, where the extra call sold is naked
+ * and the loss above it has no ceiling; that is what the ticket said when the
+ * Repair button first opened it. With 100 free shares behind each extra call
+ * it is not naked: above the calls sold the shares are called away and the
+ * position is flat. So when the account holds them, the setup is measured
+ * the way a covered call is, shares included, against what they cost:
+ *
+ *   below the long strike    shares + net
+ *   between the strikes      the long call adds a dollar for every dollar
+ *   above the short strike   flat at 2 x short - basis - long + net a share
+ *
+ * Anything else, including a 1x2 the shares do not cover, is returned exactly
+ * as spreadSetup built it, warning and all.
+ */
+export function repairSetup(legs, ctx) {
+  const base = spreadSetup(legs, ctx);
+  if (!base.ok || base.setup.structure !== "ratio" || base.setup.ratioLabel !== "1×2") return base;
+  const s = base.setup;
+  const buy = s.legs.find((l) => l.side === "buy");
+  const sell = s.legs.find((l) => l.side === "sell");
+  if (buy.type !== "call" || sell.type !== "call" || !(sell.strike > buy.strike)) return base;
+  const shares = Number(ctx?.shares) || 0;
+  const units = s.units || 1;
+  if (shares < units * 100) return base;
+
+  const basis = num(ctx?.basis);
+  const fromBasis = basis !== null && basis > 0;
+  const ref = fromBasis ? basis : s.spot;
+  if (!(ref > 0)) return base;
+  const net = s.credit;
+  // At expiry, per share, shares included.
+  const cap = 2 * sell.strike - ref - buy.strike + net;
+  let breakEven = null;
+  if (ref - net <= buy.strike) breakEven = ref - net;
+  else if ((ref + buy.strike - net) / 2 <= sell.strike) breakEven = (ref + buy.strike - net) / 2;
+
+  return {
+    ok: true,
+    setup: {
+      ...s,
+      strategy: "stock_repair",
+      accountId: ctx?.accountId ?? null,
+      accountName: ctx?.accountName ?? null,
+      basis: fromBasis ? basis : null,
+      basisSource: ctx?.basisSource ?? null,
+      sharesHeld: shares,
+      // Shares per unit the order leans on: one for each call sold beyond
+      // those bought.
+      sharesPerUnit: 100,
+      maxContracts: Math.floor(shares / 100),
+      repairBreakEven: breakEven === null ? null : r2(breakEven),
+      repairCap: r2(cap * 100),
+      // Like a covered call: the shares to zero, less what the options took
+      // in. The extra call adds nothing to it -- the shares cover it.
+      maxRisk: r2((ref - net) * 100),
+      maxProfit: r2(cap * 100),
+      unlimitedRisk: false,
+      riskNote: fromBasis
+        ? null
+        : "Your cost for these shares is not known, so this is measured from today's price.",
+      breakEvenLow: breakEven === null ? null : r2(breakEven),
+      breakEvenHigh: null
+    }
+  };
+}
+
+/**
+ * What every builder above reads from one `optionChain` response: the price,
+ * the shares and long calls free to cover a call sold, and the basis, all on
+ * the account the chain was read for.
+ */
+export function chainContext(data, accountId, accountName = null) {
+  if (!data) return null;
+  return {
+    ticker: data.ticker,
+    expiry: data.expiry,
+    accountId,
+    accountName,
+    spot: data.spot,
+    spotSource: data.spotSource,
+    spotAsOf: data.spotAsOf,
+    // Free cover where there is some; where all of it is behind a call already
+    // sold, what is held, with `coverInUse` saying so (see scanCover). The
+    // fallbacks are only for a function older than this page.
+    shares: data.coverShares ?? data.sharesFree ?? data.shares,
+    longCover: data.longCover || [],
+    coverInUse: data.coverInUse || null,
+    basis: data.basis,
+    basisSource: data.basisSource
+  };
+}
+
+/**
  * A collar on shares the account holds: one put BOUGHT below the price as a
  * floor, one call SOLD above it as a cap, per 100 shares, one order.
  *

@@ -5,11 +5,13 @@ import StrikeLadder from "./StrikeLadder";
 import CardLegs from "./CardLegs";
 import { isSingle, kindOf, riskText, riskLabel, isStockRisk, basisNote, stressLabel, stressText, stressNote, showsStress, moneynessTone, moneynessNote } from "@/lib/positionKind";
 import { dayChange, dayChangeLabel } from "@/lib/dayChange";
+import { holdingActions } from "@/lib/holdingStrategies";
 
 const badge = "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border";
 
-export default function PositionCard({ spread: s, accountId, onClose, onTicker }) {
+export default function PositionCard({ spread: s, accountId, onClose, onTicker, onHolding }) {
   const [open, setOpen] = useState(false);
+  const actions = holdingActions(s);
   // The UNDERLYING's move today -- not this position's return, which is the
   // unrealized P/L on the other side of the header. Labelled for that reason.
   const change = dayChange(s.stockPrice, s.prevClose);
@@ -172,6 +174,24 @@ export default function PositionCard({ spread: s, accountId, onClose, onTicker }
             Legs
             <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
           </button>
+          {onHolding && actions.protect && (
+            <button
+              onClick={() => onHolding("protect", s)}
+              title="Buy a put as a floor under these shares, paid for by selling a call"
+              className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-700 transition-colors hover:bg-teal-100"
+            >
+              Protect
+            </button>
+          )}
+          {onHolding && actions.repair && (
+            <button
+              onClick={() => onHolding("repair", s)}
+              title="Lower the price these shares need to get back to, with a 1×2 call ratio"
+              className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-700 transition-colors hover:bg-teal-100"
+            >
+              Repair
+            </button>
+          )}
           {onClose && (
             <button
               onClick={() => onClose(s)}
