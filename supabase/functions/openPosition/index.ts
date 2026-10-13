@@ -8,7 +8,7 @@ import { getSpots, spotFromSnapshot, closingSpotFromSnapshot } from "../_shared/
 import { sessionPhase } from "../_shared/watchRules.ts";
 import {
   sessionWarning, priceWarning, driftWarning, itmShortWarning, adjustedWarning,
-  freeCoverWarning, unacknowledged, type OrderWarning
+  freeCoverWarning, excessShortCalls, unacknowledged, type OrderWarning
 } from "../_shared/orderWarnings.ts";
 import { earningsCoverage, refreshEarningsWindow } from "../_shared/earnings.ts";
 import { inBackground } from "../_shared/background.ts";
@@ -74,32 +74,33 @@ async function preflight(
     }
   }
 
-  // A LONE short call against shares this account does not hold. Previously a
-  // hard 409; now a warning, because an account approved for naked calls may
-  // sell one and that is between the user and their broker. The sentence still
-  // says exactly what is missing, which a broker rejection would not.
+  // Short calls this order sells beyond the calls it buys, against shares this
+  // account does not hold. Previously a hard 409; now a warning, because an
+  // account approved for naked calls may sell one and that is between the user
+  // and their broker. The sentence still says exactly what is missing, which a
+  // broker rejection would not.
   //
-  // `parsed.length === 1` is the whole point. The short call of a CALL SPREAD
-  // is covered by the long call above it, not by shares, and raising "this
-  // call is not covered" on every vertical would teach the user to click
-  // straight through the one time it matters.
-  const shortCall =
-    parsed.length === 1 && parsed[0].side === "sell" && parsed[0].occ.type === "C" ? parsed[0] : null;
-  if (shortCall) {
+  // Counted as the EXCESS (excessShortCalls), not as "a lone short call": the
+  // short call of a vertical is covered by its long, and raising "this call is
+  // not covered" on every vertical would teach the user to click straight
+  // through the one time it matters -- but the second call of a 1:2 ratio is
+  // covered by nothing in the order, and used to go out without a word.
+  const excess = excessShortCalls(parsed, Number(qty) || 1);
+  if (excess) {
     const held = await heldShares(admin, account).catch(() => null);
     if (held) {
-      const ticker = shortCall.occ.ticker;
+      const ticker = parsed[0].occ.ticker;
       // FREE cover, not held: shares already behind a short call are not
       // counted twice, and a long call expiring on or after this one counts.
       // See freeCoverWarning for the two failures reading `held.shares` caused.
-      const expiry = String(shortCall.occ.expiryFormatted || "");
+      const expiry = excess.expiry;
       const longContracts = (held.longsFree?.[ticker] || [])
         .filter((l: any) => String(l.expiry ?? "") >= expiry)
         .reduce((a: number, l: any) => a + (Number(l.qty) || 0), 0);
       const note = freeCoverWarning({
         accountName: account.name,
         ticker,
-        contracts: Number(qty) || 1,
+        contracts: excess.contracts,
         heldShares: held.shares[ticker] || 0,
         freeShares: held.sharesFree?.[ticker] || 0,
         longContracts

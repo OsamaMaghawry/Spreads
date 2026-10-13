@@ -128,7 +128,7 @@ export default function OptionChain() {
     // The expiry is stamped on the leg AT PICK TIME. The page's `expiry` moves
     // as the reader browses, so reading it later would relabel a leg chosen
     // three expiries ago as belonging to whatever is on screen now.
-    const leg = { row, action, expiry: data?.expiry };
+    const leg = { row, action, expiry: data?.expiry, qty: 1 };
     setPicked((cur) => {
       const at = cur.findIndex((p) => p.row.symbol === row.symbol && p.action === action);
       if (at >= 0) return cur.filter((_, i) => i !== at);
@@ -137,6 +137,15 @@ export default function OptionChain() {
       return [...other, leg];
     });
   };
+
+  // Contracts on one leg, set from the ticket. The owner: "buying 1 Call vs
+  // selling 2 calls ... to be able to control the quantity for each leg".
+  // spreadSetup turns the two counts into an order quantity and leg ratios in
+  // lowest terms, which is the only form the broker accepts.
+  const setLegQty = useCallback((symbol, action, n) => {
+    const q = Math.max(1, Math.min(99, Math.floor(Number(n)) || 1));
+    setPicked((cur) => cur.map((p) => (p.row.symbol === symbol && p.action === action ? { ...p, qty: q } : p)));
+  }, []);
 
   const ctx = useMemo(() => data && ({
     ticker: data.ticker,
@@ -295,7 +304,7 @@ export default function OptionChain() {
                 p.action === "buy" ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"
               }`}
             >
-              {p.action === "buy" ? "Buy" : "Sell"} {p.row.strike}
+              {p.action === "buy" ? "Buy" : "Sell"} {p.qty > 1 ? `${p.qty}× ` : ""}{p.row.strike}
               {p.row.type === "C" ? "C" : "P"}
               <span className="opacity-70 font-normal">{p.expiry}</span>
               <button type="button" onClick={() => toggle(p.row, p.action)} aria-label="Remove leg">
@@ -305,7 +314,9 @@ export default function OptionChain() {
           ))}
           {ticket?.ok ? (
             <span className="text-xs text-slate-300">
-              {picked.length === 2 ? `${ticket.setup.structure} · ` : ""}
+              {picked.length === 2
+                ? `${ticket.setup.ratioLabel ? `${ticket.setup.ratioLabel} ratio` : ticket.setup.structure}${ticket.setup.units > 1 ? ` × ${ticket.setup.units}` : ""} · `
+                : ""}
               {ticket.setup.credit >= 0
                 ? `credit ${n2(ticket.setup.credit)}`
                 : `debit ${n2(Math.abs(ticket.setup.credit))}`}
@@ -435,6 +446,9 @@ export default function OptionChain() {
       {ticketOpen && ticket?.ok && tradable.length > 0 && (
         <TradeDialog
           setup={ticket.setup}
+          // Two legs: the ticket shows a quantity per leg instead of one
+          // quantity for the whole order.
+          onLegQty={picked.length === 2 ? setLegQty : null}
           accounts={tradable}
           defaultAccountId={tradable.some((a) => a.id === accountId) ? accountId : tradable[0].id}
           // What this account already holds, so the ticket's Advanced analysis

@@ -239,3 +239,30 @@ test("nothing held at all is described as nothing, not as zero shares committed"
   const w = freeCoverWarning({ accountName: "A", ticker: "X", contracts: 1, heldShares: 0, freeShares: 0, longContracts: 0 })!;
   assert.match(w.detail, /^A holds no X shares\./);
 });
+
+// ---------- the excess short calls an order sells ----------
+
+import { excessShortCalls } from "./orderWarnings.ts";
+
+const call = (side: string, ratio = 1, exp = "2026-10-16") => ({ side, ratio, occ: { type: "C", expiryFormatted: exp } });
+const put = (side: string, ratio = 1) => ({ side, ratio, occ: { type: "P", expiryFormatted: "2026-10-16" } });
+
+test("a lone short call is an excess of the whole quantity, as before", () => {
+  assert.deepEqual(excessShortCalls([call("sell")], 3), { contracts: 3, expiry: "2026-10-16" });
+});
+
+test("a vertical sells no call beyond the one it buys", () => {
+  assert.equal(excessShortCalls([call("sell"), call("buy")], 5), null);
+  // A diagonal 1:1 is judged on its own ticket, not here: unchanged.
+  assert.equal(excessShortCalls([call("sell", 1, "2026-10-16"), call("buy", 1, "2026-09-18")], 1), null);
+});
+
+test("the second call of a 1:2 is uncovered unless something else covers it", () => {
+  assert.deepEqual(excessShortCalls([call("buy", 1), call("sell", 2)], 2), { contracts: 2, expiry: "2026-10-16" });
+});
+
+test("puts, back ratios and a condor raise nothing", () => {
+  assert.equal(excessShortCalls([put("sell", 2), put("buy", 1)], 1), null);
+  assert.equal(excessShortCalls([call("sell", 1), call("buy", 2)], 1), null);
+  assert.equal(excessShortCalls([put("sell"), put("buy"), call("sell"), call("buy")], 1), null);
+});

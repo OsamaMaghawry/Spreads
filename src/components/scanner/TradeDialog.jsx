@@ -31,11 +31,23 @@ const input = "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text
 // The chain uses it to decide whether the selection it came from is spent
 // (an order went to the broker) or still wanted (the owner looked and went
 // back to change a strike).
-export default function TradeDialog({ setup, accounts, onClose, defaultAccountId = null, positions = null }) {
+export default function TradeDialog({ setup, accounts, onClose, defaultAccountId = null, positions = null, onLegQty = null }) {
   const [accountId, setAccountId] = useState(
     accounts.some((a) => a.id === defaultAccountId) ? defaultAccountId : accounts[0]?.id || ""
   );
   const [qty, setQty] = useState(1);
+  // A QUANTITY PER LEG, on the option chain's two-leg tickets. The owner:
+  // "buying 1 Call vs selling 2 calls ... to be able to control the quantity
+  // for each leg". It is still one multi-leg order: spreadSetup turns the two
+  // counts into the order's units (`qty` here) and leg ratios in lowest terms,
+  // so 2 bought against 4 sold is sent as 2 units of 1:2. What is typed is
+  // held as text until it is a whole number, so clearing a box to retype it
+  // does not snap it to 1 under the cursor.
+  const perLeg = typeof onLegQty === "function" && !!setup.legQty && (setup.legs || []).length === 2;
+  const [legDraft, setLegDraft] = useState({});
+  useEffect(() => {
+    if (perLeg) setQty(setup.units || 1);
+  }, [perLeg, setup.units]);
   // Day unless the user says otherwise -- the conservative of the two, and
   // what the ticket silently sent before it asked.
   const [timeInForce, setTimeInForce] = useState("day");
@@ -102,6 +114,12 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
   // The ticket works in MAGNITUDES and puts the sign back on here, in the one
   // place the order is built. See `openingDefaults` for why.
   const isDebit = typeof setup.credit === "number" && setup.credit < 0;
+  // A change of leg quantities can turn a credit into a debit. The walk only
+  // concedes toward the bid, which means nothing when paying, so it steps
+  // aside rather than leaving the ticket on a mode with no control under it.
+  useEffect(() => {
+    if (isDebit && priceMode === "walk") setPriceMode("manual");
+  }, [isDebit, priceMode]);
   // What the price actually means, signed the way the rest of the product
   // signs it: positive is taken in, negative is paid out.
   const signedNet = typeof limitCredit === "number" ? (isDebit ? -limitCredit : limitCredit) : null;
@@ -126,7 +144,16 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
   // that says "credit" over an order the user is paying for is the sentence
   // they read last before committing.
   const priced = isDebit ? "debit" : "credit";
-  const what = `open ${qty} ${setup.ticker} ${unit}${Number(qty) > 1 ? "s" : ""} on ${account?.name || ""}`;
+  // What is being opened, in words. Per leg when the legs differ, because
+  // "1 spread" over a 1:2 hides the second call.
+  const legsText = perLeg
+    ? setup.legs.map((l) => `${l.side === "sell" ? "sell" : "buy"} ${setup.legQty[l.symbol]}`).join(", ")
+    : null;
+  const sizeText = perLeg
+    ? `${setup.ticker} ${setup.ratioLabel ? `${setup.ratioLabel} ratio` : unit} (${legsText})`
+    : `${qty} ${setup.ticker} ${unit}${Number(qty) > 1 ? "s" : ""}`;
+  const shortSize = perLeg ? legsText : `${qty} ${unit}${Number(qty) > 1 ? "s" : ""}`;
+  const what = `open ${sizeText} on ${account?.name || ""}`;
   const summary =
     priceMode === "market"
       ? `Market order · ${what}.`
@@ -259,41 +286,78 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
               )}
             </div>
 
-            <div>
-              {/* The ceiling is CLICKABLE here too, so "up to 3 on 300 shares"
-                  fills the field instead of being a number to copy by hand. A
-                  covered call is the case where it matters: the maximum is
-                  derived from the shares held, and getting it wrong means an
-                  order the broker refuses. */}
-              <label className={label}>
-                Quantity
-                {setup.maxContracts ? (
-                  <>
-                    {" — up to "}
-                    <button
-                      type="button"
-                      onClick={() => setQty(String(setup.maxContracts))}
-                      className="text-emerald-700 hover:underline"
-                      title={`Use all ${setup.maxContracts}`}
-                    >
-                      {setup.maxContracts}
-                    </button>
-                    {setup.coveredBy === "long_call" ? " against your long call" : ` on ${setup.sharesHeld} shares`}
-                  </>
-                ) : null}
-              </label>
-              <NumberField value={qty} onChange={setQty} step={1} min={1} max={setup.maxContracts || undefined} ariaLabel="Quantity" />
-              {/* Short on purpose -- the owner: "I don't want the text on the
-                  ticket itself too long". One sentence for what this IS, since
-                  it is filed under covered calls and behaves like a spread; the
-                  arithmetic is in the preview beside it. */}
-              {setup.coveredBy === "long_call" && (
-                <p className="mt-1.5 text-xs text-amber-700">
-                  A spread, not a covered call: if this is assigned you&rsquo;ll be short 100 {setup.ticker} shares,
-                  not delivering shares you own. Your broker must allow spreads (options level 3 on Alpaca).
-                </p>
-              )}
-            </div>
+            {perLeg ? (
+              <div>
+                <label className={label}>Quantity per leg</label>
+                <div className="space-y-2">
+                  {setup.legs.map((l) => (
+                    <div key={l.symbol} className="flex items-center gap-3">
+                      <span className={`w-32 shrink-0 text-xs font-semibold ${l.side === "sell" ? "text-rose-700" : "text-emerald-700"}`}>
+                        {l.side === "sell" ? "Sell" : "Buy"} {l.strike} {l.type === "put" ? "put" : "call"}
+                        <span className="block text-[11px] font-normal text-slate-500 tabular-nums">{l.expiry}</span>
+                      </span>
+                      <NumberField
+                        value={legDraft[l.symbol] ?? String(setup.legQty[l.symbol] ?? 1)}
+                        onChange={(v) => {
+                          setLegDraft((d) => ({ ...d, [l.symbol]: v }));
+                          const n = Number(v);
+                          if (Number.isInteger(n) && n >= 1 && n <= 99) onLegQty(l.symbol, l.side, n);
+                        }}
+                        step={1}
+                        min={1}
+                        max={99}
+                        ariaLabel={`${l.side === "sell" ? "Sell" : "Buy"} ${l.strike} quantity`}
+                        className="flex-1"
+                      />
+                    </div>
+                  ))}
+                </div>
+                {/* What actually reaches the broker, once: a ratio goes as
+                    units of the smallest whole ratio, and that is what the
+                    order screen at the broker will show. */}
+                {setup.ratioLabel && (
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    Sent as one order: {setup.units} × ({setup.legs.map((l) => `${l.side === "sell" ? "sell" : "buy"} ${l.ratio}`).join(", ")}).
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div>
+                {/* The ceiling is CLICKABLE here too, so "up to 3 on 300 shares"
+                    fills the field instead of being a number to copy by hand. A
+                    covered call is the case where it matters: the maximum is
+                    derived from the shares held, and getting it wrong means an
+                    order the broker refuses. */}
+                <label className={label}>
+                  Quantity
+                  {setup.maxContracts ? (
+                    <>
+                      {" — up to "}
+                      <button
+                        type="button"
+                        onClick={() => setQty(String(setup.maxContracts))}
+                        className="text-emerald-700 hover:underline"
+                        title={`Use all ${setup.maxContracts}`}
+                      >
+                        {setup.maxContracts}
+                      </button>
+                      {setup.coveredBy === "long_call" ? " against your long call" : ` on ${setup.sharesHeld} shares`}
+                    </>
+                  ) : null}
+                </label>
+                <NumberField value={qty} onChange={setQty} step={1} min={1} max={setup.maxContracts || undefined} ariaLabel="Quantity" />
+                {/* Short on purpose -- the owner: "I don't want the text on the
+                    ticket itself too long". One sentence for what this IS, since
+                    it is filed under covered calls and behaves like a spread; the
+                    arithmetic is in the preview beside it. */}
+                {setup.coveredBy === "long_call" && (
+                  <p className="mt-1.5 text-xs text-amber-700">
+                    A spread, not a covered call: if this is assigned you&rsquo;ll be short 100 {setup.ticker} shares,
+                    not delivering shares you own. Your broker must allow spreads (options level 3 on Alpaca).
+                  </p>
+                )}
+              </div>
+            )}
 
             <OpenPricing
               setup={setup}
@@ -333,14 +397,14 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
             <ConfirmSubmit
               label={
                 savePrivate
-                  ? `Save for later — ${qty} ${unit}${Number(qty) > 1 ? "s" : ""}, not sent`
+                  ? `Save for later — ${shortSize}, not sent`
                   : orderType === "limit" && !creditReady
                     ? "Set a credit first"
-                    : `Submit — open ${qty} ${unit}${Number(qty) > 1 ? "s" : ""} (${priceMode === "market" ? "market" : priceMode === "walk" ? "walk" : "limit"}) on ${account?.name || "…"}`
+                    : `Submit — open ${shortSize} (${priceMode === "market" ? "market" : priceMode === "walk" ? "walk" : "limit"}) on ${account?.name || "…"}`
               }
               summary={
                 savePrivate
-                  ? `Saved, not sent · ${qty} ${setup?.ticker} ${unit}${Number(qty) > 1 ? "s" : ""} on ${account?.name || "…"}. Nothing reaches your broker.`
+                  ? `Saved, not sent · ${sizeText} on ${account?.name || "…"}. Nothing reaches your broker.`
                   : summary
               }
               warnings={<PreTradeRisk setup={setup} accountId={accountId} qty={qty} />}

@@ -439,3 +439,105 @@ test("free cover carries no flag", () => {
   const r = contractSetup(call380, "sell", { ...ctx, shares: 100, basis: 350 });
   assert.equal(r.setup.coverInUse, undefined);
 });
+
+// ---------------------------------------------------------------------------
+// Unequal quantities per leg: "buying 1 Call vs selling 2 calls"
+// ---------------------------------------------------------------------------
+
+import { ratioPayoff } from "./optionChain.js";
+
+test("2 bought against 4 sold goes as two units of 1:2, priced per unit", () => {
+  const r = spreadSetup(
+    [{ row: C(400, 5), action: "buy", qty: 2 }, { row: C(410, 3), action: "sell", qty: 4 }],
+    { ...ctx, shares: 0 }
+  );
+  assert.equal(r.ok, true);
+  assert.equal(r.setup.units, 2);
+  assert.equal(r.setup.structure, "ratio");
+  assert.equal(r.setup.ratioLabel, "1×2");
+  const bySide = Object.fromEntries(r.setup.legs.map((l) => [l.side, l.ratio]));
+  assert.deepEqual(bySide, { sell: 2, buy: 1 });
+  assert.deepEqual(r.setup.legQty, { [C(410, 3).symbol]: 4, [C(400, 5).symbol]: 2 });
+  // 2 x 3.00 taken, 5.00 paid: a 1.00 credit per 1:2.
+  assert.equal(r.setup.credit, 1);
+  // A net short call has no ceiling; the width means nothing here.
+  assert.equal(r.setup.maxRisk, null);
+  assert.equal(r.setup.width, null);
+  assert.equal(r.setup.collateral, null);
+  // Peak at the short strike: 1.00 + 10 of intrinsic on the long call.
+  assert.equal(r.setup.maxProfit, 1100);
+  assert.equal(r.setup.breakEvenLow, 421);
+  assert.equal(r.setup.breakEvenHigh, null);
+  assert.match(r.setup.riskNote, /without limit/);
+  assert.match(r.setup.riskNote, /200 shares would cover/);
+});
+
+test("the extra short call is named a stock repair when the shares are there", () => {
+  const r = spreadSetup(
+    [{ row: C(400, 5), action: "buy", qty: 1 }, { row: C(410, 2.5), action: "sell", qty: 2 }],
+    { ...ctx, shares: 100, accountName: "Paper" }
+  );
+  assert.equal(r.setup.credit, 0);
+  assert.match(r.setup.riskNote, /stock repair/);
+  // Done for nothing: no loss below the long strike, one break-even above.
+  assert.equal(r.setup.breakEvenLow, 420);
+  assert.equal(r.setup.breakEvenHigh, null);
+});
+
+test("equal quantities stay a plain vertical, sent as that many units", () => {
+  const r = spreadSetup(
+    [{ row: P(370, 4.3), action: "sell", qty: 3 }, { row: P(365, 2.3), action: "buy", qty: 3 }],
+    ctx
+  );
+  assert.equal(r.setup.structure, "vertical");
+  assert.equal(r.setup.units, 3);
+  assert.ok(r.setup.legs.every((l) => l.ratio === 1));
+  assert.equal(r.setup.credit, 2);
+  assert.equal(r.setup.maxRisk, 300);
+  assert.equal(r.setup.breakEvenLow, 368);
+});
+
+test("a put ratio is bounded: the worst case is the stock at zero", () => {
+  // Buy 1 100P for 5, sell 2 90P for 2.50: done for nothing.
+  const p = ratioPayoff({ isPut: true, credit: 0, sellStrike: 90, buyStrike: 100, sellRatio: 2, buyRatio: 1 });
+  // At zero: +100 on the long, -180 on the two shorts.
+  assert.equal(p.maxLoss, 8000);
+  assert.equal(p.maxProfit, 1000);
+  assert.deepEqual(p.breakEvens, [80]);
+});
+
+test("a debit call ratio has two break-evens", () => {
+  const p = ratioPayoff({ isPut: false, credit: -1, sellStrike: 110, buyStrike: 100, sellRatio: 2, buyRatio: 1 });
+  assert.equal(p.maxLoss, null);
+  assert.equal(p.maxProfit, 900);
+  assert.deepEqual(p.breakEvens, [101, 119]);
+});
+
+test("a back ratio (more bought than sold) has no cap on profit and a bounded loss", () => {
+  const calls = ratioPayoff({ isPut: false, credit: 0, sellStrike: 100, buyStrike: 110, sellRatio: 1, buyRatio: 2 });
+  assert.equal(calls.maxProfit, null);
+  assert.equal(calls.maxLoss, 1000);
+  assert.deepEqual(calls.breakEvens, [120]);
+  const puts = ratioPayoff({ isPut: true, credit: 0, sellStrike: 100, buyStrike: 90, sellRatio: 1, buyRatio: 2 });
+  assert.equal(puts.maxLoss, 1000);
+  assert.equal(puts.maxProfit, 8000);
+  assert.deepEqual(puts.breakEvens, [80]);
+});
+
+test("unequal quantities across two expiries show no risk figure", () => {
+  const r = spreadSetup(
+    [{ row: C(400, 5, "2026-11-20"), action: "buy", qty: 1 }, { row: C(410, 3), action: "sell", qty: 2 }],
+    ctx
+  );
+  assert.equal(r.setup.maxRisk, null);
+  assert.match(r.setup.riskNote, /two expiries/);
+});
+
+test("a missing or nonsense quantity reads as one", () => {
+  const r = spreadSetup(
+    [{ row: P(370, 4.3), action: "sell", qty: "abc" }, { row: P(365, 2.3), action: "buy", qty: 0 }],
+    ctx
+  );
+  assert.equal(r.setup.units, 1);
+  assert.equal(r.setup.structure, "vertical");
+});

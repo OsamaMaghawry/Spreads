@@ -307,6 +307,35 @@ export function freeCoverWarning({
   };
 }
 
+/**
+ * Calls an order SELLS beyond the calls it BUYS, in contracts.
+ *
+ * The cover check used to run only on a lone short call, because the short
+ * call of a vertical is covered by its long. A 1:2 ratio from the option chain
+ * is neither: one call per unit is covered by the long in the same order and
+ * the other by nothing unless the account holds shares. Counting the excess
+ * covers all three -- a lone short call is an excess of `qty`, a vertical an
+ * excess of none, a 1:2 an excess of `qty` again -- so one check replaces the
+ * special case without changing what either old case raised.
+ *
+ * `expiry` is the earliest short call's, which is what a long held elsewhere
+ * in the account must outlive to count as cover.
+ */
+export function excessShortCalls(
+  legs: { side?: string; ratio?: number | string; occ?: { type?: string; expiryFormatted?: string } | null }[],
+  qty: number
+): { contracts: number; expiry: string } | null {
+  const calls = (legs || []).filter((l) => l?.occ?.type === "C");
+  const ratio = (l: any) => Math.max(1, Math.floor(Number(l.ratio) || 1));
+  const sold = calls.filter((l) => l.side === "sell");
+  if (!sold.length) return null;
+  const net = sold.reduce((a, l) => a + ratio(l), 0) - calls.filter((l) => l.side === "buy").reduce((a, l) => a + ratio(l), 0);
+  const contracts = net * Math.max(1, Math.floor(Number(qty) || 1));
+  if (contracts <= 0) return null;
+  const expiry = sold.map((l) => String(l.occ?.expiryFormatted || "")).sort()[0];
+  return { contracts, expiry };
+}
+
 // Which of a list the user has not already seen and accepted.
 export const unacknowledged = (warnings: OrderWarning[], accepted: string[] | boolean | undefined) => {
   if (accepted === true) return [];
