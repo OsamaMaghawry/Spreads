@@ -7,7 +7,9 @@ import { earningsWhen } from "@/lib/risk";
 // the largest single-day move most underlyings make, and a defined-risk short
 // premium position can travel its whole width on one. Whether that is
 // acceptable is the trader's call.
-export default function EarningsWarning({ earnings, ticker, compact = false, unknown = false }) {
+// `why` replaces the reason in the unknown case when it is not that the
+// calendar lacks the ticker -- e.g. a ticket expiring past what is cached.
+export default function EarningsWarning({ earnings, ticker, compact = false, unknown = false, why = null }) {
   // NO DATA IS NOT NO RISK.
   //
   // A ticker the earnings provider has never heard of used to render exactly
@@ -29,7 +31,9 @@ export default function EarningsWarning({ earnings, ticker, compact = false, unk
   // event, and keeps the tooltip for the rest. An absent date is a gap in our
   // data, not a fact about the company, and it should look like the former.
   if (!earnings && unknown) {
-    const note = `No earnings date on file for ${ticker}. That is not the same as none scheduled — our calendar does not cover this name, so check it yourself before holding through an announcement.`;
+    const note = why
+      ? `No earnings date on file for ${ticker}: ${why}. Check it yourself before holding through an announcement.`
+      : `No earnings date on file for ${ticker}. That is not the same as none scheduled — our calendar does not cover this name, so check it yourself before holding through an announcement.`;
     return compact ? (
       <span
         title={note}
@@ -43,8 +47,14 @@ export default function EarningsWarning({ earnings, ticker, compact = false, unk
         <div>
           <span className="font-medium">No earnings date on file for {ticker}.</span>
           <div className="mt-1">
-            This is not a statement that none is scheduled &mdash; the calendar does not cover this
-            name, so check it yourself before holding through an announcement.
+            {why ? (
+              <>Not a statement that none is scheduled: {why}. Check it yourself before holding through an announcement.</>
+            ) : (
+              <>
+                This is not a statement that none is scheduled &mdash; the calendar does not cover this
+                name, so check it yourself before holding through an announcement.
+              </>
+            )}
           </div>
         </div>
       </div>

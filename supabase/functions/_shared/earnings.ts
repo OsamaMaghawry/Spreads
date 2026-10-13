@@ -142,8 +142,12 @@ export async function refreshEarningsRange(
   admin,
   from: string,
   to: string
-): Promise<{ from: string; to: string; upserted: number }> {
+): Promise<{ from: string; to: string; upserted: number; removed: number }> {
   let upserted = 0;
+  let removed = 0;
+  // Every row this run writes is stamped after this instant; anything in a
+  // refreshed slice stamped before it is a date the provider no longer lists.
+  const runStart = new Date().toISOString();
   for (let sliceFrom = from; sliceFrom <= to; sliceFrom = addDays(sliceFrom, SLICE_DAYS)) {
     const sliceEnd = addDays(sliceFrom, SLICE_DAYS - 1);
     const sliceTo = sliceEnd > to ? to : sliceEnd;
@@ -175,8 +179,32 @@ export async function refreshEarningsRange(
       if (error) throw new Error(error.message);
       upserted += rows.length;
     }
+
+    // A MOVED DATE MUST LEAVE ITS OLD ROW BEHIND, or it is never gone.
+    //
+    // The upsert is keyed on (symbol, date), so when a company moves its
+    // report the new date is added and the old one stays. INTC on staging on
+    // 13 Oct 2026 had three future reports cached -- 21, 22 and 29 Oct,
+    // fetched 23 Sep, 5 Oct and 12 Oct -- and every lookup takes the soonest,
+    // so the scanner and the tickets warned of the 21st, a date the provider
+    // had dropped a fortnight earlier.
+    //
+    // The slice just fetched is the provider's whole list for those dates, so
+    // anything in it not refreshed by this run has been withdrawn. An empty
+    // slice deletes nothing: that is far likelier a provider fault than a
+    // week with no US earnings, and keeping a stale row errs toward a warning.
+    if (deduped.length > 0) {
+      const { error, count } = await admin
+        .from("earnings_calendar")
+        .delete({ count: "exact" })
+        .gte("report_date", sliceFrom)
+        .lte("report_date", sliceTo)
+        .lt("fetched_at", runStart);
+      if (error) throw new Error(error.message);
+      removed += count || 0;
+    }
   }
-  return { from, to, upserted };
+  return { from, to, upserted, removed };
 }
 
 /** Repopulates the cache for the next `days` days from today. */

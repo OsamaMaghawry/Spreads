@@ -232,7 +232,7 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
             Here there is room for the sentence, and it is read at the moment
             it can change what someone does. */}
         {phase === "idle" && (
-          <EarningsWarning earnings={setup.earnings} ticker={setup.ticker} unknown={setup.earningsUnknown} />
+          <EarningsWarning earnings={setup.earnings} ticker={setup.ticker} unknown={setup.earningsUnknown} why={setup.earningsUnknownWhy} />
         )}
 
         {phase === "idle" && <PreTradeRisk setup={setup} accountId={accountId} qty={qty} />}

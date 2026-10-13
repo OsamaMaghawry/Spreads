@@ -2,8 +2,9 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import TradeDialog from "@/components/scanner/TradeDialog";
 import NumberField from "@/components/common/NumberField";
+import EarningsWarning from "@/components/common/EarningsWarning";
 import { invokeFunction } from "@/lib/functions";
-import { chainContext, collarSetup, repairSetup, protectedRepairSetup } from "@/lib/optionChain";
+import { chainContext, collarSetup, repairSetup, protectedRepairSetup, withEarnings } from "@/lib/optionChain";
 import { collarCandidates, repairCandidates, repairPLAt, expiryNear, floorPut } from "@/lib/holdingStrategies";
 import { fmtMoney } from "@/lib/format";
 
@@ -16,7 +17,7 @@ import { fmtMoney } from "@/lib/format";
 // uses (collarSetup, repairSetup, protectedRepairSetup). Nothing here sends an
 // order: the ticket does, with its usual preview, pricing and broker checks.
 //
-// Repair has a floor switch: "Repair and Protect" together, a put bought
+// Repair has an "Add protection" switch: "Repair and Protect" together, a put bought
 // under the repair. There is no standard name for it; the product calls it a
 // protected repair.
 
@@ -150,8 +151,9 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
 
   const ticket = useMemo(() => {
     if (!legs || !ctx) return null;
-    if (!repair) return collarSetup(legs, ctx);
-    return legs.length === 3 ? protectedRepairSetup(legs, ctx) : repairSetup(legs, ctx);
+    // Earnings before expiry is flagged on the ticket, as on every other.
+    if (!repair) return withEarnings(collarSetup(legs, ctx), ctx, todayNY());
+    return withEarnings(legs.length === 3 ? protectedRepairSetup(legs, ctx) : repairSetup(legs, ctx), ctx, todayNY());
   }, [legs, ctx, repair]);
 
   const setLegQty = useCallback((symbol, action, q) => {
@@ -180,6 +182,9 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
   }
 
   const down = spot !== null && basis !== null && basis > 0 ? (basis - spot) / basis : null;
+  // The same earnings rule the ticket applies, shown while the expiry is
+  // being chosen: a report before it is the thing most worth knowing here.
+  const onExpiry = data && ctx ? withEarnings({ ok: true, setup: { ticker, expiry: data.expiry } }, ctx, todayNY()).setup : null;
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose({})}>
@@ -252,7 +257,7 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
                     onChange={(e) => { setFloored(e.target.checked); pick(null); }}
                     className="h-4 w-4 accent-emerald-600"
                   />
-                  Add a floor (buy a put)
+                  Add protection (buy a put)
                 </label>
                 {floored && (
                   <div>
@@ -284,6 +289,10 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
                   , and sell one of these calls against each 100 shares:
                 </p>
               )
+            )}
+
+            {onExpiry && (
+              <EarningsWarning earnings={onExpiry.earnings} ticker={ticker} unknown={onExpiry.earningsUnknown} why={onExpiry.earningsUnknownWhy} />
             )}
 
             {found?.reason && <p className="text-xs text-amber-700 leading-relaxed">{found.reason}</p>}

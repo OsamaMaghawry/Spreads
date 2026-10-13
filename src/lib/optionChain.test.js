@@ -710,3 +710,38 @@ test("a protected repair is refused in the wrong shape or without the shares", (
   const otherExpiry = [{ row: P(380, 4, "2026-11-20"), action: "buy", qty: 1 }, ...protectedLegs().slice(1)];
   assert.match(protectedRepairSetup(otherExpiry, below).reason, /same expiry/);
 });
+
+// ---------------------------------------------------------------------------
+// withEarnings — the earnings warning on a ticket built from the chain
+// ---------------------------------------------------------------------------
+
+import { withEarnings } from "./optionChain.js";
+
+const built = (expiry, extra = {}) => ({ ok: true, setup: { ticker: "INTC", expiry, expiries: [expiry], ...extra } });
+const cal = (nextEarnings, more = {}) => ({ nextEarnings, earningsUnknown: false, earningsCheckedThrough: "2027-01-11", ...more });
+
+test("earnings before the ticket's expiry is flagged, with the days to it", () => {
+  const r = withEarnings(built("2026-11-20"), cal({ date: "2026-10-23", session: "amc" }), "2026-10-13");
+  assert.deepEqual(r.setup.earnings, { date: "2026-10-23", session: "amc", daysAway: 10 });
+  assert.equal(r.setup.earningsUnknown, false);
+});
+
+test("earnings after the expiry is clear; the last leg's expiry is the one that counts", () => {
+  assert.equal(withEarnings(built("2026-10-16"), cal({ date: "2026-10-23", session: "amc" }), "2026-10-13").setup.earnings, undefined);
+  // A diagonal: near leg before the report, far leg after it.
+  const diag = built("2026-10-16", { expiries: ["2026-10-16", "2026-11-20"] });
+  assert.equal(withEarnings(diag, cal({ date: "2026-10-23", session: null }), "2026-10-13").setup.earnings.date, "2026-10-23");
+});
+
+test("no report found: unknown when the calendar lacks the ticker or the expiry is past what it holds", () => {
+  assert.equal(withEarnings(built("2026-11-20"), cal(null, { earningsUnknown: true }), "2026-10-13").setup.earningsUnknown, true);
+  const far = withEarnings(built("2027-06-17"), cal(null), "2026-10-13").setup;
+  assert.equal(far.earningsUnknown, true);
+  assert.match(far.earningsUnknownWhy, /2027-01-11/);
+  // Known ticker, inside the window, nothing due: clear, nothing stamped.
+  const clear = withEarnings(built("2026-11-20"), cal(null), "2026-10-13");
+  assert.equal(clear.setup.earnings, undefined);
+  assert.equal(clear.setup.earningsUnknown, undefined);
+  // A refusal passes through untouched.
+  assert.deepEqual(withEarnings({ ok: false, reason: "x" }, cal(null), "2026-10-13"), { ok: false, reason: "x" });
+});

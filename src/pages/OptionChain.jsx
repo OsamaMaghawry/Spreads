@@ -3,7 +3,7 @@ import { Search, RefreshCw, AlertTriangle, X } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { fmtMoney } from "@/lib/format";
 import TradeDialog from "@/components/scanner/TradeDialog";
-import { contractSetup, collarSetup, repairSetup, chainContext } from "@/lib/optionChain";
+import { contractSetup, collarSetup, repairSetup, chainContext, withEarnings } from "@/lib/optionChain";
 
 // The option chain, as a ladder, with every strike tradeable.
 //
@@ -158,12 +158,13 @@ export default function OptionChain() {
   // One tested builder per shape; never inline arithmetic on this page.
   const ticket = useMemo(() => {
     if (!ctx || picked.length === 0) return null;
-    if (picked.length === 1) return contractSetup(picked[0].row, picked[0].action, ctx);
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
+    if (picked.length === 1) return withEarnings(contractSetup(picked[0].row, picked[0].action, ctx), ctx, today);
     // A put and a call together are a collar on the shares this account
     // holds; two of the same type are a spread, and a 1x2 call ratio over
     // free shares a stock repair. See collarSetup and repairSetup.
     const types = new Set(picked.map((p) => (p.row.type === "P" ? "P" : "C")));
-    return types.size === 2 ? collarSetup(picked, ctx) : repairSetup(picked, ctx);
+    return withEarnings(types.size === 2 ? collarSetup(picked, ctx) : repairSetup(picked, ctx), ctx, today);
   }, [picked, ctx]);
 
   return (

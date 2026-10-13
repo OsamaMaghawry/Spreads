@@ -799,8 +799,53 @@ export function chainContext(data, accountId, accountName = null) {
     longCover: data.longCover || [],
     coverInUse: data.coverInUse || null,
     basis: data.basis,
-    basisSource: data.basisSource
+    basisSource: data.basisSource,
+    // The underlying's next report, and how far the calendar was checked.
+    // withEarnings decides, per ticket, whether it lands before expiry.
+    nextEarnings: data.nextEarnings || null,
+    earningsUnknown: !!data.earningsUnknown,
+    earningsCheckedThrough: data.earningsCheckedThrough || null
   };
+}
+
+/**
+ * The earnings warning, on a ticket built from the chain.
+ *
+ * The owner: "The ticket for the repair or protect has no earning alerts. It
+ * should have if the fix has earning during the way." Every builder above
+ * returns a setup without one, so this stamps it on afterwards, the same way
+ * the scanner annotates its candidates (entryScan.ts):
+ *
+ *   a report on or before the ticket's LAST expiry   -> `earnings`
+ *   none, and the calendar does not know the ticker   -> `earningsUnknown`
+ *   none, but the expiry is past what is cached       -> `earningsUnknown`
+ *   none, known ticker, inside the cache              -> nothing: clear
+ *
+ * `today` is a YYYY-MM-DD string, for the days-away count.
+ */
+export function withEarnings(result, ctx, today) {
+  if (!result?.ok || !ctx) return result;
+  const s = result.setup;
+  const last = [...(s.expiries || []), s.expiry].filter(Boolean).sort().pop();
+  if (!last) return result;
+  const next = ctx.nextEarnings;
+  if (next?.date && next.date <= last) {
+    const days = Math.max(0, Math.round((Date.parse(`${next.date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000));
+    return { ...result, setup: { ...s, earnings: { date: next.date, session: next.session ?? null, daysAway: days }, earningsUnknown: false } };
+  }
+  const beyond = !!ctx.earningsCheckedThrough && last > ctx.earningsCheckedThrough;
+  if (ctx.earningsUnknown || beyond) {
+    return {
+      ...result,
+      setup: {
+        ...s,
+        earnings: null,
+        earningsUnknown: true,
+        earningsUnknownWhy: ctx.earningsUnknown ? null : `the earnings calendar only reaches ${ctx.earningsCheckedThrough}, before this expires`
+      }
+    };
+  }
+  return result;
 }
 
 /**
