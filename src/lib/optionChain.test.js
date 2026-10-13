@@ -745,3 +745,40 @@ test("no report found: unknown when the calendar lacks the ticker or the expiry 
   // A refusal passes through untouched.
   assert.deepEqual(withEarnings({ ok: false, reason: "x" }, cal(null), "2026-10-13"), { ok: false, reason: "x" });
 });
+
+// ---------------------------------------------------------------------------
+// chainLegQuantities — three picks on the chain that make a protected repair
+// ---------------------------------------------------------------------------
+
+import { chainLegQuantities } from "./optionChain.js";
+
+test("three picks in the protected-repair shape: the call sold goes to twice the call bought", () => {
+  const legs = [
+    { row: C(410, 6.5), action: "sell", qty: 1, expiry: "2026-10-16" },
+    { row: C(400, 12), action: "buy", qty: 1, expiry: "2026-10-16" },
+    { row: P(380, 4), action: "buy", qty: 1, expiry: "2026-10-16" }
+  ];
+  const out = chainLegQuantities(legs);
+  assert.deepEqual(out.map((l) => l.qty), [2, 1, 1]);
+  // Straight into the builder.
+  assert.equal(protectedRepairSetup(out, below).ok, true);
+});
+
+test("anything else is left exactly as picked", () => {
+  const two = [{ row: C(410, 6.5), action: "sell", qty: 1 }, { row: C(400, 12), action: "buy", qty: 1 }];
+  assert.equal(chainLegQuantities(two), two);
+  // A count the trader changed is theirs.
+  const set = [
+    { row: C(410, 6.5), action: "sell", qty: 3, expiry: "2026-10-16" },
+    { row: C(400, 12), action: "buy", qty: 1, expiry: "2026-10-16" },
+    { row: P(380, 4), action: "buy", qty: 1, expiry: "2026-10-16" }
+  ];
+  assert.equal(chainLegQuantities(set), set);
+  // Wrong shapes: the call sold below the call bought; a put above it; two expiries.
+  const low = [{ ...set[0], qty: 1, row: C(390, 15) }, set[1], set[2]];
+  assert.equal(chainLegQuantities(low), low);
+  const highPut = [{ ...set[0], qty: 1 }, set[1], { ...set[2], row: P(405, 9) }];
+  assert.equal(chainLegQuantities(highPut), highPut);
+  const otherExp = [{ ...set[0], qty: 1 }, set[1], { ...set[2], expiry: "2026-11-20" }];
+  assert.equal(chainLegQuantities(otherExp), otherExp);
+});

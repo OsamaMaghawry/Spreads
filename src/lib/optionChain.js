@@ -778,6 +778,33 @@ export function protectedRepairSetup(legs, ctx) {
 }
 
 /**
+ * Quantities for three legs picked on the chain that make a protected repair.
+ *
+ * Every leg is picked at one contract, and a protected repair sells two calls
+ * for each call and put bought. When the three picks are that shape -- a put
+ * bought at or below a call bought, a higher call sold, one expiry -- and the
+ * sold call is still at the bought call's count, it is set to twice it, so the
+ * owner's "Repair and Protect from the chain" is three clicks rather than
+ * three clicks and a quantity. A count the trader has already changed is left
+ * alone; protectedRepairSetup says what is wrong with it.
+ */
+export function chainLegQuantities(legs) {
+  if (!Array.isArray(legs) || legs.length !== 3) return legs;
+  const isPut = (l) => l.row.type === "P" || l.row.type === "put";
+  const put = legs.find((l) => isPut(l) && l.action === "buy");
+  const long = legs.find((l) => !isPut(l) && l.action === "buy");
+  const short = legs.find((l) => !isPut(l) && l.action === "sell");
+  if (!put || !long || !short) return legs;
+  const exp = (l) => String(l.expiry || l.row.expiry || "");
+  if (exp(put) !== exp(long) || exp(short) !== exp(long)) return legs;
+  if (!(Number(put.row.strike) <= Number(long.row.strike) && Number(long.row.strike) < Number(short.row.strike))) return legs;
+  const q = (l) => Math.max(1, Math.floor(Number(l.qty)) || 1);
+  const u = q(long);
+  if (q(short) !== u) return legs;
+  return legs.map((l) => (l === short ? { ...l, qty: 2 * u } : l === put ? { ...l, qty: u } : l));
+}
+
+/**
  * What every builder above reads from one `optionChain` response: the price,
  * the shares and long calls free to cover a call sold, and the basis, all on
  * the account the chain was read for.

@@ -10,7 +10,11 @@ import EarningsWarning from "./EarningsWarning";
 // Shared rather than duplicated so the Scanner and the account's own
 // open-position dialog cannot drift apart — the same order reached by either
 // route has to show the same numbers, from the same equity fetch.
-export default function PreTradeRisk({ setup, accountId, qty }) {
+//
+// `showEarnings` is off where the caller already shows the earnings warning
+// itself: TradeDialog prints it directly above this, and with both on the
+// owner saw the same announcement twice on one ticket.
+export default function PreTradeRisk({ setup, accountId, qty, showEarnings = true }) {
   const [equity, setEquity] = useState(null);
 
   // Equity is per account, so it is refetched when the target account changes.
@@ -27,7 +31,7 @@ export default function PreTradeRisk({ setup, accountId, qty }) {
 
   return (
     <>
-      <EarningsWarning earnings={setup.earnings} ticker={setup.ticker} />
+      {showEarnings && <EarningsWarning earnings={setup.earnings} ticker={setup.ticker} />}
       {/* `scaledRisk`, never `maxRisk * qty` -- multiplying an unbounded
           position's null risk gave 0, and a 0% bar labelled "Contained".
           No `note`: the meter printed the same sentence the preview above it

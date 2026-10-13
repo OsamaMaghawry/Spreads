@@ -3,7 +3,7 @@ import { Search, RefreshCw, AlertTriangle, X } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { fmtMoney } from "@/lib/format";
 import TradeDialog from "@/components/scanner/TradeDialog";
-import { contractSetup, collarSetup, repairSetup, chainContext, withEarnings } from "@/lib/optionChain";
+import { contractSetup, collarSetup, repairSetup, protectedRepairSetup, chainLegQuantities, chainContext, withEarnings } from "@/lib/optionChain";
 
 // The option chain, as a ladder, with every strike tradeable.
 //
@@ -54,8 +54,8 @@ export default function OptionChain() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [show, setShow] = useState("all");
-  // Legs picked so far: [{ row, action }]. One is a single option, two of the
-  // same type is a vertical.
+  // Legs picked so far: [{ row, action, expiry, qty }]. One is a single
+  // option, two a spread or a collar, three a protected repair.
   const [picked, setPicked] = useState([]);
   const [ticketOpen, setTicketOpen] = useState(false);
   const spotRowRef = useRef(null);
@@ -121,8 +121,11 @@ export default function OptionChain() {
   const isPicked = (symbol, action) =>
     picked.some((p) => p.row.symbol === symbol && p.action === action);
 
-  // Clicking the same button again removes it; a third leg replaces the
-  // selection rather than silently building something that is not a vertical.
+  // Clicking the same button again removes it. Up to THREE legs: the owner
+  // could not build "Repair and Protect at the same time from the chain. I
+  // can only add 2 actions." A fourth replaces the oldest, rather than
+  // silently building a shape no builder here prices. Three in the protected
+  // repair shape get their quantities set (chainLegQuantities).
   const toggle = (row, action) => {
     if (!row || row.mid === null) return;
     // The expiry is stamped on the leg AT PICK TIME. The page's `expiry` moves
@@ -133,8 +136,8 @@ export default function OptionChain() {
       const at = cur.findIndex((p) => p.row.symbol === row.symbol && p.action === action);
       if (at >= 0) return cur.filter((_, i) => i !== at);
       const other = cur.filter((p) => p.row.symbol !== row.symbol);
-      if (other.length >= 2) return [other[other.length - 1], leg];
-      return [...other, leg];
+      if (other.length >= 3) return chainLegQuantities([...other.slice(-2), leg]);
+      return chainLegQuantities([...other, leg]);
     });
   };
 
@@ -160,6 +163,8 @@ export default function OptionChain() {
     if (!ctx || picked.length === 0) return null;
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
     if (picked.length === 1) return withEarnings(contractSetup(picked[0].row, picked[0].action, ctx), ctx, today);
+    // Three: the protected repair -- a put bought, a call bought, two sold.
+    if (picked.length === 3) return withEarnings(protectedRepairSetup(picked, ctx), ctx, today);
     // A put and a call together are a collar on the shares this account
     // holds; two of the same type are a spread, and a 1x2 call ratio over
     // free shares a stock repair. See collarSetup and repairSetup.
@@ -173,7 +178,8 @@ export default function OptionChain() {
         <h1 className="font-heading text-xl font-bold tracking-[-0.02em] text-dm-text">Option chain</h1>
         <p className="text-xs text-slate-500 mt-0.5">
           Every listed strike, every listed expiry. Pick one leg for a single option, two of the same
-          type for a spread, or buy a put and sell a call for a collar on shares you hold.
+          type for a spread, buy a put and sell a call for a collar on shares you hold, or buy a put,
+          buy a call and sell a higher call for a protected repair.
         </p>
       </div>
 
@@ -305,8 +311,10 @@ export default function OptionChain() {
           ))}
           {ticket?.ok ? (
             <span className="text-xs text-slate-300">
-              {picked.length === 2
-                ? `${ticket.setup.ratioLabel ? `${ticket.setup.ratioLabel} ratio` : ticket.setup.structure}${ticket.setup.units > 1 ? ` × ${ticket.setup.units}` : ""}${ticket.setup.strategy === "collar" ? ` ${ticket.setup.floor}/${ticket.setup.cap}` : ""} · `
+              {picked.length === 3
+                ? `protected repair${ticket.setup.units > 1 ? ` × ${ticket.setup.units}` : ""} ${ticket.setup.floor}/${ticket.setup.cap} · `
+                : picked.length === 2
+                ? `${ticket.setup.strategy === "stock_repair" ? "stock repair" : ticket.setup.ratioLabel ? `${ticket.setup.ratioLabel} ratio` : ticket.setup.structure}${ticket.setup.units > 1 ? ` × ${ticket.setup.units}` : ""}${ticket.setup.strategy === "collar" ? ` ${ticket.setup.floor}/${ticket.setup.cap}` : ""} · `
                 : ""}
               {ticket.setup.credit >= 0
                 ? `credit ${n2(ticket.setup.credit)}`
@@ -410,8 +418,9 @@ export default function OptionChain() {
             in the money ·{" "}
             <strong className="text-emerald-700">B</strong> buys,{" "}
             <strong className="text-rose-700">S</strong> sells, both at the midpoint — you set the
-            limit on the ticket. Pick two legs of the same type for a vertical, or B a put and S a
-            call for a collar on shares you hold. Every listed strike
+            limit on the ticket. Pick two legs of the same type for a vertical, B a put and S a
+            call for a collar on shares you hold, or B a put, B a call and S a higher call for a
+            protected repair (two calls sold for each one bought). Every listed strike
             is shown, including those with no market; those price no ticket and read
             &ldquo;—&rdquo;. Nothing on this screen is a recommendation.
           </p>

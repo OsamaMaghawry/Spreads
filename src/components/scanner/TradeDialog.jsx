@@ -235,7 +235,7 @@ export default function TradeDialog({ setup, accounts, onClose, defaultAccountId
           <EarningsWarning earnings={setup.earnings} ticker={setup.ticker} unknown={setup.earningsUnknown} why={setup.earningsUnknownWhy} />
         )}
 
-        {phase === "idle" && <PreTradeRisk setup={setup} accountId={accountId} qty={qty} />}
+        {phase === "idle" && <PreTradeRisk setup={setup} accountId={accountId} qty={qty} showEarnings={false} />}
 
         {phase === "idle" && (
           <TicketAnalysis
