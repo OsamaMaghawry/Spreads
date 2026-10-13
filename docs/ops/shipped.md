@@ -616,3 +616,7 @@ English. Newest first.
 - 2026-10-12 · (staging) Every landing page now answers at its canonical address without a redirect (/about, not /about/ via a 307), matching the canonical tags and sitemap (`a8a999e`).
 - 2026-10-12 · (staging) Every blog post is by Osama Maghawry, with a person in the structured data; articles no longer use long dashes (`08671a1`, `a479172`).
 - 2026-10-12 · (staging) Owner-only market emails: a brief before the bell and alerts on held stocks; quiet holdings collapse to one line (`70e97b1`, `d581d24`). Not yet customer-facing.
+- 2026-10-13 · (staging) Option chain: a quantity per leg, so a 1:2 ratio can be opened; up to three legs for a protected repair; a collar can be opened on shares you hold (`c0d1303`, `4c069d9`, `3df23cd`).
+- 2026-10-13 · (staging) Protect and Repair on share holdings in the dashboard: a collar with a quantity and a floor chosen by strike, a repair that shows what happens if the stock keeps falling, and an optional protective floor; the call bought moves off the nearest strike (`ec4197b`, `2e72254`, `af1bec0`, `c93d7e1`, `99978d8`).
+- 2026-10-13 · (staging) Chain tickets warn when earnings fall before expiry; withdrawn earnings dates are dropped and the most recently fetched date wins when a report moves (`3f234c0`, `89bf338`, `628e6cb`).
+- 2026-10-13 · (staging) Order tickets end on one "Order sent" screen, the price is an editable field in that card with one button until it changes, and closing the ticket never cancels a resting order (`3c59812`, `426421b`).
