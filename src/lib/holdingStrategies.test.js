@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { collarCandidates, repairCandidates, repairOutcome, expiryNear, holdingActions } from "./holdingStrategies.js";
+import { collarCandidates, repairCandidates, repairOutcome, repairPLAt, expiryNear, holdingActions } from "./holdingStrategies.js";
 
 test("holding actions: a round lot held long; repair only below cost", () => {
   const lot = { shares: true, shareQty: 200, qty: 200, shareBasis: 120, longCurrentPrice: 100 };
@@ -69,6 +69,18 @@ test("repair outcome: half way back for nothing breaks even at the short strike"
   assert.equal(repairOutcome({ basis: 120, spot: 100, longStrike: 100, shortStrike: 110, net: 1 }).breakEven, 109.5);
   // A short strike too close to the price cannot close the gap: no break-even.
   assert.equal(repairOutcome({ basis: 120, spot: 100, longStrike: 100, shortStrike: 104, net: 0 }).breakEven, null);
+});
+
+test("repair at a price: below the long strike it adds only its net -- no protection", () => {
+  // INTC, cost 107: buy the 101 call, sell two 106s for a 0.10 credit.
+  const r = { basis: 107, longStrike: 101, shortStrike: 106, net: 0.1 };
+  assert.deepEqual(repairPLAt(r, 85), { withRepair: -21.9, sharesAlone: -22 });
+  assert.deepEqual(repairPLAt(r, 95), { withRepair: -11.9, sharesAlone: -12 });
+  // Between the strikes the long call adds a dollar for each dollar.
+  assert.deepEqual(repairPLAt(r, 103.95), { withRepair: 0, sharesAlone: -3.05 });
+  // At and above the short strike: flat at the cap, the shares alone keep rising.
+  assert.deepEqual(repairPLAt(r, 106), { withRepair: 4.1, sharesAlone: -1 });
+  assert.deepEqual(repairPLAt(r, 120), { withRepair: 4.1, sharesAlone: 13 });
 });
 
 test("repair candidates: the long nearest the price, shorts up to the basis and two past it, the cheapest-to-breakeven suggested", () => {

@@ -4,7 +4,7 @@ import TradeDialog from "@/components/scanner/TradeDialog";
 import NumberField from "@/components/common/NumberField";
 import { invokeFunction } from "@/lib/functions";
 import { chainContext, collarSetup, repairSetup } from "@/lib/optionChain";
-import { collarCandidates, repairCandidates, expiryNear } from "@/lib/holdingStrategies";
+import { collarCandidates, repairCandidates, repairPLAt, expiryNear } from "@/lib/holdingStrategies";
 import { fmtMoney } from "@/lib/format";
 
 // Protect and Repair, from a share holding on the dashboard.
@@ -19,6 +19,19 @@ import { fmtMoney } from "@/lib/format";
 const label = "text-xs text-slate-500 block mb-1.5";
 const input = "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500";
 const LEVELS = [0.05, 0.1, 0.15, 0.2];
+
+const PROTECT_INTRO = [
+  "Buy a put: it sets a floor under your shares.",
+  "Sell a call: it pays for the put.",
+  "Your upside stops at the call's strike.",
+  "If the stock ends above it, your shares are sold at that price."
+];
+const REPAIR_INTRO = [
+  "For each 100 shares: buy 1 call near today's price, sell 2 higher up.",
+  "If the stock recovers, you break even sooner.",
+  "You give up gains above the calls you sold.",
+  "It does not protect you if the stock keeps falling."
+];
 
 const num = (v) => {
   if (v === null || v === undefined || v === "") return null;
@@ -156,10 +169,12 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
       <DialogContent className="bg-white border-slate-200 text-slate-700 sm:max-w-xl max-h-[90vh] overflow-y-auto [&>*]:min-w-0">
         <DialogHeader>
           <DialogTitle className="text-slate-900">{repair ? "Repair" : "Protect"} {ticker}</DialogTitle>
-          <DialogDescription className="text-xs text-slate-500 leading-relaxed">
-            {repair
-              ? "A stock repair: for each 100 shares, buy one call near today's price and sell two above it. Done for little or nothing, it lowers the price the stock has to get back to for you to break even, and gives up any gain above the calls sold."
-              : "A collar: buy a put as a floor under your shares and sell a call to pay for it. The call caps what the shares can earn until it expires; if the stock is above it then, the shares are called away at that price."}
+          {/* Bullets, short and plain. The owner: "make it bullet points and in
+              plain english, easy for beginners but not much writing." */}
+          <DialogDescription asChild>
+            <div>
+              <Bullets items={repair ? REPAIR_INTRO : PROTECT_INTRO} />
+            </div>
           </DialogDescription>
         </DialogHeader>
 
@@ -241,10 +256,13 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
 
             {found?.reason && <p className="text-xs text-amber-700 leading-relaxed">{found.reason}</p>}
             {repair && maxUnits === 0 && (
-              <p className="text-xs text-amber-700 leading-relaxed">
-                Each repair sells one call more than it buys, and that call is covered by 100 of your shares. None of
-                your {ticker} shares are free: all of them already back calls you have sold.
-              </p>
+              <Bullets
+                className="text-xs text-amber-700"
+                items={[
+                  "Each repair needs 100 free shares to cover the extra call sold.",
+                  `All your ${ticker} shares already back calls you have sold.`
+                ]}
+              />
             )}
 
             {rows.length > 0 && (
@@ -256,7 +274,7 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
                         <th className="px-3 py-2 text-left font-medium">Sell 2×</th>
                         <th className="whitespace-nowrap px-3 py-2 text-right font-medium">Net / share</th>
                         <th className="px-3 py-2 text-right font-medium">New break-even</th>
-                        <th className="px-3 py-2 text-right font-medium">Most at expiry</th>
+                        <th className="px-3 py-2 text-right font-medium" title="Only if the stock ends at or above the calls you sold">Best case</th>
                       </tr>
                     ) : (
                       <tr>
@@ -296,7 +314,7 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
                           {repair ? (
                             <>
                               <td className="whitespace-nowrap px-3 py-2 text-right text-slate-900">
-                                {c.breakEven === null ? <span className="text-slate-400" title="The most this can make at expiry does not reach your cost.">Not reached</span> : fmtMoney(c.breakEven)}
+                                {c.breakEven === null ? <span className="text-slate-400" title="Even the best case stays below your cost.">Not reached</span> : fmtMoney(c.breakEven)}
                               </td>
                               <td className={`whitespace-nowrap px-3 py-2 text-right ${tone(c.capPerShare)}`}>{signed(c.capPerShare * 100 * n)}</td>
                             </>
@@ -314,12 +332,33 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
               </div>
             )}
 
+            {repair && chosen && found?.long && basis !== null && spot !== null && (
+              <RepairOutcomes
+                ticker={ticker}
+                spot={spot}
+                shares={n * 100}
+                repair={{ basis, longStrike: Number(found.long.strike), shortStrike: chosen.strike, net: chosen.net }}
+                breakEven={chosen.breakEven}
+              />
+            )}
+
             {rows.length > 0 && (
-              <p className="text-[11px] text-slate-500 leading-relaxed">
-                {repair
-                  ? `At expiry, against your cost of ${fmtMoney(basis)}. Most at expiry is for ${n * 100} shares with the stock at or above the calls sold; above them the extra call takes every further dollar the shares make. Priced at the midpoint; the ticket sets the price you send.`
-                  : `Per 100 shares at expiry, against ${basis !== null && basis > 0 ? `your cost of ${fmtMoney(basis)}` : "today's price (your cost is not known)"}. Worst is with the stock at or below the put, best at or above the call. Priced at the midpoint; the ticket sets the price you send.`}
-              </p>
+              <Bullets
+                className="text-[11px]"
+                items={repair
+                  ? [
+                      `At expiry, for ${n * 100} shares, against your cost of ${fmtMoney(basis)}.`,
+                      "Best case: the stock ends at or above the calls you sold. Gains above that go to the extra call.",
+                      `Below ${found.long.strike}: the calls expire worthless. You keep the credit, and the shares' loss stays.`,
+                      "Prices are midpoints. You set your price on the ticket."
+                    ]
+                  : [
+                      `Per 100 shares at expiry, against ${basis !== null && basis > 0 ? `your cost of ${fmtMoney(basis)}` : "today's price (your cost is not known)"}.`,
+                      "Worst: the stock ends at or below the put.",
+                      "Best: the stock ends at or above the call.",
+                      "Prices are midpoints. You set your price on the ticket."
+                    ]}
+              />
             )}
 
             {legs && ticket && !ticket.ok && <p className="text-xs text-rose-700">{ticket.reason}</p>}
@@ -345,6 +384,63 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function Bullets({ items, className = "text-xs" }) {
+  return (
+    <ul className={`list-disc space-y-0.5 pl-4 text-left leading-relaxed text-slate-500 ${className}`}>
+      {items.map((t) => <li key={t}>{t}</li>)}
+    </ul>
+  );
+}
+
+// What the selected repair does at a few prices at expiry, beside the shares
+// alone -- the falls included. The owner: "what about expiry came at 95, 90
+// or even 85; what happens then? Repair doesn't protect."
+function RepairOutcomes({ ticker, spot, shares, repair, breakEven }) {
+  const points = [
+    { label: "Down 15%", price: Math.round(spot * 0.85) },
+    { label: "Down 10%", price: Math.round(spot * 0.9) },
+    { label: "Down 5%", price: Math.round(spot * 0.95) },
+    { label: "Today", price: spot },
+    ...(breakEven !== null && breakEven > spot ? [{ label: "Break-even", price: breakEven }] : []),
+    { label: "Best case", price: repair.shortStrike, above: true }
+  ].sort((a, b) => a.price - b.price);
+  return (
+    <div className="overflow-x-auto rounded-lg border border-slate-200">
+      <table className="w-full text-xs tabular-nums">
+        <caption className="caption-top bg-slate-50 px-3 py-2 text-left text-[11px] font-medium text-slate-600">
+          If {ticker} ends at… (sell 2× {repair.shortStrike}, {shares} shares)
+        </caption>
+        <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
+          <tr>
+            <th className="px-3 py-2 text-left font-medium">{ticker} at</th>
+            <th className="whitespace-nowrap px-3 py-2 text-right font-medium">With repair</th>
+            <th className="whitespace-nowrap px-3 py-2 text-right font-medium">Shares only</th>
+          </tr>
+        </thead>
+        <tbody>
+          {points.map((pt) => {
+            const r = repairPLAt(repair, pt.price);
+            if (!r) return null;
+            // The break-even is shown rounded to the cent, and the P/L at the
+            // rounded price can be a cent or two off zero. Zero is what it is.
+            const withRepair = pt.label === "Break-even" ? 0 : r.withRepair;
+            return (
+              <tr key={pt.label} className="border-t border-slate-100">
+                <td className="whitespace-nowrap px-3 py-1.5 text-left">
+                  <span className="block font-semibold text-slate-900">{fmtMoney(pt.price)}{pt.above ? " or more" : ""}</span>
+                  <span className="block text-[10px] text-slate-400">{pt.label}</span>
+                </td>
+                <td className={`whitespace-nowrap px-3 py-1.5 text-right font-semibold ${tone(withRepair)}`}>{signed(withRepair * shares)}</td>
+                <td className={`whitespace-nowrap px-3 py-1.5 text-right ${tone(r.sharesAlone)}`}>{signed(r.sharesAlone * shares)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

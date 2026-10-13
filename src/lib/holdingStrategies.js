@@ -118,6 +118,28 @@ export function repairOutcome({ basis, spot, longStrike, shortStrike, net }) {
 }
 
 /**
+ * The shares plus a 1x2 at one price at expiry, per share, against the basis
+ * -- and the shares alone beside it, so the two can be read together.
+ *
+ * The owner, on a column that showed only the best case: "what about expiry
+ * came at 95, 90 or even 85; what happens then? Repair doesn't protect." It
+ * does not. Below the long strike both calls expire worthless and the repair
+ * adds exactly its net to whatever the shares have lost; this is what puts
+ * that on screen.
+ */
+export function repairPLAt({ basis, longStrike, shortStrike, net }, price) {
+  const B = num(basis);
+  const K1 = num(longStrike);
+  const K2 = num(shortStrike);
+  const S = num(price);
+  if (B === null || K1 === null || K2 === null || S === null) return null;
+  const n = num(net) ?? 0;
+  const sharesAlone = S - B;
+  const options = Math.max(0, S - K1) - 2 * Math.max(0, S - K2) + n;
+  return { withRepair: r2(sharesAlone + options), sharesAlone: r2(sharesAlone) };
+}
+
+/**
  * Stock repair candidates: buy the call nearest the price, sell two at each
  * listed strike above it up to the basis, and at the next two above the basis.
  *
