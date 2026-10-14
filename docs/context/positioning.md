@@ -153,3 +153,20 @@ falsifiable in one search and the first is not.
 - **Squeezed from both sides.** Brokers ship features downward for free; data
   vendors price upward. Switching costs are near zero for analysis tools and only
   moderate for automation.
+
+## Shipped since the August check — what we may and may not claim (2026-10-14)
+
+Facts from the code, not from competitor pages; no competitor row below was
+re-verified and none enters a comparison until `market-watch` does.
+
+- **Claimable (on `main`):** Alpaca only, paper and live. Eight free calculators
+  with no login (a commodity; competitors give these away). One headline on
+  Analysis, "Profit on closed trades", over rows that add up to it.
+- **Built, not claimable yet (staging only):** collars and 1:2 ratios from the
+  option chain; Protect and Repair on held shares (a structure finder that sends
+  nothing itself); read-only import of other brokers through SnapTrade (lab, not
+  in the production build, so "Alpaca only" stays the true sentence).
+- **Claude connector:** read-only, and the order tools do not exist. Do not claim
+  it as live until the production deployment is confirmed.
+- Nothing above changes the through-line: the contested half is find, evaluate,
+  place; the uncontested claim is what happens after the fill.

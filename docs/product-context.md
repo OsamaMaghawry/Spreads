@@ -96,16 +96,16 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
-- 2026-10-06 · New blog post: the diagonal spread explained, with two diagrams comparing it to a calendar spread (`4cef92c`).
-- 2026-09-28 · New blog post: the wheel strategy explained, with two diagrams, and a cross-link from the covered-call post (`9a76e9d`).
-- 2026-09-27 · The Saturday weekly digest no longer goes silent for
-- 2026-09-24 · A thirteenth foundations post — buying power, margin and
-- 2026-09-24 · The homepage's DeltaMint phone view shows two position cards
-- 2026-09-24 · The site menu gets a Sign up button next to Log in on every
-- 2026-09-24 · The Alpaca branding review is also a PDF (for emailing to
-- 2026-09-24 · The free trial on checkout is 7 days, not 30, on both the
-- 2026-09-24 · A new About page explains the product step by step (Scanner,
-- 2026-09-24 · A pricing schedule now exists as a PDF for Alpaca's
+- 2026-10-14 · New blog post on the wheel strategy's cost basis (income 30) (`b18a179`, published `0c9e362`); income 28 (rolling options, `36a61d8`) and 29 (covered call after assignment, `3018359`) went out 11-12 Oct.
+- 2026-10-13 · (staging) Option chain: pick a put to buy and a call to sell on one expiry and the ticket prices a collar against shares you hold (floor, cap, worst and best outcome); each leg takes its own quantity, so a 1:2 ratio can be opened; chain tickets carry the earnings warning (`4c069d9`, `c0d1303`, `3f234c0`).
+- 2026-10-13 · (staging) Dashboard: "Protect" on any 100+ share holding offers a collar at a floor you choose (5/10/15/20% under), and "Repair" on shares below cost offers a 1x2 call ratio, optionally with a floor; both open the ordinary ticket and send nothing themselves (`ec4197b`, `af1bec0`, `c93d7e1`, `99978d8`).
+- 2026-10-13 · (staging) An order that rests at the broker shows one "Order sent" card (price, until when, how to cancel, change price); closing the ticket leaves it working instead of cancelling it (`3c59812`, `426421b`).
+- 2026-10-13 · (staging) Covered-call cover counts calls already committed by working orders, so the ticket no longer says "100 of 100 shares cover" when the broker will refuse the order as uncovered; the broker's refusal is shown in plain words (`cfb5f6f`).
+- 2026-10-12 · (staging) Market emails, owner only: a pre-market brief and alerts on held stocks, delivery set to the owner by default (`70e97b1`).
+- 2026-10-10 · (staging, lab) Connect other brokers read-only (Schwab, Fidelity, IBKR, Robinhood and others via SnapTrade): positions, trade history, Scanner and option chain work on the imported account; every order path refuses it (`cebe235`, `c5d8c26`, `0060` on staging only).
+- 2026-10-12 · Eight free options calculators with no login, under a Tools menu on the site: credit spread, iron condor, covered call, cash-secured put, expected move, annualized return, option roll, early assignment risk (`e0a2d4b`, `57bc2cc`, `9e2e792`).
+- 2026-10-12 · Articles carry the author's byline; every page is served at its canonical address with no slash redirect (`dd8a330`, `52b63eb`, `ac5c068`).
+- 2026-10-11 · A Contact page, linked from the homepage footer (`ca82cde`, `15b6406`).
 
 ## Server functions
 
@@ -612,6 +612,23 @@ falsifiable in one search and the first is not.
 - **Squeezed from both sides.** Brokers ship features downward for free; data
   vendors price upward. Switching costs are near zero for analysis tools and only
   moderate for automation.
+
+### Shipped since the August check — what we may and may not claim (2026-10-14)
+
+Facts from the code, not from competitor pages; no competitor row below was
+re-verified and none enters a comparison until `market-watch` does.
+
+- **Claimable (on `main`):** Alpaca only, paper and live. Eight free calculators
+  with no login (a commodity; competitors give these away). One headline on
+  Analysis, "Profit on closed trades", over rows that add up to it.
+- **Built, not claimable yet (staging only):** collars and 1:2 ratios from the
+  option chain; Protect and Repair on held shares (a structure finder that sends
+  nothing itself); read-only import of other brokers through SnapTrade (lab, not
+  in the production build, so "Alpaca only" stays the true sentence).
+- **Claude connector:** read-only, and the order tools do not exist. Do not claim
+  it as live until the production deployment is confirmed.
+- Nothing above changes the through-line: the contested half is find, evaluate,
+  place; the uncontested claim is what happens after the fill.
 
 ---
 

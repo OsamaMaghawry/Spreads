@@ -465,6 +465,8 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Open
 
+- [open] 2026-10-14 · vp-product · **Homepage Analysis demo shows a table and a label the product no longer has.** `landing/public/index.html` ~l.626 and ~l.650: the tile "Realized P/L" and the table "Credit capture on early exits" (Held to expiry / Closed early / All trades). Since `7d237b7` and `f63f3c3` (both on `main`) Analysis leads with "Profit on closed trades" and the capture table is replaced by "How your trades ended" (expired worthless, assigned, bought back on expiry day, bought back earlier, options bought; rows add up to the booked total). Exact wording: rename the tile label "Realized P/L" to "Profit on closed trades"; replace the heading "Credit capture on early exits" and its sub-label "option result only" with "How your trades ended" and "every closed trade, in one row"; replace the three rows with the five endings, with sample figures that sum to the $8,412 tile. The "Credit capture 42.8%" tile may stay (still a stat card, `StatCards.jsx`). Marketing page: someone else edits and runs it past desk-editor and compliance-gate. Nothing else on the page is false; the Claude connector, other brokers and collars are not claimed there and should stay out until production-confirmed. Evidence: `src/components/analysis/ProfitHeadline.jsx`, `TradeEndings.jsx`.
+
 - [needs owner] 2026-09-10 · owner found in Search Console · **`www.deltamint.app`
   returns a server error, and only Cloudflare can fix it.** All five report
   categories were read; this is the only genuine defect among them.

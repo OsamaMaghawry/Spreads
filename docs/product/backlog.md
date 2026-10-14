@@ -8,9 +8,19 @@ recorded below, as prominently as additions.
 Every entry carries: the user problem in the user's words, its evidence, the
 smallest test that could disprove it, the kill criterion, and a cost guess.
 
-Last run: **2026-09-01** (vp-product, Tuesday cadence).
+Last run: **2026-09-01** (vp-product, Tuesday cadence). Reconciled against shipments **2026-10-14**: nothing below shipped or half-shipped; see the note under Open proposals.
 
 ## Open proposals
+
+**Reconciliation, 2026-10-14 (end of day, no additions).** Checked `main` and
+`staging` for each slot: no `scan_runs` table or migration exists (#3 not
+shipped); no probability-of-profit column or function exists (#2 not shipped);
+`ResultsTable.jsx` still shows no bid/ask width (#1 not shipped — the only
+change to it, on staging, hides Trade when every account is read-only). None is
+re-scoped or closed. Staging work in the same period (collars, Protect/Repair,
+read-only brokers) answers no slot here; it came from the owner's own
+positions, not from this list. Still three of five used; the test for #1 and #2
+needs no deploy and has not been run.
 
 **Three of five slots used.** Two deliberately left empty — this run killed one
 proposal and found that a second's test rested on data that does not exist, so

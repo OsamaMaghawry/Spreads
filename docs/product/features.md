@@ -1,4 +1,4 @@
-# Every feature, and what it is worth — 2026-09-02
+# Every feature, and what it is worth — 2026-09-02 (rows A5, A11, S3, T1, T21–T24, C9, X1–X3 reconciled 2026-10-14)
 
 Owned by `vp-product`. Read from the code on `main` at `3a22207` plus the
 `staging` delta (`git diff --stat main staging` = one migration and the
@@ -22,7 +22,7 @@ rows, and the watch on `main` threw on every account (fixed the same day,
 | --- | --- | --- | --- | --- |
 | S1 | Sweep a universe for credit setups, four tickers a batch, results streaming in ranked | `src/pages/Screener.jsx`, `screener/useMarketScan.js`, `scanEntries/index.ts`, `_shared/optionScan.ts` | main | FREE |
 | S2 | Universe: top 50 mega caps, ~500 S&P names, or a custom list. No ETFs or indices | `src/lib/sp500.js`, `screener/ScreenerConfig.jsx` | main | FREE |
-| S3 | Five strategies — put spread, call spread, iron condor, cash-secured put, covered call — and a Wheel scan that runs the last two together; covered calls scan the shares the account holds at their cost basis | `scanEntries`, `findEntry`, `_shared/optionScan.ts` `buildSingle()`, `_shared/heldShares.ts`, `open/StrategyPicker.jsx` | staging | FREE |
+| S3 | Five strategies — put spread, call spread, iron condor, cash-secured put, covered call — and a Wheel scan that runs the last two together; covered calls scan the shares the account holds at their cost basis | `scanEntries`, `findEntry`, `_shared/optionScan.ts` `buildSingle()`, `_shared/heldShares.ts`, `open/StrategyPicker.jsx` | main | FREE |
 | S4 | Filters: DTE, short delta, wing width, min credit, max risk per unit, min return on risk, put/call ratio. No volume, OI, bid-ask or IV filter | `ScreenerConfig.jsx`, `ScanFilters.jsx` | main | FREE |
 | S5 | Exact wing width or skip — never a wider spread than asked | `optionScan.ts` `pickWing()` | main | FREE |
 | S6 | One ranking metric, return on risk, top 25; client re-sort by RoR / credit / max risk | `optionScan.ts`, `ResultsTable.jsx` | main | FREE |
@@ -40,7 +40,7 @@ rows, and the watch on `main` threw on every account (fixed the same day,
 
 | # | What the user gets | Where | Live | Call |
 | --- | --- | --- | --- | --- |
-| T1 | Trade a ranked row directly, or build a setup by hand — spreads, condors, and now a single short put or a covered call sent as a plain option order under the wheel prefix | `ResultsTable.jsx`, `screener/TradeDialog.jsx`, `open/OpenPositionDialog.jsx`, `openPosition/index.ts` | staging | PAID on live |
+| T1 | Trade a ranked row directly, or build a setup by hand — spreads, condors, and now a single short put or a covered call sent as a plain option order under the wheel prefix | `ResultsTable.jsx`, `screener/TradeDialog.jsx`, `open/OpenPositionDialog.jsx`, `openPosition/index.ts` | main | PAID on live |
 | T2 | Server preflight on every open and every walk resubmit: adjusted contracts, no or untrusted price, spot drift, short leg through the strike | `openPosition/index.ts` `preflight()` | main | PAID on live |
 | T3 | Market or limit on open | `openPosition`, `open/OpenPricing.jsx` | main | PAID on live |
 | T4 | Price walking on the open: 34 % of the remaining gap toward the bid every 30 s, never past the floor, requoted each step, resubmits only the unfilled remainder | `src/lib/openWalk.js`, `open/useOpenOrder.js` | main | PAID on live |
@@ -60,6 +60,10 @@ rows, and the watch on `main` threw on every account (fixed the same day,
 | T18 | Cancel a working order from the close ticket | `close/OpenOrdersPanel.jsx`, `manageOrder` | main | FREE |
 | T19 | Timestamped order log per walk step | `close/OrderLog.jsx` | main | FREE |
 | T20 | `order_attempts` audit written server-side | `_shared/orderAttempts.ts`, migration 0021 | main | NOT YET — no user screen; closes only, opens are not recorded |
+| T21 | One "Order sent" card for a resting order; closing the ticket leaves it working | `open/OrderSent.jsx`, `useOpenOrder.js` | staging | FREE on close, PAID on live open |
+| T22 | Option chain: a quantity per leg (1:2 ratios), collars against held shares, earnings warning on chain tickets | `src/lib/optionChain.js`, `OptionChain.jsx` | staging | PAID on live |
+| T23 | Protect (collar on 100+ shares, floor 5/10/15/20% under) and Repair (1x2 call ratio below cost, optional floor); open the ordinary ticket, send nothing | `dashboard/HoldingStrategyDialog.jsx`, `src/lib/holdingStrategies.js` | staging | PAID on live |
+| T24 | Call cover charges calls committed by working orders, so the ticket matches the broker's uncovered-call refusal | `_shared/callCover.ts`, `heldShares.ts` | staging | PAID on live |
 
 ## Positions Monitor
 
@@ -111,12 +115,13 @@ History** and bans "journal" and "log".
 | A2 | One population rule: win/loss on settled rows only, money booked on every row, and the cards say which | `analytics.js`, `analysis/StatCards.jsx` | main | FREE (integrity) |
 | A3 | Peak concurrent capital at risk | `analytics.js` | main | PAID |
 | A4 | Annualised and CAGR withheld below 30 trades and 90 days | `analytics.js`, `StatCards.jsx` | main | FREE (compliance) |
-| A5 | How trades ended: expired, assigned, bought back on expiry day or earlier, options bought — rows add up to the booked total, each opens to its trades | `analysis/TradeEndings.jsx` | staging | PAID |
+| A5 | How trades ended: expired, assigned, bought back on expiry day or earlier, options bought — rows add up to the booked total, each opens to its trades | `analysis/TradeEndings.jsx` | main | PAID |
 | A6 | Equity curve of realised P/L | `analysis/EquityCurveChart.jsx` | main | PAID |
 | A7 | By-month and by-ticker tables | `analysis/BreakdownTable.jsx` | main | PAID |
 | A8 | Strategy comparison | `analysis/StrategyComparison.jsx` | main | PAID |
 | A9 | Date range filter; ROE withheld on a filtered view | `analysis/DateRangeFilter.jsx` | main | PAID |
 | A10 | PDF export, A4, paginated, paper banner, full disclaimer on every page | `analysis/ExportPdfButton.jsx` | main | PAID — the old page sold it as Desk-only |
+| A11 | One headline, "Profit on closed trades", over a chart of the same booked trades; open P/L shown once beneath it, added to nothing; the premium/whole-view switch is gone | `analysis/ProfitHeadline.jsx`, `AccountAnalysis.jsx` | main | PAID |
 
 ## Accounts
 
@@ -130,6 +135,7 @@ History** and bans "journal" and "log".
 | C6 | Manual API keys | `_shared/settings.ts`, migration 0010 | main | owner-only, off by default |
 | C7 | Register, login, forgot, reset | `pages/*.jsx` | main | FREE |
 | C8 | Site-wide disclaimer footer | `components/DisclaimerFooter.jsx` | main | FREE (compliance) |
+| C9 | Other brokers read-only through SnapTrade (Schwab, Fidelity, IBKR, Robinhood and others): positions, history, Scanner and chain; every order path refuses them. Lab, staging only, not in the production build | `brokerLink/index.ts`, `_shared/snaptradeAccount.ts`, migration 0060 | staging | NOT YET — lab; no claim |
 
 ## Watch
 
@@ -142,6 +148,14 @@ History** and bans "journal" and "log".
 | W5 | After-close daily report: headline, "Needs a look", "Everything else", judged on closing prices | `_shared/watchReport.ts` | main | PAID |
 | W6 | Recipient is one global address — the owner's. No per-user recipient, no screen reads `alerts` | `watch_settings.recipient_email` | main | NOT YET SELLABLE until W6 is decided |
 | W7 | `sendDigest`, the agents' path to the owner | `sendDigest/index.ts` | main | internal |
+
+## Outside the app
+
+| # | What the user gets | Where | Live | Call |
+| --- | --- | --- | --- | --- |
+| X1 | Eight free calculators on the public site, no login: credit spread, iron condor, covered call, cash-secured put, expected move, annualized return, option roll, early assignment | `landing/public/tools/` | main | FREE (acquisition) |
+| X2 | Claude connector: read-only MCP server (accounts, positions, scanner matches, option chain, trade history) on its own sign-in; Admin tab shows usage | `supabase/functions/mcp`, `_shared/connectorTools.ts` | main (code); production wiring `b21dadb` | NOT YET claimed on the production page |
+| X3 | Market emails (pre-market brief, held-stock alerts) | `marketMail/index.ts` | staging | owner-only |
 
 ## Back-office (not sellable)
 
