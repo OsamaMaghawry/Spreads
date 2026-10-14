@@ -75,8 +75,9 @@ hand-off:
 
 The $48.60 is the effective cost at the moment of assignment, by the same
 subtraction the cash-secured put post uses. How the call's $98 folds into
-that figure over several turns is a separate question, left to a later post
-in this series on the running cost basis.
+that figure over several turns is a separate question, which the [wheel
+strategy cost basis post](/blog/wheel-strategy-cost-basis) works through on
+the same hypothetical XYZ.
 
 ## How does the covered-call turn end?
 

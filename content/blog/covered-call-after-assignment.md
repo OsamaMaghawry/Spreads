@@ -104,6 +104,6 @@ The call can also be bought back before any of that, at whatever it then costs, 
 
 After a put is assigned, the account holds 100 shares at the put's strike and nothing sold against them, and a covered call is one of several things the account could do next. On the hypothetical XYZ shares, a 48, 50 and 52 call pay $166, $98 and $54 and cap the result at 1.06, 2.38 and 3.94 a share. Each moves the break-even by its premium, and none touches the $1.60 the shares already sit below the $48.60 effective cost.
 
-The strike is a bundle of premium now against upside later. The [income series](/blog/income) continues with how the wheel's cost basis is adjusted for every premium.
+The strike is a bundle of premium now against upside later. The [income series](/blog/income) continues with [how the wheel's cost basis is adjusted for every premium](/blog/wheel-strategy-cost-basis).
 
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.
