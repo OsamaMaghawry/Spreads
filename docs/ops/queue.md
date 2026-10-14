@@ -586,6 +586,12 @@ silence there is not clearance. All of it is still open:
 - [open] 2026-09-08 · tax-accountant · The tax framing of a ratio close.
 - [open] 2026-09-08 · head-of-trading · `manageOrder`'s replace path beyond its `> 0` guard, which this pass changed to "finite and non-zero" so a resting credit order can be repriced.
 - [open] 2026-09-08 · **A re-audit before any of this goes to production.** Every fix above was made against a STOP verdict and none of them has been read back by the bench.
+- [open] 2026-10-14 · head-of-branding W42 ask 1 · **Page/PDF title says "Performance Analysis"** (brand.md: Analysis). `src/pages/AccountAnalysis.jsx:416` · fix: title prop → `` `${name} — Analysis` `` / `"Analysis"` · `docs/branding/2026-W42.md`
+- [open] 2026-10-14 · head-of-branding W42 ask 2 · **Empty state says "Link a brokerage account"** (brand.md: Connect). `src/pages/Dashboard.jsx:80` · fix: "Connect a brokerage account to start monitoring positions."
+- [open] 2026-10-14 · head-of-branding W42 ask 3 · **Pricing draft says "Positions Monitor"** (retired 12 Sep → Dashboard). `landing/drafts/pricing/index.html:156,196` · fix: replace with "Dashboard" in both.
+- [open] 2026-10-14 · head-of-branding W42 ask 4 · **Playful loading string** "Crunching performance…" vs flat "Loading…" elsewhere. `src/pages/AccountAnalysis.jsx:375` · fix: "Loading…".
+- [open] 2026-10-14 · head-of-branding W42 ask 5 · **Second name for Analysis: "economic performance report"** in PDF footer and on screen. `src/components/analysis/ExportPdfButton.jsx:185`, `AnalysisDisclosure.jsx:25` · fix: "DeltaMint — Analysis." **HOLD until desk-editor/compliance-gate confirm the phrase is not a deliberate disclosure.**
+
 
 
 ## Fixed
