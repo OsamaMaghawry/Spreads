@@ -1,0 +1,24 @@
+<svg viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="What a hypothetical protective put leaves in the account after expiration. Before expiration the account holds 100 shares of XYZ and one long 46 put. If XYZ closes at 51, above the strike, the put expires worthless and the account holds 100 shares with no put behind them, unhedged. If XYZ closes at 43, below the strike, the put is exercised, the shares are sold at 46, and the account holds $4,600 in cash and no shares.">
+  <rect width="720" height="320" fill="#FFFFFF"/>
+
+  <!-- before: shares plus put -->
+  <rect x="235" y="24" width="250" height="64" rx="10" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="360" y="64" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">100 shares + 46 put</text>
+
+  <!-- branches -->
+  <path d="M310 88 L190 196" fill="none" stroke="#767B8E" stroke-width="2.5"/>
+  <path d="M190 196 l13.6 -3.4 M190 196 l4.8 -13.2" fill="none" stroke="#767B8E" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M410 88 L530 196" fill="none" stroke="#767B8E" stroke-width="2.5"/>
+  <path d="M530 196 l-4.8 -13.2 M530 196 l-13.6 -3.4" fill="none" stroke="#767B8E" stroke-width="2.5" stroke-linecap="round"/>
+  <text x="222" y="140" font-size="17" text-anchor="end" fill="#767B8E">closes 51</text>
+  <text x="498" y="140" font-size="17" fill="#767B8E">closes 43</text>
+
+  <!-- left: put expired, shares kept -->
+  <rect x="60" y="206" width="260" height="88" rx="10" fill="#FFFFFF" stroke="#B4485C" stroke-width="2"/>
+  <text x="190" y="244" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">100 shares</text>
+  <text x="190" y="274" font-size="17" font-weight="600" text-anchor="middle" fill="#B4485C">unhedged</text>
+
+  <!-- right: put exercised, shares sold at the strike -->
+  <rect x="400" y="206" width="260" height="88" rx="10" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="530" y="258" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">$4,600 cash</text>
+</svg>

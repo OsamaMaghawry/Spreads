@@ -106,6 +106,6 @@ The running figure is also not the tax basis. Tax rules decide how a put premium
 
 The wheel strategy cost basis is a running subtraction: the put's strike, less the put premium, less every call premium on the same shares, each counted once. On the hypothetical XYZ ledger it runs 48.60, 47.62 and 46.37, and the shares called away at 48.00 leave the whole position 1.63 a share above it, the same $163 the cash column shows.
 
-The figure measures one thing, the whole position, and it breaks the moment a premium is counted twice. It is not what the assignment row shows and it is not the tax basis. This post closes the [income series](/blog/income), and the series continues with hedging.
+The figure measures one thing, the whole position, and it breaks the moment a premium is counted twice. It is not what the assignment row shows and it is not the tax basis. This post closes the [income series](/blog/income), and the series continues with hedging, starting with the [protective put](/blog/protective-put-explained).
 
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.

@@ -1,0 +1,32 @@
+<svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Gain or loss at expiration, per share against the $48 cost, of a hypothetical protective put: 100 shares of XYZ bought at 48 with one 46-strike put bought for 0.79, drawn against the shares held alone. The dashed line for the shares alone rises one for one with the stock price and keeps falling below the strike. The protective put line is flat at a loss of 2.79 per share for every price below the 46 strike, which is the 2.00 from 48 down to 46 plus the 0.79 premium, and a green wedge shows the loss the put removes below 45.21. Above the strike the protective put line rises one for one, 0.79 below the shares alone, a narrow red band showing the premium paid, and it crosses zero at a break-even of 48.79 instead of 48.">
+  <rect width="720" height="340" fill="#FFFFFF"/>
+
+  <!-- zero line and strike guide -->
+  <line x1="80" y1="183" x2="660" y2="183" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="273.3" y1="40" x2="273.3" y2="290" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="273.3" y="312" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">46</text>
+
+  <!-- loss removed below the floor -->
+  <polygon points="80,216.5 247.9,216.5 80,279" fill="#2E8B5F" fill-opacity="0.18"/>
+  <text x="96" y="236" font-size="15" font-weight="600" fill="#2E8B5F">protected</text>
+
+  <!-- premium paid: the put line sits 0.79 below the shares above the floor -->
+  <polygon points="247.9,216.5 273.3,216.5 660,72.5 660,63" fill="#B4485C" fill-opacity="0.22"/>
+  <text x="520" y="96" font-size="15" font-weight="600" text-anchor="middle" fill="#B4485C">premium</text>
+
+  <!-- shares alone -->
+  <path d="M80 279 L660 63" fill="none" stroke="#767B8E" stroke-width="2.5" stroke-dasharray="7 6"/>
+  <text x="600" y="58" font-size="15" text-anchor="end" fill="#767B8E">shares alone</text>
+
+  <!-- protective put -->
+  <path d="M80 216.5 L273.3 216.5 L660 72.5" fill="none" stroke="#14151C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="660" y="122" font-size="17" font-weight="600" text-anchor="end" fill="#14151C">with put</text>
+  <text x="96" y="206" font-size="15" font-weight="600" fill="#14151C">max loss 2.79</text>
+
+  <!-- break-even -->
+  <circle cx="363.2" cy="183" r="6" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="378" y="206" font-size="15" font-weight="600" fill="#14151C">break-even 48.79</text>
+
+  <!-- axis label -->
+  <text x="370" y="332" font-size="15" text-anchor="middle" fill="#767B8E">XYZ at expiration</text>
+</svg>
