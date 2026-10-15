@@ -465,6 +465,10 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Open
 
+- [open] 2026-10-15 · head-of-trading · **SnapTrade option rows are priced on an unverified unit, and a negative max risk can render.** `snaptradeAccount.ts:56-88` sets `priceUnitUnverified: true` on every option row; nothing reads it. A short 100 put with avg entry in per-contract units (250) comes out of `pairSpreads` as `cash_secured_put maxRisk -15000`; at 2.50 it is 9750. Withhold price-derived option figures on SnapTrade rows until `optionUnitFit` has confirmed the unit, and withhold any negative `riskOfKind`. Also `toAlpacaInfo` defaults missing cash to 0 and equity to cash. Executed (fixture in docs/trading-audit/2026-W42.md); staging only. Changes what a number means: escalate if the fix changes a displayed figure.
+- [open] 2026-10-15 · head-of-trading · **"Collar" / "Protected repair" tags ignore quantity and strike.** `spreadPairing.ts` `tagStructures` on staging: 100 sh + 5 long 90P + 1 short 110C and 100 sh + 1 long 10P ($0.05) + 1 short 110C both tag all three rows "Collar"; 100 sh + 1 put + 3 short calls tags a collar beside 2 naked calls. No figure is wrong; the label overclaims protection. Tag only when put contracts = call contracts and shares cover both, else leave untagged. Executed; staging only.
+- [open] 2026-10-15 · head-of-trading · **`excessShortCalls` ignores expiry.** `orderWarnings.ts`: buy 100C Nov-20 / sell 110C Dec-18 returns null, so the ticket carries no "uncovered" warning, though the short is naked from Nov 20 to Dec 18; the position watch flags the same shape after fill. Net only longs that expire on or after the earliest short. Executed; same gap on main (pre-existing).
+
 - [needs owner] 2026-09-10 · owner found in Search Console · **`www.deltamint.app`
   returns a server error, and only Cloudflare can fix it.** All five report
   categories were read; this is the only genuine defect among them.
