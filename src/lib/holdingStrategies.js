@@ -4,8 +4,14 @@
 // and "how we can build stock repair strategy". Both start from a holding of
 // 100 shares or more and end on the ordinary ticket (collarSetup and
 // spreadSetup in optionChain.js); these functions only choose strikes to
-// offer. Nothing here sends anything, and every candidate is priced at the
-// chain's midpoints, which the ticket then lets the trader change.
+// offer. Nothing here sends anything.
+//
+// Every candidate is priced at what it would trade at NOW: bought at the ask,
+// sold at the bid. They were priced at midpoints, and far from the money a
+// midpoint is fiction. The owner's IREN collar, June 2027: a 5 put at 0.15 /
+// 0.31 and a 140 call at 0.30 / 0.49 showed "$0.18 credit, Zero cost"; at
+// the prices on the screen it was a $0.01 debit. The ticket still lets the
+// trader ask for better.
 
 const num = (v) => {
   if (v === null || v === undefined || v === "") return null;
@@ -14,6 +20,40 @@ const num = (v) => {
 };
 const r2 = (v) => Math.round(v * 100) / 100;
 const mid = (row) => num(row?.mid);
+
+/** What buying one costs now: the ask. A row with no ask falls back to its midpoint. */
+export const buyPrice = (row) => num(row?.ask) ?? mid(row);
+/** What selling one brings in now: the bid. A row with no bid falls back to its midpoint. */
+export const sellPrice = (row) => num(row?.bid) ?? mid(row);
+
+// A quote too wide to trust either side of: the ask more than a quarter of the
+// midpoint above the bid, and more than ten cents (0.05 / 0.07 is a normal
+// penny market, not a wide one). The IREN 140 call, 0.30 / 0.49, is wide;
+// the 25 put, 5.70 / 6.26, is not.
+const WIDE_SHARE = 0.25;
+const WIDE_CENTS = 0.1;
+
+/** Whether a row's bid and ask are too far apart for either to be the price. */
+export function wideQuote(row) {
+  const b = num(row?.bid);
+  const a = num(row?.ask);
+  const m = mid(row);
+  if (b === null || a === null || m === null) return false;
+  return a - b > Math.max(WIDE_CENTS, WIDE_SHARE * m) + 1e-9;
+}
+
+// A floor this far below the price barely protects anything. The owner's 5 put
+// on a $28.75 stock was 82.6% below: at $5 the collar saved $18 on a $3,950 loss.
+export const FAR_FLOOR = 0.5;
+
+/** How far below `spot` a floor at `strike` sits, when that is FAR_FLOOR or more; else null. */
+export function farFloor(spot, strike) {
+  const s = num(spot);
+  const k = num(strike);
+  if (!s || !(s > 0) || k === null) return null;
+  const away = (s - k) / s;
+  return away >= FAR_FLOOR ? away : null;
+}
 
 /**
  * Which of the two a share row offers. Both need a round lot held long:
@@ -88,10 +128,11 @@ export function putAtStrike(ladder, strike) {
 
 /**
  * The calls above the price, each priced against a chosen put: its net (call
- * in, put out, positive a credit). The ZERO-COST call is the highest strike
- * that still pays for the put: the most upside left for no money. Five calls
- * are offered around it, so a trader can give up a little upside for a credit
- * or keep more for a small debit.
+ * sold at the bid, put bought at the ask, positive a credit). The ZERO-COST
+ * call is the highest strike that still pays for the put at those prices: the
+ * most upside left for no money. Five calls are offered around it, so a
+ * trader can give up a little upside for a credit or keep more for a small
+ * debit. `wide` marks a pair either of whose quotes is too wide to trust.
  */
 export function collarCalls(ladder, spot, put) {
   const s = num(spot);
@@ -103,7 +144,8 @@ export function collarCalls(ladder, spot, put) {
     .map((row) => ({
       row,
       strike: Number(row.strike),
-      net: r2(mid(row) - mid(put)),
+      net: r2(sellPrice(row) - buyPrice(put)),
+      wide: wideQuote(row) || wideQuote(put),
       capPct: (Number(row.strike) - s) / s
     }));
   let zero = -1;
@@ -255,10 +297,12 @@ export function repairCandidates(ladder, spot, basis, put = null, longStrike = n
   const within = above.filter((r) => Number(r.strike) <= B);
   const shorts = [...within, ...above.filter((r) => Number(r.strike) > B).slice(0, 2)]
     .map((row) => {
-      // A put bought for a floor is paid for out of the same net.
-      const net = r2(2 * mid(row) - mid(long) - (put ? mid(put) : 0));
+      // Two sold at the bid, the call bought at the ask; a put bought for a
+      // floor is paid for out of the same net, at its ask.
+      const net = r2(2 * sellPrice(row) - buyPrice(long) - (put ? buyPrice(put) : 0));
       const floor = put ? Number(put.strike) : null;
-      return { row, strike: Number(row.strike), net, ...repairOutcome({ basis: B, spot: s, longStrike: long.strike, shortStrike: row.strike, net, floor }) };
+      const wide = wideQuote(row) || wideQuote(long) || (put ? wideQuote(put) : false);
+      return { row, strike: Number(row.strike), net, wide, ...repairOutcome({ basis: B, spot: s, longStrike: long.strike, shortStrike: row.strike, net, floor }) };
     });
   // Suggested: the lowest break-even among those done for no money; if none
   // is, the one costing least.

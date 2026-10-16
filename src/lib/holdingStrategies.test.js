@@ -36,11 +36,12 @@ test("collar: the put at or below the floor asked, the zero-cost call the highes
   const c = collarCandidates(ladder, 100, 0.1);
   assert.equal(c.put.strike, 90);
   assert.equal(c.target, 90);
-  // Put costs 1.60: the 105 call (2.50) pays for it, the 110 (1.50) does not.
+  // Bought at the ask, sold at the bid. The put costs 1.65: the 105 call
+  // (bid 2.45) pays for it, the 110 (bid 1.45) does not.
   assert.equal(c.zeroCostStrike, 105);
   assert.deepEqual(c.calls.map((x) => x.strike), [105, 110, 115, 120, 125]);
-  assert.equal(c.calls[0].net, 0.9);
-  assert.equal(c.calls[1].net, -0.1);
+  assert.equal(c.calls[0].net, 0.8);
+  assert.equal(c.calls[1].net, -0.2);
   assert.equal(c.reason, null);
 });
 
@@ -87,10 +88,10 @@ test("repair candidates: the long nearest the price, shorts up to the basis and 
   const r = repairCandidates(ladder, 101, 118);
   assert.equal(r.long.strike, 100);
   assert.deepEqual(r.shorts.map((x) => x.strike), [105, 110, 115, 120, 125]);
-  // Two 105s at 2.50 against the 100 at 4.50: a 0.50 credit.
-  assert.equal(r.shorts[0].net, 0.5);
-  // Two 110s at 1.50: a 1.50 debit.
-  assert.equal(r.shorts[1].net, -1.5);
+  // Two 105s sold at 2.45 against the 100 bought at 4.55: a 0.35 credit.
+  assert.equal(r.shorts[0].net, 0.35);
+  // Two 110s at 1.45: a 1.65 debit.
+  assert.equal(r.shorts[1].net, -1.65);
   assert.equal(r.suggestedStrike, 105);
 });
 
@@ -130,9 +131,9 @@ test("protected repair candidates: the put's cost comes off every net", () => {
   assert.equal(put.strike, 90);
   const r = repairCandidates(ladder, 101, 118, put);
   assert.equal(r.put.strike, 90);
-  // Two 105s at 2.50, less the 100 call at 4.50 and the 90 put at 1.60.
-  assert.equal(r.shorts[0].net, -1.1);
-  assert.equal(r.shorts[0].worstPerShare, -29.1);
+  // Two 105s at 2.45, less the 100 call at 4.55 and the 90 put at 1.65.
+  assert.equal(r.shorts[0].net, -1.3);
+  assert.equal(r.shorts[0].worstPerShare, -29.3);
   // A put above the call bought is refused, with a reason.
   assert.match(repairCandidates(ladder, 101, 118, ladder[4].put).reason, /Pick a lower floor/);
 });
@@ -183,8 +184,58 @@ test("repair: the call bought defaults to the nearest strike and can be moved", 
   assert.equal(moved.long.strike, 95);
   assert.equal(moved.nearestStrike, 100);
   assert.equal(moved.shorts[0].strike, 100);
-  // Two 100s at 4.50 against the 95 at 7.50: a 1.50 credit.
-  assert.equal(moved.shorts[0].net, 1.5);
+  // Two 100s at 4.45 against the 95 at 7.55: a 1.35 credit.
+  assert.equal(moved.shorts[0].net, 1.35);
   // A strike this expiry does not list: the nearest listed one.
   assert.equal(repairCandidates(ladder, 101, 118, null, 96).long.strike, 95);
+});
+
+// ---------------------------------------------------------------------------
+// Priced at what would trade now, and the floor that barely protects.
+// ---------------------------------------------------------------------------
+
+import { buyPrice, sellPrice, wideQuote, farFloor } from "./holdingStrategies.js";
+
+// The owner's IREN collar, June 2027 expiry, stock at 28.75: the 5 put and
+// the 130-140 calls as the chain quoted them.
+const quote = (strike, type, bid, ask) => ({ symbol: `IREN${strike}${type}`, strike, type, bid, ask, mid: (bid + ask) / 2 });
+const iren = [
+  { strike: 5, put: quote(5, "P", 0.15, 0.31), call: null },
+  { strike: 25, put: quote(25, "P", 5.7, 6.26), call: null },
+  { strike: 35, put: null, call: quote(35, "C", 6.62, 6.96) },
+  { strike: 130, put: null, call: quote(130, "C", 0.21, 0.89) },
+  { strike: 135, put: null, call: quote(135, "C", 0.22, 0.81) },
+  { strike: 140, put: null, call: quote(140, "C", 0.3, 0.49) }
+];
+
+test("bought at the ask, sold at the bid; the midpoint only where a side is missing", () => {
+  assert.equal(buyPrice(iren[0].put), 0.31);
+  assert.equal(sellPrice(iren[5].call), 0.3);
+  assert.equal(buyPrice({ mid: 1.2 }), 1.2);
+  assert.equal(sellPrice({ mid: 1.2 }), 1.2);
+});
+
+test("collar on wide quotes: the midpoint's credit is a debit at the prices on screen", () => {
+  const c = collarCalls(iren, 28.75, iren[0].put);
+  const at140 = c.calls.find((x) => x.strike === 140);
+  // Midpoints said 0.395 - 0.23 = a 0.17 credit. At the bid and ask: 0.30 - 0.31.
+  assert.equal(at140.net, -0.01);
+  assert.equal(at140.wide, true);
+  // None of 130-140 pays for the put at those prices: zero cost is the 35.
+  assert.equal(c.zeroCostStrike, 35);
+});
+
+test("wide quote: too far apart for its price, but not a penny market", () => {
+  assert.equal(wideQuote(iren[5].call), true); // 0.30 / 0.49
+  assert.equal(wideQuote(iren[0].put), true); // 0.15 / 0.31
+  assert.equal(wideQuote(iren[1].put), false); // 5.70 / 6.26
+  assert.equal(wideQuote(quote(1, "C", 0.05, 0.07)), false);
+  assert.equal(wideQuote({ mid: 1 }), false);
+});
+
+test("far floor: half way down or more is flagged; a normal floor is not", () => {
+  assert.equal(Math.round(farFloor(28.75, 5) * 1000) / 1000, 0.826);
+  assert.equal(farFloor(100, 50), 0.5);
+  assert.equal(farFloor(28.75, 25), null);
+  assert.equal(farFloor(null, 5), null);
 });

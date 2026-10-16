@@ -5,7 +5,7 @@ import NumberField from "@/components/common/NumberField";
 import EarningsWarning from "@/components/common/EarningsWarning";
 import { invokeFunction } from "@/lib/functions";
 import { chainContext, collarSetup, repairSetup, protectedRepairSetup, withEarnings } from "@/lib/optionChain";
-import { repairCandidates, repairPLAt, expiryNear, floorPut, putStrikes, putAtStrike, collarCalls, collarPLAt, collarBreakEven } from "@/lib/holdingStrategies";
+import { repairCandidates, repairPLAt, expiryNear, floorPut, putStrikes, putAtStrike, collarCalls, collarPLAt, collarBreakEven, buyPrice, farFloor } from "@/lib/holdingStrategies";
 import { fmtMoney } from "@/lib/format";
 
 // Protect and Repair, from a share holding on the dashboard.
@@ -213,6 +213,13 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
   }
 
   const down = spot !== null && basis !== null && basis > 0 ? (basis - spot) / basis : null;
+  // A put so far down it barely protects: said plainly, under the floor.
+  const far = found?.put && (!repair || floored) ? farFloor(spot, found.put.strike) : null;
+  // How the nets were priced, and what "wide quote" means when one shows.
+  const PRICED = [
+    "Prices are what you'd get now: buying at the ask, selling at the bid. On the ticket you set your own price, and it may fill better.",
+    ...(rows.some((c) => c.wide) ? ["Wide quote: the bid and ask are far apart, so the real price is hard to know."] : [])
+  ];
   // The same earnings rule the ticket applies, shown while the expiry is
   // being chosen: a report before it is the thing most worth knowing here.
   const onExpiry = data && ctx ? withEarnings({ ok: true, setup: { ticker, expiry: data.expiry } }, ctx, todayNY()).setup : null;
@@ -308,7 +315,7 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
                   optionLabel={(k) => {
                     const row = data.ladder.find((r) => Number(r.strike) === k)?.call;
                     const away = spot ? (k - spot) / spot : null;
-                    return `${k} call · ${fmtMoney(num(row?.mid))}${away === null ? "" : ` · ${pct(Math.abs(away))} ${away >= 0 ? "above" : "below"}`}`;
+                    return `${k} call · ${fmtMoney(buyPrice(row))}${away === null ? "" : ` · ${pct(Math.abs(away))} ${away >= 0 ? "above" : "below"}`}`;
                   }}
                 />
               </div>
@@ -344,10 +351,10 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
             {repair ? (
               found?.long && (
                 <p className="text-sm text-slate-700">
-                  Buy <strong>{n} × {found.long.strike} call</strong> at {fmtMoney(num(found.long.mid))}
+                  Buy <strong>{n} × {found.long.strike} call</strong> at {fmtMoney(buyPrice(found.long))}
                   {floored && found.put && (
                     <>
-                      {" "}and <strong>{n} × {found.put.strike} put</strong> at {fmtMoney(num(found.put.mid))}
+                      {" "}and <strong>{n} × {found.put.strike} put</strong> at {fmtMoney(buyPrice(found.put))}
                       {spot ? <span className="text-slate-500"> · {pct((spot - found.put.strike) / spot)} below today</span> : null}
                     </>
                   )}
@@ -357,7 +364,7 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
             ) : (
               found?.put && (
                 <p className="text-sm text-slate-700">
-                  Buy <strong>{n} × {found.put.strike} put</strong> at {fmtMoney(num(found.put.mid))}
+                  Buy <strong>{n} × {found.put.strike} put</strong> at {fmtMoney(buyPrice(found.put))}
                   {spot ? <span className="text-slate-500"> · {pct((spot - found.put.strike) / spot)} below today</span> : null}
                   , and sell {n} of one of these calls:
                 </p>
@@ -366,6 +373,16 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
 
             {onExpiry && (
               <EarningsWarning earnings={onExpiry.earnings} ticker={ticker} unknown={onExpiry.earningsUnknown} why={onExpiry.earningsUnknownWhy} />
+            )}
+
+            {far !== null && (
+              <Bullets
+                className="text-xs text-amber-700"
+                items={[
+                  `Your floor is ${pct(far)} below today. The put only pays if ${ticker} falls under ${fmtMoney(Number(found.put.strike))}.`,
+                  "That is very little protection. Move the put up for a closer floor."
+                ]}
+              />
             )}
 
             {found?.reason && <p className="text-xs text-amber-700 leading-relaxed">{found.reason}</p>}
@@ -426,7 +443,10 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
                               )}
                             </label>
                           </td>
-                          <td className={`whitespace-nowrap px-3 py-2 text-right ${tone(c.net)}`}>{netText(c.net)}</td>
+                          <td className={`whitespace-nowrap px-3 py-2 text-right ${tone(c.net)}`}>
+                            {netText(c.net)}
+                            {c.wide && <span className="block text-[10px] font-medium text-amber-600" title="The bid and ask are far apart">wide quote</span>}
+                          </td>
                           {repair ? (
                             <>
                               <td className="whitespace-nowrap px-3 py-2 text-right text-slate-900">
@@ -493,20 +513,21 @@ export default function HoldingStrategyDialog({ kind, position, account, onClose
                       `At expiry, for ${n * 100} shares, against your cost of ${fmtMoney(basis)}.`,
                       `Worst: the stock ends at or below ${found.put?.strike}. The put stops the loss there.`,
                       "Best case: the stock ends at or above the calls you sold.",
-                      "Net includes the put's cost. Prices are midpoints; you set yours on the ticket."
+                      "Net includes the put's cost.",
+                      ...PRICED
                     ]
                   : repair
                   ? [
                       `At expiry, for ${n * 100} shares, against your cost of ${fmtMoney(basis)}.`,
                       "Best case: the stock ends at or above the calls you sold. Gains above that go to the extra call.",
                       `Below ${found.long.strike}: the calls expire worthless. You keep the credit, and the shares' loss stays.`,
-                      "Prices are midpoints. You set your price on the ticket."
+                      ...PRICED
                     ]
                   : [
                       `At expiry, for ${n * 100} shares, against ${basis !== null && basis > 0 ? `your cost of ${fmtMoney(basis)}` : "today's price (your cost is not known)"}.`,
                       "Worst: the stock ends at or below the put.",
                       "Best: the stock ends at or above the call.",
-                      "Prices are midpoints. You set your price on the ticket."
+                      ...PRICED
                     ]}
               />
             )}
@@ -664,7 +685,7 @@ function StrikeStepper({ strikes, value, onChange, ariaLabel, optionLabel }) {
 // The floor: a percentage below today, or a listed put strike stepped through
 // the chain one strike at a time (or picked from the list).
 function FloorPicker({ mode, onMode, pctValue, onPct, strikes, strike, onStrike, ladder, spot }) {
-  const putMid = (k) => num(putAtStrike(ladder, k)?.mid);
+  const putAsk = (k) => buyPrice(putAtStrike(ladder, k));
   const below = (k) => (spot ? ` · ${pct((spot - k) / spot)} below` : "");
   return (
     <div className="space-y-2">
@@ -695,7 +716,7 @@ function FloorPicker({ mode, onMode, pctValue, onPct, strikes, strike, onStrike,
           value={strike}
           onChange={onStrike}
           ariaLabel="Put strike"
-          optionLabel={(k) => `${k} put · ${fmtMoney(putMid(k))}${below(k)}`}
+          optionLabel={(k) => `${k} put · ${fmtMoney(putAsk(k))}${below(k)}`}
         />
       )}
     </div>
