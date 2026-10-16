@@ -621,3 +621,4 @@ English. Newest first.
 - 2026-10-13 · (staging) Chain tickets warn when earnings fall before expiry; withdrawn earnings dates are dropped and the most recently fetched date wins when a report moves (`3f234c0`, `89bf338`, `628e6cb`).
 - 2026-10-13 · (staging) Order tickets end on one "Order sent" screen, the price is an editable field in that card with one button until it changes, and closing the ticket never cancels a resting order (`3c59812`, `426421b`).
 - 2026-10-13 · (staging) Covered-call counts now include calls in orders still working, so a repair no longer offers cover the broker has already set aside; the broker's "uncovered" refusal is shown in plain words (`cfb5f6f`).
+- 2026-10-16 · (staging) Protect and Repair price each choice at what would trade now (buy at the ask, sell at the bid) instead of the midpoint, mark wide quotes, and warn when the floor is so far down it barely protects (`9970908`).
