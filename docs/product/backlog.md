@@ -9,6 +9,16 @@ Every entry carries: the user problem in the user's words, its evidence, the
 smallest test that could disprove it, the kill criterion, and a cost guess.
 
 Last run: **2026-09-01** (vp-product, Tuesday cadence).
+Last reconciled: **2026-10-16** (end of day). No status change to #1–#3.
+Evidence: `git diff origin/main origin/staging` shows nothing under
+`src/components/screener/`, `optionScan.ts` or `scanEntries/`, so no scanner
+proposal has shipped. Related, not the same: staging `9970908` prices the
+Protect and Repair finder on held shares at bid/ask and marks wide quotes
+(the width idea, applied to a different surface). It does not satisfy #1,
+whose test is the scan results table; it is a second data point that
+quoted width misleads, and #1's evidence section may cite it on the next
+Tuesday run. Staging is 94 commits ahead of `main`, so most of what the
+ledger calls shipped is not yet in front of users.
 
 ## Open proposals
 

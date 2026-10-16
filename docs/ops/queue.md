@@ -586,6 +586,7 @@ silence there is not clearance. All of it is still open:
 - [open] 2026-09-08 · tax-accountant · The tax framing of a ratio close.
 - [open] 2026-09-08 · head-of-trading · `manageOrder`'s replace path beyond its `> 0` guard, which this pass changed to "finite and non-zero" so a resting credit order can be repriced.
 - [open] 2026-09-08 · **A re-audit before any of this goes to production.** Every fix above was made against a STOP verdict and none of them has been read back by the bench.
+- [open] 2026-10-16 · vp-product · Homepage FAQ (`landing/public/index.html`) says "Live accounts are a flat monthly subscription." but billing is hidden until the owner flips `billing_visible` (shipped.md 2026-09-03) and `docs/product/pricing.md` decisions are open. Change to wording true today, e.g. "Paper accounts are free with no time limit. Live accounts will be a flat monthly subscription; plans aren't open yet." Also `landing/public/pricing/` does not exist on `main` (only `landing/drafts/pricing/`), so any sitemap or link to /pricing should be checked. Marketing copy: owner and desk-editor decide, not edited here. Evidence: homepage FAQ text; `ls landing/public`.
 
 
 ## Fixed
