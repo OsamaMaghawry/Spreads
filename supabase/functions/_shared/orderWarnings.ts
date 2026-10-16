@@ -352,6 +352,14 @@ export function brokerRefusal(message: string, ticker?: string | null): string {
       `already covering other calls, including calls in orders still working. Cancel the working order that holds ` +
       `them (Orders tab), or sell fewer calls.`;
   }
+  // A close for contracts the broker no longer holds, or holds for another
+  // order: it reads the order as opening new ones. See closeCheck.ts, which
+  // catches this before sending; this is the words for when the book moved
+  // between that check and the order.
+  if (/position intent mismatch/i.test(m)) {
+    return "Your broker shows nothing left to close here. It may have just closed, or another order is " +
+      "already closing it. Refresh the page and check the Orders tab.";
+  }
   return m;
 }
 

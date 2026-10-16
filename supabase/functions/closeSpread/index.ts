@@ -3,6 +3,28 @@ import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { tradingBase, alpacaFetch, loadAccount } from "../_shared/alpaca.ts";
 import { recordAttempt } from "../_shared/orderAttempts.ts";
 import { mlegRefusal, normalizeMleg } from "../_shared/mlegLimits.ts";
+import { closeShortfall, closeRefusal, type CloseLeg } from "../_shared/closeCheck.ts";
+import { brokerRefusal } from "../_shared/orderWarnings.ts";
+
+// Checked against the broker's own book before anything is sent: a close for
+// contracts no longer held (one that already filled, sent again) or already
+// held by a working close. See closeCheck.ts. A read that fails never blocks
+// an exit -- the order goes, and the broker decides.
+async function closeBlocked(account: any, legs: CloseLeg[], units: number): Promise<string | null> {
+  const base = tradingBase(account);
+  let positions: any;
+  let orders: any;
+  try {
+    [positions, orders] = await Promise.all([
+      alpacaFetch(`${base}/positions`, account),
+      alpacaFetch(`${base}/orders?status=open&nested=true&limit=500`, account).catch(() => [])
+    ]);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(positions)) return null;
+  return closeRefusal(closeShortfall(legs, units, positions, Array.isArray(orders) ? orders : []));
+}
 
 // Submits the closing order for a position: the whole structure by default, or
 // just the legs the caller picked when only one side needs unwinding.
@@ -127,6 +149,13 @@ Deno.serve(async (req) => {
         userId: user.id, accountId, runKey, step, ticker, qty: sentQty,
         legs: sentLegs, orderType, limitPrice: orderType === "limit" ? sentPrice : null, quote
       };
+      if (!(customLegs.length === 1 && customLegs[0].assetClass === "equity")) {
+        const blocked = await closeBlocked(account, sentLegs, sentQty);
+        if (blocked) {
+          await recordAttempt(admin, { ...attempt, error: blocked });
+          return jsonResponse({ error: blocked, nothingToClose: true }, 409);
+        }
+      }
       let legOrder;
       try {
         legOrder = await alpacaFetch(`${tradingBase(account)}/orders`, account, {
@@ -199,6 +228,15 @@ Deno.serve(async (req) => {
       ticker: ticker || null, qty: whole.qty, legs: body.legs, orderType,
       limitPrice: orderType === "limit" ? whole.limitPrice : null, quote
     };
+    const blocked = await closeBlocked(
+      account,
+      whole.legs.map((l: any) => ({ symbol: l.symbol, action: l.position_intent, ratio: Number(l.ratio) })),
+      whole.qty
+    );
+    if (blocked) {
+      await recordAttempt(admin, { ...attempt, error: blocked });
+      return jsonResponse({ error: blocked, nothingToClose: true }, 409);
+    }
     let order;
     try {
       order = await alpacaFetch(`${tradingBase(account)}/orders`, account, {
@@ -213,6 +251,7 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ orderId: order.id, status: order.status, sentQty: whole.qty, sentLimitPrice: whole.limitPrice });
   } catch (error) {
-    return jsonResponse({ error: error.message }, 500);
+    // The broker's refusal, in plain words where there are plain words for it.
+    return jsonResponse({ error: brokerRefusal(error.message) }, 500);
   }
 });

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
 import { invokeFunction } from "@/lib/functions";
 import { RefreshCw, ArrowLeft, History, BarChart3, Plus } from "lucide-react";
@@ -21,10 +21,21 @@ export default function AccountDetail() {
   const [closingMany, setClosingMany] = useState(null);
   const [opening, setOpening] = useState(false);
   const [staleReason, setStaleReason] = useState(null);
+  // Which refresh last reached the screen. The background sync and the one a
+  // finished order asks for run side by side, and the slower can be the OLDER:
+  // a read begun before a close filled, landing after the read that saw it
+  // fill, put the closed position back. On 16 Oct the owner's INTC call ratio
+  // filled, was still on the page, and was sent to close a second time. A
+  // refresh begun before the one on screen is dropped.
+  const seq = useRef(0);
+  const shown = useRef(0);
 
   const load = useCallback(async () => {
+    const mine = ++seq.current;
     try {
       const res = await invokeFunction("syncAccounts", {});
+      if (mine < shown.current) return;
+      shown.current = mine;
       const list = res?.data?.accounts;
       // Only a refresh that actually answered may change what is on screen.
       //

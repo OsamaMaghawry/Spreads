@@ -277,3 +277,9 @@ test("the broker's uncovered refusal is said plainly; anything else passes throu
   assert.match(said, /orders still working/);
   assert.equal(brokerRefusal("Alpaca 422: insufficient buying power"), "Alpaca 422: insufficient buying power");
 });
+
+test("a close the broker reads as an open is said plainly", () => {
+  const raw = 'Alpaca 422: {"code":42210000,"message":"position intent mismatch, inferred: buy_to_open, specified: buy_to_close"}';
+  assert.match(brokerRefusal(raw), /nothing left to close/);
+  assert.match(brokerRefusal(raw), /Orders tab/);
+});
