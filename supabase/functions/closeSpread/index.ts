@@ -6,26 +6,6 @@ import { mlegRefusal, normalizeMleg } from "../_shared/mlegLimits.ts";
 import { closeShortfall, closeRefusal, type CloseLeg } from "../_shared/closeCheck.ts";
 import { brokerRefusal } from "../_shared/orderWarnings.ts";
 
-// Checked against the broker's own book before anything is sent: a close for
-// contracts no longer held (one that already filled, sent again) or already
-// held by a working close. See closeCheck.ts. A read that fails never blocks
-// an exit -- the order goes, and the broker decides.
-async function closeBlocked(account: any, legs: CloseLeg[], units: number): Promise<string | null> {
-  const base = tradingBase(account);
-  let positions: any;
-  let orders: any;
-  try {
-    [positions, orders] = await Promise.all([
-      alpacaFetch(`${base}/positions`, account),
-      alpacaFetch(`${base}/orders?status=open&nested=true&limit=500`, account).catch(() => [])
-    ]);
-  } catch {
-    return null;
-  }
-  if (!Array.isArray(positions)) return null;
-  return closeRefusal(closeShortfall(legs, units, positions, Array.isArray(orders) ? orders : []));
-}
-
 // Submits the closing order for a position: the whole structure by default, or
 // just the legs the caller picked when only one side needs unwinding.
 Deno.serve(async (req) => {
@@ -255,3 +235,23 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: brokerRefusal(error.message) }, 500);
   }
 });
+
+// Checked against the broker's own book before anything is sent: a close for
+// contracts no longer held (one that already filled, sent again) or already
+// held by a working close. See closeCheck.ts. A read that fails never blocks
+// an exit -- the order goes, and the broker decides.
+async function closeBlocked(account: any, legs: CloseLeg[], units: number): Promise<string | null> {
+  const base = tradingBase(account);
+  let positions: any;
+  let orders: any;
+  try {
+    [positions, orders] = await Promise.all([
+      alpacaFetch(`${base}/positions`, account),
+      alpacaFetch(`${base}/orders?status=open&nested=true&limit=500`, account).catch(() => [])
+    ]);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(positions)) return null;
+  return closeRefusal(closeShortfall(legs, units, positions, Array.isArray(orders) ? orders : []));
+}
