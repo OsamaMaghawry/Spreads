@@ -124,7 +124,7 @@ A put can also be replaced before it expires, by selling the old one and buying 
 - **What is the break-even on a protective put?** The share cost plus the premium paid: $48.00 + $0.79 = $48.79 in the example.
 - **What is the maximum loss on a protective put?** The share cost less the strike, plus the premium: $2.79 a share in the example.
 - **Is a protective put the same as a long call?** Not the same position, but at expiration the payoff has the same shape as a call at the same strike plus cash, which is put-call parity.
-- **Does a protective put cap the upside?** No. The upside is reduced by the premium, not capped. Adding a short call, as a collar does, would cap it.
+- **Does a protective put cap the upside?** No. The upside is reduced by the premium, not capped. Adding a short call, as a [collar](/blog/collar-option-strategy) does, would cap it.
 
 ## The bottom line
 

@@ -1,0 +1,34 @@
+<svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Gain or loss at expiration, per share against the $48 cost, of a hypothetical collar: 100 shares of XYZ bought at 48, one 46-strike put bought for 0.79 and one 54-strike call sold for 0.85, a net credit of 0.06. The dashed line for the shares alone rises one for one with the stock price. The collar line is flat at a loss of 1.94 per share at and below the 46 strike, rises one for one between 46 and 54, and is flat at a gain of 6.06 per share at and above the 54 strike. A green wedge shows the loss the put removes below 46 and a red wedge shows the gain the short call gives up above 54. The collar crosses zero at 47.94.">
+  <rect width="720" height="340" fill="#FFFFFF"/>
+
+  <!-- zero line and strike guides -->
+  <line x1="80" y1="194" x2="660" y2="194" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="254" y1="40" x2="254" y2="290" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="486" y1="40" x2="486" y2="290" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="254" y="312" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">46</text>
+  <text x="486" y="312" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">54</text>
+
+  <!-- loss removed below the floor -->
+  <polygon points="80,217.3 254,217.3 254,218 80,290" fill="#2E8B5F" fill-opacity="0.18"/>
+  <text x="96" y="262" font-size="15" font-weight="600" fill="#2E8B5F">protected</text>
+
+  <!-- gain given up above the cap -->
+  <polygon points="486,121.3 660,121.3 660,50 486,122" fill="#B4485C" fill-opacity="0.18"/>
+  <text x="640" y="104" font-size="15" font-weight="600" text-anchor="end" fill="#B4485C">given up</text>
+
+  <!-- shares alone -->
+  <path d="M80 290 L660 50" fill="none" stroke="#767B8E" stroke-width="2.5" stroke-dasharray="7 6"/>
+  <text x="520" y="94" font-size="15" text-anchor="end" fill="#767B8E">shares alone</text>
+
+  <!-- collar -->
+  <path d="M80 217.3 L254 217.3 L486 121.3 L660 121.3" fill="none" stroke="#14151C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="96" y="206" font-size="15" font-weight="600" fill="#14151C">max loss 1.94</text>
+  <text x="660" y="146" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">max gain 6.06</text>
+
+  <!-- break-even -->
+  <circle cx="310" cy="194" r="6" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="326" y="214" font-size="15" font-weight="600" fill="#14151C">break-even 47.94</text>
+
+  <!-- axis label -->
+  <text x="370" y="332" font-size="15" text-anchor="middle" fill="#767B8E">XYZ at expiration</text>
+</svg>
