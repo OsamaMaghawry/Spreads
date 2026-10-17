@@ -58,7 +58,7 @@ The figure shows the trade on both sides. Below about $45.21 the position is ahe
 
 ## A closer strike is a higher floor at a higher premium
 
-The strike sets both numbers at once. On the same 30-day chain, the 48 put is quoted 1.33 bid and 1.43 ask. Bought at the ask, it puts the floor at the trader's own $48.00 cost, so the maximum loss is just the premium.
+The strike sets both numbers at once. On the same 30-day chain, the 48 put is quoted 1.33 bid and 1.43 ask. Bought at the ask, it puts the floor at the trader's own $48.00 cost, so the maximum loss is just the premium. Selling a lower put against it, a [put spread hedge](/blog/put-spread-hedge), lowers that cost and ends the cover at the lower strike.
 
 | Held at expiration | Premium at the ask | Floor | Max loss against the $48 cost | Break-even |
 | --- | --- | --- | --- | --- |
