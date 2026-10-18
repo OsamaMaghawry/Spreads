@@ -124,6 +124,6 @@ The three lines of a put spread hedge do not always leave the account together, 
 
 A put spread hedge buys a put against 100 shares and sells a lower one, so the premium it saves is paid for with a gap. In the example the cost is $111 instead of $143, the band is $48 down to $44, and the lot can still lose $45.11 a share if XYZ goes to zero.
 
-Both ends are set for one expiration only. The day after, the account holds unhedged shares, cash, or shares bought back at the lower strike, and each new hedge is a new pair of contracts priced that day.
+Both ends are set for one expiration only. The day after, the account holds unhedged shares, cash, or shares bought back at the lower strike, and each new hedge is a new pair of contracts priced that day. The [concentrated stock position](/blog/hedge-concentrated-stock-position) post scales the same 48/44 spread to ten contracts and sets it beside a put and a collar on a 1,000-share lot.
 
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.
