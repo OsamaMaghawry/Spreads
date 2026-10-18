@@ -126,6 +126,7 @@ The three lines of a collar do not always leave the account together, so the acc
 - **What is the maximum loss on a collar?** The share cost less the put strike, adjusted for the net premium: $1.94 a share in the example.
 - **What is the difference between a collar and a protective put?** The sold call. It lowers the maximum loss on the same lot from $2.79 to $1.94 a share in the example, and caps the gain at $6.06.
 - **Is a collar a covered call with a put added?** In effect, yes, or a protective put with a call sold against it.
+- **Can a collar hedge a larger holding?** The same structure scales by contract: ten 46/54 collars on 1,000 shares are worked through in the [concentrated stock position](/blog/hedge-concentrated-stock-position) post, beside a put and a put spread.
 
 ## The bottom line
 
