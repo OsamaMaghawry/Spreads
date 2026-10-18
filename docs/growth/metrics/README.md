@@ -4,36 +4,35 @@ Written daily by `.github/workflows/metrics-snapshot.yml`. Agents read
 these files; the Google credentials never leave CI. A dash means the source
 is not connected yet, not zero.
 
-## Latest — 2026-10-17
+## Latest — 2026-10-18
 
-- Search Console, last 28 days: 166 impressions, 1 clicks, CTR 0.6%
-- Indexing: 25 of 55 sitemap URLs indexed
-  - not indexed: https://deltamint.app/about (URL is unknown to Google)
+- Search Console, last 28 days: 166 impressions, 0 clicks, CTR 0.0%
+- Indexing: 27 of 56 sitemap URLs indexed
+  - not indexed: https://deltamint.app/about (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/contact (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/tools (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/tools/credit-spread-calculator (URL is unknown to Google)
-  - not indexed: https://deltamint.app/tools/iron-condor-calculator (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/tools/covered-call-calculator (URL is unknown to Google)
-  - not indexed: https://deltamint.app/tools/cash-secured-put-calculator (URL is unknown to Google)
-  - not indexed: https://deltamint.app/tools/expected-move-calculator (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/tools/annualized-return-calculator (Discovered - currently not indexed)
+  - not indexed: https://deltamint.app/tools/iron-condor-calculator (URL is unknown to Google)
+  - not indexed: https://deltamint.app/tools/covered-call-calculator (Discovered - currently not indexed)
+  - not indexed: https://deltamint.app/tools/cash-secured-put-calculator (Discovered - currently not indexed)
+  - not indexed: https://deltamint.app/tools/expected-move-calculator (URL is unknown to Google)
+  - not indexed: https://deltamint.app/tools/annualized-return-calculator (URL is unknown to Google)
   - not indexed: https://deltamint.app/tools/option-roll-calculator (URL is unknown to Google)
-  - not indexed: https://deltamint.app/tools/early-assignment-calculator (URL is unknown to Google)
-  - not indexed: https://deltamint.app/blog/hedging (URL is unknown to Google)
-  - not indexed: https://deltamint.app/blog/collar-option-strategy (URL is unknown to Google)
-  - not indexed: https://deltamint.app/blog/protective-put-explained (URL is unknown to Google)
+  - not indexed: https://deltamint.app/tools/early-assignment-calculator (Discovered - currently not indexed)
+  - not indexed: https://deltamint.app/blog/put-spread-hedge (Discovered - currently not indexed)
+  - not indexed: https://deltamint.app/blog/collar-option-strategy (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/wheel-strategy-cost-basis (URL is unknown to Google)
-  - not indexed: https://deltamint.app/blog/covered-call-after-assignment (URL is unknown to Google)
+  - not indexed: https://deltamint.app/blog/covered-call-after-assignment (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/rolling-options-explained (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/poor-mans-covered-call (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/diagonal-spread-explained (URL is unknown to Google)
-  - not indexed: https://deltamint.app/blog/calendar-spread-explained (URL is unknown to Google)
-  - not indexed: https://deltamint.app/blog/selling-options-before-earnings (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/credit-spread-dte (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/credit-spread-delta-strike-selection (URL is unknown to Google)
+  - not indexed: https://deltamint.app/blog/diagonal-spread-explained (Discovered - currently not indexed)
+  - not indexed: https://deltamint.app/blog/calendar-spread-explained (Discovered - currently not indexed)
+  - not indexed: https://deltamint.app/blog/selling-options-before-earnings (URL is unknown to Google)
+  - not indexed: https://deltamint.app/blog/credit-spread-dte (URL is unknown to Google)
+  - not indexed: https://deltamint.app/blog/credit-spread-delta-strike-selection (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/credit-spread-width (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/iron-condor-explained (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/wheel-strategy-explained (URL is unknown to Google)
+  - not indexed: https://deltamint.app/blog/wheel-strategy-explained (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/cash-secured-put-explained (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/options-buying-power-requirement (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/early-exercise-options (URL is unknown to Google)
@@ -46,7 +45,6 @@ is not connected yet, not zero.
 
 | Day | Impressions | Clicks | Sessions | Signed up | Connected | Traded live | Paying |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-09-18 | — | — | — | 4 | 4 | 2 | 0 |
 | 2026-09-19 | — | — | — | 4 | 4 | 2 | 0 |
 | 2026-09-20 | — | — | — | 4 | 4 | 2 | 0 |
 | 2026-09-21 | — | — | — | 4 | 4 | 2 | 0 |
@@ -76,3 +74,4 @@ is not connected yet, not zero.
 | 2026-10-15 | 0 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-10-16 | 5 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-10-17 | 5 | 0 | — | 4 | 3 | 1 | 0 |
+| 2026-10-18 | 5 | 0 | — | 4 | 3 | 1 | 0 |
