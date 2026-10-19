@@ -3,7 +3,7 @@ title: "VIX hedge explained: what VIX products do and do not do"
 search_title: "VIX hedge explained: calls, futures and contango"
 slug: vix-hedge-explained
 excerpt: A VIX hedge pays on a change in expected volatility, not on a loss in your stocks, and the products that carry it have costs of their own.
-meta_description: "A VIX call pays on volatility, not on your loss. In two hypothetical selloffs with the same $10,000 stock loss, the same call settles above its strike in one and expires worthless in the other."
+meta_description: "A VIX call pays on volatility, not on your loss. Two hypothetical selloffs, one $10,000 loss: the same call settles above its strike once, worthless once."
 author: Osama Safwat Maghawry
 category: hedging
 series_order: 35
