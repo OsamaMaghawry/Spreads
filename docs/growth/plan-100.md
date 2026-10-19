@@ -41,6 +41,26 @@ switch. The arithmetic is shown so the replacement is one edit.
 | ← Signups connecting a live account | 25 % (the rest stay on paper, at least at first) | **~2,700 signups** |
 | ← Visitors signing up | 3 % (intent-matched educational traffic) | **~90,000 visitors** over 17 weeks ≈ **5,300 a week** ≈ **760 a day** |
 
+### Measured rates — revised Mon 19 Oct 2026
+
+Source: `docs/growth/metrics/2026-10-19.json` (newest, on `main`; `staging`
+carries only up to 11 Oct). Sample sizes are tiny; treat each as a floor on
+what we know, not a rate to plan on.
+
+| Step | Benchmark | Measured | n | Verdict |
+| --- | --- | --- | --- | --- |
+| Visitors → signup | 3 % | **unmeasured** — GA4 not configured | — | Still the blind step |
+| Signup → connected | (25 % to *live*) | 3 of 4 = 75 % to any account | 4 | Too few to use |
+| Signed up → live-traded | 25 % | 1 of 4 = 25 % | 4 | Matches the benchmark, by luck of n |
+| Live → paid | 15 % | 0 of 1 | 1 | No billing sample yet |
+| Signups, last 7 days | ~160 a week needed | **0** (4 total, all source `unknown`) | — | Gap is acquisition, not conversion |
+| Search, 28 days | — | 150 impressions, **0 clicks**, avg position 30.6 | — | Impressions exist; nothing ranks on page one |
+| Indexed sitemap URLs | — | **30 of 58** (18 discovered-not-indexed, 10 unknown to Google) | 58 | The cheapest number to move |
+
+Benchmarks above stay in force until n is large enough; nothing replaced.
+The binding constraint this week is top of funnel: ~0 signups a week
+against ~160 needed.
+
 Two levers change this by more than any channel does:
 
 - **Signup → live**: if the product's own paper experience pushes the rate
