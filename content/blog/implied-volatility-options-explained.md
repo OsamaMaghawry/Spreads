@@ -164,6 +164,7 @@ reason the premium is negotiated at all.
 - **Where does the IV on my chain come from?** It is back-solved from the option's price with a model, usually from the midpoint of the [bid and the ask](/blog/options-bid-ask-spread) - a price nobody actually offered.
 - **Why did my option lose value when the stock moved my way?** One possibility is that IV fell by enough to outweigh what [delta](/blog/option-delta-explained) added. Both inputs pull on the same premium at once.
 - **Does every strike on one expiration show the same IV?** No. Strikes usually show different figures, a pattern called the volatility skew or smile, even though they all cover the same period.
+- **Is the VIX implied volatility too?** Yes, calculated for the S&P 500 as a whole. [VIX hedge explained](/blog/vix-hedge-explained) covers the products built on it.
 
 ## The bottom line
 

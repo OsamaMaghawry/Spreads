@@ -1,0 +1,22 @@
+<svg viewBox="0 0 720 290" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Chart over the 30 days to expiration. Spot VIX stays at 16 as a dashed line. The VIX future for the expiration starts at 18 and slides down to 16 by expiration. The strike of 20 sits above both lines, so a call struck there ends worthless.">
+  <rect width="720" height="290" fill="#FFFFFF"/>
+  <line x1="90" y1="24" x2="90" y2="236" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="90" y1="236" x2="650" y2="236" stroke="#C9CEDC" stroke-width="1.5"/>
+
+  <text x="80" y="174" font-size="15" text-anchor="end" fill="#767B8E">20</text>
+  <text x="80" y="194" font-size="15" text-anchor="end" fill="#767B8E">18</text>
+  <text x="80" y="214" font-size="15" text-anchor="end" fill="#767B8E">16</text>
+
+  <line x1="90" y1="170" x2="650" y2="170" stroke="#767B8E" stroke-width="1.5"/>
+  <text x="96" y="160" font-size="15" fill="#767B8E">Strike 20</text>
+
+  <line x1="90" y1="210" x2="650" y2="210" stroke="#14151C" stroke-width="2" stroke-dasharray="6 5"/>
+  <text x="650" y="230" font-size="15" text-anchor="end" fill="#14151C">Spot VIX, unchanged</text>
+
+  <line x1="90" y1="190" x2="650" y2="210" stroke="#B4485C" stroke-width="3"/>
+  <text x="96" y="182" font-size="15" font-weight="600" fill="#B4485C">Future for this expiration</text>
+
+  <text x="90" y="256" font-size="15" fill="#767B8E">30 days out</text>
+  <text x="650" y="256" font-size="15" text-anchor="end" fill="#767B8E">Expiration</text>
+  <text x="360" y="280" font-size="14" text-anchor="middle" fill="#767B8E">Hypothetical levels: the option is priced from the future, not from spot</text>
+</svg>
