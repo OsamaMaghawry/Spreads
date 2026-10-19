@@ -103,6 +103,7 @@ The example above stops at expiration. A real holding keeps going, and a large o
 - **How do you hedge a concentrated stock position with options?** With contracts on the same stock, one per 100 shares: long puts, a collar, or a put spread. Each offsets part of a fall until expiration, and none reduces the number of shares held.
 - **How does a collar hedge a concentrated stock position?** Ten 46 puts set a floor under 1,000 shares and ten 54 calls pay for them, so in the example a fall to $35 costs $3,940 and any gain stops at $54, where the shares are likely to be called away.
 - **Which of the three hedges has the lowest net premium on the example quotes?** The put cost $790, the put spread $1,110, and the collar took in $60. Each price is paid differently: the collar with its cap above $54, the put spread with no cover below $44, and the put with the premium itself.
+- **Does a VIX hedge do the same job?** No. A VIX call settles on the level of volatility at its own expiration, not on this stock's price, and the stock can fall while the VIX does not move. See [what VIX products do and do not do](/blog/vix-hedge-explained).
 - **Does a hedge reduce concentration?** No. The shares stay in the account, so the proportion is unchanged; the hedge limits what a fall costs, for one expiration.
 
 ## The bottom line
