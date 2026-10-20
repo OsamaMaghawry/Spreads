@@ -1,4 +1,4 @@
-# Every feature, and what it is worth — 2026-09-02
+# Every feature, and what it is worth — 2026-09-02, Scanner re-read 2026-10-20
 
 Owned by `vp-product`. Read from the code on `main` at `3a22207` plus the
 `staging` delta (`git diff --stat main staging` = one migration and the
@@ -16,25 +16,37 @@ page (Paper $0 / Pro $39 / Desk $99) was false against the code on seven
 rows, and the watch on `main` threw on every account (fixed the same day,
 `a7db799`).
 
-## Screener
+## Scanner
+
+Renamed from Screener on 14 Sep (`8a51f95`); paths below are the current ones.
+Re-read from the code on `main` 2026-10-20.
 
 | # | What the user gets | Where | Live | Call |
 | --- | --- | --- | --- | --- |
-| S1 | Sweep a universe for credit setups, four tickers a batch, results streaming in ranked | `src/pages/Screener.jsx`, `screener/useMarketScan.js`, `scanEntries/index.ts`, `_shared/optionScan.ts` | main | FREE |
-| S2 | Universe: top 50 mega caps, ~500 S&P names, or a custom list. No ETFs or indices | `src/lib/sp500.js`, `screener/ScreenerConfig.jsx` | main | FREE |
-| S3 | Five strategies — put spread, call spread, iron condor, cash-secured put, covered call — and a Wheel scan that runs the last two together; covered calls scan the shares the account holds at their cost basis | `scanEntries`, `findEntry`, `_shared/optionScan.ts` `buildSingle()`, `_shared/heldShares.ts`, `open/StrategyPicker.jsx` | staging | FREE |
-| S4 | Filters: DTE, short delta, wing width, min credit, max risk per unit, min return on risk, put/call ratio. No volume, OI, bid-ask or IV filter | `ScreenerConfig.jsx`, `ScanFilters.jsx` | main | FREE |
-| S5 | Exact wing width or skip — never a wider spread than asked | `optionScan.ts` `pickWing()` | main | FREE |
-| S6 | One ranking metric, return on risk, top 25; client re-sort by RoR / credit / max risk | `optionScan.ts`, `ResultsTable.jsx` | main | FREE |
-| S7 | Credit priced at short bid minus long ask — the executable side, not the mid | `optionScan.ts` | main | FREE (what makes free trustworthy) |
-| S8 | Spot-price trust ladder: trade print leads, quote corroborates, weaker is refused | `_shared/marketPrice.ts` | main | FREE |
-| S9 | Put-call parity check refuses a chain implying a spot more than 1 % off the feed | `optionScan.ts` `impliedSpotFromParity()` | main | FREE |
-| S10 | Every skipped ticker says why | `optionScan.ts` | main | FREE |
-| S11 | Earnings-before-expiry flag on every candidate, a fact not a filter | `_shared/earnings.ts`, `common/EarningsWarning.jsx` | main | FREE |
-| S12 | Named presets and "last scan" restore | `src/lib/scanPresets.js`, `ScanPresets.jsx` | main | FREE |
-| S13 | Continuous scan loop, retry every 20 s, audible alert on a hit | `open/useScanLoop.js`, `src/lib/beep.js` | main | FREE — the old page sold it as Pro-only |
-| S14 | *Absent:* no scan is recorded anywhere | — | — | backlog #3 |
-| S15 | *Constraint:* the screener needs a connected account for market data | `Screener.jsx` | main | shapes the funnel: connect is step one |
+| S1 | Sweep a universe for credit setups, four tickers a batch, results streaming in ranked; client keeps the top 100 | `src/pages/Scanner.jsx`, `scanner/useMarketScan.js`, `scanEntries` → `_shared/entryScan.ts`, `_shared/optionScan.ts` | main | FREE |
+| S2 | Universe: top 50 mega caps, ~500 S&P names, a custom list, or **the entire listed market** through a sieve on share price, share volume (busier of today and the last session), *stock* quote width and capital per contract; leveraged and inverse funds dropped by name; where each name went is counted on screen | `src/lib/sp500.js`, `scanner/ScannerConfig.jsx`, `scanUniverse`, `_shared/universe.ts` | main (22 Sep) | FREE |
+| S3 | Five strategies plus the Wheel; covered calls written over free shares or a free long call, with cover already in use flagged rather than hidden | `optionScan.ts` `buildSingle()`/`buildCallOverLong()`, `_shared/heldShares.ts`, `_shared/callCover.ts` | main | FREE |
+| S4 | Filters: DTE, short delta (enforced as a bound), wing width, min credit, max risk or collateral, min return on risk (0 % default on secured strategies), put/call ratio. **No option-level volume, open-interest, bid-ask or IV filter** | `ScannerConfig.jsx`, `optionScan.ts` `outsideBand()` | main | FREE |
+| S5 | Exact wing width or skip | `optionScan.ts` `pickWing()` | main | FREE |
+| S6 | One ranking metric, return on risk, top 25 per call; re-sort by RoR / credit / max risk. Bid and ask are on every leg in the payload and **not rendered** (backlog #1) | `optionScan.ts`, `scanner/ResultsTable.jsx` | main | FREE |
+| S7 | Credit priced at short bid minus long ask | `optionScan.ts` | main | FREE |
+| S8 | Spot-price trust ladder; "market shut" said as such | `_shared/marketPrice.ts`, `optionScan.ts` `spotOrReason()` | main | FREE |
+| S9 | Put-call parity check against the feed | `optionScan.ts` `impliedSpotFromParity()` | main | FREE |
+| S10 | Every skipped ticker says why (up to twelve listed); a sweep that found setups but none cleared the floor says so | `optionScan.ts`, `Scanner.jsx` | main | FREE |
+| S11 | Earnings chip only for a dated announcement before expiry; unknown coverage stated in the ticket | `entryScan.ts`, `_shared/earnings.ts` | main | FREE |
+| S12 | Named presets and "last scan" restore, all strategies | `src/lib/scanPresets.js`, migration 0057 | main | FREE |
+| S13 | Continuous scan loop with audible alert | `open/useScanLoop.js` | main | FREE |
+| S14 | *Half:* Claude-connector scans recorded (`connector_calls`, 90 days); Scanner scans and all results recorded nowhere | migration 0059 | main | backlog #3 killed 2026-10-20 |
+| S15 | *Constraint:* scanning needs a connected account for market data | `Scanner.jsx` | main | shapes the funnel |
+| S16 | Delta is computed here from our own IV solve, which falls back to a flat 0.25 silently; the option chain shows the broker's delta and IV for the same contract | `optionScan.ts` `impliedVol()`, `_shared/optionChain.ts` | main | hand-off to head-of-trading |
+
+## Option chain and the Claude connector (new since 2 Sep)
+
+| # | What the user gets | Where | Live | Call |
+| --- | --- | --- | --- | --- |
+| O1 | The full chain, every expiry including LEAPS, bid/ask/last, broker Greeks and IV, open interest and volume; every strike tradeable into the ticket | `src/pages/OptionChain.jsx`, `optionChain`, `_shared/chainRead.ts`, `_shared/optionChain.ts` | main (12 Sep) | FREE |
+| O2 | Claude connector, read-only: accounts, positions as grouped on the Dashboard, trade history, the Scanner (`find_trades`, five tickers a call, live bid/ask per leg) and the chain | `supabase/functions/mcp`, `_shared/connectorTools.ts`, `docs/product/connector.md` | main (9 Oct) | FREE — Alpaca's own MCP is free and places orders (see `pricing.md`) |
+| O3 | Free public calculators — credit spread, iron condor, covered call, cash-secured put, expected move, annualized return, roll, early assignment — no login, each with a ref-tagged signup link | `landing/public/tools/` | main (12 Oct) | FREE — acquisition, not product |
 
 ## Trading
 
@@ -111,7 +123,7 @@ History** and bans "journal" and "log".
 | A2 | One population rule: win/loss on settled rows only, money booked on every row, and the cards say which | `analytics.js`, `analysis/StatCards.jsx` | main | FREE (integrity) |
 | A3 | Peak concurrent capital at risk | `analytics.js` | main | PAID |
 | A4 | Annualised and CAGR withheld below 30 trades and 90 days | `analytics.js`, `StatCards.jsx` | main | FREE (compliance) |
-| A5 | How trades ended: expired, assigned, bought back on expiry day or earlier, options bought — rows add up to the booked total, each opens to its trades | `analysis/TradeEndings.jsx` | staging | PAID |
+| A5 | How trades ended: expired, assigned, bought back on expiry day or earlier, options bought — rows add up to the booked total, each opens to its trades | `analysis/TradeEndings.jsx` | main (9 Oct) | PAID |
 | A6 | Equity curve of realised P/L | `analysis/EquityCurveChart.jsx` | main | PAID |
 | A7 | By-month and by-ticker tables | `analysis/BreakdownTable.jsx` | main | PAID |
 | A8 | Strategy comparison | `analysis/StrategyComparison.jsx` | main | PAID |
@@ -130,6 +142,8 @@ History** and bans "journal" and "log".
 | C6 | Manual API keys | `_shared/settings.ts`, migration 0010 | main | owner-only, off by default |
 | C7 | Register, login, forgot, reset | `pages/*.jsx` | main | FREE |
 | C8 | Site-wide disclaimer footer | `components/DisclaimerFooter.jsx` | main | FREE (compliance) |
+| C9 | Billing: Live plan checkout ($29 / $290 via Stripe price ids, 7-day trial), customer portal; live opens refused without it only when `billing_enforced` is on | `src/pages/Billing.jsx`, `createCheckoutSession`, `billingPortal`, `stripeWebhook`, `_shared/entitlement.ts` | main | the paid line |
+| C10 | Demo mode: live accounts watch-only and prices held back site-wide; paper trades normally | migration 0035, `openPosition` | main (12 Sep) | owner-only switch |
 
 ## Watch
 
@@ -165,8 +179,9 @@ handed to systems-engineer.
   what they hold.
 - The watch is the most obviously paid feature and cannot be sold until
   it emails the subscriber rather than the owner (W6).
-- The wheel's reading half is complete; its writing half (single-leg setups
-  in the scanner and the open ticket) is the next product build and ships
-  inside the same live plan.
+- The wheel's writing half (single-leg setups in the scanner and the open
+  ticket) shipped in September inside the same live plan, as decided.
+- The Claude connector and the option chain stay free: the broker gives a
+  trading MCP away, and a chain is what a trader reads before activating.
 
 See `pricing.md` for the tiers and the numbers.

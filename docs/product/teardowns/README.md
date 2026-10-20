@@ -33,8 +33,11 @@ Never from memory, never from our own marketing. Read the modules that
 implement the capability and enumerate what they actually do — filters,
 ranking, universe, limits — **including what we do not have**. For the
 scanner: `supabase/functions/_shared/optionScan.ts`,
-`supabase/functions/scanEntries/`, `supabase/functions/findEntry/`,
-`src/pages/Screener.jsx`, `src/lib/scanPresets.js`, `src/lib/sp500.js`.
+`supabase/functions/scanEntries/` (a wrapper; the work is in
+`supabase/functions/_shared/entryScan.ts`), `supabase/functions/findEntry/`,
+`supabase/functions/scanUniverse/` with `_shared/universe.ts`,
+`src/pages/Scanner.jsx` and `src/components/scanner/` (renamed from
+Screener on 14 Sep), `src/lib/scanPresets.js`, `src/lib/sp500.js`.
 
 ## 4. Parameter-level matrix
 

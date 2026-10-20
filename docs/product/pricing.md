@@ -8,6 +8,25 @@ Admin and the page ships through the normal release path.
 Supersedes the 1 Sep pitch ("The Nineteen Dollar Case"). What changed, and
 why, is in §3.
 
+**Status, 2026-10-20 — no price moved.** What moved is the state around it:
+
+- The owner has put $29 / $290 into the product: Stripe price ids read by
+  `src/pages/Billing.jsx`, and the pricing schedule PDF sent to Alpaca
+  (`c6e8df5`, `docs/legal/pricing/index.html`). The $19 one-tier alternative
+  (`positioning-independent.md`, board W36 decision 1) is superseded in
+  practice. This file treats $29 as adopted unless the owner says otherwise.
+- The public pricing page no longer exists — `landing/public/` has no
+  `pricing/`; Demo mode (12 Sep, `95b03b7`) holds prices back site-wide.
+- Trial is 7 days (owner, 24 Sep), not 30. §6 decision 3 is updated.
+- **Packaging, new:** the Claude connector belongs in **Paper, free**. Alpaca
+  ships its own MCP server free, and it places orders (verified 20 Oct,
+  `docs.alpaca.markets/docs/alpaca-mcp-server`); a read-only connector behind
+  a paywall would be charging for less than the broker gives away. Today it
+  is ungated, which is right. This is a packaging line, not a price change.
+- Demand evidence is still zero: 0 paying, 1 traded live, no signup in seven
+  weeks. Nothing here can be tested until billing is enforced on production
+  and live trading is approved — neither is confirmed from this session.
+
 ## 1. Current state
 
 - **No billing exists.** No Stripe code, no plan column, no subscription
@@ -95,10 +114,11 @@ One line on the page, no price, no date. See §4.
 
 | Competitor | Number | Confidence | Checked |
 | --- | --- | --- | --- |
-| Barchart Premier | $29.95/mo; $239.95/yr; 30-day trial; every options tool in this one tier | **verified** — vendor page | 2026-09-02 |
+| Barchart Premier | $29.95/mo; $239.95/yr; 30-day trial; every options tool in this one tier | **verified** 2026-09-02 — vendor page. 2026-10-20: site now behind an AWS WAF challenge; same figures **reported** by several 2026 reviews | 2026-10-20 |
 | Barchart Plus | $9.99/mo — no options tools at all | **verified** — same page | 2026-09-02 |
 | Barchart Free | $0, metered at 20 page views a day | **verified** — same page | 2026-09-02 |
-| Tiblio | $34.95/mo, $349.50/yr, $1 for 7 days; screen → order → hold on Alpaca | reported — host blocked | 2026-09-02 |
+| Tiblio | $34.95/mo, $349.50/yr, $1 for 7 days (Sep); 2026-10-20 listings also say $38/mo with 7-day trial (NexusFi) and "from $49.99/mo" (AI directory). Sources disagree; $29 sits under all three | reported — `tiblio.com` and `tiblio.ai` blocked | 2026-10-20 |
+| Alpaca MCP server | $0 — official, 65 tools, places multi-leg option orders from Claude | **verified** — vendor docs | 2026-10-20 |
 | Option Alpha | from $39/mo, bot builder included | reported — host blocked | 2026-09-02 |
 | OptionStrat | $39.99/mo Live Tools | reported — host blocked | 2026-08-31 |
 | QuantWheel | ~$37/mo Advanced; sources disagree ($19/$31 elsewhere) | reported, self-inconsistent | 2026-09-02 |
@@ -162,20 +182,31 @@ accounts. A $59 subscriber counts once.
 
 ## 6. Decisions for the owner
 
+Status as of 2026-10-20 in brackets. Not reopened without new evidence.
+
 1. Replace the live pricing page at the Stripe switch, or reduce it now to
-   one line. Not leave it.
-2. Live at $29 / $290, held for 60 days.
-3. Charge from the first live connection after the switch date; 30 days
-   free on Live; everyone connected before the switch free for 90 days.
+   one line. Not leave it. **[Settled — the page is gone; the schedule is a
+   PDF for Alpaca only.]**
+2. Live at $29 / $290, held for 60 days. **[Adopted in Stripe and the
+   schedule; the 60-day hold starts at the switch.]**
+3. Charge from the first live connection after the switch date; **7 days**
+   free on Live (owner, 24 Sep); everyone connected before the switch free
+   for 90 days. **[Trial decided. Whether the 90-day grandfather exists in
+   code is not verified this run.]**
 4. Kill test: fewer than 8 paid Live subscriptions at day 60 → $19.
-5. Wheel execution inside Live, no separate price.
+   **[Open; starts at the switch.]**
+5. Wheel execution inside Live, no separate price. **[Shipped that way:
+   cash-secured puts and covered calls scan and open under the same plan.]**
 6. No bot yet; "Automation — in development"; revisit at 40 paid, at $59.
+   **[Unchanged.]**
 7. Fix the watch before the page mentions the daily report (done, `a7db799`).
 8. Decide who the watch emails — subscribers' own alerts or the owner's
-   inbox. Until decided, "alerts" stays off the page.
+   inbox. Until decided, "alerts" stays off the page. **[Still open, seven
+   weeks: `positionWatch` still sends to `watch_settings.recipient_email`.]**
 9. Allowlist `tiblio.com`, `optionstrat.com`, `optionalpha.com`,
-   `quantwheel.com`, and our own `deltamint.app` / `dashboard.deltamint.app`
-   (403 at CONNECT since 31 Aug).
+   `quantwheel.com`, and our own `deltamint.app` / `dashboard.deltamint.app`.
+   **[Still open; every host re-tested 20 Oct and still 403 at CONNECT.
+   Add `tiblio.ai`.]**
 
 ## 7. What would move this file
 

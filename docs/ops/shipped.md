@@ -3,6 +3,9 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-10-12 · Eight free options calculators, no login — credit spread, iron condor, covered call, cash-secured put, expected move, annualized return, option roll and early-assignment risk — each showing how every figure is worked out, under a new Tools menu on every page; every page now serves at its canonical address without a slash redirect (`e0a2d4b`, `57bc2cc`, `9e2e792`, `ac5c068`). Added by vp-product's 20 Oct reconciliation; the live site was not reachable to confirm.
+- 2026-10-11 · A Contact page (support@deltamint.app), linked from every footer (`ca82cde`, `15b6406`).
+- 2026-10-10 · Analysis leads with one number, "Profit on closed trades", with what is still open shown once beneath it and added to nothing; the chart is the same closed trades over time, so it ends on the headline (`f63f3c3`, `f1baaf1`, `093cd18`).
 - 2026-10-06 · New blog post: the diagonal spread explained, with two diagrams comparing it to a calendar spread (`4cef92c`).
 - 2026-09-28 · New blog post: the wheel strategy explained, with two diagrams, and a cross-link from the covered-call post (`9a76e9d`).
 - 2026-09-27 · The Saturday weekly digest no longer goes silent for

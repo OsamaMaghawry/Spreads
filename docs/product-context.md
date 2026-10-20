@@ -96,6 +96,9 @@ incomplete.
 
 From `docs/ops/shipped.md`, newest first.
 
+- 2026-10-12 · Eight free options calculators, no login — credit spread, iron condor, covered call, cash-secured put, expected move, annualized return, option roll and early-assignment risk — each showing how every figure is worked out, under a new Tools menu on every page; every page now serves at its canonical address without a slash redirect (`e0a2d4b`, `57bc2cc`, `9e2e792`, `ac5c068`). Added by vp-product's 20 Oct reconciliation; the live site was not reachable to confirm.
+- 2026-10-11 · A Contact page (support@deltamint.app), linked from every footer (`ca82cde`, `15b6406`).
+- 2026-10-10 · Analysis leads with one number, "Profit on closed trades", with what is still open shown once beneath it and added to nothing; the chart is the same closed trades over time, so it ends on the headline (`f63f3c3`, `f1baaf1`, `093cd18`).
 - 2026-10-06 · New blog post: the diagonal spread explained, with two diagrams comparing it to a calendar spread (`4cef92c`).
 - 2026-09-28 · New blog post: the wheel strategy explained, with two diagrams, and a cross-link from the covered-call post (`9a76e9d`).
 - 2026-09-27 · The Saturday weekly digest no longer goes silent for
@@ -103,9 +106,6 @@ From `docs/ops/shipped.md`, newest first.
 - 2026-09-24 · The homepage's DeltaMint phone view shows two position cards
 - 2026-09-24 · The site menu gets a Sign up button next to Log in on every
 - 2026-09-24 · The Alpaca branding review is also a PDF (for emailing to
-- 2026-09-24 · The free trial on checkout is 7 days, not 30, on both the
-- 2026-09-24 · A new About page explains the product step by step (Scanner,
-- 2026-09-24 · A pricing schedule now exists as a PDF for Alpaca's
 
 ## Server functions
 
@@ -474,6 +474,13 @@ not what makes an OAuth app function — see `compliance.md` — so a competitor
 running the flow proves only that their app is published. Treat their approval
 status as unknown.
 
+**Re-checked 20 October 2026 (vp-product)** against the shipped product and
+public sources. What moved: the broker's own MCP server trades options through
+Claude, for free (verified); Tiblio's price can no longer be pinned to one
+number; Puthouse cannot be confirmed to exist from any reachable source; our
+scanner now covers the whole listed market, not the S&P 500. Each is edited in
+place below and dated.
+
 ### The market, honestly sized
 
 There is no measurable "multi-leg options strategies market"; nobody clears or
@@ -516,8 +523,12 @@ traders want, and that gap narrows each year.
 
 #### The closest competitor, named
 
-**Tiblio**, roughly $35/month, is the nearest thing to a direct competitor and
-should be treated as one. It screens spreads and iron condors, connects by OAuth
+**Tiblio** is the nearest thing to a direct competitor and should be treated as
+one. Its price is *reported*, never verified, and the reports now disagree:
+$34.95/month (September searches), $38/month with a 7-day trial (NexusFi
+listing), "from $49.99/month" (an AI-tools directory). `tiblio.com` and
+`tiblio.ai` both fail at the proxy (`reachable.md`). Plan against "$35–50",
+not a single figure. It screens spreads and iron condors, connects by OAuth
 to Schwab, Tradier, TradeStation, tastytrade **and Alpaca**, routes orders to the
 connected broker, and tracks open and closed positions with profit and loss and
 per-strategy win rates. That is screen → order → hold → measure, on our broker,
@@ -533,10 +544,24 @@ timer. No screener documented here puts an order control on a ranked row for a
 person to look at and press. That distinction is checkable and it is where the
 "ease" claim actually lives.
 
-**Puthouse** is a second Alpaca-connected options tool, already through Alpaca's
-OAuth compliance review. Two approved competitors on this broker means the
-"first on Alpaca" framing is gone entirely — plan on the assumption that broker
-choice confers no advantage.
+**Puthouse** was recorded here as a second Alpaca-connected options tool. As of
+20 Oct 2026 nothing reachable confirms it exists: `puthouse.com` fails at the
+proxy and WebSearch returns nothing relevant. Treat it as unverified. The
+conclusion stands on Tiblio alone — plan on the assumption that broker choice
+confers no advantage.
+
+**The broker itself now competes for the "ask Claude" surface (verified,
+20 Oct 2026).** Alpaca publishes an official MCP server
+(`docs.alpaca.markets/docs/alpaca-mcp-server`): 65 tools, free, works with
+Claude Desktop and Claude Code locally or remotely, reads balances and
+positions, returns option chains *with Greeks*, and **places orders including
+multi-leg spreads**. Public's brokerage MCP does the same for its own
+customers (reported, WebSearch only). DeltaMint's Claude connector (live
+9 Oct) is read-only by design. So "talk to your Alpaca account in Claude" is
+not ours to claim; what the connector has that the broker's does not is the
+*structure*: positions grouped as traded, wheel basis adjusted for premium,
+closed trades reconstructed, and the Scanner's ranked, executable-priced
+setups. Market the connector on those, never on access.
 
 Adjacent: **QuantWheel** routes to tastytrade; **Option Alpha** runs entries,
 exits and rolls through Tradier and TradeStation, free to users who route there;
@@ -572,6 +597,7 @@ Scored against the above, not against effort spent.
 | Price walking on limit orders | **Table stakes, and that understates it** — Schwab ships WALK LIMIT® as a native order type on thinkorswim, built for multi-leg orders with wide spreads. Not a competitor's feature to be beaten; a broker's order type to be matched |
 | Portfolio statistics | **Conditional** — commodity if it is profit and loss; differentiated only when structure-aware |
 | Constructing candidates from ranges | **Commodity output, better plumbing** — the sweep builds structures from delta and width targets rather than filtering a chain, and prices them at short bid − long ask rather than mid. Real engineering, but Market Chameleon exposes per-leg delta filters over pre-enumerated spreads, so the *customer-visible output* is the same thing: a ranked list of spreads matching delta and width criteria. Do not market this as a differentiator. The executable pricing is the only part a user would feel, and it only shows up as fills matching the screen |
+| Universe | **Parity on breadth, not an edge** — since 22 Sep the Scanner can sweep every listed US equity (Alpaca's asset list, ~12,600 names, leveraged and inverse funds excluded) through a cheap sieve on price, share volume, *stock* quote width and capital per contract before any chain is pulled (`scanUniverse`, `_shared/universe.ts`). Barchart already scans the full optionable universe. Still absent: any filter on the *option's* own width, open interest or IV |
 | Opportunity screening (filtering chains) | **Commodity** — and more so than assumed. Barchart alone gives away ~10 dedicated multi-leg screeners (short and long iron condor, all four verticals) with legs, max profit, max loss and probability of loss; Market Chameleon covers 18 spread types at $69–99/mo |
 | Pre-trade return on risk | **Commodity** — a competitor gives this away free |
 
@@ -585,7 +611,7 @@ those halves is contested.
 It is tempting to argue that the features above undercount the product because
 customers buy the *chain* — screen → order → grouped position → worked exit —
 and that no competitor closes that loop. The evidence does not support it.
-Tiblio closes it today, on Alpaca, for $35. Price walking is a broker order
+Tiblio closes it today, on Alpaca, for a reported $35–50. Price walking is a broker order
 type. Screening is free at Barchart. Every individual link, and the fact of the
 links being joined, is already purchasable.
 
@@ -609,6 +635,12 @@ falsifiable in one search and the first is not.
   with real size remain concentrated on the other platforms. Being first can mean
   uncontested or it can mean fishing where there are fewer fish — worth
   establishing empirically before betting the roadmap.
+- **No demand evidence yet (20 Oct 2026).** Four signups ever, none since
+  early September; three connected, three traded, one traded live, none
+  paying (`docs/growth/metrics/2026-10-20.json`). Search: 150 impressions and
+  0 clicks in 28 days. Every edge claimed above is a claim about the product,
+  not a fact about buyers. Until people arrive, no positioning line here has
+  been tested against a customer.
 - **Squeezed from both sides.** Brokers ship features downward for free; data
   vendors price upward. Switching costs are near zero for analysis tools and only
   moderate for automation.
