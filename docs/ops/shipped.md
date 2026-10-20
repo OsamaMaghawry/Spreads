@@ -3,6 +3,7 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-10-20 · New blog post on hedging cash-secured puts (a lower put, an index put or a VIX call), with one payoff diagram; it also adds cross-links from three earlier hedging/put posts (`7316ed6`, published `be42e25`).
 - 2026-10-06 · New blog post: the diagonal spread explained, with two diagrams comparing it to a calendar spread (`4cef92c`).
 - 2026-09-28 · New blog post: the wheel strategy explained, with two diagrams, and a cross-link from the covered-call post (`9a76e9d`).
 - 2026-09-27 · The Saturday weekly digest no longer goes silent for
