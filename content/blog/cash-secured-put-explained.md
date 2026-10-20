@@ -100,7 +100,7 @@ on the obligation to buy at a fixed price no matter how far the stock falls.
 If XYZ closes at $40.00, the put is assigned at $50.00 regardless, the
 $5,000 buys shares worth $4,000, and the $140 premium offsets only $1.40 of
 the $10.00 per-share gap. The reserved cash does not grow to protect against
-that outcome; it only ever covers the $50.00 purchase.
+that outcome; it only ever covers the $50.00 purchase. Limiting that loss with a second position is set out three ways in the [post on hedging cash-secured puts](/blog/hedge-cash-secured-puts).
 
 That single line of protection does not change with the size of the move. A
 stock that finishes $2 below the strike gets the same $1.40 cushion as one
