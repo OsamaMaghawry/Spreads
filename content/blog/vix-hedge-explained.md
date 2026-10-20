@@ -92,4 +92,6 @@ A VIX hedge is a position on volatility, built from a future that settles to the
 
 Compared with the put in the [concentrated stock post](/blog/hedge-concentrated-stock-position), it hedges a different thing with a different cost, and a fall in the stocks and a rise in the VIX are related but not the same event.
 
+The [post on hedging cash-secured puts](/blog/hedge-cash-secured-puts) sets a VIX call beside a book of short puts, where a slow decline can leave the puts losing and the call worthless.
+
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.

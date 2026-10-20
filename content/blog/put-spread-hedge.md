@@ -32,7 +32,7 @@ The two puts together are a **bear put spread**, a debit spread bought for a net
 - **Between the strikes.** The bought put gains what the shares lose, one for one, so the loss stays fixed.
 - **Below the lower strike.** The bought put's gain stops growing, because the sold put now loses a dollar for every dollar it gains. The shares are exposed again.
 
-The spread's maximum value is its width, the gap between the strikes. That is the most the hedge can ever pay, however far the stock falls, and it is the reason the hedge costs less than the plain put. A spread is the same pair of legs as the [put credit spread](/blog/put-credit-spread-explained), traded the other way round.
+The spread's maximum value is its width, the gap between the strikes. That is the most the hedge can ever pay, however far the stock falls, and it is the reason the hedge costs less than the plain put. A spread is the same pair of legs as the [put credit spread](/blog/put-credit-spread-explained), traded the other way round. Bought against a short put rather than against shares, a lower put turns the position into that credit spread, as the [post on hedging cash-secured puts](/blog/hedge-cash-secured-puts) shows.
 
 ## Put spread hedge example: 100 XYZ shares, a 48 put bought and a 44 put sold
 
