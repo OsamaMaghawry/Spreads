@@ -684,3 +684,7 @@ silence there is not clearance. All of it is still open:
 
 - [fixed 2514c1b] 2026-09-02 · duty-engineer · `Layout.jsx` nav said "dashboard" while the page H1 says "Positions Monitor" — the word `brand.md` forbids (canonical name: Positions Monitor). Nav label changed to "positions", matching the single-word style of the other tabs. Lint and build green; no component test harness exists in this repo to unit-test the JSX label.
 - [fixed a7db799] 2026-09-02 · vp-product found · `positionWatch` called `sharesByTicker`, which did not exist; every account would have been reported unreadable. Written, tested, shipped to production 12:25 UTC.
+
+- [open] 2026-10-21 · seo-editor · Title for implied-volatility-options-explained: 66 characters with no `search_title`; add `search_title:` at 60 or fewer, no dash (for example "Implied volatility in options explained, with a chain example"). Evidence: content check by length.
+- [open] 2026-10-21 · seo-editor · Title for options-buying-power-requirement: 62 characters with no `search_title`; add a `search_title:` of 60 or fewer, no dash.
+- [open] 2026-10-21 · seo-editor · Internal links: poor-mans-covered-call, tail-risk-hedge-cost, wheel-strategy-cost-basis and diagonal-spread-explained each have only 2 posts linking in; add a link from one indexed sibling post to each (orphans do not rank). Also link options-journal-splits-spreads-into-legs out to at least two other posts.
