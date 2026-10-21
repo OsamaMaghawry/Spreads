@@ -9,6 +9,7 @@ Every entry carries: the user problem in the user's words, its evidence, the
 smallest test that could disprove it, the kill criterion, and a cost guess.
 
 Last run: **2026-09-01** (vp-product, Tuesday cadence).
+Last reconciled against shipments: **2026-10-21** (end-of-day pass). Nothing shipped to `main` since 2026-10-09 touches the scanner or its ranking, so #1–#3 stand unchanged. Evidence: the only commit touching `_shared/optionScan.ts`, `scanEntries/` or `ResultsTable.jsx` since 2026-09-01 is a bulk ledger commit (`62a85d9`), not a scanner change; the staging-only Protect and Repair bid/ask pricing (`9970908`, 2026-10-16) prices repairs, not scan results, so it does not ship half of #1.
 
 ## Open proposals
 
