@@ -1,0 +1,40 @@
+name: Search submit probe (temporary)
+
+# One-off check, 21 Oct 2026: can the metrics service account submit the
+# sitemap to Google? Runs only on this throwaway branch, prints no secret.
+on:
+  push:
+    branches: [claude/search-submit-probe]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Submit the sitemap and read it back
+        env:
+          GOOGLE_METRICS_SA: ${{ secrets.GOOGLE_METRICS_SA }}
+          GSC_SITE_URL: ${{ vars.GSC_SITE_URL }}
+        run: |
+          cat > /tmp/probe.mjs <<'JS'
+          import { createSign } from "node:crypto";
+          import { parseSitemap, googleSitemap } from "./scripts/searchSubmit.mjs";
+          const sa = JSON.parse(process.env.GOOGLE_METRICS_SA);
+          const now = Math.floor(Date.now() / 1000);
+          const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+          const unsigned = `${b64({ alg: "RS256", typ: "JWT" })}.${b64({ iss: sa.client_email, scope: "https://www.googleapis.com/auth/webmasters", aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 600 })}`;
+          const sig = createSign("RSA-SHA256").update(unsigned).sign(sa.private_key, "base64url");
+          const tr = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: `${unsigned}.${sig}` }) });
+          if (!tr.ok) { console.log("TOKEN FAILED", tr.status); process.exit(1); }
+          const token = (await tr.json()).access_token;
+          const feed = "https://deltamint.app/sitemap.xml";
+          const entries = parseSitemap(await (await fetch(feed)).text());
+          const site = process.env.GSC_SITE_URL || "sc-domain:deltamint.app";
+          const r = await googleSitemap({ token, site, feed, sa, state: {}, entries });
+          const key = await fetch("https://deltamint.app/8b62b8a4ab3d56d58e2397ca07208234.txt");
+          console.log(JSON.stringify({ sitemapUrls: entries.length, result: r, indexNowKeyFileStatus: key.status }, null, 2));
+          JS
+          cp /tmp/probe.mjs ./probe.mjs && node ./probe.mjs | tee -a "$GITHUB_STEP_SUMMARY"
