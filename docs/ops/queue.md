@@ -679,3 +679,5 @@ silence there is not clearance. All of it is still open:
 
 - [fixed 2514c1b] 2026-09-02 · duty-engineer · `Layout.jsx` nav said "dashboard" while the page H1 says "Positions Monitor" — the word `brand.md` forbids (canonical name: Positions Monitor). Nav label changed to "positions", matching the single-word style of the other tabs. Lint and build green; no component test harness exists in this repo to unit-test the JSX label.
 - [fixed a7db799] 2026-09-02 · vp-product found · `positionWatch` called `sharesByTicker`, which did not exist; every account would have been reported unreadable. Written, tested, shipped to production 12:25 UTC.
+
+- [escalated 2026-10-21] 2026-10-21 · duty-engineer · **Daily SEO run produced nothing on 2026-10-20.** No branch `origin/claude/seo-daily-2026-10-20` and no `docs/seo/daily/2026-10-20.md` anywhere on origin (the 2026-10-21 branch exists). Metrics snapshot and the daily post for 10-20 are present. Not redone by the duty engineer, per brief. Proposed: owner checks the 07:00 seo-editor routine's run history for 20 Oct (failed trigger vs. silent no-op) and re-fires it if wanted.
