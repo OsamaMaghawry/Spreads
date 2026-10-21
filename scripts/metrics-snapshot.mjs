@@ -13,6 +13,7 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from "node:fs";
 import { createSign } from "node:crypto";
 import path from "node:path";
+import { parseSitemap, googleSitemap, indexNow, indexNowBatch } from "./searchSubmit.mjs";
 
 const OUT = "docs/growth/metrics";
 const SITE = process.env.GSC_SITE_URL || "sc-domain:deltamint.app";
@@ -74,7 +75,8 @@ async function searchConsole(token) {
 // sure all are indexed". Search Console's URL Inspection API answers, per URL,
 // whether Google has it indexed, when it last crawled it and which canonical
 // it chose. It cannot ASK Google to index a page -- that button has no API for
-// ordinary pages -- so a page not indexed is listed for a person to submit.
+// ordinary pages. What can be done automatically is done below, in submission
+// (searchSubmit.mjs): the sitemap to Google, every new URL to IndexNow.
 const SITEMAP = process.env.SITEMAP_URL || "https://deltamint.app/sitemap.xml";
 
 async function indexing(token) {
@@ -111,6 +113,36 @@ async function indexing(token) {
       .filter((r) => r.googleCanonical && r.userCanonical && r.googleCanonical !== r.userCanonical)
       .map(({ url, googleCanonical, userCanonical }) => ({ url, googleCanonical, userCanonical }))
   };
+}
+
+// --- Submission: what was sent to search engines today --------------------
+// State lives beside the snapshots, so a URL is sent once and the sitemap is
+// resubmitted only when it changed or Google stopped reading it.
+const SUBMISSIONS = path.join(OUT, "submissions.json");
+
+async function submission(sa) {
+  const state = existsSync(SUBMISSIONS) ? JSON.parse(readFileSync(SUBMISSIONS, "utf8")) : {};
+  const entries = parseSitemap(await (await fetch(SITEMAP)).text());
+  if (!entries.length) throw new Error("the sitemap returned no URLs");
+  const host = new URL(entries[0].loc).host;
+  const feed = SITEMAP;
+
+  // Submitting needs the write scope; reading the property did not.
+  const token = await googleToken(sa, ["https://www.googleapis.com/auth/webmasters"]);
+  const google = await googleSitemap({ token, site: SITE, feed, sa, state: state.google || {}, entries }).catch((e) => ({ submitted: false, error: e.message }));
+
+  const batch = indexNowBatch(entries, state.indexNow || {});
+  const bing = await indexNow({ host, urls: batch }).catch((e) => ({ sent: 0, error: e.message }));
+
+  const next = {
+    google: google.fingerprint ? { fingerprint: google.fingerprint, submittedAt: google.at || state.google?.submittedAt || null } : state.google || {},
+    indexNow: { ...(state.indexNow || {}) }
+  };
+  if (bing.sent) for (const e of entries) if (batch.includes(e.loc)) next.indexNow[e.loc] = e.lastmod;
+  writeFileSync(SUBMISSIONS, JSON.stringify(next, null, 2) + "\n");
+
+  const { fingerprint, ...googleOut } = google;
+  return { google: googleOut, indexNow: { ...bing, urls: bing.sent ? batch : [] } };
 }
 
 async function analytics(token) {
@@ -182,6 +214,7 @@ const snapshot = {
   day,
   search: await safely("search console", () => searchConsole(token), !!token),
   indexing: await safely("url inspection", () => indexing(token), !!token),
+  submission: await safely("submission", () => submission(sa), !!sa),
   analytics: await safely("ga4", () => analytics(token), !!token && !!GA4),
   funnel: await safely("supabase", funnel, !!SUPABASE_URL && !!SERVICE_KEY)
 };
@@ -195,6 +228,17 @@ const rows = files.map((f) => JSON.parse(readFileSync(path.join(OUT, f), "utf8")
 const cell = (v) => (v === null || v === undefined ? "—" : String(v));
 const table = rows.map((r) => `| ${r.day} | ${cell(r.search?.lastDay?.impressions)} | ${cell(r.search?.lastDay?.clicks)} | ${cell(r.analytics?.lastDay?.sessions)} | ${cell(r.funnel?.signedUp)} | ${cell(r.funnel?.connected)} | ${cell(r.funnel?.tradedLive)} | ${cell(r.funnel?.paying)} |`).join("\n");
 const latest = snapshot;
+function submittedLine(s) {
+  if (!s || s.unavailable) return s?.unavailable || "—";
+  const g = s.google || {};
+  const google = g.error ? `Google sitemap NOT submitted: ${g.error}`
+    : g.submitted ? `sitemap submitted to Google (${g.why})`
+    : `Google sitemap not resubmitted (${g.why || "no reason given"})`;
+  const read = g.google?.lastDownloaded ? `; Google last read it ${g.google.lastDownloaded.slice(0, 10)}` : "";
+  const b = s.indexNow || {};
+  const bing = b.error ? `IndexNow NOT sent: ${b.error}` : `${b.sent || 0} URL(s) sent to Bing and others via IndexNow`;
+  return `${google}${read}; ${bing}`;
+}
 writeFileSync(path.join(OUT, "README.md"), `# Growth metrics
 
 Written daily by \`.github/workflows/metrics-snapshot.yml\`. Agents read
@@ -205,6 +249,7 @@ is not connected yet, not zero.
 
 - Search Console, last 28 days: ${latest.search?.last28 ? `${latest.search.last28.impressions} impressions, ${latest.search.last28.clicks} clicks, CTR ${(latest.search.last28.ctr * 100).toFixed(1)}%` : latest.search?.unavailable || "—"}
 - Indexing: ${latest.indexing?.checked ? `${latest.indexing.indexed} of ${latest.indexing.checked} sitemap URLs indexed` : latest.indexing?.unavailable || "—"}${(latest.indexing?.notIndexed || []).map((r) => `\n  - not indexed: ${r.url} (${r.coverage || "unknown"})`).join("")}
+- Submitted today: ${submittedLine(latest.submission)}
 - GA4, last 28 days: ${latest.analytics?.last28 ? `${latest.analytics.last28.users} users, ${latest.analytics.last28.sessions} sessions` : latest.analytics?.unavailable || "—"}
 - Funnel: ${latest.funnel?.signedUp !== undefined ? `${latest.funnel.signedUp} signed up (${latest.funnel.signedUpLast7} this week) → ${latest.funnel.connected} connected → ${latest.funnel.traded} traded → ${latest.funnel.tradedLive} traded live → ${latest.funnel.paying} paying` : latest.funnel?.unavailable || "—"}
 - Target (docs/growth/plan-100.md): 100 paying by 2026-12-31.
