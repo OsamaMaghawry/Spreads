@@ -64,23 +64,29 @@ Against the study, check:
   doesn't contain (owner, 9 Oct: impressions with no clicks). At most 60
   characters; `npm run content:check` enforces it.
 
-## The daily run (07:00 UTC, every day)
+## The daily run (every day, after the metrics snapshot)
 
-The owner, 12 Oct, added five standing duties. They run every day, after the
-06:00 metrics snapshot has written `docs/growth/metrics/<today>.json`.
+The owner, 12 Oct, added five standing duties. On 21 Oct, after a week of
+reports that ended with ten links for him to press by hand: *"I'm not
+building agents to just report. I need actions."* So the daily run DOES the
+work it used to list. It reports what it did, and asks the owner only for
+what no API and no agent can do.
 
 1. **Every URL indexed.** Read the snapshot's `indexing` block: every
    sitemap URL, inspected through Search Console that morning. List each URL
    that is not indexed with Google's reason (`coverage`), and each
-   `canonicalMismatch`. A URL not indexed for three days running, or one Google
-   says it crawled and declined, gets a diagnosis and an `open` ticket in
-   `docs/ops/queue.md`.
-2. **New posts submitted the day they publish.** Any post published since the
-   last run that is not yet indexed is listed for the owner with its one-click
-   inspection link:
-   `https://search.google.com/search-console/inspect?resource_id=sc-domain%3Adeltamint.app&id=<url-encoded URL>`.
-   Say plainly that Google offers no API for "Request indexing" on ordinary
-   pages: the owner presses the button; you make it one click.
+   `canonicalMismatch`. A URL not indexed three days running, or crawled and
+   declined, gets a diagnosis. Fix the cause yourself where it is in a post
+   (step 6); anything needing code goes under "Needs code" in the report.
+2. **Submitted automatically, not by the owner.** The snapshot job submits
+   for you (`scripts/searchSubmit.mjs`): the sitemap to Google whenever it
+   changes or Google stops reading it, and every new or changed URL to Bing
+   and the other IndexNow engines. Read the snapshot's `submission` block and
+   report what was sent and what Google says it last read. Google has no API
+   for "Request indexing" on ordinary pages, and its Indexing API is for job
+   postings and livestreams only, so never ask the owner to press buttons. If
+   a submission FAILED (a permission, the key file), that is the one thing
+   to email him about, with the exact fix.
 3. **What changed in search.** Search for news from the last 48 hours on
    Google Search: core and spam updates, ranking-system changes, Search
    Console changes, AI Overviews and AI Mode, and anything that changes how
@@ -96,12 +102,28 @@ The owner, 12 Oct, added five standing duties. They run every day, after the
    impressions and the lowest click-through. For each, read the current top
    five results for its target query and compare titles: length, the
    question answered, the number or specific in it, the year, the angle.
-   Propose a better title as an `open` ticket. No dash in any title, long or
-   short (brand rule, enforced by `npm run content:check`).
+6. **Apply the fixes.** You edit posts now, within these limits:
+   - `search_title` and `meta_description` in a post's front matter, for the
+     posts from step 5 and any page step 1 diagnosed. At most three posts a
+     day; at most one change to the same post a week, so each change can be
+     measured.
+   - Internal links: from the indexed posts with the most impressions to
+     unindexed posts on the same subject, one link per post per day, as a
+     plain sentence or a "Related:" line at the end of a section. Never
+     rewrite a claim to fit a link.
+   - Never a slug, never `title` (the headline), never a number, a claim or
+     the closing disclaimer. Never the landing pages, the calculators or code.
+   - Before committing: `npm run content:check` clean on every edited post,
+     then the compliance-gate agent on every changed title, description and
+     sentence. A hard finding you cannot fix means that edit is dropped.
+   Record each edit in the report as before → after, with the evidence.
 
-Write `docs/seo/daily/YYYY-MM-DD.md` with five short sections in that order.
-Email the owner only when something needs his hand: URLs to submit, a page
-dropping out of the index, or a search change that affects this site.
+Write `docs/seo/daily/YYYY-MM-DD.md` with six short sections in that order,
+plus "Needs code" when there is something only an engineer can change.
+Commit ONLY `content/blog/` and `docs/seo/`, so the content workflow merges
+and publishes the branch by itself. Email the owner only when something needs
+his hand: a failed submission with its fix, a page dropping out of the index,
+or a search change that affects this site. Never a list of buttons to press.
 
 ## The calculators under /tools
 
@@ -131,6 +153,6 @@ propose a new one, hold it to the same shape as the others:
 - Anything you chose NOT to optimize because it would damage register or
   compliance — say so explicitly, so the restraint is visible and deliberate.
 
-Propose only; never edit the post, never touch the database. Slugs of
-already-published posts are load-bearing URLs — a slug change on a live post
+Outside the daily run's step 6, propose only: never edit the post, never
+touch the database. Slugs of already-published posts are load-bearing URLs — a slug change on a live post
 needs a redirect plan or it is a finding against the change, not the post.

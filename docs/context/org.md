@@ -100,8 +100,8 @@ Times are UTC.
 | 13:00–20:00, hourly, weekdays | duty-engineer | Reads commits, the ops health endpoint, the live site and the ticket queue; fixes plain bugs on `staging` with tests and opens a PR to `main`; escalates what changes a number's meaning. Ledger in `docs/ops/`. |
 | 11:00, every day | content-engine → seo-editor → desk-editor → compliance-gate | One article from the syllabus in `content/PLAN.md`, reviewed in the same session, committed; merged and published automatically when the diff is content-only. |
 | 20:30, weekdays | vp-product (end of day) | Reads `docs/ops/shipped.md` and the day's commits; reconciles the backlog and the positioning against what shipped. No email unless positioning changed. |
-| 06:00, every day | CI | Metrics snapshot: Search Console, GA4 and the product funnel into `docs/growth/metrics/` and the KPI panel, plus an inspection of every sitemap URL (indexed or not, and why). |
-| 07:00, every day | seo-editor (daily) | Indexing of every URL, new posts listed for submission, what changed in search, our keyword positions, titles against the competition. `docs/seo/daily/`. Emails only when the owner must act. |
+| 06:00, every day (GitHub often starts it hours late) | CI | Metrics snapshot: Search Console, GA4 and the product funnel into `docs/growth/metrics/` and the KPI panel, an inspection of every sitemap URL (indexed or not, and why), and the submission itself: the sitemap to Google when it changes, every new URL to Bing and the other IndexNow engines (`scripts/searchSubmit.mjs`). |
+| 14:52, every day | seo-editor (daily) | Reports what was submitted and what Google indexed, what changed in search, our keyword positions; then APPLIES its own fixes (search titles, meta descriptions, internal links) through the content path, which publishes them. `docs/seo/daily/`. Emails only for what only the owner can fix. On Wednesdays the same run does the weekly review below. |
 
 **Weekly — strategy.**
 
@@ -111,7 +111,7 @@ Times are UTC.
 | Mon 14:00 | vp-growth | The week's play, against `docs/growth/plan-100.md` |
 | Tue 14:00 | vp-product | Ranked backlog (≤5), kills, pricing when it moves — after reconciling against what shipped |
 | Wed 14:00 (biweekly) | head-of-branding | Consistency audit |
-| Wed 15:00 | seo-editor | Keyword map, competitor coverage, title/meta fixes as tickets, the growth report |
+| Wed 14:52 (in the daily run) | seo-editor | Keyword map, competitor coverage, the posts' search surface, the growth report email |
 | Thu 14:00 | head-of-trading | Standing audit of the market-facing path; findings to the queue |
 | **Fri 15:00** | **agent-manager** | **The board pack — one document, with metrics against target and the decisions needed** |
 
