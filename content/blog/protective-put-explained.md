@@ -116,6 +116,8 @@ Continue the first case. With XYZ at $51.00 and another 30 days to run, the 46 p
 
 The floor stays put while the cost of holding it grows. Each renewal adds its premium to the maximum loss and to the break-even. Over many months that sum is the real price of keeping a floor in place, and it is paid whether or not the floor is ever reached.
 
+The [tail risk hedge cost post](/blog/tail-risk-hedge-cost) adds that up over four quarters, across a calm year, a crash and a slow slide.
+
 A put can also be replaced before it expires, by selling the old one and buying a later one in a single [roll](/blog/rolling-options-explained). That recovers whatever value the old put has left, but the roll's natural price sells the old put at its bid and buys the new one at its ask, and the arithmetic above still applies.
 
 ## Frequently asked questions

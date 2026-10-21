@@ -1,0 +1,28 @@
+<svg viewBox="0 0 720 350" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Running total of the puts alone, in dollars, at the end of each quarter for one hypothetical 100-share lot. In a calm year the line falls by 120 each quarter, from zero to minus 480. In a crash year it falls to minus 120 after the first quarter, jumps to plus 1,760 after the second when the 90 put pays 2,000, then falls by 240 in each of the last two quarters to plus 1,280.">
+  <rect width="720" height="350" fill="#FFFFFF"/>
+
+  <!-- zero line -->
+  <line x1="110" y1="242" x2="640" y2="242" stroke="#C9CEDC" stroke-width="1.5"/>
+  <text x="100" y="247" font-size="14" text-anchor="end" fill="#767B8E">0</text>
+
+  <!-- quarter guides -->
+  <line x1="230" y1="50" x2="230" y2="305" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="350" y1="50" x2="350" y2="305" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="470" y1="50" x2="470" y2="305" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="590" y1="50" x2="590" y2="305" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="230" y="326" font-size="16" font-weight="600" text-anchor="middle" fill="#14151C">Q1</text>
+  <text x="350" y="326" font-size="16" font-weight="600" text-anchor="middle" fill="#14151C">Q2</text>
+  <text x="470" y="326" font-size="16" font-weight="600" text-anchor="middle" fill="#14151C">Q3</text>
+  <text x="590" y="326" font-size="16" font-weight="600" text-anchor="middle" fill="#14151C">Q4</text>
+
+  <!-- calm year -->
+  <path d="M110 242 L230 254 L350 265 L470 277 L590 288" fill="none" stroke="#B4485C" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="600" y="293" font-size="16" font-weight="600" fill="#B4485C">-480</text>
+  <text x="130" y="290" font-size="15" fill="#B4485C">calm year</text>
+
+  <!-- crash year -->
+  <path d="M110 242 L230 254 L350 73 L470 97 L590 120" fill="none" stroke="#2E8B5F" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="600" y="125" font-size="16" font-weight="600" fill="#2E8B5F">+1,280</text>
+  <text x="130" y="200" font-size="15" fill="#2E8B5F">crash year</text>
+  <text x="640" y="326" font-size="14" text-anchor="end" fill="#767B8E">hypothetical</text>
+</svg>
