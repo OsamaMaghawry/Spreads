@@ -35,6 +35,7 @@ jobs:
           const site = process.env.GSC_SITE_URL || "sc-domain:deltamint.app";
           const r = await googleSitemap({ token, site, feed, sa, state: {}, entries });
           const key = await fetch("https://deltamint.app/8b62b8a4ab3d56d58e2397ca07208234.txt");
-          console.log(JSON.stringify({ sitemapUrls: entries.length, result: r, indexNowKeyFileStatus: key.status }, null, 2));
+          const out = JSON.stringify({ sitemapUrls: entries.length, result: r, indexNowKeyFileStatus: key.status });
+          console.log(`::notice title=probe::${out.replace(/%/g, "%25").replace(/\n/g, " ")}`);
           JS
           cp /tmp/probe.mjs ./probe.mjs && node ./probe.mjs | tee -a "$GITHUB_STEP_SUMMARY"
