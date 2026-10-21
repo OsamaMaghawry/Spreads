@@ -102,6 +102,6 @@ In the example, the 46 puts cost $225 at $53 and $47, and pay $2,000 at $42. Whe
 
 A cash-secured put is secured against the inability to pay, not against the loss. Hedging it means buying something that gains as the stock falls, and each choice trades a different thing: a put on the same stock fixes the worst case at $1,525 in the example for a cost of $225, an index put covers the book through a relationship, and a VIX call pays on volatility rather than on any position.
 
-To see what the short put does before the hedge, start from the [income series](/blog/income). Shares held with a bought 46 put and a sold 50 call on one expiration have the same shape, a [collar](/blog/collar-option-strategy).
+To see what the short put does before the hedge, start from the [income series](/blog/income). Shares held with a bought 46 put and a sold 50 call on one expiration have the same shape, a [collar](/blog/collar-option-strategy). What it costs to keep a put hedge on all year, for a stock position, is worked through in the [tail risk hedge cost post](/blog/tail-risk-hedge-cost).
 
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.
