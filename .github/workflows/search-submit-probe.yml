@@ -10,9 +10,11 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch a few assets from the live site
+      - name: Is the key file real, and does a missing page return 404
         run: |
-          for p in assets/blog/collar-payoff.svg assets/blog/tail-hedge-three-paths.svg assets/blog/protective-put-payoff.svg assets/blog/wheel-running-cost-basis.svg 8b62b8a4ab3d56d58e2397ca07208234.txt blog/collar-option-strategy; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' "https://deltamint.app/$p")
-            echo "::notice title=live::$code /$p"
-          done
+          body=$(curl -s https://deltamint.app/8b62b8a4ab3d56d58e2397ca07208234.txt | head -c 80 | tr -d '\n')
+          echo "::notice title=live::key body [$body]"
+          code=$(curl -s -o /dev/null -w '%{http_code}' https://deltamint.app/assets/blog/does-not-exist-zz.svg)
+          echo "::notice title=live::missing file -> $code"
+          srv=$(curl -sI https://deltamint.app/8b62b8a4ab3d56d58e2397ca07208234.txt | grep -i "^cf-ray\|^server\|^last-modified\|^etag" | tr -d '\r' | tr '\n' ' ')
+          echo "::notice title=live::headers $srv"
