@@ -1,0 +1,19 @@
+<svg viewBox="0 0 720 270" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Share of a hypothetical $100,000 account held in XYZ before and after a 30 percent fall. Before, XYZ is $50,000 of the account, 50 percent, with $50,000 in other holdings. After XYZ falls from 50 to 35, it is $35,000 and the other holdings are still $50,000, so the account is $85,000 and XYZ is about 41 percent of it.">
+  <rect width="720" height="270" fill="#FFFFFF"/>
+
+  <text x="40" y="50" font-size="17" font-weight="600" fill="#14151C">XYZ at 50</text>
+  <rect x="140" y="28" width="260" height="40" fill="#B4485C" fill-opacity="0.85"/>
+  <rect x="400" y="28" width="260" height="40" fill="#C9CEDC"/>
+  <text x="270" y="54" font-size="17" font-weight="600" text-anchor="middle" fill="#FFFFFF">XYZ $50,000</text>
+  <text x="530" y="54" font-size="17" text-anchor="middle" fill="#14151C">other $50,000</text>
+  <text x="140" y="92" font-size="15" fill="#767B8E">50% of the account</text>
+
+  <text x="40" y="170" font-size="17" font-weight="600" fill="#14151C">XYZ at 35</text>
+  <rect x="140" y="148" width="182" height="40" fill="#B4485C" fill-opacity="0.85"/>
+  <rect x="322" y="148" width="260" height="40" fill="#C9CEDC"/>
+  <text x="231" y="174" font-size="17" font-weight="600" text-anchor="middle" fill="#FFFFFF">XYZ $35,000</text>
+  <text x="452" y="174" font-size="17" text-anchor="middle" fill="#14151C">other $50,000</text>
+  <text x="140" y="212" font-size="15" fill="#767B8E">about 41% of an $85,000 account</text>
+
+  <text x="40" y="254" font-size="15" fill="#767B8E">A fall shrinks the position and the account together.</text>
+</svg>

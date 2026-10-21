@@ -1,0 +1,31 @@
+<svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="What a hypothetical collar leaves in the account after expiration. Before expiration the account holds 100 shares of XYZ, one long 46 put and one short 54 call. If XYZ closes at 58, above the call strike, the call is assigned, the shares are delivered at 54, and the account holds $5,400 in cash with no shares. If XYZ closes at 50, between the strikes, both options expire worthless and the account holds 100 shares with no options, unhedged. If XYZ closes at 43, below the put strike, the put is exercised, the shares are sold at 46, and the account holds $4,600 in cash.">
+  <rect width="720" height="340" fill="#FFFFFF"/>
+
+  <!-- before: shares, long put, short call -->
+  <rect x="190" y="24" width="340" height="64" rx="10" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="360" y="64" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">100 shares + 46 put - 54 call</text>
+
+  <!-- branches -->
+  <path d="M260 88 L130 206" fill="none" stroke="#767B8E" stroke-width="2.5"/>
+  <path d="M130 206 l13.2 -4.2 M130 206 l5.4 -13" fill="none" stroke="#767B8E" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M360 88 L360 206" fill="none" stroke="#767B8E" stroke-width="2.5"/>
+  <path d="M360 206 l-6 -12.6 M360 206 l6 -12.6" fill="none" stroke="#767B8E" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M460 88 L590 206" fill="none" stroke="#767B8E" stroke-width="2.5"/>
+  <path d="M590 206 l-5.4 -13 M590 206 l-13.2 -4.2" fill="none" stroke="#767B8E" stroke-width="2.5" stroke-linecap="round"/>
+  <text x="170" y="152" font-size="17" text-anchor="end" fill="#767B8E">closes 43</text>
+  <text x="372" y="152" font-size="17" fill="#767B8E">closes 50</text>
+  <text x="550" y="152" font-size="17" fill="#767B8E">closes 58</text>
+
+  <!-- left: put exercised -->
+  <rect x="30" y="216" width="200" height="88" rx="10" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="130" y="268" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">$4,600 cash</text>
+
+  <!-- middle: both expire -->
+  <rect x="260" y="216" width="200" height="88" rx="10" fill="#FFFFFF" stroke="#B4485C" stroke-width="2"/>
+  <text x="360" y="254" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">100 shares</text>
+  <text x="360" y="284" font-size="17" font-weight="600" text-anchor="middle" fill="#B4485C">unhedged</text>
+
+  <!-- right: call assigned -->
+  <rect x="490" y="216" width="200" height="88" rx="10" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="590" y="268" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">$5,400 cash</text>
+</svg>

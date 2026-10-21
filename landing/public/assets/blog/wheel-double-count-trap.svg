@@ -1,0 +1,19 @@
+<svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Two horizontal bars measuring one hypothetical XYZ wheel, per share, from zero. The top bar, every premium counted once, reaches 1.63 and is all green. The bottom bar, with the put premium counted twice, reaches 3.03: the same green 1.63, plus a red segment of 1.40 that is the put premium added a second time and was never received as extra cash.">
+  <rect width="720" height="260" fill="#FFFFFF"/>
+
+  <!-- zero line -->
+  <line x1="120" y1="40" x2="120" y2="232" stroke="#14151C" stroke-width="2"/>
+  <text x="120" y="252" font-size="16" text-anchor="middle" fill="#767B8E">0</text>
+
+  <!-- counted once -->
+  <text x="120" y="64" font-size="16" fill="#767B8E">counted once</text>
+  <rect x="120" y="75" width="244.5" height="44" fill="#2E8B5F"/>
+  <text x="376" y="104" font-size="20" font-weight="600" fill="#14151C">1.63</text>
+
+  <!-- put counted twice -->
+  <text x="120" y="164" font-size="16" fill="#767B8E">put counted twice</text>
+  <rect x="120" y="175" width="244.5" height="44" fill="#2E8B5F"/>
+  <rect x="364.5" y="175" width="210" height="44" fill="#B4485C"/>
+  <text x="469.5" y="203" font-size="16" font-weight="600" text-anchor="middle" fill="#FFFFFF">1.40 extra</text>
+  <text x="586" y="204" font-size="20" font-weight="600" fill="#14151C">3.03</text>
+</svg>

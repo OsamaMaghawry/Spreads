@@ -1,0 +1,22 @@
+<svg viewBox="0 0 720 290" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Loss from today's value on a hypothetical 1,000-share XYZ lot if XYZ closes at 35 at expiration. Shares alone lose $15,000. With a 48/44 put spread the loss is $12,110, because the protection stops at 44. With a 46 put the loss is $4,790. With a 46/54 collar the loss is $3,940.">
+  <rect width="720" height="290" fill="#FFFFFF"/>
+  <line x1="200" y1="24" x2="200" y2="236" stroke="#C9CEDC" stroke-width="1.5"/>
+
+  <text x="188" y="62" font-size="17" text-anchor="end" fill="#14151C">Shares alone</text>
+  <rect x="200" y="40" width="460" height="34" fill="#B4485C"/>
+  <text x="650" y="63" font-size="17" font-weight="600" text-anchor="end" fill="#FFFFFF">-$15,000</text>
+
+  <text x="188" y="116" font-size="17" text-anchor="end" fill="#14151C">48/44 put spread</text>
+  <rect x="200" y="94" width="371" height="34" fill="#B4485C"/>
+  <text x="561" y="117" font-size="17" font-weight="600" text-anchor="end" fill="#FFFFFF">-$12,110</text>
+
+  <text x="188" y="170" font-size="17" text-anchor="end" fill="#14151C">46 put</text>
+  <rect x="200" y="148" width="147" height="34" fill="#B4485C"/>
+  <text x="357" y="171" font-size="17" font-weight="600" fill="#14151C">-$4,790</text>
+
+  <text x="188" y="224" font-size="17" text-anchor="end" fill="#14151C">46/54 collar</text>
+  <rect x="200" y="202" width="121" height="34" fill="#B4485C"/>
+  <text x="331" y="225" font-size="17" font-weight="600" fill="#14151C">-$3,940</text>
+
+  <text x="200" y="276" font-size="15" fill="#767B8E">XYZ closes at 35, ten contracts, premiums included</text>
+</svg>

@@ -40,6 +40,15 @@ results, not a metric. Never dress reading a results page up as volume data.
 | 26 | Diagonal spreads | diagonal spread explained (also searched as "what is a diagonal spread", "diagonal spread vs calendar spread", "is a diagonal spread a debit or credit spread", "diagonal spread max loss" and "call diagonal spread break even" — see the row 26 reading). Slug `diagonal-spread-explained` | diagonal spread; never "diagonal" alone. "Poor man's covered call" is a later syllabus post's, not this row's | Indian broker learning centres (Motilal Oswal, Religare, Angel One, Upstox, 5paisa, Bajaj Broking/Finserv), daytrading.com, CapTrader glossary, SoFi, TradeStation, Webull courseware, moomoo learn, tastylive/tastytrade, Fidelity strategy guide, Option Alpha, optionstradingiq, Market Chameleon, thismatter, supermoney, wallstreetmojo, Wikipedia, Nasdaq and Shmoop glossaries, QuantInsti; Barchart "bullish diagonal trade" syndication and TradingView chart ideas in the tail. No investopedia.com or Reddit page surfaced (read 7 Oct 2026) | one hypothetical 48/52 call diagonal (60/30 days, 2.80 debit) on the series' chain, set beside row 25's 0.94 calendar: a tilted payoff, not a hill, peaking at the short strike and staying above its cost on the upside because the 4.00 strike gap exceeds the debit; a break-even near 49.08 found by pricing, against the 50.80 the "long strike plus debit" shortcut gives; net long vega priced at three IV levels. Long-strike-below-short version only. No "when to use", no directional call, no adjustment rule, no return figure |
 | 27 | The poor man's covered call as an income structure | poor mans covered call (searched with and without the apostrophe; also as "what is a poor man's covered call", "poor man's covered call explained", "pmcc vs covered call", "pmcc max loss" and "poor man's covered call assignment" — see the row 27 reading). Slug `poor-mans-covered-call` | poor man's covered call, always spelled out; never "PMCC" alone — the bare acronym returns the product moment correlation coefficient (A-level statistics) and "pmcc max loss" returns probable-maximum-loss insurance pages. "pmcc vs covered call" is row 43's investor framing, not this row's | Option Alpha, tastylive (concepts page, definitions page, show episodes), moomoo learn (US and CA), Options Playbook blog, IG (EN and UK "options need-to-knows"), Bajaj Finserv, Market Rebellion, MarketBeat (two), OptionStrat blog (two), Saxo, FXStreet video, optionstradingiq ("risks of"), CapTrader, tapeboard glossary, deltavalue.de, kylascanlon, angelinvestorsnetwork glossary, seeitmarket, a Rockwell Trading podcast, a teamblind thread and an Elite Trader thread; TradingView real-ticker "trade idea" charts in the tail. No investopedia.com or Reddit page surfaced, including on queries naming each (read 9 Oct 2026) | one hypothetical XYZ PMCC (long 120-day 40 call at 10.90, short 30-day 52 call at 1.47, 9.43 debit) beside a covered call on the same stock and the same short call: $943 against $4,853 at the fill; the upside ending 0.90 lower, which is the long call's extrinsic value; the "long strike plus debit below the short strike" rule checked by pricing against a 46/50 version that breaks it and loses on a large rise; assignment leaving short stock, settled by exercise (forfeiting extrinsic) or by buying shares; and what the long call does not copy — dividends, votes, permanence, IV-independence. No "when to use", no delta or DTE selection rule, no capital-efficiency ratio, no return figure |
 | 28 | Rolling a short option: what it is and what it is not | rolling options explained (also searched as "what does it mean to roll an option", "roll a short put", "rolling a covered call", "does rolling an option realize a loss" and "is rolling an option the same as closing and opening a new position" — see the row 28 reading). Recommended slug `rolling-options-explained` | rolling options; never "roll" or "rolling" alone. "Roll protective put" is row 38's; "rolling for a credit" and "when to roll" are advice intent, not targeted | Saxo (four-part "Rolling options explained" series, several regional hosts), QuantWheel (six URLs, including an exact-match "rolling-options-explained"), incomeshares (exact-match, two languages), Wealthsimple (two hosts), Nasdaq, TradeStation insights, Robinhood support (four regional hosts), moomoo (learn and support), Fidelity and Options Playbook (covered call and cash-secured put rolling), Option Alpha, optionstradingiq, tastylive ("defending positions"), Britannica Money, MarketBeat, strike.money, CFI, Achievable (FINRA Series 9 course), ApexVol roll calculator, thetaedge, a Substack, a beehiiv newsletter, a Rockwell Trading podcast; NexusFi, a Reddit mirror of r/Optionswheel and r/CoveredCalls, and TradingView chart ideas in the tail. No investopedia.com page surfaced, including on a query naming it (read 11 Oct 2026) | one roll ticket on one hypothetical XYZ short put, priced by Black-Scholes, read as two legs: the closing leg bought back at a loss, the opening leg sold for more than that, and the net credit as the difference between them. The credit is not a profit, because the closing leg's loss is realized on that ticket. What opens is a new position with a new date, strike and collateral, not the old one continued. No "when to roll", no roll trigger (delta, DTE, percentage down), no "roll for a credit" rule, no tax claim, no return figure |
+| 29 | Covered calls on shares you were assigned | covered call after assignment (also searched as "what to do after put assignment", "covered call below cost basis" and "sell covered call after cash secured put assignment" — see the row 29 reading). Slug `covered-call-after-assignment` | covered call; never "assignment" alone, which is row 10's | QuantWheel (csp-assignment, covered-call-assignment, wheel pages), Saxo (assignment explained), SpotGamma (covered calls below cost basis), Substacks (themultiplier, djincometrader), optionstradingiq, tastylive Market Measures, TradingView chart ideas in the tail. No Investopedia or broker hub surfaced (read 12 Oct 2026) | one hypothetical set of shares from the wheel post's assigned 50 put (effective cost 48.60), three call strikes (48, 50, 52) priced at the bid: premium against cap, break-even moved by premium only, the loss already in the shares untouched. Descriptive, no "which strike", no recovery framing |
+| 30 | Cost basis on the wheel: adjusted for every premium | wheel strategy cost basis (also searched as "wheel strategy adjusted cost basis", "effective cost basis wheel" and "does the broker show my cost basis after put assignment" - see the row 30 reading). Slug `wheel-strategy-cost-basis` | wheel strategy; "cost basis" alone is generic and tax-flavoured | QuantWheel (cost-basis-tracking, how-it-works, mistakes), Ryan O'Connell, Option Alpha, tracker and spreadsheet vendors, Substacks |
+| 31 | The protective put | protective put explained (also searched as "protective put example", "protective put break even" and "married put" - see the row 31 reading). Slug `protective-put-explained` | protective put; "put option" alone is a head term for the foundations hub | SoFi, Benzinga, Seeking Alpha, moomoo, TradeStation, NBC, Ryan O'Connell, Macroption, Sahi, indmoney; glossary and exam-prep pages in the tail | the floor, the break-even and the cost on one hypothetical 100-share lot, and what the position looks like the day the put expires |
+| 32 | The collar | collar option strategy (also searched as "collar option example", "collar payoff break even", "collar vs protective put" and "zero cost collar" - see the row 32 reading). Slug `collar-option-strategy` | collar; never "collar" alone, which drifts to price collars, interest-rate collars and clothing. "Hedge concentrated stock position" is row 34's, the tax framing row 40's | Saxo (several regional hosts), Macroption (strategy and payoff pages), tastylive, Fidelity strategy guide, Options Playbook, Option Alpha, Britannica Money, CFI, Ryan O'Connell, Investing Daily, daytrading.com, Bajaj Broking, bigul; Schaeffer's, Nasdaq and Mercer Advisors on "vs protective put"; Barchart per-ticker protective-collar pages, helpjuice glossaries, supermoney, Angel One and German broker pages (deltavalue, LYNX) on "zero cost collar"; OIC, MX and Stifel PDFs in the tail. No investopedia.com or Reddit page surfaced (read 2026-10-16) | the same hypothetical 100 XYZ shares bought at 48 as row 31, with the row 31 46 put (0.79 ask) and a 54 call (0.85 bid): a 0.06 net credit, the floor, the cap, break-even and max loss from that fill, beside a 46 put / 52 call version (the covered call post's call, 1.42 bid) at a 0.63 credit; then the account the day after expiry in each of the three cases (put exercised, shares called away, both expire). Descriptive only, "zero-cost" defined as a label and never promised, no "when to collar", no strike rule, no return figure |
+| 33 | The put spread hedge | put spread hedge (also searched as "hedging with put spreads", "put spread vs protective put", "hedge stock with bear put spread" and "put spread collar" - see the row 33 reading). Slug `put-spread-hedge` | put spread hedge; never "put spread" alone, which drifts to put credit spreads (row 18) and directional bear put spread pages. "Put spread collar" is a three-leg structure, a FAQ line at most. "Hedge concentrated stock position" is row 34's, "tail risk hedge cost" row 37's, "roll protective put" row 38's | Seeking Alpha instablog, Motley Fool (2010, syndicated on Yahoo), Benzinga (2010 ratio spreads), InvestorPlace (2009), StockCharts ChartWatchers (2025), Kotak and HSBC PDFs, LYNX, sentimentrader, learn.optionsai; Option Alpha podcast, traderspost and compare-tool pages on "vs protective put"; Saxo, Quantsapp and a UZH research blog on cost; SoFi, Fidelity Viewpoints, Wealthsimple, Webull, Macroption, Barchart and Firstrade on standalone bear put spreads. No investopedia.com page surfaced (read 2026-10-17) | the same hypothetical 100 XYZ shares bought at 48 as rows 31 and 32: the 48 put (1.43 ask) with a 44 put sold at 0.32 bid, a 1.11 net debit, band 48 to 44, break-even 49.11, loss to zero 45.11 a share; set beside the 48 put alone and the 46 put alone at 51, 46 and 41 (crossovers 43.68 and 42.32); the account at expiry in each case, including both legs settling on one night, and an early assignment leaving 200 shares and one put. Descriptive only, "cheaper insurance" never promised, no "when to hedge", no strike rule, no backtest or return figure |
+| 34 | Hedging a concentrated stock position | hedge concentrated stock position options (also searched as "how to hedge a concentrated stock position", "collar for concentrated stock" and "protect concentrated stock with puts" - see the row 34 reading). Slug `hedge-concentrated-stock-position` | stock hedging; never "concentrated" alone | InvestmentNews, Envestnet, Pure Financial, Palisades Hudson, mystockoptions, Landmark Wealth; collar pages from Ryan O'Connell and Achievable. Advisor-marketing pages and 2004-2015 articles; no broker hub or investopedia.com page surfaced (read 2026-10-18) | one hypothetical 1,000-share XYZ lot, half of a $100,000 account, with the three hedges of rows 31-33 scaled to 10 contracts (46 put 790 debit, 46/54 collar 60 credit, 48/44 put spread 1,110 debit) at 55, 45 and 35; a fall does not cure the concentration (50% becomes 41%); contracts come in 100s (1,250 shares, 12 contracts, 50 unhedged). Descriptive only: no "how much to hedge", no strike rule, tax and employer-policy questions handed to a professional |
+| 35 | What VIX products do and do not do | vix hedge explained (also searched as "vix call hedge", "vix options contango" and "does vix hedge a portfolio" - see the row 35 reading). Slug `vix-hedge-explained` | vix hedge; never "VIX" alone, which is a quote page query | Schwab (trading the VIX), Option Alpha (VIX portfolio hedging strategy), Macroption (VIX options pages), CBOE specification pages, CapTrader, Achievable, forum threads (Early Retirement Now) (read 2026-10-19) | one hypothetical $100,000 of stocks and one VIX 20 call at 1.20 ($120): three cases (calm, sharp selloff, slow decline with the same loss) showing the call pays on the level of volatility, not on the stock loss; the option priced off the future, so spot flat can still end worthless; the roll in contango in points, no percentages. Descriptive only: no "how many contracts", no "when to buy", no return figure |
+| 36 | Hedging an income portfolio of short puts | hedge cash secured puts (also searched as "how to hedge short puts", "hedging a cash secured put with a long put", "protect cash secured puts from market crash" and "is a cash secured put risky if the stock crashes" - see the row 36 reading). Slug `hedge-cash-secured-puts` | cash-secured put hedge; never "hedge" or "short put" alone. "Put spread hedge" (long stock) is row 33's, "vix hedge explained" row 35's, "spx vs spy options hedge" row 39's, "tail risk hedge cost" row 37's; the converted position's mechanics are row 18's | No exact-intent page holds the phrase: the bare query returns cash-secured put explainers (Option Alpha, thetaedge, Benzinga, Religare, a Substack, an OIC video). Long-tail: Option Alpha podcast, Option Strategist Substack (2009: long lower put or VIX calls), learn.optionsai, Nasdaq, optionstradingiq, Fidelity, Lightspeed, M-X PDF, Saxo, moomoo, SoFi, Ryan O'Connell, SpotGamma, robotwealth and Seeking Alpha on index put basis risk (long-stock books only); forum threads and thin mirrors in the tail. No investopedia.com, tastylive.com or Reddit page surfaced (read 2026-10-20) | one hypothetical XYZ account of five short 50 puts at a 1.40 credit ($700, $25,000 reserved), hedged three ways: a 46 put bought at 0.45 on the same stock (a 50/46 put spread, worst case $1,525, cost $225), an index put (basis risk, sizing is an assumption) and a VIX call (row 35's point applied to a short-put book). Cash securing protects against forced liquidation, not against the loss. Descriptive only: no "which hedge", no hedge ratio, no strike rule, no return figure |
+| 37 | The cost of being always hedged | tail risk hedge cost (also searched as "how much does it cost to hedge with puts every year", "cost of rolling protective puts", "tail hedge slow decline" and "why are puts more expensive after a crash"; see the row 37 reading). Slug `tail-risk-hedge-cost` | tail risk hedging; never "tail risk" alone, which is a statistics and fund-marketing definition owned by Wikipedia, PIMCO, Cboe and glossaries. "Is tail risk hedging worth it" is advice intent, not targeted. "Put spread hedge" is row 33's, "vix hedge explained" row 35's, "roll protective put" row 38's | The target returns one BNY article ("Cost, convexity and the case for systematic tail hedging") across about ten regional URLs. Long tail: heygotrade, Slope of Hope, MSCI, Neuberger Berman, Acadifi community Q&A, Endowus, SpotGamma, traderspost, moomoo learn; Newfound Research and Alpha Architect on slow declines; Alpha Architect, Motley Fool and FXStreet (2010 to 2015) on puts after a crash; an Elite Trader thread, a playingfordoubles Substack and valueinvestorsclub on OTM strike cost. No investopedia.com, broker education hub or Reddit page surfaced (read 2026-10-21) | one hypothetical 100-share XYZ lot at 100 with a 90 put bought each quarter at 1.20 ($120, $480 a year) over three one-year paths: calm (puts cost $480), a crash to 70 in the second quarter (put pays $2,000, re-hedged at 63 for 2.40, year's premiums $720, puts net +$1,280, account down $1,720) and a slow slide to 90 (strikes reset each quarter, all four expire worthless, account down $1,480 against $1,000 unhedged); then 95, 90 and 80 strikes at $1,040, $480 and $180 a year, each saving shown as cover given up. Descriptive only: no "is it worth it", no "how much to hedge", no strike rule, no backtest percentage, no return figure |
 | M48 | What a credit spread actually risks | credit spread max loss before expiration | credit spread max loss | tastytrade (short put vertical), moomoo, Schwab, broker learn hubs; TradingView chart-idea pages padding the tail | max loss is the expiration number — what the collateral holds, what the mark does, and what assignment changes in between |
 
 Rows 21–65 are added by the Wednesday run as their turn approaches.
@@ -1193,6 +1202,29 @@ threads rank directly (only mirrors surfaced); whether Investopedia ranks for
 the head term (none surfaced); whether the Saxo series and the QuantWheel
 cluster hold the top slots or are only what this tool returns first.
 
+## Reading for row 29 — covered call after assignment (read 2026-10-12)
+
+Results pages read that day, not measured. No rank tracker, volume tool or
+Search Console connection here: this records which domains surface, not
+positions or demand. Three searches, one tool, one day.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| covered call after assignment (target) | TradingView chart ideas, Substacks (djincometrader, themultiplier), Saxo assignment explained, optionstradingiq, QuantWheel, Webull EU help | **winnable** — practitioner posts and help pages, no broker education hub or Investopedia. The answers frame it as "recover the loss" |
+| selling covered calls on shares assigned from a cash-secured put, strike below cost basis | SpotGamma ("covered calls below cost basis"), QuantWheel (csp-assignment, wheel pages), traderspost, Benzinga calculator | **winnable as an H2** — QuantWheel gives the one priced example (50 put, 2.00 premium, 48 basis, 52 call for 1.50) and no table of strikes against the cap |
+| what to do after put assignment sell covered call below cost basis | SpotGamma, themultiplier, QuantWheel, tastylive Market Measures, cost-basis calculators | **winnable** — sources split into "sell at or above basis", "sell below deliberately", "wait or exit"; all are advice |
+
+**The gap.** The ranking pages say what to do after assignment ("recover the loss",
+"sell at or above basis"). None sets several strikes side by side against one
+effective cost, showing the premium taken, the cap, and the break-even each
+produces, or says plainly that no strike changes the loss already in the shares.
+
+**Title / meta.** Title "Covered call after assignment: the strike against the cost"; the exact target leads. Slug is the exact target.
+
+**Restraint.** Not targeted: "recover the loss", "get back to breakeven", "repair", "never sell below cost basis" and any "which strike" framing; tax or wash-sale claims.
+
+**Could not establish:** volume, position, whether SpotGamma's 2026 article holds the top slot (only its introduction surfaced).
+
 ## Off-syllabus rows
 
 `M48` is not a syllabus number. That post is not in the numbered list in
@@ -1228,3 +1260,158 @@ any phrasing above; whether these results are personalised or localised; and
 whether a distinct query exists for "defined risk is less defined than it
 looks" — searches for it returned only generic spread explainers, so the post
 owns the idea but there is no phrasing to target with it.
+
+
+## Reading for row 30 - wheel strategy cost basis (read 2026-10-14)
+
+Results pages read that day, not measured. No rank tracker, volume tool or Search Console connection here: this records which domains surface, not positions or demand. Two searches, one tool, one day.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| wheel strategy cost basis (target) | QuantWheel (cost-basis-tracking, how-it-works, mistakes, understand-real-cost), Ryan O'Connell, Option Alpha, tracker vendors | **winnable-ish** - tool-vendor pages hold most of it, no broker education hub. Every page gives the one-line formula (strike less premium) |
+| wheel strategy adjusted cost basis after covered call | QuantWheel, Ryan O'Connell, Substacks | **winnable** - examples switch tickers each step; one carries a double-counting trap (put premium inside the basis, then added again to profit) that none states as a rule |
+| broker cost basis vs wheel cost basis | QuantWheel only | **winnable** - the claim that brokers show the strike while premiums are booked separately is made by a vendor and never tied to one worked ledger |
+
+**The gap.** The pages give the formula and then run a fresh ticker per step. None carries one hypothetical ledger through put, assignment, a call that expires and a call that is assigned, showing the running figure, the double-counting trap, and that this figure is a trader's own arithmetic and not the tax basis.
+
+**Title / meta.** Title leads with the exact target. Slug `wheel-strategy-cost-basis`.
+
+**Restraint.** Not targeted: "lower your cost basis", "get back to breakeven", "never sell below basis", tax or wash-sale treatment (a tax professional's), and any tracker or automation framing.
+
+**Could not establish:** volume, position, how any broker labels basis on a 1099-B.
+
+
+## Reading for row 31 - protective put (read 2026-10-15)
+
+Results pages read that day, not measured. No rank tracker or volume tool.
+
+**Query space.** "protective put explained", "protective put example", "protective put break even / max loss" and "married put" (the same structure under another name, kept to a FAQ line; its tax framing is row 40).
+
+**Who ranks.** Broker and fintech education (SoFi, Benzinga, moomoo, TradeStation, NBC), Seeking Alpha, finance blogs (Ryan O'Connell, Macroption), glossary and exam-prep pages. Investopedia did not surface in these results.
+
+**Gap.** The ranking pages give the floor and break-even formulas with a share price example and the insurance analogy. They rarely show the put expiring and what the lot looks like the day after, or the cost of renewing. That is the angle.
+
+**Restraint.** "Portfolio insurance" as a promise, "when to buy", "best strike" and any claim that hedging pays are not targeted. Put-call parity is named at most in one line.
+
+**Links.** Out: `/blog/hedging`, `cash-secured-put-explained`, `covered-call-explained`, `intrinsic-vs-extrinsic-value-options`, `theta-decay-explained`, `what-happens-options-expiration`. Reciprocal links are left to the review chain.
+
+**Could not establish:** volume, difficulty or rank for any phrasing.
+
+
+## Reading for row 32 - collar (read 2026-10-16)
+
+Results pages read that day, not measured. No rank tracker or volume tool. Seven searches, one day.
+
+**Query space.** "collar option strategy" (the target, and close to the head term: the results read as the strategy-definition set), "collar option example", "collar payoff / break even / max loss", "what happens to a collar at expiration", "collar vs protective put" and "zero cost collar". The bare word "collar" is not targeted: it drifts to price collars, interest-rate collars and products.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| collar option strategy (target) | Saxo (several regional hosts), Macroption, tastylive, CFI, Britannica Money, Investing Daily, daytrading.com, bigul | **hard-ish** - broker and education hubs hold it, though no Investopedia surfaced. The title still leads with it, because every long-tail result below is titled with it too |
+| collar option example / at expiration | tastylive, Fidelity strategy guide, Macroption payoff, Ryan O'Connell, Options Playbook, Option Alpha, OIC, MX and Stifel PDFs | **winnable** - each gives one example on a fresh ticker and lists the three expiry cases in one line each; none shows the account afterwards |
+| collar break even / max loss | Macroption, Barchart per-ticker "protective collar" pages, helpjuice glossaries | **winnable** - formulas are given (break-even = share cost + put paid - call received), split by Barchart into credit and debit collars, never on a lot already shown as a protective put |
+| collar vs protective put | Schaeffer's (2015, 2024), Nasdaq, Mercer Advisors, Ryan O'Connell | **winnable as a FAQ line** - advisor pages that end in "which suits you", a register we do not copy |
+| zero cost collar | helpjuice, supermoney, deltavalue, LYNX, Angel One, Aptus, Ryan O'Connell | **not targeted as a title** - several pages concede most collars end at a small debit or credit; the phrase reads as a promise in a title |
+
+**Gap.** The ranking pages give the three legs, the formulas and an example on a ticker made up for that page, then three one-line expiry outcomes. None continues a lot the reader has already seen hedged with a put alone, so none can show what the sold call buys and what it gives up on identical shares. None shows the account the day after expiry in each case: cash at 46 after the put is exercised, cash at 54 after the shares are called away, or 100 shares and no options after both expire. That is the angle. On the series' chain the 46 put bought at 0.79 and the 54 call sold at 0.85 make a 0.06 net credit: break-even 47.94, max loss 1.94 a share, max gain 6.06. The 46 put with the 52 call (1.42 bid) is a 0.63 credit: break-even 47.37, max loss 1.37, max gain 4.63. These are hypothetical model quotes, matching the untracked draft `content/blog/collar-option-strategy.md` as read that day.
+
+**Title / meta.** Title leads with the exact target. Slug `collar-option-strategy`. Search title: "Collar option strategy: example, break-even and max loss" (56). Slug note: the draft carries `collar-option-strategy`. It is not live, so either slug costs no redirect, but the shorter one is the exact target. H2s that match searched questions: "How does a collar work?", "Collar option example: 100 XYZ shares, a 46 put and a 54 call", "What does a collar cost?", "How does a collar end at expiration?", "What does the account hold the day after a collar expires?". "Collar vs protective put" and "What is a zero-cost collar?" go in the FAQ.
+
+**Restraint.** "Zero-cost collar" is defined once as the label for strikes picked so the premiums roughly offset. It is never promised, never used in a title or meta, and the post says the cost moves into the cap. "Free protection" (Britannica's own headline asks it), "protection with income", "when to collar", "best strikes", "which suits you" and any claim that hedging pays are not targeted. Early assignment of the short call before a dividend is one line, linked to `early-exercise-options`. Constructive-sale and qualified-covered-call tax treatment is left out and handed to row 40. The concentrated-position framing is row 34's.
+
+**Links.** Out: `/blog/hedging`, `protective-put-explained` (same lot and put), `covered-call-explained` (same call), `how-to-read-an-option-chain`, `option-assignment-what-happens`, `early-exercise-options`, `what-happens-options-expiration`. Back: `protective-put-explained` already says a collar would cap the upside (its FAQ). That line is the natural reciprocal link, left to the review chain. No collar calculator exists under /tools and none is mapped in `TOOL_FOR_POST`. That is an open question for a later tool proposal, not this row.
+
+**Could not establish:** volume, difficulty or rank for any phrasing; whether "collar option strategy" or "collar options strategy" is the more common form (both title ranking pages); any Reddit or forum demand (none surfaced).
+
+## Reading for row 33 - put spread hedge (read 2026-10-17)
+
+Results pages read that day, not measured. No rank tracker or volume tool. Eight searches, one day.
+
+**Query space.** "put spread hedge" (the target), "hedging with put spreads on stock you own", "hedge stock with bear put spread example", "put spread vs protective put", "bear put spread break even / max loss" with shares held, and "put spread collar". The bare "put spread" is not targeted: it drifts to put credit spreads (row 18) and to directional bear put spread pages.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| put spread hedge (target) | Seeking Alpha instablog, Motley Fool 2010, Benzinga 2010, Kotak and HSBC PDFs, LYNX, sentimentrader, learn.optionsai | **winnable** - no strategy-definition page or broker hub owns the exact phrase; old articles, PDFs and trade ideas fill page one |
+| hedging with put spreads on stock you own / bear put spread example | StockCharts ChartWatchers 2025, InvestorPlace 2009, Pure Financial, Schaeffer's 2015, SoFi, Investing Daily, Benzinga | **winnable** - each gives one sentence on the band and one fresh ticker, and several are written for speculation rather than hedging |
+| put spread vs protective put | Option Alpha podcast, traderspost blog, compare-tool pages, OIC video library | **winnable as an H2 and a FAQ line** - comparison tools and backtest summaries, a register we do not copy |
+| bear put spread break even / max loss | SoFi, Fidelity Viewpoints, Wealthsimple, Webull, Macroption, Option Alpha, Barchart, Firstrade | **hard for the head term "bear put spread", winnable for the hedge** - every page treats the spread alone, without shares |
+| put spread as cheaper insurance | Saxo, Quantsapp, a UZH research blog, traderspost | **not targeted as a title** - "cheap insurance" headlines read as a promise |
+| put spread collar | Barchart, IVolatility, TradingView chart ideas, poweropt | **a different, three-leg structure** - one FAQ line at most |
+
+**Gap.** The ranking pages state the trade-off in one sentence on a ticker made up for that page. None puts a number on the loss past the lower strike (45.11 a share to zero here), none prices the spread beside the plain put on one lot (crossovers 43.68 and 42.32), none continues a lot already shown with a protective put and a collar, none shows both legs finishing in the money with shares held (100 shares and $400 cash), and none shows an early assignment leaving 200 shares and one put.
+
+**Title / meta.** Title leads with the exact target. Slug `put-spread-hedge`. Search title: "Put spread hedge vs protective put: example and cost" (52), because the comparison is a searched phrasing the headline lacks. Bear put spread and debit put spread go in the FAQ.
+
+**Restraint.** "Cheaper insurance", "cheap protection", "when to hedge", "best strikes", the Option Alpha and UZH backtest results, ratio spreads and put butterflies are not targeted. "Bear put spread" is not in the title: a head term held by broker hubs whose searchers are mostly speculating.
+
+**Links.** Out: `/blog/hedging`, `protective-put-explained`, `collar-option-strategy`, `call-vs-put-option-explained`, `how-to-read-an-option-chain`, `put-credit-spread-explained`, `what-happens-options-expiration`, `option-assignment-what-happens`, `early-exercise-options`. Back: `protective-put-explained` (48 put paragraph). No calculator exists under /tools for this structure.
+
+**Could not establish:** volume, difficulty or rank for any phrasing; whether "put spread hedge" or "hedge with put spreads" is the more common form; how many "bear put spread" searchers are hedging shares; any Search Console data, since the post is unpublished.
+
+
+## Reading for row 34 - hedging a concentrated stock position (read 2026-10-18)
+
+Results pages read that day, not measured. No rank tracker or volume tool. Two searches, one day.
+
+**Query space.** "hedge concentrated stock position options" (the target), "how to hedge a concentrated stock position", "collar for concentrated stock", "protect concentrated stock with puts". The bare "concentrated stock position" drifts to exchange funds, 10b5-1 sales and direct indexing.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| hedge concentrated stock position options (target) | InvestmentNews, Envestnet, Pure Financial, Palisades Hudson (2004), mystockoptions, Landmark Wealth | **winnable** - advisor-marketing pages and old articles; no broker education hub owns the phrase |
+| protective put or collar for concentrated stock | Bizmonthly (2015), Ryan O'Connell, Achievable, optionsanalysissuite | **winnable as an H2** - each describes one tool, none prices the three on one lot |
+
+**Gap.** The ranking pages list protective puts, collars and put spreads in prose and stop at "consult your advisor". None puts three hedges on one lot at three closing prices, none shows that a fall leaves the stock a large share of the account (50% to 41% here), and none shows the 100-share rounding that leaves part of a lot unhedged.
+
+**Title / meta.** Title leads with the exact target. Slug `hedge-concentrated-stock-position`.
+
+**Restraint.** "How much to hedge", "best strategy", "defer taxes" and "avoid capital gains" are not targeted: the tax claims are advice and sit with a tax professional.
+
+**Links.** Out: `/blog/hedging`, `protective-put-explained`, `collar-option-strategy`, `put-spread-hedge`, `options-buying-power-requirement`, `option-assignment-what-happens`. Back: `put-spread-hedge`.
+
+**Could not establish:** volume, difficulty or rank for any phrasing; Search Console data, since the post is unpublished.
+
+## Reading for row 35 - what VIX products do and do not do (read 2026-10-19)
+
+Results pages read that day, not measured. No rank tracker or volume tool. Two searches, one day.
+
+**Query space.** "vix hedge explained" (the target), "vix call hedge", "vix options contango", "does vix hedge a portfolio".
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| vix hedge explained / vix portfolio hedging | Schwab, Option Alpha, CapTrader, Early Retirement Now thread | **winnable** - broker and strategy pages describe tactics; none shows a loss with spot flat |
+| vix options settlement and expiration | CBOE specification, Macroption, Achievable | **hard as a head term**, usable as FAQ lines |
+
+**Gap.** The ranking pages explain that contango works against long VIX calls but do not put one call beside a stock loss in three cases, including two with the same stock loss and opposite hedge results, nor price the future-versus-spot slide on one set of numbers.
+
+**Title / meta.** Title leads with the exact target. Slug `vix-hedge-explained`.
+
+**Restraint.** "Best VIX hedge", "how many VIX calls" and "when to buy VIX" are not targeted: they ask for advice.
+
+**Links.** Out: `/blog/hedging`, `protective-put-explained`, `put-spread-hedge`, `implied-volatility-options-explained`, `hedge-concentrated-stock-position`. Back: `hedge-concentrated-stock-position` (FAQ line), `implied-volatility-options-explained` (FAQ line).
+
+**Also read:** "vix options contango" and "does vix hedge a portfolio" are winnable (older articles, community threads, tastylive and Option Alpha episodes). Schwab and Option Alpha already describe the "valley of death" (volatility rises, not enough to pay); the new part is the numbers, two same-loss selloffs at +880 and -120 and the future sliding 18 to 16 on flat spot.
+
+**Could not establish:** volume, difficulty or rank for any phrasing; Search Console data, since the post is unpublished.
+
+## Reading for row 37 - the cost of being always hedged (read 2026-10-21)
+
+Results pages read that day, not measured. No rank tracker or volume tool. Eight searches, one day.
+
+**Query space.** "tail risk hedge cost" (the target), "how much does it cost to hedge tail risk with puts every year", "cost of always being hedged rolling protective puts quarterly", "tail hedge slow decline puts expire worthless", "why are puts more expensive after a market drop", "far out of the money puts cheap hedge". The bare "tail risk hedging" drifts to definitions (Wikipedia, PIMCO, Cboe, glossaries) and to fund marketing.
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| tail risk hedge cost (target) | BNY "Cost, convexity and the case for systematic tail hedging", about ten regional URLs | **winnable** - one fund manager's article fills the page; no worked-numbers or retail page |
+| cost to hedge with puts every year / rolling puts quarterly | heygotrade, Slope of Hope, MSCI, Neuberger Berman, Acadifi Q&A, Endowus, SpotGamma, traderspost | **winnable** - costs quoted as backtest percentages, never priced on one lot |
+| tail hedge slow decline | Newfound Research, Alpha Architect, MSCI, optionstradingiq | **winnable as an H2** - stated in one sentence, never priced |
+| puts more expensive after a crash | Alpha Architect (2015), Motley Fool (2010 to 2014), FXStreet (2015) | **winnable as an H2** - every page is old |
+| is tail risk hedging worth it | BNY, ai-cio, QuantConnect, AsianInvestor (paywalled) | **not targeted** - asks for a recommendation |
+
+**Gap.** The ranking pages give annual cost as percentages from backtests or rules of thumb. None puts one lot through a calm year, a crash and a slow slide; none shows the re-hedge after the payout costing more ($720 against $480), and none shows a slow slide ending worse hedged than unhedged ($1,480 against $1,000).
+
+**Title / meta.** Title leads with the exact target. Slug `tail-risk-hedge-cost`. Search title: "Tail risk hedge cost: what a year of puts costs and pays" (56). "Out of the money" is in the strike section, the searchers' word for it.
+
+**Restraint.** "Is tail risk hedging worth it", "best tail hedge", "how much to hedge", tail risk funds and ETFs and third-party backtest percentages are not targeted: they ask for advice or are return claims. "Portfolio insurance" stays out of the title: it promises protection.
+
+**Links.** Out: `/blog/hedging`, `protective-put-explained`, `implied-volatility-options-explained`, `vix-hedge-explained`, `put-spread-hedge`, `theta-decay-explained`, `collar-option-strategy`, `hedge-cash-secured-puts`. Back: `protective-put-explained` ("Renewing the floor" section) and `hedge-cash-secured-puts` (bottom line).
+
+**Could not establish:** volume, difficulty or rank for any phrasing; whether "tail risk hedge cost" or "cost of hedging with puts" is the more common form; how much of the phrase is institutional rather than retail intent; any Search Console data, since the post is unpublished.

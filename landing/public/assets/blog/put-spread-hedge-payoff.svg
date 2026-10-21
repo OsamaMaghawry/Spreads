@@ -1,0 +1,34 @@
+<svg viewBox="0 0 720 350" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Gain or loss at expiration, per share against the $48 cost, of a hypothetical put spread hedge: 100 shares of XYZ bought at 48, one 48-strike put bought for 1.43 and one 44-strike put sold for 0.32, a net cost of 1.11. The dashed line for the shares alone rises one for one with the stock price. A grey line shows the 48 put alone, flat at a loss of 1.43 at and below 48. The spread hedge line is flat at a loss of 1.11 between 44 and 48, falls one for one below 44, and runs 1.11 under the shares alone above 48. A red wedge shows where the spread loses more than the 48 put alone, below about 43.68. The spread hedge crosses zero at 49.11.">
+  <rect width="720" height="350" fill="#FFFFFF"/>
+
+  <!-- zero line and strike guides -->
+  <line x1="80" y1="144" x2="660" y2="144" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="312" y1="40" x2="312" y2="300" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="428" y1="40" x2="428" y2="300" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="312" y="322" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">44</text>
+  <text x="428" y="322" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">48</text>
+
+  <!-- where the spread loses more than the 48 put alone -->
+  <polygon points="80,262.4 302.7,162.6 80,162.6" fill="#B4485C" fill-opacity="0.18"/>
+  <text x="96" y="202" font-size="15" font-weight="600" fill="#B4485C">worse than the put</text>
+
+  <!-- shares alone -->
+  <path d="M80 300 L660 40" fill="none" stroke="#767B8E" stroke-width="2.5" stroke-dasharray="7 6"/>
+  <text x="560" y="78" font-size="15" text-anchor="end" fill="#767B8E">shares alone</text>
+
+  <!-- 48 put alone -->
+  <path d="M80 162.6 L428 162.6 L660 58.6" fill="none" stroke="#767B8E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="96" y="156" font-size="15" fill="#767B8E">48 put alone, loss 1.43</text>
+
+  <!-- put spread hedge -->
+  <path d="M80 262.4 L312 158.4 L428 158.4 L660 54.4" fill="none" stroke="#14151C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="320" y="148" font-size="15" font-weight="600" fill="#14151C">loss 1.11</text>
+  <text x="96" y="284" font-size="15" font-weight="600" fill="#14151C">spread hedge</text>
+
+  <!-- break-even -->
+  <circle cx="460" cy="144" r="6" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="476" y="170" font-size="15" font-weight="600" fill="#14151C">break-even 49.11</text>
+
+  <!-- axis label -->
+  <text x="370" y="342" font-size="15" text-anchor="middle" fill="#767B8E">XYZ at expiration</text>
+</svg>

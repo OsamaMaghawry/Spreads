@@ -75,8 +75,9 @@ hand-off:
 
 The $48.60 is the effective cost at the moment of assignment, by the same
 subtraction the cash-secured put post uses. How the call's $98 folds into
-that figure over several turns is a separate question, left to a later post
-in this series on the running cost basis.
+that figure over several turns is a separate question, which the [wheel
+strategy cost basis post](/blog/wheel-strategy-cost-basis) works through on
+the same hypothetical XYZ.
 
 ## How does the covered-call turn end?
 
@@ -141,6 +142,8 @@ kept however its option ends.
 What the sequence does not change is the shares' downside between turns. A
 fall after the put is assigned stays with the shares, and the covered call
 that follows only sets the price at which they would leave.
+
+The [covered call after assignment post](/blog/covered-call-after-assignment) adds a 52 call and shows where each strike moves the break-even.
 
 All figures on this page are hypothetical and are there to show the
 mechanics. This post is educational and is not investment advice.

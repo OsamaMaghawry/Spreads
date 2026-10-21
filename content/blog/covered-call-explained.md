@@ -148,7 +148,7 @@ started them, and reading them back as one position is left to the trader.
 - **When do covered calls get assigned?** Usually at expiration, when the stock finishes above the strike. It can also happen on any trading day before that, which is rarer.
 - **Can a covered call be assigned early?** Yes, on American-style options, most often before an ex-dividend date.
 - **Covered call vs naked call?** A covered call has the shares to deliver; a naked call does not.
-- **Does a covered call protect against a falling stock?** Only by the premium received.
+- **Does a covered call protect against a falling stock?** Only by the premium received. A floor under the shares takes a bought put, which the [protective put post](/blog/protective-put-explained) works through on the same XYZ lot. Holding both on one lot is a [collar](/blog/collar-option-strategy).
 
 ## The bottom line
 

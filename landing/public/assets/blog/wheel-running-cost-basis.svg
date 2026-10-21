@@ -1,0 +1,33 @@
+<svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A step chart of the running cost figure on one hypothetical XYZ wheel, per share. It starts at the 50.00 put strike, steps down to 48.60 after the 1.40 put premium, to 47.62 after a 0.98 call premium, and to 46.37 after a 1.25 call premium. Each step down is drawn in green. A dashed green line at 48.00 marks the price the shares were called away at, and the shaded gap between 46.37 and 48.00 in the last column is the 1.63 a share the whole position came out above the running figure.">
+  <rect width="720" height="340" fill="#FFFFFF"/>
+
+  <!-- the gap between the last step and the exit price -->
+  <rect x="545" y="180" width="110" height="81.5" fill="#2E8B5F" fill-opacity="0.15"/>
+
+  <!-- exit price: called away at 48.00 -->
+  <line x1="80" y1="180" x2="690" y2="180" stroke="#2E8B5F" stroke-width="2" stroke-dasharray="6 5"/>
+  <text x="690" y="170" font-size="16" font-weight="600" text-anchor="end" fill="#2E8B5F">called away at 48</text>
+
+  <!-- the steps -->
+  <line x1="95" y1="80" x2="205" y2="80" stroke="#14151C" stroke-width="5" stroke-linecap="round"/>
+  <line x1="245" y1="150" x2="355" y2="150" stroke="#14151C" stroke-width="5" stroke-linecap="round"/>
+  <line x1="395" y1="199" x2="505" y2="199" stroke="#14151C" stroke-width="5" stroke-linecap="round"/>
+  <line x1="545" y1="261.5" x2="655" y2="261.5" stroke="#14151C" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- each premium lowers the figure -->
+  <line x1="225" y1="80" x2="225" y2="150" stroke="#2E8B5F" stroke-width="4"/>
+  <line x1="375" y1="150" x2="375" y2="199" stroke="#2E8B5F" stroke-width="4"/>
+  <line x1="525" y1="199" x2="525" y2="261.5" stroke="#2E8B5F" stroke-width="4"/>
+
+  <!-- values -->
+  <text x="150" y="66" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">50.00</text>
+  <text x="300" y="136" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">48.60</text>
+  <text x="450" y="226" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">47.62</text>
+  <text x="600" y="290" font-size="20" font-weight="600" text-anchor="middle" fill="#14151C">46.37</text>
+
+  <!-- what each step is -->
+  <text x="150" y="324" font-size="16" text-anchor="middle" fill="#767B8E">strike</text>
+  <text x="300" y="324" font-size="16" text-anchor="middle" fill="#767B8E">put</text>
+  <text x="450" y="324" font-size="16" text-anchor="middle" fill="#767B8E">call 1</text>
+  <text x="600" y="324" font-size="16" text-anchor="middle" fill="#767B8E">call 2</text>
+</svg>
