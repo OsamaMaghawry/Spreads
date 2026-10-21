@@ -623,3 +623,4 @@ English. Newest first.
 - 2026-10-13 · (staging) Covered-call counts now include calls in orders still working, so a repair no longer offers cover the broker has already set aside; the broker's "uncovered" refusal is shown in plain words (`cfb5f6f`).
 - 2026-10-16 · (staging) Protect and Repair price each choice at what would trade now (buy at the ask, sell at the bid) instead of the midpoint, mark wide quotes, and warn when the floor is so far down it barely protects (`9970908`).
 - 2026-10-16 · (staging) A close is checked against the broker before it is sent: contracts no longer held (a close that already filled) or already held by a working close are refused in plain words, and the account page no longer lets an older refresh put a closed position back (`38b06f4`).
+- 2026-10-21 · (main) Search engines are now told about new and changed pages automatically (Google and Bing), and the SEO agent applies its own fixes instead of only listing them (`5a68671`).
