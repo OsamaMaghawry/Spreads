@@ -586,7 +586,11 @@ silence there is not clearance. All of it is still open:
 - [open] 2026-09-08 · tax-accountant · The tax framing of a ratio close.
 - [open] 2026-09-08 · head-of-trading · `manageOrder`'s replace path beyond its `> 0` guard, which this pass changed to "finite and non-zero" so a resting credit order can be repriced.
 - [open] 2026-09-08 · **A re-audit before any of this goes to production.** Every fix above was made against a STOP verdict and none of them has been read back by the bench.
-
+- [open] 2026-10-21 · head-of-branding · **Sign-up email has no brand.** `supabase/auth/confirm-signup.html`: link `color:#4f46e5`, text `#0f172a`/`#475569`, no logotype. Fix: link `#534AB7`, text `#201B3A`/`#6A6294`, add the `deltamint` logotype line. docs/branding/2026-W43.md #1.
+- [open] 2026-10-21 · head-of-branding · **PDF title says "Performance Analysis".** `src/pages/AccountAnalysis.jsx:416`; the page H1 (line 388) is "Analysis". Fix: title `${name} — Analysis` / `Analysis`. Footer wording "economic performance report" is compliance-gate's, not part of this ticket. W43 #2.
+- [open] 2026-10-21 · head-of-branding · **Loss and warning colours bypass the brand tokens.** `rose-` 249 uses vs `dm-negative` 8; `amber-` 202 vs `dm-warning` 0; PDF `ExportPdfButton.jsx:130,139,160` hardcode other reds. Fix: map `rose-600/700` to `dm-negative` and `amber-*` to `dm-warning` in Tailwind config; PDF reds to `#993C1D`. W43 #3.
+- [open] 2026-10-21 · head-of-branding · **Primary button has three colours.** Login `--primary: 0 0% 9%` (`src/index.css:15`); Connect Alpaca submit `AccountForm.jsx:120`, Allow `AlpacaConnectConsent.jsx:67`, `ConfirmAction.jsx:64` are `bg-emerald-600`; nav/Admin are `dm-accent`. Fix: set `--primary` to the `dm-accent` HSL and swap the emerald submit buttons to `bg-dm-accent`. W43 #4.
+- [open] 2026-10-21 · head-of-branding · **Landing mint differs from the brand book.** `landing/public/assets/site.css:18` `--mint: #2E8B5F` (and blog SVGs) vs brand `#3FA672`; `--paper`/`--line` also off by a shade. Fix: set landing `--mint` to `#3FA672`, or vp-product records `#2E8B5F` in brand.md as the on-light variant. W43 #5.
 
 ## Fixed
 
