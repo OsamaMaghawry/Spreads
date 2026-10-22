@@ -2,7 +2,8 @@
 title: "Option gamma explained: what it measures and when it matters"
 slug: gamma-options-meaning
 excerpt: Gamma is the estimated change in an option's delta for a $1 move in the stock - the number that says how fast delta's own estimate goes stale.
-meta_description: Gamma measures how fast an option's delta changes for a $1 stock move. Why it peaks at the money, grows near expiration, and when it's worth watching.
+meta_description: Gamma in options is how much delta changes for a $1 stock move. Why it peaks at the money, grows near expiration, and when it's worth watching.
+search_title: Gamma in Options: What It Means and When It Matters
 author: Osama Safwat Maghawry
 published_at: 2026-09-20T10:00:00+00:00
 category: foundations

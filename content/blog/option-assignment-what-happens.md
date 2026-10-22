@@ -2,7 +2,8 @@
 title: "Option assignment: what happens in your account"
 slug: option-assignment-what-happens
 excerpt: Option assignment is the seller's side of exercise - the option row disappears, shares and cash move at the strike, and you read about it afterwards.
-meta_description: Option assignment is the seller's side of exercise. Who hands out the notice, why it lands overnight, and what changes in your account line by line.
+meta_description: What is option assignment? The seller's side of exercise. Who hands out the notice, why it lands overnight, and what changes in your account.
+search_title: What Is Option Assignment? What Happens to Your Account
 author: Osama Safwat Maghawry
 published_at: 2026-09-21T10:00:00+00:00
 category: foundations
@@ -118,6 +119,8 @@ exposure with no expiration date, a borrow to maintain, and any dividend
 across an ex-date owed rather than received. A cash account or an IRA cannot
 hold that short at all; the broker buys the shares in instead, typically
 right away.
+
+Related: [covered call after assignment](/blog/covered-call-after-assignment), the account the morning after a short call is assigned.
 
 ## Example: a hypothetical short put assigned overnight
 
