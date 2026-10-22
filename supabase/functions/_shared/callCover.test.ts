@@ -324,3 +324,20 @@ test("working claims: net short calls per order, unfilled units only, closes ign
   // Stock orders and puts are not call claims.
   assert.deepEqual(workingCallClaims([{ id: "x", symbol: "INTC", side: "sell", qty: "100", filled_qty: "0" }]), []);
 });
+
+// Found by the 22 Oct 2026 trading audit: the long pool was taken in the order
+// the broker listed positions, so the Nov short grabbed the Dec long and the
+// Dec short read naked ("Unlimited", critical alert) though both were covered.
+test("cover does not depend on the order positions are listed", () => {
+  const legs = [
+    call("X-DEC-90C", "X", 90, 1, "2026-12-18"),
+    call("X-NOV-90C", "X", 90, 1, "2026-11-20"),
+    call("X-NOV-100C", "X", 100, -1, "2026-11-20"),
+    call("X-DEC-100C", "X", 100, -1, "2026-12-18")
+  ];
+  for (const order of [legs, [...legs].reverse()]) {
+    const { bySymbol } = allocateCallCover(order, {});
+    assert.equal(bySymbol["X-NOV-100C"].uncovered, 0);
+    assert.equal(bySymbol["X-DEC-100C"].uncovered, 0, "the Dec short is covered by the Dec long");
+  }
+});

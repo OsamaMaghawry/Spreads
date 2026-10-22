@@ -12,11 +12,16 @@
 // keeps moving, so any spread priced off it is priced against a stock that has
 // since moved on.
 export function sessionPhase(now = new Date()) {
-  const day = now.getUTCDay();
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", weekday: "short", hour: "numeric", minute: "numeric", hourCycle: "h23"
+  }).formatToParts(now);
+  const get = (t) => parts.find((p) => p.type === t)?.value ?? "";
+  const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(get("weekday"));
   if (day === 0 || day === 6) return "closed";
-  const mins = now.getUTCHours() * 60 + now.getUTCMinutes();
-  if (mins < 13 * 60 + 30) return "pre";
-  if (mins >= 20 * 60) return "post";
+  const mins = Number(get("hour")) * 60 + Number(get("minute"));
+  // 09:30-16:00 New York time: 13:30-20:00 UTC in summer, 14:30-21:00 in winter.
+  if (mins < 9 * 60 + 30) return "pre";
+  if (mins >= 16 * 60) return "post";
   return "open";
 }
 

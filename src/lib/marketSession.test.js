@@ -28,3 +28,13 @@ test("marketIsOpen only inside the session", () => {
   assert.equal(marketIsOpen(new Date(Date.UTC(2026, 8, 3, 20, 30))), false, "after the close");
   assert.equal(marketIsOpen(new Date(Date.UTC(2026, 8, 5, 16, 0))), false, "weekend");
 });
+
+// Found by the 22 Oct 2026 trading audit: a fixed UTC window mislabels the last
+// trading hour from the November clock change.
+test("winter time: the session is 14:30-21:00 UTC", () => {
+  const w = (h, m) => sessionPhase(new Date(Date.UTC(2026, 10, 2, h, m, 0)));
+  assert.equal(w(14, 0), "pre");
+  assert.equal(w(14, 30), "open");
+  assert.equal(w(20, 30), "open", "15:30 ET");
+  assert.equal(w(21, 0), "post");
+});

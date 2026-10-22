@@ -473,3 +473,29 @@ test("a put and a call on different expiries are not called a collar", () => {
   const out = pairSpreads(positions, [], [], { cash: 0 });
   assert.ok(out.every((r) => r.structure !== "collar"));
 });
+
+// Found by the 22 Oct 2026 trading audit: a short call covered by a LONG call
+// (no shares) got shareBasis 0, so its break-even printed as the premium
+// negated (-3). With no share basis the break-even is unknown: withheld.
+test("a call covered by a long call has no invented break-even", () => {
+  const out = pairSpreads(
+    [opt("XYZ261120C00100000", 1, 8, 8), opt("XYZ261120C00110000", -1, 3, 3)] as any,
+    []
+  ) as any[];
+  const row = out.find((p: any) => p.type === "covered_call");
+  assert.ok(row, "the pair is a covered call row");
+  assert.notEqual(row.breakEven, -3);
+  assert.equal(row.breakEven, null);
+});
+
+// Found by the 22 Oct 2026 trading audit: sell 2x380C / buy 1x400C against 100
+// shares was named a stock repair, though a repair buys the lower call.
+test("a ratio whose long is above its short is not a stock repair", () => {
+  const out = pairSpreads(
+    [stock("XYZ", 100, 370, 37000), opt("XYZ261120C00380000", -2, 6, 6), opt("XYZ261120C00400000", 1, 2, 2)] as any,
+    [], [], { cash: 0 }
+  ) as any[];
+  const ratio = out.find((o) => o.type === "call_ratio_spread");
+  assert.ok(ratio);
+  assert.notEqual(ratio.structure, "stock_repair");
+});

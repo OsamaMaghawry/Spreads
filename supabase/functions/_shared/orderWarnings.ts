@@ -1,4 +1,4 @@
-import { sessionPhase } from "./watchRules.ts";
+import { easternClock, sessionPhase } from "./watchRules.ts";
 import { MAX_PRICE_AGE_MS } from "./marketPrice.ts";
 
 // What is worth telling somebody before their order goes to the broker — and
@@ -53,12 +53,11 @@ const clock = (at: number | null) =>
 
 // Monday..Friday, so "the market opens again" names the right day.
 const nextOpenDay = (now: Date) => {
-  const day = now.getUTCDay();
+  const { day, mins } = easternClock(now);
   if (day === 6) return "Monday";
   if (day === 0) return "Monday";
   // A weekday after the close, or a weekday before the open.
-  const mins = now.getUTCHours() * 60 + now.getUTCMinutes();
-  if (mins < 13 * 60 + 30) return "later today";
+  if (mins < 9 * 60 + 30) return "later today";
   return day === 5 ? "Monday" : "tomorrow";
 };
 
@@ -77,7 +76,7 @@ export function sessionWarning(
   const phase = sessionPhase(now);
   if (phase === "open") return null;
 
-  const weekend = now.getUTCDay() === 0 || now.getUTCDay() === 6;
+  const weekend = [0, 6].includes(easternClock(now).day);
   const when =
     weekend ? "It is the weekend."
       : phase === "pre" ? "The session has not opened yet (9:30 AM ET)."

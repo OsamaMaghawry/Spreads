@@ -268,8 +268,12 @@ export function breakEvenOfKind(kind: string, p: any): number | null {
     case KINDS.CASH_SECURED_PUT:
     case KINDS.NAKED_PUT:
       return round2(strike - credit);
-    case KINDS.COVERED_CALL:
-      return round2((Number(p.shareBasis) || 0) - credit);
+    case KINDS.COVERED_CALL: {
+      // No share basis means no shares behind the call (a long call covers it,
+      // or nothing does): the break-even is unknown, not the premium negated.
+      const basis = Number(p.shareBasis) || 0;
+      return basis > 0 ? round2(basis - credit) : null;
+    }
     case KINDS.NAKED_CALL:
       return round2(strike + credit);
     case KINDS.SHORT_CALL_UNJUDGED:

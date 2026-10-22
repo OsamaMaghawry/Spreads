@@ -152,3 +152,21 @@ test("the watch and the dashboard allocate cover the same way", () => {
   const legs = [leg("TSLA", 352.5, "C", 1), leg("TSLA", 375, "C", -1)];
   assert.deepEqual(nakedShortCalls(legs, {}), []);
 });
+
+// Found by the 22 Oct 2026 trading audit: the window was fixed at 13:30-20:00
+// UTC, which is New York's session only in summer. From Mon 2 Nov 2026 the last
+// trading hour (15:00-16:00 ET = 20:00-21:00 UTC) read as "post".
+test("sessionPhase: winter time — the session is 14:30-21:00 UTC", () => {
+  const at = (h: number, m: number) => sessionPhase(new Date(Date.UTC(2026, 10, 2, h, m, 0))); // Mon 2 Nov, EST
+  assert.equal(at(14, 0), "pre", "09:00 ET, before the bell");
+  assert.equal(at(14, 30), "open", "the bell, 09:30 ET");
+  assert.equal(at(20, 30), "open", "15:30 ET is the last hour, not after the close");
+  assert.equal(at(20, 59), "open");
+  assert.equal(at(21, 0), "post", "16:00 ET");
+});
+
+test("sessionPhase: the clock-change day itself", () => {
+  // Sun 1 Nov 2026 is the changeover; Mon 26 Oct is still daylight time.
+  assert.equal(sessionPhase(new Date(Date.UTC(2026, 9, 26, 13, 30))), "open", "09:30 EDT");
+  assert.equal(sessionPhase(new Date(Date.UTC(2026, 9, 26, 20, 30))), "post", "16:30 EDT");
+});

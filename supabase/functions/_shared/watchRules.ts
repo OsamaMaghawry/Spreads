@@ -115,12 +115,25 @@ export function unjudgedShortCalls(legs: any[], shares: Record<string, number>) 
 // Holidays are not modelled — on a holiday this returns "open" and the closing
 // price is used anyway, because getClosingSpots is what a shut market wants.
 export function sessionPhase(now: Date = new Date()): "pre" | "open" | "post" | "closed" {
-  const day = now.getUTCDay();
+  const { day, mins } = easternClock(now);
   if (day === 0 || day === 6) return "closed";
-  const mins = now.getUTCHours() * 60 + now.getUTCMinutes();
-  if (mins < 13 * 60 + 30) return "pre";
-  if (mins >= 20 * 60) return "post";
+  if (mins < 9 * 60 + 30) return "pre";
+  if (mins >= 16 * 60) return "post";
   return "open";
+}
+
+// The weekday (0 = Sunday) and minutes since midnight on the exchange's clock.
+// The session is 09:30-16:00 New York time, which is 13:30-20:00 UTC only
+// while daylight time lasts; from the first Sunday of November it is
+// 14:30-21:00 UTC. A fixed UTC window called the last trading hour "closed"
+// for four months of every year, so the clock is read as New York's.
+export function easternClock(now: Date = new Date()): { day: number; mins: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", weekday: "short", hour: "numeric", minute: "numeric", hourCycle: "h23"
+  }).formatToParts(now);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(get("weekday"));
+  return { day, mins: Number(get("hour")) * 60 + Number(get("minute")) };
 }
 
 // Live prices are only worth judging while the market is actually trading.

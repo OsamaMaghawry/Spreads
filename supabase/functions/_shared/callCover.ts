@@ -82,6 +82,9 @@ export function allocateCallCover(legs: CoverLeg[], shares: Record<string, numbe
   // as a liability -- it delivers something else too.
   const longPool = calls
     .filter((l) => l.qty > 0 && !l.adjusted)
+    // Nearest expiry first, to pair with the shorts below (also nearest first):
+    // otherwise the broker's list order decides which short is "naked".
+    .sort((a, b) => String(a.expiry ?? "").localeCompare(String(b.expiry ?? "")))
     .map((l) => ({ leg: l, left: Math.abs(l.qty) }));
 
   const shorts = calls

@@ -722,7 +722,10 @@ function tagStructures(rows) {
   Object.values(byTicker).forEach((group) => {
     const shares = group.find((r) => r.type === KINDS.SHARES && Math.abs(r.qty) >= 100);
     if (!shares) return;
-    const repairs = group.filter((r) => r.type === "call_ratio_spread" && r.coverShares > 0);
+    // A repair buys the LOWER call and sells more of the HIGHER one; a ratio
+    // with its long above its short is a different trade and is not renamed.
+    const repairs = group.filter((r) => r.type === "call_ratio_spread" && r.coverShares > 0 &&
+      Number(r.longStrike) < Number(r.shortStrike));
     if (repairs.length) {
       // A PROTECTED REPAIR: the repair plus a put bought on the same expiry,
       // at or below the repair's long call, as a floor. The owner asked for
