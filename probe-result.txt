@@ -1,0 +1,25 @@
+=== 200 /expected-move
+<title>Expected move this week for popular stocks | DeltaMint
+<p class="meta">Updated Oct 22, 10:40 AM ET.
+How far the options market prices each one to move by its nearest expiry, biggest first. Every number is read from live option prices through the trading day.
+locs: 0 expected-move locs: 5
+=== 200 /expected-move/tsla
+<title>TSLA expected move this week: ±$13.83 (3.6%) | DeltaMint
+<p class="meta">Updated Oct 22, 10:25 AM ET, from live option prices. TSLA at $385.97.
+Options on TSLA are priced for a move of about ±$13.83 (3.6%) by Friday, October 23.
+ This week Fri, Oct 23 · 1 day ±$13.83 3.6% $372.14 to $399.80 $11.04 68% Monthly Fri, Nov 20 · 29 days ±$43.94 11.4% $342.03 to $429.91 $35.06 40% 
+locs: 0 expected-move locs: 7
+=== 200 /expected-move/spy
+<title>SPY expected move this week: ±$8.05 (1.1%) | DeltaMint
+<p class="meta">Updated Oct 22, 10:25 AM ET, from live option prices. SPY at $764.40.
+Options on SPY are priced for a move of about ±$8.05 (1.1%) by Friday, October 23.
+ This week Fri, Oct 23 · 1 day ±$8.05 1.1% $756.35 to $772.45 $6.42 20% Monthly Fri, Nov 20 · 29 days ±$32.36 4.2% $732.04 to $796.76 $25.82 15% 
+locs: 0 expected-move locs: 7
+=== 301 /expected-move/TSLA
+locs: 0 expected-move locs: 0
+=== 404 /expected-move/nope
+<title>Not found | DeltaMint
+locs: 0 expected-move locs: 1
+=== 200 /sitemap.xml
+locs: 163 expected-move locs: 104
+location: https://dev-landing.deltamint.app/expected-move/tsla
