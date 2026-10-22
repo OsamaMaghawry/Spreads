@@ -75,7 +75,11 @@ async function refresh(admin: any) {
     .map(([ticker, name]) => ({ ticker, name, row: seen.get(ticker) as any }))
     // Open: everything, stalest first (never-read first of all). Closed: only
     // what was last read while the market was open, for its closing reading.
-    .filter((t) => open || !t.row || t.row.live)
+    // Never a first reading while closed: before the open the option quotes
+    // are still yesterday's, priced with a day more to run -- and on 22 Oct,
+    // before TSLA's and META's overnight reports had come out of them -- so
+    // the move came out half again too large.
+    .filter((t) => (open ? true : !!t.row?.live))
     .sort((a, b) => (a.row ? Date.parse(a.row.refreshed_at) : 0) - (b.row ? Date.parse(b.row.refreshed_at) : 0))
     .slice(0, BATCH);
   if (!due.length) return { open, refreshed: 0 };
