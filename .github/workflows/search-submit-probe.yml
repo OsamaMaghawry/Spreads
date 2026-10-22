@@ -1,7 +1,6 @@
 name: Live site probe (temporary)
 
-# One-off check, 21 Oct 2026: are the blog diagrams merged since 12 Oct and
-# the IndexNow key file actually served by deltamint.app? Read-only.
+# One-off checks from outside, read-only. 22 Oct: the staging /expected-move pages.
 on:
   push:
     branches: [claude/search-submit-probe]
@@ -10,11 +9,14 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Is the key file real, and does a missing page return 404
+      - name: Fetch the staging expected-move pages
         run: |
-          body=$(curl -s https://deltamint.app/8b62b8a4ab3d56d58e2397ca07208234.txt | head -c 80 | tr -d '\n')
-          echo "::notice title=live::key body [$body]"
-          code=$(curl -s -o /dev/null -w '%{http_code}' https://deltamint.app/assets/blog/does-not-exist-zz.svg)
-          echo "::notice title=live::missing file -> $code"
-          srv=$(curl -sI https://deltamint.app/8b62b8a4ab3d56d58e2397ca07208234.txt | grep -i "^cf-ray\|^server\|^last-modified\|^etag" | tr -d '\r' | tr '\n' ' ')
-          echo "::notice title=live::headers $srv"
+          base=https://dev-landing.deltamint.app
+          for p in expected-move expected-move/tsla expected-move/spy expected-move/TSLA expected-move/nope sitemap.xml; do
+            code=$(curl -s -o /tmp/p.html -w '%{http_code}' "$base/$p")
+            title=$(grep -o '<title>[^<]*' /tmp/p.html | head -1 | sed 's/<title>//')
+            meta=$(grep -o '<p class="meta"[^<]*' /tmp/p.html | head -1 | sed 's/<p class="meta"[^>]*>//')
+            lede=$(grep -o '<p class="lede">.*</p>' /tmp/p.html | head -1 | sed 's/<[^>]*>//g' | cut -c1-200)
+            urls=$(grep -c '<loc>' /tmp/p.html)
+            echo "::notice title=live::$code /$p | $title | $meta | $lede | locs=$urls"
+          done
