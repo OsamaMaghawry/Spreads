@@ -10,7 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Fetch the staging expected-move pages
+        shell: bash
         run: |
+          set +e
           base=https://dev-landing.deltamint.app
           for p in expected-move expected-move/tsla expected-move/spy expected-move/TSLA expected-move/nope sitemap.xml; do
             code=$(curl -s -o /tmp/p.html -w '%{http_code}' "$base/$p")
