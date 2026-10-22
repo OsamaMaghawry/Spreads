@@ -1,24 +1,37 @@
 name: Live site probe (temporary)
 
-# One-off checks from outside, read-only. 22 Oct: the staging /expected-move pages.
+# One-off checks from outside, read-only on the site. 22 Oct: the staging
+# /expected-move pages. Writes what it saw to probe-result.txt on this branch.
 on:
   push:
     branches: [claude/search-submit-probe]
+    paths: ['.github/workflows/search-submit-probe.yml']
+
+permissions:
+  contents: write
 
 jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Fetch the staging expected-move pages
         shell: bash
         run: |
           set +e
           base=https://dev-landing.deltamint.app
+          : > probe-result.txt
           for p in expected-move expected-move/tsla expected-move/spy expected-move/TSLA expected-move/nope sitemap.xml; do
             code=$(curl -s -o /tmp/p.html -w '%{http_code}' "$base/$p")
-            title=$(grep -o '<title>[^<]*' /tmp/p.html | head -1 | sed 's/<title>//')
-            meta=$(grep -o '<p class="meta"[^<]*' /tmp/p.html | head -1 | sed 's/<p class="meta"[^>]*>//')
-            lede=$(grep -o '<p class="lede">.*</p>' /tmp/p.html | head -1 | sed 's/<[^>]*>//g' | cut -c1-200)
-            urls=$(grep -c '<loc>' /tmp/p.html)
-            echo "::notice title=live::$code /$p | $title | $meta | $lede | locs=$urls"
+            {
+              echo "=== $code /$p"
+              grep -o '<title>[^<]*' /tmp/p.html | head -1
+              grep -o '<p class="meta"[^<]*' /tmp/p.html | head -1
+              grep -o '<p class="lede">.*</p>' /tmp/p.html | head -1 | sed 's/<[^>]*>//g' | cut -c1-300
+              grep -o '<tr><td>This week.*</tr>' /tmp/p.html | head -1 | sed 's/<[^>]*>/ /g' | tr -s ' ' | cut -c1-300
+              echo "locs: $(grep -c '<loc>' /tmp/p.html) expected-move locs: $(grep -c 'expected-move' /tmp/p.html)"
+            } >> probe-result.txt
           done
+          curl -sI "$base/expected-move/TSLA" | grep -i "^location" >> probe-result.txt
+          git config user.name probe && git config user.email probe@deltamint.app
+          git add probe-result.txt && git commit -qm "probe result" && git push -q
