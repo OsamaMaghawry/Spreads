@@ -1,0 +1,29 @@
+<svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A waterfall of one hypothetical protective put roll, per share. Selling the old 46 put with five days left at its 0.42 bid brings money in. Buying a new 46 put with 35 days left at its 1.88 ask takes money out. The two net to a 1.46 debit, which is the cost of the roll.">
+  <rect width="720" height="340" fill="#FFFFFF"/>
+
+  <!-- zero line -->
+  <line x1="80" y1="110" x2="660" y2="110" stroke="#C9CEDC" stroke-width="1.5"/>
+
+  <!-- sell old put: +0.42 (100px per 1.00) -->
+  <rect x="120" y="68" width="100" height="42" fill="#2E8B5F"/>
+  <text x="170" y="56" font-size="18" font-weight="600" text-anchor="middle" fill="#2E8B5F">+0.42</text>
+
+  <!-- connector -->
+  <line x1="220" y1="68" x2="310" y2="68" stroke="#767B8E" stroke-width="1.5" stroke-dasharray="4 4"/>
+
+  <!-- buy new put: -1.88, from +0.42 down to -1.46 -->
+  <rect x="310" y="68" width="100" height="188" fill="#B4485C"/>
+  <text x="360" y="56" font-size="18" font-weight="600" text-anchor="middle" fill="#B4485C">-1.88</text>
+
+  <!-- connector -->
+  <line x1="410" y1="256" x2="500" y2="256" stroke="#767B8E" stroke-width="1.5" stroke-dasharray="4 4"/>
+
+  <!-- net debit: -1.46 -->
+  <rect x="500" y="110" width="100" height="146" fill="#B4485C" fill-opacity="0.55"/>
+  <text x="550" y="98" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">-1.46</text>
+
+  <!-- labels -->
+  <text x="170" y="298" font-size="17" text-anchor="middle" fill="#767B8E">Sell 5-day 46 put</text>
+  <text x="360" y="298" font-size="17" text-anchor="middle" fill="#767B8E">Buy 35-day 46 put</text>
+  <text x="550" y="298" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">Net debit</text>
+</svg>

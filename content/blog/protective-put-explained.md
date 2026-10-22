@@ -118,7 +118,7 @@ The floor stays put while the cost of holding it grows. Each renewal adds its pr
 
 The [tail risk hedge cost post](/blog/tail-risk-hedge-cost) adds that up over four quarters, across a calm year, a crash and a slow slide.
 
-A put can also be replaced before it expires, by selling the old one and buying a later one in a single [roll](/blog/rolling-options-explained). That recovers whatever value the old put has left, but the roll's natural price sells the old put at its bid and buys the new one at its ask, and the arithmetic above still applies.
+A put can also be replaced before it expires, by selling the old one and buying a later one in a single [roll](/blog/rolling-options-explained). That recovers whatever value the old put has left, but the roll's natural price sells the old put at its bid and buys the new one at its ask, and the arithmetic above still applies. [Rolling a protective put](/blog/roll-protective-put) prices one on this lot, leg by leg, including the gap when the two legs fill apart.
 
 ## Frequently asked questions
 
