@@ -93,6 +93,8 @@ A roll feels like a continuation because the account still shows a short put at 
 
 A covered call rolls the same way: buy back the short call, sell a later one, and let the shares collateralize it. The arithmetic of the ticket is identical, with a call's price in place of a put's. The covered call's own mechanics are in the [covered call post](/blog/covered-call-explained).
 
+A long option rolls the other way round: the old one is sold to close and a later one bought to open, so at the same strike the ticket is a debit. [Rolling a protective put](/blog/roll-protective-put) prices that case on a hedged lot.
+
 ## Frequently asked questions
 
 - **Does rolling a short option lose money?** Apart from the bid-ask spread and commissions, it does not change the mark at the moment of the roll. The loss on the closed option is real and stays in the record.
