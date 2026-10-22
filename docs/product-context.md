@@ -143,6 +143,7 @@ so a change to shared code requires redeploying all of them.
 - **stripeWebhook** — Receives Stripe's signed subscription events and keeps one row per user current.
 - **syncAccounts** — Rebuilds the live picture for every account the caller owns: positions paired into structures, credit and risk per position, and totals that net a ticker's condors instead of double counting both wings.
 - **syncTrades** — Keeping every connected account's history current, without anybody looking.
+- **tickerPages** — Keeps the public /expected-move pages current, every five minutes.
 - **tradeHistory** — Closed trade history, rebuilt from the broker's activity feed.
 - **tradier** — Tradier, probed against their sandbox before a line of it reaches a user.
 - **weeklyDigest** — The weekly summary email: gather, build, deliver, record.
@@ -187,6 +188,7 @@ revoked from the browser role entirely.
 - **market_mail_runs** — day, research, research_urls, research_at, market, market_at, locked_until, last_error, updated_at
 - **market_mail_log** — id, kind, user_id, ref, symbol, subject, sent_at
 - **market_news_seen** — news_id, symbol, major, title, what, seen_at
+- **ticker_pages** — ticker, name, spot, spot_as_of, week, month, earnings_date, earnings_session, error, live, refreshed_at
 
 ## Analytics vocabulary
 
