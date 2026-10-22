@@ -99,7 +99,9 @@ async function refresh(admin: any) {
       if (!s?.price) return { ...base, error: s?.reason || "No price for this stock right now." };
       try {
         const { week, month } = await priceOne(account, ticker, s.price, today);
-        return { ...base, spot: s.price, spot_as_of: s.asOf || null, week, month, error: week || month ? null : "No listed options near today's price in the next six weeks." };
+        // getSpots reports asOf in epoch milliseconds; the column is a timestamp.
+        const asOf = s.asOf ? new Date(s.asOf).toISOString() : null;
+        return { ...base, spot: s.price, spot_as_of: asOf, week, month, error: week || month ? null : "No listed options near today's price in the next six weeks." };
       } catch (e) {
         // Keep the last good numbers on the page: write only what changed.
         return { ...base, error: `Could not read the option chain: ${(e as Error)?.message || e}`.slice(0, 300) };

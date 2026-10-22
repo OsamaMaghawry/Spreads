@@ -1,6 +1,7 @@
 import { esc, markdown, formatDate, page, splitSearchTitle, toolBox, TOOLS } from "./render.js";
 import { CATEGORIES, categoryBySlug, groupByCategory, postsInCategory, neighbours, related, renderFeed } from "./blog.js";
 import { connectorEnabled, injectConnector, isConnectorPath, proxyConnector, renderConnectPage } from "./connector.js";
+import { EM, emEnabled, fetchTickerPages, renderTickerPage, renderMovesIndex, sitemapLines } from "./expectedMove.js";
 
 // Blog routes for the marketing site.
 //
@@ -336,7 +337,7 @@ ${more.length ? `<section class="related"><h2>More to read</h2><ul>${more.map((p
   });
 }
 
-function renderSitemap(posts, site) {
+function renderSitemap(posts, site, extra = []) {
   // Static pages plus every published post. Drafts cannot appear here because
   // RLS never returned them.
   // No /pricing. The page is unlinked and redirected while the product is a
@@ -352,7 +353,9 @@ function renderSitemap(posts, site) {
         `  <url><loc>${site}/blog/${esc(p.slug)}</loc><lastmod>${esc(
           (p.updated_at || p.published_at || "").slice(0, 10)
         )}</lastmod></url>`
-    )
+    ),
+    // The /expected-move pages, where they are switched on (expectedMove.js).
+    ...extra
   ].join("\n");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -401,7 +404,8 @@ async function handle(request, env, ctx) {
     return noindex ? withNoIndexHeader(r) : r;
   }
 
-  const isBlogPath = path === "/blog" || path.startsWith("/blog/") || path === "/sitemap.xml";
+  const isMovePath = emEnabled(env) && (path === EM || path.startsWith(`${EM}/`));
+  const isBlogPath = path === "/blog" || path.startsWith("/blog/") || path === "/sitemap.xml" || isMovePath;
   // The home and pricing pages are static assets; their tracking tags are
   // injected below on the way out, for any that the page does not already
   // carry itself.
@@ -444,12 +448,29 @@ async function handle(request, env, ctx) {
   try {
     if (path === "/sitemap.xml") {
       const posts = await fetchPosts(env);
-      response = new Response(renderSitemap(posts, site), {
+      // A failed read of the stock pages must not take the posts' sitemap down with it.
+      const moves = emEnabled(env) ? sitemapLines(await fetchTickerPages(env).catch(() => []), site) : [];
+      response = new Response(renderSitemap(posts, site, moves), {
         headers: {
           "content-type": "application/xml; charset=utf-8",
           "cache-control": `public, max-age=300, s-maxage=${CACHE_SECONDS}`
         }
       });
+    } else if (isMovePath) {
+      // Short-lived: these numbers change every few minutes in market hours.
+      const rows = await fetchTickerPages(env);
+      const want = path === EM ? null : decodeURIComponent(path.slice(EM.length + 1));
+      const row = want && rows.find((r) => r.ticker.toLowerCase() === want.toLowerCase());
+      if (want && row && want !== want.toLowerCase()) {
+        return Response.redirect(`${site}${EM}/${want.toLowerCase()}`, 301);
+      }
+      response = !want ? html(renderMovesIndex(rows, site, noindex))
+        : row ? html(renderTickerPage(row, rows, site, noindex))
+        : notFound(site);
+      if (response.status === 200) {
+        response = new Response(response.body, response);
+        response.headers.set("cache-control", "public, max-age=60, s-maxage=120");
+      }
     } else if (path === "/blog") {
       response = html(renderIndex(await fetchPosts(env), site, noindex, env));
     } else if (path === "/blog/feed.xml") {
