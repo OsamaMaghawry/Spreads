@@ -114,3 +114,11 @@ Attempted, not finished. What is established:
   Do not write a play that depends on agent-side Reddit reads. Posting the queued
   replies is a browser step the owner does himself and needs none of this; if
   Reddit is ever wanted as a channel beyond that, he will say so.
+
+## Production `sendDigest` from the Thursday trading audit session (2026-10-22)
+
+- `POST https://yecfbeohyakuoyczvdbj.supabase.co/functions/v1/sendDigest` was
+  refused by the egress proxy (CONNECT 403, `connect_rejected`): the host was not
+  allowed for that session. The owner email for the W43 STOP could not be sent
+  that way. Done instead: a PushNotification to the owner, and the full text in
+  `docs/trading-audit/2026-W43.md` and `docs/ops/queue.md`.
