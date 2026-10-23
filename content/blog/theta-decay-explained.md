@@ -168,6 +168,8 @@ them can erase more than one day's combined decay from the rest in an
 afternoon - which is a separate subject from theta itself, taken up in the
 [after the fill](/blog/managing) posts.
 
+Related: an [iron condor](/blog/iron-condor-explained) is two credit spreads held together, so it is a net seller of theta on both wings.
+
 ## Frequently asked questions
 
 - **Is theta quoted per share or per contract?** Per share, like the premium and delta. Multiply by 100 for a standard contract: −0.05 is about −$5 a day.
