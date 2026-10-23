@@ -1,0 +1,35 @@
+<svg viewBox="0 0 720 450" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Loss at expiration, in dollars and premium included, for a hypothetical 100,000 dollar stock holding on three paths, with no hedge, with two SPY 475 puts bought for 600, and with ten XYZ 95 puts bought for 2,400. Both fall 10 percent: no hedge 10,000, SPY puts 5,600, XYZ puts 7,400. Only XYZ falls 10 percent: no hedge 10,000, SPY puts 10,600, XYZ puts 7,400. XYZ falls 6 percent and the index 10 percent: no hedge 6,000, SPY puts 1,600, XYZ puts 7,400.">
+<rect width="720" height="450" fill="#FFFFFF"/>
+<text x="40" y="34" font-size="16" font-weight="600" fill="#14151C">XYZ and index both fall 10%</text>
+<text x="40" y="61" font-size="14" fill="#767B8E">stock alone</text>
+<rect x="420" y="44" width="240" height="24" fill="#767B8E" fill-opacity="0.85"/>
+<text x="654" y="61" font-size="14" font-weight="600" text-anchor="end" fill="#FFFFFF">-10,000</text>
+<text x="40" y="91" font-size="14" fill="#767B8E">2 SPY puts</text>
+<rect x="526" y="74" width="134" height="24" fill="#B4485C" fill-opacity="0.85"/>
+<text x="654" y="91" font-size="14" font-weight="600" text-anchor="end" fill="#FFFFFF">-5,600</text>
+<text x="40" y="121" font-size="14" fill="#767B8E">10 XYZ puts</text>
+<rect x="482" y="104" width="178" height="24" fill="#14151C" fill-opacity="0.85"/>
+<text x="654" y="121" font-size="14" font-weight="600" text-anchor="end" fill="#FFFFFF">-7,400</text>
+<text x="40" y="172" font-size="16" font-weight="600" fill="#14151C">XYZ falls 10%, index flat</text>
+<text x="40" y="199" font-size="14" fill="#767B8E">stock alone</text>
+<rect x="420" y="182" width="240" height="24" fill="#767B8E" fill-opacity="0.85"/>
+<text x="654" y="199" font-size="14" font-weight="600" text-anchor="end" fill="#FFFFFF">-10,000</text>
+<text x="40" y="229" font-size="14" fill="#767B8E">2 SPY puts</text>
+<rect x="406" y="212" width="254" height="24" fill="#B4485C" fill-opacity="0.85"/>
+<text x="654" y="229" font-size="14" font-weight="600" text-anchor="end" fill="#FFFFFF">-10,600</text>
+<text x="40" y="259" font-size="14" fill="#767B8E">10 XYZ puts</text>
+<rect x="482" y="242" width="178" height="24" fill="#14151C" fill-opacity="0.85"/>
+<text x="654" y="259" font-size="14" font-weight="600" text-anchor="end" fill="#FFFFFF">-7,400</text>
+<text x="40" y="310" font-size="16" font-weight="600" fill="#14151C">XYZ falls 6%, index falls 10%</text>
+<text x="40" y="337" font-size="14" fill="#767B8E">stock alone</text>
+<rect x="516" y="320" width="144" height="24" fill="#767B8E" fill-opacity="0.85"/>
+<text x="654" y="337" font-size="14" font-weight="600" text-anchor="end" fill="#FFFFFF">-6,000</text>
+<text x="40" y="367" font-size="14" fill="#767B8E">2 SPY puts</text>
+<rect x="622" y="350" width="38" height="24" fill="#B4485C" fill-opacity="0.85"/>
+<text x="616" y="367" font-size="14" font-weight="600" text-anchor="end" fill="#14151C">-1,600</text>
+<text x="40" y="397" font-size="14" fill="#767B8E">10 XYZ puts</text>
+<rect x="482" y="380" width="178" height="24" fill="#14151C" fill-opacity="0.85"/>
+<text x="654" y="397" font-size="14" font-weight="600" text-anchor="end" fill="#FFFFFF">-7,400</text>
+<line x1="660" y1="30" x2="660" y2="414" stroke="#C9CEDC" stroke-width="1.5"/>
+<text x="360" y="444" font-size="14" text-anchor="middle" fill="#767B8E">loss at expiration, dollars, premium included</text>
+</svg>

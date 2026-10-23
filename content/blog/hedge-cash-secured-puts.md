@@ -68,6 +68,8 @@ The size is an assumption. How many index contracts match a book of short puts d
 
 The gap is called **basis risk**: the hedge and the position are tied by a relationship, not a contract. A put on the same stock has none.
 
+Related: the [SPX vs SPY options post](/blog/spx-vs-spy-options-hedge) puts numbers on that gap, with one index-put hedge worked through paths where the stock and the index disagree.
+
 ## Can VIX calls hedge put selling?
 
 A call on the VIX pays when expected volatility rises, which usually accompanies a fall in stocks. Short puts are short volatility, so on paper this lines up. The [VIX hedge post](/blog/vix-hedge-explained) shows where it does not.
