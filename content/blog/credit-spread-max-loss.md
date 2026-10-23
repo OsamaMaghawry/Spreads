@@ -1,8 +1,9 @@
 ---
 title: "Credit spread max loss before expiration: what it covers"
 slug: credit-spread-max-loss
+search_title: "Credit Spread Max Loss: Formula and What It Covers"
 excerpt: Max loss is an exact figure that describes one moment; the collateral, the mark and an assignment notice each behave differently from it.
-meta_description: Credit spread max loss is width minus credit, times 100 - the expiration number. What the collateral holds and what the mark does in the weeks before it.
+meta_description: "Credit spread max loss is width minus credit, times 100, the expiration number. What the collateral holds and what the mark does before it."
 author: Osama Safwat Maghawry
 published_at: 2026-09-02T23:33:09+00:00
 category: managing

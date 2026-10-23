@@ -1,8 +1,9 @@
 ---
 title: "Call vs put options: how each one works"
 slug: call-vs-put-option-explained
+search_title: "Call vs Put Options: Buyer, Seller and the Numbers"
 excerpt: A call is the right to buy 100 shares at a set price; a put is the right to sell 100 shares at a set price - and each one has a seller carrying the matching obligation.
-meta_description: A call is the right to buy 100 shares at a set price; a put the right to sell. What the buyer pays, what the seller owes, with the numbers.
+meta_description: "Call vs put options: a call is the right to buy 100 shares at a set price, a put the right to sell. What the buyer pays and the seller owes."
 author: Osama Safwat Maghawry
 published_at: 2026-09-09T10:56:26+00:00
 category: foundations
@@ -110,6 +111,8 @@ clearing house assigns the notice at random to a firm carrying a matching
 short position, and that firm allocates it among its own short customers by
 its own disclosed method. It is not sent by the buyer who exercised, and the
 two sides are never paired to each other.
+
+Related: the [cash-secured put](/blog/cash-secured-put-explained) walks through the seller's side of a put, from reserved cash to assignment.
 
 ## Frequently asked questions
 
