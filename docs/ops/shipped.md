@@ -610,3 +610,5 @@ English. Newest first.
 - 2026-10-09 · (staging) Analysis page: "How your trades ended" lists every closed trade in one of five rows (expired worthless, assigned, bought back on expiry day, bought back earlier, options bought), each opening to its trades worst first, so the rows add up to the booked total; a buyback on expiry day now counts as held to expiry, not an early exit (`d877d7a`, `7d237b7`) — awaiting owner review.
 - 2026-10-09 · (staging) Close ticket: closing a position that pays you now reads as money received, not a minus, and a resumed single-leg sell no longer opens at the furthest price it may concede (`458abbf`) — awaiting owner review.
 - 2026-10-09 · (staging) Trade history re-syncs right after you close a trade instead of waiting up to 15 minutes, so the closed-trades total no longer dips in between (`e7d29bd`).
+- 2026-10-23 · New blog post on SPX versus SPY options for hedging, in the hedging series (`70793d6`, published `7d98faf`).
+- 2026-10-23 · Search titles and descriptions rewritten for four existing posts (call vs put, credit-spread max loss, delta, theta decay) and two internal links added (`a0348e1`, published `659fbc2`).
