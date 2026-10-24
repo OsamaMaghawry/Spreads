@@ -302,7 +302,14 @@ async function relayCheck(auth: { key: string; secret: string }, seconds: number
   client.onclose?.();
   const count = (f: (m: any, at: number) => boolean) => got.filter((g) => f(g.m, g.at)).length;
   const firstEth = got.find((g) => g.m.type === "book" && g.m.symbol === "ETH/USD" && g.m.reset)?.m;
+  // How long after Alpaca's own timestamp each kind of message reached this
+  // server: the delay before anything is drawn. Median and 95th percentile, ms.
+  const delay = (type: string) => {
+    const d = got.filter((g) => g.m.type === type && g.m.at).map((g) => g.at - Date.parse(g.m.at)).filter(Number.isFinite).sort((a, b) => a - b);
+    return d.length ? { n: d.length, median: d[Math.floor(d.length / 2)], p95: d[Math.floor(d.length * 0.95)] } : null;
+  };
   return {
+    delayMs: { trade: delay("trade"), quote: delay("quote"), book: delay("book") },
     ready: got.filter((g) => g.m.type === "ready").map((g) => g.m.feed || "set"),
     problems: got.filter((g) => g.m.type === "error" || g.m.type === "feed").map((g) => g.m),
     btcBook: { whole: count((m) => m.type === "book" && m.symbol === "BTC/USD" && m.reset), changes: count((m) => m.type === "book" && m.symbol === "BTC/USD" && !m.reset) },
