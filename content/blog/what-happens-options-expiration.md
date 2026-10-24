@@ -1,8 +1,9 @@
 ---
 title: "What happens at options expiration: a cent either side"
 slug: what-happens-options-expiration
+search_title: "What Happens When Options Expire? Exercised or Worthless"
 excerpt: At expiration every open option is settled against one closing price, and a single cent on either side of the strike decides whether it becomes shares or disappears.
-meta_description: What happens at options expiration: a cent in the money is exercised automatically, a cent out expires. The cutoff, pin risk, and each spread leg on its own.
+meta_description: What happens when options expire: a cent in the money is exercised automatically, a cent out expires worthless. The cutoff, pin risk, each spread leg.
 author: Osama Safwat Maghawry
 published_at: 2026-09-23T10:00:00+00:00
 category: foundations
@@ -103,6 +104,8 @@ defined-risk. The [maximum loss on a spread](/blog/credit-spread-max-loss) is
 measured at expiration with both legs working together. When the close falls
 between the strikes, only one of them does anything, and what is left is a
 stock position.
+
+Related: [early exercise](/blog/early-exercise-options), when an option is exercised before expiration at all.
 
 ## What happens if the stock closes exactly at the strike?
 

@@ -164,6 +164,8 @@ describe before expiration. The width is fixed at the fill, and it is the
 number the maximum loss is built from. The [credit spread width
 post](/blog/credit-spread-width) takes this same 50 short put across $1, $2 and $5 widths.
 
+Related: [choosing the short strike by delta](/blog/credit-spread-delta-strike-selection).
+
 One consequence is easy to overlook. Two spreads with the same short strike
 have the same first leg, the same obligation to buy at $50.00, and they still
 sit at different points of the chain, because the second leg decides how far
