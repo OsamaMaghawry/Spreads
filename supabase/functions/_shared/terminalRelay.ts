@@ -37,12 +37,20 @@ export function relayDetail(client: WebSocket, auth: { key: string; secret: stri
   // it ends: the only view from here of whether a trader's tape was live.
   const sent: Record<string, number> = {};
   const said: Record<string, string[]> = { stocks: [], crypto: [] };
-  // Keeps the function alive while the socket is open. Without it the runtime
-  // counts the request finished once the upgrade is answered, and drops the
-  // worker about 75 seconds later ("EarlyDrop"), taking both feeds with it.
+  // Tells the runtime the socket is still working, so it does not retire the
+  // worker as idle once the upgrade is answered. It cannot outlast the
+  // platform's limit: Supabase ends a function's socket at about half its
+  // wall-clock limit, 75 seconds on this plan, logged as EarlyDrop. So the
+  // browser reconnects every 75 seconds or so (useTerminalStream), a feed
+  // Alpaca still counts as connected is retried rather than given up on, and
+  // the tape reads back what printed in the gap.
   let finished: () => void = () => {};
   const done = new Promise<void>((resolve) => { finished = resolve; });
   (globalThis as any).EdgeRuntime?.waitUntil?.(done);
+  const summary = () => JSON.stringify({ seconds: Math.round((Date.now() - startedAt) / 1000), symbols: wanted.size, book, sent, said });
+  // Every 30 seconds as well as at the end: a worker the platform stops does
+  // not reach the end of its session to say so.
+  const heartbeat = setInterval(() => console.log(`terminal relay (open): ${summary()}`), 30000);
   let wanted = new Set(initial);
   let book = COIN.test(initialBook) ? initialBook : "";
   const feeds: Record<"stocks" | "crypto", Feed> = {
@@ -63,7 +71,8 @@ export function relayDetail(client: WebSocket, auth: { key: string; secret: stri
     timers.forEach((t) => clearTimeout(t));
     for (const f of Object.values(feeds)) { try { f.ws?.close(); } catch { /* already gone */ } }
     try { client.close(); } catch { /* already gone */ }
-    console.log(`terminal relay: ${JSON.stringify({ seconds: Math.round((Date.now() - startedAt) / 1000), symbols: wanted.size, book, sent, said })}`);
+    clearInterval(heartbeat);
+    console.log(`terminal relay: ${summary()}`);
     finished();
   };
 
