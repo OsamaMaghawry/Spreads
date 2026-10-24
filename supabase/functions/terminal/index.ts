@@ -413,6 +413,46 @@ const streamAuth = (a: any) =>
 // limit from one shared across feeds; `seconds` listens longer, for a thin
 // tape; `accountId` signs in with another account, when the house account's
 // one connection per feed is in use (a terminal open on it, say).
+// Read-only checks the owner's reports call for, 24 Oct: "the price levels are
+// different between the intervals" and "today's order is not showing".
+// `bars`: one stock day's minute candles combined (all hours, and regular hours
+// only) against Alpaca's hourly and daily candles for the same day.
+// `account`: the account's positions with their exact quantities, and its
+// working and finished orders as Alpaca returns them.
+async function diagnose(account: any, mode: string, symbol: string, day: string) {
+  if (mode === "account") {
+    const base = tradingBase(account);
+    const week = new Date(Date.now() - 7 * 86400000).toISOString();
+    const [positions, open, closed] = await Promise.all([
+      alpacaFetch(`${base}/positions`, account),
+      alpacaFetch(`${base}/orders?status=open&limit=50`, account),
+      alpacaFetch(`${base}/orders?status=closed&after=${week}&limit=100&direction=desc`, account).catch((e: Error) => ({ error: e.message }))
+    ]);
+    return {
+      positions: (positions || []).map((p: any) => ({ symbol: p.symbol, qty: p.qty, qtyAvailable: p.qty_available, cls: p.asset_class })),
+      open: (open || []).map((o: any) => ({ symbol: o.symbol, side: o.side, qty: o.qty, status: o.status, type: o.type })),
+      closed: Array.isArray(closed) ? closed.slice(0, 15).map((o: any) => ({ symbol: o.symbol, side: o.side, qty: o.qty, notional: o.notional, filled: o.filled_qty, avg: o.filled_avg_price, status: o.status, at: o.filled_at || o.updated_at })) : closed,
+      closedCount: Array.isArray(closed) ? closed.length : null
+    };
+  }
+  const start = `${day}T00:00:00Z`;
+  const end = `${day}T23:59:59Z`;
+  const get = async (tf: string) => {
+    const r = await alpacaFetch(`${DATA}/stocks/${encodeURIComponent(symbol)}/bars?timeframe=${tf}&start=${start}&end=${end}&limit=10000&feed=${FEED}&adjustment=split`, account);
+    return r?.bars || [];
+  };
+  const [m1, h1, d1] = await Promise.all([get("1Min"), get("1Hour"), get("1Day")]);
+  const agg = (list: any[]) => list.length ? { open: list[0].o, high: Math.max(...list.map((b) => b.h)), low: Math.min(...list.map((b) => b.l)), close: list.at(-1).c, volume: list.reduce((a, b) => a + b.v, 0), first: list[0].t, last: list.at(-1).t } : null;
+  const ny = (t: string) => { const d = new Date(t); const m = Number(d.toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false })) * 60 + d.getUTCMinutes(); return m; };
+  const regular = m1.filter((b: any) => { const m = ny(b.t); return m >= 570 && m < 960; });
+  return {
+    symbol, day,
+    minutesAllHours: agg(m1), minutesRegular: agg(regular), hoursAll: agg(h1),
+    dailyBar: d1[0] ? { open: d1[0].o, high: d1[0].h, low: d1[0].l, close: d1[0].c, volume: d1[0].v, t: d1[0].t } : null,
+    firstHours: h1.slice(0, 3).map((b: any) => ({ t: b.t, o: b.o, h: b.h, l: b.l, c: b.c }))
+  };
+}
+
 async function selftest(admin: any, only = "", seconds = 8, accountId = "", extra: string[] = []) {
   let house = await houseDataAccount(admin);
   if (accountId) {
@@ -423,6 +463,7 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
       oauth_access_token: await decryptSecret(data.oauth_access_token)
     };
   }
+  if (only === "bars" || only === "account") return diagnose(house, only, extra[0] || "SPY", extra[1] || "2026-10-23");
   const auth = streamAuth(house);
   if (!auth) return { error: "That account has no way to sign in to the streams." };
   const listen = Math.min(only === "relay" ? 120 : 60, Math.max(3, Number(seconds) || 8));
