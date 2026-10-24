@@ -9,6 +9,7 @@ import { cryptoOrderBody, cryptoSymbol, isCrypto, CRYPTO } from "../_shared/cryp
 import { redeemCronTicket } from "../_shared/cronTicket.ts";
 import { houseDataAccount } from "../_shared/marketData.ts";
 import { decryptSecret } from "../_shared/crypto.ts";
+import { relayDetail } from "../_shared/terminalRelay.ts";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -259,6 +260,41 @@ async function feedCheck(url: string, auth: { key: string; secret: string }, sub
   return report;
 }
 
+// The terminal's own relay (the code marketStream runs), against the live
+// feeds with a stand-in browser: it opens on BTC/USD's book, then switches to
+// ETH/USD's, as the terminal does when another coin is picked, and counts what
+// comes back. Proves the book arrives whole, keeps updating, and follows the
+// selected coin; and that shares and coins stream side by side.
+async function relayCheck(auth: { key: string; secret: string }, seconds: number) {
+  const got: { at: number; m: any }[] = [];
+  const client: any = {
+    readyState: WebSocket.OPEN,
+    send: (d: string) => got.push({ at: Date.now(), m: JSON.parse(d) }),
+    close: () => { client.readyState = WebSocket.CLOSED; }
+  };
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  relayDetail(client, auth, ["BTC/USD", "ETH/USD", "SPY", "AAPL"], "BTC/USD");
+  client.onopen?.();
+  await wait(seconds * 500);
+  const switchedAt = Date.now();
+  client.onmessage?.({ data: JSON.stringify({ action: "set", symbols: ["BTC/USD", "ETH/USD", "SOL/USD", "SPY"], book: "ETH/USD" }) });
+  await wait(seconds * 500);
+  client.onclose?.();
+  const count = (f: (m: any, at: number) => boolean) => got.filter((g) => f(g.m, g.at)).length;
+  const firstEth = got.find((g) => g.m.type === "book" && g.m.symbol === "ETH/USD" && g.m.reset)?.m;
+  return {
+    ready: got.filter((g) => g.m.type === "ready").map((g) => g.m.feed || "set"),
+    problems: got.filter((g) => g.m.type === "error" || g.m.type === "feed").map((g) => g.m),
+    btcBook: { whole: count((m) => m.type === "book" && m.symbol === "BTC/USD" && m.reset), changes: count((m) => m.type === "book" && m.symbol === "BTC/USD" && !m.reset) },
+    // A second's grace for what was already on its way when the switch was sent.
+    btcBookAfterSwitch: count((m, at) => m.type === "book" && m.symbol === "BTC/USD" && at > switchedAt + 1000),
+    ethBook: { whole: count((m) => m.type === "book" && m.symbol === "ETH/USD" && m.reset), changes: count((m) => m.type === "book" && m.symbol === "ETH/USD" && !m.reset), levels: firstEth ? { bids: firstEth.bids.length, asks: firstEth.asks.length } : null },
+    quotes: Object.fromEntries(["BTC/USD", "ETH/USD", "SOL/USD", "SPY", "AAPL"].map((s) => [s, count((m) => m.type === "quote" && m.symbol === s)])),
+    trades: got.filter((g) => g.m.type === "trade").map((g) => ({ symbol: g.m.symbol, price: g.m.price, size: g.m.size, takerSide: g.m.takerSide })),
+    bars: count((m) => m.type === "bar")
+  };
+}
+
 // How an account signs in to Alpaca's data streams: its key pair, or, for an
 // account connected by OAuth, the word "oauth" and the user's token (Alpaca's
 // streaming docs; the token, never the app's client secret). OAuth first, as
@@ -283,8 +319,9 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "") {
   }
   const auth = streamAuth(house);
   if (!auth) return { error: "That account has no way to sign in to the streams." };
-  const coins = ["BTC/USD", "ETH/USD", "SOL/USD", "DOGE/USD", "LTC/USD"];
   const listen = Math.min(60, Math.max(3, Number(seconds) || 8));
+  if (only === "relay") return { at: new Date().toISOString(), signIn: auth.key === "oauth" ? "oauth" : "key pair", relay: await relayCheck(auth, listen) };
+  const coins = ["BTC/USD", "ETH/USD", "SOL/USD", "DOGE/USD", "LTC/USD"];
   const [crypto, stocks, coinAssets] = await Promise.all([
     only === "stocks" ? null : feedCheck("wss://stream.data.alpaca.markets/v1beta3/crypto/us", auth,
       { trades: coins, quotes: coins, bars: coins, orderbooks: ["BTC/USD"] }, listen),
