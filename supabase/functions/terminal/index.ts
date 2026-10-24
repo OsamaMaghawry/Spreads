@@ -495,6 +495,12 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     };
   }
   if (only === "bars" || only === "account") return diagnose(house, only, extra[0] || "SPY", extra[1] || "2026-10-23");
+  if (only === "hours") {
+    // The regular-hours hourly candles the chart now asks for, as served.
+    const r = await sessionHours(house, extra[0] || "AAPL", "1Hour");
+    const day = extra[1] || "2026-10-23";
+    return { symbol: r.symbol, day, candles: r.bars.filter((b: any) => new Date(b.time * 1000).toISOString().startsWith(day)).map((b: any) => ({ t: new Date(b.time * 1000).toISOString(), o: b.open, h: b.high, l: b.low, c: b.close })) };
+  }
   const auth = streamAuth(house);
   if (!auth) return { error: "That account has no way to sign in to the streams." };
   const listen = Math.min(only === "relay" ? 120 : 60, Math.max(3, Number(seconds) || 8));
