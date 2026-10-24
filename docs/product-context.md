@@ -62,6 +62,7 @@ nothing contingent on trading activity.
 - ResetPassword
 - Scanner
 - Settings
+- Terminal
 
 ## Position kinds
 
@@ -91,6 +92,7 @@ incomplete.
 - **history** — RebuildPreview, StockLotsTable, StrategyTabs, TradeHistoryTable
 - **open** — CandidateList, OpenPositionDialog, OpenPricing, OrderSent, OrderWarnings, RestingOrder, ScanFilters, SetupPreview, StrategyPicker, TicketAnalysis, useLiveSetup, useOpenOrder, useScanLoop
 - **scanner** — ResultsTable, ScannerConfig, TradeDialog, useMarketScan
+- **terminal** — OrderTicket, Panels, PriceChart, useTerminalStream
 
 ## Recently shipped
 
@@ -143,6 +145,7 @@ so a change to shared code requires redeploying all of them.
 - **stripeWebhook** — Receives Stripe's signed subscription events and keeps one row per user current.
 - **syncAccounts** — Rebuilds the live picture for every account the caller owns: positions paired into structures, credit and risk per position, and totals that net a ticker's condors instead of double counting both wings.
 - **syncTrades** — Keeping every connected account's history current, without anybody looking.
+- **terminal** — The staging trading terminal: chart history, quotes, symbol search, the account's shares and orders, and share orders.
 - **tickerPages** — Keeps the public /expected-move pages current, every five minutes.
 - **tradeHistory** — Closed trade history, rebuilt from the broker's activity feed.
 - **tradier** — Tradier, probed against their sandbox before a line of it reaches a user.

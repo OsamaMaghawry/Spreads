@@ -1,0 +1,62 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { stockOrderBody, orderValue } from "./stockOrder.ts";
+
+const base = { symbol: "aapl", side: "buy" as const, qty: 10, type: "limit" as const, limitPrice: 344.5 };
+
+test("a limit buy: the broker's fields, upper-cased symbol, two decimals", () => {
+  const r = stockOrderBody(base, "T1");
+  assert.equal(r.ok, true);
+  assert.deepEqual((r as any).body, {
+    symbol: "AAPL", side: "buy", qty: "10", type: "limit", time_in_force: "day", client_order_id: "T1", limit_price: "344.50"
+  });
+});
+
+test("market, stop and stop-limit carry only their own prices", () => {
+  const m = stockOrderBody({ ...base, type: "market", limitPrice: 1 }, "T") as any;
+  assert.equal(m.body.limit_price, undefined);
+  const s = stockOrderBody({ ...base, type: "stop", stopPrice: 330 }, "T") as any;
+  assert.deepEqual([s.body.stop_price, s.body.limit_price], ["330.00", undefined]);
+  const sl = stockOrderBody({ ...base, type: "stop_limit", stopPrice: 330, limitPrice: 329.5, timeInForce: "gtc" }, "T") as any;
+  assert.deepEqual([sl.body.stop_price, sl.body.limit_price, sl.body.time_in_force], ["330.00", "329.50", "gtc"]);
+  // Under a dollar, four decimals.
+  assert.equal((stockOrderBody({ ...base, limitPrice: 0.12345 }, "T") as any).body.limit_price, "0.1235");
+});
+
+test("refusals in words: missing prices, fractions, a bad symbol", () => {
+  const why = (i: any) => (stockOrderBody(i, "T") as any).reason;
+  assert.match(why({ ...base, limitPrice: null }), /limit price/);
+  assert.match(why({ ...base, type: "stop", limitPrice: null }), /stop price/);
+  assert.match(why({ ...base, qty: 2.5 }), /Whole shares/);
+  assert.match(why({ ...base, qty: 0 }), /how many shares/);
+  assert.match(why({ ...base, symbol: "not a symbol" }), /symbol/);
+});
+
+test("extended hours: a day limit only", () => {
+  assert.equal((stockOrderBody({ ...base, extendedHours: true }, "T") as any).body.extended_hours, true);
+  assert.match((stockOrderBody({ ...base, type: "market", extendedHours: true }, "T") as any).reason, /limit orders for the day/);
+});
+
+test("bracket: both exits, on the right sides of the entry", () => {
+  const ok = stockOrderBody({ ...base, takeProfit: 360, stopLoss: 335 }, "T") as any;
+  assert.equal(ok.body.order_class, "bracket");
+  assert.deepEqual(ok.body.take_profit, { limit_price: "360.00" });
+  assert.deepEqual(ok.body.stop_loss, { stop_price: "335.00" });
+  const why = (i: any) => (stockOrderBody(i, "T") as any).reason;
+  assert.match(why({ ...base, takeProfit: 360 }), /enter both/);
+  assert.match(why({ ...base, takeProfit: 340, stopLoss: 335 }), /take-profit must be above 344\.50/);
+  // A short: profit below, protection above.
+  assert.equal((stockOrderBody({ ...base, side: "sell", takeProfit: 330, stopLoss: 350 }, "T") as any).ok, true);
+  assert.match(why({ ...base, side: "sell", takeProfit: 350, stopLoss: 330 }), /For a sell/);
+  // A market entry is judged against the quote it would trade at.
+  assert.equal((stockOrderBody({ ...base, type: "market", reference: 344, takeProfit: 360, stopLoss: 335 }, "T") as any).ok, true);
+  assert.match(why({ ...base, type: "market", takeProfit: 360, stopLoss: 335 }), /No current price/);
+  assert.match(why({ ...base, type: "stop", stopPrice: 340, takeProfit: 360, stopLoss: 335 }), /market or limit entry/);
+});
+
+test("value: at the limit, or at the side of the quote a market order would take", () => {
+  assert.deepEqual(orderValue(base, {}), { price: 344.5, value: 3445 });
+  assert.deepEqual(orderValue({ ...base, type: "market" }, { bid: 343.9, ask: 344.1 }), { price: 344.1, value: 3441 });
+  assert.deepEqual(orderValue({ ...base, type: "market", side: "sell" }, { bid: 343.9, ask: 344.1 }), { price: 343.9, value: 3439 });
+  assert.equal(orderValue({ ...base, type: "market" }, {}), null);
+});

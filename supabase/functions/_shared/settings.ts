@@ -87,6 +87,11 @@ export const HOUSE_DATA_ACCOUNT = "house_data_account";
 // The keys an administrator may set through the panel. An allowlist rather
 // than "whatever key was posted", so the settings table cannot be used as a
 // general-purpose write target by anything holding an admin session.
+// The staging trading terminal (functions/terminal). Not writable from Admin:
+// set by hand on the staging database only, so production, which has no such
+// row, refuses every terminal call with no flag to forget.
+export const TERMINAL_LAB = "terminal_lab";
+
 export const WRITABLE_SETTINGS = [MANUAL_API_KEYS, BILLING_ENFORCED, BILLING_VISIBLE, DEMO_MODE, PAPER_ONLY, WEEKLY_DIGEST_DELIVERY, DIGEST_RELAY];
 
 type Admin = ReturnType<typeof adminClient>;
@@ -119,6 +124,7 @@ export async function readSettings(admin: Admin) {
       const v = byKey.get(HOUSE_DATA_ACCOUNT);
       return typeof v === "string" && v.trim() ? v.trim() : null;
     })(),
+    terminalLab: byKey.get(TERMINAL_LAB) === true,
     digestRelay: (() => {
       const v = byKey.get(DIGEST_RELAY) as { url?: string; key?: string } | undefined;
       return v && typeof v.url === "string" && v.url ? { url: v.url, key: String(v.key || "") } : null;

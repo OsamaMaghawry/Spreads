@@ -3,13 +3,13 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import {
   LayoutDashboard, KeyRound, LogOut, Radar, ShieldCheck, CreditCard, ListOrdered,
-  Menu, X, Plug
-} from "lucide-react";
+  Menu, X, Plug, CandlestickChart } from "lucide-react";
 import Wordmark from "@/components/brand/Wordmark";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
 import useIsAdmin from "@/lib/useIsAdmin";
 import usePublicConfig from "@/lib/usePublicConfig";
 import ErrorBoundary from "@/components/common/ErrorBoundary";
+import { LAB } from "@/lib/lab";
 
 // The app's navigation, down the side rather than across the top.
 //
@@ -66,6 +66,8 @@ export default function Layout() {
     { to: "/", label: "Dashboard", Icon: LayoutDashboard },
     { to: "/scanner", label: "Strategy Scanner", Icon: Radar },
     { to: "/chain", label: "Option chain", Icon: ListOrdered },
+    // The trading terminal: a staging test (lab), off in the production build.
+    ...(LAB ? [{ to: "/terminal", label: "Terminal", Icon: CandlestickChart }] : []),
     { to: "/accounts", label: "Accounts", Icon: KeyRound },
     { to: "/connect-claude", label: "Use with Claude", Icon: Plug },
     ...(billingVisible ? [{ to: "/billing", label: "Billing", Icon: CreditCard }] : []),

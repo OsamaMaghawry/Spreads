@@ -37,7 +37,10 @@ export default defineConfig(({ mode }) => {
   // matching LAB check at the call site is what keeps the stub from rendering.
   const LAB_MODULES = [
     '@/components/admin/SnapTradePanel',
-    '@/components/analysis/AnalysisLayoutB'
+    '@/components/analysis/AnalysisLayoutB',
+    // The staging trading terminal (24 Oct 2026): page only; its components
+    // are reached from it alone, so stubbing the page drops them too.
+    '@/pages/Terminal'
   ];
   const labOn = env.VITE_LAB === '1';
   const labAliases = labOn

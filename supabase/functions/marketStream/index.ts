@@ -52,6 +52,13 @@ Deno.serve(async (req) => {
   if (!user) return new Response("Unauthorized", { status: 401 });
 
   const accountId = url.searchParams.get("accountId");
+  // The trading terminal (functions/terminal) asks for the full message: trade
+  // size and exchange for its time & sales, bid and ask sizes, and one-minute
+  // bars for its chart; and it changes symbols on the open socket rather than
+  // reconnecting, because Alpaca allows one data connection per account and a
+  // reconnect races the old one. Without `detail` the messages are exactly what
+  // the dashboard has always read.
+  const detail = url.searchParams.get("detail") === "1";
   const symbols = (url.searchParams.get("symbols") || "")
     .split(",")
     .map((s) => s.trim().toUpperCase())
@@ -89,6 +96,8 @@ Deno.serve(async (req) => {
   const { socket: client, response } = Deno.upgradeWebSocket(req);
   let upstream: WebSocket | null = null;
   let closed = false;
+  // The symbols the upstream socket is subscribed to right now.
+  let current = new Set<string>();
 
   const shut = () => {
     if (closed) return;
@@ -121,7 +130,10 @@ Deno.serve(async (req) => {
         // Alpaca answers auth on the same socket rather than by closing it, so
         // success is what triggers the subscribe.
         if (m.T === "success" && m.msg === "authenticated") {
-          upstream?.send(JSON.stringify({ action: "subscribe", trades: symbols, quotes: symbols }));
+          upstream?.send(JSON.stringify(detail
+            ? { action: "subscribe", trades: symbols, quotes: symbols, bars: symbols, updatedBars: symbols }
+            : { action: "subscribe", trades: symbols, quotes: symbols }));
+          current = new Set(symbols);
           send({ type: "ready", symbols });
           continue;
         }
@@ -134,14 +146,23 @@ Deno.serve(async (req) => {
         }
         // t = trade: the last price actually paid, which is what a spot is.
         if (m.T === "t" && m.S) {
-          send({ type: "trade", symbol: m.S, price: m.p, at: m.t });
+          send(detail
+            ? { type: "trade", symbol: m.S, price: m.p, size: m.s, at: m.t, exchange: m.x, conditions: m.c, id: m.i }
+            : { type: "trade", symbol: m.S, price: m.p, at: m.t });
           continue;
         }
         // q = quote. Sent as bid/ask rather than a midpoint: a midpoint between
         // a stale bid and a stale ask is an arithmetic artifact, and the price
         // trust ladder needs both sides to judge that.
         if (m.T === "q" && m.S) {
-          send({ type: "quote", symbol: m.S, bid: m.bp, ask: m.ap, at: m.t });
+          send(detail
+            ? { type: "quote", symbol: m.S, bid: m.bp, ask: m.ap, bidSize: m.bs, askSize: m.as, at: m.t }
+            : { type: "quote", symbol: m.S, bid: m.bp, ask: m.ap, at: m.t });
+          continue;
+        }
+        // b = a finished one-minute bar, u = a correction to one. Terminal only.
+        if (detail && (m.T === "b" || m.T === "u") && m.S) {
+          send({ type: "bar", symbol: m.S, t: m.t, o: m.o, h: m.h, l: m.l, c: m.c, v: m.v });
         }
       }
     };
@@ -152,7 +173,26 @@ Deno.serve(async (req) => {
 
   // The browser has nothing to say back; anything it sends is ignored rather
   // than forwarded, so this can never become a path to Alpaca's trading API.
-  client.onmessage = () => {};
+  // The terminal's symbol changes: the new set, subscribed and unsubscribed
+  // as a difference on the open upstream socket. Ignored outside detail mode,
+  // and capped at the same thirty as the query string.
+  client.onmessage = (event) => {
+    if (!detail) return;
+    let msg: any;
+    try { msg = JSON.parse(String(event.data)); } catch { return; }
+    if (msg?.action !== "set" || !Array.isArray(msg.symbols)) return;
+    const next = new Set<string>(msg.symbols
+      .map((s: unknown) => String(s).toUpperCase().trim())
+      .filter((s: string) => /^[A-Z][A-Z0-9.]{0,9}$/.test(s))
+      .slice(0, 30));
+    if (!next.size || upstream?.readyState !== WebSocket.OPEN) return;
+    const add = [...next].filter((s) => !current.has(s));
+    const drop = [...current].filter((s) => !next.has(s));
+    if (drop.length) upstream.send(JSON.stringify({ action: "unsubscribe", trades: drop, quotes: drop, bars: drop, updatedBars: drop }));
+    if (add.length) upstream.send(JSON.stringify({ action: "subscribe", trades: add, quotes: add, bars: add, updatedBars: add }));
+    current = next;
+    send({ type: "ready", symbols: [...next] });
+  };
   client.onerror = shut;
   client.onclose = shut;
 
