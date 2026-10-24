@@ -11,6 +11,9 @@ import { houseDataAccount } from "../_shared/marketData.ts";
 import { decryptSecret } from "../_shared/crypto.ts";
 import { relayDetail } from "../_shared/terminalRelay.ts";
 import { sessionCandles } from "../_shared/sessionBars.ts";
+import { currentReports } from "../_shared/earnings.ts";
+import { secReports, withFigures, earningsTimeline, cikMap } from "../_shared/earningsHistory.ts";
+import { dailyStats, isFundName } from "../_shared/screenStats.ts";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -258,6 +261,7 @@ async function trades(account: any, symbol: string) {
 type Asset = {
   symbol: string; name: string; exchange: string; shortable: boolean; fractionable: boolean; assetClass: "us_equity" | "crypto";
   minOrderSize: number | null; minTradeIncrement: number | null; priceIncrement: number | null;
+  options: boolean; easyToBorrow: boolean;
 };
 let assets: Asset[] | null = null;
 let assetsAt = 0;
@@ -272,7 +276,8 @@ async function assetList(account: any): Promise<Asset[]> {
     const shape = (a: any): Asset => ({
       symbol: a.class === "crypto" ? cryptoSymbol(a.symbol) : a.symbol, name: a.name || "", exchange: a.exchange || "",
       shortable: !!a.shortable, fractionable: !!a.fractionable, assetClass: a.class === "crypto" ? "crypto" : "us_equity",
-      minOrderSize: num(a.min_order_size), minTradeIncrement: num(a.min_trade_increment), priceIncrement: num(a.price_increment)
+      minOrderSize: num(a.min_order_size), minTradeIncrement: num(a.min_trade_increment), priceIncrement: num(a.price_increment),
+      options: Array.isArray(a.attributes) && a.attributes.includes("has_options"), easyToBorrow: !!a.easy_to_borrow
     });
     assets = [...(Array.isArray(coins) ? coins : []), ...(Array.isArray(shares) ? shares : [])]
       .filter((a: any) => a.tradable)
@@ -296,6 +301,237 @@ async function search(account: any, q: string) {
 
 async function assetFor(account: any, symbol: string) {
   return (await assetList(account)).find((a) => a.symbol === symbol) || null;
+}
+
+// ---------- earnings on the chart ----------
+//
+// Past reports from the SEC (8-K Item 2.02, with the moment filed), the next
+// one from the cached calendar, and EPS from the calendar's provider where
+// its free tier has it (earningsHistory.ts). None of it is price data, so it
+// is held for every caller alike for a few hours.
+
+const SEC_HEADERS = { "User-Agent": "DeltaMint support@deltamint.app", Accept: "application/json" };
+const SEC_TTL = 24 * 3600000;
+const EVENTS_TTL = 6 * 3600000;
+let ciks: Map<string, string> | null = null;
+let ciksAt = 0;
+const earningsCache = new Map<string, { at: number; body: any }>();
+
+async function secJson(url: string) {
+  const r = await fetch(url, { headers: SEC_HEADERS });
+  if (!r.ok) throw new Error(`SEC answered ${r.status}`);
+  return r.json();
+}
+
+async function cikFor(symbol: string) {
+  if (!ciks || Date.now() - ciksAt > SEC_TTL) {
+    ciks = cikMap(await secJson("https://www.sec.gov/files/company_tickers.json"));
+    ciksAt = Date.now();
+  }
+  return ciks.get(symbol) || null;
+}
+
+async function secHistory(symbol: string) {
+  const cik = await cikFor(symbol);
+  if (!cik) return { reports: [], note: "no SEC filer under this symbol" };
+  const sub = await secJson(`https://data.sec.gov/submissions/CIK${cik}.json`);
+  let reports = secReports(sub?.filings?.recent);
+  // A busy filer's recent list covers about a year; reach one page further
+  // back for a chart that shows two.
+  const twoYears = new Date(Date.now() - 730 * 86400000).toISOString().slice(0, 10);
+  const older = sub?.filings?.files?.[0]?.name;
+  if (older && (!reports.length || reports[0].date > twoYears)) {
+    const more = await secJson(`https://data.sec.gov/submissions/${older}`).catch(() => null);
+    const seen = new Set(reports.map((r) => r.date));
+    reports = [...secReports(more).filter((r) => !seen.has(r.date)), ...reports].sort((a, b) => a.date.localeCompare(b.date));
+  }
+  return { reports, note: null };
+}
+
+const nyDate = (ms = Date.now()) => new Date(ms).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+
+async function earningsFor(admin: any, symbol: string) {
+  const hit = earningsCache.get(symbol);
+  if (hit && Date.now() - hit.at < EVENTS_TTL) return hit.body;
+  const today = nyDate();
+  const token = Deno.env.get("EARNINGS_API_KEY");
+  const finnhub = (path: string) => (token
+    ? fetch(`https://finnhub.io/api/v1${path}&token=${token}`).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+    : Promise.resolve(null));
+  const from = nyDate(Date.now() - 35 * 86400000);
+  const to = nyDate(Date.now() + 120 * 86400000);
+  const [sec, cached, surprises, calendar] = await Promise.all([
+    secHistory(symbol).catch((e: Error) => ({ reports: [], note: e.message })),
+    admin.from("earnings_calendar").select("symbol, report_date, session, fetched_at").eq("symbol", symbol),
+    finnhub(`/stock/earnings?symbol=${encodeURIComponent(symbol)}`),
+    finnhub(`/calendar/earnings?symbol=${encodeURIComponent(symbol)}&from=${from}&to=${to}`)
+  ]);
+  const rows = currentReports(cached?.data || []);
+  const cal = calendar?.earningsCalendar || [];
+  const reports = earningsTimeline(withFigures(sec.reports, surprises || [], cal), rows, cal, today);
+  const body = {
+    symbol, earnings: reports,
+    sources: { sec: sec.reports.length, secNote: sec.note, calendar: rows.length, figures: Array.isArray(surprises) && surprises.length > 0 }
+  };
+  earningsCache.set(symbol, { at: Date.now(), body });
+  return body;
+}
+
+// ---------- the stock screener ----------
+//
+// "Stock Screener, with some extensive filtrations like the advanced tools to
+// see the stocks in play" (24 Oct). Two reads, both with the caller's own
+// account. `universe`: every listed US share's snapshot, so the screen covers
+// the whole market, not a list; refreshed on demand. `daily`: a year of daily
+// candles for the symbols the screen asks about, reduced to the numbers that
+// move once a day (screenStats.ts); the browser keeps those for the day. The
+// browser combines the two and filters as the trader types (src/lib/screener.js).
+//
+// Volume: the free IEX feed carries IEX's own trades only, a few percent of
+// the market, which would make every volume filter wrong. So volume and the
+// day's candle come from the consolidated tape, fifteen minutes delayed (all
+// an account without a paid data plan may read), and the price from IEX in
+// real time. Daily candles are consolidated too.
+
+const SCREEN_EXCHANGES = new Set(["NYSE", "NASDAQ", "ARCA", "AMEX", "BATS"]);
+const SNAP_CHUNK = 400;
+const DAILY_MAX = 200;
+
+async function inBatches<T, R>(items: T[], size: number, run: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = [];
+  for (let i = 0; i < items.length; i += size) out.push(...(await Promise.all(items.slice(i, i + size).map(run))));
+  return out;
+}
+
+// Shares outstanding as companies state them on their latest 10-Q or 10-K
+// cover (SEC XBRL frames, dei:EntityCommonStockSharesOutstanding): one file
+// per quarter for every filer, the latest per company kept. Companies with
+// several share classes state them per class and are left out (no market cap
+// shown rather than a wrong one).
+let sharesByCik: Map<string, number> | null = null;
+let sharesAt = 0;
+async function sharesOutstanding() {
+  if (sharesByCik && Date.now() - sharesAt < SEC_TTL) return sharesByCik;
+  const now = new Date();
+  const frames: string[] = [];
+  for (let back = 0; back < 4; back++) {
+    const q = Math.floor(now.getUTCMonth() / 3) - back;
+    const y = now.getUTCFullYear() + Math.floor(q / 4);
+    frames.push(`CY${y}Q${((q % 4) + 4) % 4 + 1}I`);
+  }
+  const files = await Promise.all(frames.map((f) =>
+    secJson(`https://data.sec.gov/api/xbrl/frames/dei/EntityCommonStockSharesOutstanding/shares/${f}.json`).catch(() => null)));
+  const latest = new Map<string, { end: string; val: number }>();
+  for (const file of files) {
+    for (const row of file?.data || []) {
+      const cik = String(row.cik).padStart(10, "0");
+      const cur = latest.get(cik);
+      if (num(row.val) && (!cur || String(row.end) > cur.end)) latest.set(cik, { end: String(row.end), val: Number(row.val) });
+    }
+  }
+  sharesByCik = new Map([...latest].map(([k, v]) => [k, v.val]));
+  sharesAt = Date.now();
+  return sharesByCik;
+}
+
+// The next report within six weeks for every symbol in the cached calendar.
+async function upcomingEarnings(admin: any) {
+  const today = nyDate();
+  const through = nyDate(Date.now() + 42 * 86400000);
+  const rows: any[] = [];
+  for (let page = 0; page < 10; page++) {
+    const { data, error } = await admin.from("earnings_calendar").select("symbol, report_date, session, fetched_at")
+      .gte("report_date", today).lte("report_date", nyDate(Date.now() + 90 * 86400000))
+      .order("report_date").range(page * 1000, page * 1000 + 999);
+    if (error || !data?.length) break;
+    rows.push(...data);
+    if (data.length < 1000) break;
+  }
+  const next: Record<string, [string, string | null]> = {};
+  for (const r of currentReports(rows).sort((a, b) => a.report_date.localeCompare(b.report_date))) {
+    if (r.report_date > through || next[r.symbol]) continue;
+    next[r.symbol] = [r.report_date, r.session];
+  }
+  return next;
+}
+
+async function snapsFor(account: any, symbols: string[], feed: string) {
+  const chunks: string[][] = [];
+  for (let i = 0; i < symbols.length; i += SNAP_CHUNK) chunks.push(symbols.slice(i, i + SNAP_CHUNK));
+  const parts = await inBatches(chunks, 6, (c) => alpacaFetch(`${DATA}/stocks/snapshots?symbols=${c.join(",")}&feed=${feed}`, account));
+  return Object.assign({}, ...parts.map((p) => p || {}));
+}
+
+const SCREEN_COLUMNS = [
+  "symbol", "name", "exchange", "price", "priceAt", "prevClose", "open", "high", "low", "volume", "prevVolume", "vwap", "trades",
+  "bid", "ask", "options", "shortable", "easyToBorrow", "fund", "shares", "earnDate", "earnSession"
+];
+
+async function screenUniverse(admin: any, account: any) {
+  const list = (await assetList(account)).filter((a) => a.assetClass === "us_equity" && SCREEN_EXCHANGES.has(a.exchange) && SYMBOL.test(a.symbol));
+  const symbols = list.map((a) => a.symbol);
+  // The day's candle and volume from the delayed consolidated tape; IEX
+  // alone if the account cannot read that.
+  let dayFeed = "delayed_sip";
+  const [iex, day, earnings, shares] = await Promise.all([
+    snapsFor(account, symbols, FEED),
+    snapsFor(account, symbols, "delayed_sip").catch(() => { dayFeed = FEED; return null; }),
+    upcomingEarnings(admin).catch(() => ({} as Record<string, [string, string | null]>)),
+    sharesOutstanding().catch(() => null),
+    cikFor("AAPL").catch(() => null)
+  ]);
+  const rows: any[][] = [];
+  for (const a of list) {
+    const live = iex?.[a.symbol];
+    const d = day?.[a.symbol] || live;
+    if (!d && !live) continue;
+    // The later of the two last trades: IEX's is real time but may be hours
+    // old on a thin name; the consolidated one is fifteen minutes behind.
+    const liveAt = live?.latestTrade?.t ? Date.parse(live.latestTrade.t) : 0;
+    const dayAt = d?.latestTrade?.t ? Date.parse(d.latestTrade.t) : 0;
+    const useLive = liveAt >= dayAt && num(live?.latestTrade?.p) !== null;
+    const price = useLive ? num(live.latestTrade.p) : num(d?.latestTrade?.p) ?? num(d?.dailyBar?.c);
+    if (price === null) continue;
+    const cik = ciks?.get(a.symbol);
+    rows.push([
+      a.symbol, a.name, a.exchange, price, (useLive ? live?.latestTrade?.t : d?.latestTrade?.t) || null,
+      num(d?.prevDailyBar?.c), num(d?.dailyBar?.o), num(d?.dailyBar?.h), num(d?.dailyBar?.l), num(d?.dailyBar?.v), num(d?.prevDailyBar?.v),
+      num(d?.dailyBar?.vw), num(d?.dailyBar?.n),
+      num(live?.latestQuote?.bp), num(live?.latestQuote?.ap),
+      a.options, a.shortable, a.easyToBorrow, isFundName(a.name),
+      cik && shares ? shares.get(cik) ?? null : null,
+      earnings[a.symbol]?.[0] ?? null, earnings[a.symbol]?.[1] ?? null
+    ]);
+  }
+  return { columns: SCREEN_COLUMNS, rows, dayFeed, priceFeed: FEED, at: new Date().toISOString(), listed: list.length };
+}
+
+async function screenDaily(account: any, symbols: string[]) {
+  const list = [...new Set(symbols.map((s) => String(s).toUpperCase()))].filter((s) => SYMBOL.test(s)).slice(0, DAILY_MAX);
+  if (!list.length) return { stats: {}, feed: "sip" };
+  const start = iso(Date.now() - 380 * 86400000);
+  // Consolidated history ends fifteen minutes back for an account without a
+  // paid data plan; finished days are all the screen uses anyway.
+  const end = iso(Date.now() - 16 * 60000);
+  const read = async (feed: string) => {
+    const all: Record<string, any[]> = {};
+    let token: string | null = null;
+    let pages = 0;
+    do {
+      const page = await alpacaFetch(`${DATA}/stocks/bars?symbols=${list.join(",")}&timeframe=1Day&start=${start}&end=${end}&limit=10000&feed=${feed}&adjustment=split` +
+        (token ? `&page_token=${encodeURIComponent(token)}` : ""), account);
+      for (const [s, bars] of Object.entries(page?.bars || {})) (all[s] = all[s] || []).push(...(bars as any[]));
+      token = page?.next_page_token || null;
+      pages += 1;
+    } while (token && pages < 12);
+    return all;
+  };
+  let feed = "sip";
+  const bars = await read("sip").catch(() => { feed = FEED; return read(FEED); });
+  const today = nyDate();
+  const stats: Record<string, any> = {};
+  for (const s of list) stats[s] = dailyStats(bars[s] || [], today);
+  return { stats, feed };
 }
 
 // One order as the terminal shows it, finished or not: what was asked, what
@@ -533,6 +769,34 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     }
     return { rows };
   }
+  if (only === "events") {
+    // Earnings as the chart receives them, for a US filer, a bank that
+    // reports before the open, a foreign filer and a fund.
+    const out: Record<string, any> = {};
+    for (const sym of extra.length ? extra : ["AAPL", "JPM", "NVDA", "TSM", "SPY"]) {
+      try {
+        const r = await earningsFor(admin, sym);
+        out[sym] = { sources: r.sources, reports: r.earnings.slice(-6).map((e: any) => [e.date, e.session, e.source, e.upcoming, e.epsActual ?? null, e.epsEstimate ?? null, e.at ? iso(e.at * 1000) : null]) };
+      } catch (e) { out[sym] = { error: String((e as Error).message || e) }; }
+    }
+    return out;
+  }
+  if (only === "screen") {
+    // The screener's two reads, timed, with a sample of what comes back.
+    const t0 = Date.now();
+    const u = await screenUniverse(admin, house);
+    const t1 = Date.now();
+    const col = (name: string) => u.columns.indexOf(name);
+    const pick = (s: string) => u.rows.find((r) => r[0] === s);
+    const names = (extra.length ? extra : ["AAPL", "NVDA", "SPY", "TSLA", "PLTR"]);
+    const d = await screenDaily(house, names);
+    const t2 = Date.now();
+    return {
+      universe: { ms: t1 - t0, listed: u.listed, rows: u.rows.length, dayFeed: u.dayFeed, withShares: u.rows.filter((r) => r[col("shares")]).length, withEarnings: u.rows.filter((r) => r[col("earnDate")]).length, withOptions: u.rows.filter((r) => r[col("options")]).length, funds: u.rows.filter((r) => r[col("fund")]).length },
+      sample: Object.fromEntries(names.map((s) => [s, pick(s) ? Object.fromEntries(u.columns.map((c, i) => [c, pick(s)![i]])) : null])),
+      daily: { ms: t2 - t1, feed: d.feed, stats: d.stats }
+    };
+  }
   if (only === "hours") {
     // The regular-hours hourly candles the chart now asks for, as served.
     const r = await sessionHours(house, extra[0] || "AAPL", "1Hour");
@@ -638,6 +902,14 @@ Deno.serve(async (req) => {
     if (action === "book") {
       if (!TERMINAL_SYMBOL(symbol)) return jsonResponse({ error: "Choose a symbol." }, 400);
       return jsonResponse(await book(account, symbol));
+    }
+    if (action === "events") {
+      if (!SYMBOL.test(symbol)) return jsonResponse({ symbol, earnings: [], sources: { note: "no earnings for coins" } });
+      return jsonResponse(await earningsFor(admin, symbol));
+    }
+    if (action === "screen") {
+      if (body.stage === "daily") return jsonResponse(await screenDaily(account, Array.isArray(body.symbols) ? body.symbols : []));
+      return jsonResponse(await screenUniverse(admin, account));
     }
     if (action === "orderStatus") {
       if (!body.orderId) return jsonResponse({ error: "Which order?" }, 400);
