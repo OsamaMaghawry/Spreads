@@ -1,4 +1,4 @@
-import { timeToLogical, fibLevels, measure, durationText, hitTest } from "@/lib/chartDrawings";
+import { timeToLogical, fibLevels, measure, durationText, hitTest, textBox } from "@/lib/chartDrawings";
 import { px } from "@/lib/terminal";
 
 // The drawings, painted on the chart: a Lightweight Charts series primitive
@@ -142,6 +142,23 @@ export class DrawingLayer {
     ctx.setLineDash([]);
     const line = (x1, y1, x2, y2) => { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); };
 
+    if (d.type === "text") {
+      // A note: the words on a pale card in the drawing's colour.
+      if (!d.text) { ctx.restore(); return; }
+      const box = textBox(d.text);
+      ctx.font = "12px ui-sans-serif, system-ui, -apple-system, sans-serif";
+      const w = Math.max(box.width, ctx.measureText(d.text).width + 12);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
+      ctx.fillRect(a.x, a.y - box.height / 2, w, box.height);
+      ctx.strokeStyle = d.color;
+      ctx.lineWidth = selected ? 1.5 : 1;
+      ctx.strokeRect(a.x, a.y - box.height / 2, w, box.height);
+      ctx.fillStyle = d.color;
+      ctx.textBaseline = "middle";
+      ctx.fillText(d.text, a.x + 6, a.y + 0.5);
+      ctx.restore();
+      return;
+    }
     if (d.type === "hline") {
       line(0, a.y, size.width, a.y);
     } else if (d.type === "vline") {

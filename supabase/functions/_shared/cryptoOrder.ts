@@ -77,10 +77,32 @@ export function onStep(value: number, step: number | null, mode: "down" | "neare
   const s = step && step > 0 ? step : null;
   if (!s) return String(value);
   const d = decimalsOf(s);
-  const units = value / s;
-  // The epsilon keeps 0.3 / 0.1 = 2.9999999999999996 from rounding down a whole step.
-  const n = mode === "down" ? Math.floor(units + 1e-9) : Math.round(units);
+  // Division in binary floating point lands just under whole numbers: 0.5 /
+  // 0.000000001 is 499999999.99999994. Rounded down as it stood, every typed
+  // quantity lost a step (0.5 ETH went to Alpaca as 0.499999999, 24 Oct).
+  // Settling the count of steps to six decimals first keeps what was typed;
+  // anything genuinely between two steps still rounds down.
+  const units = Number((value / s).toFixed(6));
+  const n = mode === "down" ? Math.floor(units) : Math.round(units);
   return (n * s).toFixed(d);
+}
+
+/**
+ * A quantity typed (or taken from the broker) as decimal text, kept as text
+ * when it is already on a power-of-ten step: no arithmetic, so nothing is
+ * lost. 446756152.125279584 PEPE has more digits than a JavaScript number
+ * holds; sent through onStep it would come back altered, and selling "all"
+ * would ask for more than is held.
+ */
+export function stepText(text: unknown, step: number | null): string | null {
+  const t = String(text ?? "").trim();
+  if (!/^\d+(\.\d+)?$/.test(t)) return null;
+  const d = step && step > 0 ? decimalsOf(step) : 9;
+  if (step && Math.abs(10 ** -d - step) > 1e-15) return null; // not a power of ten
+  const [whole, frac = ""] = t.split(".");
+  if (frac.length > d) return null;
+  const out = d ? `${whole.replace(/^0+(?=\d)/, "")}.${frac.padEnd(d, "0")}` : whole.replace(/^0+(?=\d)/, "");
+  return /^0(\.0*)?$/.test(out) ? null : out;
 }
 
 /** The order body for POST /v2/orders, or the first reason it cannot be sent. */
@@ -101,7 +123,7 @@ export function cryptoOrderBody(input: CryptoOrderInput, clientId: string, asset
 
   const asked = num(input.qty);
   if (asked === null || !(asked > 0)) return { ok: false, reason: "Enter a quantity." };
-  const qty = onStep(asked, asset.minTradeIncrement, "down");
+  const qty = stepText(input.qty, asset.minTradeIncrement) ?? onStep(asked, asset.minTradeIncrement, "down");
   if (!(Number(qty) > 0)) return { ok: false, reason: `That quantity is smaller than ${symbol}'s smallest step (${asset.minTradeIncrement}).` };
   if (asset.minOrderSize && Number(qty) < asset.minOrderSize) {
     return { ok: false, reason: `The smallest ${symbol} order is ${asset.minOrderSize}.` };

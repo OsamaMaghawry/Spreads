@@ -17,8 +17,14 @@ export const TOOLS = [
   { id: "vline", label: "Vertical line", points: 1 },
   { id: "rect", label: "Rectangle", points: 2 },
   { id: "fib", label: "Fibonacci retracement", points: 2 },
-  { id: "measure", label: "Measure", points: 2 }
+  { id: "measure", label: "Measure", points: 2 },
+  { id: "text", label: "Text", points: 1 }
 ];
+
+// A text note's box on screen, estimated from its length at the 12px the layer
+// draws in: wide enough to catch a click on any of it.
+export const TEXT_MAX = 200;
+export const textBox = (text) => ({ width: Math.max(24, String(text || "").length * 7 + 12), height: 20 });
 export const pointsFor = (type) => TOOLS.find((t) => t.id === type)?.points ?? 2;
 
 export const COLORS = ["#2563eb", "#059669", "#e11d48", "#d97706", "#7c3aed", "#0f172a"];
@@ -110,6 +116,11 @@ export function hitTest(drawings, xy, x, y) {
       if (Math.abs(x - a.x) <= LINE_PX) return { id: d.id, handle: null };
       continue;
     }
+    if (d.type === "text") {
+      const box = textBox(d.text);
+      if (x >= a.x - 2 && x <= a.x + box.width && y >= a.y - box.height / 2 && y <= a.y + box.height / 2) return { id: d.id, handle: null };
+      continue;
+    }
     if (!b) continue;
     if (Math.hypot(x - a.x, y - a.y) <= HANDLE_PX) return { id: d.id, handle: 0 };
     if (Math.hypot(x - b.x, y - b.y) <= HANDLE_PX) return { id: d.id, handle: 1 };
@@ -155,8 +166,12 @@ export const DRAWINGS_MAX = 100;
 export function cleanDrawings(list) {
   return (Array.isArray(list) ? list : [])
     .filter((d) => d && typeof d.id === "string" && TYPES.has(d.type) && Array.isArray(d.points) &&
-      d.points.length === pointsFor(d.type) && d.points.every(okPoint))
-    .map((d) => ({ id: d.id, type: d.type, points: d.points.map((p) => ({ time: p.time, price: p.price })), color: COLORS.includes(d.color) ? d.color : COLORS[0] }))
+      d.points.length === pointsFor(d.type) && d.points.every(okPoint) &&
+      (d.type !== "text" || (typeof d.text === "string" && d.text.trim())))
+    .map((d) => ({
+      id: d.id, type: d.type, points: d.points.map((p) => ({ time: p.time, price: p.price })), color: COLORS.includes(d.color) ? d.color : COLORS[0],
+      ...(d.type === "text" ? { text: d.text.trim().slice(0, TEXT_MAX) } : {})
+    }))
     .slice(-DRAWINGS_MAX);
 }
 

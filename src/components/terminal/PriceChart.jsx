@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { createChart, createSeriesMarkers, CandlestickSeries, HistogramSeries, LineSeries, LineStyle, CrosshairMode } from "lightweight-charts";
-import { MousePointer2, Slash, MoveUpRight, Minus, SeparatorVertical, RectangleHorizontal, Rows3, Ruler, Trash2, Eraser, Activity, X } from "lucide-react";
+import { MousePointer2, Slash, MoveUpRight, Minus, SeparatorVertical, RectangleHorizontal, Rows3, Ruler, Trash2, Eraser, Activity, X, Type } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { INTERVALS, applyTrade, applyMinuteBar, isCrypto, priceFormatFor, inRegularHours, sessionDay, sessionOf, px, sizeText } from "@/lib/terminal";
 import { INDICATORS, LINE_COLORS, cleanIndicators, defaultParams, indicatorLabel, indicatorSeries } from "@/lib/indicators";
@@ -34,8 +34,10 @@ const SESSION_KEY = "dm.terminal.session";
 const IND_KEY = "dm.terminal.indicators";
 const read = (key, fallback) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
 const write = (key, value) => { try { localStorage.setItem(key, value); } catch { /* private window */ } };
-const ICONS = { trend: Slash, ray: MoveUpRight, hline: Minus, vline: SeparatorVertical, rect: RectangleHorizontal, fib: Rows3, measure: Ruler };
+const ICONS = { trend: Slash, ray: MoveUpRight, hline: Minus, vline: SeparatorVertical, rect: RectangleHorizontal, fib: Rows3, measure: Ruler, text: Type };
 const STEP = Object.fromEntries(INTERVALS.map((i) => [i.id, i.seconds]));
+const CALENDAR = ["1Day", "1Week", "1Month"];
+const HOURLY = ["1Hour", "2Hour", "4Hour"];
 
 const loadDrawings = (symbol) => {
   try { return readDrawings(localStorage.getItem(DRAW_KEY), symbol); } catch { return []; }
@@ -93,6 +95,8 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
   const [selected, setSelectedState] = useState(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [drafting, setDrafting] = useState(false);
+  // A text note being typed: where its box sits and what it says so far.
+  const [editing, setEditing] = useState(null);
   symbolRef.current = symbol;
 
   const repaint = () => layerRef.current?.update();
@@ -116,14 +120,20 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
       timeScale: { borderColor: "#e2e8f0", timeVisible: true, secondsVisible: false, rightOffset: 8 },
       localization: {
         // New York time on the crosshair, whatever the viewer's clock says.
-        timeFormatter: (t) => new Date(t * 1000).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })
+        // A coin's day, week and month start at midnight UTC: read in New
+        // York time they would show the evening before, so they are dated in
+        // UTC. Everything else is New York time.
+        timeFormatter: (t) => (cryptoRef.current && CALENDAR.includes(intervalRef.current)
+          ? new Date(t * 1000).toLocaleDateString("en-US", { timeZone: "UTC", year: "numeric", month: "short", day: "numeric" })
+          : new Date(t * 1000).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }))
       }
     });
     // And on the time axis: the library labels its ticks in UTC unless told
     // otherwise, which put the axis four or five hours off the crosshair.
     const nyTick = (t, type) => {
       const d = new Date(t * 1000);
-      const f = (o) => d.toLocaleString("en-US", { timeZone: "America/New_York", ...o });
+      const zone = cryptoRef.current && CALENDAR.includes(intervalRef.current) ? "UTC" : "America/New_York";
+      const f = (o) => d.toLocaleString("en-US", { timeZone: zone, ...o });
       if (type === 0) return f({ year: "numeric" });
       if (type === 1) return f({ month: "short" });
       if (type === 2) return f({ day: "numeric" });
@@ -204,6 +214,13 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
       const t = toolRef.current;
       const p = pointAt(Math.min(Math.max(x, 0), chart.timeScale().width()), y);
       if (!p || t === "cursor") return;
+      if (t === "text") {
+        // Placed empty, then typed into where it sits (Enter keeps it).
+        const d = { id: newId(), type: "text", points: [p], color: colorRef.current, text: "" };
+        place(d);
+        setEditing({ id: d.id, x, y, value: "" });
+        return;
+      }
       if (pointsFor(t) === 1) {
         place({ id: newId(), type: t, points: [p], color: colorRef.current });
         return;
@@ -270,6 +287,17 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
       window.addEventListener("pointermove", onDragMove);
       window.addEventListener("pointerup", onDragEnd, { once: true });
     };
+    // Double-click a note to change its words.
+    const onDouble = (e) => {
+      const { x, y } = local(e);
+      const hit = hitTest(drawingsRef.current, xy, x, y);
+      const d = hit && drawingsRef.current.find((k) => k.id === hit.id);
+      if (!d || d.type !== "text") return;
+      e.stopPropagation();
+      const at = xy(d.points[0]);
+      if (at) setEditing({ id: d.id, x: at.x, y: at.y, value: d.text || "" });
+    };
+    box.addEventListener("dblclick", onDouble, true);
     // The same press, as the mouse and touch events the chart also listens to.
     const swallowIfHeld = (e) => { if (swallow) e.stopPropagation(); };
     box.addEventListener("pointerdown", onDown, true);
@@ -279,6 +307,7 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
     return () => {
       chart.unsubscribeCrosshairMove(onMove);
       box.removeEventListener("pointerdown", onDown, true);
+      box.removeEventListener("dblclick", onDouble, true);
       box.removeEventListener("mousedown", swallowIfHeld, true);
       box.removeEventListener("touchstart", swallowIfHeld, true);
       window.removeEventListener("pointermove", onDragMove);
@@ -325,7 +354,7 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
 
   // Which bars belong on screen: all of them for a coin or a daily chart;
   // for a share's intraday chart, regular hours only unless all hours is on.
-  const keep = useCallback((bar) => cryptoRef.current || sessionRef.current === "all" || ["1Day", "1Week", "1Month"].includes(intervalRef.current) ||
+  const keep = useCallback((bar) => cryptoRef.current || sessionRef.current === "all" || CALENDAR.includes(intervalRef.current) ||
     inRegularHours(bar.time, STEP[intervalRef.current] || 300), []);
 
   // The indicators' lines, from the bars on screen. Throttled: a busy tape
@@ -360,11 +389,15 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
   }, [keep, paintIndicators]);
 
   // History for the symbol and interval.
+  const alignedSession = !crypto && HOURLY.includes(interval) && session === "regular" ? "regular" : "";
   useEffect(() => {
     if (!accountId || !symbol) return undefined;
     let alive = true;
     setState({ loading: true, error: null, count: 0 });
-    invokeFunction("terminal", { action: "bars", accountId, symbol, interval }).then((r) => {
+    // A share's hourly candles on a regular-hours chart come aligned to the
+    // 9:30 open (functions/terminal sessionHours); all other charts use
+    // Alpaca's bars as they are and filter them by session here.
+    invokeFunction("terminal", { action: "bars", accountId, symbol, interval, session: alignedSession || undefined }).then((r) => {
       if (!alive) return;
       if (r?.data?.error) { setState({ loading: false, error: r.data.error, count: 0 }); return; }
       rawRef.current = r?.data?.bars || [];
@@ -373,7 +406,7 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
       setState({ loading: false, error: null, count });
     });
     return () => { alive = false; };
-  }, [accountId, symbol, interval, show]);
+  }, [accountId, symbol, interval, show, alignedSession]);
 
   // Regular or all hours: the same bars, filtered again.
   useEffect(() => {
@@ -474,6 +507,16 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
   };
   const editIndicator = (id, key, value) => setIndicators((list) => cleanIndicators(list.map((x) => (x.id === id ? { ...x, params: { ...x.params, [key]: value } } : x))));
   const removeIndicator = (id) => setIndicators((list) => list.filter((x) => x.id !== id));
+
+  // The note's words saved; an empty note is removed rather than left blank.
+  const finishText = (keep) => {
+    if (!editing) return;
+    const text = keep ? editing.value.trim() : (drawingsRef.current.find((d) => d.id === editing.id)?.text || "");
+    commit(text
+      ? drawingsRef.current.map((d) => (d.id === editing.id ? { ...d, text } : d))
+      : drawingsRef.current.filter((d) => d.id !== editing.id));
+    setEditing(null);
+  };
 
   const pickColor = (c) => {
     colorRef.current = c;
@@ -592,6 +635,20 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
       )}
       <div className="relative min-h-[260px] flex-1">
         <div ref={boxRef} className={`absolute inset-0 ${tool !== "cursor" ? "cursor-crosshair" : ""}`} />
+        {editing && (
+          <input
+            autoFocus
+            aria-label="Note text"
+            value={editing.value}
+            maxLength={200}
+            placeholder="Type a note, Enter to keep"
+            onChange={(e) => setEditing((ed) => ({ ...ed, value: e.target.value }))}
+            onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") finishText(true); else if (e.key === "Escape") finishText(false); }}
+            onBlur={() => finishText(true)}
+            className="absolute z-20 w-56 rounded border border-slate-400 bg-white px-1.5 py-0.5 text-xs shadow"
+            style={{ left: editing.x, top: editing.y - 11 }}
+          />
+        )}
         {indicators.length > 0 && (
           <div className="pointer-events-none absolute left-2 top-1 z-10 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
             {indicators.map((x) => (

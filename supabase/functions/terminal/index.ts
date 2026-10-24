@@ -10,6 +10,7 @@ import { redeemCronTicket } from "../_shared/cronTicket.ts";
 import { houseDataAccount } from "../_shared/marketData.ts";
 import { decryptSecret } from "../_shared/crypto.ts";
 import { relayDetail } from "../_shared/terminalRelay.ts";
+import { sessionCandles } from "../_shared/sessionBars.ts";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -100,8 +101,36 @@ async function secondBars(account: any, symbol: string, interval: string) {
   return { symbol, interval, feed: crypto ? "crypto" : FEED, bars: out, fromTrades: true };
 }
 
-async function bars(account: any, symbol: string, interval: string) {
+// A share's hourly candles on a regular-hours chart, aligned to the session:
+// 9:30-10:30, 10:30-11:30 ... 15:30-16:00, as TradingView draws them. Alpaca's
+// own hourly bars run on the clock (9:00-10:00), so the first of each day
+// carried half an hour of pre-market prices into a regular-hours chart: on
+// 23 Oct, AAPL's 9:00 bar opened at 347.51 while the session opened at
+// 349.155, and the hourly chart disagreed with the minute one ("the prices
+// levels are different between the intervals", 24 Oct). Built here from
+// 30-minute bars, which do start at 9:30.
+const HOUR_SPANS: Record<string, number> = { "1Hour": 60, "2Hour": 120, "4Hour": 240 };
+
+async function sessionHours(account: any, symbol: string, interval: string) {
+  const span = HOUR_SPANS[interval];
+  const start = new Date(Date.now() - RANGES[interval].days * 86400000).toISOString();
+  const halves: any[] = [];
+  let token: string | null = null;
+  let pages = 0;
+  do {
+    const page = await alpacaFetch(`${DATA}/stocks/${encodeURIComponent(symbol)}/bars?timeframe=30Min&start=${start}&limit=10000&feed=${FEED}&adjustment=split&sort=asc` +
+      (token ? `&page_token=${encodeURIComponent(token)}` : ""), account);
+    halves.push(...(page?.bars || []));
+    token = page?.next_page_token || null;
+    pages += 1;
+  } while (token && pages < 5);
+  const out = sessionCandles(halves, span);
+  return { symbol, interval, feed: FEED, bars: out, session: "regular" };
+}
+
+async function bars(account: any, symbol: string, interval: string, session = "") {
   if (SECONDS[interval]) return secondBars(account, symbol, interval);
+  if (session === "regular" && HOUR_SPANS[interval] && !isCrypto(symbol)) return sessionHours(account, symbol, interval);
   const r = RANGES[interval] || RANGES["5Min"];
   const crypto = isCrypto(symbol);
   // Crypto trades around the clock, so the same span holds about four times
@@ -306,7 +335,9 @@ async function accountView(account: any) {
       .filter((p: any) => p.asset_class === "us_equity" || p.asset_class === "crypto")
       .map((p: any) => ({
         symbol: p.asset_class === "crypto" ? cryptoSymbol(p.symbol) : p.symbol, assetClass: p.asset_class,
-        qty: num(p.qty), side: p.side, avgPrice: num(p.avg_entry_price), last: num(p.current_price),
+        // The quantity exactly as the broker holds it, for selling all of it:
+        // a coin after fees is rarely a round number (0.498749999 ETH).
+        qty: num(p.qty), qtyText: String(p.qty_available ?? p.qty ?? ""), side: p.side, avgPrice: num(p.avg_entry_price), last: num(p.current_price),
         marketValue: num(p.market_value), unrealized: num(p.unrealized_pl), unrealizedPct: num(p.unrealized_plpc),
         today: num(p.unrealized_intraday_pl)
       })),
@@ -544,7 +575,7 @@ Deno.serve(async (req) => {
     const symbol = String(body.symbol || "").toUpperCase().trim();
     if (action === "bars") {
       if (!TERMINAL_SYMBOL(symbol)) return jsonResponse({ error: "Choose a symbol." }, 400);
-      return jsonResponse(await bars(account, symbol, String(body.interval || "5Min")));
+      return jsonResponse(await bars(account, symbol, String(body.interval || "5Min"), String(body.session || "")));
     }
     if (action === "snapshot") {
       const list = (Array.isArray(body.symbols) ? body.symbols : [symbol]).map((s: string) => String(s).toUpperCase().trim());

@@ -30,7 +30,7 @@ const TIF_TEXT = { day: "for the day", gtc: "good till cancelled", ioc: "immedia
 const input = "w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm tabular-nums focus:border-emerald-500 focus:outline-none";
 const label = "mb-1 block text-[11px] uppercase tracking-wider text-slate-500";
 
-export default function OrderTicket({ account, symbol, quote, held = 0, buyingPower = null, onPlaced, pick = null }) {
+export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, onPlaced, pick = null, preset = null }) {
   const crypto = isCrypto(symbol);
   const TYPES = crypto ? CRYPTO_TYPES : STOCK_TYPES;
   const [side, setSide] = useState("buy");
@@ -110,6 +110,23 @@ export default function OrderTicket({ account, symbol, quote, held = 0, buyingPo
     setType((t) => (t === "market" ? "limit" : t === "stop" ? "stop_limit" : t));
     setReview(false);
   }, [pick]);
+  // Closing a position from the Positions tab: the opposite side, exactly the
+  // quantity held, at market, waiting for review. Applied once the ticket has
+  // switched to the position's symbol (the symbol change above clears it).
+  const appliedPreset = useRef(null);
+  useEffect(() => {
+    if (!preset || preset.symbol !== symbol || appliedPreset.current === preset.at) return;
+    appliedPreset.current = preset.at;
+    setSide(preset.side);
+    setUnit("qty");
+    setQty(preset.qtyText);
+    setType("market");
+    setTif(isCrypto(symbol) ? "gtc" : "day");
+    setExtended(false);
+    setBracket(false);
+    setResult(null);
+    setReview(true);
+  }, [preset, symbol]);
   // Filled once per symbol and side, when the first quote arrives; after that
   // the field is the trader's, even if they clear it to type.
   const filledFor = useRef(null);
@@ -130,9 +147,13 @@ export default function OrderTicket({ account, symbol, quote, held = 0, buyingPo
   // takes one; anything else becomes a quantity at the order's price.
   const dollars = unit === "usd" ? Number(amount) || 0 : 0;
   const notional = unit === "usd" && type === "market" && (crypto || !!asset?.fractionable);
-  const n = unit === "usd"
+  const typed = unit === "usd"
     ? (notional ? (ref ? dollars / ref : 0) : amountToQty(dollars, at, { crypto, step: asset?.minTradeIncrement }))
     : crypto ? Number(qty) || 0 : Math.floor(Number(qty)) || 0;
+  // A sale typed as the holding shown, rounded for display, is the holding:
+  // 0.49875 on screen is 0.498749999 at the broker.
+  const sellAll = side === "sell" && held > 0 && typed > held && typed - held < 1e-8;
+  const n = sellAll ? held : typed;
   const belowMin = crypto && !notional && n > 0 && asset?.minOrderSize && n < asset.minOrderSize;
   const value = notional ? dollars : at && n ? at * n : null;
   const short = side === "sell" && n > Math.max(0, held) + 1e-12;
@@ -145,9 +166,11 @@ export default function OrderTicket({ account, symbol, quote, held = 0, buyingPo
     if (notional && !crypto) { setTif("day"); setExtended(false); setBracket(false); }
   }, [notional, crypto]);
 
+  // Selling the whole holding sends the broker's exact quantity; say that one.
+  const exactSale = !notional && side === "sell" && !!heldText && (sellAll || Number(qty) === held);
   const words = (notional
     ? `${side === "buy" ? "Buy" : "Sell"} ${fmtMoney(dollars)} of ${symbol} `
-    : `${side === "buy" ? "Buy" : "Sell"} ${n ? sizeText(n) : "?"} ${crypto ? coin : symbol || ""} `) +
+    : `${side === "buy" ? "Buy" : "Sell"} ${exactSale ? String(Number(heldText)) : n ? sizeText(n) : "?"} ${crypto ? coin : symbol || ""} `) +
     (type === "market" ? "at market" : type === "limit" ? `limit ${px(limit)}` : type === "stop" ? `stop ${px(stop)}` : `stop ${px(stop)}, limit ${px(limit)}`) +
     `, ${TIF_TEXT[tif] || TIF_TEXT.day}${extended ? ", including pre-market and after hours" : ""}` +
     (bracket ? `, then take profit at ${px(tp)} or stop out at ${px(sl)}` : "");
@@ -158,7 +181,8 @@ export default function OrderTicket({ account, symbol, quote, held = 0, buyingPo
     const r = await invokeFunction("terminal", {
       action: "order", accountId: account.id,
       order: {
-        symbol, side, qty: notional ? null : n, notional: notional ? dollars : null, type, timeInForce: tif, extendedHours: extended,
+        symbol, side, qty: notional ? null : exactSale ? heldText : n,
+        notional: notional ? dollars : null, type, timeInForce: tif, extendedHours: extended,
         limitPrice: needsLimit ? limit : null, stopPrice: needsStop ? stop : null,
         takeProfit: bracket ? tp : null, stopLoss: bracket ? sl : null, reference: ref ?? null
       }
@@ -168,6 +192,10 @@ export default function OrderTicket({ account, symbol, quote, held = 0, buyingPo
     if (r?.data?.error) setResult({ ok: false, text: r.data.error });
     else {
       setTracked({ id: r?.data?.orderId, status: r?.data?.status || "new", words, symbol, side, unitName: crypto ? coin : "shares" });
+      // A fresh ticket: the size just sent would otherwise sit there, checked
+      // against a holding that has since changed.
+      setQty(crypto ? "" : "1");
+      setAmount("");
       onPlaced?.();
     }
   };
@@ -180,6 +208,8 @@ export default function OrderTicket({ account, symbol, quote, held = 0, buyingPo
 
   return (
     <div className="space-y-3">
+      {/* The last order, at the top where it is seen without scrolling. */}
+      {tracked && <OrderCard order={tracked} onCancel={cancelTracked} onClose={() => setTracked(null)} />}
       <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1">
         {["buy", "sell"].map((s) => (
           <button key={s} type="button" onClick={() => { setSide(s); setLimit(""); setReview(false); }}
@@ -281,7 +311,16 @@ export default function OrderTicket({ account, symbol, quote, held = 0, buyingPo
       <div className="space-y-1 text-xs text-slate-600">
         <div className="flex justify-between"><span>Estimated {side === "buy" ? "cost" : "proceeds"}</span><span className="tabular-nums">{value ? fmtMoney(value) : "—"}</span></div>
         <div className="flex justify-between"><span>Buying power</span><span className="tabular-nums">{buyingPower !== null ? fmtMoney(buyingPower) : "—"}</span></div>
-        <div className="flex justify-between"><span>You hold</span><span className="tabular-nums">{sizeText(held)} {crypto ? coin : "shares"}</span></div>
+        <div className="flex items-center justify-between gap-2">
+          <span>You hold</span>
+          <span className="flex items-center gap-1.5 tabular-nums">
+            {crypto && heldText ? String(Number(heldText)) : sizeText(held)} {crypto ? coin : "shares"}
+            {side === "sell" && held > 0 && (
+              <button type="button" title="Sell exactly what you hold" onClick={() => { setUnit("qty"); setQty(heldText || String(held)); setReview(false); }}
+                className="rounded border border-slate-300 px-1 text-[10px] text-slate-700 hover:bg-slate-50">Max</button>
+            )}
+          </span>
+        </div>
         {crypto && asset?.minOrderSize ? <div className="flex justify-between"><span>Smallest order</span><span className="tabular-nums">{asset.minOrderSize} {coin}</span></div> : null}
       </div>
 
@@ -309,7 +348,6 @@ export default function OrderTicket({ account, symbol, quote, held = 0, buyingPo
         </button>
       )}
       {result && <p className={`text-xs ${result.ok ? "text-emerald-700" : "text-rose-700"}`}>{result.text}</p>}
-      {tracked && <OrderCard order={tracked} onCancel={cancelTracked} onClose={() => setTracked(null)} />}
     </div>
   );
 }

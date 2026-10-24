@@ -305,10 +305,12 @@ export function amountToQty(amount, price, { crypto = false, step = null } = {})
   const p = Number(price);
   if (!(a > 0) || !(p > 0)) return 0;
   const raw = a / p;
-  if (!crypto) return Math.floor(raw + 1e-9);
+  if (!crypto) return Math.floor(Number(raw.toFixed(6)));
   const s = Number(step) > 0 ? Number(step) : 1e-9;
   const decimals = Math.min(9, Math.max(0, Math.ceil(-Math.log10(s) - 1e-9)));
-  return Number((Math.floor(raw / s + 1e-9) * s).toFixed(decimals));
+  // Steps counted to six decimals before rounding down: binary division lands
+  // just under whole numbers (see cryptoOrder.ts onStep).
+  return Number((Math.floor(Number((raw / s).toFixed(6))) * s).toFixed(decimals));
 }
 
 // What an order's status means to the person waiting on it.

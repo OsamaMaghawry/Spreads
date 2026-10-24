@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { timeToLogical, logicalToTime, fibLevels, measure, durationText, distToSegment, hitTest, moveDrawing, cleanDrawings, readDrawings, writeDrawings, pointsFor } from "./chartDrawings.js";
+import { timeToLogical, logicalToTime, fibLevels, measure, durationText, distToSegment, hitTest, moveDrawing, cleanDrawings, readDrawings, writeDrawings, pointsFor, textBox } from "./chartDrawings.js";
 
 const times = [1000, 1300, 1600, 2200]; // a gap before the last bar
 
@@ -64,4 +64,14 @@ test("saving: per symbol, malformed drawings dropped, an empty list removes the 
   assert.equal(writeDrawings(raw, "BTC/USD", []), "{}");
   assert.equal(cleanDrawings([{ ...good, color: "red" }])[0].color, "#2563eb");
   assert.equal(pointsFor("vline"), 1);
+});
+
+test("text notes: hit anywhere on the words, moved as a whole, kept trimmed, dropped when empty", () => {
+  const xy = (p) => ({ x: p.time, y: p.price });
+  const note = { id: "n", type: "text", points: [{ time: 100, price: 50 }], text: "Breakout level", color: "#2563eb" };
+  assert.deepEqual(hitTest([note], xy, 100 + textBox(note.text).width - 3, 52), { id: "n", handle: null });
+  assert.equal(hitTest([note], xy, 100 + textBox(note.text).width + 20, 50), null);
+  assert.deepEqual(moveDrawing(note, null, { time: 0, price: 0 }, { time: 10, price: 2 }).points, [{ time: 110, price: 52 }]);
+  assert.deepEqual(cleanDrawings([{ ...note, text: "  hi  " }, { ...note, id: "e", text: "   " }]).map((d) => d.text), ["hi"]);
+  assert.equal(pointsFor("text"), 1);
 });

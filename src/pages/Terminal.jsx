@@ -5,7 +5,7 @@ import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import "@/components/terminal/terminal.css";
 import { invokeFunction } from "@/lib/functions";
-import { readWatchlist, cleanWatchlist, withCoinsOnce, px, pctText, sizeText, isCrypto } from "@/lib/terminal";
+import { readWatchlist, cleanWatchlist, withCoinsOnce, px, pctText, sizeText, isCrypto, WATCHLIST_MAX } from "@/lib/terminal";
 import { DEFAULT_LAYOUTS, BREAKPOINTS, COLS, MARGIN, cleanLayouts, rowHeightFor } from "@/lib/terminalLayout";
 import { fmtMoney } from "@/lib/format";
 import useTerminalStream from "@/components/terminal/useTerminalStream";
@@ -63,6 +63,7 @@ export default function Terminal() {
   const [q, setQ] = useState("");
   const [results, setResults] = useState([]);
   const [pick, setPick] = useState(null);
+  const [preset, setPreset] = useState(null);
   const quoteRef = useRef(null);
   const crypto = isCrypto(symbol);
 
@@ -161,7 +162,13 @@ export default function Terminal() {
   }, [q, accountId]);
 
   const choose = (s) => { setSymbol(s); setQ(""); setResults([]); };
-  const held = (view?.positions || []).find((p) => p.symbol === symbol)?.qty || 0;
+  const position = (view?.positions || []).find((p) => p.symbol === symbol);
+  const held = position?.qty || 0;
+  // Close a position: its symbol on screen and the ticket loaded to undo it.
+  const closePosition = (p) => {
+    setSymbol(p.symbol);
+    setPreset({ symbol: p.symbol, side: p.side === "short" || p.qty < 0 ? "buy" : "sell", qtyText: String(p.qtyText || Math.abs(p.qty)).replace(/^-/, ""), at: Date.now() });
+  };
   // This symbol's fills in the last week, marked on the chart where they happened.
   const fills = useMemo(() => (view?.recent || [])
     .filter((o) => o.symbol === symbol && Number(o.filled) > 0 && o.avgPrice && o.filledAt)
@@ -191,9 +198,12 @@ export default function Terminal() {
                     <span className="font-semibold">{r.symbol}</span> <span className="text-xs text-slate-500">{r.name}</span>
                     {r.assetClass === "crypto" && <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] font-semibold text-amber-800">Crypto</span>}
                   </button>
-                  <button type="button" title="Add to watchlist" onClick={() => { setWatch((w) => cleanWatchlist([...w, r.symbol])); choose(r.symbol); }}>
-                    <Plus className="h-4 w-4 text-slate-400 hover:text-emerald-600" />
-                  </button>
+                  {watch.includes(r.symbol) ? <span className="text-[10px] text-slate-400">In watchlist</span> : (
+                    <button type="button" title="Add to watchlist" onClick={() => { setWatch((w) => cleanWatchlist([...w, r.symbol])); choose(r.symbol); }}
+                      className="flex items-center gap-0.5 rounded border border-emerald-300 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50">
+                      <Plus className="h-3 w-3" />Add
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -232,7 +242,16 @@ export default function Terminal() {
         compactType="vertical"
       >
         <div key="watch" className={frame}>
-          <div className={bar}>{grip}<span className="font-semibold text-slate-700">Watchlist</span></div>
+          <div className={bar}>
+            {grip}<span className="font-semibold text-slate-700">Watchlist</span>
+            {!watch.includes(symbol) && (
+              <button type="button" onClick={() => setWatch((w) => cleanWatchlist([...w, symbol]))} title={`Add ${symbol} to the watchlist`}
+                className="ml-auto flex items-center gap-0.5 rounded border border-emerald-300 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 hover:bg-emerald-50">
+                <Plus className="h-3 w-3" />{symbol}
+              </button>
+            )}
+          </div>
+          <WatchAdd accountId={accountId} full={watch.length >= WATCHLIST_MAX} onAdd={(sym) => { setWatch((w) => cleanWatchlist([...w, sym])); setSymbol(sym); }} />
           <div className="min-h-0 flex-1 overflow-auto">
             {watch.map((s) => {
               const w = quoteOf(s);
@@ -278,7 +297,7 @@ export default function Terminal() {
             ))}
           </div>
           <div className="min-h-0 flex-1">
-            {tab === "positions" && <Positions positions={view?.positions || []} onPick={setSymbol} />}
+            {tab === "positions" && <Positions positions={view?.positions || []} onPick={setSymbol} onClose={closePosition} />}
             {tab === "orders" && <Orders accountId={accountId} orders={view?.orders || []} recent={view?.recent || []} onChanged={loadView} onPick={setSymbol} />}
             {tab === "account" && <AccountSummary summary={view?.summary} paper={view?.paper} name={account?.name} />}
           </div>
@@ -310,11 +329,52 @@ export default function Terminal() {
                 </div>
               )}
             </div>
-            <OrderTicket account={account} symbol={symbol} quote={quote} held={held} buyingPower={view?.buyingPower ?? null} onPlaced={loadView} pick={pick} />
+            <OrderTicket account={account} symbol={symbol} quote={quote} held={held} heldText={held > 0 && position?.qtyText ? position.qtyText : ""}
+              buyingPower={view?.buyingPower ?? null} onPlaced={loadView} pick={pick} preset={preset} />
             <p className="px-1 text-[10px] leading-relaxed text-slate-400">Prices from your own Alpaca account: shares from the free IEX feed (real time, IEX trades only); coins from Alpaca&apos;s crypto venue, around the clock, with the full order book. Charts by TradingView Lightweight Charts. Not investment advice.</p>
           </div>
         </div>
       </Grid>
+    </div>
+  );
+}
+
+// Adding to the watchlist from the watchlist itself (24 Oct: "I need to add to
+// the watchlist. I couldn't"): type a symbol, company or coin, pick a match or
+// press Enter for the first one.
+function WatchAdd({ accountId, onAdd, full }) {
+  const [text, setText] = useState("");
+  const [matches, setMatches] = useState([]);
+  const [note, setNote] = useState(null);
+  useEffect(() => {
+    if (!text.trim() || !accountId) { setMatches([]); return undefined; }
+    const t = setTimeout(() => {
+      invokeFunction("terminal", { action: "search", accountId, q: text }).then((r) => setMatches((r?.data?.results || []).slice(0, 8)));
+    }, 200);
+    return () => clearTimeout(t);
+  }, [text, accountId]);
+  const add = (sym) => {
+    if (full) { setNote(`Full: ${WATCHLIST_MAX} symbols. Remove one first.`); return; }
+    onAdd(sym); setText(""); setMatches([]); setNote(`${sym} added`); setTimeout(() => setNote(null), 1500);
+  };
+  return (
+    <div className="relative border-b border-slate-100 p-1.5">
+      <input value={text} onChange={(e) => { setText(e.target.value); setNote(null); }}
+        onKeyDown={(e) => { if (e.key === "Enter") { if (matches[0]) add(matches[0].symbol); else if (text.trim()) setNote("No match"); } if (e.key === "Escape") { setText(""); setMatches([]); } }}
+        placeholder="Add symbol or coin" aria-label="Add to watchlist"
+        className="w-full rounded border border-slate-300 px-1.5 py-1 text-xs focus:border-emerald-500 focus:outline-none" />
+      {note && <span className="absolute right-3 top-2.5 text-[10px] text-emerald-700">{note}</span>}
+      {matches.length > 0 && (
+        <div className="absolute left-1.5 right-1.5 z-30 mt-1 max-h-60 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
+          {matches.map((r) => (
+            <button key={r.symbol} type="button" onClick={() => add(r.symbol)} className="flex w-full items-center gap-1.5 px-2 py-1 text-left text-xs hover:bg-emerald-50">
+              <Plus className="h-3 w-3 shrink-0 text-emerald-600" />
+              <span className="font-semibold">{r.symbol}</span>
+              <span className="truncate text-slate-500">{r.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

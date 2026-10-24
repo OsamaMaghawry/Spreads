@@ -69,21 +69,32 @@ export function TimeAndSales({ rows, symbol, live = false, delay = null }) {
   );
 }
 
-export function Positions({ positions, onPick }) {
+// The account's holdings. Close loads the ticket with the opposite side and
+// exactly the quantity held, at market, for review (24 Oct: "close the orders
+// from the quantities I have", without typing the symbol and size again).
+export function Positions({ positions, onPick, onClose }) {
   return (
     <div className="h-full overflow-auto">
       <table className="w-full text-xs">
-        <thead className="sticky top-0 bg-white"><tr><th className={th}>Symbol</th><th className={th}>Quantity</th><th className={th}>Avg</th><th className={th}>Last</th><th className={th}>Value</th><th className={th}>Today</th><th className={th}>Unrealized</th></tr></thead>
+        <thead className="sticky top-0 bg-white"><tr><th className={th}>Symbol</th><th className={th}>Quantity</th><th className={th}>Avg</th><th className={th}>Last</th><th className={th}>Value</th><th className={th}>Today</th><th className={th}>Unrealized</th><th className={th} /></tr></thead>
         <tbody>
           {positions.map((p) => (
-            <tr key={p.symbol} className="cursor-pointer hover:bg-slate-50" onClick={() => onPick(p.symbol)}>
+            <tr key={p.symbol} className="cursor-pointer whitespace-nowrap hover:bg-slate-50" onClick={() => onPick(p.symbol)}>
               <td className={`${td} font-semibold`}>{p.symbol}</td>
-              <td className={td}>{sizeText(p.qty)}</td>
+              <td className={td} title={p.qtyText || undefined}>{p.assetClass === "crypto" && p.qtyText ? String(Number(p.qtyText)) : sizeText(p.qty)}{p.side === "short" ? " short" : ""}</td>
               <td className={td}>{px(p.avgPrice)}</td>
               <td className={td}>{px(p.last)}</td>
               <td className={td}>{fmtMoney(p.marketValue)}</td>
               <td className={`${td} ${p.today >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{fmtMoney(p.today)}</td>
               <td className={`${td} ${p.unrealized >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{fmtMoney(p.unrealized)} <span className="text-slate-400">{pctText(p.unrealizedPct)}</span></td>
+              <td className={`${td} text-right`}>
+                {onClose && (
+                  <button type="button" onClick={(e) => { e.stopPropagation(); onClose(p); }}
+                    className="rounded border border-slate-300 px-2 py-0.5 text-[11px] font-medium text-slate-700 hover:border-rose-400 hover:text-rose-700">
+                    Close
+                  </button>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -94,7 +105,11 @@ export function Positions({ positions, onPick }) {
 }
 
 export function Orders({ accountId, orders, recent = [], onChanged, onPick }) {
-  const [show, setShow] = useState("working");
+  // Working orders and today's finished ones, together, by default; the
+  // whole week on request ("today's order is not showing", 24 Oct).
+  const [show, setShow] = useState("today");
+  const todayNy = new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" });
+  const today = recent.filter((o) => o.filledAt || o.updatedAt ? new Date(o.filledAt || o.updatedAt).toLocaleDateString("en-US", { timeZone: "America/New_York" }) === todayNy : false);
   const [busy, setBusy] = useState(null);
   const [edit, setEdit] = useState({});
   const [note, setNote] = useState(null);
@@ -111,41 +126,47 @@ export function Orders({ accountId, orders, recent = [], onChanged, onPick }) {
 
   const switcher = (
     <div className="flex gap-1 px-2 pt-1 text-[11px]">
-      {[["working", `Working (${orders.length})`], ["done", `Filled & done, 7 days (${recent.length})`]].map(([id, name]) => (
+      {[["today", `Working (${orders.length}) and today (${today.length})`], ["done", `Finished, last 7 days (${recent.length})`]].map(([id, name]) => (
         <button key={id} type="button" onClick={() => setShow(id)} className={`rounded px-1.5 py-0.5 ${show === id ? "bg-slate-200 font-medium text-slate-800" : "text-slate-500 hover:bg-slate-100"}`}>{name}</button>
       ))}
     </div>
   );
 
   // Finished orders: what filled, at what average price, when. Newest first.
+  const finished = (list, title) => (
+    <>
+      {title && <div className="px-2 pb-0.5 pt-2 text-[10px] font-medium uppercase tracking-wider text-slate-500">{title}</div>}
+      <table className="w-full text-xs">
+        <thead className="sticky top-0 bg-white"><tr><th className={th}>Time (ET)</th><th className={th}>Symbol</th><th className={th}>Side</th><th className={th}>Filled</th><th className={th}>Avg price</th><th className={th}>Value</th><th className={th}>Status</th></tr></thead>
+        <tbody>
+          {list.map((o) => {
+            const st = orderState(o.status);
+            return (
+              <tr key={o.id} className="cursor-pointer whitespace-nowrap border-t border-slate-100 hover:bg-slate-50" onClick={() => onPick?.(o.symbol)}>
+                <td className={td}>{o.filledAt || o.updatedAt ? new Date(o.filledAt || o.updatedAt).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) : "—"}</td>
+                <td className={`${td} font-semibold`}>{o.symbol}</td>
+                <td className={`${td} ${o.side === "buy" ? "text-emerald-700" : "text-rose-700"}`}>{o.side}</td>
+                <td className={td}>{sizeText(o.filled)}{o.qty ? ` / ${sizeText(o.qty)}` : o.notional ? ` (${fmtMoney(o.notional)})` : ""}</td>
+                <td className={td}>{o.avgPrice ? px(o.avgPrice) : "—"}</td>
+                <td className={td}>{o.avgPrice && o.filled ? fmtMoney(o.avgPrice * o.filled) : "—"}</td>
+                <td className={`${td} ${st.tone === "good" ? "text-emerald-700" : st.tone === "bad" ? "text-rose-700" : "text-slate-500"}`}>{st.label}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </>
+  );
+
   if (show === "done") {
     return (
       <div className="h-full overflow-auto">
         {switcher}
-        <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-white"><tr><th className={th}>Time (ET)</th><th className={th}>Symbol</th><th className={th}>Side</th><th className={th}>Filled</th><th className={th}>Avg price</th><th className={th}>Value</th><th className={th}>Status</th></tr></thead>
-          <tbody>
-            {recent.map((o) => {
-              const st = orderState(o.status);
-              return (
-                <tr key={o.id} className="cursor-pointer border-t border-slate-100 hover:bg-slate-50" onClick={() => onPick?.(o.symbol)}>
-                  <td className={td}>{o.filledAt || o.updatedAt ? new Date(o.filledAt || o.updatedAt).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) : "—"}</td>
-                  <td className={`${td} font-semibold`}>{o.symbol}</td>
-                  <td className={`${td} ${o.side === "buy" ? "text-emerald-700" : "text-rose-700"}`}>{o.side}</td>
-                  <td className={td}>{sizeText(o.filled)}{o.qty ? ` / ${sizeText(o.qty)}` : o.notional ? ` (${fmtMoney(o.notional)})` : ""}</td>
-                  <td className={td}>{o.avgPrice ? px(o.avgPrice) : "—"}</td>
-                  <td className={td}>{o.avgPrice && o.filled ? fmtMoney(o.avgPrice * o.filled) : "—"}</td>
-                  <td className={`${td} ${st.tone === "good" ? "text-emerald-700" : st.tone === "bad" ? "text-rose-700" : "text-slate-500"}`}>{st.label}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        {finished(recent, null)}
         {!recent.length && <p className="px-2 py-3 text-xs text-slate-500">No finished orders in the last 7 days.</p>}
       </div>
     );
   }
-
   return (
     <div className="h-full overflow-auto">
       {switcher}
@@ -179,7 +200,8 @@ export function Orders({ accountId, orders, recent = [], onChanged, onPick }) {
           ))}
         </tbody>
       </table>
-      {!orders.length && <p className="px-2 py-3 text-xs text-slate-500">No open orders.</p>}
+      {!orders.length && <p className="px-2 py-3 text-xs text-slate-500">No working orders.</p>}
+      {today.length > 0 && finished(today, "Today")}
     </div>
   );
 }
