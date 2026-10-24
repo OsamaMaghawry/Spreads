@@ -24,6 +24,9 @@ export type Report = {
   upcoming: boolean;
   source: "sec" | "calendar";
   period?: string;
+  // For the next report: the part of the day the company's last four
+  // reports all came at, when the calendar says otherwise.
+  usualSession?: "bmo" | "amc" | "dmh";
   epsActual?: number | null;
   epsEstimate?: number | null;
   revenueActual?: number | null;
@@ -145,6 +148,12 @@ export function earningsTimeline(sec: Report[], cached: { report_date: string; s
       revenueActual: upcoming ? null : num(c?.revenueActual), revenueEstimate: num(c?.revenueEstimate)
     });
   }
+  // The calendar's provider has been wrong on the part of the day (JPMorgan,
+  // which has reported before the open every quarter, listed for January
+  // 2027 "after the close"). Its word stands, with the company's habit beside it.
+  const last4 = sec.slice(-4).map((r) => r.session);
+  const habit = last4.length === 4 && last4.every((x) => x && x === last4[0]) ? last4[0] : null;
+  for (const r of out) if (r.upcoming && habit && r.session && r.session !== habit) r.usualSession = habit;
   return out.sort((a, b) => a.date.localeCompare(b.date));
 }
 

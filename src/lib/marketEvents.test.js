@@ -62,6 +62,7 @@ test("an earnings report: filed moment when known, else the part of the day; EPS
   assert.equal(iso(next.time), "2026-11-02T21:05:00.000Z");
   assert.equal(next.title, "Earnings (scheduled)");
   assert.equal(next.detail, "EPS expected 1.76");
+  assert.equal(earningsEvent({ date: "2027-01-14", session: "amc", usualSession: "bmo", upcoming: true }).clock, "after the close (per the calendar; the last four came before the open)");
   const bare = earningsEvent({ date: "2026-01-13", session: "bmo" });
   assert.equal(iso(bare.time), "2026-01-13T13:00:00.000Z");
   assert.equal(bare.detail, "");
@@ -98,6 +99,8 @@ test("badges: a row each until they fit, three rows, then dots; the pointer find
   assert.equal(badgeAt(out, out[1].x + 3, out[1].y + 3), out[1]);
   assert.equal(badgeAt(out, out[3].x + 2, out[3].y + 2), out[3]);
   assert.equal(badgeAt(out, 500, 5), null);
+  // Nothing on the bottom row over the logo in the corner.
+  assert.equal(badgeLayout([ev(1)], xOf, 200)[0].y, base - 17);
   // Off-screen slots are left out.
   assert.equal(badgeLayout([ev(1)], () => null, 200).length, 0);
 });

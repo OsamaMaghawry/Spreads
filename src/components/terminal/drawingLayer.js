@@ -1,5 +1,6 @@
 import { timeToLogical, fibLevels, measure, durationText, hitTest, textBox } from "@/lib/chartDrawings";
 import { px } from "@/lib/terminal";
+import { badgeLayout, badgeAt } from "@/lib/marketEvents";
 
 // The drawings, painted on the chart: a Lightweight Charts series primitive
 // (the library's plugin interface), attached to the candle series so prices
@@ -37,7 +38,10 @@ export class DrawingLayer {
     this.view = { renderer: () => ({ draw: (target) => layer.draw(target) }) };
     // Behind the candles: pre-market and after-hours shading.
     this.back = { zOrder: () => "bottom", renderer: () => ({ draw: (target) => layer.drawSessions(target) }) };
-    this.views = [this.back, this.view];
+    // In front: earnings and economic releases, as badges along the foot.
+    this.front = { zOrder: () => "top", renderer: () => ({ draw: (target) => layer.drawEvents(target) }) };
+    this.views = [this.back, this.view, this.front];
+    this.badges = [];
     this.axisViews = [];
   }
 
@@ -64,6 +68,8 @@ export class DrawingLayer {
   // The library asks what is under the pointer; the answer sets the cursor,
   // so a drawing shows it can be picked up before it is clicked.
   hitTest(x, y) {
+    const badge = badgeAt(this.badges, x, y);
+    if (badge) return { cursorStyle: "pointer", externalId: badge.event.id, zOrder: "top" };
     const hit = hitTest(this.read().drawings || [], (p) => this.xy(p), x, y);
     return hit ? { cursorStyle: hit.handle === null ? "pointer" : "move", externalId: hit.id, zOrder: "top" } : null;
   }
@@ -120,6 +126,51 @@ export class DrawingLayer {
           start = null;
         }
       }
+    });
+  }
+
+  // The events: a badge each, laid out along the foot of the price pane
+  // (lib/marketEvents.js badgeLayout), hollow for one still to come, and a
+  // dashed line up the chart from the one under the pointer.
+  drawEvents(target) {
+    const { events, hover } = this.read();
+    if (!events?.length || !this.chart) { this.badges = []; return; }
+    const ts = this.chart.timeScale();
+    target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
+      this.badges = badgeLayout(events, (slot) => ts.logicalToCoordinate(slot), mediaSize.height)
+        .filter((b) => b.x + b.w >= 0 && b.x <= mediaSize.width);
+      ctx.save();
+      ctx.font = "bold 9px ui-sans-serif, system-ui, -apple-system, sans-serif";
+      ctx.textBaseline = "middle";
+      ctx.textAlign = "center";
+      for (const b of this.badges) {
+        const { color, upcoming, label, id } = b.event;
+        if (id === hover) {
+          const cx = b.dot ? b.x : b.x + b.w / 2;
+          ctx.strokeStyle = color;
+          ctx.globalAlpha = 0.6;
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, b.y); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.globalAlpha = 1;
+        }
+        if (b.dot) {
+          ctx.fillStyle = color;
+          ctx.beginPath(); ctx.arc(b.x, b.y + 3, 3, 0, Math.PI * 2); ctx.fill();
+          continue;
+        }
+        const r = b.h / 2;
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(b.x, b.y, b.w, b.h, r) : ctx.rect(b.x, b.y, b.w, b.h);
+        ctx.fillStyle = upcoming ? "#ffffff" : color;
+        ctx.fill();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = id === hover ? 2 : 1;
+        ctx.stroke();
+        ctx.fillStyle = upcoming ? color : "#ffffff";
+        ctx.fillText(label, b.x + b.w / 2, b.y + b.h / 2 + 0.5);
+      }
+      ctx.restore();
     });
   }
 

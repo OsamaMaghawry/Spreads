@@ -221,7 +221,8 @@ export function earningsEvent(r) {
   return {
     id: `earnings:${r.date}`, kind: "earnings", title: r.upcoming ? "Earnings (scheduled)" : "Earnings",
     date: r.date, time, upcoming: !!r.upcoming,
-    clock: r.session ? SESSION_WORDS[r.session] : "", period: r.period || "", detail: lines.join(" · ")
+    clock: r.session ? `${SESSION_WORDS[r.session]}${r.usualSession ? ` (per the calendar; the last four came ${SESSION_WORDS[r.usualSession]})` : ""}` : "",
+    period: r.period || "", detail: lines.join(" · ")
   };
 }
 
@@ -267,6 +268,7 @@ const BADGE_GAP = 2;
 const ROWS = 3;
 export const badgeWidth = (label) => Math.max(BADGE_H, label.length * 6 + 8);
 
+export const LOGO_CLEAR = 44;
 /**
  * Badges along the foot of the price pane, as TradingView draws them: one per
  * event, left to right; one that would overlap the badge before it goes up a
@@ -274,7 +276,9 @@ export const badgeWidth = (label) => Math.max(BADGE_H, label.length * 6 + 8);
  * zoomed-out chart still shows something there.
  */
 export function badgeLayout(placed, xOf, paneHeight) {
-  const rowsEnd = Array(ROWS).fill(-Infinity);
+  // The bottom row starts clear of the TradingView logo in the corner, which
+  // the chart library's licence asks to stay visible.
+  const rowsEnd = [LOGO_CLEAR, ...Array(ROWS - 1).fill(-Infinity)];
   const out = [];
   const sorted = placed.map((e) => ({ e, x: xOf(e.slot) })).filter((p) => p.x !== null && Number.isFinite(p.x)).sort((a, b) => a.x - b.x);
   for (const { e, x } of sorted) {

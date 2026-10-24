@@ -64,3 +64,12 @@ test("tickers to CIKs: ten digits, class shares with a dot as Alpaca writes them
   assert.equal(m.get("BRK.B"), "0001067983");
   assert.equal(m.size, 2);
 });
+
+test("the next report keeps the calendar's part of the day, with the company's habit beside it when they differ", () => {
+  const sec = ["2026-01-13", "2026-04-14", "2026-07-14", "2026-10-13"].map((date) => ({ date, at: 1, session: "bmo" as const, upcoming: false, source: "sec" as const }));
+  const out = earningsTimeline(sec, [{ report_date: "2027-01-14", session: "amc" }], [], "2026-10-24");
+  assert.equal(out.at(-1)!.session, "amc");
+  assert.equal(out.at(-1)!.usualSession, "bmo");
+  const agrees = earningsTimeline(sec, [{ report_date: "2027-01-14", session: "bmo" }], [], "2026-10-24");
+  assert.equal(agrees.at(-1)!.usualSession, undefined);
+});

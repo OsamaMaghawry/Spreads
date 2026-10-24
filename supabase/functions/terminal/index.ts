@@ -336,12 +336,13 @@ async function secHistory(symbol: string) {
   if (!cik) return { reports: [], note: "no SEC filer under this symbol" };
   const sub = await secJson(`https://data.sec.gov/submissions/CIK${cik}.json`);
   let reports = secReports(sub?.filings?.recent);
-  // A busy filer's recent list covers about a year; reach one page further
-  // back for a chart that shows two.
+  // A busy filer's recent list covers about a year; a chart shows more.
   const twoYears = new Date(Date.now() - 730 * 86400000).toISOString().slice(0, 10);
-  const older = sub?.filings?.files?.[0]?.name;
-  if (older && (!reports.length || reports[0].date > twoYears)) {
-    const more = await secJson(`https://data.sec.gov/submissions/${older}`).catch(() => null);
+  // A bank's filing pages are short (prospectuses by the hundred), so walk
+  // up to three older pages until two years are covered.
+  for (const file of (sub?.filings?.files || []).slice(0, 3)) {
+    if (reports.length && reports[0].date <= twoYears) break;
+    const more = await secJson(`https://data.sec.gov/submissions/${file.name}`).catch(() => null);
     const seen = new Set(reports.map((r) => r.date));
     reports = [...secReports(more).filter((r) => !seen.has(r.date)), ...reports].sort((a, b) => a.date.localeCompare(b.date));
   }
@@ -394,7 +395,7 @@ async function earningsFor(admin: any, symbol: string) {
 // real time. Daily candles are consolidated too.
 
 const SCREEN_EXCHANGES = new Set(["NYSE", "NASDAQ", "ARCA", "AMEX", "BATS"]);
-const SNAP_CHUNK = 400;
+const SNAP_CHUNK = 800;
 const DAILY_MAX = 200;
 
 async function inBatches<T, R>(items: T[], size: number, run: (item: T) => Promise<R>): Promise<R[]> {
@@ -463,7 +464,7 @@ async function snapsFor(account: any, symbols: string[], feed: string) {
 }
 
 const SCREEN_COLUMNS = [
-  "symbol", "name", "exchange", "price", "priceAt", "prevClose", "open", "high", "low", "volume", "prevVolume", "vwap", "trades",
+  "symbol", "name", "exchange", "price", "priceAt", "day", "prevClose", "open", "high", "low", "close", "volume", "prevVolume", "vwap", "trades",
   "bid", "ask", "options", "shortable", "easyToBorrow", "fund", "shares", "earnDate", "earnSession"
 ];
 
@@ -495,7 +496,9 @@ async function screenUniverse(admin: any, account: any) {
     const cik = ciks?.get(a.symbol);
     rows.push([
       a.symbol, a.name, a.exchange, price, (useLive ? live?.latestTrade?.t : d?.latestTrade?.t) || null,
-      num(d?.prevDailyBar?.c), num(d?.dailyBar?.o), num(d?.dailyBar?.h), num(d?.dailyBar?.l), num(d?.dailyBar?.v), num(d?.prevDailyBar?.v),
+      // The day the day's candle belongs to (Alpaca stamps it at New York midnight).
+      d?.dailyBar?.t ? nyDate(Date.parse(d.dailyBar.t) + 3600000) : null,
+      num(d?.prevDailyBar?.c), num(d?.dailyBar?.o), num(d?.dailyBar?.h), num(d?.dailyBar?.l), num(d?.dailyBar?.c), num(d?.dailyBar?.v), num(d?.prevDailyBar?.v),
       num(d?.dailyBar?.vw), num(d?.dailyBar?.n),
       num(live?.latestQuote?.bp), num(live?.latestQuote?.ap),
       a.options, a.shortable, a.easyToBorrow, isFundName(a.name),
@@ -792,7 +795,7 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     const d = await screenDaily(house, names);
     const t2 = Date.now();
     return {
-      universe: { ms: t1 - t0, listed: u.listed, rows: u.rows.length, dayFeed: u.dayFeed, withShares: u.rows.filter((r) => r[col("shares")]).length, withEarnings: u.rows.filter((r) => r[col("earnDate")]).length, withOptions: u.rows.filter((r) => r[col("options")]).length, funds: u.rows.filter((r) => r[col("fund")]).length },
+      universe: { ms: t1 - t0, bytes: JSON.stringify(u).length, listed: u.listed, rows: u.rows.length, dayFeed: u.dayFeed, withShares: u.rows.filter((r) => r[col("shares")]).length, withEarnings: u.rows.filter((r) => r[col("earnDate")]).length, withOptions: u.rows.filter((r) => r[col("options")]).length, funds: u.rows.filter((r) => r[col("fund")]).length },
       sample: Object.fromEntries(names.map((s) => [s, pick(s) ? Object.fromEntries(u.columns.map((c, i) => [c, pick(s)![i]])) : null])),
       daily: { ms: t2 - t1, feed: d.feed, stats: d.stats }
     };

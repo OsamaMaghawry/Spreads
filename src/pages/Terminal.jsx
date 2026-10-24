@@ -14,6 +14,7 @@ import OrderTicket from "@/components/terminal/OrderTicket";
 import OrderBook from "@/components/terminal/OrderBook";
 import TapePanel from "@/components/terminal/TapePanel";
 import Toasts from "@/components/terminal/Toasts";
+import Screener from "@/components/terminal/Screener";
 import { Positions, Orders, AccountSummary } from "@/components/terminal/Panels";
 
 const Grid = WidthProvider(Responsive);
@@ -33,12 +34,17 @@ const Grid = WidthProvider(Responsive);
 // windows ... drag them and lock them", lib/terminalLayout.js): drag a window
 // by its title bar, resize it from its edges, lock the arrangement, or put it
 // back as it was. The chart also goes full screen.
+//
+// The screener sits beside the trading screen as a page of its own (24 Oct:
+// "Stock Screener ... to see the stocks in play"): pick a row and it opens in
+// the chart, book, tape and ticket.
 
 const WATCH_KEY = "dm.terminal.watchlist";
 const COINS_KEY = "dm.terminal.coinsAdded";
 const POLL_MS = 4000;
 const LAYOUT_KEY = "dm.terminal.layout.v1";
 const LOCK_KEY = "dm.terminal.layoutLocked";
+const PAGE_KEY = "dm.terminal.page";
 const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
   set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private window */ } }
@@ -65,6 +71,9 @@ export default function Terminal() {
   const [results, setResults] = useState([]);
   const [pick, setPick] = useState(null);
   const [preset, setPreset] = useState(null);
+  const [page, setPage] = useState(() => (store.get(PAGE_KEY) === "screen" ? "screen" : "trade"));
+  const [screenSeen, setScreenSeen] = useState(page === "screen");
+  useEffect(() => { store.set(PAGE_KEY, page); if (page === "screen") setScreenSeen(true); }, [page]);
 
   // Order pop-ups: one per order (its key), replaced as the order moves.
   // Good news and quiet endings leave by themselves; a problem stays until
@@ -200,6 +209,12 @@ export default function Terminal() {
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="mr-2 text-lg font-semibold">Terminal</h1>
         <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">Staging test</span>
+        <div className="flex rounded-md border border-slate-300 text-sm" role="tablist" aria-label="Page">
+          {[["trade", "Trade"], ["screen", "Screener"]].map(([id, name]) => (
+            <button key={id} type="button" role="tab" aria-selected={page === id} onClick={() => setPage(id)}
+              className={`px-3 py-1 first:rounded-l-md last:rounded-r-md ${page === id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}>{name}</button>
+          ))}
+        </div>
         <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm">
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name} · {a.type}</option>)}
         </select>
@@ -226,7 +241,7 @@ export default function Terminal() {
             </div>
           )}
         </div>
-        <div className="ml-auto flex items-center gap-1">
+        <div className={`ml-auto flex items-center gap-1 ${page === "trade" ? "" : "invisible"}`}>
           <button type="button" onClick={toggleLock} title={locked ? "Unlock the windows to move and resize them" : "Lock the windows where they are"}
             className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${locked ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
             {locked ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}{locked ? "Locked" : "Lock layout"}
@@ -243,7 +258,15 @@ export default function Terminal() {
         </span>
       </div>
 
-      <Grid
+      {screenSeen && (
+        <div className={page === "screen" ? "" : "hidden"}>
+          <Screener accountId={accountId} active={page === "screen"} watch={watch}
+            onPick={(s) => { setSymbol(s); setPage("trade"); }}
+            onAdd={(s) => setWatch((w) => (w.length >= WATCHLIST_MAX ? w : cleanWatchlist([...w, s])))} />
+        </div>
+      )}
+
+      {page === "trade" && <Grid
         className="terminal-grid -mx-2"
         layouts={layouts}
         breakpoints={BREAKPOINTS}
@@ -351,7 +374,7 @@ export default function Terminal() {
             <p className="px-1 text-[10px] leading-relaxed text-slate-400">Prices from your own Alpaca account: shares from the free IEX feed (real time, IEX trades only); coins from Alpaca&apos;s crypto venue, around the clock, with the full order book. Charts by TradingView Lightweight Charts. Not investment advice.</p>
           </div>
         </div>
-      </Grid>
+      </Grid>}
     </div>
   );
 }

@@ -1,10 +1,11 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { createChart, createSeriesMarkers, CandlestickSeries, HistogramSeries, LineSeries, LineStyle, CrosshairMode } from "lightweight-charts";
-import { MousePointer2, Slash, MoveUpRight, Minus, SeparatorVertical, RectangleHorizontal, Rows3, Ruler, Trash2, Eraser, Activity, X, Type } from "lucide-react";
+import { MousePointer2, Slash, MoveUpRight, Minus, SeparatorVertical, RectangleHorizontal, Rows3, Ruler, Trash2, Eraser, Activity, X, Type, CalendarDays } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { INTERVALS, applyTrade, applyMinuteBar, isCrypto, priceFormatFor, inRegularHours, sessionDay, sessionOf, px, sizeText } from "@/lib/terminal";
 import { INDICATORS, LINE_COLORS, cleanIndicators, defaultParams, indicatorLabel, indicatorSeries } from "@/lib/indicators";
 import { TOOLS, COLORS, pointsFor, logicalToTime, hitTest, moveDrawing, readDrawings, writeDrawings } from "@/lib/chartDrawings";
+import { EVENT_KINDS, econEvents, earningsEvent, placeEvents, cleanShown, nextOfEach, eventWhen, badgeAt } from "@/lib/marketEvents";
 import { DrawingLayer } from "./drawingLayer";
 
 // The chart: TradingView Lightweight Charts (Apache-2.0), drawn from the
@@ -26,12 +27,20 @@ import { DrawingLayer } from "./drawingLayer";
 // (lib/indicators.js): averages, VWAP and Bollinger Bands on the price, RSI,
 // MACD, Stochastic and ATR each in a pane below. The list is kept in this
 // browser and applies to every symbol, as on a desk platform.
+//
+// Events (24 Oct: "earnings sign or something ... CPI, PMI, FOMC etc...
+// Having the option to add them or hide them"): a badge along the foot of the
+// chart for each of the company's earnings reports and each scheduled
+// economic release (lib/marketEvents.js), each kind shown or hidden from the
+// Events menu; hover a badge for what it was and when.
 
 const UP = "#059669";
 const DOWN = "#e11d48";
 const DRAW_KEY = "dm.terminal.drawings";
 const SESSION_KEY = "dm.terminal.session";
 const IND_KEY = "dm.terminal.indicators";
+const EVENTS_KEY = "dm.terminal.events";
+const ECON = econEvents();
 const read = (key, fallback) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
 const write = (key, value) => { try { localStorage.setItem(key, value); } catch { /* private window */ } };
 const ICONS = { trend: Slash, ray: MoveUpRight, hline: Minus, vline: SeparatorVertical, rect: RectangleHorizontal, fib: Rows3, measure: Ruler, text: Type };
@@ -74,6 +83,18 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
   const indSeriesRef = useRef([]);
   const indTimer = useRef(null);
   const [menu, setMenu] = useState(false);
+  // Events: which kinds show, the company's reports, and the badge under the pointer.
+  const [shown, setShown] = useState(() => {
+    try { return cleanShown(JSON.parse(read(EVENTS_KEY, "null"))); } catch { return cleanShown(null); }
+  });
+  const shownRef = useRef(shown);
+  shownRef.current = shown;
+  const [earnings, setEarnings] = useState({ symbol: null, list: [], sources: null });
+  const earningsRef = useRef([]);
+  const placedRef = useRef([]);
+  const hoverIdRef = useRef(null);
+  const [hover, setHover] = useState(null);
+  const [eventsMenu, setEventsMenu] = useState(false);
   const cryptoRef = useRef(crypto);
   cryptoRef.current = crypto;
   const intervalRef = useRef(interval);
@@ -148,6 +169,7 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
     chart.priceScale("volume").applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
     const layer = new DrawingLayer(() => ({
       drawings: drawingsRef.current, draft: draftRef.current, selected: selectedRef.current, times: timesRef.current, step: stepRef.current,
+      events: placedRef.current, hover: hoverIdRef.current,
       // Pre-market and after hours shaded on an all-hours share chart.
       extended: !cryptoRef.current && sessionRef.current === "all" && !["1Day", "1Week", "1Month"].includes(intervalRef.current) ? extRef.current : null
     }));
@@ -178,6 +200,14 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
 
     // The second point follows the pointer until it is placed.
     const onMove = (param) => {
+      // The badge under the pointer, for its card.
+      const badge = param.point ? badgeAt(layer.badges, param.point.x, param.point.y) : null;
+      const id = badge?.event.id || null;
+      if (id !== hoverIdRef.current) {
+        hoverIdRef.current = id;
+        setHover(badge ? { event: badge.event, x: badge.dot ? badge.x : badge.x + badge.w / 2, y: badge.y } : null);
+        repaint();
+      }
       if (!draftRef.current || !param.point) return;
       const p = pointAt(param.point.x, param.point.y);
       if (!p) return;
@@ -372,6 +402,13 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
     if (!indTimer.current) indTimer.current = setTimeout(paintIndicators, 500);
   }, [paintIndicators]);
 
+  // The events among the candles on screen: placed again whenever the
+  // candles, the kinds shown or the company's reports change.
+  const placeAll = useCallback(() => {
+    placedRef.current = placeEvents([...ECON, ...earningsRef.current], shownRef.current, timesRef.current, stepRef.current);
+    layerRef.current?.update();
+  }, []);
+
   const show = useCallback(() => {
     const bars = rawRef.current.filter(keep);
     barsRef.current = bars;
@@ -383,10 +420,10 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
     candlesRef.current?.setData(bars);
     volumeRef.current?.setData(bars.map((b) => ({ time: b.time, value: b.volume, color: b.close >= b.open ? "#05966933" : "#e11d4833" })));
     lastRef.current = rawRef.current.at(-1) || null;
-    layerRef.current?.update();
+    placeAll();
     paintIndicators();
     return bars.length;
-  }, [keep, paintIndicators]);
+  }, [keep, paintIndicators, placeAll]);
 
   // History for the symbol and interval.
   const alignedSession = !crypto && HOURLY.includes(interval) && session === "regular" ? "regular" : "";
@@ -431,6 +468,7 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
         bars.push(next);
         timesRef.current = [...timesRef.current, next.time];
         extRef.current = [...extRef.current, !crypto && sessionOf(next.time) !== "regular"];
+        placeAll();
       } else {
         bars[bars.length - 1] = next;
       }
@@ -438,7 +476,31 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
       volumeRef.current?.update({ time: next.time, value: next.volume, color: next.close >= next.open ? "#05966933" : "#e11d4833" });
       scheduleIndicators();
     });
-  }, [listen, symbol, interval, state.loading, crypto, keep, scheduleIndicators]);
+  }, [listen, symbol, interval, state.loading, crypto, keep, scheduleIndicators, placeAll]);
+
+  // The company's earnings reports, past and next (functions/terminal
+  // "events"); a coin has none.
+  useEffect(() => {
+    earningsRef.current = [];
+    setEarnings({ symbol, list: [], sources: null });
+    placeAll();
+    if (!accountId || !symbol || crypto) return undefined;
+    let alive = true;
+    invokeFunction("terminal", { action: "events", accountId, symbol }).then((r) => {
+      if (!alive) return;
+      const list = (r?.data?.earnings || []).map(earningsEvent);
+      earningsRef.current = list;
+      setEarnings({ symbol, list, sources: r?.data?.sources || null, error: r?.data?.error || null });
+      placeAll();
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [accountId, symbol, crypto, placeAll]);
+
+  // The kinds shown, kept in this browser.
+  useEffect(() => {
+    write(EVENTS_KEY, JSON.stringify(shown));
+    placeAll();
+  }, [shown, placeAll]);
 
   // The indicators' series and panes, rebuilt when the list changes: averages
   // and bands on the price, each oscillator in a pane of its own.
@@ -535,6 +597,12 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
     setConfirmClear(false);
   };
   const active = TOOLS.find((t) => t.id === tool);
+  const kinds = crypto ? EVENT_KINDS.filter((k) => k.id !== "earnings") : EVENT_KINDS;
+  const upcoming = nextOfEach([...ECON, ...earnings.list]);
+  const earningsNote = earnings.sources
+    ? earnings.sources.sec ? "Past earnings are the company's results filings with the SEC (8-K Item 2.02), with their time of day. "
+      : earnings.list.length ? "Earnings dates from the earnings calendar. " : `No earnings on record for ${symbol}${earnings.sources.secNote ? ` (${earnings.sources.secNote})` : ""}. `
+    : "";
   const btn = (on) => `rounded p-1 ${on ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`;
 
   return (
@@ -597,6 +665,36 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
             </div>
           )}
         </div>
+        <div className="relative">
+          <button type="button" onClick={() => setEventsMenu((v) => !v)} title="Earnings and economic releases on the chart"
+            className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${eventsMenu ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
+            <CalendarDays className="h-3.5 w-3.5" />Events{shown.length ? ` (${kinds.filter((k) => shown.includes(k.id)).length})` : ""}
+          </button>
+          {eventsMenu && (
+            <div className="absolute left-0 z-30 mt-1 w-80 rounded-md border border-slate-200 bg-white p-2 text-xs shadow-lg">
+              <div className="mb-1 flex items-center gap-2">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-slate-500">Show on the chart</span>
+                <button type="button" className="ml-auto text-[11px] text-slate-600 hover:underline" onClick={() => setShown(kinds.map((k) => k.id))}>All</button>
+                <button type="button" className="text-[11px] text-slate-600 hover:underline" onClick={() => setShown([])}>None</button>
+              </div>
+              {kinds.map((k) => {
+                const next = upcoming[k.id];
+                return (
+                  <label key={k.id} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-slate-50">
+                    <input type="checkbox" checked={shown.includes(k.id)} onChange={(e) => setShown((list) => (e.target.checked ? [...list, k.id] : list.filter((x) => x !== k.id)))} />
+                    <span className="w-9 shrink-0 rounded px-1 text-center text-[9px] font-bold text-white" style={{ backgroundColor: k.color }}>{k.label}</span>
+                    <span className="min-w-0 flex-1 truncate text-slate-700" title={k.name}>{k.name}</span>
+                    <span className="shrink-0 text-[10px] tabular-nums text-slate-400">{next ? `next ${new Date(next.time * 1000).toLocaleDateString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric" })}` : ""}</span>
+                  </label>
+                );
+              })}
+              <p className="mt-1 border-t border-slate-100 pt-1 text-[10px] leading-snug text-slate-500">
+                {crypto ? "Coins have no earnings; the economic releases move them too. " : earningsNote}
+                Release dates are the agencies&apos; published schedules (Fed, BLS, BEA, Census, ISM), New York time. Hover a badge for details; hollow means still to come.
+              </p>
+            </div>
+          )}
+        </div>
         <span className="mx-1 h-4 w-px bg-slate-200" />
         <button type="button" title="Pointer: select, move and delete drawings" className={btn(tool === "cursor")} onClick={() => setTool("cursor")}>
           <MousePointer2 className="h-3.5 w-3.5" />
@@ -635,6 +733,19 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
       )}
       <div className="relative min-h-[260px] flex-1">
         <div ref={boxRef} className={`absolute inset-0 ${tool !== "cursor" ? "cursor-crosshair" : ""}`} />
+        {hover && (
+          <div className="pointer-events-none absolute z-20 w-64 -translate-x-1/2 -translate-y-full rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs shadow-lg"
+            style={{ left: Math.min(Math.max(130, hover.x), (boxRef.current?.clientWidth || 600) - 190), top: hover.y - 6 }}>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: hover.event.color }} />
+              <span className="font-semibold text-slate-800">{hover.event.title}</span>
+            </div>
+            <div className="mt-0.5 text-slate-600">{eventWhen(hover.event)}</div>
+            {hover.event.kind === "earnings" && hover.event.period && <div className="text-slate-500">Results for the {hover.event.period}</div>}
+            {hover.event.kind !== "earnings" && hover.event.detail && <div className="text-slate-500">{hover.event.detail}</div>}
+            {hover.event.kind === "earnings" && hover.event.detail && <div className="mt-0.5 tabular-nums text-slate-700">{hover.event.detail}</div>}
+          </div>
+        )}
         {editing && (
           <input
             autoFocus
