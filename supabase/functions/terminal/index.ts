@@ -208,14 +208,14 @@ async function accountView(account: any) {
 // what arrives: trades, quotes, order-book messages, and whether the stock
 // feed accepts an order-book subscription at all. The terminal's Level 2 and
 // time & sales are built on these answers rather than on memory.
-async function feedCheck(url: string, key: string, secret: string, subscribe: Record<string, string[]>, seconds: number) {
+async function feedCheck(url: string, auth: { key: string; secret: string }, subscribe: Record<string, string[]>, seconds: number) {
   const report: any = { url, authenticated: false, subscription: null, errors: [], counts: {}, firstBook: null, firstTrade: null };
   await new Promise<void>((resolve) => {
     let ws: WebSocket;
     try { ws = new WebSocket(url); } catch (e) { report.errors.push(String(e)); resolve(); return; }
     const done = () => { try { ws.close(); } catch { /* closed */ } resolve(); };
     const timer = setTimeout(done, seconds * 1000);
-    ws.onopen = () => ws.send(JSON.stringify({ action: "auth", key, secret }));
+    ws.onopen = () => ws.send(JSON.stringify({ action: "auth", ...auth }));
     ws.onmessage = (e) => {
       let msgs: any[] = [];
       try { msgs = JSON.parse(String(e.data)); } catch { return; }
@@ -237,14 +237,23 @@ async function feedCheck(url: string, key: string, secret: string, subscribe: Re
   return report;
 }
 
+// How an account signs in to Alpaca's data streams: its key pair, or, for an
+// account connected by OAuth, the word "oauth" and the user's token (Alpaca's
+// streaming docs; the token, never the app's client secret). OAuth first, as
+// authHeaders does for REST.
+const streamAuth = (a: any) =>
+  a?.oauth_access_token ? { key: "oauth", secret: a.oauth_access_token }
+    : a?.api_key && a?.api_secret ? { key: a.api_key, secret: a.api_secret } : null;
+
 async function selftest(admin: any) {
   const house = await houseDataAccount(admin);
-  if (!house?.api_key || !house?.api_secret) return { error: "The house data account has no API key pair." };
+  const auth = streamAuth(house);
+  if (!auth) return { error: "The house data account has no way to sign in to the streams." };
   const coins = ["BTC/USD", "ETH/USD"];
   const [crypto, stocks, coinAssets] = await Promise.all([
-    feedCheck("wss://stream.data.alpaca.markets/v1beta3/crypto/us", house.api_key, house.api_secret,
+    feedCheck("wss://stream.data.alpaca.markets/v1beta3/crypto/us", auth,
       { trades: coins, quotes: coins, bars: coins, orderbooks: ["BTC/USD"] }, 8),
-    feedCheck(`wss://stream.data.alpaca.markets/v2/${FEED}`, house.api_key, house.api_secret,
+    feedCheck(`wss://stream.data.alpaca.markets/v2/${FEED}`, auth,
       { trades: ["SPY", "AAPL"], quotes: ["SPY", "AAPL"], orderbooks: ["AAPL"] }, 8),
     alpacaFetch(`${tradingBase(house)}/assets?status=active&asset_class=crypto`, house).catch((e: Error) => ({ error: e.message }))
   ]);
@@ -253,7 +262,7 @@ async function selftest(admin: any) {
       symbol: a.symbol, tradable: a.tradable, min_order_size: a.min_order_size, min_trade_increment: a.min_trade_increment, price_increment: a.price_increment
     }))
     : coinAssets;
-  return { at: new Date().toISOString(), crypto, stocks, cryptoAssets: { count: Array.isArray(coinAssets) ? coinAssets.length : null, sample } };
+  return { at: new Date().toISOString(), signIn: auth.key === "oauth" ? "oauth" : "key pair", crypto, stocks, cryptoAssets: { count: Array.isArray(coinAssets) ? coinAssets.length : null, sample } };
 }
 
 async function placeOrder(admin: any, user: any, account: any, input: any) {

@@ -93,6 +93,17 @@ Deno.serve(async (req) => {
 
   const key = await decryptSecret(account.api_key);
   const secret = await decryptSecret(account.api_secret);
+  if (detail) {
+    // The terminal also streams for an account connected by OAuth: Alpaca's
+    // data stream takes the word "oauth" as the key and the user's token as
+    // the secret. OAuth first, as REST does (alpaca.ts authHeaders).
+    const token = await decryptSecret(account.oauth_access_token);
+    const auth = token ? { key: "oauth", secret: token } : key && secret ? { key, secret } : null;
+    if (!auth) return new Response("This account cannot sign in to the price stream.", { status: 409 });
+    const { socket, response } = Deno.upgradeWebSocket(req);
+    relayDetail(socket, auth, symbols, (url.searchParams.get("book") || "").toUpperCase());
+    return response;
+  }
   if (!key || !secret) {
     // OAuth-connected accounts hold a bearer token rather than a key pair, and
     // Alpaca's market-data stream does not accept one. Saying so lets the client
@@ -101,10 +112,6 @@ Deno.serve(async (req) => {
   }
 
   const { socket: client, response } = Deno.upgradeWebSocket(req);
-  if (detail) {
-    relayDetail(client, key, secret, symbols, (url.searchParams.get("book") || "").toUpperCase());
-    return response;
-  }
   let upstream: WebSocket | null = null;
   let closed = false;
 
@@ -188,7 +195,7 @@ Deno.serve(async (req) => {
 // old one. Still read-only: the browser can choose symbols, nothing else.
 type Feed = { kind: "stocks" | "crypto"; ws: WebSocket | null; authed: boolean; subscribed: Set<string>; book: string; attempts: number; final: string | null };
 
-function relayDetail(client: WebSocket, key: string, secret: string, initial: string[], initialBook: string) {
+function relayDetail(client: WebSocket, auth: { key: string; secret: string }, initial: string[], initialBook: string) {
   let closed = false;
   let wanted = new Set(initial);
   let book = COIN.test(initialBook) ? initialBook : "";
@@ -239,7 +246,7 @@ function relayDetail(client: WebSocket, key: string, secret: string, initial: st
     f.authed = false;
     f.subscribed = new Set();
     f.book = "";
-    ws.onopen = () => ws.send(JSON.stringify({ action: "auth", key, secret }));
+    ws.onopen = () => ws.send(JSON.stringify({ action: "auth", ...auth }));
     ws.onmessage = (event) => {
       let messages: any[];
       try { messages = JSON.parse(String(event.data)); } catch { return; }
