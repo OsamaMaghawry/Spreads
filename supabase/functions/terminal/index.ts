@@ -265,7 +265,7 @@ async function feedCheck(url: string, auth: { key: string; secret: string }, sub
 // ETH/USD's, as the terminal does when another coin is picked, and counts what
 // comes back. Proves the book arrives whole, keeps updating, and follows the
 // selected coin; and that shares and coins stream side by side.
-async function relayCheck(auth: { key: string; secret: string }, seconds: number) {
+async function relayCheck(auth: { key: string; secret: string }, seconds: number, extra: string[] = []) {
   const got: { at: number; m: any }[] = [];
   const client: any = {
     readyState: WebSocket.OPEN,
@@ -273,11 +273,13 @@ async function relayCheck(auth: { key: string; secret: string }, seconds: number
     close: () => { client.readyState = WebSocket.CLOSED; }
   };
   const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-  relayDetail(client, auth, ["BTC/USD", "ETH/USD", "SPY", "AAPL"], "BTC/USD");
+  // More coins give a thin tape more chances to print while the check listens.
+  const more = extra.filter((c) => CRYPTO.test(c)).slice(0, 20);
+  relayDetail(client, auth, ["BTC/USD", "ETH/USD", "SPY", "AAPL", ...more], "BTC/USD");
   client.onopen?.();
   await wait(seconds * 500);
   const switchedAt = Date.now();
-  client.onmessage?.({ data: JSON.stringify({ action: "set", symbols: ["BTC/USD", "ETH/USD", "SOL/USD", "SPY"], book: "ETH/USD" }) });
+  client.onmessage?.({ data: JSON.stringify({ action: "set", symbols: ["BTC/USD", "ETH/USD", "SOL/USD", "SPY", ...more], book: "ETH/USD" }) });
   await wait(seconds * 500);
   client.onclose?.();
   const count = (f: (m: any, at: number) => boolean) => got.filter((g) => f(g.m, g.at)).length;
@@ -307,7 +309,7 @@ const streamAuth = (a: any) =>
 // limit from one shared across feeds; `seconds` listens longer, for a thin
 // tape; `accountId` signs in with another account, when the house account's
 // one connection per feed is in use (a terminal open on it, say).
-async function selftest(admin: any, only = "", seconds = 8, accountId = "") {
+async function selftest(admin: any, only = "", seconds = 8, accountId = "", extra: string[] = []) {
   let house = await houseDataAccount(admin);
   if (accountId) {
     const { data } = await admin.from("trading_accounts").select("*").eq("id", accountId).maybeSingle();
@@ -320,7 +322,7 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "") {
   const auth = streamAuth(house);
   if (!auth) return { error: "That account has no way to sign in to the streams." };
   const listen = Math.min(only === "relay" ? 120 : 60, Math.max(3, Number(seconds) || 8));
-  if (only === "relay") return { at: new Date().toISOString(), signIn: auth.key === "oauth" ? "oauth" : "key pair", relay: await relayCheck(auth, listen) };
+  if (only === "relay") return { at: new Date().toISOString(), signIn: auth.key === "oauth" ? "oauth" : "key pair", relay: await relayCheck(auth, listen, extra) };
   const coins = ["BTC/USD", "ETH/USD", "SOL/USD", "DOGE/USD", "LTC/USD"];
   const [crypto, stocks, coinAssets] = await Promise.all([
     only === "stocks" ? null : feedCheck("wss://stream.data.alpaca.markets/v1beta3/crypto/us", auth,
@@ -381,7 +383,8 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     if (body?.action === "selftest") {
       if (!(await redeemCronTicket(admin, body.ticket, "terminal_selftest"))) return jsonResponse({ error: "not authorised" }, 401);
-      const report = await selftest(admin, String(body.only || ""), Number(body.seconds) || 8, String(body.accountId || ""));
+      const report = await selftest(admin, String(body.only || ""), Number(body.seconds) || 8, String(body.accountId || ""),
+        (Array.isArray(body.coins) ? body.coins : []).map((c: unknown) => String(c).toUpperCase()));
       console.log(`terminal selftest: ${JSON.stringify(report)}`);
       return jsonResponse(report);
     }
