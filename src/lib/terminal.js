@@ -28,6 +28,50 @@ export function nyMidnight(sec) {
   return Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), offsetHours) / 1000;
 }
 
+// ---------- sessions ----------
+
+// New York wall-clock parts for a moment, read once per formatter.
+const NY = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York", weekday: "short", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+});
+export function nyClock(sec) {
+  const p = Object.fromEntries(NY.formatToParts(new Date(sec * 1000)).map((x) => [x.type, x.value]));
+  return { weekday: p.weekday, minutes: Number(p.hour) * 60 + Number(p.minute), day: `${p.year}-${p.month}-${p.day}` };
+}
+
+export const REGULAR_OPEN = 9 * 60 + 30;
+export const REGULAR_CLOSE = 16 * 60;
+
+/**
+ * Which part of the US share trading day a moment falls in: pre-market
+ * (4:00 to 9:30 New York time), regular (9:30 to 16:00), after hours (16:00
+ * to 20:00), or closed (overnight and weekends). Exchange holidays and early
+ * closes are not known here; on those days the clock rules still apply.
+ */
+export function sessionOf(sec) {
+  const { weekday, minutes } = nyClock(sec);
+  if (weekday === "Sat" || weekday === "Sun") return "closed";
+  if (minutes >= REGULAR_OPEN && minutes < REGULAR_CLOSE) return "regular";
+  if (minutes >= 4 * 60 && minutes < REGULAR_OPEN) return "pre";
+  if (minutes >= REGULAR_CLOSE && minutes < 20 * 60) return "post";
+  return "closed";
+}
+
+/**
+ * Whether a share's candle belongs on a regular-hours chart: any part of it
+ * inside 9:30 to 16:00. An hourly candle stamped 9:00 holds 9:30 to 10:00, so
+ * it stays; a 5-minute candle stamped 9:25 does not.
+ */
+export function inRegularHours(time, stepSeconds) {
+  const { weekday, minutes } = nyClock(time);
+  if (weekday === "Sat" || weekday === "Sun") return false;
+  const end = minutes + stepSeconds / 60;
+  return end > REGULAR_OPEN && minutes < REGULAR_CLOSE;
+}
+
+/** The session a VWAP restarts with: the New York day for shares, the UTC day for coins. */
+export const sessionDay = (sec, crypto) => (crypto ? Math.floor(sec / 86400) : nyClock(sec).day);
+
 /**
  * The start of the candle a moment falls in. A share's day starts at New York
  * midnight; a coin's at midnight UTC, where Alpaca stamps crypto daily bars

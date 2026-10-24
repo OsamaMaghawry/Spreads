@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize } from "./terminal.js";
+import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, inRegularHours, sessionDay } from "./terminal.js";
 
 const sec = (iso) => Date.parse(iso) / 1000;
 
@@ -104,4 +104,26 @@ test("formatting", () => {
   assert.equal(bookSize(2.09251), "2.093");
   assert.equal(bookSize(45678), "46K");
   assert.equal(px(0.00001234), "0.00001234");
+});
+
+test("sessions: pre-market, regular, after hours, closed, in New York time", () => {
+  // Thursday 22 Oct 2026, daylight time (UTC-4).
+  assert.equal(sessionOf(sec("2026-10-22T12:00:00Z")), "pre"); // 8:00
+  assert.equal(sessionOf(sec("2026-10-22T13:30:00Z")), "regular"); // 9:30
+  assert.equal(sessionOf(sec("2026-10-22T19:59:00Z")), "regular"); // 15:59
+  assert.equal(sessionOf(sec("2026-10-22T20:00:00Z")), "post"); // 16:00
+  assert.equal(sessionOf(sec("2026-10-23T01:00:00Z")), "closed"); // 21:00
+  assert.equal(sessionOf(sec("2026-10-24T15:00:00Z")), "closed"); // Saturday
+  // Standard time (UTC-5): 9:30 is 14:30 UTC.
+  assert.equal(sessionOf(sec("2026-12-01T14:29:00Z")), "pre");
+  assert.equal(sessionOf(sec("2026-12-01T14:30:00Z")), "regular");
+});
+
+test("regular-hours chart: a candle stays if any of it is inside 9:30 to 16:00", () => {
+  assert.equal(inRegularHours(sec("2026-10-22T13:25:00Z"), 300), false); // 9:25-9:30
+  assert.equal(inRegularHours(sec("2026-10-22T13:30:00Z"), 300), true);
+  assert.equal(inRegularHours(sec("2026-10-22T13:00:00Z"), 3600), true); // 9:00 hourly holds 9:30-10:00
+  assert.equal(inRegularHours(sec("2026-10-22T20:00:00Z"), 300), false); // 16:00
+  assert.equal(sessionDay(sec("2026-10-23T02:00:00Z"), false), "2026-10-22");
+  assert.equal(sessionDay(sec("2026-10-23T02:00:00Z"), true), Math.floor(sec("2026-10-23T02:00:00Z") / 86400));
 });

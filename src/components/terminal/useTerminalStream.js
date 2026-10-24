@@ -26,6 +26,9 @@ export default function useTerminalStream(accountId, symbols, book = "") {
   const [quotes, setQuotes] = useState({});
   const [status, setStatus] = useState({ state: "idle", message: null });
   const [feeds, setFeeds] = useState({});
+  // Counts feed (re)connections, so panels that keep history (the tape) can
+  // read what printed while the connection was down.
+  const [epoch, setEpoch] = useState(0);
   const socketRef = useRef(null);
   const pending = useRef({});
   const listeners = useRef(new Set());
@@ -65,7 +68,10 @@ export default function useTerminalStream(accountId, symbols, book = "") {
           wasLive = true;
           attempt = 0;
           setStatus({ state: "live", message: null });
-          if (m.feed) setFeeds((f) => ({ ...f, [m.feed]: { state: "live", message: null } }));
+          if (m.feed) {
+            setFeeds((f) => ({ ...f, [m.feed]: { state: "live", message: null } }));
+            setEpoch((e) => e + 1);
+          }
           // Symbols or the book that changed while the socket was opening: send them now.
           const want = [...new Set(symbolsRef.current)].slice(0, 30).sort().join(",");
           const got = [...(m.symbols || [])].sort().join(",");
@@ -139,5 +145,5 @@ export default function useTerminalStream(accountId, symbols, book = "") {
     return () => listeners.current.delete(fn);
   }, []);
 
-  return { quotes, status, feeds, listen };
+  return { quotes, status, feeds, epoch, listen };
 }

@@ -7,7 +7,7 @@ import useTerminalStream from "@/components/terminal/useTerminalStream";
 import PriceChart from "@/components/terminal/PriceChart";
 import OrderTicket from "@/components/terminal/OrderTicket";
 import OrderBook from "@/components/terminal/OrderBook";
-import { TimeAndSales, Positions, Orders } from "@/components/terminal/Panels";
+import { TimeAndSales, Positions, Orders, AccountSummary } from "@/components/terminal/Panels";
 
 // The trading terminal, a staging test (LAB).
 //
@@ -39,7 +39,7 @@ export default function Terminal() {
   const [snaps, setSnaps] = useState({});
   const [view, setView] = useState(null);
   const [tape, setTape] = useState([]);
-  const [tab, setTab] = useState("tape");
+  const [tab, setTab] = useState("positions");
   const [q, setQ] = useState("");
   const [results, setResults] = useState([]);
   const [pick, setPick] = useState(null);
@@ -60,7 +60,7 @@ export default function Terminal() {
   }, [watch]);
 
   const streamSymbols = useMemo(() => cleanWatchlist([symbol, ...watch]).slice(0, 30), [symbol, watch]);
-  const { quotes: live, status, feeds, listen } = useTerminalStream(accountId, streamSymbols, crypto ? symbol : "");
+  const { quotes: live, status, feeds, epoch, listen } = useTerminalStream(accountId, streamSymbols, crypto ? symbol : "");
   const feedTrouble = Object.entries(feeds).find(([, f]) => f.state === "error");
 
   // Opening quotes and the previous close, for the change column.
@@ -95,25 +95,38 @@ export default function Terminal() {
 
   // The tape for the selected symbol: the last trades first, then live ones
   // on top. A past share trade has no quote of its time to judge its side
-  // against, so it stays uncoloured; a coin's says who took it.
+  // against, so it stays uncoloured; a coin's says who took it. Read again
+  // whenever a feed (re)connects, so trades printed while the connection was
+  // down still appear, in time order.
+  const tapeFor = useRef(symbol);
+  tapeFor.current = symbol;
+  const loadTape = useCallback(() => {
+    if (!accountId) return;
+    const want = symbol;
+    invokeFunction("terminal", { action: "trades", accountId, symbol: want }).then((r) => {
+      if (tapeFor.current !== want || !Array.isArray(r?.data?.trades)) return;
+      const past = r.data.trades.map((t) => tapeRow(t, null));
+      setTape((rows) => {
+        const seen = new Set(rows.map((x) => x.id));
+        return [...rows, ...past.filter((x) => !seen.has(x.id))]
+          .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
+          .slice(0, TAPE_MAX);
+      });
+    });
+  }, [accountId, symbol]);
   useEffect(() => {
     setTape([]);
-    let alive = true;
-    if (accountId) {
-      invokeFunction("terminal", { action: "trades", accountId, symbol }).then((r) => {
-        if (!alive || !Array.isArray(r?.data?.trades)) return;
-        const past = r.data.trades.map((t) => tapeRow(t, null));
-        setTape((rows) => {
-          const seen = new Set(rows.map((x) => x.id));
-          return [...rows, ...past.filter((x) => !seen.has(x.id))].slice(0, TAPE_MAX);
-        });
-      });
-    }
-    const off = listen((m) => {
+    loadTape();
+    return listen((m) => {
       if (m.type === "trade" && m.symbol === symbol) setTape((rows) => pushTape(rows, tapeRow(m, quoteRef.current)));
     });
-    return () => { alive = false; off(); };
-  }, [listen, symbol, accountId]);
+  }, [listen, symbol, loadTape]);
+  useEffect(() => {
+    if (epoch > 0) loadTape();
+    // Only on a reconnect; the symbol change above loads its own.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [epoch]);
+  const tapeLive = feeds[crypto ? "crypto" : "stocks"]?.state === "live";
 
   // Symbol search.
   useEffect(() => {
@@ -128,7 +141,7 @@ export default function Terminal() {
   const held = (view?.positions || []).find((p) => p.symbol === symbol)?.qty || 0;
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] min-h-[640px] flex-col gap-2 text-slate-800">
+    <div className="flex flex-col gap-2 text-slate-800 xl:h-[calc(100vh-7rem)] xl:min-h-[680px]">
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="mr-2 text-lg font-semibold">Terminal</h1>
         <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">Staging test</span>
@@ -163,17 +176,20 @@ export default function Terminal() {
         </span>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 lg:grid-cols-[220px_1fr_300px]">
+      {/* Wide screens: watchlist, chart, depth (book over tape), ticket. Narrower:
+          the depth row moves below, book and tape side by side. Either way
+          the book and the tape are on screen together. */}
+      <div className="grid grid-cols-1 gap-2 lg:grid-cols-[210px_minmax(0,1fr)_300px] xl:min-h-0 xl:flex-1 xl:grid-cols-[210px_minmax(0,1fr)_290px_300px] xl:grid-rows-[minmax(0,1fr)]">
         {/* Watchlist */}
-        <div className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white">
+        <div className="max-h-64 min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white lg:col-start-1 lg:row-start-1 lg:h-[calc(100vh-9rem)] lg:max-h-none xl:h-auto">
           {watch.map((s) => {
             const w = quoteOf(s);
             return (
-              <div key={s} className={`group flex cursor-pointer items-center gap-2 border-b border-slate-100 px-2 py-1.5 ${s === symbol ? "bg-emerald-50" : "hover:bg-slate-50"}`} onClick={() => setSymbol(s)}>
-                <span className="w-14 text-sm font-semibold">{s}</span>
-                <span className="flex-1 text-right text-sm tabular-nums">{px(w.last)}</span>
-                <span className={`w-16 text-right text-xs tabular-nums ${w.changePct >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{pctText(w.changePct)}</span>
-                <button type="button" title="Remove" className="opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); setWatch((l) => l.filter((x) => x !== s)); }}>
+              <div key={s} className={`group relative flex cursor-pointer items-center gap-1 border-b border-slate-100 px-2 py-1.5 ${s === symbol ? "bg-emerald-50" : "hover:bg-slate-50"}`} onClick={() => setSymbol(s)}>
+                <span className="w-[4.5rem] shrink-0 truncate text-[13px] font-semibold" title={s}>{s}</span>
+                <span className="min-w-0 flex-1 text-right text-[13px] tabular-nums">{px(w.last)}</span>
+                <span className={`w-[3.25rem] shrink-0 text-right text-[11px] tabular-nums ${w.changePct >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{pctText(w.changePct)}</span>
+                <button type="button" title="Remove" className="absolute right-0.5 top-1/2 -translate-y-1/2 rounded bg-white opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); setWatch((l) => l.filter((x) => x !== s)); }}>
                   <X className="h-3.5 w-3.5 text-slate-400" />
                 </button>
               </div>
@@ -181,8 +197,8 @@ export default function Terminal() {
           })}
         </div>
 
-        {/* Chart and lower panels */}
-        <div className="flex min-h-0 flex-col gap-2">
+        {/* Chart, and the account's positions, orders and summary */}
+        <div className="flex min-h-[640px] flex-col gap-2 lg:col-start-2 lg:row-start-1 lg:h-[calc(100vh-9rem)] xl:h-auto xl:min-h-0">
           <div className="flex items-baseline gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
             <span className="text-xl font-semibold">{symbol}</span>
             <span className="text-xl tabular-nums">{px(quote.last)}</span>
@@ -191,26 +207,35 @@ export default function Terminal() {
               Bid <b className="text-slate-800">{px(quote.bid)}</b> × {sizeText(quote.bidSize)} · Ask <b className="text-slate-800">{px(quote.ask)}</b> × {sizeText(quote.askSize)}
             </span>
           </div>
-          <div className="min-h-[300px] flex-[3] overflow-hidden rounded-lg border border-slate-200 bg-white">
+          <div className="min-h-[320px] flex-[3] overflow-hidden rounded-lg border border-slate-200 bg-white">
             <PriceChart accountId={accountId} symbol={symbol} interval={interval} onInterval={setInterval_} listen={listen} />
           </div>
           <div className="flex min-h-[180px] flex-[2] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white">
             <div className="flex gap-1 border-b border-slate-200 px-2 py-1">
-              {[["tape", "Time & sales"], ["positions", `Positions${view?.positions?.length ? ` (${view.positions.length})` : ""}`], ["orders", `Orders${view?.orders?.length ? ` (${view.orders.length})` : ""}`], ["depth", "Level 2"]].map(([id, name]) => (
+              {[["positions", `Positions${view?.positions?.length ? ` (${view.positions.length})` : ""}`], ["orders", `Orders${view?.orders?.length ? ` (${view.orders.length})` : ""}`], ["account", "Account"]].map(([id, name]) => (
                 <button key={id} type="button" onClick={() => setTab(id)} className={`rounded px-2 py-0.5 text-xs font-medium ${tab === id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>{name}</button>
               ))}
             </div>
             <div className="min-h-0 flex-1">
-              {tab === "tape" && <TimeAndSales rows={tape} symbol={symbol} />}
               {tab === "positions" && <Positions positions={view?.positions || []} onPick={setSymbol} />}
               {tab === "orders" && <Orders accountId={accountId} orders={view?.orders || []} onChanged={loadView} />}
-              {tab === "depth" && <OrderBook accountId={accountId} symbol={symbol} quote={quote} listen={listen} onPick={(price) => setPick({ price, at: Date.now() })} />}
+              {tab === "account" && <AccountSummary summary={view?.summary} paper={view?.paper} name={account?.name} />}
             </div>
           </div>
         </div>
 
+        {/* Level 2 and time & sales, together */}
+        <div className="grid gap-2 lg:col-span-3 lg:row-start-2 lg:h-[380px] lg:grid-cols-2 xl:col-span-1 xl:col-start-3 xl:row-start-1 xl:h-auto xl:min-h-0 xl:grid-cols-1 xl:grid-rows-[minmax(0,3fr)_minmax(0,2fr)]">
+          <div className="h-[360px] min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white lg:h-auto">
+            <OrderBook accountId={accountId} symbol={symbol} quote={quote} listen={listen} onPick={(price) => setPick({ price, at: Date.now() })} />
+          </div>
+          <div className="flex h-[300px] min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white lg:h-auto">
+            <TimeAndSales rows={tape} symbol={symbol} live={tapeLive} />
+          </div>
+        </div>
+
         {/* Quote detail and ticket */}
-        <div className="min-h-0 space-y-2 overflow-auto">
+        <div className="min-h-0 space-y-2 overflow-auto lg:col-start-3 lg:row-start-1 lg:h-[calc(100vh-9rem)] xl:col-start-4 xl:h-auto">
           <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs">
             <div className="grid grid-cols-2 gap-y-1 tabular-nums">
               <span className="text-slate-500">Open</span><span className="text-right">{px(quote.open)}</span>

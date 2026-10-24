@@ -35,7 +35,9 @@ export class DrawingLayer {
     this.requestUpdate = null;
     const layer = this;
     this.view = { renderer: () => ({ draw: (target) => layer.draw(target) }) };
-    this.views = [this.view];
+    // Behind the candles: pre-market and after-hours shading.
+    this.back = { zOrder: () => "bottom", renderer: () => ({ draw: (target) => layer.drawSessions(target) }) };
+    this.views = [this.back, this.view];
     this.axisViews = [];
   }
 
@@ -93,6 +95,32 @@ export class DrawingLayer {
     const x = this.chart.timeScale().logicalToCoordinate(logical);
     const y = this.series.priceToCoordinate(point.price);
     return x === null || y === null ? null : { x, y };
+  }
+
+  // Shades each run of extended-hours candles on screen, edge to edge of
+  // their bars, as TradingView does; only the visible range is walked.
+  drawSessions(target) {
+    const { extended } = this.read();
+    if (!extended || !this.chart) return;
+    const ts = this.chart.timeScale();
+    const range = ts.getVisibleLogicalRange();
+    if (!range) return;
+    const half = ts.options().barSpacing / 2;
+    const from = Math.max(0, Math.floor(range.from));
+    const to = Math.min(extended.length - 1, Math.ceil(range.to));
+    target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
+      ctx.fillStyle = "rgba(148, 163, 184, 0.12)";
+      let start = null;
+      for (let i = from; i <= to + 1; i++) {
+        if (i <= to && extended[i]) { if (start === null) start = i; continue; }
+        if (start !== null) {
+          const x1 = ts.logicalToCoordinate(start);
+          const x2 = ts.logicalToCoordinate(i - 1);
+          if (x1 !== null && x2 !== null) ctx.fillRect(x1 - half, 0, x2 - x1 + 2 * half, mediaSize.height);
+          start = null;
+        }
+      }
+    });
   }
 
   draw(target) {

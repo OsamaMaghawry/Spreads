@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createChart, CandlestickSeries, HistogramSeries, CrosshairMode } from "lightweight-charts";
-import { MousePointer2, Slash, MoveUpRight, Minus, SeparatorVertical, RectangleHorizontal, Rows3, Ruler, Trash2, Eraser } from "lucide-react";
+import { createChart, CandlestickSeries, HistogramSeries, LineSeries, LineStyle, CrosshairMode } from "lightweight-charts";
+import { MousePointer2, Slash, MoveUpRight, Minus, SeparatorVertical, RectangleHorizontal, Rows3, Ruler, Trash2, Eraser, Activity, X } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
-import { INTERVALS, applyTrade, applyMinuteBar, isCrypto, priceFormatFor } from "@/lib/terminal";
+import { INTERVALS, applyTrade, applyMinuteBar, isCrypto, priceFormatFor, inRegularHours, sessionDay, sessionOf } from "@/lib/terminal";
+import { INDICATORS, LINE_COLORS, cleanIndicators, defaultParams, indicatorLabel, indicatorSeries } from "@/lib/indicators";
 import { TOOLS, COLORS, pointsFor, logicalToTime, hitTest, moveDrawing, readDrawings, writeDrawings } from "@/lib/chartDrawings";
 import { DrawingLayer } from "./drawingLayer";
 
@@ -16,10 +17,23 @@ import { DrawingLayer } from "./drawingLayer";
 // its handles or its body to move it, Delete to remove it. Drawings are saved
 // per symbol in this browser and stay put across intervals, because they are
 // stored as moments and prices (lib/chartDrawings.js).
+//
+// Sessions and indicators (24 Oct: "change between Market hours and Extended
+// hours"; "indicators EMA, MA, VWAP, MACD, RSI, Bollinger bands, etc."). A
+// share's intraday chart shows regular hours (9:30 to 16:00 New York) or all
+// hours, with pre-market and after hours shaded; coins trade around the clock
+// and have no switch. Indicators are computed from the candles on screen
+// (lib/indicators.js): averages, VWAP and Bollinger Bands on the price, RSI,
+// MACD, Stochastic and ATR each in a pane below. The list is kept in this
+// browser and applies to every symbol, as on a desk platform.
 
 const UP = "#059669";
 const DOWN = "#e11d48";
 const DRAW_KEY = "dm.terminal.drawings";
+const SESSION_KEY = "dm.terminal.session";
+const IND_KEY = "dm.terminal.indicators";
+const read = (key, fallback) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
+const write = (key, value) => { try { localStorage.setItem(key, value); } catch { /* private window */ } };
 const ICONS = { trend: Slash, ray: MoveUpRight, hline: Minus, vline: SeparatorVertical, rect: RectangleHorizontal, fib: Rows3, measure: Ruler };
 const STEP = Object.fromEntries(INTERVALS.map((i) => [i.id, i.seconds]));
 
@@ -40,6 +54,27 @@ export default function PriceChart({ accountId, symbol, interval, onInterval, li
   const lastRef = useRef(null);
   const [state, setState] = useState({ loading: true, error: null, count: 0 });
   const crypto = isCrypto(symbol);
+
+  // Every bar read (rawRef) and the ones on screen (barsRef): a regular-hours
+  // chart leaves out pre-market and after-hours bars without reading again.
+  const rawRef = useRef([]);
+  const barsRef = useRef([]);
+  const extRef = useRef([]);
+  const [session, setSession] = useState(() => (read(SESSION_KEY, "regular") === "all" ? "all" : "regular"));
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  const [indicators, setIndicators] = useState(() => {
+    try { return cleanIndicators(JSON.parse(read(IND_KEY, "[]"))); } catch { return []; }
+  });
+  const indicatorsRef = useRef(indicators);
+  indicatorsRef.current = indicators;
+  const indSeriesRef = useRef([]);
+  const indTimer = useRef(null);
+  const [menu, setMenu] = useState(false);
+  const cryptoRef = useRef(crypto);
+  cryptoRef.current = crypto;
+  const intervalRef = useRef(interval);
+  intervalRef.current = interval;
 
   // Drawing state lives in refs, read by the layer at paint time and by the
   // pointer handlers; React state mirrors what the toolbar shows.
@@ -79,17 +114,31 @@ export default function PriceChart({ accountId, symbol, interval, onInterval, li
       rightPriceScale: { borderColor: "#e2e8f0" },
       timeScale: { borderColor: "#e2e8f0", timeVisible: true, secondsVisible: false, rightOffset: 8 },
       localization: {
-        // New York time on the axis and the crosshair, whatever the viewer's clock says.
+        // New York time on the crosshair, whatever the viewer's clock says.
         timeFormatter: (t) => new Date(t * 1000).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })
       }
     });
+    // And on the time axis: the library labels its ticks in UTC unless told
+    // otherwise, which put the axis four or five hours off the crosshair.
+    const nyTick = (t, type) => {
+      const d = new Date(t * 1000);
+      const f = (o) => d.toLocaleString("en-US", { timeZone: "America/New_York", ...o });
+      if (type === 0) return f({ year: "numeric" });
+      if (type === 1) return f({ month: "short" });
+      if (type === 2) return f({ day: "numeric" });
+      return f({ hour: "2-digit", minute: "2-digit", hour12: false, ...(type === 4 ? { second: "2-digit" } : {}) });
+    };
+    chart.applyOptions({ timeScale: { tickMarkFormatter: nyTick } });
     const candles = chart.addSeries(CandlestickSeries, {
       upColor: UP, downColor: DOWN, borderUpColor: UP, borderDownColor: DOWN, wickUpColor: UP, wickDownColor: DOWN
     });
-    volumeRef.current = chart.addSeries(HistogramSeries, { priceFormat: { type: "volume" }, priceScaleId: "volume" });
+    // Volume: no label on the price axis, where its number would read as a price.
+    volumeRef.current = chart.addSeries(HistogramSeries, { priceFormat: { type: "volume" }, priceScaleId: "volume", lastValueVisible: false, priceLineVisible: false });
     chart.priceScale("volume").applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
     const layer = new DrawingLayer(() => ({
-      drawings: drawingsRef.current, draft: draftRef.current, selected: selectedRef.current, times: timesRef.current, step: stepRef.current
+      drawings: drawingsRef.current, draft: draftRef.current, selected: selectedRef.current, times: timesRef.current, step: stepRef.current,
+      // Pre-market and after hours shaded on an all-hours share chart.
+      extended: !cryptoRef.current && sessionRef.current === "all" && intervalRef.current !== "1Day" ? extRef.current : null
     }));
     candles.attachPrimitive(layer);
     candlesRef.current = candles;
@@ -110,8 +159,10 @@ export default function PriceChart({ accountId, symbol, interval, onInterval, li
       const r = box.getBoundingClientRect();
       return { x: e.clientX - r.left, y: e.clientY - r.top };
     };
-    // Inside the candles' pane, not on the price or time axis.
-    const inPane = (x, y) => x >= 0 && y >= 0 && x <= chart.timeScale().width() && y <= box.clientHeight - chart.timeScale().height();
+    // Inside the candles' pane, not on the price or time axis, nor an
+    // indicator's pane below.
+    const inPane = (x, y) => x >= 0 && y >= 0 && x <= chart.timeScale().width() &&
+      y <= (chart.panes()[0]?.getHeight() ?? box.clientHeight - chart.timeScale().height());
 
     // The second point follows the pointer until it is placed.
     const onMove = (param) => {
@@ -270,6 +321,41 @@ export default function PriceChart({ accountId, symbol, interval, onInterval, li
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commit]);
 
+  // Which bars belong on screen: all of them for a coin or a daily chart;
+  // for a share's intraday chart, regular hours only unless all hours is on.
+  const keep = useCallback((bar) => cryptoRef.current || sessionRef.current === "all" || intervalRef.current === "1Day" ||
+    inRegularHours(bar.time, STEP[intervalRef.current] || 300), []);
+
+  // The indicators' lines, from the bars on screen. Throttled: a busy tape
+  // updates the last candle many times a second, the lines twice.
+  const paintIndicators = useCallback(() => {
+    indTimer.current = null;
+    const bars = barsRef.current;
+    const day = (t) => sessionDay(t, cryptoRef.current);
+    for (const { ind, series } of indSeriesRef.current) {
+      const out = indicatorSeries(ind, bars, day);
+      out.lines.forEach((l, i) => series[i]?.setData(l.data));
+    }
+  }, []);
+  const scheduleIndicators = useCallback(() => {
+    if (!indTimer.current) indTimer.current = setTimeout(paintIndicators, 500);
+  }, [paintIndicators]);
+
+  const show = useCallback(() => {
+    const bars = rawRef.current.filter(keep);
+    barsRef.current = bars;
+    timesRef.current = bars.map((b) => b.time);
+    extRef.current = bars.map((b) => !cryptoRef.current && sessionOf(b.time) !== "regular");
+    stepRef.current = STEP[intervalRef.current] || 300;
+    candlesRef.current?.applyOptions({ priceFormat: priceFormatFor(bars.at(-1)?.close ?? 1) });
+    candlesRef.current?.setData(bars);
+    volumeRef.current?.setData(bars.map((b) => ({ time: b.time, value: b.volume, color: b.close >= b.open ? "#05966933" : "#e11d4833" })));
+    lastRef.current = rawRef.current.at(-1) || null;
+    layerRef.current?.update();
+    paintIndicators();
+    return bars.length;
+  }, [keep, paintIndicators]);
+
   // History for the symbol and interval.
   useEffect(() => {
     if (!accountId || !symbol) return undefined;
@@ -278,19 +364,19 @@ export default function PriceChart({ accountId, symbol, interval, onInterval, li
     invokeFunction("terminal", { action: "bars", accountId, symbol, interval }).then((r) => {
       if (!alive) return;
       if (r?.data?.error) { setState({ loading: false, error: r.data.error, count: 0 }); return; }
-      const bars = r?.data?.bars || [];
-      timesRef.current = bars.map((b) => b.time);
-      stepRef.current = STEP[interval] || 300;
-      candlesRef.current?.applyOptions({ priceFormat: priceFormatFor(bars.at(-1)?.close ?? 1) });
-      candlesRef.current?.setData(bars);
-      volumeRef.current?.setData(bars.map((b) => ({ time: b.time, value: b.volume, color: b.close >= b.open ? "#05966933" : "#e11d4833" })));
-      lastRef.current = bars.at(-1) || null;
+      rawRef.current = r?.data?.bars || [];
+      const count = show();
       chartRef.current?.timeScale().scrollToRealTime();
-      layerRef.current?.update();
-      setState({ loading: false, error: null, count: bars.length });
+      setState({ loading: false, error: null, count });
     });
     return () => { alive = false; };
-  }, [accountId, symbol, interval]);
+  }, [accountId, symbol, interval, show]);
+
+  // Regular or all hours: the same bars, filtered again.
+  useEffect(() => {
+    write(SESSION_KEY, session);
+    if (rawRef.current.length) setState((st) => ({ ...st, count: show() }));
+  }, [session, show]);
 
   // Live: each trade extends the last candle; the feed's minute bar corrects it.
   useEffect(() => {
@@ -299,12 +385,62 @@ export default function PriceChart({ accountId, symbol, interval, onInterval, li
       if (m.symbol !== symbol || state.loading || (m.type !== "trade" && m.type !== "bar")) return;
       const next = m.type === "trade" ? applyTrade(lastRef.current, m, interval, crypto) : applyMinuteBar(lastRef.current, m, interval);
       if (!next) return;
-      if (!lastRef.current || next.time > lastRef.current.time) timesRef.current = [...timesRef.current, next.time];
+      const raw = rawRef.current;
+      if (!lastRef.current || next.time > lastRef.current.time) raw.push(next);
+      else raw[raw.length - 1] = next;
       lastRef.current = next;
+      if (!keep(next)) return;
+      const bars = barsRef.current;
+      if (!bars.length || next.time > bars.at(-1).time) {
+        bars.push(next);
+        timesRef.current = [...timesRef.current, next.time];
+        extRef.current = [...extRef.current, !crypto && sessionOf(next.time) !== "regular"];
+      } else {
+        bars[bars.length - 1] = next;
+      }
       candlesRef.current?.update(next);
       volumeRef.current?.update({ time: next.time, value: next.volume, color: next.close >= next.open ? "#05966933" : "#e11d4833" });
+      scheduleIndicators();
     });
-  }, [listen, symbol, interval, state.loading, crypto]);
+  }, [listen, symbol, interval, state.loading, crypto, keep, scheduleIndicators]);
+
+  // The indicators' series and panes, rebuilt when the list changes: averages
+  // and bands on the price, each oscillator in a pane of its own.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    write(IND_KEY, JSON.stringify(indicators));
+    for (const { series } of indSeriesRef.current) series.forEach((x) => { try { chart.removeSeries(x); } catch { /* gone */ } });
+    for (let i = chart.panes().length - 1; i >= 1; i--) { try { chart.removePane(i); } catch { /* gone */ } }
+    let pane = 0;
+    indSeriesRef.current = indicators.map((ind) => {
+      const own = INDICATORS[ind.type].pane === "own";
+      const at = own ? ++pane : 0;
+      const sample = indicatorSeries(ind, [], () => 0);
+      const series = sample.lines.map((l) => {
+        if (l.kind === "histogram") return chart.addSeries(HistogramSeries, { priceLineVisible: false, lastValueVisible: false }, at);
+        return chart.addSeries(LineSeries, {
+          color: l.color, lineWidth: l.width || 1.5, lineStyle: l.dashed ? LineStyle.Dashed : LineStyle.Solid,
+          priceLineVisible: false, crosshairMarkerVisible: false, lastValueVisible: true,
+          ...(sample.range ? { autoscaleInfoProvider: () => ({ priceRange: { minValue: sample.range[0], maxValue: sample.range[1] } }) } : {})
+        }, at);
+      });
+      for (const level of sample.levels || []) {
+        series[0]?.createPriceLine({ price: level, color: "#94a3b8", lineStyle: LineStyle.Dashed, lineWidth: 1, axisLabelVisible: false });
+      }
+      return { ind, series };
+    });
+    chart.panes().forEach((p, i) => p.setStretchFactor(i === 0 ? 3 : 1));
+    paintIndicators();
+  }, [indicators, paintIndicators]);
+
+  const addIndicator = (type) => {
+    const used = indicators.filter((x) => INDICATORS[x.type].pane === "price").map((x) => x.color);
+    const color = LINE_COLORS.find((c) => !used.includes(c)) || LINE_COLORS[0];
+    setIndicators((list) => [...list, { id: newId(), type, params: defaultParams(type), color }]);
+  };
+  const editIndicator = (id, key, value) => setIndicators((list) => cleanIndicators(list.map((x) => (x.id === id ? { ...x, params: { ...x.params, [key]: value } } : x))));
+  const removeIndicator = (id) => setIndicators((list) => list.filter((x) => x.id !== id));
 
   const pickColor = (c) => {
     colorRef.current = c;
@@ -338,6 +474,44 @@ export default function PriceChart({ accountId, symbol, interval, onInterval, li
             {i.label}
           </button>
         ))}
+        {!crypto && interval !== "1Day" && (
+          <div className="ml-1 flex rounded border border-slate-200 text-[11px]" role="group" aria-label="Trading hours">
+            {[["regular", "Regular hours"], ["all", "All hours"]].map(([id, name]) => (
+              <button key={id} type="button" onClick={() => setSession(id)} title={id === "regular" ? "9:30 to 16:00 New York" : "Pre-market (from 4:00) and after hours (to 20:00), shaded"}
+                className={`px-1.5 py-0.5 ${session === id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>{name}</button>
+            ))}
+          </div>
+        )}
+        <div className="relative ml-1">
+          <button type="button" onClick={() => setMenu((v) => !v)} className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${menu ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
+            <Activity className="h-3.5 w-3.5" />Indicators{indicators.length ? ` (${indicators.length})` : ""}
+          </button>
+          {menu && (
+            <div className="absolute left-0 z-30 mt-1 w-72 rounded-md border border-slate-200 bg-white p-2 text-xs shadow-lg">
+              <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-slate-500">Add</div>
+              <div className="grid grid-cols-2 gap-1">
+                {Object.entries(INDICATORS).map(([type, def]) => (
+                  <button key={type} type="button" onClick={() => addIndicator(type)} className="rounded border border-slate-200 px-1.5 py-1 text-left hover:bg-slate-50">{def.label}</button>
+                ))}
+              </div>
+              {indicators.length > 0 && <div className="mb-1 mt-2 text-[10px] font-medium uppercase tracking-wider text-slate-500">On the chart</div>}
+              {indicators.map((x) => (
+                <div key={x.id} className="flex items-center gap-1 border-t border-slate-100 py-1">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: INDICATORS[x.type].pane === "price" ? x.color : "#94a3b8" }} />
+                  <span className="w-12 shrink-0 font-medium">{x.type.toUpperCase()}</span>
+                  {INDICATORS[x.type].params.map((p) => (
+                    <label key={p.key} className="flex items-center gap-0.5 text-[10px] text-slate-500" title={p.label}>
+                      {p.label.slice(0, 6)}
+                      <input type="number" min={1} step={p.key === "mult" ? 0.5 : 1} defaultValue={x.params[p.key]} onBlur={(e) => editIndicator(x.id, p.key, e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} className="w-11 rounded border border-slate-200 px-1 py-0.5 text-xs text-slate-800" />
+                    </label>
+                  ))}
+                  <button type="button" title="Remove" className="ml-auto" onClick={() => removeIndicator(x.id)}><X className="h-3.5 w-3.5 text-slate-400 hover:text-rose-600" /></button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <span className="mx-1 h-4 w-px bg-slate-200" />
         <button type="button" title="Pointer: select, move and delete drawings" className={btn(tool === "cursor")} onClick={() => setTool("cursor")}>
           <MousePointer2 className="h-3.5 w-3.5" />
@@ -350,8 +524,9 @@ export default function PriceChart({ accountId, symbol, interval, onInterval, li
             </button>
           );
         })}
-        <span className="mx-1 h-4 w-px bg-slate-200" />
-        {COLORS.map((c) => (
+        {/* Colours when there is something to colour: a tool in hand or a drawing selected. */}
+        {(tool !== "cursor" || selected) && <span className="mx-1 h-4 w-px bg-slate-200" />}
+        {(tool !== "cursor" || selected) && COLORS.map((c) => (
           <button key={c} type="button" title="Colour" aria-label={`Colour ${c}`} onClick={() => pickColor(c)}
             className={`h-3.5 w-3.5 rounded-full ${color === c ? "ring-2 ring-slate-400 ring-offset-1" : ""}`} style={{ backgroundColor: c }} />
         ))}
@@ -368,7 +543,20 @@ export default function PriceChart({ accountId, symbol, interval, onInterval, li
         </span>
       </div>
       {state.error && <p className="px-3 py-2 text-xs text-rose-700">{state.error}</p>}
-      <div ref={boxRef} className={`min-h-[260px] flex-1 ${tool !== "cursor" ? "cursor-crosshair" : ""}`} />
+      <div className="relative min-h-[260px] flex-1">
+        <div ref={boxRef} className={`absolute inset-0 ${tool !== "cursor" ? "cursor-crosshair" : ""}`} />
+        {indicators.length > 0 && (
+          <div className="pointer-events-none absolute left-2 top-1 z-10 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
+            {indicators.map((x) => (
+              <span key={x.id} className="pointer-events-auto flex items-center gap-1 rounded bg-white/80 px-1">
+                <span className="h-0.5 w-3" style={{ backgroundColor: INDICATORS[x.type].pane === "price" ? x.color : "#94a3b8" }} />
+                <span className="text-slate-600">{indicatorLabel(x)}</span>
+                <button type="button" title="Remove" onClick={() => removeIndicator(x.id)}><X className="h-3 w-3 text-slate-400 hover:text-rose-600" /></button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

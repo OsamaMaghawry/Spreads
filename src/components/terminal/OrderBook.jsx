@@ -83,27 +83,33 @@ export default function OrderBook({ accountId, symbol, quote, listen, onPick }) 
 
   if (!crypto) {
     return (
-      <div className="space-y-2 p-2 text-xs text-slate-700">
-        <Ladder view={{
-          asks: quote?.ask ? [{ price: quote.ask, size: quote.askSize ?? 0, total: quote.askSize ?? 0 }] : [],
-          bids: quote?.bid ? [{ price: quote.bid, size: quote.bidSize ?? 0, total: quote.bidSize ?? 0 }] : [],
-          spread: quote?.ask && quote?.bid ? quote.ask - quote.bid : null,
-          mid: quote?.ask && quote?.bid ? (quote.ask + quote.bid) / 2 : null,
-          maxTotal: Math.max(quote?.askSize || 0, quote?.bidSize || 0)
-        }} onPick={onPick} unit="shares" />
-        <p className="text-slate-500">
-          Best bid and ask only. Alpaca&apos;s stock feed does not carry the deeper book (Level 2) for shares; the full book is
-          available for crypto pairs, such as BTC/USD.
-        </p>
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex items-center justify-between border-b border-slate-200 px-2 py-1 text-xs">
+          <span className="font-semibold text-slate-700">Level 2 · {symbol}</span>
+          <span className="text-[10px] text-slate-500">Best bid and ask</span>
+        </div>
+        <div className="min-h-0 flex-1 space-y-2 overflow-auto p-2 text-xs text-slate-700">
+          <Ladder view={{
+            asks: quote?.ask ? [{ price: quote.ask, size: quote.askSize ?? 0, total: quote.askSize ?? 0 }] : [],
+            bids: quote?.bid ? [{ price: quote.bid, size: quote.bidSize ?? 0, total: quote.bidSize ?? 0 }] : [],
+            spread: quote?.ask && quote?.bid ? quote.ask - quote.bid : null,
+            mid: quote?.ask && quote?.bid ? (quote.ask + quote.bid) / 2 : null,
+            maxTotal: Math.max(quote?.askSize || 0, quote?.bidSize || 0)
+          }} onPick={onPick} unit="shares" />
+          <p className="text-slate-500">
+            Alpaca&apos;s stock feed carries only the best bid and ask, not the deeper book; the full book is
+            available for crypto pairs, such as BTC/USD.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between px-2 py-1 text-[10px] text-slate-500">
-        <span>{symbol} order book · Alpaca crypto venue</span>
-        <span className={mode === "live" ? "text-emerald-700" : ""}>
+      <div className="flex items-center justify-between border-b border-slate-200 px-2 py-1 text-xs">
+        <span className="font-semibold text-slate-700">Level 2 · {symbol}</span>
+        <span className={`text-[10px] ${mode === "live" ? "text-emerald-700" : "text-slate-500"}`}>
           {mode === "live" ? "● Live" : mode === "polling" ? "Updating every 3s" : "Loading…"}
         </span>
       </div>

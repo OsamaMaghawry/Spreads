@@ -206,6 +206,24 @@ async function accountView(account: any) {
     paper: !!account.is_paper,
     buyingPower: num(acct?.buying_power), cash: num(acct?.cash), equity: num(acct?.equity),
     dayTradeCount: num(acct?.daytrade_count), patternDayTrader: !!acct?.pattern_day_trader,
+    // The account summary tab ("a snapshot of the account summary ... including
+    // options buying power", 24 Oct): the broker's own figures, as it reports
+    // them, nothing derived here except today's change in equity.
+    summary: {
+      accountNumber: acct?.account_number || null, status: acct?.status || null, currency: acct?.currency || "USD",
+      equity: num(acct?.equity), lastEquity: num(acct?.last_equity),
+      dayChange: num(acct?.equity) !== null && num(acct?.last_equity) !== null ? num(acct?.equity)! - num(acct?.last_equity)! : null,
+      cash: num(acct?.cash), longMarketValue: num(acct?.long_market_value), shortMarketValue: num(acct?.short_market_value),
+      buyingPower: num(acct?.buying_power), regtBuyingPower: num(acct?.regt_buying_power),
+      daytradingBuyingPower: num(acct?.daytrading_buying_power), optionsBuyingPower: num(acct?.options_buying_power),
+      nonMarginableBuyingPower: num(acct?.non_marginable_buying_power),
+      initialMargin: num(acct?.initial_margin), maintenanceMargin: num(acct?.maintenance_margin), sma: num(acct?.sma),
+      multiplier: num(acct?.multiplier), optionsApprovedLevel: num(acct?.options_approved_level), optionsTradingLevel: num(acct?.options_trading_level),
+      dayTradeCount: num(acct?.daytrade_count), patternDayTrader: !!acct?.pattern_day_trader,
+      shortingEnabled: acct?.shorting_enabled ?? null, cryptoStatus: acct?.crypto_status || null,
+      tradingBlocked: !!acct?.trading_blocked, accountBlocked: !!acct?.account_blocked,
+      accruedFees: num(acct?.accrued_fees), pendingTransferIn: num(acct?.pending_transfer_in)
+    },
     positions: (Array.isArray(positions) ? positions : [])
       .filter((p: any) => p.asset_class === "us_equity" || p.asset_class === "crypto")
       .map((p: any) => ({

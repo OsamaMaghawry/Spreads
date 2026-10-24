@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { px, sizeText, clock, pctText, isCrypto } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
@@ -9,37 +9,60 @@ import { fmtMoney } from "@/lib/format";
 const th = "px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wider text-slate-500";
 const td = "px-2 py-1 tabular-nums";
 
-export function TimeAndSales({ rows, symbol }) {
+// How long ago, in words a glance can take: "12s", "3m 05s", "2h 10m".
+function ago(iso, now) {
+  const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000));
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
+  return `${Math.floor(s / 3600)}h ${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}m`;
+}
+
+export function TimeAndSales({ rows, symbol, live = false }) {
   const crypto = isCrypto(symbol);
+  // The clock in the header ticks, so a quiet tape reads as quiet, not stuck.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const last = rows[0]?.at;
   return (
-    <div className="h-full overflow-auto">
-      <table className="w-full text-xs">
-        <thead className="sticky top-0 bg-white">
-          <tr><th className={th}>Time (ET)</th><th className={th}>Price</th><th className={th}>Size{crypto ? ` (${symbol.split("/")[0]})` : ""}</th><th className={th}>{crypto ? "Taker" : "Venue"}</th></tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id} className={r.side === "buy" ? "text-emerald-700" : r.side === "sell" ? "text-rose-700" : "text-slate-700"}>
-              <td className={td}>{clock(r.at)}</td><td className={td}>{px(r.price)}</td><td className={td}>{sizeText(r.size)}</td>
-              <td className={td}>{crypto ? (r.side === "buy" ? "Buyer" : r.side === "sell" ? "Seller" : "") : r.exchange}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {!rows.length && (
-        <p className="px-2 py-3 text-xs text-slate-500">
-          {crypto
-            ? `Waiting for ${symbol} trades. Every trade on Alpaca's crypto venue appears here as it happens; the venue is thinner than the big exchanges, so trades can be a minute or more apart while the book keeps moving.`
-            : `Waiting for ${symbol} trades. The free IEX feed shows trades executed on IEX only, a small share of all trading, so the tape can be quiet.`}
-        </p>
-      )}
-      {rows.length > 0 && (
-        <p className="px-2 py-2 text-[10px] text-slate-400">
-          {crypto
-            ? "Green: a buyer took the offer. Red: a seller hit the bid. Stated by the feed for every trade."
-            : "Green: printed at or above the ask. Red: at or below the bid. An estimate from the quote; the stock feed does not say who took the trade."}
-        </p>
-      )}
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-2 py-1 text-xs">
+        <span className="truncate font-semibold text-slate-700">Time & sales</span>
+        <span className={`shrink-0 text-[10px] tabular-nums ${live ? "text-emerald-700" : "text-slate-500"}`}>
+          {live ? "● Live" : "Not streaming"}{last ? ` · last trade ${ago(last, now)} ago` : ""}
+        </span>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto">
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-white">
+            <tr><th className={th}>Time (ET)</th><th className={th}>Price</th><th className={th}>Size{crypto ? ` (${symbol.split("/")[0]})` : ""}</th><th className={th}>{crypto ? "Taker" : "Venue"}</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className={r.side === "buy" ? "text-emerald-700" : r.side === "sell" ? "text-rose-700" : "text-slate-700"}>
+                <td className={td}>{clock(r.at)}</td><td className={td}>{px(r.price)}</td><td className={td}>{sizeText(r.size)}</td>
+                <td className={td}>{crypto ? (r.side === "buy" ? "Buyer" : r.side === "sell" ? "Seller" : "") : r.exchange}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!rows.length && (
+          <p className="px-2 py-3 text-xs text-slate-500">
+            {crypto
+              ? `Waiting for ${symbol} trades. Alpaca's crypto venue is thinner than the big exchanges, so trades can be a minute or more apart while the book keeps moving.`
+              : `Waiting for ${symbol} trades. The free IEX feed shows trades executed on IEX only, a small share of all trading, so the tape can be quiet; outside market hours it stops.`}
+          </p>
+        )}
+        {rows.length > 0 && (
+          <p className="px-2 py-2 text-[10px] text-slate-400">
+            {crypto
+              ? "Green: a buyer took the offer. Red: a seller hit the bid. Stated by the feed for every trade."
+              : "Green: printed at or above the ask. Red: at or below the bid. An estimate from the live quote; earlier trades stay uncoloured."}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -116,6 +139,67 @@ export function Orders({ accountId, orders, onChanged }) {
         </tbody>
       </table>
       {!orders.length && <p className="px-2 py-3 text-xs text-slate-500">No open orders.</p>}
+    </div>
+  );
+}
+
+// The account summary: the broker's own figures, grouped the way a desk reads
+// them. Options buying power is what Alpaca will let this account commit to
+// option trades; it differs from the overall figure because options cannot be
+// bought on margin.
+export function AccountSummary({ summary, paper, name }) {
+  if (!summary) return <p className="px-2 py-3 text-xs text-slate-500">Reading the account…</p>;
+  const m = (v) => (v === null || v === undefined ? "—" : fmtMoney(v));
+  const groups = [
+    ["Value", [
+      ["Equity", m(summary.equity)],
+      ["Today", summary.dayChange === null ? "—" : `${summary.dayChange >= 0 ? "+" : ""}${fmtMoney(summary.dayChange)}${summary.lastEquity ? ` (${pctText(summary.dayChange / summary.lastEquity)})` : ""}`, summary.dayChange],
+      ["Cash", m(summary.cash)],
+      ["Long market value", m(summary.longMarketValue)],
+      ["Short market value", m(summary.shortMarketValue)]
+    ]],
+    ["Buying power", [
+      ["Buying power", m(summary.buyingPower)],
+      ["Options buying power", m(summary.optionsBuyingPower)],
+      ["Reg T (overnight)", m(summary.regtBuyingPower)],
+      ["Day trading", m(summary.daytradingBuyingPower)],
+      ["Non-marginable (crypto)", m(summary.nonMarginableBuyingPower)]
+    ]],
+    ["Margin", [
+      ["Initial margin", m(summary.initialMargin)],
+      ["Maintenance margin", m(summary.maintenanceMargin)],
+      ["Margin multiplier", summary.multiplier ? `${summary.multiplier}x` : "—"],
+      ["SMA", m(summary.sma)]
+    ]],
+    ["Account", [
+      ["Options level", summary.optionsTradingLevel ?? summary.optionsApprovedLevel ?? "—"],
+      ["Day trades (5 days)", summary.dayTradeCount ?? "—"],
+      ["Pattern day trader", summary.patternDayTrader ? "Yes" : "No"],
+      ["Short selling", summary.shortingEnabled === null ? "—" : summary.shortingEnabled ? "Enabled" : "Off"],
+      ["Crypto", summary.cryptoStatus ? summary.cryptoStatus.toLowerCase() : "—"],
+      ["Status", summary.tradingBlocked || summary.accountBlocked ? "Blocked" : (summary.status || "—").toLowerCase()]
+    ]]
+  ];
+  return (
+    <div className="h-full overflow-auto p-2">
+      <div className="mb-2 flex items-baseline gap-2 text-xs text-slate-500">
+        <span className="font-semibold text-slate-700">{name || "Account"}</span>
+        {summary.accountNumber && <span>{summary.accountNumber}</span>}
+        <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${paper ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>{paper ? "Paper" : "Live"}</span>
+      </div>
+      <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 2xl:grid-cols-4">
+        {groups.map(([title, rows]) => (
+          <div key={title}>
+            <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-slate-500">{title}</div>
+            {rows.map(([label, value, sign]) => (
+              <div key={label} className="flex justify-between gap-2 border-b border-slate-100 py-0.5 text-xs tabular-nums">
+                <span className="text-slate-500">{label}</span>
+                <span className={sign === undefined || sign === null ? "text-slate-800" : sign >= 0 ? "text-emerald-700" : "text-rose-700"}>{value}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
