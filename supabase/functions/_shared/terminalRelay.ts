@@ -11,9 +11,13 @@ const STOCK_STREAM = "wss://stream.data.alpaca.markets/v2/iex";
 const CRYPTO_STREAM = "wss://stream.data.alpaca.markets/v1beta3/crypto/us";
 export const SHARE = /^[A-Z][A-Z0-9.]{0,9}$/;
 export const COIN = /^[A-Z0-9]{1,10}\/(USD|USDT|USDC|BTC)$/;
-// Refusals that another try will not change: auth failed, no entitlement,
-// the account's connection already in use.
-const FINAL = new Set([401, 402, 403, 405, 406, 409]);
+// Refusals that another try will not change: auth failed, no entitlement.
+// "Connection limit exceeded" (406) is not among them: when the browser
+// reconnects, Alpaca can still be holding the connection it just lost for a
+// moment, and the same request a few seconds later goes through. Treating it
+// as final left a feed dead until the next reconnect (found 24 Oct: the
+// terminal's time & sales stopped updating).
+const FINAL = new Set([401, 402, 403, 405, 409]);
 
 // The trading terminal's relay (detail mode). The full message: trade size,
 // exchange and, for crypto, the side that took the trade, for its time &
@@ -28,6 +32,17 @@ type Feed = { kind: "stocks" | "crypto"; ws: WebSocket | null; authed: boolean; 
 
 export function relayDetail(client: WebSocket, auth: { key: string; secret: string }, initial: string[], initialBook: string) {
   let closed = false;
+  const startedAt = Date.now();
+  // What this session sent the browser, and what each feed said, logged when
+  // it ends: the only view from here of whether a trader's tape was live.
+  const sent: Record<string, number> = {};
+  const said: Record<string, string[]> = { stocks: [], crypto: [] };
+  // Keeps the function alive while the socket is open. Without it the runtime
+  // counts the request finished once the upgrade is answered, and drops the
+  // worker about 75 seconds later ("EarlyDrop"), taking both feeds with it.
+  let finished: () => void = () => {};
+  const done = new Promise<void>((resolve) => { finished = resolve; });
+  (globalThis as any).EdgeRuntime?.waitUntil?.(done);
   let wanted = new Set(initial);
   let book = COIN.test(initialBook) ? initialBook : "";
   const feeds: Record<"stocks" | "crypto", Feed> = {
@@ -37,8 +52,10 @@ export function relayDetail(client: WebSocket, auth: { key: string; secret: stri
   const timers = new Set<number>();
   const of = (f: Feed) => [...wanted].filter((s) => (f.kind === "crypto" ? COIN.test(s) : SHARE.test(s)));
 
-  const send = (payload: unknown) => {
-    if (client.readyState === WebSocket.OPEN) client.send(JSON.stringify(payload));
+  const send = (payload: any) => {
+    if (client.readyState !== WebSocket.OPEN) return;
+    sent[payload.type] = (sent[payload.type] || 0) + 1;
+    client.send(JSON.stringify(payload));
   };
   const shut = () => {
     if (closed) return;
@@ -46,6 +63,8 @@ export function relayDetail(client: WebSocket, auth: { key: string; secret: stri
     timers.forEach((t) => clearTimeout(t));
     for (const f of Object.values(feeds)) { try { f.ws?.close(); } catch { /* already gone */ } }
     try { client.close(); } catch { /* already gone */ }
+    console.log(`terminal relay: ${JSON.stringify({ seconds: Math.round((Date.now() - startedAt) / 1000), symbols: wanted.size, book, sent, said })}`);
+    finished();
   };
 
   // Brings one feed's subscriptions to what the browser wants, opening the
@@ -84,6 +103,7 @@ export function relayDetail(client: WebSocket, auth: { key: string; secret: stri
       if (!Array.isArray(messages)) return;
       for (const m of messages) {
         if (m.T === "success" && m.msg === "authenticated") {
+          said[f.kind].push("authenticated");
           f.authed = true;
           f.attempts = 0;
           sync(f);
@@ -91,6 +111,7 @@ export function relayDetail(client: WebSocket, auth: { key: string; secret: stri
           continue;
         }
         if (m.T === "error") {
+          said[f.kind].push(`${m.code}: ${m.msg}`);
           if (FINAL.has(Number(m.code))) f.final = `${m.code}: ${m.msg}`;
           send({ type: "error", feed: f.kind, code: m.code, message: m.msg });
           continue;
@@ -121,9 +142,10 @@ export function relayDetail(client: WebSocket, auth: { key: string; secret: stri
       f.ws = null;
       f.authed = false;
       if (closed) return;
+      said[f.kind].push("closed");
       send({ type: "feed", feed: f.kind, state: "down", message: f.final });
-      // A dropped feed comes back by itself, a little later each time; a
-      // refusal does not, and the other feed carries on either way.
+      // A dropped or crowded-out feed comes back by itself, a little later
+      // each time; a refusal does not, and the other feed carries on either way.
       if (f.final || f.attempts >= 6 || !of(f).length) return;
       f.attempts += 1;
       const t = setTimeout(() => { timers.delete(t); if (!closed && !f.ws) sync(f); }, Math.min(30000, 1000 * 2 ** f.attempts));
