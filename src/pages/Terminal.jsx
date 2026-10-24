@@ -13,6 +13,7 @@ import PriceChart from "@/components/terminal/PriceChart";
 import OrderTicket from "@/components/terminal/OrderTicket";
 import OrderBook from "@/components/terminal/OrderBook";
 import TapePanel from "@/components/terminal/TapePanel";
+import Toasts from "@/components/terminal/Toasts";
 import { Positions, Orders, AccountSummary } from "@/components/terminal/Panels";
 
 const Grid = WidthProvider(Responsive);
@@ -64,6 +65,21 @@ export default function Terminal() {
   const [results, setResults] = useState([]);
   const [pick, setPick] = useState(null);
   const [preset, setPreset] = useState(null);
+
+  // Order pop-ups: one per order (its key), replaced as the order moves.
+  // Good news and quiet endings leave by themselves; a problem stays until
+  // it is closed, and an order still on its way stays until it lands.
+  const [toasts, setToasts] = useState([]);
+  const toastTimers = useRef({});
+  const closeToast = useCallback((key) => {
+    clearTimeout(toastTimers.current[key]);
+    setToasts((list) => list.filter((t) => t.key !== key));
+  }, []);
+  const notify = useCallback((t) => {
+    setToasts((list) => [...list.filter((x) => x.key !== t.key), t].slice(-3));
+    clearTimeout(toastTimers.current[t.key]);
+    if (t.tone === "ok" || t.tone === "muted") toastTimers.current[t.key] = setTimeout(() => closeToast(t.key), t.title === "Order placed" ? 9000 : 7000);
+  }, [closeToast]);
   const quoteRef = useRef(null);
   const crypto = isCrypto(symbol);
 
@@ -180,6 +196,7 @@ export default function Terminal() {
 
   return (
     <div className="flex flex-col gap-2 text-slate-800">
+      <Toasts toasts={toasts} onClose={closeToast} />
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="mr-2 text-lg font-semibold">Terminal</h1>
         <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">Staging test</span>
@@ -330,7 +347,7 @@ export default function Terminal() {
               )}
             </div>
             <OrderTicket account={account} symbol={symbol} quote={quote} held={held} heldText={held > 0 && position?.qtyText ? position.qtyText : ""}
-              buyingPower={view?.buyingPower ?? null} onPlaced={loadView} pick={pick} preset={preset} />
+              buyingPower={view?.buyingPower ?? null} onPlaced={loadView} pick={pick} preset={preset} onNotify={notify} />
             <p className="px-1 text-[10px] leading-relaxed text-slate-400">Prices from your own Alpaca account: shares from the free IEX feed (real time, IEX trades only); coins from Alpaca&apos;s crypto venue, around the clock, with the full order book. Charts by TradingView Lightweight Charts. Not investment advice.</p>
           </div>
         </div>

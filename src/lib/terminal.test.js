@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, inRegularHours, sessionDay, amountToQty, orderState } from "./terminal.js";
+import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, inRegularHours, sessionDay, amountToQty, orderState, orderNews } from "./terminal.js";
 
 const sec = (iso) => Date.parse(iso) / 1000;
 
@@ -156,4 +156,13 @@ test("a dollar amount as a quantity: whole shares, or the coin's step, never ove
 test("order states: filled and refused are final; anything unknown is still working", () => {
   assert.deepEqual([orderState("filled").final, orderState("rejected").tone, orderState("pending_new").label], [true, "bad", "Working"]);
   assert.equal(orderState("partially_filled").final, false);
+});
+
+test("order pop-ups: one line per step, the fill in plain words", () => {
+  const base = { words: "Sell 0.00997 BTC at market", side: "sell", unitName: "BTC" };
+  assert.deepEqual(orderNews({ ...base, sending: true }), { tone: "wait", title: "Sending order…", detail: base.words });
+  assert.deepEqual(orderNews({ ...base, status: "pending_new" }), { tone: "ok", title: "Order placed", detail: "Sell 0.00997 BTC at market · waiting to fill" });
+  assert.deepEqual(orderNews({ ...base, status: "filled", filled: 0.00997, avgPrice: 80536.9 }), { tone: "ok", title: "Filled", detail: "Sold 0.00997 BTC at 80536.90 · $802.95" });
+  assert.equal(orderNews({ ...base, error: "The smallest BTC/USD order is 0.000012373." }).title, "Order not placed");
+  assert.equal(orderNews({ ...base, status: "canceled" }).detail, "Nothing filled.");
 });

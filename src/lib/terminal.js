@@ -330,3 +330,30 @@ const STATES = {
 export function orderState(status) {
   return STATES[status] || { label: "Working", tone: "wait", final: false };
 }
+
+/**
+ * The pop-up for an order at each step: a tone (ok, wait, muted, bad), a
+ * title a glance can take, and one line of detail. `order` is what the
+ * terminal tracks: the words of the ticket, side, unit, and the broker's
+ * status and fills.
+ */
+export function orderNews(order) {
+  const filled = Number(order?.filled) || 0;
+  const avg = Number(order?.avgPrice) || 0;
+  const unit = order?.unitName || "";
+  const did = order?.side === "buy" ? "Bought" : "Sold";
+  const fills = filled > 0 && avg > 0
+    ? `${did} ${sizeText(filled)} ${unit} at ${px(avg)} · $${(filled * avg).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : null;
+  if (order?.error) return { tone: "bad", title: "Order not placed", detail: order.error };
+  if (order?.sending) return { tone: "wait", title: "Sending order…", detail: order.words };
+  switch (order?.status) {
+    case "filled": return { tone: "ok", title: "Filled", detail: fills || order.words };
+    case "partially_filled": return { tone: "wait", title: "Partly filled", detail: fills ? `${fills} so far` : order.words };
+    case "canceled": return { tone: "muted", title: "Cancelled", detail: fills ? `${fills} before cancelling` : "Nothing filled." };
+    case "expired": return { tone: "muted", title: "Expired", detail: fills ? `${fills} before it expired` : "Nothing filled." };
+    case "rejected": return { tone: "bad", title: "Rejected by Alpaca", detail: "Check the size, the price and the buying power." };
+    case "pending_cancel": return { tone: "wait", title: "Cancelling…", detail: order.words };
+    default: return { tone: "ok", title: "Order placed", detail: `${order?.words || ""} · waiting to fill` };
+  }
+}

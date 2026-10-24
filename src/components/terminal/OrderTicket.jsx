@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
-import { px, sizeText, isCrypto, amountToQty, orderState } from "@/lib/terminal";
+import { px, sizeText, isCrypto, amountToQty, orderState, orderNews } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
 
 // The ticket, for shares and coins. Two steps, review then send, like a desk
@@ -30,7 +30,7 @@ const TIF_TEXT = { day: "for the day", gtc: "good till cancelled", ioc: "immedia
 const input = "w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm tabular-nums focus:border-emerald-500 focus:outline-none";
 const label = "mb-1 block text-[11px] uppercase tracking-wider text-slate-500";
 
-export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, onPlaced, pick = null, preset = null }) {
+export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, onPlaced, pick = null, preset = null, onNotify = () => {} }) {
   const crypto = isCrypto(symbol);
   const TYPES = crypto ? CRYPTO_TYPES : STOCK_TYPES;
   const [side, setSide] = useState("buy");
@@ -45,16 +45,16 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   const [sl, setSl] = useState("");
   const [review, setReview] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState(null);
   const [asset, setAsset] = useState(null);
   const [unit, setUnit] = useState("qty");
   const [amount, setAmount] = useState("");
   const [tracked, setTracked] = useState(null);
+  const trackedRef = useRef(null);
 
   // A new symbol starts a new ticket, priced at the side it would trade, with
   // only the choices its market has.
   useEffect(() => {
-    setLimit(""); setStop(""); setTp(""); setSl(""); setReview(false); setResult(null);
+    setLimit(""); setStop(""); setTp(""); setSl(""); setReview(false);
     setAsset(null);
     if (isCrypto(symbol)) {
       setType((t) => (t === "stop" ? "stop_limit" : t));
@@ -90,16 +90,24 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
       const r = await invokeFunction("terminal", { action: "orderStatus", accountId: account.id, orderId: tracked.id });
       if (!alive) return;
       const o = r?.data?.order;
-      if (o) {
-        setTracked((cur) => (cur && cur.id === o.id ? { ...cur, ...o } : cur));
+      const cur = trackedRef.current;
+      if (o && cur && cur.id === o.id) {
+        const next = { ...cur, ...o };
+        // The pop-up follows the order; once it is over, the ticket lets go of it.
+        if (cur.status !== o.status || cur.filled !== o.filled) onNotify({ key: cur.key, ...orderNews(next) });
+        trackedRef.current = orderState(o.status).final ? null : next;
+        setTracked(trackedRef.current);
         if (o.status === "filled" || o.status === "partially_filled" || orderState(o.status).final) onPlaced?.();
       }
       polls += 1;
-      if (!o || !orderState(o.status).final) timer = setTimeout(tick, polls < 15 ? 1000 : 5000);
+      // Every second for the first half minute, then every five; a resting
+      // order is left to the Orders tab after ten minutes.
+      if ((!o || !orderState(o.status).final) && polls < 135) timer = setTimeout(tick, polls < 30 ? 1000 : 5000);
     };
     timer = setTimeout(tick, 500);
     return () => { alive = false; clearTimeout(timer); };
     // Once per order; the loop above carries on until it ends.
+    // (onNotify and onPlaced are steady callbacks from the page.)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tracked?.id, account?.id]);
 
@@ -124,7 +132,6 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     setTif(isCrypto(symbol) ? "gtc" : "day");
     setExtended(false);
     setBracket(false);
-    setResult(null);
     setReview(true);
   }, [preset, symbol]);
   // Filled once per symbol and side, when the first quote arrives; after that
@@ -155,6 +162,10 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   const sellAll = side === "sell" && held > 0 && typed > held && typed - held < 1e-8;
   const n = sellAll ? held : typed;
   const belowMin = crypto && !notional && n > 0 && asset?.minOrderSize && n < asset.minOrderSize;
+  // A leftover smaller than the coin's smallest order (about $1 at Alpaca)
+  // cannot be sold by itself: say so once, rather than offer a sale that fails.
+  const dust = crypto && held > 0 && asset?.minOrderSize && held < asset.minOrderSize;
+  const minDollars = asset?.minOrderSize && ref ? asset.minOrderSize * ref : null;
   const value = notional ? dollars : at && n ? at * n : null;
   const short = side === "sell" && n > Math.max(0, held) + 1e-12;
   const overBp = side === "buy" && value !== null && buyingPower !== null && value > buyingPower;
@@ -177,7 +188,9 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
 
   const send = async () => {
     setBusy(true);
-    setResult(null);
+    const key = `o${Date.now()}`;
+    const unitName = crypto ? coin : "shares";
+    onNotify({ key, ...orderNews({ sending: true, words }) });
     const r = await invokeFunction("terminal", {
       action: "order", accountId: account.id,
       order: {
@@ -189,9 +202,12 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     });
     setBusy(false);
     setReview(false);
-    if (r?.data?.error) setResult({ ok: false, text: r.data.error });
+    if (r?.data?.error) onNotify({ key, ...orderNews({ error: r.data.error }) });
     else {
-      setTracked({ id: r?.data?.orderId, status: r?.data?.status || "new", words, symbol, side, unitName: crypto ? coin : "shares" });
+      const placed = { key, id: r?.data?.orderId, status: r?.data?.status || "new", words, symbol, side, unitName };
+      trackedRef.current = placed;
+      setTracked(placed);
+      onNotify({ key, ...orderNews(placed) });
       // A fresh ticket: the size just sent would otherwise sit there, checked
       // against a holding that has since changed.
       setQty(crypto ? "" : "1");
@@ -202,14 +218,26 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   const cancelTracked = async () => {
     if (!tracked?.id) return;
     const r = await invokeFunction("manageOrder", { accountId: account.id, orderId: tracked.id, action: "cancel" });
-    if (r?.data?.error) setResult({ ok: false, text: r.data.error });
-    setTracked((cur) => (cur ? { ...cur, status: "pending_cancel" } : cur));
+    if (r?.data?.error) onNotify({ key: tracked.key, tone: "bad", title: "Could not cancel", detail: r.data.error });
+    else if (trackedRef.current) {
+      trackedRef.current = { ...trackedRef.current, status: "pending_cancel" };
+      setTracked(trackedRef.current);
+    }
   };
 
   return (
     <div className="space-y-3">
-      {/* The last order, at the top where it is seen without scrolling. */}
-      {tracked && <OrderCard order={tracked} onCancel={cancelTracked} onClose={() => setTracked(null)} />}
+      {/* While an order works: one line, and the way to cancel it. Its news
+          comes as a pop-up at the top of the screen. */}
+      {tracked && (
+        <div className="flex items-center gap-2 rounded-md border border-sky-200 bg-sky-50 px-2 py-1.5 text-xs text-sky-900">
+          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-sky-500" />
+          <span className="min-w-0 flex-1 truncate">{orderState(tracked.status).label}: {tracked.words}</span>
+          {tracked.status !== "pending_cancel" && (
+            <button type="button" onClick={cancelTracked} className="shrink-0 rounded border border-sky-300 px-1.5 py-0.5 font-medium hover:bg-white">Cancel</button>
+          )}
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1">
         {["buy", "sell"].map((s) => (
           <button key={s} type="button" onClick={() => { setSide(s); setLimit(""); setReview(false); }}
@@ -315,19 +343,27 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
           <span>You hold</span>
           <span className="flex items-center gap-1.5 tabular-nums">
             {crypto && heldText ? String(Number(heldText)) : sizeText(held)} {crypto ? coin : "shares"}
-            {side === "sell" && held > 0 && (
+            {side === "sell" && held > 0 && !dust && (
               <button type="button" title="Sell exactly what you hold" onClick={() => { setUnit("qty"); setQty(heldText || String(held)); setReview(false); }}
                 className="rounded border border-slate-300 px-1 text-[10px] text-slate-700 hover:bg-slate-50">Max</button>
             )}
           </span>
         </div>
-        {crypto && asset?.minOrderSize ? <div className="flex justify-between"><span>Smallest order</span><span className="tabular-nums">{asset.minOrderSize} {coin}</span></div> : null}
+        {crypto && asset?.minOrderSize ? (
+          <div className="flex justify-between"><span>Smallest order</span><span className="tabular-nums">{asset.minOrderSize} {coin}{minDollars ? ` (≈ ${fmtMoney(minDollars)})` : ""}</span></div>
+        ) : null}
       </div>
 
       {!paper && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">Orders go to paper accounts only during this test. Choose a paper account to trade.</p>}
       {short && !crypto && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">You hold {Math.max(0, held)} shares, so this sells {n - Math.max(0, held)} you do not own: a short sale.</p>}
-      {short && crypto && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">You hold {sizeText(Math.max(0, held))} {coin}. Crypto cannot be sold short, so a sale is limited to what you hold.</p>}
-      {belowMin && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">The smallest {symbol} order is {asset.minOrderSize} {coin}.</p>}
+      {short && crypto && !dust && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">You hold {sizeText(Math.max(0, held))} {coin}. Crypto cannot be sold short, so a sale is limited to what you hold.</p>}
+      {dust && side === "sell" ? (
+        <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
+          Your {String(Number(heldText || held))} {coin} is less than Alpaca&apos;s smallest {coin} order ({asset.minOrderSize} {coin}, about {fmtMoney(minDollars || 1)}), so it cannot be sold on its own. Buy more and sell the two together, or leave it.
+        </p>
+      ) : belowMin ? (
+        <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">Too small: Alpaca&apos;s smallest {coin} order is {asset.minOrderSize} {coin} (about {fmtMoney(minDollars || 1)}).</p>
+      ) : null}
       {overBp && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">This is more than the account's buying power; the broker will likely refuse it.</p>}
 
       {review ? (
@@ -347,44 +383,6 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
           Review {side === "buy" ? "buy" : "sell"}
         </button>
       )}
-      {result && <p className={`text-xs ${result.ok ? "text-emerald-700" : "text-rose-700"}`}>{result.text}</p>}
-    </div>
-  );
-}
-
-const TONES = {
-  good: "border-emerald-300 bg-emerald-50 text-emerald-900",
-  wait: "border-sky-200 bg-sky-50 text-sky-900",
-  bad: "border-rose-300 bg-rose-50 text-rose-900",
-  muted: "border-slate-200 bg-slate-50 text-slate-700"
-};
-
-// The sent order, as it stands: what was asked, what filled and at what price.
-function OrderCard({ order, onCancel, onClose }) {
-  const state = orderState(order.status);
-  const filled = Number(order.filled) || 0;
-  const bought = order.side === "buy" ? "Bought" : "Sold";
-  const unitName = order.unitName || "";
-  return (
-    <div className={`space-y-1 rounded-lg border p-2 text-xs ${TONES[state.tone]}`} role="status" aria-live="polite">
-      <div className="flex items-center justify-between">
-        <span className="font-semibold">{state.label}{state.final ? "" : "…"}</span>
-        <span className="text-[10px] opacity-70">{order.updatedAt || order.filledAt ? new Date(order.filledAt || order.updatedAt).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour12: false }) + " ET" : ""}</span>
-      </div>
-      <p>{order.words}.</p>
-      {filled > 0 && order.avgPrice ? (
-        <p className="font-medium tabular-nums">
-          {bought} {sizeText(filled)} {unitName} at {px(order.avgPrice)} average · {fmtMoney(filled * order.avgPrice)}
-          {order.status === "partially_filled" && order.qty ? ` (${sizeText(filled)} of ${sizeText(order.qty)})` : ""}
-        </p>
-      ) : !state.final ? <p className="opacity-80">Sent to Alpaca; waiting to fill.</p> : null}
-      {order.status === "rejected" && <p>Alpaca refused the order. Check the price and size, or the account's buying power.</p>}
-      <div className="flex gap-2 pt-1">
-        {!state.final && order.status !== "pending_cancel" && (
-          <button type="button" onClick={onCancel} className="rounded border border-current px-2 py-0.5 hover:bg-white/60">Cancel order</button>
-        )}
-        <button type="button" onClick={onClose} className="ml-auto rounded px-2 py-0.5 underline-offset-2 hover:underline">{state.final ? "Done" : "Hide"}</button>
-      </div>
     </div>
   );
 }
