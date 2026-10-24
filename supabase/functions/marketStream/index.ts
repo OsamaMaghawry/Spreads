@@ -21,6 +21,15 @@ import { isConnectorToken } from "../_shared/connectorToken.ts";
 // The free IEX feed. SIP is a paid entitlement and returns an auth error rather
 // than falling back, so the feed is a deliberate choice here, not a default.
 const ALPACA_STREAM = "wss://stream.data.alpaca.markets/v2/iex";
+// Crypto (terminal only): Alpaca's own crypto venue, around the clock, with
+// what the stock feed lacks: the full order book and the side that took each
+// trade.
+const CRYPTO_STREAM = "wss://stream.data.alpaca.markets/v1beta3/crypto/us";
+const SHARE = /^[A-Z][A-Z0-9.]{0,9}$/;
+const COIN = /^[A-Z0-9]{1,10}\/(USD|USDT|USDC|BTC)$/;
+// Refusals that another try will not change: auth failed, no entitlement,
+// the account's connection already in use.
+const FINAL = new Set([401, 402, 403, 405, 406, 409]);
 
 // A browser cannot set an Authorization header on a WebSocket, so the caller's
 // token arrives in the query string and is verified here. This function
@@ -52,17 +61,15 @@ Deno.serve(async (req) => {
   if (!user) return new Response("Unauthorized", { status: 401 });
 
   const accountId = url.searchParams.get("accountId");
-  // The trading terminal (functions/terminal) asks for the full message: trade
-  // size and exchange for its time & sales, bid and ask sizes, and one-minute
-  // bars for its chart; and it changes symbols on the open socket rather than
-  // reconnecting, because Alpaca allows one data connection per account and a
-  // reconnect races the old one. Without `detail` the messages are exactly what
-  // the dashboard has always read.
+  // The trading terminal (functions/terminal) asks for the full message, for
+  // shares and coins, through its own relay (relayDetail, below). Without
+  // `detail` the messages are exactly what the dashboard has always read.
   const detail = url.searchParams.get("detail") === "1";
   const symbols = (url.searchParams.get("symbols") || "")
     .split(",")
     .map((s) => s.trim().toUpperCase())
     .filter(Boolean)
+    .filter((s) => !detail || SHARE.test(s) || COIN.test(s))
     .slice(0, 30); // one screen's worth; a longer list is a bug, not a need
   if (!accountId || symbols.length === 0) {
     return new Response("accountId and symbols are required", { status: 400 });
@@ -94,10 +101,12 @@ Deno.serve(async (req) => {
   }
 
   const { socket: client, response } = Deno.upgradeWebSocket(req);
+  if (detail) {
+    relayDetail(client, key, secret, symbols, (url.searchParams.get("book") || "").toUpperCase());
+    return response;
+  }
   let upstream: WebSocket | null = null;
   let closed = false;
-  // The symbols the upstream socket is subscribed to right now.
-  let current = new Set<string>();
 
   const shut = () => {
     if (closed) return;
@@ -130,10 +139,7 @@ Deno.serve(async (req) => {
         // Alpaca answers auth on the same socket rather than by closing it, so
         // success is what triggers the subscribe.
         if (m.T === "success" && m.msg === "authenticated") {
-          upstream?.send(JSON.stringify(detail
-            ? { action: "subscribe", trades: symbols, quotes: symbols, bars: symbols, updatedBars: symbols }
-            : { action: "subscribe", trades: symbols, quotes: symbols }));
-          current = new Set(symbols);
+          upstream?.send(JSON.stringify({ action: "subscribe", trades: symbols, quotes: symbols }));
           send({ type: "ready", symbols });
           continue;
         }
@@ -146,23 +152,14 @@ Deno.serve(async (req) => {
         }
         // t = trade: the last price actually paid, which is what a spot is.
         if (m.T === "t" && m.S) {
-          send(detail
-            ? { type: "trade", symbol: m.S, price: m.p, size: m.s, at: m.t, exchange: m.x, conditions: m.c, id: m.i }
-            : { type: "trade", symbol: m.S, price: m.p, at: m.t });
+          send({ type: "trade", symbol: m.S, price: m.p, at: m.t });
           continue;
         }
         // q = quote. Sent as bid/ask rather than a midpoint: a midpoint between
         // a stale bid and a stale ask is an arithmetic artifact, and the price
         // trust ladder needs both sides to judge that.
         if (m.T === "q" && m.S) {
-          send(detail
-            ? { type: "quote", symbol: m.S, bid: m.bp, ask: m.ap, bidSize: m.bs, askSize: m.as, at: m.t }
-            : { type: "quote", symbol: m.S, bid: m.bp, ask: m.ap, at: m.t });
-          continue;
-        }
-        // b = a finished one-minute bar, u = a correction to one. Terminal only.
-        if (detail && (m.T === "b" || m.T === "u") && m.S) {
-          send({ type: "bar", symbol: m.S, t: m.t, o: m.o, h: m.h, l: m.l, c: m.c, v: m.v });
+          send({ type: "quote", symbol: m.S, bid: m.bp, ask: m.ap, at: m.t });
         }
       }
     };
@@ -173,28 +170,149 @@ Deno.serve(async (req) => {
 
   // The browser has nothing to say back; anything it sends is ignored rather
   // than forwarded, so this can never become a path to Alpaca's trading API.
-  // The terminal's symbol changes: the new set, subscribed and unsubscribed
-  // as a difference on the open upstream socket. Ignored outside detail mode,
-  // and capped at the same thirty as the query string.
-  client.onmessage = (event) => {
-    if (!detail) return;
-    let msg: any;
-    try { msg = JSON.parse(String(event.data)); } catch { return; }
-    if (msg?.action !== "set" || !Array.isArray(msg.symbols)) return;
-    const next = new Set<string>(msg.symbols
-      .map((s: unknown) => String(s).toUpperCase().trim())
-      .filter((s: string) => /^[A-Z][A-Z0-9.]{0,9}$/.test(s))
-      .slice(0, 30));
-    if (!next.size || upstream?.readyState !== WebSocket.OPEN) return;
-    const add = [...next].filter((s) => !current.has(s));
-    const drop = [...current].filter((s) => !next.has(s));
-    if (drop.length) upstream.send(JSON.stringify({ action: "unsubscribe", trades: drop, quotes: drop, bars: drop, updatedBars: drop }));
-    if (add.length) upstream.send(JSON.stringify({ action: "subscribe", trades: add, quotes: add, bars: add, updatedBars: add }));
-    current = next;
-    send({ type: "ready", symbols: [...next] });
-  };
+  client.onmessage = () => {};
   client.onerror = shut;
   client.onclose = shut;
 
   return response;
 });
+
+// The trading terminal's relay (detail mode). The full message: trade size,
+// exchange and, for crypto, the side that took the trade, for its time &
+// sales; bid and ask sizes; one-minute bars for its chart; and for one coin at
+// a time, the order book. The watchlist can hold shares and coins together, so
+// this holds up to two upstream sockets, the stock feed and the crypto feed,
+// each opened only once a symbol needs it. Symbols change on the open socket
+// ({action: "set", symbols, book}) rather than by reconnecting, because Alpaca
+// allows one data connection per account per feed and a reconnect races the
+// old one. Still read-only: the browser can choose symbols, nothing else.
+type Feed = { kind: "stocks" | "crypto"; ws: WebSocket | null; authed: boolean; subscribed: Set<string>; book: string; attempts: number; final: string | null };
+
+function relayDetail(client: WebSocket, key: string, secret: string, initial: string[], initialBook: string) {
+  let closed = false;
+  let wanted = new Set(initial);
+  let book = COIN.test(initialBook) ? initialBook : "";
+  const feeds: Record<"stocks" | "crypto", Feed> = {
+    stocks: { kind: "stocks", ws: null, authed: false, subscribed: new Set(), book: "", attempts: 0, final: null },
+    crypto: { kind: "crypto", ws: null, authed: false, subscribed: new Set(), book: "", attempts: 0, final: null }
+  };
+  const timers = new Set<number>();
+  const of = (f: Feed) => [...wanted].filter((s) => (f.kind === "crypto" ? COIN.test(s) : SHARE.test(s)));
+
+  const send = (payload: unknown) => {
+    if (client.readyState === WebSocket.OPEN) client.send(JSON.stringify(payload));
+  };
+  const shut = () => {
+    if (closed) return;
+    closed = true;
+    timers.forEach((t) => clearTimeout(t));
+    for (const f of Object.values(feeds)) { try { f.ws?.close(); } catch { /* already gone */ } }
+    try { client.close(); } catch { /* already gone */ }
+  };
+
+  // Brings one feed's subscriptions to what the browser wants, opening the
+  // feed first if it has symbols and no socket.
+  const sync = (f: Feed) => {
+    const want = new Set(of(f));
+    if (!f.ws) {
+      if (want.size && !f.final && !closed) open(f);
+      return;
+    }
+    if (!f.authed || f.ws.readyState !== WebSocket.OPEN) return;
+    const add = [...want].filter((s) => !f.subscribed.has(s));
+    const drop = [...f.subscribed].filter((s) => !want.has(s));
+    if (drop.length) f.ws.send(JSON.stringify({ action: "unsubscribe", trades: drop, quotes: drop, bars: drop, updatedBars: drop }));
+    if (add.length) f.ws.send(JSON.stringify({ action: "subscribe", trades: add, quotes: add, bars: add, updatedBars: add }));
+    f.subscribed = want;
+    if (f.kind === "crypto") {
+      const next = want.has(book) ? book : "";
+      if (f.book && f.book !== next) f.ws.send(JSON.stringify({ action: "unsubscribe", orderbooks: [f.book] }));
+      // A new order-book subscription starts with the whole book (r: true).
+      if (next && f.book !== next) f.ws.send(JSON.stringify({ action: "subscribe", orderbooks: [next] }));
+      f.book = next;
+    }
+  };
+
+  const open = (f: Feed) => {
+    const ws = new WebSocket(f.kind === "crypto" ? CRYPTO_STREAM : ALPACA_STREAM);
+    f.ws = ws;
+    f.authed = false;
+    f.subscribed = new Set();
+    f.book = "";
+    ws.onopen = () => ws.send(JSON.stringify({ action: "auth", key, secret }));
+    ws.onmessage = (event) => {
+      let messages: any[];
+      try { messages = JSON.parse(String(event.data)); } catch { return; }
+      if (!Array.isArray(messages)) return;
+      for (const m of messages) {
+        if (m.T === "success" && m.msg === "authenticated") {
+          f.authed = true;
+          f.attempts = 0;
+          sync(f);
+          send({ type: "ready", feed: f.kind, symbols: [...wanted], book });
+          continue;
+        }
+        if (m.T === "error") {
+          if (FINAL.has(Number(m.code))) f.final = `${m.code}: ${m.msg}`;
+          send({ type: "error", feed: f.kind, code: m.code, message: m.msg });
+          continue;
+        }
+        if (!m.S) continue;
+        if (m.T === "t") {
+          send({
+            type: "trade", symbol: m.S, price: m.p, size: m.s, at: m.t, exchange: m.x, conditions: m.c, id: m.i,
+            // Crypto states who took the trade: B, a buyer lifting the offer; S, a seller hitting the bid.
+            takerSide: m.tks === "B" ? "buy" : m.tks === "S" ? "sell" : undefined
+          });
+        } else if (m.T === "q") {
+          send({ type: "quote", symbol: m.S, bid: m.bp, ask: m.ap, bidSize: m.bs, askSize: m.as, at: m.t });
+        } else if (m.T === "b" || m.T === "u") {
+          // b = a finished one-minute bar, u = a correction to one.
+          send({ type: "bar", symbol: m.S, t: m.t, o: m.o, h: m.h, l: m.l, c: m.c, v: m.v });
+        } else if (m.T === "o") {
+          // The order book: the whole book when r is set, otherwise only the
+          // levels that changed, a size of 0 meaning the level is gone.
+          const side = (list: any) => (Array.isArray(list) ? list : []).map((l: any) => [l.p, l.s]);
+          send({ type: "book", symbol: m.S, at: m.t, reset: !!m.r, bids: side(m.b), asks: side(m.a) });
+        }
+      }
+    };
+    ws.onerror = () => send({ type: "error", feed: f.kind, message: `The ${f.kind === "crypto" ? "crypto" : "stock"} price stream failed.` });
+    ws.onclose = () => {
+      if (f.ws !== ws) return;
+      f.ws = null;
+      f.authed = false;
+      if (closed) return;
+      send({ type: "feed", feed: f.kind, state: "down", message: f.final });
+      // A dropped feed comes back by itself, a little later each time; a
+      // refusal does not, and the other feed carries on either way.
+      if (f.final || f.attempts >= 6 || !of(f).length) return;
+      f.attempts += 1;
+      const t = setTimeout(() => { timers.delete(t); if (!closed && !f.ws) sync(f); }, Math.min(30000, 1000 * 2 ** f.attempts));
+      timers.add(t);
+    };
+  };
+
+  client.onopen = () => {
+    sync(feeds.stocks);
+    sync(feeds.crypto);
+  };
+  client.onmessage = (event) => {
+    let msg: any;
+    try { msg = JSON.parse(String(event.data)); } catch { return; }
+    if (msg?.action !== "set" || !Array.isArray(msg.symbols)) return;
+    const next = new Set<string>(msg.symbols
+      .map((s: unknown) => String(s).toUpperCase().trim())
+      .filter((s: string) => SHARE.test(s) || COIN.test(s))
+      .slice(0, 30));
+    if (!next.size) return;
+    wanted = next;
+    const b = String(msg.book || "").toUpperCase();
+    book = COIN.test(b) ? b : "";
+    sync(feeds.stocks);
+    sync(feeds.crypto);
+    send({ type: "ready", symbols: [...wanted], book });
+  };
+  client.onerror = shut;
+  client.onclose = shut;
+}
