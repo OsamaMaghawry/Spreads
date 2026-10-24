@@ -1,8 +1,8 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { createChart, CandlestickSeries, HistogramSeries, LineSeries, LineStyle, CrosshairMode } from "lightweight-charts";
+import { createChart, createSeriesMarkers, CandlestickSeries, HistogramSeries, LineSeries, LineStyle, CrosshairMode } from "lightweight-charts";
 import { MousePointer2, Slash, MoveUpRight, Minus, SeparatorVertical, RectangleHorizontal, Rows3, Ruler, Trash2, Eraser, Activity, X } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
-import { INTERVALS, applyTrade, applyMinuteBar, isCrypto, priceFormatFor, inRegularHours, sessionDay, sessionOf } from "@/lib/terminal";
+import { INTERVALS, applyTrade, applyMinuteBar, isCrypto, priceFormatFor, inRegularHours, sessionDay, sessionOf, px, sizeText } from "@/lib/terminal";
 import { INDICATORS, LINE_COLORS, cleanIndicators, defaultParams, indicatorLabel, indicatorSeries } from "@/lib/indicators";
 import { TOOLS, COLORS, pointsFor, logicalToTime, hitTest, moveDrawing, readDrawings, writeDrawings } from "@/lib/chartDrawings";
 import { DrawingLayer } from "./drawingLayer";
@@ -45,13 +45,14 @@ const saveDrawings = (symbol, drawings) => {
 };
 const newId = () => `d${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
-function PriceChart({ accountId, symbol, interval, onInterval, listen }) {
+function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [] }) {
   const boxRef = useRef(null);
   const chartRef = useRef(null);
   const candlesRef = useRef(null);
   const volumeRef = useRef(null);
   const layerRef = useRef(null);
   const lastRef = useRef(null);
+  const markersRef = useRef(null);
   const [state, setState] = useState({ loading: true, error: null, count: 0 });
   const crypto = isCrypto(symbol);
 
@@ -141,6 +142,7 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen }) {
       extended: !cryptoRef.current && sessionRef.current === "all" && !["1Day", "1Week", "1Month"].includes(intervalRef.current) ? extRef.current : null
     }));
     candles.attachPrimitive(layer);
+    markersRef.current = createSeriesMarkers(candles, []);
     candlesRef.current = candles;
     layerRef.current = layer;
     chartRef.current = chart;
@@ -434,6 +436,36 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen }) {
     chart.panes().forEach((p, i) => p.setStretchFactor(i === 0 ? 3 : 1));
     paintIndicators();
   }, [indicators, paintIndicators]);
+
+  // The account's fills on this symbol, as arrows on the candle each fell in:
+  // up under the bar for a buy, down over it for a sell.
+  useEffect(() => {
+    const times = timesRef.current;
+    if (!markersRef.current) return;
+    const at = (t) => {
+      let lo = 0;
+      let hi = times.length - 1;
+      if (hi < 0 || t < times[0]) return null;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (times[mid] <= t) lo = mid;
+        else hi = mid - 1;
+      }
+      return times[lo];
+    };
+    const markers = fills
+      .map((f) => ({ f, time: at(Math.floor(Date.parse(f.at) / 1000)) }))
+      .filter((x) => x.time !== null)
+      .sort((a, b) => a.time - b.time)
+      .map(({ f, time }) => ({
+        time,
+        position: f.side === "buy" ? "belowBar" : "aboveBar",
+        shape: f.side === "buy" ? "arrowUp" : "arrowDown",
+        color: f.side === "buy" ? "#047857" : "#be123c",
+        text: `${f.side === "buy" ? "B" : "S"} ${sizeText(f.qty)} @ ${px(f.price)}`
+      }));
+    markersRef.current.setMarkers(markers);
+  }, [fills, state.count, session]);
 
   const addIndicator = (type) => {
     const used = indicators.filter((x) => INDICATORS[x.type].pane === "price").map((x) => x.color);

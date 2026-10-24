@@ -2,7 +2,7 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { loadAccount, alpacaFetch, tradingBase } from "../_shared/alpaca.ts";
 import { readSettings } from "../_shared/settings.ts";
-import { recordAttempt } from "../_shared/orderAttempts.ts";
+import { recordAttempt, updateAttempt } from "../_shared/orderAttempts.ts";
 import { brokerRefusal } from "../_shared/orderWarnings.ts";
 import { stockOrderBody, SYMBOL } from "../_shared/stockOrder.ts";
 import { cryptoOrderBody, cryptoSymbol, isCrypto, CRYPTO } from "../_shared/cryptoOrder.ts";
@@ -204,7 +204,7 @@ async function trades(account: any, symbol: string) {
 // keystroke. A coin carries its own minimum order and quantity and price
 // steps, which the ticket shows and the order check uses.
 type Asset = {
-  symbol: string; name: string; exchange: string; shortable: boolean; assetClass: "us_equity" | "crypto";
+  symbol: string; name: string; exchange: string; shortable: boolean; fractionable: boolean; assetClass: "us_equity" | "crypto";
   minOrderSize: number | null; minTradeIncrement: number | null; priceIncrement: number | null;
 };
 let assets: Asset[] | null = null;
@@ -219,7 +219,7 @@ async function assetList(account: any): Promise<Asset[]> {
     ]);
     const shape = (a: any): Asset => ({
       symbol: a.class === "crypto" ? cryptoSymbol(a.symbol) : a.symbol, name: a.name || "", exchange: a.exchange || "",
-      shortable: !!a.shortable, assetClass: a.class === "crypto" ? "crypto" : "us_equity",
+      shortable: !!a.shortable, fractionable: !!a.fractionable, assetClass: a.class === "crypto" ? "crypto" : "us_equity",
       minOrderSize: num(a.min_order_size), minTradeIncrement: num(a.min_trade_increment), priceIncrement: num(a.price_increment)
     });
     assets = [...(Array.isArray(coins) ? coins : []), ...(Array.isArray(shares) ? shares : [])]
@@ -246,12 +246,39 @@ async function assetFor(account: any, symbol: string) {
   return (await assetList(account)).find((a) => a.symbol === symbol) || null;
 }
 
+// One order as the terminal shows it, finished or not: what was asked, what
+// filled and at what average price, and when.
+function orderView(o: any) {
+  return {
+    id: o.id, symbol: o.asset_class === "crypto" ? cryptoSymbol(o.symbol) : o.symbol, assetClass: o.asset_class,
+    side: o.side, type: o.type, tif: o.time_in_force, status: o.status,
+    qty: num(o.qty), notional: num(o.notional), filled: num(o.filled_qty), avgPrice: num(o.filled_avg_price),
+    limit: num(o.limit_price), stop: num(o.stop_price),
+    submittedAt: o.submitted_at || o.created_at || null, filledAt: o.filled_at || null,
+    updatedAt: o.updated_at || null, orderClass: o.order_class || "simple"
+  };
+}
+
+// The ticket follows its order to the end: sent, accepted, filled (or
+// cancelled, or refused), with the fill price, rather than showing the first
+// status and stopping. The attempt record follows too.
+async function orderStatus(admin: any, account: any, orderId: string) {
+  const o = await alpacaFetch(`${tradingBase(account)}/orders/${encodeURIComponent(orderId)}`, account);
+  await updateAttempt(admin, o.id, o.status, o.filled_qty, o.filled_avg_price);
+  return { order: orderView(o) };
+}
+
 async function accountView(account: any) {
   const base = tradingBase(account);
-  const [acct, positions, orders] = await Promise.all([
+  // Working orders, and the last week's finished ones (filled, cancelled,
+  // rejected): a filled order leaves the working list at once, and a trader
+  // looks for it next ("I bought. I see them on Alpaca. Not here", 24 Oct).
+  const week = new Date(Date.now() - 7 * 86400000).toISOString();
+  const [acct, positions, orders, closed] = await Promise.all([
     alpacaFetch(`${base}/account`, account),
     alpacaFetch(`${base}/positions`, account),
-    alpacaFetch(`${base}/orders?status=open&nested=true&limit=200`, account)
+    alpacaFetch(`${base}/orders?status=open&nested=true&limit=200`, account),
+    alpacaFetch(`${base}/orders?status=closed&after=${week}&limit=100&direction=desc`, account).catch(() => [])
   ]);
   return {
     paper: !!account.is_paper,
@@ -283,6 +310,7 @@ async function accountView(account: any) {
         marketValue: num(p.market_value), unrealized: num(p.unrealized_pl), unrealizedPct: num(p.unrealized_plpc),
         today: num(p.unrealized_intraday_pl)
       })),
+    recent: (Array.isArray(closed) ? closed : []).map(orderView),
     orders: (Array.isArray(orders) ? orders : []).map((o: any) => ({
       id: o.id, symbol: o.asset_class === "crypto" ? cryptoSymbol(o.symbol) : o.symbol, assetClass: o.asset_class,
       side: o.side, qty: num(o.qty), notional: num(o.notional), filled: num(o.filled_qty), type: o.type,
@@ -435,8 +463,9 @@ async function placeOrder(admin: any, user: any, account: any, input: any) {
   const body = built.body as any;
   const attempt = {
     userId: user.id, accountId: account.id, intent: "open", ticker: body.symbol,
-    legs: [{ symbol: body.symbol, side: body.side, ratio: 1 }], qty: Number(body.qty), orderType: body.type,
-    limitPrice: body.limit_price ?? null, quote: input.reference ? { reference: input.reference } : null
+    legs: [{ symbol: body.symbol, side: body.side, ratio: 1 }], qty: body.qty ? Number(body.qty) : null, orderType: body.type,
+    limitPrice: body.limit_price ?? null,
+    quote: input.reference || body.notional ? { reference: input.reference ?? null, notional: body.notional ?? null } : null
   };
   try {
     const order = await alpacaFetch(`${tradingBase(account)}/orders`, account, { method: "POST", body: JSON.stringify(body) });
@@ -493,6 +522,10 @@ Deno.serve(async (req) => {
     if (action === "book") {
       if (!TERMINAL_SYMBOL(symbol)) return jsonResponse({ error: "Choose a symbol." }, 400);
       return jsonResponse(await book(account, symbol));
+    }
+    if (action === "orderStatus") {
+      if (!body.orderId) return jsonResponse({ error: "Which order?" }, 400);
+      return jsonResponse(await orderStatus(admin, account, String(body.orderId)));
     }
     if (action === "order") {
       const r = await placeOrder(admin, user, account, body.order || {});

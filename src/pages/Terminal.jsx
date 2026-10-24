@@ -162,6 +162,10 @@ export default function Terminal() {
 
   const choose = (s) => { setSymbol(s); setQ(""); setResults([]); };
   const held = (view?.positions || []).find((p) => p.symbol === symbol)?.qty || 0;
+  // This symbol's fills in the last week, marked on the chart where they happened.
+  const fills = useMemo(() => (view?.recent || [])
+    .filter((o) => o.symbol === symbol && Number(o.filled) > 0 && o.avgPrice && o.filledAt)
+    .map((o) => ({ id: o.id, side: o.side, qty: o.filled, price: o.avgPrice, at: o.filledAt })), [view?.recent, symbol]);
 
   const grip = !locked && <GripVertical className="h-3.5 w-3.5 shrink-0 text-slate-300" />;
   const frame = "flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white";
@@ -261,7 +265,7 @@ export default function Terminal() {
               </button>
             </div>
             <div className="min-h-0 flex-1">
-              <PriceChart accountId={accountId} symbol={symbol} interval={interval} onInterval={setInterval_} listen={listen} />
+              <PriceChart accountId={accountId} symbol={symbol} interval={interval} onInterval={setInterval_} listen={listen} fills={fills} />
             </div>
           </div>
         </div>
@@ -275,7 +279,7 @@ export default function Terminal() {
           </div>
           <div className="min-h-0 flex-1">
             {tab === "positions" && <Positions positions={view?.positions || []} onPick={setSymbol} />}
-            {tab === "orders" && <Orders accountId={accountId} orders={view?.orders || []} onChanged={loadView} />}
+            {tab === "orders" && <Orders accountId={accountId} orders={view?.orders || []} recent={view?.recent || []} onChanged={loadView} onPick={setSymbol} />}
             {tab === "account" && <AccountSummary summary={view?.summary} paper={view?.paper} name={account?.name} />}
           </div>
         </div>

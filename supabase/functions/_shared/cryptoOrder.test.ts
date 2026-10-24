@@ -44,3 +44,13 @@ test("refusals in words: no stop orders, below the minimum, short sales, unknown
   // Selling exactly what is held is allowed.
   assert.equal((cryptoOrderBody({ ...base, side: "sell", qty: 0.1 }, "T", BTC, 0.1) as any).ok, true);
 });
+
+test("a dollar amount: market only, at least $1, no short sale", () => {
+  const r = cryptoOrderBody({ symbol: "BTC/USD", side: "buy", type: "market", notional: 25 }, "T", BTC) as any;
+  assert.deepEqual(r.body, { symbol: "BTC/USD", side: "buy", notional: "25.00", type: "market", time_in_force: "gtc", client_order_id: "T" });
+  const why = (i: any, held = 0) => (cryptoOrderBody({ symbol: "BTC/USD", side: "buy", type: "market", ...i }, "T", BTC, held) as any).reason;
+  assert.match(why({ notional: 0.2 }), /at least \$1/);
+  assert.match(why({ notional: 20, type: "limit", limitPrice: 1 }), /market order/);
+  assert.match(why({ notional: 20, side: "sell" }), /hold no BTC/);
+  assert.equal((cryptoOrderBody({ symbol: "BTC/USD", side: "sell", type: "market", notional: 20 }, "T", BTC, 0.01) as any).ok, true);
+});

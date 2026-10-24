@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
-import { px, sizeText, clock, pctText, isCrypto } from "@/lib/terminal";
+import { px, sizeText, clock, pctText, isCrypto, orderState } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
 
 // The terminal's lower panels: the tape, the account's shares and coins, and
@@ -93,7 +93,8 @@ export function Positions({ positions, onPick }) {
   );
 }
 
-export function Orders({ accountId, orders, onChanged }) {
+export function Orders({ accountId, orders, recent = [], onChanged, onPick }) {
+  const [show, setShow] = useState("working");
   const [busy, setBusy] = useState(null);
   const [edit, setEdit] = useState({});
   const [note, setNote] = useState(null);
@@ -108,8 +109,46 @@ export function Orders({ accountId, orders, onChanged }) {
     onChanged?.();
   };
 
+  const switcher = (
+    <div className="flex gap-1 px-2 pt-1 text-[11px]">
+      {[["working", `Working (${orders.length})`], ["done", `Filled & done, 7 days (${recent.length})`]].map(([id, name]) => (
+        <button key={id} type="button" onClick={() => setShow(id)} className={`rounded px-1.5 py-0.5 ${show === id ? "bg-slate-200 font-medium text-slate-800" : "text-slate-500 hover:bg-slate-100"}`}>{name}</button>
+      ))}
+    </div>
+  );
+
+  // Finished orders: what filled, at what average price, when. Newest first.
+  if (show === "done") {
+    return (
+      <div className="h-full overflow-auto">
+        {switcher}
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-white"><tr><th className={th}>Time (ET)</th><th className={th}>Symbol</th><th className={th}>Side</th><th className={th}>Filled</th><th className={th}>Avg price</th><th className={th}>Value</th><th className={th}>Status</th></tr></thead>
+          <tbody>
+            {recent.map((o) => {
+              const st = orderState(o.status);
+              return (
+                <tr key={o.id} className="cursor-pointer border-t border-slate-100 hover:bg-slate-50" onClick={() => onPick?.(o.symbol)}>
+                  <td className={td}>{o.filledAt || o.updatedAt ? new Date(o.filledAt || o.updatedAt).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) : "—"}</td>
+                  <td className={`${td} font-semibold`}>{o.symbol}</td>
+                  <td className={`${td} ${o.side === "buy" ? "text-emerald-700" : "text-rose-700"}`}>{o.side}</td>
+                  <td className={td}>{sizeText(o.filled)}{o.qty ? ` / ${sizeText(o.qty)}` : o.notional ? ` (${fmtMoney(o.notional)})` : ""}</td>
+                  <td className={td}>{o.avgPrice ? px(o.avgPrice) : "—"}</td>
+                  <td className={td}>{o.avgPrice && o.filled ? fmtMoney(o.avgPrice * o.filled) : "—"}</td>
+                  <td className={`${td} ${st.tone === "good" ? "text-emerald-700" : st.tone === "bad" ? "text-rose-700" : "text-slate-500"}`}>{st.label}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {!recent.length && <p className="px-2 py-3 text-xs text-slate-500">No finished orders in the last 7 days.</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="h-full overflow-auto">
+      {switcher}
       {note && <p className="px-2 py-1 text-xs text-rose-700">{note}</p>}
       <table className="w-full text-xs">
         <thead className="sticky top-0 bg-white"><tr><th className={th}>Symbol</th><th className={th}>Side</th><th className={th}>Qty</th><th className={th}>Type</th><th className={th}>Price</th><th className={th}>Status</th><th className={th} /></tr></thead>

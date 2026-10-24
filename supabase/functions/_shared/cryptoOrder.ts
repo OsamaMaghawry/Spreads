@@ -44,7 +44,10 @@ export type CryptoAsset = {
 export type CryptoOrderInput = {
   symbol: string;
   side: "buy" | "sell";
-  qty: number | string;
+  qty?: number | string | null;
+  // A dollar amount instead of a quantity, for a market order: Alpaca buys or
+  // sells that many dollars' worth.
+  notional?: number | string | null;
   type: "market" | "limit" | "stop_limit";
   timeInForce?: "gtc" | "ioc";
   limitPrice?: number | string | null;
@@ -87,6 +90,14 @@ export function cryptoOrderBody(input: CryptoOrderInput, clientId: string, asset
   if (!CRYPTO.test(symbol)) return { ok: false, reason: "Choose a crypto pair, such as BTC/USD." };
   if (!asset) return { ok: false, reason: `${symbol} is not tradable at the broker right now.` };
   if (input.side !== "buy" && input.side !== "sell") return { ok: false, reason: "Choose buy or sell." };
+
+  const notional = num(input.notional);
+  if (notional !== null) {
+    if (!(notional >= 1)) return { ok: false, reason: "A dollar amount must be at least $1." };
+    if (input.type !== "market") return { ok: false, reason: "A dollar amount works with a market order; for a limit, enter a quantity." };
+    if (input.side === "sell" && !(held > 0)) return { ok: false, reason: `You hold no ${symbol.split("/")[0]}; crypto cannot be sold short.` };
+    return { ok: true, body: { symbol, side: input.side, notional: notional.toFixed(2), type: "market", time_in_force: input.timeInForce === "ioc" ? "ioc" : "gtc", client_order_id: clientId } };
+  }
 
   const asked = num(input.qty);
   if (asked === null || !(asked > 0)) return { ok: false, reason: "Enter a quantity." };

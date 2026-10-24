@@ -60,3 +60,13 @@ test("value: at the limit, or at the side of the quote a market order would take
   assert.deepEqual(orderValue({ ...base, type: "market", side: "sell" }, { bid: 343.9, ask: 344.1 }), { price: 343.9, value: 3439 });
   assert.equal(orderValue({ ...base, type: "market" }, {}), null);
 });
+
+test("a dollar amount: a market order for the day, no quantity, at least $1", () => {
+  const r = stockOrderBody({ symbol: "aapl", side: "buy", type: "market", notional: 250 }, "T") as any;
+  assert.deepEqual(r.body, { symbol: "AAPL", side: "buy", notional: "250.00", type: "market", time_in_force: "day", client_order_id: "T" });
+  const why = (i: any) => (stockOrderBody({ symbol: "AAPL", side: "buy", type: "market", ...i }, "T") as any).reason;
+  assert.match(why({ notional: 0.5 }), /at least \$1/);
+  assert.match(why({ notional: 100, type: "limit", limitPrice: 10 }), /market order/);
+  assert.match(why({ notional: 100, timeInForce: "gtc" }), /for the day/);
+  assert.match(why({ notional: 100, takeProfit: 2, stopLoss: 1 }), /share quantity/);
+});

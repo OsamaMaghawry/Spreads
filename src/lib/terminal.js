@@ -291,3 +291,40 @@ export const bookSize = (v) => {
 };
 export const clock = (iso) =>
   new Date(iso).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+// ---------- the ticket's orders ----------
+
+/**
+ * A dollar amount as a quantity at a price: whole shares for a stock, or a
+ * coin's own step (rounded down, so the order never costs more than the
+ * amount). Used where the broker takes no dollar amount: limit and stop
+ * orders, and shares that do not trade in fractions.
+ */
+export function amountToQty(amount, price, { crypto = false, step = null } = {}) {
+  const a = Number(amount);
+  const p = Number(price);
+  if (!(a > 0) || !(p > 0)) return 0;
+  const raw = a / p;
+  if (!crypto) return Math.floor(raw + 1e-9);
+  const s = Number(step) > 0 ? Number(step) : 1e-9;
+  const decimals = Math.min(9, Math.max(0, Math.ceil(-Math.log10(s) - 1e-9)));
+  return Number((Math.floor(raw / s + 1e-9) * s).toFixed(decimals));
+}
+
+// What an order's status means to the person waiting on it.
+const STATES = {
+  filled: { label: "Filled", tone: "good", final: true },
+  partially_filled: { label: "Partly filled", tone: "wait", final: false },
+  canceled: { label: "Cancelled", tone: "muted", final: true },
+  expired: { label: "Expired", tone: "muted", final: true },
+  rejected: { label: "Rejected", tone: "bad", final: true },
+  done_for_day: { label: "Done for the day", tone: "muted", final: true },
+  replaced: { label: "Replaced", tone: "muted", final: true },
+  stopped: { label: "Stopped", tone: "muted", final: true },
+  suspended: { label: "Suspended", tone: "bad", final: true },
+  pending_cancel: { label: "Cancelling", tone: "wait", final: false },
+  pending_replace: { label: "Changing", tone: "wait", final: false }
+};
+export function orderState(status) {
+  return STATES[status] || { label: "Working", tone: "wait", final: false };
+}

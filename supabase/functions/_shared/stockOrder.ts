@@ -12,7 +12,11 @@
 export type StockOrderInput = {
   symbol: string;
   side: "buy" | "sell";
-  qty: number | string;
+  qty?: number | string | null;
+  // A dollar amount instead of a quantity (24 Oct: "I need to add a dollar
+  // value"). Alpaca takes one for a market order for the day only, and fills
+  // it in fractions of a share.
+  notional?: number | string | null;
   type: "market" | "limit" | "stop" | "stop_limit";
   timeInForce?: "day" | "gtc";
   limitPrice?: number | string | null;
@@ -42,13 +46,23 @@ export function stockOrderBody(input: StockOrderInput, clientId: string):
   if (!SYMBOL.test(symbol)) return { ok: false, reason: "Choose a stock symbol." };
   if (input.side !== "buy" && input.side !== "sell") return { ok: false, reason: "Choose buy or sell." };
 
-  const qty = num(input.qty);
-  if (qty === null || !(qty > 0)) return { ok: false, reason: "Enter how many shares." };
-  if (!Number.isInteger(qty)) return { ok: false, reason: "Whole shares only on this ticket." };
-
   const type = input.type;
   if (!["market", "limit", "stop", "stop_limit"].includes(type)) return { ok: false, reason: "Choose an order type." };
   const tif = input.timeInForce === "gtc" ? "gtc" : "day";
+
+  const notional = num(input.notional);
+  if (notional !== null) {
+    if (!(notional >= 1)) return { ok: false, reason: "A dollar amount must be at least $1." };
+    if (type !== "market") return { ok: false, reason: "A dollar amount works with a market order; for a limit or stop, enter shares." };
+    if (tif !== "day") return { ok: false, reason: "A dollar-amount order is for the day only." };
+    if (input.extendedHours) return { ok: false, reason: "A dollar-amount order fills in regular hours only." };
+    if (num(input.takeProfit) !== null || num(input.stopLoss) !== null) return { ok: false, reason: "A take-profit and stop-loss need a share quantity, not a dollar amount." };
+    return { ok: true, body: { symbol, side: input.side, notional: notional.toFixed(2), type, time_in_force: "day", client_order_id: clientId } };
+  }
+
+  const qty = num(input.qty);
+  if (qty === null || !(qty > 0)) return { ok: false, reason: "Enter how many shares." };
+  if (!Number.isInteger(qty)) return { ok: false, reason: "Whole shares only on this ticket." };
 
   const limit = num(input.limitPrice);
   const stop = num(input.stopPrice);

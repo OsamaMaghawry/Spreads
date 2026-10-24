@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, inRegularHours, sessionDay } from "./terminal.js";
+import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, inRegularHours, sessionDay, amountToQty, orderState } from "./terminal.js";
 
 const sec = (iso) => Date.parse(iso) / 1000;
 
@@ -141,4 +141,19 @@ test("intervals: seconds, weeks and months; live candles count on from the histo
   const last = { time: sec("2026-10-22T13:00:00Z"), open: 1, high: 1, low: 1, close: 1, volume: 1 };
   assert.equal(applyTrade(last, { price: 2, size: 1, at: "2026-10-22T16:30:00Z" }, "4Hour").time, last.time);
   assert.equal(applyTrade(last, { price: 2, size: 1, at: "2026-10-22T21:10:00Z" }, "4Hour").time, sec("2026-10-22T21:00:00Z"));
+});
+
+test("a dollar amount as a quantity: whole shares, or the coin's step, never over the amount", () => {
+  assert.equal(amountToQty(1000, 300), 3);
+  assert.equal(amountToQty(900, 300), 3);
+  assert.equal(amountToQty(250, 300), 0);
+  assert.equal(amountToQty(100, 80000, { crypto: true, step: 0.000000001 }), 0.00125);
+  assert.equal(amountToQty(10, 3, { crypto: true, step: 0.01 }), 3.33);
+  assert.equal(amountToQty(0, 3), 0);
+  assert.ok(amountToQty(100, 80123.45, { crypto: true, step: 1e-9 }) * 80123.45 <= 100);
+});
+
+test("order states: filled and refused are final; anything unknown is still working", () => {
+  assert.deepEqual([orderState("filled").final, orderState("rejected").tone, orderState("pending_new").label], [true, "bad", "Working"]);
+  assert.equal(orderState("partially_filled").final, false);
 });
