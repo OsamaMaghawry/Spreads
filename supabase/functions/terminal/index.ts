@@ -114,18 +114,39 @@ const HOUR_SPANS: Record<string, number> = { "1Hour": 60, "2Hour": 120, "4Hour":
 async function sessionHours(account: any, symbol: string, interval: string) {
   const span = HOUR_SPANS[interval];
   const start = new Date(Date.now() - RANGES[interval].days * 86400000).toISOString();
-  const halves: any[] = [];
+  const halves = (await allPages(account,
+    `${DATA}/stocks/${encodeURIComponent(symbol)}/bars?timeframe=30Min&start=${start}&limit=10000&feed=${FEED}&adjustment=split&sort=desc`,
+    (page) => page?.bars, 8)).reverse();
+  const out = sessionCandles(halves, span);
+  return { symbol, interval, feed: FEED, bars: out, session: "regular" };
+}
+
+// How far back a coin's intraday charts read. Alpaca serves crypto history a
+// week per page whatever the limit asked (measured 24 Oct: 168 one-hour
+// candles, 43 four-hour, 697 fifteen-minute per page), so each week is a
+// request. Read oldest first and stopped after five pages, the one-hour chart
+// covered late June to late July and never reached today: its price axis sat
+// near 63,000 with BTC at 80,500 ("The hourly chart still has an issue").
+// Now the weeks are read together and always end now.
+const CRYPTO_DAYS: Record<string, number> = {
+  "1Min": 2, "2Min": 4, "3Min": 4, "5Min": 10, "10Min": 20, "15Min": 30, "30Min": 60, "1Hour": 70, "2Hour": 70, "4Hour": 70
+};
+const WEEK_MS = 7 * 86400000;
+const iso = (ms: number) => new Date(ms).toISOString();
+const candle = (b: any) => ({ time: Math.floor(Date.parse(b.t) / 1000), open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v });
+
+// Every page of one request, following Alpaca's page token.
+async function allPages(account: any, url: string, pick: (page: any) => any[], maxPages: number) {
+  const out: any[] = [];
   let token: string | null = null;
   let pages = 0;
   do {
-    const page = await alpacaFetch(`${DATA}/stocks/${encodeURIComponent(symbol)}/bars?timeframe=30Min&start=${start}&limit=10000&feed=${FEED}&adjustment=split&sort=asc` +
-      (token ? `&page_token=${encodeURIComponent(token)}` : ""), account);
-    halves.push(...(page?.bars || []));
+    const page = await alpacaFetch(url + (token ? `&page_token=${encodeURIComponent(token)}` : ""), account);
+    out.push(...(pick(page) || []));
     token = page?.next_page_token || null;
     pages += 1;
-  } while (token && pages < 5);
-  const out = sessionCandles(halves, span);
-  return { symbol, interval, feed: FEED, bars: out, session: "regular" };
+  } while (token && pages < maxPages);
+  return out;
 }
 
 async function bars(account: any, symbol: string, interval: string, session = "") {
@@ -133,28 +154,30 @@ async function bars(account: any, symbol: string, interval: string, session = ""
   if (session === "regular" && HOUR_SPANS[interval] && !isCrypto(symbol)) return sessionHours(account, symbol, interval);
   const r = RANGES[interval] || RANGES["5Min"];
   const crypto = isCrypto(symbol);
-  // Crypto trades around the clock, so the same span holds about four times
-  // the one-minute bars a stock session does; a shorter reach keeps it to one page.
-  const days = crypto && r.tf === "1Min" ? 2 : r.days;
-  const start = new Date(Date.now() - days * 86400000).toISOString();
-  const out: any[] = [];
-  let token: string | null = null;
-  let pages = 0;
-  do {
-    const url = (crypto
-      ? `${CRYPTO_DATA}/bars?symbols=${encodeURIComponent(symbol)}&timeframe=${r.tf}&start=${start}&limit=10000&sort=asc`
-      : `${DATA}/stocks/${encodeURIComponent(symbol)}/bars?timeframe=${r.tf}&start=${start}&limit=10000&feed=${FEED}&adjustment=split&sort=asc`) +
-      (token ? `&page_token=${encodeURIComponent(token)}` : "");
-    const page = await alpacaFetch(url, account);
-    // The stock endpoint answers for one symbol; the crypto one by symbol.
-    const list = crypto ? page?.bars?.[symbol] : page?.bars;
-    for (const b of list || []) {
-      out.push({ time: Math.floor(Date.parse(b.t) / 1000), open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v });
-    }
-    token = page?.next_page_token || null;
-    pages += 1;
-  } while (token && pages < 5);
-  return { symbol, interval, feed: crypto ? "crypto" : FEED, bars: out };
+  const end = Date.now();
+
+  if (crypto && CRYPTO_DAYS[r.tf]) {
+    const start = end - CRYPTO_DAYS[r.tf] * 86400000;
+    const windows: [number, number][] = [];
+    for (let s = start; s < end; s += WEEK_MS) windows.push([s, Math.min(end, s + WEEK_MS)]);
+    const chunks = await Promise.all(windows.map(([s, e]) => allPages(account,
+      `${CRYPTO_DATA}/bars?symbols=${encodeURIComponent(symbol)}&timeframe=${r.tf}&start=${iso(s)}&end=${iso(e)}&limit=10000&sort=asc`,
+      (page) => page?.bars?.[symbol], 4)));
+    // A candle on a window's edge can come back in both; keep one of each.
+    const byTime = new Map<number, any>();
+    for (const b of chunks.flat()) byTime.set(Math.floor(Date.parse(b.t) / 1000), b);
+    const out = [...byTime.values()].map(candle).sort((x, y) => x.time - y.time);
+    return { symbol, interval, feed: "crypto", bars: out };
+  }
+
+  // Everything else newest first, then put in order: if the pages run out
+  // before the start, what is missing is the oldest end, never today's.
+  const start = iso(end - r.days * 86400000);
+  const list = await allPages(account, crypto
+    ? `${CRYPTO_DATA}/bars?symbols=${encodeURIComponent(symbol)}&timeframe=${r.tf}&start=${start}&limit=10000&sort=desc`
+    : `${DATA}/stocks/${encodeURIComponent(symbol)}/bars?timeframe=${r.tf}&start=${start}&limit=10000&feed=${FEED}&adjustment=split&sort=desc`,
+  (page) => (crypto ? page?.bars?.[symbol] : page?.bars), 8);
+  return { symbol, interval, feed: crypto ? "crypto" : FEED, bars: list.map(candle).reverse() };
 }
 
 async function snapshot(account: any, symbols: string[]) {
@@ -495,6 +518,21 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     };
   }
   if (only === "bars" || only === "account") return diagnose(house, only, extra[0] || "SPY", extra[1] || "2026-10-23");
+  if (only === "history") {
+    // Every interval's history as the chart receives it: how many candles,
+    // the first and last, and the last close, for a coin and a share.
+    const rows: any[] = [];
+    for (const sym of [extra[0] || "BTC/USD", extra[1] || "AAPL"]) {
+      for (const tf of ["1Min", "5Min", "15Min", "30Min", "1Hour", "2Hour", "4Hour", "1Day", "1Week", "1Month"]) {
+        try {
+          const r = await bars(house, sym, tf);
+          const list = r.bars;
+          rows.push({ sym, tf, n: list.length, first: list[0] ? iso(list[0].time * 1000) : null, last: list.at(-1) ? iso(list.at(-1).time * 1000) : null, close: list.at(-1)?.close ?? null });
+        } catch (e) { rows.push({ sym, tf, error: String((e as Error).message || e) }); }
+      }
+    }
+    return { rows };
+  }
   if (only === "hours") {
     // The regular-hours hourly candles the chart now asks for, as served.
     const r = await sessionHours(house, extra[0] || "AAPL", "1Hour");
