@@ -319,7 +319,7 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "") {
   }
   const auth = streamAuth(house);
   if (!auth) return { error: "That account has no way to sign in to the streams." };
-  const listen = Math.min(60, Math.max(3, Number(seconds) || 8));
+  const listen = Math.min(only === "relay" ? 120 : 60, Math.max(3, Number(seconds) || 8));
   if (only === "relay") return { at: new Date().toISOString(), signIn: auth.key === "oauth" ? "oauth" : "key pair", relay: await relayCheck(auth, listen) };
   const coins = ["BTC/USD", "ETH/USD", "SOL/USD", "DOGE/USD", "LTC/USD"];
   const [crypto, stocks, coinAssets] = await Promise.all([
