@@ -7,14 +7,30 @@
 export const CRYPTO = /^[A-Z0-9]{1,10}\/(USD|USDT|USDC|BTC)$/;
 export const isCrypto = (s) => CRYPTO.test(String(s || ""));
 
+// Every interval the chart offers, 24 Oct: "from Monthly down to 5 seconds".
+// Seconds candles are built from trades (functions/terminal); the rest are
+// Alpaca's bars. `quick` ones get a button; all are in the menu.
 export const INTERVALS = [
-  { id: "1Min", label: "1m", seconds: 60 },
-  { id: "5Min", label: "5m", seconds: 300 },
-  { id: "15Min", label: "15m", seconds: 900 },
-  { id: "1Hour", label: "1h", seconds: 3600 },
-  { id: "1Day", label: "1D", seconds: 86400 }
+  { id: "5Sec", label: "5s", seconds: 5, group: "Seconds" },
+  { id: "10Sec", label: "10s", seconds: 10, group: "Seconds" },
+  { id: "15Sec", label: "15s", seconds: 15, group: "Seconds" },
+  { id: "30Sec", label: "30s", seconds: 30, group: "Seconds" },
+  { id: "1Min", label: "1m", seconds: 60, group: "Minutes", quick: true },
+  { id: "2Min", label: "2m", seconds: 120, group: "Minutes" },
+  { id: "3Min", label: "3m", seconds: 180, group: "Minutes" },
+  { id: "5Min", label: "5m", seconds: 300, group: "Minutes", quick: true },
+  { id: "10Min", label: "10m", seconds: 600, group: "Minutes" },
+  { id: "15Min", label: "15m", seconds: 900, group: "Minutes", quick: true },
+  { id: "30Min", label: "30m", seconds: 1800, group: "Minutes" },
+  { id: "1Hour", label: "1h", seconds: 3600, group: "Hours", quick: true },
+  { id: "2Hour", label: "2h", seconds: 7200, group: "Hours" },
+  { id: "4Hour", label: "4h", seconds: 14400, group: "Hours" },
+  { id: "1Day", label: "1D", seconds: 86400, group: "Days", quick: true },
+  { id: "1Week", label: "1W", seconds: 7 * 86400, group: "Days", quick: true },
+  { id: "1Month", label: "1M", seconds: 30 * 86400, group: "Days" }
 ];
 const secondsOf = (id) => INTERVALS.find((i) => i.id === id)?.seconds ?? 300;
+const CALENDAR = new Set(["1Day", "1Week", "1Month"]);
 
 // Midnight in New York, as UTC seconds: where Alpaca stamps a daily bar. The
 // offset is read for that day, so it is right on either side of a clock change.
@@ -73,28 +89,55 @@ export function inRegularHours(time, stepSeconds) {
 export const sessionDay = (sec, crypto) => (crypto ? Math.floor(sec / 86400) : nyClock(sec).day);
 
 /**
- * The start of the candle a moment falls in. A share's day starts at New York
- * midnight; a coin's at midnight UTC, where Alpaca stamps crypto daily bars
- * (crypto has no session to anchor to).
+ * The start of the candle a moment falls in. A share's day, week and month
+ * start at New York midnight (Monday for a week, the 1st for a month); a
+ * coin's at midnight UTC, where Alpaca stamps crypto bars (crypto has no
+ * session to anchor to). Shorter candles are fixed steps.
  */
 export function bucketStart(sec, interval, crypto = false) {
-  if (interval === "1Day") return crypto ? Math.floor(sec / 86400) * 86400 : nyMidnight(sec);
-  const n = secondsOf(interval);
-  return Math.floor(sec / n) * n;
+  if (!CALENDAR.has(interval)) {
+    const n = secondsOf(interval);
+    return Math.floor(sec / n) * n;
+  }
+  if (crypto) {
+    const day = Math.floor(sec / 86400) * 86400;
+    if (interval === "1Day") return day;
+    const d = new Date(day * 1000);
+    if (interval === "1Week") return day - ((d.getUTCDay() + 6) % 7) * 86400;
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000;
+  }
+  const day = nyMidnight(sec);
+  if (interval === "1Day") return day;
+  // Back to the Monday, or the 1st, by whole days from noon, so a clock change
+  // inside the week or month does not shift the result by an hour.
+  const { weekday, day: date } = nyClock(day + 12 * 3600);
+  const back = interval === "1Week"
+    ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(weekday)
+    : Number(date.slice(8, 10)) - 1;
+  return nyMidnight(day + 12 * 3600 - back * 86400);
 }
 
 /**
  * The candle after a trade: the current one extended, or a new one opened at
  * the trade's price. A trade older than the last candle (a late print) changes
- * nothing -- redrawing history from one late trade would misstate it.
+ * nothing -- redrawing history from one late trade would misstate it. Fixed
+ * steps count on from the last candle rather than from the clock, so a live
+ * candle lines up with the history's however Alpaca aligned its bars.
  */
 export function applyTrade(last, trade, interval, crypto = false) {
   const price = Number(trade?.price);
   const size = Number(trade?.size) || 0;
   const sec = Math.floor(Date.parse(trade?.at) / 1000);
   if (!(price > 0) || !Number.isFinite(sec)) return null;
-  const time = bucketStart(sec, interval, crypto);
-  if (last && time < last.time) return null;
+  let time;
+  if (last && !CALENDAR.has(interval)) {
+    const n = secondsOf(interval);
+    if (sec < last.time) return null;
+    time = last.time + Math.floor((sec - last.time) / n) * n;
+  } else {
+    time = bucketStart(sec, interval, crypto);
+    if (last && time < last.time) return null;
+  }
   if (last && time === last.time) {
     return { ...last, high: Math.max(last.high, price), low: Math.min(last.low, price), close: price, volume: (last.volume || 0) + size };
   }

@@ -1,0 +1,22 @@
+/* The terminal's window grid (react-grid-layout): where a dragged window will
+   land shows as a soft green outline rather than the library's red block, and
+   resize handles appear on hover so they do not clutter a locked screen. */
+.terminal-grid .react-grid-item.react-grid-placeholder {
+  background: #10b981;
+  opacity: 0.15;
+  border-radius: 0.5rem;
+}
+.terminal-grid .react-grid-item > .react-resizable-handle {
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.terminal-grid .react-grid-item:hover > .react-resizable-handle {
+  opacity: 1;
+}
+.terminal-grid .react-grid-item.react-draggable-dragging {
+  box-shadow: 0 10px 30px rgb(15 23 42 / 0.18);
+  z-index: 20;
+}
+@media (prefers-reduced-motion: reduce) {
+  .terminal-grid .react-grid-item { transition: none; }
+}

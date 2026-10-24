@@ -6,7 +6,8 @@ import { isCrypto, applyBook, bookLevels, px, bookSize } from "@/lib/terminal";
 // venue with its size, live from the stream (the function sends the whole book
 // first, then only the levels that change), with the first picture read over
 // REST so the panel is never empty while the stream starts, and REST again
-// every few seconds if the stream goes quiet. A click on a price puts it in the
+// every few seconds if the stream goes quiet. Redrawn ten times a second, in
+// step with the tape and the quotes. A click on a price puts it in the
 // ticket, as on a desk ladder.
 //
 // Shares have no book on Alpaca's feeds: its stock data carries only the best
@@ -14,7 +15,7 @@ import { isCrypto, applyBook, bookLevels, px, bookSize } from "@/lib/terminal";
 // For a share this shows that one level, live, and says so.
 
 const DEPTH = 12;
-const PAINT_MS = 250;
+const PAINT_MS = 100;
 const QUIET_MS = 10000;
 const POLL_MS = 3000;
 
@@ -84,7 +85,7 @@ export default function OrderBook({ accountId, symbol, quote, listen, onPick }) 
   if (!crypto) {
     return (
       <div className="flex h-full min-h-0 flex-col">
-        <div className="flex items-center justify-between border-b border-slate-200 px-2 py-1 text-xs">
+        <div className="drag-handle flex items-center justify-between border-b border-slate-200 px-2 py-1 text-xs">
           <span className="font-semibold text-slate-700">Level 2 · {symbol}</span>
           <span className="text-[10px] text-slate-500">Best bid and ask</span>
         </div>
@@ -107,7 +108,7 @@ export default function OrderBook({ accountId, symbol, quote, listen, onPick }) 
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between border-b border-slate-200 px-2 py-1 text-xs">
+      <div className="drag-handle flex items-center justify-between border-b border-slate-200 px-2 py-1 text-xs">
         <span className="font-semibold text-slate-700">Level 2 · {symbol}</span>
         <span className={`text-[10px] ${mode === "live" ? "text-emerald-700" : "text-slate-500"}`}>
           {mode === "live" ? "● Live" : mode === "polling" ? "Updating every 3s" : "Loading…"}

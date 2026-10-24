@@ -36,21 +36,72 @@ const CRYPTO_DATA = "https://data.alpaca.markets/v1beta3/crypto/us";
 const FEED = "iex";
 const TERMINAL_SYMBOL = (s: string) => SYMBOL.test(s) || CRYPTO.test(s);
 
-// How far back each chart interval reads, and the bar size it asks for.
+// How far back each chart interval reads, and the bar size it asks for:
+// Alpaca's own bars from one minute to a month ("all the time intervals ...
+// from Monthly down to 5 seconds", 24 Oct). Its bars stop at one minute;
+// seconds candles are built here from the trades (SECONDS, below).
 const RANGES: Record<string, { tf: string; days: number }> = {
   "1Min": { tf: "1Min", days: 4 },
+  "2Min": { tf: "2Min", days: 6 },
+  "3Min": { tf: "3Min", days: 8 },
   "5Min": { tf: "5Min", days: 10 },
+  "10Min": { tf: "10Min", days: 20 },
   "15Min": { tf: "15Min", days: 30 },
+  "30Min": { tf: "30Min", days: 60 },
   "1Hour": { tf: "1Hour", days: 120 },
-  "1Day": { tf: "1Day", days: 730 }
+  "2Hour": { tf: "2Hour", days: 240 },
+  "4Hour": { tf: "4Hour", days: 365 },
+  "1Day": { tf: "1Day", days: 1825 },
+  "1Week": { tf: "1Week", days: 3650 },
+  "1Month": { tf: "1Month", days: 7300 }
 };
+const SECONDS: Record<string, number> = { "5Sec": 5, "10Sec": 10, "15Sec": 15, "30Sec": 30 };
+const TRADES_FOR_SECONDS = 10000;
 
 const num = (v: unknown) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 };
 
+// Seconds candles: the latest trades (up to ten thousand), bucketed. On a busy
+// share that is the last hour or two; on a thin coin, days. A candle exists
+// only where a trade did, as on any trade-built chart.
+async function secondBars(account: any, symbol: string, interval: string) {
+  const step = SECONDS[interval];
+  const crypto = isCrypto(symbol);
+  const start = new Date(Date.now() - 7 * 86400000).toISOString();
+  const trades: any[] = [];
+  let token: string | null = null;
+  let pages = 0;
+  do {
+    const url = (crypto
+      ? `${CRYPTO_DATA}/trades?symbols=${encodeURIComponent(symbol)}&start=${start}&limit=10000&sort=desc`
+      : `${DATA}/stocks/${encodeURIComponent(symbol)}/trades?feed=${FEED}&start=${start}&limit=10000&sort=desc`) +
+      (token ? `&page_token=${encodeURIComponent(token)}` : "");
+    const page = await alpacaFetch(url, account);
+    trades.push(...((crypto ? page?.trades?.[symbol] : page?.trades) || []));
+    token = page?.next_page_token || null;
+    pages += 1;
+  } while (token && trades.length < TRADES_FOR_SECONDS && pages < 10);
+  const out: any[] = [];
+  for (const t of trades.slice(0, TRADES_FOR_SECONDS).reverse()) {
+    const price = num(t.p);
+    const size = num(t.s) || 0;
+    const sec = Math.floor(Date.parse(t.t) / 1000);
+    if (price === null || !Number.isFinite(sec)) continue;
+    const time = Math.floor(sec / step) * step;
+    const last = out.at(-1);
+    if (last && last.time === time) {
+      last.high = Math.max(last.high, price); last.low = Math.min(last.low, price); last.close = price; last.volume += size;
+    } else {
+      out.push({ time, open: price, high: price, low: price, close: price, volume: size });
+    }
+  }
+  return { symbol, interval, feed: crypto ? "crypto" : FEED, bars: out, fromTrades: true };
+}
+
 async function bars(account: any, symbol: string, interval: string) {
+  if (SECONDS[interval]) return secondBars(account, symbol, interval);
   const r = RANGES[interval] || RANGES["5Min"];
   const crypto = isCrypto(symbol);
   // Crypto trades around the clock, so the same span holds about four times

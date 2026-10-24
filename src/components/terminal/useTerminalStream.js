@@ -17,7 +17,7 @@ import { supabase } from "@/lib/supabaseClient";
 // the one coin whose order book to stream.
 
 const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
-const FLUSH_MS = 250;
+const FLUSH_MS = 100;
 // Refusals that will not change by trying again: no key pair, the account's
 // one connection already in use elsewhere, no entitlement.
 const TERMINAL = /409|401|402|403|406|connection limit|not authorized|no API key/i;

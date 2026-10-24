@@ -127,3 +127,18 @@ test("regular-hours chart: a candle stays if any of it is inside 9:30 to 16:00",
   assert.equal(sessionDay(sec("2026-10-23T02:00:00Z"), false), "2026-10-22");
   assert.equal(sessionDay(sec("2026-10-23T02:00:00Z"), true), Math.floor(sec("2026-10-23T02:00:00Z") / 86400));
 });
+
+test("intervals: seconds, weeks and months; live candles count on from the history's last", () => {
+  assert.equal(bucketStart(sec("2026-10-22T14:07:33Z"), "5Sec"), sec("2026-10-22T14:07:30Z"));
+  // A share's week starts Monday New York midnight; a coin's Monday 00:00 UTC (Alpaca's stamps).
+  assert.equal(bucketStart(sec("2026-10-22T19:00:00Z"), "1Week"), sec("2026-10-19T04:00:00Z"));
+  assert.equal(bucketStart(sec("2026-10-22T19:00:00Z"), "1Week", true), sec("2026-10-19T00:00:00Z"));
+  assert.equal(bucketStart(sec("2026-10-22T19:00:00Z"), "1Month"), sec("2026-10-01T04:00:00Z"));
+  assert.equal(bucketStart(sec("2026-10-22T19:00:00Z"), "1Month", true), sec("2026-10-01T00:00:00Z"));
+  // Across a clock change: 3 Nov 2026 is a Tuesday after the switch to standard time.
+  assert.equal(bucketStart(sec("2026-11-03T19:00:00Z"), "1Week"), sec("2026-11-02T05:00:00Z"));
+  // A 4-hour history stamped at 13:00 UTC: a trade at 18:30 extends it, at 21:10 opens 21:00.
+  const last = { time: sec("2026-10-22T13:00:00Z"), open: 1, high: 1, low: 1, close: 1, volume: 1 };
+  assert.equal(applyTrade(last, { price: 2, size: 1, at: "2026-10-22T16:30:00Z" }, "4Hour").time, last.time);
+  assert.equal(applyTrade(last, { price: 2, size: 1, at: "2026-10-22T21:10:00Z" }, "4Hour").time, sec("2026-10-22T21:00:00Z"));
+});

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { createChart, CandlestickSeries, HistogramSeries, LineSeries, LineStyle, CrosshairMode } from "lightweight-charts";
 import { MousePointer2, Slash, MoveUpRight, Minus, SeparatorVertical, RectangleHorizontal, Rows3, Ruler, Trash2, Eraser, Activity, X } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
@@ -45,7 +45,7 @@ const saveDrawings = (symbol, drawings) => {
 };
 const newId = () => `d${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
-export default function PriceChart({ accountId, symbol, interval, onInterval, listen }) {
+function PriceChart({ accountId, symbol, interval, onInterval, listen }) {
   const boxRef = useRef(null);
   const chartRef = useRef(null);
   const candlesRef = useRef(null);
@@ -138,7 +138,7 @@ export default function PriceChart({ accountId, symbol, interval, onInterval, li
     const layer = new DrawingLayer(() => ({
       drawings: drawingsRef.current, draft: draftRef.current, selected: selectedRef.current, times: timesRef.current, step: stepRef.current,
       // Pre-market and after hours shaded on an all-hours share chart.
-      extended: !cryptoRef.current && sessionRef.current === "all" && intervalRef.current !== "1Day" ? extRef.current : null
+      extended: !cryptoRef.current && sessionRef.current === "all" && !["1Day", "1Week", "1Month"].includes(intervalRef.current) ? extRef.current : null
     }));
     candles.attachPrimitive(layer);
     candlesRef.current = candles;
@@ -323,7 +323,7 @@ export default function PriceChart({ accountId, symbol, interval, onInterval, li
 
   // Which bars belong on screen: all of them for a coin or a daily chart;
   // for a share's intraday chart, regular hours only unless all hours is on.
-  const keep = useCallback((bar) => cryptoRef.current || sessionRef.current === "all" || intervalRef.current === "1Day" ||
+  const keep = useCallback((bar) => cryptoRef.current || sessionRef.current === "all" || ["1Day", "1Week", "1Month"].includes(intervalRef.current) ||
     inRegularHours(bar.time, STEP[intervalRef.current] || 300), []);
 
   // The indicators' lines, from the bars on screen. Throttled: a busy tape
@@ -347,6 +347,7 @@ export default function PriceChart({ accountId, symbol, interval, onInterval, li
     timesRef.current = bars.map((b) => b.time);
     extRef.current = bars.map((b) => !cryptoRef.current && sessionOf(b.time) !== "regular");
     stepRef.current = STEP[intervalRef.current] || 300;
+    chartRef.current?.applyOptions({ timeScale: { secondsVisible: stepRef.current < 60 } });
     candlesRef.current?.applyOptions({ priceFormat: priceFormatFor(bars.at(-1)?.close ?? 1) });
     candlesRef.current?.setData(bars);
     volumeRef.current?.setData(bars.map((b) => ({ time: b.time, value: b.volume, color: b.close >= b.open ? "#05966933" : "#e11d4833" })));
@@ -464,7 +465,7 @@ export default function PriceChart({ accountId, symbol, interval, onInterval, li
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 px-2 py-1.5">
-        {INTERVALS.map((i) => (
+        {INTERVALS.filter((i) => i.quick).map((i) => (
           <button
             key={i.id}
             type="button"
@@ -474,7 +475,16 @@ export default function PriceChart({ accountId, symbol, interval, onInterval, li
             {i.label}
           </button>
         ))}
-        {!crypto && interval !== "1Day" && (
+        {/* Every interval, from 5 seconds to a month. */}
+        <select value={interval} onChange={(e) => onInterval(e.target.value)} title="All intervals"
+          className={`rounded border px-1 py-0.5 text-xs ${INTERVALS.find((i) => i.id === interval)?.quick ? "border-slate-200 text-slate-600" : "border-slate-900 bg-slate-900 text-white"}`}>
+          {["Seconds", "Minutes", "Hours", "Days"].map((g) => (
+            <optgroup key={g} label={g}>
+              {INTERVALS.filter((i) => i.group === g).map((i) => <option key={i.id} value={i.id}>{i.label}</option>)}
+            </optgroup>
+          ))}
+        </select>
+        {!crypto && !["1Day", "1Week", "1Month"].includes(interval) && (
           <div className="ml-1 flex rounded border border-slate-200 text-[11px]" role="group" aria-label="Trading hours">
             {[["regular", "Regular hours"], ["all", "All hours"]].map(([id, name]) => (
               <button key={id} type="button" onClick={() => setSession(id)} title={id === "regular" ? "9:30 to 16:00 New York" : "Pre-market (from 4:00) and after hours (to 20:00), shaded"}
@@ -537,12 +547,17 @@ export default function PriceChart({ accountId, symbol, interval, onInterval, li
           className={`flex items-center gap-1 rounded px-1 py-0.5 text-[11px] disabled:opacity-30 ${confirmClear ? "bg-rose-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
           <Eraser className="h-3.5 w-3.5" />{confirmClear ? `Clear ${drawings.length}?` : ""}
         </button>
-        <span className="ml-auto text-[11px] text-slate-400">
+        <span className="ml-auto text-[11px] text-slate-400" title={crypto && !(STEP[interval] < 60) ? "Alpaca builds crypto candles from trades and, between trades, from the bid/ask midpoint, so a candle can move when nothing traded; time & sales lists actual trades only." : undefined}>
           {active ? `${active.label}: ${active.points === 1 ? "click to place" : drafting ? "click the second point" : "click the first point"} · Esc to cancel`
-            : state.loading ? "Loading…" : state.error ? "" : `${state.count} bars · ${crypto ? "Alpaca crypto" : "IEX"}`}
+            : state.loading ? "Loading…" : state.error ? "" : `${state.count} bars · ${STEP[interval] < 60 ? "built from trades" : crypto ? "Alpaca crypto: trades and midpoints" : "IEX"}`}
         </span>
       </div>
       {state.error && <p className="px-3 py-2 text-xs text-rose-700">{state.error}</p>}
+      {!state.loading && !state.error && state.count === 0 && rawRef.current.length > 0 && (
+        <p className="px-3 py-2 text-xs text-slate-600">
+          None of these candles fall in regular hours (9:30 to 16:00 New York). Switch to All hours to see them.
+        </p>
+      )}
       <div className="relative min-h-[260px] flex-1">
         <div ref={boxRef} className={`absolute inset-0 ${tool !== "cursor" ? "cursor-crosshair" : ""}`} />
         {indicators.length > 0 && (
@@ -560,3 +575,6 @@ export default function PriceChart({ accountId, symbol, interval, onInterval, li
     </div>
   );
 }
+
+// Drawn only when its own inputs change, not on every quote the page receives.
+export default memo(PriceChart);

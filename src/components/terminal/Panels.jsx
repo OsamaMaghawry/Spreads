@@ -17,7 +17,7 @@ function ago(iso, now) {
   return `${Math.floor(s / 3600)}h ${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}m`;
 }
 
-export function TimeAndSales({ rows, symbol, live = false }) {
+export function TimeAndSales({ rows, symbol, live = false, delay = null }) {
   const crypto = isCrypto(symbol);
   // The clock in the header ticks, so a quiet tape reads as quiet, not stuck.
   const [now, setNow] = useState(() => Date.now());
@@ -28,10 +28,12 @@ export function TimeAndSales({ rows, symbol, live = false }) {
   const last = rows[0]?.at;
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-2 py-1 text-xs">
+      <div className="drag-handle flex items-center justify-between gap-2 border-b border-slate-200 px-2 py-1 text-xs">
         <span className="truncate font-semibold text-slate-700">Time & sales</span>
         <span className={`shrink-0 text-[10px] tabular-nums ${live ? "text-emerald-700" : "text-slate-500"}`}>
-          {live ? "● Live" : "Not streaming"}{last ? ` · last trade ${ago(last, now)} ago` : ""}
+          {live ? "● Live" : "Not streaming"}
+          {delay !== null ? ` · ${(delay / 1000).toFixed(1)}s behind` : ""}
+          {last ? ` · last ${ago(last, now)} ago` : ""}
         </span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
