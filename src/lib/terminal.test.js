@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText } from "./terminal.js";
+import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize } from "./terminal.js";
 
 const sec = (iso) => Date.parse(iso) / 1000;
 
@@ -41,8 +41,50 @@ test("tape: buyer at the ask, seller at the bid, newest first, capped", () => {
   assert.equal(rows[0].id, TAPE_MAX + 4);
 });
 
-test("watchlist: symbols only, no repeats, the default when empty or broken", () => {
-  assert.deepEqual(cleanWatchlist(["aapl", "AAPL", "bad symbol", "tsla"]), ["AAPL", "TSLA"]);
+test("crypto: a slashed pair; its daily candle starts at midnight UTC, a share's at New York midnight", () => {
+  assert.equal(isCrypto("BTC/USD"), true);
+  assert.equal(isCrypto("AAPL"), false);
+  assert.equal(bucketStart(sec("2026-10-23T01:00:00Z"), "1Day", true), sec("2026-10-23T00:00:00Z"));
+  assert.equal(bucketStart(sec("2026-10-23T01:00:00Z"), "1Day"), sec("2026-10-22T04:00:00Z"));
+  const c = applyTrade(null, { price: 80000, size: 0.01, at: "2026-10-24T03:00:00Z" }, "1Day", true);
+  assert.equal(c.time, sec("2026-10-24T00:00:00Z"));
+});
+
+test("tape: a crypto trade's colour is the side the feed says took it, not a guess", () => {
+  const q = { bid: 100, ask: 101 };
+  const r = tapeRow({ price: 100, size: 0.5, at: "x", takerSide: "buy" }, q);
+  assert.deepEqual([r.side, r.known], ["buy", true]);
+  assert.equal(tapeRow({ price: 100, size: 1, at: "x" }, q).known, false);
+});
+
+test("order book: a reset replaces, an update sets or empties levels, best first with running totals", () => {
+  let book = applyBook(null, { reset: true, bids: [[100, 1], [99, 2]], asks: [[101, 0.5], [102, 3]], at: "t1" });
+  book = applyBook(book, { bids: [[100, 0], [99.5, 4]], asks: [[101, 1.5]], at: "t2" });
+  const view = bookLevels(book, 10);
+  assert.deepEqual(view.bids, [{ price: 99.5, size: 4, total: 4 }, { price: 99, size: 2, total: 6 }]);
+  assert.deepEqual(view.asks, [{ price: 101, size: 1.5, total: 1.5 }, { price: 102, size: 3, total: 4.5 }]);
+  assert.equal(view.spread, 1.5);
+  assert.equal(view.maxTotal, 6);
+  assert.equal(book.at, "t2");
+  // A reset throws away what was there.
+  assert.equal(bookLevels(applyBook(book, { reset: true, bids: [[1, 1]], asks: [] })).bids.length, 1);
+  // The previous book is not changed in place.
+  assert.equal(applyBook(book, { bids: [[50, 1]] }).bids.size, book.bids.size + 1);
+  assert.deepEqual(bookLevels(null), { bids: [], asks: [], spread: null, mid: null, maxTotal: 0 });
+});
+
+test("price scale: two decimals at a dollar, more for small coins", () => {
+  assert.equal(priceFormatFor(80123.4).precision, 2);
+  assert.equal(priceFormatFor(0.5).precision, 4);
+  assert.equal(priceFormatFor(0.00001234).precision, 8);
+});
+
+test("watchlist: symbols and coins only, no repeats, the default when empty or broken", () => {
+  assert.deepEqual(cleanWatchlist(["aapl", "AAPL", "bad symbol", "tsla", "btc/usd"]), ["AAPL", "TSLA", "BTC/USD"]);
+  // Coins added once to a list saved before crypto; never again once removed.
+  assert.deepEqual(withCoinsOnce(["SPY"], false), ["SPY", "BTC/USD", "ETH/USD"]);
+  assert.deepEqual(withCoinsOnce(["SPY"], true), ["SPY"]);
+  assert.deepEqual(withCoinsOnce(["SPY", "SOL/USD"], false), ["SPY", "SOL/USD"]);
   assert.deepEqual(readWatchlist("not json"), DEFAULT_WATCHLIST);
   assert.deepEqual(readWatchlist("[]"), DEFAULT_WATCHLIST);
   assert.deepEqual(readWatchlist('["spy"]'), ["SPY"]);
@@ -55,4 +97,11 @@ test("formatting", () => {
   assert.equal(pctText(0.0123), "+1.23%");
   assert.equal(sizeText(1234567), "1.2M");
   assert.equal(sizeText(45678), "46K");
+  assert.equal(sizeText(0.014958481), "0.01495848");
+  assert.equal(sizeText(1.23456789), "1.2346");
+  assert.equal(px(80672.984), "80672.98");
+  assert.equal(bookSize(0.98754509), "0.9875");
+  assert.equal(bookSize(2.09251), "2.093");
+  assert.equal(bookSize(45678), "46K");
+  assert.equal(px(0.00001234), "0.00001234");
 });

@@ -8,8 +8,13 @@ import { supabase } from "@/lib/supabaseClient";
 // rather than reconnecting (a reconnect races the old one and is refused).
 // Quotes are batched and handed to React a few times a second: a busy tape is
 // hundreds of messages a second across a watchlist, and a render per message
-// would freeze the page. Trades and bars for the chart and the tape go to
-// listeners directly, without a render.
+// would freeze the page. Trades, bars and order-book updates go to listeners
+// directly, without a render.
+//
+// Shares and coins share the socket: the function holds the stock and the
+// crypto feed behind it and reports each one's state separately (feeds), so a
+// refused crypto feed does not take the stock prices down with it. `book` is
+// the one coin whose order book to stream.
 
 const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 const FLUSH_MS = 250;
@@ -17,15 +22,18 @@ const FLUSH_MS = 250;
 // one connection already in use elsewhere, no entitlement.
 const TERMINAL = /409|401|402|403|406|connection limit|not authorized|no API key/i;
 
-export default function useTerminalStream(accountId, symbols) {
+export default function useTerminalStream(accountId, symbols, book = "") {
   const [quotes, setQuotes] = useState({});
   const [status, setStatus] = useState({ state: "idle", message: null });
+  const [feeds, setFeeds] = useState({});
   const socketRef = useRef(null);
   const pending = useRef({});
   const listeners = useRef(new Set());
   const symbolsRef = useRef(symbols);
+  const bookRef = useRef(book);
   const key = [...new Set(symbols)].sort().join(",");
   symbolsRef.current = symbols;
+  bookRef.current = book;
 
   // Open (and reopen) the socket for the account.
   useEffect(() => {
@@ -42,8 +50,9 @@ export default function useTerminalStream(accountId, symbols) {
       const list = [...new Set(symbolsRef.current)].slice(0, 30);
       if (!list.length) return;
       setStatus({ state: "connecting", message: null });
+      setFeeds({});
       const url = `${FUNCTIONS_BASE}/marketStream?token=${encodeURIComponent(token)}&accountId=${encodeURIComponent(accountId)}` +
-        `&symbols=${encodeURIComponent(list.join(","))}&detail=1`;
+        `&symbols=${encodeURIComponent(list.join(","))}&book=${encodeURIComponent(bookRef.current || "")}&detail=1`;
       const ws = new WebSocket(url.replace(/^http/, "ws"));
       socketRef.current = ws;
       let wasLive = false;
@@ -56,13 +65,23 @@ export default function useTerminalStream(accountId, symbols) {
           wasLive = true;
           attempt = 0;
           setStatus({ state: "live", message: null });
-          // Symbols that changed while the socket was opening: send them now.
+          if (m.feed) setFeeds((f) => ({ ...f, [m.feed]: { state: "live", message: null } }));
+          // Symbols or the book that changed while the socket was opening: send them now.
           const want = [...new Set(symbolsRef.current)].slice(0, 30).sort().join(",");
           const got = [...(m.symbols || [])].sort().join(",");
-          if (want && want !== got) ws.send(JSON.stringify({ action: "set", symbols: want.split(",") }));
+          if (want && (want !== got || (bookRef.current || "") !== (m.book || ""))) {
+            ws.send(JSON.stringify({ action: "set", symbols: want.split(","), book: bookRef.current || "" }));
+          }
+        } else if (m.type === "error" && m.feed) {
+          // One feed's trouble: the other carries on, and so does the socket.
+          setFeeds((f) => ({ ...f, [m.feed]: { state: "error", message: m.message || "The feed reported an error." } }));
+        } else if (m.type === "feed") {
+          setFeeds((f) => ({ ...f, [m.feed]: { state: m.message ? "error" : "reconnecting", message: m.message || null } }));
         } else if (m.type === "error") {
           if (TERMINAL.test(`${m.code ?? ""} ${m.message ?? ""}`)) refused = m.message || `Refused (${m.code})`;
           setStatus({ state: "error", message: m.message || "The price stream reported an error." });
+        } else if (m.type === "book") {
+          listeners.current.forEach((fn) => fn(m));
         } else if (m.type === "quote") {
           const cur = pending.current[m.symbol] || {};
           pending.current[m.symbol] = { ...cur, bid: m.bid, ask: m.ask, bidSize: m.bidSize, askSize: m.askSize, quoteAt: m.at };
@@ -109,16 +128,16 @@ export default function useTerminalStream(accountId, symbols) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId]);
 
-  // Symbol changes on the open socket.
+  // Symbol and book changes on the open socket.
   useEffect(() => {
     const ws = socketRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN && key) ws.send(JSON.stringify({ action: "set", symbols: key.split(",") }));
-  }, [key]);
+    if (ws && ws.readyState === WebSocket.OPEN && key) ws.send(JSON.stringify({ action: "set", symbols: key.split(","), book: book || "" }));
+  }, [key, book]);
 
   const listen = useCallback((fn) => {
     listeners.current.add(fn);
     return () => listeners.current.delete(fn);
   }, []);
 
-  return { quotes, status, listen };
+  return { quotes, status, feeds, listen };
 }

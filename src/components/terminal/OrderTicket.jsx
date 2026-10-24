@@ -1,19 +1,29 @@
 import { useEffect, useRef, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
-import { px } from "@/lib/terminal";
+import { px, sizeText, isCrypto } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
 
-// The share ticket. Two steps, review then send, like a desk ticket's
-// transmit: nothing goes to the broker on the first click. The server checks
-// every rule again (stockOrder.ts) and refuses live accounts during the test.
+// The ticket, for shares and coins. Two steps, review then send, like a desk
+// ticket's transmit: nothing goes to the broker on the first click. The server
+// checks every rule again (stockOrder.ts, cryptoOrder.ts) and refuses live
+// accounts during the test.
+//
+// A coin trades in fractions, around the clock, with market, limit and
+// stop-limit orders only, good till cancelled or immediate-or-cancel, never
+// short, and with no take-profit/stop-loss bracket; the ticket offers only
+// what the broker accepts for the symbol in front of it.
 
-const TYPES = [
+const STOCK_TYPES = [
   ["market", "Market"], ["limit", "Limit"], ["stop", "Stop"], ["stop_limit", "Stop limit"]
 ];
+const CRYPTO_TYPES = [["market", "Market"], ["limit", "Limit"], ["stop_limit", "Stop limit"]];
+const TIF_TEXT = { day: "for the day", gtc: "good till cancelled", ioc: "immediate or cancel" };
 const input = "w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm tabular-nums focus:border-emerald-500 focus:outline-none";
 const label = "mb-1 block text-[11px] uppercase tracking-wider text-slate-500";
 
-export default function OrderTicket({ account, symbol, quote, held = 0, buyingPower = null, onPlaced }) {
+export default function OrderTicket({ account, symbol, quote, held = 0, buyingPower = null, onPlaced, pick = null }) {
+  const crypto = isCrypto(symbol);
+  const TYPES = crypto ? CRYPTO_TYPES : STOCK_TYPES;
   const [side, setSide] = useState("buy");
   const [qty, setQty] = useState("1");
   const [type, setType] = useState("limit");
@@ -27,11 +37,42 @@ export default function OrderTicket({ account, symbol, quote, held = 0, buyingPo
   const [review, setReview] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
+  const [asset, setAsset] = useState(null);
 
-  // A new symbol starts a new ticket, priced at the side it would trade.
+  // A new symbol starts a new ticket, priced at the side it would trade, with
+  // only the choices its market has.
   useEffect(() => {
     setLimit(""); setStop(""); setTp(""); setSl(""); setReview(false); setResult(null);
+    setAsset(null);
+    if (isCrypto(symbol)) {
+      setType((t) => (t === "stop" ? "stop_limit" : t));
+      setTif((t) => (t === "day" ? "gtc" : t));
+      setExtended(false);
+      setBracket(false);
+      setQty("");
+    } else {
+      setTif((t) => (t === "ioc" ? "day" : t));
+      setQty((q) => (q && Number.isInteger(Number(q)) ? q : "1"));
+    }
   }, [symbol]);
+
+  // A coin's minimum order and steps, from the broker's asset list.
+  useEffect(() => {
+    if (!crypto || !account?.id) return undefined;
+    let alive = true;
+    invokeFunction("terminal", { action: "asset", accountId: account.id, symbol }).then((r) => {
+      if (alive) setAsset(r?.data?.asset || null);
+    });
+    return () => { alive = false; };
+  }, [crypto, account?.id, symbol]);
+
+  // A price clicked in the order book or elsewhere becomes the limit price.
+  useEffect(() => {
+    if (!pick?.price) return;
+    setLimit(px(pick.price));
+    setType((t) => (t === "market" ? "limit" : t === "stop" ? "stop_limit" : t));
+    setReview(false);
+  }, [pick]);
   // Filled once per symbol and side, when the first quote arrives; after that
   // the field is the trader's, even if they clear it to type.
   const filledFor = useRef(null);
@@ -43,15 +84,18 @@ export default function OrderTicket({ account, symbol, quote, held = 0, buyingPo
   }, [quote, side, symbol]);
 
   const paper = account?.type === "Paper";
-  const n = Math.floor(Number(qty)) || 0;
+  const n = crypto ? Number(qty) || 0 : Math.floor(Number(qty)) || 0;
+  const coin = crypto ? symbol.split("/")[0] : "";
+  const belowMin = crypto && n > 0 && asset?.minOrderSize && n < asset.minOrderSize;
   const needsLimit = type === "limit" || type === "stop_limit";
   const needsStop = type === "stop" || type === "stop_limit";
   const ref = side === "buy" ? quote?.ask ?? quote?.last : quote?.bid ?? quote?.last;
   const at = needsLimit ? Number(limit) : type === "stop" ? Number(stop) : ref;
   const value = at && n ? at * n : null;
-  const short = side === "sell" && n > Math.max(0, held);
+  const short = side === "sell" && n > Math.max(0, held) + 1e-12;
   const overBp = side === "buy" && value !== null && buyingPower !== null && value > buyingPower;
-  const ready = paper && symbol && n > 0 && (!needsLimit || Number(limit) > 0) && (!needsStop || Number(stop) > 0) && (!bracket || (Number(tp) > 0 && Number(sl) > 0));
+  const ready = paper && symbol && n > 0 && !belowMin && !(crypto && short) &&
+    (!needsLimit || Number(limit) > 0) && (!needsStop || Number(stop) > 0) && (!bracket || (Number(tp) > 0 && Number(sl) > 0));
 
   const send = async () => {
     setBusy(true);
@@ -68,14 +112,14 @@ export default function OrderTicket({ account, symbol, quote, held = 0, buyingPo
     setReview(false);
     if (r?.data?.error) setResult({ ok: false, text: r.data.error });
     else {
-      setResult({ ok: true, text: `Sent: ${side} ${n} ${symbol}. Status: ${r?.data?.status || "new"}.` });
+      setResult({ ok: true, text: `Sent: ${side} ${sizeText(n)} ${symbol}. Status: ${r?.data?.status || "new"}.` });
       onPlaced?.();
     }
   };
 
-  const words = `${side === "buy" ? "Buy" : "Sell"} ${n || "?"} ${symbol || ""} ` +
+  const words = `${side === "buy" ? "Buy" : "Sell"} ${n ? sizeText(n) : "?"} ${crypto ? coin : symbol || ""} ` +
     (type === "market" ? "at market" : type === "limit" ? `limit ${px(limit)}` : type === "stop" ? `stop ${px(stop)}` : `stop ${px(stop)}, limit ${px(limit)}`) +
-    `, ${tif === "gtc" ? "good till cancelled" : "for the day"}${extended ? ", including pre-market and after hours" : ""}` +
+    `, ${TIF_TEXT[tif] || TIF_TEXT.day}${extended ? ", including pre-market and after hours" : ""}` +
     (bracket ? `, then take profit at ${px(tp)} or stop out at ${px(sl)}` : "");
 
   return (
@@ -91,8 +135,9 @@ export default function OrderTicket({ account, symbol, quote, held = 0, buyingPo
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className={label} htmlFor="t-qty">Shares</label>
-          <input id="t-qty" className={input} inputMode="numeric" value={qty} onChange={(e) => { setQty(e.target.value.replace(/[^\d]/g, "")); setReview(false); }} />
+          <label className={label} htmlFor="t-qty">{crypto ? `Quantity (${coin})` : "Shares"}</label>
+          <input id="t-qty" className={input} inputMode={crypto ? "decimal" : "numeric"} value={qty} placeholder={crypto && asset?.minOrderSize ? `min ${asset.minOrderSize}` : ""}
+            onChange={(e) => { setQty(crypto ? e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1") : e.target.value.replace(/[^\d]/g, "")); setReview(false); }} />
         </div>
         <div>
           <label className={label} htmlFor="t-type">Type</label>
@@ -115,8 +160,9 @@ export default function OrderTicket({ account, symbol, quote, held = 0, buyingPo
         <div>
           <label className={label} htmlFor="t-tif">Time in force</label>
           <select id="t-tif" className={input} value={tif} onChange={(e) => { setTif(e.target.value); setReview(false); if (e.target.value !== "day") setExtended(false); }}>
-            <option value="day">Day</option>
+            {!crypto && <option value="day">Day</option>}
             <option value="gtc">Good till cancelled</option>
+            {crypto && <option value="ioc">Immediate or cancel</option>}
           </select>
         </div>
       </div>
@@ -129,11 +175,14 @@ export default function OrderTicket({ account, symbol, quote, held = 0, buyingPo
         </div>
       )}
 
+      {!crypto && (
       <label className={`flex items-center gap-2 text-xs ${type === "limit" && tif === "day" ? "text-slate-700" : "text-slate-400"}`}>
         <input type="checkbox" checked={extended} disabled={!(type === "limit" && tif === "day") || bracket} onChange={(e) => { setExtended(e.target.checked); setReview(false); }} />
         Pre-market and after hours (day limit orders only)
       </label>
+      )}
 
+      {!crypto && (
       <div className="rounded-lg border border-slate-200 p-2">
         <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
           <input type="checkbox" checked={bracket} disabled={!(type === "market" || type === "limit") || extended} onChange={(e) => { setBracket(e.target.checked); setReview(false); }} />
@@ -152,15 +201,19 @@ export default function OrderTicket({ account, symbol, quote, held = 0, buyingPo
           </div>
         )}
       </div>
+      )}
 
       <div className="space-y-1 text-xs text-slate-600">
         <div className="flex justify-between"><span>Estimated {side === "buy" ? "cost" : "proceeds"}</span><span className="tabular-nums">{value ? fmtMoney(value) : "—"}</span></div>
         <div className="flex justify-between"><span>Buying power</span><span className="tabular-nums">{buyingPower !== null ? fmtMoney(buyingPower) : "—"}</span></div>
-        <div className="flex justify-between"><span>You hold</span><span className="tabular-nums">{held} shares</span></div>
+        <div className="flex justify-between"><span>You hold</span><span className="tabular-nums">{sizeText(held)} {crypto ? coin : "shares"}</span></div>
+        {crypto && asset?.minOrderSize ? <div className="flex justify-between"><span>Smallest order</span><span className="tabular-nums">{asset.minOrderSize} {coin}</span></div> : null}
       </div>
 
       {!paper && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">Orders go to paper accounts only during this test. Choose a paper account to trade.</p>}
-      {short && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">You hold {Math.max(0, held)} shares, so this sells {n - Math.max(0, held)} you do not own: a short sale.</p>}
+      {short && !crypto && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">You hold {Math.max(0, held)} shares, so this sells {n - Math.max(0, held)} you do not own: a short sale.</p>}
+      {short && crypto && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">You hold {sizeText(Math.max(0, held))} {coin}. Crypto cannot be sold short, so a sale is limited to what you hold.</p>}
+      {belowMin && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">The smallest {symbol} order is {asset.minOrderSize} {coin}.</p>}
       {overBp && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">This is more than the account's buying power; the broker will likely refuse it.</p>}
 
       {review ? (

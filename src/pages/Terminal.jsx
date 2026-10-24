@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, X, Plus } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
-import { readWatchlist, cleanWatchlist, tapeRow, pushTape, px, pctText, sizeText } from "@/lib/terminal";
+import { readWatchlist, cleanWatchlist, withCoinsOnce, tapeRow, pushTape, TAPE_MAX, px, pctText, sizeText, isCrypto } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
 import useTerminalStream from "@/components/terminal/useTerminalStream";
 import PriceChart from "@/components/terminal/PriceChart";
 import OrderTicket from "@/components/terminal/OrderTicket";
-import { TimeAndSales, Positions, Orders, Depth } from "@/components/terminal/Panels";
+import OrderBook from "@/components/terminal/OrderBook";
+import { TimeAndSales, Positions, Orders } from "@/components/terminal/Panels";
 
 // The trading terminal, a staging test (LAB).
 //
@@ -14,17 +15,24 @@ import { TimeAndSales, Positions, Orders, Depth } from "@/components/terminal/Pa
 // time and sales and order book ... to be like tws", charted with TradingView's
 // free library on the account's own Alpaca price feed. Watchlist, chart,
 // quote, ticket, time & sales, positions and orders on one screen. Prices are
-// the selected account's own (the free IEX feed); orders go to paper accounts
-// only during the test, enforced by the server (functions/terminal).
+// the selected account's own (the free IEX feed for shares, Alpaca's crypto
+// venue for coins); orders go to paper accounts only during the test,
+// enforced by the server (functions/terminal). Coins came the same day: "I
+// don't see Cryptos to select from ... make sure the order book is working".
 
 const WATCH_KEY = "dm.terminal.watchlist";
+const COINS_KEY = "dm.terminal.coinsAdded";
 const POLL_MS = 4000;
 
 export default function Terminal() {
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState("");
   const [watch, setWatch] = useState(() => {
-    try { return readWatchlist(localStorage.getItem(WATCH_KEY)); } catch { return readWatchlist(null); }
+    try {
+      const list = withCoinsOnce(readWatchlist(localStorage.getItem(WATCH_KEY)), localStorage.getItem(COINS_KEY) === "1");
+      localStorage.setItem(COINS_KEY, "1");
+      return list;
+    } catch { return readWatchlist(null); }
   });
   const [symbol, setSymbol] = useState(() => watch[0]);
   const [interval, setInterval_] = useState("5Min");
@@ -34,7 +42,9 @@ export default function Terminal() {
   const [tab, setTab] = useState("tape");
   const [q, setQ] = useState("");
   const [results, setResults] = useState([]);
+  const [pick, setPick] = useState(null);
   const quoteRef = useRef(null);
+  const crypto = isCrypto(symbol);
 
   useEffect(() => {
     invokeFunction("syncAccounts", {}).then((r) => {
@@ -50,7 +60,8 @@ export default function Terminal() {
   }, [watch]);
 
   const streamSymbols = useMemo(() => cleanWatchlist([symbol, ...watch]).slice(0, 30), [symbol, watch]);
-  const { quotes: live, status, listen } = useTerminalStream(accountId, streamSymbols);
+  const { quotes: live, status, feeds, listen } = useTerminalStream(accountId, streamSymbols, crypto ? symbol : "");
+  const feedTrouble = Object.entries(feeds).find(([, f]) => f.state === "error");
 
   // Opening quotes and the previous close, for the change column.
   useEffect(() => {
@@ -82,13 +93,27 @@ export default function Terminal() {
     return () => clearInterval(t);
   }, [loadView]);
 
-  // The tape for the selected symbol.
+  // The tape for the selected symbol: the last trades first, then live ones
+  // on top. A past share trade has no quote of its time to judge its side
+  // against, so it stays uncoloured; a coin's says who took it.
   useEffect(() => {
     setTape([]);
-    return listen((m) => {
+    let alive = true;
+    if (accountId) {
+      invokeFunction("terminal", { action: "trades", accountId, symbol }).then((r) => {
+        if (!alive || !Array.isArray(r?.data?.trades)) return;
+        const past = r.data.trades.map((t) => tapeRow(t, null));
+        setTape((rows) => {
+          const seen = new Set(rows.map((x) => x.id));
+          return [...rows, ...past.filter((x) => !seen.has(x.id))].slice(0, TAPE_MAX);
+        });
+      });
+    }
+    const off = listen((m) => {
       if (m.type === "trade" && m.symbol === symbol) setTape((rows) => pushTape(rows, tapeRow(m, quoteRef.current)));
     });
-  }, [listen, symbol]);
+    return () => { alive = false; off(); };
+  }, [listen, symbol, accountId]);
 
   // Symbol search.
   useEffect(() => {
@@ -99,7 +124,7 @@ export default function Terminal() {
     return () => clearTimeout(t);
   }, [q, accountId]);
 
-  const pick = (s) => { setSymbol(s); setQ(""); setResults([]); };
+  const choose = (s) => { setSymbol(s); setQ(""); setResults([]); };
   const held = (view?.positions || []).find((p) => p.symbol === symbol)?.qty || 0;
 
   return (
@@ -112,16 +137,17 @@ export default function Terminal() {
         </select>
         <div className="relative">
           <Search className="pointer-events-none absolute left-2 top-1.5 h-4 w-4 text-slate-400" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && results[0]) pick(results[0].symbol); }}
-            placeholder="Symbol or company" className="w-56 rounded-md border border-slate-300 py-1 pl-7 pr-2 text-sm" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && results[0]) choose(results[0].symbol); }}
+            placeholder="Symbol, company or coin" className="w-56 rounded-md border border-slate-300 py-1 pl-7 pr-2 text-sm" />
           {results.length > 0 && (
             <div className="absolute z-20 mt-1 max-h-72 w-80 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
               {results.map((r) => (
                 <div key={r.symbol} className="flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-slate-50">
-                  <button type="button" className="flex-1 text-left" onClick={() => pick(r.symbol)}>
+                  <button type="button" className="flex-1 text-left" onClick={() => choose(r.symbol)}>
                     <span className="font-semibold">{r.symbol}</span> <span className="text-xs text-slate-500">{r.name}</span>
+                    {r.assetClass === "crypto" && <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] font-semibold text-amber-800">Crypto</span>}
                   </button>
-                  <button type="button" title="Add to watchlist" onClick={() => { setWatch((w) => cleanWatchlist([...w, r.symbol])); pick(r.symbol); }}>
+                  <button type="button" title="Add to watchlist" onClick={() => { setWatch((w) => cleanWatchlist([...w, r.symbol])); choose(r.symbol); }}>
                     <Plus className="h-4 w-4 text-slate-400 hover:text-emerald-600" />
                   </button>
                 </div>
@@ -129,8 +155,11 @@ export default function Terminal() {
             </div>
           )}
         </div>
-        <span className={`ml-auto text-xs ${status.state === "live" ? "text-emerald-700" : status.state === "error" ? "text-rose-700" : "text-slate-500"}`}>
-          {status.state === "live" ? "● Live · IEX feed" : status.state === "error" ? status.message : status.state === "reconnecting" ? "Reconnecting…" : "Connecting…"}
+        <span className={`ml-auto text-xs ${status.state === "live" && !feedTrouble ? "text-emerald-700" : status.state === "error" || feedTrouble ? "text-rose-700" : "text-slate-500"}`}>
+          {status.state === "error" ? status.message
+            : feedTrouble ? `${feedTrouble[0] === "crypto" ? "Crypto" : "Stock"} prices: ${feedTrouble[1].message}`
+              : status.state === "live" ? `● Live · ${[feeds.stocks?.state === "live" && "IEX", feeds.crypto?.state === "live" && "crypto"].filter(Boolean).join(" + ") || "connected"}`
+                : status.state === "reconnecting" ? "Reconnecting…" : "Connecting…"}
         </span>
       </div>
 
@@ -175,7 +204,7 @@ export default function Terminal() {
               {tab === "tape" && <TimeAndSales rows={tape} symbol={symbol} />}
               {tab === "positions" && <Positions positions={view?.positions || []} onPick={setSymbol} />}
               {tab === "orders" && <Orders accountId={accountId} orders={view?.orders || []} onChanged={loadView} />}
-              {tab === "depth" && <Depth accountId={accountId} symbol={symbol} />}
+              {tab === "depth" && <OrderBook accountId={accountId} symbol={symbol} quote={quote} listen={listen} onPick={(price) => setPick({ price, at: Date.now() })} />}
             </div>
           </div>
         </div>
@@ -187,8 +216,8 @@ export default function Terminal() {
               <span className="text-slate-500">Open</span><span className="text-right">{px(quote.open)}</span>
               <span className="text-slate-500">High</span><span className="text-right">{px(quote.high)}</span>
               <span className="text-slate-500">Low</span><span className="text-right">{px(quote.low)}</span>
-              <span className="text-slate-500">Prev close</span><span className="text-right">{px(quote.prevClose)}</span>
-              <span className="text-slate-500">Volume (IEX)</span><span className="text-right">{sizeText(quote.volume)}</span>
+              <span className="text-slate-500">{crypto ? "Prev day close (UTC)" : "Prev close"}</span><span className="text-right">{px(quote.prevClose)}</span>
+              <span className="text-slate-500">{crypto ? "Volume today (UTC)" : "Volume (IEX)"}</span><span className="text-right">{sizeText(quote.volume)}</span>
             </div>
             {view && (
               <div className="mt-2 grid grid-cols-2 gap-y-1 border-t border-slate-100 pt-2 tabular-nums">
@@ -198,9 +227,9 @@ export default function Terminal() {
             )}
           </div>
           <div className="rounded-lg border border-slate-200 bg-white p-3">
-            <OrderTicket account={account} symbol={symbol} quote={quote} held={held} buyingPower={view?.buyingPower ?? null} onPlaced={loadView} />
+            <OrderTicket account={account} symbol={symbol} quote={quote} held={held} buyingPower={view?.buyingPower ?? null} onPlaced={loadView} pick={pick} />
           </div>
-          <p className="px-1 text-[10px] leading-relaxed text-slate-400">Prices from your own Alpaca account's free IEX feed: real time, but IEX trades only. Charts by TradingView Lightweight Charts. Not investment advice.</p>
+          <p className="px-1 text-[10px] leading-relaxed text-slate-400">Prices from your own Alpaca account: shares from the free IEX feed (real time, IEX trades only); coins from Alpaca&apos;s crypto venue, around the clock, with the full order book. Charts by TradingView Lightweight Charts. Not investment advice.</p>
         </div>
       </div>
     </div>

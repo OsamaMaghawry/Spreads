@@ -92,7 +92,7 @@ incomplete.
 - **history** — RebuildPreview, StockLotsTable, StrategyTabs, TradeHistoryTable
 - **open** — CandidateList, OpenPositionDialog, OpenPricing, OrderSent, OrderWarnings, RestingOrder, ScanFilters, SetupPreview, StrategyPicker, TicketAnalysis, useLiveSetup, useOpenOrder, useScanLoop
 - **scanner** — ResultsTable, ScannerConfig, TradeDialog, useMarketScan
-- **terminal** — OrderTicket, Panels, PriceChart, useTerminalStream
+- **terminal** — OrderBook, OrderTicket, Panels, PriceChart, drawingLayer, useTerminalStream
 
 ## Recently shipped
 

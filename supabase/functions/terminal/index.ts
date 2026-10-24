@@ -126,6 +126,27 @@ async function book(account: any, symbol: string) {
   return { symbol, levels: true, bids: side(b.b), asks: side(b.a), at: b.t || null };
 }
 
+// The last trades, newest first, so time & sales opens with what already
+// happened rather than empty. It matters most for coins: Alpaca's crypto
+// venue is thin (on 24 Oct, BTC/USD about one trade every two minutes, ETH/USD
+// one every six), so a tape that waited for the stream could sit empty for
+// minutes. Each coin trade says who took it; a share's does not.
+async function trades(account: any, symbol: string) {
+  const crypto = isCrypto(symbol);
+  const start = new Date(Date.now() - (crypto ? 1 : 5) * 86400000).toISOString();
+  const r = await alpacaFetch(crypto
+    ? `${CRYPTO_DATA}/trades?symbols=${encodeURIComponent(symbol)}&start=${start}&limit=50&sort=desc`
+    : `${DATA}/stocks/${encodeURIComponent(symbol)}/trades?feed=${FEED}&start=${start}&limit=50&sort=desc`, account);
+  const list = crypto ? r?.trades?.[symbol] : r?.trades;
+  return {
+    symbol,
+    trades: (Array.isArray(list) ? list : []).map((t: any) => ({
+      price: num(t.p), size: num(t.s), at: t.t, id: t.i, exchange: t.x, conditions: t.c,
+      takerSide: t.tks === "B" ? "buy" : t.tks === "S" ? "sell" : undefined
+    }))
+  };
+}
+
 // Every tradable US share and coin, held for the life of this function
 // instance: the list is large and changes rarely, and search runs on every
 // keystroke. A coin carries its own minimum order and quantity and price
@@ -349,6 +370,10 @@ Deno.serve(async (req) => {
       return jsonResponse({ asset: await assetFor(account, symbol) });
     }
     if (action === "account") return jsonResponse(await accountView(account));
+    if (action === "trades") {
+      if (!TERMINAL_SYMBOL(symbol)) return jsonResponse({ error: "Choose a symbol." }, 400);
+      return jsonResponse(await trades(account, symbol));
+    }
     if (action === "book") {
       if (!TERMINAL_SYMBOL(symbol)) return jsonResponse({ error: "Choose a symbol." }, 400);
       return jsonResponse(await book(account, symbol));
