@@ -72,8 +72,10 @@ export default function Terminal() {
   const [pick, setPick] = useState(null);
   const [preset, setPreset] = useState(null);
   const [page, setPage] = useState(() => (store.get(PAGE_KEY) === "screen" ? "screen" : "trade"));
+  const pageRef = useRef(page);
   const [screenSeen, setScreenSeen] = useState(page === "screen");
   useEffect(() => { store.set(PAGE_KEY, page); if (page === "screen") setScreenSeen(true); }, [page]);
+  pageRef.current = page;
 
   // Order pop-ups: one per order (its key), replaced as the order moves.
   // Good news and quiet endings leave by themselves; a problem stays until
@@ -128,8 +130,10 @@ export default function Terminal() {
   quoteRef.current = quote;
 
   // The account's shares and orders, every few seconds while the tab is open.
+  // Not while the screener is up: nothing shows them there, and its first
+  // read of the market needs the account's request allowance.
   const loadView = useCallback(() => {
-    if (!accountId || document.visibilityState === "hidden") return;
+    if (!accountId || document.visibilityState === "hidden" || pageRef.current === "screen") return;
     invokeFunction("terminal", { action: "account", accountId }).then((r) => { if (!r?.data?.error) setView(r.data); });
   }, [accountId]);
   useEffect(() => {

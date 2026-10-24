@@ -18,7 +18,7 @@ const SCREEN_KEY = "dm.screener.v1";
 const DAILY_KEY = "dm.screener.daily.v1";
 const SHOW_MAX = 300;
 const DAILY_BATCH = 200;
-const DAILY_PARALLEL = 3;
+const DAILY_PARALLEL = 2;
 const AUTO_MS = 60000;
 const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -111,11 +111,13 @@ export default function Screener({ accountId, active, watch, onPick, onAdd }) {
     for (let i = 0; i < want.length; i += DAILY_BATCH) batches.push(want.slice(i, i + DAILY_BATCH));
     let failed = null;
     for (let i = 0; i < batches.length; i += DAILY_PARALLEL) {
+      // A batch refused (the broker's per-minute allowance, say) is tried
+      // once more after a pause.
+      const read = (symbols) => invokeFunction("terminal", { action: "screen", stage: "daily", accountId, symbols })
+        .then((r) => (r?.data?.stats && !r.data.error ? r.data.stats : Promise.reject(new Error(r?.data?.error || "No answer"))));
       const got = await Promise.all(batches.slice(i, i + DAILY_PARALLEL).map((symbols) =>
-        invokeFunction("terminal", { action: "screen", stage: "daily", accountId, symbols }).then((r) => {
-          if (r?.data?.error || !r?.data?.stats) { failed = r?.data?.error || "No answer"; return {}; }
-          return r.data.stats;
-        }).catch((e) => { failed = String(e?.message || e); return {}; })));
+        read(symbols).catch(() => new Promise((ok) => setTimeout(ok, 4000)).then(() => read(symbols)))
+          .catch((e) => { failed = String(e?.message || e); return {}; })));
       for (const stats of got) for (const [s, v] of Object.entries(stats)) dailyRef.current[s] = v;
       setDaily({ ...dailyRef.current });
       setProgress({ done: Object.keys(dailyRef.current).length, total, loading: true, error: null });
