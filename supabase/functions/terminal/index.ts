@@ -8,6 +8,7 @@ import { stockOrderBody, SYMBOL } from "../_shared/stockOrder.ts";
 import { cryptoOrderBody, cryptoSymbol, isCrypto, CRYPTO } from "../_shared/cryptoOrder.ts";
 import { redeemCronTicket } from "../_shared/cronTicket.ts";
 import { houseDataAccount } from "../_shared/marketData.ts";
+import { decryptSecret } from "../_shared/crypto.ts";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -245,16 +246,29 @@ const streamAuth = (a: any) =>
   a?.oauth_access_token ? { key: "oauth", secret: a.oauth_access_token }
     : a?.api_key && a?.api_secret ? { key: a.api_key, secret: a.api_secret } : null;
 
-async function selftest(admin: any) {
-  const house = await houseDataAccount(admin);
+// `only` runs one feed ("stocks" or "crypto"), to tell a per-feed connection
+// limit from one shared across feeds; `seconds` listens longer, for a thin
+// tape; `accountId` signs in with another account, when the house account's
+// one connection per feed is in use (a terminal open on it, say).
+async function selftest(admin: any, only = "", seconds = 8, accountId = "") {
+  let house = await houseDataAccount(admin);
+  if (accountId) {
+    const { data } = await admin.from("trading_accounts").select("*").eq("id", accountId).maybeSingle();
+    house = data && {
+      ...data,
+      api_key: await decryptSecret(data.api_key), api_secret: await decryptSecret(data.api_secret),
+      oauth_access_token: await decryptSecret(data.oauth_access_token)
+    };
+  }
   const auth = streamAuth(house);
-  if (!auth) return { error: "The house data account has no way to sign in to the streams." };
-  const coins = ["BTC/USD", "ETH/USD"];
+  if (!auth) return { error: "That account has no way to sign in to the streams." };
+  const coins = ["BTC/USD", "ETH/USD", "SOL/USD", "DOGE/USD", "LTC/USD"];
+  const listen = Math.min(60, Math.max(3, Number(seconds) || 8));
   const [crypto, stocks, coinAssets] = await Promise.all([
-    feedCheck("wss://stream.data.alpaca.markets/v1beta3/crypto/us", auth,
-      { trades: coins, quotes: coins, bars: coins, orderbooks: ["BTC/USD"] }, 8),
-    feedCheck(`wss://stream.data.alpaca.markets/v2/${FEED}`, auth,
-      { trades: ["SPY", "AAPL"], quotes: ["SPY", "AAPL"], orderbooks: ["AAPL"] }, 8),
+    only === "stocks" ? null : feedCheck("wss://stream.data.alpaca.markets/v1beta3/crypto/us", auth,
+      { trades: coins, quotes: coins, bars: coins, orderbooks: ["BTC/USD"] }, listen),
+    only === "crypto" ? null : feedCheck(`wss://stream.data.alpaca.markets/v2/${FEED}`, auth,
+      { trades: ["SPY", "AAPL"], quotes: ["SPY", "AAPL"], orderbooks: ["AAPL"] }, listen),
     alpacaFetch(`${tradingBase(house)}/assets?status=active&asset_class=crypto`, house).catch((e: Error) => ({ error: e.message }))
   ]);
   const sample = Array.isArray(coinAssets)
@@ -309,7 +323,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     if (body?.action === "selftest") {
       if (!(await redeemCronTicket(admin, body.ticket, "terminal_selftest"))) return jsonResponse({ error: "not authorised" }, 401);
-      const report = await selftest(admin);
+      const report = await selftest(admin, String(body.only || ""), Number(body.seconds) || 8, String(body.accountId || ""));
       console.log(`terminal selftest: ${JSON.stringify(report)}`);
       return jsonResponse(report);
     }
