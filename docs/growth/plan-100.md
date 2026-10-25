@@ -34,6 +34,16 @@ Until all three, every number below is a plan, not a forecast.
 Benchmark rates, to be replaced by measured ones by week three of the
 switch. The arithmetic is shown so the replacement is one edit.
 
+**Status as of 14 Sep 2026 (vp-growth, weekly check):** no rate below is
+replaced this week. Every daily snapshot in `docs/growth/metrics/` since
+tracking began (3–13 Sep) reads `signedUpLast7: 0` — zero new signups in
+any 7-day window measured so far. The funnel's `signedUp: 4, connected: 4,
+tradedLive: 2` is a static base that predates measurable growth activity,
+not a rate in motion; dividing it out would produce a number, not a
+measurement. `search` (Search Console) and `analytics` (GA4) both still
+read "not configured" in every snapshot, so the visitor stage has no data
+at all. Revisit next Monday against whatever that week's snapshots add.
+
 | Step | Rate (benchmark) | Needed |
 | --- | --- | --- |
 | Paying (Live, active) | — | **100** |
