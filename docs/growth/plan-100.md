@@ -41,6 +41,23 @@ switch. The arithmetic is shown so the replacement is one edit.
 | ← Signups connecting a live account | 25 % (the rest stay on paper, at least at first) | **~2,700 signups** |
 | ← Visitors signing up | 3 % (intent-matched educational traffic) | **~90,000 visitors** over 17 weeks ≈ **5,300 a week** ≈ **760 a day** |
 
+**Status, 2026-09-28 (vp-growth, weekly revision):** no benchmark above is
+replaced this week. `docs/growth/metrics/` (on `main`) shows the funnel has
+been `signedUp: 4` with **zero new signups every single day from 2026-09-08
+through 2026-09-28** — three straight weeks flat, across the same window
+`content/blog/` grew from a handful of posts to 20 live articles. A rate
+computed on n=4 total signups (ever) would have a confidence interval wide
+enough to be meaningless, so none is substituted for the 15 %/25 %/3 %
+benchmarks yet — doing so would read as more certain than it is. The rates
+stay as written until signup volume is large enough to measure anything.
+The reason the top of the chain (visitors → signups) can't even be
+diagnosed: Search Console and GA4 both still read "not configured" in every
+metrics snapshot to date — the credential ticket for it
+(`docs/ops/queue.md`, 2026-09-02) has been open 26 days, so there is no
+visitor count to divide the 4 signups by. See this week's play,
+`growth/plays/2026-W40.md`, for the reply-queue backlog worked this run and
+this funnel-stall finding in its appendix.
+
 Two levers change this by more than any channel does:
 
 - **Signup → live**: if the product's own paper experience pushes the rate
