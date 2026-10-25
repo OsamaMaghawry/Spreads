@@ -16,7 +16,7 @@
 // Pure and tested (replay.test.js); components/terminal/PriceChart.jsx
 // fetches the candles (functions/terminal "replay") and drives it.
 
-import { bucketStart, nyClock, nyMidnight } from "./terminal.js";
+import { bucketStart, nyClock, nyMidnight, px } from "./terminal.js";
 
 const SPAN = { "1Hour": 60, "2Hour": 120, "4Hour": 240 };
 const STEP = { "1Min": 60, "2Min": 120, "3Min": 180, "5Min": 300, "10Min": 600, "15Min": 900, "30Min": 1800, "1Hour": 3600, "2Hour": 7200, "4Hour": 14400 };
@@ -24,6 +24,7 @@ const CALENDAR = new Set(["1Day", "1Week", "1Month"]);
 export const REPLAY_INTERVALS = [...Object.keys(STEP), ...CALENDAR];
 const OPEN = 570;
 const CLOSE = 960;
+const HALF = 1800;
 
 /** Whether a minute is in the regular US share session (9:30 to 16:00 New York, weekdays). */
 export function inSession(t) {
@@ -79,10 +80,15 @@ export function countBefore(list, t) {
  * before it, and nothing after. `regular`: a share's chart in regular hours.
  * Daily candles are regular-hours candles, as the broker's are.
  */
-export function replayCandles({ minutes = [], days = [] }, interval, cursor, { crypto = false, regular = false } = {}) {
+export function replayCandles({ minutes = [], days = [], context = [] }, interval, cursor, { crypto = false, regular = false } = {}) {
   const shown = minutes.slice(0, countBefore(minutes, cursor));
   if (!CALENDAR.has(interval)) {
-    const src = crypto || !regular ? shown : shown.filter((m) => inSession(m.time));
+    // Half-hour and longer charts reach further back than the minutes do,
+    // through the half-hour candles before the first minute.
+    const edge = Math.min(minutes[0]?.time ?? cursor, cursor);
+    const before = STEP[interval] >= HALF ? context.slice(0, countBefore(context, edge - HALF + 1)) : [];
+    const all = before.length ? [...before, ...shown] : shown;
+    const src = crypto || !regular ? all : all.filter((m) => inSession(m.time));
     return aggregate(src, (m) => bucketOf(m.time, interval, crypto, regular));
   }
   const today = dayOf(cursor - 1, crypto);
@@ -97,6 +103,19 @@ export function replayCandles({ minutes = [], days = [] }, interval, cursor, { c
   const daily = partial ? [...finished, partial] : finished;
   if (interval === "1Day") return daily;
   return aggregate(daily, (d) => bucketStart(d.time, interval, crypto));
+}
+
+/**
+ * Minutes older than `keepFrom` let go, kept as half-hour candles (the
+ * context), so the longer intraday charts keep their history as the replay
+ * runs on. New York is a whole number of hours from UTC, so a half hour in
+ * UTC is a half hour on the New York clock too.
+ */
+export function rollMinutes({ minutes = [], context = [], ...rest }, keepFrom) {
+  const edge = Math.floor(keepFrom / HALF) * HALF;
+  const n = countBefore(minutes, edge);
+  if (!n) return { minutes, context, ...rest };
+  return { ...rest, minutes: minutes.slice(n), context: [...context, ...aggregate(minutes.slice(0, n), (m) => Math.floor(m.time / HALF) * HALF)] };
 }
 
 /**
@@ -130,17 +149,20 @@ export function nextCursor({ minutes = [], days = [] }, unit, cursor, { crypto =
 
 export const PRACTICE_CASH = 100000;
 
-export const newPractice = () => ({ cash: PRACTICE_CASH, qty: 0, avg: 0, realized: 0, trades: [], stops: [] });
+export const newPractice = () => ({ cash: PRACTICE_CASH, qty: 0, avg: 0, realized: 0, trades: [], stop: null, target: null });
 
 /**
  * A practice fill: buying adds to a long or covers a short, selling the
  * reverse; profit is realized on the part that closes, at the average price.
+ * The stop and the target belong to the position: they go when it is closed
+ * or turned the other way round.
  */
 export function practiceFill(acct, { side, qty, price, time, why = "" }) {
   const n = Number(qty);
   if (!(n > 0) || !(price > 0)) return acct;
   const signed = side === "buy" ? n : -n;
   let { qty: q, avg, realized } = acct;
+  const before = Math.sign(q);
   if (q === 0 || Math.sign(q) === Math.sign(signed)) {
     avg = (avg * Math.abs(q) + price * n) / (Math.abs(q) + n);
     q += signed;
@@ -150,11 +172,11 @@ export function practiceFill(acct, { side, qty, price, time, why = "" }) {
     q += signed;
     if (Math.abs(q) < 1e-9) { q = 0; avg = 0; } else if (Math.sign(q) === Math.sign(signed)) avg = price;
   }
+  const keep = q !== 0 && Math.sign(q) === before;
   return {
     ...acct, qty: q, avg, realized, cash: acct.cash - signed * price,
     trades: [...acct.trades, { side, qty: n, price, time, why }],
-    // A stop is for the position it protects: gone with it.
-    stops: q === 0 ? [] : acct.stops
+    stop: keep ? acct.stop : null, target: keep ? acct.target : null
   };
 }
 
@@ -165,30 +187,50 @@ export function practiceValue(acct, price) {
 }
 
 /**
- * Practice stops against the minutes just revealed: a long's stop fills when
- * the low reaches it, at the stop or the minute's open if it opened through it
- * (a gap); a short's on the high, the same way.
+ * The practice stop and target against the minutes just revealed, minute by
+ * minute, each for the whole position whatever its size by then; one cancels
+ * the other. A long's stop fills when the low reaches it, at the stop or at
+ * the minute's open if it opened through it (a gap); its target when the
+ * high reaches it, at the target or the better open. A short the other way
+ * round. Both inside one minute: the stop, the cautious reading.
+ * `regularOnly`: a share's, which the broker's stop and limit orders only
+ * act on in regular hours, so a gap overnight fills at the next open.
  */
-export function triggerStops(acct, revealed) {
+export function triggerExits(acct, revealed, { regularOnly = false } = {}) {
   let a = acct;
   for (const m of revealed) {
-    if (!a.stops.length) break;
-    for (const s of a.stops) {
-      const hit = s.side === "sell" ? m.low <= s.stopPrice : m.high >= s.stopPrice;
-      if (!hit) continue;
-      const price = s.side === "sell" ? Math.min(s.stopPrice, m.open) : Math.max(s.stopPrice, m.open);
-      a = practiceFill({ ...a, stops: a.stops.filter((x) => x !== s) }, { side: s.side, qty: Math.min(s.qty, Math.abs(a.qty)), price, time: m.time, why: "stop" });
-      break;
-    }
+    if (!a.qty || (!a.stop && !a.target)) break;
+    if (regularOnly && !inSession(m.time)) continue;
+    const long = a.qty > 0;
+    const stopHit = a.stop && (long ? m.low <= a.stop : m.high >= a.stop);
+    const targetHit = a.target && (long ? m.high >= a.target : m.low <= a.target);
+    if (!stopHit && !targetHit) continue;
+    // A gap through the target at the open fills there, better than asked.
+    const gapTarget = targetHit && (long ? m.open >= a.target : m.open <= a.target);
+    const byStop = stopHit && !gapTarget;
+    const price = byStop
+      ? (long ? Math.min(a.stop, m.open) : Math.max(a.stop, m.open))
+      : (long ? Math.max(a.target, m.open) : Math.min(a.target, m.open));
+    a = practiceFill(a, { side: long ? "sell" : "buy", qty: Math.abs(a.qty), price, time: m.time, why: byStop ? "stop" : "target" });
   }
   return a;
 }
 
-/** A practice stop for the whole position, replacing any before it. */
-export function practiceStop(acct, stopPrice) {
+/**
+ * Set or clear the practice stop or target (null clears). A stop must sit on
+ * the losing side of the price and a target on the winning side, or it would
+ * fill at once.
+ */
+export function practiceExit(acct, kind, price, last) {
   if (!acct.qty) return { acct, reason: "No practice position to protect." };
-  const side = acct.qty > 0 ? "sell" : "buy";
-  return { acct: { ...acct, stops: [{ side, qty: Math.abs(acct.qty), stopPrice }] } };
+  if (price === null) return { acct: { ...acct, [kind]: null } };
+  if (!(price > 0)) return { acct, reason: "Enter a price." };
+  const long = acct.qty > 0;
+  const below = kind === "stop" ? long : !long;
+  if (last && (below ? price >= last : price <= last)) {
+    return { acct, reason: `A ${kind === "stop" ? "stop" : "take-profit"} at ${px(price)} for a ${long ? "long" : "short"} must be ${below ? "below" : "above"} the price ${px(last)}, or it fills at once.` };
+  }
+  return { acct: { ...acct, [kind]: price } };
 }
 
 /** "Thu, Mar 5, 2026, 10:42" in New York time, for the replay bar. */

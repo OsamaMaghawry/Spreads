@@ -38,16 +38,17 @@ test("a saved list, checked: defaults filled, nonsense and duplicates dropped", 
   assert.equal(out[1].percent, 100);
   assert.deepEqual([out[2].stopMode, out[2].stopValue, out[2].from], ["pct", 2, "last"]);
   assert.equal(cleanHotkeys(null).length, 0);
-  assert.equal(suggestedHotkeys().length, 6);
+  assert.equal(suggestedHotkeys().length, 7);
 });
 
 test("each hotkey in words", () => {
-  const [b, s, f, h, l, x] = suggestedHotkeys();
+  const [b, s, f, h, l, t, x] = suggestedHotkeys();
   assert.equal(describe(b), "Buy $1,000, limit at the ask");
   assert.equal(describe(s), "Sell $1,000, limit at the bid");
   assert.equal(describe(f), "Exit the whole position");
   assert.equal(describe(h), "Exit 50% of the position");
   assert.match(describe(l), /^Stop 2% from the last price/);
+  assert.match(describe(t), /^Take profit 4% from the last price.*one cancels the other/);
   assert.equal(describe(x), "Cancel this symbol's orders");
   assert.equal(describe({ action: "buy", size: "equity", amount: 5, price: "market" }), "Buy 5% of portfolio, at market");
 });

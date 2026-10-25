@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { usSession, stopPlan, stopsToReplace, exitPlan, tradeSize, partialQty } from "./positionTools.ts";
+import { usSession, stopPlan, stopsToReplace, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody } from "./positionTools.ts";
 
 const long = { qty: 100, side: "long" as const, avgPrice: 340, last: 350 };
 const short = { qty: -50, side: "short" as const, avgPrice: 360, last: 350 };
@@ -108,4 +108,36 @@ test("partial exits are slices of the trade, and the presses add up to all of it
   assert.ok(Math.abs(eth.reduce((a, b) => a + b, 0) - 0.424095931) < 1e-9);
   assert.deepEqual(partialQty(10, 100, 50, { whole: true }), { qty: 10, all: true });
   assert.deepEqual(partialQty(80, 100, 100), { qty: 80, all: true });
+});
+
+test("a target for a long sits above, for a short below; refused on the wrong side", () => {
+  const a = targetPlan(long, { mode: "pct", value: 3 }) as any;
+  assert.deepEqual([a.side, a.qty, a.targetPrice], ["sell", 100, 360.5]);
+  assert.equal((targetPlan(long, { mode: "usd", value: 20, from: "entry" }) as any).targetPrice, 360);
+  assert.equal((targetPlan(short, { mode: "pct", value: 2 }) as any).targetPrice, 343);
+  assert.match((targetPlan(long, { mode: "price", value: 349 }) as any).reason, /below the last price 350: it would fill at once/);
+  assert.match((targetPlan({ ...long, qty: 0 }, { mode: "pct", value: 2 }) as any).reason, /No position/);
+});
+
+test("the exits already working: a stop, a limit, a one-cancels-other pair; an entry's bracket left alone", () => {
+  const orders = [
+    { id: "s", side: "sell", type: "stop", stop_price: "340" },
+    { id: "l", side: "sell", type: "limit", limit_price: "365" },
+    { id: "b", side: "buy", type: "stop", stop_price: "1" },
+    { id: "e", side: "sell", type: "limit", limit_price: "999", legs: [{ type: "stop" }], order_class: "bracket" }
+  ];
+  assert.deepEqual(existingExits(orders, "sell"), { stop: 340, target: 365, ids: ["s", "l"] });
+  const oco = [{ id: "o", side: "sell", type: "limit", order_class: "oco", limit_price: "370", legs: [{ type: "stop", stop_price: "335" }] }];
+  assert.deepEqual(existingExits(oco, "sell"), { stop: 335, target: 370, ids: ["o"] });
+});
+
+test("one order carries the exits: a pair for whole shares, a limit alone; coins and part shares one at a time", () => {
+  const pair = exitBody("AAPL", "sell", 100, { stop: 340, target: 365 }, "T") as any;
+  assert.deepEqual(pair.body, { symbol: "AAPL", side: "sell", qty: "100", type: "limit", time_in_force: "gtc", order_class: "oco", client_order_id: "T", take_profit: { limit_price: "365.00" }, stop_loss: { stop_price: "340.00" } });
+  const alone = exitBody("AAPL", "sell", 2.5, { stop: null, target: 365 }, "T") as any;
+  assert.deepEqual([alone.body.type, alone.body.limit_price, alone.body.time_in_force, alone.body.order_class], ["limit", "365.00", "day", undefined]);
+  assert.match((exitBody("ETH/USD", "sell", 0.1, { stop: 2000, target: 2600 }, "T", { crypto: true }) as any).reason, /one exit order at a time/);
+  assert.match((exitBody("AAPL", "sell", 2.5, { stop: 340, target: 365 }, "T") as any).reason, /part of a share/);
+  const coin = exitBody("ETH/USD", "sell", 0.1, { stop: null, target: 2600 }, "T", { crypto: true, qtyText: "0.100000000" }) as any;
+  assert.deepEqual([coin.body.qty, coin.body.time_in_force], ["0.100000000", "gtc"]);
 });

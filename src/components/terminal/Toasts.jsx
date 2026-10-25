@@ -6,7 +6,8 @@ import { CheckCircle2, Loader2, XCircle, X } from "lucide-react";
 // a problem." One card per order, top centre, replaced in place as the order
 // moves (sending, placed, filled), so there is one line to read, never a
 // stack of repeats. Good news goes by itself after a few seconds; a problem
-// stays until closed.
+// stays until closed. During a replay they sit at the foot of the screen
+// (`low`), clear of the replay bar's controls at the top of the chart.
 
 const STYLE = {
   ok: { box: "border-emerald-300 bg-emerald-50 text-emerald-950", Icon: CheckCircle2, icon: "text-emerald-600" },
@@ -15,10 +16,10 @@ const STYLE = {
   bad: { box: "border-rose-300 bg-rose-50 text-rose-950", Icon: XCircle, icon: "text-rose-600" }
 };
 
-export default function Toasts({ toasts, onClose }) {
+export default function Toasts({ toasts, onClose, low = false }) {
   if (!toasts.length) return null;
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-16 z-[100] flex flex-col items-center gap-2 px-4">
+    <div className={`pointer-events-none fixed inset-x-0 z-[100] flex flex-col items-center gap-2 px-4 ${low ? "bottom-4" : "top-16"}`}>
       {toasts.map((t) => {
         const s = STYLE[t.tone] || STYLE.wait;
         return (

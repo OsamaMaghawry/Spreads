@@ -283,7 +283,7 @@ export default function Terminal() {
 
   return (
     <div className="flex flex-col gap-2 text-slate-800">
-      <Toasts toasts={toasts} onClose={closeToast} />
+      <Toasts toasts={toasts} onClose={closeToast} low={replaying} />
       <HotkeysDialog open={hotkeysOpen} hotkeys={hotkeys} armed={hotkeysOn} onArm={armHotkeys} onSave={saveHotkeys} onClose={() => setHotkeysOpen(false)} />
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="mr-2 text-lg font-semibold">Terminal</h1>
@@ -462,6 +462,11 @@ export default function Terminal() {
                 </div>
               )}
             </div>
+            {replaying && (
+              <p className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] leading-snug text-amber-900">
+                This ticket sends real orders to your paper account, at today&apos;s prices; the replay does not see them. To practice in the replay, use the replay bar above the chart or your hotkeys.
+              </p>
+            )}
             <OrderTicket account={account} symbol={symbol} quote={quote} held={held} heldText={held > 0 && position?.qtyText ? position.qtyText : ""}
               buyingPower={view?.buyingPower ?? null} onPlaced={loadView} pick={pick} preset={preset} onNotify={notify} />
             <p className="px-1 text-[10px] leading-relaxed text-slate-400">Prices from your own Alpaca account: shares from the free IEX feed (real time, IEX trades only); coins from Alpaca&apos;s crypto venue, around the clock, with the full order book. Charts by TradingView Lightweight Charts. Not investment advice.</p>

@@ -71,6 +71,85 @@ export function stopPlan(position: Position, input: StopInput, crypto = false):
   };
 }
 
+/**
+ * A take-profit for a whole position: above the price for a long (it sells
+ * there), below for a short. The mirror of stopPlan.
+ */
+export function targetPlan(position: Position, input: StopInput):
+  { ok: true; side: "buy" | "sell"; qty: number; targetPrice: number } | { ok: false; reason: string } {
+  const qty = Math.abs(num(position?.qty) || 0);
+  if (!(qty > 0)) return { ok: false, reason: "No position to take profit on." };
+  const long = position.side !== "short" && position.qty > 0;
+  const last = num(position.last);
+  const ref = input.from === "entry" ? num(position.avgPrice) : last;
+  const value = num(input.value);
+  if (value === null || !(value > 0)) return { ok: false, reason: "Set how far the target sits." };
+  if (input.mode !== "price" && !(ref && ref > 0)) return { ok: false, reason: "No price to measure the target from." };
+  let target: number;
+  if (input.mode === "price") target = value;
+  else if (input.mode === "pct") target = long ? ref! * (1 + value / 100) : ref! * (1 - value / 100);
+  else target = long ? ref! + value : ref! - value;
+  target = round(target);
+  if (!(target > 0)) return { ok: false, reason: "That target works out at or below zero." };
+  if (last && (long ? target <= last : target >= last)) {
+    return { ok: false, reason: `A target at ${target} is ${long ? "below" : "above"} the last price ${last}: it would fill at once.` };
+  }
+  return { ok: true, side: long ? "sell" : "buy", qty, targetPrice: target };
+}
+
+/**
+ * The exit orders already working on a position's closing side: its stop
+ * (a stop, stop-limit or trailing stop, or the stop of a one-cancels-other
+ * pair), its target (a limit, or the pair's limit), and the orders to cancel
+ * to replace them.
+ */
+export function existingExits(orders: any[], closingSide: "buy" | "sell") {
+  let stop: number | null = null;
+  let target: number | null = null;
+  const ids: string[] = [];
+  for (const o of Array.isArray(orders) ? orders : []) {
+    if (o?.side !== closingSide) continue;
+    if (o.order_class === "oco") {
+      ids.push(o.id);
+      target = num(o.limit_price) ?? target;
+      const leg = (o.legs || []).find((l: any) => ["stop", "stop_limit"].includes(l?.type));
+      stop = num(leg?.stop_price) ?? stop;
+      continue;
+    }
+    if (o.legs?.length) continue; // an entry's bracket: its own business
+    if (["stop", "stop_limit", "trailing_stop"].includes(o.type)) { ids.push(o.id); stop = num(o.stop_price) ?? stop; }
+    else if (o.type === "limit") { ids.push(o.id); target = num(o.limit_price) ?? target; }
+  }
+  return { stop, target, ids };
+}
+
+/**
+ * The one order that carries a position's exits: a stop alone, a target
+ * alone (a limit), or both as Alpaca's one-cancels-other pair, so whichever
+ * fills first cancels the other and the shares are never sold twice. A coin
+ * or part of a share takes one exit order at a time (Alpaca pairs whole
+ * shares only).
+ */
+export function exitBody(symbol: string, side: "buy" | "sell", qty: number, exits: { stop: number | null; target: number | null }, clientId: string, opts: { crypto?: boolean; qtyText?: string } = {}):
+  { ok: true; body: Record<string, unknown> } | { ok: false; reason: string } {
+  const { stop, target } = exits;
+  const whole = Number.isInteger(qty);
+  const fmt = (v: number) => (v >= 1 ? v.toFixed(2) : v.toFixed(4));
+  const amount = opts.qtyText || String(qty);
+  if (stop && target) {
+    if (opts.crypto) return { ok: false, reason: "A coin takes one exit order at a time at Alpaca: a stop or a target, not both. Clear one first." };
+    if (!whole) return { ok: false, reason: "With part of a share, Alpaca takes one exit order at a time: a stop or a target, not both." };
+    return {
+      ok: true,
+      body: { symbol, side, qty: String(qty), type: "limit", time_in_force: "gtc", order_class: "oco", client_order_id: clientId, take_profit: { limit_price: fmt(target) }, stop_loss: { stop_price: fmt(stop) } }
+    };
+  }
+  if (target) {
+    return { ok: true, body: { symbol, side, qty: amount, type: "limit", limit_price: fmt(target), time_in_force: opts.crypto || whole ? "gtc" : "day", client_order_id: clientId } };
+  }
+  return { ok: false, reason: "Nothing to place." };
+}
+
 /** The orders on a symbol a new stop replaces: stops of any kind on the closing side. */
 export function stopsToReplace(orders: any[], closingSide: "buy" | "sell") {
   return (Array.isArray(orders) ? orders : []).filter((o) => o?.side === closingSide && ["stop", "stop_limit", "trailing_stop"].includes(o?.type) && !o?.legs?.length);

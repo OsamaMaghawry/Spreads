@@ -14,7 +14,7 @@ import { sessionCandles } from "../_shared/sessionBars.ts";
 import { currentReports } from "../_shared/earnings.ts";
 import { secReports, withFigures, earningsTimeline, cikMap } from "../_shared/earningsHistory.ts";
 import { dailyStats, isFundName } from "../_shared/screenStats.ts";
-import { usSession, stopPlan, stopsToReplace, exitPlan, tradeSize, partialQty } from "../_shared/positionTools.ts";
+import { usSession, stopPlan, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody } from "../_shared/positionTools.ts";
 import { inBackground } from "../_shared/background.ts";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
@@ -839,7 +839,8 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     const sym = extra[0] || "AAPL";
     const from = extra[1] || "2026-03-02T00:00:00Z";
     const out: Record<string, any> = {};
-    for (const [tf, f, t] of [["1Min", new Date(Date.parse(from) - 30 * 86400000).toISOString(), new Date(Date.parse(from) + 5 * 86400000).toISOString()], ["1Day", new Date(Date.parse(from) - 730 * 86400000).toISOString(), new Date(Date.parse(from) + 60 * 86400000).toISOString()]]) {
+    const at = (days: number) => new Date(Date.parse(from) + days * 86400000).toISOString();
+    for (const [tf, f, t] of [["1Min", at(-30), at(5)], ["30Min", at(-30 - (isCrypto(sym) ? 180 : 365)), at(-30)], ["1Day", at(-3650), at(60)]]) {
       const t0 = Date.now();
       const r: any = await replayData(house, sym, tf, f, t);
       out[tf] = r.error ? r : { ms: Date.now() - t0, feed: r.feed, n: r.bars.length, first: r.bars[0] && iso(r.bars[0].time * 1000), last: r.bars.at(-1) && iso(r.bars.at(-1).time * 1000), lastClose: r.bars.at(-1)?.close };
@@ -958,17 +959,29 @@ async function placeOrder(admin: any, user: any, account: any, input: any) {
 // ones (src/lib/replay.js), so it reads just those two, in the ranges it asks
 // for. Shares come from the consolidated tape: history older than fifteen
 // minutes is open to an account without a paid data plan, and it is the same
-// tape every interval is drawn from.
+// tape every interval is drawn from. Half-hour candles reach the hourly
+// charts further back than the minutes ("when i change the time frames.
+// everything thing looks normal during the replay mode so i can have a look
+// on the bigger pic", 25 Oct), and the daily candles go back ten years.
 
-const REPLAY_MAX_DAYS: Record<string, number> = { "1Min": 45, "1Day": 1100 };
+const REPLAY_MAX_DAYS: Record<string, number> = { "1Min": 45, "30Min": 370, "1Day": 3700 };
+const REPLAY_NAMES: Record<string, string> = { "1Min": "one-minute", "30Min": "half-hour", "1Day": "daily" };
 
 async function replayData(account: any, symbol: string, tf: string, from: string, to: string) {
-  if (!REPLAY_MAX_DAYS[tf]) return { error: "Replay reads one-minute or daily candles." };
+  if (!REPLAY_MAX_DAYS[tf]) return { error: "Replay reads one-minute, half-hour or daily candles." };
   const crypto = isCrypto(symbol);
   const start = Date.parse(from);
   const end = Math.min(Date.parse(to), Date.now() - 16 * 60000);
   if (!Number.isFinite(start) || !Number.isFinite(end) || !(start < end)) return { symbol, tf, bars: [] };
-  if (end - start > REPLAY_MAX_DAYS[tf] * 86400000) return { error: `At most ${REPLAY_MAX_DAYS[tf]} days of ${tf === "1Min" ? "one-minute" : "daily"} candles at a time.` };
+  if (end - start > REPLAY_MAX_DAYS[tf] * 86400000) return { error: `At most ${REPLAY_MAX_DAYS[tf]} days of ${REPLAY_NAMES[tf]} candles at a time.` };
+  if (crypto && tf === "1Day") {
+    // Daily candles are not held to a week a page: one request, newest first,
+    // so a shortfall is at the old end.
+    const list = await allPages(account,
+      `${CRYPTO_DATA}/bars?symbols=${encodeURIComponent(symbol)}&timeframe=1Day&start=${iso(start)}&end=${iso(end)}&limit=10000&sort=desc`,
+      (page) => page?.bars?.[symbol], 12);
+    return { symbol, tf, feed: "crypto", bars: list.map(candle).reverse() };
+  }
   if (crypto) {
     // A coin's history comes a week per page: read the weeks together.
     const windows: [number, number][] = [];
@@ -1051,28 +1064,64 @@ async function stopBody(account: any, symbol: string, plan: any, qtyText: string
   return stockOrderBody({ symbol, side: plan.side, qty: plan.qty, type: "stop", stopPrice: plan.stopPrice, timeInForce: plan.timeInForce }, `TERM_${Date.now()}`);
 }
 
+// A stop or a take-profit for the whole position (kind "stop" or "target"),
+// kept together with the other one if it is already working: both go as one
+// one-cancels-other order (positionTools.ts exitBody), since two separate
+// orders could not both hold the same shares at the broker.
 async function protect(admin: any, user: any, account: any, input: any) {
   const symbol = cryptoSymbol(String(input?.symbol || "").toUpperCase());
   const crypto = isCrypto(symbol);
+  const kind = input.kind === "target" ? "target" : "stop";
   const [pos, open] = await Promise.all([positionOf(account, symbol), openOrdersFor(account, symbol)]);
-  if (!pos) return { status: 400, body: { error: `No ${symbol} position to protect.` } };
-  const plan = stopPlan(pos, { mode: input.mode, value: Number(input.value), from: input.from === "entry" ? "entry" : "last" }, crypto);
-  if (!plan.ok) return { status: 400, body: { error: plan.reason } };
-  const old = stopsToReplace(open, plan.side);
-  if (!(await cancelAndWait(account, symbol, old.map((o: any) => o.id)))) {
-    return { status: 409, body: { error: "The old stop is still being cancelled; press again in a moment." } };
+  if (!pos) return { status: 400, body: { error: `No ${symbol} position to ${kind === "stop" ? "protect" : "take profit on"}.` } };
+  const closing = pos.side === "short" ? "buy" : "sell";
+  const have = existingExits(open, closing);
+  const measure = { mode: input.mode, value: Number(input.value), from: input.from === "entry" ? "entry" as const : "last" as const };
+  let stop = have.stop;
+  let target = have.target;
+  let note: string | null = null;
+  if (kind === "stop") {
+    const plan = stopPlan(pos, measure, crypto);
+    if (!plan.ok) return { status: 400, body: { error: plan.reason } };
+    stop = plan.stopPrice;
+    note = plan.note;
+  } else {
+    const plan = targetPlan(pos, measure);
+    if (!plan.ok) return { status: 400, body: { error: plan.reason } };
+    target = plan.targetPrice;
   }
-  // What is free to cover: read again only if a stop was just released.
-  const now = old.length ? await positionOf(account, symbol) : pos;
-  if (!now || now.available + 1e-9 < plan.qty) {
-    const held = now ? plan.qty - now.available : plan.qty;
-    return { status: 409, body: { error: `${held} of ${plan.qty} are held by other working orders on ${symbol} (a limit to sell, say). Cancel them first, or exit.` } };
+  // Checked before anything is cancelled, so a refusal leaves the old exits working.
+  const held = Math.abs(pos.qty);
+  if (stop && target) {
+    const check = exitBody(symbol, closing, held, { stop, target }, "check", { crypto });
+    if (!check.ok) return { status: 400, body: { error: check.reason } };
   }
-  const built = await stopBody(account, symbol, plan, now.qtyText, now.available);
+  if (!(await cancelAndWait(account, symbol, have.ids))) {
+    return { status: 409, body: { error: "The old exit is still being cancelled; press again in a moment." } };
+  }
+  // What is free to cover: read again only if an exit was just released.
+  const now = have.ids.length ? await positionOf(account, symbol) : pos;
+  if (!now || now.available + 1e-9 < held) {
+    const busy = now ? held - now.available : held;
+    return { status: 409, body: { error: `${busy} of ${held} are held by other working orders on ${symbol}. Cancel them first, or exit.` } };
+  }
+  let built;
+  let limitPrice: number | null = null;
+  if (stop && !target) {
+    const plan = stopPlan(now, { mode: "price", value: stop }, crypto);
+    if (!plan.ok) return { status: 400, body: { error: plan.reason } };
+    limitPrice = plan.limitPrice;
+    built = await stopBody(account, symbol, plan, now.qtyText, now.available);
+  } else {
+    built = exitBody(symbol, closing, held, { stop, target }, `TERM_${Date.now()}`, { crypto, qtyText: now.qtyText });
+  }
   if (!built.ok) return { status: 400, body: { error: built.reason } };
   const sent = await sendBody(admin, user, account, "protect", built.body);
   if (sent.error) return { status: 422, body: { error: sent.error } };
-  return { status: 200, body: { orderId: sent.order.id, status: sent.order.status, stopPrice: plan.stopPrice, limitPrice: plan.limitPrice, qty: plan.qty, side: plan.side, replaced: old.length, note: plan.note } };
+  return {
+    status: 200,
+    body: { orderId: sent.order.id, status: sent.order.status, kind, stopPrice: stop, targetPrice: target, limitPrice, qty: held, side: closing, replaced: have.ids.length, paired: !!(stop && target), note }
+  };
 }
 
 async function exitPosition(admin: any, user: any, account: any, input: any) {
@@ -1103,7 +1152,7 @@ async function exitPosition(admin: any, user: any, account: any, input: any) {
   // exit hands the old stop's price back, for the browser to put the stop
   // back on what remains once the exit has filled.
   const closing = pos.side === "short" ? "buy" : "sell";
-  const stop = partial && !amount.all ? stopsToReplace(open, closing)[0] : null;
+  const kept = partial && !amount.all ? existingExits(open, closing) : { stop: null, target: null };
   if (!(await cancelAndWait(account, symbol, open.map((o: any) => o.id)))) {
     return { status: 409, body: { error: `${symbol}'s working orders are still being cancelled; press again in a moment.` } };
   }
@@ -1131,7 +1180,7 @@ async function exitPosition(admin: any, user: any, account: any, input: any) {
     body: {
       orderId: order?.id, status: order?.status, how: plan.how, percent, side: closing, tradeSize: base, all: plan.how === "close" ? plan.all : false,
       limitPrice: plan.how === "limit" ? plan.limitPrice : null, qty: plan.how === "limit" ? plan.qty : num(order?.qty) ?? plan.qty,
-      note: plan.how === "limit" ? plan.note : null, cancelled: open.length, restopPrice: stop ? num(stop.stop_price) : null
+      note: plan.how === "limit" ? plan.note : null, cancelled: open.length, restopPrice: kept.stop, retargetPrice: kept.target
     }
   };
 }

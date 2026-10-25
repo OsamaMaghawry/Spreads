@@ -19,6 +19,10 @@ export const ACTIONS = {
   sell: { label: "Sell (or short)", sized: true, priced: true },
   exit: { label: "Exit position", percent: true },
   stop: { label: "Stop loss on position", stop: true },
+  // A distance like the stop's, on the other side of the price (25 Oct: "I
+  // want to add take profit too"). With a stop working, the two go as one
+  // one-cancels-other order (functions/terminal protect).
+  target: { label: "Take profit on position", stop: true },
   cancelSymbol: { label: "Cancel this symbol's orders" },
   cancelAll: { label: "Cancel all orders" }
 };
@@ -98,6 +102,7 @@ export function suggestedHotkeys() {
     { id: id(), keys: "Shift+F", action: "exit", percent: 100 },
     { id: id(), keys: "Shift+H", action: "exit", percent: 50 },
     { id: id(), keys: "Shift+L", action: "stop", stopMode: "pct", stopValue: 2, from: "last" },
+    { id: id(), keys: "Shift+T", action: "target", stopMode: "pct", stopValue: 4, from: "last" },
     { id: id(), keys: "Shift+X", action: "cancelSymbol" }
   ]);
 }
@@ -110,6 +115,7 @@ export function describe(h) {
   if (!a) return "";
   if (h.action === "exit") return h.percent >= 100 ? "Exit the whole position" : `Exit ${h.percent}% of the position`;
   if (h.action === "stop") return `Stop ${h.stopMode === "pct" ? `${h.stopValue}%` : money(h.stopValue)} from the ${h.from === "entry" ? "average entry" : "last price"}, for the whole position (replaces its stop)`;
+  if (h.action === "target") return `Take profit ${h.stopMode === "pct" ? `${h.stopValue}%` : money(h.stopValue)} from the ${h.from === "entry" ? "average entry" : "last price"}, for the whole position (with the stop, one cancels the other)`;
   if (!a.sized) return a.label;
   const size = h.size === "shares" ? `${h.amount}` : h.size === "usd" ? money(h.amount) : `${h.amount}% of ${h.size === "equity" ? "portfolio" : "buying power"}`;
   const price = h.price === "market" ? "at market" : `limit at the ${h.price}${h.offset ? ` ${h.offset > 0 ? "+" : ""}${h.offset}` : ""}`;

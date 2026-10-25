@@ -49,12 +49,31 @@ export function ReplayStart({ crypto, onStart, onCancel, busy }) {
   );
 }
 
-export default function ReplayBar({ clock, playing, loading, note, unit, speed, value, acct, price, symbol, crypto, onPlay, onStep, onRestart, onUnit, onSpeed, onJump, onExit, onTrade, onFlatten, onStop }) {
+/**
+ * A price box with its Set button and, once set, the level and an ×: the
+ * practice stop or take-profit, for the whole position.
+ */
+function ExitField({ kind, label, level, pos, onSet }) {
+  const [text, setText] = useState("");
+  const value = Number(text);
+  return (
+    <form className="flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); if (value > 0) { onSet(kind, value); setText(""); } }}>
+      <input className={`${field} w-20`} inputMode="decimal" placeholder={label.toLowerCase()} value={text} onChange={(e) => setText(e.target.value.replace(/[^\d.]/g, ""))} aria-label={`Practice ${label.toLowerCase()} price`} />
+      <button type="submit" aria-label={`Set ${label.toLowerCase()}`} disabled={!pos || !(value > 0)} className="rounded border border-amber-400 px-1.5 py-0.5 hover:bg-amber-100 disabled:opacity-40">Set</button>
+      {level ? (
+        <span className={`flex items-center gap-0.5 rounded px-1 tabular-nums ${kind === "stop" ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"}`}>
+          {label} {px(level)}
+          <button type="button" title={`Remove the ${label.toLowerCase()}`} aria-label={`Remove the ${label.toLowerCase()}`} onClick={() => onSet(kind, null)} className="rounded hover:bg-white/60"><X className="h-3 w-3" /></button>
+        </span>
+      ) : null}
+    </form>
+  );
+}
+
+export default function ReplayBar({ clock, playing, loading, note, unit, speed, value, acct, price, symbol, crypto, onPlay, onStep, onRestart, onUnit, onSpeed, onJump, onExit, onTrade, onFlatten, onExitOrder }) {
   const [qty, setQty] = useState(crypto ? "0.1" : "100");
-  const [stopAt, setStopAt] = useState("");
   const [jump, setJump] = useState("");
   const pos = acct?.qty || 0;
-  const stop = acct?.stops?.[0];
   const pnl = (v) => <span className={v >= 0 ? "text-emerald-700" : "text-rose-700"}>{v >= 0 ? "+" : ""}{fmtMoney(v)}</span>;
   return (
     <div className="space-y-1 border-b border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-950">
@@ -86,13 +105,10 @@ export default function ReplayBar({ clock, playing, loading, note, unit, speed, 
         <button type="button" onClick={() => onTrade("buy", Number(qty))} className="rounded bg-emerald-600 px-2 py-0.5 font-semibold text-white hover:bg-emerald-700">Buy</button>
         <button type="button" onClick={() => onTrade("sell", Number(qty))} className="rounded bg-rose-600 px-2 py-0.5 font-semibold text-white hover:bg-rose-700">Sell</button>
         <button type="button" onClick={onFlatten} disabled={!pos} className="rounded border border-amber-400 px-2 py-0.5 hover:bg-amber-100 disabled:opacity-40">Flatten</button>
-        <form className="flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); if (Number(stopAt) > 0) onStop(Number(stopAt)); }}>
-          <input className={`${field} w-16`} inputMode="decimal" placeholder="stop" value={stopAt} onChange={(e) => setStopAt(e.target.value.replace(/[^\d.]/g, ""))} aria-label="Practice stop price" />
-          <button type="submit" disabled={!pos || !(Number(stopAt) > 0)} className="rounded border border-amber-400 px-1.5 py-0.5 hover:bg-amber-100 disabled:opacity-40">Set stop</button>
-        </form>
+        <ExitField kind="stop" label="Stop" level={acct?.stop} pos={pos} onSet={onExitOrder} />
+        <ExitField kind="target" label="Take profit" level={acct?.target} pos={pos} onSet={onExitOrder} />
         <span className="tabular-nums">
           {pos ? `${pos > 0 ? "Long" : "Short"} ${sizeText(Math.abs(pos))} ${symbol} at ${px(acct.avg)}` : "Flat"}
-          {stop ? ` · stop ${px(stop.stopPrice)}` : ""}
           {" · price "}{px(price)}
         </span>
         {value && <span className="ml-auto tabular-nums">Open {pnl(value.unrealized)} · Closed {pnl(value.realized)} · Equity {fmtMoney(value.equity)}{acct?.trades?.length ? ` · ${acct.trades.length} trade${acct.trades.length === 1 ? "" : "s"}` : ""}</span>}

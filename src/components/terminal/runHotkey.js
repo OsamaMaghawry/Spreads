@@ -90,30 +90,42 @@ export async function runHotkey(h, ctx) {
     const base = { words: parts.join(" · "), symbol, side: d.side || (ctx.position?.side === "short" ? "buy" : "sell"), unitName: crypto ? symbol.split("/")[0] : "shares" };
     notify({ key, tone: "ok", title: "Exit sent", detail: base.words });
     refresh?.();
-    // A partial exit took the stop off to free the shares: once the exit has
-    // filled, the same stop goes back on what remains.
+    // A partial exit took the stop and target off to free the shares: once the
+    // exit has filled, the same ones go back on what remains (the target
+    // second, so the two pair up again).
     let restored = false;
-    const restop = d.restopPrice ? async () => {
+    const restop = d.restopPrice || d.retargetPrice ? async () => {
       if (restored) return;
       restored = true;
-      const s = await invokeFunction("terminal", { action: "protect", accountId: account.id, symbol, mode: "price", value: d.restopPrice }).catch((e) => ({ data: { error: String(e?.message || e) } }));
-      if (s?.data?.error) notify({ key: `${key}s`, tone: "bad", title: "Stop not put back", detail: `${s.data.error} Set the stop again.` });
-      else notify({ key: `${key}s`, tone: "ok", title: `Stop put back at ${px(s.data.stopPrice)}`, detail: `For the ${sizeText(s.data.qty)} left` });
+      const put = async (kind, value) => {
+        const r = await invokeFunction("terminal", { action: "protect", accountId: account.id, symbol, kind, mode: "price", value }).catch((e) => ({ data: { error: String(e?.message || e) } }));
+        const name = kind === "stop" ? "Stop" : "Target";
+        if (r?.data?.error) notify({ key: `${key}${kind}`, tone: "bad", title: `${name} not put back`, detail: `${r.data.error} Set it again.` });
+        else notify({ key: `${key}${kind}`, tone: "ok", title: `${name} put back at ${px(value)}`, detail: `For the ${sizeText(r.data.qty)} left` });
+      };
+      if (d.restopPrice) await put("stop", d.restopPrice);
+      if (d.retargetPrice) await put("target", d.retargetPrice);
       refresh?.();
     } : null;
     if (d.orderId) trackOrder({ accountId: account.id, id: d.orderId, key, base: { ...base, status: d.status }, notify, onChange: refresh, onFilled: restop });
     return;
   }
 
-  if (h.action === "stop") {
-    notify({ key, tone: "wait", title: `Placing a stop on ${symbol}…`, detail: label });
-    const r = await invokeFunction("terminal", { action: "protect", accountId: account.id, symbol, mode: h.stopMode, value: h.stopValue, from: h.from }).catch((e) => ({ data: { error: String(e?.message || e) } }));
-    if (r?.data?.error) { notify({ key, tone: "bad", title: "Stop not placed", detail: r.data.error }); return; }
+  if (h.action === "stop" || h.action === "target") {
+    const stop = h.action === "stop";
+    notify({ key, tone: "wait", title: `Placing a ${stop ? "stop" : "take-profit"} on ${symbol}…`, detail: label });
+    const r = await invokeFunction("terminal", { action: "protect", accountId: account.id, symbol, kind: h.action, mode: h.stopMode, value: h.stopValue, from: h.from }).catch((e) => ({ data: { error: String(e?.message || e) } }));
+    if (r?.data?.error) { notify({ key, tone: "bad", title: `${stop ? "Stop" : "Take-profit"} not placed`, detail: r.data.error }); return; }
     const d = r.data;
+    const out = d.side === "sell" ? "Sell" : "Buy back";
     notify({
-      key, tone: "ok", title: "Stop placed",
-      detail: [`${d.side === "sell" ? "Sell" : "Buy back"} ${sizeText(d.qty)} ${symbol} if it trades at ${px(d.stopPrice)}${d.limitPrice ? ` (limit ${px(d.limitPrice)})` : ""}`,
-        d.replaced ? `replaced ${d.replaced} earlier stop${d.replaced === 1 ? "" : "s"}` : null, d.note].filter(Boolean).join(" · ")
+      key, tone: "ok", title: stop ? "Stop placed" : "Take-profit placed",
+      detail: [
+        d.paired ? `${out} ${sizeText(d.qty)} ${symbol} at ${px(d.targetPrice)}, or if it trades at ${px(d.stopPrice)}: one cancels the other`
+          : stop ? `${out} ${sizeText(d.qty)} ${symbol} if it trades at ${px(d.stopPrice)}${d.limitPrice ? ` (limit ${px(d.limitPrice)})` : ""}`
+            : `${out} ${sizeText(d.qty)} ${symbol} at ${px(d.targetPrice)}`,
+        d.replaced ? `replaced ${d.replaced} earlier exit order${d.replaced === 1 ? "" : "s"}` : null, d.note
+      ].filter(Boolean).join(" · ")
     });
     refresh?.();
     return;
