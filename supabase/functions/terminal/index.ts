@@ -977,6 +977,13 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     }
     return { symbol: sym, from, ...out };
   }
+  if (only === "news") {
+    // A share's news between two moments, as the news tab and the screen read it.
+    const t0 = Date.now();
+    const r: any = await newsFor(house, [extra[0] || "AAPL"], extra[1] || new Date(Date.now() - 3 * 86400000).toISOString(), extra[2] || "", "desc", 20);
+    if (r.error) return r;
+    return { ms: Date.now() - t0, n: r.news.length, truncated: r.truncated, first: r.news.slice(0, 6).map((n: any) => ({ at: n.at, source: n.source, headline: n.headline.slice(0, 120), symbols: n.symbols.slice(0, 6) })) };
+  }
   if (only === "pastScreen") {
     // The historical screen as the screener receives it: how long, how many,
     // and the biggest gaps with their pre-market.
@@ -1147,6 +1154,56 @@ async function replayData(account: any, symbol: string, tf: string, from: string
   const byTime = new Map<number, any>();
   for (const b of chunks.flat()) byTime.set(Math.floor(Date.parse(b.t) / 1000), b);
   return { symbol, tf, feed, bars: [...byTime.values()].map(candle).sort((x, y) => x.time - y.time) };
+}
+
+// ---------- news ----------
+//
+// "I want to add news tab per stock I am on or seeing whether Demo or Replay
+// ... in the gap, I need to see if there was any piece of news" (25 Oct).
+// The account's own Alpaca news (Benzinga's wire, back to 2015) for one
+// symbol or up to a hundred, between two moments, newest or oldest first.
+// Headlines, summaries and links only; the article itself opens at its
+// source. A coin is asked for by its pair without the slash ("BTCUSD").
+
+const NEWS = "https://data.alpaca.markets/v1beta1/news";
+const NEWS_MAX = 500;
+const newsCache = new Map<string, { at: number; value: any }>();
+
+const shapeNews = (n: any) => ({
+  id: n.id, headline: String(n.headline || ""), summary: String(n.summary || ""), source: String(n.source || ""), author: String(n.author || ""),
+  url: String(n.url || ""), at: n.created_at || null, updated: n.updated_at || null,
+  symbols: Array.isArray(n.symbols) ? n.symbols : [],
+  image: (Array.isArray(n.images) ? n.images.find((i: any) => i?.size === "thumb") || n.images[0] : null)?.url || null
+});
+
+async function newsFor(account: any, symbolsIn: string[], startIn: string, endIn: string, sortIn: string, maxIn: number) {
+  const symbols = [...new Set(symbolsIn.map((x) => String(x).toUpperCase().trim()))].filter((x) => TERMINAL_SYMBOL(x)).slice(0, 100);
+  if (!symbols.length) return { error: "Which symbol?" };
+  const end = Math.min(endIn ? Date.parse(endIn) : Date.now(), Date.now());
+  const start = Date.parse(startIn);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || !(start < end)) return { news: [], truncated: false };
+  if (start < Date.parse("2015-01-01T00:00:00Z")) return { error: "News goes back to 2015." };
+  const sort = sortIn === "asc" ? "asc" : "desc";
+  const max = Math.min(NEWS_MAX, Math.max(1, Math.floor(maxIn) || 50));
+  const key = `${account.id}|${symbols.join(",")}|${start}|${end}|${sort}|${max}`;
+  const hit = newsCache.get(key);
+  // A window that ended a while ago does not change; a live one is read again after a minute.
+  if (hit && Date.now() - hit.at < (end < Date.now() - 3600000 ? 6 * 3600000 : 60000)) return hit.value;
+  const ask = symbols.map((x) => encodeURIComponent(x.replace("/", ""))).join(",");
+  const news: any[] = [];
+  let token: string | null = null;
+  let pages = 0;
+  do {
+    const page = await alpacaFetch(`${NEWS}?symbols=${ask}&start=${iso(start)}&end=${iso(end)}&limit=50&sort=${sort}&include_content=false` +
+      (token ? `&page_token=${encodeURIComponent(token)}` : ""), account);
+    for (const n of page?.news || []) news.push(shapeNews(n));
+    token = page?.next_page_token || null;
+    pages += 1;
+  } while (token && news.length < max && pages < 10);
+  const value = { news: news.slice(0, max), truncated: !!token || news.length > max };
+  newsCache.set(key, { at: Date.now(), value });
+  if (newsCache.size > 200) newsCache.delete(newsCache.keys().next().value!);
+  return value;
 }
 
 // ---------- one-key actions on a position (hotkeys) ----------
@@ -1413,6 +1470,11 @@ Deno.serve(async (req) => {
     if (action === "book") {
       if (!TERMINAL_SYMBOL(symbol)) return jsonResponse({ error: "Choose a symbol." }, 400);
       return jsonResponse(await book(account, symbol));
+    }
+    if (action === "news") {
+      const list = Array.isArray(body.symbols) ? body.symbols : [symbol];
+      const r = await newsFor(account, list, String(body.start || ""), String(body.end || ""), String(body.sort || "desc"), Number(body.max) || 50);
+      return jsonResponse(r, (r as any).error ? 400 : 200);
     }
     if (action === "events") {
       if (!SYMBOL.test(symbol)) return jsonResponse({ symbol, earnings: [], sources: { note: "no earnings for coins" } });
