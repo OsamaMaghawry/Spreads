@@ -981,7 +981,8 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     // The historical screen as the screener receives it: how long, how many,
     // and the biggest gaps with their pre-market.
     const date = extra[0] || "2026-10-23";
-    const asOf = extra[1] === "close" ? "close" : "open";
+    // The self-test's words come upper-cased, as symbols.
+    const asOf = String(extra[1] || "").toLowerCase() === "close" ? "close" : "open";
     const part = Number(extra[2] || 0);
     const parts = Number(extra[3] || 4);
     const t0 = Date.now();
