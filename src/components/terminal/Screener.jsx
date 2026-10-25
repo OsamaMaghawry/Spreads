@@ -25,6 +25,11 @@ const DAILY_KEY = "dm.screener.daily.v1";
 const SHOW_MAX = 300;
 const DAILY_BATCH = 200;
 const DAILY_PARALLEL = 2;
+// A past day comes in parts (the server's time per request), two at a time,
+// then the pre-market of its biggest gaps among liquid shares.
+const HISTORY_PARTS = 4;
+const PM_PICK = 300;
+const PM_BATCH = 100;
 const AUTO_MS = 60000;
 const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -180,19 +185,49 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
     loadingDaily.current = false;
   }, [accountId, when.date]);
 
+  // A past day: its parts, then (at the open) the pre-market of the biggest
+  // gaps among shares trading $1M a day, merged into the rows.
+  const readPast = useCallback(async () => {
+    const ask = (body) => invokeFunction("terminal", { action: "screen", accountId, ...body })
+      .then((r) => (r?.data && !r.data.error ? r.data : Promise.reject(new Error(r?.data?.error || "No answer"))));
+    const once = (body) => ask(body).catch(() => new Promise((ok) => setTimeout(ok, 2000)).then(() => ask(body)));
+    const got = [];
+    for (let i = 0; i < HISTORY_PARTS; i += 2) {
+      got.push(...await Promise.all([i, i + 1].filter((k) => k < HISTORY_PARTS)
+        .map((part) => once({ stage: "history", date: when.date, asOf: when.asOf, part, parts: HISTORY_PARTS }))));
+    }
+    const rows = got.flatMap((d) => decodeUniverse(d));
+    if (!rows.length) throw new Error(`No trading on ${when.date}: a weekend or a market holiday.`);
+    let premarket = null;
+    if (when.asOf === "open") {
+      const gap = (u) => (u.prevClose ? Math.abs(u.open / u.prevClose - 1) : 0);
+      const picks = rows.filter((u) => u.prevClose >= 1 && (u.avgDollar20 || 0) >= 1e6).sort((a, b) => gap(b) - gap(a)).slice(0, PM_PICK).map((u) => u.symbol);
+      const batches = [];
+      for (let i = 0; i < picks.length; i += PM_BATCH) batches.push(picks.slice(i, i + PM_BATCH));
+      const pm = Object.assign({}, ...(await Promise.all(batches.map((symbols) => once({ stage: "premarket", date: when.date, symbols }).then((d) => d.pm).catch(() => ({}))))));
+      for (const u of rows) if (pm[u.symbol]) Object.assign(u, pm[u.symbol]);
+      premarket = Object.keys(pm).length;
+    }
+    return { rows, at: got[0].at, dayFeed: got[0].dayFeed, listed: got[0].listed, premarket };
+  }, [accountId, when.date, when.asOf]);
+
   const refresh = useCallback(() => {
     if (!accountId) return;
     const started = modeRef.current;
     setUniverse((u) => ({ ...u, loading: true, error: null }));
-    const ask = when.date ? { action: "screen", stage: "history", accountId, date: when.date, asOf: when.asOf } : { action: "screen", accountId };
-    invokeFunction("terminal", ask).then((r) => {
+    const read = when.date ? readPast() : invokeFunction("terminal", { action: "screen", accountId }).then((r) => {
+      if (r?.data?.error || !r?.data?.rows) throw new Error(r?.data?.error || "The screen could not be read.");
+      return { rows: decodeUniverse(r.data), at: r.data.at, dayFeed: r.data.dayFeed, listed: r.data.listed, premarket: null };
+    });
+    read.then((d) => {
       if (modeRef.current !== started) return;
-      if (r?.data?.error || !r?.data?.rows) { setUniverse((u) => ({ ...u, rows: when.date ? [] : u.rows, loading: false, error: r?.data?.error || "The screen could not be read." })); return; }
-      const rows = decodeUniverse(r.data);
-      setUniverse({ rows, at: r.data.at, dayFeed: r.data.dayFeed, listed: r.data.listed, premarket: r.data.premarket ?? null, loading: false, error: null, mode: started });
-      loadDaily(rows.map((u) => screenRow(u, when.date ? partialStats(u) : null, when.date || nyToday())));
-    }).catch((e) => setUniverse((u) => ({ ...u, loading: false, error: String(e?.message || e) })));
-  }, [accountId, loadDaily, when.date, when.asOf]);
+      setUniverse({ ...d, loading: false, error: null, mode: started });
+      loadDaily(d.rows.map((u) => screenRow(u, when.date ? partialStats(u) : null, when.date || nyToday())));
+    }).catch((e) => {
+      if (modeRef.current !== started) return;
+      setUniverse((u) => ({ ...u, rows: when.date ? [] : u.rows, loading: false, error: String(e?.message || e) }));
+    });
+  }, [accountId, loadDaily, readPast, when.date]);
 
   // Read when first opened (and for each moment chosen), then, live, every
   // minute while on screen.

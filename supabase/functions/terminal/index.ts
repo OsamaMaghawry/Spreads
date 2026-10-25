@@ -566,8 +566,12 @@ async function screenDaily(account: any, symbols: string[], asOf = "") {
 // candles from six weeks before a past date through it, read in slices of
 // symbols together and reduced to one row each as they arrive
 // (_shared/screenHistory.ts); at the open, the pre-market of the shares that
-// gapped most, from their one-minute candles. Read once per account, date and
-// moment, and kept by the instance a few hours: the past does not change.
+// gapped most, from their one-minute candles (stage "premarket", for the
+// symbols the screen picks). The market comes in parts (`part` of `parts`):
+// a function has about two seconds of processor time a request, and the
+// whole market's candles in one request took more (25 Oct, "CPU Time
+// exceeded"). Each part is kept by the instance a few hours per account and
+// date: the past does not change.
 //
 // The universe is the shares listed today: a company delisted since is
 // missing (survivorship), and names, shares outstanding and options are
@@ -583,15 +587,22 @@ const PM_CANDIDATES = 300;
 const PM_CHUNK = 25;
 const historyCache = new Map<string, { at: number; value: any }>();
 
-async function screenHistory(account: any, date: string, asOf: "open" | "close") {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: "Pick a date." };
-  if (date < "2016-01-04") return { error: "Alpaca's history starts in 2016." };
-  if (date >= nyDate()) return { error: "Pick a day before today: today is the live screen." };
-  const key = `${account.id}|${date}|${asOf}`;
+const pastDateProblem = (date: string) => (!/^\d{4}-\d{2}-\d{2}$/.test(date) ? "Pick a date."
+  : date < "2016-01-04" ? "Alpaca's history starts in 2016."
+    : date >= nyDate() ? "Pick a day before today: today is the live screen." : null);
+
+async function screenHistory(account: any, date: string, asOf: "open" | "close", partIn = 0, partsIn = 1) {
+  const problem = pastDateProblem(date);
+  if (problem) return { error: problem };
+  const parts = Math.min(8, Math.max(1, Math.floor(partsIn) || 1));
+  const part = Math.min(parts - 1, Math.max(0, Math.floor(partIn) || 0));
+  const key = `${account.id}|${date}|${asOf}|${part}/${parts}`;
   const hit = historyCache.get(key);
   if (hit && Date.now() - hit.at < 6 * 3600000) return hit.value;
 
-  const list = (await assetList(account)).filter((a) => a.assetClass === "us_equity" && SCREEN_EXCHANGES.has(a.exchange) && SYMBOL.test(a.symbol));
+  const everyone = (await assetList(account)).filter((a) => a.assetClass === "us_equity" && SCREEN_EXCHANGES.has(a.exchange) && SYMBOL.test(a.symbol));
+  const size = Math.ceil(everyone.length / parts);
+  const list = everyone.slice(part * size, (part + 1) * size);
   const [shares] = await Promise.all([sharesOutstanding().catch(() => null), cikFor("AAPL").catch(() => null)]);
   const start = iso(Date.parse(`${date}T00:00:00Z`) - 45 * 86400000);
   const end = iso(Date.parse(`${date}T23:59:59Z`));
@@ -616,55 +627,59 @@ async function screenHistory(account: any, date: string, asOf: "open" | "close")
     const symbols = c.map((a) => a.symbol);
     const bars = await readDaily(symbols, feed).catch(() => { feed = FEED; return readDaily(symbols, FEED); });
     for (const a of c) {
-      // The day's candle is stamped at New York midnight, in UTC.
-      const r = historyRow((bars[a.symbol] || []).map((b: any) => ({ ...b, t: nyDate(Date.parse(b.t) + 3600000) })), date, asOf);
+      // A day's candle is stamped at New York midnight (4:00 or 5:00 UTC),
+      // the same calendar date in UTC: read straight from the stamp.
+      const r = historyRow(bars[a.symbol] || [], date, asOf);
       if (r) found.push({ a, r });
     }
     return null;
   });
-  if (!found.length) return { error: `No trading on ${date}: a weekend or a market holiday.` };
-
-  // The pre-market of the biggest gaps among shares that trade a million
-  // dollars a day or more.
-  const pm: Record<string, ReturnType<typeof premarket>> = {};
-  if (asOf === "open") {
-    const gap = (x: typeof found[number]) => (x.r.prevClose ? Math.abs(x.r.open / x.r.prevClose - 1) : 0);
-    const picks = found.filter((x) => x.r.prevClose && x.r.prevClose >= 1 && (x.r.avgDollar20 || 0) >= 1e6)
-      .sort((x, y) => gap(y) - gap(x)).slice(0, PM_CANDIDATES).map((x) => x.a.symbol);
-    const from = iso(nyMoment(date, "04:00"));
-    const to = iso(nyMoment(date, "09:30") - 1000);
-    const groups: string[][] = [];
-    for (let i = 0; i < picks.length; i += PM_CHUNK) groups.push(picks.slice(i, i + PM_CHUNK));
-    await inBatches(groups, 6, async (g) => {
-      const all: Record<string, any[]> = {};
-      let token: string | null = null;
-      let pages = 0;
-      do {
-        const page = await alpacaFetch(`${DATA}/stocks/bars?symbols=${g.join(",")}&timeframe=1Min&start=${from}&end=${to}&limit=10000&feed=${feed}` +
-          (token ? `&page_token=${encodeURIComponent(token)}` : ""), account).catch(() => null);
-        for (const [sym, bars] of Object.entries(page?.bars || {})) (all[sym] = all[sym] || []).push(...(bars as any[]));
-        token = page?.next_page_token || null;
-        pages += 1;
-      } while (token && pages < 6);
-      for (const sym of g) pm[sym] = premarket(all[sym] || []);
-      return null;
-    });
-  }
-
   const rows = found.map(({ a, r }) => {
     const cik = ciks?.get(a.symbol);
-    const p = pm[a.symbol];
     return [
       a.symbol, a.name, a.exchange, asOf === "close" ? r.close : r.open, null, r.day, r.prevClose, r.open, r.high, r.low, r.close, r.volume, r.prevVolume, r.vwap, r.trades,
       null, null, a.options, a.shortable, a.easyToBorrow, isFundName(a.name), cik && shares ? shares.get(cik) ?? null : null, null, null,
       r.lastDate, r.lastClose, r.avgVol20, r.avgDollar20, r.atr14, r.sma20, r.d5, r.d21,
-      p ? p.pmVolume : null, p ? p.pmHigh : null, p ? p.pmLow : null, p ? p.pmLast : null
+      null, null, null, null
     ];
   });
-  const value = { columns: HISTORY_COLUMNS, rows, history: true, date, asOf, dayFeed: feed, priceFeed: feed, at: new Date().toISOString(), listed: list.length, premarket: Object.keys(pm).length };
+  const value = { columns: HISTORY_COLUMNS, rows, history: true, date, asOf, part, parts, dayFeed: feed, priceFeed: feed, at: new Date().toISOString(), listed: everyone.length };
   historyCache.set(key, { at: Date.now(), value });
-  if (historyCache.size > 12) historyCache.delete(historyCache.keys().next().value!);
+  if (historyCache.size > 40) historyCache.delete(historyCache.keys().next().value!);
   return value;
+}
+
+// A past day's pre-market, 4:00 to 9:30 New York, for the symbols asked
+// (the screen asks for the biggest gaps among liquid shares).
+async function screenPremarket(account: any, date: string, symbolsIn: string[]) {
+  const problem = pastDateProblem(date);
+  if (problem) return { error: problem };
+  const symbols = [...new Set(symbolsIn.map((x) => String(x).toUpperCase()))].filter((x) => SYMBOL.test(x)).slice(0, PM_CANDIDATES);
+  const from = iso(nyMoment(date, "04:00"));
+  const to = iso(nyMoment(date, "09:30") - 1000);
+  const groups: string[][] = [];
+  for (let i = 0; i < symbols.length; i += PM_CHUNK) groups.push(symbols.slice(i, i + PM_CHUNK));
+  const pm: Record<string, ReturnType<typeof premarket>> = {};
+  let feed = "sip";
+  const read = async (g: string[], f: string) => {
+    const all: Record<string, any[]> = {};
+    let token: string | null = null;
+    let pages = 0;
+    do {
+      const page = await alpacaFetch(`${DATA}/stocks/bars?symbols=${g.join(",")}&timeframe=1Min&start=${from}&end=${to}&limit=10000&feed=${f}` +
+        (token ? `&page_token=${encodeURIComponent(token)}` : ""), account);
+      for (const [sym, bars] of Object.entries(page?.bars || {})) (all[sym] = all[sym] || []).push(...(bars as any[]));
+      token = page?.next_page_token || null;
+      pages += 1;
+    } while (token && pages < 6);
+    return all;
+  };
+  await inBatches(groups, 6, async (g) => {
+    const all = await read(g, feed).catch(() => { feed = FEED; return read(g, FEED); });
+    for (const sym of g) pm[sym] = premarket(all[sym] || []);
+    return null;
+  });
+  return { date, pm, feed };
 }
 
 // One order as the terminal shows it, finished or not: what was asked, what
@@ -967,14 +982,20 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     // and the biggest gaps with their pre-market.
     const date = extra[0] || "2026-10-23";
     const asOf = extra[1] === "close" ? "close" : "open";
+    const part = Number(extra[2] || 0);
+    const parts = Number(extra[3] || 4);
     const t0 = Date.now();
-    const r: any = await screenHistory(house, date, asOf);
+    const r: any = await screenHistory(house, date, asOf, part, parts);
     if (r.error) return r;
+    const msHistory = Date.now() - t0;
     const at = (row: any[], c: string) => row[r.columns.indexOf(c)];
     const gap = (row: any[]) => (at(row, "prevClose") ? at(row, "open") / at(row, "prevClose") - 1 : 0);
-    const top = [...r.rows].filter((row) => at(row, "prevClose") >= 1 && at(row, "avgDollar20") >= 1e6).sort((a, b) => gap(b) - gap(a)).slice(0, 8)
-      .map((row) => ({ s: at(row, "symbol"), prevClose: at(row, "prevClose"), open: at(row, "open"), gap: Math.round(gap(row) * 1000) / 10, pmVolume: at(row, "pmVolume"), pmLast: at(row, "pmLast"), close: at(row, "close"), volume: at(row, "volume"), avgVol20: Math.round(at(row, "avgVol20") || 0) }));
-    return { date, asOf, ms: Date.now() - t0, listed: r.listed, rows: r.rows.length, premarket: r.premarket, feed: r.dayFeed, top };
+    const ranked = [...r.rows].filter((row) => at(row, "prevClose") >= 1 && at(row, "avgDollar20") >= 1e6).sort((a, b) => gap(b) - gap(a));
+    const t1 = Date.now();
+    const pm: any = asOf === "open" ? await screenPremarket(house, date, ranked.slice(0, 100).map((row) => at(row, "symbol"))) : { pm: {} };
+    const top = ranked.slice(0, 8)
+      .map((row) => ({ s: at(row, "symbol"), prevClose: at(row, "prevClose"), open: at(row, "open"), gap: Math.round(gap(row) * 1000) / 10, pm: pm.pm?.[at(row, "symbol")] || null, close: at(row, "close"), volume: at(row, "volume"), avgVol20: Math.round(at(row, "avgVol20") || 0) }));
+    return { date, asOf, part, parts, msHistory, msPremarket: Date.now() - t1, listed: r.listed, rows: r.rows.length, premarket: Object.keys(pm.pm || {}).length, feed: r.dayFeed, top };
   }
   if (only === "hours") {
     // The regular-hours hourly candles the chart now asks for, as served.
@@ -1399,7 +1420,11 @@ Deno.serve(async (req) => {
     if (action === "screen") {
       if (body.stage === "daily") return jsonResponse(await screenDaily(account, Array.isArray(body.symbols) ? body.symbols : [], String(body.asOf || "")));
       if (body.stage === "history") {
-        const r = await screenHistory(account, String(body.date || ""), body.asOf === "close" ? "close" : "open");
+        const r = await screenHistory(account, String(body.date || ""), body.asOf === "close" ? "close" : "open", Number(body.part) || 0, Number(body.parts) || 1);
+        return jsonResponse(r, (r as any).error ? 400 : 200);
+      }
+      if (body.stage === "premarket") {
+        const r = await screenPremarket(account, String(body.date || ""), Array.isArray(body.symbols) ? body.symbols : []);
         return jsonResponse(r, (r as any).error ? 400 : 200);
       }
       return jsonResponse(await screenUniverse(admin, account));
