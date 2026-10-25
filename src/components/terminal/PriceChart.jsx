@@ -7,7 +7,7 @@ import { INDICATORS, LINE_COLORS, cleanIndicators, defaultParams, indicatorLabel
 import { TOOLS, COLORS, pointsFor, logicalToTime, hitTest, moveDrawing, readDrawings, writeDrawings, cleanDrawings } from "@/lib/chartDrawings";
 import { EVENT_KINDS, econEvents, earningsEvent, placeEvents, cleanShown, nextOfEach, eventWhen, badgeAt } from "@/lib/marketEvents";
 import { readPrefs, savePref, settle } from "@/lib/terminalPrefs";
-import { replayCandles, nextCursor, countBefore, newPractice, practiceFill, practiceValue, triggerExits, practiceExit, rollMinutes, replayClock, REPLAY_INTERVALS } from "@/lib/replay";
+import { replayCandles, nextCursor, countBefore, newPractice, practiceFill, practiceValue, triggerExits, practiceExit, addTarget, removeTarget, targetSize, rollMinutes, replayClock, REPLAY_INTERVALS } from "@/lib/replay";
 import { hotkeyOrder } from "@/lib/hotkeys";
 import ReplayBar, { ReplayStart } from "./ReplayBar";
 import { DrawingLayer } from "./drawingLayer";
@@ -122,6 +122,11 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
   const [liveEpoch, setLiveEpoch] = useState(0);
   const cryptoRef = useRef(crypto);
   cryptoRef.current = crypto;
+  // Read at the moment of each request: the replay's step, made once, would
+  // otherwise keep the account from the page's first moment, before it had
+  // loaded, and the server answered "Choose an account." (25 Oct).
+  const accountRef = useRef(accountId);
+  accountRef.current = accountId;
   const intervalRef = useRef(interval);
   intervalRef.current = interval;
 
@@ -662,7 +667,7 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
   // ---------- replay ----------
 
   const fetchCandles = async (tf, from, to) => {
-    const r = await invokeFunction("terminal", { action: "replay", accountId, symbol: symbolRef.current, tf, from: new Date(from * 1000).toISOString(), to: new Date(to * 1000).toISOString() });
+    const r = await invokeFunction("terminal", { action: "replay", accountId: accountRef.current, symbol: symbolRef.current, tf, from: new Date(from * 1000).toISOString(), to: new Date(to * 1000).toISOString() });
     if (r?.data?.error) throw new Error(r.data.error);
     return r?.data?.bars || [];
   };
@@ -737,14 +742,13 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
   // in regular hours only, as the broker's orders), with a pop-up for a fill.
   const runExits = (acct, passed) => {
     const out = triggerExits(acct, passed, { regularOnly: !cryptoRef.current });
-    if (out.trades.length > acct.trades.length) {
-      const t = out.trades.at(-1);
+    out.trades.slice(acct.trades.length).forEach((t, i) => {
       const target = t.why === "target";
       onNotify({
-        key: `rp${t.time}`, tone: target ? "ok" : "muted", title: target ? "Practice take-profit filled" : "Practice stop filled",
+        key: `rp${t.time}-${i}`, tone: target ? "ok" : "muted", title: target ? `Practice take-profit filled${out.qty ? "" : ": flat"}` : "Practice stop filled",
         detail: `${t.side === "sell" ? "Sold" : "Bought back"} ${sizeText(t.qty)} ${symbolRef.current} at ${px(t.price)} · ${replayClock(t.time, cryptoRef.current)} (replay)`
       });
-    }
+    });
     return out;
   };
 
@@ -858,6 +862,21 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
       ? { key: `rp${kind}`, tone: "muted", title: `Practice ${name} removed`, detail: "Replay only." }
       : { key: `rp${kind}`, tone: "ok", title: `Practice ${name} at ${px(price)}`, detail: "For the whole position; it fills by itself when the replay gets there. Replay only." });
   };
+  // A take-profit for part of the position ("Take profit points with partial
+  // positions", 25 Oct): its price, and its size as typed (blank for all
+  // that is left, "50%", or a number).
+  const addPracticeTarget = (price, sizeText_) => {
+    const r = replayRef.current;
+    if (!r) return false;
+    const size = targetSize(sizeText_, r.acct.qty, cryptoRef.current);
+    const out = size.reason ? size : addTarget(r.acct, { price, qty: size.qty }, lastPrice());
+    if (out.reason) { onNotify({ key: "rptarget", tone: "bad", title: "Practice take-profit not set", detail: out.reason }); return false; }
+    patchReplay({ acct: out.acct });
+    onNotify({ key: "rptarget", tone: "ok", title: `Practice take-profit at ${px(price)}`, detail: `${size.qty === null ? "For all that is left" : `For ${sizeText(size.qty)}`} when it fills; it fills by itself when the replay gets there. Replay only.` });
+    return true;
+  };
+  const removePracticeTarget = (id) => { if (replayRef.current) patchReplay({ acct: removeTarget(replayRef.current.acct, id) }); };
+
   // Hotkeys during a replay trade the practice account (the page asks here first).
   if (replayApi) {
     replayApi.current = {
@@ -880,7 +899,7 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
           const tick = from >= 1 ? 100 : 1e6;
           setExit(h.action, Math.round((below ? from - d : from + d) * tick) / tick);
         } else {
-          patchReplay({ acct: { ...r.acct, stop: null, target: null } });
+          patchReplay({ acct: { ...r.acct, stop: null, targets: [] } });
           onNotify({ key: "rpc", tone: "muted", title: "Practice stop and take-profit removed", detail: "Replay only." });
         }
       }
@@ -896,12 +915,13 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
     exitLinesRef.current = [];
     if (!acct?.qty) return;
     const line = (price, color, title, lineStyle) => series.createPriceLine({ price, color, title, lineStyle, lineWidth: 1, axisLabelVisible: true });
+    const targets = [...acct.targets].sort((a, b) => (acct.qty > 0 ? a.price - b.price : b.price - a.price));
     exitLinesRef.current = [
       line(acct.avg, "#64748b", `${acct.qty > 0 ? "Long" : "Short"} ${sizeText(Math.abs(acct.qty))}`, LineStyle.Dotted),
       acct.stop && line(acct.stop, DOWN, "Stop", LineStyle.Dashed),
-      acct.target && line(acct.target, UP, "Take profit", LineStyle.Dashed)
+      ...targets.map((t, i) => line(t.price, UP, `TP${targets.length > 1 ? i + 1 : ""} · ${t.qty === null ? "rest" : sizeText(t.qty)}`, LineStyle.Dashed))
     ].filter(Boolean);
-  }, [acct?.qty, acct?.avg, acct?.stop, acct?.target]);
+  }, [acct?.qty, acct?.avg, acct?.stop, acct?.targets]);
   // A new symbol ends the replay; a seconds interval, which cannot be
   // replayed, becomes one minute.
   useEffect(() => { if (replayRef.current) exitReplay(); }, [symbol]);
@@ -1086,7 +1106,8 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
           symbol={symbol} crypto={crypto}
           onPlay={() => patchReplay({ playing: !replay.playing, note: null })} onStep={stepReplay} onRestart={restartReplay}
           onUnit={(unit) => patchReplay({ unit })} onSpeed={(speed) => patchReplay({ speed })} onJump={jumpReplay} onExit={exitReplay}
-          onTrade={(side, qty) => practice(side, qty)} onFlatten={() => flattenPractice(100)} onExitOrder={setExit}
+          onTrade={(side, qty) => practice(side, qty)} onFlatten={() => flattenPractice(100)} onStop={setExit}
+          onAddTarget={addPracticeTarget} onRemoveTarget={removePracticeTarget}
         />
       )}
       {state.error && <p className="px-3 py-2 text-xs text-rose-700">{state.error}</p>}

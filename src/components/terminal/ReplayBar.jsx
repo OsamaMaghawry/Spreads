@@ -49,28 +49,51 @@ export function ReplayStart({ crypto, onStart, onCancel, busy }) {
   );
 }
 
-/**
- * A price box with its Set button and, once set, the level and an ×: the
- * practice stop or take-profit, for the whole position.
- */
-function ExitField({ kind, label, level, pos, onSet }) {
+/** The practice stop: a price, Set, and once set the level with an × to remove it. */
+function StopField({ level, pos, onSet }) {
   const [text, setText] = useState("");
   const value = Number(text);
   return (
-    <form className="flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); if (value > 0) { onSet(kind, value); setText(""); } }}>
-      <input className={`${field} w-20`} inputMode="decimal" placeholder={label.toLowerCase()} value={text} onChange={(e) => setText(e.target.value.replace(/[^\d.]/g, ""))} aria-label={`Practice ${label.toLowerCase()} price`} />
-      <button type="submit" aria-label={`Set ${label.toLowerCase()}`} disabled={!pos || !(value > 0)} className="rounded border border-amber-400 px-1.5 py-0.5 hover:bg-amber-100 disabled:opacity-40">Set</button>
+    <form className="flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); if (value > 0) { onSet("stop", value); setText(""); } }}>
+      <input className={`${field} w-20`} inputMode="decimal" placeholder="stop" value={text} onChange={(e) => setText(e.target.value.replace(/[^\d.]/g, ""))} aria-label="Practice stop price" />
+      <button type="submit" aria-label="Set stop" disabled={!pos || !(value > 0)} className="rounded border border-amber-400 px-1.5 py-0.5 hover:bg-amber-100 disabled:opacity-40">Set</button>
       {level ? (
-        <span className={`flex items-center gap-0.5 rounded px-1 tabular-nums ${kind === "stop" ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"}`}>
-          {label} {px(level)}
-          <button type="button" title={`Remove the ${label.toLowerCase()}`} aria-label={`Remove the ${label.toLowerCase()}`} onClick={() => onSet(kind, null)} className="rounded hover:bg-white/60"><X className="h-3 w-3" /></button>
+        <span className="flex items-center gap-0.5 rounded bg-rose-100 px-1 tabular-nums text-rose-800">
+          Stop {px(level)} · all
+          <button type="button" title="Remove the stop" aria-label="Remove the stop" onClick={() => onSet("stop", null)} className="rounded hover:bg-white/60"><X className="h-3 w-3" /></button>
         </span>
       ) : null}
     </form>
   );
 }
 
-export default function ReplayBar({ clock, playing, loading, note, unit, speed, value, acct, price, symbol, crypto, onPlay, onStep, onRestart, onUnit, onSpeed, onJump, onExit, onTrade, onFlatten, onExitOrder }) {
+/**
+ * Take-profits, as many as wanted, each for part of the position: a price and
+ * a size (blank for all that is left, "50%", or a number), then Add. Each set
+ * one shows with its size and an × to remove it.
+ */
+function TargetField({ targets, pos, crypto, onAdd, onRemove }) {
+  const [price, setPrice] = useState("");
+  const [size, setSize] = useState("");
+  const value = Number(price);
+  const sorted = [...targets].sort((a, b) => (pos > 0 ? a.price - b.price : b.price - a.price));
+  return (
+    <form className="flex flex-wrap items-center gap-1" onSubmit={(e) => { e.preventDefault(); if (value > 0 && onAdd(value, size)) { setPrice(""); setSize(""); } }}>
+      <input className={`${field} w-20`} inputMode="decimal" placeholder="take profit" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d.]/g, ""))} aria-label="Practice take profit price" />
+      <input className={`${field} w-12`} placeholder="all" title={`Size: blank for all that is left, a percentage like 50%, or a number of ${crypto ? "coins" : "shares"}`}
+        value={size} onChange={(e) => setSize(e.target.value.replace(/[^\d.%a-zA-Z]/g, ""))} aria-label="Practice take profit size" />
+      <button type="submit" aria-label="Add take profit" disabled={!pos || !(value > 0)} className="rounded border border-amber-400 px-1.5 py-0.5 hover:bg-amber-100 disabled:opacity-40">Add</button>
+      {sorted.map((t, i) => (
+        <span key={t.id} className="flex items-center gap-0.5 rounded bg-emerald-100 px-1 tabular-nums text-emerald-800">
+          TP{sorted.length > 1 ? i + 1 : ""} {px(t.price)} · {t.qty === null ? "rest" : sizeText(t.qty)}
+          <button type="button" title="Remove this take-profit" aria-label={`Remove the take-profit at ${px(t.price)}`} onClick={() => onRemove(t.id)} className="rounded hover:bg-white/60"><X className="h-3 w-3" /></button>
+        </span>
+      ))}
+    </form>
+  );
+}
+
+export default function ReplayBar({ clock, playing, loading, note, unit, speed, value, acct, price, symbol, crypto, onPlay, onStep, onRestart, onUnit, onSpeed, onJump, onExit, onTrade, onFlatten, onStop, onAddTarget, onRemoveTarget }) {
   const [qty, setQty] = useState(crypto ? "0.1" : "100");
   const [jump, setJump] = useState("");
   const pos = acct?.qty || 0;
@@ -105,8 +128,8 @@ export default function ReplayBar({ clock, playing, loading, note, unit, speed, 
         <button type="button" onClick={() => onTrade("buy", Number(qty))} className="rounded bg-emerald-600 px-2 py-0.5 font-semibold text-white hover:bg-emerald-700">Buy</button>
         <button type="button" onClick={() => onTrade("sell", Number(qty))} className="rounded bg-rose-600 px-2 py-0.5 font-semibold text-white hover:bg-rose-700">Sell</button>
         <button type="button" onClick={onFlatten} disabled={!pos} className="rounded border border-amber-400 px-2 py-0.5 hover:bg-amber-100 disabled:opacity-40">Flatten</button>
-        <ExitField kind="stop" label="Stop" level={acct?.stop} pos={pos} onSet={onExitOrder} />
-        <ExitField kind="target" label="Take profit" level={acct?.target} pos={pos} onSet={onExitOrder} />
+        <StopField level={acct?.stop} pos={pos} onSet={onStop} />
+        <TargetField targets={acct?.targets || []} pos={pos} crypto={crypto} onAdd={onAddTarget} onRemove={onRemoveTarget} />
         <span className="tabular-nums">
           {pos ? `${pos > 0 ? "Long" : "Short"} ${sizeText(Math.abs(pos))} ${symbol} at ${px(acct.avg)}` : "Flat"}
           {" · price "}{px(price)}

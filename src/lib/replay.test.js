@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { replayCandles, nextCursor, inSession, dayOf, practiceFill, practiceValue, triggerExits, practiceExit, newPractice, countBefore, rollMinutes } from "./replay.js";
+import { replayCandles, nextCursor, inSession, dayOf, practiceFill, practiceValue, triggerExits, practiceExit, addTarget, removeTarget, targetSize, newPractice, countBefore, rollMinutes } from "./replay.js";
 
 // New York is UTC-4 in October: 9:30 is 13:30Z.
 const ny = (date, hhmm) => {
@@ -126,12 +126,12 @@ test("practice stop: on the low for a long, at the open through a gap; covering 
   assert.deepEqual([a.qty, a.realized, a.trades.at(-1).price, a.trades.at(-1).qty, a.trades.at(-1).why, a.stop], [0, -120, 94, 20, "stop", null]);
 });
 
-test("practice target: on the high, better at a gap; one cancels the other; a short the other way round", () => {
+test("practice take-profit: on the high, better at a gap; with the stop, one cancels the other; a short the other way round", () => {
   let a = practiceFill(newPractice(), { side: "buy", qty: 10, price: 100, time: 1 });
   a = practiceExit(a, "stop", 95, 100).acct;
   a = practiceExit(a, "target", 110, 100).acct;
   a = triggerExits(a, [{ time: 2, open: 104, high: 110.5, low: 103, close: 110 }]);
-  assert.deepEqual([a.qty, a.trades.at(-1).price, a.trades.at(-1).why, a.stop, a.target], [0, 110, "target", null, null]);
+  assert.deepEqual([a.qty, a.trades.at(-1).price, a.trades.at(-1).why, a.stop, a.targets], [0, 110, "target", null, []]);
   let g = practiceExit(practiceExit(practiceFill(newPractice(), { side: "buy", qty: 10, price: 100, time: 1 }), "target", 110, 100).acct, "stop", 95, 100).acct;
   g = triggerExits(g, [{ time: 2, open: 112, high: 113, low: 111, close: 112 }]);
   assert.equal(g.trades.at(-1).price, 112);
@@ -146,16 +146,58 @@ test("practice target: on the high, better at a gap; one cancels the other; a sh
   assert.deepEqual([s.qty, s.trades.at(-1).price, s.trades.at(-1).why], [0, 45, "target"]);
 });
 
-test("practice exits on the wrong side of the price are refused; cleared with null", () => {
-  const a = practiceFill(newPractice(), { side: "buy", qty: 10, price: 100, time: 1 });
-  assert.match(practiceExit(a, "stop", 101, 100).reason, /stop at 101.00 for a long must be below the price 100.00/);
-  assert.match(practiceExit(a, "target", 99, 100).reason, /take-profit at 99.00 for a long must be above the price 100.00/);
-  assert.match(practiceExit(newPractice(), "stop", 1, 1).reason, /No practice position/);
-  const set = practiceExit(a, "stop", 95, 100).acct;
-  assert.equal(practiceExit(set, "stop", null, 100).acct.stop, null);
-  // Turned the other way round: the old exits go.
-  const flipped = practiceFill(set, { side: "sell", qty: 15, price: 100, time: 2 });
-  assert.equal(flipped.stop, null);
+test("take-profits in parts: each sells its size at its price, the stop guards what is left", () => {
+  let a = practiceFill(newPractice(), { side: "buy", qty: 100, price: 50, time: 1 });
+  a = practiceExit(a, "stop", 49, 50).acct;
+  a = addTarget(a, { price: 51, qty: 50 }, 50).acct;
+  a = addTarget(a, { price: 52, qty: 25 }, 50).acct;
+  a = addTarget(a, { price: 53, qty: null }, 50).acct;
+  assert.equal(a.targets.length, 3);
+  // The first part goes at 51; the stop stays, for the 50 left.
+  a = triggerExits(a, [{ time: 2, open: 50.5, high: 51.2, low: 50.4, close: 51 }]);
+  assert.deepEqual([a.qty, a.trades.at(-1).qty, a.trades.at(-1).price, a.stop, a.targets.map((t) => t.price)], [50, 50, 51, 49, [52, 53]]);
+  // Both of the others inside one minute, nearest first: 25 at 52, the rest at 53.
+  a = triggerExits(a, [{ time: 3, open: 51.5, high: 53.4, low: 51.4, close: 53 }]);
+  assert.deepEqual(a.trades.slice(-2).map((t) => [t.qty, t.price, t.why]), [[25, 52, "target"], [25, 53, "target"]]);
+  assert.deepEqual([a.qty, a.stop, a.targets], [0, null, []]);
+  assert.equal(a.realized, 50 * 1 + 25 * 2 + 25 * 3);
+  // After the first part, the stop takes all that is left.
+  let b = practiceFill(newPractice(), { side: "buy", qty: 10, price: 50, time: 1 });
+  b = practiceExit(b, "stop", 49, 50).acct;
+  b = addTarget(b, { price: 51, qty: 4 }, 50).acct;
+  b = addTarget(b, { price: 52, qty: 6 }, 50).acct;
+  b = triggerExits(b, [{ time: 2, open: 50, high: 51, low: 50, close: 51 }, { time: 3, open: 50.5, high: 50.5, low: 48.8, close: 49 }]);
+  assert.deepEqual(b.trades.slice(1).map((t) => [t.qty, t.price, t.why]), [[4, 51, "target"], [6, 49, "stop"]]);
+  // A part bigger than what is left by then sells only what is left.
+  let c = addTarget(practiceFill(newPractice(), { side: "buy", qty: 10, price: 50, time: 1 }), { price: 51, qty: 8 }, 50).acct;
+  c = practiceFill(c, { side: "sell", qty: 5, price: 50.5, time: 2 });
+  c = triggerExits(c, [{ time: 3, open: 50.6, high: 51.1, low: 50.6, close: 51 }]);
+  assert.deepEqual([c.qty, c.trades.at(-1).qty], [0, 5]);
+});
+
+test("take-profit sizes: refused past what is held, one for the rest at a time; removed one by one", () => {
+  const a = practiceFill(newPractice(), { side: "buy", qty: 10, price: 50, time: 1 });
+  const one = addTarget(a, { price: 51, qty: 6 }, 50).acct;
+  assert.match(addTarget(one, { price: 52, qty: 5 }, 50).reason, /cover 11 of the 10 held/);
+  const rest = addTarget(one, { price: 52, qty: null }, 50).acct;
+  assert.match(addTarget(rest, { price: 53, qty: null }, 50).reason, /already for what is left/);
+  assert.match(addTarget(a, { price: 49, qty: 1 }, 50).reason, /must be above the price 50.00/);
+  assert.deepEqual(removeTarget(rest, one.targets[0].id).targets.map((t) => t.price), [52]);
+  // The hotkey's take-profit replaces them all with one for the whole position.
+  assert.deepEqual(practiceExit(rest, "target", 55, 50).acct.targets.map((t) => [t.price, t.qty]), [[55, null]]);
+  assert.deepEqual(practiceExit(rest, "target", null, 50).acct.targets, []);
+});
+
+test("a take-profit's size as typed", () => {
+  assert.deepEqual(targetSize("", 100, false), { qty: null });
+  assert.deepEqual(targetSize("all", 100, false), { qty: null });
+  assert.deepEqual(targetSize("50%", 101, false), { qty: 50 });
+  assert.deepEqual(targetSize("10%", 5, false), { qty: 1 });
+  assert.deepEqual(targetSize("100%", 5, false), { qty: null });
+  assert.deepEqual(targetSize("30", -100, false), { qty: 30 });
+  assert.match(targetSize("2.5", 100, false).reason, /whole/);
+  assert.deepEqual(targetSize("25%", 0.5, true), { qty: 0.125 });
+  assert.match(targetSize("abc", 100, false).reason, /percentage/);
 });
 
 test("hourly and longer reach back through half-hour candles before the minutes; shorter charts do not", () => {

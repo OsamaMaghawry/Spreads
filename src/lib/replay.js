@@ -149,13 +149,13 @@ export function nextCursor({ minutes = [], days = [] }, unit, cursor, { crypto =
 
 export const PRACTICE_CASH = 100000;
 
-export const newPractice = () => ({ cash: PRACTICE_CASH, qty: 0, avg: 0, realized: 0, trades: [], stop: null, target: null });
+export const newPractice = () => ({ cash: PRACTICE_CASH, qty: 0, avg: 0, realized: 0, trades: [], stop: null, targets: [], seq: 0 });
 
 /**
  * A practice fill: buying adds to a long or covers a short, selling the
  * reverse; profit is realized on the part that closes, at the average price.
- * The stop and the target belong to the position: they go when it is closed
- * or turned the other way round.
+ * The stop and the take-profits belong to the position: they go when it is
+ * closed or turned the other way round.
  */
 export function practiceFill(acct, { side, qty, price, time, why = "" }) {
   const n = Number(qty);
@@ -176,7 +176,7 @@ export function practiceFill(acct, { side, qty, price, time, why = "" }) {
   return {
     ...acct, qty: q, avg, realized, cash: acct.cash - signed * price,
     trades: [...acct.trades, { side, qty: n, price, time, why }],
-    stop: keep ? acct.stop : null, target: keep ? acct.target : null
+    stop: keep ? acct.stop : null, targets: keep ? acct.targets : []
   };
 }
 
@@ -187,50 +187,114 @@ export function practiceValue(acct, price) {
 }
 
 /**
- * The practice stop and target against the minutes just revealed, minute by
- * minute, each for the whole position whatever its size by then; one cancels
- * the other. A long's stop fills when the low reaches it, at the stop or at
- * the minute's open if it opened through it (a gap); its target when the
- * high reaches it, at the target or the better open. A short the other way
- * round. Both inside one minute: the stop, the cautious reading.
+ * The practice stop and take-profits against the minutes just revealed,
+ * minute by minute. The stop is for the whole position, whatever its size by
+ * then; each take-profit for its own size (or what is left, for one without
+ * a size), so a position can be sold in parts at several prices.
+ *
+ * A long's stop fills when the low reaches it, at the stop or at the minute's
+ * open if it opened through it (a gap); a take-profit when the high reaches
+ * it, at its price or the better open, nearest first. A short the other way
+ * round. A stop and a take-profit inside one minute: the stop, the cautious
+ * reading, after any take-profit the minute opened through.
  * `regularOnly`: a share's, which the broker's stop and limit orders only
  * act on in regular hours, so a gap overnight fills at the next open.
  */
 export function triggerExits(acct, revealed, { regularOnly = false } = {}) {
   let a = acct;
   for (const m of revealed) {
-    if (!a.qty || (!a.stop && !a.target)) break;
+    if (!a.qty || (!a.stop && !a.targets.length)) break;
     if (regularOnly && !inSession(m.time)) continue;
     const long = a.qty > 0;
+    const side = long ? "sell" : "buy";
     const stopHit = a.stop && (long ? m.low <= a.stop : m.high >= a.stop);
-    const targetHit = a.target && (long ? m.high >= a.target : m.low <= a.target);
-    if (!stopHit && !targetHit) continue;
-    // A gap through the target at the open fills there, better than asked.
-    const gapTarget = targetHit && (long ? m.open >= a.target : m.open <= a.target);
-    const byStop = stopHit && !gapTarget;
-    const price = byStop
-      ? (long ? Math.min(a.stop, m.open) : Math.max(a.stop, m.open))
-      : (long ? Math.max(a.target, m.open) : Math.min(a.target, m.open));
-    a = practiceFill(a, { side: long ? "sell" : "buy", qty: Math.abs(a.qty), price, time: m.time, why: byStop ? "stop" : "target" });
+    const hit = a.targets
+      .filter((t) => (long ? m.high >= t.price : m.low <= t.price))
+      .sort((x, y) => (long ? x.price - y.price : y.price - x.price));
+    const filled = stopHit ? hit.filter((t) => (long ? m.open >= t.price : m.open <= t.price)) : hit;
+    for (const t of filled) {
+      if (!a.qty) break;
+      const rest = a.targets.filter((x) => x.id !== t.id);
+      const n = t.qty === null ? Math.abs(a.qty) : Math.min(t.qty, Math.abs(a.qty));
+      a = practiceFill(a, { side, qty: n, price: long ? Math.max(t.price, m.open) : Math.min(t.price, m.open), time: m.time, why: "target" });
+      if (a.qty) a = { ...a, targets: rest };
+    }
+    if (stopHit && a.qty) {
+      a = practiceFill(a, { side, qty: Math.abs(a.qty), price: long ? Math.min(a.stop, m.open) : Math.max(a.stop, m.open), time: m.time, why: "stop" });
+    }
   }
   return a;
 }
 
-/**
- * Set or clear the practice stop or target (null clears). A stop must sit on
- * the losing side of the price and a target on the winning side, or it would
- * fill at once.
- */
-export function practiceExit(acct, kind, price, last) {
-  if (!acct.qty) return { acct, reason: "No practice position to protect." };
-  if (price === null) return { acct: { ...acct, [kind]: null } };
-  if (!(price > 0)) return { acct, reason: "Enter a price." };
+// A stop sits on the losing side of the price and a take-profit on the
+// winning side, or it would fill at once.
+function wrongSide(acct, kind, price, last) {
   const long = acct.qty > 0;
   const below = kind === "stop" ? long : !long;
   if (last && (below ? price >= last : price <= last)) {
-    return { acct, reason: `A ${kind === "stop" ? "stop" : "take-profit"} at ${px(price)} for a ${long ? "long" : "short"} must be ${below ? "below" : "above"} the price ${px(last)}, or it fills at once.` };
+    return `A ${kind === "stop" ? "stop" : "take-profit"} at ${px(price)} for a ${long ? "long" : "short"} must be ${below ? "below" : "above"} the price ${px(last)}, or it fills at once.`;
   }
-  return { acct: { ...acct, [kind]: price } };
+  return null;
+}
+
+/**
+ * Set or clear (null) the practice stop, or with "target" one take-profit
+ * for the whole position in place of any others (the hotkey's).
+ */
+export function practiceExit(acct, kind, price, last) {
+  if (!acct.qty) return { acct, reason: "No practice position to protect." };
+  if (price === null) return { acct: kind === "stop" ? { ...acct, stop: null } : { ...acct, targets: [] } };
+  if (!(price > 0)) return { acct, reason: "Enter a price." };
+  const reason = wrongSide(acct, kind, price, last);
+  if (reason) return { acct, reason };
+  if (kind === "stop") return { acct: { ...acct, stop: price } };
+  const seq = acct.seq + 1;
+  return { acct: { ...acct, seq, targets: [{ id: seq, price, qty: null }] } };
+}
+
+/**
+ * A take-profit for part of the position: `qty` of it, or null for what is
+ * left when it fills. The sizes together may not come to more than is held.
+ */
+export function addTarget(acct, { price, qty }, last) {
+  if (!acct.qty) return { acct, reason: "No practice position to take profit on." };
+  if (!(price > 0)) return { acct, reason: "Enter a price." };
+  const reason = wrongSide(acct, "target", price, last);
+  if (reason) return { acct, reason };
+  const held = Math.abs(acct.qty);
+  if (qty === null) {
+    const rest = acct.targets.find((t) => t.qty === null);
+    if (rest) return { acct, reason: `The take-profit at ${px(rest.price)} is already for what is left. Remove it first, or give this one a size.` };
+  } else {
+    if (!(qty > 0)) return { acct, reason: "Enter a size." };
+    const sized = acct.targets.reduce((sum, t) => sum + (t.qty || 0), 0);
+    if (sized + qty > held + 1e-9) return { acct, reason: `Take-profits would cover ${+(sized + qty).toFixed(9)} of the ${+held.toFixed(9)} held.` };
+  }
+  const seq = acct.seq + 1;
+  return { acct: { ...acct, seq, targets: [...acct.targets, { id: seq, price, qty }] } };
+}
+
+export const removeTarget = (acct, id) => ({ ...acct, targets: acct.targets.filter((t) => t.id !== id) });
+
+/**
+ * A take-profit's size as typed: blank or "all" for what is left, "50%" for
+ * that part of the position (whole shares, at least one), or a number of
+ * shares or coins.
+ */
+export function targetSize(text, position, crypto) {
+  const t = String(text || "").trim().toLowerCase();
+  const held = Math.abs(position);
+  if (!t || t === "all") return { qty: null };
+  const pct = t.endsWith("%");
+  const n = Number(pct ? t.slice(0, -1) : t);
+  if (!(n > 0)) return { reason: "Size: a number of shares, a percentage like 50%, or blank for all." };
+  if (pct && n >= 100) return { qty: null };
+  let qty = pct ? held * n / 100 : n;
+  if (!crypto) {
+    if (!pct && !Number.isInteger(n)) return { reason: "Shares come whole." };
+    qty = Math.max(1, Math.floor(qty));
+  } else qty = Math.floor(qty * 1e9) / 1e9;
+  return { qty };
 }
 
 /** "Thu, Mar 5, 2026, 10:42" in New York time, for the replay bar. */
