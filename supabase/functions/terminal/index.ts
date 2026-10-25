@@ -572,7 +572,7 @@ function orderView(o: any) {
 // status and stopping. The attempt record follows too.
 async function orderStatus(admin: any, account: any, orderId: string) {
   const o = await alpacaFetch(`${tradingBase(account)}/orders/${encodeURIComponent(orderId)}`, account);
-  await updateAttempt(admin, o.id, o.status, o.filled_qty, o.filled_avg_price);
+  inBackground(updateAttempt(admin, o.id, o.status, o.filled_qty, o.filled_avg_price));
   return { order: orderView(o) };
 }
 
@@ -939,11 +939,13 @@ async function placeOrder(admin: any, user: any, account: any, input: any) {
   };
   try {
     const order = await alpacaFetch(`${tradingBase(account)}/orders`, account, { method: "POST", body: JSON.stringify(body) });
-    await recordAttempt(admin, { ...attempt, brokerOrderId: order.id, status: order.status });
+    // The record is written after the answer goes back, not before it: the
+    // trader hears about the order a database write sooner.
+    inBackground(recordAttempt(admin, { ...attempt, brokerOrderId: order.id, status: order.status }));
     return { status: 200, body: { orderId: order.id, status: order.status } };
   } catch (e) {
     const message = brokerRefusal(String((e as Error)?.message || e), body.symbol);
-    await recordAttempt(admin, { ...attempt, error: message });
+    inBackground(recordAttempt(admin, { ...attempt, error: message }));
     return { status: 422, body: { error: message } };
   }
 }
@@ -1032,11 +1034,11 @@ async function sendBody(admin: any, user: any, account: any, intent: string, bod
   };
   try {
     const order = await alpacaFetch(`${tradingBase(account)}/orders`, account, { method: "POST", body: JSON.stringify(body) });
-    await recordAttempt(admin, { ...attempt, brokerOrderId: order.id, status: order.status });
+    inBackground(recordAttempt(admin, { ...attempt, brokerOrderId: order.id, status: order.status }));
     return { order };
   } catch (e) {
     const message = brokerRefusal(String((e as Error)?.message || e), body.symbol);
-    await recordAttempt(admin, { ...attempt, error: message });
+    inBackground(recordAttempt(admin, { ...attempt, error: message }));
     return { error: message };
   }
 }
@@ -1188,7 +1190,9 @@ Deno.serve(async (req) => {
     const { action, accountId } = body || {};
     if (action === "prefs") return jsonResponse(...(await prefs(admin, user.id, body)));
     if (!accountId) return jsonResponse({ error: "Choose an account." }, 400);
-    const account = await loadAccount(admin, accountId, user.id);
+    // The account's row (credentials still encrypted) kept 30 seconds by this
+    // instance: a burst of key presses reads the database once.
+    const account = await loadAccount(admin, accountId, user.id, { cacheMs: 30000 });
 
     const symbol = String(body.symbol || "").toUpperCase().trim();
     if (action === "bars") {

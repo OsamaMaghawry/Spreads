@@ -4,8 +4,20 @@ import { supabase } from '@/lib/supabaseClient';
 // call sites use throughout the app (data.error set on any failure), so edge
 // function invocations read the same at every call site regardless of whether
 // the function threw, returned a non-2xx status, or returned {error} at 200.
+// Where a function should run, when not near the caller. The staging
+// terminal's work is mostly calls to the broker, whose servers are on the US
+// east coast: measured 25 Oct, 5 to 9 ms a call from us-east-1 against 60 to
+// 70 ms from us-west-1, the default for this project, and a hotkey's exit
+// makes several in a row. Its settings, which only touch the database (in
+// us-west-1), stay where they are. Asked for with the query parameter rather
+// than the client's region option, which adds an x-region header the
+// functions' CORS answer does not list.
+const REGIONS = { terminal: (payload) => (payload?.action === 'prefs' ? null : 'us-east-1') };
+
 export async function invokeFunction(name, payload) {
-  const { data, error } = await supabase.functions.invoke(name, { body: payload });
+  const region = REGIONS[name]?.(payload);
+  const target = region ? `${name}?forceFunctionRegion=${region}` : name;
+  const { data, error } = await supabase.functions.invoke(target, { body: payload });
   if (error) {
     let message = error.message;
     let body = null;

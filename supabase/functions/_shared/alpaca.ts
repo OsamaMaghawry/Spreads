@@ -132,14 +132,30 @@ export async function getSpreadQuote(account, shortSymbol, longSymbol, callShort
 // The admin (service-role) client bypasses RLS, so this ownership check is
 // what actually scopes access per-user (Base44's asServiceRole had no such
 // check — every authenticated user could load any account).
-export async function loadAccount(admin, accountId, userId, { readOnly = false } = {}) {
-  const { data, error } = await admin
-    .from("trading_accounts")
-    .select("*")
-    .eq("id", accountId)
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
+// `cacheMs`: a caller that makes many quick requests (the staging terminal's
+// hotkeys) may keep the account's row for a few seconds in this instance, as
+// stored, credentials still encrypted; they are decrypted afresh below for
+// each request. Off unless asked for.
+const rowCache = new Map<string, { at: number; row: any }>();
+
+export async function loadAccount(admin, accountId, userId, { readOnly = false, cacheMs = 0 } = {}) {
+  const key = `${accountId}|${userId}`;
+  const hit = cacheMs > 0 ? rowCache.get(key) : null;
+  let data = hit && Date.now() - hit.at < cacheMs ? hit.row : null;
+  if (!data) {
+    const r = await admin
+      .from("trading_accounts")
+      .select("*")
+      .eq("id", accountId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (r.error) throw new Error(r.error.message);
+    data = r.data;
+    if (data && cacheMs > 0) {
+      if (rowCache.size > 200) rowCache.clear();
+      rowCache.set(key, { at: Date.now(), row: data });
+    }
+  }
   if (!data) throw new Error("Trading account not found");
   // An account read through SnapTrade has no Alpaca credentials, and nothing
   // that loads an account through here -- orders, quotes, chains, scans --
