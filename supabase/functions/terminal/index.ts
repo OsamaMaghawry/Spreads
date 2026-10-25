@@ -14,6 +14,7 @@ import { sessionCandles } from "../_shared/sessionBars.ts";
 import { currentReports } from "../_shared/earnings.ts";
 import { secReports, withFigures, earningsTimeline, cikMap } from "../_shared/earningsHistory.ts";
 import { dailyStats, isFundName } from "../_shared/screenStats.ts";
+import { historyRow, premarket, nyMoment } from "../_shared/screenHistory.ts";
 import { usSession, stopPlan, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody } from "../_shared/positionTools.ts";
 import { inBackground } from "../_shared/background.ts";
 
@@ -526,13 +527,17 @@ async function screenUniverse(admin: any, account: any) {
   return { columns: SCREEN_COLUMNS, rows, dayFeed, priceFeed: FEED, at: new Date().toISOString(), listed: list.length };
 }
 
-async function screenDaily(account: any, symbols: string[]) {
+// `asOf`: a past date for the historical screen, whose daily numbers are
+// those of the days before it.
+async function screenDaily(account: any, symbols: string[], asOf = "") {
   const list = [...new Set(symbols.map((s) => String(s).toUpperCase()))].filter((s) => SYMBOL.test(s)).slice(0, DAILY_MAX);
   if (!list.length) return { stats: {}, feed: "sip" };
-  const start = iso(Date.now() - 380 * 86400000);
+  const past = /^\d{4}-\d{2}-\d{2}$/.test(asOf) && asOf < nyDate() ? asOf : "";
+  const until = past ? Date.parse(`${past}T00:00:00Z`) : Date.now();
+  const start = iso(until - 380 * 86400000);
   // Consolidated history ends fifteen minutes back for an account without a
   // paid data plan; finished days are all the screen uses anyway.
-  const end = iso(Date.now() - 16 * 60000);
+  const end = iso(past ? until : Date.now() - 16 * 60000);
   const read = async (feed: string) => {
     const all: Record<string, any[]> = {};
     let token: string | null = null;
@@ -548,10 +553,118 @@ async function screenDaily(account: any, symbols: string[]) {
   };
   let feed = "sip";
   const bars = await read("sip").catch(() => { feed = FEED; return read(FEED); });
-  const today = nyDate();
+  const today = past || nyDate();
   const stats: Record<string, any> = {};
   for (const s of list) stats[s] = dailyStats(bars[s] || [], today);
   return { stats, feed };
+}
+
+// ---------- the historical screen ----------
+//
+// "Historical screener to filter stock in history to get the criteria for
+// the stocks in play at that period" (25 Oct). Every listed share's daily
+// candles from six weeks before a past date through it, read in slices of
+// symbols together and reduced to one row each as they arrive
+// (_shared/screenHistory.ts); at the open, the pre-market of the shares that
+// gapped most, from their one-minute candles. Read once per account, date and
+// moment, and kept by the instance a few hours: the past does not change.
+//
+// The universe is the shares listed today: a company delisted since is
+// missing (survivorship), and names, shares outstanding and options are
+// today's.
+
+const HISTORY_COLUMNS = [
+  "symbol", "name", "exchange", "price", "priceAt", "day", "prevClose", "open", "high", "low", "close", "volume", "prevVolume", "vwap", "trades",
+  "bid", "ask", "options", "shortable", "easyToBorrow", "fund", "shares", "earnDate", "earnSession",
+  "lastDate", "lastClose", "avgVol20", "avgDollar20", "atr14", "sma20", "d5", "d21", "pmVolume", "pmHigh", "pmLow", "pmLast"
+];
+const HISTORY_CHUNK = 300;
+const PM_CANDIDATES = 300;
+const PM_CHUNK = 25;
+const historyCache = new Map<string, { at: number; value: any }>();
+
+async function screenHistory(account: any, date: string, asOf: "open" | "close") {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: "Pick a date." };
+  if (date < "2016-01-04") return { error: "Alpaca's history starts in 2016." };
+  if (date >= nyDate()) return { error: "Pick a day before today: today is the live screen." };
+  const key = `${account.id}|${date}|${asOf}`;
+  const hit = historyCache.get(key);
+  if (hit && Date.now() - hit.at < 6 * 3600000) return hit.value;
+
+  const list = (await assetList(account)).filter((a) => a.assetClass === "us_equity" && SCREEN_EXCHANGES.has(a.exchange) && SYMBOL.test(a.symbol));
+  const [shares] = await Promise.all([sharesOutstanding().catch(() => null), cikFor("AAPL").catch(() => null)]);
+  const start = iso(Date.parse(`${date}T00:00:00Z`) - 45 * 86400000);
+  const end = iso(Date.parse(`${date}T23:59:59Z`));
+  let feed = "sip";
+  const readDaily = async (symbols: string[], f: string) => {
+    const all: Record<string, any[]> = {};
+    let token: string | null = null;
+    let pages = 0;
+    do {
+      const page = await alpacaFetch(`${DATA}/stocks/bars?symbols=${symbols.join(",")}&timeframe=1Day&start=${start}&end=${end}&limit=10000&feed=${f}&adjustment=split` +
+        (token ? `&page_token=${encodeURIComponent(token)}` : ""), account);
+      for (const [sym, bars] of Object.entries(page?.bars || {})) (all[sym] = all[sym] || []).push(...(bars as any[]));
+      token = page?.next_page_token || null;
+      pages += 1;
+    } while (token && pages < 8);
+    return all;
+  };
+  const chunks: Asset[][] = [];
+  for (let i = 0; i < list.length; i += HISTORY_CHUNK) chunks.push(list.slice(i, i + HISTORY_CHUNK));
+  const found: { a: Asset; r: NonNullable<ReturnType<typeof historyRow>> }[] = [];
+  await inBatches(chunks, 6, async (c) => {
+    const symbols = c.map((a) => a.symbol);
+    const bars = await readDaily(symbols, feed).catch(() => { feed = FEED; return readDaily(symbols, FEED); });
+    for (const a of c) {
+      // The day's candle is stamped at New York midnight, in UTC.
+      const r = historyRow((bars[a.symbol] || []).map((b: any) => ({ ...b, t: nyDate(Date.parse(b.t) + 3600000) })), date, asOf);
+      if (r) found.push({ a, r });
+    }
+    return null;
+  });
+  if (!found.length) return { error: `No trading on ${date}: a weekend or a market holiday.` };
+
+  // The pre-market of the biggest gaps among shares that trade a million
+  // dollars a day or more.
+  const pm: Record<string, ReturnType<typeof premarket>> = {};
+  if (asOf === "open") {
+    const gap = (x: typeof found[number]) => (x.r.prevClose ? Math.abs(x.r.open / x.r.prevClose - 1) : 0);
+    const picks = found.filter((x) => x.r.prevClose && x.r.prevClose >= 1 && (x.r.avgDollar20 || 0) >= 1e6)
+      .sort((x, y) => gap(y) - gap(x)).slice(0, PM_CANDIDATES).map((x) => x.a.symbol);
+    const from = iso(nyMoment(date, "04:00"));
+    const to = iso(nyMoment(date, "09:30") - 1000);
+    const groups: string[][] = [];
+    for (let i = 0; i < picks.length; i += PM_CHUNK) groups.push(picks.slice(i, i + PM_CHUNK));
+    await inBatches(groups, 6, async (g) => {
+      const all: Record<string, any[]> = {};
+      let token: string | null = null;
+      let pages = 0;
+      do {
+        const page = await alpacaFetch(`${DATA}/stocks/bars?symbols=${g.join(",")}&timeframe=1Min&start=${from}&end=${to}&limit=10000&feed=${feed}` +
+          (token ? `&page_token=${encodeURIComponent(token)}` : ""), account).catch(() => null);
+        for (const [sym, bars] of Object.entries(page?.bars || {})) (all[sym] = all[sym] || []).push(...(bars as any[]));
+        token = page?.next_page_token || null;
+        pages += 1;
+      } while (token && pages < 6);
+      for (const sym of g) pm[sym] = premarket(all[sym] || []);
+      return null;
+    });
+  }
+
+  const rows = found.map(({ a, r }) => {
+    const cik = ciks?.get(a.symbol);
+    const p = pm[a.symbol];
+    return [
+      a.symbol, a.name, a.exchange, asOf === "close" ? r.close : r.open, null, r.day, r.prevClose, r.open, r.high, r.low, r.close, r.volume, r.prevVolume, r.vwap, r.trades,
+      null, null, a.options, a.shortable, a.easyToBorrow, isFundName(a.name), cik && shares ? shares.get(cik) ?? null : null, null, null,
+      r.lastDate, r.lastClose, r.avgVol20, r.avgDollar20, r.atr14, r.sma20, r.d5, r.d21,
+      p ? p.pmVolume : null, p ? p.pmHigh : null, p ? p.pmLow : null, p ? p.pmLast : null
+    ];
+  });
+  const value = { columns: HISTORY_COLUMNS, rows, history: true, date, asOf, dayFeed: feed, priceFeed: feed, at: new Date().toISOString(), listed: list.length, premarket: Object.keys(pm).length };
+  historyCache.set(key, { at: Date.now(), value });
+  if (historyCache.size > 12) historyCache.delete(historyCache.keys().next().value!);
+  return value;
 }
 
 // One order as the terminal shows it, finished or not: what was asked, what
@@ -848,6 +961,20 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
       out[tf] = r.error ? r : { ms: Date.now() - t0, feed: r.feed, n: r.bars.length, first: r.bars[0] && iso(r.bars[0].time * 1000), last: r.bars.at(-1) && iso(r.bars.at(-1).time * 1000), lastClose: r.bars.at(-1)?.close, maxGapDays: Math.round(gap * 10) / 10 };
     }
     return { symbol: sym, from, ...out };
+  }
+  if (only === "history") {
+    // The historical screen as the screener receives it: how long, how many,
+    // and the biggest gaps with their pre-market.
+    const date = extra[0] || "2026-10-23";
+    const asOf = extra[1] === "close" ? "close" : "open";
+    const t0 = Date.now();
+    const r: any = await screenHistory(house, date, asOf);
+    if (r.error) return r;
+    const at = (row: any[], c: string) => row[r.columns.indexOf(c)];
+    const gap = (row: any[]) => (at(row, "prevClose") ? at(row, "open") / at(row, "prevClose") - 1 : 0);
+    const top = [...r.rows].filter((row) => at(row, "prevClose") >= 1 && at(row, "avgDollar20") >= 1e6).sort((a, b) => gap(b) - gap(a)).slice(0, 8)
+      .map((row) => ({ s: at(row, "symbol"), prevClose: at(row, "prevClose"), open: at(row, "open"), gap: Math.round(gap(row) * 1000) / 10, pmVolume: at(row, "pmVolume"), pmLast: at(row, "pmLast"), close: at(row, "close"), volume: at(row, "volume"), avgVol20: Math.round(at(row, "avgVol20") || 0) }));
+    return { date, asOf, ms: Date.now() - t0, listed: r.listed, rows: r.rows.length, premarket: r.premarket, feed: r.dayFeed, top };
   }
   if (only === "hours") {
     // The regular-hours hourly candles the chart now asks for, as served.
@@ -1270,7 +1397,11 @@ Deno.serve(async (req) => {
       return jsonResponse(await earningsFor(admin, symbol));
     }
     if (action === "screen") {
-      if (body.stage === "daily") return jsonResponse(await screenDaily(account, Array.isArray(body.symbols) ? body.symbols : []));
+      if (body.stage === "daily") return jsonResponse(await screenDaily(account, Array.isArray(body.symbols) ? body.symbols : [], String(body.asOf || "")));
+      if (body.stage === "history") {
+        const r = await screenHistory(account, String(body.date || ""), body.asOf === "close" ? "close" : "open");
+        return jsonResponse(r, (r as any).error ? 400 : 200);
+      }
       return jsonResponse(await screenUniverse(admin, account));
     }
     if (action === "orderStatus") {
