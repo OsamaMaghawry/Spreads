@@ -23,6 +23,7 @@ import { Positions, Orders, AccountSummary } from "@/components/terminal/Panels"
 import useReplay from "@/components/terminal/useReplay";
 import ReplayBar, { ReplayStart } from "@/components/terminal/ReplayBar";
 import { PracticePositions, ReplayResults } from "@/components/terminal/ReplayPanels";
+import NewsPanel, { useNews } from "@/components/terminal/NewsPanel";
 import { acctIn, replayClock } from "@/lib/replay";
 
 const Grid = WidthProvider(Responsive);
@@ -311,6 +312,8 @@ export default function Terminal() {
     const to = new Date((day + 7 * 86400) * 1000).toISOString().slice(0, 10);
     setReplayForm({ from: date, time: "09:30", to });
   };
+  // The news tab: the active chart's symbol; in a replay, up to its moment.
+  const news = useNews({ accountId, symbol, cursor: session?.cursor ?? null, end: session?.end ?? null });
   // A new replay opens on its practice positions.
   useEffect(() => { if (session?.id) setTab("practice"); }, [session?.id]);
   useEffect(() => { if (!session && !lastReplay) setTab((t) => (t === "practice" || t === "results" ? "positions" : t)); }, [session, lastReplay]);
@@ -530,7 +533,8 @@ export default function Terminal() {
             {grip}
             {[
               ...(session || lastReplay ? [["practice", "Practice"], ["results", "Replay P/L"]] : []),
-              ["positions", `Positions${view?.positions?.length ? ` (${view.positions.length})` : ""}`], ["orders", `Orders${view?.orders?.length ? ` (${view.orders.length})` : ""}`], ["account", "Account"]
+              ["positions", `Positions${view?.positions?.length ? ` (${view.positions.length})` : ""}`], ["orders", `Orders${view?.orders?.length ? ` (${view.orders.length})` : ""}`], ["account", "Account"],
+              ["news", `News${news.recent ? ` (${news.recent})` : ""}`]
             ].map(([id, name]) => (
               <button key={id} type="button" onClick={() => setTab(id)}
                 className={`rounded px-2 py-0.5 text-xs font-medium ${tab === id ? (id === "practice" || id === "results" ? "bg-amber-600 text-white" : "bg-slate-900 text-white") : "text-slate-600 hover:bg-slate-100"}`}>{name}</button>
@@ -544,6 +548,7 @@ export default function Terminal() {
             {tab === "results" && (session || lastReplay) && (
               <ReplayResults book={session ? session.book : lastReplay.book} priceOf={session ? replay.priceOf : (s) => lastReplay.prices[s] ?? null} ended={!session} />
             )}
+            {tab === "news" && <NewsPanel news={news} symbol={symbol} crypto={crypto} cursor={session?.cursor ?? null} clock={session ? replayClock(session.cursor, crypto) : ""} onPick={setSymbol} />}
             {tab === "positions" && <Positions positions={view?.positions || []} onPick={setSymbol} onClose={closePosition} onStop={stopPosition} />}
             {tab === "orders" && <Orders accountId={accountId} orders={view?.orders || []} recent={view?.recent || []} onChanged={loadView} onPick={setSymbol} />}
             {tab === "account" && <AccountSummary summary={view?.summary} paper={view?.paper} name={account?.name} />}

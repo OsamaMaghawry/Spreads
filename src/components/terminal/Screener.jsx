@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw, Plus, Check, X, ChevronDown, ChevronRight, History } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import {
@@ -6,6 +6,7 @@ import {
   PRESETS, presetScreen, dailyCandidates, bigNumber, TREND_CHOICES, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown
 } from "@/lib/screener";
 import { px, pctText } from "@/lib/terminal";
+import { gapWindow, liveWindow, bySymbol } from "@/lib/news";
 
 // The stock screener (24 Oct 2026: "Stock Screener, with some extensive
 // filtrations like the advanced tools to see the stocks in play"). The whole
@@ -19,6 +20,10 @@ import { px, pctText } from "@/lib/terminal";
 // stood at that day's open or its close, only the figures known by then, and
 // a Replay button on each row that opens the share in the bar replay at that
 // day's open (several can be opened into the same replay).
+//
+// The News column counts each share's articles since the close before: on a
+// past day, up to its open (or its close), so a gap's catalyst shows; click
+// it for the headlines. Read for the first hundred rows on screen.
 
 const SCREEN_KEY = "dm.screener.v1";
 const DAILY_KEY = "dm.screener.daily.v1";
@@ -30,6 +35,8 @@ const DAILY_PARALLEL = 2;
 const HISTORY_PARTS = 4;
 const PM_PICK = 300;
 const PM_BATCH = 100;
+const NEWS_ROWS = 100;
+const NEWS_BATCH = 50;
 const AUTO_MS = 60000;
 const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -51,14 +58,14 @@ const COLUMN_SETS = {
   live: [
     ["symbol", "Symbol"], ["price", "Price"], ["changePct", "Chg %"], ["gapPct", "Gap %"], ["volume", "Volume"], ["relVol", "Rel vol"],
     ["dollarVol", "$ Vol"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["fromHigh52", "vs 52w high"],
-    ["vsSma50", "vs 50d"], ["perf1m", "1 month"], ["earningsIn", "Earnings"]
+    ["vsSma50", "vs 50d"], ["perf1m", "1 month"], ["earningsIn", "Earnings"], ["news", "News"]
   ],
   open: [
-    ["symbol", "Symbol"], ["price", "Open"], ["gapPct", "Gap %"], ["pmChangePct", "Pre-mkt %"], ["pmVolume", "Pre-mkt vol"], ["prevDollarVol", "$ Vol day before"],
+    ["symbol", "Symbol"], ["price", "Open"], ["gapPct", "Gap %"], ["news", "News"], ["pmChangePct", "Pre-mkt %"], ["pmVolume", "Pre-mkt vol"], ["prevDollarVol", "$ Vol day before"],
     ["avgVol20", "Avg vol"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["fromHigh52", "vs 52w high"], ["vsSma50", "vs 50d"], ["perf1m", "1 month"]
   ],
   close: [
-    ["symbol", "Symbol"], ["price", "Close"], ["changePct", "Chg %"], ["gapPct", "Gap %"], ["volume", "Volume"], ["relVol", "Rel vol"], ["dollarVol", "$ Vol"],
+    ["symbol", "Symbol"], ["price", "Close"], ["changePct", "Chg %"], ["gapPct", "Gap %"], ["news", "News"], ["volume", "Volume"], ["relVol", "Rel vol"], ["dollarVol", "$ Vol"],
     ["rangePos", "In range"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["fromHigh52", "vs 52w high"], ["vsSma50", "vs 50d"], ["perf1m", "1 month"]
   ]
 };
@@ -79,6 +86,20 @@ function cell(row, key) {
     return <span className={tone}>{key === "atrPct" ? `${(v * 100).toFixed(1)}%` : pctText(v)}</span>;
   }
   return String(v);
+}
+
+// A row's news count: still reading, none, or a count to open.
+function newsCell(n, onOpen, open) {
+  if (n === undefined) return <span className="text-slate-300">—</span>;
+  if (n === null) return <span className="text-slate-300">…</span>;
+  if (n.error) return <span className="text-rose-400" title={n.error}>!</span>;
+  if (!n.items.length) return <span className="text-slate-300">0</span>;
+  return (
+    <button type="button" onClick={onOpen} title={n.items.slice(0, 3).map((a) => a.headline).join("\n")}
+      className={`rounded px-1.5 font-semibold ${open ? "bg-sky-700 text-white" : "bg-sky-100 text-sky-800 hover:bg-sky-200"}`}>
+      {n.items.length}{n.more ? "+" : ""}
+    </button>
+  );
 }
 
 // One filter's minimum and maximum, as typed ("500k", "2.5m", "3").
@@ -249,6 +270,47 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
   }, [screen, mode]);
   const matches = useMemo(() => sortRows(rows.filter((r) => passes(r, effective)), effective.sort), [rows, effective]);
   const COLUMNS = COLUMN_SETS[mode];
+
+  // Each share's news since the close before (live: until now, in five-minute
+  // steps; a past day: to its open or its close), for the rows on screen.
+  const lastDate = useMemo(() => universe.rows.find((u) => u.lastDate)?.lastDate || null, [universe.rows]);
+  const newsWin = useMemo(() => {
+    if (when.date) return lastDate ? gapWindow(when.date, lastDate, when.asOf) : null;
+    if (!universe.at) return null;
+    const w = liveWindow(Date.parse(universe.at) / 1000);
+    return { ...w, end: Math.floor(w.end / 300) * 300 };
+  }, [when.date, when.asOf, lastDate, universe.at]);
+  const newsKey = newsWin ? `${newsWin.start}|${newsWin.end}` : "";
+  const newsRef = useRef({ key: "", by: {} });
+  const [, setNewsTick] = useState(0);
+  const [openNews, setOpenNews] = useState(null);
+  const shownSymbols = matches.slice(0, NEWS_ROWS).map((r) => r.symbol).join(",");
+  useEffect(() => {
+    if (!active || !accountId || !newsWin || !shownSymbols) return;
+    if (newsRef.current.key !== newsKey) newsRef.current = { key: newsKey, by: {} };
+    const by = newsRef.current.by;
+    const want = shownSymbols.split(",").filter((sym) => !(sym in by));
+    if (!want.length) return;
+    for (const sym of want) by[sym] = null;
+    setNewsTick((n) => n + 1);
+    const key = newsKey;
+    for (let i = 0; i < want.length; i += NEWS_BATCH) {
+      const batch = want.slice(i, i + NEWS_BATCH);
+      invokeFunction("terminal", { action: "news", accountId, symbols: batch, start: new Date(newsWin.start * 1000).toISOString(), end: new Date(newsWin.end * 1000).toISOString(), sort: "desc", max: 500 })
+        .then((r) => {
+          if (newsRef.current.key !== key) return;
+          if (r?.data?.error) { for (const sym of batch) by[sym] = { error: r.data.error, items: [] }; return; }
+          const found = bySymbol(r?.data?.news || [], batch);
+          for (const sym of batch) by[sym] = { items: found[sym], more: !!r?.data?.truncated };
+        })
+        .catch(() => { for (const sym of batch) if (newsRef.current.key === key) delete by[sym]; })
+        .finally(() => setNewsTick((n) => n + 1));
+    }
+  }, [active, accountId, newsKey, shownSymbols]);
+  const newsOf = (sym) => (newsRef.current.key === newsKey ? newsRef.current.by[sym] : undefined);
+  const newsWhen = newsWin
+    ? `${new Date(newsWin.start * 1000).toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} to ${when.date ? new Date(newsWin.end * 1000).toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "now"} New York`
+    : "";
   const covered = rows.filter((r) => r.hasDaily).length;
 
   const choosePreset = (id) => { setPreset(id); setScreen(presetScreen(id)); };
@@ -382,8 +444,8 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
             <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] text-slate-500">
               <tr>
                 {COLUMNS.map(([key, name]) => (
-                  <th key={key} className={`cursor-pointer whitespace-nowrap px-2 py-1 font-medium hover:text-slate-900 ${key === "symbol" ? "text-left" : "text-right"}`}
-                    title={FIELD[key]?.hint || FIELD[key]?.label || "Symbol"} onClick={() => sortBy(key)}>
+                  <th key={key} className={`whitespace-nowrap px-2 py-1 font-medium ${key === "news" ? "" : "cursor-pointer hover:text-slate-900"} ${key === "symbol" ? "text-left" : "text-right"}`}
+                    title={key === "news" ? `Articles naming the share, ${newsWhen}. Click a count for the headlines.` : FIELD[key]?.hint || FIELD[key]?.label || "Symbol"} onClick={() => key !== "news" && sortBy(key)}>
                     {name}{screen.sort.key === key ? (screen.sort.dir === "desc" ? " ↓" : " ↑") : ""}
                   </th>
                 ))}
@@ -392,13 +454,16 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
             </thead>
             <tbody>
               {matches.slice(0, SHOW_MAX).map((r) => (
-                <tr key={r.symbol} className="cursor-pointer border-t border-slate-100 hover:bg-emerald-50" onClick={() => onPick(r.symbol)}>
+                <Fragment key={r.symbol}>
+                <tr className="cursor-pointer border-t border-slate-100 hover:bg-emerald-50" onClick={() => onPick(r.symbol)}>
                   <td className="max-w-[14rem] px-2 py-1">
                     <span className="font-semibold">{r.symbol}</span>
                     {r.options && <span className="ml-1 rounded bg-slate-100 px-1 text-[9px] text-slate-500" title="Options listed">OPT</span>}
                     <span className="ml-1.5 truncate text-[11px] text-slate-400" title={r.name}>{r.name.replace(/ (Common Stock|Class A Common Stock|Ordinary Shares)$/i, "").slice(0, 28)}</span>
                   </td>
-                  {COLUMNS.slice(1).map(([key]) => <td key={key} className="whitespace-nowrap px-2 py-1 text-right">{cell(r, key)}</td>)}
+                  {COLUMNS.slice(1).map(([key]) => (key === "news"
+                    ? <td key={key} className="whitespace-nowrap px-2 py-1 text-right" onClick={(e) => e.stopPropagation()}>{newsCell(newsOf(r.symbol), () => setOpenNews(openNews === r.symbol ? null : r.symbol), openNews === r.symbol)}</td>
+                    : <td key={key} className="whitespace-nowrap px-2 py-1 text-right">{cell(r, key)}</td>))}
                   <td className="whitespace-nowrap px-1" onClick={(e) => e.stopPropagation()}>
                     {when.date && (
                       <button type="button" title={`Replay ${r.symbol} from ${when.date}, 9:30 New York (or add it to the replay running)`} aria-label={`Replay ${r.symbol}`}
@@ -408,6 +473,21 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
                       : <button type="button" title="Add to watchlist" onClick={() => onAdd(r.symbol)} className="rounded p-0.5 text-slate-400 hover:bg-emerald-100 hover:text-emerald-700"><Plus className="h-3.5 w-3.5" /></button>}
                   </td>
                 </tr>
+                {openNews === r.symbol && newsOf(r.symbol)?.items && (
+                  <tr className="bg-slate-50">
+                    <td colSpan={COLUMNS.length + 1} className="px-3 py-1.5">
+                      <div className="mb-1 text-[10px] text-slate-500">{r.symbol} news, {newsWhen}</div>
+                      {newsOf(r.symbol).items.length === 0 ? <p className="text-[11px] text-slate-500">None.</p> : newsOf(r.symbol).items.slice(0, 12).map((a) => (
+                        <div key={a.id} className="flex gap-2 py-0.5 text-[11px]">
+                          <span className="w-28 shrink-0 tabular-nums text-slate-500">{new Date(a.at).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
+                          <a href={a.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 text-slate-800 hover:text-emerald-800 hover:underline">{a.headline}</a>
+                          {a.source && <span className="shrink-0 text-[10px] uppercase text-slate-400">{a.source}</span>}
+                        </div>
+                      ))}
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
