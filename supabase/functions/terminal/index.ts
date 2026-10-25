@@ -840,10 +840,12 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     const from = extra[1] || "2026-03-02T00:00:00Z";
     const out: Record<string, any> = {};
     const at = (days: number) => new Date(Date.parse(from) + days * 86400000).toISOString();
-    for (const [tf, f, t] of [["1Min", at(-30), at(5)], ["30Min", at(-30 - (isCrypto(sym) ? 180 : 365)), at(-30)], ["1Day", at(-3650), at(60)]]) {
+    for (const [tf, f, t] of [["1Min", at(-30), at(5)], ["30Min", at(-30 - (isCrypto(sym) ? 180 : 365)), at(-30)], ["1Day", at(-3650), at(366)]]) {
       const t0 = Date.now();
       const r: any = await replayData(house, sym, tf, f, t);
-      out[tf] = r.error ? r : { ms: Date.now() - t0, feed: r.feed, n: r.bars.length, first: r.bars[0] && iso(r.bars[0].time * 1000), last: r.bars.at(-1) && iso(r.bars.at(-1).time * 1000), lastClose: r.bars.at(-1)?.close };
+      // The longest stretch without a candle, in days: a short read shows here.
+      const gap = r.bars ? Math.max(0, ...r.bars.slice(1).map((b: any, i: number) => b.time - r.bars[i].time)) / 86400 : null;
+      out[tf] = r.error ? r : { ms: Date.now() - t0, feed: r.feed, n: r.bars.length, first: r.bars[0] && iso(r.bars[0].time * 1000), last: r.bars.at(-1) && iso(r.bars.at(-1).time * 1000), lastClose: r.bars.at(-1)?.close, maxGapDays: Math.round(gap * 10) / 10 };
     }
     return { symbol: sym, from, ...out };
   }
@@ -964,8 +966,13 @@ async function placeOrder(admin: any, user: any, account: any, input: any) {
 // everything thing looks normal during the replay mode so i can have a look
 // on the bigger pic", 25 Oct), and the daily candles go back ten years.
 
-const REPLAY_MAX_DAYS: Record<string, number> = { "1Min": 45, "30Min": 370, "1Day": 3700 };
+// The chart asks for ten years of days up to a year past the start, and a
+// year of half hours. Each is read in slices, together: a long read in one
+// request came back short (a year of AAPL's half hours stopped in September),
+// and a coin's intraday history comes a week per page.
+const REPLAY_MAX_DAYS: Record<string, number> = { "1Min": 45, "30Min": 400, "1Day": 4400 };
 const REPLAY_NAMES: Record<string, string> = { "1Min": "one-minute", "30Min": "half-hour", "1Day": "daily" };
+const REPLAY_SLICE_DAYS: Record<string, number> = { "1Min": 7, "30Min": 30, "1Day": 730 };
 
 async function replayData(account: any, symbol: string, tf: string, from: string, to: string) {
   if (!REPLAY_MAX_DAYS[tf]) return { error: "Replay reads one-minute, half-hour or daily candles." };
@@ -974,31 +981,23 @@ async function replayData(account: any, symbol: string, tf: string, from: string
   const end = Math.min(Date.parse(to), Date.now() - 16 * 60000);
   if (!Number.isFinite(start) || !Number.isFinite(end) || !(start < end)) return { symbol, tf, bars: [] };
   if (end - start > REPLAY_MAX_DAYS[tf] * 86400000) return { error: `At most ${REPLAY_MAX_DAYS[tf]} days of ${REPLAY_NAMES[tf]} candles at a time.` };
-  if (crypto && tf === "1Day") {
-    // Daily candles are not held to a week a page: one request, newest first,
-    // so a shortfall is at the old end.
-    const list = await allPages(account,
-      `${CRYPTO_DATA}/bars?symbols=${encodeURIComponent(symbol)}&timeframe=1Day&start=${iso(start)}&end=${iso(end)}&limit=10000&sort=desc`,
-      (page) => page?.bars?.[symbol], 12);
-    return { symbol, tf, feed: "crypto", bars: list.map(candle).reverse() };
-  }
-  if (crypto) {
-    // A coin's history comes a week per page: read the weeks together.
-    const windows: [number, number][] = [];
-    for (let w = start; w < end; w += WEEK_MS) windows.push([w, Math.min(end, w + WEEK_MS)]);
-    const chunks = await inBatches(windows, 8, ([a, b]) => allPages(account,
-      `${CRYPTO_DATA}/bars?symbols=${encodeURIComponent(symbol)}&timeframe=${tf}&start=${iso(a)}&end=${iso(b)}&limit=10000&sort=asc`,
-      (page) => page?.bars?.[symbol], 6));
-    const byTime = new Map<number, any>();
-    for (const b of chunks.flat()) byTime.set(Math.floor(Date.parse(b.t) / 1000), b);
-    return { symbol, tf, feed: "crypto", bars: [...byTime.values()].map(candle).sort((x, y) => x.time - y.time) };
-  }
-  const read = (feed: string) => allPages(account,
-    `${DATA}/stocks/${encodeURIComponent(symbol)}/bars?timeframe=${tf}&start=${iso(start)}&end=${iso(end)}&limit=10000&feed=${feed}&adjustment=split&sort=asc`,
-    (page) => page?.bars, 12);
-  let feed = "sip";
-  const list = await read("sip").catch(() => { feed = FEED; return read(FEED); });
-  return { symbol, tf, feed, bars: list.map(candle) };
+  const slice = (crypto && tf !== "1Day" ? 7 : REPLAY_SLICE_DAYS[tf]) * 86400000;
+  const windows: [number, number][] = [];
+  for (let w = start; w < end; w += slice) windows.push([w, Math.min(end, w + slice)]);
+  const readAll = (url: (a: number, b: number) => string, pick: (page: any) => any[]) =>
+    inBatches(windows, 8, ([a, b]) => allPages(account, url(a, b), pick, 12));
+  let feed = crypto ? "crypto" : "sip";
+  const chunks = crypto
+    ? await readAll((a, b) => `${CRYPTO_DATA}/bars?symbols=${encodeURIComponent(symbol)}&timeframe=${tf}&start=${iso(a)}&end=${iso(b)}&limit=10000&sort=asc`, (page) => page?.bars?.[symbol])
+    : await (async () => {
+      const stockUrl = (f: string) => (a: number, b: number) =>
+        `${DATA}/stocks/${encodeURIComponent(symbol)}/bars?timeframe=${tf}&start=${iso(a)}&end=${iso(b)}&limit=10000&feed=${f}&adjustment=split&sort=asc`;
+      return readAll(stockUrl("sip"), (page) => page?.bars).catch(() => { feed = FEED; return readAll(stockUrl(FEED), (page) => page?.bars); });
+    })();
+  // A candle on a slice's edge can come back in both; keep one of each.
+  const byTime = new Map<number, any>();
+  for (const b of chunks.flat()) byTime.set(Math.floor(Date.parse(b.t) / 1000), b);
+  return { symbol, tf, feed, bars: [...byTime.values()].map(candle).sort((x, y) => x.time - y.time) };
 }
 
 // ---------- one-key actions on a position (hotkeys) ----------
