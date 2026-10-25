@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { usSession, stopPlan, stopsToReplace, exitPlan } from "./positionTools.ts";
+import { usSession, stopPlan, stopsToReplace, exitPlan, tradeSize, partialQty } from "./positionTools.ts";
 
 const long = { qty: 100, side: "long" as const, avgPrice: 340, last: 350 };
 const short = { qty: -50, side: "short" as const, avgPrice: 360, last: 350 };
@@ -49,18 +49,63 @@ test("a new stop replaces the old stops on the closing side, not a bracket's leg
 });
 
 test("exits: the broker's close in the session; a limit at the bid or ask outside it; refused overnight", () => {
-  assert.deepEqual(exitPlan(long, 50, "regular", {}), { ok: true, how: "close", percent: 50 });
-  assert.deepEqual(exitPlan(long, 100, "closed", {}, true), { ok: true, how: "close", percent: 100 });
-  const pre = exitPlan(long, 50, "extended", { bid: 349.9, ask: 350.1 }) as any;
+  const all = { all: true, qty: 0 };
+  assert.deepEqual(exitPlan(long, { all: false, qty: 50 }, "regular", {}), { ok: true, how: "close", all: false, qty: 50 });
+  assert.deepEqual(exitPlan(long, all, "closed", {}, true), { ok: true, how: "close", all: true, qty: 100 });
+  const pre = exitPlan(long, { all: false, qty: 50 }, "extended", { bid: 349.9, ask: 350.1 }) as any;
   assert.deepEqual([pre.how, pre.side, pre.qty, pre.limitPrice, pre.note], ["limit", "sell", 50, 349.9, null]);
-  const cover = exitPlan(short, 100, "extended", { bid: 349.9, ask: 350.1 }) as any;
+  const cover = exitPlan(short, all, "extended", { bid: 349.9, ask: 350.1 }) as any;
   assert.deepEqual([cover.side, cover.qty, cover.limitPrice], ["buy", 50, 350.1]);
-  const odd = exitPlan({ ...long, qty: 7.5 }, 50, "extended", { bid: 10 }) as any;
+  const odd = exitPlan({ ...long, qty: 7.5 }, { all: false, qty: 3.75 }, "extended", { bid: 10 }) as any;
   assert.equal(odd.qty, 3);
   assert.match(odd.note, /whole shares/);
   const why = (...a: any[]) => (exitPlan(...(a as [any, any, any, any])) as any).reason;
-  assert.match(why(long, 50, "closed", {}), /shut now/);
-  assert.match(why(long, 0, "regular", {}), /between 1% and 100%/);
-  assert.match(why(long, 50, "extended", {}), /No bid/);
-  assert.match(why({ ...long, qty: 1 }, 50, "extended", { bid: 10 }), /less than one/);
+  assert.match(why(long, all, "closed", {}), /shut now/);
+  assert.match(why(long, { all: false, qty: 0 }, "regular", {}), /Nothing to exit/);
+  assert.match(why(long, all, "extended", {}), /No bid/);
+  assert.match(why({ ...long, qty: 1 }, { all: false, qty: 0.5 }, "extended", { bid: 10 }), /less than one/);
+});
+
+const ETH = (s: unknown) => String(s).replace("/", "") === "ETHUSD";
+test("the trade's size: the largest since the position was last flat, from the fills", () => {
+  // 25 Oct: bought 0.424095931 ETH, then took a quarter of it, then another.
+  const fills = [
+    { symbol: "ETHUSD", side: "sell", qty: "0.079328567" },
+    { symbol: "ETHUSD", side: "sell", qty: "0.105771422" },
+    { symbol: "AAPL", side: "buy", qty: "10" },
+    { symbol: "ETH/USD", side: "buy", qty: "0.424095931" },
+    { symbol: "ETHUSD", side: "sell", qty: "1" },
+    { symbol: "ETHUSD", side: "buy", qty: "1" }
+  ];
+  const now = 0.424095931 - 0.105771422 - 0.079328567;
+  assert.ok(Math.abs(tradeSize(fills, now, ETH) - 0.424095931) < 1e-9);
+  // Added to on the way: the largest size counts.
+  assert.equal(tradeSize([{ symbol: "X", side: "buy", qty: 50 }, { symbol: "X", side: "buy", qty: 100 }], 150, (s) => s === "X"), 150);
+  assert.equal(tradeSize([{ symbol: "X", side: "sell", qty: 50 }, { symbol: "X", side: "buy", qty: 100 }], 50, (s) => s === "X"), 100);
+  // A short: sells build it.
+  assert.equal(tradeSize([{ symbol: "X", side: "buy", qty: 20 }, { symbol: "X", side: "sell_short", qty: 40 }], -20, (s) => s === "X"), 40);
+  // No fills: what is held.
+  assert.equal(tradeSize([], 30, () => true), 30);
+});
+
+test("partial exits are slices of the trade, and the presses add up to all of it", () => {
+  const presses = (base: number, pct: number, opts: any = {}) => {
+    let left = base;
+    const out: number[] = [];
+    for (let i = 0; i < 10 && left > 0; i++) {
+      const p = partialQty(left, base, pct, opts);
+      out.push(p.qty);
+      left = Number((left - p.qty).toFixed(9));
+    }
+    return out;
+  };
+  assert.deepEqual(presses(100, 50, { whole: true }), [50, 50]);
+  assert.deepEqual(presses(100, 25, { whole: true }), [25, 25, 25, 25]);
+  assert.deepEqual(presses(100, 33, { whole: true }), [33, 33, 34]);
+  assert.deepEqual(presses(7, 50, { whole: true }), [3, 4]);
+  const eth = presses(0.424095931, 25, { step: 0.000000001, min: 0.000012373 });
+  assert.equal(eth.length, 4);
+  assert.ok(Math.abs(eth.reduce((a, b) => a + b, 0) - 0.424095931) < 1e-9);
+  assert.deepEqual(partialQty(10, 100, 50, { whole: true }), { qty: 10, all: true });
+  assert.deepEqual(partialQty(80, 100, 100), { qty: 80, all: true });
 });

@@ -17,7 +17,7 @@ import TapePanel from "@/components/terminal/TapePanel";
 import Toasts from "@/components/terminal/Toasts";
 import Screener from "@/components/terminal/Screener";
 import HotkeysDialog from "@/components/terminal/Hotkeys";
-import { runHotkey } from "@/components/terminal/runHotkey";
+import { runHotkey, prefetchStep } from "@/components/terminal/runHotkey";
 import { comboOf, cleanHotkeys } from "@/lib/hotkeys";
 import { Positions, Orders, AccountSummary } from "@/components/terminal/Panels";
 
@@ -253,6 +253,8 @@ export default function Terminal() {
     readPrefs(["hotkeys"]).then((p) => setHotkeys(cleanHotkeys(p.hotkeys))).catch(() => {});
   }, []);
   const saveHotkeys = (list) => { setHotkeys(list); savePref("hotkeys", list); };
+  // A coin's quantity step, read ahead so the first key press does not wait for it.
+  useEffect(() => { if (hotkeysOn && crypto) prefetchStep(accountId, symbol); }, [hotkeysOn, crypto, accountId, symbol]);
   const armHotkeys = (on) => { setHotkeysOn(on); store.set(HOTKEYS_ON_KEY, on ? "1" : "0"); };
   // Everything a key press reads, current at the moment it is pressed.
   const live$ = useRef({});

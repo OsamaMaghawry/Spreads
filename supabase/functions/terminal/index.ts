@@ -14,7 +14,8 @@ import { sessionCandles } from "../_shared/sessionBars.ts";
 import { currentReports } from "../_shared/earnings.ts";
 import { secReports, withFigures, earningsTimeline, cikMap } from "../_shared/earningsHistory.ts";
 import { dailyStats, isFundName } from "../_shared/screenStats.ts";
-import { usSession, stopPlan, stopsToReplace, exitPlan } from "../_shared/positionTools.ts";
+import { usSession, stopPlan, stopsToReplace, exitPlan, tradeSize, partialQty } from "../_shared/positionTools.ts";
+import { inBackground } from "../_shared/background.ts";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -267,6 +268,13 @@ type Asset = {
 let assets: Asset[] | null = null;
 let assetsAt = 0;
 
+const shape = (a: any): Asset => ({
+  symbol: a.class === "crypto" ? cryptoSymbol(a.symbol) : a.symbol, name: a.name || "", exchange: a.exchange || "",
+  shortable: !!a.shortable, fractionable: !!a.fractionable, assetClass: a.class === "crypto" ? "crypto" : "us_equity",
+  minOrderSize: num(a.min_order_size), minTradeIncrement: num(a.min_trade_increment), priceIncrement: num(a.price_increment),
+  options: Array.isArray(a.attributes) && a.attributes.includes("has_options"), easyToBorrow: !!a.easy_to_borrow
+});
+
 async function assetList(account: any): Promise<Asset[]> {
   if (!assets || Date.now() - assetsAt > 6 * 3600000) {
     const base = tradingBase(account);
@@ -274,12 +282,6 @@ async function assetList(account: any): Promise<Asset[]> {
       alpacaFetch(`${base}/assets?status=active&asset_class=us_equity`, account),
       alpacaFetch(`${base}/assets?status=active&asset_class=crypto`, account).catch(() => [])
     ]);
-    const shape = (a: any): Asset => ({
-      symbol: a.class === "crypto" ? cryptoSymbol(a.symbol) : a.symbol, name: a.name || "", exchange: a.exchange || "",
-      shortable: !!a.shortable, fractionable: !!a.fractionable, assetClass: a.class === "crypto" ? "crypto" : "us_equity",
-      minOrderSize: num(a.min_order_size), minTradeIncrement: num(a.min_trade_increment), priceIncrement: num(a.price_increment),
-      options: Array.isArray(a.attributes) && a.attributes.includes("has_options"), easyToBorrow: !!a.easy_to_borrow
-    });
     assets = [...(Array.isArray(coins) ? coins : []), ...(Array.isArray(shares) ? shares : [])]
       .filter((a: any) => a.tradable)
       .map(shape);
@@ -300,8 +302,22 @@ async function search(account: any, q: string) {
   return { results: [...exact, ...starts.sort((a, b) => a.symbol.length - b.symbol.length), ...named].slice(0, 20) };
 }
 
+// One symbol's asset: from the whole list when this instance has it, else
+// the broker's single-asset lookup. An order does not wait for the list of
+// every listed share (two large reads, a second or two on a fresh instance;
+// the first ETH order of 25 Oct took 2.3 s for it).
+const oneAsset = new Map<string, { at: number; asset: Asset | null }>();
 async function assetFor(account: any, symbol: string) {
-  return (await assetList(account)).find((a) => a.symbol === symbol) || null;
+  if (assets && Date.now() - assetsAt < 6 * 3600000) return assets.find((a) => a.symbol === symbol) || null;
+  const hit = oneAsset.get(symbol);
+  if (hit && Date.now() - hit.at < 3600000) return hit.asset;
+  const base = tradingBase(account);
+  const a = await alpacaFetch(`${base}/assets/${encodeURIComponent(symbol)}`, account)
+    .catch(() => (symbol.includes("/") ? alpacaFetch(`${base}/assets/${symbol.replace("/", "")}`, account) : null))
+    .catch(() => null);
+  const asset = a && a.tradable ? shape(a) : null;
+  oneAsset.set(symbol, { at: Date.now(), asset });
+  return asset;
 }
 
 // ---------- earnings on the chart ----------
@@ -801,6 +817,22 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
       daily: { ms: t2 - t1, feed: d.feed, stats: d.stats }
     };
   }
+  if (only === "latency") {
+    // How long each kind of request takes from wherever this instance runs:
+    // the database, the broker's trading and data servers.
+    const time = async (f: () => Promise<unknown>) => { const t = performance.now(); try { await f(); } catch { /* timed anyway */ } return Math.round(performance.now() - t); };
+    const runs = async (f: () => Promise<unknown>, n = 4) => { const out: number[] = []; for (let i = 0; i < n; i++) out.push(await time(f)); return out; };
+    return {
+      region: Deno.env.get("SB_REGION") || null,
+      db: await runs(() => admin.from("app_settings").select("key").limit(1)),
+      settings: await runs(() => readSettings(admin), 2),
+      account: await runs(() => loadAccount(admin, house.id, house.user_id), 2),
+      tradingClock: await runs(() => alpacaFetch(`${tradingBase(house)}/clock`, house)),
+      positions: await runs(() => alpacaFetch(`${tradingBase(house)}/positions`, house)),
+      openOrders: await runs(() => alpacaFetch(`${tradingBase(house)}/orders?status=open&limit=5`, house)),
+      quote: await runs(() => alpacaFetch(`${DATA}/stocks/AAPL/quotes/latest?feed=${FEED}`, house))
+    };
+  }
   if (only === "replay") {
     // A replay's two reads, as the chart receives them: counts, first and
     // last candle, the feed.
@@ -887,9 +919,13 @@ async function placeOrder(admin: any, user: any, account: any, input: any) {
     const symbol = cryptoSymbol(input.symbol);
     // What is held, for the no-short-sales check: Alpaca's positions write the
     // coin without its slash.
-    const positions = await alpacaFetch(`${tradingBase(account)}/positions`, account);
+    // A buy needs no holding check; a sale reads the holding alongside the asset.
+    const [asset, positions] = await Promise.all([
+      assetFor(account, symbol),
+      input.side === "sell" ? alpacaFetch(`${tradingBase(account)}/positions`, account) : Promise.resolve([])
+    ]);
     const held = (Array.isArray(positions) ? positions : []).find((p: any) => p.asset_class === "crypto" && cryptoSymbol(p.symbol) === symbol);
-    built = cryptoOrderBody(input, `TERM_${Date.now()}`, await assetFor(account, symbol), num(held?.qty) || 0);
+    built = cryptoOrderBody(input, `TERM_${Date.now()}`, asset, num(held?.qty) || 0);
   } else {
     built = stockOrderBody(input, `TERM_${Date.now()}`);
   }
@@ -1016,15 +1052,16 @@ async function stopBody(account: any, symbol: string, plan: any, qtyText: string
 async function protect(admin: any, user: any, account: any, input: any) {
   const symbol = cryptoSymbol(String(input?.symbol || "").toUpperCase());
   const crypto = isCrypto(symbol);
-  const pos = await positionOf(account, symbol);
+  const [pos, open] = await Promise.all([positionOf(account, symbol), openOrdersFor(account, symbol)]);
   if (!pos) return { status: 400, body: { error: `No ${symbol} position to protect.` } };
   const plan = stopPlan(pos, { mode: input.mode, value: Number(input.value), from: input.from === "entry" ? "entry" : "last" }, crypto);
   if (!plan.ok) return { status: 400, body: { error: plan.reason } };
-  const old = stopsToReplace(await openOrdersFor(account, symbol), plan.side);
+  const old = stopsToReplace(open, plan.side);
   if (!(await cancelAndWait(account, symbol, old.map((o: any) => o.id)))) {
     return { status: 409, body: { error: "The old stop is still being cancelled; press again in a moment." } };
   }
-  const now = await positionOf(account, symbol);
+  // What is free to cover: read again only if a stop was just released.
+  const now = old.length ? await positionOf(account, symbol) : pos;
   if (!now || now.available + 1e-9 < plan.qty) {
     const held = now ? plan.qty - now.available : plan.qty;
     return { status: 409, body: { error: `${held} of ${plan.qty} are held by other working orders on ${symbol} (a limit to sell, say). Cancel them first, or exit.` } };
@@ -1039,32 +1076,47 @@ async function protect(admin: any, user: any, account: any, input: any) {
 async function exitPosition(admin: any, user: any, account: any, input: any) {
   const symbol = cryptoSymbol(String(input?.symbol || "").toUpperCase());
   const crypto = isCrypto(symbol);
-  const pos = await positionOf(account, symbol);
-  if (!pos) return { status: 400, body: { error: `No ${symbol} position to exit.` } };
   const percent = Number(input.percent ?? 100);
   const session = usSession(Date.now());
-  const quote = crypto || session === "regular" ? {} : (await alpacaFetch(`${DATA}/stocks/${encodeURIComponent(symbol)}/quotes/latest?feed=${FEED}`, account))?.quote || {};
-  const plan = exitPlan(pos, percent, session, { bid: num(quote.bp), ask: num(quote.ap) }, crypto);
+  const partial = percent < 100;
+  // Everything the exit needs, read together: the position, the orders
+  // holding it, the fills that say how big the trade was (a partial exit is a
+  // share of the trade, not of what is left), the coin's steps, the quote.
+  const [pos, open, fills, asset, quote] = await Promise.all([
+    positionOf(account, symbol),
+    openOrdersFor(account, symbol),
+    partial ? alpacaFetch(`${tradingBase(account)}/account/activities/FILL?direction=desc&page_size=100`, account).catch(() => []) : Promise.resolve([]),
+    partial && crypto ? assetFor(account, symbol) : Promise.resolve(null),
+    crypto || session === "regular" ? Promise.resolve({}) : alpacaFetch(`${DATA}/stocks/${encodeURIComponent(symbol)}/quotes/latest?feed=${FEED}`, account).then((r: any) => r?.quote || {}).catch(() => ({}))
+  ]);
+  if (!pos) return { status: 400, body: { error: `No ${symbol} position to exit.` } };
+  const held = Math.abs(pos.qty);
+  const base = partial ? tradeSize(fills, pos.qty, (s) => cryptoSymbol(s) === symbol) : held;
+  const amount = partial
+    ? partialQty(held, base, percent, { whole: !crypto && Number.isInteger(held), step: crypto ? asset?.minTradeIncrement : 1e-9, min: crypto ? asset?.minOrderSize : 0 })
+    : { qty: held, all: true };
+  const plan = exitPlan(pos, amount, session, { bid: num((quote as any).bp), ask: num((quote as any).ap) }, crypto);
   if (!plan.ok) return { status: 400, body: { error: plan.reason } };
   // Every working order on the symbol holds shares the exit needs. A partial
-  // exit puts the stop back afterwards, on what remains.
-  const open = await openOrdersFor(account, symbol);
+  // exit hands the old stop's price back, for the browser to put the stop
+  // back on what remains once the exit has filled.
   const closing = pos.side === "short" ? "buy" : "sell";
-  const stop = percent < 100 ? stopsToReplace(open, closing)[0] : null;
+  const stop = partial && !amount.all ? stopsToReplace(open, closing)[0] : null;
   if (!(await cancelAndWait(account, symbol, open.map((o: any) => o.id)))) {
     return { status: 409, body: { error: `${symbol}'s working orders are still being cancelled; press again in a moment.` } };
   }
   let order: any;
   if (plan.how === "close") {
+    const sym = encodeURIComponent(symbol.replace("/", ""));
+    const how = plan.all ? "percentage=100" : `qty=${Number(plan.qty.toFixed(9))}`;
     try {
-      const pct = String(plan.percent);
-      order = await alpacaFetch(`${tradingBase(account)}/positions/${encodeURIComponent(symbol.replace("/", ""))}?percentage=${pct}`, account, { method: "DELETE" });
-      await recordAttempt(admin, { userId: user.id, accountId: account.id, intent: "close", ticker: symbol, legs: [{ symbol, side: closing, ratio: 1 }], qty: order?.qty ?? null, orderType: "market", brokerOrderId: order?.id, status: order?.status, quote: { percent: plan.percent } });
+      order = await alpacaFetch(`${tradingBase(account)}/positions/${sym}?${how}`, account, { method: "DELETE" });
     } catch (e) {
       const message = brokerRefusal(String((e as Error)?.message || e), symbol);
-      await recordAttempt(admin, { userId: user.id, accountId: account.id, intent: "close", ticker: symbol, error: message });
+      inBackground(recordAttempt(admin, { userId: user.id, accountId: account.id, intent: "close", ticker: symbol, error: message }));
       return { status: 422, body: { error: message, cancelled: open.length } };
     }
+    inBackground(recordAttempt(admin, { userId: user.id, accountId: account.id, intent: "close", ticker: symbol, legs: [{ symbol, side: closing, ratio: 1 }], qty: order?.qty ?? null, orderType: "market", brokerOrderId: order?.id, status: order?.status, quote: { percent, tradeSize: base } }));
   } else {
     const built = stockOrderBody({ symbol, side: plan.side, qty: plan.qty, type: "limit", limitPrice: plan.limitPrice, timeInForce: "day", extendedHours: true }, `TERM_${Date.now()}`);
     if (!built.ok) return { status: 400, body: { error: built.reason } };
@@ -1072,26 +1124,14 @@ async function exitPosition(admin: any, user: any, account: any, input: any) {
     if (sent.error) return { status: 422, body: { error: sent.error, cancelled: open.length } };
     order = sent.order;
   }
-  let restop: any = null;
-  if (stop) {
-    // Wait for the exit to fill (a few seconds at most at market), then the
-    // old stop's price on what is left.
-    for (let i = 0; i < 12; i++) {
-      const o = await alpacaFetch(`${tradingBase(account)}/orders/${order.id}`, account).catch(() => null);
-      if (o?.status === "filled") break;
-      await pause(500);
+  return {
+    status: 200,
+    body: {
+      orderId: order?.id, status: order?.status, how: plan.how, percent, side: closing, tradeSize: base, all: plan.how === "close" ? plan.all : false,
+      limitPrice: plan.how === "limit" ? plan.limitPrice : null, qty: plan.how === "limit" ? plan.qty : num(order?.qty) ?? plan.qty,
+      note: plan.how === "limit" ? plan.note : null, cancelled: open.length, restopPrice: stop ? num(stop.stop_price) : null
     }
-    const left = await positionOf(account, symbol);
-    if (left && left.available > 0) {
-      const plan2 = stopPlan(left, { mode: "price", value: num(stop.stop_price) || 0 }, crypto);
-      if (plan2.ok) {
-        const built = await stopBody(account, symbol, plan2, left.qtyText, left.available);
-        const sent = built.ok ? await sendBody(admin, user, account, "protect", built.body) : { error: built.reason };
-        restop = sent.error ? { error: `The stop was not put back: ${sent.error}` } : { stopPrice: plan2.stopPrice, qty: plan2.qty, orderId: sent.order.id };
-      } else restop = { error: `The stop was not put back: ${plan2.reason}` };
-    } else if (left) restop = { error: "The stop was not put back: the exit has not filled yet. Set a stop once it has." };
-  }
-  return { status: 200, body: { orderId: order?.id, status: order?.status, how: plan.how, percent, limitPrice: plan.how === "limit" ? plan.limitPrice : null, qty: plan.how === "limit" ? plan.qty : num(order?.qty), note: plan.how === "limit" ? plan.note : null, cancelled: open.length, restop } };
+  };
 }
 
 async function cancelOrders(account: any, symbol: string) {
@@ -1104,14 +1144,37 @@ async function cancelOrders(account: any, symbol: string) {
   return { cancelled: open.length };
 }
 
+// Every request first asks whether the terminal is switched on and who is
+// calling: two round trips before the broker hears anything (25 Oct: "is
+// there anyway to make it a little faster"). Both are read at the same time
+// now, and kept for a short while by this instance: the switch for 30
+// seconds, a caller's token for 60. The account and its credentials are still
+// read for each request and never kept.
+let lab = { at: 0, on: false };
+async function labOn(admin: any) {
+  if (Date.now() - lab.at < 30000) return lab.on;
+  lab = { at: Date.now(), on: (await readSettings(admin)).terminalLab };
+  return lab.on;
+}
+const callers = new Map<string, { at: number; user: any }>();
+async function caller(req: Request) {
+  const token = req.headers.get("Authorization") || "";
+  const hit = callers.get(token);
+  if (hit && Date.now() - hit.at < 60000) return hit.user;
+  const user = await requireUser(req);
+  if (user) {
+    if (callers.size > 500) callers.clear();
+    callers.set(token, { at: Date.now(), user });
+  }
+  return user;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const admin = adminClient();
-    if (!(await readSettings(admin)).terminalLab) {
-      return jsonResponse({ error: "The trading terminal is not available here." }, 404);
-    }
-    const body = await req.json().catch(() => ({}));
+    const [on, body] = await Promise.all([labOn(admin), req.json().catch(() => ({}))]);
+    if (!on) return jsonResponse({ error: "The trading terminal is not available here." }, 404);
     if (body?.action === "selftest") {
       if (!(await redeemCronTicket(admin, body.ticket, "terminal_selftest"))) return jsonResponse({ error: "not authorised" }, 401);
       const report = await selftest(admin, String(body.only || ""), Number(body.seconds) || 8, String(body.accountId || ""),
@@ -1120,7 +1183,7 @@ Deno.serve(async (req) => {
       return jsonResponse(report);
     }
 
-    const user = await requireUser(req);
+    const user = await caller(req);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
     const { action, accountId } = body || {};
     if (action === "prefs") return jsonResponse(...(await prefs(admin, user.id, body)));

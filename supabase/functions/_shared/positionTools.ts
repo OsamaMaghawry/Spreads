@@ -77,24 +77,68 @@ export function stopsToReplace(orders: any[], closingSide: "buy" | "sell") {
 }
 
 /**
- * An exit of all or part of a position. In the regular session (and always
- * for coins) the broker's own close, at market. Before the open and after the
- * close a market order would wait for the open, so it goes as a limit at the
- * bid (selling) or ask (buying back), for the day, extended hours, in whole
- * shares. Overnight and at weekends shares cannot trade at all: refused.
+ * The size of the trade a position belongs to: the largest it has been since
+ * it was last flat, found by walking the account's fills back from now
+ * (newest first). A partial exit is a share of this, not of what is left.
+ *
+ * The owner, 25 Oct 2026: "the partial ... acts on the remaining quantity not
+ * the order one. So, the quantity will never finish." Four presses of a 25%
+ * exit took 0.106, 0.079, 0.059 and 0.045 of 0.424 ETH, each a quarter of
+ * what remained. Measured from the trade, four presses close it.
  */
-export function exitPlan(position: Position, percent: number, session: "regular" | "extended" | "closed", quote: { bid?: number | null; ask?: number | null }, crypto = false):
-  { ok: true; how: "close"; percent: number } | { ok: true; how: "limit"; side: "buy" | "sell"; qty: number; limitPrice: number; note: string | null } | { ok: false; reason: string } {
-  const qty = Math.abs(num(position?.qty) || 0);
-  if (!(qty > 0)) return { ok: false, reason: "No position to exit." };
-  const pct = num(percent);
-  if (pct === null || !(pct > 0 && pct <= 100)) return { ok: false, reason: "Exit between 1% and 100% of the position." };
-  if (crypto || session === "regular") return { ok: true, how: "close", percent: Math.round(pct * 100) / 100 };
+export function tradeSize(fills: any[], currentQty: number, isSymbol: (s: unknown) => boolean): number {
+  let pos = num(currentQty) || 0;
+  let base = Math.abs(pos);
+  for (const f of Array.isArray(fills) ? fills : []) {
+    if (!isSymbol(f?.symbol)) continue;
+    const q = Math.abs(num(f.qty) || 0);
+    if (!q) continue;
+    const before = pos - (f.side === "buy" ? q : -q);
+    if (Math.abs(before) < 1e-9 || Math.sign(before) !== Math.sign(pos)) break;
+    pos = before;
+    base = Math.max(base, Math.abs(pos));
+  }
+  return base;
+}
+
+/**
+ * How much a partial exit takes: `percent` of the trade's size, never more
+ * than is left. When what would remain is under half a slice (or under the
+ * coin's smallest order) it takes everything, so the presses add up to the
+ * whole trade rather than leaving a sliver: 33% three times closes it.
+ */
+export function partialQty(remaining: number, base: number, percent: number, opts: { whole?: boolean; step?: number | null; min?: number | null } = {}) {
+  const left = Math.abs(num(remaining) || 0);
+  const slice = (Math.max(Math.abs(num(base) || 0), left) * percent) / 100;
+  const min = num(opts.min) || 0;
+  if (percent >= 100 || left - slice < slice / 2 + 1e-12 || left - slice < min) return { qty: left, all: true };
+  const step = opts.whole ? 1 : (num(opts.step) || 1e-9);
+  let qty = Math.floor(Number((slice / step).toFixed(6))) * step;
+  if (opts.whole) qty = Math.max(1, qty);
+  qty = Math.max(qty, min);
+  if (qty >= left - 1e-12) return { qty: left, all: true };
+  return { qty: Number(qty.toFixed(9)), all: false };
+}
+
+/**
+ * An exit of all or part of a position (`amount`: everything, or a
+ * quantity). In the regular session (and always for coins) the broker's own
+ * close, at market. Before the open and after the close a market order would
+ * wait for the open, so it goes as a limit at the bid (selling) or ask
+ * (buying back), for the day, extended hours, in whole shares. Overnight and
+ * at weekends shares cannot trade at all: refused.
+ */
+export function exitPlan(position: Position, amount: { all: boolean; qty: number }, session: "regular" | "extended" | "closed", quote: { bid?: number | null; ask?: number | null }, crypto = false):
+  { ok: true; how: "close"; all: boolean; qty: number } | { ok: true; how: "limit"; side: "buy" | "sell"; qty: number; limitPrice: number; note: string | null } | { ok: false; reason: string } {
+  const held = Math.abs(num(position?.qty) || 0);
+  if (!(held > 0)) return { ok: false, reason: "No position to exit." };
+  const wanted = amount.all ? held : Math.min(held, Math.abs(num(amount.qty) || 0));
+  if (!(wanted > 0)) return { ok: false, reason: "Nothing to exit." };
+  if (crypto || session === "regular") return { ok: true, how: "close", all: amount.all || wanted >= held - 1e-12, qty: wanted };
   if (session === "closed") return { ok: false, reason: "The share market is shut now (overnight or weekend); exits can be sent from 4:00 a.m. New York." };
   const long = position.side !== "short" && position.qty > 0;
   const price = num(long ? quote.bid : quote.ask);
   if (!(price && price > 0)) return { ok: false, reason: `No ${long ? "bid" : "ask"} to exit against outside regular hours.` };
-  const wanted = (qty * pct) / 100;
   const shares = Math.floor(wanted + 1e-9);
   if (shares < 1) return { ok: false, reason: "Outside regular hours only whole shares trade, and this exit is less than one." };
   return {

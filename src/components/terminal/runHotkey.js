@@ -17,8 +17,11 @@ async function stepFor(accountId, symbol) {
   return steps.get(symbol);
 }
 
+/** A coin's quantity step, read ahead of the first key press so it never waits on it. */
+export const prefetchStep = (accountId, symbol) => { if (accountId && symbol) stepFor(accountId, symbol).catch(() => {}); };
+
 /** Follow an order, telling the pop-up each time its state changes. */
-export function trackOrder({ accountId, id, key, base, notify, onChange }) {
+export function trackOrder({ accountId, id, key, base, notify, onChange, onFilled }) {
   let polls = 0;
   let last = `${base.status}|0`;
   const tick = async () => {
@@ -27,6 +30,7 @@ export function trackOrder({ accountId, id, key, base, notify, onChange }) {
     if (o) {
       const now = `${o.status}|${o.filled}`;
       if (now !== last) { last = now; notify({ key, ...orderNews({ ...base, ...o }) }); onChange?.(); }
+      if (o.status === "filled") onFilled?.(o);
       if (orderState(o.status).final) return;
     }
     polls += 1;
@@ -73,20 +77,31 @@ export async function runHotkey(h, ctx) {
   }
 
   if (h.action === "exit") {
-    notify({ key, tone: "wait", title: h.percent >= 100 ? `Exiting ${symbol}…` : `Exiting ${h.percent}% of ${symbol}…`, detail: label });
+    notify({ key, tone: "wait", title: h.percent >= 100 ? `Exiting ${symbol}…` : `Exiting ${h.percent}% of the ${symbol} trade…`, detail: label });
     const r = await invokeFunction("terminal", { action: "exit", accountId: account.id, symbol, percent: h.percent }).catch((e) => ({ data: { error: String(e?.message || e) } }));
     if (r?.data?.error) { notify({ key, tone: "bad", title: "Exit not sent", detail: r.data.error }); return; }
     const d = r.data;
     const parts = [
       d.how === "limit" ? `Limit ${px(d.limitPrice)} for ${sizeText(d.qty)} (extended hours)` : `At market${d.qty ? `, ${sizeText(d.qty)}` : ""}`,
+      h.percent < 100 ? (d.all ? "the rest of the trade" : `${h.percent}% of the ${sizeText(d.tradeSize)} trade`) : null,
       d.cancelled ? `${d.cancelled} working order${d.cancelled === 1 ? "" : "s"} cancelled first` : null,
-      d.note,
-      d.restop?.stopPrice ? `Stop put back at ${px(d.restop.stopPrice)} for the ${sizeText(d.restop.qty)} left` : d.restop?.error || null
+      d.note
     ].filter(Boolean);
     const base = { words: parts.join(" · "), symbol, side: d.side || (ctx.position?.side === "short" ? "buy" : "sell"), unitName: crypto ? symbol.split("/")[0] : "shares" };
-    notify({ key, tone: d.restop?.error ? "bad" : "ok", title: "Exit sent", detail: base.words });
+    notify({ key, tone: "ok", title: "Exit sent", detail: base.words });
     refresh?.();
-    if (d.orderId) trackOrder({ accountId: account.id, id: d.orderId, key, base: { ...base, status: d.status }, notify, onChange: refresh });
+    // A partial exit took the stop off to free the shares: once the exit has
+    // filled, the same stop goes back on what remains.
+    let restored = false;
+    const restop = d.restopPrice ? async () => {
+      if (restored) return;
+      restored = true;
+      const s = await invokeFunction("terminal", { action: "protect", accountId: account.id, symbol, mode: "price", value: d.restopPrice }).catch((e) => ({ data: { error: String(e?.message || e) } }));
+      if (s?.data?.error) notify({ key: `${key}s`, tone: "bad", title: "Stop not put back", detail: `${s.data.error} Set the stop again.` });
+      else notify({ key: `${key}s`, tone: "ok", title: `Stop put back at ${px(s.data.stopPrice)}`, detail: `For the ${sizeText(s.data.qty)} left` });
+      refresh?.();
+    } : null;
+    if (d.orderId) trackOrder({ accountId: account.id, id: d.orderId, key, base: { ...base, status: d.status }, notify, onChange: refresh, onFilled: restop });
     return;
   }
 
