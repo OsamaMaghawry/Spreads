@@ -246,6 +246,9 @@ export default function Terminal() {
   const [hotkeys, setHotkeys] = useState([]);
   const [hotkeysOn, setHotkeysOn] = useState(() => store.get(HOTKEYS_ON_KEY) === "1");
   const [hotkeysOpen, setHotkeysOpen] = useState(false);
+  // While the chart replays the past, the hotkeys trade its practice account.
+  const replayApi = useRef(null);
+  const [replaying, setReplaying] = useState(false);
   useEffect(() => {
     readPrefs(["hotkeys"]).then((p) => setHotkeys(cleanHotkeys(p.hotkeys))).catch(() => {});
   }, []);
@@ -265,7 +268,8 @@ export default function Terminal() {
       if (!h) return;
       e.preventDefault();
       e.stopPropagation();
-      runHotkey(h, live$.current);
+      if (replayApi.current?.active) replayApi.current.hotkey(h);
+      else runHotkey(h, live$.current);
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
@@ -338,6 +342,11 @@ export default function Terminal() {
         </span>
       </div>
 
+      {replaying && page === "trade" && (
+        <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
+          The chart is replaying the past. Hotkeys and the replay bar trade a practice account; the ticket, book and tape are still live, on your paper account.
+        </p>
+      )}
       {screenSeen && (
         <div className={page === "screen" ? "" : "hidden"}>
           <Screener accountId={accountId} active={page === "screen"} watch={watch}
@@ -394,7 +403,8 @@ export default function Terminal() {
             <div className={`${bar} items-baseline gap-3 py-1.5`}>
               {grip}
               <span className="text-lg font-semibold">{symbol}</span>
-              <span className="text-lg tabular-nums">{px(quote.last)}</span>
+              {replaying && <span className="self-center rounded bg-slate-200 px-1 text-[10px] font-semibold uppercase text-slate-600" title="The chart below is replaying the past; these figures are today's">Live</span>}
+              <span className={`text-lg tabular-nums ${replaying ? "text-slate-400" : ""}`}>{px(quote.last)}</span>
               <span className={`text-sm tabular-nums ${quote.change >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{quote.change !== null ? `${quote.change >= 0 ? "+" : ""}${quote.change.toFixed(2)}` : ""} {pctText(quote.changePct)}</span>
               <span className="ml-auto truncate text-xs tabular-nums text-slate-500">
                 Bid <b className="text-slate-800">{px(quote.bid)}</b> × {sizeText(quote.bidSize)} · Ask <b className="text-slate-800">{px(quote.ask)}</b> × {sizeText(quote.askSize)}
@@ -404,7 +414,8 @@ export default function Terminal() {
               </button>
             </div>
             <div className="min-h-0 flex-1">
-              <PriceChart accountId={accountId} symbol={symbol} interval={interval} onInterval={setInterval_} listen={listen} fills={fills} />
+              <PriceChart accountId={accountId} symbol={symbol} interval={interval} onInterval={setInterval_} listen={listen} fills={fills}
+                onNotify={notify} replayApi={replayApi} onReplay={setReplaying} />
             </div>
           </div>
         </div>
