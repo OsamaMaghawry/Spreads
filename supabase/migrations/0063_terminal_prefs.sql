@@ -21,3 +21,13 @@ create table if not exists public.terminal_prefs (
 );
 
 alter table public.terminal_prefs enable row level security;
+
+-- No user policy grants a write, but the table still carries the connector
+-- guards (connectorToken.test.ts), so a future write policy cannot quietly
+-- open it to a Claude connector token.
+create policy connector_no_insert on public.terminal_prefs as restrictive for insert to authenticated
+  with check (not public.is_connector_session());
+create policy connector_no_update on public.terminal_prefs as restrictive for update to authenticated
+  using (not public.is_connector_session()) with check (not public.is_connector_session());
+create policy connector_no_delete on public.terminal_prefs as restrictive for delete to authenticated
+  using (not public.is_connector_session());
