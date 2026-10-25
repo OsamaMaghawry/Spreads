@@ -1,6 +1,7 @@
 ---
 title: "Selling options before earnings: the crush and the gap"
 slug: selling-options-before-earnings
+search_title: "Selling Options Before Earnings: IV Crush and Gap Risk"
 excerpt: An option sold before earnings carries extra time value that the announcement takes back, but a gap past the strike adds intrinsic value that nothing takes back.
 meta_description: "Selling options before earnings, priced the morning after: what IV crush takes back, and what a gap past the strike does to a naked put vs a spread."
 author: Osama Safwat Maghawry

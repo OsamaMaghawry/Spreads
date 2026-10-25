@@ -147,6 +147,8 @@ no reason connected to time at all - a volatility change alone moves how much
 extrinsic value is sitting in the price, and theta is measuring the shrinkage
 of whatever is there right now, not a fixed amount set at the trade.
 
+Related: a [calendar spread](/blog/calendar-spread-explained) holds a short and a long option with different expirations, so the two legs decay at different rates.
+
 ## Is theta decay free money?
 
 No, and the framing is worth being precise about. Theta describes an
