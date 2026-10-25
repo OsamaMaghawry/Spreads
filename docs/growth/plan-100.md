@@ -32,22 +32,49 @@ Until all three, every number below is a plan, not a forecast.
 ## The chain, reverse-engineered
 
 Benchmark rates, to be replaced by measured ones by week three of the
-switch. The arithmetic is shown so the replacement is one edit.
+switch. The arithmetic is shown so the replacement is one edit. **Revised
+2026-09-21** (vp-growth, Monday run) against the 2026-09-21 metrics snapshot
+— read from `origin/main`'s `docs/growth/metrics/2026-09-21.json`, since this
+branch's own copies (started from `staging`) stop at 2026-09-14; see this
+week's play appendix, `growth/plays/2026-W39.md`. The only row with any
+measured data behind it is signup → live; the other two stay benchmarks
+because nothing measurable exists yet for either (see notes under the
+table).
 
-| Step | Rate (benchmark) | Needed |
+| Step | Rate | Needed |
 | --- | --- | --- |
 | Paying (Live, active) | — | **100** |
-| ← Live accounts connected, converting to paid | 15 % (paper-free products with a paid live tier) | **~670 live connections** |
-| ← Signups connecting a live account | 25 % (the rest stay on paper, at least at first) | **~2,700 signups** |
-| ← Visitors signing up | 3 % (intent-matched educational traffic) | **~90,000 visitors** over 17 weeks ≈ **5,300 a week** ≈ **760 a day** |
+| ← Live accounts connected, converting to paid | 15 % benchmark, unrevised (paper-free products with a paid live tier) | **~670 live connections** |
+| ← Signups connecting a live account | **50 % measured** (2 of 4 signups since tracking began have traded live), replacing the 25 % benchmark | **~1,340 signups** |
+| ← Visitors signing up | 3 % benchmark, unrevised (intent-matched educational traffic) | **~44,700 visitors** over the ~14.4 weeks to 31 Dec ≈ **~3,100 a week** ≈ **~440 a day** |
 
-Two levers change this by more than any channel does:
+**Read the 50 % with real caution.** It is 2 of 4 — the entire signup count
+to date, not a sample of a larger measured population. It replaces the
+benchmark because this week's instruction was to use measured rates where
+the data exists, and this is the only cell where it does. It is not evidence
+the true rate is 50 % rather than 25 % — at n=4 those are barely
+distinguishable. Treat the ~1,340/~44,700 figures as provisional and revisit
+the moment signups move past single digits; do not plan spend against them.
 
-- **Signup → live**: if the product's own paper experience pushes the rate
-  from 25 % to 40 %, the visitor requirement drops to ~56,000.
+**Why the other two rows are still benchmarks:**
+
+- **Live → paid** — `paying: 0` in every snapshot, but billing is still not
+  live in production (`docs/ops/queue.md`, Stripe ticket open since
+  2026-09-02). Zero here reflects "there is no way to pay yet," per this
+  document's own caveat below, not a conversion measurement. Revise once
+  billing is live and at least a few users have had a trial run its course.
+- **Visitor → signup** — Search Console and GA4 are still not configured
+  (`docs/ops/queue.md`, needs-owner since 2026-09-02, 19 days open). There is
+  no visitor count anywhere in `docs/growth/metrics/` to divide signups by.
+
+Two levers still change this by more than any channel does:
+
+- **Signup → live**: already running above benchmark on paper (50 % vs. the
+  25 % this row used to carry) — see the caution above before treating that
+  as durable.
 - **Live → paid**: the 30-day free trial and the "you can always close"
   promise are there to push 15 % toward 25 %. At 25 %, 400 live connections
-  suffice.
+  suffice. Unmeasurable until billing ships.
 
 ## Where 760 visitors a day come from
 
