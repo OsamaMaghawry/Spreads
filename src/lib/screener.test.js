@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   decodeUniverse, screenRow, parseAmount, cleanScreen, passes, sortRows, needsDaily, presetScreen, PRESETS, FIELD,
-  dailyCandidates, bigNumber, EMPTY_SCREEN
+  dailyCandidates, bigNumber, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown
 } from "./screener.js";
 
 const close = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} != ${b}`);
@@ -137,4 +137,40 @@ test("big numbers", () => {
   assert.equal(bigNumber(5.07e12), "5.07T");
   assert.equal(bigNumber(1234), "1.2K");
   assert.equal(bigNumber(null), "—");
+});
+
+test("a past day at the open: the opening price, the gap and the pre-market; nothing the day had not done yet", () => {
+  const u = {
+    symbol: "ABC", name: "ABC Corp", exchange: "NASDAQ", price: 11, day: "2026-03-02", prevClose: 10, open: 11, high: null, low: null, close: null, volume: null, prevVolume: 2e6,
+    lastDate: "2026-02-27", lastClose: 10, avgVol20: 1e6, avgDollar20: 9e6, atr14: 0.5, sma20: 9.5, d5: 9, d21: 8, pmVolume: 400000, pmLast: 11.2
+  };
+  const r = screenRow(u, partialStats(u), "2026-03-02");
+  assert.equal(r.preOpen, false);
+  assert.ok(Math.abs(r.gapPct - 0.1) < 1e-12);
+  assert.ok(Math.abs(r.pmChangePct - 0.12) < 1e-12);
+  assert.deepEqual([r.volume, r.relVol, r.rangePos, r.pmVolume, r.prevDollarVol], [null, null, null, 400000, 2e7]);
+  assert.ok(Math.abs(r.vsSma20 - (11 / 9.5 - 1)) < 1e-12);
+  assert.deepEqual([r.rsi, r.high52, r.fromHigh52], [null, null, null]);
+  assert.equal(partialStats({}), null);
+});
+
+test("a past day at the close: the whole day against the norms of the days before", () => {
+  const u = { symbol: "ABC", price: 12, day: "2026-03-02", prevClose: 10, open: 11, high: 12.5, low: 10.8, close: 12, volume: 3e6, prevVolume: 2e6, lastDate: "2026-02-27", lastClose: 10, avgVol20: 1e6, avgDollar20: 9e6 };
+  const r = screenRow(u, partialStats(u), "2026-03-02");
+  assert.ok(Math.abs(r.changePct - 0.2) < 1e-12);
+  assert.deepEqual([r.relVol, r.dollarVol], [3, 36e6]);
+});
+
+test("what is known when: the open has no day's volume; the past has no live quote or calendar", () => {
+  assert.deepEqual(["relVol", "gapPct", "pmVolume", "spreadPct", "earningsIn"].map((id) => fieldKnown(id, "live")), [true, true, false, true, true]);
+  assert.deepEqual(["relVol", "gapPct", "pmVolume", "spreadPct", "earningsIn", "changePct"].map((id) => fieldKnown(id, "open")), [false, true, true, false, false, false]);
+  assert.deepEqual(["relVol", "gapPct", "pmVolume", "changePct"].map((id) => fieldKnown(id, "close")), [true, true, true, true]);
+  const known = (w) => PRESETS.filter((p) => presetKnown(p, w)).map((p) => p.id);
+  assert.ok(known("open").includes("gapUp") && known("open").includes("pmGappers") && !known("open").includes("gainers"));
+  assert.ok(!known("live").includes("pmGappers"));
+  // Either way: a gap of 4% or more, up or down.
+  const s = presetScreen("pmGappers");
+  assert.equal(s.gapAbs, 4);
+  const row = (gapPct) => ({ price: 5, prevDollarVol: 2e6, pmVolume: 2e5, gapPct, vsSma20: null });
+  assert.deepEqual([passes(row(0.05), s), passes(row(-0.06), s), passes(row(0.02), s)], [true, true, false]);
 });

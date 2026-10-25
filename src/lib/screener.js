@@ -11,6 +11,12 @@
 // screen moves with the price: RSI folds today's price into Wilder's running
 // averages, the 52-week range takes in today's high and low, performance is
 // measured from the live price.
+//
+// The same rows serve the historical screen (25 Oct: "Historical screener to
+// filter stock in history to get the criteria for the stocks in play at that
+// period"): a past day's figures at its open or its close stand in for
+// today's (functions/terminal "screen" stage "history"), and a field shows
+// only where it is known at that moment (`when`).
 
 /** The server's rows (column names, then arrays) as objects. */
 export function decodeUniverse(data) {
@@ -22,6 +28,20 @@ const ratio = (a, b) => (Number.isFinite(a) && Number.isFinite(b) && b !== 0 ? a
 const num = (v) => (v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v));
 
 const dayDiff = (a, b) => Math.round((Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / 86400000);
+
+/**
+ * A historical row's daily numbers, from the norms it carries (the days
+ * before its date), until the year of candles for it has been read.
+ */
+export function partialStats(u) {
+  if (!u?.lastDate) return null;
+  return {
+    lastDate: u.lastDate, lastClose: num(u.lastClose), bars: null,
+    closes: { d5: num(u.d5), d21: num(u.d21), d63: null, d126: null, d252: null, ytd: null },
+    avgVol20: num(u.avgVol20), avgVol50: null, avgDollar20: num(u.avgDollar20),
+    sma20: num(u.sma20), sma50: null, sma200: null, rsi: null, atr14: num(u.atr14), high52: null, low52: null, partial: true
+  };
+}
 
 /**
  * One share's screen row. `today` is the New York date. When the day's candle
@@ -83,6 +103,8 @@ export function screenRow(u, stats, today) {
     perf6m: ratio(price, s?.closes?.d126),
     perfYtd: ratio(price, s?.closes?.ytd),
     perf1y: ratio(price, s?.closes?.d252),
+    pmVolume: num(u.pmVolume),
+    pmChangePct: ratio(num(u.pmLast), ref),
     earnDate: u.earnDate || null,
     earnSession: u.earnSession || null,
     earningsIn: u.earnDate ? dayDiff(u.earnDate, today) : null,
@@ -94,17 +116,20 @@ export function screenRow(u, stats, today) {
 // typed and shown as a percentage. `daily`: needs the daily numbers.
 export const FIELDS = [
   { id: "price", label: "Price", unit: "$", group: "Price and volume", hint: "Last trade, pre-market and after hours included" },
-  { id: "volume", label: "Volume today", unit: "shares", group: "Price and volume", hint: "Consolidated, 15 minutes delayed" },
-  { id: "relVol", label: "Relative volume", unit: "x", group: "Price and volume", daily: true, hint: "Today's volume ÷ the 20-day average (not adjusted for time of day)" },
-  { id: "dollarVol", label: "Dollar volume today", unit: "$", group: "Price and volume" },
+  { id: "volume", label: "Volume today", unit: "shares", group: "Price and volume", wholeDay: true, hint: "Consolidated, 15 minutes delayed" },
+  { id: "relVol", label: "Relative volume", unit: "x", group: "Price and volume", daily: true, wholeDay: true, hint: "Today's volume ÷ the 20-day average (not adjusted for time of day)" },
+  { id: "dollarVol", label: "Dollar volume today", unit: "$", group: "Price and volume", wholeDay: true },
+  { id: "prevDollarVol", label: "Dollar volume, the day before", unit: "$", group: "Price and volume", hint: "The previous session's close × its volume" },
+  { id: "pmVolume", label: "Pre-market volume", unit: "shares", group: "Price and volume", history: true, hint: "4:00 to 9:30 New York, consolidated; read for the 300 biggest gaps among shares trading $1M a day" },
   { id: "avgVol20", label: "Average volume (20 days)", unit: "shares", group: "Price and volume", daily: true },
   { id: "avgDollar20", label: "Average dollar volume (20 days)", unit: "$", group: "Price and volume", daily: true },
   { id: "marketCap", label: "Market cap", unit: "$", group: "Price and volume", hint: "Shares outstanding from the company's latest SEC filing × price" },
-  { id: "spreadPct", label: "Bid-ask spread", unit: "%", pct: true, group: "Price and volume", hint: "IEX quote; wide outside market hours" },
-  { id: "changePct", label: "Change today", unit: "%", pct: true, group: "Today" },
+  { id: "spreadPct", label: "Bid-ask spread", unit: "%", pct: true, group: "Price and volume", live: true, hint: "IEX quote; wide outside market hours" },
+  { id: "changePct", label: "Change today", unit: "%", pct: true, group: "Today", wholeDay: true },
   { id: "gapPct", label: "Gap", unit: "%", pct: true, group: "Today", hint: "The open against the previous close; before the open, the price now against it" },
-  { id: "rangePos", label: "Position in today's range", unit: "%", pct: true, group: "Today", hint: "0% at the day's low, 100% at its high" },
-  { id: "fromVwap", label: "Price vs VWAP", unit: "%", pct: true, group: "Today" },
+  { id: "pmChangePct", label: "Pre-market change", unit: "%", pct: true, group: "Today", history: true, hint: "The last pre-market price against the previous close" },
+  { id: "rangePos", label: "Position in today's range", unit: "%", pct: true, group: "Today", wholeDay: true, hint: "0% at the day's low, 100% at its high" },
+  { id: "fromVwap", label: "Price vs VWAP", unit: "%", pct: true, group: "Today", wholeDay: true },
   { id: "rsi", label: "RSI (14 days)", unit: "", group: "Trend and momentum", daily: true },
   { id: "atrPct", label: "ATR (14 days) as % of price", unit: "%", pct: true, group: "Trend and momentum", daily: true },
   { id: "vsSma20", label: "Price vs 20-day average", unit: "%", pct: true, group: "Trend and momentum", daily: true },
@@ -118,8 +143,20 @@ export const FIELDS = [
   { id: "perf6m", label: "Performance, 6 months", unit: "%", pct: true, group: "Performance", daily: true },
   { id: "perfYtd", label: "Performance, year to date", unit: "%", pct: true, group: "Performance", daily: true },
   { id: "perf1y", label: "Performance, 1 year", unit: "%", pct: true, group: "Performance", daily: true },
-  { id: "earningsIn", label: "Earnings within (days)", unit: "days", group: "Company and events", hint: "Calendar days to the next scheduled report" }
+  { id: "earningsIn", label: "Earnings within (days)", unit: "days", group: "Company and events", live: true, hint: "Calendar days to the next scheduled report" }
 ];
+
+/**
+ * Whether a field is known at a screen's moment: `when` is "live", or a past
+ * day's "open" or "close".
+ */
+export function fieldKnown(id, when) {
+  const f = FIELD[id];
+  if (!f) return id === "symbol";
+  if (when === "live") return !f.history;
+  if (f.live) return false;
+  return when === "close" || !f.wholeDay;
+}
 export const FIELD = Object.fromEntries(FIELDS.map((f) => [f.id, f]));
 export const GROUPS = [...new Set(FIELDS.map((f) => f.group))];
 
@@ -136,7 +173,7 @@ export function parseAmount(text) {
  * A screen's settings: numeric ranges by field (as typed: 3 for 3%), and the
  * choices that are not ranges. Anything unknown or malformed is dropped.
  */
-export const EMPTY_SCREEN = { ranges: {}, type: "all", exchange: "all", options: false, shortable: false, trend: "any", sort: { key: "dollarVol", dir: "desc" } };
+export const EMPTY_SCREEN = { ranges: {}, type: "all", exchange: "all", options: false, shortable: false, trend: "any", gapAbs: null, sort: { key: "dollarVol", dir: "desc" } };
 
 export function cleanScreen(raw) {
   const r = raw && typeof raw === "object" ? raw : {};
@@ -155,6 +192,8 @@ export function cleanScreen(raw) {
     options: !!r.options,
     shortable: !!r.shortable,
     trend: ["any", "above3", "below3", "above200", "below200", "cross50"].includes(r.trend) ? r.trend : "any",
+    // A gap at least this big either way, in percent.
+    gapAbs: num(r.gapAbs) !== null && r.gapAbs > 0 ? num(r.gapAbs) : null,
     sort: { key: sortKey, dir: r.sort?.dir === "asc" ? "asc" : "desc" }
   };
 }
@@ -181,6 +220,7 @@ export function passes(row, screen) {
   if (screen.options && !row.options) return false;
   if (screen.shortable && !row.shortable) return false;
   if (!TRENDS[screen.trend](row)) return false;
+  if (screen.gapAbs !== null && screen.gapAbs !== undefined && !(Math.abs(row.gapPct) * 100 >= screen.gapAbs)) return false;
   for (const [id, { min, max }] of Object.entries(screen.ranges)) {
     const v = row[id];
     if (v === null || v === undefined || !Number.isFinite(v)) return false;
@@ -211,9 +251,12 @@ export const needsDaily = (screen) => screen.trend !== "any" || Object.keys(scre
 // Ready-made screens for stocks in play. Each sets its own floor on price and
 // liquidity, so a one-share print on a dollar stock does not top the list.
 const liquid = { price: { min: 2, max: null }, dollarVol: { min: 1e6, max: null } };
+// A gap is known before the day's volume is: its floor is the day before's.
+const liquidBefore = { price: { min: 2, max: null }, prevDollarVol: { min: 1e6, max: null } };
 export const PRESETS = [
-  { id: "gapUp", label: "Gapping up", note: "Opened 3% or more above yesterday's close", screen: { ranges: { ...liquid, gapPct: { min: 3, max: null } }, sort: { key: "gapPct", dir: "desc" } } },
-  { id: "gapDown", label: "Gapping down", note: "Opened 3% or more below yesterday's close", screen: { ranges: { ...liquid, gapPct: { min: null, max: -3 } }, sort: { key: "gapPct", dir: "asc" } } },
+  { id: "gapUp", label: "Gapping up", note: "Opened 3% or more above yesterday's close", screen: { ranges: { ...liquidBefore, gapPct: { min: 3, max: null } }, sort: { key: "gapPct", dir: "desc" } } },
+  { id: "gapDown", label: "Gapping down", note: "Opened 3% or more below yesterday's close", screen: { ranges: { ...liquidBefore, gapPct: { min: null, max: -3 } }, sort: { key: "gapPct", dir: "asc" } } },
+  { id: "pmGappers", label: "Gappers with pre-market volume", note: "Gapped 4% or more either way with 100,000 shares or more traded before the open", screen: { ranges: { ...liquidBefore, pmVolume: { min: 100000, max: null } }, gapAbs: 4, sort: { key: "pmVolume", dir: "desc" } } },
   { id: "gainers", label: "Top gainers", note: "Up 5% or more today", screen: { ranges: { ...liquid, changePct: { min: 5, max: null } }, sort: { key: "changePct", dir: "desc" } } },
   { id: "losers", label: "Top losers", note: "Down 5% or more today", screen: { ranges: { ...liquid, changePct: { min: null, max: -5 } }, sort: { key: "changePct", dir: "asc" } } },
   { id: "unusualVolume", label: "Unusual volume", note: "Twice the usual volume or more, on a share that normally trades 300,000 a day", screen: { ranges: { price: { min: 2, max: null }, relVol: { min: 2, max: null }, avgVol20: { min: 300000, max: null } }, sort: { key: "relVol", dir: "desc" } } },
@@ -226,6 +269,9 @@ export const PRESETS = [
   { id: "volatile", label: "Wide daily ranges", note: "Average true range 5% of the price or more", screen: { ranges: { price: { min: 2, max: null }, avgDollar20: { min: 10e6, max: null }, atrPct: { min: 5, max: null } }, sort: { key: "atrPct", dir: "desc" } } },
   { id: "earnings", label: "Earnings this week", note: "A report scheduled in the next 7 days", screen: { ranges: { price: { min: 2, max: null }, earningsIn: { min: 0, max: 7 } }, sort: { key: "earningsIn", dir: "asc" } } }
 ];
+
+/** Whether a ready-made screen can run at a moment: every field it filters and sorts on is known then. */
+export const presetKnown = (p, when) => Object.keys(p.screen.ranges || {}).every((id) => fieldKnown(id, when)) && fieldKnown(p.screen.sort?.key || "symbol", when);
 
 export const presetScreen = (id) => {
   const p = PRESETS.find((x) => x.id === id);

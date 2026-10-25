@@ -290,6 +290,27 @@ export default function Terminal() {
     else setReplayForm((f) => (f ? null : {}));
   }, [replay]);
   const startReplay = (form) => { setReplayForm(null); replay.start(form, isCrypto(symbol)); };
+  // A share from the historical screen: into the replay running over that
+  // day (a chart of its own while there is room), or a new replay from that
+  // day's open, ready to start.
+  const replayFromScreen = (s, date) => {
+    setPage("trade");
+    const day = Date.parse(`${date}T00:00:00Z`) / 1000;
+    const r = sessionRef.current;
+    if (r && day + 86400 > r.start && day <= r.end) {
+      setPanes((p) => {
+        const at = p.list.findIndex((x) => x.symbol === s);
+        if (at !== -1) return { ...p, active: at };
+        if (p.list.length < 4) return { list: [...p.list, { symbol: s, interval: p.list[p.active].interval }], active: p.list.length };
+        return { ...p, list: p.list.map((x, i) => (i === p.active ? { ...x, symbol: s } : x)) };
+      });
+      return;
+    }
+    if (r) replay.exit();
+    setSymbol(s);
+    const to = new Date((day + 7 * 86400) * 1000).toISOString().slice(0, 10);
+    setReplayForm({ from: date, time: "09:30", to });
+  };
   // A new replay opens on its practice positions.
   useEffect(() => { if (session?.id) setTab("practice"); }, [session?.id]);
   useEffect(() => { if (!session && !lastReplay) setTab((t) => (t === "practice" || t === "results" ? "positions" : t)); }, [session, lastReplay]);
@@ -405,7 +426,7 @@ export default function Terminal() {
       {screenSeen && (
         <div className={page === "screen" ? "" : "hidden"}>
           <Screener accountId={accountId} active={page === "screen"} watch={watch}
-            onPick={(s) => { setSymbol(s); setPage("trade"); }}
+            onPick={(s) => { setSymbol(s); setPage("trade"); }} onReplay={replayFromScreen}
             onAdd={(s) => setWatch((w) => (w.length >= WATCHLIST_MAX ? w : cleanWatchlist([...w, s])))} />
         </div>
       )}

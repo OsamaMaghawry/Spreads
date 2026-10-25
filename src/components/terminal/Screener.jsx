@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { RefreshCw, Plus, Check, X, ChevronDown, ChevronRight } from "lucide-react";
+import { RefreshCw, Plus, Check, X, ChevronDown, ChevronRight, History } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import {
   decodeUniverse, screenRow, FIELDS, FIELD, GROUPS, parseAmount, cleanScreen, passes, sortRows, needsDaily,
-  PRESETS, presetScreen, dailyCandidates, bigNumber, TREND_CHOICES, EMPTY_SCREEN
+  PRESETS, presetScreen, dailyCandidates, bigNumber, TREND_CHOICES, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown
 } from "@/lib/screener";
 import { px, pctText } from "@/lib/terminal";
 
@@ -13,6 +13,12 @@ import { px, pctText } from "@/lib/terminal";
 // you type: ready-made screens for stocks in play on the left, every filter
 // below them, the matches on the right. Click a row to chart and trade it.
 // The arithmetic is lib/screener.js; the reads are functions/terminal "screen".
+//
+// Or a past day (25 Oct: "Historical screener to filter stock in history to
+// get the criteria for the stocks in play at that period"): the market as it
+// stood at that day's open or its close, only the figures known by then, and
+// a Replay button on each row that opens the share in the bar replay at that
+// day's open (several can be opened into the same replay).
 
 const SCREEN_KEY = "dm.screener.v1";
 const DAILY_KEY = "dm.screener.daily.v1";
@@ -25,12 +31,32 @@ const store = {
   set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* full or private */ } }
 };
 const nyToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+const nyYesterday = () => new Date(Date.now() - 86400000).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+// The last weekday before today, New York: where a past day starts.
+const lastWeekday = () => {
+  for (let back = 1; back < 8; back++) {
+    const d = new Date(Date.now() - back * 86400000).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    if (![0, 6].includes(new Date(`${d}T12:00:00Z`).getUTCDay())) return d;
+  }
+  return nyYesterday();
+};
 
-const COLUMNS = [
-  ["symbol", "Symbol"], ["price", "Price"], ["changePct", "Chg %"], ["gapPct", "Gap %"], ["volume", "Volume"], ["relVol", "Rel vol"],
-  ["dollarVol", "$ Vol"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["fromHigh52", "vs 52w high"],
-  ["vsSma50", "vs 50d"], ["perf1m", "1 month"], ["earningsIn", "Earnings"]
-];
+// The table's columns, live and on a past day at its open or close.
+const COLUMN_SETS = {
+  live: [
+    ["symbol", "Symbol"], ["price", "Price"], ["changePct", "Chg %"], ["gapPct", "Gap %"], ["volume", "Volume"], ["relVol", "Rel vol"],
+    ["dollarVol", "$ Vol"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["fromHigh52", "vs 52w high"],
+    ["vsSma50", "vs 50d"], ["perf1m", "1 month"], ["earningsIn", "Earnings"]
+  ],
+  open: [
+    ["symbol", "Symbol"], ["price", "Open"], ["gapPct", "Gap %"], ["pmChangePct", "Pre-mkt %"], ["pmVolume", "Pre-mkt vol"], ["prevDollarVol", "$ Vol day before"],
+    ["avgVol20", "Avg vol"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["fromHigh52", "vs 52w high"], ["vsSma50", "vs 50d"], ["perf1m", "1 month"]
+  ],
+  close: [
+    ["symbol", "Symbol"], ["price", "Close"], ["changePct", "Chg %"], ["gapPct", "Gap %"], ["volume", "Volume"], ["relVol", "Rel vol"], ["dollarVol", "$ Vol"],
+    ["rangePos", "In range"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["fromHigh52", "vs 52w high"], ["vsSma50", "vs 50d"], ["perf1m", "1 month"]
+  ]
+};
 const SESSION = { bmo: "before open", amc: "after close", dmh: "in session" };
 
 function cell(row, key) {
@@ -38,13 +64,13 @@ function cell(row, key) {
   if (key === "symbol") return null;
   if (v === null || v === undefined || (typeof v === "number" && !Number.isFinite(v))) return <span className="text-slate-300">—</span>;
   if (key === "price") return px(v);
-  if (key === "volume") return bigNumber(v);
-  if (key === "dollarVol" || key === "marketCap") return `$${bigNumber(v)}`;
+  if (key === "volume" || key === "pmVolume" || key === "avgVol20") return bigNumber(v);
+  if (key === "dollarVol" || key === "marketCap" || key === "prevDollarVol" || key === "avgDollar20") return `$${bigNumber(v)}`;
   if (key === "relVol") return `${v.toFixed(2)}×`;
   if (key === "rsi") return v.toFixed(0);
   if (key === "earningsIn") return `${v === 0 ? "today" : `in ${v}d`}${row.earnSession ? ` · ${SESSION[row.earnSession] || ""}` : ""}`;
   if (FIELD[key]?.pct) {
-    const tone = ["changePct", "gapPct", "perf1m", "fromVwap"].includes(key) ? (v >= 0 ? "text-emerald-700" : "text-rose-700") : "";
+    const tone = ["changePct", "gapPct", "pmChangePct", "perf1m", "fromVwap"].includes(key) ? (v >= 0 ? "text-emerald-700" : "text-rose-700") : "";
     return <span className={tone}>{key === "atrPct" ? `${(v * 100).toFixed(1)}%` : pctText(v)}</span>;
   }
   return String(v);
@@ -74,7 +100,7 @@ function RangeRow({ field, value, onChange }) {
   );
 }
 
-export default function Screener({ accountId, active, watch, onPick, onAdd }) {
+export default function Screener({ accountId, active, watch, onPick, onAdd, onReplay = () => {} }) {
   const [universe, setUniverse] = useState({ rows: [], at: null, dayFeed: null, listed: 0, loading: false, error: null });
   const [daily, setDaily] = useState({});
   const [progress, setProgress] = useState({ done: 0, total: 0, loading: false, error: null });
@@ -87,25 +113,46 @@ export default function Screener({ accountId, active, watch, onPick, onAdd }) {
   // On a phone the screens and filters fold away above the results (25 Oct:
   // "The screener dissapeared on phone"); on a wider screen they sit beside them.
   const [showFilters, setShowFilters] = useState(false);
+  // The market now, or on a past day ("YYYY-MM-DD") at its open or close.
+  const [when, setWhen] = useState({ date: "", asOf: "open" });
+  const mode = when.date ? when.asOf : "live";
+  const modeKey = `${when.date}|${when.asOf}`;
+  const modeRef = useRef(modeKey);
+  modeRef.current = modeKey;
+  const pastDaily = useRef(new Map());
+  const [pastPick, setPastPick] = useState(lastWeekday);
   const dailyRef = useRef({});
   const loadingDaily = useRef(false);
 
   useEffect(() => { store.set(SCREEN_KEY, JSON.stringify({ ...screen, preset })); }, [screen, preset]);
 
-  // The day's cached daily numbers for this account, if any.
+  // The day's cached daily numbers for this account, if any; a past day's
+  // are kept while the page is open.
   useEffect(() => {
-    try {
-      const c = JSON.parse(store.get(DAILY_KEY) || "null");
-      dailyRef.current = c && c.account === accountId && c.date === nyToday() ? c.stats || {} : {};
-    } catch { dailyRef.current = {}; }
+    loadingDaily.current = false;
+    if (when.date) {
+      const k = `${accountId}|${when.date}`;
+      if (!pastDaily.current.has(k)) pastDaily.current.set(k, {});
+      dailyRef.current = pastDaily.current.get(k);
+    } else {
+      try {
+        const c = JSON.parse(store.get(DAILY_KEY) || "null");
+        dailyRef.current = c && c.account === accountId && c.date === nyToday() ? c.stats || {} : {};
+      } catch { dailyRef.current = {}; }
+    }
     setDaily({ ...dailyRef.current });
-  }, [accountId]);
+    setProgress({ done: 0, total: 0, loading: false, error: null });
+  }, [accountId, when.date]);
 
   // The daily numbers for the most traded shares, a batch at a time, kept
   // for the day: they change only after the close.
   const loadDaily = useCallback(async (rows) => {
     if (loadingDaily.current || !accountId) return;
-    const want = dailyCandidates(rows).filter((s) => !(s in dailyRef.current));
+    // Written into this moment's numbers only, and stopped if the moment changes.
+    const target = dailyRef.current;
+    const started = modeRef.current;
+    const asOf = when.date;
+    const want = dailyCandidates(rows).filter((s) => !(s in target));
     if (!want.length) { setProgress((p) => ({ ...p, loading: false })); return; }
     loadingDaily.current = true;
     const total = Object.keys(dailyRef.current).length + want.length;
@@ -116,43 +163,57 @@ export default function Screener({ accountId, active, watch, onPick, onAdd }) {
     for (let i = 0; i < batches.length; i += DAILY_PARALLEL) {
       // A batch refused (the broker's per-minute allowance, say) is tried
       // once more after a pause.
-      const read = (symbols) => invokeFunction("terminal", { action: "screen", stage: "daily", accountId, symbols })
+      if (modeRef.current !== started) break;
+      const read = (symbols) => invokeFunction("terminal", { action: "screen", stage: "daily", accountId, symbols, asOf: asOf || undefined })
         .then((r) => (r?.data?.stats && !r.data.error ? r.data.stats : Promise.reject(new Error(r?.data?.error || "No answer"))));
       const got = await Promise.all(batches.slice(i, i + DAILY_PARALLEL).map((symbols) =>
         read(symbols).catch(() => new Promise((ok) => setTimeout(ok, 4000)).then(() => read(symbols)))
           .catch((e) => { failed = String(e?.message || e); return {}; })));
-      for (const stats of got) for (const [s, v] of Object.entries(stats)) dailyRef.current[s] = v;
-      setDaily({ ...dailyRef.current });
-      setProgress({ done: Object.keys(dailyRef.current).length, total, loading: true, error: null });
+      for (const stats of got) for (const [s, v] of Object.entries(stats)) target[s] = v;
+      if (modeRef.current !== started) break;
+      setDaily({ ...target });
+      setProgress({ done: Object.keys(target).length, total, loading: true, error: null });
     }
-    store.set(DAILY_KEY, JSON.stringify({ account: accountId, date: nyToday(), stats: dailyRef.current }));
-    setProgress({ done: Object.keys(dailyRef.current).length, total, loading: false, error: failed });
+    if (modeRef.current !== started) return;
+    if (!asOf) store.set(DAILY_KEY, JSON.stringify({ account: accountId, date: nyToday(), stats: target }));
+    setProgress({ done: Object.keys(target).length, total, loading: false, error: failed });
     loadingDaily.current = false;
-  }, [accountId]);
+  }, [accountId, when.date]);
 
   const refresh = useCallback(() => {
     if (!accountId) return;
+    const started = modeRef.current;
     setUniverse((u) => ({ ...u, loading: true, error: null }));
-    invokeFunction("terminal", { action: "screen", accountId }).then((r) => {
-      if (r?.data?.error || !r?.data?.rows) { setUniverse((u) => ({ ...u, loading: false, error: r?.data?.error || "The screen could not be read." })); return; }
+    const ask = when.date ? { action: "screen", stage: "history", accountId, date: when.date, asOf: when.asOf } : { action: "screen", accountId };
+    invokeFunction("terminal", ask).then((r) => {
+      if (modeRef.current !== started) return;
+      if (r?.data?.error || !r?.data?.rows) { setUniverse((u) => ({ ...u, rows: when.date ? [] : u.rows, loading: false, error: r?.data?.error || "The screen could not be read." })); return; }
       const rows = decodeUniverse(r.data);
-      setUniverse({ rows, at: r.data.at, dayFeed: r.data.dayFeed, listed: r.data.listed, loading: false, error: null });
-      loadDaily(rows.map((u) => screenRow(u, null, nyToday())));
+      setUniverse({ rows, at: r.data.at, dayFeed: r.data.dayFeed, listed: r.data.listed, premarket: r.data.premarket ?? null, loading: false, error: null, mode: started });
+      loadDaily(rows.map((u) => screenRow(u, when.date ? partialStats(u) : null, when.date || nyToday())));
     }).catch((e) => setUniverse((u) => ({ ...u, loading: false, error: String(e?.message || e) })));
-  }, [accountId, loadDaily]);
+  }, [accountId, loadDaily, when.date, when.asOf]);
 
-  // Read when first opened, then every minute while on screen.
+  // Read when first opened (and for each moment chosen), then, live, every
+  // minute while on screen.
   useEffect(() => {
     if (!active || !accountId) return undefined;
-    if (!universe.at) refresh();
-    if (!auto) return undefined;
+    if (universe.mode !== modeKey) { setUniverse((u) => ({ ...u, rows: [], at: null, mode: modeKey })); refresh(); }
+    if (!auto || when.date) return undefined;
     const t = setInterval(() => { if (document.visibilityState === "visible") refresh(); }, AUTO_MS);
     return () => clearInterval(t);
-  }, [active, accountId, auto, refresh]);
+  }, [active, accountId, auto, refresh, modeKey]);
 
-  const today = nyToday();
-  const rows = useMemo(() => universe.rows.map((u) => screenRow(u, daily[u.symbol], today)), [universe.rows, daily, today]);
-  const matches = useMemo(() => sortRows(rows.filter((r) => passes(r, screen)), screen.sort), [rows, screen]);
+  const today = when.date || nyToday();
+  const rows = useMemo(() => universe.rows.map((u) => screenRow(u, daily[u.symbol] || (when.date ? partialStats(u) : null), today)), [universe.rows, daily, today, when.date]);
+  // Filters on figures this moment does not know are set aside, and said so.
+  const ignored = Object.keys(screen.ranges).filter((id) => !fieldKnown(id, mode));
+  const effective = useMemo(() => {
+    const ranges = Object.fromEntries(Object.entries(screen.ranges).filter(([id]) => fieldKnown(id, mode)));
+    return { ...screen, ranges, sort: fieldKnown(screen.sort.key, mode) ? screen.sort : { key: "gapPct", dir: "desc" } };
+  }, [screen, mode]);
+  const matches = useMemo(() => sortRows(rows.filter((r) => passes(r, effective)), effective.sort), [rows, effective]);
+  const COLUMNS = COLUMN_SETS[mode];
   const covered = rows.filter((r) => r.hasDaily).length;
 
   const choosePreset = (id) => { setPreset(id); setScreen(presetScreen(id)); };
@@ -180,12 +241,15 @@ export default function Screener({ accountId, active, watch, onPick, onAdd }) {
       <aside className={`${showFilters ? "flex" : "hidden"} max-h-[70vh] w-full shrink-0 flex-col gap-2 overflow-hidden rounded-lg border border-slate-200 bg-white md:flex md:max-h-none md:w-72`}>
         <div className="border-b border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-700">Stocks in play</div>
         <div className="grid grid-cols-2 gap-1 px-2">
-          {PRESETS.map((p) => (
-            <button key={p.id} type="button" title={p.note} onClick={() => { choosePreset(p.id); setShowFilters(false); }}
-              className={`rounded border px-1.5 py-1 text-left text-[11px] ${preset === p.id ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}>
-              {p.label}
-            </button>
-          ))}
+          {PRESETS.filter((p) => mode !== "live" || presetKnown(p, "live")).map((p) => {
+            const known = presetKnown(p, mode);
+            return (
+              <button key={p.id} type="button" disabled={!known} title={known ? p.note : `${p.note}. Needs the whole day: choose "At the close".`} onClick={() => { choosePreset(p.id); setShowFilters(false); }}
+                className={`rounded border px-1.5 py-1 text-left text-[11px] disabled:opacity-40 ${preset === p.id ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}>
+                {p.label}
+              </button>
+            );
+          })}
         </div>
         <div className="flex items-center border-t border-slate-200 px-2 pt-2 text-xs font-semibold text-slate-700">
           Filters
@@ -213,7 +277,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd }) {
                 {open.has(g) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}{g}
                 {FIELDS.some((f) => f.group === g && screen.ranges[f.id]) && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-500" />}
               </button>
-              {open.has(g) && FIELDS.filter((f) => f.group === g).map((f) => <RangeRow key={f.id} field={f} value={screen.ranges[f.id]} onChange={setRange} />)}
+              {open.has(g) && FIELDS.filter((f) => f.group === g && fieldKnown(f.id, mode)).map((f) => <RangeRow key={f.id} field={f} value={screen.ranges[f.id]} onChange={setRange} />)}
             </div>
           ))}
           <p className="px-1 pt-1 text-[10px] leading-snug text-slate-400">Type 500k, 2.5m or 1b for amounts; percentages as numbers (3 for 3%). Hover a filter for what it measures.</p>
@@ -221,11 +285,37 @@ export default function Screener({ accountId, active, watch, onPick, onAdd }) {
       </aside>
 
       <section className="flex min-h-[60vh] min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <div className={`flex flex-wrap items-center gap-2 border-b px-2 py-1.5 text-xs ${when.date ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}>
+          <div className="flex rounded border border-slate-300 bg-white" role="group" aria-label="When">
+            <button type="button" onClick={() => setWhen((w) => ({ ...w, date: "" }))} className={`px-2 py-0.5 ${!when.date ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}>Live</button>
+            <button type="button" onClick={() => setWhen((w) => ({ ...w, date: pastPick }))} className={`px-2 py-0.5 ${when.date ? "bg-amber-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}>A past day</button>
+          </div>
+          {when.date && (
+            <>
+              <input type="date" aria-label="Past day" value={pastPick} min="2016-01-04" max={nyYesterday()} onChange={(e) => setPastPick(e.target.value)}
+                className="rounded border border-amber-300 bg-white px-1 py-0.5" />
+              {pastPick !== when.date && pastPick && <button type="button" onClick={() => setWhen((w) => ({ ...w, date: pastPick }))} className="rounded bg-amber-600 px-2 py-0.5 font-medium text-white hover:bg-amber-700">Screen this day</button>}
+              <div className="flex rounded border border-amber-300 bg-white" role="group" aria-label="At the open or the close">
+                {[["open", "At the open"], ["close", "At the close"]].map(([id, name]) => (
+                  <button key={id} type="button" onClick={() => setWhen((w) => ({ ...w, asOf: id }))}
+                    title={id === "open" ? "As it stood at 9:30: the gap, the pre-market and the days before. Nothing the day went on to do." : "The whole day: its move, volume and range. Hindsight: you know how the day ended."}
+                    className={`px-2 py-0.5 ${when.asOf === id ? "bg-amber-600 text-white" : "text-amber-900 hover:bg-amber-100"}`}>{name}</button>
+                ))}
+              </div>
+              <span className="text-[11px] text-amber-900">{new Date(`${when.date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })}</span>
+            </>
+          )}
+        </div>
+        {ignored.length > 0 && (
+          <p className="border-b border-slate-100 px-2 py-1 text-[11px] text-amber-800">
+            Set aside {mode === "open" ? "at the open" : "on a past day"}, not known then: {ignored.map((id) => FIELD[id].label).join(", ")}.
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-2 py-1.5 text-xs">
           <span className="font-semibold">{matches.length.toLocaleString()} match{matches.length === 1 ? "" : "es"}</span>
-          <span className="text-slate-500">of {rows.length.toLocaleString()} listed shares{presetInfo ? ` · ${presetInfo.note}` : ""}</span>
+          <span className="text-slate-500">of {rows.length.toLocaleString()} {when.date ? "shares that traded that day" : "listed shares"}{presetInfo ? ` · ${presetInfo.note}` : ""}</span>
           <div className="ml-auto flex items-center gap-2">
-            <label className="flex items-center gap-1 text-[11px] text-slate-500"><input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />Every minute</label>
+            {!when.date && <label className="flex items-center gap-1 text-[11px] text-slate-500"><input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />Every minute</label>}
             <button type="button" onClick={refresh} disabled={universe.loading} className="flex items-center gap-1 rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-700 hover:bg-slate-50 disabled:opacity-50">
               <RefreshCw className={`h-3 w-3 ${universe.loading ? "animate-spin" : ""}`} />{universe.loading ? "Reading…" : "Refresh"}
             </button>
@@ -274,7 +364,11 @@ export default function Screener({ accountId, active, watch, onPick, onAdd }) {
                     <span className="ml-1.5 truncate text-[11px] text-slate-400" title={r.name}>{r.name.replace(/ (Common Stock|Class A Common Stock|Ordinary Shares)$/i, "").slice(0, 28)}</span>
                   </td>
                   {COLUMNS.slice(1).map(([key]) => <td key={key} className="whitespace-nowrap px-2 py-1 text-right">{cell(r, key)}</td>)}
-                  <td className="px-1" onClick={(e) => e.stopPropagation()}>
+                  <td className="whitespace-nowrap px-1" onClick={(e) => e.stopPropagation()}>
+                    {when.date && (
+                      <button type="button" title={`Replay ${r.symbol} from ${when.date}, 9:30 New York (or add it to the replay running)`} aria-label={`Replay ${r.symbol}`}
+                        onClick={() => onReplay(r.symbol, when.date)} className="mr-1 rounded p-0.5 text-amber-600 hover:bg-amber-100"><History className="h-3.5 w-3.5" /></button>
+                    )}
                     {watch.includes(r.symbol) ? <Check className="h-3.5 w-3.5 text-emerald-600" aria-label="In watchlist" />
                       : <button type="button" title="Add to watchlist" onClick={() => onAdd(r.symbol)} className="rounded p-0.5 text-slate-400 hover:bg-emerald-100 hover:text-emerald-700"><Plus className="h-3.5 w-3.5" /></button>}
                   </td>
@@ -283,13 +377,17 @@ export default function Screener({ accountId, active, watch, onPick, onAdd }) {
             </tbody>
           </table>
           {!universe.loading && universe.at && matches.length === 0 && <p className="px-3 py-6 text-center text-xs text-slate-500">Nothing matches every filter. Loosen one, or pick a ready-made screen.</p>}
-          {!universe.at && universe.loading && <p className="px-3 py-6 text-center text-xs text-slate-500">Reading every listed share…</p>}
+          {!universe.at && universe.loading && <p className="px-3 py-6 text-center text-xs text-slate-500">{when.date ? `Reading every listed share on ${when.date}: about ten seconds the first time.` : "Reading every listed share…"}</p>}
           {matches.length > SHOW_MAX && <p className="px-3 py-2 text-center text-[11px] text-slate-500">Showing the first {SHOW_MAX} of {matches.length.toLocaleString()}. Narrow the filters or sort differently to see others.</p>}
         </div>
-        <p className="border-t border-slate-100 px-2 py-1 text-[10px] leading-snug text-slate-400">
+        {when.date ? (
+          <p className="border-t border-slate-100 px-2 py-1 text-[10px] leading-snug text-slate-400">
+            {when.date} {when.asOf === "open" ? "at the open: the opening price and gap; pre-market (4:00 to 9:30) for the biggest gaps among shares trading $1M a day" : "at the close: the whole day"}; averages, RSI and 52-week figures from the days before. From your own Alpaca account, consolidated daily candles{universe.dayFeed && universe.dayFeed !== "sip" ? " (IEX only: this account cannot read the consolidated tape)" : ""}. Only shares listed today are included, so companies delisted since are missing; names, market cap (today&apos;s shares outstanding) and options are today&apos;s. A screen is a filter, not a recommendation.
+          </p>
+        ) : <p className="border-t border-slate-100 px-2 py-1 text-[10px] leading-snug text-slate-400">
           {universe.at ? `Read ${new Date(universe.at).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", second: "2-digit" })} New York. ` : ""}
           From your own Alpaca account: prices are the last trade (IEX, real time, pre-market and after hours included); volume and the day&apos;s candle are the consolidated tape{universe.dayFeed === "delayed_sip" ? ", 15 minutes delayed" : universe.dayFeed ? " (IEX only: this account cannot read the consolidated tape, so volumes are IEX's share)" : ""}; daily figures from consolidated daily candles. Market cap uses shares outstanding from the company&apos;s latest SEC filing; earnings dates from the earnings calendar. A screen is a filter, not a recommendation.
-        </p>
+        </p>}
       </section>
     </div>
   );

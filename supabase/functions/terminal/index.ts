@@ -962,7 +962,7 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     }
     return { symbol: sym, from, ...out };
   }
-  if (only === "history") {
+  if (only === "pastScreen") {
     // The historical screen as the screener receives it: how long, how many,
     // and the biggest gaps with their pre-market.
     const date = extra[0] || "2026-10-23";
