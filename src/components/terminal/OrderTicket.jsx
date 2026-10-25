@@ -23,7 +23,7 @@ import { fmtMoney } from "@/lib/format";
 // works.
 
 const STOCK_TYPES = [
-  ["market", "Market"], ["limit", "Limit"], ["stop", "Stop"], ["stop_limit", "Stop limit"]
+  ["market", "Market"], ["limit", "Limit"], ["stop", "Stop"], ["stop_limit", "Stop limit"], ["trailing_stop", "Trailing stop"]
 ];
 const CRYPTO_TYPES = [["market", "Market"], ["limit", "Limit"], ["stop_limit", "Stop limit"]];
 const TIF_TEXT = { day: "for the day", gtc: "good till cancelled", ioc: "immediate or cancel" };
@@ -38,6 +38,9 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   const [type, setType] = useState("limit");
   const [limit, setLimit] = useState("");
   const [stop, setStop] = useState("");
+  // A trailing stop follows the price by a percentage or by dollars.
+  const [trail, setTrail] = useState("2");
+  const [trailBy, setTrailBy] = useState("pct");
   const [tif, setTif] = useState("day");
   const [extended, setExtended] = useState(false);
   const [bracket, setBracket] = useState(false);
@@ -57,7 +60,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     setLimit(""); setStop(""); setTp(""); setSl(""); setReview(false);
     setAsset(null);
     if (isCrypto(symbol)) {
-      setType((t) => (t === "stop" ? "stop_limit" : t));
+      setType((t) => (t === "stop" || t === "trailing_stop" ? "stop_limit" : t));
       setTif((t) => (t === "day" ? "gtc" : t));
       setExtended(false);
       setBracket(false);
@@ -128,10 +131,21 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     setSide(preset.side);
     setUnit("qty");
     setQty(preset.qtyText);
-    setType("market");
-    setTif(isCrypto(symbol) ? "gtc" : "day");
     setExtended(false);
     setBracket(false);
+    // A stop for a position (its Stop button): the stop price filled in, to
+    // adjust before review; a coin's as a stop-limit, its limit 1% past.
+    if (preset.type === "stop") {
+      const coin = isCrypto(symbol);
+      setType(coin ? "stop_limit" : "stop");
+      setStop(px(preset.stopPrice));
+      if (coin) setLimit(px(preset.stopPrice * (preset.side === "sell" ? 0.99 : 1.01)));
+      setTif(coin || Number.isInteger(Number(preset.qtyText)) ? "gtc" : "day");
+      setReview(false);
+      return;
+    }
+    setType("market");
+    setTif(isCrypto(symbol) ? "gtc" : "day");
     setReview(true);
   }, [preset, symbol]);
   // Filled once per symbol and side, when the first quote arrives; after that
@@ -148,6 +162,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   const coin = crypto ? symbol.split("/")[0] : "";
   const needsLimit = type === "limit" || type === "stop_limit";
   const needsStop = type === "stop" || type === "stop_limit";
+  const needsTrail = type === "trailing_stop";
   const ref = side === "buy" ? quote?.ask ?? quote?.last : quote?.bid ?? quote?.last;
   const at = needsLimit ? Number(limit) : type === "stop" ? Number(stop) : ref;
   // In dollars: a market order sends the amount itself where the broker
@@ -171,7 +186,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   const overBp = side === "buy" && value !== null && buyingPower !== null && value > buyingPower;
   const sized = notional ? dollars >= 1 : n > 0;
   const ready = paper && symbol && sized && !belowMin && !(crypto && short) &&
-    (!needsLimit || Number(limit) > 0) && (!needsStop || Number(stop) > 0) && (!bracket || (Number(tp) > 0 && Number(sl) > 0));
+    (!needsLimit || Number(limit) > 0) && (!needsStop || Number(stop) > 0) && (!needsTrail || Number(trail) > 0) && (!bracket || (Number(tp) > 0 && Number(sl) > 0));
   // A stock's dollar-amount order is a market order for the day, in regular hours, without exits.
   useEffect(() => {
     if (notional && !crypto) { setTif("day"); setExtended(false); setBracket(false); }
@@ -182,7 +197,8 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   const words = (notional
     ? `${side === "buy" ? "Buy" : "Sell"} ${fmtMoney(dollars)} of ${symbol} `
     : `${side === "buy" ? "Buy" : "Sell"} ${exactSale ? String(Number(heldText)) : n ? sizeText(n) : "?"} ${crypto ? coin : symbol || ""} `) +
-    (type === "market" ? "at market" : type === "limit" ? `limit ${px(limit)}` : type === "stop" ? `stop ${px(stop)}` : `stop ${px(stop)}, limit ${px(limit)}`) +
+    (type === "market" ? "at market" : type === "limit" ? `limit ${px(limit)}` : type === "stop" ? `stop ${px(stop)}`
+      : type === "trailing_stop" ? `trailing stop ${trailBy === "pct" ? `${trail}%` : fmtMoney(Number(trail))} behind the price` : `stop ${px(stop)}, limit ${px(limit)}`) +
     `, ${TIF_TEXT[tif] || TIF_TEXT.day}${extended ? ", including pre-market and after hours" : ""}` +
     (bracket ? `, then take profit at ${px(tp)} or stop out at ${px(sl)}` : "");
 
@@ -197,6 +213,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
         symbol, side, qty: notional ? null : exactSale ? heldText : n,
         notional: notional ? dollars : null, type, timeInForce: tif, extendedHours: extended,
         limitPrice: needsLimit ? limit : null, stopPrice: needsStop ? stop : null,
+        trailPercent: needsTrail && trailBy === "pct" ? trail : null, trailPrice: needsTrail && trailBy === "usd" ? trail : null,
         takeProfit: bracket ? tp : null, stopLoss: bracket ? sl : null, reference: ref ?? null
       }
     });
@@ -282,6 +299,19 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
           <div>
             <label className={label} htmlFor="t-stop">Stop price</label>
             <input id="t-stop" className={input} inputMode="decimal" value={stop} onChange={(e) => { setStop(e.target.value); setReview(false); }} />
+          </div>
+        )}
+        {needsTrail && (
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <label className="block text-[11px] uppercase tracking-wider text-slate-500" htmlFor="t-trail">Trail by</label>
+              <div className="flex overflow-hidden rounded border border-slate-200 text-[10px]" role="group" aria-label="Trail by">
+                {[["pct", "%"], ["usd", "$"]].map(([id, name]) => (
+                  <button key={id} type="button" onClick={() => { setTrailBy(id); setReview(false); }} className={`px-1.5 ${trailBy === id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}>{name}</button>
+                ))}
+              </div>
+            </div>
+            <input id="t-trail" className={input} inputMode="decimal" value={trail} onChange={(e) => { setTrail(e.target.value.replace(/[^\d.]/g, "")); setReview(false); }} />
           </div>
         )}
         {needsLimit && (

@@ -166,3 +166,11 @@ test("order pop-ups: one line per step, the fill in plain words", () => {
   assert.equal(orderNews({ ...base, error: "The smallest BTC/USD order is 0.000012373." }).title, "Order not placed");
   assert.equal(orderNews({ ...base, status: "canceled" }).detail, "Nothing filled.");
 });
+
+test("settings: the account's copy wins, even empty; otherwise this browser's goes up", async () => {
+  const { settle } = await import("./terminal.js");
+  assert.deepEqual(settle(["AAPL"], ["SPY"]), { value: ["AAPL"], upload: false });
+  assert.deepEqual(settle([], ["SPY"]), { value: [], upload: false });
+  assert.deepEqual(settle(undefined, ["SPY"]), { value: ["SPY"], upload: true });
+  assert.deepEqual(settle(null, null), { value: null, upload: false });
+});

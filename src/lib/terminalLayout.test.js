@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cleanLayouts, DEFAULT_LAYOUTS, PANELS, rowHeightFor, COLS } from "./terminalLayout.js";
+import { cleanLayouts, DEFAULT_LAYOUTS, PANELS, rowHeightFor, COLS, BREAKPOINTS, fromFirstVersion } from "./terminalLayout.js";
 
 test("every window is in every default arrangement, once, inside the grid", () => {
   for (const [bp, list] of Object.entries(DEFAULT_LAYOUTS)) {
@@ -26,4 +26,25 @@ test("a saved arrangement is kept; a broken or missing window comes back from th
 test("row height fills the space, never below 14px", () => {
   assert.equal(rowHeightFor(30 * 20 + 29 * 8), 20);
   assert.equal(rowHeightFor(100), 14);
+});
+
+test("no window off screen: the watchlist sits beside the chart at every width but a phone's", () => {
+  for (const bp of ["lg", "md"]) {
+    const by = (id) => DEFAULT_LAYOUTS[bp].find((x) => x.i === id);
+    assert.equal(by("watch").y, 0, bp);
+    assert.equal(by("chart").y, 0, bp);
+  }
+  // Phones: stacked, no gaps, no overlaps.
+  let y = 0;
+  for (const x of DEFAULT_LAYOUTS.sm) { assert.equal(x.y, y); y += x.h; }
+  assert.ok(BREAKPOINTS.lg <= 1000, "a laptop with the app menu open still gets the full arrangement");
+});
+
+test("an arrangement from the first version keeps its wide-screen layout only", () => {
+  const v1 = { lg: [{ i: "chart", x: 0, y: 0, w: 16, h: 22 }], md: [{ i: "watch", x: 8, y: 20, w: 4, h: 14 }] };
+  assert.deepEqual(fromFirstVersion(v1), { lg: v1.lg });
+  const out = cleanLayouts(fromFirstVersion(v1));
+  assert.equal(out.lg.find((x) => x.i === "chart").w, 16);
+  assert.equal(out.md.find((x) => x.i === "watch").y, 0);
+  assert.equal(fromFirstVersion(null), null);
 });

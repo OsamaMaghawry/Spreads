@@ -4,8 +4,9 @@ import { MousePointer2, Slash, MoveUpRight, Minus, SeparatorVertical, RectangleH
 import { invokeFunction } from "@/lib/functions";
 import { INTERVALS, applyTrade, applyMinuteBar, isCrypto, priceFormatFor, inRegularHours, sessionDay, sessionOf, px, sizeText } from "@/lib/terminal";
 import { INDICATORS, LINE_COLORS, cleanIndicators, defaultParams, indicatorLabel, indicatorSeries } from "@/lib/indicators";
-import { TOOLS, COLORS, pointsFor, logicalToTime, hitTest, moveDrawing, readDrawings, writeDrawings } from "@/lib/chartDrawings";
+import { TOOLS, COLORS, pointsFor, logicalToTime, hitTest, moveDrawing, readDrawings, writeDrawings, cleanDrawings } from "@/lib/chartDrawings";
 import { EVENT_KINDS, econEvents, earningsEvent, placeEvents, cleanShown, nextOfEach, eventWhen, badgeAt } from "@/lib/marketEvents";
+import { readPrefs, savePref, settle } from "@/lib/terminalPrefs";
 import { DrawingLayer } from "./drawingLayer";
 
 // The chart: TradingView Lightweight Charts (Apache-2.0), drawn from the
@@ -123,10 +124,15 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
   const repaint = () => layerRef.current?.update();
   const setTool = (t) => { toolRef.current = t; setToolState(t); draftRef.current = null; setDrafting(false); repaint(); };
   const select = (id) => { selectedRef.current = id; setSelectedState(id); repaint(); };
+  // Drawings are saved per symbol, in this browser and with the account
+  // ("drawings:AAPL"), so each ticker keeps its own wherever it is opened.
+  const drawVersion = useRef(0);
   const commit = useCallback((next) => {
     drawingsRef.current = next;
+    drawVersion.current += 1;
     setDrawings(next);
     saveDrawings(symbolRef.current, next);
+    savePref(`drawings:${symbolRef.current}`, cleanDrawings(next));
     layerRef.current?.update();
   }, []);
 
@@ -351,7 +357,8 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Each symbol has its own drawings.
+  // Each symbol has its own drawings: this browser's at once, then the
+  // account's copy, which wins unless a drawing changed in the meantime.
   useEffect(() => {
     const list = loadDrawings(symbol);
     drawingsRef.current = list;
@@ -362,7 +369,37 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
     setSelectedState(null);
     setConfirmClear(false);
     layerRef.current?.update();
+    const key = `drawings:${symbol}`;
+    const version = drawVersion.current;
+    let alive = true;
+    readPrefs([key]).then((p) => {
+      if (!alive || drawVersion.current !== version) return;
+      const s = settle(Array.isArray(p[key]) ? cleanDrawings(p[key]) : null, list);
+      if (s.upload) { if (list.length) savePref(key, cleanDrawings(list)); return; }
+      if (!s.value || JSON.stringify(s.value) === JSON.stringify(list)) return;
+      drawingsRef.current = s.value;
+      setDrawings(s.value);
+      saveDrawings(symbol, s.value);
+      layerRef.current?.update();
+    }).catch(() => {});
+    return () => { alive = false; };
   }, [symbol]);
+
+  // Indicators and the chart events shown, from the account once read.
+  const chartPrefsSynced = useRef(false);
+  useEffect(() => {
+    let alive = true;
+    readPrefs(["indicators", "events"]).then((p) => {
+      if (!alive) return;
+      chartPrefsSynced.current = true;
+      const ind = settle(Array.isArray(p.indicators) ? cleanIndicators(p.indicators) : null, indicatorsRef.current);
+      if (ind.upload) savePref("indicators", ind.value);
+      else if (ind.value && JSON.stringify(ind.value) !== JSON.stringify(indicatorsRef.current)) setIndicators(ind.value);
+      if (Array.isArray(p.events)) setShown(cleanShown(p.events));
+      else savePref("events", shownRef.current);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   // Delete removes the selected drawing; Escape lets go of a half-drawn one.
   useEffect(() => {
@@ -499,6 +536,7 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
   // The kinds shown, kept in this browser.
   useEffect(() => {
     write(EVENTS_KEY, JSON.stringify(shown));
+    if (chartPrefsSynced.current) savePref("events", shown);
     placeAll();
   }, [shown, placeAll]);
 
@@ -508,6 +546,7 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
     const chart = chartRef.current;
     if (!chart) return;
     write(IND_KEY, JSON.stringify(indicators));
+    if (chartPrefsSynced.current) savePref("indicators", indicators);
     for (const { series } of indSeriesRef.current) series.forEach((x) => { try { chart.removeSeries(x); } catch { /* gone */ } });
     for (let i = chart.panes().length - 1; i >= 1; i--) { try { chart.removePane(i); } catch { /* gone */ } }
     let pane = 0;

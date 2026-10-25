@@ -84,6 +84,9 @@ export default function Screener({ accountId, active, watch, onPick, onAdd }) {
   const [preset, setPreset] = useState(() => { try { return JSON.parse(store.get(SCREEN_KEY) || "null")?.preset || "gainers"; } catch { return "gainers"; } });
   const [open, setOpen] = useState(() => new Set(["Price and volume", "Today"]));
   const [auto, setAuto] = useState(true);
+  // On a phone the screens and filters fold away above the results (25 Oct:
+  // "The screener dissapeared on phone"); on a wider screen they sit beside them.
+  const [showFilters, setShowFilters] = useState(false);
   const dailyRef = useRef({});
   const loadingDaily = useRef(false);
 
@@ -169,12 +172,16 @@ export default function Screener({ accountId, active, watch, onPick, onAdd }) {
   const presetInfo = PRESETS.find((p) => p.id === preset);
 
   return (
-    <div className="flex min-h-[70vh] gap-2 text-slate-800">
-      <aside className="flex w-72 shrink-0 flex-col gap-2 overflow-hidden rounded-lg border border-slate-200 bg-white">
+    <div className="flex min-h-[70vh] flex-col gap-2 text-slate-800 md:flex-row">
+      <button type="button" onClick={() => setShowFilters((v) => !v)} className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm font-medium md:hidden">
+        {showFilters ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        Screens and filters{presetInfo ? ` · ${presetInfo.label}` : ""}{activeRanges.length ? ` · ${activeRanges.length} filter${activeRanges.length === 1 ? "" : "s"}` : ""}
+      </button>
+      <aside className={`${showFilters ? "flex" : "hidden"} max-h-[70vh] w-full shrink-0 flex-col gap-2 overflow-hidden rounded-lg border border-slate-200 bg-white md:flex md:max-h-none md:w-72`}>
         <div className="border-b border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-700">Stocks in play</div>
         <div className="grid grid-cols-2 gap-1 px-2">
           {PRESETS.map((p) => (
-            <button key={p.id} type="button" title={p.note} onClick={() => choosePreset(p.id)}
+            <button key={p.id} type="button" title={p.note} onClick={() => { choosePreset(p.id); setShowFilters(false); }}
               className={`rounded border px-1.5 py-1 text-left text-[11px] ${preset === p.id ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}>
               {p.label}
             </button>
@@ -213,7 +220,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd }) {
         </div>
       </aside>
 
-      <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <section className="flex min-h-[60vh] min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white">
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-2 py-1.5 text-xs">
           <span className="font-semibold">{matches.length.toLocaleString()} match{matches.length === 1 ? "" : "es"}</span>
           <span className="text-slate-500">of {rows.length.toLocaleString()} listed shares{presetInfo ? ` · ${presetInfo.note}` : ""}</span>

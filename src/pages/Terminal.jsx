@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, X, Plus, Lock, LockOpen, RotateCcw, Maximize2, Minimize2, GripVertical } from "lucide-react";
+import { Search, X, Plus, Lock, LockOpen, RotateCcw, Maximize2, Minimize2, GripVertical, Keyboard } from "lucide-react";
 import { Responsive, WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import "@/components/terminal/terminal.css";
 import { invokeFunction } from "@/lib/functions";
 import { readWatchlist, cleanWatchlist, withCoinsOnce, px, pctText, sizeText, isCrypto, WATCHLIST_MAX } from "@/lib/terminal";
-import { DEFAULT_LAYOUTS, BREAKPOINTS, COLS, MARGIN, cleanLayouts, rowHeightFor } from "@/lib/terminalLayout";
+import { DEFAULT_LAYOUTS, BREAKPOINTS, COLS, MARGIN, cleanLayouts, rowHeightFor, fromFirstVersion } from "@/lib/terminalLayout";
 import { fmtMoney } from "@/lib/format";
+import { readPrefs, savePref, settle } from "@/lib/terminalPrefs";
 import useTerminalStream from "@/components/terminal/useTerminalStream";
 import PriceChart from "@/components/terminal/PriceChart";
 import OrderTicket from "@/components/terminal/OrderTicket";
@@ -15,6 +16,9 @@ import OrderBook from "@/components/terminal/OrderBook";
 import TapePanel from "@/components/terminal/TapePanel";
 import Toasts from "@/components/terminal/Toasts";
 import Screener from "@/components/terminal/Screener";
+import HotkeysDialog from "@/components/terminal/Hotkeys";
+import { runHotkey } from "@/components/terminal/runHotkey";
+import { comboOf, cleanHotkeys } from "@/lib/hotkeys";
 import { Positions, Orders, AccountSummary } from "@/components/terminal/Panels";
 
 const Grid = WidthProvider(Responsive);
@@ -42,9 +46,11 @@ const Grid = WidthProvider(Responsive);
 const WATCH_KEY = "dm.terminal.watchlist";
 const COINS_KEY = "dm.terminal.coinsAdded";
 const POLL_MS = 4000;
-const LAYOUT_KEY = "dm.terminal.layout.v1";
+const LAYOUT_KEY = "dm.terminal.layout.v2";
+const LAYOUT_KEY_V1 = "dm.terminal.layout.v1";
 const LOCK_KEY = "dm.terminal.layoutLocked";
 const PAGE_KEY = "dm.terminal.page";
+const HOTKEYS_ON_KEY = "dm.terminal.hotkeysOn";
 const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
   set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private window */ } }
@@ -103,8 +109,26 @@ export default function Terminal() {
   }, []);
   const account = accounts.find((a) => a.id === accountId) || null;
 
+  // The watchlist belongs to the person (lib/terminalPrefs.js): the
+  // account's copy replaces this browser's once read; until then nothing is
+  // sent, so a slow answer never overwrites it.
+  const watchRef = useRef(watch);
+  watchRef.current = watch;
+  const watchSynced = useRef(false);
+  useEffect(() => {
+    let alive = true;
+    readPrefs(["watchlist"]).then((p) => {
+      if (!alive) return;
+      const s = settle(Array.isArray(p.watchlist) ? cleanWatchlist(p.watchlist) : null, watchRef.current);
+      watchSynced.current = true;
+      if (s.upload) savePref("watchlist", s.value);
+      else if (s.value) setWatch(s.value);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
   useEffect(() => {
     try { localStorage.setItem(WATCH_KEY, JSON.stringify(watch)); } catch { /* private window */ }
+    if (watchSynced.current) savePref("watchlist", watch);
   }, [watch]);
 
   const streamSymbols = useMemo(() => cleanWatchlist([symbol, ...watch]).slice(0, 30), [symbol, watch]);
@@ -147,7 +171,10 @@ export default function Terminal() {
 
   // The arrangement: saved per browser, lockable, resettable.
   const [layouts, setLayouts] = useState(() => {
-    try { return cleanLayouts(JSON.parse(store.get(LAYOUT_KEY) || "null")); } catch { return cleanLayouts(null); }
+    try {
+      const saved = JSON.parse(store.get(LAYOUT_KEY) || "null") ?? fromFirstVersion(JSON.parse(store.get(LAYOUT_KEY_V1) || "null"));
+      return cleanLayouts(saved);
+    } catch { return cleanLayouts(null); }
   });
   const [locked, setLocked] = useState(() => store.get(LOCK_KEY) === "1");
   const [rowHeight, setRowHeight] = useState(() => rowHeightFor(window.innerHeight - 150));
@@ -198,10 +225,51 @@ export default function Terminal() {
     setSymbol(p.symbol);
     setPreset({ symbol: p.symbol, side: p.side === "short" || p.qty < 0 ? "buy" : "sell", qtyText: String(p.qtyText || Math.abs(p.qty)).replace(/^-/, ""), at: Date.now() });
   };
+  // A stop for a position: the ticket loaded with the opposite side, the
+  // whole quantity, and a stop 2% past the last price, to adjust and review.
+  const stopPosition = (p) => {
+    const short = p.side === "short" || p.qty < 0;
+    setSymbol(p.symbol);
+    setPreset({
+      symbol: p.symbol, side: short ? "buy" : "sell", qtyText: String(p.qtyText || Math.abs(p.qty)).replace(/^-/, ""),
+      type: "stop", stopPrice: (p.last || p.avgPrice || 0) * (short ? 1.02 : 0.98), at: Date.now()
+    });
+  };
   // This symbol's fills in the last week, marked on the chart where they happened.
   const fills = useMemo(() => (view?.recent || [])
     .filter((o) => o.symbol === symbol && Number(o.filled) > 0 && o.avgPrice && o.filledAt)
     .map((o) => ({ id: o.id, side: o.side, qty: o.filled, price: o.avgPrice, at: o.filledAt })), [view?.recent, symbol]);
+
+  // Hotkeys (25 Oct: "Can I set hotkeys ... exiting full position has a key.
+  // Partial exit has a key ... stop loss ... with keys"): the list is kept with
+  // the account; on or off is this browser's, and off until turned on here.
+  const [hotkeys, setHotkeys] = useState([]);
+  const [hotkeysOn, setHotkeysOn] = useState(() => store.get(HOTKEYS_ON_KEY) === "1");
+  const [hotkeysOpen, setHotkeysOpen] = useState(false);
+  useEffect(() => {
+    readPrefs(["hotkeys"]).then((p) => setHotkeys(cleanHotkeys(p.hotkeys))).catch(() => {});
+  }, []);
+  const saveHotkeys = (list) => { setHotkeys(list); savePref("hotkeys", list); };
+  const armHotkeys = (on) => { setHotkeysOn(on); store.set(HOTKEYS_ON_KEY, on ? "1" : "0"); };
+  // Everything a key press reads, current at the moment it is pressed.
+  const live$ = useRef({});
+  live$.current = { account, symbol, quote, view, position, hotkeys, notify, refresh: loadView };
+  useEffect(() => {
+    if (!hotkeysOn || page !== "trade" || hotkeysOpen) return undefined;
+    const onKey = (e) => {
+      if (e.repeat) return;
+      const t = e.target;
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(t?.tagName || "") || t?.isContentEditable) return;
+      const combo = comboOf(e);
+      const h = combo && live$.current.hotkeys.find((k) => k.keys === combo);
+      if (!h) return;
+      e.preventDefault();
+      e.stopPropagation();
+      runHotkey(h, live$.current);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [hotkeysOn, page, hotkeysOpen]);
 
   const grip = !locked && <GripVertical className="h-3.5 w-3.5 shrink-0 text-slate-300" />;
   const frame = "flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white";
@@ -210,6 +278,7 @@ export default function Terminal() {
   return (
     <div className="flex flex-col gap-2 text-slate-800">
       <Toasts toasts={toasts} onClose={closeToast} />
+      <HotkeysDialog open={hotkeysOpen} hotkeys={hotkeys} armed={hotkeysOn} onArm={armHotkeys} onSave={saveHotkeys} onClose={() => setHotkeysOpen(false)} />
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="mr-2 text-lg font-semibold">Terminal</h1>
         <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">Staging test</span>
@@ -245,7 +314,14 @@ export default function Terminal() {
             </div>
           )}
         </div>
-        <div className={`ml-auto flex items-center gap-1 ${page === "trade" ? "" : "invisible"}`}>
+        <div className="ml-auto flex items-center gap-1">
+          <button type="button" onClick={() => armHotkeys(!hotkeysOn)} title={hotkeysOn ? "Hotkeys are on: their keys send orders. Click to turn them off." : "Hotkeys are off. Click to turn them on."}
+            className={`flex items-center gap-1 rounded-l-md border px-2 py-1 text-xs ${hotkeysOn ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
+            <Keyboard className="h-3.5 w-3.5" />Hotkeys {hotkeysOn ? "on" : "off"}{hotkeys.length ? ` (${hotkeys.length})` : ""}
+          </button>
+          <button type="button" onClick={() => setHotkeysOpen(true)} className="-ml-1 rounded-r-md border border-l-0 border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50">Set keys</button>
+        </div>
+        <div className={`flex items-center gap-1 ${page === "trade" ? "" : "hidden"}`}>
           <button type="button" onClick={toggleLock} title={locked ? "Unlock the windows to move and resize them" : "Lock the windows where they are"}
             className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${locked ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
             {locked ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}{locked ? "Locked" : "Lock layout"}
@@ -302,8 +378,8 @@ export default function Terminal() {
               return (
                 <div key={s} className={`group relative flex cursor-pointer items-center gap-1 border-b border-slate-100 px-2 py-1.5 ${s === symbol ? "bg-emerald-50" : "hover:bg-slate-50"}`} onClick={() => setSymbol(s)}>
                   <span className="w-[4.5rem] shrink-0 truncate text-[13px] font-semibold" title={s}>{s}</span>
-                  <span className="min-w-0 flex-1 text-right text-[13px] tabular-nums">{px(w.last)}</span>
-                  <span className={`w-[3.25rem] shrink-0 text-right text-[11px] tabular-nums ${w.changePct >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{pctText(w.changePct)}</span>
+                  <span className="min-w-0 flex-1 truncate text-right text-[13px] tabular-nums">{px(w.last)}</span>
+                  <span className={`ml-1.5 w-[3.25rem] shrink-0 text-right text-[11px] tabular-nums ${w.changePct >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{pctText(w.changePct)}</span>
                   <button type="button" title="Remove" className="absolute right-0.5 top-1/2 -translate-y-1/2 rounded bg-white opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); setWatch((l) => l.filter((x) => x !== s)); }}>
                     <X className="h-3.5 w-3.5 text-slate-400" />
                   </button>
@@ -341,7 +417,7 @@ export default function Terminal() {
             ))}
           </div>
           <div className="min-h-0 flex-1">
-            {tab === "positions" && <Positions positions={view?.positions || []} onPick={setSymbol} onClose={closePosition} />}
+            {tab === "positions" && <Positions positions={view?.positions || []} onPick={setSymbol} onClose={closePosition} onStop={stopPosition} />}
             {tab === "orders" && <Orders accountId={accountId} orders={view?.orders || []} recent={view?.recent || []} onChanged={loadView} onPick={setSymbol} />}
             {tab === "account" && <AccountSummary summary={view?.summary} paper={view?.paper} name={account?.name} />}
           </div>

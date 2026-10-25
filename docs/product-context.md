@@ -92,7 +92,7 @@ incomplete.
 - **history** — RebuildPreview, StockLotsTable, StrategyTabs, TradeHistoryTable
 - **open** — CandidateList, OpenPositionDialog, OpenPricing, OrderSent, OrderWarnings, RestingOrder, ScanFilters, SetupPreview, StrategyPicker, TicketAnalysis, useLiveSetup, useOpenOrder, useScanLoop
 - **scanner** — ResultsTable, ScannerConfig, TradeDialog, useMarketScan
-- **terminal** — OrderBook, OrderTicket, Panels, PriceChart, Screener, TapePanel, Toasts, drawingLayer, useTerminalStream
+- **terminal** — Hotkeys, OrderBook, OrderTicket, Panels, PriceChart, Screener, TapePanel, Toasts, drawingLayer, runHotkey, useTerminalStream
 
 ## Recently shipped
 
@@ -192,6 +192,7 @@ revoked from the browser role entirely.
 - **market_mail_log** — id, kind, user_id, ref, symbol, subject, sent_at
 - **market_news_seen** — news_id, symbol, major, title, what, seen_at
 - **ticker_pages** — ticker, name, spot, spot_as_of, week, month, earnings_date, earnings_session, error, live, refreshed_at
+- **terminal_prefs** — user_id, key, value, updated_at
 
 ## Analytics vocabulary
 

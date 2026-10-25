@@ -18,23 +18,37 @@ const LG = [
   { i: "tape", x: 14, y: 17, w: 5, h: 13, minW: 3, minH: 5 },
   { i: "ticket", x: 19, y: 0, w: 5, h: 30, minW: 3, minH: 10 }
 ];
-// Narrower screens: 12 columns. Chart wide on top, book and tape side by side.
+// Tablets and small laptops: 12 columns. Watchlist beside the chart, as on a
+// wide screen (25 Oct: "watchlists disappeared on my laptop": the old
+// arrangement put it under the chart, out of sight), then ticket, book and
+// tape side by side, the account across the foot.
 const MD = [
-  { i: "chart", x: 0, y: 0, w: 9, h: 20, minW: 4, minH: 8 },
-  { i: "ticket", x: 9, y: 0, w: 3, h: 20, minW: 3, minH: 10 },
-  { i: "book", x: 0, y: 20, w: 4, h: 14, minW: 3, minH: 6 },
-  { i: "tape", x: 4, y: 20, w: 4, h: 14, minW: 3, minH: 5 },
-  { i: "watch", x: 8, y: 20, w: 4, h: 14, minW: 2, minH: 6 },
+  { i: "watch", x: 0, y: 0, w: 3, h: 18, minW: 2, minH: 6 },
+  { i: "chart", x: 3, y: 0, w: 9, h: 18, minW: 4, minH: 8 },
+  { i: "ticket", x: 0, y: 18, w: 4, h: 16, minW: 3, minH: 10 },
+  { i: "book", x: 4, y: 18, w: 4, h: 16, minW: 3, minH: 6 },
+  { i: "tape", x: 8, y: 18, w: 4, h: 16, minW: 3, minH: 5 },
   { i: "account", x: 0, y: 34, w: 12, h: 10, minW: 4, minH: 5 }
 ];
-// Phones: one column, in reading order.
-const SM = ["chart", "ticket", "book", "tape", "account", "watch"].map((i, n) => ({
-  i, x: 0, y: n * 14, w: 1, h: i === "chart" ? 18 : 14
-}));
+// Phones: one column, every window, in the order they are used.
+const SM = [["chart", 18], ["watch", 12], ["ticket", 18], ["book", 14], ["tape", 14], ["account", 14]].reduce((out, [i, h]) => {
+  const y = out.length ? out[out.length - 1].y + out[out.length - 1].h : 0;
+  return [...out, { i, x: 0, y, w: 1, h }];
+}, []);
 
 export const DEFAULT_LAYOUTS = { lg: LG, md: MD, sm: SM };
-export const BREAKPOINTS = { lg: 1200, md: 768, sm: 0 };
+// The grid's own width, not the window's: the app's menu takes some of a
+// laptop screen, and a 1,280-pixel laptop still gets the full arrangement.
+export const BREAKPOINTS = { lg: 1000, md: 640, sm: 0 };
 export const COLS = { lg: 24, md: 12, sm: 1 };
+
+/**
+ * An arrangement saved under the first version: the wide-screen one is kept
+ * as the trader left it; the narrower ones start again from the new defaults.
+ */
+export function fromFirstVersion(saved) {
+  return saved && Array.isArray(saved.lg) ? { lg: saved.lg } : null;
+}
 
 /**
  * A saved arrangement, checked: every window present once, inside the grid,

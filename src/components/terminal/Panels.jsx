@@ -72,7 +72,7 @@ export function TimeAndSales({ rows, symbol, live = false, delay = null }) {
 // The account's holdings. Close loads the ticket with the opposite side and
 // exactly the quantity held, at market, for review (24 Oct: "close the orders
 // from the quantities I have", without typing the symbol and size again).
-export function Positions({ positions, onPick, onClose }) {
+export function Positions({ positions, onPick, onClose, onStop }) {
   return (
     <div className="h-full overflow-auto">
       <table className="w-full text-xs">
@@ -87,7 +87,13 @@ export function Positions({ positions, onPick, onClose }) {
               <td className={td}>{fmtMoney(p.marketValue)}</td>
               <td className={`${td} ${p.today >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{fmtMoney(p.today)}</td>
               <td className={`${td} ${p.unrealized >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{fmtMoney(p.unrealized)} <span className="text-slate-400">{pctText(p.unrealizedPct)}</span></td>
-              <td className={`${td} text-right`}>
+              <td className={`${td} space-x-1 text-right`}>
+                {onStop && (
+                  <button type="button" title="Put a stop loss on this position" onClick={(e) => { e.stopPropagation(); onStop(p); }}
+                    className="rounded border border-slate-300 px-2 py-0.5 text-[11px] font-medium text-slate-700 hover:border-amber-500 hover:text-amber-700">
+                    Stop
+                  </button>
+                )}
                 {onClose && (
                   <button type="button" onClick={(e) => { e.stopPropagation(); onClose(p); }}
                     className="rounded border border-slate-300 px-2 py-0.5 text-[11px] font-medium text-slate-700 hover:border-rose-400 hover:text-rose-700">

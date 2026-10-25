@@ -14,6 +14,7 @@ import { sessionCandles } from "../_shared/sessionBars.ts";
 import { currentReports } from "../_shared/earnings.ts";
 import { secReports, withFigures, earningsTimeline, cikMap } from "../_shared/earningsHistory.ts";
 import { dailyStats, isFundName } from "../_shared/screenStats.ts";
+import { usSession, stopPlan, stopsToReplace, exitPlan } from "../_shared/positionTools.ts";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -800,6 +801,19 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
       daily: { ms: t2 - t1, feed: d.feed, stats: d.stats }
     };
   }
+  if (only === "replay") {
+    // A replay's two reads, as the chart receives them: counts, first and
+    // last candle, the feed.
+    const sym = extra[0] || "AAPL";
+    const from = extra[1] || "2026-03-02T00:00:00Z";
+    const out: Record<string, any> = {};
+    for (const [tf, f, t] of [["1Min", new Date(Date.parse(from) - 30 * 86400000).toISOString(), new Date(Date.parse(from) + 5 * 86400000).toISOString()], ["1Day", new Date(Date.parse(from) - 730 * 86400000).toISOString(), new Date(Date.parse(from) + 60 * 86400000).toISOString()]]) {
+      const t0 = Date.now();
+      const r: any = await replayData(house, sym, tf, f, t);
+      out[tf] = r.error ? r : { ms: Date.now() - t0, feed: r.feed, n: r.bars.length, first: r.bars[0] && iso(r.bars[0].time * 1000), last: r.bars.at(-1) && iso(r.bars.at(-1).time * 1000), lastClose: r.bars.at(-1)?.close };
+    }
+    return { symbol: sym, from, ...out };
+  }
   if (only === "hours") {
     // The regular-hours hourly candles the chart now asks for, as served.
     const r = await sessionHours(house, extra[0] || "AAPL", "1Hour");
@@ -824,6 +838,43 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     }))
     : coinAssets;
   return { at: new Date().toISOString(), signIn: auth.key === "oauth" ? "oauth" : "key pair", crypto, stocks, cryptoAssets: { count: Array.isArray(coinAssets) ? coinAssets.length : null, sample } };
+}
+
+// ---------- the person's terminal settings ----------
+//
+// Watchlist, each symbol's drawings, indicators, chart events and hotkeys,
+// kept with the person rather than the browser (public.terminal_prefs), so
+// another device or a cleared browser finds them as left. One row per key;
+// a symbol's drawings are a key of their own ("drawings:AAPL").
+
+const PREF_KEY = /^[a-z]+(:[A-Z0-9./]{1,24})?$/;
+const PREF_MAX_BYTES = 256 * 1024;
+
+async function prefs(admin: any, userId: string, body: any): Promise<[any, number?]> {
+  const table = admin.from("terminal_prefs");
+  if (body.op === "set") {
+    const entries = Array.isArray(body.entries) ? body.entries : [{ key: body.key, value: body.value }];
+    const rows = [];
+    for (const e of entries.slice(0, 50)) {
+      const key = String(e?.key || "");
+      if (!PREF_KEY.test(key)) return [{ error: `Not a setting: ${key}` }, 400];
+      if (e.value === undefined) return [{ error: "Nothing to save." }, 400];
+      if (JSON.stringify(e.value).length > PREF_MAX_BYTES) return [{ error: `${key} is too large to save.` }, 413];
+      rows.push({ user_id: userId, key, value: e.value, updated_at: new Date().toISOString() });
+    }
+    const { error } = await table.upsert(rows, { onConflict: "user_id,key" });
+    if (error) return [{ error: error.message }, 500];
+    return [{ saved: rows.map((r) => r.key) }];
+  }
+  // Reading: named keys, or every key under a prefix ("drawings:").
+  let q = admin.from("terminal_prefs").select("key, value, updated_at").eq("user_id", userId);
+  const keys = (Array.isArray(body.keys) ? body.keys : []).map(String).filter((k: string) => PREF_KEY.test(k)).slice(0, 50);
+  if (keys.length) q = q.in("key", keys);
+  else if (/^[a-z]+:$/.test(String(body.prefix || ""))) q = q.like("key", `${body.prefix}%`);
+  else return [{ error: "Which settings?" }, 400];
+  const { data, error } = await q;
+  if (error) return [{ error: error.message }, 500];
+  return [{ prefs: Object.fromEntries((data || []).map((r: any) => [r.key, { value: r.value, at: r.updated_at }])) }];
 }
 
 async function placeOrder(admin: any, user: any, account: any, input: any) {
@@ -861,6 +912,198 @@ async function placeOrder(admin: any, user: any, account: any, input: any) {
   }
 }
 
+// ---------- bar replay ----------
+//
+// "stock replay where I can set the date from to ... for training purposes.
+// and make sure to be accurate accross all time frames" (25 Oct). The replay
+// builds every interval from one-minute candles and finished days from daily
+// ones (src/lib/replay.js), so it reads just those two, in the ranges it asks
+// for. Shares come from the consolidated tape: history older than fifteen
+// minutes is open to an account without a paid data plan, and it is the same
+// tape every interval is drawn from.
+
+const REPLAY_MAX_DAYS: Record<string, number> = { "1Min": 45, "1Day": 1100 };
+
+async function replayData(account: any, symbol: string, tf: string, from: string, to: string) {
+  if (!REPLAY_MAX_DAYS[tf]) return { error: "Replay reads one-minute or daily candles." };
+  const crypto = isCrypto(symbol);
+  const start = Date.parse(from);
+  const end = Math.min(Date.parse(to), Date.now() - 16 * 60000);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || !(start < end)) return { symbol, tf, bars: [] };
+  if (end - start > REPLAY_MAX_DAYS[tf] * 86400000) return { error: `At most ${REPLAY_MAX_DAYS[tf]} days of ${tf === "1Min" ? "one-minute" : "daily"} candles at a time.` };
+  if (crypto) {
+    // A coin's history comes a week per page: read the weeks together.
+    const windows: [number, number][] = [];
+    for (let w = start; w < end; w += WEEK_MS) windows.push([w, Math.min(end, w + WEEK_MS)]);
+    const chunks = await inBatches(windows, 8, ([a, b]) => allPages(account,
+      `${CRYPTO_DATA}/bars?symbols=${encodeURIComponent(symbol)}&timeframe=${tf}&start=${iso(a)}&end=${iso(b)}&limit=10000&sort=asc`,
+      (page) => page?.bars?.[symbol], 6));
+    const byTime = new Map<number, any>();
+    for (const b of chunks.flat()) byTime.set(Math.floor(Date.parse(b.t) / 1000), b);
+    return { symbol, tf, feed: "crypto", bars: [...byTime.values()].map(candle).sort((x, y) => x.time - y.time) };
+  }
+  const read = (feed: string) => allPages(account,
+    `${DATA}/stocks/${encodeURIComponent(symbol)}/bars?timeframe=${tf}&start=${iso(start)}&end=${iso(end)}&limit=10000&feed=${feed}&adjustment=split&sort=asc`,
+    (page) => page?.bars, 12);
+  let feed = "sip";
+  const list = await read("sip").catch(() => { feed = FEED; return read(FEED); });
+  return { symbol, tf, feed, bars: list.map(candle) };
+}
+
+// ---------- one-key actions on a position (hotkeys) ----------
+//
+// "exiting full position has a key. Partial exit has a key with its default
+// percentage of position ... stop loss order in general; with keys" (25 Oct).
+// Each is several broker requests that must happen in order, so they run
+// here rather than in the browser: what is held, which orders are in the way,
+// cancel them and wait, then send. The rules are positionTools.ts.
+
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const ownSymbol = (o: any) => (o?.asset_class === "crypto" ? cryptoSymbol(o.symbol) : o?.symbol);
+
+async function positionOf(account: any, symbol: string) {
+  const list = await alpacaFetch(`${tradingBase(account)}/positions`, account);
+  const p = (Array.isArray(list) ? list : []).find((x: any) => ownSymbol(x) === symbol);
+  if (!p) return null;
+  return {
+    qty: num(p.qty) || 0, qtyText: String(p.qty_available ?? p.qty), available: Math.abs(num(p.qty_available ?? p.qty) || 0),
+    side: p.side === "short" ? "short" as const : "long" as const, avgPrice: num(p.avg_entry_price), last: num(p.current_price)
+  };
+}
+
+async function openOrdersFor(account: any, symbol: string) {
+  const list = await alpacaFetch(`${tradingBase(account)}/orders?status=open&nested=true&limit=200&symbols=${encodeURIComponent(symbol)}`, account);
+  return (Array.isArray(list) ? list : []).filter((o: any) => ownSymbol(o) === symbol);
+}
+
+// Cancel, then wait until the broker no longer lists them as working (it
+// releases the shares they held only then), for up to three seconds.
+async function cancelAndWait(account: any, symbol: string, ids: string[]) {
+  if (!ids.length) return true;
+  await Promise.all(ids.map((id) => alpacaFetch(`${tradingBase(account)}/orders/${id}`, account, { method: "DELETE" }).catch(() => null)));
+  for (let i = 0; i < 10; i++) {
+    const open = await openOrdersFor(account, symbol);
+    if (!open.some((o: any) => ids.includes(o.id))) return true;
+    await pause(300);
+  }
+  return false;
+}
+
+async function sendBody(admin: any, user: any, account: any, intent: string, body: any) {
+  const attempt = {
+    userId: user.id, accountId: account.id, intent, ticker: body.symbol, legs: [{ symbol: body.symbol, side: body.side, ratio: 1 }],
+    qty: body.qty ? Number(body.qty) : null, orderType: body.type, limitPrice: body.limit_price ?? null, quote: { stop: body.stop_price ?? null }
+  };
+  try {
+    const order = await alpacaFetch(`${tradingBase(account)}/orders`, account, { method: "POST", body: JSON.stringify(body) });
+    await recordAttempt(admin, { ...attempt, brokerOrderId: order.id, status: order.status });
+    return { order };
+  } catch (e) {
+    const message = brokerRefusal(String((e as Error)?.message || e), body.symbol);
+    await recordAttempt(admin, { ...attempt, error: message });
+    return { error: message };
+  }
+}
+
+async function stopBody(account: any, symbol: string, plan: any, qtyText: string, held: number) {
+  if (isCrypto(symbol)) {
+    return cryptoOrderBody({ symbol, side: plan.side, qty: qtyText, type: "stop_limit", stopPrice: plan.stopPrice, limitPrice: plan.limitPrice, timeInForce: "gtc" },
+      `TERM_${Date.now()}`, await assetFor(account, symbol), held);
+  }
+  return stockOrderBody({ symbol, side: plan.side, qty: plan.qty, type: "stop", stopPrice: plan.stopPrice, timeInForce: plan.timeInForce }, `TERM_${Date.now()}`);
+}
+
+async function protect(admin: any, user: any, account: any, input: any) {
+  const symbol = cryptoSymbol(String(input?.symbol || "").toUpperCase());
+  const crypto = isCrypto(symbol);
+  const pos = await positionOf(account, symbol);
+  if (!pos) return { status: 400, body: { error: `No ${symbol} position to protect.` } };
+  const plan = stopPlan(pos, { mode: input.mode, value: Number(input.value), from: input.from === "entry" ? "entry" : "last" }, crypto);
+  if (!plan.ok) return { status: 400, body: { error: plan.reason } };
+  const old = stopsToReplace(await openOrdersFor(account, symbol), plan.side);
+  if (!(await cancelAndWait(account, symbol, old.map((o: any) => o.id)))) {
+    return { status: 409, body: { error: "The old stop is still being cancelled; press again in a moment." } };
+  }
+  const now = await positionOf(account, symbol);
+  if (!now || now.available + 1e-9 < plan.qty) {
+    const held = now ? plan.qty - now.available : plan.qty;
+    return { status: 409, body: { error: `${held} of ${plan.qty} are held by other working orders on ${symbol} (a limit to sell, say). Cancel them first, or exit.` } };
+  }
+  const built = await stopBody(account, symbol, plan, now.qtyText, now.available);
+  if (!built.ok) return { status: 400, body: { error: built.reason } };
+  const sent = await sendBody(admin, user, account, "protect", built.body);
+  if (sent.error) return { status: 422, body: { error: sent.error } };
+  return { status: 200, body: { orderId: sent.order.id, status: sent.order.status, stopPrice: plan.stopPrice, limitPrice: plan.limitPrice, qty: plan.qty, side: plan.side, replaced: old.length, note: plan.note } };
+}
+
+async function exitPosition(admin: any, user: any, account: any, input: any) {
+  const symbol = cryptoSymbol(String(input?.symbol || "").toUpperCase());
+  const crypto = isCrypto(symbol);
+  const pos = await positionOf(account, symbol);
+  if (!pos) return { status: 400, body: { error: `No ${symbol} position to exit.` } };
+  const percent = Number(input.percent ?? 100);
+  const session = usSession(Date.now());
+  const quote = crypto || session === "regular" ? {} : (await alpacaFetch(`${DATA}/stocks/${encodeURIComponent(symbol)}/quotes/latest?feed=${FEED}`, account))?.quote || {};
+  const plan = exitPlan(pos, percent, session, { bid: num(quote.bp), ask: num(quote.ap) }, crypto);
+  if (!plan.ok) return { status: 400, body: { error: plan.reason } };
+  // Every working order on the symbol holds shares the exit needs. A partial
+  // exit puts the stop back afterwards, on what remains.
+  const open = await openOrdersFor(account, symbol);
+  const closing = pos.side === "short" ? "buy" : "sell";
+  const stop = percent < 100 ? stopsToReplace(open, closing)[0] : null;
+  if (!(await cancelAndWait(account, symbol, open.map((o: any) => o.id)))) {
+    return { status: 409, body: { error: `${symbol}'s working orders are still being cancelled; press again in a moment.` } };
+  }
+  let order: any;
+  if (plan.how === "close") {
+    try {
+      const pct = String(plan.percent);
+      order = await alpacaFetch(`${tradingBase(account)}/positions/${encodeURIComponent(symbol.replace("/", ""))}?percentage=${pct}`, account, { method: "DELETE" });
+      await recordAttempt(admin, { userId: user.id, accountId: account.id, intent: "close", ticker: symbol, legs: [{ symbol, side: closing, ratio: 1 }], qty: order?.qty ?? null, orderType: "market", brokerOrderId: order?.id, status: order?.status, quote: { percent: plan.percent } });
+    } catch (e) {
+      const message = brokerRefusal(String((e as Error)?.message || e), symbol);
+      await recordAttempt(admin, { userId: user.id, accountId: account.id, intent: "close", ticker: symbol, error: message });
+      return { status: 422, body: { error: message, cancelled: open.length } };
+    }
+  } else {
+    const built = stockOrderBody({ symbol, side: plan.side, qty: plan.qty, type: "limit", limitPrice: plan.limitPrice, timeInForce: "day", extendedHours: true }, `TERM_${Date.now()}`);
+    if (!built.ok) return { status: 400, body: { error: built.reason } };
+    const sent = await sendBody(admin, user, account, "close", built.body);
+    if (sent.error) return { status: 422, body: { error: sent.error, cancelled: open.length } };
+    order = sent.order;
+  }
+  let restop: any = null;
+  if (stop) {
+    // Wait for the exit to fill (a few seconds at most at market), then the
+    // old stop's price on what is left.
+    for (let i = 0; i < 12; i++) {
+      const o = await alpacaFetch(`${tradingBase(account)}/orders/${order.id}`, account).catch(() => null);
+      if (o?.status === "filled") break;
+      await pause(500);
+    }
+    const left = await positionOf(account, symbol);
+    if (left && left.available > 0) {
+      const plan2 = stopPlan(left, { mode: "price", value: num(stop.stop_price) || 0 }, crypto);
+      if (plan2.ok) {
+        const built = await stopBody(account, symbol, plan2, left.qtyText, left.available);
+        const sent = built.ok ? await sendBody(admin, user, account, "protect", built.body) : { error: built.reason };
+        restop = sent.error ? { error: `The stop was not put back: ${sent.error}` } : { stopPrice: plan2.stopPrice, qty: plan2.qty, orderId: sent.order.id };
+      } else restop = { error: `The stop was not put back: ${plan2.reason}` };
+    } else if (left) restop = { error: "The stop was not put back: the exit has not filled yet. Set a stop once it has." };
+  }
+  return { status: 200, body: { orderId: order?.id, status: order?.status, how: plan.how, percent, limitPrice: plan.how === "limit" ? plan.limitPrice : null, qty: plan.how === "limit" ? plan.qty : num(order?.qty), note: plan.how === "limit" ? plan.note : null, cancelled: open.length, restop } };
+}
+
+async function cancelOrders(account: any, symbol: string) {
+  if (!symbol) {
+    const r = await alpacaFetch(`${tradingBase(account)}/orders`, account, { method: "DELETE" });
+    return { cancelled: Array.isArray(r) ? r.length : 0 };
+  }
+  const open = await openOrdersFor(account, symbol);
+  await cancelAndWait(account, symbol, open.map((o: any) => o.id));
+  return { cancelled: open.length };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -880,6 +1123,7 @@ Deno.serve(async (req) => {
     const user = await requireUser(req);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
     const { action, accountId } = body || {};
+    if (action === "prefs") return jsonResponse(...(await prefs(admin, user.id, body)));
     if (!accountId) return jsonResponse({ error: "Choose an account." }, 400);
     const account = await loadAccount(admin, accountId, user.id);
 
@@ -920,6 +1164,17 @@ Deno.serve(async (req) => {
     }
     if (action === "order") {
       const r = await placeOrder(admin, user, account, body.order || {});
+      return jsonResponse(r.body, r.status);
+    }
+    if (action === "replay") {
+      if (!TERMINAL_SYMBOL(symbol)) return jsonResponse({ error: "Choose a symbol." }, 400);
+      const r = await replayData(account, symbol, String(body.tf || "1Min"), String(body.from || ""), String(body.to || ""));
+      return jsonResponse(r, (r as any).error ? 400 : 200);
+    }
+    if (action === "protect" || action === "exit" || action === "cancelOrders") {
+      if (!account.is_paper) return jsonResponse({ error: "Orders from the terminal go to paper accounts only during this test. Choose a paper account." }, 403);
+      if (action === "cancelOrders") return jsonResponse(await cancelOrders(account, symbol ? cryptoSymbol(symbol) : ""));
+      const r = action === "protect" ? await protect(admin, user, account, body) : await exitPosition(admin, user, account, body);
       return jsonResponse(r.body, r.status);
     }
     return jsonResponse({ error: `Unknown action "${action}"` }, 400);

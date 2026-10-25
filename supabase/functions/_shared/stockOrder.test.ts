@@ -27,7 +27,7 @@ test("refusals in words: missing prices, fractions, a bad symbol", () => {
   const why = (i: any) => (stockOrderBody(i, "T") as any).reason;
   assert.match(why({ ...base, limitPrice: null }), /limit price/);
   assert.match(why({ ...base, type: "stop", limitPrice: null }), /stop price/);
-  assert.match(why({ ...base, qty: 2.5 }), /Whole shares/);
+  assert.match(why({ ...base, qty: 2.5, timeInForce: "gtc" }), /for the day only/);
   assert.match(why({ ...base, qty: 0 }), /how many shares/);
   assert.match(why({ ...base, symbol: "not a symbol" }), /symbol/);
 });
@@ -69,4 +69,24 @@ test("a dollar amount: a market order for the day, no quantity, at least $1", ()
   assert.match(why({ notional: 100, type: "limit", limitPrice: 10 }), /market order/);
   assert.match(why({ notional: 100, timeInForce: "gtc" }), /for the day/);
   assert.match(why({ notional: 100, takeProfit: 2, stopLoss: 1 }), /share quantity/);
+});
+
+test("part of a share: for the day, no bracket, no trailing stop", () => {
+  const r = stockOrderBody({ ...base, type: "stop", stopPrice: 330, qty: 2.534 }, "T") as any;
+  assert.deepEqual([r.body.qty, r.body.time_in_force, r.body.stop_price], ["2.534", "day", "330.00"]);
+  const why = (i: any) => (stockOrderBody(i, "T") as any).reason;
+  assert.match(why({ ...base, qty: 2.5, extendedHours: true }), /regular hours/);
+  assert.match(why({ ...base, qty: 2.5, takeProfit: 360, stopLoss: 335 }), /whole shares/);
+  assert.match(why({ ...base, type: "trailing_stop", trailPercent: 2, qty: 2.5 }), /whole shares/);
+});
+
+test("a trailing stop: by a percentage or by dollars, one of them", () => {
+  const pct = stockOrderBody({ ...base, side: "sell", type: "trailing_stop", trailPercent: 2.5, timeInForce: "gtc" }, "T") as any;
+  assert.deepEqual([pct.body.type, pct.body.trail_percent, pct.body.trail_price, pct.body.time_in_force], ["trailing_stop", "2.5", undefined, "gtc"]);
+  const usd = stockOrderBody({ ...base, side: "sell", type: "trailing_stop", trailPrice: 1.5 }, "T") as any;
+  assert.equal(usd.body.trail_price, "1.50");
+  const why = (i: any) => (stockOrderBody(i, "T") as any).reason;
+  assert.match(why({ ...base, type: "trailing_stop" }), /enter one/);
+  assert.match(why({ ...base, type: "trailing_stop", trailPercent: 2, trailPrice: 1 }), /enter one/);
+  assert.match(why({ ...base, type: "trailing_stop", trailPercent: 150 }), /less than 100%/);
 });

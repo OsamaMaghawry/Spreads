@@ -17,10 +17,14 @@ export type StockOrderInput = {
   // value"). Alpaca takes one for a market order for the day only, and fills
   // it in fractions of a share.
   notional?: number | string | null;
-  type: "market" | "limit" | "stop" | "stop_limit";
+  type: "market" | "limit" | "stop" | "stop_limit" | "trailing_stop";
   timeInForce?: "day" | "gtc";
   limitPrice?: number | string | null;
   stopPrice?: number | string | null;
+  // A trailing stop follows the price by a percentage or a dollar amount
+  // (25 Oct: "I want to be able to add stop loss order in general").
+  trailPercent?: number | string | null;
+  trailPrice?: number | string | null;
   extendedHours?: boolean;
   takeProfit?: number | string | null;
   stopLoss?: number | string | null;
@@ -47,7 +51,7 @@ export function stockOrderBody(input: StockOrderInput, clientId: string):
   if (input.side !== "buy" && input.side !== "sell") return { ok: false, reason: "Choose buy or sell." };
 
   const type = input.type;
-  if (!["market", "limit", "stop", "stop_limit"].includes(type)) return { ok: false, reason: "Choose an order type." };
+  if (!["market", "limit", "stop", "stop_limit", "trailing_stop"].includes(type)) return { ok: false, reason: "Choose an order type." };
   const tif = input.timeInForce === "gtc" ? "gtc" : "day";
 
   const notional = num(input.notional);
@@ -62,16 +66,38 @@ export function stockOrderBody(input: StockOrderInput, clientId: string):
 
   const qty = num(input.qty);
   if (qty === null || !(qty > 0)) return { ok: false, reason: "Enter how many shares." };
-  if (!Number.isInteger(qty)) return { ok: false, reason: "Whole shares only on this ticket." };
+  // Part of a share: Alpaca takes it for the day, without a bracket, and not
+  // as a trailing stop. Whole shares otherwise. (A position bought in dollars
+  // is usually fractional, and its stop must cover all of it.)
+  const fractional = !Number.isInteger(qty);
+  if (fractional) {
+    if (type === "trailing_stop") return { ok: false, reason: "A trailing stop needs whole shares." };
+    if (tif !== "day") return { ok: false, reason: "Part of a share can be ordered for the day only." };
+    if (num(input.takeProfit) !== null || num(input.stopLoss) !== null) return { ok: false, reason: "A take-profit and stop-loss need whole shares." };
+    if (input.extendedHours) return { ok: false, reason: "Part of a share trades in regular hours only." };
+    if (Math.abs(Math.round(qty * 1e9) - qty * 1e9) > 1e-3) return { ok: false, reason: "At most nine decimal places of a share." };
+  }
 
   const limit = num(input.limitPrice);
   const stop = num(input.stopPrice);
   if ((type === "limit" || type === "stop_limit") && !(limit && limit > 0)) return { ok: false, reason: "Enter a limit price." };
   if ((type === "stop" || type === "stop_limit") && !(stop && stop > 0)) return { ok: false, reason: "Enter a stop price." };
 
+  const trailPct = num(input.trailPercent);
+  const trailAmt = num(input.trailPrice);
+  if (type === "trailing_stop") {
+    if ((trailPct === null) === (trailAmt === null)) return { ok: false, reason: "A trailing stop trails by a percentage or by dollars: enter one." };
+    if (trailPct !== null && !(trailPct > 0 && trailPct < 100)) return { ok: false, reason: "Trail by more than 0% and less than 100%." };
+    if (trailAmt !== null && !(trailAmt > 0)) return { ok: false, reason: "Trail by more than $0." };
+  }
+
   const body: Record<string, unknown> = {
-    symbol, side: input.side, qty: String(qty), type, time_in_force: tif, client_order_id: clientId
+    symbol, side: input.side, qty: fractional ? String(Number(qty.toFixed(9))) : String(qty), type, time_in_force: tif, client_order_id: clientId
   };
+  if (type === "trailing_stop") {
+    if (trailPct !== null) body.trail_percent = String(Number(trailPct.toFixed(2)));
+    else body.trail_price = price(trailAmt!);
+  }
   if (limit && (type === "limit" || type === "stop_limit")) body.limit_price = price(limit);
   if (stop && (type === "stop" || type === "stop_limit")) body.stop_price = price(stop);
 
@@ -86,6 +112,7 @@ export function stockOrderBody(input: StockOrderInput, clientId: string):
   if (tp !== null || sl !== null) {
     if (!(tp && tp > 0) || !(sl && sl > 0)) return { ok: false, reason: "A take-profit and stop-loss go together: enter both, or neither." };
     if (type !== "market" && type !== "limit") return { ok: false, reason: "A take-profit and stop-loss can only follow a market or limit entry." };
+    if (fractional) return { ok: false, reason: "A take-profit and stop-loss need whole shares." };
     if (input.extendedHours) return { ok: false, reason: "A take-profit and stop-loss are not available outside regular hours." };
     const entry = type === "limit" ? limit : num(input.reference);
     if (!(entry && entry > 0)) return { ok: false, reason: "No current price to check the take-profit and stop-loss against." };

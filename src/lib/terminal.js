@@ -357,3 +357,18 @@ export function orderNews(order) {
     default: return { tone: "ok", title: "Order placed", detail: `${order?.words || ""} · waiting to fill` };
   }
 }
+
+// ---------- settings kept with the account ----------
+
+/**
+ * Which copy of a setting to use once the account answers (lib/terminalPrefs.js):
+ * the account's whenever it has one, even an empty list (everything deleted
+ * on another device stays deleted); otherwise this browser's, sent up so the
+ * account has it from now on.
+ */
+export function settle(fromAccount, local) {
+  const none = (v) => v === undefined || v === null;
+  if (!none(fromAccount)) return { value: fromAccount, upload: false };
+  if (!none(local)) return { value: local, upload: true };
+  return { value: local, upload: false };
+}

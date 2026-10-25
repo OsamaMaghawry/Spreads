@@ -18,7 +18,7 @@ const STYLE = {
 export default function Toasts({ toasts, onClose }) {
   if (!toasts.length) return null;
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-3 z-[100] flex flex-col items-center gap-2 px-4">
+    <div className="pointer-events-none fixed inset-x-0 top-16 z-[100] flex flex-col items-center gap-2 px-4">
       {toasts.map((t) => {
         const s = STYLE[t.tone] || STYLE.wait;
         return (
