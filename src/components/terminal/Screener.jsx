@@ -3,7 +3,7 @@ import { RefreshCw, Plus, Check, X, ChevronDown, ChevronRight, History } from "l
 import { invokeFunction } from "@/lib/functions";
 import {
   decodeUniverse, screenRow, FIELDS, FIELD, GROUPS, parseAmount, cleanScreen, passes, sortRows, needsDaily,
-  PRESETS, presetScreen, dailyCandidates, bigNumber, TREND_CHOICES, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown
+  PRESETS, dailyCandidates, bigNumber, TREND_CHOICES, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown, combineScreens, conflicts
 } from "@/lib/screener";
 import { px, pctText } from "@/lib/terminal";
 import { gapWindow, liveWindow, bySymbol } from "@/lib/news";
@@ -13,6 +13,9 @@ import { gapWindow, liveWindow, bySymbol } from "@/lib/news";
 // listed US market, from the selected account's own Alpaca data, filtered as
 // you type: ready-made screens for stocks in play on the left, every filter
 // below them, the matches on the right. Click a row to chart and trade it.
+// The ready-made screens switch on and off, any number at once, and every
+// condition of each, and of your own filters, must hold (25 Oct: "Make no Or
+// in the screener. All should be and and I filter whatever I want").
 // The arithmetic is lib/screener.js; the reads are functions/terminal "screen".
 //
 // Or a past day (25 Oct: "Historical screener to filter stock in history to
@@ -130,10 +133,20 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
   const [universe, setUniverse] = useState({ rows: [], at: null, dayFeed: null, listed: 0, loading: false, error: null });
   const [daily, setDaily] = useState({});
   const [progress, setProgress] = useState({ done: 0, total: 0, loading: false, error: null });
+  // Your own filters (`screen`) and the ready-made screens switched on
+  // (`presets`). A screen saved before they combined held its one ready-made
+  // screen's figures as filters: those become the ready-made screen again.
+  const [saved] = useState(() => { try { return JSON.parse(store.get(SCREEN_KEY) || "null"); } catch { return null; } });
   const [screen, setScreen] = useState(() => {
-    try { return cleanScreen(JSON.parse(store.get(SCREEN_KEY) || "null") || presetScreen("gainers")); } catch { return presetScreen("gainers"); }
+    const fresh = cleanScreen({ ...EMPTY_SCREEN, sort: { key: "changePct", dir: "desc" } });
+    if (!saved) return fresh;
+    if (!Array.isArray(saved.presets) && saved.preset) return cleanScreen({ ...EMPTY_SCREEN, sort: saved.sort });
+    return cleanScreen(saved);
   });
-  const [preset, setPreset] = useState(() => { try { return JSON.parse(store.get(SCREEN_KEY) || "null")?.preset || "gainers"; } catch { return "gainers"; } });
+  const [presets, setPresets] = useState(() => {
+    const ids = !saved ? ["gainers"] : Array.isArray(saved.presets) ? saved.presets : saved.preset ? [saved.preset] : [];
+    return ids.filter((id) => PRESETS.some((p) => p.id === id));
+  });
   const [open, setOpen] = useState(() => new Set(["Price and volume", "Today"]));
   const [auto, setAuto] = useState(true);
   // On a phone the screens and filters fold away above the results (25 Oct:
@@ -150,7 +163,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
   const dailyRef = useRef({});
   const loadingDaily = useRef(false);
 
-  useEffect(() => { store.set(SCREEN_KEY, JSON.stringify({ ...screen, preset })); }, [screen, preset]);
+  useEffect(() => { store.set(SCREEN_KEY, JSON.stringify({ ...screen, presets })); }, [screen, presets]);
 
   // The day's cached daily numbers for this account, if any; a past day's
   // are kept while the page is open.
@@ -263,11 +276,14 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
   const today = when.date || nyToday();
   const rows = useMemo(() => universe.rows.map((u) => screenRow(u, daily[u.symbol] || (when.date ? partialStats(u) : null), today)), [universe.rows, daily, today, when.date]);
   // Filters on figures this moment does not know are set aside, and said so.
-  const ignored = Object.keys(screen.ranges).filter((id) => !fieldKnown(id, mode));
+  // Everything switched on, as one screen: all must hold.
+  const combined = useMemo(() => combineScreens(screen, presets), [screen, presets]);
+  const ignored = Object.keys(combined.ranges).filter((id) => !fieldKnown(id, mode));
   const effective = useMemo(() => {
-    const ranges = Object.fromEntries(Object.entries(screen.ranges).filter(([id]) => fieldKnown(id, mode)));
-    return { ...screen, ranges, sort: fieldKnown(screen.sort.key, mode) ? screen.sort : { key: "gapPct", dir: "desc" } };
-  }, [screen, mode]);
+    const ranges = Object.fromEntries(Object.entries(combined.ranges).filter(([id]) => fieldKnown(id, mode)));
+    return { ...combined, ranges, sort: fieldKnown(combined.sort.key, mode) ? combined.sort : { key: "gapPct", dir: "desc" } };
+  }, [combined, mode]);
+  const clash = conflicts(effective);
   const matches = useMemo(() => sortRows(rows.filter((r) => passes(r, effective)), effective.sort), [rows, effective]);
   const COLUMNS = COLUMN_SETS[mode];
 
@@ -313,9 +329,14 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
     : "";
   const covered = rows.filter((r) => r.hasDaily).length;
 
-  const choosePreset = (id) => { setPreset(id); setScreen(presetScreen(id)); };
+  // A ready-made screen on or off; switched on, its order of rows becomes the sort.
+  const togglePreset = (id) => {
+    const on = presets.includes(id);
+    setPresets((list) => (on ? list.filter((x) => x !== id) : [...list, id]));
+    const sort = PRESETS.find((p) => p.id === id)?.screen.sort;
+    if (!on && sort) setScreen((s) => ({ ...s, sort }));
+  };
   const setRange = (id, v) => {
-    setPreset(null);
     setScreen((s) => {
       const ranges = { ...s.ranges };
       if (v.min === null && v.max === null) delete ranges[id];
@@ -323,26 +344,30 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
       return { ...s, ranges };
     });
   };
-  const setChoice = (k, v) => { setPreset(null); setScreen((s) => ({ ...s, [k]: v })); };
+  const setChoice = (k, v) => setScreen((s) => ({ ...s, [k]: v }));
   const sortBy = (key) => setScreen((s) => ({ ...s, sort: { key, dir: s.sort.key === key && s.sort.dir === "desc" ? "asc" : "desc" } }));
   const toggleGroup = (g) => setOpen((o) => { const n = new Set(o); if (n.has(g)) n.delete(g); else n.add(g); return n; });
   const activeRanges = Object.entries(screen.ranges);
-  const presetInfo = PRESETS.find((p) => p.id === preset);
+  const chosen = PRESETS.filter((p) => presets.includes(p.id));
 
   return (
     <div className="flex min-h-[70vh] flex-col gap-2 text-slate-800 md:flex-row">
       <button type="button" onClick={() => setShowFilters((v) => !v)} className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm font-medium md:hidden">
         {showFilters ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        Screens and filters{presetInfo ? ` · ${presetInfo.label}` : ""}{activeRanges.length ? ` · ${activeRanges.length} filter${activeRanges.length === 1 ? "" : "s"}` : ""}
+        Screens and filters{chosen.length ? ` · ${chosen.map((p) => p.label).join(" + ")}` : ""}{activeRanges.length ? ` · ${activeRanges.length} filter${activeRanges.length === 1 ? "" : "s"}` : ""}
       </button>
       <aside className={`${showFilters ? "flex" : "hidden"} max-h-[70vh] w-full shrink-0 flex-col gap-2 overflow-hidden rounded-lg border border-slate-200 bg-white md:flex md:max-h-none md:w-72`}>
-        <div className="border-b border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-700">Stocks in play</div>
+        <div className="flex items-baseline gap-2 border-b border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-700">
+          Stocks in play<span className="text-[10px] font-normal text-slate-500">pick any: all must hold, with your filters</span>
+        </div>
         <div className="grid grid-cols-2 gap-1 px-2">
           {PRESETS.filter((p) => mode !== "live" || presetKnown(p, "live")).map((p) => {
             const known = presetKnown(p, mode);
+            const on = presets.includes(p.id);
             return (
-              <button key={p.id} type="button" disabled={!known} title={known ? p.note : `${p.note}. Needs the whole day: choose "At the close".`} onClick={() => { choosePreset(p.id); setShowFilters(false); }}
-                className={`rounded border px-1.5 py-1 text-left text-[11px] disabled:opacity-40 ${preset === p.id ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}>
+              <button key={p.id} type="button" aria-pressed={on} disabled={!known && !on} title={known ? p.note : `${p.note}. Needs the whole day: choose "At the close".`} onClick={() => togglePreset(p.id)}
+                className={`flex items-center gap-1 rounded border px-1.5 py-1 text-left text-[11px] disabled:opacity-40 ${on ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}>
+                <span className={`flex h-3 w-3 shrink-0 items-center justify-center rounded-sm border ${on ? "border-white bg-white text-slate-900" : "border-slate-300"}`}>{on && <Check className="h-2.5 w-2.5" />}</span>
                 {p.label}
               </button>
             );
@@ -350,7 +375,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
         </div>
         <div className="flex items-center border-t border-slate-200 px-2 pt-2 text-xs font-semibold text-slate-700">
           Filters
-          <button type="button" onClick={() => { setPreset(null); setScreen(cleanScreen({ ...EMPTY_SCREEN, sort: screen.sort })); }} className="ml-auto text-[11px] font-normal text-slate-500 hover:underline">Clear all</button>
+          <button type="button" onClick={() => { setPresets([]); setScreen(cleanScreen({ ...EMPTY_SCREEN, sort: screen.sort })); }} className="ml-auto text-[11px] font-normal text-slate-500 hover:underline">Clear all</button>
         </div>
         <div className="min-h-0 flex-1 space-y-1 overflow-auto px-2 pb-2">
           <div className="grid grid-cols-2 gap-1">
@@ -410,7 +435,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
         )}
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-2 py-1.5 text-xs">
           <span className="font-semibold">{matches.length.toLocaleString()} match{matches.length === 1 ? "" : "es"}</span>
-          <span className="text-slate-500">of {rows.length.toLocaleString()} {when.date ? "shares that traded that day" : "listed shares"}{presetInfo ? ` · ${presetInfo.note}` : ""}</span>
+          <span className="text-slate-500">of {rows.length.toLocaleString()} {when.date ? "shares that traded that day" : "listed shares"}{chosen.length ? ` · ${chosen.map((p) => p.note.charAt(0).toLowerCase() + p.note.slice(1)).join(", and ")}`.replace(/^ · ./, (m) => m.toUpperCase()) : ""}</span>
           <div className="ml-auto flex items-center gap-2">
             {!when.date && <label className="flex items-center gap-1 text-[11px] text-slate-500"><input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />Every minute</label>}
             <button type="button" onClick={refresh} disabled={universe.loading} className="flex items-center gap-1 rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-700 hover:bg-slate-50 disabled:opacity-50">
@@ -418,8 +443,14 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
             </button>
           </div>
         </div>
-        {activeRanges.length > 0 && (
+        {(activeRanges.length > 0 || chosen.length > 0) && (
           <div className="flex flex-wrap gap-1 border-b border-slate-100 px-2 py-1">
+            {chosen.map((p) => (
+              <span key={p.id} className="flex items-center gap-1 rounded-full bg-slate-900 px-2 py-0.5 text-[11px] text-white" title={p.note}>
+                {p.label}
+                <button type="button" aria-label={`Switch off ${p.label}`} onClick={() => togglePreset(p.id)}><X className="h-3 w-3" /></button>
+              </span>
+            ))}
             {activeRanges.map(([id, { min, max }]) => {
               const f = FIELD[id];
               const u = f.unit === "%" ? "%" : f.unit === "x" ? "×" : "";
@@ -433,8 +464,13 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
             })}
           </div>
         )}
+        {clash.length > 0 && (
+          <p className="border-b border-slate-100 px-2 py-1 text-[11px] text-rose-700">
+            No share can match: {clash.map((id) => FIELD[id].label).join(", ")} cannot be above and below at once with what is switched on. Switch one off.
+          </p>
+        )}
         {(universe.error || progress.error) && <p className="px-2 py-1 text-xs text-rose-700">{universe.error || `Daily figures: ${progress.error}`}</p>}
-        {needsDaily(screen) && (progress.loading || covered < rows.length) && rows.length > 0 && (
+        {needsDaily(effective) && (progress.loading || covered < rows.length) && rows.length > 0 && (
           <p className="px-2 py-1 text-[11px] text-amber-800">
             {progress.loading ? `Reading a year of daily candles: ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()} shares. Matches fill in as they arrive.` : `Averages, RSI, ATR, 52-week and performance figures cover the ${covered.toLocaleString()} most traded shares.`}
           </p>

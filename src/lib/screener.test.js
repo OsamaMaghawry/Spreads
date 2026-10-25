@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   decodeUniverse, screenRow, parseAmount, cleanScreen, passes, sortRows, needsDaily, presetScreen, PRESETS, FIELD,
-  dailyCandidates, bigNumber, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown
+  dailyCandidates, bigNumber, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown, combineScreens, conflicts
 } from "./screener.js";
 
 const close = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} != ${b}`);
@@ -173,4 +173,29 @@ test("what is known when: the open has no day's volume; the past has no live quo
   assert.equal(s.gapAbs, 4);
   const row = (gapPct) => ({ price: 5, prevDollarVol: 2e6, pmVolume: 2e5, gapPct, vsSma20: null });
   assert.deepEqual([passes(row(0.05), s), passes(row(-0.06), s), passes(row(0.02), s)], [true, true, false]);
+});
+
+test("ready-made screens and your filters all hold at once: gapping up and in an uptrend", () => {
+  const mine = cleanScreen({ ...EMPTY_SCREEN, ranges: { gapPct: { min: 5, max: null }, price: { min: null, max: 50 } } });
+  const s = combineScreens(mine, ["gapUp", "uptrend"]);
+  // Gap: yours (5%) is stricter than the preset's (3%); price: the uptrend's floor ($5) with your ceiling ($50).
+  assert.deepEqual(s.ranges.gapPct, { min: 5, max: null });
+  assert.deepEqual(s.ranges.price, { min: 5, max: 50 });
+  assert.deepEqual([s.ranges.prevDollarVol.min, s.ranges.avgDollar20.min], [1e6, 10e6]);
+  assert.deepEqual(s.trends, ["above3"]);
+  const row = { price: 20, gapPct: 0.06, prevDollarVol: 5e6, avgDollar20: 2e7, vsSma20: 0.02, vsSma50: 0.05, vsSma200: 0.1, fund: false, exchange: "NYSE" };
+  assert.equal(passes(row, s), true);
+  assert.equal(passes({ ...row, vsSma200: -0.01 }, s), false, "below its 200-day: not in an uptrend");
+  assert.equal(passes({ ...row, gapPct: 0.04 }, s), false, "gapped 4%: under your 5%");
+  // Your own trend choice and a preset's both apply.
+  assert.deepEqual(combineScreens({ ...mine, trend: "cross50" }, ["uptrend"]).trends, ["cross50", "above3"]);
+  // Nothing chosen: your filters alone.
+  assert.deepEqual(combineScreens(mine, []).trends, ["any"]);
+});
+
+test("two that cannot both hold are found: gapping up and gapping down", () => {
+  const s = combineScreens(cleanScreen(EMPTY_SCREEN), ["gapUp", "gapDown"]);
+  assert.deepEqual(s.ranges.gapPct, { min: 3, max: -3 });
+  assert.deepEqual(conflicts(s), ["gapPct"]);
+  assert.deepEqual(conflicts(combineScreens(cleanScreen(EMPTY_SCREEN), ["gapUp", "gainers"])), []);
 });

@@ -219,7 +219,7 @@ export function passes(row, screen) {
   if (screen.exchange !== "all" && row.exchange !== screen.exchange) return false;
   if (screen.options && !row.options) return false;
   if (screen.shortable && !row.shortable) return false;
-  if (!TRENDS[screen.trend](row)) return false;
+  for (const t of screen.trends || [screen.trend]) if (!TRENDS[t](row)) return false;
   if (screen.gapAbs !== null && screen.gapAbs !== undefined && !(Math.abs(row.gapPct) * 100 >= screen.gapAbs)) return false;
   for (const [id, { min, max }] of Object.entries(screen.ranges)) {
     const v = row[id];
@@ -246,7 +246,36 @@ export function sortRows(rows, { key, dir }) {
 }
 
 /** Whether a screen asks for figures only the daily numbers give. */
-export const needsDaily = (screen) => screen.trend !== "any" || Object.keys(screen.ranges).some((id) => FIELD[id].daily);
+export const needsDaily = (screen) => (screen.trends || [screen.trend]).some((t) => t !== "any") || Object.keys(screen.ranges).some((id) => FIELD[id].daily);
+
+const tighter = (a, b, pick) => (a === null || a === undefined ? b ?? null : b === null || b === undefined ? a : pick(a, b));
+
+/**
+ * Your filters and any ready-made screens as one: every condition of each
+ * must hold (25 Oct: "Make no Or in the screener. All should be and"). Two
+ * ranges on the same figure narrow to where they overlap; every trend
+ * applies; the larger of two either-way gaps. Your choices of type,
+ * exchange, options and shortable stay as they are; the sort is yours.
+ */
+export function combineScreens(mine, presetIds = []) {
+  const ranges = Object.fromEntries(Object.entries(mine.ranges).map(([id, r]) => [id, { ...r }]));
+  const trends = mine.trend && mine.trend !== "any" ? [mine.trend] : [];
+  let gapAbs = mine.gapAbs ?? null;
+  for (const id of presetIds) {
+    const p = PRESETS.find((x) => x.id === id)?.screen;
+    if (!p) continue;
+    for (const [field, r] of Object.entries(p.ranges || {})) {
+      const cur = ranges[field];
+      ranges[field] = cur ? { min: tighter(cur.min, r.min, Math.max), max: tighter(cur.max, r.max, Math.min) } : { ...r };
+    }
+    if (p.trend && p.trend !== "any" && !trends.includes(p.trend)) trends.push(p.trend);
+    if (p.gapAbs) gapAbs = tighter(gapAbs, p.gapAbs, Math.max);
+  }
+  return { ...mine, ranges, trends: trends.length ? trends : ["any"], gapAbs };
+}
+
+/** The figures whose conditions cannot all hold at once (a minimum above the maximum). */
+export const conflicts = (screen) => Object.entries(screen.ranges).filter(([, r]) => r.min !== null && r.max !== null && r.min > r.max).map(([id]) => id);
 
 // Ready-made screens for stocks in play. Each sets its own floor on price and
 // liquidity, so a one-share print on a dollar stock does not top the list.
