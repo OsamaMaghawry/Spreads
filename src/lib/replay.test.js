@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { replayCandles, nextCursor, inSession, dayOf, practiceFill, practiceValue, triggerExits, practiceExit, addTarget, removeTarget, targetSize, newPractice, countBefore, rollMinutes } from "./replay.js";
+import { replayCandles, nextCursor, inSession, dayOf, practiceFill, practiceValue, triggerExits, practiceExit, addTarget, removeTarget, targetSize, newPractice, countBefore, rollMinutes, roundTrips, tradeStats, bookValue, bookTrips, acctIn } from "./replay.js";
 
 // New York is UTC-4 in October: 9:30 is 13:30Z.
 const ny = (date, hhmm) => {
@@ -233,4 +233,40 @@ test("a share's practice stop waits for regular hours: an overnight gap fills at
     { time: ny("2026-10-23", "09:30"), open: 91, high: 92, low: 90, close: 91 }
   ], { regularOnly: true });
   assert.deepEqual([out.qty, out.trades.at(-1).price, out.trades.at(-1).time], [0, 91, ny("2026-10-23", "09:30")]);
+});
+
+test("round trips: flat to flat, adds averaged in, a flip closes one and opens the next, the last may be open", () => {
+  const f = (side, qty, price, time, why = "") => ({ side, qty, price, time, why });
+  const trips = roundTrips([
+    f("buy", 100, 10, 1), f("buy", 100, 11, 2), f("sell", 50, 12, 3, "target"), f("sell", 150, 9, 4, "stop"),
+    f("sell", 10, 20, 5), f("buy", 30, 18, 6), f("sell", 20, 19, 7, "Shift+X"),
+    f("buy", 5, 30, 8)
+  ]);
+  assert.equal(trips.length, 4);
+  const [a, b, c, d] = trips;
+  assert.deepEqual([a.side, a.size, a.avgEntry, a.avgExit, a.realized, a.fills, a.closedBy, a.open, a.exitTime], ["long", 200, 10.5, 9.75, 50 * 1.5 + 150 * -1.5, 4, ["target", "stop"], false, 4]);
+  assert.equal(a.returnPct, (50 * 1.5 + 150 * -1.5) / (10.5 * 200));
+  // Short 10 at 20, covered at 18 with 30 bought: the trip closes +20 and a long of 20 opens at 18.
+  assert.deepEqual([b.side, b.size, b.realized, b.closedQty], ["short", 10, 20, 10]);
+  assert.deepEqual([c.side, c.size, c.avgEntry, c.realized, c.closedBy, c.open], ["long", 20, 18, 20, ["Shift+X"], false]);
+  assert.deepEqual([d.side, d.open, d.realized, d.avgExit, d.exitTime], ["long", true, 0, null, null]);
+});
+
+test("trade statistics: win rate, averages, profit factor, expectancy", () => {
+  const trip = (realized, entryTime, exitTime, open = false) => ({ realized, entryTime, exitTime, open });
+  const s = tradeStats([trip(100, 0, 60), trip(-50, 100, 400), trip(30, 500, 530), trip(0, 600, 660), trip(5, 700, null, true)]);
+  assert.deepEqual([s.trades, s.open, s.wins, s.losses, s.winRate], [4, 1, 2, 1, 0.5]);
+  assert.deepEqual([s.grossProfit, s.grossLoss, s.realized, s.avgWin, s.avgLoss, s.profitFactor, s.expectancy, s.largestWin, s.largestLoss], [130, -50, 85, 65, -50, 2.6, 20, 100, -50]);
+  assert.equal(s.avgHold, (60 + 300 + 30 + 60) / 4);
+  assert.deepEqual([tradeStats([]).winRate, tradeStats([]).profitFactor], [null, null]);
+});
+
+test("the book: several symbols, one balance", () => {
+  let book = {};
+  book = { ...book, AAPL: practiceFill(acctIn(book, "AAPL"), { side: "buy", qty: 10, price: 100, time: 1 }) };
+  book = { ...book, TSLA: practiceFill(acctIn(book, "TSLA"), { side: "sell", qty: 5, price: 200, time: 2 }) };
+  book = { ...book, AAPL: practiceFill(book.AAPL, { side: "sell", qty: 10, price: 110, time: 3 }) };
+  const v = bookValue(book, (s) => ({ TSLA: 190 }[s] ?? null));
+  assert.deepEqual([v.realized, v.unrealized, v.cash, v.equity], [100, 50, 100000 + 100 + 1000, 100000 + 100 + 50]);
+  assert.deepEqual(bookTrips(book).map((t) => [t.symbol, t.side, t.open]), [["AAPL", "long", false], ["TSLA", "short", true]]);
 });

@@ -1,15 +1,13 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { createChart, createSeriesMarkers, createTextWatermark, CandlestickSeries, HistogramSeries, LineSeries, LineStyle, CrosshairMode } from "lightweight-charts";
-import { MousePointer2, Slash, MoveUpRight, Minus, SeparatorVertical, RectangleHorizontal, Rows3, Ruler, Trash2, Eraser, Activity, X, Type, CalendarDays, History } from "lucide-react";
+import { MousePointer2, Slash, MoveUpRight, Minus, SeparatorVertical, RectangleHorizontal, Rows3, Ruler, Trash2, Eraser, Activity, X, Type, CalendarDays, History, Pencil } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { INTERVALS, applyTrade, applyMinuteBar, isCrypto, priceFormatFor, inRegularHours, sessionDay, sessionOf, px, sizeText } from "@/lib/terminal";
 import { INDICATORS, LINE_COLORS, cleanIndicators, defaultParams, indicatorLabel, indicatorSeries } from "@/lib/indicators";
 import { TOOLS, COLORS, pointsFor, logicalToTime, hitTest, moveDrawing, readDrawings, writeDrawings, cleanDrawings } from "@/lib/chartDrawings";
 import { EVENT_KINDS, econEvents, earningsEvent, placeEvents, cleanShown, nextOfEach, eventWhen, badgeAt } from "@/lib/marketEvents";
 import { readPrefs, savePref, settle } from "@/lib/terminalPrefs";
-import { replayCandles, nextCursor, countBefore, newPractice, practiceFill, practiceValue, triggerExits, practiceExit, addTarget, removeTarget, targetSize, rollMinutes, replayClock, REPLAY_INTERVALS } from "@/lib/replay";
-import { hotkeyOrder } from "@/lib/hotkeys";
-import ReplayBar, { ReplayStart } from "./ReplayBar";
+import { replayCandles, REPLAY_INTERVALS } from "@/lib/replay";
 import { DrawingLayer } from "./drawingLayer";
 
 // The chart: TradingView Lightweight Charts (Apache-2.0), drawn from the
@@ -43,7 +41,10 @@ import { DrawingLayer } from "./drawingLayer";
 // the chart rewound to a chosen moment and played forward, every interval
 // built from the same one-minute candles (lib/replay.js), with a practice
 // account that the replay bar and the hotkeys trade. The live feed is set
-// aside until the replay ends. The practice stop and take-profit are lines on
+// aside until the replay ends. The replay belongs to the page
+// (components/terminal/useReplay.js), so every chart on screen follows the
+// same clock, each with its own symbol (25 Oct: "open muliple ticker at the
+// same time during the reply"). The practice stop and take-profit are lines on
 // the chart and fill by themselves when the replay reaches them; the replay's
 // date sits behind the candles and every date on the axis carries its month
 // or year (25 Oct: "The date and year don't show in the time axis so I don't
@@ -71,7 +72,16 @@ const saveDrawings = (symbol, drawings) => {
 };
 const newId = () => `d${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
-function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [], onNotify = () => {}, replayApi = null, onReplay = () => {} }) {
+/**
+ * `replay`: the page's replay (useReplay), with `replayOn`, its moment
+ * (`replayCursor`), a count that moves when candles arrive (`replayVersion`)
+ * and this symbol's practice account (`replayAcct`). `active`: the chart a
+ * "1 candle" step follows. `label`: show the symbol (several charts at once).
+ */
+function PriceChart({
+  accountId, symbol, interval, onInterval, listen, fills = [],
+  replay = null, replayOn = false, replayCursor = null, replayVersion = 0, replayAcct = null, onReplayButton = () => {}, active = true, label = false
+}) {
   const boxRef = useRef(null);
   const chartRef = useRef(null);
   const candlesRef = useRef(null);
@@ -110,23 +120,18 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
   const hoverIdRef = useRef(null);
   const [hover, setHover] = useState(null);
   const [eventsMenu, setEventsMenu] = useState(false);
-  // The replay: its moment, controls and practice account (state), and the
-  // candles it is built from (rp: one-minute and daily, and how far loaded).
-  const [replay, setReplay] = useState(null);
-  const replayRef = useRef(null);
-  replayRef.current = replay;
-  const rp = useRef({ minutes: [], days: [], context: [], loadedTo: 0 });
+  // Several charts at once: one row of controls, the drawing tools behind a button.
+  const compact = label;
+  const [toolsOpen, setToolsOpen] = useState(false);
+  // The replay's moment while one runs (null when live), the faint date
+  // behind the candles, and the practice position's lines.
+  const cursorRef = useRef(null);
+  cursorRef.current = replayOn ? replayCursor : null;
   const markRef = useRef(null);
   const exitLinesRef = useRef([]);
-  const [replayForm, setReplayForm] = useState(false);
-  const [liveEpoch, setLiveEpoch] = useState(0);
+  const readyFor = useRef(null);
   const cryptoRef = useRef(crypto);
   cryptoRef.current = crypto;
-  // Read at the moment of each request: the replay's step, made once, would
-  // otherwise keep the account from the page's first moment, before it had
-  // loaded, and the server answered "Choose an account." (25 Oct).
-  const accountRef = useRef(accountId);
-  accountRef.current = accountId;
   const intervalRef = useRef(interval);
   intervalRef.current = interval;
 
@@ -478,7 +483,7 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
   // candles, the kinds shown or the company's reports change.
   const placeAll = useCallback(() => {
     // In a replay, nothing that had not happened yet.
-    const until = replayRef.current?.cursor;
+    const until = cursorRef.current;
     const all = [...ECON, ...earningsRef.current].filter((e) => !until || e.time < until);
     placedRef.current = placeEvents(all, shownRef.current, timesRef.current, stepRef.current);
     layerRef.current?.update();
@@ -504,9 +509,15 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
   // itself is further down).
   const regularNow = () => !cryptoRef.current && sessionRef.current === "regular";
   const renderReplay = useCallback((cursor) => {
-    rawRef.current = replayCandles(rp.current, intervalRef.current, cursor, { crypto: cryptoRef.current, regular: regularNow() });
+    const data = replay?.dataFor(symbolRef.current);
+    rawRef.current = data?.ready ? replayCandles(data, intervalRef.current, cursor, { crypto: cryptoRef.current, regular: regularNow() }) : [];
     const count = show();
-    setState({ loading: false, error: null, count });
+    setState({ loading: !data?.ready && !data?.error, error: data?.error ? `Replay: ${data.error}` : null, count });
+    // The first candles of this symbol: the replay's moment at the right edge.
+    if (data?.ready && readyFor.current !== symbolRef.current) {
+      readyFor.current = symbolRef.current;
+      chartRef.current?.timeScale().scrollToRealTime();
+    }
     // The replay's date, faint behind the candles.
     const pane = chartRef.current?.panes()[0];
     if (!pane) return;
@@ -514,15 +525,16 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
     const lines = [{ text: `Replay · ${date}`, color: "rgba(217, 119, 6, 0.16)", fontSize: 28, fontStyle: "bold" }];
     if (markRef.current) markRef.current.applyOptions({ lines });
     else markRef.current = createTextWatermark(pane, { horzAlign: "center", vertAlign: "center", lines });
-  }, [show]);
+  }, [show, replay]);
 
   // History for the symbol and interval.
   const alignedSession = !crypto && HOURLY.includes(interval) && session === "regular" ? "regular" : "";
   useEffect(() => {
     if (!accountId || !symbol) return undefined;
-    if (replayRef.current) {
-      // Another interval in a replay: built again, with the replay's moment at the right edge.
-      renderReplay(replayRef.current.cursor);
+    readyFor.current = null;
+    if (cursorRef.current !== null) {
+      // Another interval or symbol in a replay: built again, with the replay's moment at the right edge.
+      renderReplay(cursorRef.current);
       chartRef.current?.timeScale().scrollToRealTime();
       return undefined;
     }
@@ -540,12 +552,12 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
       setState({ loading: false, error: null, count });
     });
     return () => { alive = false; };
-  }, [accountId, symbol, interval, show, alignedSession, liveEpoch, renderReplay]);
+  }, [accountId, symbol, interval, show, alignedSession, replayOn, renderReplay]);
 
   // Regular or all hours: the same bars, filtered again (in a replay, built again).
   useEffect(() => {
     write(SESSION_KEY, session);
-    if (replayRef.current) renderReplay(replayRef.current.cursor);
+    if (cursorRef.current !== null) renderReplay(cursorRef.current);
     else if (rawRef.current.length) setState((st) => ({ ...st, count: show() }));
   }, [session, show, renderReplay]);
 
@@ -553,7 +565,7 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
   useEffect(() => {
     if (!listen) return undefined;
     return listen((m) => {
-      if (replayRef.current || m.symbol !== symbol || state.loading || (m.type !== "trade" && m.type !== "bar")) return;
+      if (cursorRef.current !== null || m.symbol !== symbol || state.loading || (m.type !== "trade" && m.type !== "bar")) return;
       const next = m.type === "trade" ? applyTrade(lastRef.current, m, interval, crypto) : applyMinuteBar(lastRef.current, m, interval);
       if (!next) return;
       const raw = rawRef.current;
@@ -649,7 +661,7 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
       return times[lo];
     };
     // In a replay, the practice trades instead of the account's.
-    const list = replay ? replay.acct.trades.map((t) => ({ side: t.side, qty: t.qty, price: t.price, at: new Date(t.time * 1000).toISOString() })) : fills;
+    const list = replayOn ? (replayAcct?.trades || []).map((t) => ({ side: t.side, qty: t.qty, price: t.price, at: new Date(t.time * 1000).toISOString() })) : fills;
     const markers = list
       .map((f) => ({ f, time: at(Math.floor(Date.parse(f.at) / 1000)) }))
       .filter((x) => x.time !== null)
@@ -662,252 +674,28 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
         text: `${f.side === "buy" ? "B" : "S"} ${sizeText(f.qty)} @ ${px(f.price)}`
       }));
     markersRef.current.setMarkers(markers);
-  }, [fills, state.count, session, replay]);
+  }, [fills, state.count, session, replayOn, replayAcct]);
 
   // ---------- replay ----------
 
-  const fetchCandles = async (tf, from, to) => {
-    const r = await invokeFunction("terminal", { action: "replay", accountId: accountRef.current, symbol: symbolRef.current, tf, from: new Date(from * 1000).toISOString(), to: new Date(to * 1000).toISOString() });
-    if (r?.data?.error) throw new Error(r.data.error);
-    return r?.data?.bars || [];
-  };
-  // One-minute candles loaded through `through`, a week at a time.
-  const ensureMinutes = async (through) => {
-    const r = replayRef.current;
-    while (rp.current.loadedTo < Math.min(through, r.end)) {
-      const from = rp.current.loadedTo;
-      const to = Math.min(from + 7 * 86400, r.end);
-      const more = await fetchCandles("1Min", from, to);
-      const last = rp.current.minutes.at(-1)?.time ?? 0;
-      // Minutes older than the short intraday charts look back are let go,
-      // kept as half-hour candles for the longer ones.
-      const kept = rollMinutes(rp.current, (replayRef.current?.cursor ?? from) - 35 * 86400);
-      rp.current = { ...kept, minutes: [...kept.minutes, ...more.filter((m) => m.time > last)], loadedTo: to };
-    }
-  };
-  const lastPrice = (cursor = replayRef.current?.cursor) => {
-    const m = rp.current.minutes;
-    const i = countBefore(m, cursor) - 1;
-    return i >= 0 ? m[i].close : null;
-  };
-
-  const patchReplay = (patch) => {
-    const next = { ...replayRef.current, ...patch };
-    replayRef.current = next;
-    setReplay(next);
-    return next;
-  };
-
-  const startReplay = async ({ from, time, to }) => {
-    const coin = cryptoRef.current;
-    const [hh, mm] = time.split(":").map(Number);
-    const startDay = Date.parse(`${from}T00:00:00Z`) / 1000;
-    // The start, in New York time for shares (UTC for coins): four hours
-    // behind UTC in summer, five in winter.
-    let start = startDay + hh * 3600 + mm * 60;
-    if (!coin) {
-      const probe = new Date((start + 4 * 3600) * 1000).toLocaleString("en-US", { timeZone: "America/New_York", hour: "2-digit", hourCycle: "h23" });
-      start += (Number(probe) === hh ? 4 : 5) * 3600;
-    }
-    const end = Math.min(Date.parse(`${to}T23:59:59Z`) / 1000, Math.floor(Date.now() / 1000) - 16 * 60);
-    setReplayForm(false);
-    if (STEP[intervalRef.current] < 60) onInterval("1Min");
-    const draft = { start, end, cursor: start, playing: false, unit: "candle", speed: 1, loading: true, note: null, acct: newPractice() };
-    replayRef.current = draft;
-    setReplay(draft);
-    setState({ loading: true, error: null, count: 0 });
-    try {
-      // A month of minutes before the start (from a half hour's edge), the
-      // half hours before that for the hourly charts (a year; half a year of
-      // a coin's, which come a week per request), and ten years of days.
-      const minuteFrom = Math.floor((start - 30 * 86400) / 1800) * 1800;
-      const [days, minutes, context] = await Promise.all([
-        fetchCandles("1Day", start - 3650 * 86400, end),
-        fetchCandles("1Min", minuteFrom, Math.min(start + 5 * 86400, end)),
-        fetchCandles("30Min", minuteFrom - (coin ? 180 : 365) * 86400, minuteFrom).catch(() => [])
-      ]);
-      rp.current = { minutes, days, context: context.filter((b) => b.time + 1800 <= minuteFrom), loadedTo: Math.min(start + 5 * 86400, end) };
-      patchReplay({ loading: false, note: minutes.length ? null : "No one-minute candles for this period." });
-      renderReplay(start);
-      chartRef.current?.timeScale().scrollToRealTime();
-    } catch (e) {
-      replayRef.current = null;
-      setReplay(null);
-      setState({ loading: false, error: `Replay: ${e.message}`, count: 0 });
-      setLiveEpoch((n) => n + 1);
-    }
-  };
-
-  // The practice stop and take-profit against the minutes passed (a share's
-  // in regular hours only, as the broker's orders), with a pop-up for a fill.
-  const runExits = (acct, passed) => {
-    const out = triggerExits(acct, passed, { regularOnly: !cryptoRef.current });
-    out.trades.slice(acct.trades.length).forEach((t, i) => {
-      const target = t.why === "target";
-      onNotify({
-        key: `rp${t.time}-${i}`, tone: target ? "ok" : "muted", title: target ? `Practice take-profit filled${out.qty ? "" : ": flat"}` : "Practice stop filled",
-        detail: `${t.side === "sell" ? "Sold" : "Bought back"} ${sizeText(t.qty)} ${symbolRef.current} at ${px(t.price)} · ${replayClock(t.time, cryptoRef.current)} (replay)`
-      });
-    });
-    return out;
-  };
-
-  // One step forward: to the end of the next candle of the step unit, with
-  // the practice stop and take-profit checked against every minute passed.
-  const stepping = useRef(false);
-  const stepReplay = useCallback(async () => {
-    const r = replayRef.current;
-    if (!r || stepping.current) return false;
-    stepping.current = true;
-    try {
-      const unit = r.unit === "candle" ? intervalRef.current : r.unit;
-      const opts = { crypto: cryptoRef.current, regular: regularNow() };
-      let next = nextCursor(rp.current, unit, r.cursor, opts);
-      if ((next === null || next > rp.current.loadedTo) && rp.current.loadedTo < r.end) {
-        patchReplay({ loading: true });
-        await ensureMinutes(next ?? rp.current.loadedTo + 7 * 86400);
-        next = nextCursor(rp.current, unit, r.cursor, opts);
-      }
-      if (next !== null && next > rp.current.loadedTo) await ensureMinutes(next);
-      if (next === null || next > r.end + 60) {
-        patchReplay({ playing: false, loading: false, note: "The end of the replay range." });
-        return false;
-      }
-      const m = rp.current.minutes;
-      const passed = m.slice(countBefore(m, r.cursor), countBefore(m, next));
-      const acct = runExits(replayRef.current.acct, passed);
-      patchReplay({ cursor: next, acct, loading: false, note: null });
-      renderReplay(next);
-      return true;
-    } catch (e) {
-      patchReplay({ playing: false, loading: false, note: e.message });
-      return false;
-    } finally {
-      stepping.current = false;
-    }
-  }, [renderReplay]);
-
-  // Playing: a step every 1/speed seconds, each after the last has landed.
+  // This chart's symbol is followed by the replay while it is on screen, and
+  // the active chart is the one a "1 candle" step goes by.
+  useEffect(() => (replayOn && replay ? replay.watch(symbol) : undefined), [replayOn, replay, symbol]);
   useEffect(() => {
-    if (!replay?.playing) return undefined;
-    let alive = true;
-    let timer = null;
-    const tick = async () => {
-      if (!alive) return;
-      const ok = await stepReplay();
-      if (alive && ok && replayRef.current?.playing) timer = setTimeout(tick, 1000 / (replayRef.current.speed || 1));
-    };
-    timer = setTimeout(tick, 1000 / (replay.speed || 1));
-    return () => { alive = false; clearTimeout(timer); };
-  }, [replay?.playing, replay?.speed, stepReplay]);
-
-  const exitReplay = () => {
-    replayRef.current = null;
-    setReplay(null);
-    rp.current = { minutes: [], days: [], context: [], loadedTo: 0 };
+    if (replayOn && active) replay?.setActive({ symbol, interval, regular: session === "regular" });
+  }, [replayOn, replay, active, symbol, interval, session]);
+  // Each move of the clock, and each arrival of candles: built again.
+  useEffect(() => {
+    if (replayOn) renderReplay(replayCursor);
+  }, [replayOn, replayCursor, replayVersion, renderReplay]);
+  // The replay over: its date goes from behind the candles.
+  useEffect(() => {
+    if (replayOn) return;
     markRef.current?.detach();
     markRef.current = null;
-    setLiveEpoch((n) => n + 1);
-  };
-  const restartReplay = () => {
-    const r = patchReplay({ cursor: replayRef.current.start, playing: false, acct: newPractice(), note: null });
-    renderReplay(r.cursor);
-  };
-  // To a date's open (shares) or midnight UTC (coins), within the replay's range.
-  const jumpReplay = async (date) => {
-    const r = replayRef.current;
-    const day = Date.parse(`${date}T00:00:00Z`) / 1000;
-    let t = day;
-    if (!cryptoRef.current) {
-      const probe = new Date((day + 13.5 * 3600) * 1000).toLocaleString("en-US", { timeZone: "America/New_York", hour: "2-digit", hourCycle: "h23" });
-      t = day + (Number(probe) === 9 ? 13.5 : 14.5) * 3600;
-    }
-    t = Math.max(r.start, Math.min(t, r.end));
-    patchReplay({ playing: false, loading: t > rp.current.loadedTo });
-    try {
-      if (t > r.cursor) await ensureMinutes(t);
-      const m = rp.current.minutes;
-      const acct = t > r.cursor ? runExits(r.acct, m.slice(countBefore(m, r.cursor), countBefore(m, t))) : r.acct;
-      patchReplay({ cursor: t, acct, loading: false, note: t < r.cursor ? "Went back: the practice account keeps its trades." : null });
-      renderReplay(t);
-    } catch (e) { patchReplay({ loading: false, note: e.message }); }
-  };
-
-  // Practice trades, at the last price the replay has shown.
-  const practice = (side, qty, why = "") => {
-    const r = replayRef.current;
-    const price = lastPrice();
-    if (!r || !price) { onNotify({ key: "rpx", tone: "bad", title: "No replay price yet", detail: "Step forward once." }); return; }
-    if (!(qty > 0)) return;
-    patchReplay({ acct: practiceFill(r.acct, { side, qty, price, time: r.cursor - 1, why }) });
-    onNotify({ key: `rp${Date.now()}`, tone: "ok", title: `Practice: ${side === "buy" ? "bought" : "sold"} ${sizeText(qty)} ${symbolRef.current} at ${px(price)}`, detail: "Replay only; nothing sent to the broker." });
-  };
-  const flattenPractice = (pct = 100, why = "") => {
-    const q = replayRef.current?.acct.qty || 0;
-    if (!q) return;
-    let n = Math.abs(q) * pct / 100;
-    if (!cryptoRef.current && pct < 100) n = Math.floor(n);
-    practice(q > 0 ? "sell" : "buy", n, why);
-  };
-  // The practice stop or take-profit ("stop" or "target"), for the whole
-  // position; null removes it.
-  const setExit = (kind, price) => {
-    const r = replayRef.current;
-    if (!r) return;
-    const name = kind === "stop" ? "stop" : "take-profit";
-    const out = practiceExit(r.acct, kind, price, lastPrice());
-    if (out.reason) { onNotify({ key: `rp${kind}`, tone: "bad", title: `Practice ${name} not set`, detail: out.reason }); return; }
-    patchReplay({ acct: out.acct });
-    onNotify(price === null
-      ? { key: `rp${kind}`, tone: "muted", title: `Practice ${name} removed`, detail: "Replay only." }
-      : { key: `rp${kind}`, tone: "ok", title: `Practice ${name} at ${px(price)}`, detail: "For the whole position; it fills by itself when the replay gets there. Replay only." });
-  };
-  // A take-profit for part of the position ("Take profit points with partial
-  // positions", 25 Oct): its price, and its size as typed (blank for all
-  // that is left, "50%", or a number).
-  const addPracticeTarget = (price, sizeText_) => {
-    const r = replayRef.current;
-    if (!r) return false;
-    const size = targetSize(sizeText_, r.acct.qty, cryptoRef.current);
-    const out = size.reason ? size : addTarget(r.acct, { price, qty: size.qty }, lastPrice());
-    if (out.reason) { onNotify({ key: "rptarget", tone: "bad", title: "Practice take-profit not set", detail: out.reason }); return false; }
-    patchReplay({ acct: out.acct });
-    onNotify({ key: "rptarget", tone: "ok", title: `Practice take-profit at ${px(price)}`, detail: `${size.qty === null ? "For all that is left" : `For ${sizeText(size.qty)}`} when it fills; it fills by itself when the replay gets there. Replay only.` });
-    return true;
-  };
-  const removePracticeTarget = (id) => { if (replayRef.current) patchReplay({ acct: removeTarget(replayRef.current.acct, id) }); };
-
-  // Hotkeys during a replay trade the practice account (the page asks here first).
-  if (replayApi) {
-    replayApi.current = {
-      active: !!replay,
-      hotkey: (h) => {
-        const r = replayRef.current;
-        const price = lastPrice();
-        if (!r || !price) { onNotify({ key: "rpx", tone: "bad", title: "No replay price yet", detail: "Step forward once." }); return; }
-        const v = practiceValue(r.acct, price);
-        if (h.action === "buy" || h.action === "sell") {
-          const built = hotkeyOrder(h, { symbol: symbolRef.current, crypto: cryptoRef.current, quote: { bid: price, ask: price, last: price }, equity: v.equity, buyingPower: v.equity, step: cryptoRef.current ? 1e-9 : null, session: "regular" });
-          if (built.reason) { onNotify({ key: "rph", tone: "bad", title: "Practice order not placed", detail: built.reason }); return; }
-          practice(built.order.side, built.order.qty, h.keys);
-        } else if (h.action === "exit") flattenPractice(h.percent, h.keys);
-        else if (h.action === "stop" || h.action === "target") {
-          const from = h.from === "entry" && r.acct.avg ? r.acct.avg : price;
-          const d = h.stopMode === "pct" ? from * h.stopValue / 100 : h.stopValue;
-          // A long's stop below, its target above; a short's the other way round.
-          const below = (h.action === "stop") === (r.acct.qty > 0);
-          const tick = from >= 1 ? 100 : 1e6;
-          setExit(h.action, Math.round((below ? from - d : from + d) * tick) / tick);
-        } else {
-          patchReplay({ acct: { ...r.acct, stop: null, targets: [] } });
-          onNotify({ key: "rpc", tone: "muted", title: "Practice stop and take-profit removed", detail: "Replay only." });
-        }
-      }
-    };
-  }
-  useEffect(() => { onReplay(!!replay); }, [replay, onReplay]);
-  // The practice position on the chart: its average price, stop and take-profit.
-  const acct = replay?.acct;
+  }, [replayOn]);
+  // The practice position on the chart: its average price, stop and take-profits.
+  const acct = replayOn ? replayAcct : null;
   useEffect(() => {
     const series = candlesRef.current;
     if (!series) return;
@@ -921,13 +709,11 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
       acct.stop && line(acct.stop, DOWN, "Stop", LineStyle.Dashed),
       ...targets.map((t, i) => line(t.price, UP, `TP${targets.length > 1 ? i + 1 : ""} · ${t.qty === null ? "rest" : sizeText(t.qty)}`, LineStyle.Dashed))
     ].filter(Boolean);
-  }, [acct?.qty, acct?.avg, acct?.stop, acct?.targets]);
-  // A new symbol ends the replay; a seconds interval, which cannot be
-  // replayed, becomes one minute.
-  useEffect(() => { if (replayRef.current) exitReplay(); }, [symbol]);
+  }, [acct]);
+  // A seconds interval, which cannot be replayed, becomes one minute.
   useEffect(() => {
-    if (replayRef.current && !REPLAY_INTERVALS.includes(interval)) onInterval("1Min");
-  }, [interval, onInterval]);
+    if (replayOn && !REPLAY_INTERVALS.includes(interval)) onInterval("1Min");
+  }, [replayOn, interval, onInterval]);
 
   const addIndicator = (type) => {
     const used = indicators.filter((x) => INDICATORS[x.type].pane === "price").map((x) => x.color);
@@ -963,7 +749,7 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
     select(null);
     setConfirmClear(false);
   };
-  const active = TOOLS.find((t) => t.id === tool);
+  const toolInHand = TOOLS.find((t) => t.id === tool);
   const kinds = crypto ? EVENT_KINDS.filter((k) => k.id !== "earnings") : EVENT_KINDS;
   const upcoming = nextOfEach([...ECON, ...earnings.list]);
   const earningsNote = earnings.sources
@@ -975,7 +761,8 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 px-2 py-1.5">
-        {INTERVALS.filter((i) => i.quick).map((i) => (
+        {label && <span className={`mr-1 rounded px-1.5 py-0.5 text-xs font-bold ${active ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-700"}`} title={active ? "The active chart: the watchlist, ticket and replay bar act on it" : "Click to make it the active chart"}>{symbol}</span>}
+        {!compact && INTERVALS.filter((i) => i.quick).map((i) => (
           <button
             key={i.id}
             type="button"
@@ -994,7 +781,11 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
             </optgroup>
           ))}
         </select>
-        {!crypto && !["1Day", "1Week", "1Month"].includes(interval) && (
+        {!crypto && !["1Day", "1Week", "1Month"].includes(interval) && compact && (
+          <button type="button" onClick={() => setSession(session === "regular" ? "all" : "regular")} title={session === "regular" ? "Regular hours (9:30 to 16:00 New York). Click for all hours." : "All hours, pre-market and after hours shaded. Click for regular hours."}
+            className="rounded border border-slate-200 px-1 py-0.5 text-[11px] text-slate-600 hover:bg-slate-100">{session === "regular" ? "Reg" : "All"}</button>
+        )}
+        {!crypto && !["1Day", "1Week", "1Month"].includes(interval) && !compact && (
           <div className="ml-1 flex rounded border border-slate-200 text-[11px]" role="group" aria-label="Trading hours">
             {[["regular", "Regular hours"], ["all", "All hours"]].map(([id, name]) => (
               <button key={id} type="button" onClick={() => setSession(id)} title={id === "regular" ? "9:30 to 16:00 New York" : "Pre-market (from 4:00) and after hours (to 20:00), shaded"}
@@ -1003,8 +794,8 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
           </div>
         )}
         <div className="relative ml-1">
-          <button type="button" onClick={() => setMenu((v) => !v)} className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${menu ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
-            <Activity className="h-3.5 w-3.5" />Indicators{indicators.length ? ` (${indicators.length})` : ""}
+          <button type="button" onClick={() => setMenu((v) => !v)} title="Indicators" className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${menu ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
+            <Activity className="h-3.5 w-3.5" />{compact ? "" : "Indicators"}{indicators.length ? ` (${indicators.length})` : ""}
           </button>
           {menu && (
             <div className="absolute left-0 z-30 mt-1 w-72 rounded-md border border-slate-200 bg-white p-2 text-xs shadow-lg">
@@ -1033,16 +824,15 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
           )}
         </div>
         <div className="relative">
-          <button type="button" onClick={() => (replay ? exitReplay() : setReplayForm((v) => !v))} title={replay ? "Leave the replay" : "Replay the chart from a past date, for practice"}
-            className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${replay || replayForm ? "bg-amber-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
-            <History className="h-3.5 w-3.5" />{replay ? "Exit replay" : "Replay"}
+          <button type="button" onClick={onReplayButton} title={replayOn ? "Leave the replay" : "Replay the charts from a past date, for practice"}
+            className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${replayOn ? "bg-amber-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
+            <History className="h-3.5 w-3.5" />{compact ? "" : replayOn ? "Exit replay" : "Replay"}
           </button>
-          {replayForm && !replay && <ReplayStart crypto={crypto} busy={false} onStart={startReplay} onCancel={() => setReplayForm(false)} />}
         </div>
         <div className="relative">
           <button type="button" onClick={() => setEventsMenu((v) => !v)} title="Earnings and economic releases on the chart"
             className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${eventsMenu ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
-            <CalendarDays className="h-3.5 w-3.5" />Events{shown.length ? ` (${kinds.filter((k) => shown.includes(k.id)).length})` : ""}
+            <CalendarDays className="h-3.5 w-3.5" />{compact ? "" : `Events${shown.length ? ` (${kinds.filter((k) => shown.includes(k.id)).length})` : ""}`}
           </button>
           {eventsMenu && (
             <div className="absolute left-0 z-30 mt-1 w-80 rounded-md border border-slate-200 bg-white p-2 text-xs shadow-lg">
@@ -1069,6 +859,13 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
             </div>
           )}
         </div>
+        {compact && (
+          <button type="button" title="Drawing tools" aria-label="Drawing tools" onClick={() => setToolsOpen((v) => !v)} className={btn(toolsOpen || tool !== "cursor")}>
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {(!compact || toolsOpen || tool !== "cursor") && (
+          <>
         <span className="mx-1 h-4 w-px bg-slate-200" />
         <button type="button" title="Pointer: select, move and delete drawings" className={btn(tool === "cursor")} onClick={() => setTool("cursor")}>
           <MousePointer2 className="h-3.5 w-3.5" />
@@ -1094,22 +891,13 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
           className={`flex items-center gap-1 rounded px-1 py-0.5 text-[11px] disabled:opacity-30 ${confirmClear ? "bg-rose-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
           <Eraser className="h-3.5 w-3.5" />{confirmClear ? `Clear ${drawings.length}?` : ""}
         </button>
-        <span className="ml-auto text-[11px] text-slate-400" title={crypto && !(STEP[interval] < 60) ? "Alpaca builds crypto candles from trades and, between trades, from the bid/ask midpoint, so a candle can move when nothing traded; time & sales lists actual trades only." : undefined}>
-          {active ? `${active.label}: ${active.points === 1 ? "click to place" : drafting ? "click the second point" : "click the first point"} · Esc to cancel`
-            : state.loading ? "Loading…" : state.error ? "" : `${state.count} bars · ${replay ? (crypto ? "replay, Alpaca crypto" : "replay, consolidated tape") : STEP[interval] < 60 ? "built from trades" : crypto ? "Alpaca crypto: trades and midpoints" : "IEX"}`}
+          </>
+        )}
+        <span className={`ml-auto text-[11px] text-slate-400 ${compact && !toolInHand && !state.loading ? "hidden" : ""}`} title={crypto && !(STEP[interval] < 60) ? "Alpaca builds crypto candles from trades and, between trades, from the bid/ask midpoint, so a candle can move when nothing traded; time & sales lists actual trades only." : undefined}>
+          {toolInHand ? `${toolInHand.label}: ${toolInHand.points === 1 ? "click to place" : drafting ? "click the second point" : "click the first point"} · Esc to cancel`
+            : state.loading ? "Loading…" : state.error ? "" : `${state.count} bars · ${replayOn ? (crypto ? "replay, Alpaca crypto" : "replay, consolidated tape") : STEP[interval] < 60 ? "built from trades" : crypto ? "Alpaca crypto: trades and midpoints" : "IEX"}`}
         </span>
       </div>
-      {replay && (
-        <ReplayBar
-          clock={replayClock(replay.cursor, crypto)} playing={replay.playing} loading={replay.loading} note={replay.note}
-          unit={replay.unit} speed={replay.speed} acct={replay.acct} price={lastPrice()} value={lastPrice() ? practiceValue(replay.acct, lastPrice()) : null}
-          symbol={symbol} crypto={crypto}
-          onPlay={() => patchReplay({ playing: !replay.playing, note: null })} onStep={stepReplay} onRestart={restartReplay}
-          onUnit={(unit) => patchReplay({ unit })} onSpeed={(speed) => patchReplay({ speed })} onJump={jumpReplay} onExit={exitReplay}
-          onTrade={(side, qty) => practice(side, qty)} onFlatten={() => flattenPractice(100)} onStop={setExit}
-          onAddTarget={addPracticeTarget} onRemoveTarget={removePracticeTarget}
-        />
-      )}
       {state.error && <p className="px-3 py-2 text-xs text-rose-700">{state.error}</p>}
       {!state.loading && !state.error && state.count === 0 && rawRef.current.length > 0 && (
         <p className="px-3 py-2 text-xs text-slate-600">
@@ -1118,7 +906,7 @@ function PriceChart({ accountId, symbol, interval, onInterval, listen, fills = [
       )}
       {/* Shrinks to the room left, so the time axis is never cut off below
           the replay bar (it was, at a fixed 260 pixels). */}
-      <div className="relative min-h-[160px] flex-1">
+      <div className={`relative flex-1 ${compact ? "min-h-[90px]" : "min-h-[160px]"}`}>
         <div ref={boxRef} className={`absolute inset-0 ${tool !== "cursor" ? "cursor-crosshair" : ""}`} />
         {hover && (
           <div className="pointer-events-none absolute z-20 w-64 -translate-x-1/2 -translate-y-full rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs shadow-lg"

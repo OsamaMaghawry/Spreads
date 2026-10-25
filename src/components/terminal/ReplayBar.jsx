@@ -11,13 +11,13 @@ const UNITS = [["candle", "1 candle"], ["1Min", "1 minute"], ["5Min", "5 minutes
 const SPEEDS = [0.5, 1, 2, 5, 10];
 const field = "rounded border border-amber-300 bg-white px-1 py-0.5 text-[11px] tabular-nums focus:outline-none";
 
-/** The form that starts a replay: from when, to when. */
-export function ReplayStart({ crypto, onStart, onCancel, busy }) {
+/** The form that starts a replay: from when, to when (`initial`: filled in, from the screener). */
+export function ReplayStart({ crypto, onStart, onCancel, busy, initial = null }) {
   const today = new Date().toISOString().slice(0, 10);
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-  const [from, setFrom] = useState(monthAgo);
-  const [time, setTime] = useState(crypto ? "00:00" : "09:30");
-  const [to, setTo] = useState(today);
+  const [from, setFrom] = useState(initial?.from || monthAgo);
+  const [time, setTime] = useState(initial?.time || (crypto ? "00:00" : "09:30"));
+  const [to, setTo] = useState(initial?.to && initial.to < today ? initial.to : today);
   const start = Date.parse(`${from}T00:00:00Z`);
   const end = Date.parse(`${to}T00:00:00Z`);
   const why = !from || !to ? "Pick both dates."
@@ -28,7 +28,7 @@ export function ReplayStart({ crypto, onStart, onCancel, busy }) {
   return (
     <div className="absolute left-0 z-30 mt-1 w-72 rounded-md border border-slate-200 bg-white p-3 text-xs shadow-lg">
       <div className="mb-2 flex items-center gap-1 font-semibold text-slate-800"><History className="h-4 w-4 text-amber-600" />Bar replay</div>
-      <p className="mb-2 text-[11px] leading-snug text-slate-500">The chart goes back to the moment you pick and plays forward from there, at every interval, with a practice account. Nothing is sent to the broker.</p>
+      <p className="mb-2 text-[11px] leading-snug text-slate-500">The charts go back to the moment you pick and play forward from there, at every interval and every symbol you open, with a practice account. Nothing is sent to the broker.</p>
       <div className="grid grid-cols-[4.5rem_1fr] items-center gap-x-2 gap-y-1.5">
         <label htmlFor="rp-from" className="text-slate-600">From</label>
         <div className="flex gap-1">
@@ -93,7 +93,7 @@ function TargetField({ targets, pos, crypto, onAdd, onRemove }) {
   );
 }
 
-export default function ReplayBar({ clock, playing, loading, note, unit, speed, value, acct, price, symbol, crypto, onPlay, onStep, onRestart, onUnit, onSpeed, onJump, onExit, onTrade, onFlatten, onStop, onAddTarget, onRemoveTarget }) {
+export default function ReplayBar({ clock, playing, loading, note, unit, speed, value, acct, price, symbol, crypto, trades = 0, onPlay, onStep, onRestart, onUnit, onSpeed, onJump, onExit, onTrade, onFlatten, onStop, onAddTarget, onRemoveTarget }) {
   const [qty, setQty] = useState(crypto ? "0.1" : "100");
   const [jump, setJump] = useState("");
   const pos = acct?.qty || 0;
@@ -123,7 +123,7 @@ export default function ReplayBar({ clock, playing, loading, note, unit, speed, 
         <button type="button" onClick={onExit} className="ml-auto flex items-center gap-1 rounded border border-amber-400 px-1.5 py-0.5 font-medium hover:bg-amber-100"><X className="h-3 w-3" />Exit replay</button>
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="font-medium">Practice</span>
+        <span className="font-medium">Practice <b>{symbol}</b></span>
         <input className={`${field} w-16`} inputMode="decimal" value={qty} onChange={(e) => setQty(e.target.value.replace(/[^\d.]/g, ""))} aria-label="Practice quantity" />
         <button type="button" onClick={() => onTrade("buy", Number(qty))} className="rounded bg-emerald-600 px-2 py-0.5 font-semibold text-white hover:bg-emerald-700">Buy</button>
         <button type="button" onClick={() => onTrade("sell", Number(qty))} className="rounded bg-rose-600 px-2 py-0.5 font-semibold text-white hover:bg-rose-700">Sell</button>
@@ -134,7 +134,7 @@ export default function ReplayBar({ clock, playing, loading, note, unit, speed, 
           {pos ? `${pos > 0 ? "Long" : "Short"} ${sizeText(Math.abs(pos))} ${symbol} at ${px(acct.avg)}` : "Flat"}
           {" · price "}{px(price)}
         </span>
-        {value && <span className="ml-auto tabular-nums">Open {pnl(value.unrealized)} · Closed {pnl(value.realized)} · Equity {fmtMoney(value.equity)}{acct?.trades?.length ? ` · ${acct.trades.length} trade${acct.trades.length === 1 ? "" : "s"}` : ""}</span>}
+        {value && <span className="ml-auto tabular-nums" title="The whole practice account, every symbol">Open {pnl(value.unrealized)} · Closed {pnl(value.realized)} · Equity {fmtMoney(value.equity)}{trades ? ` · ${trades} fill${trades === 1 ? "" : "s"}` : ""}</span>}
       </div>
     </div>
   );

@@ -149,7 +149,8 @@ export function nextCursor({ minutes = [], days = [] }, unit, cursor, { crypto =
 
 export const PRACTICE_CASH = 100000;
 
-export const newPractice = () => ({ cash: PRACTICE_CASH, qty: 0, avg: 0, realized: 0, trades: [], stop: null, targets: [], seq: 0 });
+/** One symbol's practice account. In a book of several, each starts with no cash of its own (see bookValue). */
+export const newPractice = (cash = PRACTICE_CASH) => ({ cash, qty: 0, avg: 0, realized: 0, trades: [], stop: null, targets: [], seq: 0 });
 
 /**
  * A practice fill: buying adds to a long or covers a short, selling the
@@ -295,6 +296,130 @@ export function targetSize(text, position, crypto) {
     qty = Math.max(1, Math.floor(qty));
   } else qty = Math.floor(qty * 1e9) / 1e9;
   return { qty };
+}
+
+// ---------- the practice book: several symbols, one pot of cash ----------
+//
+// 25 Oct: "Make sure that I can open muliple ticker at the same time during
+// the reply". Each symbol keeps its own account (the rules above), starting
+// from no cash; the book adds them up over the one practice balance.
+
+/** A symbol's account in the book, or a fresh one. */
+export const acctIn = (book, symbol) => book[symbol] || newPractice(0);
+
+/** Equity, cash, open and closed profit across the book, at each symbol's price (`priceOf`); a symbol without one counts at cost. */
+export function bookValue(book, priceOf) {
+  let cash = PRACTICE_CASH;
+  let held = 0;
+  let unrealized = 0;
+  let realized = 0;
+  for (const [symbol, a] of Object.entries(book)) {
+    const p = a.qty ? priceOf(symbol) : null;
+    cash += a.cash;
+    held += a.qty * (p || a.avg);
+    if (p) unrealized += (p - a.avg) * a.qty;
+    realized += a.realized;
+  }
+  return { equity: cash + held, cash, unrealized, realized };
+}
+
+// ---------- results: round trips and their statistics ----------
+//
+// 25 Oct: "p/l taking the numbers based on the buy and sell happened on the
+// reply". A round trip runs from flat to flat: every fill that opens or adds
+// to the position, and every one that reduces it, until it is flat again (or
+// turned the other way round, which closes one trip and opens the next).
+
+/**
+ * A symbol's fills as round trips, oldest first: the side, when it opened and
+ * closed, its largest size, the average entry and exit, the profit taken, the
+ * return on the cost of what was closed, and how it was closed (the reasons
+ * on the closing fills: "stop", "target", a hotkey, or "" for by hand). The
+ * last may still be open.
+ */
+export function roundTrips(trades) {
+  const out = [];
+  let q = 0;
+  let avg = 0;
+  let trip = null;
+  const begin = (sign, t, n) => {
+    trip = { side: sign > 0 ? "long" : "short", entryTime: t.time, exitTime: null, maxSize: n, entryQty: n, entryValue: n * t.price, exitQty: 0, exitValue: 0, realized: 0, fills: 1, closedBy: [] };
+    q = sign * n;
+    avg = t.price;
+  };
+  const finish = (open) => {
+    const avgEntry = trip.entryValue / trip.entryQty;
+    out.push({
+      side: trip.side, entryTime: trip.entryTime, exitTime: open ? null : trip.exitTime, open, size: trip.maxSize,
+      avgEntry, avgExit: trip.exitQty ? trip.exitValue / trip.exitQty : null, closedQty: trip.exitQty,
+      realized: trip.realized, returnPct: trip.exitQty ? trip.realized / (avgEntry * trip.exitQty) : null,
+      fills: trip.fills, closedBy: [...new Set(trip.closedBy)]
+    });
+    trip = null;
+  };
+  for (const t of trades) {
+    const n = Number(t.qty);
+    if (!(n > 0) || !(t.price > 0)) continue;
+    const sign = t.side === "buy" ? 1 : -1;
+    if (!trip) { begin(sign, t, n); continue; }
+    if (Math.sign(q) === sign) {
+      avg = (avg * Math.abs(q) + t.price * n) / (Math.abs(q) + n);
+      q += sign * n;
+      trip.entryQty += n;
+      trip.entryValue += n * t.price;
+      trip.maxSize = Math.max(trip.maxSize, Math.abs(q));
+      trip.fills += 1;
+      continue;
+    }
+    const closing = Math.min(Math.abs(q), n);
+    trip.realized += closing * (t.price - avg) * Math.sign(q);
+    trip.exitQty += closing;
+    trip.exitValue += closing * t.price;
+    trip.exitTime = t.time;
+    trip.fills += 1;
+    trip.closedBy.push(t.why || "");
+    q += sign * n;
+    if (Math.abs(q) < 1e-9) finish(false);
+    else if (Math.sign(q) === sign) {
+      const rest = Math.abs(q);
+      finish(false);
+      begin(sign, t, rest);
+    }
+  }
+  if (trip) finish(true);
+  return out;
+}
+
+/** Every symbol's round trips in the book, with the symbol, in the order they opened. */
+export const bookTrips = (book) => Object.entries(book)
+  .flatMap(([symbol, a]) => roundTrips(a.trades).map((t) => ({ ...t, symbol })))
+  .sort((x, y) => x.entryTime - y.entryTime);
+
+/**
+ * The statistics of a list of round trips: how many closed, won and lost,
+ * the win rate, average win and loss, profit factor (gross profit over gross
+ * loss), expectancy (the average closed trip), the largest of each, the
+ * average time held, and the profit taken in all (open trips' part included).
+ */
+export function tradeStats(trips) {
+  const closed = trips.filter((t) => !t.open);
+  const wins = closed.filter((t) => t.realized > 1e-9);
+  const losses = closed.filter((t) => t.realized < -1e-9);
+  const sum = (xs) => xs.reduce((a, t) => a + t.realized, 0);
+  const grossProfit = sum(wins);
+  const grossLoss = sum(losses);
+  return {
+    trades: closed.length, open: trips.length - closed.length, wins: wins.length, losses: losses.length,
+    winRate: closed.length ? wins.length / closed.length : null,
+    grossProfit, grossLoss, realized: sum(trips),
+    avgWin: wins.length ? grossProfit / wins.length : null,
+    avgLoss: losses.length ? grossLoss / losses.length : null,
+    profitFactor: grossLoss < 0 ? grossProfit / -grossLoss : null,
+    expectancy: closed.length ? sum(closed) / closed.length : null,
+    largestWin: wins.length ? Math.max(...wins.map((t) => t.realized)) : null,
+    largestLoss: losses.length ? Math.min(...losses.map((t) => t.realized)) : null,
+    avgHold: closed.length ? closed.reduce((a, t) => a + (t.exitTime - t.entryTime), 0) / closed.length : null
+  };
 }
 
 /** "Thu, Mar 5, 2026, 10:42" in New York time, for the replay bar. */

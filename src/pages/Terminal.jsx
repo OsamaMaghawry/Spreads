@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, X, Plus, Lock, LockOpen, RotateCcw, Maximize2, Minimize2, GripVertical, Keyboard } from "lucide-react";
+import { Search, X, Plus, Lock, LockOpen, RotateCcw, Maximize2, Minimize2, GripVertical, Keyboard, Square, Columns2, LayoutGrid } from "lucide-react";
 import { Responsive, WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -20,6 +20,10 @@ import HotkeysDialog from "@/components/terminal/Hotkeys";
 import { runHotkey, prefetchStep } from "@/components/terminal/runHotkey";
 import { comboOf, cleanHotkeys } from "@/lib/hotkeys";
 import { Positions, Orders, AccountSummary } from "@/components/terminal/Panels";
+import useReplay from "@/components/terminal/useReplay";
+import ReplayBar, { ReplayStart } from "@/components/terminal/ReplayBar";
+import { PracticePositions, ReplayResults } from "@/components/terminal/ReplayPanels";
+import { acctIn, replayClock } from "@/lib/replay";
 
 const Grid = WidthProvider(Responsive);
 
@@ -42,6 +46,12 @@ const Grid = WidthProvider(Responsive);
 // The screener sits beside the trading screen as a page of its own (24 Oct:
 // "Stock Screener ... to see the stocks in play"): pick a row and it opens in
 // the chart, book, tape and ticket.
+//
+// The chart window holds one to four charts, each with its own symbol and
+// interval; the active one (last clicked) is the one the watchlist, ticket,
+// book and tape follow. During a bar replay they all follow its clock, and its
+// practice account trades any of them (25 Oct: "Make sure that I can open
+// muliple ticker at the same time during the reply or simulation").
 
 const WATCH_KEY = "dm.terminal.watchlist";
 const COINS_KEY = "dm.terminal.coinsAdded";
@@ -51,6 +61,10 @@ const LAYOUT_KEY_V1 = "dm.terminal.layout.v1";
 const LOCK_KEY = "dm.terminal.layoutLocked";
 const PAGE_KEY = "dm.terminal.page";
 const HOTKEYS_ON_KEY = "dm.terminal.hotkeysOn";
+const PANES_KEY = "dm.terminal.panes.v1";
+const NO_FILLS = [];
+// Where each chart sits for one to four of them.
+const PANE_GRID = { 1: "grid-cols-1", 2: "grid-cols-1 sm:grid-cols-2", 3: "grid-cols-2 grid-rows-2", 4: "grid-cols-2 grid-rows-2" };
 const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
   set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private window */ } }
@@ -68,8 +82,21 @@ export default function Terminal() {
       return list;
     } catch { return readWatchlist(null); }
   });
-  const [symbol, setSymbol] = useState(() => watch[0]);
-  const [interval, setInterval_] = useState("5Min");
+  // The charts: each its symbol and interval, and which one is active.
+  const [panes, setPanes] = useState(() => {
+    try {
+      const p = JSON.parse(localStorage.getItem(PANES_KEY) || "null");
+      const list = (Array.isArray(p?.list) ? p.list : []).filter((x) => x && typeof x.symbol === "string" && x.symbol && typeof x.interval === "string").slice(0, 4);
+      if (list.length) return { list, active: Math.min(Math.max(0, Number(p.active) || 0), list.length - 1) };
+    } catch { /* fresh */ }
+    return { list: [{ symbol: watch[0], interval: "5Min" }], active: 0 };
+  });
+  useEffect(() => { try { localStorage.setItem(PANES_KEY, JSON.stringify(panes)); } catch { /* private window */ } }, [panes]);
+  const symbol = panes.list[panes.active]?.symbol || watch[0];
+  const setSymbol = useCallback((s) => setPanes((p) => ({ ...p, list: p.list.map((x, i) => (i === p.active ? { ...x, symbol: s } : x)) })), []);
+  // One setter per chart, made once, so a chart is not drawn again for a new function.
+  const paneInterval = useMemo(() => [0, 1, 2, 3].map((i) => (iv) => setPanes((p) => ({ ...p, list: p.list.map((x, j) => (j === i ? { ...x, interval: iv } : x)) }))), []);
+  const paneSymbols = panes.list.map((x) => x.symbol).join(",");
   const [snaps, setSnaps] = useState({});
   const [view, setView] = useState(null);
   const [tab, setTab] = useState("positions");
@@ -131,7 +158,7 @@ export default function Terminal() {
     if (watchSynced.current) savePref("watchlist", watch);
   }, [watch]);
 
-  const streamSymbols = useMemo(() => cleanWatchlist([symbol, ...watch]).slice(0, 30), [symbol, watch]);
+  const streamSymbols = useMemo(() => cleanWatchlist([symbol, ...paneSymbols.split(","), ...watch]).slice(0, 30), [symbol, paneSymbols, watch]);
   const { quotes: live, status, feeds, epoch, listen } = useTerminalStream(accountId, streamSymbols, crypto ? symbol : "");
   const feedTrouble = Object.entries(feeds).find(([, f]) => f.state === "error");
 
@@ -235,10 +262,15 @@ export default function Terminal() {
       type: "stop", stopPrice: (p.last || p.avgPrice || 0) * (short ? 1.02 : 0.98), at: Date.now()
     });
   };
-  // This symbol's fills in the last week, marked on the chart where they happened.
-  const fills = useMemo(() => (view?.recent || [])
-    .filter((o) => o.symbol === symbol && Number(o.filled) > 0 && o.avgPrice && o.filledAt)
-    .map((o) => ({ id: o.id, side: o.side, qty: o.filled, price: o.avgPrice, at: o.filledAt })), [view?.recent, symbol]);
+  // Each symbol's fills in the last week, marked on its chart where they happened.
+  const fillsBySymbol = useMemo(() => {
+    const out = {};
+    for (const o of view?.recent || []) {
+      if (!(Number(o.filled) > 0 && o.avgPrice && o.filledAt)) continue;
+      (out[o.symbol] = out[o.symbol] || []).push({ id: o.id, side: o.side, qty: o.filled, price: o.avgPrice, at: o.filledAt });
+    }
+    return out;
+  }, [view?.recent]);
 
   // Hotkeys (25 Oct: "Can I set hotkeys ... exiting full position has a key.
   // Partial exit has a key ... stop loss ... with keys"): the list is kept with
@@ -246,9 +278,30 @@ export default function Terminal() {
   const [hotkeys, setHotkeys] = useState([]);
   const [hotkeysOn, setHotkeysOn] = useState(() => store.get(HOTKEYS_ON_KEY) === "1");
   const [hotkeysOpen, setHotkeysOpen] = useState(false);
-  // While the chart replays the past, the hotkeys trade its practice account.
-  const replayApi = useRef(null);
-  const [replaying, setReplaying] = useState(false);
+  // The bar replay (components/terminal/useReplay.js): while it runs, the
+  // hotkeys and the replay bar trade its practice account.
+  const { session, version: replayVersion, last: lastReplay, replay } = useReplay({ accountId, notify });
+  const replaying = !!session;
+  const [replayForm, setReplayForm] = useState(null);
+  const sessionRef = useRef(null);
+  sessionRef.current = session;
+  const replayButton = useCallback(() => {
+    if (sessionRef.current) replay.exit();
+    else setReplayForm((f) => (f ? null : {}));
+  }, [replay]);
+  const startReplay = (form) => { setReplayForm(null); replay.start(form, isCrypto(symbol)); };
+  // A new replay opens on its practice positions.
+  useEffect(() => { if (session?.id) setTab("practice"); }, [session?.id]);
+  useEffect(() => { if (!session && !lastReplay) setTab((t) => (t === "practice" || t === "results" ? "positions" : t)); }, [session, lastReplay]);
+  // Charts: how many, filled from the watchlist; and a symbol put on one (a
+  // free one while there is room, else the active one).
+  const setPaneCount = (n) => setPanes((p) => {
+    const list = p.list.slice(0, n);
+    const used = new Set(list.map((x) => x.symbol));
+    const spare = watch.filter((w) => !used.has(w));
+    while (list.length < n) list.push({ symbol: spare.shift() || p.list[p.active].symbol, interval: p.list[p.active].interval });
+    return { list, active: Math.min(p.active, n - 1) };
+  });
   useEffect(() => {
     readPrefs(["hotkeys"]).then((p) => setHotkeys(cleanHotkeys(p.hotkeys))).catch(() => {});
   }, []);
@@ -258,7 +311,7 @@ export default function Terminal() {
   const armHotkeys = (on) => { setHotkeysOn(on); store.set(HOTKEYS_ON_KEY, on ? "1" : "0"); };
   // Everything a key press reads, current at the moment it is pressed.
   const live$ = useRef({});
-  live$.current = { account, symbol, quote, view, position, hotkeys, notify, refresh: loadView };
+  live$.current = { account, symbol, quote, view, position, hotkeys, notify, refresh: loadView, replaying };
   useEffect(() => {
     if (!hotkeysOn || page !== "trade" || hotkeysOpen) return undefined;
     const onKey = (e) => {
@@ -270,12 +323,12 @@ export default function Terminal() {
       if (!h) return;
       e.preventDefault();
       e.stopPropagation();
-      if (replayApi.current?.active) replayApi.current.hotkey(h);
+      if (live$.current.replaying) replay.hotkey(h, live$.current.symbol);
       else runHotkey(h, live$.current);
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [hotkeysOn, page, hotkeysOpen]);
+  }, [hotkeysOn, page, hotkeysOpen, replay]);
 
   const grip = !locked && <GripVertical className="h-3.5 w-3.5 shrink-0 text-slate-300" />;
   const frame = "flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white";
@@ -346,7 +399,7 @@ export default function Terminal() {
 
       {replaying && page === "trade" && (
         <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
-          The chart is replaying the past. Hotkeys and the replay bar trade a practice account; the ticket, book and tape are still live, on your paper account.
+          The charts are replaying the past. Hotkeys and the replay bar trade a practice account, on the active chart&apos;s symbol; the ticket, book and tape are still live, on your paper account.
         </p>
       )}
       {screenSeen && (
@@ -404,20 +457,49 @@ export default function Terminal() {
           <div ref={chartBox} className="flex h-full min-h-0 flex-col bg-white">
             <div className={`${bar} items-baseline gap-3 py-1.5`}>
               {grip}
-              <span className="text-lg font-semibold">{symbol}</span>
-              {replaying && <span className="self-center rounded bg-slate-200 px-1 text-[10px] font-semibold uppercase text-slate-600" title="The chart below is replaying the past; these figures are today's">Live</span>}
-              <span className={`text-lg tabular-nums ${replaying ? "text-slate-400" : ""}`}>{px(quote.last)}</span>
-              <span className={`text-sm tabular-nums ${quote.change >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{quote.change !== null ? `${quote.change >= 0 ? "+" : ""}${quote.change.toFixed(2)}` : ""} {pctText(quote.changePct)}</span>
-              <span className="ml-auto truncate text-xs tabular-nums text-slate-500">
+              <span className="shrink-0 text-lg font-semibold">{symbol}</span>
+              {replaying && <span className="shrink-0 self-center rounded bg-slate-200 px-1 text-[10px] font-semibold uppercase text-slate-600" title="The charts below are replaying the past; these figures are today's">Live</span>}
+              <span className={`shrink-0 text-lg tabular-nums ${replaying ? "text-slate-400" : ""}`}>{px(quote.last)}</span>
+              <span className={`shrink-0 whitespace-nowrap text-sm tabular-nums ${quote.change >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{quote.change !== null ? `${quote.change >= 0 ? "+" : ""}${quote.change.toFixed(2)}` : ""} {pctText(quote.changePct)}</span>
+              <span className="ml-auto min-w-0 truncate whitespace-nowrap text-xs tabular-nums text-slate-500">
                 Bid <b className="text-slate-800">{px(quote.bid)}</b> × {sizeText(quote.bidSize)} · Ask <b className="text-slate-800">{px(quote.ask)}</b> × {sizeText(quote.askSize)}
               </span>
+              <div className="flex shrink-0 self-center rounded border border-slate-200" role="group" aria-label="Charts">
+                {[[1, Square, "One chart"], [2, Columns2, "Two charts"], [3, LayoutGrid, "Three charts"], [4, LayoutGrid, "Four charts"]].map(([n, Icon, name]) => (
+                  <button key={n} type="button" title={name} aria-label={name} onClick={() => setPaneCount(n)}
+                    className={`flex items-center gap-0.5 px-1 py-0.5 text-[10px] ${panes.list.length === n ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100"}`}>
+                    <Icon className="h-3 w-3" />{n > 2 ? n : ""}
+                  </button>
+                ))}
+              </div>
               <button type="button" onClick={toggleFull} title={full ? "Leave full screen (Esc)" : "Full screen"} className="ml-1 self-center rounded p-1 text-slate-500 hover:bg-slate-100">
                 {full ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               </button>
             </div>
-            <div className="min-h-0 flex-1">
-              <PriceChart accountId={accountId} symbol={symbol} interval={interval} onInterval={setInterval_} listen={listen} fills={fills}
-                onNotify={notify} replayApi={replayApi} onReplay={setReplaying} />
+            {replayForm && !replaying && (
+              <div className="relative">
+                <ReplayStart key={JSON.stringify(replayForm)} crypto={crypto} busy={false} initial={replayForm} onStart={startReplay} onCancel={() => setReplayForm(null)} />
+              </div>
+            )}
+            {session && (
+              <ReplayBar
+                clock={replayClock(session.cursor, crypto)} playing={session.playing} loading={session.loading} note={session.note}
+                unit={session.unit} speed={session.speed} acct={acctIn(session.book, symbol)} price={replay.lastPrice(symbol)} value={replay.value()}
+                trades={Object.values(session.book).reduce((n, a) => n + a.trades.length, 0)} symbol={symbol} crypto={crypto}
+                onPlay={replay.toggle} onStep={replay.step} onRestart={replay.restart} onUnit={replay.setUnit} onSpeed={replay.setSpeed} onJump={replay.jump} onExit={replay.exit}
+                onTrade={(side, qty) => replay.trade(symbol, side, qty)} onFlatten={() => replay.flatten(symbol, 100)} onStop={(kind, price) => replay.setExit(symbol, kind, price)}
+                onAddTarget={(price, size) => replay.addTarget(symbol, price, size)} onRemoveTarget={(id) => replay.removeTarget(symbol, id)}
+              />
+            )}
+            <div className={`grid min-h-0 flex-1 gap-px bg-slate-200 ${PANE_GRID[panes.list.length]}`}>
+              {panes.list.map((p, i) => (
+                <div key={i} onClickCapture={() => { if (panes.active !== i) setPanes((x) => ({ ...x, active: i })); }}
+                  className={`min-h-0 min-w-0 overflow-hidden bg-white ${panes.list.length === 3 && i === 0 ? "col-span-2" : ""} ${panes.list.length > 1 && panes.active === i ? "outline outline-2 -outline-offset-2 outline-emerald-500" : ""}`}>
+                  <PriceChart accountId={accountId} symbol={p.symbol} interval={p.interval} onInterval={paneInterval[i]} listen={listen} fills={fillsBySymbol[p.symbol] || NO_FILLS}
+                    replay={replay} replayOn={replaying} replayCursor={session?.cursor ?? null} replayVersion={replayVersion} replayAcct={session?.book[p.symbol] || null}
+                    onReplayButton={replayButton} active={panes.active === i} label={panes.list.length > 1} />
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -425,11 +507,22 @@ export default function Terminal() {
         <div key="account" className={frame}>
           <div className={bar}>
             {grip}
-            {[["positions", `Positions${view?.positions?.length ? ` (${view.positions.length})` : ""}`], ["orders", `Orders${view?.orders?.length ? ` (${view.orders.length})` : ""}`], ["account", "Account"]].map(([id, name]) => (
-              <button key={id} type="button" onClick={() => setTab(id)} className={`rounded px-2 py-0.5 text-xs font-medium ${tab === id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>{name}</button>
+            {[
+              ...(session || lastReplay ? [["practice", "Practice"], ["results", "Replay P/L"]] : []),
+              ["positions", `Positions${view?.positions?.length ? ` (${view.positions.length})` : ""}`], ["orders", `Orders${view?.orders?.length ? ` (${view.orders.length})` : ""}`], ["account", "Account"]
+            ].map(([id, name]) => (
+              <button key={id} type="button" onClick={() => setTab(id)}
+                className={`rounded px-2 py-0.5 text-xs font-medium ${tab === id ? (id === "practice" || id === "results" ? "bg-amber-600 text-white" : "bg-slate-900 text-white") : "text-slate-600 hover:bg-slate-100"}`}>{name}</button>
             ))}
           </div>
           <div className="min-h-0 flex-1">
+            {tab === "practice" && (session || lastReplay) && (
+              <PracticePositions book={session ? session.book : lastReplay.book} priceOf={session ? replay.priceOf : (s) => lastReplay.prices[s] ?? null}
+                ended={!session} onPick={setSymbol} onFlatten={(s) => replay.flatten(s, 100)} />
+            )}
+            {tab === "results" && (session || lastReplay) && (
+              <ReplayResults book={session ? session.book : lastReplay.book} priceOf={session ? replay.priceOf : (s) => lastReplay.prices[s] ?? null} ended={!session} />
+            )}
             {tab === "positions" && <Positions positions={view?.positions || []} onPick={setSymbol} onClose={closePosition} onStop={stopPosition} />}
             {tab === "orders" && <Orders accountId={accountId} orders={view?.orders || []} recent={view?.recent || []} onChanged={loadView} onPick={setSymbol} />}
             {tab === "account" && <AccountSummary summary={view?.summary} paper={view?.paper} name={account?.name} />}
