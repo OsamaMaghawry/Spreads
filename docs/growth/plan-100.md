@@ -62,6 +62,30 @@ start. Organic alone gets a fifth to a half of the way. The rest:
 | Guest appearances and mentions (podcasts, YouTube, newsletters in the options space) | vp-growth | 1 pitch/week | none accepted in four weeks → drop |
 | Paid search on the long-tail queries the posts target | owner sizes the budget | budget-dependent | cost per signup above $15 → pause |
 
+## Measured rates — revised Mon 26 Oct 2026 (W44)
+
+Source: `docs/growth/metrics/2026-10-21.json`, the newest snapshot with a
+funnel section. Where the data does not exist or is too small, the benchmark
+above stands and is marked so. No rate below is a forecast.
+
+| Step | Benchmark | Measured | Verdict |
+| --- | --- | --- | --- |
+| Sitemap URLs indexed | — | **30 of 59 (51 %)** | Measured. All 8 calculator pages and most hedging posts are not indexed |
+| Impressions → clicks | — | **0 of 150 (0 %)**, avg position 30.9, 28 days | Measured, but n is too small to be a CTR |
+| Visitors | 760 / day needed | not measured — GA4 "not configured" | Benchmark stands; no visitor figure exists |
+| Visitors → signup | 3 % | not measurable | Benchmark stands |
+| Signups | ~2,700 needed | **4 ever, 0 in the last 7 days**, all `signup_source = unknown` | Measured count; source unattributable |
+| Signup → live account connected | 25 % | **1 of 4 traded live; 3 of 4 connected** (n = 4) | Too small to replace the benchmark |
+| Live → paid | 15 % | **0 paying** | Benchmark stands |
+
+What this does to the plan: at the measured top of the funnel the 31 Oct
+checkpoint ("measured rates replace every benchmark") cannot be met — there
+are not enough events at any step below indexing to compute a rate. The
+chain's arithmetic is unchanged; the gap is the first link (visitors), and
+the lever that moves it is indexing, then clicks. The 30 Nov and 31 Dec
+checkpoints are not supported by any measured number this week; this is
+reported to the owner for the Friday pack rather than re-based here.
+
 ## Checkpoints
 
 | Date | Must be true | Owner |
