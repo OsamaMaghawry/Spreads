@@ -10,7 +10,21 @@
 // pair's take profit with it) and send a limit at the stop price, pre-market
 // and after hours included. A limit at the stop price never sells below the
 // stop; if the price runs straight through it, it may not fill. Said so in
-// the terminal.
+// the terminal. Unfilled at the open, or at the end of its day, it is taken
+// back and the stop (with its take profit) put back as it was: from 9:30
+// Alpaca's own stop works again, as it would have without the terminal.
+
+/**
+ * What becomes of a fired stop's limit (`status`: the broker's): filled,
+ * done; cancelled by someone else, left so; expired, or still working once
+ * regular hours begin, the stop goes back.
+ */
+export function handBack(status: string, regular: boolean): "done" | "cancelled" | "return" | "wait" {
+  if (status === "filled") return "done";
+  if (status === "canceled") return "cancelled";
+  if (["expired", "done_for_day", "rejected", "stopped", "suspended"].includes(status)) return "return";
+  return regular ? "return" : "wait";
+}
 
 export type Guard = {
   orderId: string; // the order to cancel: the stop, or the pair's take profit (which cancels both)
@@ -20,6 +34,7 @@ export type Guard = {
   stop: number;
   limit: number | null; // a stop-limit's own limit; the stop price otherwise
   pair: boolean;
+  target: number | null; // the pair's take profit, to put back with the stop
   since: number; // when it was placed (ms): a trade before then does not count
 };
 
@@ -56,11 +71,11 @@ export function guardedStops(orders: any[]): Guard[] {
       const leg = (o.legs || []).find((l: any) => l?.type === "stop" || l?.type === "stop_limit");
       const stop = num(leg?.stop_price);
       if (!stop) continue;
-      out.push({ orderId: String(o.id), symbol, side: o.side, qty, stop, limit: leg.type === "stop_limit" ? num(leg.limit_price) : null, pair: true, since: placed(o) });
+      out.push({ orderId: String(o.id), symbol, side: o.side, qty, stop, limit: leg.type === "stop_limit" ? num(leg.limit_price) : null, pair: true, target: num(o.limit_price), since: placed(o) });
     } else if ((o.type === "stop" || o.type === "stop_limit") && (!o.order_class || o.order_class === "simple")) {
       const stop = num(o.stop_price);
       if (!stop) continue;
-      out.push({ orderId: String(o.id), symbol, side: o.side, qty, stop, limit: o.type === "stop_limit" ? num(o.limit_price) : null, pair: false, since: placed(o) });
+      out.push({ orderId: String(o.id), symbol, side: o.side, qty, stop, limit: o.type === "stop_limit" ? num(o.limit_price) : null, pair: false, target: null, since: placed(o) });
     }
   }
   return out;
@@ -119,8 +134,19 @@ export function exitOrder(g: Guard, heldQty: number | null, clientId: string):
   };
 }
 
-/** If the limit is refused: the stop put back as it was, good till cancelled, so the open still protects. */
-export function restoreOrder(g: Guard, qty: number, clientId: string) {
+/**
+ * The stop put back as it was, good till cancelled, so the open still
+ * protects: when the limit is refused, and when it has not filled by the
+ * open or by the end of its day. A pair comes back as a pair, with its take
+ * profit, on whole shares.
+ */
+export function restoreOrder(g: Pick<Guard, "symbol" | "side" | "stop" | "limit" | "target">, qty: number, clientId: string): Record<string, unknown> {
+  if (g.target && !g.limit && Number.isInteger(qty)) {
+    return {
+      symbol: g.symbol, side: g.side, qty: String(qty), type: "limit", time_in_force: "gtc", order_class: "oco", client_order_id: clientId,
+      take_profit: { limit_price: price(g.target) }, stop_loss: { stop_price: price(g.stop) }
+    };
+  }
   return {
     symbol: g.symbol, side: g.side, qty: String(qty), type: g.limit ? "stop_limit" : "stop", stop_price: price(g.stop),
     ...(g.limit ? { limit_price: price(g.limit) } : {}), time_in_force: Number.isInteger(qty) ? "gtc" : "day", client_order_id: clientId

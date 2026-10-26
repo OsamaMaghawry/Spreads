@@ -230,8 +230,8 @@ export default function Terminal() {
     return fresh;
   };
   const fireNews = useCallback((f) => ({
-    tone: f.status === "sent" ? "ok" : f.status === "failed" ? "bad" : "muted",
-    title: f.status === "sent" ? `Stop fired on ${f.symbol}` : f.status === "failed" ? `Stop on ${f.symbol}: needs a look` : `Stop on ${f.symbol} not fired`,
+    tone: f.status === "sent" || f.status === "done" ? "ok" : f.status === "failed" ? "bad" : "muted",
+    title: { sent: `Stop fired on ${f.symbol}`, done: `Stop filled on ${f.symbol}`, returned: `Stop back on ${f.symbol}`, cancelled: `Stop limit cancelled on ${f.symbol}`, failed: `Stop on ${f.symbol}: needs a look` }[f.status] || `Stop on ${f.symbol} not fired`,
     detail: `Traded ${px(f.trigger)} against the stop at ${px(f.stop)}${f.at ? `, ${new Date(f.at).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" })} New York` : ""}. ${f.note || ""}`
   }), []);
   useEffect(() => listen((m) => {
@@ -241,7 +241,7 @@ export default function Terminal() {
       notify({ key, tone: "wait", title: `Stop hit on ${m.symbol} at ${px(m.trigger)}`, detail: `Outside regular hours: cancelling it and sending a limit at ${px(m.stop)}…` });
       return;
     }
-    sawFire(m.id);
+    sawFire(`${m.id}:${m.status}`);
     notify({ key, ...fireNews({ ...m, at: new Date().toISOString() }) });
     loadView();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -250,7 +250,7 @@ export default function Terminal() {
     if (!accountId) return;
     invokeFunction("terminal", { action: "guardFires", accountId }).then((r) => {
       for (const f of (r?.data?.fires || []).slice(0, 3)) {
-        if (f.status === "firing" || !sawFire(f.order_id)) continue;
+        if (f.status === "firing" || !sawFire(`${f.order_id}:${f.status}`)) continue;
         notify({ key: `guard${f.order_id}`, ...fireNews({ symbol: f.symbol, trigger: f.trigger_price, stop: f.stop_price, status: f.status, note: f.note, at: f.created_at }) });
       }
     });

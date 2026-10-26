@@ -19,7 +19,7 @@ import { usSession, stopPlan, exitPlan, tradeSize, partialQty, targetPlan, exist
 import { inBackground } from "../_shared/background.ts";
 import { isOwnerEmail } from "../_shared/admin.ts";
 import { guardHours } from "../_shared/stopGuard.ts";
-import { stopsToWatch, extStopsOn, watchEodhd, checkIex } from "../_shared/stopGuardRun.ts";
+import { stopsToWatch, extStopsOn, watchEodhd, checkIex, handBackFired } from "../_shared/stopGuardRun.ts";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -1310,6 +1310,8 @@ async function guardStops(admin: any, dryRun = false, onlyAccount = "") {
   const t = Date.now();
   const eodhdKey = Deno.env.get("EODHD_API_KEY") || null;
   const report: any = { at: iso(t), eodhdHours: guardHours(t, "eodhd"), iexHours: guardHours(t, "iex"), accounts: 0, watchedByTerminal: 0, off: 0, guards: [], fired: [] };
+  // Fired stops whose limit did not fill go back as stops, at any hour.
+  if (!dryRun) report.handedBack = await handBackFired(admin);
   if (!dryRun && !report.eodhdHours && !report.iexHours) return { ...report, skipped: "regular hours or closed" };
   // The terminal's people: those with a setting stored.
   const { data: people } = await admin.from("terminal_prefs").select("user_id").limit(5000);

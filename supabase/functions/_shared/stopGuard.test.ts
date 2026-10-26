@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { guardedStops, reaches, guardHours, exitOrder, restoreOrder } from "./stopGuard.ts";
+import { guardedStops, reaches, guardHours, exitOrder, restoreOrder, handBack } from "./stopGuard.ts";
 
 // The account's open orders as Alpaca lists them (nested=true), 26 Oct: 490
 // RENT held, the terminal's take profit at 3.60 paired with a stop at 2.95.
@@ -22,9 +22,9 @@ test("the terminal's own stops: a pair's stop, a plain stop, a stop-limit; nothi
     { id: "x4", client_order_id: "TERM_5", symbol: "XOP", side: "sell", qty: "100", type: "limit", limit_price: "210" }
   ];
   assert.deepEqual(guardedStops(orders), [
-    { orderId: "b7fad269", symbol: "RENT", side: "sell", qty: 490, stop: 2.95, limit: null, pair: true, since: Date.parse("2026-10-26T11:18:59Z") },
-    { orderId: "s1", symbol: "WMT", side: "sell", qty: 300, stop: 115, limit: null, pair: false, since: 0 },
-    { orderId: "s2", symbol: "TSLA", side: "buy", qty: 10, stop: 390, limit: 392, pair: false, since: 0 }
+    { orderId: "b7fad269", symbol: "RENT", side: "sell", qty: 490, stop: 2.95, limit: null, pair: true, target: 3.6, since: Date.parse("2026-10-26T11:18:59Z") },
+    { orderId: "s1", symbol: "WMT", side: "sell", qty: 300, stop: 115, limit: null, pair: false, target: null, since: 0 },
+    { orderId: "s2", symbol: "TSLA", side: "buy", qty: 10, stop: 390, limit: 392, pair: false, target: null, since: 0 }
   ]);
   assert.deepEqual(guardedStops(null as any), []);
 });
@@ -70,18 +70,34 @@ test("the order that replaces it: a limit at the stop price, for the day, extend
   assert.equal(exitOrder(g, 0, "c").ok, false);
   assert.equal(exitOrder(g, -50, "c").ok, false);
   // A stop-limit goes at its own limit; a buy back needs a short.
-  const s = { orderId: "s2", symbol: "TSLA", side: "buy" as const, qty: 10, stop: 390, limit: 392, pair: false, since: 0 };
+  const s = { orderId: "s2", symbol: "TSLA", side: "buy" as const, qty: 10, stop: 390, limit: 392, pair: false, target: null, since: 0 };
   assert.equal((exitOrder(s, -10, "c") as any).body.limit_price, "392.00");
   assert.equal(exitOrder(s, 10, "c").ok, false);
   // A price under a dollar keeps four places.
   assert.equal((exitOrder({ ...g, stop: 0.4567 }, 490, "c") as any).body.limit_price, "0.4567");
 });
 
-test("if the limit is refused, the stop goes back as it was", () => {
+test("the stop goes back as it was: a pair as a pair, a stop-limit with its limit", () => {
   const [g] = guardedStops([PAIR]);
-  assert.deepEqual(restoreOrder(g, 490, "TERM_R_1"), { symbol: "RENT", side: "sell", qty: "490", type: "stop", stop_price: "2.95", time_in_force: "gtc", client_order_id: "TERM_R_1" });
-  const s = { orderId: "s2", symbol: "TSLA", side: "buy" as const, qty: 10, stop: 390, limit: 392, pair: false, since: 0 };
+  assert.deepEqual(restoreOrder(g, 490, "TERM_R_1"), {
+    symbol: "RENT", side: "sell", qty: "490", type: "limit", time_in_force: "gtc", order_class: "oco", client_order_id: "TERM_R_1",
+    take_profit: { limit_price: "3.60" }, stop_loss: { stop_price: "2.95" }
+  });
+  assert.deepEqual(restoreOrder({ ...g, target: null }, 490, "TERM_R_2"), { symbol: "RENT", side: "sell", qty: "490", type: "stop", stop_price: "2.95", time_in_force: "gtc", client_order_id: "TERM_R_2" });
+  const s = { orderId: "s2", symbol: "TSLA", side: "buy" as const, qty: 10, stop: 390, limit: 392, pair: false, target: null, since: 0 };
   assert.equal(restoreOrder(s, 10, "c").type, "stop_limit");
   assert.equal(restoreOrder(s, 10, "c").limit_price, "392.00");
+  // Part of a share: no pair, for the day.
+  assert.equal(restoreOrder(g, 2.5, "c").type, "stop");
   assert.equal(restoreOrder(g, 2.5, "c").time_in_force, "day");
+});
+
+test("a fired stop's limit: filled, done; cancelled by you, left; expired, or working at the open, the stop goes back", () => {
+  assert.equal(handBack("filled", false), "done");
+  assert.equal(handBack("canceled", true), "cancelled");
+  assert.equal(handBack("expired", false), "return");
+  assert.equal(handBack("new", false), "wait");
+  assert.equal(handBack("partially_filled", false), "wait");
+  assert.equal(handBack("new", true), "return");
+  assert.equal(handBack("partially_filled", true), "return");
 });

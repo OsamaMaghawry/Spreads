@@ -8,7 +8,8 @@
 --
 -- terminal_stop_fires: one row per stop the terminal fired itself. Its key is
 -- the broker's order id, so the two watchers cannot both fire one stop: the
--- first insert wins. It is also the record of what was done and why.
+-- first insert wins. It is also the record of what was done and why, and of
+-- the stop to put back if the limit has not filled by the open.
 --
 -- terminal_guard_seen: when an open terminal last watched an account's stops;
 -- the minute job leaves those accounts to it.
@@ -25,9 +26,14 @@ create table if not exists public.terminal_stop_fires (
   side text not null check (side in ('buy', 'sell')),
   qty numeric,
   stop_price numeric not null,
+  limit_price numeric,
+  target_price numeric,
   trigger_price numeric not null,
   via text not null check (via in ('relay', 'server')),
-  status text not null check (status in ('firing', 'sent', 'gone', 'failed')),
+  -- firing, then: sent (the limit is out), gone (nothing to do), failed;
+  -- and for a sent one: done (filled), returned (unfilled at the open or the
+  -- end of its day, the stop put back), cancelled (the limit cancelled by hand).
+  status text not null check (status in ('firing', 'sent', 'gone', 'failed', 'done', 'returned', 'cancelled')),
   exit_order_id text,
   note text,
   created_at timestamptz not null default now(),

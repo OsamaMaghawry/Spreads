@@ -3,9 +3,10 @@
 // (marketStream), from each live trade, and the minute job (functions/
 // terminal "guardStops") while no terminal is open. terminal_stop_fires,
 // keyed by the broker's order id, lets only one of them fire a stop.
-import { alpacaFetch, tradingBase } from "./alpaca.ts";
+import { alpacaFetch, tradingBase, loadAccount } from "./alpaca.ts";
 import { recordAttempt } from "./orderAttempts.ts";
-import { guardedStops, guardHours, reaches, exitOrder, restoreOrder, type Guard } from "./stopGuard.ts";
+import { usSession } from "./positionTools.ts";
+import { guardedStops, guardHours, reaches, exitOrder, restoreOrder, handBack, type Guard } from "./stopGuard.ts";
 
 const OPEN = new Set(["new", "accepted", "pending_new", "accepted_for_bidding", "held", "partially_filled"]);
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -33,7 +34,7 @@ export async function extStopsOn(admin: any, userId: string) {
 export async function fireGuard(admin: any, account: any, userId: string, g: Guard, trigger: number, via: "relay" | "server") {
   const claim = await admin.from("terminal_stop_fires").insert({
     order_id: g.orderId, user_id: userId, account_id: account.id, symbol: g.symbol, side: g.side, qty: g.qty,
-    stop_price: g.stop, trigger_price: trigger, via, status: "firing"
+    stop_price: g.stop, limit_price: g.limit, target_price: g.target, trigger_price: trigger, via, status: "firing"
   });
   // Already fired, or being fired by the other watcher.
   if (claim.error) return { status: "skipped" as const, note: null, exitOrderId: null };
@@ -82,6 +83,61 @@ export async function fireGuard(admin: any, account: any, userId: string, g: Gua
   } catch (e) {
     return finish("failed", String((e as Error)?.message || e));
   }
+}
+
+/**
+ * Fired stops whose limit did not fill: once regular hours begin, or once its
+ * day ends, the limit is taken back and the stop (a pair's take profit with
+ * it) put back as it was, so Alpaca's own stop works from the open, as it
+ * would have without the terminal. A limit filled is done; one cancelled by
+ * the person is left so. Run every minute by the minute job, at any hour.
+ */
+export async function handBackFired(admin: any) {
+  const { data: rows } = await admin.from("terminal_stop_fires").select("*").eq("status", "sent").not("exit_order_id", "is", null).limit(50);
+  const out: any[] = [];
+  const regular = usSession(Date.now()) === "regular";
+  for (const row of rows || []) {
+    const set = async (status: string, note: string) => {
+      await admin.from("terminal_stop_fires").update({ status, note, updated_at: now() }).eq("order_id", row.order_id);
+      out.push({ symbol: row.symbol, status, note });
+    };
+    try {
+      const account = await loadAccount(admin, row.account_id, row.user_id);
+      const base = tradingBase(account);
+      const exit = await alpacaFetch(`${base}/orders/${row.exit_order_id}`, account).catch(() => null);
+      if (!exit) continue;
+      const step = handBack(String(exit.status), regular);
+      if (step === "wait") continue;
+      if (step === "done") { await set("done", `${row.note || ""} Filled at ${exit.filled_avg_price}.`.trim()); continue; }
+      if (step === "cancelled") { await set("cancelled", "The limit was cancelled by hand; the stop was not put back."); continue; }
+      if (OPEN.has(exit.status)) {
+        await alpacaFetch(`${base}/orders/${row.exit_order_id}`, account, { method: "DELETE" }).catch(() => null);
+        let state = "";
+        for (let i = 0; i < 16; i++) {
+          state = (await alpacaFetch(`${base}/orders/${row.exit_order_id}`, account).catch(() => null))?.status || "";
+          if (state && !OPEN.has(state) && state !== "pending_cancel") break;
+          await pause(250);
+        }
+        if (state === "filled") { await set("done", `${row.note || ""} Filled.`.trim()); continue; }
+        if (state !== "canceled") continue; // tried again next minute
+      }
+      const pos = await alpacaFetch(`${base}/positions/${encodeURIComponent(row.symbol)}`, account).catch(() => null);
+      const held = Number(pos?.qty) || 0;
+      const left = row.side === "sell" ? held : -held;
+      if (!(left > 0)) { await set("done", "Nothing left to protect."); continue; }
+      const g = { symbol: row.symbol, side: row.side, stop: Number(row.stop_price), limit: row.limit_price === null ? null : Number(row.limit_price), target: row.target_price === null ? null : Number(row.target_price) };
+      const why = regular ? "had not filled by the open" : "ended its day unfilled";
+      try {
+        const back = await alpacaFetch(`${base}/orders`, account, { method: "POST", body: JSON.stringify(restoreOrder(g, Math.min(left, Number(row.qty) || left), `TERM_R_${Date.now()}`)) });
+        await set("returned", `The limit at ${row.stop_price} ${why}; the stop${g.target ? " and its take profit are" : " is"} back as before (order ${back.id}).`);
+      } catch (e) {
+        await set("failed", `The limit at ${row.stop_price} ${why}, and the stop could not be put back (${String((e as Error)?.message || e)}). The position has no stop.`);
+      }
+    } catch (e) {
+      console.error(`stop guard hand-back: ${String((e as Error)?.message || e)}`);
+    }
+  }
+  return out;
 }
 
 /**
