@@ -18,6 +18,8 @@ import { historyRow, premarket, nyMoment } from "../_shared/screenHistory.ts";
 import { usSession, stopPlan, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody } from "../_shared/positionTools.ts";
 import { inBackground } from "../_shared/background.ts";
 import { isOwnerEmail } from "../_shared/admin.ts";
+import { guardHours } from "../_shared/stopGuard.ts";
+import { stopsToWatch, extStopsOn, watchEodhd, checkIex } from "../_shared/stopGuardRun.ts";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -1094,6 +1096,10 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
       .map((row) => ({ s: at(row, "symbol"), prevClose: at(row, "prevClose"), open: at(row, "open"), gap: Math.round(gap(row) * 1000) / 10, pm: pm.pm?.[at(row, "symbol")] || null, close: at(row, "close"), volume: at(row, "volume"), avgVol20: Math.round(at(row, "avgVol20") || 0) }));
     return { date, asOf, part, parts, msHistory, msPremarket: Date.now() - t1, listed: r.listed, rows: r.rows.length, premarket: Object.keys(pm.pm || {}).length, feed: r.dayFeed, top };
   }
+  if (only === "guard") {
+    // The minute job's view without firing: which stops it guards and from what.
+    return await guardStops(admin, true, accountId);
+  }
   if (only === "fills") {
     // The Demo P/L's read for an account (accountId), since New York midnight
     // today or the moment given: how many fills, a few of them, and the closes.
@@ -1284,6 +1290,57 @@ async function accountFills(account: any, startIso: string) {
   };
   await Promise.all([readMarks(symbols.filter((s) => !isCrypto(s)), false), readMarks(symbols.filter((s) => isCrypto(s)), true)]);
   return { start: iso(start), fills, positions, marks, options, truncated };
+}
+
+// ---------- stops outside regular hours: the minute job ----------
+//
+// While no terminal is open on an account, the terminal's stops on it are
+// watched from here, every minute before 9:30 and after 16:00 New York
+// (stopGuardRun.ts has the rules; the open terminal's relay watches the rest
+// of the time, and the account is left to it while it does). The owner's
+// accounts from EODHD's stream, listened to for most of the minute; anyone
+// else's from the trades of their own Alpaca account's IEX feed, 8:00 to
+// 17:00, the hours it has them.
+async function emailOf(admin: any, userId: string) {
+  const { data } = await admin.auth.admin.getUserById(userId).catch(() => ({ data: null }));
+  return data?.user?.email || "";
+}
+
+async function guardStops(admin: any, dryRun = false, onlyAccount = "") {
+  const t = Date.now();
+  const eodhdKey = Deno.env.get("EODHD_API_KEY") || null;
+  const report: any = { at: iso(t), eodhdHours: guardHours(t, "eodhd"), iexHours: guardHours(t, "iex"), accounts: 0, watchedByTerminal: 0, off: 0, guards: [], fired: [] };
+  if (!dryRun && !report.eodhdHours && !report.iexHours) return { ...report, skipped: "regular hours or closed" };
+  // The terminal's people: those with a setting stored.
+  const { data: people } = await admin.from("terminal_prefs").select("user_id").limit(5000);
+  const users = [...new Set((people || []).map((r: any) => r.user_id))];
+  if (!users.length) return report;
+  let q = admin.from("trading_accounts").select("id, user_id, is_paper, provider").in("user_id", users).eq("is_paper", true);
+  if (onlyAccount) q = q.eq("id", onlyAccount);
+  const [{ data: accounts }, { data: seen }] = await Promise.all([
+    q, admin.from("terminal_guard_seen").select("account_id").gt("seen_at", iso(t - 45000))
+  ]);
+  const watched = new Set((seen || []).map((r: any) => r.account_id));
+  const viaEodhd: any[] = [];
+  const viaIex: any[] = [];
+  for (const a of accounts || []) {
+    if (a.provider === "snaptrade") continue;
+    if (watched.has(a.id)) { report.watchedByTerminal += 1; if (!dryRun) continue; }
+    if (!(await extStopsOn(admin, a.user_id))) { report.off += 1; continue; }
+    const account = await loadAccount(admin, a.id, a.user_id).catch(() => null);
+    if (!account) continue;
+    const guards = await stopsToWatch(account).catch(() => []);
+    report.accounts += 1;
+    if (!guards.length) continue;
+    const owner = !!eodhdKey && isOwnerEmail(await emailOf(admin, a.user_id));
+    report.guards.push(...guards.map((g) => ({ account: a.id, symbol: g.symbol, side: g.side, qty: g.qty, stop: g.stop, pair: g.pair, source: owner ? "eodhd" : "iex", terminalOpen: watched.has(a.id) })));
+    (owner ? viaEodhd : viaIex).push({ account, userId: a.user_id, guards });
+  }
+  if (dryRun) return report;
+  if (viaIex.length && report.iexHours) for (const item of viaIex) report.fired.push(...await checkIex(admin, item));
+  if (viaEodhd.length && report.eodhdHours && eodhdKey) report.fired.push(...await watchEodhd(admin, eodhdKey, viaEodhd, Math.max(5000, 55000 - (Date.now() - t))));
+  if (report.fired.length || report.guards.length) console.log(`stop guard job: ${JSON.stringify({ guards: report.guards.length, fired: report.fired })}`);
+  return report;
 }
 
 // ---------- bar replay ----------
@@ -1613,6 +1670,10 @@ Deno.serve(async (req) => {
     const admin = adminClient();
     const [on, body] = await Promise.all([labOn(admin), req.json().catch(() => ({}))]);
     if (!on) return jsonResponse({ error: "The trading terminal is not available here." }, 404);
+    if (body?.action === "guardStops") {
+      if (!(await redeemCronTicket(admin, body.ticket, "terminal_stop_guard"))) return jsonResponse({ error: "not authorised" }, 401);
+      return jsonResponse(await guardStops(admin));
+    }
     if (body?.action === "selftest") {
       if (!(await redeemCronTicket(admin, body.ticket, "terminal_selftest"))) return jsonResponse({ error: "not authorised" }, 401);
       const report = await selftest(admin, String(body.only || ""), Number(body.seconds) || 8, String(body.accountId || ""),
@@ -1660,6 +1721,11 @@ Deno.serve(async (req) => {
       const list = Array.isArray(body.symbols) ? body.symbols : [symbol];
       const r = await newsFor(account, list, String(body.start || ""), String(body.end || ""), String(body.sort || "desc"), Number(body.max) || 50);
       return jsonResponse(r, (r as any).error ? 400 : 200);
+    }
+    if (action === "guardFires") {
+      const { data } = await admin.from("terminal_stop_fires").select("order_id, symbol, side, qty, stop_price, trigger_price, via, status, note, created_at")
+        .eq("user_id", user.id).gt("created_at", iso(Date.now() - 24 * 3600000)).order("created_at", { ascending: false }).limit(50);
+      return jsonResponse({ fires: data || [] });
     }
     if (action === "fills") {
       const r = await accountFills(account, String(body.start || ""));

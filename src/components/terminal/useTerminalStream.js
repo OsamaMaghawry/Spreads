@@ -97,7 +97,8 @@ export default function useTerminalStream(accountId, symbols, book = "", stockFe
           const cur = pending.current[m.symbol] || {};
           pending.current[m.symbol] = { ...cur, last: m.price, lastSize: m.size, at: m.at };
           listeners.current.forEach((fn) => fn(m));
-        } else if (m.type === "bar") {
+        } else if (m.type === "bar" || m.type === "guard") {
+          // guard: a stop the server fired outside regular hours (stopGuardRun.ts).
           listeners.current.forEach((fn) => fn(m));
         }
       };

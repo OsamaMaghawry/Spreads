@@ -12,13 +12,18 @@
 // connects to Alpaca with the decrypted credentials, and only prices travel back
 // down. The credentials never leave the server.
 //
-// Deliberately one-way and read-only: it subscribes to trades and quotes for the
-// symbols asked for and relays them. It cannot place, change or cancel anything.
+// Deliberately one-way and read-only for the browser: it subscribes to trades
+// and quotes for the symbols asked for and relays them, and nothing the
+// browser sends can place, change or cancel anything. The one exception is
+// the server's own: the terminal's stops outside regular hours, which its
+// relay fires on a paper account when a trade reaches them (stopGuardRun.ts).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { decryptSecret } from "../_shared/crypto.ts";
 import { isConnectorToken } from "../_shared/connectorToken.ts";
 import { relayDetail, SHARE, COIN } from "../_shared/terminalRelay.ts";
 import { isOwnerEmail } from "../_shared/admin.ts";
+import { loadAccount } from "../_shared/alpaca.ts";
+import { guardWatcher } from "../_shared/stopGuardRun.ts";
 
 // The free IEX feed. SIP is a paid entitlement and returns an auth error rather
 // than falling back, so the feed is a deliberate choice here, not a default.
@@ -99,7 +104,14 @@ Deno.serve(async (req) => {
     const asked = url.searchParams.get("stocks") || "iex";
     const eodhdKey = asked === "eodhd" && isOwnerEmail(user.email) ? Deno.env.get("EODHD_API_KEY") || null : null;
     const stockFeed = asked === "eodhd" ? (eodhdKey ? "eodhd" : "iex") : asked;
-    relayDetail(socket, auth, symbols, (url.searchParams.get("book") || "").toUpperCase(), stockFeed, eodhdKey);
+    // While the terminal is open, its relay also fires the account's stops
+    // outside regular hours from the trades it streams (stopGuardRun.ts), on
+    // paper accounts, the only ones the terminal trades. Not from the delayed
+    // tape: a stop fired fifteen minutes late is not a stop.
+    const source = stockFeed === "eodhd" ? "eodhd" : stockFeed === "iex" ? "iex" : null;
+    const trading = account.is_paper && source ? await loadAccount(admin, accountId, user.id).catch(() => null) : null;
+    const guard = trading ? guardWatcher(admin, trading, user.id, source) : null;
+    relayDetail(socket, auth, symbols, (url.searchParams.get("book") || "").toUpperCase(), stockFeed, eodhdKey, guard);
     return response;
   }
   if (!key || !secret) {

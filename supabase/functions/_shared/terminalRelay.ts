@@ -126,11 +126,17 @@ function eodhdShares(key: string, send: (m: any) => void, said: string[], isClos
   };
 }
 
+// The watcher of the account's stops outside regular hours (stopGuardRun.ts
+// guardWatcher): the shares it guards are streamed too, every share trade
+// goes past it, and what it says goes to the browser as {type: "guard"}.
+type StopWatch = { start(onChange: () => void): void; stop(): void; symbols(): string[]; trade(symbol: string, price: number, size: number, at: number, tell: (m: any) => void): Promise<void> };
+
 /**
  * `stockFeed`: "iex" (default), "delayed_sip" or "sip" from Alpaca, or
- * "eodhd" with `eodhdKey` for EODHD's real-time stream.
+ * "eodhd" with `eodhdKey` for EODHD's real-time stream. `guard`: the stops
+ * watcher, when the account has one.
  */
-export function relayDetail(client: WebSocket, auth: { key: string; secret: string }, initial: string[], initialBook: string, stockFeed = "iex", eodhdKey: string | null = null) {
+export function relayDetail(client: WebSocket, auth: { key: string; secret: string }, initial: string[], initialBook: string, stockFeed = "iex", eodhdKey: string | null = null, guard: StopWatch | null = null) {
   const STOCK_STREAM = STOCK_STREAMS[stockFeed] || STOCK_STREAMS.iex;
   let closed = false;
   const startedAt = Date.now();
@@ -159,13 +165,24 @@ export function relayDetail(client: WebSocket, auth: { key: string; secret: stri
     crypto: { kind: "crypto", ws: null, authed: false, subscribed: new Set(), book: "", attempts: 0, final: null }
   };
   const timers = new Set<number>();
-  const of = (f: Feed) => [...wanted].filter((s) => (f.kind === "crypto" ? COIN.test(s) : SHARE.test(s)));
+  // The shares guarded are streamed with those on screen (up to the feed's
+  // own limit), though only those on screen reach the browser.
+  const of = (f: Feed) => (f.kind === "crypto" ? [...wanted].filter((s) => COIN.test(s))
+    : [...new Set([...[...wanted].filter((s) => SHARE.test(s)), ...(guard?.symbols() || [])])].slice(0, 30));
   const eodhd = stockFeed === "eodhd" && eodhdKey ? eodhdShares(eodhdKey, (m) => send(m), said.stocks, () => closed) : null;
 
-  const send = (payload: any) => {
+  const deliver = (payload: any) => {
     if (client.readyState !== WebSocket.OPEN) return;
     sent[payload.type] = (sent[payload.type] || 0) + 1;
     client.send(JSON.stringify(payload));
+  };
+  const send = (payload: any) => {
+    const symbol = payload?.symbol;
+    if (guard && payload.type === "trade" && SHARE.test(String(symbol))) {
+      guard.trade(symbol, Number(payload.price), Number(payload.size), Date.parse(payload.at), deliver).catch(() => {});
+    }
+    if ((payload.type === "trade" || payload.type === "quote" || payload.type === "bar") && symbol && !wanted.has(symbol)) return;
+    deliver(payload);
   };
   const shut = () => {
     if (closed) return;
@@ -173,6 +190,7 @@ export function relayDetail(client: WebSocket, auth: { key: string; secret: stri
     timers.forEach((t) => clearTimeout(t));
     for (const f of Object.values(feeds)) { try { f.ws?.close(); } catch { /* already gone */ } }
     eodhd?.close();
+    guard?.stop();
     try { client.close(); } catch { /* already gone */ }
     clearInterval(heartbeat);
     console.log(`terminal relay: ${summary()}`);
@@ -270,6 +288,7 @@ export function relayDetail(client: WebSocket, auth: { key: string; secret: stri
   client.onopen = () => {
     sync(feeds.stocks);
     sync(feeds.crypto);
+    guard?.start(() => { if (!closed) sync(feeds.stocks); });
   };
   client.onmessage = (event) => {
     let msg: any;

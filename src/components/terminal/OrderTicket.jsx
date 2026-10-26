@@ -35,7 +35,7 @@ const TIF_TEXT = { day: "for the day", gtc: "good till cancelled", ioc: "immedia
 const input = "w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm tabular-nums focus:border-emerald-500 focus:outline-none";
 const label = "mb-1 block text-[11px] uppercase tracking-wider text-slate-500";
 
-export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, onPlaced, pick = null, preset = null, onNotify = () => {} }) {
+export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, onPlaced, pick = null, preset = null, onNotify = () => {}, extStops = true, onExtStops = () => {}, guardHours = "" }) {
   const crypto = isCrypto(symbol);
   const TYPES = crypto ? CRYPTO_TYPES : STOCK_TYPES;
   const [side, setSide] = useState("buy");
@@ -415,7 +415,10 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
       {overBp && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">This is more than the account's buying power; the broker will likely refuse it.</p>}
       {!crypto && choices.stopWaits && (
         <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
-          {session === "pre" ? "Before the open" : session === "post" ? "After the close" : "Outside market hours"}: Alpaca triggers stop orders from 9:30 to 16:00 New York only, so this one waits for the next open. To trade before then, use a limit order with &ldquo;Pre-market and after hours&rdquo; ticked.
+          {session === "pre" ? "Before the open" : session === "post" ? "After the close" : "Outside market hours"}: Alpaca triggers stop orders from 9:30 to 16:00 New York only.{" "}
+          {closing && extStops && type !== "trailing_stop"
+            ? `Until then the terminal watches this one itself (${guardHours} New York): when a trade reaches it, it sends a limit at ${type === "stop_limit" ? "its limit" : "the stop price"}, pre-market and after hours included.`
+            : "This one waits for the next open. To trade before then, use a limit order with \u201cPre-market and after hours\u201d ticked."}
         </p>
       )}
 
@@ -438,7 +441,8 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
       )}
 
       {held !== 0 && account?.id && (
-        <PositionExits account={account} symbol={symbol} held={held} crypto={crypto} paper={paper} session={session} onNotify={onNotify} onPlaced={onPlaced} />
+        <PositionExits account={account} symbol={symbol} held={held} crypto={crypto} paper={paper} session={session} onNotify={onNotify} onPlaced={onPlaced}
+          extStops={extStops} onExtStops={onExtStops} guardHours={guardHours} />
       )}
     </div>
   );
@@ -449,7 +453,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
 // stop working on it, a new take profit the take profit, and a stop and a take
 // profit go together as one cancels the other. Reviewed, then sent, like any
 // order from the ticket.
-function PositionExits({ account, symbol, held, crypto, paper, session, onNotify, onPlaced }) {
+function PositionExits({ account, symbol, held, crypto, paper, session, onNotify, onPlaced, extStops, onExtStops, guardHours }) {
   const [stop, setStop] = useState("");
   const [target, setTarget] = useState("");
   const [review, setReview] = useState(false);
@@ -498,8 +502,16 @@ function PositionExits({ account, symbol, held, crypto, paper, session, onNotify
         </div>
       </div>
       <p className="mt-1 text-[10px] leading-snug text-slate-500">
-        One or both. Together, when one fills the other is cancelled; set alone, it pairs with the other already working.{!crypto && session !== "regular" ? " A stop triggers from 9:30 New York; a take profit fills from then too." : ""}
+        One or both. Together, when one fills the other is cancelled; set alone, it pairs with the other already working. Alpaca works them from 9:30 to 16:00 New York.
       </p>
+      {!crypto && (
+        <label className="mt-1 flex items-start gap-1.5 text-[10px] leading-snug text-slate-600">
+          <input type="checkbox" className="mt-0.5" checked={extStops} onChange={(e) => onExtStops(e.target.checked)} />
+          <span>
+            Outside those hours the terminal fires the stop itself ({guardHours} New York): when a trade reaches it, the take profit is cancelled and a limit at the stop price goes out, pre-market and after hours. It never sells below the stop, so a price that runs straight through may leave it unfilled.
+          </span>
+        </label>
+      )}
       {!pairOk && <p className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-800">{crypto ? "A coin takes one exit at a time at Alpaca: a stop or a take profit, not both." : "With part of a share, Alpaca takes one exit at a time: a stop or a take profit, not both."}</p>}
       {review ? (
         <div className="mt-2 space-y-2 rounded-lg border border-slate-300 bg-slate-50 p-2">

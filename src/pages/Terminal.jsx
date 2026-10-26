@@ -64,6 +64,7 @@ const PAGE_KEY = "dm.terminal.page";
 const HOTKEYS_ON_KEY = "dm.terminal.hotkeysOn";
 const PANES_KEY = "dm.terminal.panes.v1";
 const SHARE_FEED_KEY = "dm.terminal.shareFeed";
+const FIRES_SEEN_KEY = "dm.terminal.firesSeen";
 const NO_FILLS = [];
 // Where each chart sits for one to four of them.
 const PANE_GRID = { 1: "grid-cols-1", 2: "grid-cols-1 sm:grid-cols-2", 3: "grid-cols-2 grid-rows-2", 4: "grid-cols-2 grid-rows-2" };
@@ -209,6 +210,52 @@ export default function Terminal() {
   }, [loadView]);
 
   const tapeLive = feeds[crypto ? "crypto" : "stocks"]?.state === "live";
+
+  // Stops outside regular hours (26 Oct: "The stop loss price was hit but
+  // never executed"): before 9:30 and after 16:00 the server fires the
+  // terminal's stops itself, a limit at the stop price, unless turned off
+  // (stopGuardRun.ts). What it does is said as it happens and, for what it did
+  // while the terminal was closed, once when it opens.
+  const [extStops, setExtStops] = useState(true);
+  useEffect(() => {
+    readPrefs(["extstops"]).then((p) => { if (typeof p.extstops === "boolean") setExtStops(p.extstops); }).catch(() => {});
+  }, []);
+  const changeExtStops = (on) => { setExtStops(on); savePref("extstops", on); };
+  const firedSeen = useRef(null);
+  const sawFire = (id) => {
+    if (!firedSeen.current) { try { firedSeen.current = new Set(JSON.parse(store.get(FIRES_SEEN_KEY) || "[]")); } catch { firedSeen.current = new Set(); } }
+    const fresh = !firedSeen.current.has(id);
+    firedSeen.current.add(id);
+    store.set(FIRES_SEEN_KEY, JSON.stringify([...firedSeen.current].slice(-100)));
+    return fresh;
+  };
+  const fireNews = useCallback((f) => ({
+    tone: f.status === "sent" ? "ok" : f.status === "failed" ? "bad" : "muted",
+    title: f.status === "sent" ? `Stop fired on ${f.symbol}` : f.status === "failed" ? `Stop on ${f.symbol}: needs a look` : `Stop on ${f.symbol} not fired`,
+    detail: `Traded ${px(f.trigger)} against the stop at ${px(f.stop)}${f.at ? `, ${new Date(f.at).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" })} New York` : ""}. ${f.note || ""}`
+  }), []);
+  useEffect(() => listen((m) => {
+    if (m.type !== "guard") return;
+    const key = `guard${m.id}`;
+    if (m.status === "firing") {
+      notify({ key, tone: "wait", title: `Stop hit on ${m.symbol} at ${px(m.trigger)}`, detail: `Outside regular hours: cancelling it and sending a limit at ${px(m.stop)}…` });
+      return;
+    }
+    sawFire(m.id);
+    notify({ key, ...fireNews({ ...m, at: new Date().toISOString() }) });
+    loadView();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [listen, notify, loadView, fireNews]);
+  useEffect(() => {
+    if (!accountId) return;
+    invokeFunction("terminal", { action: "guardFires", accountId }).then((r) => {
+      for (const f of (r?.data?.fires || []).slice(0, 3)) {
+        if (f.status === "firing" || !sawFire(f.order_id)) continue;
+        notify({ key: `guard${f.order_id}`, ...fireNews({ symbol: f.symbol, trigger: f.trigger_price, stop: f.stop_price, status: f.status, note: f.note, at: f.created_at }) });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId]);
 
   // The arrangement: saved per browser, lockable, resettable.
   const [layouts, setLayouts] = useState(() => {
@@ -614,7 +661,8 @@ export default function Terminal() {
               </p>
             )}
             <OrderTicket account={account} symbol={symbol} quote={quote} held={held} heldText={held > 0 && position?.qtyText ? position.qtyText : ""}
-              buyingPower={view?.buyingPower ?? null} onPlaced={loadView} pick={pick} preset={preset} onNotify={notify} />
+              buyingPower={view?.buyingPower ?? null} onPlaced={loadView} pick={pick} preset={preset} onNotify={notify}
+              extStops={extStops} onExtStops={changeExtStops} guardHours={eodhdOk ? "4:00 to 9:30 and 16:00 to 20:00" : "8:00 to 9:30 and 16:00 to 17:00"} />
             <p className="px-1 text-[10px] leading-relaxed text-slate-400">Prices from your own Alpaca account: shares from the free IEX feed (real time, IEX trades only, 8:00 to 17:00 New York), or every exchange fifteen minutes late outside IEX&apos;s hours{eodhdOk ? "; or EODHD's real-time stream on your own EODHD plan" : ""}; coins from Alpaca&apos;s crypto venue, around the clock, with the full order book. Charts by TradingView Lightweight Charts. Not investment advice.</p>
           </div>
         </div>

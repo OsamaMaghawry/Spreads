@@ -193,6 +193,8 @@ revoked from the browser role entirely.
 - **market_news_seen** — news_id, symbol, major, title, what, seen_at
 - **ticker_pages** — ticker, name, spot, spot_as_of, week, month, earnings_date, earnings_session, error, live, refreshed_at
 - **terminal_prefs** — user_id, key, value, updated_at
+- **terminal_stop_fires** — order_id, user_id, account_id, symbol, side, qty, stop_price, trigger_price, via, status, exit_order_id, note, created_at, updated_at
+- **terminal_guard_seen** — account_id, user_id, seen_at
 
 ## Analytics vocabulary
 
