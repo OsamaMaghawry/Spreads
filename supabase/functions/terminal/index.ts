@@ -665,14 +665,22 @@ async function screenHistory(account: any, date: string, asOf: "open" | "close",
   return value;
 }
 
-// A past day's pre-market, 4:00 to 9:30 New York, for the symbols asked
-// (the screen asks for the biggest gaps among liquid shares).
+// A day's pre-market, 4:00 to 9:30 New York, for the symbols asked (the
+// screen asks for the biggest moves among liquid shares). A past day's, or
+// today's for the live screen (26 Oct, before the open: "Screener is not
+// working", every screen on today's volume empty): the consolidated tape up
+// to sixteen minutes ago, as far as an account without a paid data plan may
+// read it. `through` is where it reaches; `complete` once that is 9:30.
 async function screenPremarket(account: any, date: string, symbolsIn: string[]) {
-  const problem = pastDateProblem(date);
+  const today = date === nyDate();
+  const problem = today ? null : pastDateProblem(date);
   if (problem) return { error: problem };
   const symbols = [...new Set(symbolsIn.map((x) => String(x).toUpperCase()))].filter((x) => SYMBOL.test(x)).slice(0, PM_CANDIDATES);
+  const open = nyMoment(date, "09:30") - 1000;
+  const until = today ? Math.min(open, Date.now() - 16 * 60000) : open;
+  if (until <= nyMoment(date, "04:00")) return { date, pm: {}, feed: "sip", through: null, complete: false };
   const from = iso(nyMoment(date, "04:00"));
-  const to = iso(nyMoment(date, "09:30") - 1000);
+  const to = iso(until);
   const groups: string[][] = [];
   for (let i = 0; i < symbols.length; i += PM_CHUNK) groups.push(symbols.slice(i, i + PM_CHUNK));
   const pm: Record<string, ReturnType<typeof premarket>> = {};
@@ -695,7 +703,7 @@ async function screenPremarket(account: any, date: string, symbolsIn: string[]) 
     for (const sym of g) pm[sym] = premarket(all[sym] || []);
     return null;
   });
-  return { date, pm, feed };
+  return { date, pm, feed, through: to, complete: until === open };
 }
 
 // One order as the terminal shows it, finished or not: what was asked, what

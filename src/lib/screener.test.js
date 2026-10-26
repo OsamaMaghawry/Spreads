@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   decodeUniverse, screenRow, parseAmount, cleanScreen, passes, sortRows, needsDaily, presetScreen, PRESETS, FIELD,
-  dailyCandidates, bigNumber, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown, combineScreens, conflicts
+  dailyCandidates, bigNumber, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown, combineScreens, conflicts, premarketPicks
 } from "./screener.js";
 
 const close = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} != ${b}`);
@@ -51,16 +51,42 @@ test("during the session: today folds into RSI and the 52-week range", () => {
   close(r.changePct, 360 / 347.725 - 1);
 });
 
-test("before the open: measured from yesterday's close, no volume yet", () => {
+test("before the open: measured from yesterday's close; today's volume is the pre-market's", () => {
   // Monday 8:00 a.m.: the day's candle is still Friday's.
   const premarket = { ...AAPL, price: 356.4 };
   const r = screenRow(premarket, AAPL_DAILY, "2026-10-26");
   assert.equal(r.preOpen, true);
   close(r.changePct, 356.4 / 347.725 - 1);
   close(r.gapPct, 356.4 / 347.725 - 1);
+  // The day before is Friday, the candle's own day, not Thursday.
+  close(r.prevDollarVol, 347.725 * 40193051);
+  // Until its pre-market is read, no volume for today.
   assert.equal(r.volume, null);
   assert.equal(r.relVol, null);
   assert.equal(r.rangePos, null);
+  // Read at 5:40 a.m. New York: 1.2M shares since 4:00, the last at 356.1.
+  const read = screenRow({ ...premarket, pmVolume: 1.2e6, pmLast: 356.1 }, AAPL_DAILY, "2026-10-26");
+  assert.deepEqual([read.volume, read.pmVolume], [1.2e6, 1.2e6]);
+  close(read.dollarVol, 356.4 * 1.2e6);
+  close(read.relVol, 1.2e6 / 38668905.05);
+  close(read.pmChangePct, 356.1 / 347.725 - 1);
+  // So the day's screens work before the open: up 2.5% on $428M.
+  assert.equal(passes(read, combineScreens(cleanScreen(EMPTY_SCREEN), ["active"])), true);
+  assert.equal(passes(read, combineScreens(cleanScreen({ ...EMPTY_SCREEN, ranges: { changePct: { min: 2, max: null }, dollarVol: { min: 1e8, max: null } } }), [])), true);
+});
+
+test("whose pre-market is read today: the biggest moves among liquid shares, then the most traded", () => {
+  const rows = [
+    { symbol: "SPY", price: 760, prevDollarVol: 3e10, gapPct: -0.002 },
+    { symbol: "AAPL", price: 343, prevDollarVol: 1.4e10, gapPct: -0.013 },
+    { symbol: "ZAP", price: 4, prevDollarVol: 2e6, gapPct: 0.32 },
+    { symbol: "DIP", price: 12, prevDollarVol: 5e6, gapPct: -0.18 },
+    { symbol: "THIN", price: 3, prevDollarVol: 2e5, gapPct: 0.9 },
+    { symbol: "PENNY", price: 0.4, prevDollarVol: 5e6, gapPct: 0.6 },
+    { symbol: "NONE", price: 30, prevDollarVol: 9e6, gapPct: null }
+  ];
+  assert.deepEqual(premarketPicks(rows, 2, 2), ["ZAP", "DIP", "SPY", "AAPL"]);
+  assert.deepEqual(premarketPicks(rows, 10, 0), ["ZAP", "DIP", "AAPL", "SPY", "NONE"]);
 });
 
 test("no daily numbers: today's figures only, the rest blank", () => {
@@ -162,12 +188,13 @@ test("a past day at the close: the whole day against the norms of the days befor
 });
 
 test("what is known when: the open has no day's volume; the past has no live quote or calendar", () => {
-  assert.deepEqual(["relVol", "gapPct", "pmVolume", "spreadPct", "earningsIn"].map((id) => fieldKnown(id, "live")), [true, true, false, true, true]);
+  // Live, everything: today's pre-market too (26 Oct: "Screener is not working" before the open).
+  assert.deepEqual(["relVol", "gapPct", "pmVolume", "pmChangePct", "spreadPct", "earningsIn"].map((id) => fieldKnown(id, "live")), [true, true, true, true, true, true]);
   assert.deepEqual(["relVol", "gapPct", "pmVolume", "spreadPct", "earningsIn", "changePct"].map((id) => fieldKnown(id, "open")), [false, true, true, false, false, false]);
   assert.deepEqual(["relVol", "gapPct", "pmVolume", "changePct"].map((id) => fieldKnown(id, "close")), [true, true, true, true]);
   const known = (w) => PRESETS.filter((p) => presetKnown(p, w)).map((p) => p.id);
   assert.ok(known("open").includes("gapUp") && known("open").includes("pmGappers") && !known("open").includes("gainers"));
-  assert.ok(!known("live").includes("pmGappers"));
+  assert.ok(known("live").includes("pmGappers"));
   // Either way: a gap of 4% or more, up or down.
   const s = presetScreen("pmGappers");
   assert.equal(s.gapAbs, 4);

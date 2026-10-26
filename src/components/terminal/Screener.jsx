@@ -3,7 +3,7 @@ import { RefreshCw, Plus, Check, X, ChevronDown, ChevronRight, History } from "l
 import { invokeFunction } from "@/lib/functions";
 import {
   decodeUniverse, screenRow, FIELDS, FIELD, GROUPS, parseAmount, cleanScreen, passes, sortRows, needsDaily,
-  PRESETS, dailyCandidates, bigNumber, TREND_CHOICES, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown, combineScreens, conflicts
+  PRESETS, dailyCandidates, bigNumber, TREND_CHOICES, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown, combineScreens, conflicts, premarketPicks
 } from "@/lib/screener";
 import { px, pctText } from "@/lib/terminal";
 import { gapWindow, liveWindow, bySymbol } from "@/lib/news";
@@ -27,6 +27,11 @@ import { gapWindow, liveWindow, bySymbol } from "@/lib/news";
 // The News column counts each share's articles since the close before: on a
 // past day, up to its open (or its close), so a gap's catalyst shows; click
 // it for the headlines. Read for the first hundred rows on screen.
+//
+// Before the open (26 Oct, 5:50 New York: "Screener is not working", every
+// screen on today's volume empty because there was none yet), today's volume
+// is the pre-market's: read for the biggest moves and the most traded shares,
+// again every five minutes until it reaches 9:30, and kept for the day.
 
 const SCREEN_KEY = "dm.screener.v1";
 const DAILY_KEY = "dm.screener.daily.v1";
@@ -38,6 +43,8 @@ const DAILY_PARALLEL = 2;
 const HISTORY_PARTS = 4;
 const PM_PICK = 300;
 const PM_BATCH = 100;
+const PM_ACTIVE = 100;
+const PM_EVERY = 5 * 60000;
 const NEWS_ROWS = 100;
 const NEWS_BATCH = 50;
 const AUTO_MS = 60000;
@@ -62,6 +69,11 @@ const COLUMN_SETS = {
     ["symbol", "Symbol"], ["price", "Price"], ["changePct", "Chg %"], ["gapPct", "Gap %"], ["volume", "Volume"], ["relVol", "Rel vol"],
     ["dollarVol", "$ Vol"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["fromHigh52", "vs 52w high"],
     ["vsSma50", "vs 50d"], ["perf1m", "1 month"], ["earningsIn", "Earnings"], ["news", "News"]
+  ],
+  // Live before the open: the move so far is the gap.
+  preOpen: [
+    ["symbol", "Symbol"], ["price", "Price"], ["changePct", "Pre-mkt %"], ["news", "News"], ["volume", "Pre-mkt vol"], ["dollarVol", "Pre-mkt $ vol"], ["prevDollarVol", "$ Vol day before"],
+    ["relVol", "Rel vol"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["fromHigh52", "vs 52w high"], ["vsSma50", "vs 50d"], ["perf1m", "1 month"], ["earningsIn", "Earnings"]
   ],
   open: [
     ["symbol", "Symbol"], ["price", "Open"], ["gapPct", "Gap %"], ["news", "News"], ["pmChangePct", "Pre-mkt %"], ["pmVolume", "Pre-mkt vol"], ["prevDollarVol", "$ Vol day before"],
@@ -273,8 +285,44 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
     return () => clearInterval(t);
   }, [active, accountId, auto, refresh, modeKey]);
 
+  // Today's pre-market, live: whose is read, how far it reaches, and when.
+  const [pm, setPm] = useState({ key: "", by: {}, through: null, complete: false, at: 0, loading: false });
+  const pmBusy = useRef(false);
+  useEffect(() => {
+    if (when.date || !active || !accountId || !universe.rows.length || pmBusy.current) return;
+    const day = nyToday();
+    const key = `${accountId}|${day}`;
+    if ([0, 6].includes(new Date(`${day}T12:00:00Z`).getUTCDay())) return;
+    if (pm.key === key && (pm.complete || Date.now() - pm.at < PM_EVERY)) return;
+    const picks = premarketPicks(universe.rows.map((u) => screenRow(u, null, day)), PM_PICK, PM_ACTIVE);
+    if (!picks.length) return;
+    pmBusy.current = true;
+    setPm((p) => ({ ...(p.key === key ? p : { key, by: {}, through: null, complete: false }), loading: true, at: p.key === key ? p.at : 0 }));
+    const batches = [];
+    for (let i = 0; i < picks.length; i += PM_BATCH) batches.push(picks.slice(i, i + PM_BATCH));
+    Promise.all(batches.map((symbols) => invokeFunction("terminal", { action: "screen", stage: "premarket", accountId, date: day, symbols })
+      .then((r) => (r?.data?.pm && !r.data.error ? r.data : null)).catch(() => null)))
+      .then((got) => {
+        const ok = got.filter(Boolean);
+        setPm((p) => {
+          const by = { ...(p.key === key ? p.by : {}) };
+          for (const g of ok) Object.assign(by, g.pm);
+          const through = ok.map((g) => g.through).filter(Boolean).sort().at(-1) || (p.key === key ? p.through : null);
+          return { key, by, through, complete: ok.length === batches.length && ok.every((g) => g.complete), at: Date.now(), loading: false };
+        });
+      })
+      .finally(() => { pmBusy.current = false; });
+  }, [active, accountId, when.date, universe.at, universe.rows, pm.key, pm.at, pm.complete]);
+
   const today = when.date || nyToday();
-  const rows = useMemo(() => universe.rows.map((u) => screenRow(u, daily[u.symbol] || (when.date ? partialStats(u) : null), today)), [universe.rows, daily, today, when.date]);
+  const pmToday = !when.date && pm.key === `${accountId}|${today}` ? pm.by : null;
+  const rows = useMemo(() => universe.rows.map((u) => {
+    const x = pmToday && pmToday[u.symbol] ? { ...u, ...pmToday[u.symbol] } : u;
+    return screenRow(x, daily[u.symbol] || (when.date ? partialStats(u) : null), today);
+  }), [universe.rows, daily, today, when.date, pmToday]);
+  // Live before the open (most rows' day candle still the last session's).
+  const preOpen = !when.date && rows.length > 0 && rows.filter((r) => r.preOpen).length > rows.length / 2;
+  const lastSession = preOpen ? universe.rows.find((u) => u.day)?.day : null;
   // Filters on figures this moment does not know are set aside, and said so.
   // Everything switched on, as one screen: all must hold.
   const combined = useMemo(() => combineScreens(screen, presets), [screen, presets]);
@@ -285,7 +333,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
   }, [combined, mode]);
   const clash = conflicts(effective);
   const matches = useMemo(() => sortRows(rows.filter((r) => passes(r, effective)), effective.sort), [rows, effective]);
-  const COLUMNS = COLUMN_SETS[mode];
+  const COLUMNS = COLUMN_SETS[preOpen ? "preOpen" : mode];
 
   // Each share's news since the close before (live: until now, in five-minute
   // steps; a past day: to its open or its close), for the rows on screen.
@@ -433,6 +481,14 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
             Set aside {mode === "open" ? "at the open" : "on a past day"}, not known then: {ignored.map((id) => FIELD[id].label).join(", ")}.
           </p>
         )}
+        {preOpen && (
+          <p className="border-b border-sky-100 bg-sky-50 px-2 py-1 text-[11px] text-sky-900">
+            Before the open: the change is against {lastSession ? new Date(`${lastSession}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" }) : "the last session"}&apos;s close, and today&apos;s volume is the pre-market&apos;s
+            {pm.through
+              ? `, 4:00 to ${new Date(pm.through).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" })} New York (every exchange, 15 minutes behind), for ${Object.keys(pmToday || {}).length.toLocaleString()} shares: the biggest moves among those trading $1M a day, and the most traded. Read again every five minutes.`
+              : pm.loading ? ": reading it…" : ": it shows from 4:16 New York."}
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-2 py-1.5 text-xs">
           <span className="font-semibold">{matches.length.toLocaleString()} match{matches.length === 1 ? "" : "es"}</span>
           <span className="text-slate-500">of {rows.length.toLocaleString()} {when.date ? "shares that traded that day" : "listed shares"}{chosen.length ? ` · ${chosen.map((p) => p.note.charAt(0).toLowerCase() + p.note.slice(1)).join(", and ")}`.replace(/^ · ./, (m) => m.toUpperCase()) : ""}</span>
@@ -527,7 +583,11 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
               ))}
             </tbody>
           </table>
-          {!universe.loading && universe.at && matches.length === 0 && <p className="px-3 py-6 text-center text-xs text-slate-500">Nothing matches every filter. Loosen one, or pick a ready-made screen.</p>}
+          {!universe.loading && universe.at && matches.length === 0 && (
+            <p className="px-3 py-6 text-center text-xs text-slate-500">
+              {preOpen && !pm.through ? "Before the open, screens on today's volume fill in once the pre-market has been read." : "Nothing matches every filter. Loosen one, or pick a ready-made screen."}
+            </p>
+          )}
           {!universe.at && universe.loading && <p className="px-3 py-6 text-center text-xs text-slate-500">{when.date ? `Reading every listed share on ${when.date}: about ten seconds the first time.` : "Reading every listed share…"}</p>}
           {matches.length > SHOW_MAX && <p className="px-3 py-2 text-center text-[11px] text-slate-500">Showing the first {SHOW_MAX} of {matches.length.toLocaleString()}. Narrow the filters or sort differently to see others.</p>}
         </div>
@@ -537,7 +597,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
           </p>
         ) : <p className="border-t border-slate-100 px-2 py-1 text-[10px] leading-snug text-slate-400">
           {universe.at ? `Read ${new Date(universe.at).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", second: "2-digit" })} New York. ` : ""}
-          From your own Alpaca account: prices are the last trade (IEX, real time, pre-market and after hours included); volume and the day&apos;s candle are the consolidated tape{universe.dayFeed === "delayed_sip" ? ", 15 minutes delayed" : universe.dayFeed ? " (IEX only: this account cannot read the consolidated tape, so volumes are IEX's share)" : ""}; daily figures from consolidated daily candles. Market cap uses shares outstanding from the company&apos;s latest SEC filing; earnings dates from the earnings calendar. A screen is a filter, not a recommendation.
+          From your own Alpaca account: prices are the later of the last trade on IEX (real time, 8:00 to 17:00 New York) and on the consolidated tape (every exchange, 15 minutes delayed); before the open, volume is the pre-market&apos;s; otherwise volume and the day&apos;s candle are the consolidated tape{universe.dayFeed === "delayed_sip" ? ", 15 minutes delayed" : universe.dayFeed ? " (IEX only: this account cannot read the consolidated tape, so volumes are IEX's share)" : ""}; daily figures from consolidated daily candles. Market cap uses shares outstanding from the company&apos;s latest SEC filing; earnings dates from the earnings calendar. A screen is a filter, not a recommendation.
         </p>}
       </section>
     </div>

@@ -55,11 +55,13 @@ export function screenRow(u, stats, today) {
   const live = s ? (u.day ? u.day > s.lastDate : s.lastDate < today) : false;
   // Before the open on a weekday the day's candle is still yesterday's: the
   // move is measured from yesterday's close, the gap is where the price is
-  // now against it, and there is no volume for today yet.
+  // now against it, today's volume is the pre-market's so far (where it has
+  // been read: `pmVolume`), and the day before is the candle's own day.
   const weekday = ![0, 6].includes(new Date(`${today}T12:00:00Z`).getUTCDay());
   const preOpen = !!(u.day && u.day < today && weekday && num(u.close) !== null);
   const ref = preOpen ? num(u.close) : num(u.prevClose);
-  const volume = preOpen ? null : num(u.volume);
+  const volume = preOpen ? num(u.pmVolume) : num(u.volume);
+  const [beforeClose, beforeVolume] = preOpen ? [num(u.close), num(u.volume)] : [num(u.prevClose), num(u.prevVolume)];
   const high52 = s?.high52 == null ? null : live && num(u.high) !== null ? Math.max(s.high52, u.high) : s.high52;
   const low52 = s?.low52 == null ? null : live && num(u.low) !== null ? Math.min(s.low52, u.low) : s.low52;
   let rsi = null;
@@ -81,7 +83,7 @@ export function screenRow(u, stats, today) {
     gapPct: preOpen ? ratio(price, ref) : ratio(num(u.open), ref),
     volume,
     dollarVol: price !== null && volume !== null ? price * volume : null,
-    prevDollarVol: num(u.prevClose) !== null && num(u.prevVolume) !== null ? u.prevClose * u.prevVolume : null,
+    prevDollarVol: beforeClose !== null && beforeVolume !== null ? beforeClose * beforeVolume : null,
     relVol: volume !== null && s?.avgVol20 ? volume / s.avgVol20 : null,
     avgVol20: s?.avgVol20 ?? null,
     avgDollar20: s?.avgDollar20 ?? null,
@@ -116,18 +118,18 @@ export function screenRow(u, stats, today) {
 // typed and shown as a percentage. `daily`: needs the daily numbers.
 export const FIELDS = [
   { id: "price", label: "Price", unit: "$", group: "Price and volume", hint: "Last trade, pre-market and after hours included" },
-  { id: "volume", label: "Volume today", unit: "shares", group: "Price and volume", wholeDay: true, hint: "Consolidated, 15 minutes delayed" },
+  { id: "volume", label: "Volume today", unit: "shares", group: "Price and volume", wholeDay: true, hint: "Consolidated, 15 minutes delayed; before the open, the pre-market's so far" },
   { id: "relVol", label: "Relative volume", unit: "x", group: "Price and volume", daily: true, wholeDay: true, hint: "Today's volume ÷ the 20-day average (not adjusted for time of day)" },
   { id: "dollarVol", label: "Dollar volume today", unit: "$", group: "Price and volume", wholeDay: true },
   { id: "prevDollarVol", label: "Dollar volume, the day before", unit: "$", group: "Price and volume", hint: "The previous session's close × its volume" },
-  { id: "pmVolume", label: "Pre-market volume", unit: "shares", group: "Price and volume", history: true, hint: "4:00 to 9:30 New York, consolidated; read for the 300 biggest gaps among shares trading $1M a day" },
+  { id: "pmVolume", label: "Pre-market volume", unit: "shares", group: "Price and volume", hint: "4:00 to 9:30 New York, consolidated (today's up to 15 minutes ago); read for the biggest moves among shares trading $1M a day, and today for the most traded too" },
   { id: "avgVol20", label: "Average volume (20 days)", unit: "shares", group: "Price and volume", daily: true },
   { id: "avgDollar20", label: "Average dollar volume (20 days)", unit: "$", group: "Price and volume", daily: true },
   { id: "marketCap", label: "Market cap", unit: "$", group: "Price and volume", hint: "Shares outstanding from the company's latest SEC filing × price" },
   { id: "spreadPct", label: "Bid-ask spread", unit: "%", pct: true, group: "Price and volume", live: true, hint: "IEX quote; wide outside market hours" },
   { id: "changePct", label: "Change today", unit: "%", pct: true, group: "Today", wholeDay: true },
   { id: "gapPct", label: "Gap", unit: "%", pct: true, group: "Today", hint: "The open against the previous close; before the open, the price now against it" },
-  { id: "pmChangePct", label: "Pre-market change", unit: "%", pct: true, group: "Today", history: true, hint: "The last pre-market price against the previous close" },
+  { id: "pmChangePct", label: "Pre-market change", unit: "%", pct: true, group: "Today", hint: "The last pre-market price against the previous close" },
   { id: "rangePos", label: "Position in today's range", unit: "%", pct: true, group: "Today", wholeDay: true, hint: "0% at the day's low, 100% at its high" },
   { id: "fromVwap", label: "Price vs VWAP", unit: "%", pct: true, group: "Today", wholeDay: true },
   { id: "rsi", label: "RSI (14 days)", unit: "", group: "Trend and momentum", daily: true },
@@ -153,7 +155,7 @@ export const FIELDS = [
 export function fieldKnown(id, when) {
   const f = FIELD[id];
   if (!f) return id === "symbol";
-  if (when === "live") return !f.history;
+  if (when === "live") return true;
   if (f.live) return false;
   return when === "close" || !f.wholeDay;
 }
@@ -318,6 +320,21 @@ export function dailyCandidates(rows, cap = 3000) {
     .sort((a, b) => b.prevDollarVol - a.prevDollarVol)
     .slice(0, cap)
     .map((r) => r.symbol);
+}
+
+/**
+ * Whose pre-market to read today (the server reads minute candles, a few
+ * hundred shares at most): the biggest moves either way since the last close
+ * among shares that traded $1M the day before, then the most traded of the
+ * rest, where SPY and the large names are even on a quiet morning.
+ */
+export function premarketPicks(rows, movers = 300, active = 100) {
+  const liquid = rows.filter((r) => r.price >= 1 && r.prevDollarVol >= 1e6);
+  const move = (r) => (Number.isFinite(r.gapPct) ? Math.abs(r.gapPct) : -1);
+  const picked = liquid.slice().sort((a, b) => move(b) - move(a)).slice(0, movers).map((r) => r.symbol);
+  const taken = new Set(picked);
+  const busiest = liquid.filter((r) => !taken.has(r.symbol)).sort((a, b) => b.prevDollarVol - a.prevDollarVol).slice(0, active).map((r) => r.symbol);
+  return [...picked, ...busiest];
 }
 
 /** "1.2B", "350M", "48K" for volumes and dollars. */
