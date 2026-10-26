@@ -1017,6 +1017,16 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     const key = Deno.env.get("EODHD_API_KEY");
     if (!key) return { error: "No EODHD_API_KEY secret on this project yet." };
     const secs = Math.min(30, Math.max(5, Number(seconds) || 15));
+    const historyOnly = extra.includes("HISTORY");
+    const extraSymbol = extra.find((x) => x !== "HISTORY" && /^[A-Z]{1,5}$/.test(x)) || "AAPL";
+    // The weekday before today, New York.
+    const lastSessionDay = () => {
+      for (let back = 1; back < 8; back++) {
+        const d = nyDate(Date.now() - back * 86400000);
+        if (![0, 6].includes(new Date(`${d}T12:00:00Z`).getUTCDay())) return d;
+      }
+      return nyDate(Date.now() - 86400000);
+    };
     const get = async (path: string) => {
       const t = Date.now();
       try {
@@ -1065,8 +1075,31 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
       sock.onerror = () => rep.errors.push("socket error");
       sock.onclose = (e) => { clearTimeout(timer); rep.closed = { code: e.code, reason: e.reason }; finish(); };
     });
+    // History EODHD could draw a chart's past from, as its stream draws the
+    // present (26 Oct: "Where is the history for the already passed trades or
+    // candles"): its tick data for the last 30 minutes, and its one-minute
+    // candles for the last session. "history" alone runs just these.
+    const ticksFrom = Math.floor(now) - 1800;
+    const tk = await get(`ticks/?s=${extraSymbol}&from=${ticksFrom}&to=${Math.floor(now)}&limit=5000`);
+    const tb: any = tk.body && typeof tk.body === "object" ? tk.body : null;
+    const tts: number[] = Array.isArray(tb?.ts) ? tb.ts : [];
+    const ticks = {
+      status: tk.status, ms: tk.ms, n: tts.length,
+      first: tts.length ? new Date(Math.min(...tts)).toISOString() : null, last: tts.length ? new Date(Math.max(...tts)).toISOString() : null,
+      behindSec: tts.length ? Math.round(Date.now() / 1000 - Math.max(...tts) / 1000) : null,
+      sample: tts.length ? Object.fromEntries(Object.keys(tb).map((k) => [k, Array.isArray(tb[k]) ? tb[k].slice(-3) : tb[k]])) : null,
+      error: tts.length ? null : (typeof tk.body === "string" ? tk.body : JSON.stringify(tk.body).slice(0, 300))
+    };
+    const yFrom = Math.floor(nyMoment(lastSessionDay(), "04:00") / 1000);
+    const yi = await get(`intraday/${extraSymbol}.US?interval=1m&from=${yFrom}&to=${yFrom + 16 * 3600}`);
+    const yc = Array.isArray(yi.body) ? yi.body : [];
+    const lastSession = { status: yi.status, n: yc.length, first: yc[0]?.datetime ?? null, last: yc.at(-1)?.datetime ?? null, error: Array.isArray(yi.body) ? null : yi.body };
+    const recent = await get(`intraday/${extraSymbol}.US?interval=1m&from=${Math.floor(now) - 3 * 3600}&to=${Math.floor(now)}`);
+    const rc = Array.isArray(recent.body) ? recent.body : [];
+    const today = { status: recent.status, n: rc.length, last: rc.at(-1)?.datetime ?? null, behindMin: rc.length ? Math.round((now - rc.at(-1).timestamp) / 60) : null, error: Array.isArray(recent.body) ? null : recent.body };
+    if (historyOnly) return { at: new Date().toISOString(), symbol: extraSymbol, plan, ticks, lastSession, today };
     const [trades, bidAsk] = await Promise.all([listenTo("us", "AAPL,SPY,TSLA,NVDA"), listenTo("us-quote", "AAPL,SPY,TSLA,NVDA")]);
-    return { at: new Date().toISOString(), plan, realtime: { status: rt.status, ms: rt.ms, quotes, error: quotes.length ? null : rt.body }, intraday, stream: { trades, quotes: bidAsk } };
+    return { at: new Date().toISOString(), plan, realtime: { status: rt.status, ms: rt.ms, quotes, error: quotes.length ? null : rt.body }, intraday, ticks, lastSession, today, stream: { trades, quotes: bidAsk } };
   }
   if (only === "news") {
     // A share's news between two moments, as the news tab and the screen read it.
