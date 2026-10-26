@@ -41,6 +41,21 @@ import { inBackground } from "../_shared/background.ts";
 const DATA = "https://data.alpaca.markets/v2";
 const CRYPTO_DATA = "https://data.alpaca.markets/v1beta3/crypto/us";
 const FEED = "iex";
+
+// Which tape a share's prices come from (`stockFeed`): IEX in real time, the
+// free feed, which trades only 8:00 to 17:00 New York; or the consolidated
+// tape of every exchange, which an account without a paid data plan reads
+// fifteen minutes late: its history up to then (feed=sip, ending 16 minutes
+// ago), its latest prices delayed (feed=delayed_sip). The terminal uses the
+// delayed tape while IEX is closed, so pre-market from 4:00 shows (26 Oct,
+// 5:21 New York: "Premarket is open now and I don't see any execution,
+// change in prices, time & sales!!"; IEX had nothing, the consolidated tape
+// had AAPL at 342.79 from 5:06).
+type StockFeed = "iex" | "delayed";
+const stockFeedOf = (v: unknown): StockFeed => (v === "delayed" ? "delayed" : "iex");
+const historyFeed = (sf: StockFeed) => (sf === "delayed" ? `feed=sip&end=${new Date(Date.now() - 16 * 60000).toISOString()}` : `feed=${FEED}`);
+const latestFeed = (sf: StockFeed) => (sf === "delayed" ? "delayed_sip" : FEED);
+const feedName = (sf: StockFeed) => (sf === "delayed" ? "sip-delayed" : FEED);
 const TERMINAL_SYMBOL = (s: string) => SYMBOL.test(s) || CRYPTO.test(s);
 
 // How far back each chart interval reads, and the bar size it asks for:
@@ -73,7 +88,7 @@ const num = (v: unknown) => {
 // Seconds candles: the latest trades (up to ten thousand), bucketed. On a busy
 // share that is the last hour or two; on a thin coin, days. A candle exists
 // only where a trade did, as on any trade-built chart.
-async function secondBars(account: any, symbol: string, interval: string) {
+async function secondBars(account: any, symbol: string, interval: string, sf: StockFeed = "iex") {
   const step = SECONDS[interval];
   const crypto = isCrypto(symbol);
   const start = new Date(Date.now() - 7 * 86400000).toISOString();
@@ -83,7 +98,7 @@ async function secondBars(account: any, symbol: string, interval: string) {
   do {
     const url = (crypto
       ? `${CRYPTO_DATA}/trades?symbols=${encodeURIComponent(symbol)}&start=${start}&limit=10000&sort=desc`
-      : `${DATA}/stocks/${encodeURIComponent(symbol)}/trades?feed=${FEED}&start=${start}&limit=10000&sort=desc`) +
+      : `${DATA}/stocks/${encodeURIComponent(symbol)}/trades?${historyFeed(sf)}&start=${start}&limit=10000&sort=desc`) +
       (token ? `&page_token=${encodeURIComponent(token)}` : "");
     const page = await alpacaFetch(url, account);
     trades.push(...((crypto ? page?.trades?.[symbol] : page?.trades) || []));
@@ -104,7 +119,7 @@ async function secondBars(account: any, symbol: string, interval: string) {
       out.push({ time, open: price, high: price, low: price, close: price, volume: size });
     }
   }
-  return { symbol, interval, feed: crypto ? "crypto" : FEED, bars: out, fromTrades: true };
+  return { symbol, interval, feed: crypto ? "crypto" : feedName(sf), bars: out, fromTrades: true };
 }
 
 // A share's hourly candles on a regular-hours chart, aligned to the session:
@@ -117,14 +132,14 @@ async function secondBars(account: any, symbol: string, interval: string) {
 // 30-minute bars, which do start at 9:30.
 const HOUR_SPANS: Record<string, number> = { "1Hour": 60, "2Hour": 120, "4Hour": 240 };
 
-async function sessionHours(account: any, symbol: string, interval: string) {
+async function sessionHours(account: any, symbol: string, interval: string, sf: StockFeed = "iex") {
   const span = HOUR_SPANS[interval];
   const start = new Date(Date.now() - RANGES[interval].days * 86400000).toISOString();
   const halves = (await allPages(account,
-    `${DATA}/stocks/${encodeURIComponent(symbol)}/bars?timeframe=30Min&start=${start}&limit=10000&feed=${FEED}&adjustment=split&sort=desc`,
+    `${DATA}/stocks/${encodeURIComponent(symbol)}/bars?timeframe=30Min&start=${start}&limit=10000&${historyFeed(sf)}&adjustment=split&sort=desc`,
     (page) => page?.bars, 8)).reverse();
   const out = sessionCandles(halves, span);
-  return { symbol, interval, feed: FEED, bars: out, session: "regular" };
+  return { symbol, interval, feed: feedName(sf), bars: out, session: "regular" };
 }
 
 // How far back a coin's intraday charts read. Alpaca serves crypto history a
@@ -155,9 +170,9 @@ async function allPages(account: any, url: string, pick: (page: any) => any[], m
   return out;
 }
 
-async function bars(account: any, symbol: string, interval: string, session = "") {
-  if (SECONDS[interval]) return secondBars(account, symbol, interval);
-  if (session === "regular" && HOUR_SPANS[interval] && !isCrypto(symbol)) return sessionHours(account, symbol, interval);
+async function bars(account: any, symbol: string, interval: string, session = "", sf: StockFeed = "iex") {
+  if (SECONDS[interval]) return secondBars(account, symbol, interval, sf);
+  if (session === "regular" && HOUR_SPANS[interval] && !isCrypto(symbol)) return sessionHours(account, symbol, interval, sf);
   const r = RANGES[interval] || RANGES["5Min"];
   const crypto = isCrypto(symbol);
   const end = Date.now();
@@ -181,17 +196,17 @@ async function bars(account: any, symbol: string, interval: string, session = ""
   const start = iso(end - r.days * 86400000);
   const list = await allPages(account, crypto
     ? `${CRYPTO_DATA}/bars?symbols=${encodeURIComponent(symbol)}&timeframe=${r.tf}&start=${start}&limit=10000&sort=desc`
-    : `${DATA}/stocks/${encodeURIComponent(symbol)}/bars?timeframe=${r.tf}&start=${start}&limit=10000&feed=${FEED}&adjustment=split&sort=desc`,
+    : `${DATA}/stocks/${encodeURIComponent(symbol)}/bars?timeframe=${r.tf}&start=${start}&limit=10000&${historyFeed(sf)}&adjustment=split&sort=desc`,
   (page) => (crypto ? page?.bars?.[symbol] : page?.bars), 8);
-  return { symbol, interval, feed: crypto ? "crypto" : FEED, bars: list.map(candle).reverse() };
+  return { symbol, interval, feed: crypto ? "crypto" : feedName(sf), bars: list.map(candle).reverse() };
 }
 
-async function snapshot(account: any, symbols: string[]) {
+async function snapshot(account: any, symbols: string[], sf: StockFeed = "iex") {
   const stocks = symbols.filter((s) => SYMBOL.test(s)).slice(0, 50);
   const coins = symbols.filter((s) => CRYPTO.test(s)).slice(0, 50);
   if (!stocks.length && !coins.length) return { quotes: {} };
   const [stockSnaps, coinSnaps] = await Promise.all([
-    stocks.length ? alpacaFetch(`${DATA}/stocks/snapshots?symbols=${stocks.join(",")}&feed=${FEED}`, account) : null,
+    stocks.length ? alpacaFetch(`${DATA}/stocks/snapshots?symbols=${stocks.join(",")}&feed=${latestFeed(sf)}`, account) : null,
     coins.length ? alpacaFetch(`${CRYPTO_DATA}/snapshots?symbols=${encodeURIComponent(coins.join(","))}`, account) : null
   ]);
   const quotes: Record<string, any> = {};
@@ -212,16 +227,16 @@ async function snapshot(account: any, symbols: string[]) {
       at: d.latestTrade?.t || null
     };
   }
-  return { quotes, feed: FEED };
+  return { quotes, feed: feedName(sf) };
 }
 
 // The order book for a coin: every resting price on Alpaca's crypto venue,
 // with its size. The stream keeps it live; this is the first picture, and the
 // fallback when the stream is down. Shares have no book on Alpaca's feeds (see
 // selftest), so for a share this answers with the best bid and ask only.
-async function book(account: any, symbol: string) {
+async function book(account: any, symbol: string, sf: StockFeed = "iex") {
   if (!isCrypto(symbol)) {
-    const q = await alpacaFetch(`${DATA}/stocks/${encodeURIComponent(symbol)}/quotes/latest?feed=${FEED}`, account);
+    const q = await alpacaFetch(`${DATA}/stocks/${encodeURIComponent(symbol)}/quotes/latest?feed=${latestFeed(sf)}`, account);
     const quote = q?.quote || {};
     return {
       symbol, levels: false,
@@ -241,12 +256,12 @@ async function book(account: any, symbol: string) {
 // venue is thin (on 24 Oct, BTC/USD about one trade every two minutes, ETH/USD
 // one every six), so a tape that waited for the stream could sit empty for
 // minutes. Each coin trade says who took it; a share's does not.
-async function trades(account: any, symbol: string) {
+async function trades(account: any, symbol: string, sf: StockFeed = "iex") {
   const crypto = isCrypto(symbol);
   const start = new Date(Date.now() - (crypto ? 1 : 5) * 86400000).toISOString();
   const r = await alpacaFetch(crypto
     ? `${CRYPTO_DATA}/trades?symbols=${encodeURIComponent(symbol)}&start=${start}&limit=50&sort=desc`
-    : `${DATA}/stocks/${encodeURIComponent(symbol)}/trades?feed=${FEED}&start=${start}&limit=50&sort=desc`, account);
+    : `${DATA}/stocks/${encodeURIComponent(symbol)}/trades?${historyFeed(sf)}&start=${start}&limit=50&sort=desc`, account);
   const list = crypto ? r?.trades?.[symbol] : r?.trades;
   return {
     symbol,
@@ -977,6 +992,68 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     }
     return { symbol: sym, from, ...out };
   }
+  if (only === "eodhd") {
+    // EODHD, a data vendor the owner holds a plan with (26 Oct: "Check EODHD
+    // api i already have for real-time data and extended hours. See if it
+    // works and how much it covers"): the plan, how far behind its latest
+    // prices are, whether today's one-minute candles include the pre-market,
+    // and how quickly its live trades and quotes arrive. The key is the
+    // project's EODHD_API_KEY secret; it never leaves this function, and
+    // nothing here returns it, nor the account's name or email.
+    const key = Deno.env.get("EODHD_API_KEY");
+    if (!key) return { error: "No EODHD_API_KEY secret on this project yet." };
+    const secs = Math.min(30, Math.max(5, Number(seconds) || 15));
+    const get = async (path: string) => {
+      const t = Date.now();
+      try {
+        const r = await fetch(`https://eodhd.com/api/${path}${path.includes("?") ? "&" : "?"}api_token=${encodeURIComponent(key)}&fmt=json`);
+        const text = await r.text();
+        let body: any;
+        try { body = JSON.parse(text); } catch { body = text.slice(0, 200); }
+        return { status: r.status, ms: Date.now() - t, body };
+      } catch (e) { return { status: 0, ms: Date.now() - t, body: String(e) }; }
+    };
+    const now = Date.now() / 1000;
+    const user = await get("user");
+    const u = user.body && typeof user.body === "object" ? user.body : null;
+    const plan = u ? { subscriptionType: u.subscriptionType, dailyRateLimit: u.dailyRateLimit, apiRequests: u.apiRequests, apiRequestsDate: u.apiRequestsDate, extraLimit: u.extraLimit } : { status: user.status, body: user.body };
+    const rt = await get("real-time/AAPL.US?s=SPY.US,TSLA.US,NVDA.US");
+    const quotes = (Array.isArray(rt.body) ? rt.body : rt.body && typeof rt.body === "object" ? [rt.body] : []).map((q: any) => ({
+      code: q.code, price: q.close, prevClose: q.previousClose, changePct: q.change_p, volume: q.volume,
+      at: Number(q.timestamp) ? new Date(q.timestamp * 1000).toISOString() : null, behindMin: Number(q.timestamp) ? Math.round((now - q.timestamp) / 60) : null
+    }));
+    const from = Math.floor(nyMoment(nyDate(), "04:00") / 1000);
+    const intra = await get(`intraday/AAPL.US?interval=1m&from=${from}&to=${Math.floor(now)}`);
+    const candles = Array.isArray(intra.body) ? intra.body : [];
+    const intraday = {
+      status: intra.status, n: candles.length, first: candles[0]?.datetime ?? null, last: candles.at(-1)?.datetime ?? null, lastClose: candles.at(-1)?.close ?? null,
+      behindMin: candles.length ? Math.round((now - candles.at(-1).timestamp) / 60) : null, error: Array.isArray(intra.body) ? null : intra.body
+    };
+    const listenTo = (endpoint: string, symbols: string) => new Promise<any>((resolve) => {
+      const rep: any = { endpoint, opened: false, messages: 0, first: null, said: [], errors: [], lag: [] as number[] };
+      const finish = () => {
+        const lag = [...rep.lag].sort((a: number, b: number) => a - b);
+        resolve({ ...rep, lag: undefined, lagMs: lag.length ? { min: lag[0], median: lag[Math.floor(lag.length / 2)], max: lag.at(-1) } : null });
+      };
+      let sock: WebSocket;
+      try { sock = new WebSocket(`wss://ws.eodhistoricaldata.com/ws/${endpoint}?api_token=${encodeURIComponent(key)}`); } catch (e) { rep.errors.push(String(e)); finish(); return; }
+      const timer = setTimeout(() => { try { sock.close(); } catch { /* closed */ } finish(); }, secs * 1000);
+      sock.onopen = () => { rep.opened = true; sock.send(JSON.stringify({ action: "subscribe", symbols })); };
+      sock.onmessage = (e) => {
+        let m: any;
+        try { m = JSON.parse(String(e.data)); } catch { return; }
+        if (m.status_code !== undefined || m.message) { rep.said.push({ status: m.status_code, message: m.message }); return; }
+        rep.messages += 1;
+        if (!rep.first) rep.first = m;
+        const t = Number(m.t ?? m.ms);
+        if (t > 1e12) rep.lag.push(Date.now() - t);
+      };
+      sock.onerror = () => rep.errors.push("socket error");
+      sock.onclose = (e) => { clearTimeout(timer); rep.closed = { code: e.code, reason: e.reason }; finish(); };
+    });
+    const [trades, bidAsk] = await Promise.all([listenTo("us", "AAPL,SPY,TSLA,NVDA"), listenTo("us-quote", "AAPL,SPY,TSLA,NVDA")]);
+    return { at: new Date().toISOString(), plan, realtime: { status: rt.status, ms: rt.ms, quotes, error: quotes.length ? null : rt.body }, intraday, stream: { trades, quotes: bidAsk } };
+  }
   if (only === "news") {
     // A share's news between two moments, as the news tab and the screen read it.
     const t0 = Date.now();
@@ -1454,11 +1531,11 @@ Deno.serve(async (req) => {
     const symbol = String(body.symbol || "").toUpperCase().trim();
     if (action === "bars") {
       if (!TERMINAL_SYMBOL(symbol)) return jsonResponse({ error: "Choose a symbol." }, 400);
-      return jsonResponse(await bars(account, symbol, String(body.interval || "5Min"), String(body.session || "")));
+      return jsonResponse(await bars(account, symbol, String(body.interval || "5Min"), String(body.session || ""), stockFeedOf(body.stockFeed)));
     }
     if (action === "snapshot") {
       const list = (Array.isArray(body.symbols) ? body.symbols : [symbol]).map((s: string) => String(s).toUpperCase().trim());
-      return jsonResponse(await snapshot(account, list));
+      return jsonResponse(await snapshot(account, list, stockFeedOf(body.stockFeed)));
     }
     if (action === "search") return jsonResponse(await search(account, String(body.q || "")));
     if (action === "asset") {
@@ -1468,11 +1545,11 @@ Deno.serve(async (req) => {
     if (action === "account") return jsonResponse(await accountView(account));
     if (action === "trades") {
       if (!TERMINAL_SYMBOL(symbol)) return jsonResponse({ error: "Choose a symbol." }, 400);
-      return jsonResponse(await trades(account, symbol));
+      return jsonResponse(await trades(account, symbol, stockFeedOf(body.stockFeed)));
     }
     if (action === "book") {
       if (!TERMINAL_SYMBOL(symbol)) return jsonResponse({ error: "Choose a symbol." }, 400);
-      return jsonResponse(await book(account, symbol));
+      return jsonResponse(await book(account, symbol, stockFeedOf(body.stockFeed)));
     }
     if (action === "news") {
       const list = Array.isArray(body.symbols) ? body.symbols : [symbol];

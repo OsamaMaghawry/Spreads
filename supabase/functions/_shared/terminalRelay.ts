@@ -6,8 +6,16 @@
 
 // The free IEX feed for shares, and Alpaca's own crypto venue for coins:
 // around the clock, with what the stock feed lacks, the full order book and
-// the side that took each trade.
-const STOCK_STREAM = "wss://stream.data.alpaca.markets/v2/iex";
+// the side that took each trade. While IEX is closed (before 8:00 and after
+// 17:00 New York) the terminal asks for the consolidated tape instead,
+// fifteen minutes late on an account without a paid data plan
+// ("delayed_sip"), so the pre-market from 4:00 shows; with a paid plan,
+// "sip", in real time.
+const STOCK_STREAMS: Record<string, string> = {
+  iex: "wss://stream.data.alpaca.markets/v2/iex",
+  delayed_sip: "wss://stream.data.alpaca.markets/v2/delayed_sip",
+  sip: "wss://stream.data.alpaca.markets/v2/sip"
+};
 const CRYPTO_STREAM = "wss://stream.data.alpaca.markets/v1beta3/crypto/us";
 export const SHARE = /^[A-Z][A-Z0-9.]{0,9}$/;
 export const COIN = /^[A-Z0-9]{1,10}\/(USD|USDT|USDC|BTC)$/;
@@ -30,7 +38,8 @@ const FINAL = new Set([401, 402, 403, 405, 409]);
 // old one. Still read-only: the browser can choose symbols, nothing else.
 type Feed = { kind: "stocks" | "crypto"; ws: WebSocket | null; authed: boolean; subscribed: Set<string>; book: string; attempts: number; final: string | null };
 
-export function relayDetail(client: WebSocket, auth: { key: string; secret: string }, initial: string[], initialBook: string) {
+export function relayDetail(client: WebSocket, auth: { key: string; secret: string }, initial: string[], initialBook: string, stockFeed = "iex") {
+  const STOCK_STREAM = STOCK_STREAMS[stockFeed] || STOCK_STREAMS.iex;
   let closed = false;
   const startedAt = Date.now();
   // What this session sent the browser, and what each feed said, logged when
@@ -47,7 +56,7 @@ export function relayDetail(client: WebSocket, auth: { key: string; secret: stri
   let finished: () => void = () => {};
   const done = new Promise<void>((resolve) => { finished = resolve; });
   (globalThis as any).EdgeRuntime?.waitUntil?.(done);
-  const summary = () => JSON.stringify({ seconds: Math.round((Date.now() - startedAt) / 1000), symbols: wanted.size, book, sent, said });
+  const summary = () => JSON.stringify({ seconds: Math.round((Date.now() - startedAt) / 1000), symbols: wanted.size, book, stockFeed, sent, said });
   // Every 30 seconds as well as at the end: a worker the platform stops does
   // not reach the end of its session to say so.
   const heartbeat = setInterval(() => console.log(`terminal relay (open): ${summary()}`), 30000);

@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
     const auth = token ? { key: "oauth", secret: token } : key && secret ? { key, secret } : null;
     if (!auth) return new Response("This account cannot sign in to the price stream.", { status: 409 });
     const { socket, response } = Deno.upgradeWebSocket(req);
-    relayDetail(socket, auth, symbols, (url.searchParams.get("book") || "").toUpperCase());
+    relayDetail(socket, auth, symbols, (url.searchParams.get("book") || "").toUpperCase(), url.searchParams.get("stocks") || "iex");
     return response;
   }
   if (!key || !secret) {
