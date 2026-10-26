@@ -898,7 +898,13 @@ async function diagnose(account: any, mode: string, symbol: string, day: string)
     return {
       positions: (positions || []).map((p: any) => ({ symbol: p.symbol, qty: p.qty, qtyAvailable: p.qty_available, cls: p.asset_class })),
       open: (open || []).map((o: any) => ({ symbol: o.symbol, side: o.side, qty: o.qty, status: o.status, type: o.type })),
-      closed: Array.isArray(closed) ? closed.slice(0, 15).map((o: any) => ({ symbol: o.symbol, side: o.side, qty: o.qty, notional: o.notional, filled: o.filled_qty, avg: o.filled_avg_price, status: o.status, at: o.filled_at || o.updated_at })) : closed,
+      // Enough of each to tell who placed it and why it ended: its type, price,
+      // duration, extended hours, the client id (TERM_ for the terminal's).
+      closed: Array.isArray(closed) ? closed.slice(0, 25).map((o: any) => ({
+        symbol: o.symbol, side: o.side, qty: o.qty, notional: o.notional, filled: o.filled_qty, avg: o.filled_avg_price, status: o.status,
+        type: o.type, limit: o.limit_price, stop: o.stop_price, tif: o.time_in_force, ext: o.extended_hours, cls: o.order_class, client: String(o.client_order_id || "").slice(0, 12),
+        submitted: o.submitted_at, canceled: o.canceled_at, expired: o.expired_at, at: o.filled_at || o.updated_at
+      })) : closed,
       closedCount: Array.isArray(closed) ? closed.length : null
     };
   }
