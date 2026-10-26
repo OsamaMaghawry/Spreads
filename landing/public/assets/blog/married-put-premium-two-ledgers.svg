@@ -1,0 +1,18 @@
+<svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="The same hypothetical 79 dollar put premium recorded two ways. Left, separate positions: 100 XYZ shares at 5,000 dollars and a 46 put at 79 dollars, each with its own result. Right, a married put bought the same day: 100 shares at 5,079 dollars, the put premium added to the shares' cost. Below both, the break-even is 50.79 a share either way.">
+  <rect width="720" height="260" fill="#FFFFFF"/>
+
+  <text x="170" y="34" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">Separate positions</text>
+  <text x="550" y="34" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">Married put</text>
+
+  <rect x="40" y="52" width="260" height="56" rx="10" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="170" y="87" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">Shares: $5,000</text>
+  <rect x="40" y="122" width="260" height="56" rx="10" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="170" y="157" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">Put: $79</text>
+
+  <rect x="420" y="52" width="260" height="126" rx="10" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="550" y="112" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">Shares: $5,079</text>
+  <text x="550" y="142" font-size="15" text-anchor="middle" fill="#767B8E">put expires</text>
+
+  <line x1="40" y1="206" x2="680" y2="206" stroke="#C9CEDC" stroke-width="1.5"/>
+  <text x="360" y="236" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">Break-even: $50.79</text>
+</svg>

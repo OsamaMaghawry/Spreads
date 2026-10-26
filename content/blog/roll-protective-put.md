@@ -107,7 +107,7 @@ With more than one contract the same thing can happen in smaller pieces. A separ
 - **Is rolling a protective put a credit or a debit?** At the same strike and a later date it is a debit, because the later put is worth at least as much. A roll down to a lower strike costs less and, with the old put deep in the money, can occasionally bring in a credit.
 - **Does rolling keep the protection continuous?** Only if both legs fill at once, and even then one floor ends and another starts at a new price, with an expiration as fixed as the first.
 - **Can the strike change in a roll?** Yes. A higher strike costs more and raises the floor; a lower strike costs less and lowers it, as the 43 column shows.
-- **Is the old put's loss realized on the roll?** Selling to close realizes that put's gain or loss on the day of the sale. How it is treated for tax is a question for a tax professional.
+- **Is the old put's loss realized on the roll?** Selling to close realizes that put's gain or loss on the day of the sale. How it is treated for tax is a question for a tax professional; the [married put tax post](/blog/married-put-tax) shows why the dates matter.
 
 ## The bottom line
 

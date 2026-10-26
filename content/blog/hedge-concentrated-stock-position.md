@@ -95,7 +95,7 @@ The example above stops at expiration. A real holding keeps going, and a large o
 - **A collar can sell the shares.** If XYZ closes above 54, the ten short calls are very likely to be [assigned](/blog/option-assignment-what-happens), and 1,000 shares are delivered at $54. Assignment can also come early, most often just before an ex-dividend date. A holder who wanted to keep the shares ends up with cash.
 - **Early assignment needs cash or margin.** The short 44 puts in a put spread can be assigned before expiration. Ten assigned early buy 1,000 more shares at $44, which needs $44,000 in cash or margin and leaves the ten 48 puts covering only half of 2,000 shares. See [options buying power](/blog/options-buying-power-requirement).
 - **Bid-ask costs scale.** Ten contracts pay the spread on every contract, and a thinly traded strike can cost more than the quote suggests.
-- **Rules outside the options.** A holding that came from an employer may carry restrictions on hedging or trading windows, and some hedges can have tax consequences. Both are questions for the employer's compliance team and a tax professional, not for this post.
+- **Rules outside the options.** A holding that came from an employer may carry restrictions on hedging or trading windows, and some hedges can have [tax consequences](/blog/married-put-tax). Both are questions for the employer's compliance team and a tax professional, not for this post.
 
 ## Frequently asked questions
 
