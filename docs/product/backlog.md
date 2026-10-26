@@ -8,7 +8,7 @@ recorded below, as prominently as additions.
 Every entry carries: the user problem in the user's words, its evidence, the
 smallest test that could disprove it, the kill criterion, and a cost guess.
 
-Last run: **2026-09-01** (vp-product, Tuesday cadence).
+Last run: **2026-09-01** (vp-product, Tuesday cadence). Reconciled against shipments 2026-10-26: no change (none of #1-#3 has shipped; no width, POP or `scan_runs` code on `main` or `staging`).
 
 ## Open proposals
 

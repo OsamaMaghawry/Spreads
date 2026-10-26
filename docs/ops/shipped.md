@@ -3,6 +3,8 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-10-26 · New blog post on the tax treatment of a married put (premium, holding period, what the hedge does to the stock's tax clock), with a diagram, back-linked from the concentrated-stock hedging post (`55583d8`, published `8e6c30d`).
+- 2026-10-26 · Two search titles and one internal link on existing posts (implied volatility, intrinsic vs extrinsic value, option assignment), applied by the SEO daily run (`f84c193`, published `6819026`).
 - 2026-10-06 · New blog post: the diagonal spread explained, with two diagrams comparing it to a calendar spread (`4cef92c`).
 - 2026-09-28 · New blog post: the wheel strategy explained, with two diagrams, and a cross-link from the covered-call post (`9a76e9d`).
 - 2026-09-27 · The Saturday weekly digest no longer goes silent for
