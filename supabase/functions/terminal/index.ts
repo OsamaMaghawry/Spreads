@@ -905,7 +905,12 @@ async function diagnose(account: any, mode: string, symbol: string, day: string)
         type: o.type, limit: o.limit_price, stop: o.stop_price, tif: o.time_in_force, ext: o.extended_hours, cls: o.order_class, client: String(o.client_order_id || "").slice(0, 12),
         submitted: o.submitted_at, canceled: o.canceled_at, expired: o.expired_at, at: o.filled_at || o.updated_at
       })) : closed,
-      closedCount: Array.isArray(closed) ? closed.length : null
+      closedCount: Array.isArray(closed) ? closed.length : null,
+      // Every order cancelled in the last three hours, whenever it was placed.
+      cancelledLately: Array.isArray(closed) ? closed.filter((o: any) => o.canceled_at && Date.parse(o.canceled_at) > Date.now() - 3 * 3600000).map((o: any) => ({
+        symbol: o.symbol, side: o.side, qty: o.qty, filled: o.filled_qty, type: o.type, limit: o.limit_price, stop: o.stop_price, tif: o.time_in_force, cls: o.order_class,
+        client: String(o.client_order_id || "").slice(0, 14), submitted: o.submitted_at, canceled: o.canceled_at
+      })) : null
     };
   }
   const start = `${day}T00:00:00Z`;
