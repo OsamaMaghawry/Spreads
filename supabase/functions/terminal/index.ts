@@ -1094,6 +1094,13 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
       .map((row) => ({ s: at(row, "symbol"), prevClose: at(row, "prevClose"), open: at(row, "open"), gap: Math.round(gap(row) * 1000) / 10, pm: pm.pm?.[at(row, "symbol")] || null, close: at(row, "close"), volume: at(row, "volume"), avgVol20: Math.round(at(row, "avgVol20") || 0) }));
     return { date, asOf, part, parts, msHistory, msPremarket: Date.now() - t1, listed: r.listed, rows: r.rows.length, premarket: Object.keys(pm.pm || {}).length, feed: r.dayFeed, top };
   }
+  if (only === "fills") {
+    // The Demo P/L's read for an account (accountId), since New York midnight
+    // today or the moment given: how many fills, a few of them, and the closes.
+    const r: any = await accountFills(house, extra[0] || iso(nyMoment(nyDate(), "00:00")));
+    if (r.error) return r;
+    return { start: r.start, fills: r.fills.length, first: r.fills.slice(0, 6), positions: r.positions, marks: r.marks, options: r.options, truncated: r.truncated };
+  }
   if (only === "pmToday") {
     // Today's pre-market as the live screen reads it before the open: the
     // biggest moves since the last close among shares that traded $1M then,
