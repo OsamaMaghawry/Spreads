@@ -1094,6 +1094,21 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
       .map((row) => ({ s: at(row, "symbol"), prevClose: at(row, "prevClose"), open: at(row, "open"), gap: Math.round(gap(row) * 1000) / 10, pm: pm.pm?.[at(row, "symbol")] || null, close: at(row, "close"), volume: at(row, "volume"), avgVol20: Math.round(at(row, "avgVol20") || 0) }));
     return { date, asOf, part, parts, msHistory, msPremarket: Date.now() - t1, listed: r.listed, rows: r.rows.length, premarket: Object.keys(pm.pm || {}).length, feed: r.dayFeed, top };
   }
+  if (only === "pmToday") {
+    // Today's pre-market as the live screen reads it before the open: the
+    // biggest moves since the last close among shares that traded $1M then,
+    // timed, with the busiest of them.
+    const t0 = Date.now();
+    const u = await screenUniverse(admin, house);
+    const at = (row: any[], c: string) => row[u.columns.indexOf(c)];
+    const move = (row: any[]) => Math.abs(at(row, "price") / at(row, "close") - 1);
+    const ranked = u.rows.filter((row) => at(row, "price") >= 1 && at(row, "close") > 0 && at(row, "close") * (at(row, "volume") || 0) >= 1e6).sort((a, b) => move(b) - move(a));
+    const t1 = Date.now();
+    const pm: any = await screenPremarket(house, nyDate(), ranked.slice(0, 100).map((row) => at(row, "symbol")));
+    const busiest = Object.entries(pm.pm || {}).sort((a: any, b: any) => b[1].pmVolume - a[1].pmVolume).slice(0, 10)
+      .map(([s, v]: any) => { const row = ranked.find((r) => at(r, "symbol") === s)!; return { s, close: at(row, "close"), price: at(row, "price"), change: Math.round((at(row, "price") / at(row, "close") - 1) * 1000) / 10, ...v }; });
+    return { msUniverse: t1 - t0, msPremarket: Date.now() - t1, day: u.rows[0] ? at(u.rows[0], "day") : null, through: pm.through, complete: pm.complete, feed: pm.feed, read: Object.keys(pm.pm || {}).length, withVolume: Object.values(pm.pm || {}).filter((v: any) => v.pmVolume > 0).length, busiest };
+  }
   if (only === "hours") {
     // The regular-hours hourly candles the chart now asks for, as served.
     const r = await sessionHours(house, extra[0] || "AAPL", "1Hour");
