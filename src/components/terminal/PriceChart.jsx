@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { createChart, createSeriesMarkers, createTextWatermark, CandlestickSeries, HistogramSeries, LineSeries, LineStyle, CrosshairMode } from "lightweight-charts";
-import { MousePointer2, Slash, MoveUpRight, Minus, SeparatorVertical, RectangleHorizontal, Rows3, Ruler, Trash2, Eraser, Activity, X, Type, CalendarDays, History, Pencil } from "lucide-react";
+import { MousePointer2, Slash, MoveUpRight, Minus, SeparatorVertical, RectangleHorizontal, Rows3, Ruler, Trash2, Eraser, Activity, X, Type, CalendarDays, History, Pencil, ArrowUpDown } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { INTERVALS, applyTrade, applyMinuteBar, isCrypto, priceFormatFor, inRegularHours, sessionDay, sessionOf, px, sizeText } from "@/lib/terminal";
 import { INDICATORS, LINE_COLORS, cleanIndicators, defaultParams, indicatorLabel, indicatorSeries } from "@/lib/indicators";
@@ -56,6 +56,15 @@ const DRAW_KEY = "dm.terminal.drawings";
 const SESSION_KEY = "dm.terminal.session";
 const IND_KEY = "dm.terminal.indicators";
 const EVENTS_KEY = "dm.terminal.events";
+// Your own trades on the chart, each part shown or hidden (26 Oct: "give me
+// the opiotn to remove the positions or order annotation from the chart as
+// it gets noisy sometimes"): the arrows for buys and sells, their labels,
+// and the replay position's average, stop and take-profit lines.
+const TRADES_KEY = "dm.terminal.chartTrades";
+const TRADE_MARKS = { arrows: true, labels: true, lines: true };
+const cleanMarks = (v) => Object.fromEntries(Object.entries(TRADE_MARKS).map(([k, d]) => [k, typeof v?.[k] === "boolean" ? v[k] : d]));
+// Every chart on the page follows a change made on any of them.
+const marksCharts = new Set();
 const ECON = econEvents();
 const read = (key, fallback) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
 const write = (key, value) => { try { localStorage.setItem(key, value); } catch { /* private window */ } };
@@ -122,6 +131,10 @@ function PriceChart({
   const hoverIdRef = useRef(null);
   const [hover, setHover] = useState(null);
   const [eventsMenu, setEventsMenu] = useState(false);
+  const [marks, setMarks] = useState(() => { try { return cleanMarks(JSON.parse(read(TRADES_KEY, "null"))); } catch { return cleanMarks(null); } });
+  const marksRef = useRef(marks);
+  marksRef.current = marks;
+  const [tradesMenu, setTradesMenu] = useState(false);
   // Several charts at once: one row of controls, the drawing tools behind a button.
   const compact = label;
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -431,7 +444,7 @@ function PriceChart({
   const chartPrefsSynced = useRef(false);
   useEffect(() => {
     let alive = true;
-    readPrefs(["indicators", "events"]).then((p) => {
+    readPrefs(["indicators", "events", "trades"]).then((p) => {
       if (!alive) return;
       chartPrefsSynced.current = true;
       const ind = settle(Array.isArray(p.indicators) ? cleanIndicators(p.indicators) : null, indicatorsRef.current);
@@ -439,6 +452,8 @@ function PriceChart({
       else if (ind.value && JSON.stringify(ind.value) !== JSON.stringify(indicatorsRef.current)) setIndicators(ind.value);
       if (Array.isArray(p.events)) setShown(cleanShown(p.events));
       else savePref("events", shownRef.current);
+      if (p.trades && typeof p.trades === "object") setMarks(cleanMarks(p.trades));
+      else savePref("trades", marksRef.current);
     }).catch(() => {});
     return () => { alive = false; };
   }, []);
@@ -622,6 +637,18 @@ function PriceChart({
     return () => { alive = false; };
   }, [accountId, symbol, crypto, placeAll]);
 
+  // Which of your trades' marks show: every chart on the page, kept in this
+  // browser and with the account.
+  useEffect(() => {
+    marksCharts.add(setMarks);
+    return () => { marksCharts.delete(setMarks); };
+  }, []);
+  const changeMarks = (next) => {
+    for (const set of marksCharts) set(next);
+    write(TRADES_KEY, JSON.stringify(next));
+    if (chartPrefsSynced.current) savePref("trades", next);
+  };
+
   // The kinds shown, kept in this browser.
   useEffect(() => {
     write(EVENTS_KEY, JSON.stringify(shown));
@@ -677,7 +704,8 @@ function PriceChart({
       return times[lo];
     };
     // In a replay, the practice trades instead of the account's.
-    const list = replayOn ? (replayAcct?.trades || []).map((t) => ({ side: t.side, qty: t.qty, price: t.price, at: new Date(t.time * 1000).toISOString() })) : fills;
+    const list = !marks.arrows ? []
+      : replayOn ? (replayAcct?.trades || []).map((t) => ({ side: t.side, qty: t.qty, price: t.price, at: new Date(t.time * 1000).toISOString() })) : fills;
     const markers = list
       .map((f) => ({ f, time: at(Math.floor(Date.parse(f.at) / 1000)) }))
       .filter((x) => x.time !== null)
@@ -687,10 +715,10 @@ function PriceChart({
         position: f.side === "buy" ? "belowBar" : "aboveBar",
         shape: f.side === "buy" ? "arrowUp" : "arrowDown",
         color: f.side === "buy" ? "#047857" : "#be123c",
-        text: `${f.side === "buy" ? "B" : "S"} ${sizeText(f.qty)} @ ${px(f.price)}`
+        text: marks.labels ? `${f.side === "buy" ? "B" : "S"} ${sizeText(f.qty)} @ ${px(f.price)}` : ""
       }));
     markersRef.current.setMarkers(markers);
-  }, [fills, state.count, session, replayOn, replayAcct]);
+  }, [fills, state.count, session, replayOn, replayAcct, marks.arrows, marks.labels]);
 
   // ---------- replay ----------
 
@@ -717,7 +745,7 @@ function PriceChart({
     if (!series) return;
     for (const l of exitLinesRef.current) { try { series.removePriceLine(l); } catch { /* gone */ } }
     exitLinesRef.current = [];
-    if (!acct?.qty) return;
+    if (!acct?.qty || !marks.lines) return;
     const line = (price, color, title, lineStyle) => series.createPriceLine({ price, color, title, lineStyle, lineWidth: 1, axisLabelVisible: true });
     const targets = [...acct.targets].sort((a, b) => (acct.qty > 0 ? a.price - b.price : b.price - a.price));
     exitLinesRef.current = [
@@ -725,7 +753,7 @@ function PriceChart({
       acct.stop && line(acct.stop, DOWN, "Stop", LineStyle.Dashed),
       ...targets.map((t, i) => line(t.price, UP, `TP${targets.length > 1 ? i + 1 : ""} · ${t.qty === null ? "rest" : sizeText(t.qty)}`, LineStyle.Dashed))
     ].filter(Boolean);
-  }, [acct]);
+  }, [acct, marks.lines]);
   // A seconds interval, which cannot be replayed, becomes one minute.
   useEffect(() => {
     if (replayOn && !REPLAY_INTERVALS.includes(interval)) onInterval("1Min");
@@ -844,6 +872,28 @@ function PriceChart({
             className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${replayOn ? "bg-amber-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
             <History className="h-3.5 w-3.5" />{compact ? "" : replayOn ? "Exit replay" : "Replay"}
           </button>
+        </div>
+        <div className="relative">
+          <button type="button" onClick={() => setTradesMenu((v) => !v)} title="Your buys, sells and position lines on the chart: show or hide them"
+            className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${tradesMenu ? "bg-slate-900 text-white" : !marks.arrows && !marks.lines ? "text-slate-400 line-through hover:bg-slate-100" : "text-slate-600 hover:bg-slate-100"}`}>
+            <ArrowUpDown className="h-3.5 w-3.5" />{compact ? "" : "Trades"}
+          </button>
+          {tradesMenu && (
+            <div className="absolute left-0 z-30 mt-1 w-64 rounded-md border border-slate-200 bg-white p-2 text-xs shadow-lg">
+              <div className="mb-1 flex items-center gap-2">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-slate-500">Your trades on the chart</span>
+                <button type="button" className="ml-auto text-[11px] text-slate-600 hover:underline" onClick={() => changeMarks({ arrows: true, labels: true, lines: true })}>All</button>
+                <button type="button" className="text-[11px] text-slate-600 hover:underline" onClick={() => changeMarks({ arrows: false, labels: false, lines: false })}>None</button>
+              </div>
+              {[["arrows", "Buy and sell arrows"], ["labels", "Their labels (B 10 @ 3.04)"], ["lines", "Position, stop and take-profit lines (replay)"]].map(([k, name]) => (
+                <label key={k} className={`flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-slate-50 ${k === "labels" && !marks.arrows ? "text-slate-400" : "text-slate-700"}`}>
+                  <input type="checkbox" checked={marks[k]} disabled={k === "labels" && !marks.arrows} onChange={(e) => changeMarks({ ...marks, [k]: e.target.checked })} />
+                  {name}
+                </label>
+              ))}
+              <p className="mt-1 border-t border-slate-100 pt-1 text-[10px] leading-snug text-slate-500">Hidden from every chart; your orders and positions are untouched.</p>
+            </div>
+          )}
         </div>
         <div className="relative">
           <button type="button" onClick={() => setEventsMenu((v) => !v)} title="Earnings and economic releases on the chart"
