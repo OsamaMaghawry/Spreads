@@ -2,6 +2,7 @@
 title: "Implied volatility explained: why a chain reprices before earnings"
 slug: implied-volatility-options-explained
 excerpt: Implied volatility is the movement an option's own price implies, and because every contract on a chain is priced from the same expectation, they reprice together.
+search_title: "Implied Volatility Explained: IV, Vega and Earnings"
 meta_description: Implied volatility is the movement an option's price implies, not a forecast. What vega turns it into in dollars, and why premiums move when the stock doesn't.
 author: Osama Safwat Maghawry
 published_at: 2026-09-14T10:00:00+00:00

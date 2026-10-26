@@ -2,6 +2,7 @@
 title: "Intrinsic vs extrinsic value in options"
 slug: intrinsic-vs-extrinsic-value-options
 excerpt: Every option premium splits into intrinsic value, which is pure arithmetic against the strike, and extrinsic value, which is everything the buyer pays on top.
+search_title: "Intrinsic vs Extrinsic Value in Options: Split Any Quote"
 meta_description: Intrinsic value is what an option would be worth if it expired now. Extrinsic value is the rest of the premium. How to split any quote in two, with numbers.
 author: Osama Safwat Maghawry
 published_at: 2026-09-09T10:56:26+00:00
