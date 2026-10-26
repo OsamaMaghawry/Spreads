@@ -101,6 +101,9 @@ function PriceChart({
   const volumeRef = useRef(null);
   const layerRef = useRef(null);
   const lastRef = useRef(null);
+  // The first candle built from live trades since the history was read: what
+  // the history read again is joined to, never drawn over.
+  const liveFrom = useRef(null);
   const markersRef = useRef(null);
   const [state, setState] = useState({ loading: true, error: null, count: 0 });
   const crypto = isCrypto(symbol);
@@ -558,6 +561,7 @@ function PriceChart({
       return undefined;
     }
     let alive = true;
+    liveFrom.current = null;
     setState({ loading: true, error: null, count: 0 });
     // A share's hourly candles on a regular-hours chart come aligned to the
     // 9:30 open (functions/terminal sessionHours); all other charts use
@@ -572,18 +576,26 @@ function PriceChart({
     });
     // A share's history from every exchange ends fifteen minutes ago while
     // its live trades (EODHD's, or the delayed tape's) start from now: read
-    // again every minute so the stretch between fills in, the candles built
-    // live since kept after the history's end.
-    const refill = !crypto && stockFeed === "delayed" && !SECONDS_INTERVALS.includes(interval) ? setInterval(() => {
-      if (document.visibilityState === "hidden") return;
-      invokeFunction("terminal", { action: "bars", accountId, symbol, interval, session: alignedSession || undefined, stockFeed }).then((r) => {
-        const past = r?.data?.bars;
-        if (!alive || !Array.isArray(past) || !past.length) return;
-        const end = past.at(-1).time;
-        rawRef.current = [...past, ...rawRef.current.filter((b) => b.time > end)];
-        setState((st) => ({ ...st, count: show() }));
-      }).catch(() => {});
-    }, REFILL_MS) : null;
+    // again every minute until it reaches the first candle built live, then
+    // no more. Only the stretch before that candle is filled; the candles
+    // built live stay as they were drawn (26 Oct: "The chart keeps changing.
+    // Some candles get disappeared after few seconds": every minute the
+    // history was drawn over them).
+    let refill = null;
+    if (!crypto && stockFeed === "delayed" && !SECONDS_INTERVALS.includes(interval)) {
+      refill = setInterval(() => {
+        if (document.visibilityState === "hidden") return;
+        invokeFunction("terminal", { action: "bars", accountId, symbol, interval, session: alignedSession || undefined, stockFeed }).then((r) => {
+          const past = r?.data?.bars;
+          if (!alive || !Array.isArray(past) || !past.length) return;
+          const from = liveFrom.current;
+          rawRef.current = from === null ? past : [...past.filter((b) => b.time < from), ...rawRef.current.filter((b) => b.time >= from)];
+          // Joined: the history reaches the candle before the first live one.
+          if (from !== null && past.at(-1).time >= from - (STEP[interval] || 60)) { clearInterval(refill); refill = null; }
+          setState((st) => ({ ...st, count: show() }));
+        }).catch(() => {});
+      }, REFILL_MS);
+    }
     return () => { alive = false; if (refill) clearInterval(refill); };
   }, [accountId, symbol, interval, show, alignedSession, replayOn, renderReplay, stockFeed, crypto]);
 
@@ -604,6 +616,7 @@ function PriceChart({
       const raw = rawRef.current;
       if (!lastRef.current || next.time > lastRef.current.time) raw.push(next);
       else raw[raw.length - 1] = next;
+      if (liveFrom.current === null) liveFrom.current = next.time;
       lastRef.current = next;
       if (!keep(next)) return;
       const bars = barsRef.current;

@@ -16,12 +16,22 @@ test("candles start on the interval; a daily candle at New York midnight", () =>
 
 test("a trade extends the current candle, opens the next, and a late print changes nothing", () => {
   const last = { time: sec("2026-10-22T14:05:00Z"), open: 100, high: 101, low: 99.5, close: 100.5, volume: 300 };
-  const same = applyTrade(last, { price: 101.4, size: 50, at: "2026-10-22T14:08:00Z" }, "5Min");
-  assert.deepEqual(same, { ...last, high: 101.4, close: 101.4, volume: 350 });
-  const next = applyTrade(last, { price: 99, size: 10, at: "2026-10-22T14:10:01Z" }, "5Min");
-  assert.deepEqual(next, { time: sec("2026-10-22T14:10:00Z"), open: 99, high: 99, low: 99, close: 99, volume: 10 });
+  const same = applyTrade(last, { price: 101.4, size: 150, at: "2026-10-22T14:08:00Z" }, "5Min");
+  assert.deepEqual(same, { ...last, high: 101.4, close: 101.4, volume: 450 });
+  const next = applyTrade(last, { price: 99, size: 100, at: "2026-10-22T14:10:01Z" }, "5Min");
+  assert.deepEqual(next, { time: sec("2026-10-22T14:10:00Z"), open: 99, high: 99, low: 99, close: 99, volume: 100 });
   assert.equal(applyTrade(last, { price: 98, size: 10, at: "2026-10-22T14:01:00Z" }, "5Min"), null);
   assert.equal(applyTrade(last, { price: 0, size: 10, at: "2026-10-22T14:08:00Z" }, "5Min"), null);
+});
+
+test("a share's odd lot adds volume but sets no price and opens no candle; a coin's fraction does", () => {
+  const last = { time: sec("2026-10-22T14:05:00Z"), open: 100, high: 101, low: 99.5, close: 100.5, volume: 300 };
+  // 26 Oct, RENT before the open: 37 shares at 2.10 inside a minute of 3.0x round lots.
+  assert.deepEqual(applyTrade(last, { price: 120, size: 37, at: "2026-10-22T14:08:00Z" }, "5Min"), { ...last, volume: 337 });
+  assert.equal(applyTrade(last, { price: 120, size: 37, at: "2026-10-22T14:10:01Z" }, "5Min"), null);
+  assert.equal(applyTrade(last, { price: 99, size: 100, at: "2026-10-22T14:08:00Z" }, "5Min").low, 99);
+  const coin = applyTrade(last, { price: 120, size: 0.01, at: "2026-10-22T14:10:01Z" }, "5Min", true);
+  assert.equal(coin.close, 120);
 });
 
 test("the feed's minute bar replaces the trade-built one, on a one-minute chart only", () => {
@@ -139,8 +149,8 @@ test("intervals: seconds, weeks and months; live candles count on from the histo
   assert.equal(bucketStart(sec("2026-11-03T19:00:00Z"), "1Week"), sec("2026-11-02T05:00:00Z"));
   // A 4-hour history stamped at 13:00 UTC: a trade at 18:30 extends it, at 21:10 opens 21:00.
   const last = { time: sec("2026-10-22T13:00:00Z"), open: 1, high: 1, low: 1, close: 1, volume: 1 };
-  assert.equal(applyTrade(last, { price: 2, size: 1, at: "2026-10-22T16:30:00Z" }, "4Hour").time, last.time);
-  assert.equal(applyTrade(last, { price: 2, size: 1, at: "2026-10-22T21:10:00Z" }, "4Hour").time, sec("2026-10-22T21:00:00Z"));
+  assert.equal(applyTrade(last, { price: 2, size: 100, at: "2026-10-22T16:30:00Z" }, "4Hour").time, last.time);
+  assert.equal(applyTrade(last, { price: 2, size: 100, at: "2026-10-22T21:10:00Z" }, "4Hour").time, sec("2026-10-22T21:00:00Z"));
 });
 
 test("a dollar amount as a quantity: whole shares, or the coin's step, never over the amount", () => {

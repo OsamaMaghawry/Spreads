@@ -123,12 +123,17 @@ export function bucketStart(sec, interval, crypto = false) {
  * nothing -- redrawing history from one late trade would misstate it. Fixed
  * steps count on from the last candle rather than from the clock, so a live
  * candle lines up with the history's however Alpaca aligned its bars.
+ * A share's odd lot (under 100 shares) adds to the volume but sets no price
+ * and opens no candle, as on the consolidated tape the history is drawn from
+ * (26 Oct: "Some candles get disappeared after few seconds": a minute of odd
+ * lots alone drew a candle the history then did not have).
  */
 export function applyTrade(last, trade, interval, crypto = false) {
   const price = Number(trade?.price);
   const size = Number(trade?.size) || 0;
   const sec = Math.floor(Date.parse(trade?.at) / 1000);
   if (!(price > 0) || !Number.isFinite(sec)) return null;
+  const oddLot = !crypto && size > 0 && size < 100;
   let time;
   if (last && !CALENDAR.has(interval)) {
     const n = secondsOf(interval);
@@ -139,8 +144,10 @@ export function applyTrade(last, trade, interval, crypto = false) {
     if (last && time < last.time) return null;
   }
   if (last && time === last.time) {
+    if (oddLot) return { ...last, volume: (last.volume || 0) + size };
     return { ...last, high: Math.max(last.high, price), low: Math.min(last.low, price), close: price, volume: (last.volume || 0) + size };
   }
+  if (oddLot) return null;
   return { time, open: price, high: price, low: price, close: price, volume: size };
 }
 

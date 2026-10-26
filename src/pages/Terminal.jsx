@@ -65,6 +65,7 @@ const HOTKEYS_ON_KEY = "dm.terminal.hotkeysOn";
 const PANES_KEY = "dm.terminal.panes.v1";
 const SHARE_FEED_KEY = "dm.terminal.shareFeed";
 const FIRES_SEEN_KEY = "dm.terminal.firesSeen";
+const EODHD_KEY = "dm.terminal.eodhd";
 const NO_FILLS = [];
 // Where each chart sits for one to four of them.
 const PANE_GRID = { 1: "grid-cols-1", 2: "grid-cols-1 sm:grid-cols-2", 3: "grid-cols-2 grid-rows-2", 4: "grid-cols-2 grid-rows-2" };
@@ -166,9 +167,18 @@ export default function Terminal() {
   // every exchange fifteen minutes late when it does not, or as chosen. Looked
   // at again every minute, so Auto moves on at 8:00 and 17:00 by itself.
   const [feedPref, setFeedPref] = useState(() => store.get(SHARE_FEED_KEY) || "auto");
-  const [eodhdOk, setEodhdOk] = useState(false);
+  // Remembered from the last visit, so the charts open on the right history
+  // rather than drawing IEX's and then every exchange's a second later.
+  const [eodhdOk, setEodhdOk] = useState(() => store.get(EODHD_KEY) === "1");
   const [minute, setMinute] = useState(() => Math.floor(Date.now() / 60000));
-  useEffect(() => { invokeFunction("terminal", { action: "feeds" }).then((r) => setEodhdOk(!!r?.data?.eodhd)).catch(() => {}); }, []);
+  useEffect(() => {
+    invokeFunction("terminal", { action: "feeds" }).then((r) => {
+      if (r?.data?.error) return;
+      const on = !!r?.data?.eodhd;
+      setEodhdOk(on);
+      store.set(EODHD_KEY, on ? "1" : "0");
+    }).catch(() => {});
+  }, []);
   useEffect(() => { const t = setInterval(() => setMinute(Math.floor(Date.now() / 60000)), 30000); return () => clearInterval(t); }, []);
   const shares = useMemo(() => shareFeed(feedPref, { eodhd: eodhdOk, now: minute * 60 }), [feedPref, eodhdOk, minute]);
   const chooseFeed = (v) => { setFeedPref(v); store.set(SHARE_FEED_KEY, v); };
