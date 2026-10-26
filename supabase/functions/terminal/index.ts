@@ -1019,7 +1019,10 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
   const [crypto, stocks, coinAssets] = await Promise.all([
     only === "stocks" ? null : feedCheck("wss://stream.data.alpaca.markets/v1beta3/crypto/us", auth,
       { trades: coins, quotes: coins, bars: coins, orderbooks: ["BTC/USD"] }, listen),
-    only === "crypto" ? null : feedCheck(`wss://stream.data.alpaca.markets/v2/${FEED}`, auth,
+    // Which stock feed to listen to: IEX (real time), the delayed consolidated
+    // tape, or the real-time one a paid data plan opens ("stocks" with extra
+    // DELAYED_SIP or SIP).
+    only === "crypto" ? null : feedCheck(`wss://stream.data.alpaca.markets/v2/${["DELAYED_SIP", "SIP"].includes(extra[0] || "") ? extra[0].toLowerCase() : FEED}`, auth,
       { trades: ["SPY", "AAPL"], quotes: ["SPY", "AAPL"], orderbooks: ["AAPL"] }, listen),
     alpacaFetch(`${tradingBase(house)}/assets?status=active&asset_class=crypto`, house).catch((e: Error) => ({ error: e.message }))
   ]);
