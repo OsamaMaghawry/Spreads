@@ -120,6 +120,8 @@ across an ex-date owed rather than received. A cash account or an IRA cannot
 hold that short at all; the broker buys the shares in instead, typically
 right away.
 
+Related: [wheel strategy cost basis](/blog/wheel-strategy-cost-basis), the running cost basis when a short put is assigned in the wheel.
+
 Related: [covered call after assignment](/blog/covered-call-after-assignment), the account the morning after a short call is assigned.
 
 ## Example: a hypothetical short put assigned overnight
