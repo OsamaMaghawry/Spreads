@@ -1,7 +1,9 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { invokeFunction } from "@/lib/functions";
 import { px, sizeText, isCrypto } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
 import { bookValue, bookTrips, tradeStats } from "@/lib/replay";
+import { demoBook, periodStart } from "@/lib/demoTrades";
 
 // The replay's practice book in the account window: what is held in each
 // symbol, and the results of the trades (25 Oct: "p/l taking the numbers
@@ -68,8 +70,24 @@ export function PracticePositions({ book, priceOf, ended = false, onPick, onFlat
   );
 }
 
-/** The results: the statistics, each symbol's share, and every round trip. */
+/** The replay's results: the statistics, each symbol's share, and every round trip. */
 export function ReplayResults({ book, priceOf, ended = false }) {
+  return (
+    <TradeResults book={book} priceOf={priceOf}
+      banner={ended ? "The last replay, as it stood when it ended. A new replay starts a fresh account." : null}
+      empty="No practice trades yet. Results appear here as soon as a trade is made."
+      openHint="Positions still held, at the replay's price" holdHint="Replay time, open to close"
+      note="Practice trades in the replay, filled at the replayed prices with no commission or slippage. Return is on the cost of the part closed." />
+  );
+}
+
+/**
+ * The statistics, each symbol's share, and every round trip of a book: the
+ * replay's practice book, or the demo account's from its fills. `carriedAt`:
+ * when holdings from before were brought in (the demo's), shown as such;
+ * `showHow`: the column of what closed each trip, known in the replay only.
+ */
+export function TradeResults({ book, priceOf, banner = null, empty, openHint, holdHint, note, carriedAt = null, showHow = true }) {
   const trips = useMemo(() => bookTrips(book), [book]);
   const stats = useMemo(() => tradeStats(trips), [trips]);
   const v = bookValue(book, priceOf);
@@ -83,11 +101,11 @@ export function ReplayResults({ book, priceOf, ended = false }) {
     }
     return Object.entries(out).sort((a, b) => b[1].realized - a[1].realized);
   }, [trips]);
-  if (!trips.length) return <p className="px-3 py-4 text-xs text-slate-500">No practice trades yet. Results appear here as soon as a trade is made.</p>;
+  if (!trips.length) return <p className="px-3 py-4 text-xs text-slate-500">{empty}</p>;
   const tiles = [
     ["Net P/L", money(v.realized + v.unrealized), tone(v.realized + v.unrealized), "Closed plus open"],
     ["Closed P/L", money(v.realized), tone(v.realized), "Profit taken, every symbol"],
-    ["Open P/L", money(v.unrealized), tone(v.unrealized), "Positions still held, at the replay's price"],
+    ["Open P/L", money(v.unrealized), tone(v.unrealized), openHint],
     ["Trades", `${stats.trades}${stats.open ? ` + ${stats.open} open` : ""}`, "", "Round trips, flat to flat"],
     ["Win rate", stats.winRate === null ? "—" : `${Math.round(stats.winRate * 100)}% (${stats.wins}/${stats.trades})`, "", "Closed trips that made money"],
     ["Profit factor", stats.profitFactor === null ? (stats.grossProfit > 0 ? "no losses" : "—") : stats.profitFactor.toFixed(2), "", "Gross profit ÷ gross loss"],
@@ -96,11 +114,11 @@ export function ReplayResults({ book, priceOf, ended = false }) {
     ["Expectancy", money(stats.expectancy), tone(stats.expectancy), "The average closed trip"],
     ["Largest win", money(stats.largestWin), tone(stats.largestWin), ""],
     ["Largest loss", money(stats.largestLoss), tone(stats.largestLoss), ""],
-    ["Average hold", held(stats.avgHold), "", "Replay time, open to close"]
+    ["Average hold", held(stats.avgHold), "", holdHint]
   ];
   return (
     <div className="h-full overflow-auto text-xs tabular-nums">
-      {ended && <p className="border-b border-slate-100 bg-amber-50 px-2 py-1 text-amber-950">The last replay, as it stood when it ended. A new replay starts a fresh account.</p>}
+      {banner && <p className="border-b border-slate-100 bg-amber-50 px-2 py-1 text-amber-950">{banner}</p>}
       <div className="grid grid-cols-2 gap-px bg-slate-100 sm:grid-cols-3 lg:grid-cols-4">
         {tiles.map(([name, value, color, hint]) => (
           <div key={name} className="bg-white px-2 py-1" title={hint}>
@@ -121,7 +139,7 @@ export function ReplayResults({ book, priceOf, ended = false }) {
           <tr>
             <th className="px-2 py-1 text-left font-medium">#</th><th className="px-2 py-1 text-left font-medium">Symbol</th><th className={th}>Side</th>
             <th className={th}>Opened</th><th className={th}>Closed</th><th className={th}>Size</th><th className={th}>Avg in</th><th className={th}>Avg out</th>
-            <th className={th}>P/L</th><th className={th}>Return</th><th className={th}>Held</th><th className={th}>Closed by</th>
+            <th className={th}>P/L</th><th className={th}>Return</th><th className={th}>Held</th>{showHow && <th className={th}>Closed by</th>}
           </tr>
         </thead>
         <tbody>
@@ -130,7 +148,7 @@ export function ReplayResults({ book, priceOf, ended = false }) {
               <td className="px-2 py-1 text-slate-400">{i + 1}</td>
               <td className="px-2 py-1 font-semibold">{t.symbol}</td>
               <td className={`${td} ${t.side === "long" ? "text-emerald-700" : "text-rose-700"}`}>{t.side === "long" ? "Long" : "Short"}</td>
-              <td className={td}>{when(t.entryTime, t.symbol)}</td>
+              <td className={td}>{carriedAt !== null && t.entryTime === carriedAt ? <span className="rounded bg-slate-100 px-1 text-slate-600" title="Held from before; counted from the last close before then">held before</span> : when(t.entryTime, t.symbol)}</td>
               <td className={td}>{t.open ? <span className="rounded bg-amber-100 px-1 text-amber-800">open</span> : when(t.exitTime, t.symbol)}</td>
               <td className={td}>{sizeText(t.size)}</td>
               <td className={td}>{px(t.avgEntry)}</td>
@@ -138,12 +156,72 @@ export function ReplayResults({ book, priceOf, ended = false }) {
               <td className={`${td} font-medium ${tone(t.realized)}`}>{t.open && !t.closedQty ? "—" : money(t.realized)}</td>
               <td className={`${td} ${tone(t.realized)}`}>{t.returnPct === null ? "—" : `${t.returnPct >= 0 ? "+" : ""}${(t.returnPct * 100).toFixed(2)}%`}</td>
               <td className={td}>{t.open ? "—" : held(t.exitTime - t.entryTime)}</td>
-              <td className={td}>{how(t.closedBy)}</td>
+              {showHow && <td className={td}>{how(t.closedBy)}</td>}
             </tr>
           ))}
         </tbody>
       </table>
-      <p className="px-2 py-1 text-[10px] text-slate-400">Practice trades in the replay, filled at the replayed prices with no commission or slippage. Return is on the cost of the part closed.</p>
+      <p className="px-2 py-1 text-[10px] text-slate-400">{note}</p>
+    </div>
+  );
+}
+
+const PERIODS = [["today", "Today"], ["week", "7 days"], ["month", "30 days"]];
+const DEMO_REFRESH_MS = 30000;
+
+/**
+ * The demo account's results, from its own fills (functions/terminal
+ * "fills"): today's, or the last 7 or 30 days', read again every half minute
+ * and after each order (`refreshKey`).
+ */
+export function DemoResults({ accountId, refreshKey = null }) {
+  const [period, setPeriod] = useState("today");
+  const [state, setState] = useState({ key: "", data: null, error: null, loading: false });
+  const key = `${accountId}|${period}`;
+  useEffect(() => {
+    if (!accountId) return undefined;
+    let alive = true;
+    const start = periodStart(period);
+    const load = () => {
+      if (document.visibilityState === "hidden") return;
+      setState((s) => ({ ...s, loading: true }));
+      invokeFunction("terminal", { action: "fills", accountId, start: new Date(start * 1000).toISOString() }).then((r) => {
+        if (!alive) return;
+        if (r?.data?.error) setState({ key, data: null, error: r.data.error, loading: false });
+        else setState({ key, data: { ...r.data, startSec: start }, error: null, loading: false });
+      });
+    };
+    load();
+    const t = setInterval(load, DEMO_REFRESH_MS);
+    return () => { alive = false; clearInterval(t); };
+  }, [accountId, period, key, refreshKey]);
+  const data = state.key === key ? state.data : null;
+  const built = useMemo(() => (data ? demoBook({ fills: data.fills, positions: data.positions, marks: data.marks, start: data.startSec }) : null), [data]);
+  const priceOf = (s) => data?.positions?.[s]?.last ?? null;
+  const carried = built ? Object.keys(built.carried).length : 0;
+  return (
+    <div className="flex h-full min-h-0 flex-col text-xs">
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-2 py-1">
+        <span className="font-semibold text-slate-700">Demo account</span>
+        <div className="flex overflow-hidden rounded border border-slate-200" role="group" aria-label="Period">
+          {PERIODS.map(([id, name]) => (
+            <button key={id} type="button" onClick={() => setPeriod(id)} className={`px-2 py-0.5 ${period === id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}>{name}</button>
+          ))}
+        </div>
+        <span className="text-slate-500">
+          {data ? `${data.fills.length} fill${data.fills.length === 1 ? "" : "s"} since ${new Date(data.startSec * 1000).toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric" })}` : state.loading ? "Reading your fills…" : ""}
+        </span>
+      </div>
+      {state.error && state.key === key && <p className="px-2 py-1 text-rose-700">{state.error}</p>}
+      {data?.truncated && <p className="px-2 py-1 text-amber-800">More than 1,000 fills: only the first 1,000 are counted. Choose a shorter period.</p>}
+      <div className="min-h-0 flex-1">
+        {built && (
+          <TradeResults book={built.book} priceOf={priceOf} carriedAt={data.startSec} showHow={false}
+            empty={`No share or coin trades ${period === "today" ? "today" : "in this period"}, and nothing held.`}
+            openHint="Positions still held, at the last price" holdHint="Open to close"
+            note={`From your paper account's own fills at Alpaca, no commission. ${carried ? `Held from before the period (${carried} symbol${carried === 1 ? "" : "s"}): counted from the last close before it, as a day's P/L is; "held before" in the list. ` : ""}${data.options ? `${data.options} option fill${data.options === 1 ? "" : "s"} left out. ` : ""}Shares from an option assignment count from the close before the period. Return is on the cost of the part closed.`} />
+        )}
+      </div>
     </div>
   );
 }

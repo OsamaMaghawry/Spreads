@@ -22,7 +22,7 @@ import { comboOf, cleanHotkeys } from "@/lib/hotkeys";
 import { Positions, Orders, AccountSummary } from "@/components/terminal/Panels";
 import useReplay from "@/components/terminal/useReplay";
 import ReplayBar, { ReplayStart } from "@/components/terminal/ReplayBar";
-import { PracticePositions, ReplayResults } from "@/components/terminal/ReplayPanels";
+import { PracticePositions, ReplayResults, DemoResults } from "@/components/terminal/ReplayPanels";
 import NewsPanel, { useNews } from "@/components/terminal/NewsPanel";
 import { acctIn, replayClock } from "@/lib/replay";
 
@@ -553,7 +553,8 @@ export default function Terminal() {
             {grip}
             {[
               ...(session || lastReplay ? [["practice", "Practice"], ["results", "Replay P/L"]] : []),
-              ["positions", `Positions${view?.positions?.length ? ` (${view.positions.length})` : ""}`], ["orders", `Orders${view?.orders?.length ? ` (${view.orders.length})` : ""}`], ["account", "Account"],
+              ["positions", `Positions${view?.positions?.length ? ` (${view.positions.length})` : ""}`], ["orders", `Orders${view?.orders?.length ? ` (${view.orders.length})` : ""}`],
+              ["demo", account?.type === "Paper" ? "Demo P/L" : "Trades P/L"], ["account", "Account"],
               ["news", `News${news.recent ? ` (${news.recent})` : ""}`]
             ].map(([id, name]) => (
               <button key={id} type="button" onClick={() => setTab(id)}
@@ -571,6 +572,7 @@ export default function Terminal() {
             {tab === "news" && <NewsPanel news={news} symbol={symbol} crypto={crypto} cursor={session?.cursor ?? null} clock={session ? replayClock(session.cursor, crypto) : ""} onPick={setSymbol} />}
             {tab === "positions" && <Positions positions={view?.positions || []} onPick={setSymbol} onClose={closePosition} onStop={stopPosition} />}
             {tab === "orders" && <Orders accountId={accountId} orders={view?.orders || []} recent={view?.recent || []} onChanged={loadView} onPick={setSymbol} />}
+            {tab === "demo" && <DemoResults accountId={accountId} refreshKey={`${view?.recent?.[0]?.id || ""}|${view?.recent?.[0]?.status || ""}|${view?.positions?.length || 0}`} />}
             {tab === "account" && <AccountSummary summary={view?.summary} paper={view?.paper} name={account?.name} />}
           </div>
         </div>

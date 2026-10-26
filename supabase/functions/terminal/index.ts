@@ -1216,6 +1216,69 @@ async function placeOrder(admin: any, user: any, account: any, input: any) {
   }
 }
 
+// ---------- the account's own trades ----------
+//
+// The demo account's results, as the replay has its own (26 Oct: "You gave
+// me some insights on the replay for the today's position and not on the
+// Demo!"): its share and coin fills since a moment, what it holds now, and
+// each symbol's last close before that moment, the price shares held from
+// before start counting at. The round trips are built in the browser
+// (lib/demoTrades.js), the same way as the replay's.
+const OCC_SYMBOL = /^[A-Z]{1,6}\d{6}[CP]\d{8}$/;
+// A fill names a coin with or without its slash; no share's symbol is six letters ending in USD.
+const fillSymbol = (s: string) => (s.includes("/") || (s.length >= 6 && /(USD|USDT|USDC)$/.test(s)) ? cryptoSymbol(s) : s);
+const FILL_PAGES = 10;
+
+async function accountFills(account: any, startIso: string) {
+  const start = Date.parse(startIso);
+  if (!Number.isFinite(start) || start > Date.now()) return { error: "Pick when to start." };
+  if (Date.now() - start > 92 * 86400000) return { error: "At most 92 days at a time." };
+  const base = tradingBase(account);
+  const raw: any[] = [];
+  let token: string | null = null;
+  let truncated = false;
+  for (let page = 0; page < FILL_PAGES; page++) {
+    const list = await alpacaFetch(`${base}/account/activities/FILL?after=${encodeURIComponent(iso(start))}&direction=asc&page_size=100` +
+      (token ? `&page_token=${encodeURIComponent(token)}` : ""), account);
+    const rows = Array.isArray(list) ? list : [];
+    raw.push(...rows);
+    token = rows.length === 100 ? rows.at(-1)?.id || null : null;
+    if (!token) break;
+    if (page === FILL_PAGES - 1) truncated = true;
+  }
+  const options = raw.filter((a) => OCC_SYMBOL.test(String(a.symbol || ""))).length;
+  const fills = raw.filter((a) => a.symbol && !OCC_SYMBOL.test(String(a.symbol)) && num(a.qty) && num(a.price)).map((a) => ({
+    symbol: fillSymbol(String(a.symbol)), side: a.side === "buy" ? "buy" : "sell", qty: Number(a.qty), price: Number(a.price),
+    time: Math.floor(Date.parse(a.transaction_time) / 1000), orderId: a.order_id || null
+  }));
+  const held = await alpacaFetch(`${base}/positions`, account);
+  const positions: Record<string, { qty: number; last: number | null; avg: number | null }> = {};
+  for (const p of Array.isArray(held) ? held : []) {
+    if (p.asset_class === "us_option" || OCC_SYMBOL.test(String(p.symbol))) continue;
+    positions[ownSymbol(p)] = { qty: num(p.qty) || 0, last: num(p.current_price), avg: num(p.avg_entry_price) };
+  }
+  // The last close before the start, for every symbol in play.
+  const symbols = [...new Set([...fills.map((f) => f.symbol), ...Object.keys(positions)])];
+  const marks: Record<string, number> = {};
+  const from = iso(start - 12 * 86400000);
+  const until = iso(start);
+  const readMarks = async (list: string[], crypto: boolean) => {
+    for (let i = 0; i < list.length; i += 100) {
+      const chunk = list.slice(i, i + 100).join(",");
+      const url = (feed: string) => crypto
+        ? `${CRYPTO_DATA}/bars?symbols=${encodeURIComponent(chunk)}&timeframe=1Day&start=${from}&end=${until}&limit=10000`
+        : `${DATA}/stocks/bars?symbols=${chunk}&timeframe=1Day&start=${from}&end=${until}&limit=10000&feed=${feed}&adjustment=split`;
+      const page = await alpacaFetch(url("sip"), account).catch(() => alpacaFetch(url(FEED), account)).catch(() => null);
+      for (const [sym, bars] of Object.entries(page?.bars || {})) {
+        const before = (bars as any[]).filter((b) => Date.parse(b.t) < start);
+        if (before.length) marks[crypto ? cryptoSymbol(sym) : sym] = Number(before.at(-1).c);
+      }
+    }
+  };
+  await Promise.all([readMarks(symbols.filter((s) => !isCrypto(s)), false), readMarks(symbols.filter((s) => isCrypto(s)), true)]);
+  return { start: iso(start), fills, positions, marks, options, truncated };
+}
+
 // ---------- bar replay ----------
 //
 // "stock replay where I can set the date from to ... for training purposes.
@@ -1589,6 +1652,10 @@ Deno.serve(async (req) => {
     if (action === "news") {
       const list = Array.isArray(body.symbols) ? body.symbols : [symbol];
       const r = await newsFor(account, list, String(body.start || ""), String(body.end || ""), String(body.sort || "desc"), Number(body.max) || 50);
+      return jsonResponse(r, (r as any).error ? 400 : 200);
+    }
+    if (action === "fills") {
+      const r = await accountFills(account, String(body.start || ""));
       return jsonResponse(r, (r as any).error ? 400 : 200);
     }
     if (action === "events") {
