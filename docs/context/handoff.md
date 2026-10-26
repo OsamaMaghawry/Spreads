@@ -32,6 +32,8 @@ need `npx wrangler deploy` by hand.
 
 ## Waiting on the owner
 
+*Re-checked 26 Oct by the reality check: items 1–3 below have no evidence of closure in the repo, and production is unreachable from agent sessions (403 at the proxy), so they cannot be confirmed either way. Treat them as **unresolved, unverified** — the owner's one-word answer closes each. The live ledger of owner items is `docs/ops/queue.md` § Needs owner.*
+
 1. `BREVO_API_KEY` → Supabase (Spread) → Edge Functions → Secrets. Alerts are
    recorded but not emailed until this exists.
 2. Supabase → Authentication → SMTP Settings → Brevo SMTP creds (from Brevo's
