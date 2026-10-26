@@ -448,12 +448,16 @@ export const SHARE_FEEDS = [
  * The tape for shares: `live`, the stream (eodhd, iex or delayed_sip), and
  * `history`, what charts, quotes and the tape are read from (iex, or delayed:
  * the consolidated tape up to fifteen minutes ago), with a label to show.
+ * EODHD's stream is every exchange's trades, so its history is every
+ * exchange's too, at any hour: IEX's own trades, a small part of the
+ * market, drew another chart (26 Oct, RENT after 8:00: "The chart never came
+ * back again as before it compeletely changed").
  */
 export function shareFeed(pref, { eodhd = false, now = Date.now() / 1000 } = {}) {
   const open = iexOpen(now);
   const choice = pref === "eodhd" && !eodhd ? "auto" : pref;
   if (choice === "eodhd" || (choice === "auto" && eodhd)) {
-    return { live: "eodhd", history: open ? "iex" : "delayed", delayed: false, label: "EODHD real time" };
+    return { live: "eodhd", history: "delayed", delayed: false, label: "EODHD real time" };
   }
   if (choice === "iex" || (choice === "auto" && open)) return { live: "iex", history: "iex", delayed: false, label: "IEX real time" };
   return { live: "delayed_sip", history: "delayed", delayed: true, label: "All exchanges, 15 min delayed" };

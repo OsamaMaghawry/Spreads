@@ -184,7 +184,9 @@ test("which tape a share comes from: EODHD where it is set up, else IEX while it
   assert.deepEqual(shareFeed("auto", { now: preDawn }), { live: "delayed_sip", history: "delayed", delayed: true, label: "All exchanges, 15 min delayed" });
   assert.equal(shareFeed("auto", { now: morning }).live, "iex");
   assert.deepEqual(shareFeed("auto", { eodhd: true, now: preDawn }), { live: "eodhd", history: "delayed", delayed: false, label: "EODHD real time" });
-  assert.equal(shareFeed("auto", { eodhd: true, now: morning }).history, "iex");
+  // EODHD streams every exchange: its history is every exchange's at any hour, not IEX's after 8:00.
+  assert.equal(shareFeed("auto", { eodhd: true, now: morning }).history, "delayed");
+  assert.equal(shareFeed("eodhd", { eodhd: true, now: morning }).history, "delayed");
   // Asked for EODHD without it: as if Auto.
   assert.equal(shareFeed("eodhd", { eodhd: false, now: morning }).live, "iex");
   assert.equal(shareFeed("iex", { eodhd: true, now: preDawn }).live, "iex");

@@ -60,6 +60,8 @@ const EVENTS_KEY = "dm.terminal.events";
 // the opiotn to remove the positions or order annotation from the chart as
 // it gets noisy sometimes"): the arrows for buys and sells, their labels,
 // and the replay position's average, stop and take-profit lines.
+// How often a share's fifteen-minute-old history is read again.
+const REFILL_MS = 60000;
 const TRADES_KEY = "dm.terminal.chartTrades";
 const TRADE_MARKS = { arrows: true, labels: true, lines: true };
 const cleanMarks = (v) => Object.fromEntries(Object.entries(TRADE_MARKS).map(([k, d]) => [k, typeof v?.[k] === "boolean" ? v[k] : d]));
@@ -570,8 +572,8 @@ function PriceChart({
     });
     // A share's history from every exchange ends fifteen minutes ago while
     // its live trades (EODHD's, or the delayed tape's) start from now: read
-    // again every five minutes so the stretch between fills in, the candles
-    // built live since kept after the history's end.
+    // again every minute so the stretch between fills in, the candles built
+    // live since kept after the history's end.
     const refill = !crypto && stockFeed === "delayed" && !SECONDS_INTERVALS.includes(interval) ? setInterval(() => {
       if (document.visibilityState === "hidden") return;
       invokeFunction("terminal", { action: "bars", accountId, symbol, interval, session: alignedSession || undefined, stockFeed }).then((r) => {
@@ -581,7 +583,7 @@ function PriceChart({
         rawRef.current = [...past, ...rawRef.current.filter((b) => b.time > end)];
         setState((st) => ({ ...st, count: show() }));
       }).catch(() => {});
-    }, 300000) : null;
+    }, REFILL_MS) : null;
     return () => { alive = false; if (refill) clearInterval(refill); };
   }, [accountId, symbol, interval, show, alignedSession, replayOn, renderReplay, stockFeed, crypto]);
 
