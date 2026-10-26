@@ -631,3 +631,4 @@ English. Newest first.
 - 2026-10-26 · (staging) Terminal: a Demo P/L page for the paper account; show or hide your trades' marks on the chart; chart history fills any hour from every exchange, and candles built live stay as drawn (`428c253`, `76ef17c`, `7930332`, `c08df37`).
 - 2026-10-26 · (staging) Terminal: stops outside regular hours are fired by the terminal at the stop price; an unfilled limit hands back to the stop at the open (`ae42eaa`, `fc811ac`).
 - 2026-10-26 · (staging) Ticket: exits offered for what you hold, a reason shown when an option is off, and the tape in time order (`c5dcf1a`).
+- 2026-10-26 · (staging) Terminal exit: pressing Exit again while a market sale is already on its way no longer cancels that sale (`ba26108`).
