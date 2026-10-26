@@ -1,6 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { usSession, stopPlan, stopsToReplace, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit } from "./positionTools.ts";
+import { usSession, stopPlan, stopsToReplace, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit, openingQty } from "./positionTools.ts";
+
+test("the part of an order that opens or adds to a position; closing never counts", () => {
+  assert.equal(openingQty("buy", 100, 0), 100, "a new long");
+  assert.equal(openingQty("buy", 100, 50), 100, "adding to a long");
+  assert.equal(openingQty("sell", 100, 300), 0, "selling shares held");
+  assert.equal(openingQty("sell", 100, 60), 40, "selling more than held: 40 go short");
+  assert.equal(openingQty("buy", 30, -50), 0, "buying back part of a short");
+  assert.equal(openingQty("buy", 80, -50), 30, "buying back and going long 30");
+  assert.equal(openingQty("sell", 10, -50), 10, "adding to a short");
+});
 
 test("an exit leaves a market sale on its way alone and counts it; stops, targets and limit exits go", () => {
   // 26 Oct, 9:30:10, CLRO held 64: the market sale of 64 sent at 9:30:04 still filling.

@@ -104,6 +104,19 @@ export function targetPlan(position: Position, input: StopInput):
  * to replace them.
  */
 /**
+ * How much of an order opens or adds to a position; the rest closes what is
+ * held (a sale of shares held, a buy back of a short). Only the opening part
+ * counts against a live account's limit per order: a stop or an exit is never
+ * stopped by it (26 Oct: live accounts, $5,000 an order, the owner's).
+ */
+export function openingQty(side: "buy" | "sell", qty: number, held: number) {
+  const q = Math.abs(num(qty) || 0);
+  const h = num(held) || 0;
+  if (side === "sell") return h > 0 ? Math.max(0, q - h) : q;
+  return h < 0 ? Math.max(0, q - Math.abs(h)) : q;
+}
+
+/**
  * What an exit does with a symbol's working orders: a market order on the
  * closing side is a sale already on its way, left alone, and what it still
  * has to sell counts as being sold; everything else (a stop, a take profit,

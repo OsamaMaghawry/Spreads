@@ -170,12 +170,16 @@ export default function Terminal() {
   // Remembered from the last visit, so the charts open on the right history
   // rather than drawing IEX's and then every exchange's a second later.
   const [eodhdOk, setEodhdOk] = useState(() => store.get(EODHD_KEY) === "1");
+  // Whether this person's live accounts trade from here (the owner's only,
+  // the server decides and checks again on every order).
+  const [liveOk, setLiveOk] = useState(false);
   const [minute, setMinute] = useState(() => Math.floor(Date.now() / 60000));
   useEffect(() => {
     invokeFunction("terminal", { action: "feeds" }).then((r) => {
       if (r?.data?.error) return;
       const on = !!r?.data?.eodhd;
       setEodhdOk(on);
+      setLiveOk(!!r?.data?.liveTrading);
       store.set(EODHD_KEY, on ? "1" : "0");
     }).catch(() => {});
   }, []);
@@ -405,7 +409,7 @@ export default function Terminal() {
   const armHotkeys = (on) => { setHotkeysOn(on); store.set(HOTKEYS_ON_KEY, on ? "1" : "0"); };
   // Everything a key press reads, current at the moment it is pressed.
   const live$ = useRef({});
-  live$.current = { account, symbol, quote, view, position, hotkeys, notify, refresh: loadView, replaying };
+  live$.current = { account, symbol, quote, view, position, hotkeys, notify, refresh: loadView, replaying, liveOk };
   useEffect(() => {
     if (!hotkeysOn || page !== "trade" || hotkeysOpen) return undefined;
     const onKey = (e) => {
@@ -441,9 +445,15 @@ export default function Terminal() {
               className={`px-3 py-1 first:rounded-l-md last:rounded-r-md ${page === id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}>{name}</button>
           ))}
         </div>
-        <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm">
+        <select value={accountId} onChange={(e) => setAccountId(e.target.value)} aria-label="Account"
+          className={`rounded-md border px-2 py-1 text-sm ${account?.type === "Live" ? "border-rose-500 bg-rose-50 font-semibold text-rose-800" : "border-slate-300 bg-white"}`}>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name} · {a.type}</option>)}
         </select>
+        {account?.type === "Live" && (
+          <span className="rounded bg-rose-600 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-white" title={liveOk ? "Orders and hotkeys here use real money. Each order that opens or adds to a position is limited to $5,000 during this test." : "A live account: look only. Orders go to paper accounts during this test."}>
+            LIVE{liveOk ? " · REAL MONEY" : " · VIEW ONLY"}
+          </span>
+        )}
         <div className="relative">
           <Search className="pointer-events-none absolute left-2 top-1.5 h-4 w-4 text-slate-400" />
           <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && results[0]) choose(results[0].symbol); }}
@@ -671,7 +681,7 @@ export default function Terminal() {
               </p>
             )}
             <OrderTicket account={account} symbol={symbol} quote={quote} held={held} heldText={held > 0 && position?.qtyText ? position.qtyText : ""}
-              buyingPower={view?.buyingPower ?? null} onPlaced={loadView} pick={pick} preset={preset} onNotify={notify}
+              buyingPower={view?.buyingPower ?? null} onPlaced={loadView} pick={pick} preset={preset} onNotify={notify} liveOk={liveOk}
               extStops={extStops} onExtStops={changeExtStops} guardHours={eodhdOk ? "4:00 to 9:30 and 16:00 to 20:00" : "8:00 to 9:30 and 16:00 to 17:00"} />
             <p className="px-1 text-[10px] leading-relaxed text-slate-400">Prices from your own Alpaca account: shares from the free IEX feed (real time, IEX trades only, 8:00 to 17:00 New York), or every exchange fifteen minutes late outside IEX&apos;s hours{eodhdOk ? "; or EODHD's real-time stream on your own EODHD plan" : ""}; coins from Alpaca&apos;s crypto venue, around the clock, with the full order book. Charts by TradingView Lightweight Charts. Not investment advice.</p>
           </div>

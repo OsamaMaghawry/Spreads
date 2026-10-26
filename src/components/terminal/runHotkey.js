@@ -54,7 +54,9 @@ export async function runHotkey(h, ctx) {
   const crypto = isCrypto(symbol);
   const label = `${h.keys} · ${describe(h)}`;
   if (!account?.id) return;
-  if (account.type !== "Paper") {
+  // Paper accounts, and the owner's own live accounts (the server checks again,
+  // and refuses a live order over $5,000 that opens or adds to a position).
+  if (account.type !== "Paper" && !(account.type === "Live" && ctx.liveOk)) {
     notify({ key, tone: "bad", title: "Hotkeys trade paper accounts only", detail: "Choose a paper account to use them during this test." });
     return;
   }

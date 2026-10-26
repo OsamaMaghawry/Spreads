@@ -15,7 +15,7 @@ import { currentReports } from "../_shared/earnings.ts";
 import { secReports, withFigures, earningsTimeline, cikMap } from "../_shared/earningsHistory.ts";
 import { dailyStats, isFundName } from "../_shared/screenStats.ts";
 import { historyRow, premarket, nyMoment } from "../_shared/screenHistory.ts";
-import { usSession, stopPlan, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit } from "../_shared/positionTools.ts";
+import { usSession, stopPlan, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit, openingQty } from "../_shared/positionTools.ts";
 import { inBackground } from "../_shared/background.ts";
 import { isOwnerEmail } from "../_shared/admin.ts";
 import { guardHours } from "../_shared/stopGuard.ts";
@@ -32,8 +32,11 @@ import { stopsToWatch, extStopsOn, watchEodhd, checkIex, handBackFired } from ".
 //
 // Two gates, both server-side. The whole function refuses unless the database
 // says terminal_lab is on, which only staging's does, so production fails
-// closed with nothing to forget. And orders go to paper accounts only: a live
-// account can be looked at, never traded, during this test.
+// closed with nothing to forget. And orders go to paper accounts, and to the
+// owner's own live Alpaca accounts (26 Oct: "Activate the Hotkeys on Live
+// accounts"; asked, the owner chose his accounts only, everything that sends
+// an order, and $5,000 at most for each order that opens or adds to a
+// position). Anyone else's live account can be looked at, never traded.
 //
 // Crypto, added the same day ("I don't see Cryptos to select from ... make
 // sure the order book is working and time and sales for anything that is
@@ -1140,6 +1143,11 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
       .map((row) => ({ s: at(row, "symbol"), prevClose: at(row, "prevClose"), open: at(row, "open"), gap: Math.round(gap(row) * 1000) / 10, pm: pm.pm?.[at(row, "symbol")] || null, close: at(row, "close"), volume: at(row, "volume"), avgVol20: Math.round(at(row, "avgVol20") || 0) }));
     return { date, asOf, part, parts, msHistory, msPremarket: Date.now() - t1, listed: r.listed, rows: r.rows.length, premarket: Object.keys(pm.pm || {}).length, feed: r.dayFeed, top };
   }
+  if (only === "liveLimit") {
+    // What the live limit says of an order, without sending it: [SYMBOL, SIDE, QTY].
+    const [sym, side, qty] = [extra[0] || "AAPL", extra[1] === "SELL" ? "sell" : "buy", Number(extra[2]) || 1];
+    return { account: house.name, paper: !!house.is_paper, symbol: sym, side, qty, refused: await liveLimit(house, sym, side as "buy" | "sell", qty, null, null) };
+  }
   if (only === "guard") {
     // The minute job's view without firing: which stops it guards and from what.
     return await guardStops(admin, true, accountId);
@@ -1232,10 +1240,38 @@ async function prefs(admin: any, userId: string, body: any): Promise<[any, numbe
   return [{ prefs: Object.fromEntries((data || []).map((r: any) => [r.key, { value: r.value, at: r.updated_at }])) }];
 }
 
-async function placeOrder(admin: any, user: any, account: any, input: any) {
-  if (!account.is_paper) {
-    return { status: 403, body: { error: "Orders from the terminal go to paper accounts only during this test. Choose a paper account." } };
+// The live accounts the terminal trades: the owner's own Alpaca accounts.
+const LIVE_ORDER_MAX = 5000;
+const canTrade = (user: any, account: any) => account.is_paper || (isOwnerEmail(user?.email) && account.provider !== "snaptrade");
+const NOT_LIVE = "Orders from the terminal go to paper accounts only during this test. Choose a paper account.";
+
+// What an order would buy or sell, in dollars: its own price, else the price
+// the browser saw, else the last trade.
+async function lastTradePrice(account: any, symbol: string) {
+  if (isCrypto(symbol)) {
+    const r = await alpacaFetch(`${CRYPTO_DATA}/latest/trades?symbols=${encodeURIComponent(symbol)}`, account).catch(() => null);
+    return num(r?.trades?.[symbol]?.p);
   }
+  const r = await alpacaFetch(`${DATA}/stocks/${encodeURIComponent(symbol)}/trades/latest?feed=${FEED}`, account).catch(() => null);
+  return num(r?.trade?.p);
+}
+
+// A live order that opens or adds to a position, over the limit, is refused.
+async function liveLimit(account: any, symbol: string, side: "buy" | "sell", qty: number, notional: number | null, price: number | null) {
+  if (account.is_paper) return null;
+  const pos = await positionOf(account, symbol).catch(() => null);
+  const held = pos ? (pos.side === "short" ? -Math.abs(pos.qty) : Math.abs(pos.qty)) : 0;
+  const px = price ?? (notional ? null : await lastTradePrice(account, symbol));
+  const opening = notional ? (side === "sell" && held > 0 ? 0 : notional) : openingQty(side, qty, held) * (px || 0);
+  if (!notional && !px && openingQty(side, qty, held) > 0) return "Could not price this order to check it against the live limit; try a limit order.";
+  if (opening > LIVE_ORDER_MAX) {
+    return `Live orders that open or add to a position are limited to $${LIVE_ORDER_MAX.toLocaleString("en-US")} each during this test; this one is about $${Math.round(opening).toLocaleString("en-US")}.`;
+  }
+  return null;
+}
+
+async function placeOrder(admin: any, user: any, account: any, input: any) {
+  if (!canTrade(user, account)) return { status: 403, body: { error: NOT_LIVE } };
   const crypto = isCrypto(cryptoSymbol(input?.symbol));
   let built;
   if (crypto) {
@@ -1254,6 +1290,9 @@ async function placeOrder(admin: any, user: any, account: any, input: any) {
   }
   if (!built.ok) return { status: 400, body: { error: built.reason } };
   const body = built.body as any;
+  const over = await liveLimit(account, body.symbol.includes("/") || crypto ? cryptoSymbol(body.symbol) : body.symbol, body.side, num(body.qty) || 0, num(body.notional),
+    num(body.limit_price) ?? num(body.stop_price) ?? num(input.reference));
+  if (over) return { status: 400, body: { error: over } };
   const attempt = {
     userId: user.id, accountId: account.id, intent: "open", ticker: body.symbol,
     legs: [{ symbol: body.symbol, side: body.side, ratio: 1 }], qty: body.qty ? Number(body.qty) : null, orderType: body.type,
@@ -1743,7 +1782,8 @@ Deno.serve(async (req) => {
     if (action === "prefs") return jsonResponse(...(await prefs(admin, user.id, body)));
     // Which share tapes this person can stream: EODHD's real-time one only for
     // the owner, whose plan it is, while the project holds its key.
-    if (action === "feeds") return jsonResponse({ eodhd: isOwnerEmail(user.email) && !!Deno.env.get("EODHD_API_KEY") });
+    // And whether this person's live accounts trade from the terminal (the owner's only).
+    if (action === "feeds") return jsonResponse({ eodhd: isOwnerEmail(user.email) && !!Deno.env.get("EODHD_API_KEY"), liveTrading: isOwnerEmail(user.email) });
     if (!accountId) return jsonResponse({ error: "Choose an account." }, 400);
     // The account's row (credentials still encrypted) kept 30 seconds by this
     // instance: a burst of key presses reads the database once.
@@ -1816,7 +1856,7 @@ Deno.serve(async (req) => {
       return jsonResponse(r, (r as any).error ? 400 : 200);
     }
     if (action === "protect" || action === "exit" || action === "cancelOrders") {
-      if (!account.is_paper) return jsonResponse({ error: "Orders from the terminal go to paper accounts only during this test. Choose a paper account." }, 403);
+      if (!canTrade(user, account)) return jsonResponse({ error: NOT_LIVE }, 403);
       if (action === "cancelOrders") return jsonResponse(await cancelOrders(account, symbol ? cryptoSymbol(symbol) : ""));
       const r = action === "protect" ? await protect(admin, user, account, body) : await exitPosition(admin, user, account, body);
       return jsonResponse(r.body, r.status);
