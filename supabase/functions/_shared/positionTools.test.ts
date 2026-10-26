@@ -1,6 +1,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { usSession, stopPlan, stopsToReplace, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody } from "./positionTools.ts";
+import { usSession, stopPlan, stopsToReplace, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit } from "./positionTools.ts";
+
+test("an exit leaves a market sale on its way alone and counts it; stops, targets and limit exits go", () => {
+  // 26 Oct, 9:30:10, CLRO held 64: the market sale of 64 sent at 9:30:04 still filling.
+  const orders = [
+    { id: "m1", side: "sell", type: "market", qty: "64", filled_qty: "0" },
+    { id: "s1", side: "sell", type: "stop", qty: "64", stop_price: "3.9" },
+    { id: "l1", side: "sell", type: "limit", qty: "30", limit_price: "4.2" },
+    { id: "b1", side: "buy", type: "market", qty: "10", filled_qty: "0" },
+    { id: "p1", side: "sell", type: "limit", qty: "64", order_class: "oco", legs: [{ type: "stop" }] }
+  ];
+  const s = exitSplit(orders, "sell");
+  assert.deepEqual(s.keep.map((o) => o.id), ["m1"]);
+  assert.deepEqual(s.cancel.map((o) => o.id), ["s1", "l1", "b1", "p1"]);
+  assert.equal(s.selling, 64);
+  // Part filled: only what is left counts.
+  assert.equal(exitSplit([{ id: "m2", side: "sell", type: "market", qty: "64", filled_qty: "40" }], "sell").selling, 24);
+  // A short's exit buys back.
+  assert.equal(exitSplit([{ id: "m3", side: "buy", type: "market", qty: "5" }], "buy").selling, 5);
+  assert.deepEqual(exitSplit(null as any, "sell"), { keep: [], cancel: [], selling: 0 });
+});
 
 const long = { qty: 100, side: "long" as const, avgPrice: 340, last: 350 };
 const short = { qty: -50, side: "short" as const, avgPrice: 360, last: 350 };

@@ -15,7 +15,7 @@ import { currentReports } from "../_shared/earnings.ts";
 import { secReports, withFigures, earningsTimeline, cikMap } from "../_shared/earningsHistory.ts";
 import { dailyStats, isFundName } from "../_shared/screenStats.ts";
 import { historyRow, premarket, nyMoment } from "../_shared/screenHistory.ts";
-import { usSession, stopPlan, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody } from "../_shared/positionTools.ts";
+import { usSession, stopPlan, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit } from "../_shared/positionTools.ts";
 import { inBackground } from "../_shared/background.ts";
 import { isOwnerEmail } from "../_shared/admin.ts";
 import { guardHours } from "../_shared/stopGuard.ts";
@@ -1632,18 +1632,26 @@ async function exitPosition(admin: any, user: any, account: any, input: any) {
   ]);
   if (!pos) return { status: 400, body: { error: `No ${symbol} position to exit.` } };
   const held = Math.abs(pos.qty);
+  const closing = pos.side === "short" ? "buy" : "sell";
+  // A market sale already on its way is left alone, and what it still has to
+  // sell is not sold twice (positionTools.ts exitSplit).
+  const split = exitSplit(open, closing);
+  const free = Math.max(0, held - split.selling);
+  if (free < 1e-9) {
+    return { status: 409, body: { error: `All ${held} ${symbol} are already being sold at market; that order is still filling.` } };
+  }
   const base = partial ? tradeSize(fills, pos.qty, (s) => cryptoSymbol(s) === symbol) : held;
-  const amount = partial
+  const wanted = partial
     ? partialQty(held, base, percent, { whole: !crypto && Number.isInteger(held), step: crypto ? asset?.minTradeIncrement : 1e-9, min: crypto ? asset?.minOrderSize : 0 })
     : { qty: held, all: true };
+  const amount = split.selling > 0 ? { qty: Math.min(wanted.qty, free), all: false } : wanted;
   const plan = exitPlan(pos, amount, session, { bid: num((quote as any).bp), ask: num((quote as any).ap) }, crypto);
   if (!plan.ok) return { status: 400, body: { error: plan.reason } };
-  // Every working order on the symbol holds shares the exit needs. A partial
-  // exit hands the old stop's price back, for the browser to put the stop
-  // back on what remains once the exit has filled.
-  const closing = pos.side === "short" ? "buy" : "sell";
+  // Every other working order on the symbol holds shares the exit needs. A
+  // partial exit hands the old stop's price back, for the browser to put the
+  // stop back on what remains once the exit has filled.
   const kept = partial && !amount.all ? existingExits(open, closing) : { stop: null, target: null };
-  if (!(await cancelAndWait(account, symbol, open.map((o: any) => o.id)))) {
+  if (!(await cancelAndWait(account, symbol, split.cancel.map((o: any) => o.id)))) {
     return { status: 409, body: { error: `${symbol}'s working orders are still being cancelled; press again in a moment.` } };
   }
   let order: any;
@@ -1655,14 +1663,14 @@ async function exitPosition(admin: any, user: any, account: any, input: any) {
     } catch (e) {
       const message = brokerRefusal(String((e as Error)?.message || e), symbol);
       inBackground(recordAttempt(admin, { userId: user.id, accountId: account.id, intent: "close", ticker: symbol, error: message }));
-      return { status: 422, body: { error: message, cancelled: open.length } };
+      return { status: 422, body: { error: message, cancelled: split.cancel.length } };
     }
     inBackground(recordAttempt(admin, { userId: user.id, accountId: account.id, intent: "close", ticker: symbol, legs: [{ symbol, side: closing, ratio: 1 }], qty: order?.qty ?? null, orderType: "market", brokerOrderId: order?.id, status: order?.status, quote: { percent, tradeSize: base } }));
   } else {
     const built = stockOrderBody({ symbol, side: plan.side, qty: plan.qty, type: "limit", limitPrice: plan.limitPrice, timeInForce: "day", extendedHours: true }, `TERM_${Date.now()}`);
     if (!built.ok) return { status: 400, body: { error: built.reason } };
     const sent = await sendBody(admin, user, account, "close", built.body);
-    if (sent.error) return { status: 422, body: { error: sent.error, cancelled: open.length } };
+    if (sent.error) return { status: 422, body: { error: sent.error, cancelled: split.cancel.length } };
     order = sent.order;
   }
   return {
@@ -1670,7 +1678,8 @@ async function exitPosition(admin: any, user: any, account: any, input: any) {
     body: {
       orderId: order?.id, status: order?.status, how: plan.how, percent, side: closing, tradeSize: base, all: plan.how === "close" ? plan.all : false,
       limitPrice: plan.how === "limit" ? plan.limitPrice : null, qty: plan.how === "limit" ? plan.qty : num(order?.qty) ?? plan.qty,
-      note: plan.how === "limit" ? plan.note : null, cancelled: open.length, restopPrice: kept.stop, retargetPrice: kept.target
+      note: [plan.how === "limit" ? plan.note : null, split.selling > 0 ? `${split.selling} already being sold at market` : null].filter(Boolean).join("; ") || null,
+      cancelled: split.cancel.length, restopPrice: kept.stop, retargetPrice: kept.target
     }
   };
 }

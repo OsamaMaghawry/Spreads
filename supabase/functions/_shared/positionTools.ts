@@ -103,6 +103,25 @@ export function targetPlan(position: Position, input: StopInput):
  * pair), its target (a limit, or the pair's limit), and the orders to cancel
  * to replace them.
  */
+/**
+ * What an exit does with a symbol's working orders: a market order on the
+ * closing side is a sale already on its way, left alone, and what it still
+ * has to sell counts as being sold; everything else (a stop, a take profit,
+ * an unfilled limit exit) is cancelled to free the shares, a limit exit being
+ * sent again at the new price. 26 Oct, CLRO at 9:30: each press of the exit
+ * cancelled the market sale the press before had sent, still filling in the
+ * first seconds of the open.
+ */
+export function exitSplit(orders: any[], closingSide: "buy" | "sell") {
+  const keep: any[] = [];
+  const cancel: any[] = [];
+  for (const o of Array.isArray(orders) ? orders : []) {
+    (o?.side === closingSide && o?.type === "market" && !o?.legs?.length ? keep : cancel).push(o);
+  }
+  const selling = keep.reduce((a, o) => a + Math.max(0, (num(o.qty) || 0) - (num(o.filled_qty) || 0)), 0);
+  return { keep, cancel, selling };
+}
+
 export function existingExits(orders: any[], closingSide: "buy" | "sell") {
   let stop: number | null = null;
   let target: number | null = null;
