@@ -122,7 +122,7 @@ A put can also be replaced before it expires, by selling the old one and buying 
 
 ## Frequently asked questions
 
-- **What is a married put?** The same structure, a long put held with 100 shares. The name is usually used when the shares and the put are bought at the same time. Its tax treatment is a question for a tax professional.
+- **What is a married put?** The same structure, a long put held with 100 shares. The name is usually used when the shares and the put are bought at the same time. Its [tax framing](/blog/married-put-tax) is a question for a tax professional.
 - **What is the break-even on a protective put?** The share cost plus the premium paid: $48.00 + $0.79 = $48.79 in the example.
 - **What is the maximum loss on a protective put?** The share cost less the strike, plus the premium: $2.79 a share in the example.
 - **Is a protective put the same as a long call?** Not the same position, but at expiration the payoff has the same shape as a call at the same strike plus cash, which is put-call parity.
