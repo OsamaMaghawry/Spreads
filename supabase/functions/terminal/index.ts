@@ -1383,22 +1383,27 @@ async function stopBody(account: any, symbol: string, plan: any, qtyText: string
 async function protect(admin: any, user: any, account: any, input: any) {
   const symbol = cryptoSymbol(String(input?.symbol || "").toUpperCase());
   const crypto = isCrypto(symbol);
-  const kind = input.kind === "target" ? "target" : "stop";
+  // "both": a stop and a target at once, at the two prices given, from the
+  // ticket's exits for a position (26 Oct, 521 RENT held: "the take profit or
+  // any check boxes don't work").
+  const kind = input.kind === "target" ? "target" : input.kind === "both" ? "both" : "stop";
   const [pos, open] = await Promise.all([positionOf(account, symbol), openOrdersFor(account, symbol)]);
-  if (!pos) return { status: 400, body: { error: `No ${symbol} position to ${kind === "stop" ? "protect" : "take profit on"}.` } };
+  if (!pos) return { status: 400, body: { error: `No ${symbol} position to ${kind === "target" ? "take profit on" : "protect"}.` } };
   const closing = pos.side === "short" ? "buy" : "sell";
   const have = existingExits(open, closing);
-  const measure = { mode: input.mode, value: Number(input.value), from: input.from === "entry" ? "entry" as const : "last" as const };
+  const from = input.from === "entry" ? "entry" as const : "last" as const;
+  const measure = { mode: input.mode, value: Number(input.value), from };
   let stop = have.stop;
   let target = have.target;
   let note: string | null = null;
-  if (kind === "stop") {
-    const plan = stopPlan(pos, measure, crypto);
+  if (kind !== "target") {
+    const plan = stopPlan(pos, kind === "both" ? { mode: "price" as const, value: Number(input.stopPrice), from } : measure, crypto);
     if (!plan.ok) return { status: 400, body: { error: plan.reason } };
     stop = plan.stopPrice;
     note = plan.note;
-  } else {
-    const plan = targetPlan(pos, measure);
+  }
+  if (kind !== "stop") {
+    const plan = targetPlan(pos, kind === "both" ? { mode: "price" as const, value: Number(input.targetPrice), from } : measure);
     if (!plan.ok) return { status: 400, body: { error: plan.reason } };
     target = plan.targetPrice;
   }

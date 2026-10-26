@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, inRegularHours, sessionDay, amountToQty, orderState, orderNews, iexOpen, shareFeed } from "./terminal.js";
+import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, inRegularHours, sessionDay, amountToQty, orderState, orderNews, iexOpen, shareFeed, ticketChoices, mergeTape, clockMs } from "./terminal.js";
 
 const sec = (iso) => Date.parse(iso) / 1000;
 
@@ -189,4 +189,45 @@ test("which tape a share comes from: EODHD where it is set up, else IEX while it
   assert.equal(shareFeed("eodhd", { eodhd: false, now: morning }).live, "iex");
   assert.equal(shareFeed("iex", { eodhd: true, now: preDawn }).live, "iex");
   assert.equal(shareFeed("delayed", { eodhd: true, now: morning }).live, "delayed_sip");
+});
+
+test("the ticket's options, and why one is off: 521 RENT held, a sell stop before the open", () => {
+  // 26 Oct, 6:20 New York: sell stop 2.97, good till cancelled, on shares held.
+  const rent = ticketChoices({ type: "stop", tif: "gtc", closing: true, session: "pre" });
+  assert.equal(rent.extended.ok, false);
+  assert.match(rent.extended.why, /Only a limit order/);
+  assert.equal(rent.bracket.ok, false);
+  assert.match(rent.bracket.why, /Exits below/);
+  assert.equal(rent.stopWaits, true, "Alpaca triggers stops from 9:30 only");
+  // A day limit order can go out before the open; a bracket goes on a new limit order.
+  assert.deepEqual(ticketChoices({ type: "limit", tif: "day", session: "pre" }).extended, { ok: true, why: null });
+  assert.equal(ticketChoices({ type: "limit", tif: "gtc" }).extended.why, "Only an order for the day can trade outside regular hours: set Time in force to Day.");
+  assert.deepEqual(ticketChoices({ type: "limit", tif: "day" }).bracket, { ok: true, why: null });
+  assert.equal(ticketChoices({ type: "limit", tif: "day", extended: true }).bracket.ok, false);
+  assert.equal(ticketChoices({ type: "limit", tif: "day", bracket: true }).extended.ok, false);
+  assert.equal(ticketChoices({ type: "market", tif: "day", dollars: true }).bracket.ok, false);
+  // In regular hours a stop works at once.
+  assert.equal(ticketChoices({ type: "trailing_stop", tif: "gtc", session: "regular" }).stopWaits, false);
+  assert.equal(ticketChoices({ type: "limit", tif: "day", session: "pre" }).stopWaits, false);
+});
+
+test("the tape in the order trades printed: a late arrival takes its place", () => {
+  const row = (at, n, extra = {}) => tapeRow({ price: 3 + n / 100, size: n, at, id: n, ...extra }, null);
+  let rows = [];
+  rows = mergeTape(rows, [row("2026-10-26T10:20:05.100Z", 2), row("2026-10-26T10:20:01.000Z", 1)]);
+  // EODHD's trade of 10:20:03 arrives after the one of 10:20:05.
+  rows = mergeTape(rows, [row("2026-10-26T10:20:06.000Z", 4), row("2026-10-26T10:20:03.000Z", 3)]);
+  assert.deepEqual(rows.map((r) => r.size), [4, 2, 3, 1]);
+  // Nanoseconds from Alpaca, milliseconds from EODHD: by time, not by text.
+  rows = mergeTape(rows, [row("2026-10-26T10:20:05.1004Z", 5)]);
+  assert.deepEqual(rows.map((r) => r.size), [4, 5, 2, 3, 1]);
+  // The same trade twice (a reload after a reconnect) is kept once, as first seen.
+  const again = mergeTape(rows, [row("2026-10-26T10:20:01.000Z", 1)]);
+  assert.equal(again.length, 5);
+  // Two in the same moment: the later to arrive first.
+  const tie = mergeTape([row("2026-10-26T10:21:00.000Z", 7)], [row("2026-10-26T10:21:00.000Z", 8)]);
+  assert.deepEqual(tie.map((r) => r.size), [8, 7]);
+  assert.equal(mergeTape([], Array.from({ length: TAPE_MAX + 9 }, (_, i) => row(new Date(1.79e12 + i * 1000).toISOString(), i))).length, TAPE_MAX);
+  assert.equal(clockMs("2026-10-26T10:20:05.042Z"), "06:20:05.042");
+  assert.equal(clockMs("x"), "");
 });

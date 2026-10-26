@@ -166,13 +166,32 @@ export function tapeRow(trade, quote) {
   const price = Number(trade.price);
   const known = trade.takerSide === "buy" || trade.takerSide === "sell";
   const side = known ? trade.takerSide : quote?.ask && price >= quote.ask ? "buy" : quote?.bid && price <= quote.bid ? "sell" : "mid";
-  return { id: `${trade.at}-${trade.id ?? ""}-${price}-${trade.size}`, at: trade.at, price, size: Number(trade.size) || 0, exchange: trade.exchange || "", side, known };
+  const time = Date.parse(trade.at);
+  return { id: `${trade.at}-${trade.id ?? ""}-${price}-${trade.size}`, at: trade.at, time: Number.isFinite(time) ? time : 0, price, size: Number(trade.size) || 0, exchange: trade.exchange || "", side, known };
 }
 
 export const TAPE_MAX = 200;
 
 export function pushTape(rows, row) {
   return [row, ...rows].slice(0, TAPE_MAX);
+}
+
+/**
+ * The tape with new rows in, newest first by when each trade printed, not
+ * when it arrived (26 Oct: "the time and sales is not ordered"): a trade
+ * that comes in late, as EODHD's sometimes do, takes its place among the
+ * others. Trades of the same moment keep the order they came in, the later
+ * first; each is kept once; at most `max`.
+ */
+export function mergeTape(rows, incoming, max = TAPE_MAX) {
+  const seen = new Set();
+  const all = [];
+  for (const r of [...incoming, ...rows]) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    all.push(r);
+  }
+  return all.sort((a, b) => (b.time || 0) - (a.time || 0)).slice(0, max);
 }
 
 // ---------- order book ----------
@@ -291,6 +310,11 @@ export const bookSize = (v) => {
 };
 export const clock = (iso) =>
   new Date(iso).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+/** The same, to the millisecond, for the tape: trades in one second are told apart. */
+export const clockMs = (iso) => {
+  const d = new Date(iso);
+  return Number.isFinite(d.getTime()) ? `${clock(iso)}.${String(d.getUTCMilliseconds()).padStart(3, "0")}` : "";
+};
 
 // ---------- the ticket's orders ----------
 
@@ -356,6 +380,32 @@ export function orderNews(order) {
     case "pending_cancel": return { tone: "wait", title: "Cancelling…", detail: order.words };
     default: return { tone: "ok", title: "Order placed", detail: `${order?.words || ""} · waiting to fill` };
   }
+}
+
+/**
+ * Which of the ticket's options a share order can take, and when one cannot,
+ * why, in a line (26 Oct: "the take profit or any check boxes don't work and
+ * no messages"). `closing`: the order sells shares held, or buys back a
+ * short, where a bracket's legs would open a new position the other way; the
+ * position's own exits do that job. `session`: sessionOf(now). `stopWaits`:
+ * a stop sent outside 9:30 to 16:00 waits for the open, as Alpaca triggers
+ * stops in regular hours only.
+ */
+export function ticketChoices({ type, tif, extended = false, bracket = false, closing = false, dollars = false, session = "regular" }) {
+  const isStop = type === "stop" || type === "stop_limit" || type === "trailing_stop";
+  const ext = dollars ? "An order in dollars trades in regular hours only."
+    : type !== "limit" ? "Only a limit order can trade before 9:30 or after 16:00 (Alpaca's rule)."
+      : tif !== "day" ? "Only an order for the day can trade outside regular hours: set Time in force to Day."
+        : bracket ? "Not with a take-profit and stop-loss attached." : null;
+  const brk = dollars ? "Not on an order in dollars."
+    : closing ? "Its take-profit and stop-loss would open a new position the other way. For the shares you hold, set Exits below."
+      : type !== "market" && type !== "limit" ? "Attaches to a new market or limit order."
+        : extended ? "Not with pre-market and after hours." : null;
+  return {
+    extended: { ok: !ext, why: ext },
+    bracket: { ok: !brk, why: brk },
+    stopWaits: isStop && session !== "regular"
+  };
 }
 
 // ---------- settings kept with the account ----------

@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
-import { tapeRow, TAPE_MAX } from "@/lib/terminal";
+import { tapeRow, mergeTape } from "@/lib/terminal";
 import { TimeAndSales } from "./Panels";
 
 // Time & sales, holding its own rows. The owner, 24 Oct: "I feel the time &
@@ -30,12 +30,8 @@ function TapePanel({ accountId, symbol, listen, live, epoch, quoteRef, stockFeed
     invokeFunction("terminal", { action: "trades", accountId, symbol: want, stockFeed }).then((r) => {
       if (forSymbol.current !== want || !Array.isArray(r?.data?.trades)) return;
       const past = r.data.trades.map((t) => tapeRow(t, null));
-      setRows((cur) => {
-        const seen = new Set(cur.map((x) => x.id));
-        return [...cur, ...past.filter((x) => !seen.has(x.id))]
-          .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
-          .slice(0, TAPE_MAX);
-      });
+      // What is on screen first, so its colours stay.
+      setRows((cur) => mergeTape(past, cur));
     });
   }, [accountId, symbol, stockFeed]);
 
@@ -54,9 +50,10 @@ function TapePanel({ accountId, symbol, listen, live, epoch, quoteRef, stockFeed
     });
     const flush = setInterval(() => {
       if (!pending.current.length) return;
+      // The latest to arrive first; each goes in at the time it printed.
       const batch = pending.current.reverse();
       pending.current = [];
-      setRows((cur) => [...batch, ...cur].slice(0, TAPE_MAX));
+      setRows((cur) => mergeTape(cur, batch));
       const sorted = [...delays.current].sort((a, b) => a - b);
       if (sorted.length) setDelay(sorted[Math.floor(sorted.length / 2)]);
     }, FLUSH_MS);

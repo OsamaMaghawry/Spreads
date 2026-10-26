@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
-import { px, sizeText, isCrypto, amountToQty, orderState, orderNews } from "@/lib/terminal";
+import { px, sizeText, isCrypto, amountToQty, orderState, orderNews, sessionOf, ticketChoices } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
 
 // The ticket, for shares and coins. Two steps, review then send, like a desk
@@ -21,6 +21,11 @@ import { fmtMoney } from "@/lib/format";
 // should say something different after the order is placed or executed"):
 // working, filled at what price, or cancelled, with a cancel button while it
 // works.
+//
+// An option the order cannot take says why under it, and shares or coins
+// held get their own exits: a stop, a take profit, or both as one cancels the
+// other (26 Oct, 521 RENT held before the open, a sell stop typed: "the take
+// profit or any check boxes don't work and no messages or notifications").
 
 const STOCK_TYPES = [
   ["market", "Market"], ["limit", "Limit"], ["stop", "Stop"], ["stop_limit", "Stop limit"], ["trailing_stop", "Trailing stop"]
@@ -191,6 +196,15 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   useEffect(() => {
     if (notional && !crypto) { setTif("day"); setExtended(false); setBracket(false); }
   }, [notional, crypto]);
+  // What the order can take now, and why not. Selling shares held (or buying
+  // back a short) closes them: a bracket's legs would open the other way.
+  const closing = !crypto && ((side === "sell" && held > 0) || (side === "buy" && held < 0));
+  const session = sessionOf(Date.now() / 1000);
+  const choices = ticketChoices({ type, tif, extended, bracket, closing, dollars: notional && !crypto, session });
+  useEffect(() => {
+    if (bracket && !choices.bracket.ok) setBracket(false);
+    if (extended && !choices.extended.ok) setExtended(false);
+  }, [bracket, extended, choices.bracket.ok, choices.extended.ok]);
 
   // Selling the whole holding sends the broker's exact quantity; say that one.
   const exactSale = !notional && side === "sell" && !!heldText && (sellAll || Number(qty) === held);
@@ -339,18 +353,22 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
       )}
 
       {!crypto && (
-      <label className={`flex items-center gap-2 text-xs ${type === "limit" && tif === "day" ? "text-slate-700" : "text-slate-400"}`}>
-        <input type="checkbox" checked={extended} disabled={!(type === "limit" && tif === "day") || bracket} onChange={(e) => { setExtended(e.target.checked); setReview(false); }} />
-        Pre-market and after hours (day limit orders only)
-      </label>
+      <div>
+        <label className={`flex items-center gap-2 text-xs ${choices.extended.ok ? "text-slate-700" : "text-slate-400"}`}>
+          <input type="checkbox" checked={extended} disabled={!choices.extended.ok} onChange={(e) => { setExtended(e.target.checked); setReview(false); }} />
+          Pre-market and after hours (day limit orders only)
+        </label>
+        {!choices.extended.ok && <p className="ml-5 text-[10px] leading-snug text-slate-500">{choices.extended.why}</p>}
+      </div>
       )}
 
       {!crypto && (
       <div className="rounded-lg border border-slate-200 p-2">
-        <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
-          <input type="checkbox" checked={bracket} disabled={!(type === "market" || type === "limit") || extended} onChange={(e) => { setBracket(e.target.checked); setReview(false); }} />
+        <label className={`flex items-center gap-2 text-xs font-medium ${choices.bracket.ok ? "text-slate-700" : "text-slate-400"}`}>
+          <input type="checkbox" checked={bracket} disabled={!choices.bracket.ok} onChange={(e) => { setBracket(e.target.checked); setReview(false); }} />
           Attach take-profit and stop-loss
         </label>
+        {!choices.bracket.ok && <p className="ml-5 text-[10px] leading-snug text-slate-500">{choices.bracket.why}</p>}
         {bracket && (
           <div className="mt-2 grid grid-cols-2 gap-2">
             <div>
@@ -395,6 +413,11 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
         <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">Too small: Alpaca&apos;s smallest {coin} order is {asset.minOrderSize} {coin} (about {fmtMoney(minDollars || 1)}).</p>
       ) : null}
       {overBp && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">This is more than the account's buying power; the broker will likely refuse it.</p>}
+      {!crypto && choices.stopWaits && (
+        <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
+          {session === "pre" ? "Before the open" : session === "post" ? "After the close" : "Outside market hours"}: Alpaca triggers stop orders from 9:30 to 16:00 New York only, so this one waits for the next open. To trade before then, use a limit order with &ldquo;Pre-market and after hours&rdquo; ticked.
+        </p>
+      )}
 
       {review ? (
         <div className="space-y-2 rounded-lg border border-slate-300 bg-slate-50 p-2">
@@ -411,6 +434,85 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
         <button type="button" disabled={!ready} onClick={() => setReview(true)}
           className={`w-full rounded-md py-2 text-sm font-semibold text-white disabled:opacity-40 ${side === "buy" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"}`}>
           Review {side === "buy" ? "buy" : "sell"}
+        </button>
+      )}
+
+      {held !== 0 && account?.id && (
+        <PositionExits account={account} symbol={symbol} held={held} crypto={crypto} paper={paper} session={session} onNotify={onNotify} onPlaced={onPlaced} />
+      )}
+    </div>
+  );
+}
+
+// The holding's own exits (functions/terminal "protect"): a stop, a take
+// profit, or both, for all of it, good till cancelled. A new stop replaces the
+// stop working on it, a new take profit the take profit, and a stop and a take
+// profit go together as one cancels the other. Reviewed, then sent, like any
+// order from the ticket.
+function PositionExits({ account, symbol, held, crypto, paper, session, onNotify, onPlaced }) {
+  const [stop, setStop] = useState("");
+  const [target, setTarget] = useState("");
+  const [review, setReview] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { setStop(""); setTarget(""); setReview(false); }, [symbol]);
+  const long = held > 0;
+  const qty = Math.abs(held);
+  const name = crypto ? symbol.split("/")[0] : symbol;
+  const s = Number(stop) > 0 ? Number(stop) : null;
+  const t = Number(target) > 0 ? Number(target) : null;
+  // Alpaca pairs exits only on whole shares.
+  const pairOk = !(s && t) || (!crypto && Number.isInteger(qty));
+  const out = long ? "Sell" : "Buy back";
+  const words = `${out} ${sizeText(qty)} ${name}` +
+    (s && t ? ` at ${px(t)} (take profit), or if it trades at ${px(s)} (stop): one cancels the other` : s ? ` if it trades at ${px(s)} (stop)` : ` at ${px(t)} (take profit)`) +
+    `, good till cancelled; replaces the ${s && t ? "stop and take profit" : s ? "stop" : "take profit"} working on ${symbol}, if any`;
+  const send = async () => {
+    setBusy(true);
+    const key = `x${Date.now()}`;
+    onNotify({ key, tone: "wait", title: `Setting exits on ${symbol}…`, detail: words });
+    const r = await invokeFunction("terminal", { action: "protect", accountId: account.id, symbol, kind: s && t ? "both" : s ? "stop" : "target", mode: "price", value: s ?? t, stopPrice: s, targetPrice: t })
+      .catch((e) => ({ data: { error: String(e?.message || e) } }));
+    setBusy(false);
+    setReview(false);
+    if (r?.data?.error) { onNotify({ key, tone: "bad", title: "Exits not set", detail: r.data.error }); return; }
+    const d = r.data;
+    const did = d.paired ? `${out} ${sizeText(d.qty)} ${name} at ${px(d.targetPrice)}, or if it trades at ${px(d.stopPrice)}: one cancels the other`
+      : d.kind === "target" ? `${out} ${sizeText(d.qty)} ${name} at ${px(d.targetPrice)}`
+        : `${out} ${sizeText(d.qty)} ${name} if it trades at ${px(d.stopPrice)}${d.limitPrice ? ` (limit ${px(d.limitPrice)})` : ""}`;
+    onNotify({ key, tone: "ok", title: "Exits set", detail: [did, d.replaced ? `replaced ${d.replaced} earlier exit order${d.replaced === 1 ? "" : "s"}` : null, d.note].filter(Boolean).join(" · ") });
+    setStop("");
+    setTarget("");
+    onPlaced?.();
+  };
+  return (
+    <div className="rounded-lg border border-slate-200 p-2">
+      <div className="text-xs font-medium text-slate-700">Exits for the {sizeText(qty)} {crypto ? name : `${symbol} shares`} you {long ? "hold" : "are short"}</div>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <div>
+          <label className={label} htmlFor="x-stop">Stop loss</label>
+          <input id="x-stop" className={input} inputMode="decimal" value={stop} placeholder={long ? "below the price" : "above the price"} onChange={(e) => { setStop(e.target.value.replace(/[^\d.]/g, "")); setReview(false); }} />
+        </div>
+        <div>
+          <label className={label} htmlFor="x-target">Take profit</label>
+          <input id="x-target" className={input} inputMode="decimal" value={target} placeholder={long ? "above the price" : "below the price"} onChange={(e) => { setTarget(e.target.value.replace(/[^\d.]/g, "")); setReview(false); }} />
+        </div>
+      </div>
+      <p className="mt-1 text-[10px] leading-snug text-slate-500">
+        One or both. Together, when one fills the other is cancelled; set alone, it pairs with the other already working.{!crypto && session !== "regular" ? " A stop triggers from 9:30 New York; a take profit fills from then too." : ""}
+      </p>
+      {!pairOk && <p className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-800">{crypto ? "A coin takes one exit at a time at Alpaca: a stop or a take profit, not both." : "With part of a share, Alpaca takes one exit at a time: a stop or a take profit, not both."}</p>}
+      {review ? (
+        <div className="mt-2 space-y-2 rounded-lg border border-slate-300 bg-slate-50 p-2">
+          <p className="text-sm text-slate-800">{words}.</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={send} disabled={busy} className="flex-1 rounded-md bg-slate-900 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">{busy ? "Sending…" : "Set exits"}</button>
+            <button type="button" onClick={() => setReview(false)} className="rounded-md border border-slate-300 px-3 text-sm text-slate-600">Edit</button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" disabled={!paper || !(s || t) || !pairOk} onClick={() => setReview(true)}
+          className="mt-2 w-full rounded-md bg-slate-900 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40">
+          Review exits
         </button>
       )}
     </div>

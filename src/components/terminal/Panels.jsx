@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
-import { px, sizeText, clock, pctText, isCrypto, orderState } from "@/lib/terminal";
+import { px, sizeText, clockMs, pctText, isCrypto, orderState } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
 
 // The terminal's lower panels: the tape, the account's shares and coins, and
@@ -17,6 +17,12 @@ function ago(iso, now) {
   return `${Math.floor(s / 3600)}h ${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}m`;
 }
 
+const TAPE_ORDER_KEY = "dm.terminal.tapeOrder";
+
+// The rows come newest first, by when each trade printed (lib/terminal.js
+// mergeTape). Click the time to read them oldest first, as a tape runs
+// (26 Oct: "the ability to sort it by time"); this browser remembers which.
+// Oldest first, the newest are at the bottom, followed while you are there.
 export function TimeAndSales({ rows, symbol, live = false, delay = null, source = "iex" }) {
   const crypto = isCrypto(symbol);
   // The clock in the header ticks, so a quiet tape reads as quiet, not stuck.
@@ -25,6 +31,23 @@ export function TimeAndSales({ rows, symbol, live = false, delay = null, source 
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+  const [oldestFirst, setOldestFirst] = useState(() => { try { return localStorage.getItem(TAPE_ORDER_KEY) === "oldest"; } catch { return false; } });
+  const flip = () => setOldestFirst((v) => {
+    try { localStorage.setItem(TAPE_ORDER_KEY, v ? "newest" : "oldest"); } catch { /* private window */ }
+    return !v;
+  });
+  const box = useRef(null);
+  const atEnd = useRef(true);
+  const shown = oldestFirst ? [...rows].reverse() : rows;
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    if (oldestFirst ? atEnd.current : el.scrollTop < 40) el.scrollTop = oldestFirst ? el.scrollHeight : 0;
+  }, [rows, oldestFirst]);
+  const onScroll = (e) => {
+    const el = e.currentTarget;
+    atEnd.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  };
   const last = rows[0]?.at;
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -36,15 +59,21 @@ export function TimeAndSales({ rows, symbol, live = false, delay = null, source 
           {last ? ` · last ${ago(last, now)} ago` : ""}
         </span>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div ref={box} onScroll={onScroll} className="min-h-0 flex-1 overflow-auto">
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-white">
-            <tr><th className={th}>Time (ET)</th><th className={th}>Price</th><th className={th}>Size{crypto ? ` (${symbol.split("/")[0]})` : ""}</th><th className={th}>{crypto ? "Taker" : "Venue"}</th></tr>
+            <tr>
+              <th className={th} aria-sort={oldestFirst ? "ascending" : "descending"}>
+                <button type="button" onClick={flip} title={oldestFirst ? "Oldest first: click for newest first" : "Newest first: click for oldest first"}
+                  className="uppercase tracking-wider hover:text-slate-900">Time (ET) {oldestFirst ? "↑" : "↓"}</button>
+              </th>
+              <th className={th}>Price</th><th className={th}>Size{crypto ? ` (${symbol.split("/")[0]})` : ""}</th><th className={th}>{crypto ? "Taker" : "Venue"}</th>
+            </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {shown.map((r) => (
               <tr key={r.id} className={r.side === "buy" ? "text-emerald-700" : r.side === "sell" ? "text-rose-700" : "text-slate-700"}>
-                <td className={td}>{clock(r.at)}</td><td className={td}>{px(r.price)}</td><td className={td}>{sizeText(r.size)}</td>
+                <td className={`${td} whitespace-nowrap`}>{clockMs(r.at)}</td><td className={td}>{px(r.price)}</td><td className={td}>{sizeText(r.size)}</td>
                 <td className={td}>{crypto ? (r.side === "buy" ? "Buyer" : r.side === "sell" ? "Seller" : "") : r.exchange}</td>
               </tr>
             ))}
