@@ -22,7 +22,9 @@ const FLUSH_MS = 100;
 // one connection already in use elsewhere, no entitlement.
 const TERMINAL = /409|401|402|403|406|connection limit|not authorized|no API key/i;
 
-export default function useTerminalStream(accountId, symbols, book = "") {
+// `stockFeed`: the tape for shares (lib/terminal.js shareFeed): "iex",
+// "delayed_sip" or "eodhd"; a change reconnects.
+export default function useTerminalStream(accountId, symbols, book = "", stockFeed = "iex") {
   const [quotes, setQuotes] = useState({});
   const [status, setStatus] = useState({ state: "idle", message: null });
   const [feeds, setFeeds] = useState({});
@@ -55,7 +57,7 @@ export default function useTerminalStream(accountId, symbols, book = "") {
       setStatus({ state: "connecting", message: null });
       setFeeds({});
       const url = `${FUNCTIONS_BASE}/marketStream?token=${encodeURIComponent(token)}&accountId=${encodeURIComponent(accountId)}` +
-        `&symbols=${encodeURIComponent(list.join(","))}&book=${encodeURIComponent(bookRef.current || "")}&detail=1`;
+        `&symbols=${encodeURIComponent(list.join(","))}&book=${encodeURIComponent(bookRef.current || "")}&detail=1&stocks=${encodeURIComponent(stockFeed)}`;
       const ws = new WebSocket(url.replace(/^http/, "ws"));
       socketRef.current = ws;
       let wasLive = false;
@@ -130,9 +132,9 @@ export default function useTerminalStream(accountId, symbols, book = "") {
       try { socketRef.current?.close(); } catch { /* closed */ }
       socketRef.current = null;
     };
-    // The account opens the socket; symbol changes travel down it (below).
+    // The account and the share tape open the socket; symbol changes travel down it (below).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountId]);
+  }, [accountId, stockFeed]);
 
   // Symbol and book changes on the open socket.
   useEffect(() => {

@@ -5,7 +5,7 @@ import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import "@/components/terminal/terminal.css";
 import { invokeFunction } from "@/lib/functions";
-import { readWatchlist, cleanWatchlist, withCoinsOnce, px, pctText, sizeText, isCrypto, WATCHLIST_MAX } from "@/lib/terminal";
+import { readWatchlist, cleanWatchlist, withCoinsOnce, px, pctText, sizeText, isCrypto, WATCHLIST_MAX, shareFeed, SHARE_FEEDS } from "@/lib/terminal";
 import { DEFAULT_LAYOUTS, BREAKPOINTS, COLS, MARGIN, cleanLayouts, rowHeightFor, fromFirstVersion } from "@/lib/terminalLayout";
 import { fmtMoney } from "@/lib/format";
 import { readPrefs, savePref, settle } from "@/lib/terminalPrefs";
@@ -63,6 +63,7 @@ const LOCK_KEY = "dm.terminal.layoutLocked";
 const PAGE_KEY = "dm.terminal.page";
 const HOTKEYS_ON_KEY = "dm.terminal.hotkeysOn";
 const PANES_KEY = "dm.terminal.panes.v1";
+const SHARE_FEED_KEY = "dm.terminal.shareFeed";
 const NO_FILLS = [];
 // Where each chart sits for one to four of them.
 const PANE_GRID = { 1: "grid-cols-1", 2: "grid-cols-1 sm:grid-cols-2", 3: "grid-cols-2 grid-rows-2", 4: "grid-cols-2 grid-rows-2" };
@@ -159,17 +160,29 @@ export default function Terminal() {
     if (watchSynced.current) savePref("watchlist", watch);
   }, [watch]);
 
+  // Which tape shares come from (lib/terminal.js shareFeed): EODHD's real-time
+  // stream where it is set up for this person, else IEX while it trades and
+  // every exchange fifteen minutes late when it does not, or as chosen. Looked
+  // at again every minute, so Auto moves on at 8:00 and 17:00 by itself.
+  const [feedPref, setFeedPref] = useState(() => store.get(SHARE_FEED_KEY) || "auto");
+  const [eodhdOk, setEodhdOk] = useState(false);
+  const [minute, setMinute] = useState(() => Math.floor(Date.now() / 60000));
+  useEffect(() => { invokeFunction("terminal", { action: "feeds" }).then((r) => setEodhdOk(!!r?.data?.eodhd)).catch(() => {}); }, []);
+  useEffect(() => { const t = setInterval(() => setMinute(Math.floor(Date.now() / 60000)), 30000); return () => clearInterval(t); }, []);
+  const shares = useMemo(() => shareFeed(feedPref, { eodhd: eodhdOk, now: minute * 60 }), [feedPref, eodhdOk, minute]);
+  const chooseFeed = (v) => { setFeedPref(v); store.set(SHARE_FEED_KEY, v); };
+
   const streamSymbols = useMemo(() => cleanWatchlist([symbol, ...paneSymbols.split(","), ...watch]).slice(0, 30), [symbol, paneSymbols, watch]);
-  const { quotes: live, status, feeds, epoch, listen } = useTerminalStream(accountId, streamSymbols, crypto ? symbol : "");
+  const { quotes: live, status, feeds, epoch, listen } = useTerminalStream(accountId, streamSymbols, crypto ? symbol : "", shares.live);
   const feedTrouble = Object.entries(feeds).find(([, f]) => f.state === "error");
 
   // Opening quotes and the previous close, for the change column.
   useEffect(() => {
     if (!accountId) return;
-    invokeFunction("terminal", { action: "snapshot", accountId, symbols: streamSymbols }).then((r) => {
+    invokeFunction("terminal", { action: "snapshot", accountId, symbols: streamSymbols, stockFeed: shares.history }).then((r) => {
       if (r?.data?.quotes) setSnaps((s) => ({ ...s, ...r.data.quotes }));
     });
-  }, [accountId, streamSymbols]);
+  }, [accountId, streamSymbols, shares.history]);
 
   const quoteOf = useCallback((s) => {
     const a = snaps[s] || {};
@@ -416,9 +429,16 @@ export default function Terminal() {
         <span className={`text-xs ${status.state === "live" && !feedTrouble ? "text-emerald-700" : status.state === "error" || feedTrouble ? "text-rose-700" : "text-slate-500"}`}>
           {status.state === "error" ? status.message
             : feedTrouble ? `${feedTrouble[0] === "crypto" ? "Crypto" : "Stock"} prices: ${feedTrouble[1].message}`
-              : status.state === "live" ? `● Live · ${[feeds.stocks?.state === "live" && "IEX", feeds.crypto?.state === "live" && "crypto"].filter(Boolean).join(" + ") || "connected"}`
+              : status.state === "live" ? `● Live · ${[feeds.stocks?.state === "live" && (shares.live === "eodhd" ? "EODHD" : shares.delayed ? "all exchanges, 15 min late" : "IEX"), feeds.crypto?.state === "live" && "crypto"].filter(Boolean).join(" + ") || "connected"}`
                 : status.state === "reconnecting" ? "Reconnecting…" : "Connecting…"}
         </span>
+        <label className="flex items-center gap-1 text-xs text-slate-500" title="Where share prices come from. Auto: EODHD where it is set up for you; else IEX in real time from 8:00 to 17:00 New York, and every exchange 15 minutes late outside those hours.">
+          Shares
+          <select value={feedPref} onChange={(e) => chooseFeed(e.target.value)} aria-label="Share prices from"
+            className={`rounded-md border px-1 py-0.5 text-xs ${shares.delayed ? "border-amber-400 bg-amber-50 text-amber-900" : "border-slate-300 bg-white text-slate-700"}`}>
+            {SHARE_FEEDS.filter(([id]) => id !== "eodhd" || eodhdOk).map(([id, name]) => <option key={id} value={id}>{id === "auto" ? `Auto: ${shares.label}` : name}</option>)}
+          </select>
+        </label>
       </div>
 
       {replaying && page === "trade" && (
@@ -521,7 +541,7 @@ export default function Terminal() {
                   className={`min-h-0 min-w-0 overflow-hidden bg-white ${panes.list.length === 3 && i === 0 ? "col-span-2" : ""} ${panes.list.length > 1 && panes.active === i ? "outline outline-2 -outline-offset-2 outline-emerald-500" : ""}`}>
                   <PriceChart accountId={accountId} symbol={p.symbol} interval={p.interval} onInterval={paneInterval[i]} listen={listen} fills={fillsBySymbol[p.symbol] || NO_FILLS}
                     replay={replay} replayOn={replaying} replayCursor={session?.cursor ?? null} replayVersion={replayVersion} replayAcct={session?.book[p.symbol] || null}
-                    onReplayButton={replayButton} active={panes.active === i} label={panes.list.length > 1} />
+                    onReplayButton={replayButton} active={panes.active === i} label={panes.list.length > 1} stockFeed={shares.history} liveSource={shares.live} />
                 </div>
               ))}
             </div>
@@ -560,7 +580,7 @@ export default function Terminal() {
         </div>
 
         <div key="tape" className={frame}>
-          <TapePanel accountId={accountId} symbol={symbol} listen={listen} live={tapeLive} epoch={epoch} quoteRef={quoteRef} />
+          <TapePanel accountId={accountId} symbol={symbol} listen={listen} live={tapeLive} epoch={epoch} quoteRef={quoteRef} stockFeed={shares.history} source={shares.live} />
         </div>
 
         <div key="ticket" className={frame}>
@@ -572,7 +592,7 @@ export default function Terminal() {
                 <span className="text-slate-500">High</span><span className="text-right">{px(quote.high)}</span>
                 <span className="text-slate-500">Low</span><span className="text-right">{px(quote.low)}</span>
                 <span className="text-slate-500">{crypto ? "Prev day close (UTC)" : "Prev close"}</span><span className="text-right">{px(quote.prevClose)}</span>
-                <span className="text-slate-500">{crypto ? "Volume today (UTC)" : "Volume (IEX)"}</span><span className="text-right">{sizeText(quote.volume)}</span>
+                <span className="text-slate-500">{crypto ? "Volume today (UTC)" : shares.history === "delayed" ? "Volume (all exchanges)" : "Volume (IEX)"}</span><span className="text-right">{sizeText(quote.volume)}</span>
               </div>
               {view && (
                 <div className="mt-2 grid grid-cols-2 gap-y-1 border-t border-slate-100 pt-2 tabular-nums">
@@ -586,9 +606,14 @@ export default function Terminal() {
                 This ticket sends real orders to your paper account, at today&apos;s prices; the replay does not see them. To practice in the replay, use the replay bar above the chart or your hotkeys.
               </p>
             )}
+            {!crypto && shares.delayed && (
+              <p className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] leading-snug text-amber-900">
+                Share prices here are fifteen minutes old (every exchange, delayed): IEX trades from 8:00 New York. Set a limit price with that in mind.
+              </p>
+            )}
             <OrderTicket account={account} symbol={symbol} quote={quote} held={held} heldText={held > 0 && position?.qtyText ? position.qtyText : ""}
               buyingPower={view?.buyingPower ?? null} onPlaced={loadView} pick={pick} preset={preset} onNotify={notify} />
-            <p className="px-1 text-[10px] leading-relaxed text-slate-400">Prices from your own Alpaca account: shares from the free IEX feed (real time, IEX trades only); coins from Alpaca&apos;s crypto venue, around the clock, with the full order book. Charts by TradingView Lightweight Charts. Not investment advice.</p>
+            <p className="px-1 text-[10px] leading-relaxed text-slate-400">Prices from your own Alpaca account: shares from the free IEX feed (real time, IEX trades only, 8:00 to 17:00 New York), or every exchange fifteen minutes late outside IEX&apos;s hours{eodhdOk ? "; or EODHD's real-time stream on your own EODHD plan" : ""}; coins from Alpaca&apos;s crypto venue, around the clock, with the full order book. Charts by TradingView Lightweight Charts. Not investment advice.</p>
           </div>
         </div>
       </Grid>}

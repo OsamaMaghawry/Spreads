@@ -38,7 +38,99 @@ const FINAL = new Set([401, 402, 403, 405, 409]);
 // old one. Still read-only: the browser can choose symbols, nothing else.
 type Feed = { kind: "stocks" | "crypto"; ws: WebSocket | null; authed: boolean; subscribed: Set<string>; book: string; attempts: number; final: string | null };
 
-export function relayDetail(client: WebSocket, auth: { key: string; secret: string }, initial: string[], initialBook: string, stockFeed = "iex") {
+// EODHD's real-time stream for shares, trades and bid/ask on two sockets,
+// pre-market and after hours included (26 Oct, 5:34 New York: AAPL trades
+// tagged "extended-hours", quotes about a second behind; Alpaca's free IEX
+// feed had nothing before 8:00). The owner's own EODHD plan, so only for the
+// owner (functions/marketStream decides). Its messages become the relay's
+// own: a trade's size is EODHD's v, its time t in milliseconds; dp marks a
+// dark-pool print and ms the session ("extended-hours", "open").
+const EODHD_STREAM = "wss://ws.eodhistoricaldata.com/ws";
+
+function eodhdShares(key: string, send: (m: any) => void, said: string[], isClosed: () => boolean) {
+  const ends = { trades: "us", quotes: "us-quote" } as const;
+  type Side = { ws: WebSocket | null; authed: boolean; subscribed: Set<string>; attempts: number; final: string | null };
+  const sides: Record<keyof typeof ends, Side> = {
+    trades: { ws: null, authed: false, subscribed: new Set(), attempts: 0, final: null },
+    quotes: { ws: null, authed: false, subscribed: new Set(), attempts: 0, final: null }
+  };
+  let want = new Set<string>();
+  const timers = new Set<number>();
+  const at = (t: unknown) => new Date(Number(t)).toISOString();
+
+  const bring = (side: Side) => {
+    if (!side.ws || !side.authed || side.ws.readyState !== WebSocket.OPEN) return;
+    const add = [...want].filter((x) => !side.subscribed.has(x));
+    const drop = [...side.subscribed].filter((x) => !want.has(x));
+    if (drop.length) side.ws.send(JSON.stringify({ action: "unsubscribe", symbols: drop.join(",") }));
+    if (add.length) side.ws.send(JSON.stringify({ action: "subscribe", symbols: add.join(",") }));
+    side.subscribed = new Set(want);
+  };
+
+  const open = (kind: keyof typeof ends) => {
+    const side = sides[kind];
+    const ws = new WebSocket(`${EODHD_STREAM}/${ends[kind]}?api_token=${encodeURIComponent(key)}`);
+    side.ws = ws;
+    side.authed = false;
+    side.subscribed = new Set();
+    ws.onmessage = (event) => {
+      let m: any;
+      try { m = JSON.parse(String(event.data)); } catch { return; }
+      if (m.status_code !== undefined) {
+        said.push(`eodhd ${kind}: ${m.status_code} ${m.message || ""}`.trim());
+        if (Number(m.status_code) === 200) {
+          side.authed = true;
+          side.attempts = 0;
+          bring(side);
+          send({ type: "ready", feed: "stocks", source: "eodhd", symbols: [...want] });
+        } else {
+          side.final = `EODHD ${m.status_code}: ${m.message || "refused"}`;
+          send({ type: "error", feed: "stocks", code: m.status_code, message: side.final });
+        }
+        return;
+      }
+      if (!m.s) return;
+      if (kind === "trades") {
+        send({ type: "trade", symbol: m.s, price: m.p, size: m.v, at: at(m.t), conditions: m.c, darkPool: !!m.dp, session: m.ms, source: "eodhd" });
+      } else {
+        send({ type: "quote", symbol: m.s, bid: m.bp, ask: m.ap, bidSize: m.bs, askSize: m.as, at: at(m.t) });
+      }
+    };
+    ws.onerror = () => send({ type: "error", feed: "stocks", message: "The EODHD price stream failed." });
+    ws.onclose = () => {
+      if (side.ws !== ws) return;
+      side.ws = null;
+      side.authed = false;
+      if (isClosed()) return;
+      said.push(`eodhd ${kind}: closed`);
+      send({ type: "feed", feed: "stocks", state: "down", message: side.final });
+      if (side.final || side.attempts >= 6 || !want.size) return;
+      side.attempts += 1;
+      const t = setTimeout(() => { timers.delete(t); if (!isClosed() && !side.ws) open(kind); }, Math.min(30000, 1000 * 2 ** side.attempts));
+      timers.add(t);
+    };
+  };
+
+  return {
+    sync(symbols: string[]) {
+      want = new Set(symbols);
+      for (const kind of Object.keys(ends) as (keyof typeof ends)[]) {
+        const side = sides[kind];
+        if (!side.ws) { if (want.size && !side.final) open(kind); } else bring(side);
+      }
+    },
+    close() {
+      timers.forEach((t) => clearTimeout(t));
+      for (const side of Object.values(sides)) { try { side.ws?.close(); } catch { /* already gone */ } }
+    }
+  };
+}
+
+/**
+ * `stockFeed`: "iex" (default), "delayed_sip" or "sip" from Alpaca, or
+ * "eodhd" with `eodhdKey` for EODHD's real-time stream.
+ */
+export function relayDetail(client: WebSocket, auth: { key: string; secret: string }, initial: string[], initialBook: string, stockFeed = "iex", eodhdKey: string | null = null) {
   const STOCK_STREAM = STOCK_STREAMS[stockFeed] || STOCK_STREAMS.iex;
   let closed = false;
   const startedAt = Date.now();
@@ -68,6 +160,7 @@ export function relayDetail(client: WebSocket, auth: { key: string; secret: stri
   };
   const timers = new Set<number>();
   const of = (f: Feed) => [...wanted].filter((s) => (f.kind === "crypto" ? COIN.test(s) : SHARE.test(s)));
+  const eodhd = stockFeed === "eodhd" && eodhdKey ? eodhdShares(eodhdKey, (m) => send(m), said.stocks, () => closed) : null;
 
   const send = (payload: any) => {
     if (client.readyState !== WebSocket.OPEN) return;
@@ -79,6 +172,7 @@ export function relayDetail(client: WebSocket, auth: { key: string; secret: stri
     closed = true;
     timers.forEach((t) => clearTimeout(t));
     for (const f of Object.values(feeds)) { try { f.ws?.close(); } catch { /* already gone */ } }
+    eodhd?.close();
     try { client.close(); } catch { /* already gone */ }
     clearInterval(heartbeat);
     console.log(`terminal relay: ${summary()}`);
@@ -88,6 +182,8 @@ export function relayDetail(client: WebSocket, auth: { key: string; secret: stri
   // Brings one feed's subscriptions to what the browser wants, opening the
   // feed first if it has symbols and no socket.
   const sync = (f: Feed) => {
+    // Shares from EODHD: its own two sockets.
+    if (f.kind === "stocks" && eodhd) { if (!closed) eodhd.sync(of(f)); return; }
     const want = new Set(of(f));
     if (!f.ws) {
       if (want.size && !f.final && !closed) open(f);

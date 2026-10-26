@@ -62,6 +62,7 @@ const write = (key, value) => { try { localStorage.setItem(key, value); } catch 
 const ICONS = { trend: Slash, ray: MoveUpRight, hline: Minus, vline: SeparatorVertical, rect: RectangleHorizontal, fib: Rows3, measure: Ruler, text: Type };
 const STEP = Object.fromEntries(INTERVALS.map((i) => [i.id, i.seconds]));
 const CALENDAR = ["1Day", "1Week", "1Month"];
+const SECONDS_INTERVALS = ["5Sec", "10Sec", "15Sec", "30Sec"];
 const HOURLY = ["1Hour", "2Hour", "4Hour"];
 
 const loadDrawings = (symbol) => {
@@ -80,7 +81,8 @@ const newId = () => `d${Date.now().toString(36)}${Math.random().toString(36).sli
  */
 function PriceChart({
   accountId, symbol, interval, onInterval, listen, fills = [],
-  replay = null, replayOn = false, replayCursor = null, replayVersion = 0, replayAcct = null, onReplayButton = () => {}, active = true, label = false
+  replay = null, replayOn = false, replayCursor = null, replayVersion = 0, replayAcct = null, onReplayButton = () => {}, active = true, label = false,
+  stockFeed = "iex", liveSource = "iex"
 }) {
   const boxRef = useRef(null);
   const chartRef = useRef(null);
@@ -543,7 +545,7 @@ function PriceChart({
     // A share's hourly candles on a regular-hours chart come aligned to the
     // 9:30 open (functions/terminal sessionHours); all other charts use
     // Alpaca's bars as they are and filter them by session here.
-    invokeFunction("terminal", { action: "bars", accountId, symbol, interval, session: alignedSession || undefined }).then((r) => {
+    invokeFunction("terminal", { action: "bars", accountId, symbol, interval, session: alignedSession || undefined, stockFeed: crypto ? undefined : stockFeed }).then((r) => {
       if (!alive) return;
       if (r?.data?.error) { setState({ loading: false, error: r.data.error, count: 0 }); return; }
       rawRef.current = r?.data?.bars || [];
@@ -551,8 +553,22 @@ function PriceChart({
       chartRef.current?.timeScale().scrollToRealTime();
       setState({ loading: false, error: null, count });
     });
-    return () => { alive = false; };
-  }, [accountId, symbol, interval, show, alignedSession, replayOn, renderReplay]);
+    // A share's history from every exchange ends fifteen minutes ago while
+    // its live trades (EODHD's, or the delayed tape's) start from now: read
+    // again every five minutes so the stretch between fills in, the candles
+    // built live since kept after the history's end.
+    const refill = !crypto && stockFeed === "delayed" && !SECONDS_INTERVALS.includes(interval) ? setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      invokeFunction("terminal", { action: "bars", accountId, symbol, interval, session: alignedSession || undefined, stockFeed }).then((r) => {
+        const past = r?.data?.bars;
+        if (!alive || !Array.isArray(past) || !past.length) return;
+        const end = past.at(-1).time;
+        rawRef.current = [...past, ...rawRef.current.filter((b) => b.time > end)];
+        setState((st) => ({ ...st, count: show() }));
+      }).catch(() => {});
+    }, 300000) : null;
+    return () => { alive = false; if (refill) clearInterval(refill); };
+  }, [accountId, symbol, interval, show, alignedSession, replayOn, renderReplay, stockFeed, crypto]);
 
   // Regular or all hours: the same bars, filtered again (in a replay, built again).
   useEffect(() => {
@@ -895,7 +911,7 @@ function PriceChart({
         )}
         <span className={`ml-auto text-[11px] text-slate-400 ${compact && !toolInHand && !state.loading ? "hidden" : ""}`} title={crypto && !(STEP[interval] < 60) ? "Alpaca builds crypto candles from trades and, between trades, from the bid/ask midpoint, so a candle can move when nothing traded; time & sales lists actual trades only." : undefined}>
           {toolInHand ? `${toolInHand.label}: ${toolInHand.points === 1 ? "click to place" : drafting ? "click the second point" : "click the first point"} · Esc to cancel`
-            : state.loading ? "Loading…" : state.error ? "" : `${state.count} bars · ${replayOn ? (crypto ? "replay, Alpaca crypto" : "replay, consolidated tape") : STEP[interval] < 60 ? "built from trades" : crypto ? "Alpaca crypto: trades and midpoints" : "IEX"}`}
+            : state.loading ? "Loading…" : state.error ? "" : `${state.count} bars · ${replayOn ? (crypto ? "replay, Alpaca crypto" : "replay, consolidated tape") : STEP[interval] < 60 ? "built from trades" : crypto ? "Alpaca crypto: trades and midpoints" : `${stockFeed === "delayed" ? "every exchange to 15 min ago" : "IEX"}${liveSource === "eodhd" ? " · live: EODHD" : ""}`}`}
         </span>
       </div>
       {state.error && <p className="px-3 py-2 text-xs text-rose-700">{state.error}</p>}

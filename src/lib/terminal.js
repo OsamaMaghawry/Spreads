@@ -372,3 +372,39 @@ export function settle(fromAccount, local) {
   if (!none(local)) return { value: local, upload: true };
   return { value: local, upload: false };
 }
+
+// ---------- which tape a share's prices come from ----------
+//
+// 26 Oct, 5:21 New York: "Premarket is open now and I don't see any
+// execution, change in prices, time & sales!!". The free IEX feed trades only
+// 8:00 to 17:00 New York, so before and after it shows nothing. The choices:
+// EODHD's real-time stream (the owner's plan: every session, about a second
+// behind), Alpaca's IEX feed (real time, IEX's trades only), or Alpaca's
+// consolidated tape of every exchange, fifteen minutes late without a paid
+// data plan. "auto" takes EODHD where it is available, else IEX while it is
+// open and the delayed consolidated tape when it is not.
+
+/** Whether IEX is trading: a weekday, 8:00 to 17:00 New York. */
+export function iexOpen(sec) {
+  const { weekday, minutes } = nyClock(sec);
+  return weekday !== "Sat" && weekday !== "Sun" && minutes >= 480 && minutes < 1020;
+}
+
+export const SHARE_FEEDS = [
+  ["auto", "Auto"], ["eodhd", "EODHD real time, every session"], ["iex", "IEX real time (8:00 to 17:00)"], ["delayed", "Every exchange, 15 min delayed"]
+];
+
+/**
+ * The tape for shares: `live`, the stream (eodhd, iex or delayed_sip), and
+ * `history`, what charts, quotes and the tape are read from (iex, or delayed:
+ * the consolidated tape up to fifteen minutes ago), with a label to show.
+ */
+export function shareFeed(pref, { eodhd = false, now = Date.now() / 1000 } = {}) {
+  const open = iexOpen(now);
+  const choice = pref === "eodhd" && !eodhd ? "auto" : pref;
+  if (choice === "eodhd" || (choice === "auto" && eodhd)) {
+    return { live: "eodhd", history: open ? "iex" : "delayed", delayed: false, label: "EODHD real time" };
+  }
+  if (choice === "iex" || (choice === "auto" && open)) return { live: "iex", history: "iex", delayed: false, label: "IEX real time" };
+  return { live: "delayed_sip", history: "delayed", delayed: true, label: "All exchanges, 15 min delayed" };
+}

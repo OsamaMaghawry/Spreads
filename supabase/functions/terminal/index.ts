@@ -17,6 +17,7 @@ import { dailyStats, isFundName } from "../_shared/screenStats.ts";
 import { historyRow, premarket, nyMoment } from "../_shared/screenHistory.ts";
 import { usSession, stopPlan, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody } from "../_shared/positionTools.ts";
 import { inBackground } from "../_shared/background.ts";
+import { isOwnerEmail } from "../_shared/admin.ts";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -825,7 +826,9 @@ async function relayCheck(auth: { key: string; secret: string }, seconds: number
   const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
   // More coins give a thin tape more chances to print while the check listens.
   const more = extra.filter((c) => CRYPTO.test(c)).slice(0, 20);
-  relayDetail(client, auth, ["BTC/USD", "ETH/USD", "SPY", "AAPL", ...more], "BTC/USD");
+  // "EODHD" among the extras: shares from EODHD's stream, as the owner's terminal has them.
+  const eodhdKey = extra.includes("EODHD") ? Deno.env.get("EODHD_API_KEY") || null : null;
+  relayDetail(client, auth, ["BTC/USD", "ETH/USD", "SPY", "AAPL", ...more], "BTC/USD", eodhdKey ? "eodhd" : "iex", eodhdKey);
   client.onopen?.();
   await wait(seconds * 500);
   const switchedAt = Date.now();
@@ -849,7 +852,8 @@ async function relayCheck(auth: { key: string; secret: string }, seconds: number
     btcBookAfterSwitch: count((m, at) => m.type === "book" && m.symbol === "BTC/USD" && at > switchedAt + 1000),
     ethBook: { whole: count((m) => m.type === "book" && m.symbol === "ETH/USD" && m.reset), changes: count((m) => m.type === "book" && m.symbol === "ETH/USD" && !m.reset), levels: firstEth ? { bids: firstEth.bids.length, asks: firstEth.asks.length } : null },
     quotes: Object.fromEntries(["BTC/USD", "ETH/USD", "SOL/USD", "SPY", "AAPL"].map((s) => [s, count((m) => m.type === "quote" && m.symbol === s)])),
-    trades: got.filter((g) => g.m.type === "trade").map((g) => ({ symbol: g.m.symbol, price: g.m.price, size: g.m.size, takerSide: g.m.takerSide })),
+    shareSource: eodhdKey ? "eodhd" : "iex",
+    trades: got.filter((g) => g.m.type === "trade").slice(0, 40).map((g) => ({ symbol: g.m.symbol, price: g.m.price, size: g.m.size, takerSide: g.m.takerSide, session: g.m.session, at: g.m.at })),
     bars: count((m) => m.type === "bar")
   };
 }
@@ -1523,6 +1527,9 @@ Deno.serve(async (req) => {
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
     const { action, accountId } = body || {};
     if (action === "prefs") return jsonResponse(...(await prefs(admin, user.id, body)));
+    // Which share tapes this person can stream: EODHD's real-time one only for
+    // the owner, whose plan it is, while the project holds its key.
+    if (action === "feeds") return jsonResponse({ eodhd: isOwnerEmail(user.email) && !!Deno.env.get("EODHD_API_KEY") });
     if (!accountId) return jsonResponse({ error: "Choose an account." }, 400);
     // The account's row (credentials still encrypted) kept 30 seconds by this
     // instance: a burst of key presses reads the database once.

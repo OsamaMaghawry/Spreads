@@ -18,6 +18,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { decryptSecret } from "../_shared/crypto.ts";
 import { isConnectorToken } from "../_shared/connectorToken.ts";
 import { relayDetail, SHARE, COIN } from "../_shared/terminalRelay.ts";
+import { isOwnerEmail } from "../_shared/admin.ts";
 
 // The free IEX feed. SIP is a paid entitlement and returns an auth error rather
 // than falling back, so the feed is a deliberate choice here, not a default.
@@ -93,7 +94,12 @@ Deno.serve(async (req) => {
     const auth = token ? { key: "oauth", secret: token } : key && secret ? { key, secret } : null;
     if (!auth) return new Response("This account cannot sign in to the price stream.", { status: 409 });
     const { socket, response } = Deno.upgradeWebSocket(req);
-    relayDetail(socket, auth, symbols, (url.searchParams.get("book") || "").toUpperCase(), url.searchParams.get("stocks") || "iex");
+    // Shares from EODHD only for the owner, whose plan it is, and only while
+    // the project holds the key; anyone else asking gets Alpaca's IEX feed.
+    const asked = url.searchParams.get("stocks") || "iex";
+    const eodhdKey = asked === "eodhd" && isOwnerEmail(user.email) ? Deno.env.get("EODHD_API_KEY") || null : null;
+    const stockFeed = asked === "eodhd" ? (eodhdKey ? "eodhd" : "iex") : asked;
+    relayDetail(socket, auth, symbols, (url.searchParams.get("book") || "").toUpperCase(), stockFeed, eodhdKey);
     return response;
   }
   if (!key || !secret) {

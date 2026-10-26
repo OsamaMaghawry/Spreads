@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, inRegularHours, sessionDay, amountToQty, orderState, orderNews } from "./terminal.js";
+import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, inRegularHours, sessionDay, amountToQty, orderState, orderNews, iexOpen, shareFeed } from "./terminal.js";
 
 const sec = (iso) => Date.parse(iso) / 1000;
 
@@ -173,4 +173,20 @@ test("settings: the account's copy wins, even empty; otherwise this browser's go
   assert.deepEqual(settle([], ["SPY"]), { value: [], upload: false });
   assert.deepEqual(settle(undefined, ["SPY"]), { value: ["SPY"], upload: true });
   assert.deepEqual(settle(null, null), { value: null, upload: false });
+});
+
+test("which tape a share comes from: EODHD where it is set up, else IEX while it trades and the delayed consolidated tape when it does not", () => {
+  const at = (iso) => Date.parse(iso) / 1000;
+  const preDawn = at("2026-10-26T09:21:00Z"); // Monday 5:21 New York
+  const morning = at("2026-10-26T13:00:00Z"); // 9:00
+  const evening = at("2026-10-26T21:30:00Z"); // 17:30
+  assert.deepEqual([iexOpen(preDawn), iexOpen(morning), iexOpen(evening), iexOpen(at("2026-10-25T15:00:00Z"))], [false, true, false, false]);
+  assert.deepEqual(shareFeed("auto", { now: preDawn }), { live: "delayed_sip", history: "delayed", delayed: true, label: "All exchanges, 15 min delayed" });
+  assert.equal(shareFeed("auto", { now: morning }).live, "iex");
+  assert.deepEqual(shareFeed("auto", { eodhd: true, now: preDawn }), { live: "eodhd", history: "delayed", delayed: false, label: "EODHD real time" });
+  assert.equal(shareFeed("auto", { eodhd: true, now: morning }).history, "iex");
+  // Asked for EODHD without it: as if Auto.
+  assert.equal(shareFeed("eodhd", { eodhd: false, now: morning }).live, "iex");
+  assert.equal(shareFeed("iex", { eodhd: true, now: preDawn }).live, "iex");
+  assert.equal(shareFeed("delayed", { eodhd: true, now: morning }).live, "delayed_sip");
 });

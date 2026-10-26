@@ -15,7 +15,7 @@ import { TimeAndSales } from "./Panels";
 const FLUSH_MS = 100;
 const DELAYS_KEPT = 30;
 
-function TapePanel({ accountId, symbol, listen, live, epoch, quoteRef }) {
+function TapePanel({ accountId, symbol, listen, live, epoch, quoteRef, stockFeed = "iex", source = "iex" }) {
   const [rows, setRows] = useState([]);
   const [delay, setDelay] = useState(null);
   const pending = useRef([]);
@@ -27,7 +27,7 @@ function TapePanel({ accountId, symbol, listen, live, epoch, quoteRef }) {
   const load = useCallback(() => {
     if (!accountId) return;
     const want = symbol;
-    invokeFunction("terminal", { action: "trades", accountId, symbol: want }).then((r) => {
+    invokeFunction("terminal", { action: "trades", accountId, symbol: want, stockFeed }).then((r) => {
       if (forSymbol.current !== want || !Array.isArray(r?.data?.trades)) return;
       const past = r.data.trades.map((t) => tapeRow(t, null));
       setRows((cur) => {
@@ -37,7 +37,7 @@ function TapePanel({ accountId, symbol, listen, live, epoch, quoteRef }) {
           .slice(0, TAPE_MAX);
       });
     });
-  }, [accountId, symbol]);
+  }, [accountId, symbol, stockFeed]);
 
   useEffect(() => {
     setRows([]);
@@ -70,7 +70,7 @@ function TapePanel({ accountId, symbol, listen, live, epoch, quoteRef }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [epoch]);
 
-  return <TimeAndSales rows={rows} symbol={symbol} live={live} delay={delay} />;
+  return <TimeAndSales rows={rows} symbol={symbol} live={live} delay={delay} source={source} />;
 }
 
 export default memo(TapePanel);

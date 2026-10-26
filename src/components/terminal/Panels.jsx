@@ -17,7 +17,7 @@ function ago(iso, now) {
   return `${Math.floor(s / 3600)}h ${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}m`;
 }
 
-export function TimeAndSales({ rows, symbol, live = false, delay = null }) {
+export function TimeAndSales({ rows, symbol, live = false, delay = null, source = "iex" }) {
   const crypto = isCrypto(symbol);
   // The clock in the header ticks, so a quiet tape reads as quiet, not stuck.
   const [now, setNow] = useState(() => Date.now());
@@ -54,7 +54,9 @@ export function TimeAndSales({ rows, symbol, live = false, delay = null }) {
           <p className="px-2 py-3 text-xs text-slate-500">
             {crypto
               ? `Waiting for ${symbol} trades. Alpaca's crypto venue is thinner than the big exchanges, so trades can be a minute or more apart while the book keeps moving.`
-              : `Waiting for ${symbol} trades. The free IEX feed shows trades executed on IEX only, a small share of all trading, so the tape can be quiet; outside market hours it stops.`}
+              : source === "eodhd" ? `Waiting for ${symbol} trades from EODHD's real-time stream, every session from 4:00 to 20:00 New York.`
+                : source === "delayed_sip" ? `Waiting for ${symbol} trades from every exchange, fifteen minutes late. Pre-market starts at 4:00 New York; a thin share can go minutes between trades.`
+                  : `Waiting for ${symbol} trades. The free IEX feed shows trades executed on IEX only, a small share of all trading, so the tape can be quiet; IEX trades 8:00 to 17:00 New York.`}
           </p>
         )}
         {rows.length > 0 && (
