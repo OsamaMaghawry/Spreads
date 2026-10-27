@@ -151,7 +151,13 @@ signups chart; users table with CRM notes, status, tags and connection
 issues; role management; blog CMS and the publish workflow; operator
 switches; credential migration and key rotation; earnings refresh; broker-feed
 dump (`dumpBrokerFeed`, migration 0024 on staging); last-active stamping via
-a security-definer RPC. `oauthDiag` is reachable by any signed-in user —
+a security-definer RPC. The trading terminal (`terminal/index.ts`, staging
+only, visible to administrators only): charts, quotes, news, replay and a
+historical screener, hotkey share orders, stops and take-profits that also fire
+outside regular hours, and one order to several accounts at each account's own
+size; orders on the owner's own live Alpaca accounts are capped at $5,000 per
+opening order, other people's live accounts are look-only. Not a customer
+feature and not claimable. `oauthDiag` is reachable by any signed-in user —
 handed to systems-engineer.
 
 ## What this inventory says about packaging

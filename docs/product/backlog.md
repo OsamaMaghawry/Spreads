@@ -8,7 +8,7 @@ recorded below, as prominently as additions.
 Every entry carries: the user problem in the user's words, its evidence, the
 smallest test that could disprove it, the kill criterion, and a cost guess.
 
-Last run: **2026-09-01** (vp-product, Tuesday cadence).
+Last run: **2026-09-01** (vp-product, Tuesday cadence). Last reconciled against shipments: **2026-10-27** (end of day).
 
 ## Open proposals
 
@@ -146,6 +146,19 @@ What changed this run, in one line each:
   edge-function deploy, so it needs the owner's explicit approval and the
   staging path, per `AGENTS.md`. Ranked last precisely because its direct
   effect on activation is zero.
+
+## Reconciliation — 2026-10-27
+
+All three open proposals are **still open, none shipped, none half-shipped.**
+Evidence, read on `origin/staging` (the furthest-ahead branch): no quoted-width
+or probability column or filter in `src/components/screener/`, nothing recording
+a scan in `supabase/functions/scanEntries/`, and no `scan_runs` table among the
+migrations (the only scan migrations are `0006` and `0057`). Today's work on
+`staging` is the trading terminal (admin-only, not a user-facing activation
+change) and today's `main` commits are content and SEO only; neither touches
+#1-#3. Not re-ranked or re-scoped; the Tuesday run owns that. Note for Tuesday:
+the last full run on this file is 2026-09-01, so the three entries are eight
+weeks old.
 
 ## Killed
 
