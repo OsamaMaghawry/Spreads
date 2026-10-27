@@ -80,6 +80,21 @@ export function allocate(
     const mine = clean(down((size * pct! / 100 / price!) * times, step));
     return mine > 0 ? { qty: mine } : { skip: `its ${pct}% comes to less than one ${unit} at ${price}` };
   };
+  // An account's own size in shares at the order's price: a percent of its
+  // portfolio, dollars, or shares.
+  const ownRule = (b: Book, rule: Rule) => {
+    const v = fin(rule.value);
+    if (!(v && v > 0)) return { skip: "no size set for it" };
+    if (rule.mode === "shares") {
+      const mine = clean(down(v, step));
+      return mine > 0 ? { qty: mine } : { skip: `less than one ${unit}` };
+    }
+    const equity = fin(b.equity);
+    if (rule.mode === "percent" && !(equity && equity > 0)) return { skip: "no portfolio value to size from" };
+    const dollars = rule.mode === "percent" ? equity! * v / 100 : v;
+    const mine = clean(down(dollars / price!, step));
+    return mine > 0 ? { qty: mine } : { skip: `$${Math.floor(dollars * 100) / 100} is less than one ${unit} at ${price}` };
+  };
   // Never more than an account holds when the order closes its position.
   const capped = (b: Book, row: any) => {
     const held = fin(b.held) || 0;
@@ -98,7 +113,10 @@ export function allocate(
       const base = { id: b.id, name: b.name, notional: null, basis: "holding" as const };
       if (!(same > 0)) return { ...base, qty: null, all: false, skip: `holds no ${what} to ${order.side === "sell" ? "sell" : "buy back"}` };
       if (pctOn) {
-        const r = ofOwn(b);
+        // Its own size where it has one (a small account's 10%, say), else the
+        // key's percent of its own portfolio; never more than it holds.
+        const rule = b.rule && RULES.has(b.rule.mode) ? b.rule : null;
+        const r = rule && rule.mode !== "times" ? ownRule(b, rule) : ofOwn(b, rule ? fin(rule.value) || 0 : 1);
         if (r.skip) return { ...base, qty: null, all: false, skip: r.skip };
         return { ...base, qty: Math.min(r.qty!, same), all: r.qty! >= same, skip: null };
       }

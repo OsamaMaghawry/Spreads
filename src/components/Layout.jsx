@@ -11,6 +11,7 @@ import useIsAdmin from "@/lib/useIsAdmin";
 import usePublicConfig from "@/lib/usePublicConfig";
 import ErrorBoundary from "@/components/common/ErrorBoundary";
 import { LAB } from "@/lib/lab";
+import useNewVersion from "@/lib/useNewVersion";
 
 // The app's navigation, down the side rather than across the top.
 //
@@ -53,6 +54,11 @@ export default function Layout() {
   // anyone the owner shares this with should be told that before they wonder
   // why their live account will not trade.
   const { billingVisible, demoMode } = usePublicConfig();
+  // A newer build is out than the one on screen: said at the top until reloaded.
+  const newer = useNewVersion();
+  // The terminal fits its windows to the height left; a bar appearing above it
+  // takes some of that height.
+  useEffect(() => { if (newer) window.dispatchEvent(new Event("resize")); }, [newer]);
   const [open, setOpen] = useState(false);
 
   // A drawer that survives navigation would cover the page it just opened.
@@ -172,6 +178,13 @@ export default function Layout() {
       </aside>
 
       <div className={`flex min-h-screen flex-col ${desk ? "lg:pl-14" : "lg:pl-[15rem]"}`}>
+        {newer && (
+          <div role="status" className="flex items-center justify-center gap-3 border-b border-amber-300 bg-amber-100 px-5 py-1.5 text-[0.85rem] text-amber-900">
+            <span><span className="font-semibold">A new version is ready.</span> This page is still running the old one: reload to use it.</span>
+            <button type="button" onClick={() => window.location.reload()}
+              className="rounded-md bg-amber-600 px-3 py-0.5 text-xs font-semibold text-white hover:bg-amber-700">Reload</button>
+          </div>
+        )}
         {/* Said once, at the top of every screen, rather than discovered at
             the moment an order is refused. */}
         {demoMode && (

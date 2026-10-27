@@ -122,3 +122,16 @@ test("a percent-of-portfolio hotkey: each account takes the percent of its own",
   const [cap] = allocate({ side: "sell", qty: 5 }, { ...small, held: 0 }, [{ ...rs, held: 30, rule: { mode: "shares", value: 500 } }], opts);
   assert.deepEqual([cap.qty, cap.all], [30, true]);
 });
+
+// 27 Oct, 16:21: the small account set to 10% of its portfolio, selling with a
+// 0.5% key: its own 10% ($60, 12 shares at $4.85), capped at the 10 it holds.
+test("selling with a percent key, an account's own size still counts", () => {
+  const lead = { id: "L", name: "Alton Live", equity: 127540, buyingPower: 300000, held: 109 };
+  const small = { id: "S", name: "Small", equity: 600, buyingPower: 600, held: 10, rule: { mode: "percent" as const, value: 10 } };
+  const [s1] = allocate({ side: "sell", qty: 109 }, lead, [small], { symbol: "NUWE", price: 4.85, pct: 0.5 });
+  assert.deepEqual([s1.qty, s1.all, s1.skip], [10, true, null]);
+  const [s2] = allocate({ side: "sell", qty: 109 }, lead, [{ ...small, rule: { mode: "shares" as const, value: 4 } }], { symbol: "NUWE", price: 4.85, pct: 0.5 });
+  assert.deepEqual([s2.qty, s2.all], [4, false]);
+  const [s3] = allocate({ side: "sell", qty: 109 }, lead, [{ ...small, rule: null }], { symbol: "NUWE", price: 4.85, pct: 0.5 });
+  assert.match(s3.skip!, /less than one share/);
+});

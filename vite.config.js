@@ -52,8 +52,21 @@ export default defineConfig(({ mode }) => {
     `[build] lab: ${labOn ? 'ON — lab modules included' : `off — ${LAB_MODULES.length} module(s) stubbed out`}`
   );
 
+  // This build's own id, served at /version.json, so a page left open can
+  // tell when a newer one is out and say so (src/lib/useNewVersion.js). The
+  // owner keeps the terminal open for hours; on 27 Oct a fix deployed at
+  // 16:18 was not on his screen at 16:21, and a sale went out the old way.
+  const BUILD_ID = (process.env.GITHUB_SHA || '').slice(0, 12) || new Date().toISOString();
+  const buildId = {
+    name: 'build-id',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ build: BUILD_ID }) });
+    }
+  };
+
   return {
-    plugins: [react()],
+    plugins: [react(), buildId],
+    define: { 'import.meta.env.VITE_BUILD_ID': JSON.stringify(BUILD_ID) },
     resolve: {
       alias: {
         // Longest-first: '@' would otherwise swallow every '@/...' lab path
