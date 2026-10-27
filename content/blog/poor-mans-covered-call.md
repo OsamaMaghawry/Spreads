@@ -105,6 +105,8 @@ Hold XYZ at $50 on the short call's expiration day and change only implied volat
 
 The covered call's result at that date does not depend on implied volatility; the shares have no time value to reprice. The poor man's covered call's does, by 0.38 to 0.53 per share for each ten points.
 
+Related: a long call with a year or more left is a LEAPS, and [LEAPS options explained](/blog/leaps-options-explained) prices one over two years beside 100 shares.
+
 ## Frequently asked questions
 
 - **Is a poor man's covered call a diagonal spread?** Yes, a call diagonal with a deep in-the-money long leg.
