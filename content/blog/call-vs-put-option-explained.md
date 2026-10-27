@@ -114,6 +114,8 @@ two sides are never paired to each other.
 
 Related: the [cash-secured put](/blog/cash-secured-put-explained) walks through the seller's side of a put, from reserved cash to assignment.
 
+Related: [covered call after assignment](/blog/covered-call-after-assignment) shows the seller's side of a call, the account the morning after.
+
 ## Frequently asked questions
 
 ### Can an option buyer lose more than the premium paid?
