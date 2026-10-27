@@ -270,6 +270,13 @@ Limits he set himself still hold: his own live Alpaca accounts only (never
 SnapTrade, never another person's live account), and $5,000 for each live
 order that opens or adds to a position.
 
+**Every terminal setting is kept with his account, never only in the
+browser.** Anything he sets or picks (sizes, ticked accounts, layout,
+filters, toggles) goes through `components/terminal/useAccountSetting.js` or
+`lib/terminalPrefs.js` (table `terminal_prefs`). His words, 27 Oct, after
+being asked: "I said before account not browsers. What am repeating my
+self?" Only caches and notices already shown may stay in the browser.
+
 ## Publishing anything a stranger reads
 
 **Every article, without exception, passes three reviews before it is
