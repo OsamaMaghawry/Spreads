@@ -17,7 +17,8 @@ import { dailyStats, isFundName } from "../_shared/screenStats.ts";
 import { historyRow, premarket, nyMoment } from "../_shared/screenHistory.ts";
 import { usSession, stopPlan, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit, openingQty } from "../_shared/positionTools.ts";
 import { inBackground } from "../_shared/background.ts";
-import { isOwnerEmail } from "../_shared/admin.ts";
+import { allocate } from "../_shared/proRata.ts";
+import { isOwnerEmail, isAdminUser } from "../_shared/admin.ts";
 import { guardHours } from "../_shared/stopGuard.ts";
 import { stopsToWatch, extStopsOn, watchEodhd, checkIex, handBackFired } from "../_shared/stopGuardRun.ts";
 
@@ -1148,6 +1149,15 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     const [sym, side, qty] = [extra[0] || "AAPL", extra[1] === "SELL" ? "sell" : "buy", Number(extra[2]) || 1];
     return { account: house.name, paper: !!house.is_paper, symbol: sym, side, qty, refused: await liveLimit(house, sym, side as "buy" | "sell", qty, null, null) };
   }
+  if (only === "allocate") {
+    // Each group account's share of an order, without sending it:
+    // [SYMBOL, SIDE, QTY, groupId...], the account given leading.
+    const [sym, side, qty, ...ids] = extra;
+    const owner = { id: house.user_id, email: await emailOf(admin, house.user_id) };
+    const { accounts: _held, ...plan } = await allocation(admin, owner, house, ids.map((x) => x.toLowerCase()),
+      { symbol: sym || "AAPL", side: side === "SELL" ? "sell" : "buy", qty: Number(qty) || 1 });
+    return plan;
+  }
   if (only === "guard") {
     // The minute job's view without firing: which stops it guards and from what.
     return await guardStops(admin, true, accountId);
@@ -1312,6 +1322,89 @@ async function placeOrder(admin: any, user: any, account: any, input: any) {
   }
 }
 
+// ---------- one order, several accounts ----------
+//
+// 27 Oct: "I need to select the account I want to work on ... and the order
+// setup goes for all of them proportionately. Like a pro rata." The order is
+// set up on the account on screen (the lead); the accounts picked beside it
+// get their share of it (proRata.ts has the rules). Each account's order goes
+// through the same checks as one sent on its own, the live limit included,
+// and each answers for itself: one refused does not hold up the others.
+const GROUP_MAX = 10;
+const groupIds = (ids: unknown, lead: any) =>
+  [...new Set((Array.isArray(ids) ? ids : []).map(String))].filter((id) => id && id !== lead.id).slice(0, GROUP_MAX);
+
+async function groupAccounts(admin: any, user: any, lead: any, ids: unknown) {
+  return await Promise.all(groupIds(ids, lead).map(async (id) => ({
+    id, account: await loadAccount(admin, id, user.id, { cacheMs: 30000 }).catch(() => null)
+  })));
+}
+
+const groupRow = (id: string, account: any, extra: Record<string, unknown>) =>
+  ({ accountId: id, name: account?.name || "an account", live: account ? !account.is_paper : null, ...extra });
+
+// The account's size and what it holds of the symbol, for its share.
+async function bookOf(account: any, symbol: string) {
+  const [acct, pos] = await Promise.all([alpacaFetch(`${tradingBase(account)}/account`, account), positionOf(account, symbol)]);
+  return {
+    id: account.id, name: account.name, equity: num(acct?.equity), buyingPower: num(acct?.buying_power),
+    held: pos ? (pos.side === "short" ? -Math.abs(pos.qty) : Math.abs(pos.qty)) : 0, qtyText: pos ? String(pos.qtyText).replace(/^-/, "") : null
+  };
+}
+
+// Each account's share of an order, without sending anything (the ticket's
+// review shows it), and what sending needs to place each.
+async function allocation(admin: any, user: any, lead: any, ids: unknown, input: any) {
+  const crypto = isCrypto(cryptoSymbol(input?.symbol));
+  const symbol = crypto ? cryptoSymbol(input?.symbol) : String(input?.symbol || "").toUpperCase().trim();
+  const side = input?.side === "sell" ? "sell" as const : "buy" as const;
+  const group = await groupAccounts(admin, user, lead, ids);
+  const [leadBook, ...books] = await Promise.all([
+    bookOf(lead, symbol),
+    ...group.map((g) => (g.account && canTrade(user, g.account) ? bookOf(g.account, symbol).catch((e: Error) => ({ error: brokerRefusal(String(e?.message || e)) })) : Promise.resolve(null)))
+  ]);
+  const ready = books.filter((b: any) => b && !b.error) as any[];
+  const shares = allocate({ side, qty: num(input?.qty), notional: num(input?.notional) }, leadBook, ready,
+    { basis: input?.basis === "buyingPower" ? "buyingPower" : "equity", crypto, symbol });
+  const rows = group.map((g, i) => {
+    const b: any = books[i];
+    if (!g.account) return groupRow(g.id, null, { skip: "not found among your accounts" });
+    if (!canTrade(user, g.account)) return groupRow(g.id, g.account, { skip: "a live account the terminal does not trade" });
+    if (b?.error) return groupRow(g.id, g.account, { skip: `could not be read: ${b.error}` });
+    const sh = shares.find((x) => x.id === g.id)!;
+    return groupRow(g.id, g.account, { qty: sh.all ? Number(b.qtyText) : sh.qty, qtyText: sh.all ? b.qtyText : null, notional: sh.notional, all: sh.all, basis: sh.basis, skip: sh.skip });
+  });
+  return { symbol, side, lead: { accountId: lead.id, name: lead.name, equity: leadBook.equity, buyingPower: leadBook.buyingPower, held: leadBook.held }, group: rows, accounts: group };
+}
+
+async function orderForGroup(admin: any, user: any, lead: any, ids: unknown, input: any) {
+  // Every share is worked out from the books as they stand before anything is
+  // sent: the lead's own sale must not change what the others' shares read.
+  const plan = await allocation(admin, user, lead, ids, input);
+  const send = (row: any) => {
+    const account = plan.accounts.find((g) => g.id === row.accountId)?.account;
+    if (row.skip || !account) return Promise.resolve({ ...row, status: "skipped" });
+    return placeOrder(admin, user, account, { ...input, qty: row.qtyText ?? row.qty, notional: row.notional })
+      .then((r) => ({ ...row, ...(r.body as any), ok: r.status === 200 }))
+      .catch((e: Error) => ({ ...row, ok: false, error: String(e?.message || e) }));
+  };
+  const [r, ...group] = await Promise.all([placeOrder(admin, user, lead, input), ...plan.group.map(send)]);
+  return { status: r.status, body: { ...r.body, group } };
+}
+
+// An action run on each account of the group as it is on the lead.
+async function forGroup(admin: any, user: any, lead: any, ids: unknown, run: (account: any) => Promise<{ status: number; body: any }>) {
+  if (!groupIds(ids, lead).length) return null;
+  const group = await groupAccounts(admin, user, lead, ids);
+  return await Promise.all(group.map(async (g) => {
+    if (!g.account) return groupRow(g.id, null, { ok: false, skip: "not found among your accounts" });
+    const r = await run(g.account).catch((e: Error) => ({ status: 500, body: { error: String(e?.message || e) } }));
+    // Nothing of it held is not a failure, just nothing to do there.
+    const none = r.status === 400 && /^No .* position to /.test(String(r.body?.error || ""));
+    return groupRow(g.id, g.account, { ...r.body, ok: r.status === 200, ...(none ? { skip: "holds none", error: undefined } : {}) });
+  }));
+}
+
 // ---------- the account's own trades ----------
 //
 // The demo account's results, as the replay has its own (26 Oct: "You gave
@@ -1412,8 +1505,13 @@ async function guardStops(admin: any, dryRun = false, onlyAccount = "") {
   const viaIex: any[] = [];
   const emails = new Map<string, string>();
   const emailFor = async (id: string) => emails.get(id) ?? emails.set(id, await emailOf(admin, id)).get(id)!;
+  // Administrators only, as the terminal is.
+  const admins = new Map<string, boolean>();
+  const adminFor = async (id: string) => admins.get(id) ??
+    admins.set(id, (await isAdminUser({ id, email: await emailFor(id) } as any, admin).catch(() => ({ isAdmin: false }))).isAdmin).get(id)!;
   for (const a of accounts || []) {
     if (a.provider === "snaptrade") continue;
+    if (!(await adminFor(a.user_id))) continue;
     if (!a.is_paper && !isOwnerEmail(await emailFor(a.user_id))) continue;
     if (watched.has(a.id)) { report.watchedByTerminal += 1; if (!dryRun) continue; }
     if (!(await extStopsOn(admin, a.user_id))) { report.off += 1; continue; }
@@ -1778,17 +1876,21 @@ async function labOn(admin: any) {
   lab = { at: Date.now(), on: (await readSettings(admin)).terminalLab };
   return lab.on;
 }
-const callers = new Map<string, { at: number; user: any }>();
-async function caller(req: Request) {
+const callers = new Map<string, { at: number; user: any; isAdmin: boolean }>();
+// The caller, and whether they are an administrator: the terminal is an
+// admin-only tool (27 Oct: "Make sure all the terminal and stocks thing an
+// admin-only features. No one should see it"). Kept a minute with the token.
+async function caller(req: Request, admin: any) {
   const token = req.headers.get("Authorization") || "";
   const hit = callers.get(token);
-  if (hit && Date.now() - hit.at < 60000) return hit.user;
+  if (hit && Date.now() - hit.at < 60000) return hit;
   const user = await requireUser(req);
-  if (user) {
-    if (callers.size > 500) callers.clear();
-    callers.set(token, { at: Date.now(), user });
-  }
-  return user;
+  if (!user) return null;
+  const { isAdmin } = await isAdminUser(user, admin);
+  const seen = { at: Date.now(), user, isAdmin };
+  if (callers.size > 500) callers.clear();
+  callers.set(token, seen);
+  return seen;
 }
 
 Deno.serve(async (req) => {
@@ -1809,8 +1911,11 @@ Deno.serve(async (req) => {
       return jsonResponse(report);
     }
 
-    const user = await caller(req);
-    if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+    const who = await caller(req, admin);
+    if (!who) return jsonResponse({ error: "Unauthorized" }, 401);
+    // Anyone else is told nothing exists here, as when the lab is off.
+    if (!who.isAdmin) return jsonResponse({ error: "The trading terminal is not available here." }, 404);
+    const user = who.user;
     const { action, accountId } = body || {};
     if (action === "prefs") return jsonResponse(...(await prefs(admin, user.id, body)));
     // Which share tapes this person can stream: EODHD's real-time one only for
@@ -1879,7 +1984,17 @@ Deno.serve(async (req) => {
       if (!body.orderId) return jsonResponse({ error: "Which order?" }, 400);
       return jsonResponse(await orderStatus(admin, account, String(body.orderId)));
     }
+    // One order, several accounts (body.group: the other accounts' ids).
+    if (action === "allocate") {
+      // The shares only: the loaded accounts (their keys) never leave the server.
+      const { accounts: _held, ...plan } = await allocation(admin, user, account, body.group, body.order || {});
+      return jsonResponse(plan);
+    }
     if (action === "order") {
+      if (groupIds(body.group, account).length) {
+        const r = await orderForGroup(admin, user, account, body.group, body.order || {});
+        return jsonResponse(r.body, r.status);
+      }
       const r = await placeOrder(admin, user, account, body.order || {});
       return jsonResponse(r.body, r.status);
     }
@@ -1890,9 +2005,15 @@ Deno.serve(async (req) => {
     }
     if (action === "protect" || action === "exit" || action === "cancelOrders") {
       if (!canTrade(user, account)) return jsonResponse({ error: NOT_LIVE }, 403);
-      if (action === "cancelOrders") return jsonResponse(await cancelOrders(account, symbol ? cryptoSymbol(symbol) : ""));
-      const r = action === "protect" ? await protect(admin, user, account, body) : await exitPosition(admin, user, account, body);
-      return jsonResponse(r.body, r.status);
+      // Each on its own account: an exit of its own trade, a stop on its own
+      // position, its own working orders cancelled. The group's run alongside.
+      const run = async (acct: any) => {
+        if (!canTrade(user, acct)) return { status: 403, body: { error: NOT_LIVE } };
+        if (action === "cancelOrders") return { status: 200, body: await cancelOrders(acct, symbol ? cryptoSymbol(symbol) : "") };
+        return action === "protect" ? await protect(admin, user, acct, body) : await exitPosition(admin, user, acct, body);
+      };
+      const [r, group] = await Promise.all([run(account), forGroup(admin, user, account, body.group, run)]);
+      return jsonResponse(group ? { ...r.body, group } : r.body, r.status);
     }
     return jsonResponse({ error: `Unknown action "${action}"` }, 400);
   } catch (error) {

@@ -71,8 +71,9 @@ export default function Layout() {
     { to: "/", label: "Dashboard", Icon: LayoutDashboard },
     { to: "/scanner", label: "Strategy Scanner", Icon: Radar },
     { to: "/chain", label: "Option chain", Icon: ListOrdered },
-    // The trading terminal: a staging test (lab), off in the production build.
-    ...(LAB ? [{ to: "/terminal", label: "Terminal", Icon: CandlestickChart }] : []),
+    // The trading terminal: a staging test (lab), off in the production build,
+    // and for administrators only.
+    ...(LAB && isAdmin ? [{ to: "/terminal", label: "Terminal", Icon: CandlestickChart }] : []),
     { to: "/accounts", label: "Accounts", Icon: KeyRound },
     { to: "/connect-claude", label: "Use with Claude", Icon: Plug },
     ...(billingVisible ? [{ to: "/billing", label: "Billing", Icon: CreditCard }] : []),

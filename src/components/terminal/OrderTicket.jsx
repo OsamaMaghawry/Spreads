@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { px, sizeText, isCrypto, amountToQty, orderState, orderNews, sessionOf, ticketChoices } from "@/lib/terminal";
+import { groupNews } from "@/lib/accountGroup";
 import { fmtMoney } from "@/lib/format";
 
 // The ticket, for shares and coins. Two steps, review then send, like a desk
@@ -35,7 +36,7 @@ const TIF_TEXT = { day: "for the day", gtc: "good till cancelled", ioc: "immedia
 const input = "w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm tabular-nums focus:border-emerald-500 focus:outline-none";
 const label = "mb-1 block text-[11px] uppercase tracking-wider text-slate-500";
 
-export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, onPlaced, pick = null, preset = null, onNotify = () => {}, extStops = true, onExtStops = () => {}, guardHours = "", liveOk = false }) {
+export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, onPlaced, pick = null, preset = null, onNotify = () => {}, extStops = true, onExtStops = () => {}, guardHours = "", liveOk = false, group = [] }) {
   const crypto = isCrypto(symbol);
   const TYPES = crypto ? CRYPTO_TYPES : STOCK_TYPES;
   const [side, setSide] = useState("buy");
@@ -219,21 +220,34 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     `, ${TIF_TEXT[tif] || TIF_TEXT.day}${extended ? ", including pre-market and after hours" : ""}` +
     (bracket ? `, then take profit at ${px(tp)} or stop out at ${px(sl)}` : "");
 
+  const order = () => ({
+    symbol, side, qty: notional ? null : exactSale ? heldText : n,
+    notional: notional ? dollars : null, type, timeInForce: tif, extendedHours: extended,
+    limitPrice: needsLimit ? limit : null, stopPrice: needsStop ? stop : null,
+    trailPercent: needsTrail && trailBy === "pct" ? trail : null, trailPrice: needsTrail && trailBy === "usd" ? trail : null,
+    takeProfit: bracket ? tp : null, stopLoss: bracket ? sl : null, reference: ref ?? null
+  });
+  // With other accounts picked, the review shows each one's share before
+  // anything is sent (functions/_shared/proRata.ts).
+  const groupIds = group.map((a) => a.id);
+  const [shares, setShares] = useState(null);
+  useEffect(() => {
+    if (!review || !groupIds.length || !account?.id) { setShares(null); return undefined; }
+    let gone = false;
+    setShares({ loading: true });
+    invokeFunction("terminal", { action: "allocate", accountId: account.id, order: order(), group: groupIds })
+      .then((r) => { if (!gone) setShares(r?.data?.error ? { error: r.data.error } : { rows: r?.data?.group || [] }); })
+      .catch((e) => { if (!gone) setShares({ error: String(e?.message || e) }); });
+    return () => { gone = true; };
+  }, [review, groupIds.join(","), account?.id]);
   const send = async () => {
     setBusy(true);
     const key = `o${Date.now()}`;
     const unitName = crypto ? coin : "shares";
     onNotify({ key, ...orderNews({ sending: true, words }) });
-    const r = await invokeFunction("terminal", {
-      action: "order", accountId: account.id,
-      order: {
-        symbol, side, qty: notional ? null : exactSale ? heldText : n,
-        notional: notional ? dollars : null, type, timeInForce: tif, extendedHours: extended,
-        limitPrice: needsLimit ? limit : null, stopPrice: needsStop ? stop : null,
-        trailPercent: needsTrail && trailBy === "pct" ? trail : null, trailPrice: needsTrail && trailBy === "usd" ? trail : null,
-        takeProfit: bracket ? tp : null, stopLoss: bracket ? sl : null, reference: ref ?? null
-      }
-    });
+    const r = await invokeFunction("terminal", { action: "order", accountId: account.id, order: order(), group: groupIds });
+    const g = groupNews(r?.data?.group, "sent", unitName);
+    if (g) onNotify({ key: `${key}g`, ...g });
     setBusy(false);
     setReview(false);
     if (r?.data?.error) onNotify({ key, ...orderNews({ error: r.data.error }) });
@@ -426,9 +440,30 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
         </p>
       )}
 
+      {group.length > 0 && !review && (
+        <p className="rounded-md border border-violet-300 bg-violet-50 px-2 py-1 text-[11px] leading-snug text-violet-900">
+          Also sends to {group.map((a) => `${a.name}${a.type === "Live" ? " (LIVE)" : ""}`).join(", ")}, each its own share: the review shows how much.
+        </p>
+      )}
       {review ? (
         <div className="space-y-2 rounded-lg border border-slate-300 bg-slate-50 p-2">
-          <p className="text-sm text-slate-800">{words}.</p>
+          <p className="text-sm text-slate-800">{words}{group.length ? ` on ${account?.name}` : ""}.</p>
+          {group.length > 0 && (
+            <div className="rounded border border-violet-200 bg-white px-2 py-1 text-[11px] leading-snug text-slate-700">
+              <div className="font-semibold text-violet-900">And on {group.length} more account{group.length === 1 ? "" : "s"}, pro rata:</div>
+              {shares?.loading && <div className="text-slate-500">Working out each share…</div>}
+              {shares?.error && <div className="text-rose-700">{shares.error}</div>}
+              {(shares?.rows || []).map((g) => (
+                <div key={g.accountId}>
+                  <div className="flex justify-between gap-2">
+                    <span className="truncate">{g.name}{g.live ? " (LIVE)" : ""}</span>
+                    {!g.skip && <span className="shrink-0 tabular-nums">{g.notional ? fmtMoney(g.notional) : `${sizeText(g.qty)} ${crypto ? coin : "shares"}`}</span>}
+                  </div>
+                  {g.skip && <div className="text-slate-400">skipped: {g.skip}</div>}
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex gap-2">
             <button type="button" onClick={send} disabled={busy}
               className={`flex-1 rounded-md py-2 text-sm font-semibold text-white disabled:opacity-50 ${side === "buy" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"}`}>
@@ -446,7 +481,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
 
       {held !== 0 && account?.id && (
         <PositionExits account={account} symbol={symbol} held={held} crypto={crypto} tradable={tradable} session={session} onNotify={onNotify} onPlaced={onPlaced}
-          extStops={extStops} onExtStops={onExtStops} guardHours={guardHours} />
+          extStops={extStops} onExtStops={onExtStops} guardHours={guardHours} group={group} />
       )}
     </div>
   );
@@ -457,7 +492,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
 // stop working on it, a new take profit the take profit, and a stop and a take
 // profit go together as one cancels the other. Reviewed, then sent, like any
 // order from the ticket.
-function PositionExits({ account, symbol, held, crypto, tradable, session, onNotify, onPlaced, extStops, onExtStops, guardHours }) {
+function PositionExits({ account, symbol, held, crypto, tradable, session, onNotify, onPlaced, extStops, onExtStops, guardHours, group = [] }) {
   const [stop, setStop] = useState("");
   const [target, setTarget] = useState("");
   const [review, setReview] = useState(false);
@@ -473,13 +508,16 @@ function PositionExits({ account, symbol, held, crypto, tradable, session, onNot
   const out = long ? "Sell" : "Buy back";
   const words = `${out} ${sizeText(qty)} ${name}` +
     (s && t ? ` at ${px(t)} (take profit), or if it trades at ${px(s)} (stop): one cancels the other` : s ? ` if it trades at ${px(s)} (stop)` : ` at ${px(t)} (take profit)`) +
-    `, good till cancelled; replaces the ${s && t ? "stop and take profit" : s ? "stop" : "take profit"} working on ${symbol}, if any`;
+    `, good till cancelled; replaces the ${s && t ? "stop and take profit" : s ? "stop" : "take profit"} working on ${symbol}, if any` +
+    (group.length ? `; the same on ${group.map((a) => a.name).join(", ")}, each for all of its own ${name}` : "");
   const send = async () => {
     setBusy(true);
     const key = `x${Date.now()}`;
     onNotify({ key, tone: "wait", title: `Setting exits on ${symbol}…`, detail: words });
-    const r = await invokeFunction("terminal", { action: "protect", accountId: account.id, symbol, kind: s && t ? "both" : s ? "stop" : "target", mode: "price", value: s ?? t, stopPrice: s, targetPrice: t })
+    const r = await invokeFunction("terminal", { action: "protect", accountId: account.id, symbol, kind: s && t ? "both" : s ? "stop" : "target", mode: "price", value: s ?? t, stopPrice: s, targetPrice: t, group: group.map((a) => a.id) })
       .catch((e) => ({ data: { error: String(e?.message || e) } }));
+    const g = groupNews(r?.data?.group, "exits set");
+    if (g) onNotify({ key: `${key}g`, ...g });
     setBusy(false);
     setReview(false);
     if (r?.data?.error) { onNotify({ key, tone: "bad", title: "Exits not set", detail: r.data.error }); return; }

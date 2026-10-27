@@ -23,6 +23,7 @@ import OptionChain from '@/pages/OptionChain';
 // Lab module: vite.config.js stubs it out of the production build.
 import Terminal from '@/pages/Terminal';
 import { LAB } from '@/lib/lab';
+import AdminOnly from '@/components/common/AdminOnly';
 import BlogPreview from './pages/BlogPreview';
 import Admin from './pages/Admin';
 import OAuthCallback from './pages/OAuthCallback';
@@ -74,7 +75,8 @@ const AuthenticatedApp = () => {
               it. */}
           <Route path="/screener" element={<Navigate to="/scanner" replace />} />
           <Route path="/chain" element={<OptionChain />} />
-          {LAB && <Route path="/terminal" element={<Terminal />} />}
+          {/* The trading terminal: a staging test, for administrators only. */}
+          {LAB && <Route path="/terminal" element={<AdminOnly><Terminal /></AdminOnly>} />}
           {/* Admin.jsx redirects a non-admin away, and every request it makes
               is re-authorized server-side in _shared/admin.ts. */}
           <Route path="/admin" element={<Admin />} />

@@ -22,7 +22,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { decryptSecret } from "../_shared/crypto.ts";
 import { isConnectorToken } from "../_shared/connectorToken.ts";
 import { relayDetail, SHARE, COIN } from "../_shared/terminalRelay.ts";
-import { isOwnerEmail } from "../_shared/admin.ts";
+import { isOwnerEmail, isAdminUser } from "../_shared/admin.ts";
 import { loadAccount } from "../_shared/alpaca.ts";
 import { guardWatcher } from "../_shared/stopGuardRun.ts";
 
@@ -89,6 +89,11 @@ Deno.serve(async (req) => {
     .eq("user_id", user.id)
     .maybeSingle();
   if (!account) return new Response("Trading account not found", { status: 404 });
+  // The terminal's stream is for administrators only, as the terminal is
+  // (functions/terminal); the dashboard's plain stream is for everyone.
+  if (detail && !(await isAdminUser(user, admin).catch(() => ({ isAdmin: false }))).isAdmin) {
+    return new Response("Not available.", { status: 404 });
+  }
 
   const key = await decryptSecret(account.api_key);
   const secret = await decryptSecret(account.api_secret);
