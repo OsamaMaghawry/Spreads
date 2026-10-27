@@ -632,3 +632,4 @@ English. Newest first.
 - 2026-10-26 · (staging) Terminal: stops outside regular hours are fired by the terminal at the stop price; an unfilled limit hands back to the stop at the open (`ae42eaa`, `fc811ac`).
 - 2026-10-26 · (staging) Ticket: exits offered for what you hold, a reason shown when an option is off, and the tape in time order (`c5dcf1a`).
 - 2026-10-26 · (staging) Terminal exit: pressing Exit again while a market sale is already on its way no longer cancels that sale (`ba26108`).
+- 2026-10-26 · (staging) Terminal: the owner's own live Alpaca accounts can now be traded from the hotkeys, the ticket, the Exits box and Positions, with each order that opens or adds to a position limited to $5,000; other people's live accounts stay look-only (`ed4e93b`).
