@@ -16,7 +16,8 @@
 // and quotes for the symbols asked for and relays them, and nothing the
 // browser sends can place, change or cancel anything. The one exception is
 // the server's own: the terminal's stops outside regular hours, which its
-// relay fires on a paper account when a trade reaches them (stopGuardRun.ts).
+// relay fires on an account the terminal trades when a trade reaches them
+// (stopGuardRun.ts).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { decryptSecret } from "../_shared/crypto.ts";
 import { isConnectorToken } from "../_shared/connectorToken.ts";
@@ -106,10 +107,12 @@ Deno.serve(async (req) => {
     const stockFeed = asked === "eodhd" ? (eodhdKey ? "eodhd" : "iex") : asked;
     // While the terminal is open, its relay also fires the account's stops
     // outside regular hours from the trades it streams (stopGuardRun.ts), on
-    // paper accounts, the only ones the terminal trades. Not from the delayed
-    // tape: a stop fired fifteen minutes late is not a stop.
+    // every account the terminal trades: paper ones, and the owner's own live
+    // Alpaca ones. Not from the delayed tape: a stop fired fifteen minutes
+    // late is not a stop.
     const source = stockFeed === "eodhd" ? "eodhd" : stockFeed === "iex" ? "iex" : null;
-    const trading = account.is_paper && source ? await loadAccount(admin, accountId, user.id).catch(() => null) : null;
+    const trades = account.is_paper || (isOwnerEmail(user.email) && account.provider !== "snaptrade");
+    const trading = trades && source ? await loadAccount(admin, accountId, user.id).catch(() => null) : null;
     const guard = trading ? guardWatcher(admin, trading, user.id, source) : null;
     relayDetail(socket, auth, symbols, (url.searchParams.get("book") || "").toUpperCase(), stockFeed, eodhdKey, guard);
     return response;

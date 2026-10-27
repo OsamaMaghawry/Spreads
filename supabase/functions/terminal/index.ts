@@ -1400,7 +1400,9 @@ async function guardStops(admin: any, dryRun = false, onlyAccount = "") {
   const { data: people } = await admin.from("terminal_prefs").select("user_id").limit(5000);
   const users = [...new Set((people || []).map((r: any) => r.user_id))];
   if (!users.length) return report;
-  let q = admin.from("trading_accounts").select("id, user_id, is_paper, provider").in("user_id", users).eq("is_paper", true);
+  // Every account the terminal trades: paper, and the owner's own live Alpaca
+  // ones (27 Oct: activating live meant everything, the stop guard included).
+  let q = admin.from("trading_accounts").select("id, user_id, is_paper, provider").in("user_id", users);
   if (onlyAccount) q = q.eq("id", onlyAccount);
   const [{ data: accounts }, { data: seen }] = await Promise.all([
     q, admin.from("terminal_guard_seen").select("account_id").gt("seen_at", iso(t - 45000))
@@ -1408,8 +1410,11 @@ async function guardStops(admin: any, dryRun = false, onlyAccount = "") {
   const watched = new Set((seen || []).map((r: any) => r.account_id));
   const viaEodhd: any[] = [];
   const viaIex: any[] = [];
+  const emails = new Map<string, string>();
+  const emailFor = async (id: string) => emails.get(id) ?? emails.set(id, await emailOf(admin, id)).get(id)!;
   for (const a of accounts || []) {
     if (a.provider === "snaptrade") continue;
+    if (!a.is_paper && !isOwnerEmail(await emailFor(a.user_id))) continue;
     if (watched.has(a.id)) { report.watchedByTerminal += 1; if (!dryRun) continue; }
     if (!(await extStopsOn(admin, a.user_id))) { report.off += 1; continue; }
     const account = await loadAccount(admin, a.id, a.user_id).catch(() => null);
@@ -1417,8 +1422,8 @@ async function guardStops(admin: any, dryRun = false, onlyAccount = "") {
     const guards = await stopsToWatch(account).catch(() => []);
     report.accounts += 1;
     if (!guards.length) continue;
-    const owner = !!eodhdKey && isOwnerEmail(await emailOf(admin, a.user_id));
-    report.guards.push(...guards.map((g) => ({ account: a.id, symbol: g.symbol, side: g.side, qty: g.qty, stop: g.stop, pair: g.pair, source: owner ? "eodhd" : "iex", terminalOpen: watched.has(a.id) })));
+    const owner = !!eodhdKey && isOwnerEmail(await emailFor(a.user_id));
+    report.guards.push(...guards.map((g) => ({ account: a.id, live: !a.is_paper, symbol: g.symbol, side: g.side, qty: g.qty, stop: g.stop, pair: g.pair, source: owner ? "eodhd" : "iex", terminalOpen: watched.has(a.id) })));
     (owner ? viaEodhd : viaIex).push({ account, userId: a.user_id, guards });
   }
   if (dryRun) return report;

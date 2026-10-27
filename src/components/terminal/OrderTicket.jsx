@@ -420,7 +420,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
       {!crypto && choices.stopWaits && (
         <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
           {session === "pre" ? "Before the open" : session === "post" ? "After the close" : "Outside market hours"}: Alpaca triggers stop orders from 9:30 to 16:00 New York only.{" "}
-          {closing && extStops && paper && type !== "trailing_stop"
+          {closing && extStops && tradable && type !== "trailing_stop"
             ? `Until then the terminal watches this one itself (${guardHours} New York): when a trade reaches it, it sends a limit at ${type === "stop_limit" ? "its limit" : "the stop price"}, pre-market and after hours included.`
             : "This one waits for the next open. To trade before then, use a limit order with \u201cPre-market and after hours\u201d ticked."}
         </p>
@@ -445,7 +445,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
       )}
 
       {held !== 0 && account?.id && (
-        <PositionExits account={account} symbol={symbol} held={held} crypto={crypto} paper={paper} tradable={tradable} session={session} onNotify={onNotify} onPlaced={onPlaced}
+        <PositionExits account={account} symbol={symbol} held={held} crypto={crypto} tradable={tradable} session={session} onNotify={onNotify} onPlaced={onPlaced}
           extStops={extStops} onExtStops={onExtStops} guardHours={guardHours} />
       )}
     </div>
@@ -457,7 +457,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
 // stop working on it, a new take profit the take profit, and a stop and a take
 // profit go together as one cancels the other. Reviewed, then sent, like any
 // order from the ticket.
-function PositionExits({ account, symbol, held, crypto, paper, tradable, session, onNotify, onPlaced, extStops, onExtStops, guardHours }) {
+function PositionExits({ account, symbol, held, crypto, tradable, session, onNotify, onPlaced, extStops, onExtStops, guardHours }) {
   const [stop, setStop] = useState("");
   const [target, setTarget] = useState("");
   const [review, setReview] = useState(false);
@@ -508,10 +508,7 @@ function PositionExits({ account, symbol, held, crypto, paper, tradable, session
       <p className="mt-1 text-[10px] leading-snug text-slate-500">
         One or both. Together, when one fills the other is cancelled; set alone, it pairs with the other already working. Alpaca works them from 9:30 to 16:00 New York.
       </p>
-      {!crypto && !paper && (
-        <p className="mt-1 text-[10px] leading-snug text-slate-500">On a live account the terminal does not fire stops itself outside regular hours yet: they act from 9:30 to 16:00.</p>
-      )}
-      {!crypto && paper && (
+      {!crypto && tradable && (
         <label className="mt-1 flex items-start gap-1.5 text-[10px] leading-snug text-slate-600">
           <input type="checkbox" className="mt-0.5" checked={extStops} onChange={(e) => onExtStops(e.target.checked)} />
           <span>
