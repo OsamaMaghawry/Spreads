@@ -1368,7 +1368,7 @@ async function allocation(admin: any, user: any, lead: any, ids: unknown, input:
     { basis: input?.basis === "buyingPower" ? "buyingPower" : "equity", crypto, symbol });
   const rows = group.map((g, i) => {
     const b: any = books[i];
-    if (!g.account) return groupRow(g.id, null, { skip: "not found among your accounts" });
+    if (!g.account) return groupRow(g.id, null, { skip: "not an account the terminal can trade" });
     if (!canTrade(user, g.account)) return groupRow(g.id, g.account, { skip: "a live account the terminal does not trade" });
     if (b?.error) return groupRow(g.id, g.account, { skip: `could not be read: ${b.error}` });
     const sh = shares.find((x) => x.id === g.id)!;
@@ -1397,7 +1397,7 @@ async function forGroup(admin: any, user: any, lead: any, ids: unknown, run: (ac
   if (!groupIds(ids, lead).length) return null;
   const group = await groupAccounts(admin, user, lead, ids);
   return await Promise.all(group.map(async (g) => {
-    if (!g.account) return groupRow(g.id, null, { ok: false, skip: "not found among your accounts" });
+    if (!g.account) return groupRow(g.id, null, { ok: false, skip: "not an account the terminal can trade" });
     const r = await run(g.account).catch((e: Error) => ({ status: 500, body: { error: String(e?.message || e) } }));
     // Nothing of it held is not a failure, just nothing to do there.
     const none = r.status === 400 && /^No .* position to /.test(String(r.body?.error || ""));
