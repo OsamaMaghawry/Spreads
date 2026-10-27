@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw, Plus, Check, X, ChevronDown, ChevronRight, History } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
+import { readPref, savePref } from "@/lib/terminalPrefs";
 import {
   decodeUniverse, screenRow, FIELDS, FIELD, GROUPS, parseAmount, cleanScreen, passes, sortRows, needsDaily,
   PRESETS, dailyCandidates, bigNumber, TREND_CHOICES, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown, combineScreens, conflicts, premarketPicks
@@ -175,7 +176,32 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
   const dailyRef = useRef({});
   const loadingDaily = useRef(false);
 
-  useEffect(() => { store.set(SCREEN_KEY, JSON.stringify({ ...screen, presets })); }, [screen, presets]);
+  // Kept with the account too ("screener", lib/terminalPrefs.js), as every
+  // terminal setting is: the account's copy replaces this browser's once
+  // read, unless the filters were changed meanwhile; this browser's is sent
+  // up when the account has none.
+  const screenSynced = useRef(false);
+  const screenTouched = useRef(false);
+  const screenFirst = useRef(true);
+  useEffect(() => {
+    let alive = true;
+    readPref("screener").then((v) => {
+      if (!alive) return;
+      screenSynced.current = true;
+      if (screenTouched.current) return;
+      if (v && typeof v === "object") {
+        setScreen(cleanScreen(v));
+        setPresets((Array.isArray(v.presets) ? v.presets : []).filter((id) => PRESETS.some((p) => p.id === id)));
+      } else if (saved) savePref("screener", { ...screen, presets });
+    }).catch(() => { screenSynced.current = true; });
+    return () => { alive = false; };
+  }, []);
+  useEffect(() => {
+    store.set(SCREEN_KEY, JSON.stringify({ ...screen, presets }));
+    if (screenFirst.current) { screenFirst.current = false; return; }
+    if (!screenSynced.current) screenTouched.current = true;
+    savePref("screener", { ...screen, presets });
+  }, [screen, presets]);
 
   // The day's cached daily numbers for this account, if any; a past day's
   // are kept while the page is open.

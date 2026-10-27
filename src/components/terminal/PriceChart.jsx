@@ -7,6 +7,7 @@ import { INDICATORS, LINE_COLORS, cleanIndicators, defaultParams, indicatorLabel
 import { TOOLS, COLORS, pointsFor, logicalToTime, hitTest, moveDrawing, readDrawings, writeDrawings, cleanDrawings } from "@/lib/chartDrawings";
 import { EVENT_KINDS, econEvents, earningsEvent, placeEvents, cleanShown, nextOfEach, eventWhen, badgeAt } from "@/lib/marketEvents";
 import { readPrefs, savePref, settle } from "@/lib/terminalPrefs";
+import useAccountSetting from "@/components/terminal/useAccountSetting";
 import { replayCandles, REPLAY_INTERVALS } from "@/lib/replay";
 import { DrawingLayer } from "./drawingLayer";
 
@@ -113,7 +114,10 @@ function PriceChart({
   const rawRef = useRef([]);
   const barsRef = useRef([]);
   const extRef = useRef([]);
-  const [session, setSession] = useState(() => (read(SESSION_KEY, "regular") === "all" ? "all" : "regular"));
+  // Regular or all hours, kept with the account (useAccountSetting.js).
+  const [session, setSession] = useAccountSetting("chartsession", {
+    localKey: SESSION_KEY, initial: () => "regular", clean: (v) => (v === "all" ? "all" : "regular"), fromLocal: (raw) => raw, toLocal: (v) => v
+  });
   const sessionRef = useRef(session);
   sessionRef.current = session;
   const [indicators, setIndicators] = useState(() => {
@@ -601,7 +605,6 @@ function PriceChart({
 
   // Regular or all hours: the same bars, filtered again (in a replay, built again).
   useEffect(() => {
-    write(SESSION_KEY, session);
     if (cursorRef.current !== null) renderReplay(cursorRef.current);
     else if (rawRef.current.length) setState((st) => ({ ...st, count: show() }));
   }, [session, show, renderReplay]);

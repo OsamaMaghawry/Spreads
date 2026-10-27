@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { px, sizeText, clockMs, pctText, isCrypto, orderState } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
+import useAccountSetting from "@/components/terminal/useAccountSetting";
 
 // The terminal's lower panels: the tape, the account's shares and coins, and
 // its open orders. The order book is OrderBook.jsx.
@@ -31,11 +32,12 @@ export function TimeAndSales({ rows, symbol, live = false, delay = null, source 
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
-  const [oldestFirst, setOldestFirst] = useState(() => { try { return localStorage.getItem(TAPE_ORDER_KEY) === "oldest"; } catch { return false; } });
-  const flip = () => setOldestFirst((v) => {
-    try { localStorage.setItem(TAPE_ORDER_KEY, v ? "newest" : "oldest"); } catch { /* private window */ }
-    return !v;
+  // Which way the tape runs, kept with the account (useAccountSetting.js).
+  const [oldestFirst, setOldestFirst] = useAccountSetting("tapeorder", {
+    localKey: TAPE_ORDER_KEY, initial: () => false, clean: (v) => v === true || v === "oldest",
+    fromLocal: (raw) => raw === "oldest", toLocal: (v) => (v ? "oldest" : "newest")
   });
+  const flip = () => setOldestFirst((v) => !v);
   const box = useRef(null);
   const atEnd = useRef(true);
   const shown = oldestFirst ? [...rows].reverse() : rows;

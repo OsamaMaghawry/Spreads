@@ -25,6 +25,7 @@ import ReplayBar, { ReplayStart } from "@/components/terminal/ReplayBar";
 import { PracticePositions, ReplayResults, DemoResults } from "@/components/terminal/ReplayPanels";
 import NewsPanel, { useNews } from "@/components/terminal/NewsPanel";
 import GroupPicker from "@/components/terminal/GroupPicker";
+import useAccountSetting from "@/components/terminal/useAccountSetting";
 import { groupChoices, cleanGroup, groupPayload, cleanSizes } from "@/lib/accountGroup";
 import { acctIn, replayClock } from "@/lib/replay";
 
@@ -94,15 +95,16 @@ export default function Terminal() {
     } catch { return readWatchlist(null); }
   });
   // The charts: each its symbol and interval, and which one is active.
-  const [panes, setPanes] = useState(() => {
-    try {
-      const p = JSON.parse(localStorage.getItem(PANES_KEY) || "null");
+  // Every setting below is kept with the person's account, not this browser
+  // (27 Oct: "I said before account not browser"; useAccountSetting.js).
+  const [panes, setPanes] = useAccountSetting("panes", {
+    localKey: PANES_KEY,
+    initial: () => ({ list: [{ symbol: watch[0], interval: "5Min" }], active: 0 }),
+    clean: (p) => {
       const list = (Array.isArray(p?.list) ? p.list : []).filter((x) => x && typeof x.symbol === "string" && x.symbol && typeof x.interval === "string").slice(0, 4);
-      if (list.length) return { list, active: Math.min(Math.max(0, Number(p.active) || 0), list.length - 1) };
-    } catch { /* fresh */ }
-    return { list: [{ symbol: watch[0], interval: "5Min" }], active: 0 };
+      return list.length ? { list, active: Math.min(Math.max(0, Number(p.active) || 0), list.length - 1) } : { list: [{ symbol: watch[0], interval: "5Min" }], active: 0 };
+    }
   });
-  useEffect(() => { try { localStorage.setItem(PANES_KEY, JSON.stringify(panes)); } catch { /* private window */ } }, [panes]);
   const symbol = panes.list[panes.active]?.symbol || watch[0];
   const setSymbol = useCallback((s) => setPanes((p) => ({ ...p, list: p.list.map((x, i) => (i === p.active ? { ...x, symbol: s } : x)) })), []);
   // One setter per chart, made once, so a chart is not drawn again for a new function.
@@ -115,10 +117,12 @@ export default function Terminal() {
   const [results, setResults] = useState([]);
   const [pick, setPick] = useState(null);
   const [preset, setPreset] = useState(null);
-  const [page, setPage] = useState(() => (store.get(PAGE_KEY) === "screen" ? "screen" : "trade"));
+  const [page, setPage] = useAccountSetting("page", {
+    localKey: PAGE_KEY, initial: () => "trade", clean: (v) => (v === "screen" ? "screen" : "trade"), fromLocal: (raw) => raw, toLocal: (v) => v
+  });
   const pageRef = useRef(page);
   const [screenSeen, setScreenSeen] = useState(page === "screen");
-  useEffect(() => { store.set(PAGE_KEY, page); if (page === "screen") setScreenSeen(true); }, [page]);
+  useEffect(() => { if (page === "screen") setScreenSeen(true); }, [page]);
   pageRef.current = page;
 
   // Order pop-ups: one per order (its key), replaced as the order moves.
@@ -173,7 +177,9 @@ export default function Terminal() {
   // stream where it is set up for this person, else IEX while it trades and
   // every exchange fifteen minutes late when it does not, or as chosen. Looked
   // at again every minute, so Auto moves on at 8:00 and 17:00 by itself.
-  const [feedPref, setFeedPref] = useState(() => store.get(SHARE_FEED_KEY) || "auto");
+  const [feedPref, setFeedPref] = useAccountSetting("sharefeed", {
+    localKey: SHARE_FEED_KEY, initial: () => "auto", clean: (v) => (typeof v === "string" && v ? v : "auto"), fromLocal: (raw) => raw, toLocal: (v) => v
+  });
   // Remembered from the last visit, so the charts open on the right history
   // rather than drawing IEX's and then every exchange's a second later.
   const [eodhdOk, setEodhdOk] = useState(() => store.get(EODHD_KEY) === "1");
@@ -182,34 +188,12 @@ export default function Terminal() {
   const [liveOk, setLiveOk] = useState(false);
   // The other accounts orders also go to, pro rata (lib/accountGroup.js);
   // only ones still allowed, never the account on screen itself.
-  const [groupPick, setGroupPick] = useState(() => { try { return JSON.parse(store.get(GROUP_KEY) || "[]"); } catch { return []; } });
-  const changeGroup = (ids) => { setGroupPick(ids); store.set(GROUP_KEY, JSON.stringify(ids)); };
+  const [groupPick, changeGroup] = useAccountSetting("groupaccounts", {
+    localKey: GROUP_KEY, initial: () => [], clean: (v) => (Array.isArray(v) ? v.filter((x) => typeof x === "string").slice(0, 20) : [])
+  });
   const group = useMemo(() => cleanGroup(groupPick, accounts, accountId, liveOk), [groupPick, accounts, accountId, liveOk]);
-  // Each picked account's own size, kept with the person's account (setting
-  // "groupsizes", lib/terminalPrefs.js) as the watchlist is, so every device
-  // opens with them; this browser's copy shows at once until the account's
-  // arrives. A change made before it arrives is kept and sent up.
-  const [groupSizes, setGroupSizes] = useState(() => { try { return cleanSizes(JSON.parse(store.get(GROUP_SIZES_KEY) || "{}")); } catch { return {}; } });
-  const sizesRef = useRef(groupSizes);
-  sizesRef.current = groupSizes;
-  const sizesTouched = useRef(false);
-  useEffect(() => {
-    let alive = true;
-    readPrefs(["groupsizes"]).then((p) => {
-      if (!alive || sizesTouched.current) return;
-      const local = Object.keys(sizesRef.current).length ? sizesRef.current : null;
-      const s = settle(p.groupsizes && typeof p.groupsizes === "object" ? cleanSizes(p.groupsizes) : null, local);
-      if (s.upload) savePref("groupsizes", s.value);
-      else if (s.value) { setGroupSizes(s.value); store.set(GROUP_SIZES_KEY, JSON.stringify(s.value)); }
-    }).catch(() => {});
-    return () => { alive = false; };
-  }, []);
-  const changeSizes = (next) => {
-    sizesTouched.current = true;
-    setGroupSizes(next);
-    store.set(GROUP_SIZES_KEY, JSON.stringify(next));
-    savePref("groupsizes", next);
-  };
+  // Each picked account's own size.
+  const [groupSizes, changeSizes] = useAccountSetting("groupsizes", { localKey: GROUP_SIZES_KEY, initial: () => ({}), clean: cleanSizes });
   const groupSend = useMemo(() => groupPayload(group, groupSizes), [group, groupSizes]);
   const [minute, setMinute] = useState(() => Math.floor(Date.now() / 60000));
   useEffect(() => {
@@ -223,7 +207,7 @@ export default function Terminal() {
   }, []);
   useEffect(() => { const t = setInterval(() => setMinute(Math.floor(Date.now() / 60000)), 30000); return () => clearInterval(t); }, []);
   const shares = useMemo(() => shareFeed(feedPref, { eodhd: eodhdOk, now: minute * 60 }), [feedPref, eodhdOk, minute]);
-  const chooseFeed = (v) => { setFeedPref(v); store.set(SHARE_FEED_KEY, v); };
+  const chooseFeed = (v) => setFeedPref(v);
 
   const streamSymbols = useMemo(() => cleanWatchlist([symbol, ...paneSymbols.split(","), ...watch]).slice(0, 30), [symbol, paneSymbols, watch]);
   const { quotes: live, status, feeds, epoch, listen } = useTerminalStream(accountId, streamSymbols, crypto ? symbol : "", shares.live);
@@ -315,14 +299,14 @@ export default function Terminal() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId]);
 
-  // The arrangement: saved per browser, lockable, resettable.
-  const [layouts, setLayouts] = useState(() => {
-    try {
-      const saved = JSON.parse(store.get(LAYOUT_KEY) || "null") ?? fromFirstVersion(JSON.parse(store.get(LAYOUT_KEY_V1) || "null"));
-      return cleanLayouts(saved);
-    } catch { return cleanLayouts(null); }
+  // The arrangement: kept with the account, lockable, resettable.
+  const [layouts, setLayouts] = useAccountSetting("layout", {
+    localKey: LAYOUT_KEY, clean: cleanLayouts,
+    initial: () => { try { return cleanLayouts(fromFirstVersion(JSON.parse(store.get(LAYOUT_KEY_V1) || "null"))); } catch { return cleanLayouts(null); } }
   });
-  const [locked, setLocked] = useState(() => store.get(LOCK_KEY) === "1");
+  const [locked, setLocked] = useAccountSetting("layoutlock", {
+    localKey: LOCK_KEY, initial: () => false, clean: (v) => v === true || v === "1", fromLocal: (raw) => raw === "1", toLocal: (v) => (v ? "1" : "0")
+  });
   // The windows reach the bottom of the screen: rows sized to the height left
   // under the bar, measured from where the grid actually starts (on the page,
   // or in the full-screen terminal), less one gap at the foot.
@@ -330,17 +314,14 @@ export default function Terminal() {
   const barBox = useRef(null);
   const gridBox = useRef(null);
   const [rowHeight, setRowHeight] = useState(() => rowHeightFor(window.innerHeight - 100));
+  // The grid reports its windows on every change, its own settling included:
+  // saved once the account's arrangement has been read, never over it.
   const onLayoutChange = useCallback((_, all) => {
     const next = cleanLayouts(all);
-    setLayouts(next);
-    store.set(LAYOUT_KEY, JSON.stringify(next));
-  }, []);
-  const toggleLock = () => setLocked((v) => { store.set(LOCK_KEY, v ? "0" : "1"); return !v; });
-  const resetLayout = () => {
-    const next = cleanLayouts(DEFAULT_LAYOUTS);
-    setLayouts(next);
-    store.set(LAYOUT_KEY, JSON.stringify(next));
-  };
+    setLayouts((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next), { touch: false });
+  }, [setLayouts]);
+  const toggleLock = () => setLocked((v) => !v);
+  const resetLayout = () => setLayouts(cleanLayouts(DEFAULT_LAYOUTS));
 
   // Full screen (Esc, or the button, to come back): the whole terminal, with
   // no menu, banner or browser bars; or the chart alone, from either.
@@ -405,7 +386,9 @@ export default function Terminal() {
   // Partial exit has a key ... stop loss ... with keys"): the list is kept with
   // the account; on or off is this browser's, and off until turned on here.
   const [hotkeys, setHotkeys] = useState([]);
-  const [hotkeysOn, setHotkeysOn] = useState(() => store.get(HOTKEYS_ON_KEY) === "1");
+  const [hotkeysOn, setHotkeysOn] = useAccountSetting("hotkeyson", {
+    localKey: HOTKEYS_ON_KEY, initial: () => false, clean: (v) => v === true || v === "1", fromLocal: (raw) => raw === "1", toLocal: (v) => (v ? "1" : "0")
+  });
   const [hotkeysOpen, setHotkeysOpen] = useState(false);
   // The bar replay (components/terminal/useReplay.js): while it runs, the
   // hotkeys and the replay bar trade its practice account.
@@ -480,7 +463,7 @@ export default function Terminal() {
   const saveHotkeys = (list) => { setHotkeys(list); savePref("hotkeys", list); };
   // A coin's quantity step, read ahead so the first key press does not wait for it.
   useEffect(() => { if (hotkeysOn && crypto) prefetchStep(accountId, symbol); }, [hotkeysOn, crypto, accountId, symbol]);
-  const armHotkeys = (on) => { setHotkeysOn(on); store.set(HOTKEYS_ON_KEY, on ? "1" : "0"); };
+  const armHotkeys = (on) => setHotkeysOn(on);
   // Everything a key press reads, current at the moment it is pressed.
   const live$ = useRef({});
   live$.current = { account, symbol, quote, view, position, hotkeys, notify, refresh: loadView, replaying, liveOk, group: replaying ? [] : groupSend };

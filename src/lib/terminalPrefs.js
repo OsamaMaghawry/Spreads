@@ -50,3 +50,24 @@ export async function readPrefs(keys) {
 }
 
 export const flushPrefs = flush;
+
+// One read for every setting asked for at the same moment: a page opening asks
+// for a dozen, and they go as one request.
+let wanted = null;
+/** One setting from the account (undefined if it has none), read with any others asked for together. */
+export function readPref(key) {
+  if (!wanted) {
+    wanted = new Map();
+    setTimeout(() => {
+      const batch = wanted;
+      wanted = null;
+      readPrefs([...batch.keys()])
+        .then((prefs) => { for (const [k, waiters] of batch) waiters.forEach((w) => w.resolve(prefs[k])); })
+        .catch((e) => { for (const waiters of batch.values()) waiters.forEach((w) => w.reject(e)); });
+    }, 0);
+  }
+  return new Promise((resolve, reject) => {
+    if (!wanted.has(key)) wanted.set(key, []);
+    wanted.get(key).push({ resolve, reject });
+  });
+}
