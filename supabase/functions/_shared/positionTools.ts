@@ -231,15 +231,29 @@ export function partialQty(remaining: number, base: number, percent: number, opt
   return { qty: Number(qty.toFixed(9)), all: false };
 }
 
+// How far a bid (or ask) may sit from the price the broker marks the position
+// at and still be taken for the market; and, when none is that close, how far
+// through that mark the exit's limit goes. 27 Oct, AIOK on a live account at
+// 9:51 before the open: IEX's bid was 7.75 with the stock near 10.80, the exit
+// went at 7.75, and Alpaca refused it ("the order is not executed i can't
+// sell!!!"). IEX is one exchange of many, thin before the open.
+export const EXIT_BAND = 0.03;
+export const EXIT_THROUGH = 0.02;
+
+type Side = { bid?: number | null; ask?: number | null };
+
 /**
  * An exit of all or part of a position (`amount`: everything, or a
  * quantity). In the regular session (and always for coins) the broker's own
  * close, at market. Before the open and after the close a market order would
- * wait for the open, so it goes as a limit at the bid (selling) or ask
- * (buying back), for the day, extended hours, in whole shares. Overnight and
- * at weekends shares cannot trade at all: refused.
+ * wait for the open, so it goes as a limit, for the day, extended hours, in
+ * whole shares: at the bid (selling) or ask (buying back), the screen's own
+ * (`quote.live`, every exchange where the trader has it) before IEX's; but
+ * only one within EXIT_BAND of the broker's mark (`quote.ref`), and failing
+ * that EXIT_THROUGH beyond the mark, which still fills at the best price
+ * there is. Overnight and at weekends shares cannot trade at all: refused.
  */
-export function exitPlan(position: Position, amount: { all: boolean; qty: number }, session: "regular" | "extended" | "closed", quote: { bid?: number | null; ask?: number | null }, crypto = false):
+export function exitPlan(position: Position, amount: { all: boolean; qty: number }, session: "regular" | "extended" | "closed", quote: Side & { ref?: number | null; live?: Side }, crypto = false):
   { ok: true; how: "close"; all: boolean; qty: number } | { ok: true; how: "limit"; side: "buy" | "sell"; qty: number; limitPrice: number; note: string | null } | { ok: false; reason: string } {
   const held = Math.abs(num(position?.qty) || 0);
   if (!(held > 0)) return { ok: false, reason: "No position to exit." };
@@ -248,12 +262,20 @@ export function exitPlan(position: Position, amount: { all: boolean; qty: number
   if (crypto || session === "regular") return { ok: true, how: "close", all: amount.all || wanted >= held - 1e-12, qty: wanted };
   if (session === "closed") return { ok: false, reason: "The share market is shut now (overnight or weekend); exits can be sent from 4:00 a.m. New York." };
   const long = position.side !== "short" && position.qty > 0;
-  const price = num(long ? quote.bid : quote.ask);
-  if (!(price && price > 0)) return { ok: false, reason: `No ${long ? "bid" : "ask"} to exit against outside regular hours.` };
+  const word = long ? "bid" : "ask";
+  const seen = [quote.live?.[word], quote[word]].map(num).filter((v): v is number => !!v && v > 0);
+  const ref = num(quote.ref);
+  const near = ref && ref > 0 ? seen.find((v) => Math.abs(v - ref) / ref <= EXIT_BAND) : seen[0];
+  const price = near ?? (ref && ref > 0 ? ref * (long ? 1 - EXIT_THROUGH : 1 + EXIT_THROUGH) : null);
+  if (!(price && price > 0)) return { ok: false, reason: `No ${word} to exit against outside regular hours.` };
   const shares = Math.floor(wanted + 1e-9);
   if (shares < 1) return { ok: false, reason: "Outside regular hours only whole shares trade, and this exit is less than one." };
+  const notes = [
+    near == null && ref ? `limit ${Math.round(EXIT_THROUGH * 100)}% ${long ? "under" : "over"} the last price ${round(ref)}${seen.length ? `; the ${word} seen (${round(seen[0])}) was too far from it to be the market` : ""}` : null,
+    shares < wanted - 1e-9 ? `${shares} whole shares (part of a share cannot trade outside regular hours)` : null
+  ].filter(Boolean);
   return {
     ok: true, how: "limit", side: long ? "sell" : "buy", qty: shares, limitPrice: round(price),
-    note: shares < wanted - 1e-9 ? `${shares} whole shares (part of a share cannot trade outside regular hours)` : null
+    note: notes.length ? notes.join("; ") : null
   };
 }

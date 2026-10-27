@@ -1684,15 +1684,25 @@ async function exitPosition(admin: any, user: any, account: any, input: any) {
     ? partialQty(held, base, percent, { whole: !crypto && Number.isInteger(held), step: crypto ? asset?.minTradeIncrement : 1e-9, min: crypto ? asset?.minOrderSize : 0 })
     : { qty: held, all: true };
   const amount = split.selling > 0 ? { qty: Math.min(wanted.qty, free), all: false } : wanted;
-  const plan = exitPlan(pos, amount, session, { bid: num((quote as any).bp), ask: num((quote as any).ap) }, crypto);
+  // Outside regular hours the limit is priced against the broker's own mark
+  // and the screen's quote as well as IEX's (positionTools.ts exitPlan).
+  const plan = exitPlan(pos, amount, session, {
+    bid: num((quote as any).bp), ask: num((quote as any).ap), ref: pos.last, live: { bid: num(input?.bid), ask: num(input?.ask) }
+  }, crypto);
   if (!plan.ok) return { status: 400, body: { error: plan.reason } };
   // Every other working order on the symbol holds shares the exit needs. A
   // partial exit hands the old stop's price back, for the browser to put the
-  // stop back on what remains once the exit has filled.
-  const kept = partial && !amount.all ? existingExits(open, closing) : { stop: null, target: null };
+  // stop back on what remains once the exit has filled; and whatever stop and
+  // target the exit takes off go back on at once if the broker refuses it, so
+  // a refused exit never leaves the position bare (27 Oct, AIOK).
+  const working = existingExits(open, closing);
+  const kept = partial && !amount.all ? working : { stop: null, target: null };
   if (!(await cancelAndWait(account, symbol, split.cancel.map((o: any) => o.id)))) {
     return { status: 409, body: { error: `${symbol}'s working orders are still being cancelled; press again in a moment.` } };
   }
+  const refused = async (message: string) => ({
+    status: 422, body: { error: `${message}${await putBack(admin, user, account, symbol, working)}`, cancelled: split.cancel.length }
+  });
   let order: any;
   if (plan.how === "close") {
     const sym = encodeURIComponent(symbol.replace("/", ""));
@@ -1702,15 +1712,19 @@ async function exitPosition(admin: any, user: any, account: any, input: any) {
     } catch (e) {
       const message = brokerRefusal(String((e as Error)?.message || e), symbol);
       inBackground(recordAttempt(admin, { userId: user.id, accountId: account.id, intent: "close", ticker: symbol, error: message }));
-      return { status: 422, body: { error: message, cancelled: split.cancel.length } };
+      return await refused(message);
     }
     inBackground(recordAttempt(admin, { userId: user.id, accountId: account.id, intent: "close", ticker: symbol, legs: [{ symbol, side: closing, ratio: 1 }], qty: order?.qty ?? null, orderType: "market", brokerOrderId: order?.id, status: order?.status, quote: { percent, tradeSize: base } }));
   } else {
     const built = stockOrderBody({ symbol, side: plan.side, qty: plan.qty, type: "limit", limitPrice: plan.limitPrice, timeInForce: "day", extendedHours: true }, `TERM_${Date.now()}`);
-    if (!built.ok) return { status: 400, body: { error: built.reason } };
+    if (!built.ok) return await refused(built.reason);
     const sent = await sendBody(admin, user, account, "close", built.body);
-    if (sent.error) return { status: 422, body: { error: sent.error, cancelled: split.cancel.length } };
+    if (sent.error) return await refused(sent.error);
     order = sent.order;
+  }
+  if (order?.status === "rejected") {
+    const what = plan.how === "limit" ? `${plan.side} ${plan.qty} ${symbol} at ${plan.limitPrice}` : `close ${symbol}`;
+    return await refused(`Alpaca rejected the exit (${what}) without saying why.`);
   }
   return {
     status: 200,
@@ -1718,9 +1732,23 @@ async function exitPosition(admin: any, user: any, account: any, input: any) {
       orderId: order?.id, status: order?.status, how: plan.how, percent, side: closing, tradeSize: base, all: plan.how === "close" ? plan.all : false,
       limitPrice: plan.how === "limit" ? plan.limitPrice : null, qty: plan.how === "limit" ? plan.qty : num(order?.qty) ?? plan.qty,
       note: [plan.how === "limit" ? plan.note : null, split.selling > 0 ? `${split.selling} already being sold at market` : null].filter(Boolean).join("; ") || null,
-      cancelled: split.cancel.length, restopPrice: kept.stop, retargetPrice: kept.target
+      cancelled: split.cancel.length, restopPrice: kept.stop, retargetPrice: kept.target,
+      // What the exit took off, for the browser to put back if the exit ends unfilled.
+      heldStop: working.stop, heldTarget: working.target
     }
   };
+}
+
+// The stop and target an exit took off, put back on the whole position after
+// the exit was refused. Returns the words to add to the refusal.
+async function putBack(admin: any, user: any, account: any, symbol: string, held: { stop: number | null; target: number | null }) {
+  const { stop, target } = held;
+  if (!stop && !target) return "";
+  const kind = stop && target ? "both" : stop ? "stop" : "target";
+  const r = await protect(admin, user, account, { symbol, kind, mode: "price", value: stop ?? target, stopPrice: stop, targetPrice: target })
+    .catch((e: Error) => ({ status: 500, body: { error: String(e?.message || e) } }));
+  const names = [stop ? `stop ${stop}` : null, target ? `target ${target}` : null].filter(Boolean).join(" and ");
+  return r.status === 200 ? ` Your ${names} ${stop && target ? "are" : "is"} back on.` : ` Your ${names} could not be put back (${(r.body as any)?.error}): set ${stop && target ? "them" : "it"} again now.`;
 }
 
 async function cancelOrders(account: any, symbol: string) {

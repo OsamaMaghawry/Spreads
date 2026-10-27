@@ -21,7 +21,7 @@ async function stepFor(accountId, symbol) {
 export const prefetchStep = (accountId, symbol) => { if (accountId && symbol) stepFor(accountId, symbol).catch(() => {}); };
 
 /** Follow an order, telling the pop-up each time its state changes. */
-export function trackOrder({ accountId, id, key, base, notify, onChange, onFilled }) {
+export function trackOrder({ accountId, id, key, base, notify, onChange, onFilled, onUnfilled }) {
   let polls = 0;
   let last = `${base.status}|0`;
   const tick = async () => {
@@ -31,6 +31,7 @@ export function trackOrder({ accountId, id, key, base, notify, onChange, onFille
       const now = `${o.status}|${o.filled}`;
       if (now !== last) { last = now; notify({ key, ...orderNews({ ...base, ...o }) }); onChange?.(); }
       if (o.status === "filled") onFilled?.(o);
+      else if (orderState(o.status).final) onUnfilled?.(o);
       if (orderState(o.status).final) return;
     }
     polls += 1;
@@ -80,7 +81,9 @@ export async function runHotkey(h, ctx) {
 
   if (h.action === "exit") {
     notify({ key, tone: "wait", title: h.percent >= 100 ? `Exiting ${symbol}…` : `Exiting ${h.percent}% of the ${symbol} trade…`, detail: label });
-    const r = await invokeFunction("terminal", { action: "exit", accountId: account.id, symbol, percent: h.percent }).catch((e) => ({ data: { error: String(e?.message || e) } }));
+    // The screen's own bid and ask go with it: outside regular hours the
+    // server prices the limit from the best quote it can trust.
+    const r = await invokeFunction("terminal", { action: "exit", accountId: account.id, symbol, percent: h.percent, bid: ctx.quote?.bid ?? null, ask: ctx.quote?.ask ?? null }).catch((e) => ({ data: { error: String(e?.message || e) } }));
     if (r?.data?.error) { notify({ key, tone: "bad", title: "Exit not sent", detail: r.data.error }); return; }
     const d = r.data;
     const parts = [
@@ -109,7 +112,24 @@ export async function runHotkey(h, ctx) {
       if (d.retargetPrice) await put("target", d.retargetPrice);
       refresh?.();
     } : null;
-    if (d.orderId) trackOrder({ accountId: account.id, id: d.orderId, key, base: { ...base, status: d.status }, notify, onChange: refresh, onFilled: restop });
+    // Refused, cancelled or expired before it filled: the stop and target the
+    // exit took off go back on whatever is still held.
+    const putBack = d.heldStop || d.heldTarget ? async (o) => {
+      if (restored) return;
+      restored = true;
+      const part = Number(o?.filled) > 0;
+      const both = d.heldStop && d.heldTarget;
+      const r = await invokeFunction("terminal", {
+        action: "protect", accountId: account.id, symbol, kind: both ? "both" : d.heldStop ? "stop" : "target", mode: "price",
+        value: d.heldStop || d.heldTarget, stopPrice: d.heldStop, targetPrice: d.heldTarget
+      }).catch((e) => ({ data: { error: String(e?.message || e) } }));
+      const names = [d.heldStop && `stop ${px(d.heldStop)}`, d.heldTarget && `target ${px(d.heldTarget)}`].filter(Boolean).join(" and ");
+      const title = part ? "Exit partly filled" : "Exit not filled";
+      if (r?.data?.error) notify({ key: `${key}back`, tone: "bad", title: `${title}: exits not put back`, detail: `${r.data.error} Set your ${names} again now.` });
+      else notify({ key: `${key}back`, tone: "ok", title: `${title}: exits put back`, detail: `Your ${names} ${both ? "are" : "is"} back on the ${symbol} still held.` });
+      refresh?.();
+    } : null;
+    if (d.orderId) trackOrder({ accountId: account.id, id: d.orderId, key, base: { ...base, status: d.status }, notify, onChange: refresh, onFilled: restop, onUnfilled: putBack });
     return;
   }
 

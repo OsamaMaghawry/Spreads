@@ -96,6 +96,25 @@ test("exits: the broker's close in the session; a limit at the bid or ask outsid
   assert.match(why({ ...long, qty: 1 }, { all: false, qty: 0.5 }, "extended", { bid: 10 }), /less than one/);
 });
 
+test("exits outside regular hours: a bid far from the broker's mark is not the market (27 Oct, AIOK)", () => {
+  const aiok = { qty: 114, side: "long" as const };
+  const part = { all: false, qty: 28 };
+  // IEX's bid 7.75 with the stock at 10.80: 2% under the mark instead, said so.
+  const far = exitPlan(aiok, part, "extended", { bid: 7.75, ask: 12, ref: 10.8 }) as any;
+  assert.deepEqual([far.side, far.qty, far.limitPrice], ["sell", 28, 10.58]);
+  assert.match(far.note, /2% under the last price 10\.8; the bid seen \(7\.75\) was too far/);
+  // The screen's own bid (every exchange) first, when it is near the mark.
+  const live = exitPlan(aiok, part, "extended", { bid: 7.75, ref: 10.8, live: { bid: 10.74, ask: 10.82 } }) as any;
+  assert.deepEqual([live.limitPrice, live.note], [10.74, null]);
+  // IEX's bid when it is near: unchanged from before.
+  assert.equal((exitPlan(aiok, part, "extended", { bid: 10.7, ref: 10.8 }) as any).limitPrice, 10.7);
+  // No bid at all, but a mark: through the mark. Buying back: over it.
+  assert.equal((exitPlan(aiok, part, "extended", { ref: 10.8 }) as any).limitPrice, 10.58);
+  const cover = exitPlan({ qty: -50, side: "short" as const }, { all: true, qty: 0 }, "extended", { ask: 15, ref: 10 }) as any;
+  assert.deepEqual([cover.side, cover.limitPrice], ["buy", 10.2]);
+  assert.match(cover.note, /2% over the last price 10/);
+});
+
 const ETH = (s: unknown) => String(s).replace("/", "") === "ETHUSD";
 test("the trade's size: the largest since the position was last flat, from the fills", () => {
   // 25 Oct: bought 0.424095931 ETH, then took a quarter of it, then another.
