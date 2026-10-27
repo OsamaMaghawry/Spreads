@@ -25,7 +25,7 @@ import ReplayBar, { ReplayStart } from "@/components/terminal/ReplayBar";
 import { PracticePositions, ReplayResults, DemoResults } from "@/components/terminal/ReplayPanels";
 import NewsPanel, { useNews } from "@/components/terminal/NewsPanel";
 import GroupPicker from "@/components/terminal/GroupPicker";
-import { groupChoices, cleanGroup, groupPayload } from "@/lib/accountGroup";
+import { groupChoices, cleanGroup, groupPayload, cleanSizes } from "@/lib/accountGroup";
 import { acctIn, replayClock } from "@/lib/replay";
 
 const Grid = WidthProvider(Responsive);
@@ -185,9 +185,31 @@ export default function Terminal() {
   const [groupPick, setGroupPick] = useState(() => { try { return JSON.parse(store.get(GROUP_KEY) || "[]"); } catch { return []; } });
   const changeGroup = (ids) => { setGroupPick(ids); store.set(GROUP_KEY, JSON.stringify(ids)); };
   const group = useMemo(() => cleanGroup(groupPick, accounts, accountId, liveOk), [groupPick, accounts, accountId, liveOk]);
-  // Each picked account's own size, kept with the group.
-  const [groupSizes, setGroupSizes] = useState(() => { try { return JSON.parse(store.get(GROUP_SIZES_KEY) || "{}") || {}; } catch { return {}; } });
-  const changeSizes = (next) => { setGroupSizes(next); store.set(GROUP_SIZES_KEY, JSON.stringify(next)); };
+  // Each picked account's own size, kept with the person's account (setting
+  // "groupsizes", lib/terminalPrefs.js) as the watchlist is, so every device
+  // opens with them; this browser's copy shows at once until the account's
+  // arrives. A change made before it arrives is kept and sent up.
+  const [groupSizes, setGroupSizes] = useState(() => { try { return cleanSizes(JSON.parse(store.get(GROUP_SIZES_KEY) || "{}")); } catch { return {}; } });
+  const sizesRef = useRef(groupSizes);
+  sizesRef.current = groupSizes;
+  const sizesTouched = useRef(false);
+  useEffect(() => {
+    let alive = true;
+    readPrefs(["groupsizes"]).then((p) => {
+      if (!alive || sizesTouched.current) return;
+      const local = Object.keys(sizesRef.current).length ? sizesRef.current : null;
+      const s = settle(p.groupsizes && typeof p.groupsizes === "object" ? cleanSizes(p.groupsizes) : null, local);
+      if (s.upload) savePref("groupsizes", s.value);
+      else if (s.value) { setGroupSizes(s.value); store.set(GROUP_SIZES_KEY, JSON.stringify(s.value)); }
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const changeSizes = (next) => {
+    sizesTouched.current = true;
+    setGroupSizes(next);
+    store.set(GROUP_SIZES_KEY, JSON.stringify(next));
+    savePref("groupsizes", next);
+  };
   const groupSend = useMemo(() => groupPayload(group, groupSizes), [group, groupSizes]);
   const [minute, setMinute] = useState(() => Math.floor(Date.now() / 60000));
   useEffect(() => {

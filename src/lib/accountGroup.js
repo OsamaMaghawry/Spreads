@@ -8,6 +8,22 @@
 export const SIZE_MODES = [["prorata", "Pro rata"], ["times", "× pro rata"], ["percent", "% of its portfolio"], ["shares", "Shares"], ["dollars", "Dollars"]];
 export const sizeLabel = (mode) => ({ prorata: "in proportion to its portfolio value", times: "times its pro-rata share", percent: "% of its own portfolio", shares: "shares", dollars: "dollars" }[mode] || "");
 
+/**
+ * Sizes as kept with the person's account (terminal setting "groupsizes"):
+ * { accountId: { mode, value } }, known modes only, at most 50 accounts.
+ */
+export function cleanSizes(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const modes = new Set(SIZE_MODES.map(([id]) => id));
+  const out = {};
+  for (const [id, s] of Object.entries(raw).slice(0, 50)) {
+    if (!/^[\w-]{1,64}$/.test(id) || !s || typeof s !== "object" || !modes.has(s.mode)) continue;
+    const value = s.value === undefined || s.value === null ? "" : String(s.value).replace(/[^\d.]/g, "").slice(0, 16);
+    out[id] = s.mode === "prorata" ? { mode: "prorata" } : { mode: s.mode, value };
+  }
+  return out;
+}
+
 /** What goes to the server: each picked account with its size, if it has its own. */
 export function groupPayload(ids, sizes) {
   return (Array.isArray(ids) ? ids : []).map((id) => {

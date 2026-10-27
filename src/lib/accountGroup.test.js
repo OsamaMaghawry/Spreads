@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { groupChoices, cleanGroup, groupNews, groupPayload } from "./accountGroup.js";
+import { groupChoices, cleanGroup, groupNews, groupPayload, cleanSizes } from "./accountGroup.js";
 
 const accounts = [
   { id: "p1", name: "Paper one", type: "Paper" },
@@ -38,4 +38,17 @@ test("each account's own size goes with it; pro rata where none is set", () => {
     { id: "a", mode: "prorata" }, { id: "b", mode: "percent", value: 5 }, { id: "c", mode: "prorata" }
   ]);
   assert.deepEqual(groupPayload(["a"], { a: { mode: "shares", value: "" } }), [{ id: "a", mode: "shares", value: null }]);
+});
+
+test("sizes kept with the account: known modes only, values as typed", () => {
+  assert.deepEqual(cleanSizes({
+    "178e2bf2-ed6d": { mode: "percent", value: "5" },
+    a: { mode: "shares", value: 20 },
+    b: { mode: "prorata", value: "9" },
+    c: { mode: "everything", value: "1" },
+    "bad id!": { mode: "shares", value: "1" },
+    d: null
+  }), { "178e2bf2-ed6d": { mode: "percent", value: "5" }, a: { mode: "shares", value: "20" }, b: { mode: "prorata" } });
+  assert.deepEqual(cleanSizes(null), {});
+  assert.deepEqual(cleanSizes([1, 2]), {});
 });
