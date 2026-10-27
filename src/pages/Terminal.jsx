@@ -254,16 +254,22 @@ export default function Terminal() {
     store.set(FIRES_SEEN_KEY, JSON.stringify([...firedSeen.current].slice(-100)));
     return fresh;
   };
-  const fireNews = useCallback((f) => ({
-    tone: f.status === "sent" || f.status === "done" ? "ok" : f.status === "failed" ? "bad" : "muted",
-    title: { sent: `Stop fired on ${f.symbol}`, done: `Stop filled on ${f.symbol}`, returned: `Stop back on ${f.symbol}`, cancelled: `Stop limit cancelled on ${f.symbol}`, failed: `Stop on ${f.symbol}: needs a look` }[f.status] || `Stop on ${f.symbol} not fired`,
-    detail: `Traded ${px(f.trigger)} against the stop at ${px(f.stop)}${f.at ? `, ${new Date(f.at).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" })} New York` : ""}. ${f.note || ""}`
-  }), []);
+  // A stop, or a take profit, fired by the terminal outside regular hours.
+  const fireNews = useCallback((f) => {
+    const Name = f.kind === "target" ? "Take profit" : "Stop";
+    const at = f.kind === "target" ? f.target : f.stop;
+    return {
+      tone: f.status === "sent" || f.status === "done" ? "ok" : f.status === "failed" ? "bad" : "muted",
+      title: { sent: `${Name} fired on ${f.symbol}`, done: `${Name} filled on ${f.symbol}`, returned: `Exits back on ${f.symbol}`, cancelled: `${Name} limit cancelled on ${f.symbol}`, failed: `${Name} on ${f.symbol}: needs a look` }[f.status] || `${Name} on ${f.symbol} not fired`,
+      detail: `Traded ${px(f.trigger)} against the ${Name.toLowerCase()} at ${px(at)}${f.at ? `, ${new Date(f.at).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" })} New York` : ""}. ${f.note || ""}`
+    };
+  }, []);
   useEffect(() => listen((m) => {
     if (m.type !== "guard") return;
     const key = `guard${m.id}`;
     if (m.status === "firing") {
-      notify({ key, tone: "wait", title: `Stop hit on ${m.symbol} at ${px(m.trigger)}`, detail: `Outside regular hours: cancelling it and sending a limit at ${px(m.stop)}…` });
+      const target = m.kind === "target";
+      notify({ key, tone: "wait", title: `${target ? "Take profit" : "Stop"} hit on ${m.symbol} at ${px(m.trigger)}`, detail: `Outside regular hours: cancelling the exits and sending a limit at ${px(target ? m.target : m.stop)}…` });
       return;
     }
     sawFire(`${m.id}:${m.status}`);
@@ -276,7 +282,7 @@ export default function Terminal() {
     invokeFunction("terminal", { action: "guardFires", accountId }).then((r) => {
       for (const f of (r?.data?.fires || []).slice(0, 3)) {
         if (f.status === "firing" || !sawFire(`${f.order_id}:${f.status}`)) continue;
-        notify({ key: `guard${f.order_id}`, ...fireNews({ symbol: f.symbol, trigger: f.trigger_price, stop: f.stop_price, status: f.status, note: f.note, at: f.created_at }) });
+        notify({ key: `guard${f.order_id}`, ...fireNews({ symbol: f.symbol, kind: f.kind, trigger: f.trigger_price, stop: f.stop_price, target: f.target_price, status: f.status, note: f.note, at: f.created_at }) });
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

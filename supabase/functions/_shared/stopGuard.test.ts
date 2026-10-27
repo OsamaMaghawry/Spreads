@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { guardedStops, reaches, guardHours, exitOrder, restoreOrder, handBack } from "./stopGuard.ts";
+import { guardedStops, reaches, hit, guardHours, exitOrder, restoreOrder, handBack } from "./stopGuard.ts";
 
 // The account's open orders as Alpaca lists them (nested=true), 26 Oct: 490
 // RENT held, the terminal's take profit at 3.60 paired with a stop at 2.95.
@@ -22,9 +22,9 @@ test("the terminal's own stops: a pair's stop, a plain stop, a stop-limit; nothi
     { id: "x4", client_order_id: "TERM_5", symbol: "XOP", side: "sell", qty: "100", type: "limit", limit_price: "210" }
   ];
   assert.deepEqual(guardedStops(orders), [
-    { orderId: "b7fad269", symbol: "RENT", side: "sell", qty: 490, stop: 2.95, limit: null, pair: true, target: 3.6, since: Date.parse("2026-10-26T11:18:59Z") },
-    { orderId: "s1", symbol: "WMT", side: "sell", qty: 300, stop: 115, limit: null, pair: false, target: null, since: 0 },
-    { orderId: "s2", symbol: "TSLA", side: "buy", qty: 10, stop: 390, limit: 392, pair: false, target: null, since: 0 }
+    { symbol: "RENT", since: Date.parse("2026-10-26T11:18:59Z"), orderId: "b7fad269", cancel: ["b7fad269"], side: "sell", qty: 490, stop: 2.95, limit: null, pair: true, target: 3.6 },
+    { symbol: "WMT", since: 0, orderId: "s1", cancel: ["s1"], side: "sell", qty: 300, stop: 115, limit: null, pair: false, target: null },
+    { symbol: "TSLA", since: 0, orderId: "s2", cancel: ["s2"], side: "buy", qty: 10, stop: 390, limit: 392, pair: false, target: null }
   ]);
   assert.deepEqual(guardedStops(null as any), []);
 });
@@ -100,4 +100,39 @@ test("a fired stop's limit: filled, done; cancelled by you, left; expired, or wo
   assert.equal(handBack("partially_filled", false), "wait");
   assert.equal(handBack("new", true), "return");
   assert.equal(handBack("partially_filled", true), "return");
+});
+
+// 27 Oct, AIOK on two paper accounts before the open: "Orders for TP and SL
+// still don't get executed". Take profits wait for 9:30 at Alpaca as stops do.
+test("take profits too: a pair's, one on its own, and a filled bracket's two exits", () => {
+  const alone = { id: "t1", client_order_id: "TERM_9", symbol: "AIOK", asset_class: "us_equity", side: "sell", qty: "51", type: "limit", limit_price: "11.5", time_in_force: "gtc", extended_hours: false, order_class: "simple" };
+  const dayLimit = { ...alone, id: "t2", time_in_force: "day", extended_hours: true }; // an entry or exit already working outside hours
+  const bracket = {
+    id: "b1", client_order_id: "TERM_7", symbol: "AIOK", asset_class: "us_equity", side: "buy", qty: "74", type: "limit", limit_price: "10.75", order_class: "bracket", status: "filled",
+    legs: [
+      { id: "tp", side: "sell", qty: "74", type: "limit", limit_price: "11.8", status: "new" },
+      { id: "sl", side: "sell", qty: "74", type: "stop", stop_price: "10.2", status: "held" }
+    ]
+  };
+  const waiting = { ...bracket, id: "b2", status: "new" }; // its entry not filled yet: nothing to protect
+  const [t, b] = guardedStops([alone, dayLimit, bracket, waiting]);
+  assert.deepEqual([t.orderId, t.stop, t.target, t.pair], ["t1", null, 11.5, false]);
+  assert.deepEqual([b.orderId, b.cancel, b.side, b.qty, b.stop, b.target, b.pair], ["tp", ["tp", "sl"], "sell", 74, 10.2, 11.8, true]);
+  assert.equal(guardedStops([dayLimit, waiting]).length, 0);
+  // Which exit a trade reaches: round lots only, the take profit at or beyond it.
+  assert.equal(hit(b, 11.8, 100), "target");
+  assert.equal(hit(b, 12, 200), "target");
+  assert.equal(hit(b, 11.79, 500), null);
+  assert.equal(hit(b, 10.2, 100), "stop");
+  assert.equal(hit(b, 12, 50), null, "an odd lot does not count");
+  assert.equal(hit(t, 11.5, 100), "target");
+  const cover = { ...b, side: "buy" as const, stop: 12, target: 10 };
+  assert.deepEqual([hit(cover, 10, 100), hit(cover, 12, 100), hit(cover, 11, 100)], ["target", "stop", null]);
+  // The limit goes at the take-profit price; nothing opens a position.
+  const sent = exitOrder(b, 74, "TERM_XS_1", "target") as any;
+  assert.deepEqual([sent.body.limit_price, sent.body.qty, sent.body.extended_hours, sent.body.time_in_force], ["11.80", "74", true, "day"]);
+  assert.equal(exitOrder(t, 0, "x", "target").ok, false);
+  // Put back: the pair as a pair; a take profit alone as a take profit.
+  assert.equal(restoreOrder(b, 74, "R").order_class, "oco");
+  assert.deepEqual(restoreOrder(t, 51, "R"), { symbol: "AIOK", side: "sell", qty: "51", type: "limit", limit_price: "11.50", time_in_force: "gtc", client_order_id: "R" });
 });

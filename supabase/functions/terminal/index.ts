@@ -1521,7 +1521,7 @@ async function guardStops(admin: any, dryRun = false, onlyAccount = "") {
     report.accounts += 1;
     if (!guards.length) continue;
     const owner = !!eodhdKey && isOwnerEmail(await emailFor(a.user_id));
-    report.guards.push(...guards.map((g) => ({ account: a.id, live: !a.is_paper, symbol: g.symbol, side: g.side, qty: g.qty, stop: g.stop, pair: g.pair, source: owner ? "eodhd" : "iex", terminalOpen: watched.has(a.id) })));
+    report.guards.push(...guards.map((g) => ({ account: a.id, live: !a.is_paper, symbol: g.symbol, side: g.side, qty: g.qty, stop: g.stop, target: g.target, pair: g.pair, source: owner ? "eodhd" : "iex", terminalOpen: watched.has(a.id) })));
     (owner ? viaEodhd : viaIex).push({ account, userId: a.user_id, guards });
   }
   if (dryRun) return report;
@@ -1956,7 +1956,7 @@ Deno.serve(async (req) => {
       return jsonResponse(r, (r as any).error ? 400 : 200);
     }
     if (action === "guardFires") {
-      const { data } = await admin.from("terminal_stop_fires").select("order_id, symbol, side, qty, stop_price, trigger_price, via, status, note, created_at")
+      const { data } = await admin.from("terminal_stop_fires").select("order_id, symbol, side, qty, kind, stop_price, target_price, trigger_price, via, status, note, created_at")
         .eq("user_id", user.id).gt("created_at", iso(Date.now() - 24 * 3600000)).order("created_at", { ascending: false }).limit(50);
       return jsonResponse({ fires: data || [] });
     }

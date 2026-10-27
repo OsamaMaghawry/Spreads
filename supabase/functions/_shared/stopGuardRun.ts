@@ -1,4 +1,4 @@
-// Stops outside regular hours: watching and firing (the rules are
+// Stops and take profits outside regular hours: watching and firing (the rules are
 // stopGuard.ts). Two watchers share this: the open terminal's relay
 // (marketStream), from each live trade, and the minute job (functions/
 // terminal "guardStops") while no terminal is open. terminal_stop_fires,
@@ -6,7 +6,7 @@
 import { alpacaFetch, tradingBase, loadAccount } from "./alpaca.ts";
 import { recordAttempt } from "./orderAttempts.ts";
 import { usSession } from "./positionTools.ts";
-import { guardedStops, guardHours, reaches, exitOrder, restoreOrder, handBack, type Guard } from "./stopGuard.ts";
+import { guardedStops, guardHours, hit, exitOrder, restoreOrder, handBack, type Guard, type Kind } from "./stopGuard.ts";
 
 const OPEN = new Set(["new", "accepted", "pending_new", "accepted_for_bidding", "held", "partially_filled"]);
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -25,59 +25,73 @@ export async function extStopsOn(admin: any, userId: string) {
 }
 
 /**
- * Fires one stop: claims it, checks it still works, cancels it (a pair's take
- * profit goes with it), and sends a limit at the stop price for the day,
- * extended hours included, for what is still held. If the broker refuses the
- * limit, the stop is put back for the open. What happened is kept in
- * terminal_stop_fires and returned.
+ * Fires one exit (`kind`: the stop, or the take profit): claims it, checks
+ * it still works and that the position is still there to close, cancels it
+ * (a pair's other half goes with it; a bracket's two exits each), and sends
+ * a limit for the day, extended hours included, for what is still held: at
+ * the stop price for a stop, at the take-profit price for a take profit. If
+ * the broker refuses the limit, the exits are put back for the open. What
+ * happened is kept in terminal_stop_fires and returned.
  */
-export async function fireGuard(admin: any, account: any, userId: string, g: Guard, trigger: number, via: "relay" | "server") {
+export async function fireGuard(admin: any, account: any, userId: string, g: Guard, trigger: number, via: "relay" | "server", kind: Kind = "stop") {
   const claim = await admin.from("terminal_stop_fires").insert({
     order_id: g.orderId, user_id: userId, account_id: account.id, symbol: g.symbol, side: g.side, qty: g.qty,
-    stop_price: g.stop, limit_price: g.limit, target_price: g.target, trigger_price: trigger, via, status: "firing"
+    stop_price: g.stop, limit_price: g.limit, target_price: g.target, trigger_price: trigger, via, kind, status: "firing"
   });
   // Already fired, or being fired by the other watcher.
   if (claim.error) return { status: "skipped" as const, note: null, exitOrderId: null };
+  const name = kind === "target" ? "take profit" : "stop";
   const finish = async (status: "sent" | "gone" | "failed", note: string | null, exitOrderId: string | null = null) => {
     await admin.from("terminal_stop_fires").update({ status, note, exit_order_id: exitOrderId, updated_at: now() }).eq("order_id", g.orderId);
-    console.log(`stop guard ${via}: ${JSON.stringify({ symbol: g.symbol, stop: g.stop, trigger, status, note })}`);
+    console.log(`stop guard ${via}: ${JSON.stringify({ symbol: g.symbol, kind, stop: g.stop, target: g.target, trigger, status, note })}`);
     return { status, note, exitOrderId };
   };
   const base = tradingBase(account);
-  try {
-    const order = await alpacaFetch(`${base}/orders/${g.orderId}`, account).catch(() => null);
-    if (!order || !OPEN.has(order.status)) return finish("gone", `The stop was no longer working (${order?.status || "not found"}).`);
-    await alpacaFetch(`${base}/orders/${g.orderId}`, account, { method: "DELETE" }).catch(() => null);
-    let state = "";
-    for (let i = 0; i < 16; i++) {
-      state = (await alpacaFetch(`${base}/orders/${g.orderId}`, account).catch(() => null))?.status || "";
-      if (state && !OPEN.has(state) && state !== "pending_cancel") break;
-      await pause(250);
-    }
-    // Filled meanwhile (the take profit, say), or still cancelling: nothing more is sent.
-    if (state !== "canceled") return finish("gone", `The stop could not be cancelled first (${state || "no answer"}); nothing sent.`);
+  const holding = async () => {
     const pos = await alpacaFetch(`${base}/positions/${encodeURIComponent(g.symbol)}`, account).catch(() => null);
-    const held = pos ? Number(pos.qty) : 0;
-    const built = exitOrder(g, held, `TERM_XS_${Date.now()}`);
+    return pos ? Number(pos.qty) : 0;
+  };
+  try {
+    const order = await alpacaFetch(`${base}/orders/${g.cancel[0] || g.orderId}`, account).catch(() => null);
+    if (!order || !OPEN.has(order.status)) return finish("gone", `The ${name} was no longer working (${order?.status || "not found"}).`);
+    // Nothing is cancelled unless there is a position for the exit to close.
+    const before = exitOrder(g, await holding(), "check", kind);
+    if (!before.ok) return finish("gone", `${before.reason} The ${name} was left as it was.`);
+    const ids = g.cancel.length ? g.cancel : [g.orderId];
+    await Promise.all(ids.map((id) => alpacaFetch(`${base}/orders/${id}`, account, { method: "DELETE" }).catch(() => null)));
+    const states: string[] = [];
+    for (const id of ids) {
+      let state = "";
+      for (let i = 0; i < 16; i++) {
+        state = (await alpacaFetch(`${base}/orders/${id}`, account).catch(() => null))?.status || "";
+        if (state && !OPEN.has(state) && state !== "pending_cancel") break;
+        await pause(250);
+      }
+      states.push(state);
+    }
+    // One filled meanwhile, or still cancelling: nothing more is sent.
+    if (states.some((x) => x !== "canceled")) return finish("gone", `The ${name} could not be cancelled first (${states.join(", ") || "no answer"}); nothing sent.`);
+    const built = exitOrder(g, await holding(), `TERM_XS_${Date.now()}`, kind);
     if (!built.ok) return finish("gone", built.reason);
     const body = built.body;
     const attempt = {
       userId, accountId: account.id, intent: "close", ticker: g.symbol, legs: [{ symbol: g.symbol, side: g.side, ratio: 1 }],
-      qty: Number(body.qty), orderType: "limit", limitPrice: body.limit_price, quote: { stop: g.stop, trigger, via, outsideHours: true }
+      qty: Number(body.qty), orderType: "limit", limitPrice: body.limit_price, quote: { kind, stop: g.stop, target: g.target, trigger, via, outsideHours: true }
     };
+    const other = kind === "target" ? (g.stop ? "; its stop cancelled" : "") : (g.target ? "; its take profit cancelled" : "");
     try {
       const sent = await alpacaFetch(`${base}/orders`, account, { method: "POST", body: JSON.stringify(body) });
       await recordAttempt(admin, { ...attempt, brokerOrderId: sent.id, status: sent.status });
-      return finish("sent", `${g.side === "sell" ? "Sell" : "Buy back"} ${body.qty} ${g.symbol} limit ${body.limit_price}, pre-market and after hours, for the day${g.pair ? "; its take profit cancelled" : ""}.`, sent.id);
+      return finish("sent", `${kind === "target" ? "Take profit reached: " : ""}${g.side === "sell" ? "Sell" : "Buy back"} ${body.qty} ${g.symbol} limit ${body.limit_price}, pre-market and after hours, for the day${other}.`, sent.id);
     } catch (e) {
       const refused = String((e as Error)?.message || e);
       await recordAttempt(admin, { ...attempt, error: refused });
-      // The stop back, so the open still protects the position.
+      // The exits back, so the open still protects the position.
       try {
         const back = await alpacaFetch(`${base}/orders`, account, { method: "POST", body: JSON.stringify(restoreOrder(g, Number(body.qty), `TERM_R_${Date.now()}`)) });
-        return finish("failed", `The limit was refused (${refused}); the stop at ${g.stop} is back for the open (order ${back.id}).`);
+        return finish("failed", `The limit was refused (${refused}); the exits are back for the open (order ${back.id}).`);
       } catch (e2) {
-        return finish("failed", `The limit was refused (${refused}), and the stop could not be put back (${String((e2 as Error)?.message || e2)}). The position has no stop.`);
+        return finish("failed", `The limit was refused (${refused}), and the exits could not be put back (${String((e2 as Error)?.message || e2)}). The position has no stop.`);
       }
     }
   } catch (e) {
@@ -125,13 +139,18 @@ export async function handBackFired(admin: any) {
       const held = Number(pos?.qty) || 0;
       const left = row.side === "sell" ? held : -held;
       if (!(left > 0)) { await set("done", "Nothing left to protect."); continue; }
-      const g = { symbol: row.symbol, side: row.side, stop: Number(row.stop_price), limit: row.limit_price === null ? null : Number(row.limit_price), target: row.target_price === null ? null : Number(row.target_price) };
+      const g = {
+        symbol: row.symbol, side: row.side, stop: row.stop_price === null ? null : Number(row.stop_price),
+        limit: row.limit_price === null ? null : Number(row.limit_price), target: row.target_price === null ? null : Number(row.target_price)
+      };
       const why = regular ? "had not filled by the open" : "ended its day unfilled";
+      const at = row.kind === "target" ? row.target_price : row.stop_price;
+      const what = g.stop && g.target ? "the stop and take profit are" : g.stop ? "the stop is" : "the take profit is";
       try {
         const back = await alpacaFetch(`${base}/orders`, account, { method: "POST", body: JSON.stringify(restoreOrder(g, Math.min(left, Number(row.qty) || left), `TERM_R_${Date.now()}`)) });
-        await set("returned", `The limit at ${row.stop_price} ${why}; the stop${g.target ? " and its take profit are" : " is"} back as before (order ${back.id}).`);
+        await set("returned", `The limit at ${at} ${why}; ${what} back as before (order ${back.id}).`);
       } catch (e) {
-        await set("failed", `The limit at ${row.stop_price} ${why}, and the stop could not be put back (${String((e as Error)?.message || e)}). The position has no stop.`);
+        await set("failed", `The limit at ${at} ${why}, and the exits could not be put back (${String((e as Error)?.message || e)}). The position has no stop.`);
       }
     } catch (e) {
       console.error(`stop guard hand-back: ${String((e as Error)?.message || e)}`);
@@ -174,11 +193,14 @@ export function guardWatcher(admin: any, account: any, userId: string, source: "
     async trade(symbol: string, price: number, size: number, at: number, tell: (m: any) => void) {
       if (!source || !guardHours(Date.now(), source)) return;
       for (const g of guards) {
-        if (g.symbol !== symbol || firing.has(g.orderId) || !(at >= g.since) || !reaches(g, price, size)) continue;
+        if (g.symbol !== symbol || firing.has(g.orderId) || !(at >= g.since)) continue;
+        const kind = hit(g, price, size);
+        if (!kind) continue;
         firing.add(g.orderId);
-        tell({ type: "guard", id: g.orderId, symbol, stop: g.stop, trigger: price, status: "firing" });
-        const r = await fireGuard(admin, account, userId, g, price, "relay");
-        if (r.status !== "skipped") tell({ type: "guard", id: g.orderId, symbol, stop: g.stop, trigger: price, status: r.status, note: r.note, orderId: r.exitOrderId });
+        const said = { type: "guard", id: g.orderId, symbol, kind, stop: g.stop, target: g.target, trigger: price };
+        tell({ ...said, status: "firing" });
+        const r = await fireGuard(admin, account, userId, g, price, "relay", kind);
+        if (r.status !== "skipped") tell({ ...said, status: r.status, note: r.note, orderId: r.exitOrderId });
         refresh();
       }
     }
@@ -208,10 +230,12 @@ export async function watchEodhd(admin: any, key: string, items: { account: any;
       if (!m.s || !guardHours(Date.now(), "eodhd")) return;
       for (const x of items) {
         for (const g of x.guards) {
-          if (g.symbol !== m.s || done.has(g.orderId) || !(Number(m.t) >= g.since) || !reaches(g, Number(m.p), Number(m.v))) continue;
+          if (g.symbol !== m.s || done.has(g.orderId) || !(Number(m.t) >= g.since)) continue;
+          const kind = hit(g, Number(m.p), Number(m.v));
+          if (!kind) continue;
           done.add(g.orderId);
-          const r = await fireGuard(admin, x.account, x.userId, g, Number(m.p), "server");
-          results.push({ symbol: g.symbol, stop: g.stop, trigger: Number(m.p), ...r });
+          const r = await fireGuard(admin, x.account, x.userId, g, Number(m.p), "server", kind);
+          results.push({ symbol: g.symbol, kind, stop: g.stop, target: g.target, trigger: Number(m.p), ...r });
         }
       }
     };
@@ -233,10 +257,12 @@ export async function checkIex(admin: any, item: { account: any; userId: string;
     for (const t of trades as any[]) {
       const at = Date.parse(t.t);
       for (const g of item.guards) {
-        if (g.symbol !== symbol || done.has(g.orderId) || !(at >= g.since) || !reaches(g, Number(t.p), Number(t.s))) continue;
+        if (g.symbol !== symbol || done.has(g.orderId) || !(at >= g.since)) continue;
+        const kind = hit(g, Number(t.p), Number(t.s));
+        if (!kind) continue;
         done.add(g.orderId);
-        const fired = await fireGuard(admin, item.account, item.userId, g, Number(t.p), "server");
-        results.push({ symbol, stop: g.stop, trigger: Number(t.p), ...fired });
+        const fired = await fireGuard(admin, item.account, item.userId, g, Number(t.p), "server", kind);
+        results.push({ symbol, kind, stop: g.stop, target: g.target, trigger: Number(t.p), ...fired });
       }
     }
   }
