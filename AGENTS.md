@@ -254,6 +254,22 @@ never deploy.
 | `tax-accountant` | Records defensible at tax time; the line between reporting and tax advice |
 | `desk-editor` | Technical truth of anything published — text and diagrams |
 
+## The trading terminal: tested on paper, then live means all of it
+
+The owner builds terminal features on paper accounts and moves to live when
+he is satisfied. **When he says to activate live, every terminal feature that
+works on paper works on his live accounts — nothing held back, nothing chosen
+on his behalf.** Do not decide that one part (a guard, a watcher, an exit)
+stays paper-only; if something truly cannot run on live, ask before shipping
+without it. On 26 Oct live trading was turned on but the stop guard was left
+on paper by the agent's own choice; on 27 Oct a live stop went unwatched
+before the open and the owner was left unable to sell. His words: "When I say
+activate on live meaning everything so far not to select on your own."
+
+Limits he set himself still hold: his own live Alpaca accounts only (never
+SnapTrade, never another person's live account), and $5,000 for each live
+order that opens or adds to a position.
+
 ## Publishing anything a stranger reads
 
 **Every article, without exception, passes three reviews before it is

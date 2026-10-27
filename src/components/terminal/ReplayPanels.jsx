@@ -219,7 +219,7 @@ export function DemoResults({ accountId, refreshKey = null }) {
           <TradeResults book={built.book} priceOf={priceOf} carriedAt={data.startSec} showHow={false}
             empty={`No share or coin trades ${period === "today" ? "today" : "in this period"}, and nothing held.`}
             openHint="Positions still held, at the last price" holdHint="Open to close"
-            note={`From your paper account's own fills at Alpaca, no commission. ${carried ? `Held from before the period (${carried} symbol${carried === 1 ? "" : "s"}): counted from the last close before it, as a day's P/L is; "held before" in the list. ` : ""}${data.options ? `${data.options} option fill${data.options === 1 ? "" : "s"} left out. ` : ""}Shares from an option assignment count from the close before the period. Return is on the cost of the part closed.`} />
+            note={`From this account's own fills at Alpaca, no commission. ${carried ? `Held from before the period (${carried} symbol${carried === 1 ? "" : "s"}): counted from the last close before it, as a day's P/L is; "held before" in the list. ` : ""}${data.options ? `${data.options} option fill${data.options === 1 ? "" : "s"} left out. ` : ""}Shares from an option assignment count from the close before the period. Return is on the cost of the part closed.`} />
         )}
       </div>
     </div>
