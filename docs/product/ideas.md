@@ -10,7 +10,7 @@ with a user:
 - Alert center in the app (the `positionWatch` alerts table will need a surface)
 - Multi-broker support beyond Alpaca (the positioning doc's admitted biggest gap)
 - Expand scan universe beyond the S&P 500 list in `src/lib/sp500.js` —
-  **returned from the backlog 2026-09-01.** Carries a verified competitor fact
+  **returned from the backlog 2026-09-01; 2026-10-27: the whole-market scan (`scanUniverse`) now exists, so the ceiling it described is gone. What remains is whether anyone uses it, and that still needs `scan_runs` (backlog #3).** Carries a verified competitor fact
   (teardown row E8: Barchart sweeps the full optionable US+Canada universe,
   ETFs and indices included) but no way to test demand: nothing records a scan,
   and `scan_last_used` keeps one overwritten row per user, not a history. It

@@ -8,7 +8,33 @@ recorded below, as prominently as additions.
 Every entry carries: the user problem in the user's words, its evidence, the
 smallest test that could disprove it, the kill criterion, and a cost guess.
 
-Last run: **2026-09-01** (vp-product, Tuesday cadence).
+Last run: **2026-10-27** (vp-product, Tuesday cadence). Previous: 2026-09-01.
+
+## Reconciliation, 2026-10-27 (against `shipped.md` 5 Sep – 6 Oct and `main` code)
+
+Seven weeks since the last run (no Tuesday run on record between). Read from
+`main`: `ResultsTable.jsx`, `optionScan.ts`, `scanEntries`, `findEntry`,
+`scanUniverse`.
+
+| Proposal | Verdict | Evidence |
+| --- | --- | --- |
+| #1 Quoted exit width | **Left** (one adjacent half-ship, below) | `ResultsTable.jsx` still shows strike width only (`fmtMoney(c.width)`); the legs carry `bid`/`ask` (`optionScan.ts` ~l.117) but no per-candidate quoted width is shown or filterable |
+| #2 Probability of profit | **Left** | No POP anywhere in `src/` or `supabase/`; `impliedVol()` still falls back silently to `0.25` (`optionScan.ts` l.31-36); sorts remain RoR / credit / max risk |
+| #3 Record what was scanned | **Left** | `scan_runs` appears only in docs; migrations stop at `0059`, none for it |
+| Killed: universe demand | **Half-answered by other work** | The whole-market scan (`scanUniverse`, shipped 9-22 on a 9-09 base, first pass filters price, volume, *underlying* quote width, capital per contract) removes the S&P-only ceiling. It sieves the **stock** quote, not the option legs, so it does not touch #1 |
+
+Honest read: the seven weeks went to the whole-market sweep, covered-call and
+cash-secured scan correctness, brand, About/pricing-schedule documents for
+Alpaca compliance, and daily content. None of it moved the three open
+proposals. Every proposal's evidence still stands; none has been tested.
+#1's test needs no deploy and has now waited eight weeks. **It is the
+cheapest thing here and the next move.**
+
+One new fact bearing on #1: the whole-market sweep makes bad quotes *more*
+likely to reach the results table, not less, since the universe is no longer
+the 500 most liquid names. The sieve filters the stock, then the options chain
+fetch runs on the survivors with no option-width gate. That raises #1's
+expected effect; it does not change its test or kill criterion.
 
 ## Open proposals
 

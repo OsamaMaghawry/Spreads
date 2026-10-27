@@ -36,6 +36,14 @@ $9–99 per month. Brokers capture the value of the volume that tools help creat
 Anyone building here is selling a subscription against a hobby budget, not
 taking a share of a large flow. That is a real business, but a thin-margin one.
 
+**Product facts re-read against code, 27 Oct 2026.** The scan universe is no
+longer the S&P 500: the whole-market sweep prices every listed name first
+(price, volume, underlying quote width, capital per contract) before the
+chain fetch. Competitor facts below are *not* re-verified in this edit:
+`tiblio.com`, `puthouse.com` and `optionstrat.com` are still on the blocked
+list in `reachable.md`, so Tiblio's ~$35 and OAuth-to-Alpaca claims remain
+`reported`, now eight weeks old. Plan against them with that age in mind.
+
 ## Who else is in it
 
 | Segment | Who | How they earn |
