@@ -131,7 +131,7 @@ together rather than one strike at a time.
 - **The event belongs to the calendar, not to a strike.** Any strike expiring after the date covers the announcement, which is why the repricing is chain-wide.
 - **The stock does not have to move at all.** IV is an input alongside the stock price; raise it with the stock unchanged and every premium on the chain rises, as the table above shows.
 - **The near expiration usually rises most in IV terms.** One announcement is a larger share of the movement expected over a week than of the movement expected over a quarter, so the front expirations lift further in percentage terms.
-- **The longer expiration usually carries more vega.** More days left means more extrinsic value at stake, so a smaller IV move there can still be worth more in dollars.
+- **The longer expiration usually carries more vega.** More days left means more extrinsic value at stake, so a smaller IV move there can still be worth more in dollars. [LEAPS options explained](/blog/leaps-options-explained) prices the same IV rise on a two-year and a one-month call.
 - **The same inputs unwind afterwards.** Once the result is public the uncertainty it carried is gone, IV falls back, and the contracts reprice down on that alone - a move traders call IV crush, or a volatility
 crush. [What that does to a seller, priced](/blog/selling-options-before-earnings).
 

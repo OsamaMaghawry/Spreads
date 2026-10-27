@@ -1,0 +1,36 @@
+<svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Value of a hypothetical at-the-money 50 call on XYZ held with the stock flat at 50, at six points in its life. With 24 months left it is worth 10.14, then 8.62 at 18 months, 6.88 at 12, 4.70 at 6, 3.23 at 3 and 1.81 at 1 month. The value lost is small at first, 1.52, 1.74 and 2.18 across the first three six-month steps, and the last six months, from the 6-month bar to expiration, take the remaining 4.70.">
+  <rect width="720" height="340" fill="#FFFFFF"/>
+
+  <line x1="60" y1="270" x2="680" y2="270" stroke="#C9CEDC" stroke-width="1.5"/>
+
+  <!-- bars: height = 19.7 per 1.00 of value -->
+  <rect x="90" y="70" width="64" height="200" fill="#B4485C" fill-opacity="0.22" stroke="#B4485C" stroke-width="2"/>
+  <rect x="190" y="100" width="64" height="170" fill="#B4485C" fill-opacity="0.22" stroke="#B4485C" stroke-width="2"/>
+  <rect x="290" y="134" width="64" height="136" fill="#B4485C" fill-opacity="0.22" stroke="#B4485C" stroke-width="2"/>
+  <rect x="390" y="177" width="64" height="93" fill="#B4485C" fill-opacity="0.22" stroke="#B4485C" stroke-width="2"/>
+  <rect x="490" y="206" width="64" height="64" fill="#B4485C" fill-opacity="0.22" stroke="#B4485C" stroke-width="2"/>
+  <rect x="590" y="234" width="64" height="36" fill="#B4485C" fill-opacity="0.22" stroke="#B4485C" stroke-width="2"/>
+
+  <!-- values -->
+  <text x="122" y="60" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">10.14</text>
+  <text x="222" y="90" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">8.62</text>
+  <text x="322" y="124" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">6.88</text>
+  <text x="422" y="167" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">4.70</text>
+  <text x="522" y="196" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">3.23</text>
+  <text x="622" y="224" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">1.81</text>
+
+  <!-- months left -->
+  <text x="122" y="296" font-size="16" font-weight="600" text-anchor="middle" fill="#14151C">24</text>
+  <text x="222" y="296" font-size="16" font-weight="600" text-anchor="middle" fill="#14151C">18</text>
+  <text x="322" y="296" font-size="16" font-weight="600" text-anchor="middle" fill="#14151C">12</text>
+  <text x="422" y="296" font-size="16" font-weight="600" text-anchor="middle" fill="#14151C">6</text>
+  <text x="522" y="296" font-size="16" font-weight="600" text-anchor="middle" fill="#14151C">3</text>
+  <text x="622" y="296" font-size="16" font-weight="600" text-anchor="middle" fill="#14151C">1</text>
+  <text x="370" y="320" font-size="15" text-anchor="middle" fill="#767B8E">months left</text>
+
+  <!-- lost per step -->
+  <text x="172" y="46" font-size="15" text-anchor="middle" fill="#B4485C">-1.52</text>
+  <text x="272" y="46" font-size="15" text-anchor="middle" fill="#B4485C">-1.74</text>
+  <text x="372" y="46" font-size="15" text-anchor="middle" fill="#B4485C">-2.18</text>
+  <text x="680" y="130" font-size="14" text-anchor="end" fill="#767B8E">hypothetical</text>
+</svg>
