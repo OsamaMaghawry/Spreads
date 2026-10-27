@@ -638,3 +638,5 @@ English. Newest first.
 - 2026-10-27 · (staging) Terminal: the stop guard, and now take profits, also fire before the open and after the close, on paper and the owner's live accounts (`820e039`, `7c56921`).
 - 2026-10-27 · (staging) Terminal is visible to administrators only; one order can go to several accounts, each at its own size (pro rata, a multiple, a percent, shares or dollars), and a non-tradable account says so (`efd51eb`, `99725a4`, `aab79b8`).
 - 2026-10-27 · (staging) Terminal: every setting (group accounts and sizes, layout, charts, screener filters) is kept with the person's account, not the browser (`d3e98f6`, `75d2ee8`).
+- 2026-10-27 · (staging) Terminal hotkeys trade the account on screen at its own size, and a small account no longer blocks the rest of a group order (`f478b46`).
+- 2026-10-27 · (staging) Group sales keep each account's own size; an open page now says when a new version is out (`fe46128`).
