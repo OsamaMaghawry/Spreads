@@ -1331,8 +1331,14 @@ async function placeOrder(admin: any, user: any, account: any, input: any) {
 // through the same checks as one sent on its own, the live limit included,
 // and each answers for itself: one refused does not hold up the others.
 const GROUP_MAX = 10;
+// The group: account ids, or { id, mode, value } where an account has its own size.
+const groupKey = (x: any) => String(x && typeof x === "object" ? x.id || "" : x || "");
 const groupIds = (ids: unknown, lead: any) =>
-  [...new Set((Array.isArray(ids) ? ids : []).map(String))].filter((id) => id && id !== lead.id).slice(0, GROUP_MAX);
+  [...new Set((Array.isArray(ids) ? ids : []).map(groupKey))].filter((id) => id && id !== lead.id).slice(0, GROUP_MAX);
+const groupRule = (ids: unknown, id: string) => {
+  const x: any = (Array.isArray(ids) ? ids : []).find((g) => groupKey(g) === id);
+  return x && typeof x === "object" && x.mode ? { mode: String(x.mode), value: num(x.value) } as any : null;
+};
 
 async function groupAccounts(admin: any, user: any, lead: any, ids: unknown) {
   return await Promise.all(groupIds(ids, lead).map(async (id) => ({
@@ -1363,9 +1369,11 @@ async function allocation(admin: any, user: any, lead: any, ids: unknown, input:
     bookOf(lead, symbol),
     ...group.map((g) => (g.account && canTrade(user, g.account) ? bookOf(g.account, symbol).catch((e: Error) => ({ error: brokerRefusal(String(e?.message || e)) })) : Promise.resolve(null)))
   ]);
-  const ready = books.filter((b: any) => b && !b.error) as any[];
+  const ready = (books.filter((b: any) => b && !b.error) as any[]).map((b) => ({ ...b, rule: groupRule(ids, b.id) }));
+  // The order's own price, for a size set in dollars or percent.
+  const price = num(input?.limitPrice) ?? num(input?.stopPrice) ?? num(input?.reference);
   const shares = allocate({ side, qty: num(input?.qty), notional: num(input?.notional) }, leadBook, ready,
-    { basis: input?.basis === "buyingPower" ? "buyingPower" : "equity", crypto, symbol });
+    { basis: input?.basis === "buyingPower" ? "buyingPower" : "equity", crypto, symbol, price });
   const rows = group.map((g, i) => {
     const b: any = books[i];
     if (!g.account) return groupRow(g.id, null, { skip: "not an account the terminal can trade" });

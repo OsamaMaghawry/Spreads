@@ -25,7 +25,7 @@ import ReplayBar, { ReplayStart } from "@/components/terminal/ReplayBar";
 import { PracticePositions, ReplayResults, DemoResults } from "@/components/terminal/ReplayPanels";
 import NewsPanel, { useNews } from "@/components/terminal/NewsPanel";
 import GroupPicker from "@/components/terminal/GroupPicker";
-import { groupChoices, cleanGroup } from "@/lib/accountGroup";
+import { groupChoices, cleanGroup, groupPayload } from "@/lib/accountGroup";
 import { acctIn, replayClock } from "@/lib/replay";
 
 const Grid = WidthProvider(Responsive);
@@ -72,6 +72,7 @@ const SHARE_FEED_KEY = "dm.terminal.shareFeed";
 const FIRES_SEEN_KEY = "dm.terminal.firesSeen";
 const EODHD_KEY = "dm.terminal.eodhd";
 const GROUP_KEY = "dm.terminal.group";
+const GROUP_SIZES_KEY = "dm.terminal.groupSizes";
 const NO_FILLS = [];
 // Where each chart sits for one to four of them.
 const PANE_GRID = { 1: "grid-cols-1", 2: "grid-cols-1 sm:grid-cols-2", 3: "grid-cols-2 grid-rows-2", 4: "grid-cols-2 grid-rows-2" };
@@ -184,6 +185,10 @@ export default function Terminal() {
   const [groupPick, setGroupPick] = useState(() => { try { return JSON.parse(store.get(GROUP_KEY) || "[]"); } catch { return []; } });
   const changeGroup = (ids) => { setGroupPick(ids); store.set(GROUP_KEY, JSON.stringify(ids)); };
   const group = useMemo(() => cleanGroup(groupPick, accounts, accountId, liveOk), [groupPick, accounts, accountId, liveOk]);
+  // Each picked account's own size, kept with the group.
+  const [groupSizes, setGroupSizes] = useState(() => { try { return JSON.parse(store.get(GROUP_SIZES_KEY) || "{}") || {}; } catch { return {}; } });
+  const changeSizes = (next) => { setGroupSizes(next); store.set(GROUP_SIZES_KEY, JSON.stringify(next)); };
+  const groupSend = useMemo(() => groupPayload(group, groupSizes), [group, groupSizes]);
   const [minute, setMinute] = useState(() => Math.floor(Date.now() / 60000));
   useEffect(() => {
     invokeFunction("terminal", { action: "feeds" }).then((r) => {
@@ -456,7 +461,7 @@ export default function Terminal() {
   const armHotkeys = (on) => { setHotkeysOn(on); store.set(HOTKEYS_ON_KEY, on ? "1" : "0"); };
   // Everything a key press reads, current at the moment it is pressed.
   const live$ = useRef({});
-  live$.current = { account, symbol, quote, view, position, hotkeys, notify, refresh: loadView, replaying, liveOk, group: replaying ? [] : group };
+  live$.current = { account, symbol, quote, view, position, hotkeys, notify, refresh: loadView, replaying, liveOk, group: replaying ? [] : groupSend };
   useEffect(() => {
     if (!hotkeysOn || page !== "trade" || hotkeysOpen) return undefined;
     const onKey = (e) => {
@@ -501,7 +506,7 @@ export default function Terminal() {
             LIVE{liveOk ? " · REAL MONEY" : " · VIEW ONLY"}
           </span>
         )}
-        <GroupPicker choices={groupChoices(accounts, accountId, liveOk)} value={group} onChange={changeGroup} />
+        <GroupPicker choices={groupChoices(accounts, accountId, liveOk)} value={group} onChange={changeGroup} sizes={groupSizes} onSizes={changeSizes} />
         <div className="relative">
           <Search className="pointer-events-none absolute left-2 top-1.5 h-4 w-4 text-slate-400" />
           <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && results[0]) choose(results[0].symbol); }}
@@ -735,7 +740,7 @@ export default function Terminal() {
             )}
             <OrderTicket account={account} symbol={symbol} quote={quote} held={held} heldText={held > 0 && position?.qtyText ? position.qtyText : ""}
               buyingPower={view?.buyingPower ?? null} onPlaced={loadView} pick={pick} preset={preset} onNotify={notify} liveOk={liveOk}
-              group={group.map((id) => accounts.find((a) => a.id === id)).filter(Boolean)}
+              group={groupSend.map((g) => ({ ...accounts.find((a) => a.id === g.id), size: g })).filter((a) => a.id)}
               extStops={extStops} onExtStops={changeExtStops} guardHours={eodhdOk ? "4:00 to 9:30 and 16:00 to 20:00" : "8:00 to 9:30 and 16:00 to 17:00"} />
             <p className="px-1 text-[10px] leading-relaxed text-slate-400">Prices from your own Alpaca account: shares from the free IEX feed (real time, IEX trades only, 8:00 to 17:00 New York), or every exchange fifteen minutes late outside IEX&apos;s hours{eodhdOk ? "; or EODHD's real-time stream on your own EODHD plan" : ""}; coins from Alpaca&apos;s crypto venue, around the clock, with the full order book. Charts by TradingView Lightweight Charts. Not investment advice.</p>
           </div>

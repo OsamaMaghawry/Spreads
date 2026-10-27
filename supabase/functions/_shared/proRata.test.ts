@@ -64,3 +64,36 @@ test("no size on the lead: nothing guessed", () => {
   const [a] = allocate({ side: "buy", qty: 10 }, { ...lead, equity: null }, [half]);
   assert.match(a.skip!, /account on screen/);
 });
+
+// 27 Oct: "I need to set the quantities by account ... if account is small
+// and I set 1%, it doesn't work with it."
+test("each account's own size: a multiple, a percent of its portfolio, shares, dollars", () => {
+  const order = { side: "buy" as const, qty: 115 }; // the lead: 1% of $127,540 at $11.10
+  const lead127 = { ...lead, equity: 127540 };
+  const small = { ...tiny, equity: 5000 };
+  const opts = { symbol: "AIOK", price: 11.1 };
+  // Pro rata, a $5,000 account gets 4 shares (4.5); three times that, 13.
+  assert.equal(allocate(order, lead127, [small], opts)[0].qty, 4);
+  const [x3] = allocate(order, lead127, [{ ...small, rule: { mode: "times", value: 3 } }], opts);
+  assert.deepEqual([x3.qty, x3.basis], [13, "times"]);
+  // 10% of its own $5,000 at $11.10: 45 shares.
+  const [pct] = allocate(order, lead127, [{ ...small, rule: { mode: "percent", value: 10 } }], opts);
+  assert.deepEqual([pct.qty, pct.basis, pct.skip], [45, "percent", null]);
+  // Shares, and dollars at the order's price.
+  assert.equal(allocate(order, lead127, [{ ...small, rule: { mode: "shares", value: 20 } }], opts)[0].qty, 20);
+  assert.equal(allocate(order, lead127, [{ ...small, rule: { mode: "dollars", value: 500 } }], opts)[0].qty, 45);
+  // A dollar order stays in dollars.
+  const [usd] = allocate({ side: "buy", notional: 1000 }, lead127, [{ ...small, rule: { mode: "percent", value: 2 } }], opts);
+  assert.deepEqual([usd.notional, usd.qty], [100, null]);
+  // No price for a percent or dollars: said, not guessed. No size set: said.
+  assert.match(allocate(order, lead127, [{ ...small, rule: { mode: "dollars", value: 500 } }], { symbol: "AIOK" })[0].skip!, /no price/);
+  assert.match(allocate(order, lead127, [{ ...small, rule: { mode: "shares", value: 0 } }], opts)[0].skip!, /no size set/);
+  // Pro rata named as such is pro rata.
+  assert.equal(allocate(order, lead127, [{ ...small, rule: { mode: "prorata" } }], opts)[0].qty, 4);
+});
+
+test("selling what is held stays in proportion to the holding, whatever the account's own size", () => {
+  const holder = { ...lead, held: 100 };
+  const [o] = allocate({ side: "sell", qty: 50 }, holder, [{ ...half, held: 30, rule: { mode: "shares", value: 500 } }], { price: 10 });
+  assert.deepEqual([o.qty, o.basis], [15, "holding"]);
+});

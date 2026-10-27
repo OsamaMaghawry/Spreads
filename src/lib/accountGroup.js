@@ -3,6 +3,20 @@
 // The shares are worked out on the server (functions/_shared/proRata.ts);
 // this is which accounts may be picked, and how their answers are told.
 
+// Each account's own size for what is bought or opened (27 Oct: "I need to
+// set the quantities by account"); the server applies it (proRata.ts).
+export const SIZE_MODES = [["prorata", "Pro rata"], ["times", "× pro rata"], ["percent", "% of its portfolio"], ["shares", "Shares"], ["dollars", "Dollars"]];
+export const sizeLabel = (mode) => ({ prorata: "in proportion to its portfolio value", times: "times its pro-rata share", percent: "% of its own portfolio", shares: "shares", dollars: "dollars" }[mode] || "");
+
+/** What goes to the server: each picked account with its size, if it has its own. */
+export function groupPayload(ids, sizes) {
+  return (Array.isArray(ids) ? ids : []).map((id) => {
+    const s = sizes?.[id];
+    if (!s || !s.mode || s.mode === "prorata") return { id, mode: "prorata" };
+    return { id, mode: s.mode, value: Number(s.value) || null };
+  });
+}
+
 /** Accounts that can join: every account the terminal trades except the one on screen. */
 export function groupChoices(accounts, leadId, liveOk) {
   return (Array.isArray(accounts) ? accounts : [])

@@ -17,6 +17,14 @@
 // own order is in part shares), coins down to a billionth (the order then
 // rounds to the coin's step), dollars to the cent. An account whose share
 // comes to nothing is skipped, and says why.
+//
+// Each account can carry its own size instead (27 Oct: "I need to set the
+// quantities by account ... if account is small and I set 1%, it doesn't
+// work with it"): a multiple of its pro-rata share, a percent of its own
+// portfolio, a number of shares, or dollars. These size what is bought or
+// opened; a sale of what is held stays in proportion to each holding.
+
+export type Rule = { mode: "prorata" | "times" | "percent" | "shares" | "dollars"; value?: number | null };
 
 export type Book = {
   id: string;
@@ -24,6 +32,7 @@ export type Book = {
   equity: number | null;
   buyingPower: number | null;
   held: number; // the symbol held, signed: negative for a short
+  rule?: Rule | null; // its own size, if not pro rata
 };
 
 export type Share = {
@@ -32,9 +41,11 @@ export type Share = {
   qty: number | null;
   notional: number | null;
   all: boolean; // the whole holding: sent as exactly what is held
-  basis: "equity" | "buyingPower" | "holding";
+  basis: "equity" | "buyingPower" | "holding" | "times" | "percent" | "shares" | "dollars";
   skip: string | null;
 };
+
+const RULES = new Set(["times", "percent", "shares", "dollars"]);
 
 const fin = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const down = (v: number, step: number) => Math.floor(v / step + 1e-9) * step;
@@ -44,7 +55,7 @@ export function allocate(
   order: { side: "buy" | "sell"; qty?: number | null; notional?: number | null },
   lead: Book,
   others: Book[],
-  opts: { basis?: "equity" | "buyingPower"; crypto?: boolean; symbol?: string } = {}
+  opts: { basis?: "equity" | "buyingPower"; crypto?: boolean; symbol?: string; price?: number | null } = {}
 ): Share[] {
   const qty = fin(order.qty);
   const notional = fin(order.notional);
@@ -72,13 +83,38 @@ export function allocate(
 
   const basis = opts.basis === "buyingPower" ? "buyingPower" : "equity";
   const leadSize = fin(lead[basis]);
+  const price = fin(opts.price);
+  const cents = (v: number) => Math.floor(v * 100) / 100;
   return others.map((b) => {
-    const base = { id: b.id, name: b.name, all: false, basis };
+    // The account's own size, where it has one.
+    const rule = b.rule && RULES.has(b.rule.mode) ? b.rule : null;
+    if (rule && rule.mode !== "times") {
+      const mode = rule.mode as "percent" | "shares" | "dollars";
+      const out = { id: b.id, name: b.name, all: false, basis: mode, qty: null, notional: null };
+      const v = fin(rule.value);
+      if (!(v && v > 0)) return { ...out, skip: "no size set for it" };
+      if (mode === "shares") {
+        const mine = clean(down(v, step));
+        return mine > 0 ? { ...out, qty: mine, skip: null } : { ...out, skip: `less than one ${unit}` };
+      }
+      const equity = fin(b.equity);
+      if (mode === "percent" && !(equity && equity > 0)) return { ...out, skip: "no portfolio value to size from" };
+      const dollars = mode === "percent" ? equity! * v / 100 : v;
+      if (notional !== null) {
+        return cents(dollars) >= 1 ? { ...out, notional: cents(dollars), skip: null } : { ...out, skip: "its size comes to less than $1" };
+      }
+      if (!(price && price > 0)) return { ...out, skip: "no price to turn its size into shares" };
+      const mine = clean(down(dollars / price, step));
+      return mine > 0 ? { ...out, qty: mine, skip: null } : { ...out, skip: `$${cents(dollars)} is less than one ${unit} at ${price}` };
+    }
+    const times = rule ? fin(rule.value) : 1;
+    const base = { id: b.id, name: b.name, all: false, basis: rule ? "times" as const : basis };
+    if (!(times && times > 0)) return { ...base, qty: null, notional: null, skip: "no multiple set for it" };
     const size = fin(b[basis]);
     const word = basis === "equity" ? "portfolio value" : "buying power";
     if (!(leadSize && leadSize > 0)) return { ...base, qty: null, notional: null, skip: `no ${word} on the account on screen to size from` };
     if (!(size && size > 0)) return { ...base, qty: null, notional: null, skip: `no ${word} to size from` };
-    const ratio = size / leadSize;
+    const ratio = (size / leadSize) * times;
     if (notional !== null) {
       const dollars = Math.floor(notional * ratio * 100) / 100;
       if (!(dollars >= 1)) return { ...base, qty: null, notional: null, skip: "its part comes to less than $1" };

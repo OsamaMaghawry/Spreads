@@ -115,7 +115,9 @@ export async function runHotkey(h, ctx) {
     if (built.reason) { notify({ key, tone: "bad", title: "Order not placed", detail: `${built.reason} (${h.keys})` }); return; }
     const base = { words: `${built.words} (${h.keys})`, symbol, side: built.order.side, unitName: crypto ? symbol.split("/")[0] : "shares" };
     notify({ key, ...orderNews({ sending: true, words: base.words }) });
-    const order = { ...built.order, basis: h.size === "bp" ? "buyingPower" : "equity" };
+    // The price it was sized at goes with it: an account with its own size in
+    // dollars or percent turns that into shares at the same price.
+    const order = { ...built.order, basis: h.size === "bp" ? "buyingPower" : "equity", reference: built.value && built.order.qty ? built.value / built.order.qty : null };
     const r = await invokeFunction("terminal", { action: "order", accountId: account.id, order, group }).catch((e) => ({ data: { error: String(e?.message || e) } }));
     tellGroup(r?.data?.group, "sent");
     if (r?.data?.error) { notify({ key, ...orderNews({ error: r.data.error }) }); return; }

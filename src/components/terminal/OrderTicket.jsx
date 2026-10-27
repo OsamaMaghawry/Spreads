@@ -230,22 +230,23 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   // With other accounts picked, the review shows each one's share before
   // anything is sent (functions/_shared/proRata.ts).
   const groupIds = group.map((a) => a.id);
+  const groupSend = group.map((a) => a.size || { id: a.id, mode: "prorata" });
   const [shares, setShares] = useState(null);
   useEffect(() => {
     if (!review || !groupIds.length || !account?.id) { setShares(null); return undefined; }
     let gone = false;
     setShares({ loading: true });
-    invokeFunction("terminal", { action: "allocate", accountId: account.id, order: order(), group: groupIds })
+    invokeFunction("terminal", { action: "allocate", accountId: account.id, order: order(), group: groupSend })
       .then((r) => { if (!gone) setShares(r?.data?.error ? { error: r.data.error } : { rows: r?.data?.group || [] }); })
       .catch((e) => { if (!gone) setShares({ error: String(e?.message || e) }); });
     return () => { gone = true; };
-  }, [review, groupIds.join(","), account?.id]);
+  }, [review, JSON.stringify(groupSend), account?.id]);
   const send = async () => {
     setBusy(true);
     const key = `o${Date.now()}`;
     const unitName = crypto ? coin : "shares";
     onNotify({ key, ...orderNews({ sending: true, words }) });
-    const r = await invokeFunction("terminal", { action: "order", accountId: account.id, order: order(), group: groupIds });
+    const r = await invokeFunction("terminal", { action: "order", accountId: account.id, order: order(), group: groupSend });
     const g = groupNews(r?.data?.group, "sent", unitName);
     if (g) onNotify({ key: `${key}g`, ...g });
     setBusy(false);
@@ -442,7 +443,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
 
       {group.length > 0 && !review && (
         <p className="rounded-md border border-violet-300 bg-violet-50 px-2 py-1 text-[11px] leading-snug text-violet-900">
-          Also sends to {group.map((a) => `${a.name}${a.type === "Live" ? " (LIVE)" : ""}`).join(", ")}, each its own share: the review shows how much.
+          Also sends to {group.map((a) => `${a.name}${a.type === "Live" ? " (LIVE)" : ""}`).join(", ")}, each at its size: the review shows how much.
         </p>
       )}
       {review ? (
@@ -450,7 +451,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
           <p className="text-sm text-slate-800">{words}{group.length ? ` on ${account?.name}` : ""}.</p>
           {group.length > 0 && (
             <div className="rounded border border-violet-200 bg-white px-2 py-1 text-[11px] leading-snug text-slate-700">
-              <div className="font-semibold text-violet-900">And on {group.length} more account{group.length === 1 ? "" : "s"}, pro rata:</div>
+              <div className="font-semibold text-violet-900">And on {group.length} more account{group.length === 1 ? "" : "s"}:</div>
               {shares?.loading && <div className="text-slate-500">Working out each share…</div>}
               {shares?.error && <div className="text-rose-700">{shares.error}</div>}
               {(shares?.rows || []).map((g) => (

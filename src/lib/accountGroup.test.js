@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { groupChoices, cleanGroup, groupNews } from "./accountGroup.js";
+import { groupChoices, cleanGroup, groupNews, groupPayload } from "./accountGroup.js";
 
 const accounts = [
   { id: "p1", name: "Paper one", type: "Paper" },
@@ -31,4 +31,11 @@ test("what the group said, in one pop-up", () => {
   assert.equal(groupNews([{ name: "A", ok: true, notional: 500 }], "sent").detail, "A: $500.00 sent");
   assert.equal(groupNews([{ name: "A", ok: true, cancelled: 2 }], "cancelled").detail, "A: 2 cancelled");
   assert.equal(groupNews([], "sent"), null);
+});
+
+test("each account's own size goes with it; pro rata where none is set", () => {
+  assert.deepEqual(groupPayload(["a", "b", "c"], { b: { mode: "percent", value: "5" }, c: { mode: "prorata", value: "9" } }), [
+    { id: "a", mode: "prorata" }, { id: "b", mode: "percent", value: 5 }, { id: "c", mode: "prorata" }
+  ]);
+  assert.deepEqual(groupPayload(["a"], { a: { mode: "shares", value: "" } }), [{ id: "a", mode: "shares", value: null }]);
 });
