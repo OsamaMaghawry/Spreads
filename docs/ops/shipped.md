@@ -633,3 +633,8 @@ English. Newest first.
 - 2026-10-26 · (staging) Ticket: exits offered for what you hold, a reason shown when an option is off, and the tape in time order (`c5dcf1a`).
 - 2026-10-26 · (staging) Terminal exit: pressing Exit again while a market sale is already on its way no longer cancels that sale (`ba26108`).
 - 2026-10-26 · (staging) Terminal: the owner's own live Alpaca accounts can now be traded from the hotkeys, the ticket, the Exits box and Positions, with each order that opens or adds to a position limited to $5,000; other people's live accounts stay look-only (`ed4e93b`).
+- 2026-10-27 · (staging) Terminal: the desktop screen is all windows, no margins, with a full-screen button and a menu folded to icons (`c44dae9`).
+- 2026-10-27 · (staging) Terminal exits: the sale is priced from the market, and a refused exit puts the stop back instead of leaving shares unprotected (`c4e3bee`).
+- 2026-10-27 · (staging) Terminal: the stop guard, and now take profits, also fire before the open and after the close, on paper and the owner's live accounts (`820e039`, `7c56921`).
+- 2026-10-27 · (staging) Terminal is visible to administrators only; one order can go to several accounts, each at its own size (pro rata, a multiple, a percent, shares or dollars), and a non-tradable account says so (`efd51eb`, `99725a4`, `aab79b8`).
+- 2026-10-27 · (staging) Terminal: every setting (group accounts and sizes, layout, charts, screener filters) is kept with the person's account, not the browser (`d3e98f6`, `75d2ee8`).
