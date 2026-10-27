@@ -1373,7 +1373,7 @@ async function allocation(admin: any, user: any, lead: any, ids: unknown, input:
   // The order's own price, for a size set in dollars or percent.
   const price = num(input?.limitPrice) ?? num(input?.stopPrice) ?? num(input?.reference);
   const shares = allocate({ side, qty: num(input?.qty), notional: num(input?.notional) }, leadBook, ready,
-    { basis: input?.basis === "buyingPower" ? "buyingPower" : "equity", crypto, symbol, price });
+    { basis: input?.basis === "buyingPower" ? "buyingPower" : "equity", crypto, symbol, price, pct: num(input?.pct) });
   const rows = group.map((g, i) => {
     const b: any = books[i];
     if (!g.account) return groupRow(g.id, null, { skip: "not an account the terminal can trade" });
@@ -1396,7 +1396,13 @@ async function orderForGroup(admin: any, user: any, lead: any, ids: unknown, inp
       .then((r) => ({ ...row, ...(r.body as any), ok: r.status === 200 }))
       .catch((e: Error) => ({ ...row, ok: false, error: String(e?.message || e) }));
   };
-  const [r, ...group] = await Promise.all([placeOrder(admin, user, lead, input), ...plan.group.map(send)]);
+  // Too small on the account on screen alone (a hotkey's size there under one
+  // share): nothing sent there, the others still take theirs.
+  const leadOff = num(input?.qty) === null && num(input?.notional) === null;
+  const [r, ...group] = await Promise.all([
+    leadOff ? Promise.resolve({ status: 200, body: { skipped: String(input?.leadSkip || "Too small on this account.") } as any }) : placeOrder(admin, user, lead, input),
+    ...plan.group.map(send)
+  ]);
   return { status: r.status, body: { ...r.body, group } };
 }
 

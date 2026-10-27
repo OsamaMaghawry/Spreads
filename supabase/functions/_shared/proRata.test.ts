@@ -97,3 +97,28 @@ test("selling what is held stays in proportion to the holding, whatever the acco
   const [o] = allocate({ side: "sell", qty: 50 }, holder, [{ ...half, held: 30, rule: { mode: "shares", value: 500 } }], { price: 10 });
   assert.deepEqual([o.qty, o.basis], [15, "holding"]);
 });
+
+// 27 Oct: a $600 account on screen, Shift+0 selling 0.5% of the portfolio:
+// $3, less than one NUWE share at $4.85, and so nothing for the others either.
+test("a percent-of-portfolio hotkey: each account takes the percent of its own", () => {
+  const small = { id: "S", name: "Small", equity: 600, buyingPower: 600, held: 10 };
+  const live = { id: "L2", name: "Alton Live", equity: 127540, buyingPower: 300000, held: 109 };
+  const rs = { id: "R", name: "Alton RS", equity: 112142, buyingPower: 259762, held: 0 };
+  const opts = { symbol: "NUWE", price: 4.85, pct: 0.5 };
+  // Selling what the one on screen holds: 0.5% of each, never more than it holds.
+  const [l, r] = allocate({ side: "sell", qty: null }, small, [live, rs], opts);
+  assert.deepEqual([l.qty, l.all], [109, true]); // $637 is 131 shares; it holds 109
+  assert.match(r.skip!, /holds no NUWE/);
+  // Buying: 0.5% of each own portfolio, whatever the one on screen came to.
+  const [bl, br] = allocate({ side: "buy", qty: null }, { ...small, held: 0 }, [{ ...live, held: 0 }, rs], opts);
+  assert.deepEqual([bl.qty, br.qty], [131, 115]);
+  // With its own multiple: three times its 0.5%.
+  const [x3] = allocate({ side: "buy", qty: null }, small, [{ ...rs, rule: { mode: "times", value: 3 } }], opts);
+  assert.equal(x3.qty, 346);
+  // Its own size still wins over the hotkey's percent.
+  const [own] = allocate({ side: "buy", qty: null }, small, [{ ...rs, rule: { mode: "shares", value: 20 } }], opts);
+  assert.equal(own.qty, 20);
+  // A sale never takes an account past what it holds, its own size or not.
+  const [cap] = allocate({ side: "sell", qty: 5 }, { ...small, held: 0 }, [{ ...rs, held: 30, rule: { mode: "shares", value: 500 } }], opts);
+  assert.deepEqual([cap.qty, cap.all], [30, true]);
+});

@@ -154,11 +154,48 @@ export function hotkeyOrder(h, ctx) {
   }
   const amount = h.size === "usd" ? h.amount : h.size === "equity" ? (n(ctx.equity) || 0) * h.amount / 100 : h.size === "bp" ? (n(ctx.buyingPower) || 0) * h.amount / 100 : null;
   if (amount !== null && !(amount > 0)) return { reason: `No ${h.size === "equity" ? "portfolio value" : "buying power"} to size from.` };
-  const qty = h.size === "shares" ? (ctx.crypto ? h.amount : Math.floor(h.amount)) : amountToQty(amount, price, { crypto: ctx.crypto, step: ctx.step });
-  if (!(qty > 0)) return { reason: `${money(amount ?? 0)} is less than one ${ctx.crypto ? "step" : "share"} at ${px(price)}.` };
+  let qty = h.size === "shares" ? (ctx.crypto ? h.amount : Math.floor(h.amount)) : amountToQty(amount, price, { crypto: ctx.crypto, step: ctx.step });
   const order = { symbol: ctx.symbol, side: buy ? "buy" : "sell", qty, type, timeInForce: ctx.crypto ? "gtc" : "day" };
   if (type === "limit") order.limitPrice = price;
   if (extended) order.extendedHours = true;
-  const words = `${buy ? "Buy" : "Sell"} ${qty} ${ctx.symbol} ${type === "market" ? "at market" : `limit ${px(price)}`}${extended ? " (extended hours)" : ""}`;
-  return { order, words, value: qty * price };
+  // Too small here: said, with the order as it would have gone, so the other
+  // accounts picked beside this one can still take their own sizes.
+  if (!(qty > 0)) return { reason: `${money(amount ?? 0)} is less than one ${ctx.crypto ? "step" : "share"} at ${px(price)}.`, tooSmall: true, order: { ...order, qty: null }, price };
+  // A sale of shares held (or a buy back of a short) closes them: never more
+  // than is held, so one key never turns a holding into its opposite.
+  const held = n(ctx.held) || 0;
+  let all = false;
+  if ((!buy && held > 0 && qty > held) || (buy && held < 0 && qty > -held)) { qty = Math.abs(held); all = true; order.qty = qty; }
+  const words = `${buy ? "Buy" : "Sell"} ${qty} ${ctx.symbol}${all ? " (all held)" : ""} ${type === "market" ? "at market" : `limit ${px(price)}`}${extended ? " (extended hours)" : ""}`;
+  return { order, words, value: qty * price, price };
+}
+
+/**
+ * A hotkey sized by the account's own size instead, where the account has
+ * one (27 Oct: "I need to set the quantities by account"; lib/accountGroup.js):
+ * a percent of its portfolio, dollars, shares, or a multiple of the hotkey's.
+ */
+export function withOwnSize(h, rule) {
+  const v = n(rule?.value);
+  if (!rule || rule.mode === "prorata" || !(v > 0)) return h;
+  if (rule.mode === "percent") return { ...h, size: "equity", amount: v };
+  if (rule.mode === "dollars") return { ...h, size: "usd", amount: v };
+  if (rule.mode === "shares") return { ...h, size: "shares", amount: v };
+  if (rule.mode === "times") return { ...h, amount: (n(h.amount) || 0) * v };
+  return h;
+}
+
+/**
+ * The hotkey's size as a percent of the account's portfolio (or buying
+ * power), for the other accounts picked beside it to take the same percent
+ * of their own: a percent as it is, dollars or shares over this account's
+ * value. Null when there is nothing to measure it against.
+ */
+export function hotkeyPercent(h, { equity, buyingPower, price }) {
+  if (h.size === "equity" || h.size === "bp") return n(h.amount);
+  const base = n(equity);
+  if (!(base > 0)) return null;
+  if (h.size === "usd") return (n(h.amount) / base) * 100;
+  if (h.size === "shares" && n(price) > 0) return ((n(h.amount) * n(price)) / base) * 100;
+  return null;
 }

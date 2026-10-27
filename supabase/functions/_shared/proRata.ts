@@ -55,7 +55,7 @@ export function allocate(
   order: { side: "buy" | "sell"; qty?: number | null; notional?: number | null },
   lead: Book,
   others: Book[],
-  opts: { basis?: "equity" | "buyingPower"; crypto?: boolean; symbol?: string; price?: number | null } = {}
+  opts: { basis?: "equity" | "buyingPower"; crypto?: boolean; symbol?: string; price?: number | null; pct?: number | null } = {}
 ): Share[] {
   const qty = fin(order.qty);
   const notional = fin(order.notional);
@@ -66,14 +66,42 @@ export function allocate(
   const step = opts.crypto || (qty !== null && !Number.isInteger(qty)) ? 1e-9 : 1;
   const unit = opts.crypto ? "step" : "share";
 
-  if (reducing && qty !== null) {
+  const basis = opts.basis === "buyingPower" ? "buyingPower" : "equity";
+  const price = fin(opts.price);
+  // A hotkey sized as a percent of the portfolio (or buying power) sizes each
+  // account from its own (27 Oct, a $600 account on screen whose 0.5% was
+  // less than one share: the others' 0.5% is their own, not a share of that).
+  const pct = fin(opts.pct);
+  const pctOn = !!(pct && pct > 0 && price && price > 0) && notional === null;
+  const word = basis === "equity" ? "portfolio value" : "buying power";
+  const ofOwn = (b: Book, times = 1) => {
+    const size = fin(b[basis]);
+    if (!(size && size > 0)) return { skip: `no ${word} to size from` };
+    const mine = clean(down((size * pct! / 100 / price!) * times, step));
+    return mine > 0 ? { qty: mine } : { skip: `its ${pct}% comes to less than one ${unit} at ${price}` };
+  };
+  // Never more than an account holds when the order closes its position.
+  const capped = (b: Book, row: any) => {
+    const held = fin(b.held) || 0;
+    const closes = (order.side === "sell" && held > 0) || (order.side === "buy" && held < 0);
+    if (!closes || row.qty === null || row.skip) return row;
+    const most = Math.abs(held);
+    return row.qty >= most ? { ...row, qty: most, all: true } : row;
+  };
+
+  if (reducing && (qty !== null || pctOn)) {
     const leadAbs = Math.abs(leadHeld);
-    const part = qty / leadAbs;
+    const part = qty !== null ? qty / leadAbs : 0;
     return others.map((b) => {
       const held = fin(b.held) || 0;
       const same = Math.sign(held) === Math.sign(leadHeld) ? Math.abs(held) : 0;
       const base = { id: b.id, name: b.name, notional: null, basis: "holding" as const };
       if (!(same > 0)) return { ...base, qty: null, all: false, skip: `holds no ${what} to ${order.side === "sell" ? "sell" : "buy back"}` };
+      if (pctOn) {
+        const r = ofOwn(b);
+        if (r.skip) return { ...base, qty: null, all: false, skip: r.skip };
+        return { ...base, qty: Math.min(r.qty!, same), all: r.qty! >= same, skip: null };
+      }
       if (part >= 1 - 1e-9) return { ...base, qty: same, all: true, skip: null };
       const mine = clean(down(same * part, step));
       if (!(mine > 0)) return { ...base, qty: null, all: false, skip: `its part of ${same} comes to less than one ${unit}` };
@@ -81,11 +109,10 @@ export function allocate(
     });
   }
 
-  const basis = opts.basis === "buyingPower" ? "buyingPower" : "equity";
   const leadSize = fin(lead[basis]);
-  const price = fin(opts.price);
   const cents = (v: number) => Math.floor(v * 100) / 100;
-  return others.map((b) => {
+  return others.map((b) => capped(b, share(b)));
+  function share(b: Book): Share {
     // The account's own size, where it has one.
     const rule = b.rule && RULES.has(b.rule.mode) ? b.rule : null;
     if (rule && rule.mode !== "times") {
@@ -110,8 +137,11 @@ export function allocate(
     const times = rule ? fin(rule.value) : 1;
     const base = { id: b.id, name: b.name, all: false, basis: rule ? "times" as const : basis };
     if (!(times && times > 0)) return { ...base, qty: null, notional: null, skip: "no multiple set for it" };
+    if (pctOn) {
+      const r = ofOwn(b, times);
+      return r.skip ? { ...base, qty: null, notional: null, skip: r.skip } : { ...base, qty: r.qty!, notional: null, skip: null };
+    }
     const size = fin(b[basis]);
-    const word = basis === "equity" ? "portfolio value" : "buying power";
     if (!(leadSize && leadSize > 0)) return { ...base, qty: null, notional: null, skip: `no ${word} on the account on screen to size from` };
     if (!(size && size > 0)) return { ...base, qty: null, notional: null, skip: `no ${word} to size from` };
     const ratio = (size / leadSize) * times;
@@ -124,5 +154,5 @@ export function allocate(
     const mine = clean(down(qty * ratio, step));
     if (!(mine > 0)) return { ...base, qty: null, notional: null, skip: `its part comes to less than one ${unit}` };
     return { ...base, qty: mine, notional: null, skip: null };
-  });
+  }
 }

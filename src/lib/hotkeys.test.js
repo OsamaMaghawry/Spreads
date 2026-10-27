@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { comboOf, keyWarning, cleanHotkeys, suggestedHotkeys, describe, hotkeyOrder } from "./hotkeys.js";
+import { comboOf, keyWarning, cleanHotkeys, suggestedHotkeys, describe, hotkeyOrder, withOwnSize, hotkeyPercent } from "./hotkeys.js";
 
 const key = (code, key, mods = {}) => ({ code, key, shiftKey: false, ctrlKey: false, altKey: false, metaKey: false, ...mods });
 
@@ -82,4 +82,29 @@ test("coins: fractions on the coin's step, good till cancelled, any hour", () =>
   const c = { symbol: "BTC/USD", crypto: true, quote: { bid: 80000, ask: 80010, last: 80005 }, equity: 100000, step: 0.000000001, session: "closed" };
   const r = hotkeyOrder({ action: "buy", size: "usd", amount: 1000, price: "market", offset: 0 }, c);
   assert.deepEqual([r.order.qty, r.order.type, r.order.timeInForce], [0.012498437, "market", "gtc"]);
+});
+
+// 27 Oct: a $600 account on screen, Shift+0 selling 0.5% of the portfolio,
+// "doesn't want to buy more or sell the quantity".
+test("a small account: its own size on screen, sales capped at the holding, too small still says how it would go", () => {
+  const ctx = { symbol: "NUWE", crypto: false, quote: { bid: 4.84, ask: 4.85, last: 4.85 }, equity: 600, buyingPower: 600, session: "regular", held: 10 };
+  const key = { action: "sell", size: "equity", amount: 0.5, price: "ask", offset: 0 };
+  const small = hotkeyOrder(key, ctx);
+  assert.equal(small.tooSmall, true);
+  assert.match(small.reason, /less than one share/);
+  assert.deepEqual([small.order.side, small.order.qty, small.order.limitPrice, small.price], ["sell", null, 4.85, 4.85]);
+  // Its own size, 10% of its portfolio: $60 is 12 shares, and it holds 10.
+  const own = hotkeyOrder(withOwnSize(key, { mode: "percent", value: "10" }), ctx);
+  assert.deepEqual([own.order.qty, own.tooSmall], [10, undefined]);
+  assert.match(own.words, /Sell 10 NUWE \(all held\)/);
+  // Buying is not capped; a multiple multiplies the key's own size.
+  const buy = hotkeyOrder(withOwnSize({ ...key, action: "buy" }, { mode: "times", value: 40 }), ctx);
+  assert.equal(buy.order.qty, 24); // 20% of $600 at $4.85
+  assert.deepEqual(withOwnSize(key, { mode: "prorata" }), key);
+  assert.deepEqual(withOwnSize(key, { mode: "shares", value: "" }), key);
+  // The key's size as a percent, for the others to take of their own.
+  assert.equal(hotkeyPercent(key, ctx), 0.5);
+  assert.equal(hotkeyPercent({ size: "usd", amount: 60 }, ctx), 10);
+  assert.equal(hotkeyPercent({ size: "shares", amount: 12 }, { equity: 600, price: 5 }), 10);
+  assert.equal(hotkeyPercent({ size: "usd", amount: 60 }, { equity: 0 }), null);
 });

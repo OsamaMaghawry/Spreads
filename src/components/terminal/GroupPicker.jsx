@@ -8,7 +8,7 @@ import { SIZE_MODES, sizeLabel } from "@/lib/accountGroup";
 // the quantities by account"). Loud when on, so an order never goes to more
 // accounts than the trader means: the count, and red when a live account is
 // in it.
-export default function GroupPicker({ choices, value, sizes = {}, onChange, onSizes }) {
+export default function GroupPicker({ choices, value, sizes = {}, onChange, onSizes, lead = null }) {
   const [open, setOpen] = useState(false);
   const box = useRef(null);
   useEffect(() => {
@@ -27,6 +27,25 @@ export default function GroupPicker({ choices, value, sizes = {}, onChange, onSi
   const tone = !value.length ? "border-slate-300 text-slate-600 hover:bg-slate-50"
     : live ? "border-rose-500 bg-rose-50 font-semibold text-rose-800" : "border-violet-500 bg-violet-50 font-semibold text-violet-800";
   const own = value.some((id) => sizes[id]?.mode && sizes[id].mode !== "prorata");
+  // The size controls, for an account beside this one or the one on screen.
+  const sizeRow = (a) => {
+    const size = sizes[a.id] || { mode: "prorata" };
+    return (
+      <div className="mt-1 flex items-center gap-1 pl-6">
+        <select aria-label={`Size for ${a.name}`} value={size.mode} onChange={(e) => setSize(a.id, { mode: e.target.value })}
+          className="rounded border border-slate-300 bg-white px-1 py-0.5">
+          {SIZE_MODES.map(([id, name]) => <option key={id} value={id}>{a.id === lead?.id && id === "prorata" ? "The key's own size" : name}</option>)}
+        </select>
+        {size.mode !== "prorata" && (
+          <input aria-label={`${a.name}: ${sizeLabel(size.mode)}`} inputMode="decimal" value={size.value ?? ""}
+            onChange={(e) => setSize(a.id, { value: e.target.value.replace(/[^\d.]/g, "") })}
+            placeholder={size.mode === "times" ? "e.g. 3" : size.mode === "percent" ? "e.g. 5" : size.mode === "shares" ? "e.g. 20" : "e.g. 500"}
+            className="w-20 rounded border border-slate-300 px-1 py-0.5 text-right tabular-nums" />
+        )}
+        <span className="text-slate-500">{a.id === lead?.id && size.mode === "prorata" ? "as the hotkey says" : a.id === lead?.id && size.mode === "times" ? "times the hotkey's size" : sizeLabel(size.mode)}</span>
+      </div>
+    );
+  };
   return (
     <div ref={box} className="relative">
       <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open}
@@ -40,9 +59,18 @@ export default function GroupPicker({ choices, value, sizes = {}, onChange, onSi
           <p className="mb-1.5 leading-snug text-slate-500">
             Orders, hotkeys, exits, stops and cancels on the account on screen go to these too. Buying, each takes its size: pro rata (in proportion to its portfolio value), a multiple of that, a percent of its own portfolio, shares or dollars. Selling what is held: each in proportion to what it holds.
           </p>
+          {lead && (
+            <div className="mb-1 rounded border border-slate-200 px-1 py-1">
+              <div className="flex items-center gap-2">
+                <span className="flex-1 truncate font-semibold">{lead.name} <span className="font-normal text-slate-500">(on screen)</span></span>
+                <span className={`rounded px-1 text-[10px] font-semibold uppercase ${lead.type === "Live" ? "bg-rose-600 text-white" : "bg-amber-100 text-amber-800"}`}>{lead.type}</span>
+              </div>
+              {sizeRow(lead)}
+              <p className="mt-0.5 pl-6 text-[10px] text-slate-500">For hotkeys on this account: its own size in place of the key&apos;s, a sale never more than it holds.</p>
+            </div>
+          )}
           {choices.map((a) => {
             const on = picked.has(a.id);
-            const size = sizes[a.id] || { mode: "prorata" };
             return (
               <div key={a.id} className={`rounded px-1 py-1 ${on ? "bg-slate-50" : "hover:bg-slate-50"}`}>
                 <label className="flex cursor-pointer items-center gap-2">
@@ -50,21 +78,7 @@ export default function GroupPicker({ choices, value, sizes = {}, onChange, onSi
                   <span className="flex-1 truncate">{a.name}</span>
                   <span className={`rounded px-1 text-[10px] font-semibold uppercase ${a.type === "Live" ? "bg-rose-600 text-white" : "bg-amber-100 text-amber-800"}`}>{a.type}</span>
                 </label>
-                {on && (
-                  <div className="mt-1 flex items-center gap-1 pl-6">
-                    <select aria-label={`Size for ${a.name}`} value={size.mode} onChange={(e) => setSize(a.id, { mode: e.target.value })}
-                      className="rounded border border-slate-300 bg-white px-1 py-0.5">
-                      {SIZE_MODES.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-                    </select>
-                    {size.mode !== "prorata" && (
-                      <input aria-label={`${a.name}: ${sizeLabel(size.mode)}`} inputMode="decimal" value={size.value ?? ""}
-                        onChange={(e) => setSize(a.id, { value: e.target.value.replace(/[^\d.]/g, "") })}
-                        placeholder={size.mode === "times" ? "e.g. 3" : size.mode === "percent" ? "e.g. 5" : size.mode === "shares" ? "e.g. 20" : "e.g. 500"}
-                        className="w-20 rounded border border-slate-300 px-1 py-0.5 text-right tabular-nums" />
-                    )}
-                    <span className="text-slate-500">{sizeLabel(size.mode)}</span>
-                  </div>
-                )}
+                {on && sizeRow(a)}
               </div>
             );
           })}

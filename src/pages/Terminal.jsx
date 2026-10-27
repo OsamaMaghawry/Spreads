@@ -466,7 +466,7 @@ export default function Terminal() {
   const armHotkeys = (on) => setHotkeysOn(on);
   // Everything a key press reads, current at the moment it is pressed.
   const live$ = useRef({});
-  live$.current = { account, symbol, quote, view, position, hotkeys, notify, refresh: loadView, replaying, liveOk, group: replaying ? [] : groupSend };
+  live$.current = { account, symbol, quote, view, position, hotkeys, notify, refresh: loadView, replaying, liveOk, group: replaying ? [] : groupSend, leadSize: replaying ? null : groupSizes[accountId] || null };
   useEffect(() => {
     if (!hotkeysOn || page !== "trade" || hotkeysOpen) return undefined;
     const onKey = (e) => {
@@ -511,7 +511,7 @@ export default function Terminal() {
             LIVE{liveOk ? " · REAL MONEY" : " · VIEW ONLY"}
           </span>
         )}
-        <GroupPicker choices={groupChoices(accounts, accountId, liveOk)} value={group} onChange={changeGroup} sizes={groupSizes} onSizes={changeSizes} />
+        <GroupPicker choices={groupChoices(accounts, accountId, liveOk)} value={group} onChange={changeGroup} sizes={groupSizes} onSizes={changeSizes} lead={account} />
         <div className="relative">
           <Search className="pointer-events-none absolute left-2 top-1.5 h-4 w-4 text-slate-400" />
           <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && results[0]) choose(results[0].symbol); }}

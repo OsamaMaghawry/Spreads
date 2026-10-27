@@ -1,5 +1,5 @@
 import { invokeFunction } from "@/lib/functions";
-import { hotkeyOrder, describe } from "@/lib/hotkeys";
+import { hotkeyOrder, describe, withOwnSize, hotkeyPercent } from "@/lib/hotkeys";
 import { orderNews, orderState, sessionOf, isCrypto, px, sizeText } from "@/lib/terminal";
 import { groupNews } from "@/lib/accountGroup";
 
@@ -108,18 +108,28 @@ export async function runHotkey(h, ctx) {
   }
 
   if (h.action === "buy" || h.action === "sell") {
-    const built = hotkeyOrder(h, {
-      symbol, crypto, quote: ctx.quote, equity: ctx.view?.equity, buyingPower: ctx.view?.buyingPower,
-      step: await stepFor(account.id, symbol), session: session()
-    });
-    if (built.reason) { notify({ key, tone: "bad", title: "Order not placed", detail: `${built.reason} (${h.keys})` }); return; }
-    const base = { words: `${built.words} (${h.keys})`, symbol, side: built.order.side, unitName: crypto ? symbol.split("/")[0] : "shares" };
-    notify({ key, ...orderNews({ sending: true, words: base.words }) });
+    // The account on screen sized by its own size where it has one (as each
+    // account beside it is); the key's own size, as a percent, goes to the
+    // others to take of their own portfolios (functions/_shared/proRata.ts).
+    const heldNow = ctx.position ? (ctx.position.side === "short" ? -Math.abs(ctx.position.qty) : Math.abs(ctx.position.qty)) : 0;
+    const sized = { symbol, crypto, quote: ctx.quote, equity: ctx.view?.equity, buyingPower: ctx.view?.buyingPower, step: await stepFor(account.id, symbol), session: session(), held: heldNow };
+    const built = hotkeyOrder(withOwnSize(h, ctx.leadSize), sized);
+    // Too small on this account alone: the others still take theirs.
+    const othersOnly = built.tooSmall && group.length > 0;
+    if (built.reason && !othersOnly) { notify({ key, tone: "bad", title: "Order not placed", detail: `${built.reason} (${h.keys})` }); return; }
+    const words = othersOnly ? `${h.action === "buy" ? "Buy" : "Sell"} ${symbol} on the other accounts (${h.keys})` : `${built.words} (${h.keys})`;
+    const base = { words, symbol, side: built.order.side, unitName: crypto ? symbol.split("/")[0] : "shares" };
+    notify({ key, ...orderNews({ sending: true, words }) });
     // The price it was sized at goes with it: an account with its own size in
     // dollars or percent turns that into shares at the same price.
-    const order = { ...built.order, basis: h.size === "bp" ? "buyingPower" : "equity", reference: built.value && built.order.qty ? built.value / built.order.qty : null };
+    const order = {
+      ...built.order, basis: h.size === "bp" ? "buyingPower" : "equity", reference: built.price ?? null,
+      pct: hotkeyPercent(h, { equity: ctx.view?.equity, buyingPower: ctx.view?.buyingPower, price: built.price }),
+      ...(othersOnly ? { qty: null, leadSkip: `${built.reason}` } : {})
+    };
     const r = await invokeFunction("terminal", { action: "order", accountId: account.id, order, group }).catch((e) => ({ data: { error: String(e?.message || e) } }));
     tellGroup(r?.data?.group, "sent");
+    if (r?.data?.skipped) { notify({ key, tone: "muted", title: `Not on ${account.name || "this account"}`, detail: `${r.data.skipped} The other accounts took their own sizes.` }); refresh?.(); return; }
     if (r?.data?.error) { notify({ key, ...orderNews({ error: r.data.error }) }); return; }
     const placed = { ...base, id: r.data.orderId, status: r.data.status || "new" };
     notify({ key, ...orderNews(placed) });
@@ -127,6 +137,7 @@ export async function runHotkey(h, ctx) {
     trackOrder({ accountId: account.id, id: placed.id, key, base: placed, notify, onChange: refresh });
     return;
   }
+
 
   if (h.action === "exit") {
     notify({ key, tone: "wait", title: h.percent >= 100 ? `Exiting ${symbol}…` : `Exiting ${h.percent}% of the ${symbol} trade…`, detail: label });
