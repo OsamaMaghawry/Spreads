@@ -5,6 +5,7 @@ import {
   LayoutDashboard, KeyRound, LogOut, Radar, ShieldCheck, CreditCard, ListOrdered,
   Menu, X, Plug, CandlestickChart } from "lucide-react";
 import Wordmark from "@/components/brand/Wordmark";
+import DeltaMintMark from "@/components/brand/DeltaMintMark";
 import DisclaimerFooter from "@/components/DisclaimerFooter";
 import useIsAdmin from "@/lib/useIsAdmin";
 import usePublicConfig from "@/lib/usePublicConfig";
@@ -38,6 +39,10 @@ const NAV_WIDTH = "w-[15rem]";
 
 export default function Layout() {
   const { pathname } = useLocation();
+  // The terminal takes the whole desktop screen (27 Oct: "full screen with no
+  // margins ... Currently, there is much unused space"): no page width cap and
+  // no gutters, and the menu folds to a rail of icons, each named on hover.
+  const desk = LAB && pathname === "/terminal";
   const { logout } = useAuth();
   // Hides the link for everyone else. Not a security boundary — /admin
   // redirects and the edge function refuses a non-admin token either way.
@@ -78,22 +83,30 @@ export default function Layout() {
   // was on Tailwind's 6px, which is the kind of difference nobody names and
   // everybody sees.
   const linkCls = (active) =>
-    `flex items-center gap-3 rounded-[9px] px-3 py-2.5 text-[0.95rem] transition-colors ${
+    `flex items-center gap-3 rounded-[9px] px-3 py-2.5 text-[0.95rem] transition-colors ${desk ? "lg:justify-center lg:px-0" : ""} ${
       active
         ? "bg-dm-accent/[0.08] text-dm-accent font-medium"
         : "text-dm-sub hover:text-dm-accent hover:bg-dm-accent/[0.04]"
     }`;
+  // On the rail the words are hidden, not removed: still read out, and still
+  // there in the phone drawer, which is the same panel.
+  const word = desk ? "lg:sr-only" : undefined;
 
   const panel = (
-    <div className="flex h-full flex-col gap-1 p-3">
-      <Link to="/" className="mb-2 hidden px-3 py-2 lg:block" onClick={() => setOpen(false)}>
+    <div className={`flex h-full flex-col gap-1 p-3 ${desk ? "lg:p-2" : ""}`}>
+      <Link to="/" className={`mb-2 hidden px-3 py-2 ${desk ? "" : "lg:block"}`} onClick={() => setOpen(false)}>
         <Wordmark size={21.1} />
       </Link>
+      {desk && (
+        <Link to="/" title="DeltaMint" className="mb-2 hidden justify-center py-2 lg:flex">
+          <DeltaMintMark size={22} tight />
+        </Link>
+      )}
       <nav className="flex flex-col gap-0.5">
         {links.map(({ to, label, Icon }) => (
-          <Link key={to} to={to} className={linkCls(pathname === to)}>
+          <Link key={to} to={to} title={desk ? label : undefined} className={linkCls(pathname === to)}>
             <Icon className="h-[1.1rem] w-[1.1rem] shrink-0" />
-            <span>{label}</span>
+            <span className={word}>{label}</span>
           </Link>
         ))}
       </nav>
@@ -101,9 +114,10 @@ export default function Layout() {
           apart from the reading links rather than mixing it in with them. */}
       <button
         onClick={logout}
-        className="mt-auto flex items-center gap-3 rounded-[9px] border-t border-dm-line px-3 py-2.5 pt-4 text-[0.95rem] text-dm-sub transition-colors hover:text-dm-accent"
+        title={desk ? "Log out" : undefined}
+        className={`mt-auto flex items-center gap-3 rounded-[9px] border-t border-dm-line px-3 py-2.5 pt-4 text-[0.95rem] text-dm-sub transition-colors hover:text-dm-accent ${desk ? "lg:justify-center lg:px-0" : ""}`}
       >
-        <LogOut className="h-[1.1rem] w-[1.1rem] shrink-0" /> <span>Log out</span>
+        <LogOut className="h-[1.1rem] w-[1.1rem] shrink-0" /> <span className={word}>Log out</span>
       </button>
     </div>
   );
@@ -137,7 +151,7 @@ export default function Layout() {
 
       <aside
         id="app-nav"
-        className={`fixed inset-y-0 left-0 z-50 ${NAV_WIDTH} border-r border-dm-line bg-dm-panel transition-transform duration-200 lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 ${NAV_WIDTH} ${desk ? "lg:w-14" : ""} border-r border-dm-line bg-dm-panel transition-transform duration-200 lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -156,16 +170,16 @@ export default function Layout() {
         <div className="h-[calc(100%-3.5rem)] lg:h-full">{panel}</div>
       </aside>
 
-      <div className="flex min-h-screen flex-col lg:pl-[15rem]">
+      <div className={`flex min-h-screen flex-col ${desk ? "lg:pl-14" : "lg:pl-[15rem]"}`}>
         {/* Said once, at the top of every screen, rather than discovered at
             the moment an order is refused. */}
         {demoMode && (
-          <div className="border-b border-dm-line bg-dm-accent/[0.06] px-5 py-2 text-center text-[0.8rem] text-dm-accent sm:px-10">
+          <div className={`border-b border-dm-line bg-dm-accent/[0.06] px-5 text-center text-[0.8rem] text-dm-accent sm:px-10 ${desk ? "py-1" : "py-2"}`}>
             <span className="font-medium">Demo.</span> Paper accounts trade normally. A live account
             can be connected, watched and closed — no new live order is sent from here.
           </div>
         )}
-        <main className="mx-auto w-full max-w-[1400px] flex-1 px-5 py-7 sm:px-10">
+        <main className={desk ? "w-full flex-1 p-1" : "mx-auto w-full max-w-[1400px] flex-1 px-5 py-7 sm:px-10"}>
           {/* The page, contained. A throw in one account card or one table
               now leaves the nav, the account switcher and every other screen
               reachable, instead of taking the whole document down. `key` on

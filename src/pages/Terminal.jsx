@@ -42,7 +42,10 @@ const Grid = WidthProvider(Responsive);
 // The windows are a grid the trader arranges ("control the places of the
 // windows ... drag them and lock them", lib/terminalLayout.js): drag a window
 // by its title bar, resize it from its edges, lock the arrangement, or put it
-// back as it was. The chart also goes full screen.
+// back as it was. The chart also goes full screen. The windows fill the
+// screen to its bottom edge, and the whole terminal goes full screen too
+// (27 Oct: "full screen with no margins ... I can use all the space"); the
+// app's menu folds to icons on this page (components/Layout.jsx).
 //
 // The screener sits beside the trading screen as a page of its own (24 Oct:
 // "Stock Screener ... to see the stocks in play"): pick a row and it opens in
@@ -279,12 +282,13 @@ export default function Terminal() {
     } catch { return cleanLayouts(null); }
   });
   const [locked, setLocked] = useState(() => store.get(LOCK_KEY) === "1");
-  const [rowHeight, setRowHeight] = useState(() => rowHeightFor(window.innerHeight - 150));
-  useEffect(() => {
-    const onResize = () => setRowHeight(rowHeightFor(window.innerHeight - 150));
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
+  // The windows reach the bottom of the screen: rows sized to the height left
+  // under the bar, measured from where the grid actually starts (on the page,
+  // or in the full-screen terminal), less one gap at the foot.
+  const deskBox = useRef(null);
+  const barBox = useRef(null);
+  const gridBox = useRef(null);
+  const [rowHeight, setRowHeight] = useState(() => rowHeightFor(window.innerHeight - 100));
   const onLayoutChange = useCallback((_, all) => {
     const next = cleanLayouts(all);
     setLayouts(next);
@@ -297,17 +301,26 @@ export default function Terminal() {
     store.set(LAYOUT_KEY, JSON.stringify(next));
   };
 
-  // The chart, full screen (Esc, or the button, to come back).
+  // Full screen (Esc, or the button, to come back): the whole terminal, with
+  // no menu, banner or browser bars; or the chart alone, from either.
   const chartBox = useRef(null);
   const [full, setFull] = useState(false);
+  const [deskFull, setDeskFull] = useState(false);
   useEffect(() => {
-    const onChange = () => setFull(document.fullscreenElement === chartBox.current);
+    const onChange = () => {
+      setFull(document.fullscreenElement === chartBox.current);
+      setDeskFull(document.fullscreenElement === deskBox.current);
+    };
     document.addEventListener("fullscreenchange", onChange);
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
   const toggleFull = () => {
+    if (document.fullscreenElement === chartBox.current) document.exitFullscreen?.();
+    else chartBox.current?.requestFullscreen?.().catch(() => {});
+  };
+  const toggleDeskFull = () => {
     if (document.fullscreenElement) document.exitFullscreen?.();
-    else chartBox.current?.requestFullscreen?.();
+    else deskBox.current?.requestFullscreen?.().catch(() => {});
   };
 
   // Symbol search.
@@ -357,6 +370,26 @@ export default function Terminal() {
   // hotkeys and the replay bar trade its practice account.
   const { session, version: replayVersion, last: lastReplay, replay } = useReplay({ accountId, notify });
   const replaying = !!session;
+  // Rows refit when the bar wraps, the window or full screen changes, or the
+  // replay note comes and goes above the grid.
+  useEffect(() => {
+    if (page !== "trade") return undefined;
+    const fit = () => {
+      let top = 0;
+      for (let n = gridBox.current; n; n = n.offsetParent) top += n.offsetTop;
+      if (gridBox.current) setRowHeight(rowHeightFor(window.innerHeight - top - MARGIN));
+    };
+    fit();
+    const seen = new ResizeObserver(fit);
+    if (barBox.current) seen.observe(barBox.current);
+    window.addEventListener("resize", fit);
+    document.addEventListener("fullscreenchange", fit);
+    return () => {
+      seen.disconnect();
+      window.removeEventListener("resize", fit);
+      document.removeEventListener("fullscreenchange", fit);
+    };
+  }, [page, replaying]);
   const [replayForm, setReplayForm] = useState(null);
   const sessionRef = useRef(null);
   sessionRef.current = session;
@@ -433,10 +466,10 @@ export default function Terminal() {
   const bar = `drag-handle flex items-center gap-1 border-b border-slate-200 px-2 py-1 text-xs ${locked ? "" : "cursor-move"}`;
 
   return (
-    <div className="flex flex-col gap-2 text-slate-800">
+    <div ref={deskBox} className="flex flex-col gap-1 text-slate-800 [&:fullscreen]:overflow-auto [&:fullscreen]:bg-dm-bg [&:fullscreen]:p-1">
       <Toasts toasts={toasts} onClose={closeToast} low={replaying} />
       <HotkeysDialog open={hotkeysOpen} hotkeys={hotkeys} armed={hotkeysOn} onArm={armHotkeys} onSave={saveHotkeys} onClose={() => setHotkeysOpen(false)} />
-      <div className="flex flex-wrap items-center gap-2">
+      <div ref={barBox} className="flex flex-wrap items-center gap-2 px-1">
         <h1 className="mr-2 text-lg font-semibold">Terminal</h1>
         <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">Staging test</span>
         <div className="flex rounded-md border border-slate-300 text-sm" role="tablist" aria-label="Page">
@@ -506,6 +539,10 @@ export default function Terminal() {
             {SHARE_FEEDS.filter(([id]) => id !== "eodhd" || eodhdOk).map(([id, name]) => <option key={id} value={id}>{id === "auto" ? `Auto: ${shares.label}` : name}</option>)}
           </select>
         </label>
+        <button type="button" onClick={toggleDeskFull} title={deskFull ? "Leave full screen (Esc)" : "Full screen: the terminal alone, without the menu or the browser's bars"}
+          className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${deskFull ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
+          {deskFull ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}{deskFull ? "Exit full screen" : "Full screen"}
+        </button>
       </div>
 
       {replaying && page === "trade" && (
@@ -521,13 +558,14 @@ export default function Terminal() {
         </div>
       )}
 
-      {page === "trade" && <Grid
-        className="terminal-grid -mx-2"
+      {page === "trade" && <div ref={gridBox}><Grid
+        className="terminal-grid"
         layouts={layouts}
         breakpoints={BREAKPOINTS}
         cols={COLS}
         rowHeight={rowHeight}
         margin={[MARGIN, MARGIN]}
+        containerPadding={[0, 0]}
         isDraggable={!locked}
         isResizable={!locked}
         resizeHandles={["se", "e", "s", "w"]}
@@ -583,7 +621,7 @@ export default function Terminal() {
                   </button>
                 ))}
               </div>
-              <button type="button" onClick={toggleFull} title={full ? "Leave full screen (Esc)" : "Full screen"} className="ml-1 self-center rounded p-1 text-slate-500 hover:bg-slate-100">
+              <button type="button" onClick={toggleFull} title={full ? "Leave full screen (Esc)" : "Chart full screen"} className="ml-1 self-center rounded p-1 text-slate-500 hover:bg-slate-100">
                 {full ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               </button>
             </div>
@@ -686,7 +724,7 @@ export default function Terminal() {
             <p className="px-1 text-[10px] leading-relaxed text-slate-400">Prices from your own Alpaca account: shares from the free IEX feed (real time, IEX trades only, 8:00 to 17:00 New York), or every exchange fifteen minutes late outside IEX&apos;s hours{eodhdOk ? "; or EODHD's real-time stream on your own EODHD plan" : ""}; coins from Alpaca&apos;s crypto venue, around the clock, with the full order book. Charts by TradingView Lightweight Charts. Not investment advice.</p>
           </div>
         </div>
-      </Grid>}
+      </Grid></div>}
     </div>
   );
 }

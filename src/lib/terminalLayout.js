@@ -7,7 +7,9 @@
 
 export const PANELS = ["watch", "chart", "account", "book", "tape", "ticket"];
 export const ROWS = 30; // the default arrangement fills this many rows
-export const MARGIN = 8;
+// Between windows, in pixels: tight, as on a trading desk (27 Oct: "use all
+// the space").
+export const MARGIN = 4;
 
 // Wide screens: 24 columns. Watchlist | chart over account | book over tape | ticket.
 const LG = [
@@ -69,7 +71,9 @@ export function cleanLayouts(saved) {
   return out;
 }
 
-/** The row height that makes the default arrangement fill the space below the header. */
+/** The row height that makes the default arrangement fill the space below the header (the grid has no padding of its own). */
 export function rowHeightFor(available) {
-  return Math.max(14, Math.floor((available - (ROWS - 1) * MARGIN) / ROWS));
+  // Not rounded down: thirty rows each a pixel short leave a strip of empty
+  // screen at the foot; the grid rounds each window's edge itself.
+  return Math.max(14, (available - (ROWS - 1) * MARGIN) / ROWS);
 }

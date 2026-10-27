@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cleanLayouts, DEFAULT_LAYOUTS, PANELS, rowHeightFor, COLS, BREAKPOINTS, fromFirstVersion } from "./terminalLayout.js";
+import { cleanLayouts, DEFAULT_LAYOUTS, PANELS, rowHeightFor, COLS, BREAKPOINTS, MARGIN, fromFirstVersion } from "./terminalLayout.js";
 
 test("every window is in every default arrangement, once, inside the grid", () => {
   for (const [bp, list] of Object.entries(DEFAULT_LAYOUTS)) {
@@ -24,7 +24,7 @@ test("a saved arrangement is kept; a broken or missing window comes back from th
 });
 
 test("row height fills the space, never below 14px", () => {
-  assert.equal(rowHeightFor(30 * 20 + 29 * 8), 20);
+  assert.equal(rowHeightFor(30 * 20 + 29 * MARGIN), 20);
   assert.equal(rowHeightFor(100), 14);
 });
 
