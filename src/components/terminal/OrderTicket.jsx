@@ -38,7 +38,7 @@ const TIF_TEXT = { day: "for the day", gtc: "good till cancelled", ioc: "immedia
 const input = "w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm tabular-nums focus:border-emerald-500 focus:outline-none";
 const label = "mb-1 block text-[11px] uppercase tracking-wider text-slate-500";
 
-export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, onPlaced, pick = null, preset = null, onNotify = () => {}, extStops = true, onExtStops = () => {}, guardHours = "", liveOk = false, group = [] }) {
+export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, onPlaced, pick = null, preset = null, onNotify = () => {}, extStops = true, onExtStops = () => {}, guardHours = "", liveOk = false, group = [], groupHeld = [] }) {
   const crypto = isCrypto(symbol);
   const TYPES = crypto ? CRYPTO_TYPES : STOCK_TYPES;
   const [side, setSide] = useState("buy");
@@ -496,9 +496,11 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
         </button>
       )}
 
-      {held !== 0 && account?.id && (
+      {/* Shown when this account or any picked beside it holds the symbol (28 Oct:
+          "put the SL and TP ... for all accounts at once"). */}
+      {(held !== 0 || groupHeld.some((g) => g.qty)) && account?.id && (
         <PositionExits account={account} symbol={symbol} held={held} crypto={crypto} tradable={tradable} session={session} onNotify={onNotify} onPlaced={onPlaced}
-          extStops={extStops} onExtStops={onExtStops} guardHours={guardHours} group={group} />
+          extStops={extStops} onExtStops={onExtStops} guardHours={guardHours} group={group} groupHeld={groupHeld} />
       )}
     </div>
   );
@@ -509,24 +511,30 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
 // stop working on it, a new take profit the take profit, and a stop and a take
 // profit go together as one cancels the other. Reviewed, then sent, like any
 // order from the ticket.
-function PositionExits({ account, symbol, held, crypto, tradable, session, onNotify, onPlaced, extStops, onExtStops, guardHours, group = [] }) {
+function PositionExits({ account, symbol, held, crypto, tradable, session, onNotify, onPlaced, extStops, onExtStops, guardHours, group = [], groupHeld = [] }) {
   const [stop, setStop] = useState("");
   const [target, setTarget] = useState("");
   const [review, setReview] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => { setStop(""); setTarget(""); setReview(false); }, [symbol]);
-  const long = held > 0;
+  // The side from this account's holding, else the first account picked that holds it.
+  const long = held ? held > 0 : (groupHeld.find((g) => g.qty)?.qty || 0) > 0;
   const qty = Math.abs(held);
   const name = crypto ? symbol.split("/")[0] : symbol;
+  // Who holds it: this account and each picked beside it.
+  const holders = [
+    held ? `${sizeText(qty)} here` : null,
+    ...groupHeld.filter((g) => g.qty).map((g) => `${sizeText(Math.abs(g.qty))} on ${g.name}`)
+  ].filter(Boolean);
+  const many = holders.length > 1 || !held;
   const s = Number(stop) > 0 ? Number(stop) : null;
   const t = Number(target) > 0 ? Number(target) : null;
   // Alpaca pairs exits only on whole shares.
   const pairOk = !(s && t) || (!crypto && Number.isInteger(qty));
   const out = long ? "Sell" : "Buy back";
-  const words = `${out} ${sizeText(qty)} ${name}` +
+  const words = (many ? `${out} all ${name} held (${holders.join(", ")})` : `${out} ${sizeText(qty)} ${name}`) +
     (s && t ? ` at ${px(t)} (take profit), or if it trades at ${px(s)} (stop): one cancels the other` : s ? ` if it trades at ${px(s)} (stop)` : ` at ${px(t)} (take profit)`) +
-    `, good till cancelled; replaces the ${s && t ? "stop and take profit" : s ? "stop" : "take profit"} working on ${symbol}, if any` +
-    (group.length ? `; the same on ${group.map((a) => a.name).join(", ")}, each for all of its own ${name}` : "");
+    `, good till cancelled; replaces the ${s && t ? "stop and take profit" : s ? "stop" : "take profit"} working on ${symbol}${many ? " on each account" : ""}, if any`;
   const send = async () => {
     setBusy(true);
     const key = `x${Date.now()}`;
@@ -538,6 +546,11 @@ function PositionExits({ account, symbol, held, crypto, tradable, session, onNot
     setBusy(false);
     setReview(false);
     if (r?.data?.error) { onNotify({ key, tone: "bad", title: "Exits not set", detail: r.data.error }); return; }
+    if (r?.data?.skipped) {
+      onNotify({ key, tone: "muted", title: `Not on ${account.name || "this account"}`, detail: r.data.skipped });
+      setStop(""); setTarget(""); onPlaced?.();
+      return;
+    }
     const d = r.data;
     const did = d.paired ? `${out} ${sizeText(d.qty)} ${name} at ${px(d.targetPrice)}, or if it trades at ${px(d.stopPrice)}: one cancels the other`
       : d.kind === "target" ? `${out} ${sizeText(d.qty)} ${name} at ${px(d.targetPrice)}`
@@ -549,7 +562,9 @@ function PositionExits({ account, symbol, held, crypto, tradable, session, onNot
   };
   return (
     <div className="rounded-lg border border-slate-200 p-2">
-      <div className="text-xs font-medium text-slate-700">Exits for the {sizeText(qty)} {crypto ? name : `${symbol} shares`} you {long ? "hold" : "are short"}</div>
+      <div className="text-xs font-medium text-slate-700">
+        {many ? <>Exits for {name} on every account that holds it: {holders.join(" · ")}</> : <>Exits for the {sizeText(qty)} {crypto ? name : `${symbol} shares`} you {long ? "hold" : "are short"}</>}
+      </div>
       <div className="mt-2 grid grid-cols-2 gap-2">
         <div>
           <label className={label} htmlFor="x-stop">Stop loss</label>

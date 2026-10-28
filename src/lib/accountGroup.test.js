@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { groupChoices, cleanGroup, groupNews, groupPayload, cleanSizes } from "./accountGroup.js";
+import { groupChoices, cleanGroup, groupNews, groupPayload, cleanSizes, sameOrders } from "./accountGroup.js";
 
 const accounts = [
   { id: "p1", name: "Paper one", type: "Paper" },
@@ -71,4 +71,20 @@ test("the group's orders as they stand: filled, waiting, not filled", () => {
   const waiting = groupNews([{ ...rows[0] }, { ...rows[1], status: "partially_filled", filled: 3 }], "sent", "shares");
   assert.equal(waiting.tone, "wait");
   assert.match(waiting.detail, /3 shares of 8 shares filled, the rest waiting/);
+});
+
+test("the same working order on another account: symbol, side and kind", () => {
+  const sell = { id: "a", symbol: "ELPW", side: "sell", type: "limit", orderClass: "simple" };
+  const theirs = [
+    { id: "1", symbol: "ELPW", side: "sell", type: "limit", orderClass: "simple" },
+    { id: "2", symbol: "ELPW", side: "sell", type: "stop", orderClass: "simple" },
+    { id: "3", symbol: "ELPW", side: "sell", type: "limit", orderClass: "oco" },
+    { id: "4", symbol: "ELPW", side: "buy", type: "limit", orderClass: "simple" },
+    { id: "5", symbol: "AIOK", side: "sell", type: "limit", orderClass: "simple" },
+    { id: "6", symbol: "ELPW", side: "sell", type: "stop_limit", orderClass: "simple" }
+  ];
+  assert.deepEqual(sameOrders(sell, theirs).map((o) => o.id), ["1"]);
+  assert.deepEqual(sameOrders({ ...sell, type: "stop" }, theirs).map((o) => o.id), ["2", "6"]);
+  assert.deepEqual(sameOrders({ ...sell, orderClass: "oco" }, theirs).map((o) => o.id), ["3"]);
+  assert.deepEqual(sameOrders(sell, null), []);
 });

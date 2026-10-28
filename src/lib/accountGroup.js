@@ -95,3 +95,15 @@ export function groupNews(rows, verb, unit = "") {
     detail: lines.join(" · ")
   };
 }
+
+// What kind of working order it is, for finding the same one on another account.
+const orderKind = (o) => (o.orderClass === "oco" ? "oco" : o.orderClass === "bracket" ? `bracket ${o.type}` : ["stop", "stop_limit"].includes(o.type) ? "stop" : o.type);
+
+/**
+ * The same working order on another account picked beside this one (28 Oct:
+ * "any price changes for all accounts at once"): same symbol and side, and the
+ * same kind (a limit, a stop, a stop and target pair, a bracket's entry).
+ */
+export function sameOrders(order, list) {
+  return (Array.isArray(list) ? list : []).filter((o) => o.symbol === order.symbol && o.side === order.side && orderKind(o) === orderKind(order));
+}

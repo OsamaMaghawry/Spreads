@@ -196,6 +196,7 @@ export async function runHotkey(h, ctx) {
       trackOrder({ accountId: g.accountId, id: g.orderId, key: tag, base: { words: "", symbol, side: g.side, unitName: unit, status: g.status }, notify: () => {}, onFilled: them.restop, onUnfilled: them.putBack });
     }
     if (r?.data?.error) { notify({ key, tone: "bad", title: "Exit not sent", detail: r.data.error }); return; }
+    if (r?.data?.skipped) { notify({ key, tone: "muted", title: `Not on ${account.name || "this account"}`, detail: r.data.skipped }); refresh?.(); return; }
     const d = r.data;
     const parts = [
       d.how === "limit" ? `Limit ${px(d.limitPrice)} for ${sizeText(d.qty)} (extended hours)` : `At market${d.qty ? `, ${sizeText(d.qty)}` : ""}`,
@@ -217,6 +218,7 @@ export async function runHotkey(h, ctx) {
     const r = await invokeFunction("terminal", { action: "protect", accountId: account.id, symbol, kind: h.action, mode: h.stopMode, value: h.stopValue, from: h.from, group }).catch((e) => ({ data: { error: String(e?.message || e) } }));
     tellGroup(r?.data?.group, stop ? "stop placed" : "take-profit placed");
     if (r?.data?.error) { notify({ key, tone: "bad", title: `${stop ? "Stop" : "Take-profit"} not placed`, detail: r.data.error }); return; }
+    if (r?.data?.skipped) { notify({ key, tone: "muted", title: `Not on ${account.name || "this account"}`, detail: r.data.skipped }); refresh?.(); return; }
     const d = r.data;
     const out = d.side === "sell" ? "Sell" : "Buy back";
     notify({

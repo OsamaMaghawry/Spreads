@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { px, sizeText, clockMs, pctText, isCrypto, orderState } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
+import { sameOrders } from "@/lib/accountGroup";
 import useAccountSetting from "@/components/terminal/useAccountSetting";
 
 // The terminal's lower panels: the tape, the account's shares and coins, and
@@ -206,7 +207,7 @@ function OtherAccount({ g, onPick }) {
   );
 }
 
-export function Orders({ accountId, orders, recent = [], onChanged, onPick }) {
+export function Orders({ accountId, orders, recent = [], onChanged, onPick, others = [], group = [], onNotify = () => {} }) {
   // Working orders and today's finished ones, together, by default; the
   // whole week on request ("today's order is not showing", 24 Oct).
   const [show, setShow] = useState("today");
@@ -216,13 +217,79 @@ export function Orders({ accountId, orders, recent = [], onChanged, onPick }) {
   const [edit, setEdit] = useState({});
   const [note, setNote] = useState(null);
 
-  const act = async (o, action, limitPrice) => {
+  // With other accounts picked, a price change or a cancel goes to the same
+  // order on each of them too (28 Oct: "any price changes for all accounts at
+  // once. not changing each one separately").
+  const many = others.length > 0;
+  const stopOf = (o) => o.stop ?? (o.legs || []).find((l) => l.stop)?.stop ?? null;
+  // A stop, or a stop and take profit pair, protecting what is held.
+  const protective = (o) => ["stop", "stop_limit"].includes(o.type) || o.orderClass === "oco";
+  const editable = (o) => (o.type === "limit" && o.orderClass !== "bracket") || (protective(o) && o.orderClass !== "bracket");
+  const say = (title, rows) => {
+    const failed = rows.filter((r) => r.error);
+    onNotify({
+      key: `orders${Date.now()}`, tone: failed.length ? "bad" : "ok",
+      title: `${title}: ${rows.length - failed.length} of ${rows.length} account${rows.length === 1 ? "" : "s"}`,
+      detail: rows.map((r) => `${r.name}: ${r.error ? `not done, ${r.error}` : r.did}`).join(" · ")
+    });
+  };
+  // Each account's matching orders: this one's own, and the same kind on each other.
+  const targets = (o) => [
+    { accountId, name: "This account", orders: [o] },
+    ...others.map((g) => ({ accountId: g.accountId, name: g.name, orders: sameOrders(o, g.orders) }))
+  ];
+  const manage = async (o, action, limitPrice) => {
+    const rows = [];
+    await Promise.all(targets(o).map(async (t) => {
+      if (!t.orders.length) { if (many) rows.push({ name: t.name, did: "no such order there" }); return; }
+      for (const x of t.orders) {
+        const r = await invokeFunction("manageOrder", { accountId: t.accountId, orderId: x.id, action, limitPrice }).catch((e) => ({ data: { error: String(e?.message || e) } }));
+        rows.push({ name: t.name, error: r?.data?.error || null, did: action === "cancel" ? "cancelled" : `now ${px(limitPrice)}` });
+      }
+    }));
+    return rows;
+  };
+
+  const act = async (o, action) => {
     setBusy(o.id);
     setNote(null);
-    const r = await invokeFunction("manageOrder", { accountId, orderId: o.id, action, limitPrice });
+    const e = edit[o.id] || {};
+    const limit = e.limit !== undefined && e.limit !== "" ? Number(e.limit) : null;
+    const stop = e.stop !== undefined && e.stop !== "" ? Number(e.stop) : null;
+    let rows = [];
+    let title = "";
+    if (action === "cancel") {
+      title = "Cancelled";
+      rows = await manage(o, "cancel");
+    } else if (protective(o)) {
+      // A stop or a stop and target pair: set again at the new prices on
+      // every account holding the symbol, each for all it holds (functions/
+      // terminal "protect"), the other half of a pair kept.
+      const newStop = stop !== null && stop !== stopOf(o) ? stop : null;
+      const newTarget = o.orderClass === "oco" && limit !== null && limit !== o.limit ? limit : null;
+      if (newStop || newTarget) {
+        title = "Exits changed";
+        const kind = newStop && newTarget ? "both" : newStop ? "stop" : "target";
+        const r = await invokeFunction("terminal", {
+          action: "protect", accountId, symbol: o.symbol, kind, mode: "price", value: newStop ?? newTarget,
+          stopPrice: newStop ?? stopOf(o), targetPrice: newTarget ?? o.limit, group
+        }).catch((x) => ({ data: { error: String(x?.message || x) } }));
+        const d = r?.data || {};
+        const did = `stop ${px(newStop ?? stopOf(o))}${(newTarget ?? o.limit) && o.orderClass === "oco" ? `, target ${px(newTarget ?? o.limit)}` : ""}`;
+        rows = [{ name: "This account", error: d.error || null, did: d.skipped ? "holds none" : did }];
+        for (const g of d.group || []) rows.push({ name: g.name, error: g.ok === false && !g.skip ? g.error || "refused" : null, did: g.skip ? g.skip : did });
+      }
+    } else if (limit !== null && limit !== o.limit) {
+      title = "Price changed";
+      rows = await manage(o, "replace", limit);
+    }
     setBusy(null);
-    if (r?.data?.error) setNote(r.data.error);
-    else setEdit((e) => ({ ...e, [o.id]: undefined }));
+    setEdit((x) => ({ ...x, [o.id]: undefined }));
+    if (rows.length) {
+      if (many || rows.some((r) => r.error)) say(title, rows);
+      const mine = rows.find((r) => r.name === "This account" && r.error);
+      if (mine) setNote(mine.error);
+    }
     onChanged?.();
   };
 
@@ -283,20 +350,34 @@ export function Orders({ accountId, orders, recent = [], onChanged, onPick }) {
               <td className={td}>{o.qty === null && o.notional ? fmtMoney(o.notional) : <>{o.filled ? `${sizeText(o.filled)}/` : ""}{sizeText(o.qty)}</>}</td>
               <td className={td}>{o.type.replace("_", " ")} · {o.tif}</td>
               <td className={td}>
-                {o.type === "limit" && edit[o.id] !== undefined ? (
-                  <input className="w-20 rounded border border-slate-300 px-1 py-0.5" value={edit[o.id]} onChange={(e) => setEdit((x) => ({ ...x, [o.id]: e.target.value }))} />
+                {edit[o.id] !== undefined ? (
+                  <span className="flex items-center gap-1">
+                    {(o.type === "limit" || o.limit != null) && (
+                      <input aria-label="Limit price" placeholder="limit" className="w-16 rounded border border-slate-300 px-1 py-0.5" inputMode="decimal" value={edit[o.id].limit ?? ""}
+                        onChange={(e) => setEdit((x) => ({ ...x, [o.id]: { ...x[o.id], limit: e.target.value.replace(/[^\d.]/g, "") } }))} />
+                    )}
+                    {protective(o) && (
+                      <input aria-label="Stop price" placeholder="stop" className="w-16 rounded border border-amber-300 px-1 py-0.5" inputMode="decimal" value={edit[o.id].stop ?? ""}
+                        onChange={(e) => setEdit((x) => ({ ...x, [o.id]: { ...x[o.id], stop: e.target.value.replace(/[^\d.]/g, "") } }))} />
+                    )}
+                  </span>
                 ) : (
-                  <>{o.limit ? px(o.limit) : ""}{o.stop ? ` stop ${px(o.stop)}` : ""}{!o.limit && !o.stop ? "market" : ""}</>
+                  <>{o.limit ? px(o.limit) : ""}{stopOf(o) ? ` stop ${px(stopOf(o))}` : ""}{!o.limit && !stopOf(o) ? "market" : ""}</>
                 )}
               </td>
               <td className={td}>{o.status.replace("_", " ")}</td>
               <td className={`${td} whitespace-nowrap text-right`}>
-                {o.type === "limit" && (edit[o.id] !== undefined ? (
-                  <button type="button" disabled={busy === o.id} className="mr-2 text-emerald-700 hover:underline" onClick={() => act(o, "replace", Number(edit[o.id]))}>Send price</button>
+                {editable(o) && (edit[o.id] !== undefined ? (
+                  <button type="button" disabled={busy === o.id} className="mr-2 text-emerald-700 hover:underline" onClick={() => act(o, "replace")}>
+                    {many ? `Send to all ${others.length + 1}` : "Send price"}
+                  </button>
                 ) : (
-                  <button type="button" className="mr-2 text-slate-600 hover:underline" onClick={() => setEdit((x) => ({ ...x, [o.id]: String(o.limit ?? "") }))}>Change price</button>
+                  <button type="button" className="mr-2 text-slate-600 hover:underline"
+                    onClick={() => setEdit((x) => ({ ...x, [o.id]: { limit: o.limit != null ? String(o.limit) : "", stop: stopOf(o) != null ? String(stopOf(o)) : "" } }))}>Change price</button>
                 ))}
-                <button type="button" disabled={busy === o.id} className="text-rose-700 hover:underline" onClick={() => act(o, "cancel")}>{busy === o.id ? "…" : "Cancel"}</button>
+                <button type="button" disabled={busy === o.id} className="text-rose-700 hover:underline" onClick={() => act(o, "cancel")}>
+                  {busy === o.id ? "…" : many ? `Cancel on all ${others.length + 1}` : "Cancel"}
+                </button>
               </td>
             </tr>
           ))}

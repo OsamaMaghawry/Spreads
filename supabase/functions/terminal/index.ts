@@ -2134,6 +2134,12 @@ Deno.serve(async (req) => {
         return action === "protect" ? await protect(admin, user, acct, body) : await exitPosition(admin, user, acct, body);
       };
       const [r, group] = await Promise.all([run(account), forGroup(admin, user, account, body.group, run)]);
+      // Nothing of it held on the account on screen, with others picked: that
+      // one is skipped and the others still answer (28 Oct: "put the SL and TP
+      // ... for all accounts at once").
+      if (group && r.status === 400 && /^No .* position to /.test(String(r.body?.error || ""))) {
+        return jsonResponse({ skipped: r.body.error, group }, 200);
+      }
       return jsonResponse(group ? { ...r.body, group } : r.body, r.status);
     }
     return jsonResponse({ error: `Unknown action "${action}"` }, 400);
