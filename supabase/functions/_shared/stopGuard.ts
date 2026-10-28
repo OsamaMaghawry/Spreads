@@ -205,3 +205,31 @@ export function restoreOrder(g: Pick<Guard, "symbol" | "side" | "stop" | "limit"
     ...(g.limit ? { limit_price: price(g.limit) } : {}), time_in_force: Number.isInteger(qty) ? "gtc" : "day", client_order_id: clientId
   };
 }
+
+// A fired stop's sale follows the market until it fills (28 Oct, the owner,
+// after a live DAVI stop's limit at 4.02 sat unfilled under a falling price:
+// "Chase the bid"). Its exit carries this label, so only such sales are
+// followed and moved, and none is handed back as a stop at the open.
+export const CHASE_LABEL = "TERM_XC_";
+// A quote further than this from the last price is not taken for the market.
+const CHASE_BAND = 0.03;
+// With no quote near the last price: this far through it.
+const CHASE_THROUGH = 0.02;
+
+/**
+ * Where the chasing limit goes: at the bid (selling) or the ask (buying back
+ * a short), or, with no quote near the last price, 2% through the last price.
+ * With `current` (the limit working now): only a move toward the market, else
+ * null, as it is never taken back.
+ */
+export function chasePrice(side: "buy" | "sell", q: { bid?: number | null; ask?: number | null; last?: number | null }, current: number | null = null): number | null {
+  const sell = side === "sell";
+  const last = num(q.last);
+  const quoted = num(sell ? q.bid : q.ask);
+  const near = quoted && quoted > 0 && (!last || !(last > 0) || Math.abs(quoted - last) / last <= CHASE_BAND) ? quoted : null;
+  const raw = near ?? (last && last > 0 ? last * (sell ? 1 - CHASE_THROUGH : 1 + CHASE_THROUGH) : null);
+  if (!raw || !(raw > 0)) return null;
+  const next = Number(price(raw));
+  if (current !== null && current > 0 && (sell ? next >= current : next <= current)) return null;
+  return next;
+}

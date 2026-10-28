@@ -21,7 +21,7 @@ import { allocate } from "../_shared/proRata.ts";
 import { orderStream } from "../_shared/orderStream.ts";
 import { isOwnerEmail, isAdminUser } from "../_shared/admin.ts";
 import { guardHours } from "../_shared/stopGuard.ts";
-import { stopsToWatch, extStopsOn, watchEodhd, checkIex, handBackFired } from "../_shared/stopGuardRun.ts";
+import { stopsToWatch, extStopsOn, watchEodhd, checkIex, handBackFired, chaseFired } from "../_shared/stopGuardRun.ts";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -1574,8 +1574,10 @@ async function guardStops(admin: any, dryRun = false, onlyAccount = "") {
   const t = Date.now();
   const eodhdKey = Deno.env.get("EODHD_API_KEY") || null;
   const report: any = { at: iso(t), eodhdHours: guardHours(t, "eodhd"), iexHours: guardHours(t, "iex"), accounts: 0, watchedByTerminal: 0, off: 0, guards: [], fired: [] };
-  // Fired stops whose limit did not fill go back as stops, at any hour.
+  // Fired stops whose limit did not fill go back as stops, at any hour; a
+  // stop's sale that follows the bid is followed again, at any hour.
   if (!dryRun) report.handedBack = await handBackFired(admin);
+  if (!dryRun) report.chasing = await chaseFired(admin);
   if (!dryRun && !report.eodhdHours && !report.iexHours) return { ...report, skipped: "regular hours or closed" };
   // The terminal's people: those with a setting stored.
   const { data: people } = await admin.from("terminal_prefs").select("user_id").limit(5000);
@@ -1614,7 +1616,16 @@ async function guardStops(admin: any, dryRun = false, onlyAccount = "") {
   }
   if (dryRun) return report;
   if (viaIex.length && report.iexHours) for (const item of viaIex) report.fired.push(...await checkIex(admin, item));
-  if (viaEodhd.length && report.eodhdHours && eodhdKey) report.fired.push(...await watchEodhd(admin, eodhdKey, viaEodhd, Math.max(5000, 55000 - (Date.now() - t))));
+  if (viaEodhd.length && report.eodhdHours && eodhdKey) {
+    const seen = await watchEodhd(admin, eodhdKey, viaEodhd, Math.max(5000, 55000 - (Date.now() - t)));
+    report.fired.push(...seen);
+    // Refused (an open terminal holding the owner's one connection): the
+    // accounts' own IEX trades instead, in IEX's hours.
+    if (seen.refused) {
+      report.eodhdRefused = seen.refused;
+      if (report.iexHours) for (const item of viaEodhd) report.fired.push(...await checkIex(admin, item));
+    }
+  }
   if (report.fired.length || report.guards.length) console.log(`stop guard job: ${JSON.stringify({ guards: report.guards.length, fired: report.fired })}`);
   return report;
 }

@@ -251,7 +251,7 @@ export default function Terminal() {
 
   // Stops outside regular hours (26 Oct: "The stop loss price was hit but
   // never executed"): before 9:30 and after 16:00 the server fires the
-  // terminal's stops itself, a limit at the stop price, unless turned off
+  // terminal's stops itself, a sale at the bid that follows it until filled, unless turned off
   // (stopGuardRun.ts). What it does is said as it happens and, for what it did
   // while the terminal was closed, once when it opens.
   const [extStops, setExtStops] = useState(true);
@@ -271,9 +271,11 @@ export default function Terminal() {
   const fireNews = useCallback((f) => {
     const Name = f.kind === "target" ? "Take profit" : "Stop";
     const at = f.kind === "target" ? f.target : f.stop;
+    // Which account, when the open terminal fired one on an account beside it.
+    const on = f.name ? `${f.name}: ` : "";
     return {
       tone: f.status === "sent" || f.status === "done" ? "ok" : f.status === "failed" ? "bad" : "muted",
-      title: { sent: `${Name} fired on ${f.symbol}`, done: `${Name} filled on ${f.symbol}`, returned: `Exits back on ${f.symbol}`, cancelled: `${Name} limit cancelled on ${f.symbol}`, failed: `${Name} on ${f.symbol}: needs a look` }[f.status] || `${Name} on ${f.symbol} not fired`,
+      title: on + { sent: `${Name} fired on ${f.symbol}`, done: `${Name} filled on ${f.symbol}`, returned: `Exits back on ${f.symbol}`, cancelled: `${Name} limit cancelled on ${f.symbol}`, failed: `${Name} on ${f.symbol}: needs a look` }[f.status] || `${Name} on ${f.symbol} not fired`,
       detail: `Traded ${px(f.trigger)} against the ${Name.toLowerCase()} at ${px(at)}${f.at ? `, ${new Date(f.at).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" })} New York` : ""}. ${f.note || ""}`
     };
   }, []);
@@ -282,7 +284,7 @@ export default function Terminal() {
     const key = `guard${m.id}`;
     if (m.status === "firing") {
       const target = m.kind === "target";
-      notify({ key, tone: "wait", title: `${target ? "Take profit" : "Stop"} hit on ${m.symbol} at ${px(m.trigger)}`, detail: `Outside regular hours: cancelling the exits and sending a limit at ${px(target ? m.target : m.stop)}…` });
+      notify({ key, tone: "wait", title: `${m.name ? `${m.name}: ` : ""}${target ? "Take profit" : "Stop"} hit on ${m.symbol} at ${px(m.trigger)}`, detail: target ? `Outside regular hours: cancelling the exits and selling at ${px(m.target)}…` : "Outside regular hours: cancelling the exits and selling at the bid, following it until filled…" });
       return;
     }
     sawFire(`${m.id}:${m.status}`);

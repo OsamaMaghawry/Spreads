@@ -613,7 +613,7 @@ function PositionExits({ account, symbol, held, crypto, tradable, session, onNot
         <label className="mt-1 flex items-start gap-1.5 text-[10px] leading-snug text-slate-600">
           <input type="checkbox" className="mt-0.5" checked={extStops} onChange={(e) => onExtStops(e.target.checked)} />
           <span>
-            Outside those hours the terminal fires them itself ({guardHours} New York): when a trade reaches the stop or the take profit, the pair is cancelled and a limit at that price goes out, pre-market and after hours. A limit never fills worse than its price, so a price that runs straight through the stop may leave it unfilled.
+            Outside those hours the terminal fires them itself ({guardHours} New York): when a trade reaches the stop, the pair is cancelled and the shares are sold at the bid, the limit following the bid every few seconds until it fills, so a price that runs through the stop still gets you out. A take profit sells at its own price.
           </span>
         </label>
       )}

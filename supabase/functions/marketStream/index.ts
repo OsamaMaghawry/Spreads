@@ -117,8 +117,17 @@ Deno.serve(async (req) => {
     // late is not a stop.
     const source = stockFeed === "eodhd" ? "eodhd" : stockFeed === "iex" ? "iex" : null;
     const trades = account.is_paper || (isOwnerEmail(user.email) && account.provider !== "snaptrade");
-    const trading = trades && source ? await loadAccount(admin, accountId, user.id).catch(() => null) : null;
-    const guard = trading ? guardWatcher(admin, trading, user.id, source) : null;
+    // Every account the terminal trades for this person, this one first: its
+    // relay holds the owner's one EODHD connection, so it guards them all
+    // (28 Oct: the minute job watching the others was refused by EODHD).
+    let guarded: any[] = [];
+    if (trades && source) {
+      const owner = isOwnerEmail(user.email);
+      const { data: rows } = await admin.from("trading_accounts").select("id, is_paper, provider").eq("user_id", user.id);
+      const others = (rows || []).filter((a: any) => a.id !== accountId && a.provider !== "snaptrade" && (a.is_paper || owner)).map((a: any) => a.id);
+      guarded = (await Promise.all([accountId, ...others].map((id) => loadAccount(admin, id, user.id).catch(() => null)))).filter(Boolean);
+    }
+    const guard = guarded.length ? guardWatcher(admin, guarded, user.id, source) : null;
     // And the account's own orders as they move, for an account it trades.
     const orders = trades ? { paper: !!account.is_paper, cred: { token, key, secret } } : null;
     relayDetail(socket, auth, symbols, (url.searchParams.get("book") || "").toUpperCase(), stockFeed, eodhdKey, guard, orders);

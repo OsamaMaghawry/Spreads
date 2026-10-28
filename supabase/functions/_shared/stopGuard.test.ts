@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { guardedStops, reaches, hit, guardHours, exitOrder, restoreOrder, handBack } from "./stopGuard.ts";
+import { guardedStops, reaches, hit, guardHours, exitOrder, restoreOrder, handBack, chasePrice } from "./stopGuard.ts";
 
 // The account's open orders as Alpaca lists them (nested=true), 26 Oct: 490
 // RENT held, the terminal's take profit at 3.60 paired with a stop at 2.95.
@@ -135,4 +135,22 @@ test("take profits too: a pair's, one on its own, and a filled bracket's two exi
   // Put back: the pair as a pair; a take profit alone as a take profit.
   assert.equal(restoreOrder(b, 74, "R").order_class, "oco");
   assert.deepEqual(restoreOrder(t, 51, "R"), { symbol: "AIOK", side: "sell", qty: "51", type: "limit", limit_price: "11.50", time_in_force: "gtc", client_order_id: "R" });
+});
+
+// 28 Oct, live DAVI: the stop at 4.02 fired at 4.01 and its limit at 4.02 sat
+// unfilled as the price fell. The owner: "Chase the bid".
+test("a fired stop's limit chases the bid, only ever toward the market", () => {
+  assert.equal(chasePrice("sell", { bid: 3.98, ask: 4.0, last: 3.99 }), 3.98);
+  // A bid far from the last trade is not the market: 2% under the last price instead.
+  assert.equal(chasePrice("sell", { bid: 2.5, last: 3.99 }), 3.91);
+  assert.equal(chasePrice("sell", { last: 3.99 }), 3.91);
+  // Moved down as the bid falls; never back up.
+  assert.equal(chasePrice("sell", { bid: 3.9, last: 3.9 }, 3.98), 3.9);
+  assert.equal(chasePrice("sell", { bid: 4.05, last: 4.05 }, 3.98), null);
+  // Buying back a short follows the ask, up.
+  assert.equal(chasePrice("buy", { bid: 10, ask: 10.1, last: 10.05 }), 10.1);
+  assert.equal(chasePrice("buy", { ask: 10.0, last: 10.05 }, 10.1), null);
+  // Under a dollar, four places.
+  assert.equal(chasePrice("sell", { bid: 0.5123, last: 0.513 }), 0.5123);
+  assert.equal(chasePrice("sell", {}), null);
 });
