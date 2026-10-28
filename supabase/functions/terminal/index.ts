@@ -1360,6 +1360,12 @@ async function groupAccounts(admin: any, user: any, lead: any, ids: unknown) {
   })));
 }
 
+// A field of the order as sent: null when left out or empty. (`num` reads
+// null as 0, which made a hotkey too small on the account on screen, sent with
+// no quantity, read as "0 shares" and refused there with "Enter how many
+// shares." instead of skipped, 28 Oct.)
+const given = (v: unknown) => (v === null || v === undefined || v === "" ? null : num(v));
+
 const groupRow = (id: string, account: any, extra: Record<string, unknown>) =>
   ({ accountId: id, name: account?.name || "an account", live: account ? !account.is_paper : null, ...extra });
 
@@ -1382,9 +1388,9 @@ async function allocation(admin: any, user: any, lead: any, ids: unknown, input:
   // The account on screen as the browser has it, where it says (so its own
   // order can go at once, before the others' shares are worked out); read
   // here otherwise.
-  const given = input?.leadBook && typeof input.leadBook === "object" ? input.leadBook : null;
-  const known = given && num(given.held) !== null && (num(given.equity) !== null || num(given.buyingPower) !== null)
-    ? { id: lead.id, name: lead.name, equity: num(given.equity), buyingPower: num(given.buyingPower), held: num(given.held) || 0, qtyText: null }
+  const screen = input?.leadBook && typeof input.leadBook === "object" ? input.leadBook : null;
+  const known = screen && given(screen.held) !== null && (given(screen.equity) !== null || given(screen.buyingPower) !== null)
+    ? { id: lead.id, name: lead.name, equity: given(screen.equity), buyingPower: given(screen.buyingPower), held: given(screen.held) || 0, qtyText: null }
     : null;
   const [leadBook, ...books] = await Promise.all([
     known ? Promise.resolve(known) : bookOf(lead, symbol),
@@ -1392,9 +1398,9 @@ async function allocation(admin: any, user: any, lead: any, ids: unknown, input:
   ]);
   const ready = (books.filter((b: any) => b && !b.error) as any[]).map((b) => ({ ...b, rule: groupRule(ids, b.id) }));
   // The order's own price, for a size set in dollars or percent.
-  const price = num(input?.limitPrice) ?? num(input?.stopPrice) ?? num(input?.reference);
-  const shares = allocate({ side, qty: num(input?.qty), notional: num(input?.notional) }, leadBook, ready,
-    { basis: input?.basis === "buyingPower" ? "buyingPower" : "equity", crypto, symbol, price, pct: num(input?.pct) });
+  const price = given(input?.limitPrice) ?? given(input?.stopPrice) ?? given(input?.reference);
+  const shares = allocate({ side, qty: given(input?.qty), notional: given(input?.notional) }, leadBook, ready,
+    { basis: input?.basis === "buyingPower" ? "buyingPower" : "equity", crypto, symbol, price, pct: given(input?.pct) });
   const rows = group.map((g, i) => {
     const b: any = books[i];
     if (!g.account) return groupRow(g.id, null, { skip: "not an account the terminal can trade" });
@@ -1411,8 +1417,10 @@ async function orderForGroup(admin: any, user: any, lead: any, ids: unknown, inp
   // sent: the lead's own sale must not change what the others' shares read.
   // With the lead's book from the browser, its order goes at once, alongside
   // the reading of the others'; without it, after.
-  const leadOff = num(input?.qty) === null && num(input?.notional) === null;
-  const early = input?.leadBook && !leadOff ? placeOrder(admin, user, lead, input) : null;
+  const leadOff = given(input?.qty) === null && given(input?.notional) === null;
+  // Its own trouble stays its own: a throw here is its refusal, not the group's.
+  const own = () => placeOrder(admin, user, lead, input).catch((e: Error) => ({ status: 422, body: { error: String(e?.message || e) } as any }));
+  const early = input?.leadBook && !leadOff ? own() : null;
   let plan: Awaited<ReturnType<typeof allocation>>;
   try {
     plan = await allocation(admin, user, lead, ids, input);
@@ -1433,7 +1441,7 @@ async function orderForGroup(admin: any, user: any, lead: any, ids: unknown, inp
   // Too small on the account on screen alone (a hotkey's size there under one
   // share): nothing sent there, the others still take theirs.
   const [r, ...group] = await Promise.all([
-    leadOff ? Promise.resolve({ status: 200, body: { skipped: String(input?.leadSkip || "Too small on this account.") } as any }) : early ?? placeOrder(admin, user, lead, input),
+    leadOff ? Promise.resolve({ status: 200, body: { skipped: String(input?.leadSkip || "Too small on this account.") } as any }) : early ?? own(),
     ...plan.group.map(send)
   ]);
   return { status: r.status, body: { ...r.body, group } };

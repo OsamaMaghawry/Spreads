@@ -283,3 +283,11 @@ test("a close the broker reads as an open is said plainly", () => {
   assert.match(brokerRefusal(raw), /nothing left to close/);
   assert.match(brokerRefusal(raw), /Orders tab/);
 });
+
+test("a sale of shares already in a working order is said with the numbers, not as JSON", () => {
+  // Alton RS, 28 Oct 04:57: an earlier sell limit still working held 78 of 85.
+  const raw = 'Alpaca 403: {"available":"7","code":40310000,"existing_qty":"85","held_for_orders":"78","message":"insufficient qty available for order (requested: 79, available: 7)","related_orders":["8815f402"],"symbol":"ELPW"}';
+  assert.equal(brokerRefusal(raw, "ELPW"),
+    "Asked to sell 79, but only 7 of the 85 ELPW held are free: 78 are in an earlier order still working (Orders tab). Cancel or change that order, or sell 7 or fewer.");
+  assert.match(brokerRefusal("Alpaca 403: insufficient qty available for order", "ELPW"), /ELPW shares are already in an earlier order still working/);
+});

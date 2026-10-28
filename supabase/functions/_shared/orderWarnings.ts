@@ -355,6 +355,23 @@ export function brokerRefusal(message: string, ticker?: string | null): string {
   // order: it reads the order as opening new ones. See closeCheck.ts, which
   // catches this before sending; this is the words for when the book moved
   // between that check and the order.
+  // A sale of shares already in another order still working (28 Oct, ELPW:
+  // an earlier sell limit at 3.57, not yet filled, held 78 of the 85 shares,
+  // so each lower sell after it was refused). Alpaca says it as a block of
+  // JSON; the trader needs the numbers and what to do.
+  if (/insufficient qty available/i.test(m)) {
+    let j: any = null;
+    try { j = JSON.parse(m.slice(m.indexOf("{"))); } catch { /* the words alone */ }
+    const name = j?.symbol || ticker || "";
+    const asked = /requested:\s*([\d.]+)/i.exec(m)?.[1];
+    const held = j?.existing_qty, free = j?.available;
+    if (held != null && free != null) {
+      const busy = j.held_for_orders ?? Number(held) - Number(free);
+      return `${asked ? `Asked to sell ${asked}, but only` : "Only"} ${free} of the ${held} ${name} held ${Number(free) === 1 ? "is" : "are"} free: ` +
+        `${busy} ${Number(busy) === 1 ? "is" : "are"} in an earlier order still working (Orders tab). Cancel or change that order, or sell ${free} or fewer.`;
+    }
+    return `Those ${name ? `${name} ` : ""}shares are already in an earlier order still working (Orders tab). Cancel or change that order first.`;
+  }
   if (/position intent mismatch/i.test(m)) {
     return "Your broker shows nothing left to close here. It may have just closed, or another order is " +
       "already closing it. Refresh the page and check the Orders tab.";
