@@ -648,3 +648,4 @@ English. Newest first.
 - 2026-10-28 · (staging) Wording made consistent: the Analysis page is titled Analysis (not "Performance Analysis"), its loading text and empty state say Loading… and Connect, the Terminal tab says Scanner, and the landing footer button reads "Connect your broker for free" (`6a3e339`, `c304cbd`).
 - 2026-10-28 · (staging) The confirm-signup email link now uses the brand purple instead of a stray indigo (`c026467`).
 - 2026-10-28 · (staging) Terminal: typing part of a share on a stock that trades in whole shares now says so instead of silently rounding to whole shares (`63ebb31`).
+- 2026-10-28 · (staging) Terminal: the $5,000 cap on each live order that opens or adds to a position is gone, at the owner's instruction; live trading is still only the owner's own Alpaca accounts (`015db09`).
