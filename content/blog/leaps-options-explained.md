@@ -102,6 +102,8 @@ These are the mechanics, which are all this post claims. Whether one structure s
 
 A LEAPS can also be used on the other side of a trade, as the long leg in a [poor man's covered call](/blog/poor-mans-covered-call), where it stands in for the shares. That structure adds a short call and its own assignment questions, and has its own post.
 
+Related: [stock replacement strategy](/blog/stock-replacement-strategy), which follows this same 40 call through its first year beside 100 shares.
+
 ## Frequently asked questions
 
 - **What does LEAPS stand for?** Long-Term Equity Anticipation Securities. The name describes an expiration a year or more out, not a different kind of contract.

@@ -1,0 +1,24 @@
+<svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Six vertical bars showing how many shares' worth of movement a hypothetical 40 call with one year left carries when XYZ is at 60, 55, 50, 45, 40 and 35. The bars are 95, 91, 85, 75, 61 and 44 shares. A dashed line at 100 marks what 100 shares carry. The bars shrink as the stock falls, so the call follows the stock less closely exactly when the stock is falling.">
+  <rect width="720" height="340" fill="#FFFFFF"/>
+  <line x1="60" y1="70" x2="680" y2="70" stroke="#767B8E" stroke-width="2" stroke-dasharray="7 6"/>
+  <text x="680" y="62" font-size="15" text-anchor="end" fill="#767B8E">100 shares</text>
+  <rect x="90" y="81" width="64" height="209" rx="4" fill="#14151C"/>
+  <text x="122" y="107" font-size="18" font-weight="600" text-anchor="middle" fill="#FFFFFF">95</text>
+  <text x="122" y="312" font-size="16" text-anchor="middle" fill="#14151C">60</text>
+  <rect x="188" y="90" width="64" height="200" rx="4" fill="#14151C"/>
+  <text x="220" y="116" font-size="18" font-weight="600" text-anchor="middle" fill="#FFFFFF">91</text>
+  <text x="220" y="312" font-size="16" text-anchor="middle" fill="#14151C">55</text>
+  <rect x="286" y="103" width="64" height="187" rx="4" fill="#14151C"/>
+  <text x="318" y="129" font-size="18" font-weight="600" text-anchor="middle" fill="#FFFFFF">85</text>
+  <text x="318" y="312" font-size="16" text-anchor="middle" fill="#14151C">50</text>
+  <rect x="384" y="125" width="64" height="165" rx="4" fill="#14151C"/>
+  <text x="416" y="151" font-size="18" font-weight="600" text-anchor="middle" fill="#FFFFFF">75</text>
+  <text x="416" y="312" font-size="16" text-anchor="middle" fill="#14151C">45</text>
+  <rect x="482" y="156" width="64" height="134" rx="4" fill="#14151C"/>
+  <text x="514" y="182" font-size="18" font-weight="600" text-anchor="middle" fill="#FFFFFF">61</text>
+  <text x="514" y="312" font-size="16" text-anchor="middle" fill="#14151C">40</text>
+  <rect x="580" y="193" width="64" height="97" rx="4" fill="#14151C"/>
+  <text x="612" y="219" font-size="18" font-weight="600" text-anchor="middle" fill="#FFFFFF">44</text>
+  <text x="612" y="312" font-size="16" text-anchor="middle" fill="#14151C">35</text>
+  <text x="60" y="334" font-size="14" fill="#767B8E">XYZ price, one year left</text>
+</svg>
