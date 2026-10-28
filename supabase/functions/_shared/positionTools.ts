@@ -279,3 +279,13 @@ export function exitPlan(position: Position, amount: { all: boolean; qty: number
     note: notes.length ? notes.join("; ") : null
   };
 }
+
+// The earlier sells a sell key replaces (28 Oct, the owner: "Replace it"): the
+// terminal's own plain sells for the day, a key's (TERM_K_) or the ticket's,
+// whatever their label's age (05:22: two sells from before the key label, 80
+// and 78 ELPW, still held 158 of 241, and the next key was refused for one
+// share). Never a stop, a target (good till cancelled), a leg of a bracket or
+// one-cancels-other, or the stop guard's own (TERM_XS_, TERM_R_).
+export const replaceable = (o: any) =>
+  o?.side === "sell" && /^TERM_(K_)?\d/.test(String(o.client_order_id || "")) && (o.order_class || "simple") === "simple" &&
+  (o.type === "limit" || o.type === "market") && o.time_in_force === "day";

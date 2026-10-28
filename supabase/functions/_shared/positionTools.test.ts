@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { usSession, stopPlan, stopsToReplace, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit, openingQty } from "./positionTools.ts";
+import { usSession, stopPlan, stopsToReplace, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit, openingQty, replaceable } from "./positionTools.ts";
 
 test("the part of an order that opens or adds to a position; closing never counts", () => {
   assert.equal(openingQty("buy", 100, 0), 100, "a new long");
@@ -189,4 +189,19 @@ test("one order carries the exits: a pair for whole shares, a limit alone; coins
   assert.match((exitBody("AAPL", "sell", 2.5, { stop: 340, target: 365 }, "T") as any).reason, /part of a share/);
   const coin = exitBody("ETH/USD", "sell", 0.1, { stop: null, target: 2600 }, "T", { crypto: true, qtyText: "0.100000000" }) as any;
   assert.deepEqual([coin.body.qty, coin.body.time_in_force], ["0.100000000", "gtc"]);
+});
+
+test("a sell key replaces the terminal's earlier day sells, never a stop, a target or the guard's", () => {
+  const o = (client_order_id: string, type = "limit", time_in_force = "day", order_class = "simple", side = "sell") => ({ client_order_id, type, time_in_force, order_class, side });
+  assert.equal(replaceable(o("TERM_1793178000")), true); // from before the key label
+  assert.equal(replaceable(o("TERM_K_1793180000", "limit", "day", "")), true);
+  assert.equal(replaceable(o("TERM_K_1", "market")), true);
+  assert.equal(replaceable(o("TERM_1", "limit", "gtc")), false); // a target
+  assert.equal(replaceable(o("TERM_1", "stop")), false);
+  assert.equal(replaceable(o("TERM_1", "stop_limit")), false);
+  assert.equal(replaceable(o("TERM_1", "limit", "day", "oco")), false);
+  assert.equal(replaceable(o("TERM_XS_1")), false);
+  assert.equal(replaceable(o("TERM_R_1")), false);
+  assert.equal(replaceable(o("TERM_K_1", "limit", "day", "simple", "buy")), false);
+  assert.equal(replaceable(o("web-order-1")), false); // placed elsewhere
 });

@@ -15,7 +15,7 @@ import { currentReports } from "../_shared/earnings.ts";
 import { secReports, withFigures, earningsTimeline, cikMap } from "../_shared/earningsHistory.ts";
 import { dailyStats, isFundName } from "../_shared/screenStats.ts";
 import { historyRow, premarket, nyMoment } from "../_shared/screenHistory.ts";
-import { usSession, stopPlan, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit, openingQty } from "../_shared/positionTools.ts";
+import { usSession, stopPlan, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit, openingQty, replaceable } from "../_shared/positionTools.ts";
 import { inBackground } from "../_shared/background.ts";
 import { allocate } from "../_shared/proRata.ts";
 import { orderStream } from "../_shared/orderStream.ts";
@@ -1294,9 +1294,7 @@ async function liveLimit(account: any, symbol: string, side: "buy" | "sell", qty
   return null;
 }
 
-// A buy or sell key's own orders carry this label, so a sell key pressed
-// again can find the one it replaces, and never a stop, a target or the
-// ticket's own order.
+// A buy or sell key's own orders carry this label.
 const KEY_ORDER = "TERM_K_";
 
 async function placeOrder(admin: any, user: any, account: any, input: any) {
@@ -1325,15 +1323,15 @@ async function placeOrder(admin: any, user: any, account: any, input: any) {
   const over = await liveLimit(account, sym, body.side, num(body.qty) || 0, num(body.notional),
     num(body.limit_price) ?? num(body.stop_price) ?? num(input.reference));
   if (over) return { status: 400, body: { error: over } };
-  // A sell key pressed again replaces this account's earlier sell-key order
-  // of the same symbol still waiting (28 Oct, ELPW: a sell at 3.57 not yet
+  // A sell key pressed again replaces this account's earlier sell of the
+  // same symbol still waiting (28 Oct, ELPW: a sell at 3.57 not yet
   // filled held 78 of 85 shares, and each lower sell after it was refused;
   // the owner: "Replace it"). The earlier one is cancelled first, which frees
   // its shares, and the new one goes for its full size, never more than is
   // then held: part of the earlier one may have filled meanwhile.
   let replaced = 0;
   if (fromKey && body.side === "sell" && body.qty) {
-    const waiting = (await openOrdersFor(account, sym)).filter((o: any) => o.side === "sell" && String(o.client_order_id || "").startsWith(KEY_ORDER));
+    const waiting = (await openOrdersFor(account, sym)).filter(replaceable);
     if (waiting.length) {
       const gone = await cancelAndWait(account, sym, waiting.map((o: any) => o.id));
       if (!gone) return { status: 409, body: { error: `The earlier ${sym} sell is still being cancelled by the broker. Press again in a moment.` } };
