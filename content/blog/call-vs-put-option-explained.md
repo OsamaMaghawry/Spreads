@@ -116,6 +116,8 @@ Related: the [cash-secured put](/blog/cash-secured-put-explained) walks through 
 
 Related: [covered call after assignment](/blog/covered-call-after-assignment) shows the seller's side of a call, the account the morning after.
 
+Related: the [wheel strategy](/blog/wheel-strategy-explained) strings the seller's put and call together, assignment to assignment.
+
 ## Frequently asked questions
 
 ### Can an option buyer lose more than the premium paid?
