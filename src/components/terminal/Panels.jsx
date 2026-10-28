@@ -105,12 +105,43 @@ export function TimeAndSales({ rows, symbol, live = false, delay = null, source 
 // The account's holdings. Close loads the ticket with the opposite side and
 // exactly the quantity held, at market, for review (24 Oct: "close the orders
 // from the quantities I have", without typing the symbol and size again).
-export function Positions({ positions, onPick, onClose, onStop }) {
+// A working order in a few words: "sell 83 at 3.05, waiting".
+export const waitingText = (o) => {
+  const at = o.limit ? ` at ${px(o.limit)}` : o.stop ? ` stop ${px(o.stop)}` : " at market";
+  const part = Number(o.filled) > 0 ? `, ${sizeText(o.filled)} filled` : ", waiting";
+  return `${o.side} ${sizeText(o.qty)}${at}${part}`;
+};
+
+// One symbol on every account picked (28 Oct, the owner: "I keep buying and
+// selling thinking that it's executing for all ... I find I keep stacking"):
+// what each holds and what is still waiting there, on screen at all times.
+// Amber when they are out of step: one holds and another does not, or an
+// order is still waiting somewhere.
+export function GroupHoldings({ symbol, rows }) {
+  const held = rows.map((r) => Math.sign(Number(r.qty) || 0));
+  const apart = new Set(held).size > 1;
+  const waiting = rows.some((r) => r.waiting?.length);
+  return (
+    <div className={`flex w-full basis-full flex-wrap items-center gap-x-3 gap-y-0.5 rounded-md border px-2 py-0.5 text-xs ${apart || waiting ? "border-amber-400 bg-amber-50 text-amber-900" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
+      <span className="font-semibold">{symbol} on each account{apart ? ": out of step" : ""}</span>
+      {rows.map((r) => (
+        <span key={r.id} className="whitespace-nowrap">
+          {r.name}{r.live ? " (live)" : ""}: <b className="tabular-nums">{r.error ? "?" : `${sizeText(Math.abs(Number(r.qty) || 0))}${Number(r.qty) < 0 ? " short" : ""}`}</b>
+          {r.error ? <span className="text-rose-700"> could not be read</span> : null}
+          {(r.waiting || []).map((o) => <span key={o.id} className="text-amber-800"> · {waitingText(o)}</span>)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+export function Positions({ positions, others = [], onPick, onClose, onStop }) {
   return (
     <div className="h-full overflow-auto">
       <table className="w-full text-xs">
         <thead className="sticky top-0 bg-white"><tr><th className={th}>Symbol</th><th className={th}>Quantity</th><th className={th}>Avg</th><th className={th}>Last</th><th className={th}>Value</th><th className={th}>Today</th><th className={th}>Unrealized</th><th className={th} /></tr></thead>
         <tbody>
+          {others.length > 0 && <tr><td colSpan={8} className="bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">This account (on screen)</td></tr>}
           {positions.map((p) => (
             <tr key={p.symbol} className="cursor-pointer whitespace-nowrap hover:bg-slate-50" onClick={() => onPick(p.symbol)}>
               <td className={`${td} font-semibold`}>{p.symbol}</td>
@@ -136,10 +167,42 @@ export function Positions({ positions, onPick, onClose, onStop }) {
               </td>
             </tr>
           ))}
+          {others.map((g) => (
+            <OtherAccount key={g.accountId} g={g} onPick={onPick} />
+          ))}
         </tbody>
       </table>
-      {!positions.length && <p className="px-2 py-3 text-xs text-slate-500">No shares or coins held in this account.</p>}
+      {!positions.length && !others.length && <p className="px-2 py-3 text-xs text-slate-500">No shares or coins held in this account.</p>}
     </div>
+  );
+}
+
+// An account picked beside the one on screen: what it holds, and what is
+// still working there.
+function OtherAccount({ g, onPick }) {
+  const positions = g.positions || [];
+  const working = g.orders || [];
+  return (
+    <>
+      <tr><td colSpan={8} className="bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+        {g.name}{g.live ? " (live)" : ""}{g.error ? ` · could not be read: ${g.error}` : ""}{!g.error && !positions.length ? " · holds nothing" : ""}
+      </td></tr>
+      {positions.map((p) => {
+        const mine = working.filter((o) => o.symbol === p.symbol);
+        return (
+          <tr key={`${g.accountId}${p.symbol}`} className="cursor-pointer whitespace-nowrap hover:bg-slate-50" onClick={() => onPick(p.symbol)}>
+            <td className={`${td} font-semibold`}>{p.symbol}</td>
+            <td className={td}>{p.assetClass === "crypto" && p.qtyText ? String(Number(p.qtyText)) : sizeText(p.qty)}{p.side === "short" ? " short" : ""}</td>
+            <td className={td}>{px(p.avgPrice)}</td>
+            <td className={td}>{px(p.last)}</td>
+            <td className={td}>{fmtMoney(p.marketValue)}</td>
+            <td className={`${td} ${p.today >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{fmtMoney(p.today)}</td>
+            <td className={`${td} ${p.unrealized >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{fmtMoney(p.unrealized)} <span className="text-slate-400">{pctText(p.unrealizedPct)}</span></td>
+            <td className={`${td} text-right text-[11px] text-amber-800`}>{mine.map(waitingText).join(" · ")}</td>
+          </tr>
+        );
+      })}
+    </>
   );
 }
 

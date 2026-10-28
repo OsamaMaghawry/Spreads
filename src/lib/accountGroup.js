@@ -48,26 +48,50 @@ export function cleanGroup(ids, accounts, leadId, liveOk) {
 const amount = (r, unit) => (r.notional ? `$${Number(r.notional).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   : r.qty != null ? `${Number(r.qty).toLocaleString("en-US", { maximumFractionDigits: 9 })}${unit ? ` ${unit}` : ""}` : "");
 
+const FINAL_UNFILLED = new Set(["canceled", "expired", "rejected", "done_for_day", "stopped", "suspended"]);
+const price = (v) => (Number(v) >= 1 ? Number(v).toFixed(2) : Number(v).toFixed(4));
+
 /**
  * One pop-up for what the group's accounts said: `rows` from the server,
  * `verb` what each did when it worked ("sent", "exit sent", "stop placed").
+ * A row being followed (`track`, runHotkey followGroup) says how its order
+ * stands: filled, part filled, still waiting, or ended unfilled (28 Oct: the
+ * other accounts' sells sat unfilled or refused, unseen, while their buys
+ * filled, and the positions stacked up).
  */
 export function groupNews(rows, verb, unit = "") {
   const list = Array.isArray(rows) ? rows : [];
   if (!list.length) return null;
-  const failed = list.filter((r) => !r.skip && r.ok === false);
-  const done = list.filter((r) => !r.skip && r.ok !== false);
+  const count = { done: 0, waiting: 0, refused: 0, missed: 0, skipped: 0 };
   const lines = list.map((r) => {
     const name = `${r.name}${r.live ? " (live)" : ""}`;
-    if (r.skip) return `${name}: skipped, ${r.skip}`;
-    if (r.ok === false) return `${name}: refused, ${r.error || "no reason given"}`;
+    if (r.skip) { count.skipped += 1; return `${name}: skipped, ${r.skip}`; }
+    if (r.ok === false) { count.refused += 1; return `${name}: refused, ${r.error || "no reason given"}`; }
     const what = amount(r, unit);
+    if (r.track && r.status) {
+      const filled = Number(r.filled) || 0;
+      if (r.status === "filled") { count.done += 1; return `${name}: ${amount({ qty: filled || r.qty }, unit)} filled${r.avgPrice ? ` at ${price(r.avgPrice)}` : ""}`; }
+      if (FINAL_UNFILLED.has(r.status)) {
+        count.missed += 1;
+        return `${name}: not filled (${r.status.replace(/_/g, " ")})${filled ? `, ${amount({ qty: filled }, unit)} filled before` : ""}`;
+      }
+      count.waiting += 1;
+      return filled ? `${name}: ${amount({ qty: filled }, unit)} of ${what} filled, the rest waiting` : `${name}: ${what ? `${what} ` : ""}${verb}, waiting to fill`;
+    }
+    count.done += 1;
     const extra = r.cancelled != null && verb === "cancelled" ? `${r.cancelled} cancelled` : `${what ? `${what} ` : ""}${verb}${r.replaced ? ", replacing the earlier sell" : ""}`;
     return `${name}: ${extra}`;
   });
+  const parts = [
+    `${count.done} ${list.some((r) => r.track) ? "filled" : "done"}`,
+    count.waiting ? `${count.waiting} waiting` : null,
+    count.missed ? `${count.missed} not filled` : null,
+    count.refused ? `${count.refused} refused` : null,
+    count.skipped ? `${count.skipped} skipped` : null
+  ].filter(Boolean);
   return {
-    tone: failed.length ? "bad" : done.length ? "ok" : "muted",
-    title: `Also on ${list.length} account${list.length === 1 ? "" : "s"}: ${done.length} done${failed.length ? `, ${failed.length} refused` : ""}${list.length - done.length - failed.length ? `, ${list.length - done.length - failed.length} skipped` : ""}`,
+    tone: count.refused || count.missed ? "bad" : count.waiting ? "wait" : count.done ? "ok" : "muted",
+    title: `Also on ${list.length} account${list.length === 1 ? "" : "s"}: ${parts.join(", ")}`,
     detail: lines.join(" · ")
   };
 }

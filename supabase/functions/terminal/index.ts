@@ -769,25 +769,33 @@ async function accountView(account: any) {
       tradingBlocked: !!acct?.trading_blocked, accountBlocked: !!acct?.account_blocked,
       accruedFees: num(acct?.accrued_fees), pendingTransferIn: num(acct?.pending_transfer_in)
     },
-    positions: (Array.isArray(positions) ? positions : [])
-      .filter((p: any) => p.asset_class === "us_equity" || p.asset_class === "crypto")
-      .map((p: any) => ({
-        symbol: p.asset_class === "crypto" ? cryptoSymbol(p.symbol) : p.symbol, assetClass: p.asset_class,
-        // The quantity exactly as the broker holds it, for selling all of it:
-        // a coin after fees is rarely a round number (0.498749999 ETH).
-        qty: num(p.qty), qtyText: String(p.qty_available ?? p.qty ?? ""), side: p.side, avgPrice: num(p.avg_entry_price), last: num(p.current_price),
-        marketValue: num(p.market_value), unrealized: num(p.unrealized_pl), unrealizedPct: num(p.unrealized_plpc),
-        today: num(p.unrealized_intraday_pl)
-      })),
+    positions: positionsView(positions),
     recent: (Array.isArray(closed) ? closed : []).map(orderView),
-    orders: (Array.isArray(orders) ? orders : []).map((o: any) => ({
-      id: o.id, symbol: o.asset_class === "crypto" ? cryptoSymbol(o.symbol) : o.symbol, assetClass: o.asset_class,
-      side: o.side, qty: num(o.qty), notional: num(o.notional), filled: num(o.filled_qty), type: o.type,
-      limit: num(o.limit_price), stop: num(o.stop_price), tif: o.time_in_force, status: o.status,
-      orderClass: o.order_class || "simple", submittedAt: o.submitted_at,
-      legs: (o.legs || []).map((l: any) => ({ id: l.id, side: l.side, type: l.type, limit: num(l.limit_price), stop: num(l.stop_price), status: l.status }))
-    }))
+    orders: workingView(orders)
   };
+}
+
+function positionsView(positions: any) {
+  return (Array.isArray(positions) ? positions : [])
+    .filter((p: any) => p.asset_class === "us_equity" || p.asset_class === "crypto")
+    .map((p: any) => ({
+      symbol: p.asset_class === "crypto" ? cryptoSymbol(p.symbol) : p.symbol, assetClass: p.asset_class,
+      // The quantity exactly as the broker holds it, for selling all of it:
+      // a coin after fees is rarely a round number (0.498749999 ETH).
+      qty: num(p.qty), qtyText: String(p.qty_available ?? p.qty ?? ""), side: p.side, avgPrice: num(p.avg_entry_price), last: num(p.current_price),
+      marketValue: num(p.market_value), unrealized: num(p.unrealized_pl), unrealizedPct: num(p.unrealized_plpc),
+      today: num(p.unrealized_intraday_pl)
+    }));
+}
+
+function workingView(orders: any) {
+  return (Array.isArray(orders) ? orders : []).map((o: any) => ({
+    id: o.id, symbol: o.asset_class === "crypto" ? cryptoSymbol(o.symbol) : o.symbol, assetClass: o.asset_class,
+    side: o.side, qty: num(o.qty), notional: num(o.notional), filled: num(o.filled_qty), type: o.type,
+    limit: num(o.limit_price), stop: num(o.stop_price), tif: o.time_in_force, status: o.status,
+    orderClass: o.order_class || "simple", submittedAt: o.submitted_at,
+    legs: (o.legs || []).map((l: any) => ({ id: l.id, side: l.side, type: l.type, limit: num(l.limit_price), stop: num(l.stop_price), status: l.status }))
+  }));
 }
 
 // What Alpaca's live feeds actually send, read from the server: run from the
@@ -2040,6 +2048,21 @@ Deno.serve(async (req) => {
       return jsonResponse({ asset: await assetFor(account, symbol) });
     }
     if (action === "account") return jsonResponse(await accountView(account));
+    // The other accounts picked beside this one, as they stand: what each
+    // holds and its working orders (28 Oct: sells refused or unfilled on two
+    // of three accounts while their buys filled, unseen, "I keep stacking").
+    if (action === "groupView") {
+      const rows = await forGroup(admin, user, account, body.group, async (acct) => {
+        if (!canTrade(user, acct)) return { status: 403, body: { error: NOT_LIVE } };
+        const base = tradingBase(acct);
+        const [positions, orders] = await Promise.all([
+          alpacaFetch(`${base}/positions`, acct),
+          alpacaFetch(`${base}/orders?status=open&nested=true&limit=200`, acct)
+        ]);
+        return { status: 200, body: { positions: positionsView(positions), orders: workingView(orders) } };
+      });
+      return jsonResponse({ group: rows || [] });
+    }
     if (action === "trades") {
       if (!TERMINAL_SYMBOL(symbol)) return jsonResponse({ error: "Choose a symbol." }, 400);
       return jsonResponse(await trades(account, symbol, stockFeedOf(body.stockFeed)));

@@ -56,3 +56,19 @@ test("sizes kept with the account: known modes only, values as typed", () => {
 test("a sell that replaced the account's earlier one says so", () => {
   assert.equal(groupNews([{ name: "Alton RS", ok: true, qty: 78, replaced: 1 }], "sent", "shares").detail, "Alton RS: 78 shares sent, replacing the earlier sell");
 });
+
+// 28 Oct: the other accounts' orders followed to the end, in the one pop-up.
+test("the group's orders as they stand: filled, waiting, not filled", () => {
+  const rows = [
+    { name: "Alton RS", ok: true, qty: 83, track: true, status: "filled", filled: 83, avgPrice: 3.33 },
+    { name: "Alpaca Live", live: true, ok: true, qty: 8, track: true, status: "new", filled: 0 },
+    { name: "Paper", ok: true, qty: 5, track: true, status: "canceled", filled: 2 }
+  ];
+  const news = groupNews(rows, "sent", "shares");
+  assert.equal(news.tone, "bad");
+  assert.equal(news.title, "Also on 3 accounts: 1 filled, 1 waiting, 1 not filled");
+  assert.equal(news.detail, "Alton RS: 83 shares filled at 3.33 · Alpaca Live (live): 8 shares sent, waiting to fill · Paper: not filled (canceled), 2 shares filled before");
+  const waiting = groupNews([{ ...rows[0] }, { ...rows[1], status: "partially_filled", filled: 3 }], "sent", "shares");
+  assert.equal(waiting.tone, "wait");
+  assert.match(waiting.detail, /3 shares of 8 shares filled, the rest waiting/);
+});

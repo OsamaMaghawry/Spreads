@@ -20,7 +20,7 @@ import HotkeysDialog from "@/components/terminal/Hotkeys";
 import { runHotkey, prefetchStep } from "@/components/terminal/runHotkey";
 import { noteOrder } from "@/components/terminal/orderFeed";
 import { comboOf, cleanHotkeys } from "@/lib/hotkeys";
-import { Positions, Orders, AccountSummary } from "@/components/terminal/Panels";
+import { Positions, Orders, AccountSummary, GroupHoldings } from "@/components/terminal/Panels";
 import useReplay from "@/components/terminal/useReplay";
 import ReplayBar, { ReplayStart } from "@/components/terminal/ReplayBar";
 import { PracticePositions, ReplayResults, DemoResults } from "@/components/terminal/ReplayPanels";
@@ -372,6 +372,7 @@ export default function Terminal() {
 
   const choose = (s) => { setSymbol(s); setQ(""); setResults([]); };
   const position = (view?.positions || []).find((p) => p.symbol === symbol);
+
   const held = position?.qty || 0;
   // Close a position: its symbol on screen and the ticket loaded to undo it.
   const closePosition = (p) => {
@@ -410,6 +411,37 @@ export default function Terminal() {
   // hotkeys and the replay bar trade its practice account.
   const { session, version: replayVersion, last: lastReplay, replay } = useReplay({ accountId, notify });
   const replaying = !!session;
+
+  // The other accounts picked beside this one, as they stand: what each holds
+  // and what is still working there, read every three seconds while any is
+  // picked (28 Oct: their sells were refused or left unfilled while their buys
+  // filled, and nothing on screen showed it until they had stacked up).
+  const [others, setOthers] = useState([]);
+  const groupWire = JSON.stringify(replaying ? [] : groupSend);
+  const loadOthers = useCallback(() => {
+    const group = JSON.parse(groupWire);
+    if (!accountId || !group.length) { setOthers([]); return; }
+    if (document.visibilityState === "hidden") return;
+    invokeFunction("terminal", { action: "groupView", accountId, group })
+      .then((r) => { if (!r?.data?.error) setOthers(r?.data?.group || []); })
+      .catch(() => {});
+  }, [accountId, groupWire]);
+  useEffect(() => {
+    loadOthers();
+    const t = setInterval(loadOthers, 3000);
+    return () => clearInterval(t);
+  }, [loadOthers]);
+  // After an order here or there, everything at once: this account and the others.
+  const refreshAll = useCallback(() => { loadView(); loadOthers(); }, [loadView, loadOthers]);
+  const signedQty = (p) => (p ? (p.side === "short" ? -Math.abs(Number(p.qty) || 0) : Math.abs(Number(p.qty) || 0)) : 0);
+  const holdings = others.length ? [
+    { id: accountId, name: account?.name || "This account", live: account?.type === "Live", qty: signedQty(position), waiting: (view?.orders || []).filter((o) => o.symbol === symbol) },
+    ...others.map((g) => ({
+      id: g.accountId, name: g.name, live: g.live, error: g.error || (g.ok === false ? "refused" : null),
+      qty: signedQty((g.positions || []).find((p) => p.symbol === symbol)),
+      waiting: (g.orders || []).filter((o) => o.symbol === symbol)
+    }))
+  ] : [];
   // Rows refit when the bar wraps, the window or full screen changes, or the
   // replay note comes and goes above the grid.
   useEffect(() => {
@@ -503,7 +535,7 @@ export default function Terminal() {
   const armHotkeys = (on) => setHotkeysOn(on);
   // Everything a key press reads, current at the moment it is pressed.
   const live$ = useRef({});
-  live$.current = { account, symbol, quote, view, position, hotkeys, notify, refresh: loadView, replaying, liveOk, group: replaying ? [] : groupSend, leadSize: replaying ? null : groupSizes[accountId] || null };
+  live$.current = { account, symbol, quote, view, position, hotkeys, notify, refresh: refreshAll, replaying, liveOk, group: replaying ? [] : groupSend, leadSize: replaying ? null : groupSizes[accountId] || null };
   useEffect(() => {
     if (!hotkeysOn || page !== "trade" || hotkeysOpen) return undefined;
     const onKey = (e) => {
@@ -605,6 +637,7 @@ export default function Terminal() {
           className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${deskFull ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
           {deskFull ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}{deskFull ? "Exit full screen" : "Full screen"}
         </button>
+        {page === "trade" && holdings.length > 0 && <GroupHoldings symbol={symbol} rows={holdings} />}
       </div>
 
       {replaying && page === "trade" && (
@@ -756,7 +789,7 @@ export default function Terminal() {
               <ReplayResults book={session ? session.book : lastReplay.book} priceOf={session ? replay.priceOf : (s) => lastReplay.prices[s] ?? null} ended={!session} />
             )}
             {tab === "news" && <NewsPanel news={news} symbol={symbol} crypto={crypto} cursor={session?.cursor ?? null} clock={session ? replayClock(session.cursor, crypto) : ""} onPick={setSymbol} />}
-            {tab === "positions" && <Positions positions={view?.positions || []} onPick={setSymbol} onClose={closePosition} onStop={stopPosition} />}
+            {tab === "positions" && <Positions positions={view?.positions || []} others={others} onPick={setSymbol} onClose={closePosition} onStop={stopPosition} />}
             {tab === "orders" && <Orders accountId={accountId} orders={view?.orders || []} recent={view?.recent || []} onChanged={loadView} onPick={setSymbol} />}
             {tab === "demo" && <DemoResults accountId={accountId} refreshKey={`${view?.recent?.[0]?.id || ""}|${view?.recent?.[0]?.status || ""}|${view?.positions?.length || 0}`} />}
             {tab === "account" && <AccountSummary summary={view?.summary} paper={view?.paper} name={account?.name} />}
@@ -800,7 +833,7 @@ export default function Terminal() {
               </p>
             )}
             <OrderTicket account={account} symbol={symbol} quote={quote} held={held} heldText={held > 0 && position?.qtyText ? position.qtyText : ""}
-              buyingPower={view?.buyingPower ?? null} onPlaced={loadView} pick={pick} preset={preset} onNotify={notify} liveOk={liveOk}
+              buyingPower={view?.buyingPower ?? null} onPlaced={refreshAll} pick={pick} preset={preset} onNotify={notify} liveOk={liveOk}
               group={groupSend.map((g) => ({ ...accounts.find((a) => a.id === g.id), size: g })).filter((a) => a.id)}
               extStops={extStops} onExtStops={changeExtStops} guardHours={eodhdOk ? "4:00 to 9:30 and 16:00 to 20:00" : "8:00 to 9:30 and 16:00 to 17:00"} />
             <p className="px-1 text-[10px] leading-relaxed text-slate-400">Prices from your own Alpaca account: shares from the free IEX feed (real time, IEX trades only, 8:00 to 17:00 New York), or every exchange fifteen minutes late outside IEX&apos;s hours{eodhdOk ? "; or EODHD's real-time stream on your own EODHD plan" : ""}; coins from Alpaca&apos;s crypto venue, around the clock, with the full order book. Charts by TradingView Lightweight Charts. Not investment advice.</p>

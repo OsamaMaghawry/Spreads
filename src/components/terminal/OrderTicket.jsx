@@ -3,6 +3,7 @@ import { invokeFunction } from "@/lib/functions";
 import { px, sizeText, isCrypto, amountToQty, orderState, orderNews, sessionOf, ticketChoices } from "@/lib/terminal";
 import { groupNews } from "@/lib/accountGroup";
 import { onOrder } from "./orderFeed";
+import { followGroup } from "./runHotkey";
 import { fmtMoney } from "@/lib/format";
 
 // The ticket, for shares and coins. Two steps, review then send, like a desk
@@ -262,8 +263,8 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     const fresh = groupIds.length && shares?.lead && Date.now() - shares.at < 30000;
     const leadBook = fresh ? { equity: shares.lead.equity, buyingPower: shares.lead.buyingPower, held: shares.lead.held } : undefined;
     const r = await invokeFunction("terminal", { action: "order", accountId: account.id, order: { ...order(), leadBook }, group: groupSend });
-    const g = groupNews(r?.data?.group, "sent", unitName);
-    if (g) onNotify({ key: `${key}g`, ...g });
+    // Each other account's order followed until it fills or ends, in the one pop-up.
+    followGroup(r?.data?.group, { key: `${key}g`, verb: "sent", unit: unitName, notify: onNotify, refresh: onPlaced });
     setBusy(false);
     setReview(false);
     if (r?.data?.error) onNotify({ key, ...orderNews({ error: r.data.error }) });

@@ -27,7 +27,7 @@ export const prefetchStep = (accountId, symbol) => { if (accountId && symbol) st
  * from the stream for the account on screen (orderFeed.js), and by asking,
  * for that account's updates the stream missed and for the other accounts.
  */
-export function trackOrder({ accountId, id, key, base, notify, onChange, onFilled, onUnfilled }) {
+export function trackOrder({ accountId, id, key, base, notify, onChange, onUpdate, onFilled, onUnfilled }) {
   let polls = 0;
   let last = `${base.status}|0`;
   let done = false;
@@ -35,7 +35,7 @@ export function trackOrder({ accountId, id, key, base, notify, onChange, onFille
   const see = (o) => {
     if (done) return;
     const now = `${o.status}|${o.filled}`;
-    if (now !== last) { last = now; notify({ key, ...orderNews({ ...base, ...o }) }); onChange?.(); }
+    if (now !== last) { last = now; notify({ key, ...orderNews({ ...base, ...o }) }); onUpdate?.(o); onChange?.(); }
     if (!orderState(o.status).final) return;
     done = true;
     off?.();
@@ -56,6 +56,26 @@ export function trackOrder({ accountId, id, key, base, notify, onChange, onFille
     if (!done && polls < 40) setTimeout(tick, polls < 15 ? 1000 : 3000);
   };
   setTimeout(tick, 600);
+}
+
+/**
+ * The other accounts' orders followed to the end, in the one group pop-up:
+ * filled, part filled, still waiting, or ended unfilled (28 Oct: their sells
+ * sat unfilled or refused while the screen showed only this account's fills,
+ * and the positions stacked up). Each change also refreshes the screen.
+ */
+export function followGroup(rows, { key, verb, unit, notify, refresh }) {
+  const list = (Array.isArray(rows) ? rows : []).map((r) => ({ ...r, track: !!r.orderId && r.ok !== false }));
+  const show = () => { const g = groupNews(list, verb, unit); if (g) notify({ key, ...g }); };
+  list.forEach((r, i) => {
+    if (!r.track) return;
+    trackOrder({
+      accountId: r.accountId, id: r.orderId, key: `${key}${i}`, base: { status: r.status || "new" }, notify: () => {},
+      onUpdate: (o) => { list[i] = { ...list[i], status: o.status, filled: o.filled, avgPrice: o.avgPrice }; show(); },
+      onChange: refresh
+    });
+  });
+  show();
 }
 
 // After an exit: a partial exit took the stop and target off to free the
@@ -149,7 +169,7 @@ export async function runHotkey(h, ctx) {
       ...(group.length && ctx.view ? { leadBook: { equity: ctx.view.equity ?? null, buyingPower: ctx.view.buyingPower ?? null, held: heldNow } } : {})
     };
     const r = await invokeFunction("terminal", { action: "order", accountId: account.id, order, group }).catch((e) => ({ data: { error: String(e?.message || e) } }));
-    tellGroup(r?.data?.group, "sent");
+    followGroup(r?.data?.group, { key: `${key}g`, verb: "sent", unit, notify, refresh });
     if (r?.data?.skipped) { notify({ key, tone: "muted", title: `Not on ${account.name || "this account"}`, detail: `${r.data.skipped} The other accounts took their own sizes.` }); refresh?.(); return; }
     if (r?.data?.error) { notify({ key, ...orderNews({ error: r.data.error }) }); return; }
     const placed = { ...base, id: r.data.orderId, status: r.data.status || "new" };
