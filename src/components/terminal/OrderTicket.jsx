@@ -4,6 +4,7 @@ import { px, sizeText, isCrypto, amountToQty, orderState, orderNews, sessionOf, 
 import { groupNews } from "@/lib/accountGroup";
 import { onOrder } from "./orderFeed";
 import { followGroup } from "./runHotkey";
+import useAccountSetting from "./useAccountSetting";
 import { fmtMoney } from "@/lib/format";
 
 // The ticket, for shares and coins. Two steps, review then send, like a desk
@@ -57,6 +58,11 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   const [review, setReview] = useState(false);
   const [busy, setBusy] = useState(false);
   const [asset, setAsset] = useState(null);
+  // Part shares (28 Oct: "be able to execute as fractional shares"), for a
+  // stock Alpaca trades in fractions: on, the quantity takes decimals and an
+  // amount in dollars becomes its exact part-share quantity. Kept with the account.
+  const [partsOn, setPartsOn] = useAccountSetting("fractional", { localKey: "terminal.fractional", initial: () => false, clean: (v) => v === true });
+  const parts = !crypto && !!asset?.fractionable && partsOn;
   const [unit, setUnit] = useState("qty");
   const [amount, setAmount] = useState("");
   const [tracked, setTracked] = useState(null);
@@ -191,8 +197,8 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   const dollars = unit === "usd" ? Number(amount) || 0 : 0;
   const notional = unit === "usd" && type === "market" && (crypto || !!asset?.fractionable);
   const typed = unit === "usd"
-    ? (notional ? (ref ? dollars / ref : 0) : amountToQty(dollars, at, { crypto, step: asset?.minTradeIncrement }))
-    : crypto ? Number(qty) || 0 : Math.floor(Number(qty)) || 0;
+    ? (notional ? (ref ? dollars / ref : 0) : parts ? amountToQty(dollars, at, { crypto: true, step: 1e-9 }) : amountToQty(dollars, at, { crypto, step: asset?.minTradeIncrement }))
+    : crypto || parts ? Number(qty) || 0 : Math.floor(Number(qty)) || 0;
   // A sale typed as the holding shown, rounded for display, is the holding:
   // 0.49875 on screen is 0.498749999 at the broker.
   const sellAll = side === "sell" && held > 0 && typed > held && typed - held < 1e-8;
@@ -212,6 +218,11 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   useEffect(() => {
     if (notional && !crypto) { setTif("day"); setExtended(false); setBracket(false); }
   }, [notional, crypto]);
+  // Part of a share: Alpaca takes it for the day and without a take-profit and stop-loss attached.
+  const partShare = !crypto && n > 0 && !Number.isInteger(n);
+  useEffect(() => {
+    if (partShare) { setTif("day"); setBracket(false); }
+  }, [partShare]);
   // What the order can take now, and why not. Selling shares held (or buying
   // back a short) closes them: a bracket's legs would open the other way.
   const closing = !crypto && ((side === "sell" && held > 0) || (side === "buy" && held < 0));
@@ -311,6 +322,26 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
           </button>
         ))}
       </div>
+      {/* What Alpaca allows on this stock (28 Oct: "if the stock fractional or
+          not ... And shortable or not too"), from its asset record. */}
+      {!crypto && asset && (
+        <div className="flex flex-wrap items-center gap-1 text-[10px]">
+          <span className={`rounded px-1.5 py-0.5 font-medium ${asset.fractionable ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600"}`}
+            title={asset.fractionable ? "Alpaca trades part shares of it: market, limit, stop and stop limit, for the day; before 9:30 and after 16:00 as a limit." : "Alpaca trades it in whole shares only."}>
+            {asset.fractionable ? "Fractional" : "Whole shares only"}
+          </span>
+          <span className={`rounded px-1.5 py-0.5 font-medium ${asset.shortable ? (asset.easyToBorrow ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800") : "bg-rose-50 text-rose-800"}`}
+            title={asset.shortable ? (asset.easyToBorrow ? "Alpaca can lend it for a short sale." : "Shortable, but hard to borrow: a short may be refused or cost more to hold.") : "Alpaca does not lend it: it cannot be sold short."}>
+            {asset.shortable ? (asset.easyToBorrow ? "Shortable · easy to borrow" : "Shortable · hard to borrow") : "Not shortable"}
+          </span>
+          {asset.fractionable && (
+            <label className="ml-auto flex items-center gap-1 text-slate-600" title="Quantities in part shares, and an amount in dollars turned into its exact part-share quantity. For the day; no take-profit and stop-loss attached.">
+              <input type="checkbox" checked={partsOn} onChange={(e) => { setPartsOn(e.target.checked); setReview(false); }} />
+              Part shares
+            </label>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <div>
@@ -326,8 +357,8 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
             <input id="t-qty" className={input} inputMode="decimal" value={amount} placeholder="e.g. 500"
               onChange={(e) => { setAmount(e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1")); setReview(false); }} />
           ) : (
-            <input id="t-qty" className={input} inputMode={crypto ? "decimal" : "numeric"} value={qty} placeholder={crypto && asset?.minOrderSize ? `min ${asset.minOrderSize}` : ""}
-              onChange={(e) => { setQty(crypto ? e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1") : e.target.value.replace(/[^\d]/g, "")); setReview(false); }} />
+            <input id="t-qty" className={input} inputMode={crypto || parts ? "decimal" : "numeric"} value={qty} placeholder={crypto && asset?.minOrderSize ? `min ${asset.minOrderSize}` : parts ? "e.g. 2.5" : ""}
+              onChange={(e) => { setQty(crypto || parts ? e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1") : e.target.value.replace(/[^\d]/g, "")); setReview(false); }} />
           )}
           {unit === "usd" && dollars > 0 && (
             <p className="mt-0.5 text-[10px] text-slate-500">

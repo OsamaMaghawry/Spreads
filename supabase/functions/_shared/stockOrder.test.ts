@@ -75,7 +75,10 @@ test("part of a share: for the day, no bracket, no trailing stop", () => {
   const r = stockOrderBody({ ...base, type: "stop", stopPrice: 330, qty: 2.534 }, "T") as any;
   assert.deepEqual([r.body.qty, r.body.time_in_force, r.body.stop_price], ["2.534", "day", "330.00"]);
   const why = (i: any) => (stockOrderBody(i, "T") as any).reason;
-  assert.match(why({ ...base, qty: 2.5, extendedHours: true }), /regular hours/);
+  // Before the open and after the close as a day limit, as Alpaca now takes it (28 Oct).
+  const ext = stockOrderBody({ ...base, qty: 2.5, extendedHours: true }, "T") as any;
+  assert.deepEqual([ext.ok, ext.body.qty, ext.body.extended_hours, ext.body.type, ext.body.time_in_force], [true, "2.5", true, "limit", "day"]);
+  assert.match(why({ ...base, type: "market", qty: 2.5, extendedHours: true }), /limit orders for the day/);
   assert.match(why({ ...base, qty: 2.5, takeProfit: 360, stopLoss: 335 }), /whole shares/);
   assert.match(why({ ...base, type: "trailing_stop", trailPercent: 2, qty: 2.5 }), /whole shares/);
 });

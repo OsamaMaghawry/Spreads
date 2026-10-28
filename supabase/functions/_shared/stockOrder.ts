@@ -68,13 +68,14 @@ export function stockOrderBody(input: StockOrderInput, clientId: string):
   if (qty === null || !(qty > 0)) return { ok: false, reason: "Enter how many shares." };
   // Part of a share: Alpaca takes it for the day, without a bracket, and not
   // as a trailing stop. Whole shares otherwise. (A position bought in dollars
-  // is usually fractional, and its stop must cover all of it.)
+  // is usually fractional, and its stop must cover all of it.) Before the open
+  // and after the close too, as a limit for the day (Alpaca's fractional
+  // trading page, read 28 Oct; the rule below for every extended-hours order).
   const fractional = !Number.isInteger(qty);
   if (fractional) {
     if (type === "trailing_stop") return { ok: false, reason: "A trailing stop needs whole shares." };
     if (tif !== "day") return { ok: false, reason: "Part of a share can be ordered for the day only." };
     if (num(input.takeProfit) !== null || num(input.stopLoss) !== null) return { ok: false, reason: "A take-profit and stop-loss need whole shares." };
-    if (input.extendedHours) return { ok: false, reason: "Part of a share trades in regular hours only." };
     if (Math.abs(Math.round(qty * 1e9) - qty * 1e9) > 1e-3) return { ok: false, reason: "At most nine decimal places of a share." };
   }
 
