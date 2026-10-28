@@ -372,7 +372,7 @@ export default function AccountAnalysis() {
     return (
       <div className="flex flex-col items-center justify-center py-32 gap-3 text-slate-500">
         <RefreshCw className="w-6 h-6 animate-spin" />
-        <span className="text-sm">Crunching performance…</span>
+        <span className="text-sm">Loading…</span>
       </div>
     );
   }
@@ -413,7 +413,7 @@ export default function AccountAnalysis() {
           {stats && (
             <ExportPdfButton
               targetRef={reportRef}
-              title={data?.account ? `${data.account.name} — Performance Analysis` : "Performance Analysis"}
+              title={data?.account ? `${data.account.name} — Analysis` : "Analysis"}
               subtitle={`${stats.firstDate} → ${stats.lastDate}${range.from || range.to ? " (filtered)" : ""} · ${strategy === "all" ? "All strategies" : strategyLabel(strategy)} · Closed trades (options and shares sold) · equity ${equity ? `$${equity.toLocaleString()}` : "n/a"} · generated ${new Date().toLocaleString()}`}
               isPaper={!!data?.account?.is_paper}
               viewLabel="Closed trades (options and shares sold)"

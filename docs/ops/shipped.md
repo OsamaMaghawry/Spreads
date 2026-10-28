@@ -640,3 +640,10 @@ English. Newest first.
 - 2026-10-27 · (staging) Terminal: every setting (group accounts and sizes, layout, charts, screener filters) is kept with the person's account, not the browser (`d3e98f6`, `75d2ee8`).
 - 2026-10-27 · (staging) Terminal hotkeys trade the account on screen at its own size, and a small account no longer blocks the rest of a group order (`f478b46`).
 - 2026-10-27 · (staging) Group sales keep each account's own size; an open page now says when a new version is out (`fe46128`).
+- 2026-10-28 · (staging) Terminal: stop loss, take profit and price changes go to every picked account at once, and every picked account's holding and waiting orders are on screen with their orders followed to a fill or a miss (`32e5c56`, `28f2011`).
+- 2026-10-28 · (staging) Terminal: a stop that fires outside regular hours sells at the bid and follows it until filled, and the open terminal guards every account (`ca4986d`).
+- 2026-10-28 · (staging) Terminal ticket: fractional and shortable shares, part-share orders also before and after the market (`ecb1472`).
+- 2026-10-28 · (staging) Terminal: a sell key replaces the account's earlier unfilled sells, a sale of shares held sells at least one, a key too small for an account skips it with a plain reason, and held-shares refusals are said plainly (`06a8da9`, `4ffce64`, `accefcf`).
+- 2026-10-28 · (staging) Terminal: fills appear the moment Alpaca reports them, every tab shares one live connection so a second window no longer silences the tape, and any symbol can be charted and added to the watchlist from the chart (`72d54c7`, `9d0d12a`, `7805440`).
+- 2026-10-28 · (staging) Wording made consistent: the Analysis page is titled Analysis (not "Performance Analysis"), its loading text and empty state say Loading… and Connect, the Terminal tab says Scanner, and the landing footer button reads "Connect your broker for free" (`6a3e339`, `c304cbd`).
+- 2026-10-28 · (staging) The confirm-signup email link now uses the brand purple instead of a stray indigo (`c026467`).

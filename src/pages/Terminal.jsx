@@ -568,7 +568,7 @@ export default function Terminal() {
         <h1 className="mr-2 text-lg font-semibold">Terminal</h1>
         <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">Staging test</span>
         <div className="flex rounded-md border border-slate-300 text-sm" role="tablist" aria-label="Page">
-          {[["trade", "Trade"], ["screen", "Screener"]].map(([id, name]) => (
+          {[["trade", "Trade"], ["screen", "Scanner"]].map(([id, name]) => (
             <button key={id} type="button" role="tab" aria-selected={page === id} onClick={() => setPage(id)}
               className={`px-3 py-1 first:rounded-l-md last:rounded-r-md ${page === id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}>{name}</button>
           ))}
