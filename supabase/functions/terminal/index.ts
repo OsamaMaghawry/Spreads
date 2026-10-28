@@ -1158,6 +1158,15 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     const [sym, side, qty] = [extra[0] || "AAPL", extra[1] === "SELL" ? "sell" : "buy", Number(extra[2]) || 1];
     return { account: house.name, paper: !!house.is_paper, symbol: sym, side, qty, refused: await liveLimit(house, sym, side as "buy" | "sell", qty, null, null) };
   }
+  if (only === "assets") {
+    // What Alpaca allows on each symbol given, and whether the account takes
+    // part shares at all (its configuration), for the ticket's badges and switch.
+    const [config, list] = await Promise.all([
+      alpacaFetch(`${tradingBase(house)}/account/configurations`, house).catch((e: Error) => ({ error: e.message })),
+      Promise.all(extra.map(async (sym) => ({ sym, asset: await assetFor(house, cryptoSymbol(String(sym).toUpperCase())).catch(() => null) })))
+    ]);
+    return { account: house.name, paper: !!house.is_paper, fractionalTrading: (config as any)?.fractional_trading ?? null, config, assets: list };
+  }
   if (only === "orderstream") {
     // Whether Alpaca's trading stream takes this account's sign-in, and what
     // it says in a few seconds (nothing is sent but the sign-in and "listen").

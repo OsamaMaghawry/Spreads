@@ -198,7 +198,10 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   const notional = unit === "usd" && type === "market" && (crypto || !!asset?.fractionable);
   const typed = unit === "usd"
     ? (notional ? (ref ? dollars / ref : 0) : parts ? amountToQty(dollars, at, { crypto: true, step: 1e-9 }) : amountToQty(dollars, at, { crypto, step: asset?.minTradeIncrement }))
-    : crypto || parts ? Number(qty) || 0 : Math.floor(Number(qty)) || 0;
+    : crypto || parts ? Number(qty) || 0 : Number.isInteger(Number(qty)) ? Number(qty) || 0 : 0;
+  // Part of a share typed where it cannot go: said, never rounded into whole
+  // shares (28 Oct: "0.5" read as 5 once the dot was dropped).
+  const wholeOnly = !crypto && !parts && unit !== "usd" && qty !== "" && !Number.isInteger(Number(qty));
   // A sale typed as the holding shown, rounded for display, is the holding:
   // 0.49875 on screen is 0.498749999 at the broker.
   const sellAll = side === "sell" && held > 0 && typed > held && typed - held < 1e-8;
@@ -358,7 +361,12 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
               onChange={(e) => { setAmount(e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1")); setReview(false); }} />
           ) : (
             <input id="t-qty" className={input} inputMode={crypto || parts ? "decimal" : "numeric"} value={qty} placeholder={crypto && asset?.minOrderSize ? `min ${asset.minOrderSize}` : parts ? "e.g. 2.5" : ""}
-              onChange={(e) => { setQty(crypto || parts ? e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1") : e.target.value.replace(/[^\d]/g, "")); setReview(false); }} />
+              onChange={(e) => { setQty(e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1")); setReview(false); }} />
+          )}
+          {wholeOnly && (
+            <p className="mt-0.5 text-[10px] text-amber-700">
+              {asset?.fractionable ? "Part of a share: turn on Part shares above to buy it." : `${symbol} trades in whole shares only at Alpaca.`}
+            </p>
           )}
           {unit === "usd" && dollars > 0 && (
             <p className="mt-0.5 text-[10px] text-slate-500">
