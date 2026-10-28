@@ -9,6 +9,7 @@ Every entry carries: the user problem in the user's words, its evidence, the
 smallest test that could disprove it, the kill criterion, and a cost guess.
 
 Last run: **2026-09-01** (vp-product, Tuesday cadence).
+Reconciled against shipments: **2026-10-28** (end of day) — none of the three proposals has shipped, even in part. Checked on `origin/staging`: no quoted-width or exit-cost field in the scan results, no probability-of-profit column or sort, no `scan_runs` table (migrations run to `0065`). Staging's shipped work since 09-04 is the Terminal (administrators only), the read-only Claude connector, read-only broker connections (lab), stop/cover/earnings fixes — none is scanner capability. Slots, evidence and kill criteria unchanged; no proposals added today.
 
 ## Open proposals
 
