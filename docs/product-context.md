@@ -468,6 +468,13 @@ The app (`src/`), landing (`landing/`), blog (`content/blog/`), auth emails
 (`supabase/auth/`), the exported PDF (`ExportPdfButton.jsx`), and the live
 pages at `deltamint.app` and `dashboard.deltamint.app`.
 
+### Rules added by the audit (proposed, 2026-W44)
+
+- **(proposed)** Em and en dashes appear nowhere on public surfaces (landing, email, PDF); in the app only the standalone **—** for an untrusted figure.
+- **(proposed)** Surface names not listed above: Option chain, Use with Claude, Billing, Admin, Terminal (admin-only; tabs Trade and Scanner).
+- **(proposed)** Nav labels are all Title Case or all sentence case; today "Option chain" is the odd one.
+- **(proposed)** "Connect", never "Link", for a broker account, on every surface including landing CTAs.
+
 ---
 
 # Positioning and market
