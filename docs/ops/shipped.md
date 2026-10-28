@@ -645,3 +645,5 @@ English. Newest first.
 - 2026-10-28 · (staging) Terminal ticket: fractional and shortable shares, part-share orders also before and after the market (`ecb1472`).
 - 2026-10-28 · (staging) Terminal: a sell key replaces the account's earlier unfilled sells, a sale of shares held sells at least one, a key too small for an account skips it with a plain reason, and held-shares refusals are said plainly (`06a8da9`, `4ffce64`, `accefcf`).
 - 2026-10-28 · (staging) Terminal: fills appear the moment Alpaca reports them, every tab shares one live connection so a second window no longer silences the tape, and any symbol can be charted and added to the watchlist from the chart (`72d54c7`, `9d0d12a`, `7805440`).
+- 2026-10-28 · (staging) Wording made consistent: the Analysis page is titled Analysis (not "Performance Analysis"), its loading text and empty state say Loading… and Connect, the Terminal tab says Scanner, and the landing footer button reads "Connect your broker for free" (`6a3e339`, `c304cbd`).
+- 2026-10-28 · (staging) The confirm-signup email link now uses the brand purple instead of a stray indigo (`c026467`).
