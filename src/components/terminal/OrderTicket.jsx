@@ -476,7 +476,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
       </div>
 
       {!tradable && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">Orders go to paper accounts only during this test. Choose a paper account to trade.</p>}
-      {live && <p className="rounded-md border border-rose-300 bg-rose-50 px-2 py-1.5 text-xs font-medium text-rose-800">Live account: real money. Each order that opens or adds to a position is limited to $5,000 during this test; selling what you hold, stops and exits are not.</p>}
+      {live && <p className="rounded-md border border-rose-300 bg-rose-50 px-2 py-1.5 text-xs font-medium text-rose-800">Live account: real money.</p>}
       {short && !crypto && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">You hold {Math.max(0, held)} shares, so this sells {n - Math.max(0, held)} you do not own: a short sale.</p>}
       {short && crypto && !dust && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">You hold {sizeText(Math.max(0, held))} {coin}. Crypto cannot be sold short, so a sale is limited to what you hold.</p>}
       {dust && side === "sell" ? (

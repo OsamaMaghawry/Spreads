@@ -267,8 +267,10 @@ before the open and the owner was left unable to sell. His words: "When I say
 activate on live meaning everything so far not to select on your own."
 
 Limits he set himself still hold: his own live Alpaca accounts only (never
-SnapTrade, never another person's live account), and $5,000 for each live
-order that opens or adds to a position.
+SnapTrade, never another person's live account). The $5,000 limit per live
+order that opens or adds to a position was his too, and he removed it on
+28 Oct ("Remove the 5k limit for live orders"): do not put a size cap back
+without his say.
 
 **Every terminal setting is kept with his account, never only in the
 browser.** Anything he sets or picks (sizes, ticked accounts, layout,

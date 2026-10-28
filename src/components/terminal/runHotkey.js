@@ -137,8 +137,7 @@ export async function runHotkey(h, ctx) {
   const tellGroup = (rows, verb) => { const g = groupNews(rows, verb, unit); if (g) notify({ key: `${key}g`, ...g }); };
   const label = `${h.keys} · ${describe(h)}`;
   if (!account?.id) return;
-  // Paper accounts, and the owner's own live accounts (the server checks again,
-  // and refuses a live order over $5,000 that opens or adds to a position).
+  // Paper accounts, and the owner's own live accounts (the server checks again).
   if (account.type !== "Paper" && !(account.type === "Live" && ctx.liveOk)) {
     notify({ key, tone: "bad", title: "Hotkeys trade paper accounts only", detail: "Choose a paper account to use them during this test." });
     return;

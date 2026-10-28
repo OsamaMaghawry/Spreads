@@ -578,7 +578,7 @@ export default function Terminal() {
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name} · {a.type}</option>)}
         </select>
         {account?.type === "Live" && (
-          <span className="rounded bg-rose-600 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-white" title={liveOk ? "Orders and hotkeys here use real money. Each order that opens or adds to a position is limited to $5,000 during this test." : "A live account: look only. Orders go to paper accounts during this test."}>
+          <span className="rounded bg-rose-600 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-white" title={liveOk ? "Orders and hotkeys here use real money." : "A live account: look only. Orders go to paper accounts during this test."}>
             LIVE{liveOk ? " · REAL MONEY" : " · VIEW ONLY"}
           </span>
         )}

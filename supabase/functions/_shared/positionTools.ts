@@ -105,9 +105,8 @@ export function targetPlan(position: Position, input: StopInput):
  */
 /**
  * How much of an order opens or adds to a position; the rest closes what is
- * held (a sale of shares held, a buy back of a short). Only the opening part
- * counts against a live account's limit per order: a stop or an exit is never
- * stopped by it (26 Oct: live accounts, $5,000 an order, the owner's).
+ * held (a sale of shares held, a buy back of a short). It was what counted
+ * against the live accounts' $5,000 limit per order, removed on 28 Oct.
  */
 export function openingQty(side: "buy" | "sell", qty: number, held: number) {
   const q = Math.abs(num(qty) || 0);
