@@ -18,6 +18,7 @@ import { historyRow, premarket, nyMoment } from "../_shared/screenHistory.ts";
 import { usSession, stopPlan, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit, openingQty } from "../_shared/positionTools.ts";
 import { inBackground } from "../_shared/background.ts";
 import { allocate } from "../_shared/proRata.ts";
+import { orderStream } from "../_shared/orderStream.ts";
 import { isOwnerEmail, isAdminUser } from "../_shared/admin.ts";
 import { guardHours } from "../_shared/stopGuard.ts";
 import { stopsToWatch, extStopsOn, watchEodhd, checkIex, handBackFired } from "../_shared/stopGuardRun.ts";
@@ -1149,6 +1150,17 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     const [sym, side, qty] = [extra[0] || "AAPL", extra[1] === "SELL" ? "sell" : "buy", Number(extra[2]) || 1];
     return { account: house.name, paper: !!house.is_paper, symbol: sym, side, qty, refused: await liveLimit(house, sym, side as "buy" | "sell", qty, null, null) };
   }
+  if (only === "orderstream") {
+    // Whether Alpaca's trading stream takes this account's sign-in, and what
+    // it says in a few seconds (nothing is sent but the sign-in and "listen").
+    const said: string[] = [];
+    const seen: any[] = [];
+    const feed = orderStream(!!house.is_paper, { token: house.oauth_access_token, key: house.api_key, secret: house.api_secret }, (m) => seen.push(m), said);
+    feed.start();
+    await new Promise((r) => setTimeout(r, Math.min(10, Math.max(2, Number(seconds) || 4)) * 1000));
+    feed.close();
+    return { account: house.name, paper: !!house.is_paper, signIn: house.oauth_access_token ? "oauth" : "key pair", said, updates: seen.slice(0, 5) };
+  }
   if (only === "allocate") {
     // Each group account's share of an order, without sending it:
     // [SYMBOL, SIDE, QTY, groupId...], the account given leading.
@@ -1269,6 +1281,8 @@ async function lastTradePrice(account: any, symbol: string) {
 // A live order that opens or adds to a position, over the limit, is refused.
 async function liveLimit(account: any, symbol: string, side: "buy" | "sell", qty: number, notional: number | null, price: number | null) {
   if (account.is_paper) return null;
+  // The whole order within the limit: no need to read what is held first.
+  if ((notional ?? (price ? qty * price : Infinity)) <= LIVE_ORDER_MAX) return null;
   const pos = await positionOf(account, symbol).catch(() => null);
   const held = pos ? (pos.side === "short" ? -Math.abs(pos.qty) : Math.abs(pos.qty)) : 0;
   const px = price ?? (notional ? null : await lastTradePrice(account, symbol));
@@ -1342,7 +1356,7 @@ const groupRule = (ids: unknown, id: string) => {
 
 async function groupAccounts(admin: any, user: any, lead: any, ids: unknown) {
   return await Promise.all(groupIds(ids, lead).map(async (id) => ({
-    id, account: await loadAccount(admin, id, user.id, { cacheMs: 30000 }).catch(() => null)
+    id, account: await loadAccount(admin, id, user.id, { cacheMs: 30000, staleMs: 600000 }).catch(() => null)
   })));
 }
 
@@ -1365,8 +1379,15 @@ async function allocation(admin: any, user: any, lead: any, ids: unknown, input:
   const symbol = crypto ? cryptoSymbol(input?.symbol) : String(input?.symbol || "").toUpperCase().trim();
   const side = input?.side === "sell" ? "sell" as const : "buy" as const;
   const group = await groupAccounts(admin, user, lead, ids);
+  // The account on screen as the browser has it, where it says (so its own
+  // order can go at once, before the others' shares are worked out); read
+  // here otherwise.
+  const given = input?.leadBook && typeof input.leadBook === "object" ? input.leadBook : null;
+  const known = given && num(given.held) !== null && (num(given.equity) !== null || num(given.buyingPower) !== null)
+    ? { id: lead.id, name: lead.name, equity: num(given.equity), buyingPower: num(given.buyingPower), held: num(given.held) || 0, qtyText: null }
+    : null;
   const [leadBook, ...books] = await Promise.all([
-    bookOf(lead, symbol),
+    known ? Promise.resolve(known) : bookOf(lead, symbol),
     ...group.map((g) => (g.account && canTrade(user, g.account) ? bookOf(g.account, symbol).catch((e: Error) => ({ error: brokerRefusal(String(e?.message || e)) })) : Promise.resolve(null)))
   ]);
   const ready = (books.filter((b: any) => b && !b.error) as any[]).map((b) => ({ ...b, rule: groupRule(ids, b.id) }));
@@ -1388,7 +1409,20 @@ async function allocation(admin: any, user: any, lead: any, ids: unknown, input:
 async function orderForGroup(admin: any, user: any, lead: any, ids: unknown, input: any) {
   // Every share is worked out from the books as they stand before anything is
   // sent: the lead's own sale must not change what the others' shares read.
-  const plan = await allocation(admin, user, lead, ids, input);
+  // With the lead's book from the browser, its order goes at once, alongside
+  // the reading of the others'; without it, after.
+  const leadOff = num(input?.qty) === null && num(input?.notional) === null;
+  const early = input?.leadBook && !leadOff ? placeOrder(admin, user, lead, input) : null;
+  let plan: Awaited<ReturnType<typeof allocation>>;
+  try {
+    plan = await allocation(admin, user, lead, ids, input);
+  } catch (e) {
+    if (!early) throw e;
+    // This account's order went already: said, with why the others' did not.
+    const r = await early;
+    const why = `not sent: ${String((e as Error)?.message || e)}`;
+    return { status: r.status, body: { ...r.body, group: groupIds(ids, lead).map((id) => ({ ...groupRow(id, null, { skip: why }), status: "skipped" })) } };
+  }
   const send = (row: any) => {
     const account = plan.accounts.find((g) => g.id === row.accountId)?.account;
     if (row.skip || !account) return Promise.resolve({ ...row, status: "skipped" });
@@ -1398,9 +1432,8 @@ async function orderForGroup(admin: any, user: any, lead: any, ids: unknown, inp
   };
   // Too small on the account on screen alone (a hotkey's size there under one
   // share): nothing sent there, the others still take theirs.
-  const leadOff = num(input?.qty) === null && num(input?.notional) === null;
   const [r, ...group] = await Promise.all([
-    leadOff ? Promise.resolve({ status: 200, body: { skipped: String(input?.leadSkip || "Too small on this account.") } as any }) : placeOrder(admin, user, lead, input),
+    leadOff ? Promise.resolve({ status: 200, body: { skipped: String(input?.leadSkip || "Too small on this account.") } as any }) : early ?? placeOrder(admin, user, lead, input),
     ...plan.group.map(send)
   ]);
   return { status: r.status, body: { ...r.body, group } };
@@ -1886,9 +1919,12 @@ async function cancelOrders(account: any, symbol: string) {
 // read for each request and never kept.
 let lab = { at: 0, on: false };
 async function labOn(admin: any) {
-  if (Date.now() - lab.at < 30000) return lab.on;
-  lab = { at: Date.now(), on: (await readSettings(admin)).terminalLab };
-  return lab.on;
+  const age = Date.now() - lab.at;
+  const read = async () => { lab = { at: Date.now(), on: (await readSettings(admin)).terminalLab }; return lab.on; };
+  if (age < 30000) return lab.on;
+  // Known within the last ten minutes: answered at once, read again behind it.
+  if (age < 600000) { read().catch(() => {}); return lab.on; }
+  return await read();
 }
 const callers = new Map<string, { at: number; user: any; isAdmin: boolean }>();
 // The caller, and whether they are an administrator: the terminal is an
@@ -1896,15 +1932,30 @@ const callers = new Map<string, { at: number; user: any; isAdmin: boolean }>();
 // admin-only features. No one should see it"). Kept a minute with the token.
 async function caller(req: Request, admin: any) {
   const token = req.headers.get("Authorization") || "";
+  const check = async () => {
+    const user = await requireUser(req);
+    if (!user) { callers.delete(token); return null; }
+    const { isAdmin } = await isAdminUser(user, admin);
+    const seen = { at: Date.now(), user, isAdmin };
+    if (callers.size > 500) callers.clear();
+    callers.set(token, seen);
+    return seen;
+  };
   const hit = callers.get(token);
-  if (hit && Date.now() - hit.at < 60000) return hit;
-  const user = await requireUser(req);
-  if (!user) return null;
-  const { isAdmin } = await isAdminUser(user, admin);
-  const seen = { at: Date.now(), user, isAdmin };
-  if (callers.size > 500) callers.clear();
-  callers.set(token, seen);
-  return seen;
+  const age = hit ? Date.now() - hit.at : Infinity;
+  if (hit && age < 60000) return hit;
+  // Checked within the last ten minutes and not yet run out: let through at
+  // once and checked again behind it, so an order never waits on the sign-in check.
+  if (hit && age < 600000 && expiresAt(token) > Date.now()) { check().catch(() => callers.delete(token)); return hit; }
+  return await check();
+}
+// When the sign-in token says it runs out (0 when it cannot be read).
+function expiresAt(token: string) {
+  try {
+    const part = (token.replace(/^Bearer\s+/i, "").split(".")[1] || "").replace(/-/g, "+").replace(/_/g, "/");
+    const exp = Number(JSON.parse(atob(part.padEnd(Math.ceil(part.length / 4) * 4, "="))).exp);
+    return Number.isFinite(exp) ? exp * 1000 : 0;
+  } catch { return 0; }
 }
 
 Deno.serve(async (req) => {
@@ -1939,7 +1990,7 @@ Deno.serve(async (req) => {
     if (!accountId) return jsonResponse({ error: "Choose an account." }, 400);
     // The account's row (credentials still encrypted) kept 30 seconds by this
     // instance: a burst of key presses reads the database once.
-    const account = await loadAccount(admin, accountId, user.id, { cacheMs: 30000 });
+    const account = await loadAccount(admin, accountId, user.id, { cacheMs: 30000, staleMs: 600000 });
 
     const symbol = String(body.symbol || "").toUpperCase().trim();
     if (action === "bars") {

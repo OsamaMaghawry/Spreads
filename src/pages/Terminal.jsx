@@ -18,6 +18,7 @@ import Toasts from "@/components/terminal/Toasts";
 import Screener from "@/components/terminal/Screener";
 import HotkeysDialog from "@/components/terminal/Hotkeys";
 import { runHotkey, prefetchStep } from "@/components/terminal/runHotkey";
+import { noteOrder } from "@/components/terminal/orderFeed";
 import { comboOf, cleanHotkeys } from "@/lib/hotkeys";
 import { Positions, Orders, AccountSummary } from "@/components/terminal/Panels";
 import useReplay from "@/components/terminal/useReplay";
@@ -289,6 +290,20 @@ export default function Terminal() {
     loadView();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [listen, notify, loadView, fireNews]);
+  // The account's orders as Alpaca moves them (orderFeed.js): the ticket and
+  // the hotkeys follow their own; any fill or end, from here or elsewhere,
+  // brings the positions and orders up to date at once rather than at the next check.
+  useEffect(() => {
+    let t = null;
+    const stop = listen((m) => {
+      if (m.type !== "order") return;
+      noteOrder(m);
+      if (!/fill|canceled|expired|rejected|replaced/.test(m.event)) return;
+      clearTimeout(t);
+      t = setTimeout(loadView, 150);
+    });
+    return () => { stop(); clearTimeout(t); };
+  }, [listen, loadView]);
   useEffect(() => {
     if (!accountId) return;
     invokeFunction("terminal", { action: "guardFires", accountId }).then((r) => {

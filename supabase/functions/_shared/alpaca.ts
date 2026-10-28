@@ -135,14 +135,15 @@ export async function getSpreadQuote(account, shortSymbol, longSymbol, callShort
 // `cacheMs`: a caller that makes many quick requests (the staging terminal's
 // hotkeys) may keep the account's row for a few seconds in this instance, as
 // stored, credentials still encrypted; they are decrypted afresh below for
-// each request. Off unless asked for.
+// each request. Off unless asked for. `staleMs`: past `cacheMs` and up to
+// this age, the kept row is used at once and read again behind it, so an order
+// never waits on the database (the terminal's functions run beside the broker
+// in Virginia; staging's database is in California, about 120 ms away).
 const rowCache = new Map<string, { at: number; row: any }>();
 
-export async function loadAccount(admin, accountId, userId, { readOnly = false, cacheMs = 0 } = {}) {
+export async function loadAccount(admin, accountId, userId, { readOnly = false, cacheMs = 0, staleMs = 0 } = {}) {
   const key = `${accountId}|${userId}`;
-  const hit = cacheMs > 0 ? rowCache.get(key) : null;
-  let data = hit && Date.now() - hit.at < cacheMs ? hit.row : null;
-  if (!data) {
+  const read = async () => {
     const r = await admin
       .from("trading_accounts")
       .select("*")
@@ -150,12 +151,20 @@ export async function loadAccount(admin, accountId, userId, { readOnly = false, 
       .eq("user_id", userId)
       .maybeSingle();
     if (r.error) throw new Error(r.error.message);
-    data = r.data;
-    if (data && cacheMs > 0) {
+    if (r.data && cacheMs > 0) {
       if (rowCache.size > 200) rowCache.clear();
-      rowCache.set(key, { at: Date.now(), row: data });
-    }
+      rowCache.set(key, { at: Date.now(), row: r.data });
+    } else rowCache.delete(key);
+    return r.data;
+  };
+  const hit = cacheMs > 0 ? rowCache.get(key) : null;
+  const age = hit ? Date.now() - hit.at : Infinity;
+  let data = hit && age < cacheMs ? hit.row : null;
+  if (!data && hit && age < Math.max(cacheMs, staleMs)) {
+    data = hit.row;
+    read().catch(() => rowCache.delete(key));
   }
+  if (!data) data = await read();
   if (!data) throw new Error("Trading account not found");
   // An account read through SnapTrade has no Alpaca credentials, and nothing
   // that loads an account through here -- orders, quotes, chains, scans --

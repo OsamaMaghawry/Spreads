@@ -2,6 +2,7 @@ import { invokeFunction } from "@/lib/functions";
 import { hotkeyOrder, describe, withOwnSize, hotkeyPercent } from "@/lib/hotkeys";
 import { orderNews, orderState, sessionOf, isCrypto, px, sizeText } from "@/lib/terminal";
 import { groupNews } from "@/lib/accountGroup";
+import { onOrder } from "./orderFeed";
 
 // What a pressed hotkey does: works out the order (lib/hotkeys.js) or asks the
 // server for the position action (functions/terminal "exit", "protect",
@@ -21,22 +22,38 @@ async function stepFor(accountId, symbol) {
 /** A coin's quantity step, read ahead of the first key press so it never waits on it. */
 export const prefetchStep = (accountId, symbol) => { if (accountId && symbol) stepFor(accountId, symbol).catch(() => {}); };
 
-/** Follow an order, telling the pop-up each time its state changes. */
+/**
+ * Follow an order, telling the pop-up each time its state changes: at once
+ * from the stream for the account on screen (orderFeed.js), and by asking,
+ * for that account's updates the stream missed and for the other accounts.
+ */
 export function trackOrder({ accountId, id, key, base, notify, onChange, onFilled, onUnfilled }) {
   let polls = 0;
   let last = `${base.status}|0`;
+  let done = false;
+  let off = null;
+  const see = (o) => {
+    if (done) return;
+    const now = `${o.status}|${o.filled}`;
+    if (now !== last) { last = now; notify({ key, ...orderNews({ ...base, ...o }) }); onChange?.(); }
+    if (!orderState(o.status).final) return;
+    done = true;
+    off?.();
+    if (o.status === "filled") onFilled?.(o);
+    else onUnfilled?.(o);
+  };
+  off = onOrder(id, (m) => {
+    see(m);
+    // Asked once more at the end, which also writes the result to the order's record.
+    if (done) invokeFunction("terminal", { action: "orderStatus", accountId, orderId: id }).catch(() => null);
+  });
+  if (done) off();
   const tick = async () => {
+    if (done) return;
     const r = await invokeFunction("terminal", { action: "orderStatus", accountId, orderId: id }).catch(() => null);
-    const o = r?.data?.order;
-    if (o) {
-      const now = `${o.status}|${o.filled}`;
-      if (now !== last) { last = now; notify({ key, ...orderNews({ ...base, ...o }) }); onChange?.(); }
-      if (o.status === "filled") onFilled?.(o);
-      else if (orderState(o.status).final) onUnfilled?.(o);
-      if (orderState(o.status).final) return;
-    }
+    if (r?.data?.order) see(r.data.order);
     polls += 1;
-    if (polls < 40) setTimeout(tick, polls < 15 ? 1000 : 3000);
+    if (!done && polls < 40) setTimeout(tick, polls < 15 ? 1000 : 3000);
   };
   setTimeout(tick, 600);
 }
@@ -125,7 +142,10 @@ export async function runHotkey(h, ctx) {
     const order = {
       ...built.order, basis: h.size === "bp" ? "buyingPower" : "equity", reference: built.price ?? null,
       pct: hotkeyPercent(h, { equity: ctx.view?.equity, buyingPower: ctx.view?.buyingPower, price: built.price }),
-      ...(othersOnly ? { qty: null, leadSkip: `${built.reason}` } : {})
+      ...(othersOnly ? { qty: null, leadSkip: `${built.reason}` } : {}),
+      // This account's book as the screen has it, so with other accounts
+      // picked its own order goes at once, alongside the reading of theirs.
+      ...(group.length && ctx.view ? { leadBook: { equity: ctx.view.equity ?? null, buyingPower: ctx.view.buyingPower ?? null, held: heldNow } } : {})
     };
     const r = await invokeFunction("terminal", { action: "order", accountId: account.id, order, group }).catch((e) => ({ data: { error: String(e?.message || e) } }));
     tellGroup(r?.data?.group, "sent");

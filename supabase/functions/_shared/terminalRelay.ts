@@ -11,6 +11,8 @@
 // fifteen minutes late on an account without a paid data plan
 // ("delayed_sip"), so the pre-market from 4:00 shows; with a paid plan,
 // "sip", in real time.
+import { orderStream } from "./orderStream.ts";
+
 const STOCK_STREAMS: Record<string, string> = {
   iex: "wss://stream.data.alpaca.markets/v2/iex",
   delayed_sip: "wss://stream.data.alpaca.markets/v2/delayed_sip",
@@ -136,14 +138,15 @@ type StopWatch = { start(onChange: () => void): void; stop(): void; symbols(): s
  * "eodhd" with `eodhdKey` for EODHD's real-time stream. `guard`: the stops
  * watcher, when the account has one.
  */
-export function relayDetail(client: WebSocket, auth: { key: string; secret: string }, initial: string[], initialBook: string, stockFeed = "iex", eodhdKey: string | null = null, guard: StopWatch | null = null) {
+export function relayDetail(client: WebSocket, auth: { key: string; secret: string }, initial: string[], initialBook: string, stockFeed = "iex", eodhdKey: string | null = null, guard: StopWatch | null = null,
+  orders: { paper: boolean; cred: { token?: string | null; key?: string | null; secret?: string | null } } | null = null) {
   const STOCK_STREAM = STOCK_STREAMS[stockFeed] || STOCK_STREAMS.iex;
   let closed = false;
   const startedAt = Date.now();
   // What this session sent the browser, and what each feed said, logged when
   // it ends: the only view from here of whether a trader's tape was live.
   const sent: Record<string, number> = {};
-  const said: Record<string, string[]> = { stocks: [], crypto: [] };
+  const said: Record<string, string[]> = { stocks: [], crypto: [], orders: [] };
   // Tells the runtime the socket is still working, so it does not retire the
   // worker as idle once the upgrade is answered. It cannot outlast the
   // platform's limit: Supabase ends a function's socket at about half its
@@ -176,6 +179,9 @@ export function relayDetail(client: WebSocket, auth: { key: string; secret: stri
     sent[payload.type] = (sent[payload.type] || 0) + 1;
     client.send(JSON.stringify(payload));
   };
+  // The account's own orders as they move (orderStream.ts): a fill on screen
+  // the moment Alpaca reports it.
+  const orderFeed = orders ? orderStream(orders.paper, orders.cred, deliver, said.orders) : null;
   const send = (payload: any) => {
     const symbol = payload?.symbol;
     if (guard && payload.type === "trade" && SHARE.test(String(symbol))) {
@@ -190,6 +196,7 @@ export function relayDetail(client: WebSocket, auth: { key: string; secret: stri
     timers.forEach((t) => clearTimeout(t));
     for (const f of Object.values(feeds)) { try { f.ws?.close(); } catch { /* already gone */ } }
     eodhd?.close();
+    orderFeed?.close();
     guard?.stop();
     try { client.close(); } catch { /* already gone */ }
     clearInterval(heartbeat);
@@ -286,6 +293,7 @@ export function relayDetail(client: WebSocket, auth: { key: string; secret: stri
   };
 
   client.onopen = () => {
+    orderFeed?.start();
     sync(feeds.stocks);
     sync(feeds.crypto);
     guard?.start(() => { if (!closed) sync(feeds.stocks); });

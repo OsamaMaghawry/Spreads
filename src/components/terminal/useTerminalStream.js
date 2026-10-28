@@ -97,8 +97,9 @@ export default function useTerminalStream(accountId, symbols, book = "", stockFe
           const cur = pending.current[m.symbol] || {};
           pending.current[m.symbol] = { ...cur, last: m.price, lastSize: m.size, at: m.at };
           listeners.current.forEach((fn) => fn(m));
-        } else if (m.type === "bar" || m.type === "guard") {
+        } else if (m.type === "bar" || m.type === "guard" || m.type === "order") {
           // guard: a stop the server fired outside regular hours (stopGuardRun.ts).
+          // order: the account's own order as Alpaca moved it (orderStream.ts).
           listeners.current.forEach((fn) => fn(m));
         }
       };

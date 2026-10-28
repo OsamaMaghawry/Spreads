@@ -119,7 +119,9 @@ Deno.serve(async (req) => {
     const trades = account.is_paper || (isOwnerEmail(user.email) && account.provider !== "snaptrade");
     const trading = trades && source ? await loadAccount(admin, accountId, user.id).catch(() => null) : null;
     const guard = trading ? guardWatcher(admin, trading, user.id, source) : null;
-    relayDetail(socket, auth, symbols, (url.searchParams.get("book") || "").toUpperCase(), stockFeed, eodhdKey, guard);
+    // And the account's own orders as they move, for an account it trades.
+    const orders = trades ? { paper: !!account.is_paper, cred: { token, key, secret } } : null;
+    relayDetail(socket, auth, symbols, (url.searchParams.get("book") || "").toUpperCase(), stockFeed, eodhdKey, guard, orders);
     return response;
   }
   if (!key || !secret) {

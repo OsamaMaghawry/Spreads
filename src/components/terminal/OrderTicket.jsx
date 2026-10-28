@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { px, sizeText, isCrypto, amountToQty, orderState, orderNews, sessionOf, ticketChoices } from "@/lib/terminal";
 import { groupNews } from "@/lib/accountGroup";
+import { onOrder } from "./orderFeed";
 import { fmtMoney } from "@/lib/format";
 
 // The ticket, for shares and coins. Two steps, review then send, like a desk
@@ -88,33 +89,43 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     return () => { alive = false; };
   }, [account?.id, symbol]);
 
-  // The sent order, followed until it is filled, cancelled or refused: every
-  // second at first, then every five while a limit order rests.
+  // The sent order, followed until it is filled, cancelled or refused: at once
+  // from the stream (orderFeed.js), and by asking every second at first, then
+  // every five while a limit order rests, for whatever the stream misses.
   useEffect(() => {
     if (!tracked?.id || !account?.id) return undefined;
     let alive = true;
     let polls = 0;
     let timer = null;
+    const see = (o) => {
+      const cur = trackedRef.current;
+      if (!o || !cur || cur.id !== o.id) return false;
+      const next = { ...cur, ...o };
+      // The pop-up follows the order; once it is over, the ticket lets go of it.
+      const moved = cur.status !== o.status || Number(cur.filled || 0) !== Number(o.filled || 0);
+      if (moved) onNotify({ key: cur.key, ...orderNews(next) });
+      trackedRef.current = orderState(o.status).final ? null : next;
+      setTracked(trackedRef.current);
+      if (moved && (o.status === "filled" || o.status === "partially_filled" || orderState(o.status).final)) onPlaced?.();
+      return orderState(o.status).final;
+    };
+    const off = onOrder(tracked.id, (m) => {
+      if (!alive || !see(m)) return;
+      // Asked once more at the end, which also writes the result to the order's record.
+      invokeFunction("terminal", { action: "orderStatus", accountId: account.id, orderId: m.id }).catch(() => null);
+    });
     const tick = async () => {
       const r = await invokeFunction("terminal", { action: "orderStatus", accountId: account.id, orderId: tracked.id });
       if (!alive) return;
       const o = r?.data?.order;
-      const cur = trackedRef.current;
-      if (o && cur && cur.id === o.id) {
-        const next = { ...cur, ...o };
-        // The pop-up follows the order; once it is over, the ticket lets go of it.
-        if (cur.status !== o.status || cur.filled !== o.filled) onNotify({ key: cur.key, ...orderNews(next) });
-        trackedRef.current = orderState(o.status).final ? null : next;
-        setTracked(trackedRef.current);
-        if (o.status === "filled" || o.status === "partially_filled" || orderState(o.status).final) onPlaced?.();
-      }
+      const over = see(o) || !trackedRef.current;
       polls += 1;
       // Every second for the first half minute, then every five; a resting
       // order is left to the Orders tab after ten minutes.
-      if ((!o || !orderState(o.status).final) && polls < 135) timer = setTimeout(tick, polls < 30 ? 1000 : 5000);
+      if (!over && polls < 135) timer = setTimeout(tick, polls < 30 ? 1000 : 5000);
     };
     timer = setTimeout(tick, 500);
-    return () => { alive = false; clearTimeout(timer); };
+    return () => { alive = false; off(); clearTimeout(timer); };
     // Once per order; the loop above carries on until it ends.
     // (onNotify and onPlaced are steady callbacks from the page.)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -237,7 +248,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     let gone = false;
     setShares({ loading: true });
     invokeFunction("terminal", { action: "allocate", accountId: account.id, order: order(), group: groupSend })
-      .then((r) => { if (!gone) setShares(r?.data?.error ? { error: r.data.error } : { rows: r?.data?.group || [] }); })
+      .then((r) => { if (!gone) setShares(r?.data?.error ? { error: r.data.error } : { rows: r?.data?.group || [], lead: r?.data?.lead || null, at: Date.now() }); })
       .catch((e) => { if (!gone) setShares({ error: String(e?.message || e) }); });
     return () => { gone = true; };
   }, [review, JSON.stringify(groupSend), account?.id]);
@@ -246,7 +257,11 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     const key = `o${Date.now()}`;
     const unitName = crypto ? coin : "shares";
     onNotify({ key, ...orderNews({ sending: true, words }) });
-    const r = await invokeFunction("terminal", { action: "order", accountId: account.id, order: order(), group: groupSend });
+    // This account's book as the review just read it goes along, so its own
+    // order is sent at once, alongside the reading of the others'.
+    const fresh = groupIds.length && shares?.lead && Date.now() - shares.at < 30000;
+    const leadBook = fresh ? { equity: shares.lead.equity, buyingPower: shares.lead.buyingPower, held: shares.lead.held } : undefined;
+    const r = await invokeFunction("terminal", { action: "order", accountId: account.id, order: { ...order(), leadBook }, group: groupSend });
     const g = groupNews(r?.data?.group, "sent", unitName);
     if (g) onNotify({ key: `${key}g`, ...g });
     setBusy(false);
