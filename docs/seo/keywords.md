@@ -1481,3 +1481,21 @@ Results pages read that day, not measured. No rank tracker or volume tool. Ten s
 **Links.** Out: `/blog/hedging`, `call-vs-put-option-explained`, `protective-put-explained`, `return-on-risk-vs-return-on-capital`; wanted: `wheel-strategy-cost-basis` (the trader's running figure against the tax basis), `roll-protective-put` (a rolled put is bought on a later day), `what-happens-options-expiration`. Back: `protective-put-explained` (its "What is a married put?" FAQ line), `wheel-strategy-cost-basis` ("not the tax basis" section), `roll-protective-put` (its tax FAQ line), `hedge-concentrated-stock-position` ("Rules outside the options").
 
 **Could not establish:** volume, difficulty or rank for any phrasing; whether "married put tax" or "how is a married put taxed" is the more common form; the IRS's own wording (no IRS page surfaced; Publication 550 and IRC section 1233 were named by secondary sources only, not read); any Reddit demand (none surfaced, even on a query naming Reddit); any Search Console data, since the post is unpublished.
+
+
+## Queued rows, 28 Oct (next ten unwritten topics in content/PLAN.md)
+
+Target queries are from PLAN.md. "Competing today" is NOT yet read from the results pages for these; the daily runs fill it in before the post is written. No volume figures.
+
+| # | Topic | Target query | Competing today | Our angle |
+| --- | --- | --- | --- | --- |
+| 44 | poor man's covered call vs covered call | pmcc vs covered call | not yet read | poor man's covered call vs covered call, mechanics first |
+| 45 | selling puts to own shares you want | sell puts to buy stock | not yet read | selling puts to own shares you want, mechanics first |
+| 46 | buy-write on long-term holdings | buy write strategy | not yet read | buy-write on long-term holdings, mechanics first |
+| 47 | dividends and short calls | covered call dividend risk assignment | not yet read | dividends and short calls, mechanics first |
+| 48 | sizing for years | leaps position sizing | not yet read | sizing for years, mechanics first |
+| 49 | a long-dated option's Greeks | leaps delta theta | not yet read | a long-dated option's Greeks, mechanics first |
+| 50 | twenty open spreads, one afternoon | managing multiple option positions | not yet read | twenty open spreads, one afternoon, mechanics first |
+| 51 | what assignment costs on a spread | assignment risk credit spread | not yet read | what assignment costs on a spread, mechanics first |
+| 52 | early close vs hold | close credit spread early or hold | not yet read | early close vs hold, mechanics first |
+| 53 | a short leg through the strike | credit spread in the money what to do | not yet read | a short leg through the strike, mechanics first |
