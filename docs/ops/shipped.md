@@ -647,3 +647,4 @@ English. Newest first.
 - 2026-10-28 · (staging) Terminal: fills appear the moment Alpaca reports them, every tab shares one live connection so a second window no longer silences the tape, and any symbol can be charted and added to the watchlist from the chart (`72d54c7`, `9d0d12a`, `7805440`).
 - 2026-10-28 · (staging) Wording made consistent: the Analysis page is titled Analysis (not "Performance Analysis"), its loading text and empty state say Loading… and Connect, the Terminal tab says Scanner, and the landing footer button reads "Connect your broker for free" (`6a3e339`, `c304cbd`).
 - 2026-10-28 · (staging) The confirm-signup email link now uses the brand purple instead of a stray indigo (`c026467`).
+- 2026-10-28 · (staging) Terminal: typing part of a share on a stock that trades in whole shares now says so instead of silently rounding to whole shares (`63ebb31`).
