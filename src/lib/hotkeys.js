@@ -158,12 +158,16 @@ export function hotkeyOrder(h, ctx) {
   const order = { symbol: ctx.symbol, side: buy ? "buy" : "sell", qty, type, timeInForce: ctx.crypto ? "gtc" : "day" };
   if (type === "limit") order.limitPrice = price;
   if (extended) order.extendedHours = true;
+  const held = n(ctx.held) || 0;
+  // A sale of shares held sells at least one (28 Oct: "Sell 1 share"; a
+  // $1,411 account's 0.25% was under one share at 3.57 and its one share
+  // could not be sold), never more than is held.
+  if (!(qty > 0) && !buy && !ctx.crypto && held > 0) { qty = Math.min(1, held); order.qty = qty; }
   // Too small here: said, with the order as it would have gone, so the other
   // accounts picked beside this one can still take their own sizes.
   if (!(qty > 0)) return { reason: `${money(amount ?? 0)} is less than one ${ctx.crypto ? "step" : "share"} at ${px(price)}.`, tooSmall: true, order: { ...order, qty: null }, price };
   // A sale of shares held (or a buy back of a short) closes them: never more
   // than is held, so one key never turns a holding into its opposite.
-  const held = n(ctx.held) || 0;
   let all = false;
   if ((!buy && held > 0 && qty > held) || (buy && held < 0 && qty > -held)) { qty = Math.abs(held); all = true; order.qty = qty; }
   const words = `${buy ? "Buy" : "Sell"} ${qty} ${ctx.symbol}${all ? " (all held)" : ""} ${type === "market" ? "at market" : `limit ${px(price)}`}${extended ? " (extended hours)" : ""}`;

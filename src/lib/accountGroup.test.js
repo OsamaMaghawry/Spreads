@@ -52,3 +52,7 @@ test("sizes kept with the account: known modes only, values as typed", () => {
   assert.deepEqual(cleanSizes(null), {});
   assert.deepEqual(cleanSizes([1, 2]), {});
 });
+
+test("a sell that replaced the account's earlier one says so", () => {
+  assert.equal(groupNews([{ name: "Alton RS", ok: true, qty: 78, replaced: 1 }], "sent", "shares").detail, "Alton RS: 78 shares sent, replacing the earlier sell");
+});

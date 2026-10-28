@@ -1294,9 +1294,16 @@ async function liveLimit(account: any, symbol: string, side: "buy" | "sell", qty
   return null;
 }
 
+// A buy or sell key's own orders carry this label, so a sell key pressed
+// again can find the one it replaces, and never a stop, a target or the
+// ticket's own order.
+const KEY_ORDER = "TERM_K_";
+
 async function placeOrder(admin: any, user: any, account: any, input: any) {
   if (!canTrade(user, account)) return { status: 403, body: { error: NOT_LIVE } };
   const crypto = isCrypto(cryptoSymbol(input?.symbol));
+  const fromKey = input?.fromKey === true;
+  const clientId = `${fromKey ? KEY_ORDER : "TERM_"}${Date.now()}`;
   let built;
   if (crypto) {
     const symbol = cryptoSymbol(input.symbol);
@@ -1308,15 +1315,35 @@ async function placeOrder(admin: any, user: any, account: any, input: any) {
       input.side === "sell" ? alpacaFetch(`${tradingBase(account)}/positions`, account) : Promise.resolve([])
     ]);
     const held = (Array.isArray(positions) ? positions : []).find((p: any) => p.asset_class === "crypto" && cryptoSymbol(p.symbol) === symbol);
-    built = cryptoOrderBody(input, `TERM_${Date.now()}`, asset, num(held?.qty) || 0);
+    built = cryptoOrderBody(input, clientId, asset, num(held?.qty) || 0);
   } else {
-    built = stockOrderBody(input, `TERM_${Date.now()}`);
+    built = stockOrderBody(input, clientId);
   }
   if (!built.ok) return { status: 400, body: { error: built.reason } };
   const body = built.body as any;
-  const over = await liveLimit(account, body.symbol.includes("/") || crypto ? cryptoSymbol(body.symbol) : body.symbol, body.side, num(body.qty) || 0, num(body.notional),
+  const sym = body.symbol.includes("/") || crypto ? cryptoSymbol(body.symbol) : body.symbol;
+  const over = await liveLimit(account, sym, body.side, num(body.qty) || 0, num(body.notional),
     num(body.limit_price) ?? num(body.stop_price) ?? num(input.reference));
   if (over) return { status: 400, body: { error: over } };
+  // A sell key pressed again replaces this account's earlier sell-key order
+  // of the same symbol still waiting (28 Oct, ELPW: a sell at 3.57 not yet
+  // filled held 78 of 85 shares, and each lower sell after it was refused;
+  // the owner: "Replace it"). The earlier one is cancelled first, which frees
+  // its shares, and the new one goes for its full size, never more than is
+  // then held: part of the earlier one may have filled meanwhile.
+  let replaced = 0;
+  if (fromKey && body.side === "sell" && body.qty) {
+    const waiting = (await openOrdersFor(account, sym)).filter((o: any) => o.side === "sell" && String(o.client_order_id || "").startsWith(KEY_ORDER));
+    if (waiting.length) {
+      const gone = await cancelAndWait(account, sym, waiting.map((o: any) => o.id));
+      if (!gone) return { status: 409, body: { error: `The earlier ${sym} sell is still being cancelled by the broker. Press again in a moment.` } };
+      replaced = waiting.length;
+      const now = await positionOf(account, sym).catch(() => null);
+      const held = now && now.side === "long" ? Math.abs(now.qty) : 0;
+      if (!(held > 0)) return { status: 422, body: { error: `Nothing left to sell: the earlier ${sym} sell filled before it could be replaced.` } };
+      if (Number(body.qty) > held) body.qty = String(Number(held.toFixed(9)));
+    }
+  }
   const attempt = {
     userId: user.id, accountId: account.id, intent: "open", ticker: body.symbol,
     legs: [{ symbol: body.symbol, side: body.side, ratio: 1 }], qty: body.qty ? Number(body.qty) : null, orderType: body.type,
@@ -1328,7 +1355,7 @@ async function placeOrder(admin: any, user: any, account: any, input: any) {
     // The record is written after the answer goes back, not before it: the
     // trader hears about the order a database write sooner.
     inBackground(recordAttempt(admin, { ...attempt, brokerOrderId: order.id, status: order.status }));
-    return { status: 200, body: { orderId: order.id, status: order.status } };
+    return { status: 200, body: { orderId: order.id, status: order.status, replaced } };
   } catch (e) {
     const message = brokerRefusal(String((e as Error)?.message || e), body.symbol);
     inBackground(recordAttempt(admin, { ...attempt, error: message }));

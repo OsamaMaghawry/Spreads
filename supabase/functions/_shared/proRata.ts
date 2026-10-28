@@ -104,10 +104,19 @@ export function allocate(
     return row.qty >= most ? { ...row, qty: most, all: true } : row;
   };
 
+  // A sale of shares an account holds sells at least one of them, never more
+  // than it holds (28 Oct: "Sell 1 share" rather than skip it as under one).
+  const atLeastOne = (b: Book, row: Share): Share => {
+    const held = fin(b.held) || 0;
+    if (order.side !== "sell" || opts.crypto || !(held > 0) || row.qty !== null || !/less than one share/.test(row.skip || "")) return row;
+    const one = Math.min(1, held);
+    return { ...row, qty: one, notional: null, all: one >= held, skip: null };
+  };
+
   if (reducing && (qty !== null || pctOn)) {
     const leadAbs = Math.abs(leadHeld);
     const part = qty !== null ? qty / leadAbs : 0;
-    return others.map((b) => {
+    return others.map((b) => atLeastOne(b, ((): Share => {
       const held = fin(b.held) || 0;
       const same = Math.sign(held) === Math.sign(leadHeld) ? Math.abs(held) : 0;
       const base = { id: b.id, name: b.name, notional: null, basis: "holding" as const };
@@ -124,12 +133,12 @@ export function allocate(
       const mine = clean(down(same * part, step));
       if (!(mine > 0)) return { ...base, qty: null, all: false, skip: `its part of ${same} comes to less than one ${unit}` };
       return { ...base, qty: Math.min(mine, same), all: mine >= same, skip: null };
-    });
+    })()));
   }
 
   const leadSize = fin(lead[basis]);
   const cents = (v: number) => Math.floor(v * 100) / 100;
-  return others.map((b) => capped(b, share(b)));
+  return others.map((b) => capped(b, atLeastOne(b, share(b))));
   function share(b: Book): Share {
     // The account's own size, where it has one.
     const rule = b.rule && RULES.has(b.rule.mode) ? b.rule : null;

@@ -140,7 +140,8 @@ export async function runHotkey(h, ctx) {
     // The price it was sized at goes with it: an account with its own size in
     // dollars or percent turns that into shares at the same price.
     const order = {
-      ...built.order, basis: h.size === "bp" ? "buyingPower" : "equity", reference: built.price ?? null,
+      // fromKey: a sell key pressed again replaces the account's earlier one still waiting.
+      ...built.order, fromKey: true, basis: h.size === "bp" ? "buyingPower" : "equity", reference: built.price ?? null,
       pct: hotkeyPercent(h, { equity: ctx.view?.equity, buyingPower: ctx.view?.buyingPower, price: built.price }),
       ...(othersOnly ? { qty: null, leadSkip: `${built.reason}` } : {}),
       // This account's book as the screen has it, so with other accounts
@@ -152,7 +153,7 @@ export async function runHotkey(h, ctx) {
     if (r?.data?.skipped) { notify({ key, tone: "muted", title: `Not on ${account.name || "this account"}`, detail: `${r.data.skipped} The other accounts took their own sizes.` }); refresh?.(); return; }
     if (r?.data?.error) { notify({ key, ...orderNews({ error: r.data.error }) }); return; }
     const placed = { ...base, id: r.data.orderId, status: r.data.status || "new" };
-    notify({ key, ...orderNews(placed) });
+    notify({ key, ...orderNews(placed), ...(r.data.replaced ? { title: `${orderNews(placed).title} · replaced the earlier sell` } : {}) });
     refresh?.();
     trackOrder({ accountId: account.id, id: placed.id, key, base: placed, notify, onChange: refresh });
     return;

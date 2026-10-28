@@ -62,7 +62,7 @@ export function groupNews(rows, verb, unit = "") {
     if (r.skip) return `${name}: skipped, ${r.skip}`;
     if (r.ok === false) return `${name}: refused, ${r.error || "no reason given"}`;
     const what = amount(r, unit);
-    const extra = r.cancelled != null && verb === "cancelled" ? `${r.cancelled} cancelled` : `${what ? `${what} ` : ""}${verb}`;
+    const extra = r.cancelled != null && verb === "cancelled" ? `${r.cancelled} cancelled` : `${what ? `${what} ` : ""}${verb}${r.replaced ? ", replacing the earlier sell" : ""}`;
     return `${name}: ${extra}`;
   });
   return {

@@ -132,6 +132,23 @@ test("selling with a percent key, an account's own size still counts", () => {
   assert.deepEqual([s1.qty, s1.all, s1.skip], [10, true, null]);
   const [s2] = allocate({ side: "sell", qty: 109 }, lead, [{ ...small, rule: { mode: "shares" as const, value: 4 } }], { symbol: "NUWE", price: 4.85, pct: 0.5 });
   assert.deepEqual([s2.qty, s2.all], [4, false]);
+  // Its 0.5% ($3) is under one share at $4.85: a sale of shares it holds sells one (28 Oct).
   const [s3] = allocate({ side: "sell", qty: 109 }, lead, [{ ...small, rule: null }], { symbol: "NUWE", price: 4.85, pct: 0.5 });
-  assert.match(s3.skip!, /less than one share/);
+  assert.deepEqual([s3.qty, s3.all, s3.skip], [1, false, null]);
+});
+
+// 28 Oct, 04:57, ELPW: a sale whose size is under one share on an account
+// holding shares sells one of them; one holding nothing, or a buy, is still skipped.
+test("selling shares held never comes to less than one share", () => {
+  const lead = { id: "L", name: "Alton RS", equity: 110000, buyingPower: 110000, held: 85 };
+  const one = { id: "P", name: "Paper", equity: 1411.53, buyingPower: 1408.25, held: 1 };
+  const none = { ...one, id: "N", held: 0 };
+  const opts = { symbol: "ELPW", price: 3.57, pct: 0.25 };
+  const [p, n] = allocate({ side: "sell", qty: 78 }, lead, [one, none], opts);
+  assert.deepEqual([p.qty, p.all, p.skip], [1, true, null]);
+  assert.match(n.skip!, /holds no ELPW/);
+  const [q] = allocate({ side: "sell", qty: 1 }, { ...lead, held: 0 }, [one], opts);
+  assert.deepEqual([q.qty, q.skip], [1, null]);
+  const [b] = allocate({ side: "buy", qty: 78 }, { ...lead, held: 0 }, [one], opts);
+  assert.match(b.skip!, /less than one share/);
 });

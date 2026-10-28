@@ -89,10 +89,12 @@ test("coins: fractions on the coin's step, good till cancelled, any hour", () =>
 test("a small account: its own size on screen, sales capped at the holding, too small still says how it would go", () => {
   const ctx = { symbol: "NUWE", crypto: false, quote: { bid: 4.84, ask: 4.85, last: 4.85 }, equity: 600, buyingPower: 600, session: "regular", held: 10 };
   const key = { action: "sell", size: "equity", amount: 0.5, price: "ask", offset: 0 };
-  const small = hotkeyOrder(key, ctx);
+  // 0.5% of $600 is under one share: with none held, too small; holding 10, it sells one (28 Oct).
+  const small = hotkeyOrder(key, { ...ctx, held: 0 });
   assert.equal(small.tooSmall, true);
   assert.match(small.reason, /less than one share/);
   assert.deepEqual([small.order.side, small.order.qty, small.order.limitPrice, small.price], ["sell", null, 4.85, 4.85]);
+  assert.deepEqual([hotkeyOrder(key, ctx).order.qty, hotkeyOrder(key, ctx).tooSmall], [1, undefined]);
   // Its own size, 10% of its portfolio: $60 is 12 shares, and it holds 10.
   const own = hotkeyOrder(withOwnSize(key, { mode: "percent", value: "10" }), ctx);
   assert.deepEqual([own.order.qty, own.tooSmall], [10, undefined]);
@@ -107,4 +109,16 @@ test("a small account: its own size on screen, sales capped at the holding, too 
   assert.equal(hotkeyPercent({ size: "usd", amount: 60 }, ctx), 10);
   assert.equal(hotkeyPercent({ size: "shares", amount: 12 }, { equity: 600, price: 5 }), 10);
   assert.equal(hotkeyPercent({ size: "usd", amount: 60 }, { equity: 0 }), null);
+});
+
+// 28 Oct, ELPW at 3.57: a $1,411.53 account's 0.25% is $3.53, under one share.
+test("a sell key on shares held sells at least one, never more than held", () => {
+  const key = { action: "sell", size: "equity", amount: 0.25, price: "ask", offset: 0, keys: "Shift+0" };
+  const ctx = { symbol: "ELPW", crypto: false, quote: { bid: 3.55, ask: 3.57, last: 3.56 }, equity: 1411.53, buyingPower: 1408.25, session: "extended" };
+  const held = hotkeyOrder(key, { ...ctx, held: 1 });
+  assert.equal(held.order.qty, 1);
+  assert.equal(held.tooSmall, undefined);
+  assert.equal(held.words, "Sell 1 ELPW limit 3.57 (extended hours)");
+  assert.equal(hotkeyOrder(key, { ...ctx, held: 0 }).tooSmall, true);
+  assert.equal(hotkeyOrder({ ...key, action: "buy" }, { ...ctx, held: 1 }).tooSmall, true);
 });
