@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, X, Plus, Lock, LockOpen, RotateCcw, Maximize2, Minimize2, GripVertical, Keyboard, Square, Columns2, LayoutGrid } from "lucide-react";
+import { Search, X, Plus, Lock, LockOpen, RotateCcw, Maximize2, Minimize2, GripVertical, Keyboard, Square, Columns2, LayoutGrid, ChevronDown, Check } from "lucide-react";
 import { Responsive, WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -25,6 +25,7 @@ import ReplayBar, { ReplayStart } from "@/components/terminal/ReplayBar";
 import { PracticePositions, ReplayResults, DemoResults } from "@/components/terminal/ReplayPanels";
 import NewsPanel, { useNews } from "@/components/terminal/NewsPanel";
 import GroupPicker from "@/components/terminal/GroupPicker";
+import SymbolSearch from "@/components/terminal/SymbolSearch";
 import useAccountSetting from "@/components/terminal/useAccountSetting";
 import { groupChoices, cleanGroup, groupPayload, cleanSizes } from "@/lib/accountGroup";
 import { acctIn, replayClock } from "@/lib/replay";
@@ -450,6 +451,27 @@ export default function Terminal() {
   useEffect(() => { if (!session && !lastReplay) setTab((t) => (t === "practice" || t === "results" ? "positions" : t)); }, [session, lastReplay]);
   // Charts: how many, filled from the watchlist; and a symbol put on one (a
   // free one while there is room, else the active one).
+  // Any symbol on a chart from the chart itself (28 Oct: "change the chart and
+  // the stock on focus from the chart itself not only to add it first to the
+  // watchlist"): its symbol is a search, and typing a letter while the
+  // terminal has the focus opens it too. `pane`: the chart it changes.
+  const [chartSearch, setChartSearch] = useState(null);
+  const activePane = useRef(0);
+  activePane.current = panes.active;
+  const chartTo = useCallback((pane, s) => setPanes((p) => ({ ...p, active: pane, list: p.list.map((x, i) => (i === pane ? { ...x, symbol: s } : x)) })), [setPanes]);
+  const addToWatch = (s) => setWatch((w) => (w.includes(s) || w.length >= WATCHLIST_MAX ? w : cleanWatchlist([...w, s])));
+  useEffect(() => {
+    if (page !== "trade" || hotkeysOpen) return undefined;
+    const onKey = (e) => {
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || !/^[a-zA-Z]$/.test(e.key)) return;
+      const t = e.target;
+      if (t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))) return;
+      e.preventDefault();
+      setChartSearch((cur) => cur || { pane: activePane.current, initial: e.key.toUpperCase() });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [page, hotkeysOpen]);
   const setPaneCount = (n) => setPanes((p) => {
     const list = p.list.slice(0, n);
     const used = new Set(list.map((x) => x.symbol));
@@ -629,9 +651,27 @@ export default function Terminal() {
 
         <div key="chart" className={frame}>
           <div ref={chartBox} className="flex h-full min-h-0 flex-col bg-white">
-            <div className={`${bar} items-baseline gap-3 py-1.5`}>
+            <div className={`${bar} relative items-baseline gap-3 py-1.5`}>
               {grip}
-              <span className="shrink-0 text-lg font-semibold">{symbol}</span>
+              <button type="button" onClick={() => setChartSearch({ pane: panes.active, initial: "" })}
+                title="Chart another symbol (or just start typing one)"
+                className="no-drag flex shrink-0 items-center gap-0.5 rounded px-1 text-lg font-semibold hover:bg-slate-100">
+                {symbol}<ChevronDown className="h-4 w-4 text-slate-400" />
+              </button>
+              {watch.includes(symbol) ? (
+                <span className="shrink-0 self-center text-[10px] text-emerald-700" title={`${symbol} is in the watchlist`}><Check className="inline h-3 w-3" /> Watchlist</span>
+              ) : (
+                <button type="button" onClick={() => addToWatch(symbol)} disabled={watch.length >= WATCHLIST_MAX}
+                  title={watch.length >= WATCHLIST_MAX ? `The watchlist is full (${WATCHLIST_MAX})` : `Add ${symbol} to the watchlist`}
+                  className="no-drag flex shrink-0 items-center gap-0.5 self-center rounded border border-emerald-300 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-40">
+                  <Plus className="h-3 w-3" />Watchlist
+                </button>
+              )}
+              {chartSearch && (
+                <SymbolSearch key={`${chartSearch.pane}:${chartSearch.initial}`} accountId={accountId} initial={chartSearch.initial} watch={watch}
+                  className="absolute left-2 top-full mt-1"
+                  onPick={(s) => chartTo(chartSearch.pane, s)} onAdd={addToWatch} onClose={() => setChartSearch(null)} />
+              )}
               {replaying && <span className="shrink-0 self-center rounded bg-slate-200 px-1 text-[10px] font-semibold uppercase text-slate-600" title="The charts below are replaying the past; these figures are today's">Live</span>}
               <span className={`shrink-0 text-lg tabular-nums ${replaying ? "text-slate-400" : ""}`}>{px(quote.last)}</span>
               <span className={`shrink-0 whitespace-nowrap text-sm tabular-nums ${quote.change >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{quote.change !== null ? `${quote.change >= 0 ? "+" : ""}${quote.change.toFixed(2)}` : ""} {pctText(quote.changePct)}</span>
@@ -671,7 +711,8 @@ export default function Terminal() {
                   className={`min-h-0 min-w-0 overflow-hidden bg-white ${panes.list.length === 3 && i === 0 ? "col-span-2" : ""} ${panes.list.length > 1 && panes.active === i ? "outline outline-2 -outline-offset-2 outline-emerald-500" : ""}`}>
                   <PriceChart accountId={accountId} symbol={p.symbol} interval={p.interval} onInterval={paneInterval[i]} listen={listen} fills={fillsBySymbol[p.symbol] || NO_FILLS}
                     replay={replay} replayOn={replaying} replayCursor={session?.cursor ?? null} replayVersion={replayVersion} replayAcct={session?.book[p.symbol] || null}
-                    onReplayButton={replayButton} active={panes.active === i} label={panes.list.length > 1} stockFeed={shares.history} liveSource={shares.live} />
+                    onReplayButton={replayButton} active={panes.active === i} label={panes.list.length > 1} stockFeed={shares.history} liveSource={shares.live}
+                    onSearch={() => setChartSearch({ pane: i, initial: "" })} />
                 </div>
               ))}
             </div>

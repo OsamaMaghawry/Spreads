@@ -94,7 +94,7 @@ const newId = () => `d${Date.now().toString(36)}${Math.random().toString(36).sli
 function PriceChart({
   accountId, symbol, interval, onInterval, listen, fills = [],
   replay = null, replayOn = false, replayCursor = null, replayVersion = 0, replayAcct = null, onReplayButton = () => {}, active = true, label = false,
-  stockFeed = "iex", liveSource = "iex"
+  stockFeed = "iex", liveSource = "iex", onSearch = null
 }) {
   const boxRef = useRef(null);
   const chartRef = useRef(null);
@@ -823,7 +823,11 @@ function PriceChart({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 px-2 py-1.5">
-        {label && <span className={`mr-1 rounded px-1.5 py-0.5 text-xs font-bold ${active ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-700"}`} title={active ? "The active chart: the watchlist, ticket and replay bar act on it" : "Click to make it the active chart"}>{symbol}</span>}
+        {label && (
+          <button type="button" onClick={() => onSearch?.()}
+            className={`mr-1 rounded px-1.5 py-0.5 text-xs font-bold ${active ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+            title={`${active ? "The active chart: the watchlist, ticket and replay bar act on it." : "Make it the active chart."} Click to chart another symbol here.`}>{symbol} ▾</button>
+        )}
         {!compact && INTERVALS.filter((i) => i.quick).map((i) => (
           <button
             key={i.id}
