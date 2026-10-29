@@ -42,6 +42,11 @@ const DAILY_PARALLEL = 2;
 // A past day comes in parts (the server's time per request), two at a time,
 // then the pre-market of its biggest gaps among liquid shares.
 const HISTORY_PARTS = 4;
+// Today's screen in parts read side by side: whole, it ran past the server's
+// processing time on a fresh start (29 Oct: "Edge Function returned a non-2xx
+// status code"). Share counts are read on their own and kept for hours.
+const UNIVERSE_PARTS = 4;
+const SHARES_KEEP_MS = 6 * 3600000;
 const PM_PICK = 300;
 const PM_BATCH = 100;
 const PM_ACTIVE = 100;
@@ -283,23 +288,44 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
     return { rows, at: got[0].at, dayFeed: got[0].dayFeed, listed: got[0].listed, premarket };
   }, [accountId, when.date, when.asOf]);
 
+  const sharesRef = useRef(null);
+  const readToday = useCallback(async () => {
+    const ask = (part) => invokeFunction("terminal", { action: "screen", accountId, part, parts: UNIVERSE_PARTS })
+      .then((r) => (r?.data?.rows && !r.data.error ? r.data : Promise.reject(new Error(r?.data?.error || "The screen could not be read."))));
+    const once = (part) => ask(part).catch(() => new Promise((ok) => setTimeout(ok, 1500)).then(() => ask(part)));
+    const kept = sharesRef.current && Date.now() - sharesRef.current.at < SHARES_KEEP_MS ? sharesRef.current.map : null;
+    const sharesRead = kept ? Promise.resolve(kept) : invokeFunction("terminal", { action: "screen", stage: "shares", accountId })
+      .then((r) => {
+        const map = r?.data?.shares && Object.keys(r.data.shares).length ? r.data.shares : null;
+        if (map) sharesRef.current = { at: Date.now(), map };
+        return map;
+      }).catch(() => null);
+    const [settled, shares] = await Promise.all([Promise.allSettled([...Array(UNIVERSE_PARTS).keys()].map(once)), sharesRead]);
+    const got = settled.filter((x) => x.status === "fulfilled").map((x) => x.value);
+    if (!got.length) throw settled[0].reason;
+    const rows = got.flatMap((d) => decodeUniverse(d));
+    if (shares) for (const u of rows) if (u.shares == null && shares[u.symbol]) u.shares = shares[u.symbol];
+    const missing = settled.length - got.length;
+    return {
+      rows, at: got.map((d) => d.at).sort().pop(), dayFeed: got[0].dayFeed, listed: got.reduce((n, d) => n + (Number(d.listed) || 0), 0), premarket: null,
+      warning: missing ? `${missing} of ${settled.length} parts of the market could not be read just now; showing the rest. It is read again in a minute.` : null
+    };
+  }, [accountId]);
+
   const refresh = useCallback(() => {
     if (!accountId) return;
     const started = modeRef.current;
     setUniverse((u) => ({ ...u, loading: true, error: null }));
-    const read = when.date ? readPast() : invokeFunction("terminal", { action: "screen", accountId }).then((r) => {
-      if (r?.data?.error || !r?.data?.rows) throw new Error(r?.data?.error || "The screen could not be read.");
-      return { rows: decodeUniverse(r.data), at: r.data.at, dayFeed: r.data.dayFeed, listed: r.data.listed, premarket: null };
-    });
+    const read = when.date ? readPast() : readToday();
     read.then((d) => {
       if (modeRef.current !== started) return;
-      setUniverse({ ...d, loading: false, error: null, mode: started });
+      setUniverse({ ...d, loading: false, error: d.warning || null, mode: started });
       loadDaily(d.rows.map((u) => screenRow(u, when.date ? partialStats(u) : null, when.date || nyToday())));
     }).catch((e) => {
       if (modeRef.current !== started) return;
       setUniverse((u) => ({ ...u, rows: when.date ? [] : u.rows, loading: false, error: String(e?.message || e) }));
     });
-  }, [accountId, loadDaily, readPast, when.date]);
+  }, [accountId, loadDaily, readPast, readToday, when.date]);
 
   // Read when first opened (and for each moment chosen), then, live, every
   // minute while on screen.

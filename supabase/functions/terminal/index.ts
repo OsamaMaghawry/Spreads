@@ -510,8 +510,20 @@ const SCREEN_COLUMNS = [
   "bid", "ask", "options", "shortable", "easyToBorrow", "fund", "shares", "earnDate", "earnSession"
 ];
 
-async function screenUniverse(admin: any, account: any) {
-  const list = (await assetList(account)).filter((a) => a.assetClass === "us_equity" && SCREEN_EXCHANGES.has(a.exchange) && SYMBOL.test(a.symbol));
+// The screen's listed shares, every one (13,195 on 28 Oct).
+async function screenList(account: any) {
+  return (await assetList(account)).filter((a) => a.assetClass === "us_equity" && SCREEN_EXCHANGES.has(a.exchange) && SYMBOL.test(a.symbol));
+}
+
+// `part` of `parts`: one slice of the listed shares (every parts-th one), so
+// the screen is read as a few requests side by side. Read whole, the two
+// feeds' snapshots of every listed share ran past the function's two seconds
+// of processor time on a fresh instance ("CPU Time exceeded", 28-29 Oct: the
+// screener said "Edge Function returned a non-2xx status code"). In parts,
+// the share counts come from their own request (stage "shares").
+async function screenUniverse(admin: any, account: any, part = 0, parts = 1) {
+  const whole = await screenList(account);
+  const list = parts > 1 ? whole.filter((_, i) => i % parts === part) : whole;
   const symbols = list.map((a) => a.symbol);
   // The day's candle and volume from the delayed consolidated tape; IEX
   // alone if the account cannot read that.
@@ -520,8 +532,8 @@ async function screenUniverse(admin: any, account: any) {
     snapsFor(account, symbols, FEED),
     snapsFor(account, symbols, "delayed_sip").catch(() => { dayFeed = FEED; return null; }),
     upcomingEarnings(admin).catch(() => ({} as Record<string, [string, string | null]>)),
-    sharesOutstanding().catch(() => null),
-    cikFor("AAPL").catch(() => null)
+    parts > 1 ? Promise.resolve(null) : sharesOutstanding().catch(() => null),
+    parts > 1 ? Promise.resolve(null) : cikFor("AAPL").catch(() => null)
   ]);
   const rows: any[][] = [];
   for (const a of list) {
@@ -549,6 +561,18 @@ async function screenUniverse(admin: any, account: any) {
     ]);
   }
   return { columns: SCREEN_COLUMNS, rows, dayFeed, priceFeed: FEED, at: new Date().toISOString(), listed: list.length };
+}
+
+// Shares outstanding for every listed share the SEC has a count for, by symbol.
+async function screenShares(account: any) {
+  const [list, shares] = await Promise.all([screenList(account), sharesOutstanding(), cikFor("AAPL").catch(() => null)]);
+  const out: Record<string, number> = {};
+  for (const a of list) {
+    const cik = ciks?.get(a.symbol);
+    const n = cik ? shares.get(cik) : undefined;
+    if (n) out[a.symbol] = n;
+  }
+  return { shares: out, count: Object.keys(out).length };
 }
 
 // `asOf`: a past date for the historical screen, whose daily numbers are
@@ -985,6 +1009,13 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
   }
   if (only === "screen") {
     // The screener's two reads, timed, with a sample of what comes back.
+    if (extra[0] === "PARTS") {
+      // The screen in four parts and the share counts, each timed, as the screener reads them.
+      const timed = async (f: () => Promise<any>) => { const t = Date.now(); const r = await f(); return { ms: Date.now() - t, r }; };
+      const got = await Promise.all([0, 1, 2, 3].map((p) => timed(() => screenUniverse(admin, house, p, 4))));
+      const sh = await timed(() => screenShares(house));
+      return { parts: got.map((g) => ({ ms: g.ms, rows: g.r.rows.length, listed: g.r.listed, bytes: JSON.stringify(g.r).length })), shares: { ms: sh.ms, count: sh.r.count } };
+    }
     const t0 = Date.now();
     const u = await screenUniverse(admin, house);
     const t1 = Date.now();
@@ -2084,7 +2115,10 @@ Deno.serve(async (req) => {
         const r = await screenPremarket(account, String(body.date || ""), Array.isArray(body.symbols) ? body.symbols : []);
         return jsonResponse(r, (r as any).error ? 400 : 200);
       }
-      return jsonResponse(await screenUniverse(admin, account));
+      if (body.stage === "shares") return jsonResponse(await screenShares(account));
+      const parts = Math.min(8, Math.max(1, Math.floor(Number(body.parts) || 1)));
+      const part = Math.min(parts - 1, Math.max(0, Math.floor(Number(body.part) || 0)));
+      return jsonResponse(await screenUniverse(admin, account, part, parts));
     }
     if (action === "orderStatus") {
       if (!body.orderId) return jsonResponse({ error: "Which order?" }, 400);
