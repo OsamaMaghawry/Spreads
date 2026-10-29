@@ -110,6 +110,8 @@ So a strike showing 0.15 delta is sometimes described as roughly a 15-in-100
 chance of finishing in the money. That is a rough label and nothing more - not
 a promise, and not a measurement of anything.
 
+Related: the [stock replacement post](/blog/stock-replacement-strategy) sets a deep in-the-money call beside 100 shares on one hypothetical stock.
+
 ## How do traders use delta to compare strikes?
 
 Distance in dollars does not travel between stocks. A strike $5 below a $60

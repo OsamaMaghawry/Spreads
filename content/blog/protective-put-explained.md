@@ -120,6 +120,8 @@ The [tail risk hedge cost post](/blog/tail-risk-hedge-cost) adds that up over fo
 
 A put can also be replaced before it expires, by selling the old one and buying a later one in a single [roll](/blog/rolling-options-explained). That recovers whatever value the old put has left, but the roll's natural price sells the old put at its bid and buys the new one at its ask, and the arithmetic above still applies. [Rolling a protective put](/blog/roll-protective-put) prices one on this lot, leg by leg, including the gap when the two legs fill apart.
 
+Related: the [SPX vs SPY options post](/blog/spx-vs-spy-options-hedge) covers the same put bought on an index instead of the stock, and where the two can disagree.
+
 ## Frequently asked questions
 
 - **What is a married put?** The same structure, a long put held with 100 shares. The name is usually used when the shares and the put are bought at the same time. Its [tax framing](/blog/married-put-tax) is a question for a tax professional.
