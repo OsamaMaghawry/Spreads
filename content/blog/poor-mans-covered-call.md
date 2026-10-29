@@ -60,6 +60,8 @@ The break-evens are close: 48.53 for the covered call and about 48.69 for the po
 
 The smaller loss below 50 has a limit with a date on it. If the short call expires worthless and XYZ is below 40 when the long call expires, that call is worthless too and the whole $943 is gone. Shares that fell to the same price would still be held.
 
+Related: [poor man's covered call vs covered call](/blog/pmcc-vs-covered-call) sets the two side by side again, on a two-year long call.
+
 ## Why must the strike gap be larger than the debit?
 
 A rule often quoted for this structure is that the long strike plus the net debit should sit below the short strike. It is the same as saying the short strike plus the short call's credit should sit above the long strike plus the long call's price. Here: 40 + 9.43 = 49.43, below 52; equivalently 52 + 1.47 = 53.47, above 40 + 10.90 = 50.90.

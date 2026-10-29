@@ -98,6 +98,6 @@ Then the expiration. If XYZ ended the second year at 40, the call would expire w
 
 A deep in-the-money call can stand in for shares in a narrow sense: it moves most of a dollar for each dollar the stock moves, for a smaller outlay. On the example here, 100 shares cost $5,000 and one 24-month 40 call cost $1,558, with $3,442 left over. A year later with the stock unchanged, the call had lost $264 and the shares nothing, because the call's time value kept running out. Its price sensitivity ran from 95 shares' worth at 60 down to 44 at 35. It gives up dividends, a vote, and any date beyond its expiration.
 
-For a neighbouring structure, see the [poor man's covered call](/blog/poor-mans-covered-call), which adds a short call against this same long one.
+For a neighbouring structure, see the [poor man's covered call](/blog/poor-mans-covered-call), which adds a short call against this same long one, and [poor man's covered call vs covered call](/blog/pmcc-vs-covered-call), which sets that pair beside 100 shares under the same short call.
 
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.

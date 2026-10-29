@@ -1,0 +1,11 @@
+<svg viewBox="0 0 720 220" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Two bars on one dollar scale. Shares plus a short call tie up 4,967. A long 40 call plus a short call ties up 1,525, with 3,475 of the same 5,000 left as cash.">
+  <rect width="720" height="220" fill="#FFFFFF"/>
+  <text x="20" y="62" font-size="16" fill="#14151C">Shares + short call</text>
+  <rect x="200" y="40" width="477" height="36" rx="4" fill="#14151C"/>
+  <text x="438" y="64" font-size="17" font-weight="600" text-anchor="middle" fill="#FFFFFF">4,967</text>
+  <text x="20" y="142" font-size="16" fill="#14151C">Long call + short call</text>
+  <rect x="200" y="120" width="147" height="36" rx="4" fill="#4A5FC1"/>
+  <text x="273" y="144" font-size="17" font-weight="600" text-anchor="middle" fill="#FFFFFF">1,525</text>
+  <rect x="347" y="120" width="333" height="36" rx="4" fill="#FFFFFF" stroke="#767B8E" stroke-dasharray="6 5"/>
+  <text x="513" y="144" font-size="17" text-anchor="middle" fill="#767B8E">3,475 left as cash</text>
+</svg>
