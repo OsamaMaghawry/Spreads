@@ -1,0 +1,13 @@
+<svg viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Two lines show profit and loss in dollars at the short call's expiration for a hypothetical XYZ, from a stock price of 35 to 65. Shares plus a short 55 call run from minus 1,467 to a flat plus 533 above 55. The long 40 call plus the short 55 call runs from minus 1,029 to plus 439 at 55 and eases to plus 352 at 65. The call pair loses less on the way down and gains less on the way up.">
+  <rect width="720" height="360" fill="#FFFFFF"/>
+  <line x1="70" y1="114" x2="680" y2="114" stroke="#767B8E" stroke-width="1"/>
+  <text x="66" y="119" font-size="14" text-anchor="end" fill="#767B8E">0</text>
+  <line x1="70" y1="114" x2="70" y2="119" stroke="#767B8E"/><text x="70" y="136" font-size="14" text-anchor="middle" fill="#767B8E">35</text><line x1="172" y1="114" x2="172" y2="119" stroke="#767B8E"/><text x="172" y="136" font-size="14" text-anchor="middle" fill="#767B8E">40</text><line x1="273" y1="114" x2="273" y2="119" stroke="#767B8E"/><text x="273" y="136" font-size="14" text-anchor="middle" fill="#767B8E">45</text><line x1="375" y1="114" x2="375" y2="119" stroke="#767B8E"/><text x="375" y="136" font-size="14" text-anchor="middle" fill="#767B8E">50</text><line x1="477" y1="114" x2="477" y2="119" stroke="#767B8E"/><text x="477" y="136" font-size="14" text-anchor="middle" fill="#767B8E">55</text><line x1="578" y1="114" x2="578" y2="119" stroke="#767B8E"/><text x="578" y="136" font-size="14" text-anchor="middle" fill="#767B8E">60</text><line x1="680" y1="114" x2="680" y2="119" stroke="#767B8E"/><text x="680" y="136" font-size="14" text-anchor="middle" fill="#767B8E">65</text>
+  <polyline points="70,296 172,234 273,172 375,110 477,48 578,48 680,48" fill="none" stroke="#14151C" stroke-width="3"/>
+  <polyline points="70,242 172,205 273,161 375,113 477,60 578,66 680,71" fill="none" stroke="#4A5FC1" stroke-width="3"/>
+  <text x="680" y="296" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">Covered call: -1,467</text>
+  <text x="680" y="318" font-size="15" font-weight="600" text-anchor="end" fill="#4A5FC1">Call pair: -1,029</text>
+  <text x="680" y="38" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">+533</text>
+  <text x="680" y="91" font-size="15" font-weight="600" text-anchor="end" fill="#4A5FC1">+352</text>
+  <text x="375" y="352" font-size="14" text-anchor="middle" fill="#767B8E">XYZ at short call expiry</text>
+</svg>
