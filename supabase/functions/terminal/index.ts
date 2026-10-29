@@ -1058,6 +1058,12 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
       const sh = await timed(() => screenShares(house));
       return { parts: got.map((g) => ({ ms: g.ms, rows: g.r.rows.length, listed: g.r.listed, bytes: JSON.stringify(g.r).length })), shares: { ms: sh.ms, count: sh.r.count } };
     }
+    if (extra[0] === "AH") {
+      // One session's after hours (AH, date, symbols...), timed, as the screener reads it.
+      const t = Date.now();
+      const r = await screenAfterHours(house, extra[1] || nyDate(), extra.length > 2 ? extra.slice(2) : ["AAPL", "NVDA", "TSLA"]);
+      return { ms: Date.now() - t, ...r };
+    }
     const t0 = Date.now();
     const u = await screenUniverse(admin, house);
     const t1 = Date.now();
