@@ -66,7 +66,7 @@ const itv = (n: number) => Math.max(n, 0);
 // Shares per contract for one leg. Stock is one; an option is 100 unless it
 // states another, and a leg that states a nonsense one never reaches here.
 export const mult = (l: Leg) =>
-  l.type === "S" ? 1 : Number.isFinite(Number(l.multiplier)) ? Number(l.multiplier) : CONTRACT;
+  l.type === "S" ? 1 : l.multiplier != null && Number.isFinite(Number(l.multiplier)) ? Number(l.multiplier) : CONTRACT;
 
 const finite = (v: any) => Number.isFinite(Number(v));
 
