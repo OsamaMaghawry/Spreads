@@ -2,8 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   decodeUniverse, screenRow, parseAmount, cleanScreen, passes, sortRows, needsDaily, presetScreen, PRESETS, FIELD,
-  dailyCandidates, bigNumber, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown, combineScreens, conflicts, premarketPicks
-} from "./screener.js";
+  dailyCandidates, bigNumber, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown, combineScreens, conflicts, premarketPicks, afterHoursDay, afterHoursPicks } from "./screener.js";
 
 const close = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} != ${b}`);
 
@@ -225,4 +224,27 @@ test("two that cannot both hold are found: gapping up and gapping down", () => {
   assert.deepEqual(s.ranges.gapPct, { min: 3, max: -3 });
   assert.deepEqual(conflicts(s), ["gapPct"]);
   assert.deepEqual(conflicts(combineScreens(cleanScreen(EMPTY_SCREEN), ["gapUp", "gainers"])), []);
+});
+
+// 29 Oct: "Does the scanner have pre open and after market hours in the filter.
+// Also, I want to include the fractionable ones."
+test("after hours: the session read, its change, and the fractionable filter", () => {
+  assert.equal(afterHoursDay("2026-10-29", 17), "2026-10-29"); // Thursday evening: today's
+  assert.equal(afterHoursDay("2026-10-29", 4), "2026-10-28"); // before the open: yesterday's
+  assert.equal(afterHoursDay("2026-11-02", 9), "2026-10-30"); // Monday morning: Friday's
+  assert.equal(afterHoursDay("2026-10-31", 18), "2026-10-30"); // Saturday: Friday's
+  const row = screenRow({ ...AAPL, ahVolume: 52000, ahLast: 110, ahClose: 100, fractionable: true }, null, "2026-10-28");
+  assert.equal(row.ahVolume, 52000);
+  assert.ok(Math.abs(row.ahChangePct - 0.1) < 1e-12);
+  assert.equal(row.fractionable, true);
+  const screen = cleanScreen({ fractionable: true });
+  assert.equal(passes(row, screen), true);
+  assert.equal(passes({ ...row, fractionable: false }, screen), false);
+  const rows = [
+    { symbol: "MOVE", price: 5, dollarVol: 5e6, changePct: 0.3 },
+    { symbol: "BUSY", price: 50, dollarVol: 9e8, changePct: 0.001 },
+    { symbol: "THIN", price: 5, dollarVol: 1e4, changePct: 0.5 },
+    { symbol: "REPT", price: 20, dollarVol: 1e5, changePct: 0, earnDate: "2026-10-29", earnSession: "amc" }
+  ];
+  assert.deepEqual(afterHoursPicks(rows, "2026-10-29", 1, 1), ["REPT", "MOVE", "BUSY"]);
 });

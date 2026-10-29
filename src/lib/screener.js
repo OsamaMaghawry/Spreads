@@ -78,6 +78,7 @@ export function screenRow(u, stats, today) {
   const mid = num(u.bid) && num(u.ask) && u.ask >= u.bid ? (u.bid + u.ask) / 2 : null;
   return {
     symbol: u.symbol, name: u.name || "", exchange: u.exchange || "", fund: !!u.fund, options: !!u.options, shortable: !!u.shortable, easyToBorrow: !!u.easyToBorrow,
+    fractionable: !!u.fractionable,
     price, priceAt: u.priceAt || null, prevClose: ref, preOpen,
     changePct: ratio(price, ref),
     gapPct: preOpen ? ratio(price, ref) : ratio(num(u.open), ref),
@@ -107,6 +108,8 @@ export function screenRow(u, stats, today) {
     perf1y: ratio(price, s?.closes?.d252),
     pmVolume: num(u.pmVolume),
     pmChangePct: ratio(num(u.pmLast), ref),
+    ahVolume: num(u.ahVolume),
+    ahChangePct: ratio(num(u.ahLast), num(u.ahClose)),
     earnDate: u.earnDate || null,
     earnSession: u.earnSession || null,
     earningsIn: u.earnDate ? dayDiff(u.earnDate, today) : null,
@@ -130,6 +133,9 @@ export const FIELDS = [
   { id: "changePct", label: "Change today", unit: "%", pct: true, group: "Today", wholeDay: true },
   { id: "gapPct", label: "Gap", unit: "%", pct: true, group: "Today", hint: "The open against the previous close; before the open, the price now against it" },
   { id: "pmChangePct", label: "Pre-market change", unit: "%", pct: true, group: "Today", hint: "The last pre-market price against the previous close" },
+  // 29 Oct: "Does the scanner have pre open and after market hours in the filter".
+  { id: "ahVolume", label: "After-hours volume", unit: "shares", group: "Price and volume", live: true, hint: "16:00 to 20:00 New York of the last session (today's from 16:00, up to 15 minutes ago), consolidated; read for the day's biggest movers, the most traded and those reporting after the close" },
+  { id: "ahChangePct", label: "After-hours change", unit: "%", pct: true, group: "Today", live: true, hint: "The last after-hours price against that session's 16:00 close" },
   { id: "rangePos", label: "Position in today's range", unit: "%", pct: true, group: "Today", wholeDay: true, hint: "0% at the day's low, 100% at its high" },
   { id: "fromVwap", label: "Price vs VWAP", unit: "%", pct: true, group: "Today", wholeDay: true },
   { id: "rsi", label: "RSI (14 days)", unit: "", group: "Trend and momentum", daily: true },
@@ -175,7 +181,7 @@ export function parseAmount(text) {
  * A screen's settings: numeric ranges by field (as typed: 3 for 3%), and the
  * choices that are not ranges. Anything unknown or malformed is dropped.
  */
-export const EMPTY_SCREEN = { ranges: {}, type: "all", exchange: "all", options: false, shortable: false, trend: "any", gapAbs: null, sort: { key: "dollarVol", dir: "desc" } };
+export const EMPTY_SCREEN = { ranges: {}, type: "all", exchange: "all", options: false, shortable: false, fractionable: false, trend: "any", gapAbs: null, sort: { key: "dollarVol", dir: "desc" } };
 
 export function cleanScreen(raw) {
   const r = raw && typeof raw === "object" ? raw : {};
@@ -193,6 +199,7 @@ export function cleanScreen(raw) {
     exchange: ["all", "NASDAQ", "NYSE", "ARCA", "AMEX", "BATS"].includes(r.exchange) ? r.exchange : "all",
     options: !!r.options,
     shortable: !!r.shortable,
+    fractionable: !!r.fractionable,
     trend: ["any", "above3", "below3", "above200", "below200", "cross50"].includes(r.trend) ? r.trend : "any",
     // A gap at least this big either way, in percent.
     gapAbs: num(r.gapAbs) !== null && r.gapAbs > 0 ? num(r.gapAbs) : null,
@@ -221,6 +228,8 @@ export function passes(row, screen) {
   if (screen.exchange !== "all" && row.exchange !== screen.exchange) return false;
   if (screen.options && !row.options) return false;
   if (screen.shortable && !row.shortable) return false;
+  // 29 Oct: "I want to include the fractionable ones": Alpaca trades part shares of it.
+  if (screen.fractionable && !row.fractionable) return false;
   for (const t of screen.trends || [screen.trend]) if (!TRENDS[t](row)) return false;
   if (screen.gapAbs !== null && screen.gapAbs !== undefined && !(Math.abs(row.gapPct) * 100 >= screen.gapAbs)) return false;
   for (const [id, { min, max }] of Object.entries(screen.ranges)) {
@@ -335,6 +344,36 @@ export function premarketPicks(rows, movers = 300, active = 100) {
   const taken = new Set(picked);
   const busiest = liquid.filter((r) => !taken.has(r.symbol)).sort((a, b) => b.prevDollarVol - a.prevDollarVol).slice(0, active).map((r) => r.symbol);
   return [...picked, ...busiest];
+}
+
+/**
+ * Whose after hours the live screen shows: today's from 16:00 on a weekday,
+ * otherwise the weekday before today (a holiday reads as no after hours).
+ * `hour`: the New York hour now.
+ */
+export function afterHoursDay(today, hour) {
+  const weekend = (d) => [0, 6].includes(d.getUTCDay());
+  const now = new Date(`${today}T12:00:00Z`);
+  if (hour >= 16 && !weekend(now)) return today;
+  let d = now;
+  do { d = new Date(d.getTime() - 86400000); } while (weekend(d));
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Whose after hours to read: the day's biggest movers and the most traded
+ * among shares trading $1M a day, and every company reporting after the close
+ * that day.
+ */
+export function afterHoursPicks(rows, day, movers = 200, active = 100) {
+  const reporting = rows.filter((r) => r.earnDate === day && /amc|after|post/i.test(r.earnSession || "")).map((r) => r.symbol);
+  const liquid = rows.filter((r) => r.price >= 1 && Math.max(r.dollarVol || 0, r.prevDollarVol || 0) >= 1e6);
+  const move = (r) => (Number.isFinite(r.changePct) ? Math.abs(r.changePct) : -1);
+  const out = new Set(reporting);
+  for (const r of liquid.slice().sort((a, b) => move(b) - move(a)).slice(0, movers)) out.add(r.symbol);
+  const busy = (r) => Math.max(r.dollarVol || 0, r.prevDollarVol || 0);
+  for (const r of liquid.filter((x) => !out.has(x.symbol)).sort((a, b) => busy(b) - busy(a)).slice(0, active)) out.add(r.symbol);
+  return [...out];
 }
 
 /** "1.2B", "350M", "48K" for volumes and dollars. */

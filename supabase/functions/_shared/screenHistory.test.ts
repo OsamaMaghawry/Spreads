@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { historyRow, premarket, nyMoment } from "./screenHistory.ts";
+import { historyRow, premarket, afterHours, nyMoment } from "./screenHistory.ts";
 
 // Thirty weekdays of a share, the last on Friday 23 Oct 2026: closes 101 to
 // 130, each day's volume its close times 1,000.
@@ -52,4 +52,17 @@ test("the pre-market and New York times", () => {
   assert.equal(new Date(nyMoment("2026-10-23", "09:30")).toISOString(), "2026-10-23T13:30:00.000Z");
   assert.equal(new Date(nyMoment("2026-12-03", "09:30")).toISOString(), "2026-12-03T14:30:00.000Z");
   assert.equal(new Date(nyMoment("2026-03-09", "04:00")).toISOString(), "2026-03-09T08:00:00.000Z");
+});
+
+// 29 Oct: "Does the scanner have pre open and after market hours in the filter".
+test("after hours: volume, high, low and last from 16:00, against the 15:59 close", () => {
+  const bar = (t: string, c: number, v: number, h = c, l = c) => ({ t, o: c, h, l, c, v });
+  const minutes = [
+    bar("2026-10-28T19:59:00Z", 10, 5000),
+    bar("2026-10-28T20:00:00Z", 10.5, 1200, 10.6, 10.4),
+    bar("2026-10-28T20:31:00Z", 11.2, 800, 11.3, 11.0),
+    bar("2026-10-28T23:59:00Z", 11.0, 300)
+  ];
+  assert.deepEqual(afterHours(minutes as any, "2026-10-28T20:00:00Z"), { ahVolume: 2300, ahHigh: 11.3, ahLow: 10.4, ahLast: 11.0, ahClose: 10 });
+  assert.deepEqual(afterHours([bar("2026-10-28T19:59:00Z", 10, 5000)] as any, "2026-10-28T20:00:00Z"), { ahVolume: 0, ahHigh: null, ahLow: null, ahLast: null, ahClose: 10 });
 });

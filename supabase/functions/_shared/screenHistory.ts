@@ -95,6 +95,27 @@ export function premarket(minutes: HistoryBar[]) {
   };
 }
 
+/**
+ * A session's after hours from its minute candles (16:00 to 20:00 New York):
+ * the volume, high, low and last price from `closeAt` on, and the regular
+ * close they are measured against: the last candle before it (15:59).
+ */
+export function afterHours(minutes: HistoryBar[], closeAt: string) {
+  const list = (Array.isArray(minutes) ? minutes : []).filter((m) => m && Number.isFinite(m.c)).sort((a, b) => a.t.localeCompare(b.t));
+  const at = Date.parse(closeAt);
+  const before = list.filter((m) => Date.parse(m.t) < at);
+  const after = list.filter((m) => Date.parse(m.t) >= at);
+  const ahClose = before.length ? before[before.length - 1].c : null;
+  if (!after.length) return { ahVolume: 0, ahHigh: null, ahLow: null, ahLast: null, ahClose };
+  return {
+    ahVolume: after.reduce((a, m) => a + (fin(m.v) || 0), 0),
+    ahHigh: Math.max(...after.map((m) => m.h)),
+    ahLow: Math.min(...after.map((m) => m.l)),
+    ahLast: after[after.length - 1].c,
+    ahClose
+  };
+}
+
 /** A New York clock time on a date, as UTC milliseconds (four hours behind in summer, five in winter). */
 export function nyMoment(date: string, hhmm: string) {
   const [h, m] = hhmm.split(":").map(Number);

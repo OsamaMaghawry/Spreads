@@ -4,7 +4,7 @@ import { invokeFunction } from "@/lib/functions";
 import { readPref, savePref } from "@/lib/terminalPrefs";
 import {
   decodeUniverse, screenRow, FIELDS, FIELD, GROUPS, parseAmount, cleanScreen, passes, sortRows, needsDaily,
-  PRESETS, dailyCandidates, bigNumber, TREND_CHOICES, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown, combineScreens, conflicts, premarketPicks
+  PRESETS, dailyCandidates, bigNumber, TREND_CHOICES, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown, combineScreens, conflicts, premarketPicks, afterHoursDay, afterHoursPicks
 } from "@/lib/screener";
 import { px, pctText } from "@/lib/terminal";
 import { gapWindow, liveWindow, bySymbol } from "@/lib/news";
@@ -74,11 +74,11 @@ const COLUMN_SETS = {
   live: [
     ["symbol", "Symbol"], ["price", "Price"], ["changePct", "Chg %"], ["gapPct", "Gap %"], ["volume", "Volume"], ["relVol", "Rel vol"],
     ["dollarVol", "$ Vol"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["fromHigh52", "vs 52w high"],
-    ["vsSma50", "vs 50d"], ["perf1m", "1 month"], ["earningsIn", "Earnings"], ["news", "News"]
+    ["vsSma50", "vs 50d"], ["perf1m", "1 month"], ["earningsIn", "Earnings"], ["ahChangePct", "After-hrs %"], ["ahVolume", "After-hrs vol"], ["news", "News"]
   ],
   // Live before the open: the move so far is the gap.
   preOpen: [
-    ["symbol", "Symbol"], ["price", "Price"], ["changePct", "Pre-mkt %"], ["news", "News"], ["volume", "Pre-mkt vol"], ["dollarVol", "Pre-mkt $ vol"], ["prevDollarVol", "$ Vol day before"],
+    ["symbol", "Symbol"], ["price", "Price"], ["changePct", "Pre-mkt %"], ["news", "News"], ["volume", "Pre-mkt vol"], ["dollarVol", "Pre-mkt $ vol"], ["ahChangePct", "After-hrs %"], ["ahVolume", "After-hrs vol"], ["prevDollarVol", "$ Vol day before"],
     ["relVol", "Rel vol"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["fromHigh52", "vs 52w high"], ["vsSma50", "vs 50d"], ["perf1m", "1 month"], ["earningsIn", "Earnings"]
   ],
   open: [
@@ -366,12 +366,44 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
       .finally(() => { pmBusy.current = false; });
   }, [active, accountId, when.date, universe.at, universe.rows, pm.key, pm.at, pm.complete]);
 
+  // The last session's after hours, live (29 Oct: "Does the scanner have pre
+  // open and after market hours in the filter"): today's from 16:00, else the
+  // session before; read for the day's movers, the most traded and the
+  // companies reporting after the close.
+  const [ah, setAh] = useState({ key: "", by: {}, complete: false, at: 0 });
+  const ahBusy = useRef(false);
+  useEffect(() => {
+    if (when.date || !active || !accountId || !universe.rows.length || ahBusy.current) return;
+    const now = nyToday();
+    const day = afterHoursDay(now, Number(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "2-digit", hourCycle: "h23" })));
+    const key = `${accountId}|${day}`;
+    if (ah.key === key && (ah.complete || Date.now() - ah.at < PM_EVERY)) return;
+    const picks = afterHoursPicks(universe.rows.map((u) => screenRow(u, null, now)), day, PM_PICK, PM_ACTIVE);
+    if (!picks.length) return;
+    ahBusy.current = true;
+    const batches = [];
+    for (let i = 0; i < picks.length; i += PM_BATCH) batches.push(picks.slice(i, i + PM_BATCH));
+    Promise.all(batches.map((symbols) => invokeFunction("terminal", { action: "screen", stage: "afterhours", accountId, date: day, symbols })
+      .then((r) => (r?.data?.ah && !r.data.error ? r.data : null)).catch(() => null)))
+      .then((got) => {
+        const ok = got.filter(Boolean);
+        setAh((p) => {
+          const by = { ...(p.key === key ? p.by : {}) };
+          for (const g of ok) Object.assign(by, g.ah);
+          return { key, by, complete: ok.length === batches.length && ok.every((g) => g.complete), at: Date.now() };
+        });
+      })
+      .finally(() => { ahBusy.current = false; });
+  }, [active, accountId, when.date, universe.at, universe.rows, ah.key, ah.at, ah.complete]);
+
   const today = when.date || nyToday();
   const pmToday = !when.date && pm.key === `${accountId}|${today}` ? pm.by : null;
+  const ahLast = !when.date && ah.key.startsWith(`${accountId}|`) ? ah.by : null;
   const rows = useMemo(() => universe.rows.map((u) => {
-    const x = pmToday && pmToday[u.symbol] ? { ...u, ...pmToday[u.symbol] } : u;
+    let x = pmToday && pmToday[u.symbol] ? { ...u, ...pmToday[u.symbol] } : u;
+    if (ahLast && ahLast[u.symbol]) x = { ...x, ...ahLast[u.symbol] };
     return screenRow(x, daily[u.symbol] || (when.date ? partialStats(u) : null), today);
-  }), [universe.rows, daily, today, when.date, pmToday]);
+  }), [universe.rows, daily, today, when.date, pmToday, ahLast]);
   // Live before the open (most rows' day candle still the last session's).
   const preOpen = !when.date && rows.length > 0 && rows.filter((r) => r.preOpen).length > rows.length / 2;
   const lastSession = preOpen ? universe.rows.find((u) => u.day)?.day : null;
@@ -492,6 +524,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
           <div className="flex gap-3 px-1 text-[11px] text-slate-600">
             <label className="flex items-center gap-1"><input type="checkbox" checked={screen.options} onChange={(e) => setChoice("options", e.target.checked)} />Has options</label>
             <label className="flex items-center gap-1"><input type="checkbox" checked={screen.shortable} onChange={(e) => setChoice("shortable", e.target.checked)} />Shortable</label>
+            <label className="flex items-center gap-1" title="Alpaca trades part shares of it"><input type="checkbox" checked={!!screen.fractionable} onChange={(e) => setChoice("fractionable", e.target.checked)} />Fractionable</label>
           </div>
           {GROUPS.map((g) => (
             <div key={g} className="rounded border border-slate-100">

@@ -14,7 +14,7 @@ import { sessionCandles } from "../_shared/sessionBars.ts";
 import { currentReports } from "../_shared/earnings.ts";
 import { secReports, withFigures, earningsTimeline, cikMap } from "../_shared/earningsHistory.ts";
 import { dailyStats, isFundName } from "../_shared/screenStats.ts";
-import { historyRow, premarket, nyMoment } from "../_shared/screenHistory.ts";
+import { historyRow, premarket, afterHours, nyMoment } from "../_shared/screenHistory.ts";
 import { usSession, stopPlan, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit, replaceable } from "../_shared/positionTools.ts";
 import { inBackground } from "../_shared/background.ts";
 import { allocate } from "../_shared/proRata.ts";
@@ -507,7 +507,7 @@ async function snapsFor(account: any, symbols: string[], feed: string) {
 
 const SCREEN_COLUMNS = [
   "symbol", "name", "exchange", "price", "priceAt", "day", "prevClose", "open", "high", "low", "close", "volume", "prevVolume", "vwap", "trades",
-  "bid", "ask", "options", "shortable", "easyToBorrow", "fund", "shares", "earnDate", "earnSession"
+  "bid", "ask", "options", "shortable", "easyToBorrow", "fund", "shares", "earnDate", "earnSession", "fractionable"
 ];
 
 // The screen's listed shares, every one (13,195 on 28 Oct).
@@ -557,7 +557,8 @@ async function screenUniverse(admin: any, account: any, part = 0, parts = 1) {
       num(live?.latestQuote?.bp), num(live?.latestQuote?.ap),
       a.options, a.shortable, a.easyToBorrow, isFundName(a.name),
       cik && shares ? shares.get(cik) ?? null : null,
-      earnings[a.symbol]?.[0] ?? null, earnings[a.symbol]?.[1] ?? null
+      earnings[a.symbol]?.[0] ?? null, earnings[a.symbol]?.[1] ?? null,
+      a.fractionable
     ]);
   }
   return { columns: SCREEN_COLUMNS, rows, dayFeed, priceFeed: FEED, at: new Date().toISOString(), listed: list.length };
@@ -628,7 +629,7 @@ async function screenDaily(account: any, symbols: string[], asOf = "") {
 const HISTORY_COLUMNS = [
   "symbol", "name", "exchange", "price", "priceAt", "day", "prevClose", "open", "high", "low", "close", "volume", "prevVolume", "vwap", "trades",
   "bid", "ask", "options", "shortable", "easyToBorrow", "fund", "shares", "earnDate", "earnSession",
-  "lastDate", "lastClose", "avgVol20", "avgDollar20", "atr14", "sma20", "d5", "d21", "pmVolume", "pmHigh", "pmLow", "pmLast"
+  "lastDate", "lastClose", "avgVol20", "avgDollar20", "atr14", "sma20", "d5", "d21", "pmVolume", "pmHigh", "pmLow", "pmLast", "fractionable"
 ];
 const HISTORY_CHUNK = 300;
 const PM_CANDIDATES = 300;
@@ -688,7 +689,7 @@ async function screenHistory(account: any, date: string, asOf: "open" | "close",
       a.symbol, a.name, a.exchange, asOf === "close" ? r.close : r.open, null, r.day, r.prevClose, r.open, r.high, r.low, r.close, r.volume, r.prevVolume, r.vwap, r.trades,
       null, null, a.options, a.shortable, a.easyToBorrow, isFundName(a.name), cik && shares ? shares.get(cik) ?? null : null, null, null,
       r.lastDate, r.lastClose, r.avgVol20, r.avgDollar20, r.atr14, r.sma20, r.d5, r.d21,
-      null, null, null, null
+      null, null, null, null, a.fractionable
     ];
   });
   const value = { columns: HISTORY_COLUMNS, rows, history: true, date, asOf, part, parts, dayFeed: feed, priceFeed: feed, at: new Date().toISOString(), listed: everyone.length };
@@ -736,6 +737,47 @@ async function screenPremarket(account: any, date: string, symbolsIn: string[]) 
     return null;
   });
   return { date, pm, feed, through: to, complete: until === open };
+}
+
+// A session's after hours, 16:00 to 20:00 New York (29 Oct: "Does the scanner
+// have pre open and after market hours in the filter"): each symbol's volume,
+// high, low and last price after the close, and the 16:00 close they are
+// measured against, from consolidated minute candles (today's up to fifteen
+// minutes ago).
+async function screenAfterHours(account: any, date: string, symbolsIn: string[]) {
+  const today = date === nyDate();
+  const problem = today ? null : pastDateProblem(date);
+  if (problem) return { error: problem };
+  const symbols = [...new Set(symbolsIn.map((x) => String(x).toUpperCase()))].filter((x) => SYMBOL.test(x)).slice(0, PM_CANDIDATES);
+  const close = nyMoment(date, "16:00");
+  const end = nyMoment(date, "20:00");
+  const until = today ? Math.min(end, Date.now() - 16 * 60000) : end;
+  if (until <= close) return { date, ah: {}, feed: "sip", through: null, complete: false };
+  const from = iso(close - 60000);
+  const to = iso(until);
+  const groups: string[][] = [];
+  for (let i = 0; i < symbols.length; i += PM_CHUNK) groups.push(symbols.slice(i, i + PM_CHUNK));
+  const ah: Record<string, ReturnType<typeof afterHours>> = {};
+  let feed = "sip";
+  const read = async (g: string[], f: string) => {
+    const all: Record<string, any[]> = {};
+    let token: string | null = null;
+    let pages = 0;
+    do {
+      const page = await alpacaFetch(`${DATA}/stocks/bars?symbols=${g.join(",")}&timeframe=1Min&start=${from}&end=${to}&limit=10000&feed=${f}` +
+        (token ? `&page_token=${encodeURIComponent(token)}` : ""), account);
+      for (const [sym, bars] of Object.entries(page?.bars || {})) (all[sym] = all[sym] || []).push(...(bars as any[]));
+      token = page?.next_page_token || null;
+      pages += 1;
+    } while (token && pages < 6);
+    return all;
+  };
+  await inBatches(groups, 6, async (g) => {
+    const all = await read(g, feed).catch(() => { feed = FEED; return read(g, FEED); });
+    for (const sym of g) ah[sym] = afterHours(all[sym] || [], iso(close));
+    return null;
+  });
+  return { date, ah, feed, through: to, complete: until === end };
 }
 
 // One order as the terminal shows it, finished or not: what was asked, what
@@ -2116,6 +2158,10 @@ Deno.serve(async (req) => {
         return jsonResponse(r, (r as any).error ? 400 : 200);
       }
       if (body.stage === "shares") return jsonResponse(await screenShares(account));
+      if (body.stage === "afterhours") {
+        const r = await screenAfterHours(account, String(body.date || ""), Array.isArray(body.symbols) ? body.symbols : []);
+        return jsonResponse(r, (r as any).error ? 400 : 200);
+      }
       const parts = Math.min(8, Math.max(1, Math.floor(Number(body.parts) || 1)));
       const part = Math.min(parts - 1, Math.max(0, Math.floor(Number(body.part) || 0)));
       return jsonResponse(await screenUniverse(admin, account, part, parts));
