@@ -1058,6 +1058,13 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
       const sh = await timed(() => screenShares(house));
       return { parts: got.map((g) => ({ ms: g.ms, rows: g.r.rows.length, listed: g.r.listed, bytes: JSON.stringify(g.r).length })), shares: { ms: sh.ms, count: sh.r.count } };
     }
+    if (extra[0] === "PART") {
+      // One part of four on its own, as the screener asks for it (PART, 0-3).
+      const t = Date.now();
+      const r = await screenUniverse(admin, house, Number(extra[1]) || 0, 4);
+      const col = r.columns.indexOf("fractionable");
+      return { ms: Date.now() - t, rows: r.rows.length, bytes: JSON.stringify(r).length, fractionable: r.rows.filter((x) => x[col]).length };
+    }
     if (extra[0] === "AH") {
       // One session's after hours (AH, date, symbols...), timed, as the screener reads it.
       const t = Date.now();
