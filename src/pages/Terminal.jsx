@@ -20,7 +20,8 @@ import HotkeysDialog from "@/components/terminal/Hotkeys";
 import { runHotkey, prefetchStep } from "@/components/terminal/runHotkey";
 import { noteOrder } from "@/components/terminal/orderFeed";
 import { comboOf, cleanHotkeys } from "@/lib/hotkeys";
-import { Positions, Orders, AccountSummary, GroupHoldings } from "@/components/terminal/Panels";
+import { Positions, Orders, AccountSummary } from "@/components/terminal/Panels";
+import AccountStrip from "@/components/terminal/AccountStrip";
 import useReplay from "@/components/terminal/useReplay";
 import ReplayBar, { ReplayStart } from "@/components/terminal/ReplayBar";
 import { PracticePositions, ReplayResults, DemoResults } from "@/components/terminal/ReplayPanels";
@@ -383,14 +384,17 @@ export default function Terminal() {
   // After an order here or there, everything at once: this account and the others.
   const refreshAll = useCallback(() => { loadView(); loadOthers(); }, [loadView, loadOthers]);
   const signedQty = (p) => (p ? (p.side === "short" ? -Math.abs(Number(p.qty) || 0) : Math.abs(Number(p.qty) || 0)) : 0);
-  const holdings = others.length ? [
-    { id: accountId, name: account?.name || "This account", live: account?.type === "Live", qty: signedQty(position), waiting: (view?.orders || []).filter((o) => o.symbol === symbol) },
+  // Each sending account's holding of the chart's symbol and its orders on
+  // it, for the account strip: the one on screen once its view is read, and
+  // each picked beside it.
+  const stripRows = [
+    ...(view ? [{ id: accountId, qty: signedQty(position), waiting: (view.orders || []).filter((o) => o.symbol === symbol) }] : []),
     ...others.map((g) => ({
-      id: g.accountId, name: g.name, live: g.live, error: g.error || (g.ok === false ? "refused" : null),
+      id: g.accountId, error: g.error || (g.ok === false ? "refused" : null),
       qty: signedQty((g.positions || []).find((p) => p.symbol === symbol)),
       waiting: (g.orders || []).filter((o) => o.symbol === symbol)
     }))
-  ] : [];
+  ];
   // Rows refit when the bar wraps, the window or full screen changes, or the
   // replay note comes and goes above the grid.
   useEffect(() => {
@@ -586,7 +590,9 @@ export default function Terminal() {
           className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${deskFull ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
           {deskFull ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}{deskFull ? "Exit full screen" : "Full screen"}
         </button>
-        {page === "trade" && holdings.length > 0 && <GroupHoldings symbol={symbol} rows={holdings} />}
+        {page === "trade" && !replaying && (
+          <AccountStrip lead={account} choices={groupChoices(accounts, accountId, liveOk)} picked={group} onPick={changeGroup} rows={stripRows} symbol={symbol} />
+        )}
       </div>
 
       {replaying && page === "trade" && (

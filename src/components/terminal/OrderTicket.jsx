@@ -206,6 +206,8 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   // 0.49875 on screen is 0.498749999 at the broker.
   const sellAll = side === "sell" && held > 0 && typed > held && typed - held < 1e-8;
   const n = sellAll ? held : typed;
+  // Any live account among those the order goes to, said on the button.
+  const groupLive = account?.type === "Live" || group.some((a) => a.type === "Live");
   const belowMin = crypto && !notional && n > 0 && asset?.minOrderSize && n < asset.minOrderSize;
   // A leftover smaller than the coin's smallest order (about $1 at Alpaca)
   // cannot be sold by itself: say so once, rather than offer a sale that fails.
@@ -493,17 +495,17 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
         </p>
       )}
 
-      {group.length > 0 && !review && (
-        <p className="rounded-md border border-violet-300 bg-violet-50 px-2 py-1 text-[11px] leading-snug text-violet-900">
-          Also sends to {group.map((a) => `${a.name}${a.type === "Live" ? " (LIVE)" : ""}`).join(", ")}, each at its size: the review shows how much.
-        </p>
-      )}
+
       {review ? (
         <div className="space-y-2 rounded-lg border border-slate-300 bg-slate-50 p-2">
-          <p className="text-sm text-slate-800">{words}{group.length ? ` on ${account?.name}` : ""}.</p>
+          <p className="text-sm text-slate-800">{words}.</p>
           {group.length > 0 && (
-            <div className="rounded border border-violet-200 bg-white px-2 py-1 text-[11px] leading-snug text-slate-700">
-              <div className="font-semibold text-violet-900">And on {group.length} more account{group.length === 1 ? "" : "s"}:</div>
+            <div className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] leading-snug text-slate-700">
+              <div className="font-semibold text-slate-900">On {group.length + 1} accounts:</div>
+              <div className="flex justify-between gap-2">
+                <span className="truncate">{account?.name}{account?.type === "Live" ? " (LIVE)" : ""} <span className="text-slate-400">on screen</span></span>
+                <span className="shrink-0 tabular-nums">{notional ? fmtMoney(dollars) : `${sizeText(n)} ${crypto ? coin : "shares"}`}</span>
+              </div>
               {shares?.loading && <div className="text-slate-500">Working out each share…</div>}
               {shares?.error && <div className="text-rose-700">{shares.error}</div>}
               {(shares?.rows || []).map((g) => (
@@ -520,7 +522,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
           <div className="flex gap-2">
             <button type="button" onClick={send} disabled={busy}
               className={`flex-1 rounded-md py-2 text-sm font-semibold text-white disabled:opacity-50 ${side === "buy" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"}`}>
-              {busy ? "Sending…" : "Send order"}
+              {busy ? "Sending…" : group.length ? `Send to ${group.length + 1} accounts` : "Send order"}
             </button>
             <button type="button" onClick={() => setReview(false)} className="rounded-md border border-slate-300 px-3 text-sm text-slate-600">Edit</button>
           </div>
@@ -528,7 +530,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
       ) : (
         <button type="button" disabled={!ready} onClick={() => setReview(true)}
           className={`w-full rounded-md py-2 text-sm font-semibold text-white disabled:opacity-40 ${side === "buy" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"}`}>
-          Review {side === "buy" ? "buy" : "sell"}
+          Review {side === "buy" ? "buy" : "sell"}{group.length ? ` · ${group.length + 1} accounts${groupLive ? " (live)" : ""}` : ""}
         </button>
       )}
 

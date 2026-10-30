@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { groupChoices, cleanGroup, groupNews, groupPayload, cleanSizes, sameOrders } from "./accountGroup.js";
+import { groupChoices, cleanGroup, groupNews, groupPayload, cleanSizes, sameOrders, exitsOf } from "./accountGroup.js";
 
 const accounts = [
   { id: "p1", name: "Paper one", type: "Paper" },
@@ -87,4 +87,14 @@ test("the same working order on another account: symbol, side and kind", () => {
   assert.deepEqual(sameOrders({ ...sell, type: "stop" }, theirs).map((o) => o.id), ["2", "6"]);
   assert.deepEqual(sameOrders({ ...sell, orderClass: "oco" }, theirs).map((o) => o.id), ["3"]);
   assert.deepEqual(sameOrders(sell, null), []);
+});
+
+test("exitsOf: a holding's stop and target at Alpaca, and whether it has no stop", () => {
+  const oco = { side: "sell", type: "limit", orderClass: "oco", limit: 30, legs: [{ type: "stop_limit", stop: 26 }] };
+  assert.deepEqual(exitsOf(100, [oco]), { held: 100, stop: 26, target: 30, other: 0, bare: false });
+  // A short's exits buy; a sell on a short is something else, counted as waiting.
+  assert.deepEqual(exitsOf(-22, [{ side: "buy", type: "stop_limit", orderClass: "simple", stop: 228.7, legs: [] }, { side: "sell", type: "limit", tif: "day", limit: 220, legs: [] }]),
+    { held: -22, stop: 228.7, target: null, other: 1, bare: false });
+  assert.equal(exitsOf(50, [{ side: "sell", type: "limit", tif: "gtc", limit: 12, legs: [] }]).bare, true);
+  assert.deepEqual(exitsOf(0, [{ side: "buy", type: "limit", tif: "day", limit: 5, legs: [] }]), { held: 0, stop: null, target: null, other: 1, bare: false });
 });

@@ -107,3 +107,30 @@ const orderKind = (o) => (o.orderClass === "oco" ? "oco" : o.orderClass === "bra
 export function sameOrders(order, list) {
   return (Array.isArray(list) ? list : []).filter((o) => o.symbol === order.symbol && o.side === order.side && orderKind(o) === orderKind(order));
 }
+
+/**
+ * A holding's exits as its working orders stand at Alpaca: the stop and the
+ * take profit on the side that closes it (a one-cancels-other pair carries
+ * both), and how many other orders wait on the symbol. For the account strip
+ * (30 Oct, the owner: "knowing which account is buying or selling now is so
+ * confusing"): an account that holds without a stop says so.
+ * `qty`: signed, negative for a short; `orders`: the symbol's working orders.
+ */
+export function exitsOf(qty, orders) {
+  const held = Number(qty) || 0;
+  const closing = held > 0 ? "sell" : held < 0 ? "buy" : null;
+  let stop = null;
+  let target = null;
+  let other = 0;
+  for (const o of Array.isArray(orders) ? orders : []) {
+    if (closing && o.side === closing && o.orderClass === "oco") {
+      target = o.limit ?? target;
+      stop = (o.legs || []).find((l) => l.type === "stop" || l.type === "stop_limit")?.stop ?? stop;
+    } else if (closing && o.side === closing && !(o.legs || []).length && ["stop", "stop_limit", "trailing_stop"].includes(o.type)) {
+      stop = o.stop ?? stop;
+    } else if (closing && o.side === closing && !(o.legs || []).length && o.type === "limit" && o.tif === "gtc") {
+      target = o.limit ?? target;
+    } else other += 1;
+  }
+  return { held, stop, target, other, bare: held !== 0 && stop === null };
+}

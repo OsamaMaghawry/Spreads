@@ -92,7 +92,7 @@ incomplete.
 - **history** — RebuildPreview, StockLotsTable, StrategyTabs, TradeHistoryTable
 - **open** — CandidateList, OpenPositionDialog, OpenPricing, OrderSent, OrderWarnings, RestingOrder, ScanFilters, SetupPreview, StrategyPicker, TicketAnalysis, useLiveSetup, useOpenOrder, useScanLoop
 - **scanner** — ResultsTable, ScannerConfig, TradeDialog, useMarketScan
-- **terminal** — GroupPicker, Hotkeys, NewsPanel, OrderBook, OrderTicket, Panels, PriceChart, ReplayBar, ReplayPanels, Screener, SymbolSearch, TapePanel, Toasts, drawingLayer, orderFeed, runHotkey, useAccountSetting, useReplay, useTerminalStream
+- **terminal** — AccountStrip, GroupPicker, Hotkeys, NewsPanel, OrderBook, OrderTicket, Panels, PriceChart, ReplayBar, ReplayPanels, Screener, SymbolSearch, TapePanel, Toasts, drawingLayer, orderFeed, runHotkey, useAccountSetting, useReplay, useTerminalStream
 
 ## Recently shipped
 
