@@ -154,6 +154,16 @@ dump (`dumpBrokerFeed`, migration 0024 on staging); last-active stamping via
 a security-definer RPC. `oauthDiag` is reachable by any signed-in user —
 handed to systems-engineer.
 
+Trading Terminal (`src/pages/Terminal.jsx`, `supabase/functions/terminal/`;
+staging only, route behind `AdminOnly` and the lab flag — checked 2026-10-30):
+charts with multi-ticker replay, historical screener, news, hotkeys, and one
+order sent to several accounts at their own sizes, with an "Orders go to"
+strip naming every account an order reaches and which are live. Stops are
+stop-limit orders held at Alpaca (one-cancels-other with a target); the server
+no longer fires stops itself outside regular hours (`ec40862`). Live trading
+is the owner's own Alpaca accounts only. Not a product today: nothing on the
+landing site may claim it.
+
 ## What this inventory says about packaging
 
 - Everything that activates a user — screening, connecting, placing and
