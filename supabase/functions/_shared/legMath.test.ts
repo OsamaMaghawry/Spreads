@@ -254,3 +254,8 @@ test("structureRisk gathers it all without asking what the structure is called",
 });
 
 function round2(n: number) { return Math.round(n * 100) / 100; }
+
+test("W44 audit: a null multiplier means the standard contract, not zero (a naked call stays unbounded)", () => {
+  const r = maxLoss([{ type: "C", qty: -1, strike: 100, entryPrice: 2, expiry: "2026-11-20", multiplier: null } as any]);
+  assert.equal(r.unbounded, "up");
+});

@@ -83,18 +83,18 @@ test("exits: the broker's close in the session; a limit at the bid or ask outsid
   const all = { all: true, qty: 0 };
   assert.deepEqual(exitPlan(long, { all: false, qty: 50 }, "regular", {}), { ok: true, how: "close", all: false, qty: 50 });
   assert.deepEqual(exitPlan(long, all, "closed", {}, true), { ok: true, how: "close", all: true, qty: 100 });
-  const pre = exitPlan(long, { all: false, qty: 50 }, "extended", { bid: 349.9, ask: 350.1 }) as any;
+  const pre = exitPlan(long, { all: false, qty: 50 }, "extended", { bid: 349.9, ask: 350.1, ref: 350 }) as any;
   assert.deepEqual([pre.how, pre.side, pre.qty, pre.limitPrice, pre.note], ["limit", "sell", 50, 349.9, null]);
-  const cover = exitPlan(short, all, "extended", { bid: 349.9, ask: 350.1 }) as any;
+  const cover = exitPlan(short, all, "extended", { bid: 349.9, ask: 350.1, ref: 350 }) as any;
   assert.deepEqual([cover.side, cover.qty, cover.limitPrice], ["buy", 50, 350.1]);
-  const odd = exitPlan({ ...long, qty: 7.5 }, { all: false, qty: 3.75 }, "extended", { bid: 10 }) as any;
+  const odd = exitPlan({ ...long, qty: 7.5 }, { all: false, qty: 3.75 }, "extended", { bid: 10, ref: 10 }) as any;
   assert.equal(odd.qty, 3);
   assert.match(odd.note, /whole shares/);
   const why = (...a: any[]) => (exitPlan(...(a as [any, any, any, any])) as any).reason;
   assert.match(why(long, all, "closed", {}), /shut now/);
   assert.match(why(long, { all: false, qty: 0 }, "regular", {}), /Nothing to exit/);
   assert.match(why(long, all, "extended", {}), /No bid/);
-  assert.match(why({ ...long, qty: 1 }, { all: false, qty: 0.5 }, "extended", { bid: 10 }), /less than one/);
+  assert.match(why({ ...long, qty: 1 }, { all: false, qty: 0.5 }, "extended", { bid: 10, ref: 10 }), /less than one/);
 });
 
 test("exits outside regular hours: a bid far from the broker's mark is not the market (27 Oct, AIOK)", () => {
@@ -206,4 +206,15 @@ test("a sell key replaces the terminal's earlier day sells, never a stop, a targ
   assert.equal(replaceable(o("TERM_R_1")), false);
   assert.equal(replaceable(o("TERM_K_1", "limit", "day", "simple", "buy")), false);
   assert.equal(replaceable(o("web-order-1")), false); // placed elsewhere
+});
+
+test("W44 audit: with no last price a stop or target cannot be checked for the wrong side, so it is refused", () => {
+  const p = { qty: 100, side: "long", avgPrice: 10, last: null } as any;
+  assert.equal((stopPlan(p, { mode: "price", value: 15 }) as any).ok, false);
+  assert.equal((targetPlan(p, { mode: "price", value: 5 }) as any).ok, false);
+});
+
+test("W44 audit: an extended-hours exit with no broker mark does not take any bid it is shown", () => {
+  const r = exitPlan({ qty: 100, side: "long", last: null } as any, { all: true, qty: 100 }, "extended", { bid: 7.75, ref: null }) as any;
+  assert.equal(r.ok, false);
 });

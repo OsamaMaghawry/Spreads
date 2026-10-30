@@ -649,3 +649,5 @@ English. Newest first.
 - 2026-10-28 · (staging) The confirm-signup email link now uses the brand purple instead of a stray indigo (`c026467`).
 - 2026-10-28 · (staging) Terminal: typing part of a share on a stock that trades in whole shares now says so instead of silently rounding to whole shares (`63ebb31`).
 - 2026-10-28 · (staging) Terminal: the $5,000 cap on each live order that opens or adds to a position is gone, at the owner's instruction; live trading is still only the owner's own Alpaca accounts (`015db09`).
+- 2026-10-29 · (staging) Terminal screener: today's screen is read in four parts side by side, and it can filter to fractionable stocks and show after-hours volume and change (`6fa977b`, `f34573e`).
+- 2026-10-29 · (staging) Stops, targets, exits and stop-limit chases no longer act when there is no price to check against, and a missing contract multiplier no longer reads as zero loss on a naked short call (`3bf400c`).

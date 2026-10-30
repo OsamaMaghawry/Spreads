@@ -53,7 +53,8 @@ export function stopPlan(position: Position, input: StopInput, crypto = false):
   } else stop = long ? ref! - value : ref! + value;
   stop = round(stop);
   if (!(stop > 0)) return { ok: false, reason: "That stop works out at or below zero." };
-  if (last && (long ? stop >= last : stop <= last)) {
+  if (!(last && last > 0)) return { ok: false, reason: "No last price to check the stop against, so it is not sent." };
+  if (long ? stop >= last : stop <= last) {
     return { ok: false, reason: `A stop at ${stop} is ${long ? "above" : "below"} the last price ${last}: it would ${long ? "sell" : "buy"} at once.` };
   }
   const side = long ? "sell" : "buy";
@@ -104,7 +105,8 @@ export function targetPlan(position: Position, input: StopInput):
   else target = long ? ref! + value : ref! - value;
   target = round(target);
   if (!(target > 0)) return { ok: false, reason: "That target works out at or below zero." };
-  if (last && (long ? target <= last : target >= last)) {
+  if (!(last && last > 0)) return { ok: false, reason: "No last price to check the target against, so it is not sent." };
+  if (long ? target <= last : target >= last) {
     return { ok: false, reason: `A target at ${target} is ${long ? "below" : "above"} the last price ${last}: it would fill at once.` };
   }
   return { ok: true, side: long ? "sell" : "buy", qty, targetPrice: target };
@@ -282,7 +284,7 @@ export function exitPlan(position: Position, amount: { all: boolean; qty: number
   const word = long ? "bid" : "ask";
   const seen = [quote.live?.[word], quote[word]].map(num).filter((v): v is number => !!v && v > 0);
   const ref = num(quote.ref);
-  const near = ref && ref > 0 ? seen.find((v) => Math.abs(v - ref) / ref <= EXIT_BAND) : seen[0];
+  const near = ref && ref > 0 ? seen.find((v) => Math.abs(v - ref) / ref <= EXIT_BAND) : null;
   const price = near ?? (ref && ref > 0 ? ref * (long ? 1 - EXIT_THROUGH : 1 + EXIT_THROUGH) : null);
   if (!(price && price > 0)) return { ok: false, reason: `No ${word} to exit against outside regular hours.` };
   const shares = Math.floor(wanted + 1e-9);

@@ -229,8 +229,9 @@ const CHASE_THROUGH = 0.02;
 export function chasePrice(side: "buy" | "sell", q: { bid?: number | null; ask?: number | null; last?: number | null }, current: number | null = null): number | null {
   const sell = side === "sell";
   const last = num(q.last);
+  if (!(last && last > 0)) return null;
   const quoted = num(sell ? q.bid : q.ask);
-  const near = quoted && quoted > 0 && (!last || !(last > 0) || Math.abs(quoted - last) / last <= CHASE_BAND) ? quoted : null;
+  const near = quoted && quoted > 0 && (Math.abs(quoted - last) / last <= CHASE_BAND) ? quoted : null;
   const raw = near ?? (last && last > 0 ? last * (sell ? 1 - CHASE_THROUGH : 1 + CHASE_THROUGH) : null);
   if (!raw || !(raw > 0)) return null;
   const next = Number(price(raw));

@@ -155,3 +155,7 @@ test("a fired stop's limit chases the bid, only ever toward the market", () => {
   assert.equal(chasePrice("sell", { bid: 0.5123, last: 0.513 }), 0.5123);
   assert.equal(chasePrice("sell", {}), null);
 });
+
+test("W44 audit: the chase with no last price to judge a quote against does not move the order", () => {
+  assert.equal(chasePrice("sell", { bid: 0.05, last: null }), null);
+});
