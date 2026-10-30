@@ -63,12 +63,25 @@ export function stopPlan(position: Position, input: StopInput, crypto = false):
     const limit = round(long ? stop * 0.99 : stop * 1.01);
     return { ok: true, side, qty, qtyText: position.qtyText || String(qty), stopPrice: stop, limitPrice: limit, type: "stop_limit", timeInForce: "gtc", note: `limit ${limit}, 1% past the stop` };
   }
+  // A stop-limit, sitting at Alpaca from the moment it is set (30 Oct, the
+  // owner: "It has to be in the market not just WILL WHEN situation"): when
+  // a trade reaches the stop, Alpaca sends a limit STOP_LIMIT_BAND past it.
   // Part of a share can be ordered for the day only.
   const whole = Number.isInteger(qty);
   return {
-    ok: true, side, qty, qtyText: String(qty), stopPrice: stop, limitPrice: null, type: "stop", timeInForce: whole ? "gtc" : "day",
+    ok: true, side, qty, qtyText: String(qty), stopPrice: stop, limitPrice: stopLimitPrice(side, stop), type: "stop_limit", timeInForce: whole ? "gtc" : "day",
     note: whole ? null : "a position with part of a share: the stop lasts for today only"
   };
+}
+
+/**
+ * How far past its stop a stop-limit may fill: a sale no lower than 2% under
+ * the stop, a buy back no higher than 2% over it. A move through that in one
+ * trade leaves the order working at its limit.
+ */
+export const STOP_LIMIT_BAND = 0.02;
+export function stopLimitPrice(side: "buy" | "sell", stop: number) {
+  return round(side === "sell" ? stop * (1 - STOP_LIMIT_BAND) : stop * (1 + STOP_LIMIT_BAND));
 }
 
 /**
@@ -172,11 +185,16 @@ export function exitBody(symbol: string, side: "buy" | "sell", qty: number, exit
     if (!whole) return { ok: false, reason: "With part of a share, Alpaca takes one exit order at a time: a stop or a target, not both." };
     return {
       ok: true,
-      body: { symbol, side, qty: String(qty), type: "limit", time_in_force: "gtc", order_class: "oco", client_order_id: clientId, take_profit: { limit_price: fmt(target) }, stop_loss: { stop_price: fmt(stop) } }
+      body: { symbol, side, qty: String(qty), type: "limit", time_in_force: "gtc", order_class: "oco", client_order_id: clientId, take_profit: { limit_price: fmt(target) }, stop_loss: { stop_price: fmt(stop), limit_price: fmt(stopLimitPrice(side, stop)) } }
     };
   }
   if (target) {
-    return { ok: true, body: { symbol, side, qty: amount, type: "limit", limit_price: fmt(target), time_in_force: opts.crypto || whole ? "gtc" : "day", client_order_id: clientId } };
+    // A take profit alone is a limit, which Alpaca also works before 9:30 and
+    // after 16:00; a pair is not (one-cancels-other waits for regular hours).
+    return {
+      ok: true,
+      body: { symbol, side, qty: amount, type: "limit", limit_price: fmt(target), time_in_force: opts.crypto || whole ? "gtc" : "day", client_order_id: clientId, ...(opts.crypto ? {} : { extended_hours: true }) }
+    };
   }
   return { ok: false, reason: "Nothing to place." };
 }

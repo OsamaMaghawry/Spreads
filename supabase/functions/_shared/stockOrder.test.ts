@@ -41,7 +41,8 @@ test("bracket: both exits, on the right sides of the entry", () => {
   const ok = stockOrderBody({ ...base, takeProfit: 360, stopLoss: 335 }, "T") as any;
   assert.equal(ok.body.order_class, "bracket");
   assert.deepEqual(ok.body.take_profit, { limit_price: "360.00" });
-  assert.deepEqual(ok.body.stop_loss, { stop_price: "335.00" });
+  // The stop a stop-limit, 2% under for a buy's exit (positionTools stopLimitPrice).
+  assert.deepEqual(ok.body.stop_loss, { stop_price: "335.00", limit_price: "328.30" });
   const why = (i: any) => (stockOrderBody(i, "T") as any).reason;
   assert.match(why({ ...base, takeProfit: 360 }), /enter both/);
   assert.match(why({ ...base, takeProfit: 340, stopLoss: 335 }), /take-profit must be above 344\.50/);

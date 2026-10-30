@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, inRegularHours, sessionDay, amountToQty, orderState, orderNews, iexOpen, shareFeed, ticketChoices, mergeTape, clockMs } from "./terminal.js";
+import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, inRegularHours, sessionDay, amountToQty, orderState, orderNews, iexOpen, shareFeed, ticketChoices, mergeTape, clockMs, exitText, stopWaitText } from "./terminal.js";
 
 const sec = (iso) => Date.parse(iso) / 1000;
 
@@ -242,4 +242,14 @@ test("the tape in the order trades printed: a late arrival takes its place", () 
   assert.equal(mergeTape([], Array.from({ length: TAPE_MAX + 9 }, (_, i) => row(new Date(1.79e12 + i * 1000).toISOString(), i))).length, TAPE_MAX);
   assert.equal(clockMs("2026-10-26T10:20:05.042Z"), "06:20:05.042");
   assert.equal(clockMs("x"), "");
+});
+
+test("exitText: every stop said as a stop-limit at Alpaca, and that it waits outside regular hours", () => {
+  assert.equal(exitText({ side: "sell", qty: 22, stopPrice: 26, limitPrice: 25.48, targetPrice: 30 }, "AIOK"),
+    "Sell 22 AIOK: take profit at 30.00, stop at 26.00, no lower than 25.48; when one fills the other is cancelled");
+  assert.equal(exitText({ side: "buy", qty: 22, stopPrice: 228.7, limitPrice: 233.27 }, "AMZN"),
+    "Buy back 22 AMZN: stop at 228.70, no higher than 233.27");
+  assert.equal(exitText({ side: "sell", qty: 5, targetPrice: 12 }, "ELPW", "pre"), "Sell 5 ELPW: take profit at 12.00");
+  assert.match(exitText({ side: "sell", qty: 5, stopPrice: 3, limitPrice: 2.94 }, "ELPW", "pre"), /before the open: the stop is at Alpaca but Alpaca only triggers stops from 9:30/);
+  assert.equal(stopWaitText("regular"), null);
 });

@@ -23,8 +23,6 @@ import { decryptSecret } from "../_shared/crypto.ts";
 import { isConnectorToken } from "../_shared/connectorToken.ts";
 import { relayDetail, SHARE, COIN } from "../_shared/terminalRelay.ts";
 import { isOwnerEmail, isAdminUser } from "../_shared/admin.ts";
-import { loadAccount } from "../_shared/alpaca.ts";
-import { guardWatcher } from "../_shared/stopGuardRun.ts";
 
 // The free IEX feed. SIP is a paid entitlement and returns an auth error rather
 // than falling back, so the feed is a deliberate choice here, not a default.
@@ -110,27 +108,12 @@ Deno.serve(async (req) => {
     const asked = url.searchParams.get("stocks") || "iex";
     const eodhdKey = asked === "eodhd" && isOwnerEmail(user.email) ? Deno.env.get("EODHD_API_KEY") || null : null;
     const stockFeed = asked === "eodhd" ? (eodhdKey ? "eodhd" : "iex") : asked;
-    // While the terminal is open, its relay also fires the account's stops
-    // outside regular hours from the trades it streams (stopGuardRun.ts), on
-    // every account the terminal trades: paper ones, and the owner's own live
-    // Alpaca ones. Not from the delayed tape: a stop fired fifteen minutes
-    // late is not a stop.
-    const source = stockFeed === "eodhd" ? "eodhd" : stockFeed === "iex" ? "iex" : null;
+    // The relay no longer fires stops itself outside regular hours (30 Oct:
+    // stops are Alpaca's own orders, "in the market not just WILL WHEN").
     const trades = account.is_paper || (isOwnerEmail(user.email) && account.provider !== "snaptrade");
-    // Every account the terminal trades for this person, this one first: its
-    // relay holds the owner's one EODHD connection, so it guards them all
-    // (28 Oct: the minute job watching the others was refused by EODHD).
-    let guarded: any[] = [];
-    if (trades && source) {
-      const owner = isOwnerEmail(user.email);
-      const { data: rows } = await admin.from("trading_accounts").select("id, is_paper, provider").eq("user_id", user.id);
-      const others = (rows || []).filter((a: any) => a.id !== accountId && a.provider !== "snaptrade" && (a.is_paper || owner)).map((a: any) => a.id);
-      guarded = (await Promise.all([accountId, ...others].map((id) => loadAccount(admin, id, user.id).catch(() => null)))).filter(Boolean);
-    }
-    const guard = guarded.length ? guardWatcher(admin, guarded, user.id, source) : null;
     // And the account's own orders as they move, for an account it trades.
     const orders = trades ? { paper: !!account.is_paper, cred: { token, key, secret } } : null;
-    relayDetail(socket, auth, symbols, (url.searchParams.get("book") || "").toUpperCase(), stockFeed, eodhdKey, guard, orders);
+    relayDetail(socket, auth, symbols, (url.searchParams.get("book") || "").toUpperCase(), stockFeed, eodhdKey, null, orders);
     return response;
   }
   if (!key || !secret) {

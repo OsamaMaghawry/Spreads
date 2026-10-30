@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
-import { px, sizeText, isCrypto, amountToQty, orderState, orderNews, sessionOf, ticketChoices } from "@/lib/terminal";
+import { px, sizeText, isCrypto, amountToQty, orderState, orderNews, sessionOf, ticketChoices, exitText, stopWaitText } from "@/lib/terminal";
 import { groupNews } from "@/lib/accountGroup";
 import { onOrder } from "./orderFeed";
 import { followGroup } from "./runHotkey";
@@ -39,7 +39,7 @@ const TIF_TEXT = { day: "for the day", gtc: "good till cancelled", ioc: "immedia
 const input = "w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm tabular-nums focus:border-emerald-500 focus:outline-none";
 const label = "mb-1 block text-[11px] uppercase tracking-wider text-slate-500";
 
-export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, onPlaced, pick = null, preset = null, onNotify = () => {}, extStops = true, onExtStops = () => {}, guardHours = "", liveOk = false, group = [], groupHeld = [] }) {
+export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, onPlaced, pick = null, preset = null, onNotify = () => {}, liveOk = false, group = [], groupHeld = [] }) {
   const crypto = isCrypto(symbol);
   const TYPES = crypto ? CRYPTO_TYPES : STOCK_TYPES;
   const [side, setSide] = useState("buy");
@@ -489,10 +489,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
       {overBp && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">This is more than the account's buying power; the broker will likely refuse it.</p>}
       {!crypto && choices.stopWaits && (
         <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
-          {session === "pre" ? "Before the open" : session === "post" ? "After the close" : "Outside market hours"}: Alpaca triggers stop orders from 9:30 to 16:00 New York only.{" "}
-          {closing && extStops && tradable && type !== "trailing_stop"
-            ? `Until then the terminal watches this one itself (${guardHours} New York): when a trade reaches it, it sends a limit at ${type === "stop_limit" ? "its limit" : "the stop price"}, pre-market and after hours included.`
-            : "This one waits for the next open. To trade before then, use a limit order with \u201cPre-market and after hours\u201d ticked."}
+          {stopWaitText(session)} This order goes to Alpaca now and waits there until then. To trade before then, use a limit order with &ldquo;Pre-market and after hours&rdquo; ticked.
         </p>
       )}
 
@@ -539,7 +536,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
           "put the SL and TP ... for all accounts at once"). */}
       {(held !== 0 || groupHeld.some((g) => g.qty)) && account?.id && (
         <PositionExits account={account} symbol={symbol} held={held} crypto={crypto} tradable={tradable} session={session} onNotify={onNotify} onPlaced={onPlaced}
-          extStops={extStops} onExtStops={onExtStops} guardHours={guardHours} group={group} groupHeld={groupHeld} />
+          group={group} groupHeld={groupHeld} />
       )}
     </div>
   );
@@ -550,7 +547,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
 // stop working on it, a new take profit the take profit, and a stop and a take
 // profit go together as one cancels the other. Reviewed, then sent, like any
 // order from the ticket.
-function PositionExits({ account, symbol, held, crypto, tradable, session, onNotify, onPlaced, extStops, onExtStops, guardHours, group = [], groupHeld = [] }) {
+function PositionExits({ account, symbol, held, crypto, tradable, session, onNotify, onPlaced, group = [], groupHeld = [] }) {
   const [stop, setStop] = useState("");
   const [target, setTarget] = useState("");
   const [review, setReview] = useState(false);
@@ -570,10 +567,12 @@ function PositionExits({ account, symbol, held, crypto, tradable, session, onNot
   const t = Number(target) > 0 ? Number(target) : null;
   // Alpaca pairs exits only on whole shares.
   const pairOk = !(s && t) || (!crypto && Number.isInteger(qty));
-  const out = long ? "Sell" : "Buy back";
-  const words = (many ? `${out} all ${name} held (${holders.join(", ")})` : `${out} ${sizeText(qty)} ${name}`) +
-    (s && t ? ` at ${px(t)} (take profit), or if it trades at ${px(s)} (stop): one cancels the other` : s ? ` if it trades at ${px(s)} (stop)` : ` at ${px(t)} (take profit)`) +
-    `, good till cancelled; replaces the ${s && t ? "stop and take profit" : s ? "stop" : "take profit"} working on ${symbol}${many ? " on each account" : ""}, if any`;
+  // The stop's limit, as the server sets it (positionTools stopLimitPrice):
+  // 2% past the stop, so the review says the worst price before it is sent.
+  const floor = s && !crypto ? Math.round((long ? s * 0.98 : s * 1.02) * (s >= 1 ? 100 : 10000)) / (s >= 1 ? 100 : 10000) : null;
+  const words = exitText({ side: long ? "sell" : "buy", qty, stopPrice: s, limitPrice: floor, targetPrice: t }, name, session)
+    .replace(/^(Sell|Buy back) [^:]+:/, (m, out) => (many ? `${out} all ${name} held (${holders.join(", ")}):` : m)) +
+    `. Good till cancelled; replaces the ${s && t ? "stop and take profit" : s ? "stop" : "take profit"} working on ${symbol}${many ? " on each account" : ""}, if any`;
   const send = async () => {
     setBusy(true);
     const key = `x${Date.now()}`;
@@ -591,10 +590,8 @@ function PositionExits({ account, symbol, held, crypto, tradable, session, onNot
       return;
     }
     const d = r.data;
-    const did = d.paired ? `${out} ${sizeText(d.qty)} ${name} at ${px(d.targetPrice)}, or if it trades at ${px(d.stopPrice)}: one cancels the other`
-      : d.kind === "target" ? `${out} ${sizeText(d.qty)} ${name} at ${px(d.targetPrice)}`
-        : `${out} ${sizeText(d.qty)} ${name} if it trades at ${px(d.stopPrice)}${d.limitPrice ? ` (limit ${px(d.limitPrice)})` : ""}`;
-    onNotify({ key, tone: "ok", title: "Exits set", detail: [did, d.replaced ? `replaced ${d.replaced} earlier exit order${d.replaced === 1 ? "" : "s"}` : null, d.note].filter(Boolean).join(" · ") });
+    const did = exitText({ side: d.side, qty: d.qty, stopPrice: d.kind === "target" && !d.paired ? null : d.stopPrice, limitPrice: d.limitPrice, targetPrice: d.kind === "stop" && !d.paired ? null : d.targetPrice }, name, session);
+    onNotify({ key, tone: "ok", title: "Exits set at Alpaca", detail: [did, d.replaced ? `replaced ${d.replaced} earlier exit order${d.replaced === 1 ? "" : "s"}` : null, d.note].filter(Boolean).join(" · ") });
     setStop("");
     setTarget("");
     onPlaced?.();
@@ -615,16 +612,10 @@ function PositionExits({ account, symbol, held, crypto, tradable, session, onNot
         </div>
       </div>
       <p className="mt-1 text-[10px] leading-snug text-slate-500">
-        One or both. Together, when one fills the other is cancelled; set alone, it pairs with the other already working. Alpaca works them from 9:30 to 16:00 New York.
+        One or both, sent to Alpaca at once as real orders{crypto ? "" : "; together, when one fills the other is cancelled"}. The stop is a stop-limit: {long ? "it sells no lower than" : "it buys back no higher than"} {crypto ? "1%" : "2%"} {long ? "under" : "over"} the stop.{" "}
+        {crypto ? "Coins trade around the clock, and so do their stops." : "Alpaca triggers stops from 9:30 to 16:00 New York only; a take profit set on its own also works before and after."}
       </p>
-      {!crypto && tradable && (
-        <label className="mt-1 flex items-start gap-1.5 text-[10px] leading-snug text-slate-600">
-          <input type="checkbox" className="mt-0.5" checked={extStops} onChange={(e) => onExtStops(e.target.checked)} />
-          <span>
-            Outside those hours the terminal fires them itself ({guardHours} New York): when a trade reaches the stop, the pair is cancelled and the shares are sold at the bid, the limit following the bid every few seconds until it fills, so a price that runs through the stop still gets you out. A take profit sells at its own price.
-          </span>
-        </label>
-      )}
+      {s && session !== "regular" && !crypto && <p className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-800">{stopWaitText(session)}</p>}
       {!pairOk && <p className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-800">{crypto ? "A coin takes one exit at a time at Alpaca: a stop or a take profit, not both." : "With part of a share, Alpaca takes one exit at a time: a stop or a take profit, not both."}</p>}
       {review ? (
         <div className="mt-2 space-y-2 rounded-lg border border-slate-300 bg-slate-50 p-2">

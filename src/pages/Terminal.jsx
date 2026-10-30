@@ -72,7 +72,6 @@ const PAGE_KEY = "dm.terminal.page";
 const HOTKEYS_ON_KEY = "dm.terminal.hotkeysOn";
 const PANES_KEY = "dm.terminal.panes.v1";
 const SHARE_FEED_KEY = "dm.terminal.shareFeed";
-const FIRES_SEEN_KEY = "dm.terminal.firesSeen";
 const EODHD_KEY = "dm.terminal.eodhd";
 const GROUP_KEY = "dm.terminal.group";
 const GROUP_SIZES_KEY = "dm.terminal.groupSizes";
@@ -249,49 +248,8 @@ export default function Terminal() {
 
   const tapeLive = feeds[crypto ? "crypto" : "stocks"]?.state === "live";
 
-  // Stops outside regular hours (26 Oct: "The stop loss price was hit but
-  // never executed"): before 9:30 and after 16:00 the server fires the
-  // terminal's stops itself, a sale at the bid that follows it until filled, unless turned off
-  // (stopGuardRun.ts). What it does is said as it happens and, for what it did
-  // while the terminal was closed, once when it opens.
-  const [extStops, setExtStops] = useState(true);
-  useEffect(() => {
-    readPrefs(["extstops"]).then((p) => { if (typeof p.extstops === "boolean") setExtStops(p.extstops); }).catch(() => {});
-  }, []);
-  const changeExtStops = (on) => { setExtStops(on); savePref("extstops", on); };
-  const firedSeen = useRef(null);
-  const sawFire = (id) => {
-    if (!firedSeen.current) { try { firedSeen.current = new Set(JSON.parse(store.get(FIRES_SEEN_KEY) || "[]")); } catch { firedSeen.current = new Set(); } }
-    const fresh = !firedSeen.current.has(id);
-    firedSeen.current.add(id);
-    store.set(FIRES_SEEN_KEY, JSON.stringify([...firedSeen.current].slice(-100)));
-    return fresh;
-  };
-  // A stop, or a take profit, fired by the terminal outside regular hours.
-  const fireNews = useCallback((f) => {
-    const Name = f.kind === "target" ? "Take profit" : "Stop";
-    const at = f.kind === "target" ? f.target : f.stop;
-    // Which account, when the open terminal fired one on an account beside it.
-    const on = f.name ? `${f.name}: ` : "";
-    return {
-      tone: f.status === "sent" || f.status === "done" ? "ok" : f.status === "failed" ? "bad" : "muted",
-      title: on + { sent: `${Name} fired on ${f.symbol}`, done: `${Name} filled on ${f.symbol}`, returned: `Exits back on ${f.symbol}`, cancelled: `${Name} limit cancelled on ${f.symbol}`, failed: `${Name} on ${f.symbol}: needs a look` }[f.status] || `${Name} on ${f.symbol} not fired`,
-      detail: `Traded ${px(f.trigger)} against the ${Name.toLowerCase()} at ${px(at)}${f.at ? `, ${new Date(f.at).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" })} New York` : ""}. ${f.note || ""}`
-    };
-  }, []);
-  useEffect(() => listen((m) => {
-    if (m.type !== "guard") return;
-    const key = `guard${m.id}`;
-    if (m.status === "firing") {
-      const target = m.kind === "target";
-      notify({ key, tone: "wait", title: `${m.name ? `${m.name}: ` : ""}${target ? "Take profit" : "Stop"} hit on ${m.symbol} at ${px(m.trigger)}`, detail: target ? `Outside regular hours: cancelling the exits and selling at ${px(m.target)}…` : "Outside regular hours: cancelling the exits and selling at the bid, following it until filled…" });
-      return;
-    }
-    sawFire(`${m.id}:${m.status}`);
-    notify({ key, ...fireNews({ ...m, at: new Date().toISOString() }) });
-    loadView();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [listen, notify, loadView, fireNews]);
+  // Stops are Alpaca's own orders (30 Oct): the server no longer fires them
+  // outside regular hours, so there is nothing of its own to report here.
   // The account's orders as Alpaca moves them (orderFeed.js): the ticket and
   // the hotkeys follow their own; any fill or end, from here or elsewhere,
   // brings the positions and orders up to date at once rather than at the next check.
@@ -306,17 +264,6 @@ export default function Terminal() {
     });
     return () => { stop(); clearTimeout(t); };
   }, [listen, loadView]);
-  useEffect(() => {
-    if (!accountId) return;
-    invokeFunction("terminal", { action: "guardFires", accountId }).then((r) => {
-      for (const f of (r?.data?.fires || []).slice(0, 3)) {
-        if (f.status === "firing" || !sawFire(`${f.order_id}:${f.status}`)) continue;
-        notify({ key: `guard${f.order_id}`, ...fireNews({ symbol: f.symbol, kind: f.kind, trigger: f.trigger_price, stop: f.stop_price, target: f.target_price, status: f.status, note: f.note, at: f.created_at }) });
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountId]);
-
   // The arrangement: kept with the account, lockable, resettable.
   const [layouts, setLayouts] = useAccountSetting("layout", {
     localKey: LAYOUT_KEY, clean: cleanLayouts,
@@ -838,8 +785,7 @@ export default function Terminal() {
             <OrderTicket account={account} symbol={symbol} quote={quote} held={held} heldText={held > 0 && position?.qtyText ? position.qtyText : ""}
               buyingPower={view?.buyingPower ?? null} onPlaced={refreshAll} pick={pick} preset={preset} onNotify={notify} liveOk={liveOk}
               group={groupSend.map((g) => ({ ...accounts.find((a) => a.id === g.id), size: g })).filter((a) => a.id)}
-              groupHeld={others.map((g) => ({ id: g.accountId, name: g.name, qty: signedQty((g.positions || []).find((p) => p.symbol === symbol)) }))}
-              extStops={extStops} onExtStops={changeExtStops} guardHours={eodhdOk ? "4:00 to 9:30 and 16:00 to 20:00" : "8:00 to 9:30 and 16:00 to 17:00"} />
+              groupHeld={others.map((g) => ({ id: g.accountId, name: g.name, qty: signedQty((g.positions || []).find((p) => p.symbol === symbol)) }))} />
             <p className="px-1 text-[10px] leading-relaxed text-slate-400">Prices from your own Alpaca account: shares from the free IEX feed (real time, IEX trades only, 8:00 to 17:00 New York), or every exchange fifteen minutes late outside IEX&apos;s hours{eodhdOk ? "; or EODHD's real-time stream on your own EODHD plan" : ""}; coins from Alpaca&apos;s crypto venue, around the clock, with the full order book. Charts by TradingView Lightweight Charts. Not investment advice.</p>
           </div>
         </div>

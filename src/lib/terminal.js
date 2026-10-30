@@ -469,3 +469,30 @@ export function shareFeed(pref, { eodhd = false, now = Date.now() / 1000 } = {})
   if (choice === "iex" || (choice === "auto" && open)) return { live: "iex", history: "iex", delayed: false, label: "IEX real time" };
   return { live: "delayed_sip", history: "delayed", delayed: true, label: "All exchanges, 15 min delayed" };
 }
+
+/**
+ * A position's exits as Alpaca now holds them (functions/terminal "protect"),
+ * said the same way by the ticket, the hotkeys and their pop-ups. Every stop
+ * is a stop-limit: once a trade reaches it, Alpaca sells no lower than its
+ * limit (buys back no higher). Alpaca triggers stops from 9:30 to 16:00 New
+ * York only (30 Oct, the owner: "It has to be in the market not just WILL WHEN
+ * situation"), so outside those hours the words say the stop waits.
+ * `d`: { side, qty, stopPrice, limitPrice, targetPrice }; `session`: sessionOf(now).
+ */
+export function exitText(d, name, session = "regular") {
+  const out = d.side === "buy" ? "Buy back" : "Sell";
+  const floor = d.limitPrice ? `, ${d.side === "buy" ? "no higher" : "no lower"} than ${px(d.limitPrice)}` : "";
+  const stop = d.stopPrice ? `stop at ${px(d.stopPrice)}${floor}` : null;
+  const words = d.stopPrice && d.targetPrice
+    ? `${out} ${sizeText(d.qty)} ${name}: take profit at ${px(d.targetPrice)}, ${stop}; when one fills the other is cancelled`
+    : d.stopPrice ? `${out} ${sizeText(d.qty)} ${name}: ${stop}`
+      : `${out} ${sizeText(d.qty)} ${name}: take profit at ${px(d.targetPrice)}`;
+  return d.stopPrice && session !== "regular" ? `${words}. ${stopWaitText(session)}` : words;
+}
+
+/** Why a stop set now does not trigger yet, or null in regular hours. */
+export function stopWaitText(session) {
+  if (session === "regular") return null;
+  const now = session === "pre" ? "before the open" : session === "post" ? "after the close" : "while the market is shut";
+  return `It is ${now}: the stop is at Alpaca but Alpaca only triggers stops from 9:30 to 16:00 New York.`;
+}

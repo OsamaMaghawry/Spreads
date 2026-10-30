@@ -81,14 +81,15 @@ test("the stop goes back as it was: a pair as a pair, a stop-limit with its limi
   const [g] = guardedStops([PAIR]);
   assert.deepEqual(restoreOrder(g, 490, "TERM_R_1"), {
     symbol: "RENT", side: "sell", qty: "490", type: "limit", time_in_force: "gtc", order_class: "oco", client_order_id: "TERM_R_1",
-    take_profit: { limit_price: "3.60" }, stop_loss: { stop_price: "2.95" }
+    take_profit: { limit_price: "3.60" }, stop_loss: { stop_price: "2.95", limit_price: "2.89" }
   });
-  assert.deepEqual(restoreOrder({ ...g, target: null }, 490, "TERM_R_2"), { symbol: "RENT", side: "sell", qty: "490", type: "stop", stop_price: "2.95", time_in_force: "gtc", client_order_id: "TERM_R_2" });
+  // Every stop goes back as a stop-limit (30 Oct), its limit 2% past the stop.
+  assert.deepEqual(restoreOrder({ ...g, target: null }, 490, "TERM_R_2"), { symbol: "RENT", side: "sell", qty: "490", type: "stop_limit", stop_price: "2.95", limit_price: "2.89", time_in_force: "gtc", client_order_id: "TERM_R_2" });
   const s = { orderId: "s2", symbol: "TSLA", side: "buy" as const, qty: 10, stop: 390, limit: 392, pair: false, target: null, since: 0 };
   assert.equal(restoreOrder(s, 10, "c").type, "stop_limit");
   assert.equal(restoreOrder(s, 10, "c").limit_price, "392.00");
   // Part of a share: no pair, for the day.
-  assert.equal(restoreOrder(g, 2.5, "c").type, "stop");
+  assert.equal(restoreOrder(g, 2.5, "c").type, "stop_limit");
   assert.equal(restoreOrder(g, 2.5, "c").time_in_force, "day");
 });
 

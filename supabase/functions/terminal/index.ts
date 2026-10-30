@@ -15,13 +15,12 @@ import { currentReports } from "../_shared/earnings.ts";
 import { secReports, withFigures, earningsTimeline, cikMap } from "../_shared/earningsHistory.ts";
 import { dailyStats, isFundName } from "../_shared/screenStats.ts";
 import { historyRow, premarket, afterHours, nyMoment } from "../_shared/screenHistory.ts";
-import { usSession, stopPlan, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit, replaceable } from "../_shared/positionTools.ts";
+import { usSession, stopPlan, stopLimitPrice, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit, replaceable } from "../_shared/positionTools.ts";
 import { inBackground } from "../_shared/background.ts";
 import { allocate } from "../_shared/proRata.ts";
 import { orderStream } from "../_shared/orderStream.ts";
 import { isOwnerEmail, isAdminUser } from "../_shared/admin.ts";
-import { guardHours } from "../_shared/stopGuard.ts";
-import { stopsToWatch, extStopsOn, watchEodhd, checkIex, handBackFired, chaseFired } from "../_shared/stopGuardRun.ts";
+import { handBackFired, chaseFired } from "../_shared/stopGuardRun.ts";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -1271,7 +1270,7 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
   }
   if (only === "guard") {
     // The minute job's view without firing: which stops it guards and from what.
-    return await guardStops(admin, true, accountId);
+    return await guardStops(admin, true);
   }
   if (only === "fills") {
     // The Demo P/L's read for an account (accountId), since New York midnight
@@ -1616,77 +1615,25 @@ async function accountFills(account: any, startIso: string) {
   return { start: iso(start), fills, positions, marks, options, truncated };
 }
 
-// ---------- stops outside regular hours: the minute job ----------
+// ---------- stops: what earlier fires left ----------
 //
-// While no terminal is open on an account, the terminal's stops on it are
-// watched from here, every minute before 9:30 and after 16:00 New York
-// (stopGuardRun.ts has the rules; the open terminal's relay watches the rest
-// of the time, and the account is left to it while it does). The owner's
-// accounts from EODHD's stream, listened to for most of the minute; anyone
-// else's from the trades of their own Alpaca account's IEX feed, 8:00 to
-// 17:00, the hours it has them.
+// Stops and targets are Alpaca's own orders and nothing else (30 Oct, the
+// owner: "It has to be in the market not just WILL WHEN situation", after a
+// live AMZN stop the terminal fired before the open sent nothing). The
+// terminal no longer fires them itself outside regular hours; Alpaca works
+// them from 9:30 to 16:00. The minute job only finishes what fires before
+// that left: a sale still following the bid, an unfilled limit handed back
+// as the stop it was.
 async function emailOf(admin: any, userId: string) {
   const { data } = await admin.auth.admin.getUserById(userId).catch(() => ({ data: null }));
   return data?.user?.email || "";
 }
 
-async function guardStops(admin: any, dryRun = false, onlyAccount = "") {
-  const t = Date.now();
-  const eodhdKey = Deno.env.get("EODHD_API_KEY") || null;
-  const report: any = { at: iso(t), eodhdHours: guardHours(t, "eodhd"), iexHours: guardHours(t, "iex"), accounts: 0, watchedByTerminal: 0, off: 0, guards: [], fired: [] };
-  // Fired stops whose limit did not fill go back as stops, at any hour; a
-  // stop's sale that follows the bid is followed again, at any hour.
-  if (!dryRun) report.handedBack = await handBackFired(admin);
-  if (!dryRun) report.chasing = await chaseFired(admin);
-  if (!dryRun && !report.eodhdHours && !report.iexHours) return { ...report, skipped: "regular hours or closed" };
-  // The terminal's people: those with a setting stored.
-  const { data: people } = await admin.from("terminal_prefs").select("user_id").limit(5000);
-  const users = [...new Set((people || []).map((r: any) => r.user_id))];
-  if (!users.length) return report;
-  // Every account the terminal trades: paper, and the owner's own live Alpaca
-  // ones (27 Oct: activating live meant everything, the stop guard included).
-  let q = admin.from("trading_accounts").select("id, user_id, is_paper, provider").in("user_id", users);
-  if (onlyAccount) q = q.eq("id", onlyAccount);
-  const [{ data: accounts }, { data: seen }] = await Promise.all([
-    q, admin.from("terminal_guard_seen").select("account_id").gt("seen_at", iso(t - 45000))
-  ]);
-  const watched = new Set((seen || []).map((r: any) => r.account_id));
-  const viaEodhd: any[] = [];
-  const viaIex: any[] = [];
-  const emails = new Map<string, string>();
-  const emailFor = async (id: string) => emails.get(id) ?? emails.set(id, await emailOf(admin, id)).get(id)!;
-  // Administrators only, as the terminal is.
-  const admins = new Map<string, boolean>();
-  const adminFor = async (id: string) => admins.get(id) ??
-    admins.set(id, (await isAdminUser({ id, email: await emailFor(id) } as any, admin).catch(() => ({ isAdmin: false }))).isAdmin).get(id)!;
-  for (const a of accounts || []) {
-    if (a.provider === "snaptrade") continue;
-    if (!(await adminFor(a.user_id))) continue;
-    if (!a.is_paper && !isOwnerEmail(await emailFor(a.user_id))) continue;
-    if (watched.has(a.id)) { report.watchedByTerminal += 1; if (!dryRun) continue; }
-    if (!(await extStopsOn(admin, a.user_id))) { report.off += 1; continue; }
-    const account = await loadAccount(admin, a.id, a.user_id).catch(() => null);
-    if (!account) continue;
-    const guards = await stopsToWatch(account).catch(() => []);
-    report.accounts += 1;
-    if (!guards.length) continue;
-    const owner = !!eodhdKey && isOwnerEmail(await emailFor(a.user_id));
-    report.guards.push(...guards.map((g) => ({ account: a.id, live: !a.is_paper, symbol: g.symbol, side: g.side, qty: g.qty, stop: g.stop, target: g.target, pair: g.pair, source: owner ? "eodhd" : "iex", terminalOpen: watched.has(a.id) })));
-    (owner ? viaEodhd : viaIex).push({ account, userId: a.user_id, guards });
-  }
+async function guardStops(admin: any, dryRun = false) {
+  const report: any = { at: iso(Date.now()), firing: "off: stops are Alpaca's own orders" };
   if (dryRun) return report;
-  if (viaIex.length && report.iexHours) for (const item of viaIex) report.fired.push(...await checkIex(admin, item));
-  if (viaEodhd.length && report.eodhdHours && eodhdKey) {
-    const seen = await watchEodhd(admin, eodhdKey, viaEodhd, Math.max(5000, 55000 - (Date.now() - t)));
-    report.fired.push(...seen);
-    // Refused (an open terminal holding the owner's one connection): the
-    // accounts' own IEX trades instead, in IEX's hours.
-    if (seen.refused) {
-      report.eodhdRefused = seen.refused;
-      if (report.iexHours) for (const item of viaEodhd) report.fired.push(...await checkIex(admin, item));
-    }
-  }
-  if (report.fired.length || report.guards.length) console.log(`stop guard job: ${JSON.stringify({ guards: report.guards.length, fired: report.fired })}`);
+  report.handedBack = await handBackFired(admin);
+  report.chasing = await chaseFired(admin);
   return report;
 }
 
@@ -1847,7 +1794,7 @@ async function stopBody(account: any, symbol: string, plan: any, qtyText: string
     return cryptoOrderBody({ symbol, side: plan.side, qty: qtyText, type: "stop_limit", stopPrice: plan.stopPrice, limitPrice: plan.limitPrice, timeInForce: "gtc" },
       `TERM_${Date.now()}`, await assetFor(account, symbol), held);
   }
-  return stockOrderBody({ symbol, side: plan.side, qty: plan.qty, type: "stop", stopPrice: plan.stopPrice, timeInForce: plan.timeInForce }, `TERM_${Date.now()}`);
+  return stockOrderBody({ symbol, side: plan.side, qty: plan.qty, type: plan.type, stopPrice: plan.stopPrice, limitPrice: plan.limitPrice, timeInForce: plan.timeInForce }, `TERM_${Date.now()}`);
 }
 
 // A stop or a take-profit for the whole position (kind "stop" or "target"),
@@ -1897,7 +1844,8 @@ async function protect(admin: any, user: any, account: any, input: any) {
     return { status: 409, body: { error: `${busy} of ${held} are held by other working orders on ${symbol}. Cancel them first, or exit.` } };
   }
   let built;
-  let limitPrice: number | null = null;
+  // The stop's limit, said back with it: a stop-limit alone or in the pair.
+  let limitPrice: number | null = stop && !crypto ? stopLimitPrice(closing, stop) : null;
   if (stop && !target) {
     const plan = stopPlan(now, { mode: "price", value: stop }, crypto);
     if (!plan.ok) return { status: 400, body: { error: plan.reason } };

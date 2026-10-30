@@ -9,6 +9,8 @@
 //
 // Pure: the function that sends it (functions/terminal) adds only the I/O.
 
+import { stopLimitPrice } from "./positionTools.ts";
+
 export type StockOrderInput = {
   symbol: string;
   side: "buy" | "sell";
@@ -128,7 +130,8 @@ export function stockOrderBody(input: StockOrderInput, clientId: string):
     }
     body.order_class = "bracket";
     body.take_profit = { limit_price: price(tp) };
-    body.stop_loss = { stop_price: price(sl) };
+    // A stop-limit, as every stop the terminal sets (positionTools stopPlan).
+    body.stop_loss = { stop_price: price(sl), limit_price: price(stopLimitPrice(input.side === "buy" ? "sell" : "buy", sl)) };
   }
   return { ok: true, body };
 }

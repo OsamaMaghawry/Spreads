@@ -272,6 +272,16 @@ order that opens or adds to a position was his too, and he removed it on
 28 Oct ("Remove the 5k limit for live orders"): do not put a size cap back
 without his say.
 
+**Stops and take profits are Alpaca's own orders and nothing else** (30 Oct,
+after a live AMZN stop the server fired before the open sent nothing: "It has
+to be in the market not just WILL WHEN situation"). Every stop is a
+stop-limit at Alpaca, alone or paired with its target as one-cancels-other,
+sent the moment it is set. Alpaca triggers stops 9:30-16:00 New York only and
+accepts nothing but limit orders outside those hours, so outside them a stop
+waits; say so plainly. The server no longer fires stops or targets itself
+(the relay watcher and the minute job's watch are off). Do not bring back any
+server-side "fire when hit" exit without his say.
+
 **Every terminal setting is kept with his account, never only in the
 browser.** Anything he sets or picks (sizes, ticked accounts, layout,
 filters, toggles) goes through `components/terminal/useAccountSetting.js` or

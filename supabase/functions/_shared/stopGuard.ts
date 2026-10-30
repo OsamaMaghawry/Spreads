@@ -22,6 +22,8 @@
 // has not filled. The take profit of a one-cancels-other pair, one placed on
 // its own, and the two exits of a bracket whose entry has filled.
 
+import { stopLimitPrice } from "./positionTools.ts";
+
 /**
  * What becomes of a fired stop's limit (`status`: the broker's): filled,
  * done; cancelled by someone else, left so; expired, or still working once
@@ -189,10 +191,12 @@ export function exitOrder(g: Guard, heldQty: number | null, clientId: string, ki
  * profit, on whole shares.
  */
 export function restoreOrder(g: Pick<Guard, "symbol" | "side" | "stop" | "limit" | "target">, qty: number, clientId: string): Record<string, unknown> {
-  if (g.target && g.stop && !g.limit && Number.isInteger(qty)) {
+  // Stops go back as stop-limits, as every stop is now (positionTools stopPlan).
+  const limit = g.stop ? g.limit ?? stopLimitPrice(g.side, g.stop) : null;
+  if (g.target && g.stop && Number.isInteger(qty)) {
     return {
       symbol: g.symbol, side: g.side, qty: String(qty), type: "limit", time_in_force: "gtc", order_class: "oco", client_order_id: clientId,
-      take_profit: { limit_price: price(g.target) }, stop_loss: { stop_price: price(g.stop) }
+      take_profit: { limit_price: price(g.target) }, stop_loss: { stop_price: price(g.stop), limit_price: price(limit!) }
     };
   }
   // A take profit on its own (or one whose stop cannot pair with it).
@@ -201,8 +205,8 @@ export function restoreOrder(g: Pick<Guard, "symbol" | "side" | "stop" | "limit"
   }
   if (!g.stop) throw new Error("Nothing to put back.");
   return {
-    symbol: g.symbol, side: g.side, qty: String(qty), type: g.limit ? "stop_limit" : "stop", stop_price: price(g.stop),
-    ...(g.limit ? { limit_price: price(g.limit) } : {}), time_in_force: Number.isInteger(qty) ? "gtc" : "day", client_order_id: clientId
+    symbol: g.symbol, side: g.side, qty: String(qty), type: "stop_limit", stop_price: price(g.stop),
+    limit_price: price(limit!), time_in_force: Number.isInteger(qty) ? "gtc" : "day", client_order_id: clientId
   };
 }
 

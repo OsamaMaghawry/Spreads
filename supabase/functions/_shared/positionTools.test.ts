@@ -45,10 +45,11 @@ test("the share market's hours, New York time", () => {
 
 test("a stop for a long sits below, for a short above; from the last price or the entry", () => {
   const a = stopPlan(long, { mode: "pct", value: 2 }) as any;
-  assert.deepEqual([a.side, a.qty, a.stopPrice, a.type, a.timeInForce], ["sell", 100, 343, "stop", "gtc"]);
+  // A stop-limit at Alpaca (30 Oct: "in the market"), its limit 2% past the stop.
+  assert.deepEqual([a.side, a.qty, a.stopPrice, a.limitPrice, a.type, a.timeInForce], ["sell", 100, 343, 336.14, "stop_limit", "gtc"]);
   assert.equal((stopPlan(long, { mode: "usd", value: 5, from: "entry" }) as any).stopPrice, 335);
   const s = stopPlan(short, { mode: "pct", value: 2 }) as any;
-  assert.deepEqual([s.side, s.qty, s.stopPrice], ["buy", 50, 357]);
+  assert.deepEqual([s.side, s.qty, s.stopPrice, s.limitPrice], ["buy", 50, 357, 364.14]);
   assert.equal((stopPlan(long, { mode: "price", value: 345.5 }) as any).stopPrice, 345.5);
 });
 
@@ -182,13 +183,14 @@ test("the exits already working: a stop, a limit, a one-cancels-other pair; an e
 
 test("one order carries the exits: a pair for whole shares, a limit alone; coins and part shares one at a time", () => {
   const pair = exitBody("AAPL", "sell", 100, { stop: 340, target: 365 }, "T") as any;
-  assert.deepEqual(pair.body, { symbol: "AAPL", side: "sell", qty: "100", type: "limit", time_in_force: "gtc", order_class: "oco", client_order_id: "T", take_profit: { limit_price: "365.00" }, stop_loss: { stop_price: "340.00" } });
+  assert.deepEqual(pair.body, { symbol: "AAPL", side: "sell", qty: "100", type: "limit", time_in_force: "gtc", order_class: "oco", client_order_id: "T", take_profit: { limit_price: "365.00" }, stop_loss: { stop_price: "340.00", limit_price: "333.20" } });
   const alone = exitBody("AAPL", "sell", 2.5, { stop: null, target: 365 }, "T") as any;
-  assert.deepEqual([alone.body.type, alone.body.limit_price, alone.body.time_in_force, alone.body.order_class], ["limit", "365.00", "day", undefined]);
+  // A take profit alone works before and after regular hours too.
+  assert.deepEqual([alone.body.type, alone.body.limit_price, alone.body.time_in_force, alone.body.order_class, alone.body.extended_hours], ["limit", "365.00", "day", undefined, true]);
   assert.match((exitBody("ETH/USD", "sell", 0.1, { stop: 2000, target: 2600 }, "T", { crypto: true }) as any).reason, /one exit order at a time/);
   assert.match((exitBody("AAPL", "sell", 2.5, { stop: 340, target: 365 }, "T") as any).reason, /part of a share/);
   const coin = exitBody("ETH/USD", "sell", 0.1, { stop: null, target: 2600 }, "T", { crypto: true, qtyText: "0.100000000" }) as any;
-  assert.deepEqual([coin.body.qty, coin.body.time_in_force], ["0.100000000", "gtc"]);
+  assert.deepEqual([coin.body.qty, coin.body.time_in_force, coin.body.extended_hours], ["0.100000000", "gtc", undefined]);
 });
 
 test("a sell key replaces the terminal's earlier day sells, never a stop, a target or the guard's", () => {

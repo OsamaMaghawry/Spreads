@@ -1,6 +1,6 @@
 import { invokeFunction } from "@/lib/functions";
 import { hotkeyOrder, describe, withOwnSize, hotkeyPercent } from "@/lib/hotkeys";
-import { orderNews, orderState, sessionOf, isCrypto, px, sizeText } from "@/lib/terminal";
+import { orderNews, orderState, sessionOf, isCrypto, px, sizeText, exitText } from "@/lib/terminal";
 import { groupNews } from "@/lib/accountGroup";
 import { onOrder } from "./orderFeed";
 
@@ -219,13 +219,11 @@ export async function runHotkey(h, ctx) {
     if (r?.data?.error) { notify({ key, tone: "bad", title: `${stop ? "Stop" : "Take-profit"} not placed`, detail: r.data.error }); return; }
     if (r?.data?.skipped) { notify({ key, tone: "muted", title: `Not on ${account.name || "this account"}`, detail: r.data.skipped }); refresh?.(); return; }
     const d = r.data;
-    const out = d.side === "sell" ? "Sell" : "Buy back";
+    const said = { side: d.side, qty: d.qty, stopPrice: stop || d.paired ? d.stopPrice : null, limitPrice: d.limitPrice, targetPrice: !stop || d.paired ? d.targetPrice : null };
     notify({
-      key, tone: "ok", title: stop ? "Stop placed" : "Take-profit placed",
+      key, tone: "ok", title: stop ? "Stop placed at Alpaca" : "Take-profit placed at Alpaca",
       detail: [
-        d.paired ? `${out} ${sizeText(d.qty)} ${symbol} at ${px(d.targetPrice)}, or if it trades at ${px(d.stopPrice)}: one cancels the other`
-          : stop ? `${out} ${sizeText(d.qty)} ${symbol} if it trades at ${px(d.stopPrice)}${d.limitPrice ? ` (limit ${px(d.limitPrice)})` : ""}`
-            : `${out} ${sizeText(d.qty)} ${symbol} at ${px(d.targetPrice)}`,
+        exitText(said, symbol, sessionOf(Date.now() / 1000)),
         d.replaced ? `replaced ${d.replaced} earlier exit order${d.replaced === 1 ? "" : "s"}` : null, d.note
       ].filter(Boolean).join(" · ")
     });
