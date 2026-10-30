@@ -741,11 +741,12 @@ function PriceChart({
   // ---------- replay ----------
 
   // This chart's symbol is followed by the replay while it is on screen, and
-  // the active chart is the one a "1 candle" step goes by.
+  // the active chart is the one a "1 candle" step goes by, and the one whose
+  // interval says where a replay starts (a daily chart: the day's close).
   useEffect(() => (replayOn && replay ? replay.watch(symbol) : undefined), [replayOn, replay, symbol]);
   useEffect(() => {
-    if (replayOn && active) replay?.setActive({ symbol, interval, regular: session === "regular" });
-  }, [replayOn, replay, active, symbol, interval, session]);
+    if (active) replay?.setActive({ symbol, interval, regular: session === "regular" });
+  }, [replay, active, symbol, interval, session]);
   // Each move of the clock, and each arrival of candles: built again.
   useEffect(() => {
     if (replayOn) renderReplay(replayCursor);

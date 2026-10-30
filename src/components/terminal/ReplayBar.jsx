@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Play, Pause, SkipForward, RotateCcw, X, History } from "lucide-react";
+import { Play, Pause, ChevronLeft, ChevronRight, RotateCcw, X, History } from "lucide-react";
 import { px, sizeText } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
 
@@ -9,6 +9,7 @@ import { fmtMoney } from "@/lib/format";
 
 const UNITS = [["candle", "1 candle"], ["1Min", "1 minute"], ["5Min", "5 minutes"], ["15Min", "15 minutes"], ["1Hour", "1 hour"], ["1Day", "1 day"]];
 const SPEEDS = [0.5, 1, 2, 5, 10];
+const UNIT_WORDS = { candle: "one candle of the active chart", "1Min": "one minute", "5Min": "five minutes", "15Min": "15 minutes", "1Hour": "one hour", "1Day": "one day" };
 const field = "rounded border border-amber-300 bg-white px-1 py-0.5 text-[11px] tabular-nums focus:outline-none";
 
 /** The form that starts a replay: from when, to when (`initial`: filled in, from the screener). */
@@ -38,7 +39,7 @@ export function ReplayStart({ crypto, onStart, onCancel, busy, initial = null })
         <label htmlFor="rp-to" className="text-slate-600">Until</label>
         <input id="rp-to" type="date" className="rounded border border-slate-300 px-1 py-0.5" value={to} max={today} onChange={(e) => setTo(e.target.value)} />
       </div>
-      <p className="mt-1 text-[10px] text-slate-400">{crypto ? "Times in UTC." : "Times in New York; 9:30 is the open."}</p>
+      <p className="mt-1 text-[10px] text-slate-400">{crypto ? "Times in UTC." : "Times in New York; 9:30 is the open."} On a daily, weekly or monthly chart it opens with that day&apos;s candle on screen.</p>
       {why && <p className="mt-1 text-[11px] text-amber-700">{why}</p>}
       <div className="mt-2 flex gap-2">
         <button type="button" disabled={!!why || busy} onClick={() => onStart({ from, time, to })}
@@ -93,7 +94,7 @@ function TargetField({ targets, pos, crypto, onAdd, onRemove }) {
   );
 }
 
-export default function ReplayBar({ clock, playing, loading, note, unit, speed, value, acct, price, symbol, crypto, trades = 0, onPlay, onStep, onRestart, onUnit, onSpeed, onJump, onExit, onTrade, onFlatten, onStop, onAddTarget, onRemoveTarget }) {
+export default function ReplayBar({ clock, playing, loading, note, unit, speed, value, acct, price, symbol, crypto, trades = 0, onPlay, onStep, onStepBack, onRestart, onUnit, onSpeed, onJump, onExit, onTrade, onFlatten, onStop, onAddTarget, onRemoveTarget }) {
   const [qty, setQty] = useState(crypto ? "0.1" : "100");
   const [jump, setJump] = useState("");
   const pos = acct?.qty || 0;
@@ -107,10 +108,15 @@ export default function ReplayBar({ clock, playing, loading, note, unit, speed, 
         <button type="button" title={playing ? "Pause" : "Play"} onClick={onPlay} disabled={loading && !playing} className="rounded bg-amber-600 p-1 text-white hover:bg-amber-700 disabled:opacity-50">
           {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
         </button>
-        <button type="button" title="Step forward" onClick={onStep} disabled={playing || loading} className="rounded p-1 hover:bg-amber-100 disabled:opacity-40"><SkipForward className="h-3.5 w-3.5" /></button>
-        <label className="flex items-center gap-1">step
-          <select className={field} value={unit} onChange={(e) => onUnit(e.target.value)} aria-label="Step">{UNITS.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select>
-        </label>
+        {/* One candle back or forward (30 Oct: "if am on 29 daily interval, i
+            want to click a button to move to 30 or back to 28"). */}
+        <span className="flex items-center rounded border border-amber-400 bg-white">
+          <button type="button" title={`Back ${UNIT_WORDS[unit] || "one candle"}`} aria-label="Step back" onClick={onStepBack} disabled={playing || loading}
+            className="rounded-l px-1.5 py-0.5 hover:bg-amber-100 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
+          <select className="border-x border-amber-300 bg-white px-1 py-0.5 text-[11px] focus:outline-none" value={unit} onChange={(e) => onUnit(e.target.value)} aria-label="Step">{UNITS.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select>
+          <button type="button" title={`Forward ${UNIT_WORDS[unit] || "one candle"}`} aria-label="Step forward" onClick={onStep} disabled={playing || loading}
+            className="rounded-r px-1.5 py-0.5 hover:bg-amber-100 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+        </span>
         <label className="flex items-center gap-1">
           <select className={field} value={speed} onChange={(e) => onSpeed(Number(e.target.value))} aria-label="Speed">{SPEEDS.map((s) => <option key={s} value={s}>{s} per second</option>)}</select>
         </label>

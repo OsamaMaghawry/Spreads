@@ -703,7 +703,7 @@ export default function Terminal() {
                 clock={replayClock(session.cursor, crypto)} playing={session.playing} loading={session.loading} note={session.note}
                 unit={session.unit} speed={session.speed} acct={acctIn(session.book, symbol)} price={replay.lastPrice(symbol)} value={replay.value()}
                 trades={Object.values(session.book).reduce((n, a) => n + a.trades.length, 0)} symbol={symbol} crypto={crypto}
-                onPlay={replay.toggle} onStep={replay.step} onRestart={replay.restart} onUnit={replay.setUnit} onSpeed={replay.setSpeed} onJump={replay.jump} onExit={replay.exit}
+                onPlay={replay.toggle} onStep={replay.step} onStepBack={replay.stepBack} onRestart={replay.restart} onUnit={replay.setUnit} onSpeed={replay.setSpeed} onJump={replay.jump} onExit={replay.exit}
                 onTrade={(side, qty) => replay.trade(symbol, side, qty)} onFlatten={() => replay.flatten(symbol, 100)} onStop={(kind, price) => replay.setExit(symbol, kind, price)}
                 onAddTarget={(price, size) => replay.addTarget(symbol, price, size)} onRemoveTarget={(id) => replay.removeTarget(symbol, id)}
               />

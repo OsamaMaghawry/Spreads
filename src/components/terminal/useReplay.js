@@ -3,7 +3,7 @@ import { invokeFunction } from "@/lib/functions";
 import { isCrypto, px, sizeText } from "@/lib/terminal";
 import { hotkeyOrder } from "@/lib/hotkeys";
 import {
-  nextCursor, countBefore, practiceFill, triggerExits, practiceExit, addTarget, removeTarget, targetSize,
+  nextCursor, prevCursor, stepSeconds, isCalendar, countBefore, practiceFill, triggerExits, practiceExit, addTarget, removeTarget, targetSize,
   rollMinutes, replayClock, acctIn, bookValue
 } from "@/lib/replay";
 
@@ -24,6 +24,8 @@ import {
 // week at a time as the clock runs on.
 
 const DAY = 86400;
+// Alpaca's history starts on 4 Jan 2016: no replay moment before its open.
+const EARLIEST = Date.parse("2016-01-04T14:30:00Z") / 1000;
 
 export default function useReplay({ accountId, notify }) {
   const [session, setSession] = useState(null);
@@ -155,13 +157,14 @@ export default function useReplay({ accountId, notify }) {
       patch({ cursor: t, book, loading: false, note: null });
     };
 
-    // Going back: a symbol whose minutes start after the new moment's month
-    // is read again from there.
+    // Going back: a symbol whose minutes do not reach five days before the
+    // new moment is read again from there (the half-hour candles carry the
+    // longer charts further back), so a step or two back needs no new read.
     const rewind = (t) => {
       gen += 1;
       for (const [s, d] of data) {
         const first = d.minutes?.[0]?.time;
-        if (!d.ready || first === undefined || first > t - 29 * DAY) data.delete(s);
+        if (!d.ready || first === undefined || first > t - 5 * DAY) data.delete(s);
       }
       for (const [s, d] of data) {
         // Kept, but nothing after the new moment's minutes may be missing.
@@ -172,8 +175,12 @@ export default function useReplay({ accountId, notify }) {
       bump();
     };
 
+    // A date's moment: on a day, week or month chart its close, so the day
+    // picked is the last candle on screen (30 Oct, the owner: "I set it to
+    // replay Jul 30 2026, it gives me 28 and can't go to the day"); on a
+    // shorter chart the time given (the open, unless another is picked).
     const startOf = ({ from, time }, coin) => {
-      const [hh, mm] = time.split(":").map(Number);
+      const [hh, mm] = (isCalendar(active.interval) ? (coin ? "23:59" : "16:00") : time).split(":").map(Number);
       // New York time for shares (four hours behind UTC in summer, five in
       // winter), UTC for coins.
       let start = Date.parse(`${from}T00:00:00Z`) / 1000 + hh * 3600 + mm * 60;
@@ -195,7 +202,7 @@ export default function useReplay({ accountId, notify }) {
       dataFor: (symbol) => data.get(symbol),
 
       start(form, coin) {
-        const start = startOf(form, coin);
+        const start = Math.max(EARLIEST, startOf(form, coin) + (isCalendar(active.interval) && coin ? 60 : 0));
         const end = Math.min(Date.parse(`${form.to}T23:59:59Z`) / 1000, Math.floor(Date.now() / 1000) - 16 * 60);
         data.clear();
         gen += 1;
@@ -269,22 +276,48 @@ export default function useReplay({ accountId, notify }) {
           stepping = false;
         }
       },
-      // To a date's open (shares) or midnight UTC (coins), within the range.
+      // To a date: on a day, week or month chart its close, so it is the
+      // last candle; on a shorter chart its open (shares) or midnight UTC
+      // (coins). Before the replay's start too, back to 2016; not past its end.
       async jump(date) {
         const r = ref.current;
         if (!r) return;
-        const day = Date.parse(`${date}T00:00:00Z`) / 1000;
-        let t = day;
-        if (!isCrypto(active.symbol || "")) {
-          const probe = new Date((day + 13.5 * 3600) * 1000).toLocaleString("en-US", { timeZone: "America/New_York", hour: "2-digit", hourCycle: "h23" });
-          t = day + (Number(probe) === 9 ? 13.5 : 14.5) * 3600;
-        }
-        t = Math.max(r.start, Math.min(t, r.end));
+        const coin = isCrypto(active.symbol || "");
+        let t = startOf({ from: date, time: coin ? "00:00" : "09:30" }, coin) + (isCalendar(active.interval) && coin ? 60 : 0);
+        t = Math.max(EARLIEST, Math.min(t, r.end));
         patch({ playing: false, loading: t > r.cursor });
         try {
           if (t > r.cursor) await advance(r.cursor, t);
           else { rewind(t); patch({ note: t < r.cursor ? "Went back: the practice account keeps its trades." : null }); }
         } catch (e) { patch({ loading: false, note: e.message }); }
+      },
+
+      // One step back: the last candle of the step unit on the active chart
+      // taken off, so the one before it is the last on screen.
+      async stepBack() {
+        const r = ref.current;
+        if (!r || stepping) return false;
+        stepping = true;
+        try {
+          const symbol = active.symbol || tracked()[0];
+          if (!symbol) throw new Error("Open a chart to step through.");
+          const coin = isCrypto(symbol);
+          const unit = r.unit === "candle" ? active.interval : r.unit;
+          const d = data.get(symbol)?.ready ? data.get(symbol) : await load(symbol);
+          if (!d?.ready) throw new Error(d?.error || `No candles for ${symbol}.`);
+          // Nothing loaded before it: one candle's length back, read from there.
+          const t = Math.max(EARLIEST, prevCursor(d, unit, r.cursor, { crypto: coin, regular: !coin && active.regular }) ?? r.cursor - stepSeconds(unit));
+          if (!(t < r.cursor)) return false;
+          patch({ playing: false });
+          rewind(t);
+          patch({ note: Object.keys(r.book).length ? "One candle back: the practice account keeps its trades." : null });
+          return true;
+        } catch (e) {
+          patch({ playing: false, loading: false, note: e.message });
+          return false;
+        } finally {
+          stepping = false;
+        }
       },
 
       // ---------- the practice book ----------

@@ -145,6 +145,43 @@ export function nextCursor({ minutes = [], days = [] }, unit, cursor, { crypto =
   return dayClose(days[j].time, crypto);
 }
 
+/**
+ * Where one step back takes the replay: the last candle of `unit` on screen
+ * taken off, so the one before it is the last (30 Oct, the owner: "if am on
+ * 29 daily interval, i want to click a button to move to 30 or back to 28").
+ * Intraday, to the start of the last candle shown; a day, week or month, to
+ * the close of the trading day before it. Null when nothing before it is loaded.
+ */
+export function prevCursor({ minutes = [], days = [] }, unit, cursor, { crypto = false, regular = false } = {}) {
+  if (!CALENDAR.has(unit)) {
+    let i = countBefore(minutes, cursor) - 1;
+    while (i >= 0 && !crypto && regular && !inSession(minutes[i].time)) i--;
+    return i < 0 ? null : bucketOf(minutes[i].time, unit, crypto, regular);
+  }
+  // The last day on screen: the last whose session had begun by the cursor.
+  const begun = (d) => (crypto ? d.time : d.time + OPEN * 60) < cursor;
+  let lo = 0;
+  let hi = days.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (begun(days[mid])) lo = mid + 1;
+    else hi = mid;
+  }
+  let j = lo - 1;
+  if (j < 0) return null;
+  if (unit !== "1Day") {
+    const bucket = bucketStart(days[j].time, unit, crypto);
+    while (j > 0 && bucketStart(days[j - 1].time, unit, crypto) === bucket) j--;
+  }
+  return j >= 1 ? dayClose(days[j - 1].time, crypto) : null;
+}
+
+/** A candle of `unit` in seconds (a day for a day, week or month): a step back's fallback. */
+export const stepSeconds = (unit) => STEP[unit] || 86400;
+
+/** Whether `unit` is a day, a week or a month. */
+export const isCalendar = (unit) => CALENDAR.has(unit);
+
 // ---------- the practice account ----------
 
 export const PRACTICE_CASH = 100000;

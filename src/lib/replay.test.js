@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { replayCandles, nextCursor, inSession, dayOf, practiceFill, practiceValue, triggerExits, practiceExit, addTarget, removeTarget, targetSize, newPractice, countBefore, rollMinutes, roundTrips, tradeStats, bookValue, bookTrips, acctIn } from "./replay.js";
+import { replayCandles, nextCursor, inSession, dayOf, practiceFill, practiceValue, triggerExits, practiceExit, addTarget, removeTarget, targetSize, newPractice, countBefore, rollMinutes, roundTrips, tradeStats, bookValue, bookTrips, acctIn, prevCursor } from "./replay.js";
 
 // New York is UTC-4 in October: 9:30 is 13:30Z.
 const ny = (date, hhmm) => {
@@ -269,4 +269,24 @@ test("the book: several symbols, one balance", () => {
   const v = bookValue(book, (s) => ({ TSLA: 190 }[s] ?? null));
   assert.deepEqual([v.realized, v.unrealized, v.cash, v.equity], [100, 50, 100000 + 100 + 1000, 100000 + 100 + 50]);
   assert.deepEqual(bookTrips(book).map((t) => [t.symbol, t.side, t.open]), [["AAPL", "long", false], ["TSLA", "short", true]]);
+});
+
+test("one candle back: the last candle on screen taken off, and forward again lands where it was", () => {
+  const opts = { regular: true };
+  // Daily, on Friday 23 after its close: back shows Thursday 22 last, again Wednesday 21.
+  const fri = ny("2026-10-23", "16:00");
+  const thu = prevCursor(data, "1Day", fri, opts);
+  assert.equal(thu, ny("2026-10-22", "16:00"));
+  assert.equal(at(thu, "1Day").at(-1).time, Date.parse("2026-10-22T04:00:00Z") / 1000);
+  assert.equal(prevCursor(data, "1Day", thu, opts), ny("2026-10-21", "16:00"));
+  assert.equal(nextCursor(data, "1Day", thu, opts), fri);
+  // Part way through Friday: Friday's candle is on screen, so back shows Thursday last.
+  assert.equal(prevCursor(data, "1Day", fri1042, opts), ny("2026-10-22", "16:00"));
+  // At the first day loaded there is nothing before it.
+  assert.equal(prevCursor(data, "1Day", ny("2026-10-20", "16:00"), opts), null);
+  // Intraday: to the start of the last candle shown; at 9:30 that is Thursday's last.
+  assert.equal(prevCursor(data, "5Min", fri1042, opts), ny("2026-10-23", "10:40"));
+  assert.equal(prevCursor(data, "5Min", ny("2026-10-23", "09:30"), opts), ny("2026-10-22", "15:55"));
+  const back = prevCursor(data, "15Min", fri1042, opts);
+  assert.equal(at(back, "15Min").at(-1).time, ny("2026-10-23", "10:15"));
 });
