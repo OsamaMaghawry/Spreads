@@ -1,0 +1,14 @@
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A hypothetical XYZ price path over 45 days starting at 50, dipping to 46 around day 20 and ending at 52. A dashed line marks the 47 strike. A resting buy order at 47 fills where the path first crosses it, around day 16, while a short 47 put expires worthless at day 45 because the stock ends above 47.">
+  <rect width="720" height="300" fill="#FFFFFF"/>
+  <line x1="60" y1="216" x2="680" y2="216" stroke="#767B8E" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="64" y="208" font-size="14" fill="#767B8E">47 strike</text>
+  <polyline points="60,150 197.8,183 335.6,238 473.4,172 680,106" fill="none" stroke="#14151C" stroke-width="3" stroke-linejoin="round"/>
+  <circle cx="280.6" cy="216" r="8" fill="#14151C"/>
+  <line x1="283" y1="224" x2="298" y2="250" stroke="#14151C" stroke-width="1.5"/>
+  <text x="292" y="266" font-size="16" font-weight="600" fill="#14151C">order fills at 47</text>
+  <circle cx="680" cy="106" r="8" fill="#FFFFFF" stroke="#767B8E" stroke-width="3"/>
+  <text x="672" y="88" font-size="16" font-weight="600" text-anchor="end" fill="#767B8E">put expires worthless</text>
+  <text x="46" y="154" font-size="14" text-anchor="end" fill="#767B8E">50</text>
+  <text x="694" y="112" font-size="14" fill="#767B8E">52</text>
+  <text x="680" y="278" font-size="14" text-anchor="end" fill="#767B8E">day 45</text>
+</svg>
