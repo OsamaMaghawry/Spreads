@@ -1,8 +1,9 @@
 ---
 title: "Hedging cash-secured puts: three hedges on one account"
+search_title: "How to Hedge Cash-Secured Puts: Three Hedges Compared"
 slug: hedge-cash-secured-puts
 excerpt: Cash securing a put provides the money to buy the shares, not a limit on the loss, and the hedges differ in how much of that loss they limit.
-meta_description: "Hedging cash-secured puts: a lower put, an index put or a VIX call. What each pays in a fall, and the loss the cash reserve does not cover."
+meta_description: "How to hedge cash-secured puts with a lower put, an index put or a VIX call: what each pays in a fall, and the loss the cash reserve does not cover."
 author: Osama Safwat Maghawry
 category: hedging
 series_order: 36

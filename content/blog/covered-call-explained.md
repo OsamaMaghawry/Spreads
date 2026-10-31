@@ -95,6 +95,8 @@ offsets part of that, and the position sits $158 below its cost. The shares
 can still fall to zero; the call does nothing about that beyond the $1.42 -
 small, next to the full value of 100 shares.
 
+Related: [poor man's covered call vs covered call](/blog/pmcc-vs-covered-call) compares the same short call written over shares and over a long-dated call.
+
 ## How does a covered call end?
 
 A covered call is two lines in an account: 100 shares and one short call.

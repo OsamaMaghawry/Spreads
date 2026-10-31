@@ -1,5 +1,6 @@
 ---
 title: "SPX vs SPY options for hedging: size, settlement and basis"
+search_title: "SPX vs SPY Puts for a Hedge: Size, Settlement, Basis Risk"
 slug: spx-vs-spy-options-hedge
 excerpt: SPX and SPY puts hedge the same index but differ in size, settlement and exercise style, and either one pays on the index rather than on the stock you hold.
 meta_description: "SPX vs SPY options for a hedge: size, settlement and exercise, then one worked example where your stock falls and the index does not."
