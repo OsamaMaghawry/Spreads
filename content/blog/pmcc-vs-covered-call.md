@@ -100,4 +100,4 @@ Assignment is also different. If the short call is [assigned](/blog/option-assig
 
 A covered call and a poor man's covered call differ in the thing under the short call. In the example, shares plus a 55 call tied up $4,967 and held a flat $533 above the strike; a 24-month 40 call plus the same short call tied up $1,525, lost less below the strikes, kept less near the cap, and drifted lower above it. It also gave up dividends, time and the permanence of the shares. Every figure on this page is hypothetical and there to show the mechanics.
 
-For the neighbouring structure that holds the long call alone, see [stock replacement](/blog/stock-replacement-strategy). This post is educational and is not investment advice.
+For the neighbouring structure that holds the long call alone, see [stock replacement](/blog/stock-replacement-strategy). Read next: [selling puts to buy stock](/blog/sell-puts-to-buy-stock). This post is educational and is not investment advice.
