@@ -196,6 +196,8 @@ The cap is a property of holding both legs together. It is the arithmetic
 behind the maximum loss, not something that steps in when the short put is
 exercised.
 
+Related: [selling puts to buy stock](/blog/sell-puts-to-buy-stock) covers the short put on its own, without the long put.
+
 ## Frequently asked questions
 
 - **What is a put credit spread?** A short put and a long put, same stock and expiration, the long at a lower strike, opened for a net credit. It is also called a bull put spread or a short put vertical.
