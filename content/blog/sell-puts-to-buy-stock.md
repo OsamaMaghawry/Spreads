@@ -97,4 +97,4 @@ A short put and a resting buy order both set aside cash to buy shares at a lower
 
 On the hypothetical XYZ, the table shows +$81 against the order's nothing when the stock rises, +$81 against +$500 on a dip and recovery, and -$619 against -$700 on a fall to 40 if the order filled at 47 (on a gap the order fills near 40 and is about even). Every figure is illustrative and there to show the mechanics.
 
-For where this started, the [cash-secured put post](/blog/cash-secured-put-explained) covers the same put in more detail, and [stock replacement](/blog/stock-replacement-strategy) covers the way of owning exposure without buying shares at all. This post is educational and is not investment advice.
+For where this started, the [cash-secured put post](/blog/cash-secured-put-explained) covers the same put in more detail, and [stock replacement](/blog/stock-replacement-strategy) covers the way of owning exposure without buying shares at all. Read next: [the buy-write strategy](/blog/buy-write-strategy), which buys the shares and sells a call against them in one order. This post is educational and is not investment advice.
