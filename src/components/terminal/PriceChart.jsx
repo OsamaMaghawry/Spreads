@@ -83,6 +83,13 @@ const loadDrawings = (symbol) => {
 const saveDrawings = (symbol, drawings) => {
   try { localStorage.setItem(DRAW_KEY, writeDrawings(localStorage.getItem(DRAW_KEY), symbol, drawings)); } catch { /* private window */ }
 };
+// On a touch screen a finger dragged up or down scrolls the page and one
+// dragged sideways moves the chart (1 Nov, the owner, on the phone: "I cannot
+// scroll, control the chart correctly. When I try to drag the chart down, it
+// takes all the lines with that"); pinch still zooms.
+const TOUCH = typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches;
+const SCROLL = { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: !TOUCH };
+
 const newId = () => `d${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 /**
@@ -203,6 +210,7 @@ function PriceChart({
       crosshair: { mode: CrosshairMode.Normal },
       rightPriceScale: { borderColor: "#e2e8f0" },
       timeScale: { borderColor: "#e2e8f0", timeVisible: true, secondsVisible: false, rightOffset: 8 },
+      handleScroll: SCROLL,
       localization: {
         // New York time on the crosshair, whatever the viewer's clock says.
         // A coin's day, week and month start at midnight UTC: read in New
@@ -295,7 +303,7 @@ function PriceChart({
     let press = null;
     let swallow = false;
     const hold = () => { swallow = true; chart.applyOptions({ handleScroll: false, handleScale: false }); };
-    const release = () => { swallow = false; chart.applyOptions({ handleScroll: true, handleScale: true }); };
+    const release = () => { swallow = false; chart.applyOptions({ handleScroll: SCROLL, handleScale: true }); };
     const place = (d) => {
       commit([...drawingsRef.current, d]);
       select(d.id);
@@ -372,6 +380,12 @@ function PriceChart({
       }
       const hit = hitTest(drawingsRef.current, xy, x, y);
       const start = hit && pointAt(x, y);
+      // A finger near a drawing that is not chosen yet chooses it and the
+      // chart moves as usual; only a chosen one is dragged by a finger.
+      if (hit && e.pointerType === "touch" && selectedRef.current !== hit.id) {
+        select(hit.id);
+        return;
+      }
       if (!hit || !start) {
         // A click on empty chart lets go of the selection; a drag pans as usual.
         window.addEventListener("pointerup", (up) => {

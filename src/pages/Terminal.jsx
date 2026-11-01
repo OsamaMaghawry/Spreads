@@ -302,10 +302,35 @@ export default function Terminal() {
     document.addEventListener("fullscreenchange", onChange);
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
+  // Where the browser cannot put a page element full screen (an iPhone allows
+  // it for video only), the chart fills the window instead (1 Nov: "the full
+  // screen button is not working with the phone").
+  const [chartFill, setChartFill] = useState(false);
+  const canFull = typeof document !== "undefined" && !!document.fullscreenEnabled;
+  useEffect(() => {
+    if (!chartFill) return undefined;
+    const esc = (e) => { if (e.key === "Escape") setChartFill(false); };
+    const was = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", esc);
+    return () => { document.body.style.overflow = was; document.removeEventListener("keydown", esc); };
+  }, [chartFill]);
   const toggleFull = () => {
-    if (document.fullscreenElement === chartBox.current) document.exitFullscreen?.();
-    else chartBox.current?.requestFullscreen?.().catch(() => {});
+    if (chartFill) { setChartFill(false); return; }
+    if (document.fullscreenElement === chartBox.current) { document.exitFullscreen?.(); return; }
+    if (canFull && chartBox.current?.requestFullscreen) chartBox.current.requestFullscreen().catch(() => setChartFill(true));
+    else setChartFill(true);
   };
+  // A phone: the windows stay where they are (their bars moved them when a
+  // finger only meant to scroll the page).
+  const [phone, setPhone] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 639px)").matches);
+  useEffect(() => {
+    const m = window.matchMedia?.("(max-width: 639px)");
+    if (!m) return undefined;
+    const on = () => setPhone(m.matches);
+    m.addEventListener?.("change", on);
+    return () => m.removeEventListener?.("change", on);
+  }, []);
   const toggleDeskFull = () => {
     if (document.fullscreenElement) document.exitFullscreen?.();
     else deskBox.current?.requestFullscreen?.().catch(() => {});
@@ -595,10 +620,10 @@ export default function Terminal() {
             {SHARE_FEEDS.filter(([id]) => id !== "eodhd" || eodhdOk).map(([id, name]) => <option key={id} value={id}>{id === "auto" ? `Auto: ${shares.label}` : name}</option>)}
           </select>
         </label>
-        <button type="button" onClick={toggleDeskFull} title={deskFull ? "Leave full screen (Esc)" : "Full screen: the terminal alone, without the menu or the browser's bars"}
+        {canFull && <button type="button" onClick={toggleDeskFull} title={deskFull ? "Leave full screen (Esc)" : "Full screen: the terminal alone, without the menu or the browser's bars"}
           className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${deskFull ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
           {deskFull ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}{deskFull ? "Exit full screen" : "Full screen"}
-        </button>
+        </button>}
         {page === "trade" && !replaying && (
           <AccountStrip lead={account} choices={groupChoices(accounts, accountId, liveOk)} picked={group} onPick={changeGroup} rows={stripRows} symbol={symbol} />
         )}
@@ -625,8 +650,9 @@ export default function Terminal() {
         rowHeight={rowHeight}
         margin={[MARGIN, MARGIN]}
         containerPadding={[0, 0]}
-        isDraggable={!locked}
-        isResizable={!locked}
+        isDraggable={!locked && !phone}
+        isResizable={!locked && !phone}
+        useCSSTransforms={!chartFill}
         resizeHandles={["se", "e", "s", "w"]}
         draggableHandle=".drag-handle"
         draggableCancel={NO_DRAG}
@@ -662,7 +688,7 @@ export default function Terminal() {
         </div>
 
         <div key="chart" className={frame}>
-          <div ref={chartBox} className="flex h-full min-h-0 flex-col bg-white">
+          <div ref={chartBox} className={chartFill ? "fixed inset-0 z-[70] flex flex-col bg-white" : "flex h-full min-h-0 flex-col bg-white"}>
             <div className={`${bar} relative items-baseline gap-3 py-1.5`}>
               {grip}
               <button type="button" onClick={() => setChartSearch({ pane: panes.active, initial: "" })}
@@ -698,8 +724,9 @@ export default function Terminal() {
                   </button>
                 ))}
               </div>
-              <button type="button" onClick={toggleFull} title={full ? "Leave full screen (Esc)" : "Chart full screen"} className="ml-1 self-center rounded p-1 text-slate-500 hover:bg-slate-100">
-                {full ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              <button type="button" onClick={toggleFull} title={full || chartFill ? "Leave full screen (Esc)" : "Chart full screen"} aria-label={full || chartFill ? "Leave full screen" : "Chart full screen"}
+                className={`ml-1 self-center rounded p-1 ${chartFill ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100"}`}>
+                {full || chartFill ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               </button>
             </div>
             {replayForm && !replaying && (
