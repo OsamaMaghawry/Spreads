@@ -94,9 +94,9 @@ export default function useReplay({ accountId, notify }) {
       const coin = isCrypto(symbol);
       const g = gen;
       const minuteFrom = Math.floor((r.cursor - 30 * DAY) / 1800) * 1800;
-      const to = Math.min(r.cursor + 5 * DAY, r.end);
+      const to = Math.min(r.cursor + 5 * DAY, latest());
       const promise = Promise.all([
-        fetchCandles(symbol, "1Day", r.start - 3650 * DAY, r.end),
+        fetchCandles(symbol, "1Day", r.start - 3650 * DAY, latest()),
         fetchCandles(symbol, "1Min", minuteFrom, to),
         fetchCandles(symbol, "30Min", minuteFrom - (coin ? 180 : 365) * DAY, minuteFrom).catch(() => [])
       ]).then(([days, minutes, context]) => ({
@@ -115,7 +115,9 @@ export default function useReplay({ accountId, notify }) {
       let d = data.get(symbol);
       if (!d?.ready) d = await load(symbol);
       if (!d?.ready) return d;
-      const end = ref.current?.end ?? 0;
+      // No end but the newest data (1 Nov, the owner: "I move forward so there
+      // should be no ranges").
+      const end = latest();
       while (d.loadedTo < Math.min(through, end)) {
         const from = d.loadedTo;
         const to = Math.min(from + 7 * DAY, end);
@@ -238,12 +240,13 @@ export default function useReplay({ accountId, notify }) {
       data, priceOf, lastPrice,
       dataFor: (symbol) => data.get(symbol),
 
-      // A new replay: `form` { from, at, to } (lib/replay replayMoment says
-      // where "open", "close" or a time puts it); `meta` { symbol, name }.
+      // A new replay: `form` { from, at } (lib/replay replayMoment says where
+      // "open", "close" or a time puts it); `meta` { symbol, name }. It runs
+      // on as far as the market data goes; `end` is that moment, for news.
       start(form, coin, meta = {}) {
         const at = form.at || "open";
         const start = Math.max(EARLIEST, Math.min(replayMoment(form.from, at, coin), latest()));
-        const end = Math.max(start, Math.min(replayMoment(form.to, "close", coin), latest()));
+        const end = latest();
         move();
         data.clear();
         gen += 1;
@@ -266,7 +269,7 @@ export default function useReplay({ accountId, notify }) {
         data.clear();
         gen += 1;
         setLast(null);
-        const end = Math.max(kept.end, kept.cursor);
+        const end = latest();
         patch({
           id: kept.id, name: kept.name, symbol: kept.symbol, crypto: !!kept.crypto, start: kept.start, end, cursor: kept.cursor, at: kept.at || "open",
           playing: false, unit: kept.unit || "candle", speed: kept.speed || 1, loading: false, book: kept.book || {}, cancelled: kept.cancelled || 0, moveId: 1,
@@ -381,14 +384,14 @@ export default function useReplay({ accountId, notify }) {
           let d = await ensure(symbol, r.cursor);
           if (!d?.ready) throw new Error(d?.error || `No candles for ${symbol}.`);
           let next = nextCursor(d, unit, r.cursor, opts);
-          if ((next === null || next > d.loadedTo) && d.loadedTo < r.end) {
+          if ((next === null || next > d.loadedTo) && d.loadedTo < latest()) {
             patch({ loading: true });
             d = await ensure(symbol, next ?? d.loadedTo + 7 * DAY);
             next = nextCursor(d, unit, r.cursor, opts);
           }
           if (next !== null && next > d.loadedTo) d = await ensure(symbol, next);
-          if (next === null || next > r.end + 60) {
-            patch({ playing: false, loading: false, note: "The end of the replay range." });
+          if (next === null || next > latest() + 60) {
+            patch({ playing: false, loading: false, note: "This is the newest candle there is: market data here runs 15 minutes behind." });
             return false;
           }
           if (token !== moveSeq) return false;
@@ -414,7 +417,7 @@ export default function useReplay({ accountId, notify }) {
         const coin = isCrypto(active.symbol || r.symbol || "");
         const at = atIn || r.at || "open";
         const t = Math.max(EARLIEST, Math.min(replayMoment(date, at, coin), latest()));
-        const end = Math.max(r.end, Math.min(replayMoment(date, "close", coin) + 7 * DAY, latest()));
+        const end = latest();
         const exits = Object.values(r.book).some((a) => a.qty && (a.stop || a.targets.length));
         patch({ playing: false, at, end, note: null });
         try {

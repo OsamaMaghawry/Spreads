@@ -33,13 +33,10 @@ export function ReplayStart({ crypto, onStart, onCancel, busy, initial = null, d
   const [from, setFrom] = useState(initial?.from || plusDays(now, -30));
   const [at, setAt] = useState(initial?.at || (daily ? "close" : "open"));
   const [time, setTime] = useState(initial?.time || (crypto ? "12:00" : "10:00"));
-  const [to, setTo] = useState(initial?.to && initial.to <= now ? initial.to : now);
   const [sure, setSure] = useState(null);
-  const why = !from || !to ? "Pick both dates."
+  const why = !from ? "Pick a day."
     : from < "2016-01-04" ? "Alpaca's history starts in 2016."
-      : from > now ? "Start on or before today."
-        : to < from ? "End on or after the start."
-          : Date.parse(to) - Date.parse(from) > 366 * 86400000 ? "At most a year at a time (a jump can go further)." : null;
+      : from > now ? "Start on or before today." : null;
   const where = at === "open" ? (crypto ? "From midnight UTC: the day's first minute is on the chart." : "From 9:30: the day's first minute is on the chart, the rest plays from there.")
     : at === "close" ? "The whole day on the chart, its daily candle complete; the next day plays from there."
       : `Everything up to ${time} ${crypto ? "UTC" : "New York"} on that day is on the chart.`;
@@ -89,13 +86,11 @@ export function ReplayStart({ crypto, onStart, onCancel, busy, initial = null, d
           </div>
           {/:/.test(at) && <input type="time" aria-label="Start time" className="w-20 rounded border border-slate-300 px-1 py-0.5" value={time} onChange={(e) => { setTime(e.target.value); setAt(e.target.value || "open"); }} />}
         </div>
-        <label htmlFor="rp-to" className="text-slate-600">Until</label>
-        <input id="rp-to" type="date" className="rounded border border-slate-300 px-1 py-0.5" value={to} max={now} onChange={(e) => setTo(e.target.value)} />
       </div>
       <p className="mt-1 text-[10px] leading-snug text-slate-500">{where}</p>
       {why && <p className="mt-1 text-[11px] text-amber-700">{why}</p>}
       <div className="mt-2 flex gap-2">
-        <button type="button" disabled={!!why || busy} onClick={() => onStart({ from, at, to })}
+        <button type="button" disabled={!!why || busy} onClick={() => onStart({ from, at })}
           className="flex-1 rounded bg-amber-600 py-1.5 font-semibold text-white hover:bg-amber-700 disabled:opacity-40">{busy ? "Loading…" : "Start replay"}</button>
         <button type="button" onClick={onCancel} className="rounded border border-slate-300 px-3 text-slate-600">Cancel</button>
       </div>

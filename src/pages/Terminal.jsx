@@ -484,7 +484,7 @@ export default function Terminal() {
     setPage("trade");
     const day = Date.parse(`${date}T00:00:00Z`) / 1000;
     const r = sessionRef.current;
-    if (r && day + 86400 > r.start && day <= r.end) {
+    if (r && day + 86400 > r.start && day <= r.cursor) {
       setPanes((p) => {
         const at = p.list.findIndex((x) => x.symbol === s);
         if (at !== -1) return { ...p, active: at };
@@ -495,8 +495,7 @@ export default function Terminal() {
     }
     if (r) replay.exit();
     setSymbol(s);
-    const to = new Date((day + 7 * 86400) * 1000).toISOString().slice(0, 10);
-    setReplayForm({ from: date, at: "open", to });
+    setReplayForm({ from: date, at: "open" });
   };
   // The news tab: the active chart's symbol; in a replay, up to its moment.
   const news = useNews({ accountId, symbol, cursor: session?.cursor ?? null, end: session?.end ?? null });
