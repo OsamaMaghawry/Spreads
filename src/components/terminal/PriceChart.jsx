@@ -88,6 +88,10 @@ const saveDrawings = (symbol, drawings) => {
 // scroll, control the chart correctly. When I try to drag the chart down, it
 // takes all the lines with that"); pinch still zooms.
 const TOUCH = typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches;
+// A finger on the price axis still stretches or squeezes it, and with the
+// chart full screen (nothing to scroll behind it) up and down moves the chart
+// too (1 Nov: "I cannot control the right axis ... I cannot see what's below
+// this price").
 const SCROLL = { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: !TOUCH };
 
 const newId = () => `d${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -101,7 +105,7 @@ const newId = () => `d${Date.now().toString(36)}${Math.random().toString(36).sli
 function PriceChart({
   accountId, symbol, interval, onInterval, listen, fills = [],
   replay = null, replayOn = false, replayCursor = null, replayVersion = 0, replayMove = 0, replayAcct = null, onReplayButton = () => {}, active = true, label = false,
-  stockFeed = "iex", liveSource = "iex", onSearch = null
+  stockFeed = "iex", liveSource = "iex", onSearch = null, fullView = false
 }) {
   const boxRef = useRef(null);
   const chartRef = useRef(null);
@@ -125,6 +129,13 @@ function PriceChart({
   const olderRef = useRef({ busy: false, done: false });
   const loadOlderRef = useRef(() => {});
   const [older, setOlder] = useState(null);
+  // Full screen on a touch screen: up and down move the chart (nothing to scroll).
+  const fullRef = useRef(fullView);
+  fullRef.current = fullView;
+  const scrollNow = () => ({ ...SCROLL, vertTouchDrag: !TOUCH || fullRef.current });
+  // Whether the price scale still fits the candles; once moved by hand, an
+  // Auto button puts it back.
+  const [fitted, setFitted] = useState(true);
   const barsRef = useRef([]);
   const extRef = useRef([]);
   // Regular or all hours, kept with the account (useAccountSetting.js).
@@ -312,7 +323,7 @@ function PriceChart({
     let press = null;
     let swallow = false;
     const hold = () => { swallow = true; chart.applyOptions({ handleScroll: false, handleScale: false }); };
-    const release = () => { swallow = false; chart.applyOptions({ handleScroll: SCROLL, handleScale: true }); };
+    const release = () => { swallow = false; chart.applyOptions({ handleScroll: scrollNow(), handleScale: true }); };
     const place = (d) => {
       commit([...drawingsRef.current, d]);
       select(d.id);
@@ -423,6 +434,25 @@ function PriceChart({
     box.addEventListener("dblclick", onDouble, true);
     // The same press, as the mouse and touch events the chart also listens to.
     const swallowIfHeld = (e) => { if (swallow) e.stopPropagation(); };
+    // A finger on the price axis: up and down stretch or squeeze it, for as
+    // long as that finger is down; and whether the scale is still fitted is
+    // read again when it lifts.
+    const axisTouch = (e) => {
+      if (swallow || !TOUCH || fullRef.current) return;
+      const t = e.touches?.[0];
+      if (!t || e.touches.length > 1) return;
+      const r = box.getBoundingClientRect();
+      if (t.clientX - r.left > chart.timeScale().width()) chart.applyOptions({ handleScroll: { ...SCROLL, vertTouchDrag: true } });
+    };
+    const lifted = () => {
+      if (TOUCH && !swallow) chart.applyOptions({ handleScroll: scrollNow() });
+      setTimeout(() => setFitted(chart.priceScale("right").options().autoScale !== false), 0);
+    };
+    box.addEventListener("touchstart", axisTouch, true);
+    box.addEventListener("touchend", lifted, true);
+    box.addEventListener("touchcancel", lifted, true);
+    box.addEventListener("mouseup", lifted, true);
+    box.addEventListener("wheel", lifted, { capture: true, passive: true });
     box.addEventListener("pointerdown", onDown, true);
     box.addEventListener("mousedown", swallowIfHeld, true);
     box.addEventListener("touchstart", swallowIfHeld, true);
@@ -434,6 +464,11 @@ function PriceChart({
       box.removeEventListener("dblclick", onDouble, true);
       box.removeEventListener("mousedown", swallowIfHeld, true);
       box.removeEventListener("touchstart", swallowIfHeld, true);
+      box.removeEventListener("touchstart", axisTouch, true);
+      box.removeEventListener("touchend", lifted, true);
+      box.removeEventListener("touchcancel", lifted, true);
+      box.removeEventListener("mouseup", lifted, true);
+      box.removeEventListener("wheel", lifted, { capture: true });
       window.removeEventListener("pointermove", onDragMove);
       window.removeEventListener("pointerup", onPlaceUp);
       chart.remove();
@@ -587,6 +622,7 @@ function PriceChart({
     // stock's axis kept SPY's 700 off screen (1 Nov, the owner: "I have to
     // scroll over and over ... until I get the 700 mark on the right axis").
     chartRef.current?.priceScale("right").applyOptions({ autoScale: true });
+    setFitted(true);
     if (cursorRef.current !== null) {
       // Another interval or symbol in a replay: built again, with the replay's moment at the right edge.
       renderReplay(cursorRef.current);
@@ -635,6 +671,8 @@ function PriceChart({
     }
     return () => { alive = false; if (refill) clearInterval(refill); };
   }, [accountId, symbol, interval, show, alignedSession, replayOn, renderReplay, stockFeed, crypto]);
+
+  useEffect(() => { if (TOUCH) chartRef.current?.applyOptions({ handleScroll: { ...SCROLL, vertTouchDrag: fullView } }); }, [fullView]);
 
   // The stretch before the first candle, added on the left with the view
   // kept where it was (functions/terminal "bars" with `before`).
@@ -1067,6 +1105,10 @@ function PriceChart({
           the replay bar (it was, at a fixed 260 pixels). */}
       <div className={`relative flex-1 ${compact ? "min-h-[90px]" : "min-h-[160px]"}`}>
         <div ref={boxRef} className={`absolute inset-0 ${tool !== "cursor" ? "cursor-crosshair" : ""}`} />
+        {!fitted && (
+          <button type="button" onClick={() => { chartRef.current?.priceScale("right").applyOptions({ autoScale: true }); setFitted(true); }}
+            title="Fit the price scale to the candles again" className="absolute bottom-8 right-1 z-10 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50">Auto</button>
+        )}
         {older === "loading" && (
           <div className="pointer-events-none absolute left-2 top-2 z-10 rounded bg-white/90 px-2 py-0.5 text-[11px] text-slate-500 shadow-sm">Loading earlier candles…</div>
         )}

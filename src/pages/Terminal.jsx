@@ -808,7 +808,7 @@ export default function Terminal() {
                   <PriceChart accountId={accountId} symbol={p.symbol} interval={p.interval} onInterval={paneInterval[i]} listen={listen} fills={fillsBySymbol[p.symbol] || NO_FILLS}
                     replay={replay} replayOn={replaying} replayCursor={session?.cursor ?? null} replayVersion={replayVersion} replayMove={session?.moveId || 0} replayAcct={session?.book[p.symbol] || null}
                     onReplayButton={replayButton} active={panes.active === i} label={panes.list.length > 1} stockFeed={shares.history} liveSource={shares.live}
-                    onSearch={() => setChartSearch({ pane: i, initial: "" })} />
+                    onSearch={() => setChartSearch({ pane: i, initial: "" })} fullView={full || chartFill} />
                 </div>
               ))}
             </div>
