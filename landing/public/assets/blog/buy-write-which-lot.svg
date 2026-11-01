@@ -1,0 +1,14 @@
+<svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="An account holds two lots of 100 XYZ shares: an old lot with a hypothetical cost of 30 and a new lot bought at 50 through a buy-write. One short 52 call sits against the account. Arrows run from the call to both lots, because assignment delivers 100 shares and the account's lot method, not the order that opened the call, decides which lot is sold.">
+  <rect width="720" height="260" fill="#FFFFFF"/>
+  <rect x="40" y="40" width="250" height="64" rx="6" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="165" y="79" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">Old lot, cost 30</text>
+  <rect x="40" y="152" width="250" height="64" rx="6" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="165" y="191" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">New lot, cost 50</text>
+  <rect x="460" y="96" width="220" height="64" rx="6" fill="#14151C"/>
+  <text x="570" y="135" font-size="18" font-weight="600" text-anchor="middle" fill="#FFFFFF">Short 52 call</text>
+  <line x1="460" y1="116" x2="300" y2="74" stroke="#767B8E" stroke-width="2" stroke-dasharray="7 5"/>
+  <polygon points="292,72 304,66 303,80" fill="#767B8E"/>
+  <line x1="460" y1="140" x2="300" y2="182" stroke="#767B8E" stroke-width="2" stroke-dasharray="7 5"/>
+  <polygon points="292,184 303,176 304,190" fill="#767B8E"/>
+  <text x="380" y="240" font-size="16" text-anchor="middle" fill="#767B8E">assigned: which lot goes?</text>
+</svg>

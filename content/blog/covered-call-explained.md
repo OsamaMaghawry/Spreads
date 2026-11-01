@@ -48,7 +48,7 @@ margin stands in for the shares, it usually needs a higher options approval
 level, and the requirement rises as the stock does. The [buying power
 post](/blog/options-buying-power-requirement) covers how each is reserved.
 
-Related: the [poor man's covered call](/blog/poor-mans-covered-call) uses a long-dated call in place of the 100 shares as the cover for the short call.
+Related: the [poor man's covered call](/blog/poor-mans-covered-call) uses a long-dated call in place of the 100 shares as the cover for the short call, and a [buy-write](/blog/buy-write-strategy) buys the 100 shares and sells the call together in one order.
 
 ## Example: one hypothetical covered call on XYZ
 

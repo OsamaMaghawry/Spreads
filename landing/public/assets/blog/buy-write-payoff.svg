@@ -1,0 +1,18 @@
+<svg viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Profit and loss in dollars at expiration for a hypothetical XYZ from 40 to 60. One hundred shares bought at 50 alone run in a straight line from minus 1,000 at 40 to plus 1,000 at 60. The buy-write, the same shares with a 52 call sold for 1.38, crosses zero at its 48.62 break-even, rises to plus 338 at the 52 strike and stays flat at plus 338 above it. The two lines cross at 53.38.">
+  <rect width="720" height="360" fill="#FFFFFF"/>
+  <line x1="70" y1="170" x2="680" y2="170" stroke="#767B8E" stroke-width="1"/>
+  <text x="62" y="175" font-size="14" text-anchor="end" fill="#767B8E">0</text>
+  <line x1="436" y1="60" x2="436" y2="306" stroke="#767B8E" stroke-width="1" stroke-dasharray="4 5"/>
+  <polyline points="70,300 680,40" fill="none" stroke="#767B8E" stroke-width="2.5" stroke-dasharray="8 6"/>
+  <polyline points="70,282.1 436,126.1 680,126.1" fill="none" stroke="#14151C" stroke-width="3.5" stroke-linejoin="round"/>
+  <circle cx="332.9" cy="170" r="6" fill="#14151C"/>
+  <text x="326" y="198" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">break-even 48.62</text>
+  <text x="580" y="150" font-size="15" font-weight="600" text-anchor="middle" fill="#14151C">capped at +338</text>
+  <text x="168" y="226" font-size="15" font-weight="600" fill="#14151C">Buy-write</text>
+  <text x="606" y="104" font-size="15" fill="#767B8E">Shares alone</text>
+  <line x1="70" y1="318" x2="680" y2="318" stroke="#767B8E" stroke-width="1"/>
+  <text x="70" y="338" font-size="14" text-anchor="middle" fill="#767B8E">40</text>
+  <text x="375" y="338" font-size="14" text-anchor="middle" fill="#767B8E">50</text>
+  <text x="680" y="338" font-size="14" text-anchor="middle" fill="#767B8E">60</text>
+  <text x="375" y="356" font-size="14" text-anchor="middle" fill="#767B8E">XYZ at expiry</text>
+</svg>
