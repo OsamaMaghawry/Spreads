@@ -25,7 +25,7 @@ import AccountStrip from "@/components/terminal/AccountStrip";
 import WatchlistMenu from "@/components/terminal/WatchlistMenu";
 import useReplay from "@/components/terminal/useReplay";
 import ReplayBar, { ReplayStart } from "@/components/terminal/ReplayBar";
-import { PracticePositions, ReplayResults, DemoResults } from "@/components/terminal/ReplayPanels";
+import { PracticePositions, SavedResults, DemoResults } from "@/components/terminal/ReplayPanels";
 import NewsPanel, { useNews } from "@/components/terminal/NewsPanel";
 import GroupPicker from "@/components/terminal/GroupPicker";
 import SymbolSearch from "@/components/terminal/SymbolSearch";
@@ -502,7 +502,7 @@ export default function Terminal() {
   const news = useNews({ accountId, symbol, cursor: session?.cursor ?? null, end: session?.end ?? null });
   // A new replay opens on its practice positions.
   useEffect(() => { if (session?.id) setTab("practice"); }, [session?.id]);
-  useEffect(() => { if (!session && !lastReplay) setTab((t) => (t === "practice" || t === "results" ? "positions" : t)); }, [session, lastReplay]);
+  useEffect(() => { if (!session && !lastReplay) setTab((t) => (t === "practice" || (t === "results" && !savedReplays?.length) ? "positions" : t)); }, [session, lastReplay, savedReplays]);
   // Charts: how many, filled from the watchlist; and a symbol put on one (a
   // free one while there is room, else the active one).
   // Any symbol on a chart from the chart itself (28 Oct: "change the chart and
@@ -795,7 +795,7 @@ export default function Terminal() {
                 clock={replayClock(session.cursor, crypto)} playing={session.playing} loading={session.loading} note={session.note}
                 unit={session.unit} speed={session.speed} acct={acctIn(session.book, symbol)} price={replay.lastPrice(symbol)} value={replay.value()}
                 trades={Object.values(session.book).reduce((n, a) => n + a.trades.length, 0)} symbol={symbol} crypto={crypto}
-                name={session.name || ""} onRename={replay.rename} at={session.at} savedAt={(savedReplays || []).find((k) => k.id === session.id)?.savedAt ?? null}
+                name={session.name || ""} onRename={replay.rename} at={session.at} onSave={() => { replay.save(true); notify({ key: "rpsave", tone: "ok", title: "Replay saved", detail: `${session.name}: kept in Replay results until you delete it.` }); }} savedAt={(savedReplays || []).find((k) => k.id === session.id)?.savedAt ?? null}
                 onPlay={replay.toggle} onStep={replay.step} onStepBack={replay.stepBack} onRestart={replay.restart} onUnit={replay.setUnit} onSpeed={replay.setSpeed} onJump={replay.jump} onExit={replay.exit}
                 onTrade={(side, qty) => replay.trade(symbol, side, qty)} onFlatten={() => replay.flatten(symbol, 100)} onStop={(kind, price) => replay.setExit(symbol, kind, price)}
                 onAddTarget={(price, size) => replay.addTarget(symbol, price, size)} onRemoveTarget={(id) => replay.removeTarget(symbol, id)}
@@ -819,7 +819,8 @@ export default function Terminal() {
           <div className={bar}>
             {grip}
             {[
-              ...(session || lastReplay ? [["practice", "Practice"], ["results", "Replay P/L"]] : []),
+              ...(session || lastReplay ? [["practice", "Practice"]] : []),
+              ...(session || lastReplay || savedReplays?.length ? [["results", "Replay results"]] : []),
               ["positions", `Positions${view?.positions?.length ? ` (${view.positions.length})` : ""}`], ["orders", `Orders${view?.orders?.length ? ` (${view.orders.length})` : ""}`],
               ["demo", account?.type === "Paper" ? "Demo P/L" : "Trades P/L"], ["account", "Account"],
               ["news", `News${news.recent ? ` (${news.recent})` : ""}`]
@@ -833,8 +834,9 @@ export default function Terminal() {
               <PracticePositions book={session ? session.book : lastReplay.book} priceOf={session ? replay.priceOf : (s) => lastReplay.prices[s] ?? null}
                 ended={!session} onPick={setSymbol} onFlatten={(s) => replay.flatten(s, 100)} onCancel={replay.cancelFill} />
             )}
-            {tab === "results" && (session || lastReplay) && (
-              <ReplayResults book={session ? session.book : lastReplay.book} priceOf={session ? replay.priceOf : (s) => lastReplay.prices[s] ?? null} ended={!session} />
+            {tab === "results" && (
+              <SavedResults saved={savedReplays || []} current={session ? { id: session.id, name: session.name, book: session.book, priceOf: replay.priceOf, start: session.start, cursor: session.cursor, crypto: session.crypto } : null}
+                onRename={replay.renameSaved} onDelete={replay.remove} onContinue={continueReplay} />
             )}
             {tab === "news" && <NewsPanel news={news} symbol={symbol} crypto={crypto} cursor={session?.cursor ?? null} clock={session ? replayClock(session.cursor, crypto) : ""} onPick={setSymbol} />}
             {tab === "positions" && <Positions positions={view?.positions || []} others={others} onPick={setSymbol} onClose={closePosition} onStop={stopPosition} />}

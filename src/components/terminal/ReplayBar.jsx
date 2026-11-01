@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Play, Pause, ChevronLeft, ChevronRight, RotateCcw, X, History } from "lucide-react";
+import { Play, Pause, ChevronLeft, ChevronRight, RotateCcw, X, History, Save } from "lucide-react";
 import { px, sizeText } from "@/lib/terminal";
 import { replayClock } from "@/lib/replay";
 import { fmtMoney } from "@/lib/format";
@@ -51,7 +51,7 @@ export function ReplayStart({ crypto, onStart, onCancel, busy, initial = null, d
         <div className="mb-3">
           <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Continue where you left it</div>
           <div className="max-h-48 space-y-1 overflow-auto">
-            {saved.map((k) => {
+            {saved.slice(0, 8).map((k) => {
               const p = (k.summary?.realized || 0) + (k.summary?.unrealized || 0);
               return (
                 <div key={k.id} className="rounded border border-amber-200 bg-amber-50 px-2 py-1">
@@ -71,6 +71,7 @@ export function ReplayStart({ crypto, onStart, onCancel, busy, initial = null, d
               );
             })}
           </div>
+          {saved.length > 8 && <p className="mt-1 text-[10px] text-slate-500">{saved.length - 8} more in Replay results, beside the account&apos;s tabs.</p>}
           <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Or start a new one</div>
         </div>
       )}
@@ -146,10 +147,11 @@ function TargetField({ targets, pos, crypto, onAdd, onRemove }) {
   );
 }
 
-export default function ReplayBar({ clock, playing, loading, note, unit, speed, value, acct, price, symbol, crypto, trades = 0, name = "", savedAt = null, at = "open", onRename, onPlay, onStep, onStepBack, onRestart, onUnit, onSpeed, onJump, onExit, onTrade, onFlatten, onStop, onAddTarget, onRemoveTarget }) {
+export default function ReplayBar({ clock, playing, loading, note, unit, speed, value, acct, price, symbol, crypto, trades = 0, name = "", savedAt = null, at = "open", onRename, onSave, onPlay, onStep, onStepBack, onRestart, onUnit, onSpeed, onJump, onExit, onTrade, onFlatten, onStop, onAddTarget, onRemoveTarget }) {
   const [qty, setQty] = useState(crypto ? "0.1" : "100");
   const [jump, setJump] = useState("");
   const [jumpAt, setJumpAt] = useState(at === "close" ? "close" : "open");
+  const [restarting, setRestarting] = useState(false);
   const pos = acct?.qty || 0;
   const pnl = (v) => <span className={v >= 0 ? "text-emerald-700" : "text-rose-700"}>{v >= 0 ? "+" : ""}{fmtMoney(v)}</span>;
   return (
@@ -157,9 +159,9 @@ export default function ReplayBar({ clock, playing, loading, note, unit, speed, 
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="rounded bg-amber-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">Replay</span>
         <span className="font-semibold tabular-nums">{clock}</span>
-        <button type="button" title="Back to the start (the practice account starts over)" onClick={onRestart} className="rounded p-1 hover:bg-amber-100"><RotateCcw className="h-3.5 w-3.5" /></button>
-        <button type="button" title={playing ? "Pause" : "Play"} onClick={onPlay} disabled={loading && !playing} className="rounded bg-amber-600 p-1 text-white hover:bg-amber-700 disabled:opacity-50">
-          {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+        <button type="button" title={playing ? "Pause" : "Play"} aria-label={playing ? "Pause" : "Play"} onClick={onPlay} disabled={loading && !playing}
+          className="flex items-center gap-1 rounded bg-amber-600 px-2.5 py-1 font-semibold text-white hover:bg-amber-700 disabled:opacity-50">
+          {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}{playing ? "Pause" : "Play"}
         </button>
         {/* One candle back or forward (30 Oct: "if am on 29 daily interval, i
             want to click a button to move to 30 or back to 28"). */}
@@ -183,12 +185,27 @@ export default function ReplayBar({ clock, playing, loading, note, unit, speed, 
         {loading && <span className="text-amber-700">loading candles…</span>}
         {note && <span className="text-amber-800">{note}</span>}
         <span className="ml-auto flex items-center gap-1">
-          <input className={`${field} w-40`} value={name} onChange={(e) => onRename?.(e.target.value)} aria-label="This replay's name" title="Its name in the list of saved replays" />
-          <span className="whitespace-nowrap text-[10px] text-amber-800" title="Kept with your account as it runs: continue it from Replay, after leaving it, a refresh or another device">
-            {savedAt ? `Saved ${new Date(savedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}` : "Saving…"}
+          <input className={`${field} w-40`} value={name} onChange={(e) => onRename?.(e.target.value)} aria-label="This replay's name" title="Its name in Replay results" />
+          <button type="button" onClick={onSave} title="Kept with your account as it runs; this saves it now. Every replay stays in Replay results until you delete it."
+            className="flex items-center gap-1 rounded border border-amber-400 bg-white px-1.5 py-0.5 font-medium hover:bg-amber-100"><Save className="h-3 w-3" />Save</button>
+          <span className="whitespace-nowrap text-[10px] text-amber-800">
+            {savedAt ? `saved ${new Date(savedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}` : "saving…"}
           </span>
         </span>
-        <button type="button" onClick={onExit} title="Leave the replay; it stays saved to continue later" className="flex items-center gap-1 rounded border border-amber-400 px-1.5 py-0.5 font-medium hover:bg-amber-100"><X className="h-3 w-3" />Exit replay</button>
+        {/* Starting over, well away from Play and asked first; what was done
+            stays in Replay results (1 Nov: a start over beside Play, with no
+            question, lost finished days). */}
+        {restarting ? (
+          <span className="flex items-center gap-1 rounded border border-rose-300 bg-rose-50 px-1.5 py-0.5 text-rose-900">
+            Start over from the beginning? This replay stays saved in Replay results.
+            <button type="button" onClick={() => { setRestarting(false); onRestart(); }} className="rounded bg-rose-600 px-1.5 py-0.5 font-semibold text-white">Start over</button>
+            <button type="button" onClick={() => setRestarting(false)} className="rounded border border-slate-300 bg-white px-1.5 py-0.5">Keep going</button>
+          </span>
+        ) : (
+          <button type="button" onClick={() => setRestarting(true)} title="Start this replay over from its first day (asks first; this one stays saved)"
+            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-amber-800 hover:bg-amber-100"><RotateCcw className="h-3 w-3" />Start over</button>
+        )}
+        <button type="button" onClick={onExit} title="Leave the replay; it stays saved in Replay results, to read or continue" className="flex items-center gap-1 rounded border border-amber-400 px-1.5 py-0.5 font-medium hover:bg-amber-100"><X className="h-3 w-3" />Exit replay</button>
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="font-medium">Practice <b>{symbol}</b></span>

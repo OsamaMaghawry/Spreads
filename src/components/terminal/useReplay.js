@@ -33,9 +33,8 @@ const latest = () => Math.floor(Date.now() / 1000) - 16 * 60;
 // make sure that I can also save a specific test that I can continue in later
 // with its P&L and everything ... I refreshed the page. Now I have to do
 // everything from the beginning"): at most every two seconds, and at once on
-// leaving it or the page. The newest SAVED_MAX are kept.
+// leaving it or the page. Every one is kept until deleted by hand.
 const SAVE_EVERY_MS = 2000;
-const SAVED_MAX = 20;
 const dayWords = (date) => new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" });
 
 export default function useReplay({ accountId, notify }) {
@@ -208,17 +207,17 @@ export default function useReplay({ accountId, notify }) {
       return {
         id: r.id, name: r.name, symbol: active.symbol || r.symbol, crypto: !!r.crypto, start: r.start, end: r.end, cursor: r.cursor, at: r.at,
         unit: r.unit, speed: r.speed, book: r.book, savedAt: Date.now(), running,
+        // Each symbol's replay price then, for what is still open when read later.
+        prices: Object.fromEntries(Object.keys(r.book).map((s) => [s, lastPrice(s)])),
         summary: { equity: value.equity, realized: value.realized, unrealized: value.unrealized, fills }
       };
     };
     const keep = (snap) => {
       savePref(`replay:${snap.id}`, snap);
-      setSaved((list) => {
-        const all = [snap, ...(list || []).filter((x) => x.id !== snap.id)].sort((a, b) => b.savedAt - a.savedAt);
-        // The oldest beyond the newest SAVED_MAX are let go.
-        for (const old of all.slice(SAVED_MAX)) savePref(`replay:${old.id}`, { deleted: true });
-        return all.slice(0, SAVED_MAX);
-      });
+      // Never let go of by itself (1 Nov, the owner: "save the results. So
+      // it doesn't go away ... whenever I needed to revise them"): only a
+      // delete pressed and confirmed takes one away.
+      setSaved((list) => [snap, ...(list || []).filter((x) => x.id !== snap.id)].sort((a, b) => b.savedAt - a.savedAt));
     };
 
 
@@ -253,6 +252,8 @@ export default function useReplay({ accountId, notify }) {
       // as it stood. Returns the symbol it was on, for the chart.
       resume(kept) {
         if (!kept?.id) return null;
+        // The replay running, if another: kept as it stands first.
+        if (ref.current && ref.current.id !== kept.id) keep(snapshot(false));
         move();
         data.clear();
         gen += 1;
@@ -267,12 +268,14 @@ export default function useReplay({ accountId, notify }) {
         bump();
         return kept.symbol;
       },
-      // Leaving: kept with the account to continue later, and its results
-      // stay on screen to read.
+      // Leaving: kept with the account to continue later and read in Replay
+      // results, and its results stay on screen.
       exit() {
         const r = ref.current;
         if (!r) return;
-        keep(snapshot(false));
+        // Nothing traded: no results to keep, so no empty entry in the list.
+        if (Object.values(r.book).some((a) => a.trades.length)) keep(snapshot(false));
+        else self.remove(r.id);
         flushPrefs();
         move();
         const prices = Object.fromEntries(Object.keys(r.book).map((s) => [s, lastPrice(s)]));
@@ -283,14 +286,32 @@ export default function useReplay({ accountId, notify }) {
         gen += 1;
         bump();
       },
+      // Starting over keeps what was done: the replay so far stays saved as
+      // it was, and the new run is saved on its own (1 Nov: "many days I
+      // already finished because of this silly design": a start over beside
+      // Play, with no question, cleared the practice book).
       restart() {
-        if (!ref.current) return;
+        const r = ref.current;
+        if (!r) return;
+        // Nothing traded yet: the same replay, back to its start.
+        const traded = Object.values(r.book).some((a) => a.trades.length);
+        if (traded) keep(snapshot(false));
         move();
-        patch({ playing: false, book: {}, note: null });
-        rewind(ref.current.start);
+        if (traded) patch({ id: `R${Date.now().toString(36).toUpperCase()}`, name: `${String(r.name || "Replay").replace(/ \(again\)$/, "")} (again)`, playing: false, book: {}, note: "Started over: the replay before is kept in Replay results." });
+        else patch({ playing: false, book: {}, note: null });
+        rewind(r.start);
+        keep(snapshot(true));
       },
       // Kept now (the timer does this every two seconds while it runs).
       save(running = true) { if (ref.current) keep(snapshot(running)); },
+      // A saved replay renamed, running or not.
+      renameSaved(id, name) {
+        const k = (savedRef.current || []).find((x) => x.id === id);
+        const clean = String(name || "").slice(0, 80);
+        if (!k || !clean.trim()) return;
+        if (ref.current?.id === id) patch({ name: clean });
+        else keep({ ...k, name: clean });
+      },
       rename(name) { if (ref.current) patch({ name: String(name || "").slice(0, 80) }); },
       // A kept replay deleted from the account.
       remove(id) {
@@ -305,7 +326,7 @@ export default function useReplay({ accountId, notify }) {
         setSaved((now) => {
           // What this page saved since is newer than what was read.
           const mine = new Map((now || []).map((x) => [x.id, x]));
-          return list.map((x) => (mine.get(x.id)?.savedAt > x.savedAt ? mine.get(x.id) : x)).slice(0, SAVED_MAX);
+          return list.map((x) => (mine.get(x.id)?.savedAt > x.savedAt ? mine.get(x.id) : x));
         });
       },
       toggle() { if (ref.current) patch({ playing: !ref.current.playing, note: null }); },

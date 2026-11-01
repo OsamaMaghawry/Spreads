@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { px, sizeText, isCrypto } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
-import { bookValue, bookTrips, tradeStats } from "@/lib/replay";
+import { bookValue, bookTrips, tradeStats, replayDate } from "@/lib/replay";
 import { demoBook, periodStart } from "@/lib/demoTrades";
 
 // The replay's practice book in the account window: what is held in each
@@ -108,14 +108,62 @@ export function PracticePositions({ book, priceOf, ended = false, onPick, onFlat
   );
 }
 
-/** The replay's results: the statistics, each symbol's share, and every round trip. */
-export function ReplayResults({ book, priceOf, ended = false }) {
+const dayText = (t, crypto) => new Date(`${replayDate(t, crypto)}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" });
+
+/**
+ * Every replay kept with the account, to read again whenever (1 Nov, the
+ * owner: "save the results. So it doesn't go away. So I can revise them
+ * wherever, whenever ... Even I started a new one, even I started a new
+ * date"): the one picked with its statistics and round trips, renamed,
+ * continued, or deleted (asked first). `current`: the replay running.
+ */
+export function SavedResults({ saved = [], current = null, onRename, onDelete, onContinue }) {
+  const [pick, setPick] = useState(null);
+  const [sure, setSure] = useState(false);
+  const [naming, setNaming] = useState(null);
+  const others = saved.filter((k) => k.id !== current?.id);
+  const id = (pick && (pick === current?.id || others.some((k) => k.id === pick))) ? pick : current?.id ?? others[0]?.id ?? null;
+  const shown = current && current.id === id ? current : others.find((k) => k.id === id);
+  if (!shown) return <p className="px-3 py-4 text-xs text-slate-500">No replays saved yet. Every replay is saved as it runs and stays here until you delete it.</p>;
+  const running = !!current && shown.id === current.id;
+  const kept = saved.find((k) => k.id === shown.id);
+  const priceOf = running ? current.priceOf : (s) => shown.prices?.[s] ?? null;
+  const net = (k) => (k.summary ? (k.summary.realized || 0) + (k.summary.unrealized || 0) : 0);
+  const label = (k) => `${k.name} · ${dayText(k.start, k.crypto)} to ${dayText(k.cursor, k.crypto)} · ${k.summary?.fills || 0} fills · ${money(net(k))}`;
   return (
-    <TradeResults book={book} priceOf={priceOf}
-      banner={ended ? "The last replay, as it stood when it ended. A new replay starts a fresh account." : null}
-      empty="No practice trades yet. Results appear here as soon as a trade is made."
-      openHint="Positions still held, at the replay's price" holdHint="Replay time, open to close"
-      note="Practice trades in the replay, filled at the replayed prices with no commission or slippage. Return is on the cost of the part closed." />
+    <div className="flex h-full min-h-0 flex-col text-xs">
+      <div className="flex flex-wrap items-center gap-1 border-b border-slate-100 bg-amber-50 px-2 py-1 text-amber-950">
+        <select value={id} onChange={(e) => { setPick(e.target.value); setSure(false); setNaming(null); }} aria-label="Saved replay"
+          className="min-w-0 max-w-full flex-1 rounded border border-amber-300 bg-white px-1 py-0.5 sm:max-w-md">
+          {current && <option value={current.id}>Running now: {current.name}</option>}
+          {others.map((k) => <option key={k.id} value={k.id}>{label(k)}</option>)}
+        </select>
+        {naming !== null ? (
+          <form className="flex gap-1" onSubmit={(e) => { e.preventDefault(); onRename?.(shown.id, naming); setNaming(null); }}>
+            <input value={naming} onChange={(e) => setNaming(e.target.value)} maxLength={80} aria-label="New name" className="w-40 rounded border border-amber-300 px-1 py-0.5" />
+            <button type="submit" className="rounded bg-amber-600 px-1.5 py-0.5 font-semibold text-white">Rename</button>
+          </form>
+        ) : (
+          <button type="button" onClick={() => setNaming(shown.name || "")} className="rounded border border-amber-300 bg-white px-1.5 py-0.5 hover:bg-amber-100">Rename</button>
+        )}
+        {!running && <button type="button" onClick={() => onContinue?.(kept)} className="rounded border border-amber-300 bg-white px-1.5 py-0.5 hover:bg-amber-100">Continue it</button>}
+        {!running && (sure ? (
+          <span className="flex items-center gap-1">
+            <button type="button" onClick={() => { setSure(false); setPick(null); onDelete?.(shown.id); }} className="rounded bg-rose-600 px-1.5 py-0.5 font-semibold text-white">Delete it for good</button>
+            <button type="button" onClick={() => setSure(false)} className="rounded border border-slate-300 bg-white px-1.5 py-0.5">Keep</button>
+          </span>
+        ) : (
+          <button type="button" onClick={() => setSure(true)} className="rounded px-1.5 py-0.5 text-rose-700 hover:bg-rose-50">Delete…</button>
+        ))}
+        <span className="ml-auto text-[10px] text-amber-800">{saved.length} saved</span>
+      </div>
+      <div className="min-h-0 flex-1">
+        <TradeResults book={shown.book || {}} priceOf={priceOf}
+          banner={running ? null : `${shown.name}: ${dayText(shown.start, shown.crypto)} to ${dayText(shown.cursor, shown.crypto)}, as saved ${new Date(shown.savedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}. Open positions at the replay's price then.`}
+          empty="No practice trades in this replay." openHint="Positions still held, at the replay's price" holdHint="Replay time, open to close"
+          note="Practice trades in the replay, filled at the replayed prices with no commission or slippage. Return is on the cost of the part closed." />
+      </div>
+    </div>
   );
 }
 
