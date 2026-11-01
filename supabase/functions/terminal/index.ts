@@ -70,21 +70,26 @@ const TERMINAL_SYMBOL = (s: string) => SYMBOL.test(s) || CRYPTO.test(s);
 // Alpaca's own bars from one minute to a month ("all the time intervals ...
 // from Monthly down to 5 seconds", 24 Oct). Its bars stop at one minute;
 // seconds candles are built here from the trades (SECONDS, below).
+// How far back a chart opens, and how much more each scroll to its left edge
+// reads (`before`, 1 Nov, the owner, on a 15-minute chart that began a month
+// back: "it's not loading much history ... I need to go back").
 const RANGES: Record<string, { tf: string; days: number }> = {
-  "1Min": { tf: "1Min", days: 4 },
-  "2Min": { tf: "2Min", days: 6 },
-  "3Min": { tf: "3Min", days: 8 },
-  "5Min": { tf: "5Min", days: 10 },
-  "10Min": { tf: "10Min", days: 20 },
-  "15Min": { tf: "15Min", days: 30 },
-  "30Min": { tf: "30Min", days: 60 },
-  "1Hour": { tf: "1Hour", days: 120 },
-  "2Hour": { tf: "2Hour", days: 240 },
-  "4Hour": { tf: "4Hour", days: 365 },
+  "1Min": { tf: "1Min", days: 8 },
+  "2Min": { tf: "2Min", days: 12 },
+  "3Min": { tf: "3Min", days: 16 },
+  "5Min": { tf: "5Min", days: 30 },
+  "10Min": { tf: "10Min", days: 50 },
+  "15Min": { tf: "15Min", days: 90 },
+  "30Min": { tf: "30Min", days: 150 },
+  "1Hour": { tf: "1Hour", days: 365 },
+  "2Hour": { tf: "2Hour", days: 540 },
+  "4Hour": { tf: "4Hour", days: 900 },
   "1Day": { tf: "1Day", days: 1825 },
   "1Week": { tf: "1Week", days: 3650 },
   "1Month": { tf: "1Month", days: 7300 }
 };
+// Share history at Alpaca begins here; nothing is read from before it.
+const HISTORY_FROM = Date.parse("2016-01-01T00:00:00Z");
 const SECONDS: Record<string, number> = { "5Sec": 5, "10Sec": 10, "15Sec": 15, "30Sec": 30 };
 const TRADES_FOR_SECONDS = 10000;
 
@@ -140,11 +145,12 @@ async function secondBars(account: any, symbol: string, interval: string, sf: St
 // 30-minute bars, which do start at 9:30.
 const HOUR_SPANS: Record<string, number> = { "1Hour": 60, "2Hour": 120, "4Hour": 240 };
 
-async function sessionHours(account: any, symbol: string, interval: string, sf: StockFeed = "iex") {
+async function sessionHours(account: any, symbol: string, interval: string, sf: StockFeed = "iex", before: number | null = null) {
   const span = HOUR_SPANS[interval];
-  const start = new Date(Date.now() - RANGES[interval].days * 86400000).toISOString();
+  const end = before ?? Date.now();
+  const start = new Date(Math.max(HISTORY_FROM, end - RANGES[interval].days * 86400000)).toISOString();
   const halves = (await allPages(account,
-    `${DATA}/stocks/${encodeURIComponent(symbol)}/bars?timeframe=30Min&start=${start}&limit=10000&${historyFeed(sf)}&adjustment=split&sort=desc`,
+    `${DATA}/stocks/${encodeURIComponent(symbol)}/bars?timeframe=30Min&start=${start}${before ? `&end=${iso(end - 1000)}` : ""}&limit=10000&${historyFeed(sf)}&adjustment=split&sort=desc`,
     (page) => page?.bars, 8)).reverse();
   const out = sessionCandles(halves, span);
   return { symbol, interval, feed: feedName(sf), bars: out, session: "regular" };
@@ -178,12 +184,15 @@ async function allPages(account: any, url: string, pick: (page: any) => any[], m
   return out;
 }
 
-async function bars(account: any, symbol: string, interval: string, session = "", sf: StockFeed = "iex") {
-  if (SECONDS[interval]) return secondBars(account, symbol, interval, sf);
-  if (session === "regular" && HOUR_SPANS[interval] && !isCrypto(symbol)) return sessionHours(account, symbol, interval, sf);
+// `before` (ms): the stretch that ends just before it, as long as the chart
+// opens with, for a chart scrolled to its left edge; none left: no candles.
+async function bars(account: any, symbol: string, interval: string, session = "", sf: StockFeed = "iex", before: number | null = null) {
+  if (SECONDS[interval]) return before ? { symbol, interval, bars: [] } : secondBars(account, symbol, interval, sf);
+  if (session === "regular" && HOUR_SPANS[interval] && !isCrypto(symbol)) return sessionHours(account, symbol, interval, sf, before);
   const r = RANGES[interval] || RANGES["5Min"];
   const crypto = isCrypto(symbol);
-  const end = Date.now();
+  const end = before ?? Date.now();
+  if (before && before <= HISTORY_FROM) return { symbol, interval, bars: [] };
 
   if (crypto && CRYPTO_DAYS[r.tf]) {
     const start = end - CRYPTO_DAYS[r.tf] * 86400000;
@@ -201,10 +210,11 @@ async function bars(account: any, symbol: string, interval: string, session = ""
 
   // Everything else newest first, then put in order: if the pages run out
   // before the start, what is missing is the oldest end, never today's.
-  const start = iso(end - r.days * 86400000);
+  const start = iso(Math.max(HISTORY_FROM, end - r.days * 86400000));
+  const until = before ? `&end=${iso(end - 1000)}` : "";
   const list = await allPages(account, crypto
-    ? `${CRYPTO_DATA}/bars?symbols=${encodeURIComponent(symbol)}&timeframe=${r.tf}&start=${start}&limit=10000&sort=desc`
-    : `${DATA}/stocks/${encodeURIComponent(symbol)}/bars?timeframe=${r.tf}&start=${start}&limit=10000&${historyFeed(sf)}&adjustment=split&sort=desc`,
+    ? `${CRYPTO_DATA}/bars?symbols=${encodeURIComponent(symbol)}&timeframe=${r.tf}&start=${start}${until}&limit=10000&sort=desc`
+    : `${DATA}/stocks/${encodeURIComponent(symbol)}/bars?timeframe=${r.tf}&start=${start}${until}&limit=10000&${historyFeed(sf)}&adjustment=split&sort=desc`,
   (page) => (crypto ? page?.bars?.[symbol] : page?.bars), 8);
   return { symbol, interval, feed: crypto ? "crypto" : feedName(sf), bars: list.map(candle).reverse() };
 }
@@ -2055,7 +2065,8 @@ Deno.serve(async (req) => {
     const symbol = String(body.symbol || "").toUpperCase().trim();
     if (action === "bars") {
       if (!TERMINAL_SYMBOL(symbol)) return jsonResponse({ error: "Choose a symbol." }, 400);
-      return jsonResponse(await bars(account, symbol, String(body.interval || "5Min"), String(body.session || ""), stockFeedOf(body.stockFeed)));
+      const before = Date.parse(String(body.before || ""));
+      return jsonResponse(await bars(account, symbol, String(body.interval || "5Min"), String(body.session || ""), stockFeedOf(body.stockFeed), Number.isFinite(before) ? before : null));
     }
     if (action === "snapshot") {
       const list = (Array.isArray(body.symbols) ? body.symbols : [symbol]).map((s: string) => String(s).toUpperCase().trim());

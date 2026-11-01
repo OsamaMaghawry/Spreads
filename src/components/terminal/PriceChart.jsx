@@ -119,6 +119,12 @@ function PriceChart({
   // Every bar read (rawRef) and the ones on screen (barsRef): a regular-hours
   // chart leaves out pre-market and after-hours bars without reading again.
   const rawRef = useRef([]);
+  // Earlier candles read as the chart is scrolled to its left edge (1 Nov,
+  // the owner: "it's not loading much history ... I need to go back"): one
+  // read at a time, until the symbol's history runs out.
+  const olderRef = useRef({ busy: false, done: false });
+  const loadOlderRef = useRef(() => {});
+  const [older, setOlder] = useState(null);
   const barsRef = useRef([]);
   const extRef = useRef([]);
   // Regular or all hours, kept with the account (useAccountSetting.js).
@@ -293,6 +299,9 @@ function PriceChart({
       repaint();
     };
     chart.subscribeCrosshairMove(onMove);
+    // Near the left edge: the stretch before the first candle.
+    const onRange = (r) => { if (r && r.from < 40) loadOlderRef.current(); };
+    chart.timeScale().subscribeVisibleLogicalRangeChange(onRange);
 
     // Presses are read here rather than through the chart's click event: the
     // chart drops a second click that follows the first quickly (it waits to
@@ -420,6 +429,7 @@ function PriceChart({
 
     return () => {
       chart.unsubscribeCrosshairMove(onMove);
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(onRange);
       box.removeEventListener("pointerdown", onDown, true);
       box.removeEventListener("dblclick", onDouble, true);
       box.removeEventListener("mousedown", swallowIfHeld, true);
@@ -585,6 +595,8 @@ function PriceChart({
     }
     let alive = true;
     liveFrom.current = null;
+    olderRef.current = { busy: false, done: false };
+    setOlder(null);
     setState({ loading: true, error: null, count: 0 });
     // A share's hourly candles on a regular-hours chart come aligned to the
     // 9:30 open (functions/terminal sessionHours); all other charts use
@@ -612,7 +624,9 @@ function PriceChart({
           const past = r?.data?.bars;
           if (!alive || !Array.isArray(past) || !past.length) return;
           const from = liveFrom.current;
-          rawRef.current = from === null ? past : [...past.filter((b) => b.time < from), ...rawRef.current.filter((b) => b.time >= from)];
+          // Earlier candles read by scrolling back stay.
+          const earlier = rawRef.current.filter((b) => b.time < past[0].time);
+          rawRef.current = from === null ? [...earlier, ...past] : [...earlier, ...past.filter((b) => b.time < from), ...rawRef.current.filter((b) => b.time >= from)];
           // Joined: the history reaches the candle before the first live one.
           if (from !== null && past.at(-1).time >= from - (STEP[interval] || 60)) { clearInterval(refill); refill = null; }
           setState((st) => ({ ...st, count: show() }));
@@ -621,6 +635,34 @@ function PriceChart({
     }
     return () => { alive = false; if (refill) clearInterval(refill); };
   }, [accountId, symbol, interval, show, alignedSession, replayOn, renderReplay, stockFeed, crypto]);
+
+  // The stretch before the first candle, added on the left with the view
+  // kept where it was (functions/terminal "bars" with `before`).
+  loadOlderRef.current = () => {
+    const o = olderRef.current;
+    const first = rawRef.current[0]?.time;
+    if (o.busy || o.done || cursorRef.current !== null || !first || SECONDS_INTERVALS.includes(interval) || !accountId) return;
+    o.busy = true;
+    setOlder("loading");
+    invokeFunction("terminal", { action: "bars", accountId, symbol, interval, session: alignedSession || undefined, stockFeed: crypto ? undefined : stockFeed, before: new Date(first * 1000).toISOString() })
+      .then((r) => {
+        if (olderRef.current !== o || cursorRef.current !== null) return;
+        if (r?.data?.error) { setOlder(null); return; }
+        const got = (r?.data?.bars || []).filter((b) => b.time < (rawRef.current[0]?.time ?? first));
+        if (!got.length) { o.done = true; setOlder("done"); return; }
+        const ts = chartRef.current?.timeScale();
+        const range = ts?.getVisibleLogicalRange();
+        const before = barsRef.current.length;
+        rawRef.current = [...got, ...rawRef.current];
+        const count = show();
+        const added = barsRef.current.length - before;
+        if (range && added > 0) ts.setVisibleLogicalRange({ from: range.from + added, to: range.to + added });
+        setState((st) => ({ ...st, count }));
+        setOlder(null);
+      })
+      .catch(() => setOlder(null))
+      .finally(() => { o.busy = false; });
+  };
 
   // Regular or all hours: the same bars, filtered again (in a replay, built again).
   useEffect(() => {
@@ -1025,6 +1067,9 @@ function PriceChart({
           the replay bar (it was, at a fixed 260 pixels). */}
       <div className={`relative flex-1 ${compact ? "min-h-[90px]" : "min-h-[160px]"}`}>
         <div ref={boxRef} className={`absolute inset-0 ${tool !== "cursor" ? "cursor-crosshair" : ""}`} />
+        {older === "loading" && (
+          <div className="pointer-events-none absolute left-2 top-2 z-10 rounded bg-white/90 px-2 py-0.5 text-[11px] text-slate-500 shadow-sm">Loading earlier candles…</div>
+        )}
         {hover && (
           <div className="pointer-events-none absolute z-20 w-64 -translate-x-1/2 -translate-y-full rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs shadow-lg"
             style={{ left: Math.min(Math.max(130, hover.x), (boxRef.current?.clientWidth || 600) - 190), top: hover.y - 6 }}>
