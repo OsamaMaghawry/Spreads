@@ -6,6 +6,7 @@ meta_description: "Call credit spread explained on one hypothetical chain: max l
 author: Osama Safwat Maghawry
 category: income
 series_order: 19
+search_title: "Call Credit Spread: Max Loss, Break-Even, Assignment"
 tags: call credit spread, options credit spread, max loss, short call, options
 ---
 

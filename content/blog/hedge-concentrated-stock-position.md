@@ -97,6 +97,8 @@ The example above stops at expiration. A real holding keeps going, and a large o
 - **Bid-ask costs scale.** Ten contracts pay the spread on every contract, and a thinly traded strike can cost more than the quote suggests.
 - **Rules outside the options.** A holding that came from an employer may carry restrictions on hedging or trading windows, and some hedges can have [tax consequences](/blog/married-put-tax). Both are questions for the employer's compliance team and a tax professional, not for this post.
 
+Related: [rolling a protective put](/blog/roll-protective-put) covers renewing a floor when its expiration arrives.
+
 ## Frequently asked questions
 
 - **What is a concentrated stock position?** A holding large enough, relative to the whole account, that one company's price dominates the account's result. There is no official threshold.

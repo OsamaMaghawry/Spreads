@@ -145,6 +145,8 @@ holding several of them sees one input revalue every line in the same moment
 rather than line by line - a problem of scale taken up in the [after the
 fill](/blog/managing) posts rather than this one.
 
+Related: a [calendar spread](/blog/calendar-spread-explained) holds options at two expirations, so a change in implied volatility reaches its two legs differently.
+
 ## Does high implied volatility mean the stock will move?
 
 No. It means a large move is priced into the contracts today, which is a
