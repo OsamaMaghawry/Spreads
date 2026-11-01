@@ -240,6 +240,22 @@ export function practiceFill(acct, { side, qty, price, time, why = "" }) {
   };
 }
 
+/**
+ * A practice fill taken back, as if it had never been (1 Nov, the owner:
+ * "Cancel, not buy or sell or reverse ... I don't want it to appear in the
+ * P&L statistics"): the symbol's account built again from its other fills,
+ * in order. Its stop and take-profits stay while the position left is the
+ * same way round; they go with it otherwise. `index`: the fill's place in
+ * `acct.trades`.
+ */
+export function cancelFill(acct, index) {
+  if (!acct || !(index >= 0 && index < acct.trades.length)) return acct;
+  let out = { ...newPractice(0), seq: acct.seq || 0 };
+  acct.trades.forEach((t, i) => { if (i !== index) out = practiceFill(out, t); });
+  const same = out.qty !== 0 && Math.sign(out.qty) === Math.sign(acct.qty);
+  return { ...out, stop: same ? acct.stop : null, targets: same ? acct.targets : [] };
+}
+
 /** Equity, open profit and loss, and the position's value at a price. */
 export function practiceValue(acct, price) {
   const unrealized = acct.qty && price ? (price - acct.avg) * acct.qty : 0;

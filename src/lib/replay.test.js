@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { replayCandles, nextCursor, inSession, dayOf, practiceFill, practiceValue, triggerExits, practiceExit, addTarget, removeTarget, targetSize, newPractice, countBefore, rollMinutes, roundTrips, tradeStats, bookValue, bookTrips, acctIn, prevCursor, replayMoment, replayDate } from "./replay.js";
+import { replayCandles, nextCursor, inSession, dayOf, practiceFill, practiceValue, triggerExits, practiceExit, addTarget, removeTarget, targetSize, newPractice, countBefore, rollMinutes, roundTrips, tradeStats, bookValue, bookTrips, acctIn, prevCursor, replayMoment, replayDate, cancelFill } from "./replay.js";
 
 // New York is UTC-4 in October: 9:30 is 13:30Z.
 const ny = (date, hhmm) => {
@@ -306,4 +306,24 @@ test("a replay's moment: the date picked always on the chart, at its open, its c
   const thuOpen = replayMoment("2026-10-22", "open");
   assert.equal(replayCandles(data, "1Day", thuOpen, { regular: true }).at(-1).time, Date.parse("2026-10-22T04:00:00Z") / 1000);
   assert.equal(replayCandles(data, "1Day", replayMoment("2026-10-22", "close"), { regular: true }).at(-1).close, 390);
+});
+
+test("a practice fill cancelled: gone from the position, the P&L and the round trips, as if never made", () => {
+  let a = newPractice(0);
+  a = practiceFill(a, { side: "buy", qty: 100, price: 10, time: 1 });
+  a = practiceFill(a, { side: "buy", qty: 500, price: 12, time: 2 }); // the mistake
+  a = practiceFill(a, { side: "sell", qty: 50, price: 13, time: 3 });
+  a = { ...a, stop: 9, targets: [{ id: 1, price: 15, qty: null }] };
+  const fixed = cancelFill(a, 1);
+  assert.deepEqual([fixed.qty, fixed.avg, fixed.realized, fixed.cash], [50, 10, 150, -1000 + 650]);
+  assert.equal(fixed.trades.length, 2);
+  assert.deepEqual([fixed.stop, fixed.targets.length], [9, 1]);
+  assert.equal(roundTrips(fixed.trades.map((t) => ({ ...t, symbol: "X" }))).length, 1);
+  // The only buy cancelled: the sale that followed now opens a short, and the long's exits go.
+  const flipped = cancelFill(cancelFill(a, 1), 0);
+  assert.deepEqual([flipped.qty, flipped.stop, flipped.targets.length], [-50, null, 0]);
+  // Every fill cancelled: flat, nothing realized.
+  const none = [2, 1, 0].reduce((x, i) => cancelFill(x, i), a);
+  assert.deepEqual([none.qty, none.realized, none.cash, none.trades.length], [0, 0, 0, 0]);
+  assert.equal(cancelFill(a, 9), a);
 });

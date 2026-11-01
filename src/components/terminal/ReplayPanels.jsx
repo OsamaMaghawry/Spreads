@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { X } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { px, sizeText, isCrypto } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
@@ -25,10 +26,13 @@ const how = (list) => list.map((w) => HOW[w] ?? w).join(", ") || "—";
 const th = "whitespace-nowrap px-2 py-1 text-right font-medium";
 const td = "whitespace-nowrap px-2 py-1 text-right";
 
-/** What the practice book holds, symbol by symbol, with its stop and take-profits. */
-export function PracticePositions({ book, priceOf, ended = false, onPick, onFlatten }) {
+/** What the practice book holds, symbol by symbol, with its stop and take-profits, and every fill. */
+export function PracticePositions({ book, priceOf, ended = false, onPick, onFlatten, onCancel }) {
   const rows = Object.entries(book).filter(([, a]) => a.qty || a.trades.length);
   const v = bookValue(book, priceOf);
+  // Every fill, newest first, each with its place in its symbol's list.
+  const fills = Object.entries(book).flatMap(([s, a]) => a.trades.map((t, i) => ({ ...t, symbol: s, index: i }))).sort((a, b) => b.time - a.time);
+  const [sure, setSure] = useState(null);
   return (
     <div className="h-full overflow-auto text-xs tabular-nums">
       <div className="flex flex-wrap gap-x-4 gap-y-0.5 border-b border-slate-100 bg-amber-50 px-2 py-1 text-amber-950">
@@ -65,6 +69,40 @@ export function PracticePositions({ book, priceOf, ended = false, onPick, onFlat
             })}
           </tbody>
         </table>
+      )}
+      {fills.length > 0 && (
+        <>
+          <div className="border-y border-slate-100 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600">
+            Fills <span className="font-normal text-slate-400">· cancel a mistake and it is gone from the position, the P&amp;L and the statistics</span>
+          </div>
+          <table className="w-full">
+            <tbody>
+              {fills.map((f) => {
+                const key = `${f.symbol}:${f.index}`;
+                return (
+                  <tr key={`${key}:${f.time}`} className="border-t border-slate-100">
+                    <td className="px-2 py-1 text-slate-500">{when(f.time, f.symbol)}</td>
+                    <td className="px-2 py-1 font-semibold">{f.symbol}</td>
+                    <td className={`${td} ${f.side === "buy" ? "text-emerald-700" : "text-rose-700"}`}>{f.side === "buy" ? "Buy" : "Sell"} {sizeText(f.qty)}</td>
+                    <td className={td}>at {px(f.price)}</td>
+                    <td className={`${td} text-slate-400`}>{HOW[f.why] ?? f.why ?? ""}</td>
+                    <td className="px-1 text-right">
+                      {sure === key ? (
+                        <span className="inline-flex gap-1">
+                          <button type="button" onClick={() => { setSure(null); onCancel?.(f.symbol, f.index); }} className="rounded bg-rose-600 px-1.5 py-0.5 text-[11px] font-semibold text-white">Cancel it</button>
+                          <button type="button" onClick={() => setSure(null)} className="rounded border border-slate-300 px-1.5 py-0.5 text-[11px]">Keep</button>
+                        </span>
+                      ) : (
+                        <button type="button" onClick={() => setSure(key)} title="Cancel this fill: as if it had never been made"
+                          className="inline-flex items-center gap-0.5 rounded border border-slate-300 px-1.5 py-0.5 text-[11px] text-slate-600 hover:border-rose-400 hover:text-rose-700"><X className="h-3 w-3" />Cancel</button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </>
       )}
     </div>
   );

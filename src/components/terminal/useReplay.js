@@ -4,7 +4,7 @@ import { savePref, flushPrefs } from "@/lib/terminalPrefs";
 import { isCrypto, px, sizeText } from "@/lib/terminal";
 import { hotkeyOrder } from "@/lib/hotkeys";
 import {
-  nextCursor, prevCursor, stepSeconds, replayMoment, replayDate, countBefore, practiceFill, triggerExits, practiceExit, addTarget, removeTarget, targetSize,
+  nextCursor, prevCursor, stepSeconds, replayMoment, replayDate, countBefore, practiceFill, cancelFill, triggerExits, practiceExit, addTarget, removeTarget, targetSize,
   rollMinutes, replayClock, acctIn, bookValue
 } from "@/lib/replay";
 
@@ -45,6 +45,10 @@ export default function useReplay({ accountId, notify }) {
   const [last, setLast] = useState(null);
   // The replays kept with the account, newest first (null until read).
   const [saved, setSaved] = useState(null);
+  const lastRef = useRef(null);
+  lastRef.current = last;
+  const savedRef = useRef(null);
+  savedRef.current = saved;
   const ref = useRef(null);
   ref.current = session;
   const accountRef = useRef(accountId);
@@ -272,7 +276,7 @@ export default function useReplay({ accountId, notify }) {
         flushPrefs();
         move();
         const prices = Object.fromEntries(Object.keys(r.book).map((s) => [s, lastPrice(s)]));
-        if (Object.keys(r.book).length) setLast({ book: r.book, prices, start: r.start, end: r.cursor });
+        if (Object.keys(r.book).length) setLast({ id: r.id, book: r.book, prices, start: r.start, end: r.cursor });
         ref.current = null;
         setSession(null);
         data.clear();
@@ -461,6 +465,29 @@ export default function useReplay({ accountId, notify }) {
         return true;
       },
       removeTarget(symbol, id) { if (ref.current) setAcct(symbol, removeTarget(acctIn(ref.current.book, symbol), id)); },
+      // A practice fill taken back (lib/replay cancelFill): from the replay
+      // running, or from the last one left, and from the replay as saved.
+      cancelFill(symbol, index) {
+        const r = ref.current;
+        if (r) {
+          const acct = acctIn(r.book, symbol);
+          const t = acct.trades[index];
+          if (!t) return;
+          setAcct(symbol, cancelFill(acct, index));
+          say({ key: `rpcancel${symbol}${t.time}`, tone: "muted", title: `${symbol}: practice ${t.side === "buy" ? "buy" : "sale"} cancelled`, detail: `${sizeText(t.qty)} at ${px(t.price)} is gone from the position, the P&L and the statistics.` });
+          return;
+        }
+        const was = lastRef.current;
+        if (!was?.book?.[symbol]?.trades[index]) return;
+        const book = { ...was.book, [symbol]: cancelFill(was.book[symbol], index) };
+        setLast({ ...was, book });
+        const kept = (savedRef.current || []).find((k) => k.id === was.id);
+        if (kept) {
+          const value = bookValue(book, (s) => was.prices[s] ?? null);
+          const fills = Object.values(book).reduce((n, a) => n + a.trades.length, 0);
+          keep({ ...kept, book, savedAt: Date.now(), summary: { equity: value.equity, realized: value.realized, unrealized: value.unrealized, fills } });
+        }
+      },
       clearExits(symbol) {
         if (!ref.current) return;
         setAcct(symbol, { ...acctIn(ref.current.book, symbol), stop: null, targets: [] });

@@ -831,7 +831,7 @@ export default function Terminal() {
           <div className="min-h-0 flex-1">
             {tab === "practice" && (session || lastReplay) && (
               <PracticePositions book={session ? session.book : lastReplay.book} priceOf={session ? replay.priceOf : (s) => lastReplay.prices[s] ?? null}
-                ended={!session} onPick={setSymbol} onFlatten={(s) => replay.flatten(s, 100)} />
+                ended={!session} onPick={setSymbol} onFlatten={(s) => replay.flatten(s, 100)} onCancel={replay.cancelFill} />
             )}
             {tab === "results" && (session || lastReplay) && (
               <ReplayResults book={session ? session.book : lastReplay.book} priceOf={session ? replay.priceOf : (s) => lastReplay.prices[s] ?? null} ended={!session} />
