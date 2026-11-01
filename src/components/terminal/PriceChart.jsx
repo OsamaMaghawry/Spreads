@@ -975,12 +975,13 @@ function PriceChart({
             </div>
           )}
         </div>
-        {compact && (
-          <button type="button" title="Drawing tools" aria-label="Drawing tools" onClick={() => setToolsOpen((v) => !v)} className={btn(toolsOpen || tool !== "cursor")}>
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-        )}
-        {(!compact || toolsOpen || tool !== "cursor") && (
+        {/* The drawing tools behind one button (1 Nov: "the chart itself,
+            it's noisy"), open while one is in hand or chosen. */}
+        <button type="button" title="Drawing tools" aria-label="Drawing tools" aria-expanded={toolsOpen} onClick={() => setToolsOpen((v) => !v)}
+          className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${toolsOpen || tool !== "cursor" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
+          <Pencil className="h-3.5 w-3.5" />{compact ? "" : `Draw${drawings.length ? ` (${drawings.length})` : ""}`}
+        </button>
+        {(toolsOpen || tool !== "cursor" || selected) && (
           <>
         <span className="mx-1 h-4 w-px bg-slate-200" />
         <button type="button" title="Pointer: select, move and delete drawings" className={btn(tool === "cursor")} onClick={() => setTool("cursor")}>
@@ -1009,7 +1010,7 @@ function PriceChart({
         </button>
           </>
         )}
-        <span className={`ml-auto text-[11px] text-slate-400 ${compact && !toolInHand && !state.loading ? "hidden" : ""}`} title={crypto && !(STEP[interval] < 60) ? "Alpaca builds crypto candles from trades and, between trades, from the bid/ask midpoint, so a candle can move when nothing traded; time & sales lists actual trades only." : undefined}>
+        <span className={`ml-auto text-[11px] text-slate-400 ${!toolInHand && !state.loading ? "hidden" : ""}`} title={crypto && !(STEP[interval] < 60) ? "Alpaca builds crypto candles from trades and, between trades, from the bid/ask midpoint, so a candle can move when nothing traded; time & sales lists actual trades only." : undefined}>
           {toolInHand ? `${toolInHand.label}: ${toolInHand.points === 1 ? "click to place" : drafting ? "click the second point" : "click the first point"} · Esc to cancel`
             : state.loading ? "Loading…" : state.error ? "" : `${state.count} bars · ${replayOn ? (crypto ? "replay, Alpaca crypto" : "replay, consolidated tape") : STEP[interval] < 60 ? "built from trades" : crypto ? "Alpaca crypto: trades and midpoints" : `${stockFeed === "delayed" ? "every exchange to 15 min ago" : "IEX"}${liveSource === "eodhd" ? " · live: EODHD" : ""}`}`}
         </span>

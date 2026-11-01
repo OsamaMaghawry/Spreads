@@ -77,3 +77,21 @@ export function rowHeightFor(available) {
   // screen at the foot; the grid rounds each window's edge itself.
   return Math.max(14, (available - (ROWS - 1) * MARGIN) / ROWS);
 }
+
+/**
+ * The arrangement with the watchlist folded away (1 Nov, the owner: "the
+ * watch list needs to be hidden and expandable, because if I wanted to
+ * enlarge the chart"): every window beside it on its right, over the rows it
+ * spans, widens left into its place. Nothing else moves.
+ */
+export function foldWatch(layouts) {
+  const out = {};
+  for (const [bp, list] of Object.entries(layouts)) {
+    const w = list.find((x) => x.i === "watch");
+    if (!w) { out[bp] = list; continue; }
+    out[bp] = list.filter((x) => x.i !== "watch").map((x) => (
+      x.x === w.x + w.w && x.y < w.y + w.h && x.y + x.h > w.y ? { ...x, x: w.x, w: x.w + w.w } : x
+    ));
+  }
+  return out;
+}

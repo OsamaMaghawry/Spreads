@@ -89,18 +89,20 @@ test("placing: only the kinds shown, with their label and colour", () => {
   assert.deepEqual(placed.map((e) => [e.kind, e.slot, e.label]), [["cpi", 1, "CPI"], ["earnings", 3, "E"]]);
 });
 
-test("badges: a row each until they fit, three rows, then dots; the pointer finds them", () => {
+test("badges: one row of labels, then dots; the pointer finds them", () => {
   const ev = (slot, label = "CPI") => ({ slot, label });
   const xOf = (slot) => slot * 10;
-  const out = badgeLayout([ev(10), ev(10.5), ev(11), ev(11.5), ev(30, "E")], xOf, 200);
+  const out = badgeLayout([ev(10), ev(10.5), ev(11), ev(30, "E")], xOf, 200);
   const base = 200 - 4 - BADGE_H;
-  assert.deepEqual(out.map((b) => [b.dot, b.y]), [[false, base], [false, base - 17], [false, base - 34], [true, base + BADGE_H / 2 - 3], [false, base]]);
+  const dotY = base + BADGE_H / 2 - 3;
+  assert.deepEqual(out.map((b) => [b.dot, b.y]), [[false, base], [true, dotY], [true, dotY], [false, base]]);
   assert.equal(out[0].w, badgeWidth("CPI"));
-  assert.equal(badgeAt(out, out[1].x + 3, out[1].y + 3), out[1]);
-  assert.equal(badgeAt(out, out[3].x + 2, out[3].y + 2), out[3]);
+  assert.equal(badgeAt(out, out[0].x + 3, out[0].y + 3), out[0]);
+  // Dots close together: the pointer finds the one drawn last, on top.
+  assert.equal(badgeAt(out, out[2].x + 2, out[2].y + 2), out[2]);
   assert.equal(badgeAt(out, 500, 5), null);
-  // Nothing on the bottom row over the logo in the corner.
-  assert.equal(badgeLayout([ev(1)], xOf, 200)[0].y, base - 17);
+  // Nothing over the logo in the corner: a dot there.
+  assert.equal(badgeLayout([ev(1)], xOf, 200)[0].dot, true);
   // Off-screen slots are left out.
   assert.equal(badgeLayout([ev(1)], () => null, 200).length, 0);
 });

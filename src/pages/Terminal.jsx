@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, X, Plus, Lock, LockOpen, RotateCcw, Maximize2, Minimize2, GripVertical, Keyboard, Square, Columns2, LayoutGrid, ChevronDown, Check, History } from "lucide-react";
+import { Search, X, Plus, Lock, LockOpen, RotateCcw, Maximize2, Minimize2, GripVertical, Keyboard, Square, Columns2, LayoutGrid, ChevronDown, Check, History, PanelLeftClose, PanelLeftOpen, SlidersHorizontal } from "lucide-react";
 import { Responsive, WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import "@/components/terminal/terminal.css";
 import { invokeFunction } from "@/lib/functions";
-import { readWatchlist, cleanWatchlist, withCoinsOnce, px, pctText, sizeText, isCrypto, WATCHLIST_MAX, shareFeed, SHARE_FEEDS } from "@/lib/terminal";
-import { DEFAULT_LAYOUTS, BREAKPOINTS, COLS, MARGIN, cleanLayouts, rowHeightFor, fromFirstVersion } from "@/lib/terminalLayout";
+import { readWatchlist, cleanWatchlist, withCoinsOnce, cleanWatchlists, activeWatchlist, withActiveSymbols, px, pctText, sizeText, isCrypto, WATCHLIST_MAX, shareFeed, SHARE_FEEDS } from "@/lib/terminal";
+import { DEFAULT_LAYOUTS, BREAKPOINTS, COLS, MARGIN, cleanLayouts, rowHeightFor, fromFirstVersion, foldWatch } from "@/lib/terminalLayout";
 import { fmtMoney } from "@/lib/format";
-import { readPrefs, savePref, settle } from "@/lib/terminalPrefs";
+import { readPrefs, savePref } from "@/lib/terminalPrefs";
 import useTerminalStream from "@/components/terminal/useTerminalStream";
 import PriceChart from "@/components/terminal/PriceChart";
 import OrderTicket from "@/components/terminal/OrderTicket";
@@ -22,6 +22,7 @@ import { noteOrder } from "@/components/terminal/orderFeed";
 import { comboOf, cleanHotkeys } from "@/lib/hotkeys";
 import { Positions, Orders, AccountSummary } from "@/components/terminal/Panels";
 import AccountStrip from "@/components/terminal/AccountStrip";
+import WatchlistMenu from "@/components/terminal/WatchlistMenu";
 import useReplay from "@/components/terminal/useReplay";
 import ReplayBar, { ReplayStart } from "@/components/terminal/ReplayBar";
 import { PracticePositions, ReplayResults, DemoResults } from "@/components/terminal/ReplayPanels";
@@ -65,6 +66,16 @@ const Grid = WidthProvider(Responsive);
 
 const WATCH_KEY = "dm.terminal.watchlist";
 const COINS_KEY = "dm.terminal.coinsAdded";
+const WATCHLISTS_KEY = "dm.terminal.watchlists";
+const WATCH_HIDDEN_KEY = "dm.terminal.watchHidden";
+// The single watchlist this browser kept before there were several.
+const legacyWatch = () => {
+  try {
+    const list = withCoinsOnce(readWatchlist(localStorage.getItem(WATCH_KEY)), localStorage.getItem(COINS_KEY) === "1");
+    localStorage.setItem(COINS_KEY, "1");
+    return list;
+  } catch { return readWatchlist(null); }
+};
 const POLL_MS = 4000;
 const LAYOUT_KEY = "dm.terminal.layout.v2";
 const LAYOUT_KEY_V1 = "dm.terminal.layout.v1";
@@ -89,12 +100,17 @@ const NO_DRAG = "button, input, select, textarea, a, .no-drag";
 export default function Terminal() {
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState("");
-  const [watch, setWatch] = useState(() => {
-    try {
-      const list = withCoinsOnce(readWatchlist(localStorage.getItem(WATCH_KEY)), localStorage.getItem(COINS_KEY) === "1");
-      localStorage.setItem(COINS_KEY, "1");
-      return list;
-    } catch { return readWatchlist(null); }
+  // The watchlists (lib/terminal cleanWatchlists): several, kept with the
+  // account, the one picked on screen; the single list kept before is the
+  // first, "Main". `watch` is the one on screen, `setWatch` changes it.
+  const [watchlists, setWatchlists] = useAccountSetting("watchlists", {
+    localKey: WATCHLISTS_KEY, initial: () => cleanWatchlists(null, legacyWatch()), clean: (v) => cleanWatchlists(v, legacyWatch())
+  });
+  const watch = activeWatchlist(watchlists).symbols;
+  const setWatch = useCallback((fn) => setWatchlists((w) => withActiveSymbols(w, fn)), [setWatchlists]);
+  // The watchlist folded away, the chart widening into its place (1 Nov).
+  const [watchHidden, setWatchHidden] = useAccountSetting("watchhidden", {
+    localKey: WATCH_HIDDEN_KEY, initial: () => false, clean: (v) => v === true || v === "1", fromLocal: (raw) => raw === "1", toLocal: (v) => (v ? "1" : "0")
   });
   // The charts: each its symbol and interval, and which one is active.
   // Every setting below is kept with the person's account, not this browser
@@ -156,24 +172,16 @@ export default function Terminal() {
   // The watchlist belongs to the person (lib/terminalPrefs.js): the
   // account's copy replaces this browser's once read; until then nothing is
   // sent, so a slow answer never overwrites it.
-  const watchRef = useRef(watch);
-  watchRef.current = watch;
-  const watchSynced = useRef(false);
+  // The one watchlist the account kept before there were several: brought
+  // in once as Main, where the account has no lists yet.
   useEffect(() => {
     let alive = true;
-    readPrefs(["watchlist"]).then((p) => {
-      if (!alive) return;
-      const s = settle(Array.isArray(p.watchlist) ? cleanWatchlist(p.watchlist) : null, watchRef.current);
-      watchSynced.current = true;
-      if (s.upload) savePref("watchlist", s.value);
-      else if (s.value) setWatch(s.value);
+    readPrefs(["watchlists", "watchlist"]).then((p) => {
+      if (!alive || p.watchlists || !Array.isArray(p.watchlist) || !p.watchlist.length) return;
+      setWatchlists((w) => (w.lists.length === 1 && w.lists[0].id === "main" ? withActiveSymbols(w, p.watchlist) : w));
     }).catch(() => {});
     return () => { alive = false; };
-  }, []);
-  useEffect(() => {
-    try { localStorage.setItem(WATCH_KEY, JSON.stringify(watch)); } catch { /* private window */ }
-    if (watchSynced.current) savePref("watchlist", watch);
-  }, [watch]);
+  }, [setWatchlists]);
 
   // Which tape shares come from (lib/terminal.js shareFeed): EODHD's real-time
   // stream where it is set up for this person, else IEX while it trades and
@@ -282,7 +290,11 @@ export default function Terminal() {
   const [rowHeight, setRowHeight] = useState(() => rowHeightFor(window.innerHeight - 100));
   // The grid reports its windows on every change, its own settling included:
   // saved once the account's arrangement has been read, never over it.
+  const foldedRef = useRef(false);
+  foldedRef.current = watchHidden;
   const onLayoutChange = useCallback((_, all) => {
+    // Folded, the arrangement on screen is the saved one widened: not saved.
+    if (foldedRef.current) return;
     const next = cleanLayouts(all);
     setLayouts((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next), { touch: false });
   }, [setLayouts]);
@@ -306,6 +318,14 @@ export default function Terminal() {
   // it for video only), the chart fills the window instead (1 Nov: "the full
   // screen button is not working with the phone").
   const [chartFill, setChartFill] = useState(false);
+  const [viewMenu, setViewMenu] = useState(false);
+  const viewBox = useRef(null);
+  useEffect(() => {
+    if (!viewMenu) return undefined;
+    const away = (e) => { if (!viewBox.current?.contains(e.target)) setViewMenu(false); };
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [viewMenu]);
   const canFull = typeof document !== "undefined" && !!document.fullscreenEnabled;
   useEffect(() => {
     if (!chartFill) return undefined;
@@ -598,32 +618,47 @@ export default function Terminal() {
           </button>
           <button type="button" onClick={() => setHotkeysOpen(true)} className="-ml-1 rounded-r-md border border-l-0 border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50">Set keys</button>
         </div>
-        <div className={`flex items-center gap-1 ${page === "trade" ? "" : "hidden"}`}>
-          <button type="button" onClick={toggleLock} title={locked ? "Unlock the windows to move and resize them" : "Lock the windows where they are"}
-            className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${locked ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
-            {locked ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}{locked ? "Locked" : "Lock layout"}
-          </button>
-          <button type="button" onClick={resetLayout} title="Put every window back where it started" className="flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50">
-            <RotateCcw className="h-3.5 w-3.5" />Reset
-          </button>
-        </div>
         <span className={`text-xs ${status.state === "live" && !feedTrouble ? "text-emerald-700" : status.state === "error" || feedTrouble ? "text-rose-700" : "text-slate-500"}`}>
           {status.state === "error" ? status.message
             : feedTrouble ? `${feedTrouble[0] === "crypto" ? "Crypto" : "Stock"} prices: ${feedTrouble[1].message}`
               : status.state === "live" ? `● Live · ${[feeds.stocks?.state === "live" && (shares.live === "eodhd" ? "EODHD" : shares.delayed ? "all exchanges, 15 min late" : "IEX"), feeds.crypto?.state === "live" && "crypto"].filter(Boolean).join(" + ") || "connected"}`
                 : status.state === "reconnecting" ? "Reconnecting…" : "Connecting…"}
         </span>
-        <label className="flex items-center gap-1 text-xs text-slate-500" title="Where share prices come from. Auto: EODHD where it is set up for you; else IEX in real time from 8:00 to 17:00 New York, and every exchange 15 minutes late outside those hours.">
+        {/* Settings seldom changed, out of the bar (1 Nov, the owner: "the
+            terminal in general has so many buttons"). */}
+        <div ref={viewBox} className="relative">
+          <button type="button" onClick={() => setViewMenu((v) => !v)} aria-expanded={viewMenu} title="Windows, share prices and full screen"
+            className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${viewMenu ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
+            <SlidersHorizontal className="h-3.5 w-3.5" />Layout{locked ? <Lock className="h-3 w-3" /> : null}
+          </button>
+          {viewMenu && (
+            <div className="absolute right-0 z-40 mt-1 w-64 space-y-1 rounded-md border border-slate-200 bg-white p-2 text-xs shadow-lg">
+              {page === "trade" && (
+                <div className="flex gap-1">
+                  <button type="button" onClick={toggleLock} disabled={phone} title={locked ? "Unlock the windows to move and resize them" : "Lock the windows where they are"}
+                    className={`flex flex-1 items-center justify-center gap-1 rounded border px-2 py-1 disabled:opacity-40 ${locked ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
+                    {locked ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}{locked ? "Windows locked" : "Lock windows"}
+                  </button>
+                  <button type="button" onClick={resetLayout} title="Put every window back where it started" className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-slate-600 hover:bg-slate-50">
+                    <RotateCcw className="h-3.5 w-3.5" />Reset
+                  </button>
+                </div>
+              )}
+        <label className="flex items-center justify-between gap-1 text-slate-600" title="Where share prices come from. Auto: EODHD where it is set up for you; else IEX in real time from 8:00 to 17:00 New York, and every exchange 15 minutes late outside those hours.">
           Shares
           <select value={feedPref} onChange={(e) => chooseFeed(e.target.value)} aria-label="Share prices from"
-            className={`rounded-md border px-1 py-0.5 text-xs ${shares.delayed ? "border-amber-400 bg-amber-50 text-amber-900" : "border-slate-300 bg-white text-slate-700"}`}>
+            className={`min-w-0 max-w-[11.5rem] rounded-md border px-1 py-0.5 text-xs ${shares.delayed ? "border-amber-400 bg-amber-50 text-amber-900" : "border-slate-300 bg-white text-slate-700"}`}>
             {SHARE_FEEDS.filter(([id]) => id !== "eodhd" || eodhdOk).map(([id, name]) => <option key={id} value={id}>{id === "auto" ? `Auto: ${shares.label}` : name}</option>)}
           </select>
         </label>
-        {canFull && <button type="button" onClick={toggleDeskFull} title={deskFull ? "Leave full screen (Esc)" : "Full screen: the terminal alone, without the menu or the browser's bars"}
-          className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${deskFull ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
-          {deskFull ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}{deskFull ? "Exit full screen" : "Full screen"}
-        </button>}
+              {canFull && (
+                <button type="button" onClick={() => { setViewMenu(false); toggleDeskFull(); }} className="flex w-full items-center gap-1 rounded border border-slate-300 px-2 py-1 text-slate-600 hover:bg-slate-50">
+                  {deskFull ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}{deskFull ? "Leave full screen" : "Terminal full screen"}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
         {page === "trade" && !replaying && (
           <AccountStrip lead={account} choices={groupChoices(accounts, accountId, liveOk)} picked={group} onPick={changeGroup} rows={stripRows} symbol={symbol} />
         )}
@@ -644,14 +679,14 @@ export default function Terminal() {
 
       {page === "trade" && <div ref={gridBox}><Grid
         className="terminal-grid"
-        layouts={layouts}
+        layouts={watchHidden ? foldWatch(layouts) : layouts}
         breakpoints={BREAKPOINTS}
         cols={COLS}
         rowHeight={rowHeight}
         margin={[MARGIN, MARGIN]}
         containerPadding={[0, 0]}
-        isDraggable={!locked && !phone}
-        isResizable={!locked && !phone}
+        isDraggable={!locked && !phone && !watchHidden}
+        isResizable={!locked && !phone && !watchHidden}
         useCSSTransforms={!chartFill}
         resizeHandles={["se", "e", "s", "w"]}
         draggableHandle=".drag-handle"
@@ -659,15 +694,22 @@ export default function Terminal() {
         onLayoutChange={onLayoutChange}
         compactType="vertical"
       >
-        <div key="watch" className={frame}>
+        {!watchHidden && <div key="watch" className={frame}>
           <div className={bar}>
-            {grip}<span className="font-semibold text-slate-700">Watchlist</span>
+            {grip}
+            <select value={watchlists.active} onChange={(e) => setWatchlists((w) => ({ ...w, active: e.target.value }))} aria-label="Watchlist"
+              className="min-w-0 max-w-[9rem] truncate rounded border border-slate-200 bg-white px-1 py-0.5 text-xs font-semibold text-slate-700">
+              {watchlists.lists.map((l) => <option key={l.id} value={l.id}>{l.name} ({l.symbols.length})</option>)}
+            </select>
+            <WatchlistMenu value={watchlists} onChange={setWatchlists} />
             {!watch.includes(symbol) && (
-              <button type="button" onClick={() => setWatch((w) => cleanWatchlist([...w, symbol]))} title={`Add ${symbol} to the watchlist`}
+              <button type="button" onClick={() => setWatch((w) => cleanWatchlist([...w, symbol]))} title={`Add ${symbol} to ${activeWatchlist(watchlists).name}`}
                 className="ml-auto flex items-center gap-0.5 rounded border border-emerald-300 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 hover:bg-emerald-50">
                 <Plus className="h-3 w-3" />{symbol}
               </button>
             )}
+            <button type="button" onClick={() => setWatchHidden(true)} title="Hide the watchlist; the chart takes its place" aria-label="Hide the watchlist"
+              className={`${watch.includes(symbol) ? "ml-auto" : ""} rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700`}><PanelLeftClose className="h-4 w-4" /></button>
           </div>
           <WatchAdd accountId={accountId} full={watch.length >= WATCHLIST_MAX} onAdd={(sym) => { setWatch((w) => cleanWatchlist([...w, sym])); setSymbol(sym); }} />
           <div className="min-h-0 flex-1 overflow-auto">
@@ -684,13 +726,18 @@ export default function Terminal() {
                 </div>
               );
             })}
+            {!watch.length && <p className="px-2 py-3 text-xs text-slate-500">An empty list: add symbols with the box above, or the + beside a chart&apos;s symbol.</p>}
           </div>
-        </div>
+        </div>}
 
         <div key="chart" className={frame}>
           <div ref={chartBox} className={chartFill ? "fixed inset-0 z-[70] flex flex-col bg-white" : "flex h-full min-h-0 flex-col bg-white"}>
             <div className={`${bar} relative items-baseline gap-3 py-1.5`}>
               {grip}
+              {watchHidden && (
+                <button type="button" onClick={() => setWatchHidden(false)} title="Show the watchlist" aria-label="Show the watchlist"
+                  className="flex shrink-0 items-center gap-1 self-center rounded border border-slate-200 px-1.5 py-0.5 text-[11px] text-slate-600 hover:bg-slate-50"><PanelLeftOpen className="h-3.5 w-3.5" />Watchlist</button>
+              )}
               <button type="button" onClick={() => setChartSearch({ pane: panes.active, initial: "" })}
                 title="Chart another symbol (or just start typing one)"
                 className="no-drag flex shrink-0 items-center gap-0.5 rounded px-1 text-lg font-semibold hover:bg-slate-100">

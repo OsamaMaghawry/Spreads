@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cleanLayouts, DEFAULT_LAYOUTS, PANELS, rowHeightFor, COLS, BREAKPOINTS, MARGIN, fromFirstVersion } from "./terminalLayout.js";
+import { cleanLayouts, DEFAULT_LAYOUTS, PANELS, rowHeightFor, COLS, BREAKPOINTS, MARGIN, fromFirstVersion, foldWatch } from "./terminalLayout.js";
 
 test("every window is in every default arrangement, once, inside the grid", () => {
   for (const [bp, list] of Object.entries(DEFAULT_LAYOUTS)) {
@@ -47,4 +47,16 @@ test("an arrangement from the first version keeps its wide-screen layout only", 
   assert.equal(out.lg.find((x) => x.i === "chart").w, 16);
   assert.equal(out.md.find((x) => x.i === "watch").y, 0);
   assert.equal(fromFirstVersion(null), null);
+});
+
+test("the watchlist folded away: the windows on its right widen into its place, nothing else moves", () => {
+  const f = foldWatch(DEFAULT_LAYOUTS);
+  const at = (bp, i) => f[bp].find((x) => x.i === i);
+  assert.equal(at("lg", "watch"), undefined);
+  assert.deepEqual([at("lg", "chart").x, at("lg", "chart").w], [0, 14]);
+  assert.deepEqual([at("lg", "account").x, at("lg", "account").w], [0, 14]);
+  assert.deepEqual([at("lg", "book").x, at("lg", "book").w], [14, 5]);
+  assert.deepEqual([at("md", "chart").x, at("md", "chart").w], [0, 12]);
+  assert.deepEqual([at("md", "ticket").x, at("md", "ticket").w], [0, 4]);
+  assert.equal(f.sm.length, 5);
 });

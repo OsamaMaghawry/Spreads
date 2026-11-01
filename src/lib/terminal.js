@@ -291,6 +291,33 @@ export function readWatchlist(raw) {
   }
 }
 
+/**
+ * Several watchlists (1 Nov, the owner: "I need to have more than watch list
+ * ... I don't have so many stocks in one watch list"): { lists: [{ id, name,
+ * symbols }], active }. Checked as stored: at most WATCHLISTS_MAX lists, each
+ * a clean watchlist; the one active still among them. With none, one "Main"
+ * list of `fallback` (the single watchlist kept before).
+ */
+export const WATCHLISTS_MAX = 12;
+export function cleanWatchlists(v, fallback = DEFAULT_WATCHLIST) {
+  const seen = new Set();
+  const lists = (Array.isArray(v?.lists) ? v.lists : [])
+    .filter((l) => l && typeof l.id === "string" && /^[a-z0-9]{1,24}$/.test(l.id) && !seen.has(l.id) && seen.add(l.id))
+    .slice(0, WATCHLISTS_MAX)
+    .map((l) => ({ id: l.id, name: String(l.name || "List").trim().slice(0, 30) || "List", symbols: cleanWatchlist(l.symbols) }));
+  if (!lists.length) return { lists: [{ id: "main", name: "Main", symbols: cleanWatchlist(fallback) }], active: "main" };
+  return { lists, active: lists.some((l) => l.id === v.active) ? v.active : lists[0].id };
+}
+
+/** The active list of `w` (cleanWatchlists' shape). */
+export const activeWatchlist = (w) => w.lists.find((l) => l.id === w.active) || w.lists[0];
+
+/** `w` with the active list's symbols changed by `fn` (a list or a function of it). */
+export function withActiveSymbols(w, fn) {
+  const at = activeWatchlist(w).id;
+  return { ...w, lists: w.lists.map((l) => (l.id === at ? { ...l, symbols: cleanWatchlist(typeof fn === "function" ? fn(l.symbols) : fn) } : l)) };
+}
+
 // ---------- formatting ----------
 
 // Prices: two decimals at a dollar and above, as many as a small coin needs below.

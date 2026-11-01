@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, inRegularHours, sessionDay, amountToQty, orderState, orderNews, iexOpen, shareFeed, ticketChoices, mergeTape, clockMs, exitText, stopWaitText } from "./terminal.js";
+import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, inRegularHours, sessionDay, amountToQty, orderState, orderNews, iexOpen, shareFeed, ticketChoices, mergeTape, clockMs, exitText, stopWaitText, cleanWatchlists, activeWatchlist, withActiveSymbols } from "./terminal.js";
 
 const sec = (iso) => Date.parse(iso) / 1000;
 
@@ -252,4 +252,15 @@ test("exitText: every stop said as a stop-limit at Alpaca, and that it waits out
   assert.equal(exitText({ side: "sell", qty: 5, targetPrice: 12 }, "ELPW", "pre"), "Sell 5 ELPW: take profit at 12.00");
   assert.match(exitText({ side: "sell", qty: 5, stopPrice: 3, limitPrice: 2.94 }, "ELPW", "pre"), /before the open: the stop is at Alpaca but Alpaca only triggers stops from 9:30/);
   assert.equal(stopWaitText("regular"), null);
+});
+
+test("several watchlists: checked as stored, the old single list kept as Main, changes on the active one", () => {
+  const first = cleanWatchlists(null, ["AIOK", "elpw"]);
+  assert.deepEqual(first, { lists: [{ id: "main", name: "Main", symbols: ["AIOK", "ELPW"] }], active: "main" });
+  const two = cleanWatchlists({ lists: [first.lists[0], { id: "gap", name: "  Gappers ", symbols: ["DAVI", "DAVI", "bad sym"] }, { id: "gap", name: "dup" }], active: "gap" });
+  assert.deepEqual(two.lists.map((l) => [l.id, l.name, l.symbols]), [["main", "Main", ["AIOK", "ELPW"]], ["gap", "Gappers", ["DAVI"]]]);
+  assert.equal(activeWatchlist(two).name, "Gappers");
+  assert.equal(cleanWatchlists({ ...two, active: "gone" }).active, "main");
+  const added = withActiveSymbols(two, (l) => [...l, "nuwe"]);
+  assert.deepEqual(added.lists.map((l) => l.symbols), [["AIOK", "ELPW"], ["DAVI", "NUWE"]]);
 });

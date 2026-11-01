@@ -265,7 +265,10 @@ export function placeEvents(events, shown, times, step) {
 
 export const BADGE_H = 15;
 const BADGE_GAP = 2;
-const ROWS = 3;
+// One row of labels; what does not fit is a dot, its card on hover (1 Nov,
+// the owner: "the chart itself, it's noisy": three rows of labels stacked
+// along the foot).
+const ROWS = 1;
 export const badgeWidth = (label) => Math.max(BADGE_H, label.length * 6 + 8);
 
 export const LOGO_CLEAR = 44;
