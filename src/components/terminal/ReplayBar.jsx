@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight, RotateCcw, X, History } from "lucide-react";
 import { px, sizeText } from "@/lib/terminal";
+import { replayClock } from "@/lib/replay";
 import { fmtMoney } from "@/lib/format";
 
 // The replay's controls and its practice account, across the top of the
@@ -12,37 +13,88 @@ const SPEEDS = [0.5, 1, 2, 5, 10];
 const UNIT_WORDS = { candle: "one candle of the active chart", "1Min": "one minute", "5Min": "five minutes", "15Min": "15 minutes", "1Hour": "one hour", "1Day": "one day" };
 const field = "rounded border border-amber-300 bg-white px-1 py-0.5 text-[11px] tabular-nums focus:outline-none";
 
-/** The form that starts a replay: from when, to when (`initial`: filled in, from the screener). */
-export function ReplayStart({ crypto, onStart, onCancel, busy, initial = null }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-  const [from, setFrom] = useState(initial?.from || monthAgo);
-  const [time, setTime] = useState(initial?.time || (crypto ? "00:00" : "09:30"));
-  const [to, setTo] = useState(initial?.to && initial.to < today ? initial.to : today);
-  const start = Date.parse(`${from}T00:00:00Z`);
-  const end = Date.parse(`${to}T00:00:00Z`);
+const AT_CHOICES = [["open", "Open"], ["close", "Close"], ["time", "Time"]];
+const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+const plusDays = (date, n) => new Date(Date.parse(`${date}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+const agoText = (ms) => {
+  const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  return s < 60 ? "just now" : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+};
+
+/**
+ * The form that starts a replay (`initial`: filled in, from the screener),
+ * with the replays kept with the account above it to continue where they
+ * were left (1 Nov: "I need to make sure that I can also save a specific test
+ * that I can continue in later with its P&L and everything"). `daily`: the
+ * active chart shows days or longer, so the replay starts at the day's close.
+ */
+export function ReplayStart({ crypto, onStart, onCancel, busy, initial = null, daily = false, saved = [], onContinue, onDelete }) {
+  const now = today();
+  const [from, setFrom] = useState(initial?.from || plusDays(now, -30));
+  const [at, setAt] = useState(initial?.at || (daily ? "close" : "open"));
+  const [time, setTime] = useState(initial?.time || (crypto ? "12:00" : "10:00"));
+  const [to, setTo] = useState(initial?.to && initial.to <= now ? initial.to : now);
+  const [sure, setSure] = useState(null);
   const why = !from || !to ? "Pick both dates."
     : from < "2016-01-04" ? "Alpaca's history starts in 2016."
-      : from >= today ? "Start before today."
-        : end <= start ? "End after the start."
-          : end - start > 366 * 86400000 ? "At most a year at a time." : null;
+      : from > now ? "Start on or before today."
+        : to < from ? "End on or after the start."
+          : Date.parse(to) - Date.parse(from) > 366 * 86400000 ? "At most a year at a time (a jump can go further)." : null;
+  const where = at === "open" ? (crypto ? "From midnight UTC: the day's first minute is on the chart." : "From 9:30: the day's first minute is on the chart, the rest plays from there.")
+    : at === "close" ? "The whole day on the chart, its daily candle complete; the next day plays from there."
+      : `Everything up to ${time} ${crypto ? "UTC" : "New York"} on that day is on the chart.`;
+  const pnl = (v) => <span className={v >= 0 ? "text-emerald-700" : "text-rose-700"}>{v >= 0 ? "+" : ""}{fmtMoney(v)}</span>;
   return (
-    <div className="absolute left-0 z-30 mt-1 w-72 rounded-md border border-slate-200 bg-white p-3 text-xs shadow-lg">
+    <div className="absolute left-0 z-30 mt-1 w-80 max-w-[calc(100vw-1rem)] rounded-md border border-slate-200 bg-white p-3 text-xs shadow-lg">
       <div className="mb-2 flex items-center gap-1 font-semibold text-slate-800"><History className="h-4 w-4 text-amber-600" />Bar replay</div>
-      <p className="mb-2 text-[11px] leading-snug text-slate-500">The charts go back to the moment you pick and play forward from there, at every interval and every symbol you open, with a practice account. Nothing is sent to the broker.</p>
+      {saved.length > 0 && (
+        <div className="mb-3">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Continue where you left it</div>
+          <div className="max-h-48 space-y-1 overflow-auto">
+            {saved.map((k) => {
+              const p = (k.summary?.realized || 0) + (k.summary?.unrealized || 0);
+              return (
+                <div key={k.id} className="rounded border border-amber-200 bg-amber-50 px-2 py-1">
+                  <div className="flex items-center gap-1">
+                    <span className="min-w-0 flex-1 truncate font-semibold text-slate-800">{k.name}</span>
+                    <button type="button" onClick={() => onContinue(k)} className="rounded bg-amber-600 px-2 py-0.5 font-semibold text-white hover:bg-amber-700">Continue</button>
+                    {sure === k.id ? (
+                      <button type="button" onClick={() => { setSure(null); onDelete(k.id); }} className="rounded border border-rose-400 px-1.5 py-0.5 text-rose-700 hover:bg-rose-50">Delete</button>
+                    ) : (
+                      <button type="button" title="Delete this saved replay" aria-label={`Delete ${k.name}`} onClick={() => setSure(k.id)} className="rounded p-0.5 text-slate-400 hover:bg-white hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
+                    )}
+                  </div>
+                  <div className="text-[11px] tabular-nums text-slate-600">
+                    at {replayClock(k.cursor, !!k.crypto)} · P&amp;L {pnl(p)} · {k.summary?.fills || 0} fill{k.summary?.fills === 1 ? "" : "s"} · saved {agoText(k.savedAt)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Or start a new one</div>
+        </div>
+      )}
+      {!saved.length && <p className="mb-2 text-[11px] leading-snug text-slate-500">The charts go back to the day you pick and play forward from there, at every interval and every symbol you open, with a practice account. Nothing is sent to the broker. It is saved as it runs, to continue later.</p>}
       <div className="grid grid-cols-[4.5rem_1fr] items-center gap-x-2 gap-y-1.5">
-        <label htmlFor="rp-from" className="text-slate-600">From</label>
-        <div className="flex gap-1">
-          <input id="rp-from" type="date" className="min-w-0 flex-1 rounded border border-slate-300 px-1 py-0.5" value={from} max={today} min="2016-01-04" onChange={(e) => setFrom(e.target.value)} />
-          <input type="time" aria-label="Start time" className="w-20 rounded border border-slate-300 px-1 py-0.5" value={time} onChange={(e) => setTime(e.target.value)} />
+        <label htmlFor="rp-from" className="text-slate-600">Day</label>
+        <input id="rp-from" type="date" className="rounded border border-slate-300 px-1 py-0.5" value={from} max={now} min="2016-01-04" onChange={(e) => setFrom(e.target.value)} />
+        <span className="text-slate-600">Start at</span>
+        <div className="flex items-center gap-1">
+          <div className="flex overflow-hidden rounded border border-slate-300" role="group" aria-label="Start at">
+            {AT_CHOICES.map(([id, name]) => (
+              <button key={id} type="button" aria-pressed={at === id || (id === "time" && /:/.test(at))} onClick={() => setAt(id === "time" ? time : id)}
+                className={`px-2 py-0.5 ${at === id || (id === "time" && /:/.test(at)) ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>{name}</button>
+            ))}
+          </div>
+          {/:/.test(at) && <input type="time" aria-label="Start time" className="w-20 rounded border border-slate-300 px-1 py-0.5" value={time} onChange={(e) => { setTime(e.target.value); setAt(e.target.value || "open"); }} />}
         </div>
         <label htmlFor="rp-to" className="text-slate-600">Until</label>
-        <input id="rp-to" type="date" className="rounded border border-slate-300 px-1 py-0.5" value={to} max={today} onChange={(e) => setTo(e.target.value)} />
+        <input id="rp-to" type="date" className="rounded border border-slate-300 px-1 py-0.5" value={to} max={now} onChange={(e) => setTo(e.target.value)} />
       </div>
-      <p className="mt-1 text-[10px] text-slate-400">{crypto ? "Times in UTC." : "Times in New York; 9:30 is the open."} On a daily, weekly or monthly chart it opens with that day&apos;s candle on screen.</p>
+      <p className="mt-1 text-[10px] leading-snug text-slate-500">{where}</p>
       {why && <p className="mt-1 text-[11px] text-amber-700">{why}</p>}
       <div className="mt-2 flex gap-2">
-        <button type="button" disabled={!!why || busy} onClick={() => onStart({ from, time, to })}
+        <button type="button" disabled={!!why || busy} onClick={() => onStart({ from, at, to })}
           className="flex-1 rounded bg-amber-600 py-1.5 font-semibold text-white hover:bg-amber-700 disabled:opacity-40">{busy ? "Loading…" : "Start replay"}</button>
         <button type="button" onClick={onCancel} className="rounded border border-slate-300 px-3 text-slate-600">Cancel</button>
       </div>
@@ -94,9 +146,10 @@ function TargetField({ targets, pos, crypto, onAdd, onRemove }) {
   );
 }
 
-export default function ReplayBar({ clock, playing, loading, note, unit, speed, value, acct, price, symbol, crypto, trades = 0, onPlay, onStep, onStepBack, onRestart, onUnit, onSpeed, onJump, onExit, onTrade, onFlatten, onStop, onAddTarget, onRemoveTarget }) {
+export default function ReplayBar({ clock, playing, loading, note, unit, speed, value, acct, price, symbol, crypto, trades = 0, name = "", savedAt = null, at = "open", onRename, onPlay, onStep, onStepBack, onRestart, onUnit, onSpeed, onJump, onExit, onTrade, onFlatten, onStop, onAddTarget, onRemoveTarget }) {
   const [qty, setQty] = useState(crypto ? "0.1" : "100");
   const [jump, setJump] = useState("");
+  const [jumpAt, setJumpAt] = useState(at === "close" ? "close" : "open");
   const pos = acct?.qty || 0;
   const pnl = (v) => <span className={v >= 0 ? "text-emerald-700" : "text-rose-700"}>{v >= 0 ? "+" : ""}{fmtMoney(v)}</span>;
   return (
@@ -120,13 +173,22 @@ export default function ReplayBar({ clock, playing, loading, note, unit, speed, 
         <label className="flex items-center gap-1">
           <select className={field} value={speed} onChange={(e) => onSpeed(Number(e.target.value))} aria-label="Speed">{SPEEDS.map((s) => <option key={s} value={s}>{s} per second</option>)}</select>
         </label>
-        <form className="flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); if (jump) onJump(jump); }}>
-          <input type="date" aria-label="Jump to" className={field} value={jump} onChange={(e) => setJump(e.target.value)} />
-          <button type="submit" disabled={!jump} className="rounded border border-amber-400 px-1.5 py-0.5 hover:bg-amber-100 disabled:opacity-40">Jump</button>
+        <form className="flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); if (jump) onJump(jump, jumpAt); }}>
+          <input type="date" aria-label="Jump to" className={field} value={jump} min="2016-01-04" onChange={(e) => setJump(e.target.value)} />
+          <select className={field} value={jumpAt} onChange={(e) => setJumpAt(e.target.value)} aria-label="Jump to the day's open or close">
+            <option value="open">open</option><option value="close">close</option>
+          </select>
+          <button type="submit" disabled={!jump || loading} className="rounded border border-amber-400 px-1.5 py-0.5 hover:bg-amber-100 disabled:opacity-40">Jump</button>
         </form>
         {loading && <span className="text-amber-700">loading candles…</span>}
         {note && <span className="text-amber-800">{note}</span>}
-        <button type="button" onClick={onExit} className="ml-auto flex items-center gap-1 rounded border border-amber-400 px-1.5 py-0.5 font-medium hover:bg-amber-100"><X className="h-3 w-3" />Exit replay</button>
+        <span className="ml-auto flex items-center gap-1">
+          <input className={`${field} w-40`} value={name} onChange={(e) => onRename?.(e.target.value)} aria-label="This replay's name" title="Its name in the list of saved replays" />
+          <span className="whitespace-nowrap text-[10px] text-amber-800" title="Kept with your account as it runs: continue it from Replay, after leaving it, a refresh or another device">
+            {savedAt ? `Saved ${new Date(savedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}` : "Saving…"}
+          </span>
+        </span>
+        <button type="button" onClick={onExit} title="Leave the replay; it stays saved to continue later" className="flex items-center gap-1 rounded border border-amber-400 px-1.5 py-0.5 font-medium hover:bg-amber-100"><X className="h-3 w-3" />Exit replay</button>
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="font-medium">Practice <b>{symbol}</b></span>

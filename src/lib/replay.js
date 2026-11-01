@@ -176,6 +176,28 @@ export function prevCursor({ minutes = [], days = [] }, unit, cursor, { crypto =
   return j >= 1 ? dayClose(days[j - 1].time, crypto) : null;
 }
 
+/**
+ * The replay's moment for a date (YYYY-MM-DD) and where in it (`at`): the
+ * date is always on the chart (1 Nov, the owner: "it goes to the date or 2
+ * days before it"). "open": through the day's first minute, so every chart
+ * ends on that day, a daily one with the day just begun; "close": the whole
+ * day, its daily candle complete; "HH:MM": through that minute. New York time
+ * for shares (9:30 to 16:00), UTC for coins (midnight to midnight).
+ */
+export function replayMoment(date, at, crypto = false) {
+  const [y, m, d] = String(date).split("-").map(Number);
+  const midnight = crypto ? Date.UTC(y, m - 1, d) / 1000 : nyMidnight(Date.UTC(y, m - 1, d, 12) / 1000);
+  if (at === "close") return crypto ? midnight + 86400 : midnight + CLOSE * 60;
+  if (at === "open" || !/^\d{1,2}:\d{2}$/.test(String(at))) return midnight + (crypto ? 0 : OPEN * 60) + 60;
+  const [hh, mm] = String(at).split(":").map(Number);
+  return midnight + Math.min(24 * 60, hh * 60 + mm) * 60 + 60;
+}
+
+/** The date (YYYY-MM-DD) of a replay moment's last minute, in New York (shares) or UTC (coins). */
+export function replayDate(t, crypto = false) {
+  return new Date((t - 1) * 1000).toLocaleDateString("en-CA", { timeZone: crypto ? "UTC" : "America/New_York" });
+}
+
 /** A candle of `unit` in seconds (a day for a day, week or month): a step back's fallback. */
 export const stepSeconds = (unit) => STEP[unit] || 86400;
 

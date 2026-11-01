@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { replayCandles, nextCursor, inSession, dayOf, practiceFill, practiceValue, triggerExits, practiceExit, addTarget, removeTarget, targetSize, newPractice, countBefore, rollMinutes, roundTrips, tradeStats, bookValue, bookTrips, acctIn, prevCursor } from "./replay.js";
+import { replayCandles, nextCursor, inSession, dayOf, practiceFill, practiceValue, triggerExits, practiceExit, addTarget, removeTarget, targetSize, newPractice, countBefore, rollMinutes, roundTrips, tradeStats, bookValue, bookTrips, acctIn, prevCursor, replayMoment, replayDate } from "./replay.js";
 
 // New York is UTC-4 in October: 9:30 is 13:30Z.
 const ny = (date, hhmm) => {
@@ -289,4 +289,21 @@ test("one candle back: the last candle on screen taken off, and forward again la
   assert.equal(prevCursor(data, "5Min", ny("2026-10-23", "09:30"), opts), ny("2026-10-22", "15:55"));
   const back = prevCursor(data, "15Min", fri1042, opts);
   assert.equal(at(back, "15Min").at(-1).time, ny("2026-10-23", "10:15"));
+});
+
+test("a replay's moment: the date picked always on the chart, at its open, its close or a time", () => {
+  // Thursday 30 Jul 2026, New York summer time.
+  assert.equal(replayMoment("2026-07-30", "open"), Date.parse("2026-07-30T13:31:00Z") / 1000);
+  assert.equal(replayMoment("2026-07-30", "close"), Date.parse("2026-07-30T20:00:00Z") / 1000);
+  assert.equal(replayMoment("2026-07-30", "10:42"), Date.parse("2026-07-30T14:43:00Z") / 1000);
+  // Winter: five hours behind UTC.
+  assert.equal(replayMoment("2026-12-01", "open"), Date.parse("2026-12-01T14:31:00Z") / 1000);
+  // Coins: UTC days.
+  assert.equal(replayMoment("2026-07-30", "close", true), Date.parse("2026-07-31T00:00:00Z") / 1000);
+  assert.equal(replayMoment("2026-07-30", "open", true), Date.parse("2026-07-30T00:01:00Z") / 1000);
+  for (const at of ["open", "close", "13:05"]) assert.equal(replayDate(replayMoment("2026-07-30", at)), "2026-07-30");
+  // The day's candle: just begun at the open, complete at the close.
+  const thuOpen = replayMoment("2026-10-22", "open");
+  assert.equal(replayCandles(data, "1Day", thuOpen, { regular: true }).at(-1).time, Date.parse("2026-10-22T04:00:00Z") / 1000);
+  assert.equal(replayCandles(data, "1Day", replayMoment("2026-10-22", "close"), { regular: true }).at(-1).close, 390);
 });

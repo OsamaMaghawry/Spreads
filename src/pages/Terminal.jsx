@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, X, Plus, Lock, LockOpen, RotateCcw, Maximize2, Minimize2, GripVertical, Keyboard, Square, Columns2, LayoutGrid, ChevronDown, Check } from "lucide-react";
+import { Search, X, Plus, Lock, LockOpen, RotateCcw, Maximize2, Minimize2, GripVertical, Keyboard, Square, Columns2, LayoutGrid, ChevronDown, Check, History } from "lucide-react";
 import { Responsive, WidthProvider } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -30,7 +30,7 @@ import GroupPicker from "@/components/terminal/GroupPicker";
 import SymbolSearch from "@/components/terminal/SymbolSearch";
 import useAccountSetting from "@/components/terminal/useAccountSetting";
 import { groupChoices, cleanGroup, groupPayload, cleanSizes } from "@/lib/accountGroup";
-import { acctIn, replayClock } from "@/lib/replay";
+import { acctIn, replayClock, isCalendar } from "@/lib/replay";
 
 const Grid = WidthProvider(Responsive);
 
@@ -359,7 +359,10 @@ export default function Terminal() {
   const [hotkeysOpen, setHotkeysOpen] = useState(false);
   // The bar replay (components/terminal/useReplay.js): while it runs, the
   // hotkeys and the replay bar trade its practice account.
-  const { session, version: replayVersion, last: lastReplay, replay } = useReplay({ accountId, notify });
+  const { session, version: replayVersion, last: lastReplay, saved: savedReplays, replay } = useReplay({ accountId, notify });
+  // A replay left running (the page closed, refreshed, the connection lost):
+  // offered to continue, once, until taken or put aside.
+  const [replayOffer, setReplayOffer] = useState(true);
   const replaying = !!session;
 
   // The other accounts picked beside this one, as they stand: what each holds
@@ -422,7 +425,13 @@ export default function Terminal() {
     if (sessionRef.current) replay.exit();
     else setReplayForm((f) => (f ? null : {}));
   }, [replay]);
-  const startReplay = (form) => { setReplayForm(null); replay.start(form, isCrypto(symbol)); };
+  const startReplay = (form) => { setReplayForm(null); setReplayOffer(false); replay.start(form, isCrypto(symbol), { symbol }); };
+  const continueReplay = (kept) => {
+    setReplayForm(null);
+    setReplayOffer(false);
+    const s = replay.resume(kept);
+    if (s) setSymbol(s);
+  };
   // A share from the historical screen: into the replay running over that
   // day (a chart of its own while there is room), or a new replay from that
   // day's open, ready to start.
@@ -442,7 +451,7 @@ export default function Terminal() {
     if (r) replay.exit();
     setSymbol(s);
     const to = new Date((day + 7 * 86400) * 1000).toISOString().slice(0, 10);
-    setReplayForm({ from: date, time: "09:30", to });
+    setReplayForm({ from: date, at: "open", to });
   };
   // The news tab: the active chart's symbol; in a replay, up to its moment.
   const news = useNews({ accountId, symbol, cursor: session?.cursor ?? null, end: session?.end ?? null });
@@ -695,7 +704,16 @@ export default function Terminal() {
             </div>
             {replayForm && !replaying && (
               <div className="relative">
-                <ReplayStart key={JSON.stringify(replayForm)} crypto={crypto} busy={false} initial={replayForm} onStart={startReplay} onCancel={() => setReplayForm(null)} />
+                <ReplayStart key={JSON.stringify(replayForm)} crypto={crypto} busy={false} initial={replayForm} onStart={startReplay} onCancel={() => setReplayForm(null)}
+                  daily={isCalendar(panes.list[panes.active]?.interval)} saved={savedReplays || []} onContinue={continueReplay} onDelete={replay.remove} />
+              </div>
+            )}
+            {!session && !replayForm && replayOffer && savedReplays?.[0]?.running && (
+              <div className="flex flex-wrap items-center gap-2 border-b border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-950">
+                <History className="h-3.5 w-3.5 text-amber-700" />
+                <span>Your replay <b>{savedReplays[0].name}</b> was left at {replayClock(savedReplays[0].cursor, !!savedReplays[0].crypto)}, with its practice trades.</span>
+                <button type="button" onClick={() => continueReplay(savedReplays[0])} className="rounded bg-amber-600 px-2 py-0.5 font-semibold text-white hover:bg-amber-700">Continue it</button>
+                <button type="button" onClick={() => setReplayOffer(false)} className="rounded border border-amber-400 px-2 py-0.5 hover:bg-amber-100">Not now</button>
               </div>
             )}
             {session && (
@@ -703,6 +721,7 @@ export default function Terminal() {
                 clock={replayClock(session.cursor, crypto)} playing={session.playing} loading={session.loading} note={session.note}
                 unit={session.unit} speed={session.speed} acct={acctIn(session.book, symbol)} price={replay.lastPrice(symbol)} value={replay.value()}
                 trades={Object.values(session.book).reduce((n, a) => n + a.trades.length, 0)} symbol={symbol} crypto={crypto}
+                name={session.name || ""} onRename={replay.rename} at={session.at} savedAt={(savedReplays || []).find((k) => k.id === session.id)?.savedAt ?? null}
                 onPlay={replay.toggle} onStep={replay.step} onStepBack={replay.stepBack} onRestart={replay.restart} onUnit={replay.setUnit} onSpeed={replay.setSpeed} onJump={replay.jump} onExit={replay.exit}
                 onTrade={(side, qty) => replay.trade(symbol, side, qty)} onFlatten={() => replay.flatten(symbol, 100)} onStop={(kind, price) => replay.setExit(symbol, kind, price)}
                 onAddTarget={(price, size) => replay.addTarget(symbol, price, size)} onRemoveTarget={(id) => replay.removeTarget(symbol, id)}
@@ -713,7 +732,7 @@ export default function Terminal() {
                 <div key={i} onClickCapture={() => { if (panes.active !== i) setPanes((x) => ({ ...x, active: i })); }}
                   className={`min-h-0 min-w-0 overflow-hidden bg-white ${panes.list.length === 3 && i === 0 ? "col-span-2" : ""} ${panes.list.length > 1 && panes.active === i ? "outline outline-2 -outline-offset-2 outline-emerald-500" : ""}`}>
                   <PriceChart accountId={accountId} symbol={p.symbol} interval={p.interval} onInterval={paneInterval[i]} listen={listen} fills={fillsBySymbol[p.symbol] || NO_FILLS}
-                    replay={replay} replayOn={replaying} replayCursor={session?.cursor ?? null} replayVersion={replayVersion} replayAcct={session?.book[p.symbol] || null}
+                    replay={replay} replayOn={replaying} replayCursor={session?.cursor ?? null} replayVersion={replayVersion} replayMove={session?.moveId || 0} replayAcct={session?.book[p.symbol] || null}
                     onReplayButton={replayButton} active={panes.active === i} label={panes.list.length > 1} stockFeed={shares.history} liveSource={shares.live}
                     onSearch={() => setChartSearch({ pane: i, initial: "" })} />
                 </div>

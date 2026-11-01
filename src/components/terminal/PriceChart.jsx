@@ -93,7 +93,7 @@ const newId = () => `d${Date.now().toString(36)}${Math.random().toString(36).sli
  */
 function PriceChart({
   accountId, symbol, interval, onInterval, listen, fills = [],
-  replay = null, replayOn = false, replayCursor = null, replayVersion = 0, replayAcct = null, onReplayButton = () => {}, active = true, label = false,
+  replay = null, replayOn = false, replayCursor = null, replayVersion = 0, replayMove = 0, replayAcct = null, onReplayButton = () => {}, active = true, label = false,
   stockFeed = "iex", liveSource = "iex", onSearch = null
 }) {
   const boxRef = useRef(null);
@@ -558,6 +558,11 @@ function PriceChart({
   useEffect(() => {
     if (!accountId || !symbol) return undefined;
     readyFor.current = null;
+    // Another symbol or interval: the price axis fits its candles again. A
+    // drag on the axis turns its fitting off, and it stayed off, so a $30
+    // stock's axis kept SPY's 700 off screen (1 Nov, the owner: "I have to
+    // scroll over and over ... until I get the 700 mark on the right axis").
+    chartRef.current?.priceScale("right").applyOptions({ autoScale: true });
     if (cursorRef.current !== null) {
       // Another interval or symbol in a replay: built again, with the replay's moment at the right edge.
       renderReplay(cursorRef.current);
@@ -747,6 +752,14 @@ function PriceChart({
   useEffect(() => {
     if (active) replay?.setActive({ symbol, interval, regular: session === "regular" });
   }, [replay, active, symbol, interval, session]);
+  // A jump, a step back, starting over or continuing: the new moment at the
+  // right edge once its candles are in, its prices fitted (1 Nov: after a
+  // jump the chart kept showing where it had been, as if it had not moved).
+  useEffect(() => {
+    if (!replayOn) return;
+    readyFor.current = null;
+    chartRef.current?.priceScale("right").applyOptions({ autoScale: true });
+  }, [replayOn, replayMove]);
   // Each move of the clock, and each arrival of candles: built again.
   useEffect(() => {
     if (replayOn) renderReplay(replayCursor);
