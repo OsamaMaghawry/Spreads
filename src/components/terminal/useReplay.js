@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
-import { savePref, flushPrefs } from "@/lib/terminalPrefs";
+import { savePref, flushPrefs, readPrefs } from "@/lib/terminalPrefs";
 import { isCrypto, px, sizeText } from "@/lib/terminal";
 import { hotkeyOrder } from "@/lib/hotkeys";
 import {
@@ -207,12 +207,19 @@ export default function useReplay({ accountId, notify }) {
       return {
         id: r.id, name: r.name, symbol: active.symbol || r.symbol, crypto: !!r.crypto, start: r.start, end: r.end, cursor: r.cursor, at: r.at,
         unit: r.unit, speed: r.speed, book: r.book, savedAt: Date.now(), running,
+        // Fills cancelled on purpose, so the account's copy knows a smaller
+        // book is meant (functions/_shared/replayKeep).
+        cancelled: r.cancelled || 0,
         // Each symbol's replay price then, for what is still open when read later.
         prices: Object.fromEntries(Object.keys(r.book).map((s) => [s, lastPrice(s)])),
         summary: { equity: value.equity, realized: value.realized, unrealized: value.unrealized, fills }
       };
     };
+    // When this page last saved each replay, to tell a newer copy saved from
+    // another window or device.
+    const wrote = new Map();
     const keep = (snap) => {
+      wrote.set(snap.id, snap.savedAt);
       savePref(`replay:${snap.id}`, snap);
       // Never let go of by itself (1 Nov, the owner: "save the results. So
       // it doesn't go away ... whenever I needed to revise them"): only a
@@ -243,7 +250,7 @@ export default function useReplay({ accountId, notify }) {
         setLast(null);
         const id = `R${Date.now().toString(36).toUpperCase()}`;
         const name = meta.name || `${meta.symbol || "Replay"} from ${dayWords(form.from)}`;
-        patch({ id, name, symbol: meta.symbol || null, crypto: coin, start, end, cursor: start, at, playing: false, unit: "candle", speed: 1, loading: false, note: null, book: {}, moveId: 1 });
+        patch({ id, name, symbol: meta.symbol || null, crypto: coin, start, end, cursor: start, at, playing: false, unit: "candle", speed: 1, loading: false, note: null, book: {}, cancelled: 0, moveId: 1 });
         tracked().forEach((s) => load(s));
         bump();
         keep(snapshot(true));
@@ -254,6 +261,7 @@ export default function useReplay({ accountId, notify }) {
         if (!kept?.id) return null;
         // The replay running, if another: kept as it stands first.
         if (ref.current && ref.current.id !== kept.id) keep(snapshot(false));
+        wrote.set(kept.id, Math.max(wrote.get(kept.id) || 0, kept.savedAt || 0));
         move();
         data.clear();
         gen += 1;
@@ -261,7 +269,7 @@ export default function useReplay({ accountId, notify }) {
         const end = Math.max(kept.end, kept.cursor);
         patch({
           id: kept.id, name: kept.name, symbol: kept.symbol, crypto: !!kept.crypto, start: kept.start, end, cursor: kept.cursor, at: kept.at || "open",
-          playing: false, unit: kept.unit || "candle", speed: kept.speed || 1, loading: false, book: kept.book || {}, moveId: 1,
+          playing: false, unit: kept.unit || "candle", speed: kept.speed || 1, loading: false, book: kept.book || {}, cancelled: kept.cancelled || 0, moveId: 1,
           note: `Continued where you left it, ${replayClock(kept.cursor, !!kept.crypto)}.`
         });
         tracked().forEach((s) => load(s));
@@ -275,7 +283,7 @@ export default function useReplay({ accountId, notify }) {
         if (!r) return;
         // Nothing traded: no results to keep, so no empty entry in the list.
         if (Object.values(r.book).some((a) => a.trades.length)) keep(snapshot(false));
-        else self.remove(r.id);
+        else self.remove(r.id, false);
         flushPrefs();
         move();
         const prices = Object.fromEntries(Object.keys(r.book).map((s) => [s, lastPrice(s)]));
@@ -297,10 +305,22 @@ export default function useReplay({ accountId, notify }) {
         const traded = Object.values(r.book).some((a) => a.trades.length);
         if (traded) keep(snapshot(false));
         move();
-        if (traded) patch({ id: `R${Date.now().toString(36).toUpperCase()}`, name: `${String(r.name || "Replay").replace(/ \(again\)$/, "")} (again)`, playing: false, book: {}, note: "Started over: the replay before is kept in Replay results." });
+        if (traded) patch({ id: `R${Date.now().toString(36).toUpperCase()}`, name: `${String(r.name || "Replay").replace(/ \(again\)$/, "")} (again)`, playing: false, book: {}, cancelled: 0, note: "Started over: the replay before is kept in Replay results." });
         else patch({ playing: false, book: {}, note: null });
         rewind(r.start);
         keep(snapshot(true));
+      },
+      // The replay running, brought up to date if it was saved from another
+      // window or device after this page last saved it.
+      async freshen() {
+        const r = ref.current;
+        if (!r?.id) return;
+        const key = `replay:${r.id}`;
+        const got = await readPrefs([key]).catch(() => null);
+        const kept = got?.[key];
+        if (!kept || kept.deleted || ref.current?.id !== r.id || !(kept.savedAt > (wrote.get(r.id) || 0))) return;
+        self.resume(kept);
+        patch({ note: `Brought up to date from your other window: ${replayClock(kept.cursor, !!kept.crypto)}.` });
       },
       // Kept now (the timer does this every two seconds while it runs).
       save(running = true) { if (ref.current) keep(snapshot(running)); },
@@ -313,9 +333,10 @@ export default function useReplay({ accountId, notify }) {
         else keep({ ...k, name: clean });
       },
       rename(name) { if (ref.current) patch({ name: String(name || "").slice(0, 80) }); },
-      // A kept replay deleted from the account.
-      remove(id) {
-        savePref(`replay:${id}`, { deleted: true });
+      // A kept replay deleted from the account. `sure`: deleted by hand and
+      // confirmed; otherwise the account keeps it if it has practice fills.
+      remove(id, sure = true) {
+        savePref(`replay:${id}`, sure ? { deleted: true, confirmed: true } : { deleted: true });
         setSaved((list) => (list || []).filter((x) => x.id !== id));
       },
       // The kept replays, read from the account.
@@ -494,7 +515,7 @@ export default function useReplay({ accountId, notify }) {
           const acct = acctIn(r.book, symbol);
           const t = acct.trades[index];
           if (!t) return;
-          setAcct(symbol, cancelFill(acct, index));
+          patch({ book: { ...r.book, [symbol]: cancelFill(acct, index) }, cancelled: (r.cancelled || 0) + 1 });
           say({ key: `rpcancel${symbol}${t.time}`, tone: "muted", title: `${symbol}: practice ${t.side === "buy" ? "buy" : "sale"} cancelled`, detail: `${sizeText(t.qty)} at ${px(t.price)} is gone from the position, the P&L and the statistics.` });
           return;
         }
@@ -506,7 +527,7 @@ export default function useReplay({ accountId, notify }) {
         if (kept) {
           const value = bookValue(book, (s) => was.prices[s] ?? null);
           const fills = Object.values(book).reduce((n, a) => n + a.trades.length, 0);
-          keep({ ...kept, book, savedAt: Date.now(), summary: { equity: value.equity, realized: value.realized, unrealized: value.unrealized, fills } });
+          keep({ ...kept, book, cancelled: (kept.cancelled || 0) + 1, savedAt: Date.now(), summary: { equity: value.equity, realized: value.realized, unrealized: value.unrealized, fills } });
         }
       },
       clearExits(symbol) {
@@ -559,18 +580,26 @@ export default function useReplay({ accountId, notify }) {
   useEffect(() => { if (accountId) api.readSaved(); }, [accountId, api]);
   const saveTimer = useRef(null);
   const savedAt = useRef(0);
+  // The replay as this page last saved it: a page left open and not touched
+  // saves nothing more, so it cannot write an older state over what another
+  // window or device has done since.
+  const done = useRef(null);
   useEffect(() => {
     if (!session) return undefined;
     clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => { savedAt.current = Date.now(); api.save(true); }, Math.max(0, SAVE_EVERY_MS - (Date.now() - savedAt.current)));
+    saveTimer.current = setTimeout(() => { savedAt.current = Date.now(); done.current = ref.current; api.save(true); }, Math.max(0, SAVE_EVERY_MS - (Date.now() - savedAt.current)));
     return undefined;
   }, [session, api]);
   useEffect(() => {
-    const away = () => { if (ref.current) { api.save(true); flushPrefs(); } };
-    const hidden = () => { if (document.visibilityState === "hidden") away(); };
-    document.addEventListener("visibilitychange", hidden);
+    const away = () => { if (ref.current && ref.current !== done.current) { done.current = ref.current; api.save(true); flushPrefs(); } };
+    // Back on this page: the replay as saved from elsewhere since, and the list.
+    const seen = () => {
+      if (document.visibilityState === "hidden") away();
+      else if (accountRef.current) { api.freshen(); api.readSaved(); }
+    };
+    document.addEventListener("visibilitychange", seen);
     window.addEventListener("pagehide", away);
-    return () => { document.removeEventListener("visibilitychange", hidden); window.removeEventListener("pagehide", away); clearTimeout(saveTimer.current); };
+    return () => { document.removeEventListener("visibilitychange", seen); window.removeEventListener("pagehide", away); clearTimeout(saveTimer.current); };
   }, [api]);
 
   return { session, version, last, saved, replay: api };

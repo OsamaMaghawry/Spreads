@@ -21,6 +21,7 @@ import { allocate } from "../_shared/proRata.ts";
 import { orderStream } from "../_shared/orderStream.ts";
 import { isOwnerEmail, isAdminUser } from "../_shared/admin.ts";
 import { handBackFired, chaseFired } from "../_shared/stopGuardRun.ts";
+import { keepReplays } from "../_shared/replayKeep.ts";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -1355,9 +1356,19 @@ async function prefs(admin: any, userId: string, body: any): Promise<[any, numbe
       if (JSON.stringify(e.value).length > PREF_MAX_BYTES) return [{ error: `${key} is too large to save.` }, 413];
       rows.push({ user_id: userId, key, value: e.value, updated_at: new Date().toISOString() });
     }
-    const { error } = await table.upsert(rows, { onConflict: "user_id,key" });
+    // A replay's results are never lost by a save (_shared/replayKeep).
+    const replayKeys = rows.map((r) => r.key).filter((k) => k.startsWith("replay:"));
+    let stored = new Map<string, any>();
+    if (replayKeys.length) {
+      const { data, error } = await admin.from("terminal_prefs").select("key, value").eq("user_id", userId).in("key", replayKeys);
+      if (error) return [{ error: error.message }, 500];
+      stored = new Map((data || []).map((r: any) => [r.key, r.value]));
+    }
+    const toSave = keepReplays(rows, stored);
+    if (!toSave.length) return [{ saved: [] }];
+    const { error } = await table.upsert(toSave, { onConflict: "user_id,key" });
     if (error) return [{ error: error.message }, 500];
-    return [{ saved: rows.map((r) => r.key) }];
+    return [{ saved: toSave.map((r) => r.key) }];
   }
   // Reading: named keys, or every key under a prefix ("drawings:").
   let q = admin.from("terminal_prefs").select("key, value, updated_at").eq("user_id", userId);
