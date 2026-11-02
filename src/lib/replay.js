@@ -264,16 +264,14 @@ export function cancelFill(acct, index) {
 /**
  * A practice fill at another price (2 Nov, the owner: "change the replay
  * entry and exit prices not based on the candle close only"): any price the
- * candle it was made in traded at (`range`, when known), the account built
- * again from its fills in order. Returns { acct } or { acct, reason }.
+ * owner types, with no limit (2 Nov: "Who's telling you put these weird
+ * limitations or conditions?!"); the account built again from its fills in
+ * order. Returns { acct } or { acct, reason }.
  */
 export function repriceFill(acct, index, price) {
   const t = acct?.trades?.[index];
   if (!t) return { acct, reason: "That fill is not there any more." };
   if (!(price > 0)) return { acct, reason: "Enter a price." };
-  if (t.range && (price < t.range.low - 1e-9 || price > t.range.high + 1e-9)) {
-    return { acct, reason: `${px(price)} is outside that candle: it traded from ${px(t.range.low)} to ${px(t.range.high)}.` };
-  }
   let out = { ...newPractice(startCash(acct)), seq: acct.seq || 0 };
   acct.trades.forEach((x, i) => { out = practiceFill(out, i === index ? { ...x, price, was: Math.abs(price - (x.was ?? x.price)) < 1e-9 ? null : (x.was ?? x.price) } : x); });
   const same = out.qty !== 0 && Math.sign(out.qty) === Math.sign(acct.qty);

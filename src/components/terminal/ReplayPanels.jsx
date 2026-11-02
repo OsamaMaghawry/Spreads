@@ -98,7 +98,7 @@ export function PracticePositions({ book, priceOf, ended = false, onPick, onFlat
       {fills.length > 0 && (
         <>
           <div className="border-y border-slate-100 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600">
-            Fills <span className="font-normal text-slate-400">· change a price to any the candle traded at, or cancel a mistake: the position, the P&amp;L and the statistics follow</span>
+            Fills <span className="font-normal text-slate-400">· click a price to change it, or cancel a mistake: the position, the P&amp;L and the statistics follow</span>
           </div>
           <table className="w-full">
             <tbody>
@@ -116,11 +116,11 @@ export function PracticePositions({ book, priceOf, ended = false, onPick, onFlat
                             aria-label="Fill price" className="w-20 rounded border border-amber-400 px-1 py-0.5 text-right" />
                           <button type="submit" className="rounded bg-amber-600 px-1.5 py-0.5 text-[11px] font-semibold text-white">Set</button>
                           <button type="button" onClick={() => setPricing(null)} className="rounded border border-slate-300 px-1.5 py-0.5 text-[11px]">Keep</button>
-                          {f.range && <span className="text-[10px] text-slate-500">{px(f.range.low)} to {px(f.range.high)}</span>}
+                          {f.range && <span className="text-[10px] text-slate-500">candle traded {px(f.range.low)} to {px(f.range.high)}</span>}
                         </form>
                       ) : (
                         <button type="button" disabled={!onReprice} onClick={() => setPricing({ key, text: String(f.price) })}
-                          title={f.range ? `Change the price: anything from ${px(f.range.low)} to ${px(f.range.high)}, what its candle traded at` : "Change the price"}
+                          title="Change the price"
                           className="rounded px-1 underline decoration-dotted underline-offset-2 hover:bg-amber-50 disabled:no-underline">at {px(f.price)}</button>
                       )}
                       {f.was && pricing?.key !== key ? <span className="ml-1 text-[10px] text-slate-400">was {px(f.was)}</span> : null}

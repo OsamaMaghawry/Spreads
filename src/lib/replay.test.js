@@ -328,7 +328,7 @@ test("a practice fill cancelled: gone from the position, the P&L and the round t
   assert.equal(cancelFill(a, 9), a);
 });
 
-test("a fill at another price within its candle: the account built again, the first price kept", () => {
+test("a fill at any other price: the account built again, the first price kept", () => {
   let a = practiceFill(newPractice(), { side: "buy", qty: 10, price: 105, time: 1, range: { low: 100, high: 106 } });
   a = practiceExit(a, "stop", 98, 105).acct;
   a = practiceFill(a, { side: "sell", qty: 4, price: 110, time: 2, range: { low: 108, high: 111 } });
@@ -339,8 +339,10 @@ test("a fill at another price within its candle: the account built again, the fi
   assert.equal(out.acct.trades[0].was, 105);
   assert.equal(out.acct.stop, 98);
   assert.equal(out.acct.cash, a.cash + 10 * 4);
-  // Outside its candle: refused; back to the first price: no "was".
-  assert.match(repriceFill(a, 0, 99).reason, /outside that candle/);
+  // Any price, inside its candle or not; back to the first price: no "was".
+  assert.equal(repriceFill(a, 0, 99).reason, undefined);
+  assert.equal(repriceFill(a, 0, 99).acct.avg, 99);
+  assert.match(repriceFill(a, 0, 0).reason, /Enter a price/);
   assert.equal(repriceFill(out.acct, 0, 105).acct.trades[0].was, undefined);
   // An exit by hand changed too.
   assert.equal(repriceFill(a, 1, 111).acct.realized, 4 * (111 - 105));
