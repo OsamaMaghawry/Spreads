@@ -12,6 +12,7 @@
 // ("delayed_sip"), so the pre-market from 4:00 shows; with a paid plan,
 // "sip", in real time.
 import { orderStream } from "./orderStream.ts";
+import { eodhdIso } from "./eodhdTime.ts";
 
 const STOCK_STREAMS: Record<string, string> = {
   iex: "wss://stream.data.alpaca.markets/v2/iex",
@@ -58,7 +59,7 @@ function eodhdShares(key: string, send: (m: any) => void, said: string[], isClos
   };
   let want = new Set<string>();
   const timers = new Set<number>();
-  const at = (t: unknown) => new Date(Number(t)).toISOString();
+  const at = (t: unknown) => eodhdIso(t);
 
   const bring = (side: Side) => {
     if (!side.ws || !side.authed || side.ws.readyState !== WebSocket.OPEN) return;
@@ -92,11 +93,15 @@ function eodhdShares(key: string, send: (m: any) => void, said: string[], isClos
         return;
       }
       if (!m.s) return;
-      if (kind === "trades") {
-        send({ type: "trade", symbol: m.s, price: m.p, size: m.v, at: at(m.t), conditions: m.c, darkPool: !!m.dp, session: m.ms, source: "eodhd" });
-      } else {
-        send({ type: "quote", symbol: m.s, bid: m.bp, ask: m.ap, bidSize: m.bs, askSize: m.as, at: at(m.t) });
-      }
+      // One odd message never takes the stream down (2 Nov: a time it could
+      // not read threw on every trade and quote, and the chart stood still).
+      try {
+        if (kind === "trades") {
+          send({ type: "trade", symbol: m.s, price: m.p, size: m.v, at: at(m.t), conditions: m.c, darkPool: !!m.dp, session: m.ms, source: "eodhd" });
+        } else {
+          send({ type: "quote", symbol: m.s, bid: m.bp, ask: m.ap, bidSize: m.bs, askSize: m.as, at: at(m.t) });
+        }
+      } catch (e) { said.push(`eodhd ${kind}: skipped a message (${String(e).slice(0, 80)})`); }
     };
     ws.onerror = () => send({ type: "error", feed: "stocks", message: "The EODHD price stream failed." });
     ws.onclose = () => {

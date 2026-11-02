@@ -22,6 +22,7 @@ import { orderStream } from "../_shared/orderStream.ts";
 import { isOwnerEmail, isAdminUser } from "../_shared/admin.ts";
 import { handBackFired, chaseFired } from "../_shared/stopGuardRun.ts";
 import { keepReplays } from "../_shared/replayKeep.ts";
+import { eodhdTime } from "../_shared/eodhdTime.ts";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -1190,8 +1191,7 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
         if (m.status_code !== undefined || m.message) { rep.said.push({ status: m.status_code, message: m.message }); return; }
         rep.messages += 1;
         if (!rep.first) rep.first = m;
-        const t = Number(m.t ?? m.ms);
-        if (t > 1e12) rep.lag.push(Date.now() - t);
+        if (m.t !== undefined) rep.lag.push(Date.now() - eodhdTime(m.t));
       };
       sock.onerror = () => rep.errors.push("socket error");
       sock.onclose = (e) => { clearTimeout(timer); rep.closed = { code: e.code, reason: e.reason }; finish(); };
