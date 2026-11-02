@@ -77,3 +77,19 @@ start. Organic alone gets a fifth to a half of the way. The rest:
 Actual vs the line for: visitors (GA4), signups, live connections, paying —
 from `docs/growth/metrics/README.md`. Each channel's weekly number against
 its kill number. The one decision, if any, the owner needs to make.
+
+## Measured rates — revised Mon 2 Nov 2026
+
+Source: `docs/growth/metrics/2026-11-01.json` (on `main`). All numbers are tiny-n and are *not* forecasts; a
+benchmark is replaced only where a measurement exists.
+
+| Step | Benchmark | Measured (1 Nov) | Verdict |
+| --- | --- | --- | --- |
+| Visitors → signup | 3 % | unmeasurable — GA4 not configured; 1 click in 28 days from search, 4 signups ever, 0 in the last 7 days, all `unknown` source | benchmark kept; GA4 is the unblock |
+| Signup → live account connected | 25 % | 3 connected of 4 signups = 75 % (n=4, mostly owner/early users) | **not adopted** — n too small and cohort not representative; benchmark kept |
+| Connected → traded live | — | 1 of 3 = 33 % (n=3) | recorded, not used |
+| Live → paid | 15 % | 0 of 1; billing not confirmed live | benchmark kept |
+| Search | ~100–300 clicks/day by Dec | 140 impressions, 1 click per 28 days; 37 of 69 URLs indexed; avg position 20 | far below the line; organic is not yet a channel |
+
+At the current pace the 100-paying target by 31 Dec is not on track (paying = 0; the 30 Nov checkpoint of >25
+will be missed). That is stated, not softened; the Friday pack carries the decision.
