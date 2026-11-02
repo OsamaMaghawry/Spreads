@@ -500,15 +500,26 @@ export default function useReplay({ accountId, notify }) {
         if (!price) { say$.noPrice(symbol); return; }
         if (!(qty > 0)) return;
         if (at > 0 && Math.abs(at - price) > 1e-9) {
+          // A price the candle on screen traded at fills now, at that price
+          // (2 Nov: "I sold 30 ... and I bought again. It should be closed
+          // when I bought"); only one it did not reach waits as an order.
+          const range = candleRange(symbol, r.cursor);
+          if (range && at >= range.low - 1e-9 && at <= range.high + 1e-9) {
+            setAcct(symbol, practiceFill(acctIn(r.book, symbol), { side, qty, price: at, time: r.cursor - 1, why, range }));
+            say({ key: `rp${Date.now()}`, tone: "ok", title: `Practice: ${side === "buy" ? "bought" : "sold"} ${sizeText(qty)} ${symbol} at ${px(at)}`, detail: `Filled now: this candle traded from ${px(range.low)} to ${px(range.high)}. Replay only.` });
+            return;
+          }
           const out = addOrder(acctIn(r.book, symbol), { side, qty, price: at }, price);
           if (out.reason) { say({ key: "rpo", tone: "bad", title: "Practice order not placed", detail: out.reason }); return; }
           setAcct(symbol, out.acct);
-          say({ key: `rpo${Date.now()}`, tone: "ok", title: `Practice ${side} ${out.kind} ${sizeText(qty)} ${symbol} at ${px(at)}`, detail: `Working: it fills when the replay reaches ${px(at)}${isCrypto(symbol) ? "" : " in regular hours"}. Cancel it under Practice.` });
+          say({ key: `rpo${Date.now()}`, tone: "ok", title: `Practice ${side} ${out.kind} ${sizeText(qty)} ${symbol} at ${px(at)}: waiting`, detail: `${range ? `This candle traded ${px(range.low)} to ${px(range.high)}, not ${px(at)}, so it` : "It"} fills when the replay reaches ${px(at)}${isCrypto(symbol) ? "" : " in regular hours"}. Cancel it under Practice ▸ Working orders.` });
           return;
         }
         setAcct(symbol, practiceFill(acctIn(r.book, symbol), { side, qty, price, time: r.cursor - 1, why, range: candleRange(symbol, r.cursor) }));
         say({ key: `rp${Date.now()}`, tone: "ok", title: `Practice: ${side === "buy" ? "bought" : "sold"} ${sizeText(qty)} ${symbol} at ${px(price)}`, detail: "Replay only. To fill at another price in that candle, change it under Practice ▸ fills." });
       },
+      // The low and high of the candle on screen now: a price inside fills at once.
+      rangeNow(symbol) { return ref.current ? candleRange(symbol, ref.current.cursor) : null; },
       cancelOrder(symbol, id) {
         const r = ref.current;
         if (!r) return;

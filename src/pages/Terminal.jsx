@@ -810,7 +810,7 @@ export default function Terminal() {
                 trades={Object.values(session.book).reduce((n, a) => n + a.trades.length, 0)} symbol={symbol} crypto={crypto}
                 name={session.name || ""} onRename={replay.rename} at={session.at} onSave={() => { replay.save(true); notify({ key: "rpsave", tone: "ok", title: "Replay saved", detail: `${session.name}: kept in Replay results until you delete it.` }); }} savedAt={(savedReplays || []).find((k) => k.id === session.id)?.savedAt ?? null}
                 onPlay={replay.toggle} onStep={replay.step} onStepBack={replay.stepBack} onRestart={replay.restart} onUnit={replay.setUnit} onSpeed={replay.setSpeed} onJump={replay.jump} onExit={replay.exit}
-                onTrade={(side, qty, at) => replay.trade(symbol, side, qty, "", at)} onFlatten={() => replay.flatten(symbol, 100)} onStop={(kind, price) => replay.setExit(symbol, kind, price)}
+                onTrade={(side, qty, at) => replay.trade(symbol, side, qty, "", at)} range={replay.rangeNow(symbol)} onFlatten={() => replay.flatten(symbol, 100)} onStop={(kind, price) => replay.setExit(symbol, kind, price)}
                 onAddTarget={(price, size) => replay.addTarget(symbol, price, size)} onRemoveTarget={(id) => replay.removeTarget(symbol, id)}
               />
             )}

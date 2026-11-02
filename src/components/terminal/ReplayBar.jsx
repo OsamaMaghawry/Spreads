@@ -142,10 +142,15 @@ function TargetField({ targets, pos, crypto, onAdd, onRemove }) {
   );
 }
 
-export default function ReplayBar({ clock, playing, loading, note, unit, speed, value, acct, price, symbol, crypto, trades = 0, name = "", savedAt = null, at = "open", onRename, onSave, onPlay, onStep, onStepBack, onRestart, onUnit, onSpeed, onJump, onExit, onTrade, onFlatten, onStop, onAddTarget, onRemoveTarget }) {
+export default function ReplayBar({ clock, playing, loading, note, unit, speed, value, acct, price, range = null, symbol, crypto, trades = 0, name = "", savedAt = null, at = "open", onRename, onSave, onPlay, onStep, onStepBack, onRestart, onUnit, onSpeed, onJump, onExit, onTrade, onFlatten, onStop, onAddTarget, onRemoveTarget }) {
   const [qty, setQty] = useState(crypto ? "0.1" : "100");
   // A price for the practice order: blank buys or sells at the price now.
   const [orderAt, setOrderAt] = useState("");
+  // What a typed price does: inside the candle on screen it fills now; one
+  // the candle did not reach waits as a limit or a stop.
+  const atNum = Number(orderAt);
+  const inCandle = atNum > 0 && range && atNum >= range.low - 1e-9 && atNum <= range.high + 1e-9;
+  const what = (side) => (!(atNum > 0) ? "" : inCandle || !(price > 0) ? ` at ${orderAt}` : ` ${(side === "buy") === (atNum < price) ? "limit" : "stop"} ${orderAt}`);
   const [jump, setJump] = useState("");
   const [jumpAt, setJumpAt] = useState(at === "close" ? "close" : "open");
   const [restarting, setRestarting] = useState(false);
@@ -208,9 +213,10 @@ export default function ReplayBar({ clock, playing, loading, note, unit, speed, 
         <span className="font-medium">Practice <b>{symbol}</b></span>
         <input className={`${field} w-16`} inputMode="decimal" value={qty} onChange={(e) => setQty(e.target.value.replace(/[^\d.]/g, ""))} aria-label="Practice quantity" />
         <input className={`${field} w-20`} inputMode="decimal" value={orderAt} onChange={(e) => setOrderAt(e.target.value.replace(/[^\d.]/g, ""))} aria-label="Practice order price"
-          placeholder="at price" title="Blank: buy or sell at the price now. A price: an order that waits and fills when the replay reaches it (a limit, or a stop on the other side)." />
-        <button type="button" onClick={() => { onTrade("buy", Number(qty), Number(orderAt) || null); setOrderAt(""); }} className="rounded bg-emerald-600 px-2 py-0.5 font-semibold text-white hover:bg-emerald-700">{Number(orderAt) > 0 ? `Buy at ${orderAt}` : "Buy"}</button>
-        <button type="button" onClick={() => { onTrade("sell", Number(qty), Number(orderAt) || null); setOrderAt(""); }} className="rounded bg-rose-600 px-2 py-0.5 font-semibold text-white hover:bg-rose-700">{Number(orderAt) > 0 ? `Sell at ${orderAt}` : "Sell"}</button>
+          placeholder="at price" title="Blank: at the price now. A price this candle traded at: filled now at that price. Any other price: an order that waits until the replay gets there (a limit, or a stop on the other side)." />
+        <button type="button" onClick={() => { onTrade("buy", Number(qty), Number(orderAt) || null); setOrderAt(""); }} className="rounded bg-emerald-600 px-2 py-0.5 font-semibold text-white hover:bg-emerald-700">{`Buy${what("buy")}`}</button>
+        <button type="button" onClick={() => { onTrade("sell", Number(qty), Number(orderAt) || null); setOrderAt(""); }} className="rounded bg-rose-600 px-2 py-0.5 font-semibold text-white hover:bg-rose-700">{`Sell${what("sell")}`}</button>
+        {atNum > 0 && <span className={`text-[10px] ${inCandle ? "text-emerald-700" : "text-amber-700"}`}>{inCandle ? `fills now (this candle ${px(range.low)} to ${px(range.high)})` : `waits until the price gets to ${orderAt}${range ? `; this candle ${px(range.low)} to ${px(range.high)}` : ""}`}</span>}
         <button type="button" onClick={onFlatten} disabled={!pos} className="rounded border border-amber-400 px-2 py-0.5 hover:bg-amber-100 disabled:opacity-40">Flatten</button>
         <StopField level={acct?.stop} pos={pos} onSet={onStop} />
         <TargetField targets={acct?.targets || []} pos={pos} crypto={crypto} onAdd={onAddTarget} onRemove={onRemoveTarget} />
