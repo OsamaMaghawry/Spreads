@@ -63,7 +63,9 @@ export function farFloor(spot, strike) {
 export function holdingActions(s) {
   const held = Number(s?.shareQty ?? s?.qty) || 0;
   if (!s?.shares || held < 100) return { protect: false, repair: false };
-  const price = num(s.stockPrice) ?? num(s.longCurrentPrice);
+  // 0 is how a missing quote arrives from the sync, not a price.
+  const pos = (v) => { const n = num(v); return n !== null && n > 0 ? n : null; };
+  const price = pos(s.stockPrice) ?? pos(s.longCurrentPrice);
   const basis = num(s.shareBasis);
   return { protect: true, repair: price !== null && basis !== null && price < basis };
 }
