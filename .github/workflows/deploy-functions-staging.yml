@@ -51,7 +51,9 @@ jobs:
             echo "::notice title=Deploy skipped::SUPABASE_STAGING_ACCESS_TOKEN is not set."
             exit 0
           fi
-          supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"
+          # --yes: the CLI now asks before deploying every function and, with
+          # no terminal to answer it, deploys nothing (2 Nov 2026).
+          supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF" --yes
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_STAGING_ACCESS_TOKEN }}
           # Not a secret: this ref is already public in the staging project URL.
