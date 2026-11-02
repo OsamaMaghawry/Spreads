@@ -63,6 +63,8 @@ With the stock at $44, the picture reverses. The 50 put is worth 6.01: $6.00 of 
 
 These are marks, the price to buy back at the midpoint, not results. Both positions are still open and can still move before expiration.
 
+Related: [selling puts to buy stock](/blog/sell-puts-to-buy-stock) covers what happens when a short put like this one ends in assignment.
+
 ## Does IV crush help if the stock gaps past the strike?
 
 On the naked put, the $365 loss at $44 is two movements netted: the mark lost 2.35 of time value, and the gap added 6.00 of intrinsic value. Each dollar lower on the open adds roughly another $100 per contract, all the way down. A short put is the same position naked in a [margin account](/blog/options-buying-power-requirement), where the broker holds collateral against the loss, or [cash-secured](/blog/cash-secured-put-explained) with $5,000 set aside; the cash pays for shares if assigned and does not change the loss.
