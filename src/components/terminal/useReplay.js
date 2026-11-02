@@ -5,6 +5,7 @@ import { isCrypto, px, sizeText } from "@/lib/terminal";
 import { hotkeyOrder } from "@/lib/hotkeys";
 import {
   nextCursor, prevCursor, stepSeconds, replayMoment, replayDate, countBefore, practiceFill, cancelFill, triggerExits, practiceExit, addTarget, removeTarget, targetSize,
+  repriceFill, addOrder, cancelOrder, triggerOrders, inSession, replayCandles, REPLAY_INTERVALS,
   rollMinutes, replayClock, acctIn, bookValue
 } from "@/lib/replay";
 
@@ -146,24 +147,45 @@ export default function useReplay({ accountId, notify }) {
     // practice position (their stop and take-profits keep working).
     const tracked = () => {
       const book = ref.current?.book || {};
-      return [...new Set([...watching.keys(), ...Object.keys(book).filter((s) => book[s].qty)])];
+      return [...new Set([...watching.keys(), ...Object.keys(book).filter((s) => book[s].qty || book[s].orders?.length)])];
     };
 
     // The stop and take-profits of one symbol against the minutes passed (a
     // share's in regular hours only, as the broker's orders), with a pop-up
     // for each fill.
+    // ...and the practice orders at a price, minute by minute (a share's in
+    // regular hours only, as the broker's).
+    const working = (a) => (a.qty && (a.stop || a.targets.length)) || a.orders?.length;
     const runExits = (symbol, acct, passed) => {
-      if (!acct.qty || (!acct.stop && !acct.targets.length) || !passed.length) return acct;
+      if (!working(acct) || !passed.length) return acct;
       const crypto = isCrypto(symbol);
-      const out = triggerExits(acct, passed, { regularOnly: !crypto });
+      let out = acct;
+      for (const m of passed) {
+        if (!crypto && !inSession(m.time)) continue;
+        out = triggerExits(out, [m]);
+        if (out.orders?.length) out = triggerOrders(out, m);
+        if (!working(out)) break;
+      }
+      const WHAT = { target: "take-profit", stop: "stop", limit: "limit order", stoporder: "stop order" };
       out.trades.slice(acct.trades.length).forEach((t, i) => {
-        const target = t.why === "target";
+        const good = t.why === "target" || t.why === "limit";
+        const exit = t.why === "target" || t.why === "stop";
         say({
-          key: `rp${symbol}${t.time}-${i}`, tone: target ? "ok" : "muted", title: `${symbol}: practice ${target ? "take-profit" : "stop"} filled${target && !out.qty ? ", flat" : ""}`,
-          detail: `${t.side === "sell" ? "Sold" : "Bought back"} ${sizeText(t.qty)} at ${px(t.price)} · ${replayClock(t.time, crypto)} (replay)`
+          key: `rp${symbol}${t.time}-${i}`, tone: good ? "ok" : "muted", title: `${symbol}: practice ${WHAT[t.why] || "order"} filled${exit && !out.qty ? ", flat" : ""}`,
+          detail: `${t.side === "sell" ? "Sold" : exit ? "Bought back" : "Bought"} ${sizeText(t.qty)} at ${px(t.price)} · ${replayClock(t.time, crypto)} (replay)`
         });
       });
       return out;
+    };
+    // The candle on the active chart that a fill at `cursor` is made in: the
+    // prices it may be changed to.
+    const candleRange = (symbol, cursor) => {
+      const d = data.get(symbol);
+      if (!d?.ready) return null;
+      const coin = isCrypto(symbol);
+      const interval = REPLAY_INTERVALS.includes(active.interval) ? active.interval : "1Min";
+      const c = replayCandles(d, interval, cursor, { crypto: coin, regular: !coin && active.regular }).at(-1);
+      return c && c.low > 0 && c.high >= c.low ? { low: c.low, high: c.high } : null;
     };
 
     // The clock to `t`: every tracked symbol's minutes through it, and their
@@ -420,7 +442,7 @@ export default function useReplay({ accountId, notify }) {
         const at = atIn || r.at || "open";
         const t = Math.max(EARLIEST, Math.min(replayMoment(date, at, coin), latest()));
         const end = latest();
-        const exits = Object.values(r.book).some((a) => a.qty && (a.stop || a.targets.length));
+        const exits = Object.values(r.book).some((a) => (a.qty && (a.stop || a.targets.length)) || a.orders?.length);
         patch({ playing: false, at, end, note: null });
         try {
           if (t > r.cursor && exits && t - r.cursor <= 62 * DAY) {
@@ -469,14 +491,51 @@ export default function useReplay({ accountId, notify }) {
 
       // ---------- the practice book ----------
       value() { return ref.current ? bookValue(ref.current.book, priceOf) : null; },
-      trade(symbol, side, qty, why = "") {
+      // A practice buy or sell: at the price now, or with `at` an order at
+      // that price, working until the replay reaches it.
+      trade(symbol, side, qty, why = "", at = null) {
         const r = ref.current;
         const price = lastPrice(symbol);
         if (!r) return;
         if (!price) { say$.noPrice(symbol); return; }
         if (!(qty > 0)) return;
-        setAcct(symbol, practiceFill(acctIn(r.book, symbol), { side, qty, price, time: r.cursor - 1, why }));
-        say({ key: `rp${Date.now()}`, tone: "ok", title: `Practice: ${side === "buy" ? "bought" : "sold"} ${sizeText(qty)} ${symbol} at ${px(price)}`, detail: "Replay only; nothing sent to the broker." });
+        if (at > 0 && Math.abs(at - price) > 1e-9) {
+          const out = addOrder(acctIn(r.book, symbol), { side, qty, price: at }, price);
+          if (out.reason) { say({ key: "rpo", tone: "bad", title: "Practice order not placed", detail: out.reason }); return; }
+          setAcct(symbol, out.acct);
+          say({ key: `rpo${Date.now()}`, tone: "ok", title: `Practice ${side} ${out.kind} ${sizeText(qty)} ${symbol} at ${px(at)}`, detail: `Working: it fills when the replay reaches ${px(at)}${isCrypto(symbol) ? "" : " in regular hours"}. Cancel it under Practice.` });
+          return;
+        }
+        setAcct(symbol, practiceFill(acctIn(r.book, symbol), { side, qty, price, time: r.cursor - 1, why, range: candleRange(symbol, r.cursor) }));
+        say({ key: `rp${Date.now()}`, tone: "ok", title: `Practice: ${side === "buy" ? "bought" : "sold"} ${sizeText(qty)} ${symbol} at ${px(price)}`, detail: "Replay only. To fill at another price in that candle, change it under Practice ▸ fills." });
+      },
+      cancelOrder(symbol, id) {
+        const r = ref.current;
+        if (!r) return;
+        setAcct(symbol, cancelOrder(acctIn(r.book, symbol), id));
+      },
+      // A practice fill at another price in its candle (lib/replay
+      // repriceFill): in the replay running, or the last one left and its
+      // saved copy.
+      repriceFill(symbol, index, price) {
+        const r = ref.current;
+        const book = r ? r.book : lastRef.current?.book;
+        if (!book?.[symbol]) return false;
+        const out = repriceFill(book[symbol], index, price);
+        if (out.reason) { say({ key: "rpre", tone: "bad", title: "Price not changed", detail: out.reason }); return false; }
+        const t = book[symbol].trades[index];
+        say({ key: `rpre${symbol}${t.time}`, tone: "ok", title: `${symbol}: practice ${t.side === "buy" ? "buy" : "sale"} now at ${px(price)}`, detail: `Was ${px(t.was ?? t.price)}. The position, P&L and statistics follow.` });
+        if (r) { patch({ book: { ...r.book, [symbol]: out.acct } }); return true; }
+        const was = lastRef.current;
+        const nextBook = { ...was.book, [symbol]: out.acct };
+        setLast({ ...was, book: nextBook });
+        const kept = (savedRef.current || []).find((k) => k.id === was.id);
+        if (kept) {
+          const value = bookValue(nextBook, (s) => was.prices[s] ?? null);
+          const fills = Object.values(nextBook).reduce((n, a) => n + a.trades.length, 0);
+          keep({ ...kept, book: nextBook, savedAt: Date.now(), summary: { equity: value.equity, realized: value.realized, unrealized: value.unrealized, fills } });
+        }
+        return true;
       },
       flatten(symbol, pct = 100, why = "") {
         const q = acctIn(ref.current?.book || {}, symbol).qty;

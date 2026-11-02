@@ -929,13 +929,15 @@ function PriceChart({
     if (!series) return;
     for (const l of exitLinesRef.current) { try { series.removePriceLine(l); } catch { /* gone */ } }
     exitLinesRef.current = [];
-    if (!acct?.qty || !marks.lines) return;
+    if (!acct || (!acct.qty && !acct.orders?.length) || !marks.lines) return;
     const line = (price, color, title, lineStyle) => series.createPriceLine({ price, color, title, lineStyle, lineWidth: 1, axisLabelVisible: true });
     const targets = [...acct.targets].sort((a, b) => (acct.qty > 0 ? a.price - b.price : b.price - a.price));
     exitLinesRef.current = [
-      line(acct.avg, "#64748b", `${acct.qty > 0 ? "Long" : "Short"} ${sizeText(Math.abs(acct.qty))}`, LineStyle.Dotted),
-      acct.stop && line(acct.stop, DOWN, "Stop", LineStyle.Dashed),
-      ...targets.map((t, i) => line(t.price, UP, `TP${targets.length > 1 ? i + 1 : ""} · ${t.qty === null ? "rest" : sizeText(t.qty)}`, LineStyle.Dashed))
+      acct.qty && line(acct.avg, "#64748b", `${acct.qty > 0 ? "Long" : "Short"} ${sizeText(Math.abs(acct.qty))}`, LineStyle.Dotted),
+      acct.qty && acct.stop && line(acct.stop, DOWN, "Stop", LineStyle.Dashed),
+      ...(acct.qty ? targets : []).map((t, i) => line(t.price, UP, `TP${targets.length > 1 ? i + 1 : ""} · ${t.qty === null ? "rest" : sizeText(t.qty)}`, LineStyle.Dashed)),
+      // Practice orders at a price, waiting to fill.
+      ...(acct.orders || []).map((o) => line(o.price, o.side === "buy" ? "#0d9488" : "#c026d3", `${o.side === "buy" ? "Buy" : "Sell"} ${o.kind === "limit" ? "limit" : "stop"} ${sizeText(o.qty)}`, LineStyle.SparseDotted))
     ].filter(Boolean);
   }, [acct, marks.lines]);
   // A seconds interval, which cannot be replayed, becomes one minute.

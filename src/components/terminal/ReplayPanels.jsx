@@ -21,14 +21,18 @@ const held = (s) => {
   if (m < 1440) return `${Math.floor(m / 60)}h ${m % 60}m`;
   return `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h`;
 };
-const HOW = { stop: "Stop", target: "Take-profit", "": "By hand" };
+const HOW = { stop: "Stop", target: "Take-profit", limit: "Limit order", stoporder: "Stop order", "": "By hand" };
 const how = (list) => list.map((w) => HOW[w] ?? w).join(", ") || "—";
 const th = "whitespace-nowrap px-2 py-1 text-right font-medium";
 const td = "whitespace-nowrap px-2 py-1 text-right";
 
 /** What the practice book holds, symbol by symbol, with its stop and take-profits, and every fill. */
-export function PracticePositions({ book, priceOf, ended = false, onPick, onFlatten, onCancel }) {
+export function PracticePositions({ book, priceOf, ended = false, onPick, onFlatten, onCancel, onReprice, onCancelOrder }) {
   const rows = Object.entries(book).filter(([, a]) => a.qty || a.trades.length);
+  // The practice orders at a price still working, symbol by symbol.
+  const orders = ended ? [] : Object.entries(book).flatMap(([s, a]) => (a.orders || []).map((o) => ({ ...o, symbol: s })));
+  // A fill's price being changed: which one, and the price typed.
+  const [pricing, setPricing] = useState(null);
   const v = bookValue(book, priceOf);
   // Every fill, newest first, each with its place in its symbol's list.
   const fills = Object.entries(book).flatMap(([s, a]) => a.trades.map((t, i) => ({ ...t, symbol: s, index: i }))).sort((a, b) => b.time - a.time);
@@ -70,10 +74,31 @@ export function PracticePositions({ book, priceOf, ended = false, onPick, onFlat
           </tbody>
         </table>
       )}
+      {orders.length > 0 && (
+        <>
+          <div className="border-y border-slate-100 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600">
+            Working orders <span className="font-normal text-slate-400">· each fills when the replay reaches its price</span>
+          </div>
+          <table className="w-full">
+            <tbody>
+              {orders.map((o) => (
+                <tr key={`${o.symbol}:${o.id}`} className="border-t border-slate-100">
+                  <td className="px-2 py-1 font-semibold">{o.symbol}</td>
+                  <td className={`${td} ${o.side === "buy" ? "text-emerald-700" : "text-rose-700"}`}>{o.side === "buy" ? "Buy" : "Sell"} {o.kind} {sizeText(o.qty)}</td>
+                  <td className={td}>at {px(o.price)}</td>
+                  <td className="px-1 text-right">
+                    <button type="button" onClick={() => onCancelOrder?.(o.symbol, o.id)} className="inline-flex items-center gap-0.5 rounded border border-slate-300 px-1.5 py-0.5 text-[11px] text-slate-600 hover:border-rose-400 hover:text-rose-700"><X className="h-3 w-3" />Cancel order</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
       {fills.length > 0 && (
         <>
           <div className="border-y border-slate-100 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600">
-            Fills <span className="font-normal text-slate-400">· cancel a mistake and it is gone from the position, the P&amp;L and the statistics</span>
+            Fills <span className="font-normal text-slate-400">· change a price to any the candle traded at, or cancel a mistake: the position, the P&amp;L and the statistics follow</span>
           </div>
           <table className="w-full">
             <tbody>
@@ -84,7 +109,22 @@ export function PracticePositions({ book, priceOf, ended = false, onPick, onFlat
                     <td className="px-2 py-1 text-slate-500">{when(f.time, f.symbol)}</td>
                     <td className="px-2 py-1 font-semibold">{f.symbol}</td>
                     <td className={`${td} ${f.side === "buy" ? "text-emerald-700" : "text-rose-700"}`}>{f.side === "buy" ? "Buy" : "Sell"} {sizeText(f.qty)}</td>
-                    <td className={td}>at {px(f.price)}</td>
+                    <td className={td}>
+                      {pricing?.key === key ? (
+                        <form className="inline-flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); if (onReprice?.(f.symbol, f.index, Number(pricing.text)) !== false) setPricing(null); }}>
+                          at <input autoFocus inputMode="decimal" value={pricing.text} onChange={(e) => setPricing({ key, text: e.target.value.replace(/[^\d.]/g, "") })}
+                            aria-label="Fill price" className="w-20 rounded border border-amber-400 px-1 py-0.5 text-right" />
+                          <button type="submit" className="rounded bg-amber-600 px-1.5 py-0.5 text-[11px] font-semibold text-white">Set</button>
+                          <button type="button" onClick={() => setPricing(null)} className="rounded border border-slate-300 px-1.5 py-0.5 text-[11px]">Keep</button>
+                          {f.range && <span className="text-[10px] text-slate-500">{px(f.range.low)} to {px(f.range.high)}</span>}
+                        </form>
+                      ) : (
+                        <button type="button" disabled={!onReprice} onClick={() => setPricing({ key, text: String(f.price) })}
+                          title={f.range ? `Change the price: anything from ${px(f.range.low)} to ${px(f.range.high)}, what its candle traded at` : "Change the price"}
+                          className="rounded px-1 underline decoration-dotted underline-offset-2 hover:bg-amber-50 disabled:no-underline">at {px(f.price)}</button>
+                      )}
+                      {f.was && pricing?.key !== key ? <span className="ml-1 text-[10px] text-slate-400">was {px(f.was)}</span> : null}
+                    </td>
                     <td className={`${td} text-slate-400`}>{HOW[f.why] ?? f.why ?? ""}</td>
                     <td className="px-1 text-right">
                       {sure === key ? (

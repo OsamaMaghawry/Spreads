@@ -209,7 +209,7 @@ export const isCalendar = (unit) => CALENDAR.has(unit);
 export const PRACTICE_CASH = 100000;
 
 /** One symbol's practice account. In a book of several, each starts with no cash of its own (see bookValue). */
-export const newPractice = (cash = PRACTICE_CASH) => ({ cash, qty: 0, avg: 0, realized: 0, trades: [], stop: null, targets: [], seq: 0 });
+export const newPractice = (cash = PRACTICE_CASH) => ({ cash, qty: 0, avg: 0, realized: 0, trades: [], stop: null, targets: [], orders: [], seq: 0 });
 
 /**
  * A practice fill: buying adds to a long or covers a short, selling the
@@ -217,7 +217,7 @@ export const newPractice = (cash = PRACTICE_CASH) => ({ cash, qty: 0, avg: 0, re
  * The stop and the take-profits belong to the position: they go when it is
  * closed or turned the other way round.
  */
-export function practiceFill(acct, { side, qty, price, time, why = "" }) {
+export function practiceFill(acct, { side, qty, price, time, why = "", range = null, was = null }) {
   const n = Number(qty);
   if (!(n > 0) || !(price > 0)) return acct;
   const signed = side === "buy" ? n : -n;
@@ -235,7 +235,9 @@ export function practiceFill(acct, { side, qty, price, time, why = "" }) {
   const keep = q !== 0 && Math.sign(q) === before;
   return {
     ...acct, qty: q, avg, realized, cash: acct.cash - signed * price,
-    trades: [...acct.trades, { side, qty: n, price, time, why }],
+    // `range`: the low and high of the candle it was made in (the prices it
+    // may be changed to); `was`: the price it first filled at, once changed.
+    trades: [...acct.trades, { side, qty: n, price, time, why, ...(range ? { range } : {}), ...(was ? { was } : {}) }],
     stop: keep ? acct.stop : null, targets: keep ? acct.targets : []
   };
 }
@@ -248,12 +250,66 @@ export function practiceFill(acct, { side, qty, price, time, why = "" }) {
  * same way round; they go with it otherwise. `index`: the fill's place in
  * `acct.trades`.
  */
+// The cash an account started with, before its fills.
+const startCash = (acct) => acct.trades.reduce((c, t) => c + (t.side === "buy" ? 1 : -1) * t.qty * t.price, acct.cash);
+
 export function cancelFill(acct, index) {
   if (!acct || !(index >= 0 && index < acct.trades.length)) return acct;
-  let out = { ...newPractice(0), seq: acct.seq || 0 };
+  let out = { ...newPractice(startCash(acct)), seq: acct.seq || 0 };
   acct.trades.forEach((t, i) => { if (i !== index) out = practiceFill(out, t); });
   const same = out.qty !== 0 && Math.sign(out.qty) === Math.sign(acct.qty);
-  return { ...out, stop: same ? acct.stop : null, targets: same ? acct.targets : [] };
+  return { ...out, stop: same ? acct.stop : null, targets: same ? acct.targets : [], orders: acct.orders || [] };
+}
+
+/**
+ * A practice fill at another price (2 Nov, the owner: "change the replay
+ * entry and exit prices not based on the candle close only"): any price the
+ * candle it was made in traded at (`range`, when known), the account built
+ * again from its fills in order. Returns { acct } or { acct, reason }.
+ */
+export function repriceFill(acct, index, price) {
+  const t = acct?.trades?.[index];
+  if (!t) return { acct, reason: "That fill is not there any more." };
+  if (!(price > 0)) return { acct, reason: "Enter a price." };
+  if (t.range && (price < t.range.low - 1e-9 || price > t.range.high + 1e-9)) {
+    return { acct, reason: `${px(price)} is outside that candle: it traded from ${px(t.range.low)} to ${px(t.range.high)}.` };
+  }
+  let out = { ...newPractice(startCash(acct)), seq: acct.seq || 0 };
+  acct.trades.forEach((x, i) => { out = practiceFill(out, i === index ? { ...x, price, was: Math.abs(price - (x.was ?? x.price)) < 1e-9 ? null : (x.was ?? x.price) } : x); });
+  const same = out.qty !== 0 && Math.sign(out.qty) === Math.sign(acct.qty);
+  return { acct: { ...out, stop: same ? acct.stop : null, targets: same ? acct.targets : [], orders: acct.orders || [] } };
+}
+
+/**
+ * A practice order to buy or sell at a price, working until the replay
+ * reaches it: below the price now a buy is a limit and a sell a stop, above
+ * it the other way round. `last`: the price now.
+ */
+export function addOrder(acct, { side, qty, price }, last) {
+  const n = Number(qty);
+  if (!(n > 0)) return { acct, reason: "Enter a quantity." };
+  if (!(price > 0)) return { acct, reason: "Enter a price." };
+  if (!(last > 0)) return { acct, reason: "No replay price yet: step forward once." };
+  const kind = (side === "buy") === (price < last) ? "limit" : "stop";
+  const seq = (acct.seq || 0) + 1;
+  return { acct: { ...acct, seq, orders: [...(acct.orders || []), { id: seq, side, qty: n, price, kind }] }, kind };
+}
+
+export const cancelOrder = (acct, id) => ({ ...acct, orders: (acct.orders || []).filter((o) => o.id !== id) });
+
+/**
+ * The working orders against one minute, oldest first. A limit fills at its
+ * price or the better open; a stop at its price or the worse open (a gap).
+ */
+export function triggerOrders(acct, m) {
+  let a = acct;
+  for (const o of acct.orders || []) {
+    const up = (o.side === "buy") === (o.kind === "stop");
+    if (up ? m.high < o.price : m.low > o.price) continue;
+    const price = up ? Math.max(o.price, m.open) : Math.min(o.price, m.open);
+    a = practiceFill({ ...a, orders: (a.orders || []).filter((x) => x.id !== o.id) }, { side: o.side, qty: o.qty, price, time: m.time, why: o.kind === "limit" ? "limit" : "stoporder" });
+  }
+  return a;
 }
 
 /** Equity, open profit and loss, and the position's value at a price. */

@@ -810,7 +810,7 @@ export default function Terminal() {
                 trades={Object.values(session.book).reduce((n, a) => n + a.trades.length, 0)} symbol={symbol} crypto={crypto}
                 name={session.name || ""} onRename={replay.rename} at={session.at} onSave={() => { replay.save(true); notify({ key: "rpsave", tone: "ok", title: "Replay saved", detail: `${session.name}: kept in Replay results until you delete it.` }); }} savedAt={(savedReplays || []).find((k) => k.id === session.id)?.savedAt ?? null}
                 onPlay={replay.toggle} onStep={replay.step} onStepBack={replay.stepBack} onRestart={replay.restart} onUnit={replay.setUnit} onSpeed={replay.setSpeed} onJump={replay.jump} onExit={replay.exit}
-                onTrade={(side, qty) => replay.trade(symbol, side, qty)} onFlatten={() => replay.flatten(symbol, 100)} onStop={(kind, price) => replay.setExit(symbol, kind, price)}
+                onTrade={(side, qty, at) => replay.trade(symbol, side, qty, "", at)} onFlatten={() => replay.flatten(symbol, 100)} onStop={(kind, price) => replay.setExit(symbol, kind, price)}
                 onAddTarget={(price, size) => replay.addTarget(symbol, price, size)} onRemoveTarget={(id) => replay.removeTarget(symbol, id)}
               />
             )}
@@ -845,7 +845,8 @@ export default function Terminal() {
           <div className="min-h-0 flex-1">
             {tab === "practice" && (session || lastReplay) && (
               <PracticePositions book={session ? session.book : lastReplay.book} priceOf={session ? replay.priceOf : (s) => lastReplay.prices[s] ?? null}
-                ended={!session} onPick={setSymbol} onFlatten={(s) => replay.flatten(s, 100)} onCancel={replay.cancelFill} />
+                ended={!session} onPick={setSymbol} onFlatten={(s) => replay.flatten(s, 100)} onCancel={replay.cancelFill}
+                onReprice={replay.repriceFill} onCancelOrder={replay.cancelOrder} />
             )}
             {tab === "results" && (
               <SavedResults saved={savedReplays || []} current={session ? { id: session.id, name: session.name, book: session.book, priceOf: replay.priceOf, start: session.start, cursor: session.cursor, crypto: session.crypto } : null}

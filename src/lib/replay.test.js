@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { replayCandles, nextCursor, inSession, dayOf, practiceFill, practiceValue, triggerExits, practiceExit, addTarget, removeTarget, targetSize, newPractice, countBefore, rollMinutes, roundTrips, tradeStats, bookValue, bookTrips, acctIn, prevCursor, replayMoment, replayDate, cancelFill } from "./replay.js";
+import { replayCandles, nextCursor, inSession, dayOf, practiceFill, practiceValue, triggerExits, practiceExit, addTarget, removeTarget, targetSize, newPractice, countBefore, rollMinutes, roundTrips, tradeStats, bookValue, bookTrips, acctIn, prevCursor, replayMoment, replayDate, cancelFill, repriceFill, addOrder, cancelOrder, triggerOrders } from "./replay.js";
 
 // New York is UTC-4 in October: 9:30 is 13:30Z.
 const ny = (date, hhmm) => {
@@ -326,4 +326,48 @@ test("a practice fill cancelled: gone from the position, the P&L and the round t
   const none = [2, 1, 0].reduce((x, i) => cancelFill(x, i), a);
   assert.deepEqual([none.qty, none.realized, none.cash, none.trades.length], [0, 0, 0, 0]);
   assert.equal(cancelFill(a, 9), a);
+});
+
+test("a fill at another price within its candle: the account built again, the first price kept", () => {
+  let a = practiceFill(newPractice(), { side: "buy", qty: 10, price: 105, time: 1, range: { low: 100, high: 106 } });
+  a = practiceExit(a, "stop", 98, 105).acct;
+  a = practiceFill(a, { side: "sell", qty: 4, price: 110, time: 2, range: { low: 108, high: 111 } });
+  const out = repriceFill(a, 0, 101);
+  assert.equal(out.reason, undefined);
+  assert.equal(out.acct.avg, 101);
+  assert.equal(out.acct.realized, 4 * (110 - 101));
+  assert.equal(out.acct.trades[0].was, 105);
+  assert.equal(out.acct.stop, 98);
+  assert.equal(out.acct.cash, a.cash + 10 * 4);
+  // Outside its candle: refused; back to the first price: no "was".
+  assert.match(repriceFill(a, 0, 99).reason, /outside that candle/);
+  assert.equal(repriceFill(out.acct, 0, 105).acct.trades[0].was, undefined);
+  // An exit by hand changed too.
+  assert.equal(repriceFill(a, 1, 111).acct.realized, 4 * (111 - 105));
+});
+
+test("practice orders at a price: limit or stop by where the price is, filled when a minute reaches them", () => {
+  const a = newPractice();
+  const buyLow = addOrder(a, { side: "buy", qty: 10, price: 95 }, 100);
+  assert.equal(buyLow.kind, "limit");
+  assert.equal(addOrder(a, { side: "buy", qty: 10, price: 105 }, 100).kind, "stop");
+  assert.equal(addOrder(a, { side: "sell", qty: 10, price: 105 }, 100).kind, "limit");
+  assert.equal(addOrder(a, { side: "sell", qty: 10, price: 95 }, 100).kind, "stop");
+  let b = buyLow.acct;
+  b = triggerOrders(b, { time: 60, open: 99, high: 99.5, low: 96, close: 97 });
+  assert.equal(b.qty, 0);
+  assert.equal(b.orders.length, 1);
+  // Opened below the limit: the better open.
+  b = triggerOrders(b, { time: 120, open: 94, high: 96, low: 93, close: 95 });
+  assert.deepEqual([b.qty, b.avg, b.orders.length, b.trades[0].why], [10, 94, 0, "limit"]);
+  // A sell stop through a gap fills at the worse open.
+  let c = addOrder(b, { side: "sell", qty: 10, price: 90 }, 95).acct;
+  c = triggerOrders(c, { time: 180, open: 88, high: 89, low: 87, close: 88 });
+  assert.deepEqual([c.qty, c.realized, c.trades[1].why], [0, (88 - 94) * 10, "stoporder"]);
+  // Cancelled: gone, and kept through a cancelled fill.
+  const d = addOrder(newPractice(), { side: "buy", qty: 1, price: 50 }, 60).acct;
+  assert.equal(cancelOrder(d, d.orders[0].id).orders.length, 0);
+  const e = practiceFill(d, { side: "buy", qty: 1, price: 60, time: 1 });
+  assert.equal(cancelFill(e, 0).orders.length, 1);
+  assert.match(addOrder(a, { side: "buy", qty: 1, price: 10 }, null).reason, /No replay price/);
 });
