@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight, RotateCcw, X, History, Save } from "lucide-react";
-import { px, sizeText } from "@/lib/terminal";
+import { px, sizeText, amountToQty } from "@/lib/terminal";
+import useAccountSetting from "@/components/terminal/useAccountSetting";
 import { replayClock } from "@/lib/replay";
 import { fmtMoney } from "@/lib/format";
 
@@ -146,6 +147,14 @@ export default function ReplayBar({ clock, playing, loading, note, unit, speed, 
   const [qty, setQty] = useState(crypto ? "0.1" : "100");
   // A price for the practice order: blank buys or sells at the price now.
   const [orderAt, setOrderAt] = useState("");
+  // Practice size in shares (coins) or in dollars (2 Nov, the owner: "I need
+  // to be able to buy in dollars, not just quantities"), the choice kept with
+  // the account. Dollars buy whole shares (a coin to its step) at the price
+  // the order goes at: the typed price, else the price now.
+  const [sizeIn, setSizeIn] = useAccountSetting("replayunit", { localKey: "terminal.replayUnit", initial: () => "qty", clean: (v) => (v === "usd" ? "usd" : "qty"), fromLocal: (raw) => raw, toLocal: (v) => v });
+  const [dollars, setDollars] = useState("5000");
+  const sizeAt = Number(orderAt) > 0 ? Number(orderAt) : price;
+  const tradeQty = sizeIn === "usd" ? amountToQty(dollars, sizeAt, { crypto, step: crypto ? 1e-9 : null }) : Number(qty);
   // What a typed price does: inside the candle on screen it fills now; one
   // the candle did not reach waits as a limit or a stop.
   const atNum = Number(orderAt);
@@ -211,11 +220,26 @@ export default function ReplayBar({ clock, playing, loading, note, unit, speed, 
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="font-medium">Practice <b>{symbol}</b></span>
-        <input className={`${field} w-16`} inputMode="decimal" value={qty} onChange={(e) => setQty(e.target.value.replace(/[^\d.]/g, ""))} aria-label="Practice quantity" />
+        <div className="flex overflow-hidden rounded border border-amber-300" role="group" aria-label="Size in">
+          {[["qty", crypto ? "Qty" : "Shares"], ["usd", "$"]].map(([id, name]) => (
+            <button key={id} type="button" aria-pressed={sizeIn === id} onClick={() => setSizeIn(id)}
+              className={`px-1.5 py-0.5 ${sizeIn === id ? "bg-amber-600 text-white" : "bg-white text-amber-900 hover:bg-amber-100"}`}>{name}</button>
+          ))}
+        </div>
+        {sizeIn === "usd" ? (
+          <>
+            <input className={`${field} w-20`} inputMode="decimal" value={dollars} onChange={(e) => setDollars(e.target.value.replace(/[^\d.]/g, ""))} aria-label="Practice amount in dollars" />
+            <span className="text-[10px] tabular-nums text-amber-900" title="What the dollars buy at the price the order goes at">
+              {tradeQty > 0 ? `= ${sizeText(tradeQty)} ${crypto ? "" : "sh "}≈ ${fmtMoney(tradeQty * sizeAt)}` : sizeAt > 0 ? "less than 1 share" : ""}
+            </span>
+          </>
+        ) : (
+          <input className={`${field} w-16`} inputMode="decimal" value={qty} onChange={(e) => setQty(e.target.value.replace(/[^\d.]/g, ""))} aria-label="Practice quantity" />
+        )}
         <input className={`${field} w-20`} inputMode="decimal" value={orderAt} onChange={(e) => setOrderAt(e.target.value.replace(/[^\d.]/g, ""))} aria-label="Practice order price"
           placeholder="at price" title="Blank: at the price now. A price this candle traded at: filled now at that price. Any other price: an order that waits until the replay gets there (a limit, or a stop on the other side)." />
-        <button type="button" onClick={() => { onTrade("buy", Number(qty), Number(orderAt) || null); setOrderAt(""); }} className="rounded bg-emerald-600 px-2 py-0.5 font-semibold text-white hover:bg-emerald-700">{`Buy${what("buy")}`}</button>
-        <button type="button" onClick={() => { onTrade("sell", Number(qty), Number(orderAt) || null); setOrderAt(""); }} className="rounded bg-rose-600 px-2 py-0.5 font-semibold text-white hover:bg-rose-700">{`Sell${what("sell")}`}</button>
+        <button type="button" disabled={!(tradeQty > 0)} onClick={() => { onTrade("buy", tradeQty, Number(orderAt) || null); setOrderAt(""); }} className="rounded bg-emerald-600 px-2 py-0.5 font-semibold text-white hover:bg-emerald-700 disabled:opacity-40">{`Buy${what("buy")}`}</button>
+        <button type="button" disabled={!(tradeQty > 0)} onClick={() => { onTrade("sell", tradeQty, Number(orderAt) || null); setOrderAt(""); }} className="rounded bg-rose-600 px-2 py-0.5 font-semibold text-white hover:bg-rose-700 disabled:opacity-40">{`Sell${what("sell")}`}</button>
         {atNum > 0 && <span className={`text-[10px] ${inCandle ? "text-emerald-700" : "text-amber-700"}`}>{inCandle ? `fills now (this candle ${px(range.low)} to ${px(range.high)})` : `waits until the price gets to ${orderAt}${range ? `; this candle ${px(range.low)} to ${px(range.high)}` : ""}`}</span>}
         <button type="button" onClick={onFlatten} disabled={!pos} className="rounded border border-amber-400 px-2 py-0.5 hover:bg-amber-100 disabled:opacity-40">Flatten</button>
         <StopField level={acct?.stop} pos={pos} onSet={onStop} />
