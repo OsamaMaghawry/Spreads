@@ -239,3 +239,8 @@ test("far floor: half way down or more is flagged; a normal floor is not", () =>
   assert.equal(farFloor(28.75, 25), null);
   assert.equal(farFloor(null, 5), null);
 });
+
+test("holding actions: a price of 0 is no price, so repair is not offered", () => {
+  const lot = { shares: true, shareQty: 100, qty: 100, shareBasis: 120, stockPrice: 0, longCurrentPrice: 0 };
+  assert.deepEqual(holdingActions(lot), { protect: true, repair: false });
+});
