@@ -77,11 +77,31 @@ const CALENDAR = ["1Day", "1Week", "1Month"];
 const SECONDS_INTERVALS = ["5Sec", "10Sec", "15Sec", "30Sec"];
 const HOURLY = ["1Hour", "2Hour", "4Hour"];
 
-const loadDrawings = (symbol) => {
-  try { return readDrawings(localStorage.getItem(DRAW_KEY), symbol); } catch { return []; }
+// The replay has its own drawings and indicators, apart from the live
+// chart's (2 Nov, the owner: "if I wanted to go back and do some stuff on the
+// replay part, I don't want to mess with the lines ... So I need to separate
+// them"). The first time a symbol or the indicators are used in the replay,
+// they start as a copy of the live ones, so nothing drawn before is lost on
+// either side; from then on each keeps its own.
+const SPACE = {
+  live: { draw: DRAW_KEY, drawPref: "drawings", ind: IND_KEY, indPref: "indicators" },
+  replay: { draw: `${DRAW_KEY}.replay`, drawPref: "rpdrawings", ind: `${IND_KEY}.replay`, indPref: "rpindicators" }
 };
-const saveDrawings = (symbol, drawings) => {
-  try { localStorage.setItem(DRAW_KEY, writeDrawings(localStorage.getItem(DRAW_KEY), symbol, drawings)); } catch { /* private window */ }
+// A symbol's drawings in this browser: null when that space has none kept.
+const loadDrawings = (symbol, space = "live") => {
+  try {
+    const all = JSON.parse(localStorage.getItem(SPACE[space].draw) || "{}");
+    return Object.prototype.hasOwnProperty.call(all || {}, symbol) ? readDrawings(localStorage.getItem(SPACE[space].draw), symbol) : null;
+  } catch { return null; }
+};
+const saveDrawings = (symbol, drawings, space = "live") => {
+  const k = SPACE[space].draw;
+  try { localStorage.setItem(k, writeDrawings(localStorage.getItem(k), symbol, drawings)); } catch { /* private window */ }
+};
+const loadIndicators = (space) => {
+  const raw = read(SPACE[space].ind, null);
+  if (raw === null) return null;
+  try { return cleanIndicators(JSON.parse(raw)); } catch { return null; }
 };
 // On a touch screen a finger dragged up or down scrolls the page and one
 // dragged sideways moves the chart (1 Nov, the owner, on the phone: "I cannot
@@ -144,9 +164,18 @@ function PriceChart({
   });
   const sessionRef = useRef(session);
   sessionRef.current = session;
-  const [indicators, setIndicators] = useState(() => {
-    try { return cleanIndicators(JSON.parse(read(IND_KEY, "[]"))); } catch { return []; }
-  });
+  // Live or replay (see SPACE): which drawings and indicators are on screen.
+  const space = replayOn ? "replay" : "live";
+  const spaceRef = useRef(space);
+  spaceRef.current = space;
+  // Each space's indicators; the replay's is null until it has its own.
+  const [indBy, setIndBy] = useState(() => ({ live: loadIndicators("live") || [], replay: loadIndicators("replay") }));
+  const indicators = (space === "replay" ? indBy.replay : null) ?? indBy.live;
+  const setIndicators = useCallback((next) => setIndBy((b) => {
+    const sp = spaceRef.current;
+    const cur = (sp === "replay" ? b.replay : null) ?? b.live;
+    return { ...b, [sp]: typeof next === "function" ? next(cur) : next };
+  }), []);
   const indicatorsRef = useRef(indicators);
   indicatorsRef.current = indicators;
   const indSeriesRef = useRef([]);
@@ -213,8 +242,8 @@ function PriceChart({
     drawingsRef.current = next;
     drawVersion.current += 1;
     setDrawings(next);
-    saveDrawings(symbolRef.current, next);
-    savePref(`drawings:${symbolRef.current}`, cleanDrawings(next));
+    saveDrawings(symbolRef.current, next, spaceRef.current);
+    savePref(`${SPACE[spaceRef.current].drawPref}:${symbolRef.current}`, cleanDrawings(next));
     layerRef.current?.update();
   }, []);
 
@@ -483,7 +512,10 @@ function PriceChart({
   // Each symbol has its own drawings: this browser's at once, then the
   // account's copy, which wins unless a drawing changed in the meantime.
   useEffect(() => {
-    const list = loadDrawings(symbol);
+    const sp = space;
+    const own = loadDrawings(symbol, sp);
+    // The replay's first look at a symbol: the live drawings, as a copy.
+    const list = own ?? (sp === "replay" ? loadDrawings(symbol, "live") || [] : []);
     drawingsRef.current = list;
     draftRef.current = null;
     selectedRef.current = null;
@@ -492,32 +524,60 @@ function PriceChart({
     setSelectedState(null);
     setConfirmClear(false);
     layerRef.current?.update();
-    const key = `drawings:${symbol}`;
+    const key = `${SPACE[sp].drawPref}:${symbol}`;
+    const liveKey = `drawings:${symbol}`;
     const version = drawVersion.current;
     let alive = true;
-    readPrefs([key]).then((p) => {
+    readPrefs(sp === "replay" ? [key, liveKey] : [key]).then((p) => {
       if (!alive || drawVersion.current !== version) return;
-      const s = settle(Array.isArray(p[key]) ? cleanDrawings(p[key]) : null, list);
+      let fromAccount = Array.isArray(p[key]) ? cleanDrawings(p[key]) : null;
+      // Nothing kept for the replay yet: it starts from the live drawings.
+      if (sp === "replay" && fromAccount === null && own === null) {
+        const seed = Array.isArray(p[liveKey]) ? cleanDrawings(p[liveKey]) : list;
+        saveDrawings(symbol, seed, sp);
+        savePref(key, seed);
+        fromAccount = seed;
+      }
+      const s = settle(fromAccount, own ?? (sp === "live" ? list : null));
       if (s.upload) { if (list.length) savePref(key, cleanDrawings(list)); return; }
       if (!s.value || JSON.stringify(s.value) === JSON.stringify(list)) return;
       drawingsRef.current = s.value;
       setDrawings(s.value);
-      saveDrawings(symbol, s.value);
+      saveDrawings(symbol, s.value, sp);
       layerRef.current?.update();
     }).catch(() => {});
     return () => { alive = false; };
-  }, [symbol]);
+  }, [symbol, space]);
 
   // Indicators and the chart events shown, from the account once read.
   const chartPrefsSynced = useRef(false);
+  const [indSynced, setIndSynced] = useState(false);
+  // The replay's first use of indicators: the live ones, as a copy of its own.
+  useEffect(() => {
+    if (space === "replay" && indSynced && indBy.replay == null) setIndBy((b) => (b.replay == null ? { ...b, replay: b.live } : b));
+  }, [space, indSynced, indBy.replay]);
+  // Each space's list kept in this browser and with the account.
+  useEffect(() => {
+    write(IND_KEY, JSON.stringify(indBy.live));
+    if (indSynced) savePref("indicators", indBy.live);
+  }, [indBy.live, indSynced]);
+  useEffect(() => {
+    if (indBy.replay == null) return;
+    write(SPACE.replay.ind, JSON.stringify(indBy.replay));
+    if (indSynced) savePref("rpindicators", indBy.replay);
+  }, [indBy.replay, indSynced]);
   useEffect(() => {
     let alive = true;
-    readPrefs(["indicators", "events", "trades"]).then((p) => {
+    readPrefs(["indicators", "rpindicators", "events", "trades"]).then((p) => {
       if (!alive) return;
       chartPrefsSynced.current = true;
-      const ind = settle(Array.isArray(p.indicators) ? cleanIndicators(p.indicators) : null, indicatorsRef.current);
+      const liveNow = loadIndicators("live") || [];
+      const ind = settle(Array.isArray(p.indicators) ? cleanIndicators(p.indicators) : null, liveNow);
       if (ind.upload) savePref("indicators", ind.value);
-      else if (ind.value && JSON.stringify(ind.value) !== JSON.stringify(indicatorsRef.current)) setIndicators(ind.value);
+      const rp = settle(Array.isArray(p.rpindicators) ? cleanIndicators(p.rpindicators) : null, loadIndicators("replay"));
+      if (rp.upload) savePref("rpindicators", rp.value);
+      setIndBy((b) => ({ live: ind.value || b.live, replay: rp.value ?? b.replay }));
+      setIndSynced(true);
       if (Array.isArray(p.events)) setShown(cleanShown(p.events));
       else savePref("events", shownRef.current);
       if (p.trades && typeof p.trades === "object") setMarks(cleanMarks(p.trades));
@@ -778,8 +838,6 @@ function PriceChart({
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
-    write(IND_KEY, JSON.stringify(indicators));
-    if (chartPrefsSynced.current) savePref("indicators", indicators);
     for (const { series } of indSeriesRef.current) series.forEach((x) => { try { chart.removeSeries(x); } catch { /* gone */ } });
     for (let i = chart.panes().length - 1; i >= 1; i--) { try { chart.removePane(i); } catch { /* gone */ } }
     let pane = 0;

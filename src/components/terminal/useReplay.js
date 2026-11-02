@@ -325,6 +325,8 @@ export default function useReplay({ accountId, notify }) {
         self.resume(kept);
         patch({ note: `Brought up to date from your other window: ${replayClock(kept.cursor, !!kept.crypto)}.` });
       },
+      // Whether a replay is running, at once (before the page draws again).
+      on() { return !!ref.current; },
       // Kept now (the timer does this every two seconds while it runs).
       save(running = true) { if (ref.current) keep(snapshot(running)); },
       // A saved replay renamed, running or not.

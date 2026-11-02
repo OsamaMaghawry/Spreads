@@ -100,6 +100,23 @@ const NO_DRAG = "button, input, select, textarea, a, .no-drag";
 export default function Terminal() {
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState("");
+  // Order pop-ups: one per order (its key), replaced as the order moves.
+  // Good news and quiet endings leave by themselves; a problem stays until
+  // it is closed, and an order still on its way stays until it lands.
+  const [toasts, setToasts] = useState([]);
+  const toastTimers = useRef({});
+  const closeToast = useCallback((key) => {
+    clearTimeout(toastTimers.current[key]);
+    setToasts((list) => list.filter((t) => t.key !== key));
+  }, []);
+  const notify = useCallback((t) => {
+    setToasts((list) => [...list.filter((x) => x.key !== t.key), t].slice(-3));
+    clearTimeout(toastTimers.current[t.key]);
+    if (t.tone === "ok" || t.tone === "muted") toastTimers.current[t.key] = setTimeout(() => closeToast(t.key), t.title === "Order placed" ? 9000 : 7000);
+  }, [closeToast]);
+  // The bar replay (components/terminal/useReplay.js): while it runs, the
+  // hotkeys and the replay bar trade its practice account.
+  const { session, version: replayVersion, last: lastReplay, saved: savedReplays, replay } = useReplay({ accountId, notify });
   // The watchlists (lib/terminal cleanWatchlists): several, kept with the
   // account, the one picked on screen; the single list kept before is the
   // first, "Main". `watch` is the one on screen, `setWatch` changes it.
@@ -115,14 +132,28 @@ export default function Terminal() {
   // The charts: each its symbol and interval, and which one is active.
   // Every setting below is kept with the person's account, not this browser
   // (27 Oct: "I said before account not browser"; useAccountSetting.js).
-  const [panes, setPanes] = useAccountSetting("panes", {
-    localKey: PANES_KEY,
-    initial: () => ({ list: [{ symbol: watch[0], interval: "5Min" }], active: 0 }),
-    clean: (p) => {
-      const list = (Array.isArray(p?.list) ? p.list : []).filter((x) => x && typeof x.symbol === "string" && x.symbol && typeof x.interval === "string").slice(0, 4);
-      return list.length ? { list, active: Math.min(Math.max(0, Number(p.active) || 0), list.length - 1) } : { list: [{ symbol: watch[0], interval: "5Min" }], active: 0 };
-    }
+  const cleanPanes = (p) => {
+    const list = (Array.isArray(p?.list) ? p.list : []).filter((x) => x && typeof x.symbol === "string" && x.symbol && typeof x.interval === "string").slice(0, 4);
+    return list.length ? { list, active: Math.min(Math.max(0, Number(p.active) || 0), list.length - 1) } : { list: [{ symbol: watch[0], interval: "5Min" }], active: 0 };
+  };
+  const [livePanes, setLivePanes] = useAccountSetting("panes", {
+    localKey: PANES_KEY, initial: () => ({ list: [{ symbol: watch[0], interval: "5Min" }], active: 0 }), clean: cleanPanes
   });
+  // The replay's own charts, symbols and intervals (2 Nov, the owner: the
+  // replay "is different from the normal part ... I need to separate
+  // everything"): live charts are as left when the replay ends. Until the
+  // replay has its own, it starts from the live ones.
+  const [replayPanes, setReplayPanes] = useAccountSetting("rppanes", {
+    localKey: `${PANES_KEY}.replay`, initial: () => null, clean: (p) => (p?.list ? cleanPanes(p) : null)
+  });
+  const panes = session ? (replayPanes || livePanes) : livePanes;
+  const livePanesRef = useRef(livePanes);
+  livePanesRef.current = livePanes;
+  // A change goes to the charts on screen: the replay's while one runs.
+  const setPanes = useCallback((next) => {
+    if (replay.on()) setReplayPanes((p) => { const base = p || livePanesRef.current; return typeof next === "function" ? next(base) : next; });
+    else setLivePanes(next);
+  }, [replay, setLivePanes, setReplayPanes]);
   const symbol = panes.list[panes.active]?.symbol || watch[0];
   const setSymbol = useCallback((s) => setPanes((p) => ({ ...p, list: p.list.map((x, i) => (i === p.active ? { ...x, symbol: s } : x)) })), []);
   // One setter per chart, made once, so a chart is not drawn again for a new function.
@@ -143,20 +174,6 @@ export default function Terminal() {
   useEffect(() => { if (page === "screen") setScreenSeen(true); }, [page]);
   pageRef.current = page;
 
-  // Order pop-ups: one per order (its key), replaced as the order moves.
-  // Good news and quiet endings leave by themselves; a problem stays until
-  // it is closed, and an order still on its way stays until it lands.
-  const [toasts, setToasts] = useState([]);
-  const toastTimers = useRef({});
-  const closeToast = useCallback((key) => {
-    clearTimeout(toastTimers.current[key]);
-    setToasts((list) => list.filter((t) => t.key !== key));
-  }, []);
-  const notify = useCallback((t) => {
-    setToasts((list) => [...list.filter((x) => x.key !== t.key), t].slice(-3));
-    clearTimeout(toastTimers.current[t.key]);
-    if (t.tone === "ok" || t.tone === "muted") toastTimers.current[t.key] = setTimeout(() => closeToast(t.key), t.title === "Order placed" ? 9000 : 7000);
-  }, [closeToast]);
   const quoteRef = useRef(null);
   const crypto = isCrypto(symbol);
 
@@ -402,9 +419,6 @@ export default function Terminal() {
     localKey: HOTKEYS_ON_KEY, initial: () => false, clean: (v) => v === true || v === "1", fromLocal: (raw) => raw === "1", toLocal: (v) => (v ? "1" : "0")
   });
   const [hotkeysOpen, setHotkeysOpen] = useState(false);
-  // The bar replay (components/terminal/useReplay.js): while it runs, the
-  // hotkeys and the replay bar trade its practice account.
-  const { session, version: replayVersion, last: lastReplay, saved: savedReplays, replay } = useReplay({ accountId, notify });
   // A replay left running (the page closed, refreshed, the connection lost):
   // offered to continue, once, until taken or put aside.
   const [replayOffer, setReplayOffer] = useState(true);
@@ -470,7 +484,7 @@ export default function Terminal() {
     if (sessionRef.current) replay.exit();
     else setReplayForm((f) => (f ? null : {}));
   }, [replay]);
-  const startReplay = (form) => { setReplayForm(null); setReplayOffer(false); replay.start(form, isCrypto(symbol), { symbol }); };
+  const startReplay = (form) => { setReplayForm(null); setReplayOffer(false); const s = symbol; replay.start(form, isCrypto(s), { symbol: s }); setSymbol(s); };
   const continueReplay = (kept) => {
     setReplayForm(null);
     setReplayOffer(false);
