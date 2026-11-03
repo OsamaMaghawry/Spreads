@@ -21,8 +21,16 @@
 // Each account can carry its own size instead (27 Oct: "I need to set the
 // quantities by account ... if account is small and I set 1%, it doesn't
 // work with it"): a multiple of its pro-rata share, a percent of its own
-// portfolio, a number of shares, or dollars. These size what is bought or
-// opened; a sale of what is held stays in proportion to each holding.
+// portfolio, a number of shares, or dollars. Since 3 Nov the terminal sends
+// every account with a size of its own or the key's own size as one (the
+// owner's approved design: "Same as the key", $, shares, % of its
+// portfolio), and that size counts on a sale of what is held too, never
+// more than the account holds. Pro rata stays for a size not given.
+//
+// `closing: "group"`: the account on screen is not sent to (not ticked), so
+// whether an order closes is read from the accounts that are: a sale where
+// any of them holds the symbol sells what each holds, and skips one that
+// holds none, rather than opening a short there.
 
 export type Rule = { mode: "prorata" | "times" | "percent" | "shares" | "dollars"; value?: number | null };
 
@@ -55,13 +63,15 @@ export function allocate(
   order: { side: "buy" | "sell"; qty?: number | null; notional?: number | null },
   lead: Book,
   others: Book[],
-  opts: { basis?: "equity" | "buyingPower"; crypto?: boolean; symbol?: string; price?: number | null; pct?: number | null } = {}
+  opts: { basis?: "equity" | "buyingPower"; crypto?: boolean; symbol?: string; price?: number | null; pct?: number | null; closing?: "lead" | "group" } = {}
 ): Share[] {
   const qty = fin(order.qty);
   const notional = fin(order.notional);
   const leadHeld = fin(lead.held) || 0;
   const what = opts.symbol || "it";
-  const reducing = (order.side === "sell" && leadHeld > 0) || (order.side === "buy" && leadHeld < 0);
+  // Whether the order closes a holding: a sale of shares held, a buy back of a short.
+  const closes = (held: number) => (order.side === "sell" && held > 0) || (order.side === "buy" && held < 0);
+  const reducing = opts.closing === "group" ? others.some((b) => closes(fin(b.held) || 0)) : closes(leadHeld);
   // Whole shares unless the lead's own order is in part shares; coins always in parts.
   const step = opts.crypto || (qty !== null && !Number.isInteger(qty)) ? 1e-9 : 1;
   const unit = opts.crypto ? "step" : "share";
@@ -89,6 +99,7 @@ export function allocate(
       const mine = clean(down(v, step));
       return mine > 0 ? { qty: mine } : { skip: `less than one ${unit}` };
     }
+    if (!(price && price > 0)) return { skip: "no price to turn its size into shares" };
     const equity = fin(b.equity);
     if (rule.mode === "percent" && !(equity && equity > 0)) return { skip: "no portfolio value to size from" };
     const dollars = rule.mode === "percent" ? equity! * v / 100 : v;
@@ -98,8 +109,7 @@ export function allocate(
   // Never more than an account holds when the order closes its position.
   const capped = (b: Book, row: any) => {
     const held = fin(b.held) || 0;
-    const closes = (order.side === "sell" && held > 0) || (order.side === "buy" && held < 0);
-    if (!closes || row.qty === null || row.skip) return row;
+    if (!closes(held) || row.qty === null || row.skip) return row;
     const most = Math.abs(held);
     return row.qty >= most ? { ...row, qty: most, all: true } : row;
   };
@@ -113,22 +123,31 @@ export function allocate(
     return { ...row, qty: one, notional: null, all: one >= held, skip: null };
   };
 
-  if (reducing && (qty !== null || pctOn)) {
+  const leadSize = fin(lead[basis]);
+  const cents = (v: number) => Math.floor(v * 100) / 100;
+
+  if (reducing) {
     const leadAbs = Math.abs(leadHeld);
-    const part = qty !== null ? qty / leadAbs : 0;
+    const part = qty !== null && leadAbs > 0 ? qty / leadAbs : null;
     return others.map((b) => atLeastOne(b, ((): Share => {
       const held = fin(b.held) || 0;
-      const same = Math.sign(held) === Math.sign(leadHeld) ? Math.abs(held) : 0;
+      const same = closes(held) ? Math.abs(held) : 0;
       const base = { id: b.id, name: b.name, notional: null, basis: "holding" as const };
       if (!(same > 0)) return { ...base, qty: null, all: false, skip: `holds no ${what} to ${order.side === "sell" ? "sell" : "buy back"}` };
-      if (pctOn) {
-        // Its own size where it has one (a small account's 10%, say), else the
-        // key's percent of its own portfolio; never more than it holds.
-        const rule = b.rule && RULES.has(b.rule.mode) ? b.rule : null;
-        const r = rule && rule.mode !== "times" ? ownRule(b, rule) : ofOwn(b, rule ? fin(rule.value) || 0 : 1);
+      const rule = b.rule && RULES.has(b.rule.mode) ? b.rule : null;
+      // Its own size (or the key's, sent as its own), never more than it holds.
+      if (rule && rule.mode !== "times") {
+        const r = ownRule(b, rule);
         if (r.skip) return { ...base, qty: null, all: false, skip: r.skip };
         return { ...base, qty: Math.min(r.qty!, same), all: r.qty! >= same, skip: null };
       }
+      if (pctOn) {
+        // The key's percent of its own portfolio (times its multiple); never more than it holds.
+        const r = ofOwn(b, rule ? fin(rule.value) || 0 : 1);
+        if (r.skip) return { ...base, qty: null, all: false, skip: r.skip };
+        return { ...base, qty: Math.min(r.qty!, same), all: r.qty! >= same, skip: null };
+      }
+      if (part === null) return capped(b, share(b));
       if (part >= 1 - 1e-9) return { ...base, qty: same, all: true, skip: null };
       const mine = clean(down(same * part, step));
       if (!(mine > 0)) return { ...base, qty: null, all: false, skip: `its part of ${same} comes to less than one ${unit}` };
@@ -136,8 +155,6 @@ export function allocate(
     })()));
   }
 
-  const leadSize = fin(lead[basis]);
-  const cents = (v: number) => Math.floor(v * 100) / 100;
   return others.map((b) => capped(b, atLeastOne(b, share(b))));
   function share(b: Book): Share {
     // The account's own size, where it has one.

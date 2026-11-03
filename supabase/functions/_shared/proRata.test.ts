@@ -92,10 +92,35 @@ test("each account's own size: a multiple, a percent of its portfolio, shares, d
   assert.equal(allocate(order, lead127, [{ ...small, rule: { mode: "prorata" } }], opts)[0].qty, 4);
 });
 
-test("selling what is held stays in proportion to the holding, whatever the account's own size", () => {
+// 3 Nov, the owner's approved design: each account at its own size or the
+// key's, on a sale of what it holds too, never more than it holds.
+test("selling what is held: each account's own size, never more than it holds; pro rata where it has none", () => {
   const holder = { ...lead, held: 100 };
   const [o] = allocate({ side: "sell", qty: 50 }, holder, [{ ...half, held: 30, rule: { mode: "shares", value: 500 } }], { price: 10 });
-  assert.deepEqual([o.qty, o.basis], [15, "holding"]);
+  assert.deepEqual([o.qty, o.all, o.basis], [30, true, "holding"]);
+  const [d] = allocate({ side: "sell", qty: 50 }, holder, [{ ...half, held: 30, rule: { mode: "dollars", value: 100 } }], { price: 10 });
+  assert.deepEqual([d.qty, d.all], [10, false]);
+  const [p] = allocate({ side: "sell", qty: 50 }, holder, [{ ...half, held: 30 }], { price: 10 });
+  assert.deepEqual([p.qty, p.basis], [15, "holding"]);
+  // No price for a dollar size: said, not guessed.
+  assert.match(allocate({ side: "sell", qty: 50 }, holder, [{ ...half, held: 30, rule: { mode: "dollars", value: 100 } }])[0].skip!, /no price/);
+});
+
+// 3 Nov: the account on screen not ticked; whether the order sells what is
+// held is read from the accounts it goes to.
+test("the account on screen not sent to: a sale where any ticked account holds sells only what each holds", () => {
+  const screen = { ...lead, held: 0 };
+  const holds = { ...half, held: 40, rule: { mode: "dollars" as const, value: 100 } };
+  const flat = { ...big, held: 0, rule: { mode: "dollars" as const, value: 100 } };
+  const [h, f] = allocate({ side: "sell", qty: null }, screen, [holds, flat], { price: 4.39, closing: "group" });
+  assert.deepEqual([h.qty, h.skip], [22, null]);
+  assert.match(f.skip!, /holds no it to sell/);
+  // None holding: a short at each one's size.
+  const [s1, s2] = allocate({ side: "sell", qty: null }, screen, [{ ...holds, held: 0 }, flat], { price: 4.39, closing: "group" });
+  assert.deepEqual([s1.qty, s2.qty], [22, 22]);
+  // A buy: each at its own size, whatever the screen holds.
+  const [b] = allocate({ side: "buy", qty: null }, { ...lead, held: 500 }, [{ ...holds, held: 0, rule: { mode: "shares" as const, value: 7 } }], { price: 4.39, closing: "group" });
+  assert.equal(b.qty, 7);
 });
 
 // 27 Oct: a $600 account on screen, Shift+0 selling 0.5% of the portfolio:

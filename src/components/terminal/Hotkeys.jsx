@@ -36,19 +36,7 @@ function KeyButton({ value, onSet }) {
   );
 }
 
-// Whether an account has a size of its own (else the key's, or pro rata).
-const ownOn = (size) => !!size && size.mode !== "prorata" && Number(size.value) > 0;
-// An account's own size, in words.
-const ownSize = (size) => {
-  const v = Number(size?.value);
-  if (!size || size.mode === "prorata" || !(v > 0)) return "in proportion to its portfolio value";
-  if (size.mode === "dollars") return `$${v.toLocaleString("en-US")} an order`;
-  if (size.mode === "shares") return `${v} shares an order`;
-  if (size.mode === "percent") return `${v}% of its own portfolio an order`;
-  return `${v}× the key's size`;
-};
-
-export default function HotkeysDialog({ open, hotkeys, armed, onArm, onSave, onClose, onScreen = null, onScreenSize = null, also = [] }) {
+export default function HotkeysDialog({ open, hotkeys, armed, onArm, onSave, onClose }) {
   const [draft, setDraft] = useState(hotkeys);
   useEffect(() => { if (open) setDraft(hotkeys.length ? hotkeys : []); }, [open, hotkeys]);
   if (!open) return null;
@@ -73,16 +61,6 @@ export default function HotkeysDialog({ open, hotkeys, armed, onArm, onSave, onC
         <p className="px-4 pt-3 text-xs leading-relaxed text-slate-600">
           A hotkey sends its order at once, with no review, for the symbol on the chart. Keys work on the Trade page while you are not typing in a box, and only when hotkeys are on. During a replay they trade the practice account instead.
         </p>
-        {/* Every account a key reaches, and the size each takes (3 Nov: a size
-            set elsewhere had been replacing the key's, unseen). */}
-        <div className="mx-4 mt-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-          <div><b>{onScreen || "The account on screen"}</b>: {ownOn(onScreenSize) ? <>its own size, <b>{ownSize(onScreenSize)}</b>, on every buy and sell key (not the sizes below). Change it under &ldquo;Also send to&hellip;&rdquo;.</> : "the size on each key below."}</div>
-          {also.length > 0 && (
-            <div className="mt-1">
-              Also sent to {also.map((a, i) => <span key={a.id}>{i ? "; " : ""}<b>{a.name}</b> at {ownSize(a.size)}</span>)}. Change those under &ldquo;Also send to&hellip;&rdquo; beside the account.
-            </div>
-          )}
-        </div>
         <div className="space-y-2 px-4 py-3">
           {draft.length === 0 && (
             <div className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm text-slate-600">

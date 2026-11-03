@@ -1512,8 +1512,10 @@ async function allocation(admin: any, user: any, lead: any, ids: unknown, input:
   const ready = (books.filter((b: any) => b && !b.error) as any[]).map((b) => ({ ...b, rule: groupRule(ids, b.id) }));
   // The order's own price, for a size set in dollars or percent.
   const price = given(input?.limitPrice) ?? given(input?.stopPrice) ?? given(input?.reference);
+  // The account on screen not ticked (input.leadOff, 3 Nov): whether the
+  // order closes a holding is read from the accounts it goes to.
   const shares = allocate({ side, qty: given(input?.qty), notional: given(input?.notional) }, leadBook, ready,
-    { basis: input?.basis === "buyingPower" ? "buyingPower" : "equity", crypto, symbol, price, pct: given(input?.pct) });
+    { basis: input?.basis === "buyingPower" ? "buyingPower" : "equity", crypto, symbol, price, pct: given(input?.pct), closing: input?.leadOff === true ? "group" : "lead" });
   const rows = group.map((g, i) => {
     const b: any = books[i];
     if (!g.account) return groupRow(g.id, null, { skip: "not an account the terminal can trade" });
@@ -1530,7 +1532,11 @@ async function orderForGroup(admin: any, user: any, lead: any, ids: unknown, inp
   // sent: the lead's own sale must not change what the others' shares read.
   // With the lead's book from the browser, its order goes at once, alongside
   // the reading of the others'; without it, after.
-  const leadOff = given(input?.qty) === null && given(input?.notional) === null;
+  // Not sent on the account on screen: it is not ticked (input.leadOff, 3
+  // Nov: orders go to the ticked accounts only), or its size there came to
+  // nothing.
+  const notTicked = input?.leadOff === true;
+  const leadOff = notTicked || (given(input?.qty) === null && given(input?.notional) === null);
   // Its own trouble stays its own: a throw here is its refusal, not the group's.
   const own = () => placeOrder(admin, user, lead, input).catch((e: Error) => ({ status: 422, body: { error: String(e?.message || e) } as any }));
   const early = input?.leadBook && !leadOff ? own() : null;
@@ -1554,7 +1560,8 @@ async function orderForGroup(admin: any, user: any, lead: any, ids: unknown, inp
   // Too small on the account on screen alone (a hotkey's size there under one
   // share): nothing sent there, the others still take theirs.
   const [r, ...group] = await Promise.all([
-    leadOff ? Promise.resolve({ status: 200, body: { skipped: String(input?.leadSkip || "Too small on this account.") } as any }) : early ?? own(),
+    notTicked ? Promise.resolve({ status: 200, body: { leadOff: true } as any })
+      : leadOff ? Promise.resolve({ status: 200, body: { skipped: String(input?.leadSkip || "Too small on this account.") } as any }) : early ?? own(),
     ...plan.group.map(send)
   ]);
   return { status: r.status, body: { ...r.body, group } };
@@ -2164,6 +2171,8 @@ Deno.serve(async (req) => {
         const r = await orderForGroup(admin, user, account, body.group, body.order || {});
         return jsonResponse(r.body, r.status);
       }
+      // Never on the account on screen when it is not ticked.
+      if (body.order?.leadOff === true) return jsonResponse({ error: "No account ticked: nothing sent." }, 400);
       const r = await placeOrder(admin, user, account, body.order || {});
       return jsonResponse(r.body, r.status);
     }
@@ -2173,7 +2182,9 @@ Deno.serve(async (req) => {
       return jsonResponse(r, (r as any).error ? 400 : 200);
     }
     if (action === "protect" || action === "exit" || action === "cancelOrders") {
-      if (!canTrade(user, account)) return jsonResponse({ error: NOT_LIVE }, 403);
+      // The account on screen not ticked (3 Nov): only the ticked accounts act.
+      const leadOff = body.leadOff === true;
+      if (!leadOff && !canTrade(user, account)) return jsonResponse({ error: NOT_LIVE }, 403);
       // Each on its own account: an exit of its own trade, a stop on its own
       // position, its own working orders cancelled. The group's run alongside.
       const run = async (acct: any) => {
@@ -2181,7 +2192,10 @@ Deno.serve(async (req) => {
         if (action === "cancelOrders") return { status: 200, body: await cancelOrders(acct, symbol ? cryptoSymbol(symbol) : "") };
         return action === "protect" ? await protect(admin, user, acct, body) : await exitPosition(admin, user, acct, body);
       };
-      const [r, group] = await Promise.all([run(account), forGroup(admin, user, account, body.group, run)]);
+      const [r, group] = await Promise.all([
+        leadOff ? Promise.resolve({ status: 200, body: { leadOff: true } as any }) : run(account),
+        forGroup(admin, user, account, body.group, run)
+      ]);
       // Nothing of it held on the account on screen, with others picked: that
       // one is skipped and the others still answer (28 Oct: "put the SL and TP
       // ... for all accounts at once").

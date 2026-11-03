@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { px, sizeText, isCrypto, amountToQty, orderState, orderNews, sessionOf, ticketChoices, exitText, stopWaitText } from "@/lib/terminal";
-import { groupNews } from "@/lib/accountGroup";
+import { groupNews, resolveSize } from "@/lib/accountGroup";
 import { onOrder } from "./orderFeed";
 import { followGroup } from "./runHotkey";
 import useAccountSetting from "./useAccountSetting";
@@ -39,7 +39,7 @@ const TIF_TEXT = { day: "for the day", gtc: "good till cancelled", ioc: "immedia
 const input = "w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm tabular-nums focus:border-emerald-500 focus:outline-none";
 const label = "mb-1 block text-[11px] uppercase tracking-wider text-slate-500";
 
-export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, onPlaced, pick = null, preset = null, onNotify = () => {}, liveOk = false, group = [], groupHeld = [] }) {
+export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, onPlaced, pick = null, preset = null, onNotify = () => {}, liveOk = false, group = [], groupHeld = [], leadOff = false, none = false }) {
   const crypto = isCrypto(symbol);
   const TYPES = crypto ? CRYPTO_TYPES : STOCK_TYPES;
   const [side, setSide] = useState("buy");
@@ -184,8 +184,11 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
 
   const paper = account?.type === "Paper";
   // A live account trades only where the server allows it (the owner's own).
-  const live = account?.type === "Live" && liveOk;
-  const tradable = paper || live;
+  // Orders go to the ticked accounts only (3 Nov): the one on screen when it
+  // is ticked (`leadOff` when it is not), none at all when nothing is ticked.
+  const live = !leadOff && account?.type === "Live" && liveOk;
+  const tradable = !none && (leadOff || paper || live);
+  const count = group.length + (leadOff ? 0 : 1);
   const coin = crypto ? symbol.split("/")[0] : "";
   const needsLimit = type === "limit" || type === "stop_limit";
   const needsStop = type === "stop" || type === "stop_limit";
@@ -207,7 +210,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   const sellAll = side === "sell" && held > 0 && typed > held && typed - held < 1e-8;
   const n = sellAll ? held : typed;
   // Any live account among those the order goes to, said on the button.
-  const groupLive = account?.type === "Live" || group.some((a) => a.type === "Live");
+  const groupLive = live || group.some((a) => a.type === "Live");
   const belowMin = crypto && !notional && n > 0 && asset?.minOrderSize && n < asset.minOrderSize;
   // A leftover smaller than the coin's smallest order (about $1 at Alpaca)
   // cannot be sold by itself: say so once, rather than offer a sale that fails.
@@ -253,12 +256,15 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     notional: notional ? dollars : null, type, timeInForce: tif, extendedHours: extended,
     limitPrice: needsLimit ? limit : null, stopPrice: needsStop ? stop : null,
     trailPercent: needsTrail && trailBy === "pct" ? trail : null, trailPrice: needsTrail && trailBy === "usd" ? trail : null,
-    takeProfit: bracket ? tp : null, stopLoss: bracket ? sl : null, reference: ref ?? null
+    takeProfit: bracket ? tp : null, stopLoss: bracket ? sl : null, reference: ref ?? null,
+    ...(leadOff ? { leadOff: true } : {})
   });
-  // With other accounts picked, the review shows each one's share before
-  // anything is sent (functions/_shared/proRata.ts).
+  // With other accounts ticked, the review shows each one's size before
+  // anything is sent (functions/_shared/proRata.ts): its own, or this
+  // ticket's ("Same as the key": the same dollars, or the same shares).
   const groupIds = group.map((a) => a.id);
-  const groupSend = group.map((a) => a.size || { id: a.id, mode: "prorata" });
+  const ticketSize = unit === "usd" ? { size: "usd", amount: dollars } : { size: "shares", amount: n };
+  const groupSend = group.map((a) => resolveSize(a.size || { id: a.id, mode: "key" }, ticketSize));
   const [shares, setShares] = useState(null);
   useEffect(() => {
     if (!review || !groupIds.length || !account?.id) { setShares(null); return undefined; }
@@ -276,14 +282,15 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     onNotify({ key, ...orderNews({ sending: true, words }) });
     // This account's book as the review just read it goes along, so its own
     // order is sent at once, alongside the reading of the others'.
-    const fresh = groupIds.length && shares?.lead && Date.now() - shares.at < 30000;
+    const fresh = !leadOff && groupIds.length && shares?.lead && Date.now() - shares.at < 30000;
     const leadBook = fresh ? { equity: shares.lead.equity, buyingPower: shares.lead.buyingPower, held: shares.lead.held } : undefined;
     const r = await invokeFunction("terminal", { action: "order", accountId: account.id, order: { ...order(), leadBook }, group: groupSend });
     // Each other account's order followed until it fills or ends, in the one pop-up.
-    followGroup(r?.data?.group, { key: `${key}g`, verb: "sent", unit: unitName, notify: onNotify, refresh: onPlaced });
+    followGroup(r?.data?.group, { key: leadOff ? key : `${key}g`, verb: "sent", unit: unitName, notify: onNotify, refresh: onPlaced });
     setBusy(false);
     setReview(false);
     if (r?.data?.error) onNotify({ key, ...orderNews({ error: r.data.error }) });
+    else if (r?.data?.leadOff) { setQty(crypto ? "" : "1"); setAmount(""); onPlaced?.(); }
     else {
       const placed = { key, id: r?.data?.orderId, status: r?.data?.status || "new", words, symbol, side, unitName };
       trackedRef.current = placed;
@@ -477,7 +484,8 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
         ) : null}
       </div>
 
-      {!tradable && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">Orders go to paper accounts only during this test. Choose a paper account to trade.</p>}
+      {none ? <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">No account ticked: nothing will be sent. Tick one under Accounts.</p>
+        : !tradable && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">Orders go to paper accounts only during this test. Choose a paper account to trade.</p>}
       {live && <p className="rounded-md border border-rose-300 bg-rose-50 px-2 py-1.5 text-xs font-medium text-rose-800">Live account: real money.</p>}
       {short && !crypto && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">You hold {Math.max(0, held)} shares, so this sells {n - Math.max(0, held)} you do not own: a short sale.</p>}
       {short && crypto && !dust && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">You hold {sizeText(Math.max(0, held))} {coin}. Crypto cannot be sold short, so a sale is limited to what you hold.</p>}
@@ -501,11 +509,13 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
           <p className="text-sm text-slate-800">{words}.</p>
           {group.length > 0 && (
             <div className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] leading-snug text-slate-700">
-              <div className="font-semibold text-slate-900">On {group.length + 1} accounts:</div>
-              <div className="flex justify-between gap-2">
-                <span className="truncate">{account?.name}{account?.type === "Live" ? " (LIVE)" : ""} <span className="text-slate-400">on screen</span></span>
-                <span className="shrink-0 tabular-nums">{notional ? fmtMoney(dollars) : `${sizeText(n)} ${crypto ? coin : "shares"}`}</span>
-              </div>
+              <div className="font-semibold text-slate-900">On {count} account{count === 1 ? "" : "s"}:</div>
+              {!leadOff && (
+                <div className="flex justify-between gap-2">
+                  <span className="truncate">{account?.name}{account?.type === "Live" ? " (LIVE)" : ""} <span className="text-slate-400">on screen</span></span>
+                  <span className="shrink-0 tabular-nums">{notional ? fmtMoney(dollars) : `${sizeText(n)} ${crypto ? coin : "shares"}`}</span>
+                </div>
+              )}
               {shares?.loading && <div className="text-slate-500">Working out each share…</div>}
               {shares?.error && <div className="text-rose-700">{shares.error}</div>}
               {(shares?.rows || []).map((g) => (
@@ -522,7 +532,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
           <div className="flex gap-2">
             <button type="button" onClick={send} disabled={busy}
               className={`flex-1 rounded-md py-2 text-sm font-semibold text-white disabled:opacity-50 ${side === "buy" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"}`}>
-              {busy ? "Sending…" : group.length ? `Send to ${group.length + 1} accounts` : "Send order"}
+              {busy ? "Sending…" : count > 1 || leadOff ? `Send to ${count} account${count === 1 ? "" : "s"}` : "Send order"}
             </button>
             <button type="button" onClick={() => setReview(false)} className="rounded-md border border-slate-300 px-3 text-sm text-slate-600">Edit</button>
           </div>
@@ -530,15 +540,15 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
       ) : (
         <button type="button" disabled={!ready} onClick={() => setReview(true)}
           className={`w-full rounded-md py-2 text-sm font-semibold text-white disabled:opacity-40 ${side === "buy" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"}`}>
-          Review {side === "buy" ? "buy" : "sell"}{group.length ? ` · ${group.length + 1} accounts${groupLive ? " (live)" : ""}` : ""}
+          Review {side === "buy" ? "buy" : "sell"}{count > 1 || leadOff ? ` · ${count} account${count === 1 ? "" : "s"}${groupLive ? " (live)" : ""}` : ""}
         </button>
       )}
 
       {/* Shown when this account or any picked beside it holds the symbol (28 Oct:
           "put the SL and TP ... for all accounts at once"). */}
-      {(held !== 0 || groupHeld.some((g) => g.qty)) && account?.id && (
-        <PositionExits account={account} symbol={symbol} held={held} crypto={crypto} tradable={tradable} session={session} onNotify={onNotify} onPlaced={onPlaced}
-          group={group} groupHeld={groupHeld} />
+      {((!leadOff && held !== 0) || groupHeld.some((g) => g.qty)) && account?.id && (
+        <PositionExits account={account} symbol={symbol} held={leadOff ? 0 : held} crypto={crypto} tradable={tradable} session={session} onNotify={onNotify} onPlaced={onPlaced}
+          group={group} groupHeld={groupHeld} leadOff={leadOff} />
       )}
     </div>
   );
@@ -549,7 +559,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
 // stop working on it, a new take profit the take profit, and a stop and a take
 // profit go together as one cancels the other. Reviewed, then sent, like any
 // order from the ticket.
-function PositionExits({ account, symbol, held, crypto, tradable, session, onNotify, onPlaced, group = [], groupHeld = [] }) {
+function PositionExits({ account, symbol, held, crypto, tradable, session, onNotify, onPlaced, group = [], groupHeld = [], leadOff = false }) {
   const [stop, setStop] = useState("");
   const [target, setTarget] = useState("");
   const [review, setReview] = useState(false);
@@ -579,13 +589,14 @@ function PositionExits({ account, symbol, held, crypto, tradable, session, onNot
     setBusy(true);
     const key = `x${Date.now()}`;
     onNotify({ key, tone: "wait", title: `Setting exits on ${symbol}…`, detail: words });
-    const r = await invokeFunction("terminal", { action: "protect", accountId: account.id, symbol, kind: s && t ? "both" : s ? "stop" : "target", mode: "price", value: s ?? t, stopPrice: s, targetPrice: t, group: group.map((a) => a.id) })
+    const r = await invokeFunction("terminal", { action: "protect", accountId: account.id, symbol, kind: s && t ? "both" : s ? "stop" : "target", mode: "price", value: s ?? t, stopPrice: s, targetPrice: t, group: group.map((a) => a.id), leadOff })
       .catch((e) => ({ data: { error: String(e?.message || e) } }));
     const g = groupNews(r?.data?.group, "exits set");
-    if (g) onNotify({ key: `${key}g`, ...g });
+    if (g) onNotify({ key: leadOff ? key : `${key}g`, ...g });
     setBusy(false);
     setReview(false);
     if (r?.data?.error) { onNotify({ key, tone: "bad", title: "Exits not set", detail: r.data.error }); return; }
+    if (r?.data?.leadOff) { setStop(""); setTarget(""); onPlaced?.(); return; }
     if (r?.data?.skipped) {
       onNotify({ key, tone: "muted", title: `Not on ${account.name || "this account"}`, detail: r.data.skipped });
       setStop(""); setTarget(""); onPlaced?.();

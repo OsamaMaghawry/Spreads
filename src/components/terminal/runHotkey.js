@@ -1,7 +1,7 @@
 import { invokeFunction } from "@/lib/functions";
 import { hotkeyOrder, describe, withOwnSize, hotkeyPercent } from "@/lib/hotkeys";
 import { orderNews, orderState, sessionOf, isCrypto, px, sizeText, exitText } from "@/lib/terminal";
-import { groupNews } from "@/lib/accountGroup";
+import { groupNews, resolveSize } from "@/lib/accountGroup";
 import { onOrder } from "./orderFeed";
 
 // What a pressed hotkey does: works out the order (lib/hotkeys.js) or asks the
@@ -123,40 +123,52 @@ const session = () => {
 };
 
 /**
- * Run one hotkey. `ctx`: account, symbol, quote, view (the account's
- * figures and positions), notify (the pop-ups), refresh (reload the account).
+ * Run one hotkey. `ctx`: account (the one on screen), symbol, quote, view
+ * (its figures and positions), notify (the pop-ups), refresh (reload the
+ * account); group (the other ticked accounts, each { id, mode, value }),
+ * leadOff (the account on screen is not ticked: nothing goes to it), none
+ * (no account ticked), leadSize (its own size, when it is ticked).
  */
 export async function runHotkey(h, ctx) {
   const { account, symbol, notify, refresh } = ctx;
   const key = `hk${Date.now()}`;
   const crypto = isCrypto(symbol);
-  // The other accounts picked beside the one on screen: each gets its share
+  // The other ticked accounts: each at its own size or the key's
   // (functions/_shared/proRata.ts), and one pop-up says how each went.
   const group = Array.isArray(ctx.group) ? ctx.group : [];
+  const leadOff = !!ctx.leadOff && group.length > 0;
   const unit = crypto ? symbol.split("/")[0] : "shares";
-  const tellGroup = (rows, verb) => { const g = groupNews(rows, verb, unit); if (g) notify({ key: `${key}g`, ...g }); };
+  // With the account on screen not ticked, the group's pop-up is the only one.
+  const tellGroup = (rows, verb) => { const g = groupNews(rows, verb, unit); if (g) notify({ key: leadOff ? key : `${key}g`, ...g }); };
   const label = `${h.keys} · ${describe(h)}`;
   if (!account?.id) return;
+  if (ctx.none) {
+    notify({ key, tone: "bad", title: "No account ticked: nothing sent", detail: `Tick an account under Accounts. (${h.keys})` });
+    return;
+  }
   // Paper accounts, and the owner's own live accounts (the server checks again).
-  if (account.type !== "Paper" && !(account.type === "Live" && ctx.liveOk)) {
+  if (!leadOff && account.type !== "Paper" && !(account.type === "Live" && ctx.liveOk)) {
     notify({ key, tone: "bad", title: "Hotkeys trade paper accounts only", detail: "Choose a paper account to use them during this test." });
     return;
   }
 
   if (h.action === "buy" || h.action === "sell") {
-    // The account on screen sized by its own size where it has one (as each
-    // account beside it is); the key's own size, as a percent, goes to the
-    // others to take of their own portfolios (functions/_shared/proRata.ts).
+    // Every ticked account at its own size where it has one, the key's where
+    // it has none (3 Nov, the owner's approved design: "Same as the key", $,
+    // shares, % of its portfolio; the earlier day Alpaca Live set to $10
+    // bought $100 when it was on screen and its own size was passed over).
     const heldNow = ctx.position ? (ctx.position.side === "short" ? -Math.abs(ctx.position.qty) : Math.abs(ctx.position.qty)) : 0;
     const sized = { symbol, crypto, quote: ctx.quote, equity: ctx.view?.equity, buyingPower: ctx.view?.buyingPower, step: await stepFor(account.id, symbol), session: session(), held: heldNow };
-    // Each account at its own size where it has one, on screen or not; the
-    // key's size where it has none (3 Nov: Alpaca Live set to $10 bought $100
-    // when it was the account on screen and its own size was passed over).
-    const built = hotkeyOrder(withOwnSize(h, ctx.leadSize), sized);
+    // Not ticked on screen: the order's price and kind only, worked out here;
+    // no size, and nothing sent to it.
+    const built = leadOff ? hotkeyOrder({ ...h, size: "shares", amount: 1 }, { ...sized, held: 0 }) : hotkeyOrder(withOwnSize(h, ctx.leadSize), sized);
+    const sends = group.map((g) => resolveSize(g, { size: h.size, amount: h.amount }));
     // Too small on this account alone: the others still take theirs.
-    const othersOnly = built.tooSmall && group.length > 0;
+    const othersOnly = !leadOff && built.tooSmall && group.length > 0;
     if (built.reason && !othersOnly) { notify({ key, tone: "bad", title: "Order not placed", detail: `${built.reason} (${h.keys})` }); return; }
-    const words = othersOnly ? `${h.action === "buy" ? "Buy" : "Sell"} ${symbol} on the other accounts (${h.keys})` : `${built.words} (${h.keys})`;
+    const verb = h.action === "buy" ? "Buy" : "Sell";
+    const words = leadOff ? `${verb} ${symbol} on ${group.length} ticked account${group.length === 1 ? "" : "s"} (${h.keys})`
+      : othersOnly ? `${verb} ${symbol} on the other accounts (${h.keys})` : `${built.words} (${h.keys})`;
     const base = { words, symbol, side: built.order.side, unitName: crypto ? symbol.split("/")[0] : "shares" };
     notify({ key, ...orderNews({ sending: true, words }) });
     // The price it was sized at goes with it: an account with its own size in
@@ -164,14 +176,18 @@ export async function runHotkey(h, ctx) {
     const order = {
       // fromKey: a sell key pressed again replaces the account's earlier one still waiting.
       ...built.order, fromKey: true, basis: h.size === "bp" ? "buyingPower" : "equity", reference: built.price ?? null,
-      pct: hotkeyPercent(h, { equity: ctx.view?.equity, buyingPower: ctx.view?.buyingPower, price: built.price }),
+      // A percent key: the same percent of each account's own portfolio (or buying power).
+      pct: leadOff ? (h.size === "equity" || h.size === "bp" ? Number(h.amount) || null : null)
+        : hotkeyPercent(h, { equity: ctx.view?.equity, buyingPower: ctx.view?.buyingPower, price: built.price }),
+      ...(leadOff ? { qty: null, leadOff: true } : {}),
       ...(othersOnly ? { qty: null, leadSkip: `${built.reason}` } : {}),
       // This account's book as the screen has it, so with other accounts
-      // picked its own order goes at once, alongside the reading of theirs.
-      ...(group.length && ctx.view ? { leadBook: { equity: ctx.view.equity ?? null, buyingPower: ctx.view.buyingPower ?? null, held: heldNow } } : {})
+      // ticked its own order goes at once, alongside the reading of theirs.
+      ...(!leadOff && group.length && ctx.view ? { leadBook: { equity: ctx.view.equity ?? null, buyingPower: ctx.view.buyingPower ?? null, held: heldNow } } : {})
     };
-    const r = await invokeFunction("terminal", { action: "order", accountId: account.id, order, group }).catch((e) => ({ data: { error: String(e?.message || e) } }));
-    followGroup(r?.data?.group, { key: `${key}g`, verb: "sent", unit, notify, refresh });
+    const r = await invokeFunction("terminal", { action: "order", accountId: account.id, order, group: sends }).catch((e) => ({ data: { error: String(e?.message || e) } }));
+    followGroup(r?.data?.group, { key: leadOff ? key : `${key}g`, verb: "sent", unit, notify, refresh });
+    if (leadOff) { if (r?.data?.error) notify({ key, ...orderNews({ error: r.data.error }) }); refresh?.(); return; }
     if (r?.data?.skipped) { notify({ key, tone: "muted", title: `Not on ${account.name || "this account"}`, detail: `${r.data.skipped} The other accounts took their own sizes.` }); refresh?.(); return; }
     if (r?.data?.error) { notify({ key, ...orderNews({ error: r.data.error }) }); return; }
     const placed = { ...base, id: r.data.orderId, status: r.data.status || "new" };
@@ -186,7 +202,7 @@ export async function runHotkey(h, ctx) {
     notify({ key, tone: "wait", title: h.percent >= 100 ? `Exiting ${symbol}…` : `Exiting ${h.percent}% of the ${symbol} trade…`, detail: label });
     // The screen's own bid and ask go with it: outside regular hours the
     // server prices the limit from the best quote it can trust.
-    const r = await invokeFunction("terminal", { action: "exit", accountId: account.id, symbol, percent: h.percent, bid: ctx.quote?.bid ?? null, ask: ctx.quote?.ask ?? null, group }).catch((e) => ({ data: { error: String(e?.message || e) } }));
+    const r = await invokeFunction("terminal", { action: "exit", accountId: account.id, symbol, percent: h.percent, bid: ctx.quote?.bid ?? null, ask: ctx.quote?.ask ?? null, group, leadOff }).catch((e) => ({ data: { error: String(e?.message || e) } }));
     tellGroup(r?.data?.group, "exit sent");
     // The group's exits are followed as the lead's is, quietly but for what
     // matters: their stop and target back on what each still holds. Armed
@@ -198,6 +214,7 @@ export async function runHotkey(h, ctx) {
       trackOrder({ accountId: g.accountId, id: g.orderId, key: tag, base: { words: "", symbol, side: g.side, unitName: unit, status: g.status }, notify: () => {}, onFilled: them.restop, onUnfilled: them.putBack });
     }
     if (r?.data?.error) { notify({ key, tone: "bad", title: "Exit not sent", detail: r.data.error }); return; }
+    if (r?.data?.leadOff) { refresh?.(); return; }
     if (r?.data?.skipped) { notify({ key, tone: "muted", title: `Not on ${account.name || "this account"}`, detail: r.data.skipped }); refresh?.(); return; }
     const d = r.data;
     const parts = [
@@ -217,9 +234,10 @@ export async function runHotkey(h, ctx) {
   if (h.action === "stop" || h.action === "target") {
     const stop = h.action === "stop";
     notify({ key, tone: "wait", title: `Placing a ${stop ? "stop" : "take-profit"} on ${symbol}…`, detail: label });
-    const r = await invokeFunction("terminal", { action: "protect", accountId: account.id, symbol, kind: h.action, mode: h.stopMode, value: h.stopValue, from: h.from, group }).catch((e) => ({ data: { error: String(e?.message || e) } }));
+    const r = await invokeFunction("terminal", { action: "protect", accountId: account.id, symbol, kind: h.action, mode: h.stopMode, value: h.stopValue, from: h.from, group, leadOff }).catch((e) => ({ data: { error: String(e?.message || e) } }));
     tellGroup(r?.data?.group, stop ? "stop placed" : "take-profit placed");
     if (r?.data?.error) { notify({ key, tone: "bad", title: `${stop ? "Stop" : "Take-profit"} not placed`, detail: r.data.error }); return; }
+    if (r?.data?.leadOff) { refresh?.(); return; }
     if (r?.data?.skipped) { notify({ key, tone: "muted", title: `Not on ${account.name || "this account"}`, detail: r.data.skipped }); refresh?.(); return; }
     const d = r.data;
     const said = { side: d.side, qty: d.qty, stopPrice: stop || d.paired ? d.stopPrice : null, limitPrice: d.limitPrice, targetPrice: !stop || d.paired ? d.targetPrice : null };
@@ -235,9 +253,10 @@ export async function runHotkey(h, ctx) {
   }
 
   if (h.action === "cancelSymbol" || h.action === "cancelAll") {
-    const r = await invokeFunction("terminal", { action: "cancelOrders", accountId: account.id, symbol: h.action === "cancelSymbol" ? symbol : "", group }).catch((e) => ({ data: { error: String(e?.message || e) } }));
+    const r = await invokeFunction("terminal", { action: "cancelOrders", accountId: account.id, symbol: h.action === "cancelSymbol" ? symbol : "", group, leadOff }).catch((e) => ({ data: { error: String(e?.message || e) } }));
     tellGroup(r?.data?.group, "cancelled");
     if (r?.data?.error) { notify({ key, tone: "bad", title: "Not cancelled", detail: r.data.error }); return; }
+    if (r?.data?.leadOff) { refresh?.(); return; }
     const n = r.data.cancelled || 0;
     notify({ key, tone: n ? "ok" : "muted", title: n ? `Cancelled ${n} order${n === 1 ? "" : "s"}` : "No working orders", detail: h.action === "cancelSymbol" ? symbol : "Every symbol" });
     refresh?.();

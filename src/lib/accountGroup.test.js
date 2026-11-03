@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { groupChoices, cleanGroup, groupNews, groupPayload, cleanSizes, sameOrders, exitsOf } from "./accountGroup.js";
+import { groupChoices, cleanGroup, groupNews, groupPayload, cleanSizes, sameOrders, exitsOf, resolveSize, sendPlan, cleanTicks } from "./accountGroup.js";
 
 const accounts = [
   { id: "p1", name: "Paper one", type: "Paper" },
@@ -33,11 +33,46 @@ test("what the group said, in one pop-up", () => {
   assert.equal(groupNews([], "sent"), null);
 });
 
-test("each account's own size goes with it; pro rata where none is set", () => {
+test("each account's own size goes with it; the key's own size where none is set", () => {
   assert.deepEqual(groupPayload(["a", "b", "c"], { b: { mode: "percent", value: "5" }, c: { mode: "prorata", value: "9" } }), [
-    { id: "a", mode: "prorata" }, { id: "b", mode: "percent", value: 5 }, { id: "c", mode: "prorata" }
+    { id: "a", mode: "key" }, { id: "b", mode: "percent", value: 5 }, { id: "c", mode: "key" }
   ]);
   assert.deepEqual(groupPayload(["a"], { a: { mode: "shares", value: "" } }), [{ id: "a", mode: "shares", value: null }]);
+});
+
+test("same as each key: a $100 key is $100 there, 50 shares 50 shares, a percent its own percent; its own size wins", () => {
+  const usd = { size: "usd", amount: 100 };
+  assert.deepEqual(resolveSize({ id: "a", mode: "key" }, usd), { id: "a", mode: "dollars", value: 100 });
+  assert.deepEqual(resolveSize({ id: "a", mode: "key" }, { size: "shares", amount: 50 }), { id: "a", mode: "shares", value: 50 });
+  assert.deepEqual(resolveSize({ id: "a", mode: "key" }, { size: "equity", amount: 1 }), { id: "a", mode: "prorata" });
+  assert.deepEqual(resolveSize({ id: "b", mode: "dollars", value: 10 }, usd), { id: "b", mode: "dollars", value: 10 });
+  // A size picked but left empty: the key's.
+  assert.deepEqual(resolveSize({ id: "b", mode: "dollars", value: null }, usd), { id: "b", mode: "dollars", value: 100 });
+});
+
+// 3 Nov, the approved design: one list, a tick for each account orders go to,
+// the account on screen chosen apart from the ticks.
+test("orders go to the ticked accounts only, the one on screen first when it is ticked", () => {
+  const accounts = [
+    { id: "alton", name: "Alton Live", type: "Live" },
+    { id: "alpaca", name: "Alpaca Live", type: "Live" },
+    { id: "rs", name: "Alton RS", type: "Paper" },
+    { id: "wheel", name: "Wheel", type: "Paper" }
+  ];
+  const sizes = { alpaca: { mode: "dollars", value: "10" }, alton: { mode: "key" } };
+  const both = sendPlan({ ticks: ["alton", "alpaca"], shownId: "alton", accounts, liveOk: true, sizes });
+  assert.deepEqual([both.none, both.leadOff, both.leadSize], [false, false, { mode: "key" }]);
+  assert.deepEqual(both.group, [{ id: "alpaca", mode: "dollars", value: 10 }]);
+  // On screen but not ticked: nothing goes to it; every ticked one goes as one of the group.
+  const notShown = sendPlan({ ticks: ["alton", "alpaca"], shownId: "wheel", accounts, liveOk: true, sizes });
+  assert.deepEqual([notShown.leadOff, notShown.leadSize, notShown.group.map((g) => g.id)], [true, null, ["alton", "alpaca"]]);
+  // Live accounts the server does not trade from here are never sent to.
+  const paperOnly = sendPlan({ ticks: ["alton", "rs"], shownId: "alton", accounts, liveOk: false, sizes });
+  assert.deepEqual([paperOnly.leadOff, paperOnly.group.map((g) => g.id), paperOnly.sending.map((a) => a.id)], [true, ["rs"], ["rs"]]);
+  const none = sendPlan({ ticks: [], shownId: "rs", accounts, liveOk: true, sizes });
+  assert.deepEqual([none.none, none.leadOff, none.group], [true, false, []]);
+  assert.equal(cleanTicks(null), null);
+  assert.deepEqual(cleanTicks(["a", "a", 3, "bad id!", "b"]), ["a", "b"]);
 });
 
 test("sizes kept with the account: known modes only, values as typed", () => {
@@ -48,7 +83,7 @@ test("sizes kept with the account: known modes only, values as typed", () => {
     c: { mode: "everything", value: "1" },
     "bad id!": { mode: "shares", value: "1" },
     d: null
-  }), { "178e2bf2-ed6d": { mode: "percent", value: "5" }, a: { mode: "shares", value: "20" }, b: { mode: "prorata" } });
+  }), { "178e2bf2-ed6d": { mode: "percent", value: "5" }, a: { mode: "shares", value: "20" }, b: { mode: "key" } });
   assert.deepEqual(cleanSizes(null), {});
   assert.deepEqual(cleanSizes([1, 2]), {});
 });

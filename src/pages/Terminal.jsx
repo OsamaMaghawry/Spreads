@@ -21,16 +21,15 @@ import { runHotkey, prefetchStep } from "@/components/terminal/runHotkey";
 import { noteOrder } from "@/components/terminal/orderFeed";
 import { comboOf, cleanHotkeys } from "@/lib/hotkeys";
 import { Positions, Orders, AccountSummary } from "@/components/terminal/Panels";
-import AccountStrip from "@/components/terminal/AccountStrip";
 import WatchlistMenu from "@/components/terminal/WatchlistMenu";
 import useReplay from "@/components/terminal/useReplay";
 import ReplayBar, { ReplayStart } from "@/components/terminal/ReplayBar";
 import { PracticePositions, SavedResults, DemoResults } from "@/components/terminal/ReplayPanels";
 import NewsPanel, { useNews } from "@/components/terminal/NewsPanel";
-import GroupPicker from "@/components/terminal/GroupPicker";
+import AccountsMenu from "@/components/terminal/AccountsMenu";
 import SymbolSearch from "@/components/terminal/SymbolSearch";
 import useAccountSetting from "@/components/terminal/useAccountSetting";
-import { groupChoices, cleanGroup, groupPayload, cleanSizes } from "@/lib/accountGroup";
+import { cleanSizes, cleanTicks, sendPlan } from "@/lib/accountGroup";
 import { acctIn, replayClock, isCalendar } from "@/lib/replay";
 
 const Grid = WidthProvider(Responsive);
@@ -87,6 +86,8 @@ const SHARE_FEED_KEY = "dm.terminal.shareFeed";
 const EODHD_KEY = "dm.terminal.eodhd";
 const GROUP_KEY = "dm.terminal.group";
 const GROUP_SIZES_KEY = "dm.terminal.groupSizes";
+const SEND_TO_KEY = "dm.terminal.sendTo";
+const DEFAULT_ACCOUNT_KEY = "dm.terminal.defaultAccount";
 const NO_FILLS = [];
 // Where each chart sits for one to four of them.
 const PANE_GRID = { 1: "grid-cols-1", 2: "grid-cols-1 sm:grid-cols-2", 3: "grid-cols-2 grid-rows-2", 4: "grid-cols-2 grid-rows-2" };
@@ -99,7 +100,17 @@ const NO_DRAG = "button, input, select, textarea, a, .no-drag";
 
 export default function Terminal() {
   const [accounts, setAccounts] = useState([]);
-  const [accountId, setAccountId] = useState("");
+  // The account on screen: the one picked here, else the default account
+  // (3 Nov, the owner: "a default account to open on"), kept with the
+  // person's account, else the first paper account.
+  const [shownPick, setShownPick] = useState("");
+  const [defaultId, setDefaultId] = useAccountSetting("defaultaccount", {
+    localKey: DEFAULT_ACCOUNT_KEY, initial: () => "", clean: (v) => (typeof v === "string" ? v.slice(0, 64) : ""), fromLocal: (raw) => raw, toLocal: (v) => v
+  });
+  const accountId = useMemo(() => {
+    const has = (id) => !!id && accounts.some((a) => a.id === id);
+    return has(shownPick) ? shownPick : has(defaultId) ? defaultId : (accounts.find((a) => a.type === "Paper") || accounts[0])?.id || "";
+  }, [accounts, shownPick, defaultId]);
   // Order pop-ups: one per order (its key), replaced as the order moves.
   // Good news and quiet endings leave by themselves; a problem stays until
   // it is closed, and an order still on its way stays until it lands.
@@ -181,7 +192,6 @@ export default function Terminal() {
     invokeFunction("syncAccounts", {}).then((r) => {
       const list = (r?.data?.accounts || []).filter((a) => !a.readOnly);
       setAccounts(list);
-      setAccountId((cur) => cur || (list.find((a) => a.type === "Paper") || list[0])?.id || "");
     }).catch(() => setAccounts([]));
   }, []);
   const account = accounts.find((a) => a.id === accountId) || null;
@@ -213,15 +223,25 @@ export default function Terminal() {
   // Whether this person's live accounts trade from here (the owner's only,
   // the server decides and checks again on every order).
   const [liveOk, setLiveOk] = useState(false);
-  // The other accounts orders also go to, pro rata (lib/accountGroup.js);
-  // only ones still allowed, never the account on screen itself.
-  const [groupPick, changeGroup] = useAccountSetting("groupaccounts", {
+  // Where orders go (3 Nov, the owner's approved design, lib/accountGroup.js
+  // sendPlan): the ticked accounts, each at its own size or the key's, set in
+  // one list beside the account on screen. Kept with the person's account.
+  // Until a tick is first changed, the account on screen and the accounts
+  // picked beside it before ("groupaccounts"), as orders went until now.
+  const [groupPick] = useAccountSetting("groupaccounts", {
     localKey: GROUP_KEY, initial: () => [], clean: (v) => (Array.isArray(v) ? v.filter((x) => typeof x === "string").slice(0, 20) : [])
   });
-  const group = useMemo(() => cleanGroup(groupPick, accounts, accountId, liveOk), [groupPick, accounts, accountId, liveOk]);
-  // Each picked account's own size.
+  const [tickPick, setTickPick] = useAccountSetting("sendto", { localKey: SEND_TO_KEY, initial: () => null, clean: cleanTicks });
+  const ticks = useMemo(() => tickPick ?? (accountId ? [accountId, ...groupPick.filter((id) => id !== accountId)] : []), [tickPick, accountId, groupPick]);
+  const showAccount = (id) => {
+    if (tickPick === null) setTickPick([id, ...groupPick.filter((x) => x !== id)]);
+    setShownPick(id);
+  };
+  // Each account's size: the key's own, or its own.
   const [groupSizes, changeSizes] = useAccountSetting("groupsizes", { localKey: GROUP_SIZES_KEY, initial: () => ({}), clean: cleanSizes });
-  const groupSend = useMemo(() => groupPayload(group, groupSizes), [group, groupSizes]);
+  const plan = useMemo(() => sendPlan({ ticks, shownId: accountId, accounts, liveOk, sizes: groupSizes }), [ticks, accountId, accounts, liveOk, groupSizes]);
+  // The ticked accounts besides the one on screen (all of them when it is not ticked).
+  const groupSend = plan.group;
   const [minute, setMinute] = useState(() => Math.floor(Date.now() / 60000));
   useEffect(() => {
     invokeFunction("terminal", { action: "feeds" }).then((r) => {
@@ -555,7 +575,10 @@ export default function Terminal() {
   const armHotkeys = (on) => setHotkeysOn(on);
   // Everything a key press reads, current at the moment it is pressed.
   const live$ = useRef({});
-  live$.current = { account, symbol, quote, view, position, hotkeys, notify, refresh: refreshAll, replaying, liveOk, group: replaying ? [] : groupSend, leadSize: replaying ? null : groupSizes[accountId] || null };
+  live$.current = {
+    account, symbol, quote, view, position, hotkeys, notify, refresh: refreshAll, replaying, liveOk,
+    group: replaying ? [] : groupSend, leadOff: !replaying && plan.leadOff, none: !replaying && plan.none, leadSize: replaying ? null : plan.leadSize
+  };
   useEffect(() => {
     if (!hotkeysOn || page !== "trade" || hotkeysOpen) return undefined;
     const onKey = (e) => {
@@ -581,8 +604,7 @@ export default function Terminal() {
   return (
     <div ref={deskBox} className="flex flex-col gap-1 text-slate-800 [&:fullscreen]:overflow-auto [&:fullscreen]:bg-dm-bg [&:fullscreen]:p-1">
       <Toasts toasts={toasts} onClose={closeToast} low={replaying} />
-      <HotkeysDialog open={hotkeysOpen} hotkeys={hotkeys} armed={hotkeysOn} onArm={armHotkeys} onSave={saveHotkeys} onClose={() => setHotkeysOpen(false)}
-        onScreen={account?.name || null} onScreenSize={groupSizes[accountId] || null} also={group.map((id) => ({ id, name: accounts.find((a) => a.id === id)?.name || "Another account", size: groupSizes[id] || null }))} />
+      <HotkeysDialog open={hotkeysOpen} hotkeys={hotkeys} armed={hotkeysOn} onArm={armHotkeys} onSave={saveHotkeys} onClose={() => setHotkeysOpen(false)} />
       <div ref={barBox} className="flex flex-wrap items-center gap-2 px-1">
         <h1 className="mr-2 text-lg font-semibold">Terminal</h1>
         <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">Staging test</span>
@@ -592,16 +614,10 @@ export default function Terminal() {
               className={`px-3 py-1 first:rounded-l-md last:rounded-r-md ${page === id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}>{name}</button>
           ))}
         </div>
-        <select value={accountId} onChange={(e) => setAccountId(e.target.value)} aria-label="Account"
-          className={`rounded-md border px-2 py-1 text-sm ${account?.type === "Live" ? "border-rose-500 bg-rose-50 font-semibold text-rose-800" : "border-slate-300 bg-white"}`}>
-          {accounts.map((a) => <option key={a.id} value={a.id}>{a.name} · {a.type}</option>)}
-        </select>
-        {account?.type === "Live" && (
-          <span className="rounded bg-rose-600 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-white" title={liveOk ? "Orders and hotkeys here use real money." : "A live account: look only. Orders go to paper accounts during this test."}>
-            LIVE{liveOk ? " · REAL MONEY" : " · VIEW ONLY"}
-          </span>
-        )}
-        <GroupPicker choices={groupChoices(accounts, accountId, liveOk)} value={group} onChange={changeGroup} sizes={groupSizes} onSizes={changeSizes} lead={account} />
+        {/* Every account in one list: a tick for where orders go, each one's
+            size, the one on screen, and the default to open on (3 Nov). */}
+        <AccountsMenu accounts={accounts} liveOk={liveOk} ticks={ticks} onTicks={setTickPick} shownId={accountId} onShow={showAccount}
+          defaultId={defaultId} onDefault={setDefaultId} sizes={groupSizes} onSizes={changeSizes} rows={replaying ? null : stripRows} symbol={symbol} />
         <div className="relative">
           <Search className="pointer-events-none absolute left-2 top-1.5 h-4 w-4 text-slate-400" />
           <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && results[0]) choose(results[0].symbol); }}
@@ -673,9 +689,6 @@ export default function Terminal() {
             </div>
           )}
         </div>
-        {page === "trade" && !replaying && (
-          <AccountStrip lead={account} choices={groupChoices(accounts, accountId, liveOk)} picked={group} onPick={changeGroup} rows={stripRows} symbol={symbol} />
-        )}
       </div>
 
       {replaying && page === "trade" && (
@@ -900,6 +913,7 @@ export default function Terminal() {
             )}
             <OrderTicket account={account} symbol={symbol} quote={quote} held={held} heldText={held > 0 && position?.qtyText ? position.qtyText : ""}
               buyingPower={view?.buyingPower ?? null} onPlaced={refreshAll} pick={pick} preset={preset} onNotify={notify} liveOk={liveOk}
+              leadOff={plan.leadOff} none={plan.none}
               group={groupSend.map((g) => ({ ...accounts.find((a) => a.id === g.id), size: g })).filter((a) => a.id)}
               groupHeld={others.map((g) => ({ id: g.accountId, name: g.name, qty: signedQty((g.positions || []).find((p) => p.symbol === symbol)) }))} />
             <p className="px-1 text-[10px] leading-relaxed text-slate-400">Prices from your own Alpaca account: shares from the free IEX feed (real time, IEX trades only, 8:00 to 17:00 New York), or every exchange fifteen minutes late outside IEX&apos;s hours{eodhdOk ? "; or EODHD's real-time stream on your own EODHD plan" : ""}; coins from Alpaca&apos;s crypto venue, around the clock, with the full order book. Charts by TradingView Lightweight Charts. Not investment advice.</p>

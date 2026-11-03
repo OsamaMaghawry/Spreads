@@ -3,10 +3,29 @@
 // The shares are worked out on the server (functions/_shared/proRata.ts);
 // this is which accounts may be picked, and how their answers are told.
 
-// Each account's own size for what is bought or opened (27 Oct: "I need to
-// set the quantities by account"); the server applies it (proRata.ts).
-export const SIZE_MODES = [["prorata", "Pro rata"], ["times", "× pro rata"], ["percent", "% of its portfolio"], ["shares", "Shares"], ["dollars", "Dollars"]];
-export const sizeLabel = (mode) => ({ prorata: "in proportion to its portfolio value", times: "times its pro-rata share", percent: "% of its own portfolio", shares: "shares", dollars: "dollars" }[mode] || "");
+// Each account's size for what is bought or sold, one rule for every
+// account, the one on screen or not (3 Nov, the owner: "I see different areas
+// to set different numbers ... Nothing called something on a screen is
+// different from the hotkeys"): the key's own size, or a size of its own. Set
+// in one place, the Accounts list beside the account on screen; the server
+// applies it (proRata.ts).
+export const SIZE_MODES = [["key", "Same as the key"], ["dollars", "$ amount"], ["shares", "Shares"], ["percent", "% of its portfolio"]];
+
+/**
+ * One account's size for one order, as the server takes it: its own, or the
+ * key's (or the ticket's) as its own: dollars as dollars, shares as shares; a
+ * percent key is the same percent of each account's own portfolio (or buying
+ * power), which the server works out from the order's percent.
+ * `key`: { size: "usd" | "shares" | "equity" | "bp", amount }.
+ */
+export function resolveSize(g, key) {
+  if (g && g.mode && g.mode !== "key" && g.mode !== "prorata" && Number(g.value) > 0) return g;
+  const v = Number(key?.amount);
+  if (!(v > 0)) return { id: g.id, mode: "prorata" };
+  if (key.size === "usd") return { id: g.id, mode: "dollars", value: v };
+  if (key.size === "shares") return { id: g.id, mode: "shares", value: v };
+  return { id: g.id, mode: "prorata" };
+}
 
 /**
  * Sizes as kept with the person's account (terminal setting "groupsizes"):
@@ -17,20 +36,55 @@ export function cleanSizes(raw) {
   const modes = new Set(SIZE_MODES.map(([id]) => id));
   const out = {};
   for (const [id, s] of Object.entries(raw).slice(0, 50)) {
-    if (!/^[\w-]{1,64}$/.test(id) || !s || typeof s !== "object" || !modes.has(s.mode)) continue;
+    if (!/^[\w-]{1,64}$/.test(id) || !s || typeof s !== "object") continue;
+    // Pro rata and its multiples, from before: the key's own size now.
+    if (s.mode === "prorata" || s.mode === "times") { out[id] = { mode: "key" }; continue; }
+    if (!modes.has(s.mode)) continue;
     const value = s.value === undefined || s.value === null ? "" : String(s.value).replace(/[^\d.]/g, "").slice(0, 16);
-    out[id] = s.mode === "prorata" ? { mode: "prorata" } : { mode: s.mode, value };
+    out[id] = s.mode === "key" ? { mode: "key" } : { mode: s.mode, value };
   }
   return out;
 }
 
-/** What goes to the server: each picked account with its size, if it has its own. */
+/** Each picked account with its size: its own, or "key" (resolveSize turns that into the order's). */
 export function groupPayload(ids, sizes) {
   return (Array.isArray(ids) ? ids : []).map((id) => {
     const s = sizes?.[id];
-    if (!s || !s.mode || s.mode === "prorata") return { id, mode: "prorata" };
+    if (!s || !s.mode || s.mode === "key" || s.mode === "prorata" || s.mode === "times") return { id, mode: "key" };
     return { id, mode: s.mode, value: Number(s.value) || null };
   });
+}
+
+/** Whether orders can go to an account from here: paper, or live where the server allows it. */
+export const canSend = (a, liveOk) => !!a && !a.readOnly && (a.type === "Paper" || (a.type === "Live" && !!liveOk));
+
+/** The ticked accounts as kept with the person's account ("sendto"): ids, or null where never set. */
+export function cleanTicks(raw) {
+  if (!Array.isArray(raw)) return null;
+  return [...new Set(raw.filter((x) => typeof x === "string" && /^[\w-]{1,64}$/.test(x)))].slice(0, 20);
+}
+
+/**
+ * Where an order goes (3 Nov, the owner's approved design: one list, a tick
+ * for each account orders go to, the account on screen chosen apart from the
+ * ticks): every ticked account that can trade, each at its own size or the
+ * key's. The account on screen sends first when it is ticked (its own order
+ * goes at once, with the screen's figures); when it is not, `leadOff` and
+ * every ticked account goes as one of the group.
+ * `ticks`: ticked ids; `shownId`: the account on screen; `sizes`: "groupsizes".
+ */
+export function sendPlan({ ticks, shownId, accounts, liveOk, sizes }) {
+  const on = new Set(Array.isArray(ticks) ? ticks : []);
+  const sending = (Array.isArray(accounts) ? accounts : []).filter((a) => on.has(a.id) && canSend(a, liveOk));
+  const leadOn = sending.some((a) => a.id === shownId);
+  const others = sending.filter((a) => a.id !== shownId).map((a) => a.id);
+  return {
+    sending,
+    none: sending.length === 0,
+    leadOff: !leadOn && sending.length > 0,
+    group: groupPayload(others, sizes),
+    leadSize: leadOn ? sizes?.[shownId] || null : null
+  };
 }
 
 /** Accounts that can join: every account the terminal trades except the one on screen. */

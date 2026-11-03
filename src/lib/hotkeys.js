@@ -181,7 +181,7 @@ export function hotkeyOrder(h, ctx) {
  */
 export function withOwnSize(h, rule) {
   const v = n(rule?.value);
-  if (!rule || rule.mode === "prorata" || !(v > 0)) return h;
+  if (!rule || rule.mode === "key" || rule.mode === "prorata" || !(v > 0)) return h;
   if (rule.mode === "percent") return { ...h, size: "equity", amount: v };
   if (rule.mode === "dollars") return { ...h, size: "usd", amount: v };
   if (rule.mode === "shares") return { ...h, size: "shares", amount: v };
