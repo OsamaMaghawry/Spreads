@@ -657,3 +657,5 @@ English. Newest first.
 - 2026-11-02 · (staging) Terminal chart and phone: several watchlists and a watchlist that folds away, more history on opening with earlier candles as you scroll back, the page scrolls past the chart on a phone, the price axis takes a finger again, full screen works (`692afdc`, `c868aea`, `a64461f`, `e5199c6`).
 - 2026-11-02 · (staging) Live price stream reads the data provider's new time format, and one bad message no longer stops the stream (`730fe1d`).
 - 2026-11-02 · (staging) Terminal replay: practice orders can be sized in dollars as well as shares (`1946a2c`).
+- 2026-11-03 · (staging) Terminal hotkeys: each account takes its own size for a hotkey, on screen or not (`8da5034`, `7fc99b5`).
+- 2026-11-03 · (staging) Terminal: one Accounts list holds each account's ticks, sizes, the account on screen and the default (`fe29765`).
