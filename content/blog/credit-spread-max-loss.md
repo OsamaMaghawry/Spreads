@@ -222,6 +222,8 @@ precisely because the market sees a real chance of the short strike being taken
 out. Distance, delta, days remaining and whether earnings land before expiration
 are separate questions the width does not answer.
 
+Related: [iron condor explained](/blog/iron-condor-explained) shows why the max loss of two credit spreads on one stock is one wing's width less the whole credit, not two widths.
+
 The figure also sits outside fees. Commissions both ways, plus assignment or
 exercise charges, leave the realised number worse than the formula. An assigned
 $10,000 stock position carries margin interest for as long as it is financed,
