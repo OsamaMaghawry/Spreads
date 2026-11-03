@@ -659,3 +659,4 @@ English. Newest first.
 - 2026-11-02 · (staging) Terminal replay: practice orders can be sized in dollars as well as shares (`1946a2c`).
 - 2026-11-03 · (staging) Terminal hotkeys: each account takes its own size for a hotkey, on screen or not (`8da5034`, `7fc99b5`).
 - 2026-11-03 · (staging) Terminal: one Accounts list holds each account's ticks, sizes, the account on screen and the default (`fe29765`).
+- 2026-11-03 · (staging) Terminal: a buy of less than one whole share of a stock Alpaca trades in part shares now goes through as part shares from the hotkeys, the ticket and every ticked account, instead of being refused (`d870065`).
