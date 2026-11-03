@@ -36,17 +36,19 @@ function KeyButton({ value, onSet }) {
   );
 }
 
-// An account's own size beside the account on screen, in words.
+// Whether an account has a size of its own (else the key's, or pro rata).
+const ownOn = (size) => !!size && size.mode !== "prorata" && Number(size.value) > 0;
+// An account's own size, in words.
 const ownSize = (size) => {
   const v = Number(size?.value);
   if (!size || size.mode === "prorata" || !(v > 0)) return "in proportion to its portfolio value";
   if (size.mode === "dollars") return `$${v.toLocaleString("en-US")} an order`;
   if (size.mode === "shares") return `${v} shares an order`;
   if (size.mode === "percent") return `${v}% of its own portfolio an order`;
-  return `${v}× its pro-rata share`;
+  return `${v}× the key's size`;
 };
 
-export default function HotkeysDialog({ open, hotkeys, armed, onArm, onSave, onClose, onScreen = null, also = [] }) {
+export default function HotkeysDialog({ open, hotkeys, armed, onArm, onSave, onClose, onScreen = null, onScreenSize = null, also = [] }) {
   const [draft, setDraft] = useState(hotkeys);
   useEffect(() => { if (open) setDraft(hotkeys.length ? hotkeys : []); }, [open, hotkeys]);
   if (!open) return null;
@@ -74,7 +76,7 @@ export default function HotkeysDialog({ open, hotkeys, armed, onArm, onSave, onC
         {/* Every account a key reaches, and the size each takes (3 Nov: a size
             set elsewhere had been replacing the key's, unseen). */}
         <div className="mx-4 mt-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-          <div><b>{onScreen || "The account on screen"}</b>: the size on each key below.</div>
+          <div><b>{onScreen || "The account on screen"}</b>: {ownOn(onScreenSize) ? <>its own size, <b>{ownSize(onScreenSize)}</b>, on every buy and sell key (not the sizes below). Change it under &ldquo;Also send to&hellip;&rdquo;.</> : "the size on each key below."}</div>
           {also.length > 0 && (
             <div className="mt-1">
               Also sent to {also.map((a, i) => <span key={a.id}>{i ? "; " : ""}<b>{a.name}</b> at {ownSize(a.size)}</span>)}. Change those under &ldquo;Also send to&hellip;&rdquo; beside the account.

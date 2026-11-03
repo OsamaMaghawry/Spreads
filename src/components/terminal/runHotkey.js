@@ -1,5 +1,5 @@
 import { invokeFunction } from "@/lib/functions";
-import { hotkeyOrder, describe, hotkeyPercent } from "@/lib/hotkeys";
+import { hotkeyOrder, describe, withOwnSize, hotkeyPercent } from "@/lib/hotkeys";
 import { orderNews, orderState, sessionOf, isCrypto, px, sizeText, exitText } from "@/lib/terminal";
 import { groupNews } from "@/lib/accountGroup";
 import { onOrder } from "./orderFeed";
@@ -149,10 +149,10 @@ export async function runHotkey(h, ctx) {
     // others to take of their own portfolios (functions/_shared/proRata.ts).
     const heldNow = ctx.position ? (ctx.position.side === "short" ? -Math.abs(ctx.position.qty) : Math.abs(ctx.position.qty)) : 0;
     const sized = { symbol, crypto, quote: ctx.quote, equity: ctx.view?.equity, buyingPower: ctx.view?.buyingPower, step: await stepFor(account.id, symbol), session: session(), held: heldNow };
-    // The account on screen takes the key's own size, always (3 Nov, the
-    // owner: "I changed it in the Hotkey"; a size set for it in the account
-    // picker had been replacing the key's, unseen).
-    const built = hotkeyOrder(h, sized);
+    // Each account at its own size where it has one, on screen or not; the
+    // key's size where it has none (3 Nov: Alpaca Live set to $10 bought $100
+    // when it was the account on screen and its own size was passed over).
+    const built = hotkeyOrder(withOwnSize(h, ctx.leadSize), sized);
     // Too small on this account alone: the others still take theirs.
     const othersOnly = built.tooSmall && group.length > 0;
     if (built.reason && !othersOnly) { notify({ key, tone: "bad", title: "Order not placed", detail: `${built.reason} (${h.keys})` }); return; }
