@@ -555,7 +555,7 @@ export default function Terminal() {
   const armHotkeys = (on) => setHotkeysOn(on);
   // Everything a key press reads, current at the moment it is pressed.
   const live$ = useRef({});
-  live$.current = { account, symbol, quote, view, position, hotkeys, notify, refresh: refreshAll, replaying, liveOk, group: replaying ? [] : groupSend, leadSize: replaying ? null : groupSizes[accountId] || null };
+  live$.current = { account, symbol, quote, view, position, hotkeys, notify, refresh: refreshAll, replaying, liveOk, group: replaying ? [] : groupSend };
   useEffect(() => {
     if (!hotkeysOn || page !== "trade" || hotkeysOpen) return undefined;
     const onKey = (e) => {
@@ -581,7 +581,8 @@ export default function Terminal() {
   return (
     <div ref={deskBox} className="flex flex-col gap-1 text-slate-800 [&:fullscreen]:overflow-auto [&:fullscreen]:bg-dm-bg [&:fullscreen]:p-1">
       <Toasts toasts={toasts} onClose={closeToast} low={replaying} />
-      <HotkeysDialog open={hotkeysOpen} hotkeys={hotkeys} armed={hotkeysOn} onArm={armHotkeys} onSave={saveHotkeys} onClose={() => setHotkeysOpen(false)} />
+      <HotkeysDialog open={hotkeysOpen} hotkeys={hotkeys} armed={hotkeysOn} onArm={armHotkeys} onSave={saveHotkeys} onClose={() => setHotkeysOpen(false)}
+        onScreen={account?.name || null} also={group.map((id) => ({ id, name: accounts.find((a) => a.id === id)?.name || "Another account", size: groupSizes[id] || null }))} />
       <div ref={barBox} className="flex flex-wrap items-center gap-2 px-1">
         <h1 className="mr-2 text-lg font-semibold">Terminal</h1>
         <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">Staging test</span>

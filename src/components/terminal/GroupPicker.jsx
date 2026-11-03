@@ -34,7 +34,7 @@ export default function GroupPicker({ choices, value, sizes = {}, onChange, onSi
       <div className="mt-1 flex items-center gap-1 pl-6">
         <select aria-label={`Size for ${a.name}`} value={size.mode} onChange={(e) => setSize(a.id, { mode: e.target.value })}
           className="rounded border border-slate-300 bg-white px-1 py-0.5">
-          {SIZE_MODES.map(([id, name]) => <option key={id} value={id}>{a.id === lead?.id && id === "prorata" ? "The key's own size" : name}</option>)}
+          {SIZE_MODES.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
         </select>
         {size.mode !== "prorata" && (
           <input aria-label={`${a.name}: ${sizeLabel(size.mode)}`} inputMode="decimal" value={size.value ?? ""}
@@ -42,7 +42,7 @@ export default function GroupPicker({ choices, value, sizes = {}, onChange, onSi
             placeholder={size.mode === "times" ? "e.g. 3" : size.mode === "percent" ? "e.g. 5" : size.mode === "shares" ? "e.g. 20" : "e.g. 500"}
             className="w-20 rounded border border-slate-300 px-1 py-0.5 text-right tabular-nums" />
         )}
-        <span className="text-slate-500">{a.id === lead?.id && size.mode === "prorata" ? "as the hotkey says" : a.id === lead?.id && size.mode === "times" ? "times the hotkey's size" : sizeLabel(size.mode)}</span>
+        <span className="text-slate-500">{sizeLabel(size.mode)}</span>
       </div>
     );
   };
@@ -65,8 +65,7 @@ export default function GroupPicker({ choices, value, sizes = {}, onChange, onSi
                 <span className="flex-1 truncate font-semibold">{lead.name} <span className="font-normal text-slate-500">(on screen)</span></span>
                 <span className={`rounded px-1 text-[10px] font-semibold uppercase ${lead.type === "Live" ? "bg-rose-600 text-white" : "bg-amber-100 text-amber-800"}`}>{lead.type}</span>
               </div>
-              {sizeRow(lead)}
-              <p className="mt-0.5 pl-6 text-[10px] text-slate-500">For hotkeys on this account: its own size in place of the key&apos;s, a sale never more than it holds.</p>
+              <p className="mt-0.5 pl-6 text-[10px] text-slate-500">Sized by each hotkey (set in Hotkeys) or the ticket.</p>
             </div>
           )}
           {choices.map((a) => {

@@ -36,7 +36,17 @@ function KeyButton({ value, onSet }) {
   );
 }
 
-export default function HotkeysDialog({ open, hotkeys, armed, onArm, onSave, onClose }) {
+// An account's own size beside the account on screen, in words.
+const ownSize = (size) => {
+  const v = Number(size?.value);
+  if (!size || size.mode === "prorata" || !(v > 0)) return "in proportion to its portfolio value";
+  if (size.mode === "dollars") return `$${v.toLocaleString("en-US")} an order`;
+  if (size.mode === "shares") return `${v} shares an order`;
+  if (size.mode === "percent") return `${v}% of its own portfolio an order`;
+  return `${v}× its pro-rata share`;
+};
+
+export default function HotkeysDialog({ open, hotkeys, armed, onArm, onSave, onClose, onScreen = null, also = [] }) {
   const [draft, setDraft] = useState(hotkeys);
   useEffect(() => { if (open) setDraft(hotkeys.length ? hotkeys : []); }, [open, hotkeys]);
   if (!open) return null;
@@ -59,8 +69,18 @@ export default function HotkeysDialog({ open, hotkeys, armed, onArm, onSave, onC
           <button type="button" aria-label="Close" onClick={onClose} className="ml-auto rounded p-1 text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button>
         </div>
         <p className="px-4 pt-3 text-xs leading-relaxed text-slate-600">
-          A hotkey sends its order at once, with no review, for the symbol on the chart. Keys work on the Trade page while you are not typing in a box, and only when hotkeys are on. Paper accounts only during this test. During a replay they trade the practice account instead.
+          A hotkey sends its order at once, with no review, for the symbol on the chart. Keys work on the Trade page while you are not typing in a box, and only when hotkeys are on. During a replay they trade the practice account instead.
         </p>
+        {/* Every account a key reaches, and the size each takes (3 Nov: a size
+            set elsewhere had been replacing the key's, unseen). */}
+        <div className="mx-4 mt-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+          <div><b>{onScreen || "The account on screen"}</b>: the size on each key below.</div>
+          {also.length > 0 && (
+            <div className="mt-1">
+              Also sent to {also.map((a, i) => <span key={a.id}>{i ? "; " : ""}<b>{a.name}</b> at {ownSize(a.size)}</span>)}. Change those under &ldquo;Also send to&hellip;&rdquo; beside the account.
+            </div>
+          )}
+        </div>
         <div className="space-y-2 px-4 py-3">
           {draft.length === 0 && (
             <div className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm text-slate-600">
