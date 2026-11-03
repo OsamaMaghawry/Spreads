@@ -1,0 +1,17 @@
+<svg viewBox="0 0 720 290" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Three bars for five contracts of a hypothetical 24-month XYZ 40 call on a 50,000 account. The premium paid, which is the most the position can lose, is 7,790, or 15.6 percent of the account. The share-equivalent exposure at a delta of 0.82 is 410 shares, or 20,500, 41 percent of the account. The notional value of the 500 shares the contracts control is 25,000, 50 percent of the account.">
+  <rect width="720" height="290" fill="#FFFFFF"/>
+  <text x="40" y="32" font-size="17" font-weight="600" fill="#14151C">Five contracts, one position, three sizes</text>
+  <text x="40" y="54" font-size="14" fill="#767B8E">Hypothetical 24-month XYZ 40 call at 15.58, XYZ at 50, account of 50,000</text>
+
+  <text x="40" y="94" font-size="15" font-weight="600" fill="#14151C">Premium paid, the most it can lose</text>
+  <rect x="40" y="102" width="187" height="28" rx="3" fill="#B4485C"/>
+  <text x="237" y="122" font-size="15" fill="#14151C">7,790 (15.6% of account)</text>
+
+  <text x="40" y="168" font-size="15" font-weight="600" fill="#14151C">Share-equivalent exposure, 410 shares at delta 0.82</text>
+  <rect x="40" y="176" width="492" height="28" rx="3" fill="#767B8E"/>
+  <text x="542" y="196" font-size="15" fill="#14151C">20,500 (41%)</text>
+
+  <text x="40" y="242" font-size="15" font-weight="600" fill="#14151C">Notional, 500 shares controlled</text>
+  <rect x="40" y="250" width="600" height="28" rx="3" fill="#C9CEDC"/>
+  <text x="650" y="270" font-size="15" fill="#14151C">25,000 (50%)</text>
+</svg>
