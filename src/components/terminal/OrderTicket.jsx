@@ -63,6 +63,11 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   // amount in dollars becomes its exact part-share quantity. Kept with the account.
   const [partsOn, setPartsOn] = useAccountSetting("fractional", { localKey: "terminal.fractional", initial: () => false, clean: (v) => v === true });
   const parts = !crypto && !!asset?.fractionable && partsOn;
+  // A stock Alpaca trades in part shares: a part share typed is taken as typed,
+  // and an amount in dollars under one share buys the part share (3 Nov, the
+  // owner: "It refuses to buy QQQ below 1 share!"); Part shares on makes every
+  // dollar amount its exact part-share quantity.
+  const fractional = !crypto && !!asset?.fractionable;
   const [unit, setUnit] = useState("qty");
   const [amount, setAmount] = useState("");
   const [tracked, setTracked] = useState(null);
@@ -199,12 +204,14 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   // takes one; anything else becomes a quantity at the order's price.
   const dollars = unit === "usd" ? Number(amount) || 0 : 0;
   const notional = unit === "usd" && type === "market" && (crypto || !!asset?.fractionable);
+  const inParts = (d) => (d >= 1 ? amountToQty(d, at, { crypto: true, step: 1e-9 }) : 0);
+  const wholeQty = unit === "usd" && !notional && !parts ? amountToQty(dollars, at, { crypto, step: asset?.minTradeIncrement }) : 0;
   const typed = unit === "usd"
-    ? (notional ? (ref ? dollars / ref : 0) : parts ? amountToQty(dollars, at, { crypto: true, step: 1e-9 }) : amountToQty(dollars, at, { crypto, step: asset?.minTradeIncrement }))
-    : crypto || parts ? Number(qty) || 0 : Number.isInteger(Number(qty)) ? Number(qty) || 0 : 0;
+    ? (notional ? (ref ? dollars / ref : 0) : parts ? inParts(dollars) : wholeQty > 0 || !fractional ? wholeQty : inParts(dollars))
+    : crypto || fractional ? Number(qty) || 0 : Number.isInteger(Number(qty)) ? Number(qty) || 0 : 0;
   // Part of a share typed where it cannot go: said, never rounded into whole
   // shares (28 Oct: "0.5" read as 5 once the dot was dropped).
-  const wholeOnly = !crypto && !parts && unit !== "usd" && qty !== "" && !Number.isInteger(Number(qty));
+  const wholeOnly = !crypto && !fractional && unit !== "usd" && qty !== "" && !Number.isInteger(Number(qty));
   // A sale typed as the holding shown, rounded for display, is the holding:
   // 0.49875 on screen is 0.498749999 at the broker.
   const sellAll = side === "sell" && held > 0 && typed > held && typed - held < 1e-8;
@@ -257,6 +264,8 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     limitPrice: needsLimit ? limit : null, stopPrice: needsStop ? stop : null,
     trailPercent: needsTrail && trailBy === "pct" ? trail : null, trailPrice: needsTrail && trailBy === "usd" ? trail : null,
     takeProfit: bracket ? tp : null, stopLoss: bracket ? sl : null, reference: ref ?? null,
+    // The other accounts: exact part shares with Part shares on, else whole shares.
+    parts: !crypto && parts,
     ...(leadOff ? { leadOff: true } : {})
   });
   // With other accounts ticked, the review shows each one's size before
@@ -347,7 +356,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
             {asset.shortable ? (asset.easyToBorrow ? "Shortable · easy to borrow" : "Shortable · hard to borrow") : "Not shortable"}
           </span>
           {asset.fractionable && (
-            <label className="ml-auto flex items-center gap-1 text-slate-600" title="Quantities in part shares, and an amount in dollars turned into its exact part-share quantity. For the day; no take-profit and stop-loss attached.">
+            <label className="ml-auto flex items-center gap-1 text-slate-600" title="Every amount in dollars bought as its exact part-share quantity, not whole shares. For the day; no take-profit and stop-loss attached. (A part share typed, or a dollar amount under one share, is bought either way.)">
               <input type="checkbox" checked={partsOn} onChange={(e) => { setPartsOn(e.target.checked); setReview(false); }} />
               Part shares
             </label>
@@ -369,12 +378,12 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
             <input id="t-qty" className={input} inputMode="decimal" value={amount} placeholder="e.g. 500"
               onChange={(e) => { setAmount(e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1")); setReview(false); }} />
           ) : (
-            <input id="t-qty" className={input} inputMode={crypto || parts ? "decimal" : "numeric"} value={qty} placeholder={crypto && asset?.minOrderSize ? `min ${asset.minOrderSize}` : parts ? "e.g. 2.5" : ""}
+            <input id="t-qty" className={input} inputMode={crypto || fractional ? "decimal" : "numeric"} value={qty} placeholder={crypto && asset?.minOrderSize ? `min ${asset.minOrderSize}` : fractional ? "e.g. 2.5" : ""}
               onChange={(e) => { setQty(e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1")); setReview(false); }} />
           )}
           {wholeOnly && (
             <p className="mt-0.5 text-[10px] text-amber-700">
-              {asset?.fractionable ? "Part of a share: turn on Part shares above to buy it." : `${symbol} trades in whole shares only at Alpaca.`}
+              {`${symbol} trades in whole shares only at Alpaca.`}
             </p>
           )}
           {unit === "usd" && dollars > 0 && (

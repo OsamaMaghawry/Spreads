@@ -177,3 +177,27 @@ test("selling shares held never comes to less than one share", () => {
   const [b] = allocate({ side: "buy", qty: 78 }, { ...lead, held: 0 }, [one], opts);
   assert.match(b.skip!, /less than one share/);
 });
+
+// 3 Nov, the owner: "It refuses to buy QQQ below 1 share!" A buy under one
+// whole share of a stock Alpaca trades in part shares takes the part share;
+// a share or more stays whole shares, unless part shares are asked for.
+test("a buy under one share of a fractionable stock: the part share, never under $1", () => {
+  const screen = { ...lead, held: 0 };
+  const opts = { symbol: "QQQ", price: 610, fractionable: true, parts: false };
+  const [ten, many, tooSmall] = allocate({ side: "buy", qty: 0.163934426 }, screen, [
+    { ...half, rule: { mode: "dollars" as const, value: 10 } },
+    { ...big, rule: { mode: "dollars" as const, value: 1000 } },
+    { ...tiny, rule: { mode: "dollars" as const, value: 0.5 } }
+  ], opts);
+  assert.deepEqual([ten.qty, ten.skip], [0.016393442, null]);
+  assert.equal(many.qty, 1); // $1,000 is a whole share and some: one share
+  assert.match(tooSmall.skip!, /under Alpaca's \$1 smallest part share/);
+  // Part shares asked for: exact.
+  assert.equal(allocate({ side: "buy", qty: 1.6 }, screen, [{ ...big, rule: { mode: "dollars" as const, value: 1000 } }], { ...opts, parts: true })[0].qty, 1.639344262);
+  // A percent key on a small account: its part share.
+  const [p] = allocate({ side: "buy", qty: null }, screen, [{ ...tiny, equity: 5000 }], { ...opts, pct: 1 });
+  assert.equal(p.qty, 0.081967213);
+  // Not fractionable, or a sale opening a short: whole shares only.
+  assert.match(allocate({ side: "buy", qty: 1 }, screen, [{ ...half, rule: { mode: "dollars" as const, value: 10 } }], { ...opts, fractionable: false })[0].skip!, /less than one share/);
+  assert.match(allocate({ side: "sell", qty: 1 }, screen, [{ ...half, rule: { mode: "dollars" as const, value: 10 } }], opts)[0].skip!, /less than one share/);
+});

@@ -570,8 +570,9 @@ export default function Terminal() {
     readPrefs(["hotkeys"]).then((p) => setHotkeys(cleanHotkeys(p.hotkeys))).catch(() => {});
   }, []);
   const saveHotkeys = (list) => { setHotkeys(list); savePref("hotkeys", list); };
-  // A coin's quantity step, read ahead so the first key press does not wait for it.
-  useEffect(() => { if (hotkeysOn && crypto) prefetchStep(accountId, symbol); }, [hotkeysOn, crypto, accountId, symbol]);
+  // A coin's quantity step, or whether a stock trades in part shares, read
+  // ahead so the first key press does not wait for it.
+  useEffect(() => { if (hotkeysOn) prefetchStep(accountId, symbol); }, [hotkeysOn, accountId, symbol]);
   const armHotkeys = (on) => setHotkeysOn(on);
   // Everything a key press reads, current at the moment it is pressed.
   const live$ = useRef({});

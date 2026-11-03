@@ -125,7 +125,8 @@ export function describe(h) {
 /**
  * The order a buy or sell hotkey sends now: { order } for the server, or a
  * reason it cannot go. `ctx`: symbol, crypto, quote {bid, ask, last}, equity,
- * buyingPower, step (a coin's quantity step), session ("regular", "extended",
+ * buyingPower, step (a coin's quantity step), fractionable (a stock Alpaca
+ * trades in part shares), session ("regular", "extended",
  * "closed"; coins ignore it).
  *
  * The price is the side of the quote the order trades against: the ask to
@@ -155,10 +156,22 @@ export function hotkeyOrder(h, ctx) {
   const amount = h.size === "usd" ? h.amount : h.size === "equity" ? (n(ctx.equity) || 0) * h.amount / 100 : h.size === "bp" ? (n(ctx.buyingPower) || 0) * h.amount / 100 : null;
   if (amount !== null && !(amount > 0)) return { reason: `No ${h.size === "equity" ? "portfolio value" : "buying power"} to size from.` };
   let qty = h.size === "shares" ? (ctx.crypto ? h.amount : Math.floor(h.amount)) : amountToQty(amount, price, { crypto: ctx.crypto, step: ctx.step });
+  const held = n(ctx.held) || 0;
+  // A buy under one whole share of a stock Alpaca trades in part shares: the
+  // part share, at least Alpaca's $1 (3 Nov, the owner: "It refuses to buy
+  // QQQ below 1 share!"). A share or more stays whole shares, so its stop
+  // lasts past today and pairs with a take profit. Not while short: part
+  // shares cannot be held short.
+  let part = false;
+  if (!(qty > 0) && buy && !ctx.crypto && ctx.fractionable && held >= 0) {
+    const want = h.size === "shares" ? n(h.amount) || 0 : (amount || 0) / price;
+    const mine = Math.floor(want * 1e9 + 1e-6) / 1e9;
+    if (mine > 0 && mine * price >= 1) { qty = Number(mine.toFixed(9)); part = true; }
+    else if (mine > 0) return { reason: `${money(mine * price)} is under Alpaca's $1 smallest part share.`, tooSmall: true, order: { symbol: ctx.symbol, side: "buy", qty: null, type, timeInForce: "day", ...(type === "limit" ? { limitPrice: price } : {}), ...(extended ? { extendedHours: true } : {}) }, price };
+  }
   const order = { symbol: ctx.symbol, side: buy ? "buy" : "sell", qty, type, timeInForce: ctx.crypto ? "gtc" : "day" };
   if (type === "limit") order.limitPrice = price;
   if (extended) order.extendedHours = true;
-  const held = n(ctx.held) || 0;
   // A sale of shares held sells at least one (28 Oct: "Sell 1 share"; a
   // $1,411 account's 0.25% was under one share at 3.57 and its one share
   // could not be sold), never more than is held.
@@ -170,7 +183,7 @@ export function hotkeyOrder(h, ctx) {
   // than is held, so one key never turns a holding into its opposite.
   let all = false;
   if ((!buy && held > 0 && qty > held) || (buy && held < 0 && qty > -held)) { qty = Math.abs(held); all = true; order.qty = qty; }
-  const words = `${buy ? "Buy" : "Sell"} ${qty} ${ctx.symbol}${all ? " (all held)" : ""} ${type === "market" ? "at market" : `limit ${px(price)}`}${extended ? " (extended hours)" : ""}`;
+  const words = `${buy ? "Buy" : "Sell"} ${qty} ${ctx.symbol}${all ? " (all held)" : ""}${part ? " (part share)" : ""} ${type === "market" ? "at market" : `limit ${px(price)}`}${extended ? " (extended hours)" : ""}`;
   return { order, words, value: qty * price, price };
 }
 

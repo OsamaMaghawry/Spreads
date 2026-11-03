@@ -9,18 +9,22 @@ import { onOrder } from "./orderFeed";
 // "cancelOrders"), and reports each step in the pop-ups at the top of the
 // screen, as the ticket does, following an order until it fills or ends.
 
-const steps = new Map();
-async function stepFor(accountId, symbol) {
-  if (!isCrypto(symbol)) return null;
-  if (!steps.has(symbol)) {
+// What Alpaca allows on a symbol, read once: a coin's quantity step, and
+// whether a stock trades in part shares (3 Nov: a buy under one share of one
+// that does takes the part share; "It refuses to buy QQQ below 1 share!").
+const assets = new Map();
+async function assetFor(accountId, symbol) {
+  if (!assets.has(symbol)) {
     const r = await invokeFunction("terminal", { action: "asset", accountId, symbol }).catch(() => null);
-    steps.set(symbol, r?.data?.asset?.minTradeIncrement ?? null);
+    const a = r?.data?.asset;
+    if (!a) return { step: null, fractionable: false };
+    assets.set(symbol, { step: a.minTradeIncrement ?? null, fractionable: !!a.fractionable });
   }
-  return steps.get(symbol);
+  return assets.get(symbol);
 }
 
-/** A coin's quantity step, read ahead of the first key press so it never waits on it. */
-export const prefetchStep = (accountId, symbol) => { if (accountId && symbol) stepFor(accountId, symbol).catch(() => {}); };
+/** A symbol's step and part shares, read ahead of the first key press so it never waits on it. */
+export const prefetchStep = (accountId, symbol) => { if (accountId && symbol) assetFor(accountId, symbol).catch(() => {}); };
 
 /**
  * Follow an order, telling the pop-up each time its state changes: at once
@@ -158,7 +162,8 @@ export async function runHotkey(h, ctx) {
     // shares, % of its portfolio; the earlier day Alpaca Live set to $10
     // bought $100 when it was on screen and its own size was passed over).
     const heldNow = ctx.position ? (ctx.position.side === "short" ? -Math.abs(ctx.position.qty) : Math.abs(ctx.position.qty)) : 0;
-    const sized = { symbol, crypto, quote: ctx.quote, equity: ctx.view?.equity, buyingPower: ctx.view?.buyingPower, step: await stepFor(account.id, symbol), session: session(), held: heldNow };
+    const asset = await assetFor(account.id, symbol);
+    const sized = { symbol, crypto, quote: ctx.quote, equity: ctx.view?.equity, buyingPower: ctx.view?.buyingPower, step: crypto ? asset.step : null, fractionable: !crypto && asset.fractionable, session: session(), held: heldNow };
     // Not ticked on screen: the order's price and kind only, worked out here;
     // no size, and nothing sent to it.
     const built = leadOff ? hotkeyOrder({ ...h, size: "shares", amount: 1 }, { ...sized, held: 0 }) : hotkeyOrder(withOwnSize(h, ctx.leadSize), sized);
@@ -175,7 +180,8 @@ export async function runHotkey(h, ctx) {
     // dollars or percent turns that into shares at the same price.
     const order = {
       // fromKey: a sell key pressed again replaces the account's earlier one still waiting.
-      ...built.order, fromKey: true, basis: h.size === "bp" ? "buyingPower" : "equity", reference: built.price ?? null,
+      // Whole shares on the other accounts, a part share only where a buy there comes to under one.
+      ...built.order, fromKey: true, parts: false, basis: h.size === "bp" ? "buyingPower" : "equity", reference: built.price ?? null,
       // A percent key: the same percent of each account's own portfolio (or buying power).
       pct: leadOff ? (h.size === "equity" || h.size === "bp" ? Number(h.amount) || null : null)
         : hotkeyPercent(h, { equity: ctx.view?.equity, buyingPower: ctx.view?.buyingPower, price: built.price }),

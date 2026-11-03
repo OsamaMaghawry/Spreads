@@ -1505,6 +1505,9 @@ async function allocation(admin: any, user: any, lead: any, ids: unknown, input:
   const known = screen && given(screen.held) !== null && (given(screen.equity) !== null || given(screen.buyingPower) !== null)
     ? { id: lead.id, name: lead.name, equity: given(screen.equity), buyingPower: given(screen.buyingPower), held: given(screen.held) || 0, qtyText: null }
     : null;
+  // Whether the stock trades in part shares, read alongside the books (3 Nov:
+  // a buy under one share of a fractionable stock takes the part share).
+  const fractionable = crypto ? Promise.resolve(false) : assetFor(lead, symbol).then((a) => !!a?.fractionable).catch(() => false);
   const [leadBook, ...books] = await Promise.all([
     known ? Promise.resolve(known) : bookOf(lead, symbol),
     ...group.map((g) => (g.account && canTrade(user, g.account) ? bookOf(g.account, symbol).catch((e: Error) => ({ error: brokerRefusal(String(e?.message || e)) })) : Promise.resolve(null)))
@@ -1515,7 +1518,10 @@ async function allocation(admin: any, user: any, lead: any, ids: unknown, input:
   // The account on screen not ticked (input.leadOff, 3 Nov): whether the
   // order closes a holding is read from the accounts it goes to.
   const shares = allocate({ side, qty: given(input?.qty), notional: given(input?.notional) }, leadBook, ready,
-    { basis: input?.basis === "buyingPower" ? "buyingPower" : "equity", crypto, symbol, price, pct: given(input?.pct), closing: input?.leadOff === true ? "group" : "lead" });
+    {
+      basis: input?.basis === "buyingPower" ? "buyingPower" : "equity", crypto, symbol, price, pct: given(input?.pct), closing: input?.leadOff === true ? "group" : "lead",
+      fractionable: await fractionable, parts: typeof input?.parts === "boolean" ? input.parts : undefined
+    });
   const rows = group.map((g, i) => {
     const b: any = books[i];
     if (!g.account) return groupRow(g.id, null, { skip: "not an account the terminal can trade" });

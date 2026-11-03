@@ -122,3 +122,20 @@ test("a sell key on shares held sells at least one, never more than held", () =>
   assert.equal(hotkeyOrder(key, { ...ctx, held: 0 }).tooSmall, true);
   assert.equal(hotkeyOrder({ ...key, action: "buy" }, { ...ctx, held: 1 }).tooSmall, true);
 });
+
+// 3 Nov, the owner: "It refuses to buy QQQ below 1 share!"
+test("a buy under one share of a stock traded in part shares: the part share; a share or more stays whole", () => {
+  const ctx = { symbol: "QQQ", crypto: false, quote: { bid: 609.9, ask: 610, last: 610 }, equity: 25000, session: "regular", held: 0, fractionable: true };
+  const usd = (amount) => ({ keys: "Shift+1", action: "buy", size: "usd", amount, price: "ask", offset: 0 });
+  const part = hotkeyOrder(usd(100), ctx);
+  assert.equal(part.order.qty, 0.163934426);
+  assert.equal(part.order.timeInForce, "day");
+  assert.match(part.words, /part share/);
+  assert.equal(hotkeyOrder(usd(1000), ctx).order.qty, 1); // $1,000: one whole share
+  assert.match(hotkeyOrder(usd(0.5), ctx).reason, /\$1 smallest part share/);
+  // 1% of a $5,000 portfolio: $50 of QQQ.
+  assert.equal(hotkeyOrder({ ...usd(1), size: "equity" }, { ...ctx, equity: 5000 }).order.qty, 0.081967213);
+  // Not traded in part shares, or a sale: as before.
+  assert.match(hotkeyOrder(usd(100), { ...ctx, fractionable: false }).reason, /less than one share/);
+  assert.match(hotkeyOrder({ ...usd(100), action: "sell", price: "bid" }, ctx).reason, /less than one share/);
+});
