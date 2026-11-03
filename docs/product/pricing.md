@@ -185,3 +185,11 @@ accounts. A $59 subscriber counts once.
   signal this file has ever had.
 - The published fee schedule read → a schedule saying anything but $29 is
   a launch blocker.
+
+## 8. 2026-11-03 run — nothing moved the price
+
+Nine decisions stand; none reopened. No new evidence on any competitor price
+(Tiblio, Option Alpha, OptionStrat, QuantWheel rows remain `reported`, last
+checked Aug–Sep). Observation, not a proposal: decision 3's switch date still
+has no release behind it (backlog #1); a free-trial and grandfather window
+cannot start before billing is visible.

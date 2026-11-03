@@ -8,24 +8,64 @@ recorded below, as prominently as additions.
 Every entry carries: the user problem in the user's words, its evidence, the
 smallest test that could disprove it, the kill criterion, and a cost guess.
 
-Last run: **2026-09-01** (vp-product, Tuesday cadence).
+Last run: **2026-11-03** (vp-product, Tuesday cadence). Previous: 2026-09-01.
+
+## Reconciliation — 2026-11-03 (read first)
+
+Read against `docs/ops/shipped.md`, `git log origin/main`, `git log origin/staging`
+and `docs/product/features.md`. There are no daily product notes after 2026-09-04.
+
+**The headline fact: `main` has shipped no product code since early September.**
+`git log origin/main --since=2026-09-05 -- src supabase/functions` returns one
+commit, a metrics snapshot (`0d6a91e`, 16 Oct). Everything since is blog posts.
+Meanwhile `origin/staging` carries 298 commits to `src/` and `supabase/functions/`
+over the same period — `git diff --stat main staging -- src supabase` is 168
+files, ~24,900 lines added: a trading terminal (charts, replay, hotkeys, order
+book, tape, news, protect/repair, stop guard, SnapTrade/Tradier account
+plumbing, migrations 0060–0065). None of it is live, and billing is still
+hidden (`billing_visible` off, shipped 3 Sep). The 100-paying-users target is
+31 Dec; the product a stranger can pay for today is the 4 Sep product.
+
+Proposal by proposal:
+
+| # | Proposal | Verdict | Evidence |
+| --- | --- | --- | --- |
+| 1 | Quoted width on scan results | **Left.** | `src/components/scanner/ResultsTable.jsx` still shows strike *Width* only; no bid/ask or quoted-width column. Not in staging's scanner either (the new terminal screener, `src/components/terminal/Screener.jsx`, shows no width — I did not read its filters end to end; see unverified). |
+| 2 | Probability-of-profit | **Left.** | No POP anywhere in `src/` or `_shared/optionScan.ts`; `impliedVol()` fallback unchanged. |
+| 3 | `scan_runs` log | **Killed.** | No migration; see Killed. |
+| new | Release path for staging's work | **Opened (#1).** | See below. |
 
 ## Open proposals
 
-**Three of five slots used.** Two deliberately left empty — this run killed one
-proposal and found that a second's test rested on data that does not exist, so
-the honest state is fewer, better-tested entries, not five.
+**Three of five slots used (2026-11-03).** #1 is new this run; the two
+screener proposals below it are unchanged and now rank #2 and #3 by the
+activation criterion (a product nobody can pay for scores zero on everything
+else). Their numbering inside the text below is the old one: old #1 = width, old #2 = POP.
 
-What changed this run, in one line each:
+### 1. Decide what part of staging becomes the product people can pay for — and release it
 
-- **#1 re-scoped and strengthened.** It now has a *real user*, not a
-  constructed one, and the mechanism moved from open interest to quoted
-  width — which is cheaper to measure and is what actually cost the user money.
-- **#2 (was #3) test made cheaper** and given a second kill criterion found in
-  our own `impliedVol` code.
-- **#3 is new** and exists because this run discovered that no scan is
-  recorded anywhere.
-- **Universe demand instrumentation: killed.** See below.
+- **User problem:** none stated by a user. This is a gap in our own pipeline, and
+  the owner should decide it knowingly. The first activation step (a live
+  account paying) cannot happen on code that is not on `main`.
+- **Evidence — our repo, read 2026-11-03:** `git log origin/main --since=2026-09-05
+  -- src supabase/functions` is one metrics commit; `origin/staging` has 298
+  commits over the same span and ~24,900 added lines across 168 files (terminal,
+  replay, hotkeys, SnapTrade/Tradier plumbing, migrations 0060–0065). Billing
+  stays hidden (`billing_visible`, 3 Sep). `plan-100.md` sets 100 paying users
+  by 31 Dec. `docs/ops/queue.md` holds open head-of-trading findings on the
+  terminal (W44: N2 protect resizes a 10-share limit into a 100-share OCO; N6,
+  N7 share sales ignore short calls the shares cover, N9 priced hotkeys off a
+  15-minute-delayed quote, N10 no half-day calendar) — so "release staging"
+  is not free either.
+- **Smallest test:** the owner (not an agent) names the *one* thing a stranger
+  should be able to do on day one of Live — e.g. the 4 Sep Positions Monitor +
+  ticket, or the terminal — and the open money-path findings against *that* scope
+  are closed or cut. No new build; a scoping decision.
+- **Kill criterion:** if the owner would rather keep building on staging and
+  hold the 31 Dec target, kill this and move the target in `plan-100.md` to a
+  date that has a release in front of it. Either is fine; drifting is not.
+- **Cost guess:** the decision is an hour. Release verification is
+  agent-manager's gate, outside this file.
 
 ### 1. Show the executable exit cost on scan results (quoted width), and let the user floor it
 
@@ -114,7 +154,7 @@ What changed this run, in one line each:
 - **Cost guess:** test ~a day; feature ~2 days, no new data source — *if*
   kill criterion 2 does not fire.
 
-### 3. Record what was scanned (the measurement three questions need)
+### ~~3. Record what was scanned~~ — KILLED 2026-11-03 (text kept for the record; see Killed)
 
 - **User problem:** none. This is not a user-facing proposal and scores zero
   on the ranking criterion. It is here because this run discovered that we
@@ -148,6 +188,21 @@ What changed this run, in one line each:
   effect on activation is zero.
 
 ## Killed
+
+### Record what was scanned (`scan_runs`) — killed 2026-11-03
+
+Its own kill criterion was "if the owner would not act differently on any of
+the answers, kill it." Evidence it now meets that: 28-day Search Console shows
+2 clicks and 143 impressions for the whole site (`docs/growth/metrics/2026-11-03.json`);
+`plan-100.md` and `pricing.md` §4 describe a base of about two customers; billing is not open.
+A scan log on that base is the same trap that killed universe instrumentation:
+no denominator, no time dimension, a sample of roughly the number of people who
+ever ran the screener. Proposals #1 and #2 are tested offline from the payload
+the browser already receives, so neither needs it. A second screener now exists
+on staging (the terminal's), so a log written for the old one would be
+instrumenting the thing about to be superseded. Revisit only if a screener
+decision needs usage data AND there are enough users for it to mean anything.
+
 
 ### Universe demand instrumentation — killed 2026-09-01
 

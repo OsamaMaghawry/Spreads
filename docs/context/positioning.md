@@ -15,6 +15,22 @@ not what makes an OAuth app function — see `compliance.md` — so a competitor
 running the flow proves only that their app is published. Treat their approval
 status as unknown.
 
+## Update 2026-11-03 (vp-product) — what changed in the facts
+
+- **The shipped product has not moved since 4 Sep.** Positioning above is
+  scored against `main`; `main` has no product commits since early September.
+- **Staging is now a different, larger product: a trading terminal** (charts,
+  replay practice, hotkeys, order book, tape, news, protect/repair, a
+  terminal-side screener). If it ships, the competitor set widens from
+  spread screeners (Barchart, Tiblio) to charting and execution terminals
+  (e.g. thinkorswim, TradingView) and the "after the fill" claim below
+  is no longer the whole story. Do not write terminal claims into marketing
+  until it is on `main` and head-of-trading has cleared the open W44 findings.
+- **Competitor facts are not re-verified this run.** Tiblio and Barchart rows
+  date from Aug–Sep 2026; tiblio.com is still 403 here. `market-watch` is due.
+- Search: 28 days = 2 clicks, 143 impressions; no evidence yet that anyone is
+  looking for us other than by name.
+
 ## The market, honestly sized
 
 There is no measurable "multi-leg options strategies market"; nobody clears or
