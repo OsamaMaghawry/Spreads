@@ -102,6 +102,6 @@ Quotes make this less tidy than the example. A deep in-the-money call often trad
 
 ## The bottom line
 
-A short call is assigned early for a dividend when a deep in-the-money call has less extrinsic value left than the dividend about to be paid. For a covered seller that moves the dividend to the call holder and nothing else; for a seller with no shares it means owing the dividend on a short stock position the account did not plan to hold. The setup is on the chain before the notice arrives. The [options for investors series](/blog/investing) continues with how a long-dated position is sized.
+A short call is assigned early for a dividend when a deep in-the-money call has less extrinsic value left than the dividend about to be paid. For a covered seller that moves the dividend to the call holder and nothing else; for a seller with no shares it means owing the dividend on a short stock position the account did not plan to hold. The setup is on the chain before the notice arrives. The [options for investors series](/blog/investing) continues with [how a long-dated position is sized](/blog/leaps-position-sizing).
 
 All figures on this page are hypothetical and are there to show the arithmetic. This post is educational and is not investment advice.
