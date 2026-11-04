@@ -385,7 +385,7 @@ export default function AccountAnalysis() {
             <ArrowLeft className="w-3.5 h-3.5" /> Back to account
           </Link>
           <h1 className="font-heading text-xl font-bold tracking-[-0.02em] text-dm-text mt-1">
-            {data?.account ? `${data.account.name} — Analysis` : "Analysis"}
+            {data?.account ? `${data.account.name}: Analysis` : "Analysis"}
           </h1>
           {stats && (
             <p className="text-xs text-slate-500 mt-0.5">
@@ -413,7 +413,7 @@ export default function AccountAnalysis() {
           {stats && (
             <ExportPdfButton
               targetRef={reportRef}
-              title={data?.account ? `${data.account.name} — Analysis` : "Analysis"}
+              title={data?.account ? `${data.account.name}: Analysis` : "Analysis"}
               subtitle={`${stats.firstDate} → ${stats.lastDate}${range.from || range.to ? " (filtered)" : ""} · ${strategy === "all" ? "All strategies" : strategyLabel(strategy)} · Closed trades (options and shares sold) · equity ${equity ? `$${equity.toLocaleString()}` : "n/a"} · generated ${new Date().toLocaleString()}`}
               isPaper={!!data?.account?.is_paper}
               viewLabel="Closed trades (options and shares sold)"

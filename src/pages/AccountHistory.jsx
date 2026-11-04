@@ -183,7 +183,7 @@ export default function AccountHistory() {
             <ArrowLeft className="w-3.5 h-3.5" /> Back to account
           </Link>
           <h1 className="font-heading text-xl font-bold tracking-[-0.02em] text-dm-text mt-1">
-            {data?.account ? `${data.account.name} — Trade History` : "Trade History"}
+            {data?.account ? `${data.account.name}: Trade History` : "Trade History"}
           </h1>
           {/* A failed refresh outranks the timestamp: saying "Updated 14:03"
               under figures the failed sync never touched is the specific way

@@ -175,7 +175,7 @@ export default function OptionChain() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="font-heading text-xl font-bold tracking-[-0.02em] text-dm-text">Option chain</h1>
+        <h1 className="font-heading text-xl font-bold tracking-[-0.02em] text-dm-text">Option Chain</h1>
         <p className="text-xs text-slate-500 mt-0.5">
           Every listed strike, every listed expiry. Pick one leg for a single option, two of the same
           type for a spread, buy a put and sell a call for a collar on shares you hold, or buy a put,

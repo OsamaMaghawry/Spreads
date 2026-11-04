@@ -69,8 +69,8 @@ export default function Settings() {
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8">
-      <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Your account and what we send you.</p>
+      <h1 className="font-heading text-xl font-bold tracking-[-0.02em] text-dm-text">Settings</h1>
+      <p className="mt-1 text-sm text-dm-sub">Your account and what we send you.</p>
 
       <section className="mt-6 rounded-xl border bg-card p-5">
         <div className="flex items-start gap-3">

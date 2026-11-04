@@ -79,7 +79,7 @@ export default function Dashboard() {
           <KeyRound className="w-8 h-8 text-slate-400" />
           <p className="text-slate-500 text-sm max-w-sm">No trading accounts yet. Connect a brokerage account to start monitoring positions.</p>
           <Link to="/accounts" className="mt-1 px-4 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm hover:bg-emerald-100 transition-colors">
-            Add an account
+            Connect an account
           </Link>
         </div>
       ) : (
