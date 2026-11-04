@@ -85,7 +85,7 @@ export function accountLine(facts: any) {
 }
 
 const SEV_RANK: Record<string, number> = { critical: 2, warning: 1, info: 0 };
-const dot = (s: string) => (s === "critical" ? "🔴" : s === "warning" ? "🟠" : "⚪");
+const dot = (s: string) => (s === "critical" ? "Critical" : s === "warning" ? "Warning" : "Info");
 
 // perAccount: [{ name, facts, alerts: [{ rule, severity, title }] }]
 export function buildDailyReport(perAccount: any[], day: string) {

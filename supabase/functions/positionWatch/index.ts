@@ -234,7 +234,7 @@ async function reconcile(admin, account, raised, unjudged = new Set()) {
   return toNotify;
 }
 
-const sev = (s) => (s === "critical" ? "🔴" : s === "warning" ? "🟠" : "⚪");
+const sev = (s) => (s === "critical" ? "Critical" : s === "warning" ? "Warning" : "Info");
 
 function alertEmail(accountName, items) {
   const rows = items
