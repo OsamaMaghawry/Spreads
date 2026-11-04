@@ -139,7 +139,7 @@ Three things move the daily figure, and they interact rather than acting one
 at a time.
 
 - **Days to expiration.** Near the money, a shorter-dated option decays faster per day, as the table above shows; a longer-dated one decays slower but for more days. [LEAPS options explained](/blog/leaps-options-explained) follows one two-year call's decay with the stock flat. [On a credit spread](/blog/credit-spread-dte) the same shape applies to the spread's mark.
-- **Moneyness.** At-the-money strikes carry the most extrinsic value and the largest theta at a given expiration; deep in- or out-of-the-money strikes carry less of each, and their daily decay does not accelerate the same way into expiration.
+- **Moneyness.** At-the-money strikes carry the most extrinsic value and the largest theta at a given expiration; deep in- or out-of-the-money strikes carry less of each, and their daily decay does not accelerate the same way into expiration. [LEAPS delta, theta and vega](/blog/leaps-delta-theta) shows a deep call's daily decay peaking and then falling.
 - **Implied volatility.** A higher IV means more extrinsic value is priced into the option to begin with, so there is more of it for theta to remove each day.
 
 An option can also show a larger or smaller theta than a same-dated peer for

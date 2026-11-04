@@ -1,0 +1,32 @@
+<svg viewBox="0 0 720 464" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Grouped bars of the delta of a hypothetical 40 call at five XYZ prices. With 24 months left delta glides from 0.91 at a stock price of 60 to 0.82 at 50, 0.75 at 45, 0.66 at 40 and 0.53 at 35. With 1 month left it is 1.00 at 60, 1.00 at 50, 0.93 at 45, 0.53 at 40 and 0.07 at 35.">
+  <rect width="720" height="464" fill="#FFFFFF"/>
+  <text x="40" y="32" font-size="17" font-weight="600" fill="#14151C">Delta of the 40 call as the stock moves</text>
+  <text x="40" y="54" font-size="14" fill="#767B8E">Hypothetical XYZ, 30% implied volatility, 24 months against 1 month left</text>
+  <rect x="40" y="66" width="12" height="12" rx="2" fill="#2E8B5F"/><text x="58" y="77" font-size="13" fill="#14151C">24 months left</text>
+  <rect x="300" y="66" width="12" height="12" rx="2" fill="#767B8E"/><text x="318" y="77" font-size="13" fill="#14151C">1 month left</text>
+  <text x="40" y="108" font-size="14" font-weight="600" fill="#14151C">XYZ at 60</text>
+  <rect x="40" y="114" width="402" height="20" rx="3" fill="#2E8B5F"/>
+  <text x="452" y="129" font-size="14" fill="#14151C">0.91</text>
+  <rect x="40" y="138" width="440" height="20" rx="3" fill="#767B8E"/>
+  <text x="490" y="153" font-size="14" fill="#14151C">1.00</text>
+  <text x="40" y="184" font-size="14" font-weight="600" fill="#14151C">XYZ at 50</text>
+  <rect x="40" y="190" width="362" height="20" rx="3" fill="#2E8B5F"/>
+  <text x="412" y="205" font-size="14" fill="#14151C">0.82</text>
+  <rect x="40" y="214" width="438" height="20" rx="3" fill="#767B8E"/>
+  <text x="488" y="229" font-size="14" fill="#14151C">1.00</text>
+  <text x="40" y="260" font-size="14" font-weight="600" fill="#14151C">XYZ at 45</text>
+  <rect x="40" y="266" width="330" height="20" rx="3" fill="#2E8B5F"/>
+  <text x="380" y="281" font-size="14" fill="#14151C">0.75</text>
+  <rect x="40" y="290" width="407" height="20" rx="3" fill="#767B8E"/>
+  <text x="457" y="305" font-size="14" fill="#14151C">0.93</text>
+  <text x="40" y="336" font-size="14" font-weight="600" fill="#14151C">XYZ at 40</text>
+  <rect x="40" y="342" width="289" height="20" rx="3" fill="#2E8B5F"/>
+  <text x="339" y="357" font-size="14" fill="#14151C">0.66</text>
+  <rect x="40" y="366" width="235" height="20" rx="3" fill="#767B8E"/>
+  <text x="285" y="381" font-size="14" fill="#14151C">0.53</text>
+  <text x="40" y="412" font-size="14" font-weight="600" fill="#14151C">XYZ at 35</text>
+  <rect x="40" y="418" width="235" height="20" rx="3" fill="#2E8B5F"/>
+  <text x="285" y="433" font-size="14" fill="#14151C">0.53</text>
+  <rect x="40" y="442" width="32" height="20" rx="3" fill="#767B8E"/>
+  <text x="82" y="457" font-size="14" fill="#14151C">0.07</text>
+</svg>

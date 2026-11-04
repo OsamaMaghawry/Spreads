@@ -1,0 +1,32 @@
+<svg viewBox="0 0 720 464" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Grouped bars of daily time decay per contract for two hypothetical XYZ calls as expiration nears. The 50 call loses 0.78 dollars a day with 24 months left, 1.05 with 12, 1.40 with 6, 1.89 with 3 and 3.10 with 1 month left. The 40 call loses 0.66 with 24 months left, 0.81 with 12, 0.89 with 6, 0.84 with 3 and 0.52 with 1 month left, because it is mostly intrinsic value by then.">
+  <rect width="720" height="464" fill="#FFFFFF"/>
+  <text x="40" y="32" font-size="17" font-weight="600" fill="#14151C">Daily time decay of one call, by time left</text>
+  <text x="40" y="54" font-size="14" fill="#767B8E">Hypothetical XYZ at 50, 30% volatility, stock flat, dollars per contract per day</text>
+  <rect x="40" y="66" width="12" height="12" rx="2" fill="#B4485C"/><text x="58" y="77" font-size="13" fill="#14151C">50 call (at the money)</text>
+  <rect x="300" y="66" width="12" height="12" rx="2" fill="#767B8E"/><text x="318" y="77" font-size="13" fill="#14151C">40 call (in the money)</text>
+  <text x="40" y="108" font-size="14" font-weight="600" fill="#14151C">24 months left</text>
+  <rect x="40" y="114" width="117" height="20" rx="3" fill="#B4485C"/>
+  <text x="167" y="129" font-size="14" fill="#14151C">0.78</text>
+  <rect x="40" y="138" width="99" height="20" rx="3" fill="#767B8E"/>
+  <text x="149" y="153" font-size="14" fill="#14151C">0.66</text>
+  <text x="40" y="184" font-size="14" font-weight="600" fill="#14151C">12 months left</text>
+  <rect x="40" y="190" width="158" height="20" rx="3" fill="#B4485C"/>
+  <text x="208" y="205" font-size="14" fill="#14151C">1.05</text>
+  <rect x="40" y="214" width="122" height="20" rx="3" fill="#767B8E"/>
+  <text x="172" y="229" font-size="14" fill="#14151C">0.81</text>
+  <text x="40" y="260" font-size="14" font-weight="600" fill="#14151C">6 months left</text>
+  <rect x="40" y="266" width="210" height="20" rx="3" fill="#B4485C"/>
+  <text x="260" y="281" font-size="14" fill="#14151C">1.40</text>
+  <rect x="40" y="290" width="134" height="20" rx="3" fill="#767B8E"/>
+  <text x="184" y="305" font-size="14" fill="#14151C">0.89</text>
+  <text x="40" y="336" font-size="14" font-weight="600" fill="#14151C">3 months left</text>
+  <rect x="40" y="342" width="284" height="20" rx="3" fill="#B4485C"/>
+  <text x="334" y="357" font-size="14" fill="#14151C">1.89</text>
+  <rect x="40" y="366" width="126" height="20" rx="3" fill="#767B8E"/>
+  <text x="176" y="381" font-size="14" fill="#14151C">0.84</text>
+  <text x="40" y="412" font-size="14" font-weight="600" fill="#14151C">1 month left</text>
+  <rect x="40" y="418" width="465" height="20" rx="3" fill="#B4485C"/>
+  <text x="515" y="433" font-size="14" fill="#14151C">3.10</text>
+  <rect x="40" y="442" width="78" height="20" rx="3" fill="#767B8E"/>
+  <text x="128" y="457" font-size="14" fill="#14151C">0.52</text>
+</svg>

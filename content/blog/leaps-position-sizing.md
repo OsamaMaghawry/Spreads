@@ -101,6 +101,6 @@ None of these has a formula, which is why a percentage rule alone cannot settle 
 
 ## The bottom line
 
-One LEAPS contract on the hypothetical XYZ cost $1,558, behaved like about 82 shares and controlled $5,000 of stock. Five contracts cost $7,790, behaved like 410 shares and controlled $25,000, on an account of $50,000. The premium is the ceiling on the loss, delta shows how much stock the position behaves like, and notional shows how much it controls. A percentage means nothing until it says which of the three it counts. The next post, on a long-dated option's Greeks, takes delta and theta further. The category index is at [options for investors](/blog/investing).
+One LEAPS contract on the hypothetical XYZ cost $1,558, behaved like about 82 shares and controlled $5,000 of stock. Five contracts cost $7,790, behaved like 410 shares and controlled $25,000, on an account of $50,000. The premium is the ceiling on the loss, delta shows how much stock the position behaves like, and notional shows how much it controls. A percentage means nothing until it says which of the three it counts. The next post, on [a long-dated option's Greeks](/blog/leaps-delta-theta), takes delta and theta further. The category index is at [options for investors](/blog/investing).
 
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.
