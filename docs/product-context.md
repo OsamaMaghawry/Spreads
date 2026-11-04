@@ -475,6 +475,17 @@ pages at `deltamint.app` and `dashboard.deltamint.app`.
 - **(proposed)** Nav labels are all Title Case or all sentence case; today "Option chain" is the odd one.
 - **(proposed)** "Connect", never "Link", for a broker account, on every surface including landing CTAs.
 
+### Rules added by the audit (proposed, 2026-W45)
+
+- **(proposed)** No emoji on any product surface, including email; severity is the words Critical / Warning / Info plus the `dm` colours.
+- **(proposed)** Feature and page names are Title Case (Option Chain, Trade History, Strategy Scanner); verb-phrase links stay sentence case (Use with Claude).
+- **(proposed)** Any surface with its own tokens (landing CSS, email inline styles, PDF RGB) uses the `dm` hexes: text `#201B3A`, sub `#6A6294`, accent `#534AB7`, mint `#3FA672`, negative `#993C1D`, warning `#854F0B`. The logotype "mint" is always `#3FA672`.
+- **(proposed)** Broker account verbs are "Connect" and "Disconnect"; "Add" is only for the manual-keys form. Never "link".
+- **(proposed)** Register Settings and Terms of Service as canonical page names (Settings has a route but no nav entry: owner decision).
+- **(proposed)** Email subjects and page titles use a colon after the brand, `DeltaMint: <thing>`, never a dash.
+- **(proposed)** Sign-up wording: one verb on the button (today "Sign up", "Start for free", "Create account"); the others stay CTA copy.
+- **(proposed)** Lifecycle status chips (closed, assigned, exercised): record sky/amber/violet as sanctioned, or collapse to one neutral chip.
+
 ---
 
 # Positioning and market

@@ -301,6 +301,12 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Escalated
 
+- [escalated 2026-11-04] 2026-11-04 · head-of-branding (W45) · **Terms page tab title says "Terms of Use", page H1 and body say "Terms of Service".** `landing/public/terms/index.html:6,17`. Dash removed this run; the name is a legal-document title, so not changed. Proposed: `DeltaMint: Terms of Service`. Needs compliance-gate.
+- [escalated 2026-11-04] 2026-11-04 · head-of-branding (W45) · **Em dashes in legal/disclosure text on public surfaces.** `terms/index.html:150,155,173,176,177,194,206`, `privacy/index.html:170-176,183`, `ExportPdfButton.jsx:90,131,181,184,185`, `AnalysisDisclosure.jsx:25`, `watchReport.ts:142`, `positionWatch/index.ts:247`. Disclaimer/legal sentences, not reworded. Proposed: replace each dash with a colon or full stop, wording otherwise unchanged. Needs compliance-gate.
+- [escalated 2026-11-04] 2026-11-04 · head-of-branding (W45) · **Scanner button "Scan the entire market"** (`Scanner.jsx:236`) against brand.md's "Market Scanner is false on the page's own screen". Feature-claim: desk-editor to rule; proposed wording "Scan the universe".
+- [escalated 2026-11-04] 2026-11-04 · head-of-branding (W45) · **Blog: 49 of 51 posts over the 1,300-word ceiling; 3 posts lack Key takeaways and FAQ** (`credit-spread-max-loss`, `options-journal-splits-spreads-into-legs`, `return-on-risk-vs-return-on-capital`). Rewrite queue for content-engine; slug `options-journal-splits-spreads-into-legs` unchanged.
+- [escalated 2026-11-04] 2026-11-04 · head-of-branding (W45) · Emerald primary buttons vs `dm-accent` and `rose-*` vs `dm-negative` (now 402 vs 8 uses): redesign-scale, still the owner's call (see 2026-10-28).
+
 - [escalated 2026-09-21, root cause fixed 2026-09-23 on staging] 2026-09-21 · duty-engineer · **Every diagram published
   on the blog since 14 September is a broken image on `deltamint.app`.** The
   posts are live; only the pictures inside them are missing. Found by reading
