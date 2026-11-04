@@ -108,10 +108,10 @@ export function buildDailyReport(perAccount: any[], day: string) {
     `${totals.positions} open position${totals.positions === 1 ? "" : "s"} · ` +
     `${money(totals.atRisk)} at risk`;
 
-  const lines: string[] = [`DeltaMint — after the close · ${day}`, headline, ""];
+  const lines: string[] = [`DeltaMint: after the close · ${day}`, headline, ""];
   if (actionable.length) {
     lines.push("Needs a look");
-    for (const a of actionable) lines.push(`  ${dot(a.severity)} ${a.account} — ${a.title}`);
+    for (const a of actionable) lines.push(`  ${dot(a.severity)} ${a.account}: ${a.title}`);
     lines.push("");
   } else {
     lines.push("Nothing needs a look.", "");
@@ -123,23 +123,23 @@ export function buildDailyReport(perAccount: any[], day: string) {
     ? `<p style="font-size:13px;font-weight:600;margin:18px 0 6px">Needs a look</p>
        <table style="border-collapse:collapse;font-size:13px">${actionable
          .map((a) => `<tr><td style="padding:5px 8px 5px 0;vertical-align:top">${dot(a.severity)}</td>` +
-           `<td style="padding:5px 0"><span style="color:#64748B">${a.account}</span> — ${a.title}</td></tr>`)
+           `<td style="padding:5px 0"><span style="color:#6A6294">${a.account}</span>: ${a.title}</td></tr>`)
          .join("")}</table>`
     : `<p style="font-size:13px;margin:18px 0 6px;color:#0F6E56">Nothing needs a look.</p>`;
 
   const rest = `<p style="font-size:13px;font-weight:600;margin:18px 0 6px">Everything else</p>
     <table style="border-collapse:collapse;font-size:13px">${perAccount
       .map((a) => `<tr><td style="padding:5px 14px 5px 0;white-space:nowrap">${a.name}</td>` +
-        `<td style="padding:5px 0;color:#475569">${accountLine(a.facts)}</td></tr>`)
+        `<td style="padding:5px 0;color:#6A6294">${accountLine(a.facts)}</td></tr>`)
       .join("")}</table>`;
 
-  const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:600px;color:#0F172A">
-    <p style="font-size:15px;font-weight:600;margin:0">DeltaMint — after the close</p>
-    <p style="font-size:12px;color:#94A3B8;margin:2px 0 0">${day}</p>
+  const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:600px;color:#201B3A">
+    <p style="font-size:15px;font-weight:600;margin:0">DeltaMint: after the close</p>
+    <p style="font-size:12px;color:#6A6294;margin:2px 0 0">${day}</p>
     <p style="font-size:14px;margin:14px 0 0">${headline}</p>
     ${needs}
     ${rest}
-    <p style="font-size:11px;color:#94A3B8;margin-top:20px">Judged on today's closing prices. A monitoring summary, not advice — your broker's records govern.</p>
+    <p style="font-size:11px;color:#6A6294;margin-top:20px">Judged on today's closing prices. A monitoring summary, not advice — your broker's records govern.</p>
   </div>`;
 
   return { html, text: lines.join("\n"), actionable: actionable.length };

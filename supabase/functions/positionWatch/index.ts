@@ -241,10 +241,10 @@ function alertEmail(accountName, items) {
     .map((i) => `<tr><td style="padding:6px 10px">${sev(i.severity)}</td><td style="padding:6px 10px">${i.title}</td></tr>`)
     .join("");
   const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px">
-    <p style="font-size:15px;font-weight:600">DeltaMint — ${accountName}</p>
-    <p style="font-size:13px;color:#475569">Something in this account needs a look:</p>
+    <p style="font-size:15px;font-weight:600">DeltaMint: ${accountName}</p>
+    <p style="font-size:13px;color:#6A6294">Something in this account needs a look:</p>
     <table style="border-collapse:collapse;font-size:13px">${rows}</table>
-    <p style="font-size:11px;color:#94a3b8;margin-top:16px">A monitoring alert, not advice. Positions are yours; check them in your broker. DeltaMint never holds your funds or securities.</p>
+    <p style="font-size:11px;color:#6A6294;margin-top:16px">A monitoring alert, not advice. Positions are yours; check them in your broker. DeltaMint never holds your funds or securities.</p>
   </div>`;
   const text = items.map((i) => `- ${i.title}`).join("\n");
   return { html, text };
@@ -311,7 +311,7 @@ Deno.serve(async (req) => {
         const mailable = toNotify.filter((t) => t.severity !== "info");
         if (mode === "watch" && mailable.length) {
           const { html, text } = alertEmail(account.name, mailable);
-          const r = await sendEmail(recipient, `DeltaMint alert — ${account.name}`, html, text);
+          const r = await sendEmail(recipient, `DeltaMint alert: ${account.name}`, html, text);
           if (r.sent) {
             const ids = mailable.map((t) => t.id).filter(Boolean);
             if (ids.length) await admin.from("alerts").update({ emailed_at: new Date().toISOString() }).in("id", ids);
@@ -348,8 +348,8 @@ Deno.serve(async (req) => {
     if (mode === "daily") {
       const { html, text, actionable } = buildDailyReport(perAccount, todayKey());
       const subject = actionable
-        ? `DeltaMint — ${actionable} to look at · ${todayKey()}`
-        : `DeltaMint — all clear · ${todayKey()}`;
+        ? `DeltaMint: ${actionable} to look at · ${todayKey()}`
+        : `DeltaMint: all clear · ${todayKey()}`;
       await sendEmail(recipient, subject, html, text);
     }
 
