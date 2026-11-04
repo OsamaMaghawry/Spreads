@@ -129,6 +129,8 @@ says "effective break-even" and leaves the reported basis alone.
 Nor does the premium stand on its own as income - it is one half of a
 position whose other half is 100 shares of downside.
 
+Related: [the wheel's cost basis](/blog/wheel-strategy-cost-basis) follows what repeated covered calls do to the break-even on assigned shares.
+
 ## What does the account look like the day after assignment?
 
 Take the second case: XYZ closes at $56.00 on expiration Friday, and the 52

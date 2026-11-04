@@ -1515,13 +1515,23 @@ Results pages read that day, not measured. No rank tracker or volume tool. Ten s
 
 **Could not establish:** volume, difficulty or rank for any phrasing; whether "sell puts to buy stock" or "selling puts to buy stock" is the more common typed form (titles use both, a count of titles and not demand); whether reddit.com itself ranks, since only mirrors surfaced; any Search Console data, since the post is unpublished. That absence is a read of these results pages on one day through one search tool.
 
-## Queued rows, 28 Oct (next ten unwritten topics in content/PLAN.md)
+## Next ten unwritten topics, read 4 Nov
 
-Target queries are from PLAN.md; numbers follow PLAN.md (corrected 29 Oct: they ran one ahead, and rows 43 and 44 now have their full rows above). "Competing today" is NOT yet read from the results pages for these; the daily runs fill it in before the post is written. No volume figures.
+Numbers follow `content/PLAN.md` (row 50 there is already published as `options-journal-splits-spreads-into-legs`). This replaces the 28 Oct queue, whose numbering ran one behind PLAN. "Competing today" is read from the results pages on 4 Nov; no volume figures exist for any of it. Search Console shows no impressions yet for any of these queries.
 
-| # | Topic | Target query | Competing today | Our angle |
-| --- | --- | --- | --- | --- |
-| 49 | twenty open spreads, one afternoon | managing multiple option positions | not yet read | twenty open spreads, one afternoon, mechanics first |
-| 50 | what assignment costs on a spread | assignment risk credit spread | not yet read | what assignment costs on a spread, mechanics first |
-| 51 | early close vs hold | close credit spread early or hold | not yet read | early close vs hold, mechanics first |
-| 52 | a short leg through the strike | credit spread in the money what to do | not yet read | a short leg through the strike, mechanics first |
+| # | Topic | Target query (long tail) | Head term (hub) | Competing today | Our angle |
+| --- | --- | --- | --- | --- | --- |
+| 49 | Twenty open spreads and one afternoon | managing multiple option positions | managing options positions | Fidelity and OIC slides, Option Alpha, Tradervue, Udemy course pages; mostly generic. Winnable | the mechanics of a book: which positions need attention first by days left and distance to the short strike, not a Greeks lecture |
+| 51 | What assignment costs on a spread | assignment risk credit spread | credit spread assignment | TradeStation, Schwab, Options Trading IQ; the bond "credit spread" meaning pollutes the results. Winnable with "options" in the title | the short leg is the only leg assigned, what the account shows after, and what the long leg then does |
+| 52 | Closing early vs holding to expiry | close credit spread early or hold | when to close a credit spread | CIBC, Nasdaq, tastylive-style blogs, forum threads; the "close at 50 percent" rule dominates | the arithmetic of the last cents of credit against the risk left, on one hypothetical spread; no rule of thumb offered as advice |
+| 53 | A short leg through the strike | credit spread in the money what to do | credit spread in the money | Investing Daily help, Prosper Trading, Schwab, tastytrade support; thin and forum-like. Winnable | what max loss means once both legs are in the money, and what closing costs against assignment |
+| 54 | Adjusting an iron condor | adjust iron condor | iron condor adjustments | Barchart, Option Alpha, Benzinga, tastylive, WallStreetMojo; hard head term | one tested wing, what rolling it does to credit and max loss, with the numbers |
+| 55 | Partial fills on a spread | partial fill options spread | options spread fill | Mostly platform docs (CQG, QuantConnect) and forums; no clear educational owner. Winnable | what a half-filled spread leaves in the account and what to do about the other half |
+| 56 | Limit order that is not filling | options limit order not filling | options order not filled | Robinhood support, Totality, Binance FAQ; broker help pages | price walking against the bid-ask, in cents, on a spread |
+| 57 | What to alert on in a book | options position alerts | options alerts | Robinhood, Webull, IBKR Campus, vendor pages; product pages dominate | which conditions are worth an alert, described as mechanics; no feature we lack may be implied |
+| 58 | The naked short call you did not know you had | naked call risk | naked call | Wikipedia, tastylive, SoFi, Lightspeed, SmartAsset; hard head term | how a short call becomes uncovered after the shares are sold or called away |
+| 60 | What a closed-position record has to contain | options trade record realized pl | options trading journal | journal tool pages (Tradervue, Optionomics), Schwab help; product pages | what fields make a realized figure reproducible, including partial closes and rolls |
+
+Not established: search volume for any query; which of 54 and 58 a new domain could reach (both head terms are held by Wikipedia and broker education pages).
+
+Revised by the numbers: none. The 28-day window (147 impressions, 2 clicks) is too thin to contradict any row; the only page-one query is the brand term "delta mint".
