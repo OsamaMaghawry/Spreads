@@ -116,6 +116,6 @@ Related: [stock replacement strategy](/blog/stock-replacement-strategy), which f
 
 A LEAPS is a standard option with a long clock. On the hypothetical here, a two-year 40 call cost $1,558 against $5,000 for the shares, lost $264 of time value in a year with the stock flat, and moved with the stock at about 82 cents on the dollar. Above the strike it trailed the shares by $558, it broke even at 55.58, and below 34.42 it lost less than owning the stock. Time decay is gentle at the start and steep at the end, and a change in implied volatility reaches a long-dated price harder than a short one.
 
-The next posts in the [investing series](/blog/investing) build on this contract. [LEAPS position sizing](/blog/leaps-position-sizing) puts the same 40 call on an account and counts it three ways. For the decay curve in more detail, see [theta decay explained](/blog/theta-decay-explained).
+The next posts in the [investing series](/blog/investing) build on this contract. [LEAPS position sizing](/blog/leaps-position-sizing) puts the same 40 call on an account and counts it three ways. For the decay curve in more detail, see [theta decay explained](/blog/theta-decay-explained), and for delta, theta and vega on this contract, see [LEAPS delta, theta and vega](/blog/leaps-delta-theta).
 
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.
