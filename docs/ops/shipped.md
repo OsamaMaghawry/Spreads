@@ -3,6 +3,8 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-11-04 · New blog post on LEAPS delta and theta, in the investing series (`84d7735`, published `644d684`).
+- 2026-11-04 · Two internal links added between existing blog posts so readers can move between related articles (`9f80e1b`, published `0d5a574`).
 - 2026-10-06 · New blog post: the diagonal spread explained, with two diagrams comparing it to a calendar spread (`4cef92c`).
 - 2026-09-28 · New blog post: the wheel strategy explained, with two diagrams, and a cross-link from the covered-call post (`9a76e9d`).
 - 2026-09-27 · The Saturday weekly digest no longer goes silent for
