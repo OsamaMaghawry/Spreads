@@ -127,7 +127,7 @@ export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = 
         let at = y;
         if (isPaper) {
           pdf.setFontSize(11);
-          pdf.setTextColor(180, 72, 92);
+          pdf.setTextColor(153, 60, 29);
           pdf.text("PAPER TRADING — SIMULATED RESULTS, NOT REAL MONEY", margin, at);
           at += 16;
         }
@@ -136,7 +136,7 @@ export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = 
           // money is not real, the other says one row's attribution is not
           // settled. Giving them the same weight would flatten the difference.
           pdf.setFontSize(8.5);
-          pdf.setTextColor(160, 60, 60);
+          pdf.setTextColor(153, 60, 29);
           pdf.text(fit(withheldLine, imgW), margin, at);
         }
       };
@@ -148,16 +148,16 @@ export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = 
           y += 2 + bannerLines.length * 16;
         }
         pdf.setFontSize(15);
-        pdf.setTextColor(isPaper ? 180 : 15, isPaper ? 72 : 23, isPaper ? 92 : 42);
+        pdf.setTextColor(isPaper ? 153 : 32, isPaper ? 60 : 27, isPaper ? 29 : 58);
         pdf.text(fit(title || "Analysis", imgW), margin, y);
         pdf.setFontSize(9);
-        pdf.setTextColor(100, 116, 139);
+        pdf.setTextColor(106, 98, 148);
         if (subtitle) pdf.text(fit(subtitle, imgW), margin, y + 16);
         // Named on the cover, so a reader can find the rows on a broker
         // statement without hunting the body for the note.
         if (withheld?.names?.length) {
           pdf.setFontSize(8);
-          pdf.setTextColor(160, 60, 60);
+          pdf.setTextColor(153, 60, 29);
           pdf.text(
             fit(`Unattributed: ${withheld.names.slice(0, 6).join(", ")}${withheld.names.length > 6 ? `, +${withheld.names.length - 6} more` : ""}`, imgW),
             margin,
