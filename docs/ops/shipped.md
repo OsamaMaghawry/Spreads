@@ -660,3 +660,7 @@ English. Newest first.
 - 2026-11-03 · (staging) Terminal hotkeys: each account takes its own size for a hotkey, on screen or not (`8da5034`, `7fc99b5`).
 - 2026-11-03 · (staging) Terminal: one Accounts list holds each account's ticks, sizes, the account on screen and the default (`fe29765`).
 - 2026-11-03 · (staging) Terminal: a buy of less than one whole share of a stock Alpaca trades in part shares now goes through as part shares from the hotkeys, the ticket and every ticked account, instead of being refused (`d870065`).
+- 2026-11-04 · (staging) App wording: one name and one label per thing across the dashboard, history, analysis, option chain and settings pages (`f688a02`).
+- 2026-11-04 · (staging) Exported PDF uses one red and one text colour from the brand scale (`585725f`).
+- 2026-11-04 · (staging) Position-watch emails: alert severity in words instead of emoji, brand colours, no dash in subjects (`4689836`, `eada0cc`).
+- 2026-11-04 · (staging) Marketing pages: titles without dashes, "Connect" wording, brand-mint wordmark (`5621f7c`).
