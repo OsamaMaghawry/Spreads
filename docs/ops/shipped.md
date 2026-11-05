@@ -3,6 +3,8 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-11-05 · New blog post on managing several option positions at once, with a triage diagram (`7f209e7`, published `3b76c79`).
+- 2026-11-05 · Search titles and meta text changed on two existing posts, option assignment and strike price, plus a wheel cross-link (`d31b730`, published `72e03ec`).
 - 2026-10-06 · New blog post: the diagonal spread explained, with two diagrams comparing it to a calendar spread (`4cef92c`).
 - 2026-09-28 · New blog post: the wheel strategy explained, with two diagrams, and a cross-link from the covered-call post (`9a76e9d`).
 - 2026-09-27 · The Saturday weekly digest no longer goes silent for
