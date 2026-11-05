@@ -1,7 +1,7 @@
 import { adminClient } from "./supabaseClients.ts";
 import { tradingBase, alpacaFetch, pairSpreads, getOptionQuotes } from "./alpaca.ts";
 import { getSpots } from "./marketPrice.ts";
-import { KINDS, STOCK_LIKE, stressLossOfKind, stressTotal, totalRisk } from "./positionKinds.ts";
+import { KINDS, STOCK_LIKE, stressLossOfKind, stressTotal, totalRisk, rowBreakEven } from "./positionKinds.ts";
 import { basisByTicker } from "./wheelBasis.ts";
 import { decryptSecret } from "./crypto.ts";
 import { parseOCCSymbol } from "./occ.ts";
@@ -313,7 +313,7 @@ async function syncOne(account, dataAccount: any = null) {
         totalCredit,
         // From positionKinds by kind: a covered call breaks even at the shares'
         // cost less the call premium, not at the strike plus it.
-        breakEven: s.breakEven ?? (isCall ? leg.strike + leg.entryPrice : leg.strike - leg.entryPrice),
+        breakEven: rowBreakEven(s.breakEven, isCall, leg.strike, leg.entryPrice),
         breakEvenHigh: null,
         closeCost,
         unrealizedPL: totalCredit - closeCost,

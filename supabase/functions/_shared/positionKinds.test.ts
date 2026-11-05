@@ -272,3 +272,13 @@ test("an unjudgeable row makes its whole ticker incomplete", () => {
   assert.equal(t.complete, false);
   assert.deepEqual(t.undefinedRisk, ["X"]);
 });
+
+// Audit 2026-W45 N2: the dashboard's single-leg fallback break-even replaced a
+// deliberate null (short call covered by a long call) with strike + premium.
+test("rowBreakEven keeps a null the pairing chose, and only falls back when absent", async () => {
+  const { rowBreakEven } = await import("./positionKinds.ts");
+  assert.equal(rowBreakEven(null, true, 90, 1.5), null);
+  assert.equal(rowBreakEven(undefined, true, 90, 1.5), 91.5);
+  assert.equal(rowBreakEven(undefined, false, 90, 1.5), 88.5);
+  assert.equal(rowBreakEven(88, false, 90, 1.5), 88);
+});

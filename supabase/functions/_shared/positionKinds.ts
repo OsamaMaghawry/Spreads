@@ -261,6 +261,15 @@ export function riskOfKind(kind: string, p: any): number | null {
 // Where the position breaks even, per share -- the number a wheel is run
 // against. OIC: a covered call breaks even at the stock's cost less the call
 // premium; a short put at the strike less its premium.
+// The single-leg row's break-even. The pairing's answer wins even when it is
+// null: null means no break-even exists for the shape (a short call covered by
+// a long call), and strike plus premium is not one. The fallback is only for a
+// row that carries no figure at all.
+export function rowBreakEven(rowBreakEven: number | null | undefined, isCall: boolean, strike: number, entry: number): number | null {
+  if (rowBreakEven !== undefined) return rowBreakEven;
+  return isCall ? strike + entry : strike - entry;
+}
+
 export function breakEvenOfKind(kind: string, p: any): number | null {
   const credit = Math.abs(Number(p.avgEntryPrice) || 0);
   const strike = Number(p.strike) || 0;

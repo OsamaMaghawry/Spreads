@@ -499,3 +499,17 @@ test("a ratio whose long is above its short is not a stock repair", () => {
   assert.ok(ratio);
   assert.notEqual(ratio.structure, "stock_repair");
 });
+
+// Audit 2026-W45 N2: a short call covered by a LONG call, with 100 shares also
+// held, was handed the share basis anyway; the break-even came out as
+// 50 - 1.50 = 48.50 for a call the shares do not cover. No break-even exists
+// for that shape (the row reads null), so none may be shown.
+test("a short call covered by a long call gets no share-basis break-even", () => {
+  const out = pairSpreads(
+    [opt("XYZ261218C00060000", 1, 22, 21), opt("XYZ261120C00090000", -1, 1.5, 1.2), stock("XYZ", 100, 50, 5000)],
+    []
+  );
+  const shortCall = out.find((r: any) => r.shortSymbol === "XYZ261120C00090000" || r.symbol === "XYZ261120C00090000");
+  assert.ok(shortCall, "short call row present");
+  assert.equal(shortCall.breakEven, null);
+});
