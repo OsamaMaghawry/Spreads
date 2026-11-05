@@ -1,0 +1,30 @@
+<svg viewBox="0 0 720 420" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Scatter chart of twenty hypothetical open spreads. The horizontal axis is days left to expiration and the vertical axis is the cushion between the stock and the short strike as a percent of the stock. Fourteen faint dots sit mostly toward the upper right. Six labelled spreads A to F are spread out: F is in the money with 4 days left, A has 6 days and a 2.3 percent cushion, C has 12 days and 3.2 percent, D has 9 days and 5.6 percent, E has 27 days and 6.5 percent, and B has 34 days and 11.1 percent. A shaded corner at lower left marks the positions with few days and a thin cushion.">
+<rect width="720" height="420" fill="#FFFFFF"/>
+<rect x="70" y="230" width="230" height="130" fill="#B4485C" fill-opacity="0.10"/>
+<line x1="70" y1="360" x2="690" y2="360" stroke="#767B8E"/><line x1="70" y1="100" x2="70" y2="360" stroke="#767B8E"/>
+<line x1="70" y1="295" x2="690" y2="295" stroke="#B4485C" stroke-dasharray="4 4"/>
+<text x="694" y="299" font-size="13" fill="#B4485C">0</text>
+<text x="380" y="398" font-size="14" fill="#767B8E" text-anchor="middle">Days left</text>
+<text x="18" y="230" font-size="14" fill="#767B8E" text-anchor="middle" transform="rotate(-90 18 230)">Cushion, % of stock</text>
+<text x="80" y="224" font-size="13" font-weight="600" fill="#B4485C">First</text>
+<circle cx="336" cy="157" r="6" fill="#767B8E" fill-opacity="0.35"/>
+<circle cx="389" cy="129" r="6" fill="#767B8E" fill-opacity="0.35"/>
+<circle cx="442" cy="224" r="6" fill="#767B8E" fill-opacity="0.35"/>
+<circle cx="477" cy="168" r="6" fill="#767B8E" fill-opacity="0.35"/>
+<circle cx="513" cy="139" r="6" fill="#767B8E" fill-opacity="0.35"/>
+<circle cx="584" cy="120" r="6" fill="#767B8E" fill-opacity="0.35"/>
+<circle cx="619" cy="196" r="6" fill="#767B8E" fill-opacity="0.35"/>
+<circle cx="318" cy="146" r="6" fill="#767B8E" fill-opacity="0.35"/>
+<circle cx="424" cy="183" r="6" fill="#767B8E" fill-opacity="0.35"/>
+<circle cx="566" cy="215" r="6" fill="#767B8E" fill-opacity="0.35"/>
+<circle cx="637" cy="154" r="6" fill="#767B8E" fill-opacity="0.35"/>
+<circle cx="371" cy="204" r="6" fill="#767B8E" fill-opacity="0.35"/>
+<circle cx="495" cy="110" r="6" fill="#767B8E" fill-opacity="0.35"/>
+<circle cx="601" cy="232" r="6" fill="#767B8E" fill-opacity="0.35"/>
+<circle cx="176" cy="257" r="8" fill="#B4485C"/><text x="189" y="262" font-size="14" font-weight="600" fill="#14151C">A</text>
+<circle cx="672" cy="114" r="8" fill="#14151C"/><text x="685" y="119" font-size="14" font-weight="600" fill="#14151C">B</text>
+<circle cx="283" cy="243" r="8" fill="#B4485C"/><text x="296" y="248" font-size="14" font-weight="600" fill="#14151C">C</text>
+<circle cx="229" cy="204" r="8" fill="#14151C"/><text x="242" y="209" font-size="14" font-weight="600" fill="#14151C">D</text>
+<circle cx="548" cy="189" r="8" fill="#14151C"/><text x="561" y="194" font-size="14" font-weight="600" fill="#14151C">E</text>
+<circle cx="141" cy="337" r="8" fill="#B4485C"/><text x="154" y="342" font-size="14" font-weight="600" fill="#14151C">F</text>
+</svg>
