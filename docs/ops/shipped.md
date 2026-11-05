@@ -664,3 +664,4 @@ English. Newest first.
 - 2026-11-04 · (staging) Exported PDF uses one red and one text colour from the brand scale (`585725f`).
 - 2026-11-04 · (staging) Position-watch emails: alert severity in words instead of emoji, brand colours, no dash in subjects (`4689836`, `eada0cc`).
 - 2026-11-04 · (staging) Marketing pages: titles without dashes, "Connect" wording, brand-mint wordmark (`5621f7c`).
+- 2026-11-05 · (staging) Break-even: a short call covered only by a longer-dated long call no longer shows an invented break-even, and shares that do not back the call no longer lend it their basis (`b839f32`).
