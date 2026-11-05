@@ -9,6 +9,7 @@ Every entry carries: the user problem in the user's words, its evidence, the
 smallest test that could disprove it, the kill criterion, and a cost guess.
 
 Last run: **2026-09-01** (vp-product, Tuesday cadence).
+Reconciled 2026-11-05 (end of day): no open proposal shipped or half-shipped. Staging (1416 commits ahead of main) has no quoted-width column or filter in `ResultsTable.jsx`, no probability-of-profit field in `optionScan.ts` or the screener, and no `scan_runs` table in any migration, so #1, #2 and #3 stand unchanged. Still three of five slots used.
 
 ## Open proposals
 
