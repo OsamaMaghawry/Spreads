@@ -186,6 +186,8 @@ market reopens. Three cases decide when this matters:
 - **Before expiration.** The short put can be [assigned early](/blog/option-assignment-what-happens); it is uncommon, and the conditions that make it likely are in that post.
 - **After assignment.** If the short put was assigned early and the long put is still held, the shares and the put together keep the loss within the cap, but the position is now shares and a put rather than two options. After an expiration assignment between the strikes, the long put has expired, and nothing caps the loss on the shares.
 
+Related: [credit spread assignment risk](/blog/assignment-risk-credit-spread), the two ways to close out once the short leg is assigned and the long leg is still held.
+
 Nothing in the credit or the width warns about this case: both figures are
 exact, but they describe the two plateaus, and this close sits on the slope
 between them. A spread that finishes between its strikes is

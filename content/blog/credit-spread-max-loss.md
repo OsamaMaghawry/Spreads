@@ -188,6 +188,7 @@ shares dated from the day before. Whatever happened in between is already yours.
 **Exercising the long put and selling it are different numbers.** Exercising
 throws away whatever time value the put still carries; selling the put and the
 shares keeps it. Both close the position, and not for the same amount.
+The [credit spread assignment post](/blog/assignment-risk-credit-spread) prices the two exits side by side.
 
 **Short calls have their own trigger.** Early assignment on a short call
 clusters the day before an ex-dividend date, when the dividend exceeds what is

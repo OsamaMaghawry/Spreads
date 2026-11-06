@@ -124,6 +124,8 @@ Related: [wheel strategy cost basis](/blog/wheel-strategy-cost-basis), the runni
 
 Related: [covered call after assignment](/blog/covered-call-after-assignment), the account the morning after a short call is assigned.
 
+Related: [assignment risk on a credit spread](/blog/assignment-risk-credit-spread), what the long leg does once the short leg of a spread is assigned.
+
 ## Example: a hypothetical short put assigned overnight
 
 Take a [cash-secured put](/blog/cash-secured-put-explained) on the
