@@ -165,6 +165,8 @@ assignment between the strikes, the long call has expired and nothing does.
 The cap is a property of holding both legs, not something that steps in when
 the short call is exercised.
 
+Related: [credit spread assignment risk](/blog/assignment-risk-credit-spread), what the account shows after the short call is assigned and what the long call then does.
+
 ## Frequently asked questions
 
 - **What is a call credit spread?** A short call and a long call, same stock and expiration, the long at a higher strike, opened for a net credit. It is also called a bear call spread or a short call vertical.
