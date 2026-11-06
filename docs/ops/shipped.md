@@ -3,6 +3,7 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-11-06 · New blog post: assignment risk on a credit spread — only the short leg is assigned, what the account shows afterwards, and why the long leg does not close anything unless you act; cross-linked from three existing posts (`911cb39`, `a308eaf`).
 - 2026-10-06 · New blog post: the diagonal spread explained, with two diagrams comparing it to a calendar spread (`4cef92c`).
 - 2026-09-28 · New blog post: the wheel strategy explained, with two diagrams, and a cross-link from the covered-call post (`9a76e9d`).
 - 2026-09-27 · The Saturday weekly digest no longer goes silent for
