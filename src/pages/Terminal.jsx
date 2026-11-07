@@ -27,6 +27,7 @@ import ReplayBar, { ReplayStart } from "@/components/terminal/ReplayBar";
 import { PracticePositions, SavedResults, DemoResults } from "@/components/terminal/ReplayPanels";
 import NewsPanel, { useNews } from "@/components/terminal/NewsPanel";
 import AccountsMenu from "@/components/terminal/AccountsMenu";
+import GexPage from "@/components/terminal/GexPage";
 import SymbolSearch from "@/components/terminal/SymbolSearch";
 import useAccountSetting from "@/components/terminal/useAccountSetting";
 import { cleanSizes, cleanTicks, sendPlan } from "@/lib/accountGroup";
@@ -178,11 +179,18 @@ export default function Terminal() {
   const [pick, setPick] = useState(null);
   const [preset, setPreset] = useState(null);
   const [page, setPage] = useAccountSetting("page", {
-    localKey: PAGE_KEY, initial: () => "trade", clean: (v) => (v === "screen" ? "screen" : "trade"), fromLocal: (raw) => raw, toLocal: (v) => v
+    localKey: PAGE_KEY, initial: () => "trade", clean: (v) => (v === "screen" || v === "gamma" ? v : "trade"), fromLocal: (raw) => raw, toLocal: (v) => v
   });
   const pageRef = useRef(page);
   const [screenSeen, setScreenSeen] = useState(page === "screen");
   useEffect(() => { if (page === "screen") setScreenSeen(true); }, [page]);
+  // The Gamma page (components/terminal/GexPage.jsx), kept once opened; its
+  // symbol streams while it shows, and its walls and flip go on the charts.
+  const [gammaSeen, setGammaSeen] = useState(page === "gamma");
+  useEffect(() => { if (page === "gamma") setGammaSeen(true); }, [page]);
+  const [gexSymbol, setGexSymbol] = useState("");
+  const [gexLevels, setGexLevels] = useState({});
+  const putGexLevels = useCallback((sym, levels) => setGexLevels((m) => (m[sym] === levels ? m : { ...m, [sym]: levels })), []);
   pageRef.current = page;
 
   const quoteRef = useRef(null);
@@ -256,7 +264,7 @@ export default function Terminal() {
   const shares = useMemo(() => shareFeed(feedPref, { eodhd: eodhdOk, now: minute * 60 }), [feedPref, eodhdOk, minute]);
   const chooseFeed = (v) => setFeedPref(v);
 
-  const streamSymbols = useMemo(() => cleanWatchlist([symbol, ...paneSymbols.split(","), ...watch]).slice(0, 30), [symbol, paneSymbols, watch]);
+  const streamSymbols = useMemo(() => cleanWatchlist([symbol, ...paneSymbols.split(","), ...(page === "gamma" && gexSymbol ? [gexSymbol] : []), ...watch]).slice(0, 30), [symbol, paneSymbols, watch, page, gexSymbol]);
   const { quotes: live, status, feeds, epoch, listen } = useTerminalStream(accountId, streamSymbols, crypto ? symbol : "", shares.live);
   const feedTrouble = Object.entries(feeds).find(([, f]) => f.state === "error");
 
@@ -610,7 +618,7 @@ export default function Terminal() {
         <h1 className="mr-2 text-lg font-semibold">Terminal</h1>
         <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">Staging test</span>
         <div className="flex rounded-md border border-slate-300 text-sm" role="tablist" aria-label="Page">
-          {[["trade", "Trade"], ["screen", "Scanner"]].map(([id, name]) => (
+          {[["trade", "Trade"], ["screen", "Scanner"], ["gamma", "Gamma"]].map(([id, name]) => (
             <button key={id} type="button" role="tab" aria-selected={page === id} onClick={() => setPage(id)}
               className={`px-3 py-1 first:rounded-l-md last:rounded-r-md ${page === id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}>{name}</button>
           ))}
@@ -696,6 +704,12 @@ export default function Terminal() {
         <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
           The charts are replaying the past. Hotkeys and the replay bar trade a practice account, on the active chart&apos;s symbol; the ticket, book and tape are still live, on your paper account.
         </p>
+      )}
+      {gammaSeen && (
+        <div className={page === "gamma" ? "" : "hidden"}>
+          <GexPage accountId={accountId} active={page === "gamma"} chartSymbol={symbol} priceOf={(s) => quoteOf(s).last}
+            onSymbol={setGexSymbol} onLevels={putGexLevels} stockFeed={shares.history} />
+        </div>
       )}
       {screenSeen && (
         <div className={page === "screen" ? "" : "hidden"}>
@@ -836,7 +850,7 @@ export default function Terminal() {
                   <PriceChart accountId={accountId} symbol={p.symbol} interval={p.interval} onInterval={paneInterval[i]} listen={listen} fills={fillsBySymbol[p.symbol] || NO_FILLS}
                     replay={replay} replayOn={replaying} replayCursor={session?.cursor ?? null} replayVersion={replayVersion} replayMove={session?.moveId || 0} replayAcct={session?.book[p.symbol] || null}
                     onReplayButton={replayButton} active={panes.active === i} label={panes.list.length > 1} stockFeed={shares.history} liveSource={shares.live}
-                    onSearch={() => setChartSearch({ pane: i, initial: "" })} fullView={full || chartFill} />
+                    onSearch={() => setChartSearch({ pane: i, initial: "" })} fullView={full || chartFill} levels={gexLevels[p.symbol] || null} />
                 </div>
               ))}
             </div>

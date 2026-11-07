@@ -125,7 +125,7 @@ const newId = () => `d${Date.now().toString(36)}${Math.random().toString(36).sli
 function PriceChart({
   accountId, symbol, interval, onInterval, listen, fills = [],
   replay = null, replayOn = false, replayCursor = null, replayVersion = 0, replayMove = 0, replayAcct = null, onReplayButton = () => {}, active = true, label = false,
-  stockFeed = "iex", liveSource = "iex", onSearch = null, fullView = false
+  stockFeed = "iex", liveSource = "iex", onSearch = null, fullView = false, levels = null
 }) {
   const boxRef = useRef(null);
   const chartRef = useRef(null);
@@ -940,6 +940,16 @@ function PriceChart({
       ...(acct.orders || []).map((o) => line(o.price, o.side === "buy" ? "#0d9488" : "#c026d3", `${o.side === "buy" ? "Buy" : "Sell"} ${o.kind === "limit" ? "limit" : "stop"} ${sizeText(o.qty)}`, LineStyle.SparseDotted))
     ].filter(Boolean);
   }, [acct, marks.lines]);
+  // Gamma levels from the Gamma page (GexPage.jsx): the call wall, put wall
+  // and zero-gamma flip, on the live chart only (never over a replay's past).
+  const gexLinesRef = useRef([]);
+  useEffect(() => {
+    const series = candlesRef.current;
+    if (!series) return;
+    for (const l of gexLinesRef.current) { try { series.removePriceLine(l); } catch { /* gone */ } }
+    gexLinesRef.current = replayOn || !levels ? [] : levels.filter((l) => l.price > 0).map((l) =>
+      series.createPriceLine({ price: l.price, color: l.color, title: l.title, lineStyle: LineStyle.Dashed, lineWidth: 1, axisLabelVisible: true }));
+  }, [levels, replayOn]);
   // A seconds interval, which cannot be replayed, becomes one minute.
   useEffect(() => {
     if (replayOn && !REPLAY_INTERVALS.includes(interval)) onInterval("1Min");

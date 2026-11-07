@@ -356,6 +356,86 @@ async function assetFor(account: any, symbol: string) {
   return asset;
 }
 
+// ---------- gamma exposure ----------
+//
+// 7 Nov, the owner: "Can we build a powerful GEX charts or Gamma Exposure
+// analysis? ... SPY, QQQ & stocks is fine. Build it on Terminal". Every
+// contract of a stock or fund out to `days` (90 by default), within 20% of
+// the price, with its implied volatility, open interest and today's volume,
+// read with the caller's own Alpaca account. The exposure itself is worked
+// out in the browser (src/lib/gex.js), so changing the expiries or the range
+// costs nothing. Open interest from the contracts list (once a day, from the
+// previous close); volatility and volume from the option snapshots, one
+// request per expiry, eight at a time.
+const GEX_SPAN = 0.2;
+const gexCache = new Map<string, { at: number; body: any }>();
+
+async function gexChain(account: any, symbol: string, days: number, sf: StockFeed) {
+  const key = `${account.id}|${symbol}|${days}`;
+  const hit = gexCache.get(key);
+  if (hit && Date.now() - hit.at < 60000) return hit.body;
+  const snap = await alpacaFetch(`${DATA}/stocks/snapshots?symbols=${encodeURIComponent(symbol)}&feed=${latestFeed(sf)}`, account);
+  const d = snap?.[symbol];
+  const spot = num(d?.latestTrade?.p) || num(d?.dailyBar?.c) || num(d?.prevDailyBar?.c);
+  if (!spot) return { error: `No price for ${symbol}.` };
+  const today = new Date().toISOString().slice(0, 10);
+  const until = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+  const lo = (spot * (1 - GEX_SPAN)).toFixed(2);
+  const hi = (spot * (1 + GEX_SPAN)).toFixed(2);
+  // Open interest, calls and puts side by side.
+  const contractsOf = (type: string) => allPages(account,
+    `${tradingBase(account)}/options/contracts?underlying_symbols=${encodeURIComponent(symbol)}&status=active&type=${type}` +
+    `&expiration_date_gte=${today}&expiration_date_lte=${until}&strike_price_gte=${lo}&strike_price_lte=${hi}&limit=10000`,
+    (page) => page?.option_contracts, 6);
+  const [calls, puts] = await Promise.all([contractsOf("call"), contractsOf("put")]);
+  const listed = [...calls, ...puts].filter((c) => c?.symbol && c?.expiration_date);
+  if (!listed.length) return { error: `No listed options for ${symbol}.` };
+  const expiries = [...new Set(listed.map((c) => String(c.expiration_date)))].sort();
+  // Volatility and volume, one expiry per request.
+  const snaps: Record<string, any> = {};
+  let failed = 0;
+  await inBatches(expiries, 8, async (expiry) => {
+    let token: string | null = null;
+    let pages = 0;
+    try {
+      do {
+        const page: any = await alpacaFetch(`https://data.alpaca.markets/v1beta1/options/snapshots/${encodeURIComponent(symbol)}` +
+          `?expiration_date=${expiry}&strike_price_gte=${lo}&strike_price_lte=${hi}&limit=1000` +
+          (token ? `&page_token=${encodeURIComponent(token)}` : ""), account);
+        Object.assign(snaps, page?.snapshots || {});
+        token = page?.next_page_token || null;
+        pages += 1;
+      } while (token && pages < 5);
+    } catch (e) {
+      failed += 1;
+      console.error("gex snapshots", symbol, expiry, String((e as Error)?.message || e));
+    }
+  });
+  // [strike, expiry index, 1 for a call, open interest, implied volatility, volume]
+  const index = new Map(expiries.map((e, i) => [e, i]));
+  const oiDates = new Map<string, number>();
+  const rows: number[][] = [];
+  let noVol = 0;
+  for (const c of listed) {
+    const oi = num(c.open_interest) || 0;
+    const s = snaps[c.symbol];
+    const vol = num(s?.dailyBar?.v) || 0;
+    if (!oi && !vol) continue;
+    const iv = num(s?.impliedVolatility);
+    if (!iv) noVol += 1;
+    if (c.open_interest_date) oiDates.set(c.open_interest_date, (oiDates.get(c.open_interest_date) || 0) + 1);
+    rows.push([Number(c.strike_price), index.get(String(c.expiration_date))!, c.type === "call" ? 1 : 0, oi, iv ? Number(iv.toFixed(4)) : 0, vol]);
+  }
+  const oiDate = [...oiDates.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  const body = {
+    symbol, spot, prevClose: num(d?.prevDailyBar?.c), at: new Date().toISOString(), days, span: GEX_SPAN, oiDate,
+    expiries, rows, counts: { listed: listed.length, used: rows.length, noVol, expiriesFailed: failed }
+  };
+  gexCache.set(key, { at: Date.now(), body });
+  if (gexCache.size > 30) gexCache.delete(gexCache.keys().next().value!);
+  return body;
+}
+
 // ---------- earnings on the chart ----------
 //
 // Past reports from the SEC (8-K Item 2.02, with the moment filed), the next
@@ -2120,6 +2200,12 @@ Deno.serve(async (req) => {
     if (action === "trades") {
       if (!TERMINAL_SYMBOL(symbol)) return jsonResponse({ error: "Choose a symbol." }, 400);
       return jsonResponse(await trades(account, symbol, stockFeedOf(body.stockFeed)));
+    }
+    if (action === "gex") {
+      if (!SYMBOL.test(symbol)) return jsonResponse({ error: "Gamma exposure is for shares and funds, not coins." }, 400);
+      const days = Math.min(400, Math.max(1, Math.floor(Number(body.days) || 90)));
+      const r = await gexChain(account, symbol, days, stockFeedOf(body.stockFeed));
+      return jsonResponse(r, (r as any).error ? 400 : 200);
     }
     if (action === "book") {
       if (!TERMINAL_SYMBOL(symbol)) return jsonResponse({ error: "Choose a symbol." }, 400);
