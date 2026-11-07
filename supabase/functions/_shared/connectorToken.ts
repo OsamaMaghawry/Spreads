@@ -49,3 +49,14 @@ export const isConnectorToken = (token: string) => connectorClientId(token) !== 
 // "Bearer <jwt>" -> "<jwt>".
 export const bearerToken = (header: string | null) =>
   String(header || "").replace(/^Bearer\s+/i, "").trim();
+
+// The one exception, and it only reads: the trading terminal answers a
+// connector token for these actions, so Claude can read what the terminal
+// shows (7 Nov, the owner: "make sure that the connector has everything on
+// deltamint, including the gamma and terminal, everything, and the
+// screener"). Prices, candles, the screener, gamma exposure, news, earnings
+// and the account's own view; never an order, an exit, a stop, a cancel or a
+// saved setting. The terminal's other gates still apply: the lab switch and
+// administrators only.
+export const TERMINAL_READS = new Set(["snapshot", "bars", "screen", "gex", "news", "events", "account", "search", "asset"]);
+export const connectorMayRead = (action: unknown) => TERMINAL_READS.has(String(action || ""));

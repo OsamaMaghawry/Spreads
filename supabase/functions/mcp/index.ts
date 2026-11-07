@@ -7,6 +7,8 @@ import { scanEntriesFor } from "../_shared/entryScan.ts";
 import { readChainFor } from "../_shared/chainRead.ts";
 import { syncAccountsFor } from "../_shared/accountSync.ts";
 import { fetchTrades } from "../_shared/tradeSync.ts";
+import { isAdminUser } from "../_shared/admin.ts";
+import { readSettings } from "../_shared/settings.ts";
 
 // THE CLAUDE CONNECTOR. A remote MCP server: Claude (claude.ai, the desktop
 // and mobile apps) adds our address as a custom connector, the user signs in
@@ -89,19 +91,54 @@ async function userFor(token: string) {
   return error || !data?.user ? null : data.user;
 }
 
-function depsFor(userId: string): ConnectorDeps {
+// SnapTrade's own answer (Robinhood and the other linked brokers) can take
+// 10 seconds or more; the screen gives up at 8, the connector waits for it,
+// one account at a time (7 Nov: a tester's Robinhood account read as empty
+// when all eight of his linked accounts timed out together).
+const SNAPTRADE_WAIT_MS = 20000;
+
+// The trading terminal's read actions, asked of the terminal function itself
+// with the user's own connector token: it answers that token for reads only
+// and refuses every order, exit, stop and setting.
+const terminalWith = (token: string) => async (body: Record<string, unknown>) => {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/terminal`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, apikey: ANON_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const text = await res.text();
+  let parsed: any = null;
+  try { parsed = JSON.parse(text); } catch { parsed = { error: `The terminal answered ${res.status}.` }; }
+  return { status: res.status, body: parsed };
+};
+
+// The terminal's tools are listed to those the terminal is open to: an
+// administrator, where the terminal is switched on (staging).
+async function terminalOpenTo(user: any) {
+  const admin = adminClient();
+  try {
+    const [{ isAdmin }, settings] = await Promise.all([isAdminUser(user, admin), readSettings(admin)]);
+    return isAdmin && !!settings.terminalLab;
+  } catch {
+    return false;
+  }
+}
+
+function depsFor(userId: string, token: string, terminal: boolean): ConnectorDeps {
   const admin = adminClient();
   return {
     listAccounts: async () => {
       const { data, error } = await admin
         .from("trading_accounts")
-        .select("id, name, is_paper")
+        .select("id, name, is_paper, provider")
         .eq("user_id", userId)
         .order("created_at", { ascending: true });
       if (error) throw new Error(error.message);
       return data || [];
     },
-    syncAccounts: () => syncAccountsFor(admin, userId),
+    // The account asked about alone, rather than every account the user has.
+    syncAccounts: (only) => syncAccountsFor(admin, userId, { only: only ?? null, snapTimeoutMs: SNAPTRADE_WAIT_MS }),
+    terminal: terminal ? terminalWith(token) : undefined,
     scan: (body) => scanEntriesFor(admin, userId, body),
     chain: (body) => readChainFor(admin, userId, body),
     // The History page's own read (tradeHistory -> fetchTrades), minus the
@@ -162,7 +199,8 @@ Deno.serve(async (req) => {
     return json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error." } }, 400);
   }
 
-  const opts = { tools: connectorTools(), ctx: depsFor(user.id), server: SERVER, instructions: CONNECTOR_INSTRUCTIONS };
+  const terminal = await terminalOpenTo(user);
+  const opts = { tools: connectorTools({ terminal }), ctx: depsFor(user.id, token, terminal), server: SERVER, instructions: CONNECTOR_INSTRUCTIONS };
   const batch = Array.isArray(message) ? message : [message];
   const answered = await Promise.all(batch.map(async (m) => {
     const started = Date.now();

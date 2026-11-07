@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
-import { jwtClaims, connectorClientId, isConnectorToken, bearerToken } from "./connectorToken.ts";
+import { jwtClaims, connectorClientId, isConnectorToken, bearerToken, connectorMayRead } from "./connectorToken.ts";
 
 // A token Claude holds for the connector must never reach a function that can
 // trade, close, change an account or touch billing. See connectorToken.ts.
@@ -50,6 +50,22 @@ test("requireUser refuses connector tokens", () => {
   const src = readFileSync(new URL("./supabaseClients.ts", import.meta.url), "utf8");
   const body = src.slice(src.indexOf("export async function requireUser"));
   assert.match(body.slice(0, body.indexOf("\n}\n")), /isConnectorToken\(/);
+});
+
+// 7 Nov: the terminal answers a connector token for its read actions only.
+test("the terminal reads for a connector token and never trades for one", () => {
+  for (const a of ["snapshot", "bars", "screen", "gex", "news", "events", "account", "search", "asset"]) assert.equal(connectorMayRead(a), true, a);
+  for (const a of ["order", "exit", "protect", "cancelOrders", "prefs", "replace", "groupView", "allocate", "guardStops", "selftest", "", undefined]) {
+    assert.equal(connectorMayRead(a), false, String(a));
+  }
+  const src = readFileSync(new URL("../terminal/index.ts", import.meta.url), "utf8");
+  // The refusal comes before the caller is even looked up.
+  const guard = src.indexOf("!connectorMayRead(body?.action)");
+  assert.ok(guard > 0 && guard < src.indexOf("const who = await caller(req, admin)"));
+  // connectorUser answers connector tokens only; a person's own sign-in still goes through requireUser.
+  const clients = readFileSync(new URL("./supabaseClients.ts", import.meta.url), "utf8");
+  const body = clients.slice(clients.indexOf("export async function connectorUser"));
+  assert.match(body.slice(0, body.indexOf("\n}\n")), /!isConnectorToken\(/);
 });
 
 test("marketStream refuses connector tokens", () => {

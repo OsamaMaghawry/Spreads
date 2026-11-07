@@ -62,12 +62,18 @@ test("notifications get no response; bad messages and methods get JSON-RPC error
 test("every tool is listed, and every one is marked read-only", async () => {
   const res: any = await handleMessage(rpc("tools/list"), { tools: connectorTools(), ctx: fakeDeps(), server, instructions: "" });
   const names = res.result.tools.map((t: any) => t.name);
-  assert.deepEqual(names, ["list_accounts", "get_positions", "get_trade_history", "find_trades", "get_option_chain"]);
+  assert.deepEqual(names, [
+    "list_accounts", "get_positions", "get_trade_history", "find_trades", "get_option_chain",
+    "get_gamma_exposure", "screen_stocks", "get_quotes", "get_price_history", "get_news", "get_earnings", "get_orders"
+  ]);
   for (const t of res.result.tools) {
     assert.equal(t.annotations.readOnlyHint, true, t.name);
     assert.equal(t.annotations.destructiveHint, false, t.name);
     assert.equal(t.inputSchema.type, "object", t.name);
   }
+  // The trading terminal's reads are listed only where the terminal is open to the user (admins).
+  const plain: any = await handleMessage(rpc("tools/list"), { tools: connectorTools({ terminal: false }), ctx: fakeDeps(), server, instructions: "" });
+  assert.deepEqual(plain.result.tools.map((t: any) => t.name), ["list_accounts", "get_positions", "get_trade_history", "find_trades", "get_option_chain"]);
 });
 
 test("argument checks turn a malformed call into a sentence the model can fix", () => {
@@ -361,3 +367,166 @@ test("usage record: arguments kept when small, replaced by a note when not", () 
   assert.deepEqual(recordedArgs({ blob: "x".repeat(3000) }), { truncated: true, chars: 3011 });
 });
 
+
+// ---------- the trading terminal's reads ----------
+
+// A terminal that answers each read action from a table, and records what it was asked.
+function terminalDeps(answers: Record<string, any>, over: Partial<ConnectorDeps> = {}) {
+  const asked: any[] = [];
+  const deps = fakeDeps({
+    listAccounts: async () => [
+      { id: "rh-1", name: "Robinhood", is_paper: false, provider: "snaptrade" },
+      { id: "alp-1", name: "Paper", is_paper: true, provider: "alpaca" }
+    ],
+    terminal: async (body: any) => {
+      asked.push(body);
+      const a = answers[body.action];
+      return typeof a === "function" ? a(body) : a ?? { status: 400, body: { error: "unknown action" } };
+    },
+    ...over
+  });
+  return { deps, asked };
+}
+
+test("terminal tools read through a direct Alpaca account, never through SnapTrade", async () => {
+  const { deps, asked } = terminalDeps({ snapshot: { status: 200, body: { feed: "iex", quotes: { SPY: { last: 600.5, prevClose: 595, change: 5.5, changePct: 0.00924, at: "2026-10-08T14:59:58Z" } } } } });
+  const r = await call(deps, "get_quotes", { symbols: ["spy", "nope!!"] });
+  assert.equal(r.isError, false, r.text);
+  assert.equal(asked[0].accountId, "alp-1");
+  assert.deepEqual(asked[0].symbols, ["SPY"]);
+  assert.equal(r.data.quotes[0].change_pct, 0.92);
+  assert.equal(r.data.quotes[0].last_trade_at, "2026-10-08T14:59:58Z");
+
+  const viaRh = await call(deps, "get_quotes", { symbols: ["SPY"], account_id: "rh-1" });
+  assert.equal(viaRh.isError, true);
+  assert.match(viaRh.text, /SnapTrade/);
+
+  const none = await call(fakeDeps({ listAccounts: async () => [{ id: "rh-1", name: "RH", is_paper: false, provider: "snaptrade" }], terminal: async () => ({ status: 200, body: {} }) } as any), "get_quotes", { symbols: ["SPY"] });
+  assert.equal(none.isError, true);
+  assert.match(none.text, /Alpaca account/);
+
+  const closed = await call(fakeDeps({ terminal: undefined } as any), "get_quotes", { symbols: ["SPY"] });
+  assert.equal(closed.isError, true);
+});
+
+test("a refusal from the terminal reaches the model as a readable error", async () => {
+  const { deps } = terminalDeps({ bars: { status: 403, body: { error: "Read-only through the Claude connector." } } });
+  const r = await call(deps, "get_price_history", { symbol: "SPY" });
+  assert.equal(r.isError, true);
+  assert.match(r.text, /Read-only/);
+});
+
+test("gamma exposure: the Gamma page's own numbers, walls and flip, for the window asked", async () => {
+  // As in gex.test.js: a big call strike above and a big put strike below in the week's expiry.
+  const chain = {
+    symbol: "SPY", spot: 600, prevClose: 598, at: "2026-10-08T14:59:00Z", oiDate: "2026-10-07",
+    expiries: ["2026-10-08", "2026-10-09", "2026-11-20"],
+    rows: [
+      [600, 0, 1, 2000, 0.14, 30000], [600, 0, 0, 2000, 0.16, 25000],
+      [610, 1, 1, 50000, 0.15, 20000], [590, 1, 0, 40000, 0.18, 15000],
+      [620, 1, 1, 30000, 0.15, 5000], [650, 2, 1, 10000, 0.16, 100]
+    ],
+    counts: {}
+  };
+  const { deps, asked } = terminalDeps({ gex: { status: 200, body: chain } });
+  const r = await call(deps, "get_gamma_exposure", { symbol: "spy", expiries: "week" });
+  assert.equal(r.isError, false, r.text);
+  assert.deepEqual(asked[0], { action: "gex", accountId: "alp-1", symbol: "SPY", days: 90 });
+  assert.equal(r.data.call_wall, 610);
+  assert.equal(r.data.put_wall, 590);
+  assert.equal(r.data.open_interest_as_of, "2026-10-07");
+  assert.equal(r.data.contracts_counted, 5); // the 20 November expiry is outside the week
+  assert.equal(r.data.by_expiry.length, 3); // the split by expiry always covers them all
+  assert.ok(r.data.read_out.length >= 3);
+  assert.match(r.text, /estimate/);
+
+  const one = await call(deps, "get_gamma_exposure", { symbol: "SPY", expiry: "2026-11-20" });
+  assert.equal(one.data.contracts_counted, 1);
+  assert.equal(one.data.put_wall, null);
+  const bad = await call(deps, "get_gamma_exposure", { symbol: "SPY", expiry: "2026-12-31" });
+  assert.equal(bad.isError, true);
+  assert.match(bad.text, /2026-10-09/);
+  const coin = await call(deps, "get_gamma_exposure", { symbol: "BTC/USD" });
+  assert.equal(coin.isError, true);
+});
+
+test("the screener reads every part of the market, filters and sorts as asked", async () => {
+  const columns = ["symbol", "name", "exchange", "price", "priceAt", "day", "prevClose", "open", "high", "low", "close", "volume", "prevVolume", "vwap", "trades", "bid", "ask", "options", "shortable", "easyToBorrow", "fund", "shares", "earnDate", "earnSession", "fractionable"];
+  const row = (symbol: string, price: number, prev: number, open: number, volume: number, prevVolume: number, options: boolean, fund = false) =>
+    [symbol, symbol + " Inc", "NASDAQ", price, "2026-10-08T14:59:00Z", "2026-10-08", prev, open, price, open, null, volume, prevVolume, price, 1, null, null, options, true, true, fund, null, null, null, true];
+  const parts: Record<number, any[]> = {
+    0: [row("AAA", 11, 10, 10.5, 5e6, 1e6, true), row("BBB", 50, 52, 51, 2e6, 2e6, true)],
+    1: [row("CCC", 5, 4, 4.4, 9e6, 1e6, false)],
+    2: [row("QQQ", 500, 495, 496, 3e7, 3e7, true, true)],
+    3: []
+  };
+  const { deps, asked } = terminalDeps({
+    screen: (b: any) => ({ status: 200, body: { columns, rows: parts[b.part], dayFeed: "delayed_sip", priceFeed: "iex", at: "2026-10-08T15:00:00Z", listed: 100 } })
+  });
+  const r = await call(deps, "screen_stocks", { min_change_pct: 1, funds: "exclude" });
+  assert.equal(r.isError, false, r.text);
+  assert.deepEqual(asked.map((a) => a.part).sort(), [0, 1, 2, 3]);
+  assert.deepEqual(r.data.shares.map((s: any) => s.symbol), ["CCC", "AAA"]); // QQQ is a fund, BBB fell
+  assert.equal(r.data.shares[0].change_pct, 25);
+  assert.equal(r.data.shares[0].gap_pct, 10);
+  assert.equal(r.data.shares[0].volume_vs_yesterday, 9);
+  assert.equal(r.data.listed, 400);
+
+  const losers = await call(deps, "screen_stocks", { sort_by: "change_pct", ascending: true, optionable: true, limit: 1 });
+  assert.deepEqual(losers.data.shares.map((s: any) => s.symbol), ["BBB"]);
+  assert.equal(losers.data.matched, 3);
+});
+
+test("price history: the latest candles asked, with their change and range", async () => {
+  const bars = Array.from({ length: 10 }, (_, i) => ({ time: 1791100800 + i * 86400, open: 100 + i, high: 102 + i, low: 99 + i, close: 101 + i, volume: 1000 }));
+  const { deps, asked } = terminalDeps({ bars: { status: 200, body: { feed: "iex", bars } } });
+  const r = await call(deps, "get_price_history", { symbol: "aapl", bars: 3 });
+  assert.equal(asked[0].interval, "1Day");
+  assert.equal(asked[0].session, "regular");
+  assert.equal(r.data.candles.length, 3);
+  assert.equal(r.data.candles[0].open, 107);
+  assert.equal(r.data.high, 111);
+  assert.equal(r.data.low, 106);
+});
+
+test("news, earnings and orders come back shaped, read only", async () => {
+  const { deps, asked } = terminalDeps({
+    news: { status: 200, body: { news: [{ headline: "Chips up", summary: "x".repeat(900), source: "benzinga", url: "https://e.x/1", at: "2026-10-08T12:00:00Z", symbols: ["NVDA"] }] } },
+    events: { status: 200, body: { earnings: [
+      { date: "2026-08-27", session: "amc", upcoming: false, epsActual: 1.1, epsEstimate: 1, period: "Q2" },
+      { date: "2026-11-19", session: "amc", upcoming: true }
+    ] } },
+    account: { status: 200, body: {
+      summary: { equity: 1000.123, dayChange: 5, cash: 400, buyingPower: 800, optionsBuyingPower: 400, dayTradeCount: 1, patternDayTrader: false },
+      orders: [{ id: "o1", symbol: "SPY", side: "sell", qty: 2, filled: 0, type: "stop", stop: 590, tif: "gtc", status: "new", orderClass: "simple", submittedAt: "2026-10-08T14:00:00Z", legs: [] }],
+      recent: [{ id: "o0", symbol: "SPY", side: "buy", qty: 2, filled: 2, avgPrice: 598, type: "market", status: "filled", submittedAt: "2026-10-08T13:31:00Z", filledAt: "2026-10-08T13:31:01Z" }]
+    } }
+  });
+  const n = await call(deps, "get_news", { symbol: "NVDA", days: 2 });
+  assert.equal(n.data.news[0].summary.length, 400);
+  assert.equal(asked[0].start, "2026-10-06T15:00:00.000Z");
+  const e = await call(deps, "get_earnings", { symbol: "NVDA" });
+  assert.equal(e.data.next.date, "2026-11-19");
+  assert.equal(e.data.next.when, "after the close");
+  assert.equal(e.data.recent[0].eps_actual, 1.1);
+  const o = await call(deps, "get_orders", {});
+  assert.equal(o.data.working[0].stop, 590);
+  assert.equal(o.data.recent[0].average_price, 598);
+  assert.equal(o.data.equity, 1000.12);
+  assert.ok(asked.every((a) => ["news", "events", "account"].includes(a.action)));
+});
+
+test("SnapTrade positions say how old SnapTrade's copy is, and only the account asked is read", async () => {
+  const synced: any[] = [];
+  const deps = fakeDeps({
+    listAccounts: async () => [{ id: "rh-1", name: "Robinhood", is_paper: false, provider: "snaptrade" }],
+    syncAccounts: async (only?: string) => {
+      synced.push(only);
+      return { syncedAt: NOW.toISOString(), accounts: [{ id: "rh-1", name: "Robinhood", ok: true, type: "Live", source: "snaptrade", brokerAsOf: "2026-10-08T06:10:00Z", spreads: [], orders: [] }] };
+    }
+  } as any);
+  const r = await call(deps, "get_positions", {});
+  assert.deepEqual(synced, ["rh-1"]);
+  assert.match(r.text, /SnapTrade/);
+  assert.equal(r.data.broker_data_as_of, "2026-10-08T06:10:00Z");
+});

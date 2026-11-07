@@ -1,5 +1,6 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
-import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
+import { adminClient, requireUser, connectorUser } from "../_shared/supabaseClients.ts";
+import { bearerToken, isConnectorToken, connectorMayRead } from "../_shared/connectorToken.ts";
 import { loadAccount, alpacaFetch, tradingBase } from "../_shared/alpaca.ts";
 import { readSettings } from "../_shared/settings.ts";
 import { recordAttempt, updateAttempt } from "../_shared/orderAttempts.ts";
@@ -2106,8 +2107,11 @@ const callers = new Map<string, { at: number; user: any; isAdmin: boolean }>();
 // admin-only features. No one should see it"). Kept a minute with the token.
 async function caller(req: Request, admin: any) {
   const token = req.headers.get("Authorization") || "";
+  // The Claude connector's token is answered by connectorUser alone, and only
+  // for the read actions (checked where the action is known, below).
+  const viaConnector = isConnectorToken(bearerToken(token));
   const check = async () => {
-    const user = await requireUser(req);
+    const user = viaConnector ? await connectorUser(req) : await requireUser(req);
     if (!user) { callers.delete(token); return null; }
     const { isAdmin } = await isAdminUser(user, admin);
     const seen = { at: Date.now(), user, isAdmin };
@@ -2150,6 +2154,10 @@ Deno.serve(async (req) => {
       return jsonResponse(report);
     }
 
+    // A connector token reads, and nothing else (connectorToken.ts TERMINAL_READS).
+    if (isConnectorToken(bearerToken(req.headers.get("Authorization"))) && !connectorMayRead(body?.action)) {
+      return jsonResponse({ error: "Read-only through the Claude connector: orders, exits, stops and settings are made in DeltaMint." }, 403);
+    }
     const who = await caller(req, admin);
     if (!who) return jsonResponse({ error: "Unauthorized" }, 401);
     // Anyone else is told nothing exists here, as when the lab is off.

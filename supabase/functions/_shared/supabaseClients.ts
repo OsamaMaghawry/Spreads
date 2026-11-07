@@ -27,3 +27,18 @@ export async function requireUser(req: Request) {
   if (error || !data.user) return null;
   return data.user;
 }
+
+// The user behind a connector token, for the one function that answers one
+// (the trading terminal's read actions: connectorToken.ts TERMINAL_READS).
+// Null for any other token: a person's own sign-in goes through requireUser.
+export async function connectorUser(req: Request) {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader || !isConnectorToken(bearerToken(authHeader))) return null;
+  const client = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+    global: { headers: { Authorization: authHeader } },
+    auth: { persistSession: false }
+  });
+  const { data, error } = await client.auth.getUser();
+  if (error || !data.user) return null;
+  return data.user;
+}

@@ -23,17 +23,25 @@
 import type { Tool, ToolResult } from "./mcpProtocol.ts";
 import { legsOf } from "./positionLegs.ts";
 import { structureName } from "./structureName.ts";
+import { prepare, pick as pickExpiries, byStrike, profile, flipOf, walls, byExpiry, readout, money } from "./gex.js";
 
-export type AccountRow = { id: string; name: string; is_paper: boolean };
+export type AccountRow = { id: string; name: string; is_paper: boolean; provider?: string | null };
 
 export type ConnectorDeps = {
   listAccounts: () => Promise<AccountRow[]>;
-  syncAccounts: () => Promise<{ accounts: any[]; syncedAt: string }>;
+  // `only`: one account's id, read alone (7 Nov: reading a friend's eight
+  // Robinhood accounts at once for one of them timed every one of them out).
+  syncAccounts: (only?: string) => Promise<{ accounts: any[]; syncedAt: string }>;
   scan: (body: Record<string, unknown>) => Promise<{ status: number; body: any }>;
   chain: (body: Record<string, unknown>) => Promise<{ status: number; body: any }>;
   // The account's stored trade records -- the rows Trade History shows -- and
   // when they were last synced from the broker. Never triggers a sync.
   tradeHistory: (accountId: string) => Promise<{ trades: any[]; syncedAt: string | null; syncError: string | null }>;
+  // The trading terminal's read actions, asked with the user's own token
+  // (functions/terminal answers a connector token for reads only:
+  // connectorToken.ts TERMINAL_READS). Absent where the terminal is not on
+  // for this user.
+  terminal?: (body: Record<string, unknown>) => Promise<{ status: number; body: any }>;
   now: () => Date;
 };
 
@@ -329,7 +337,7 @@ const ACCOUNT_ID = {
   description: "The account to use, from list_accounts. May be left out when the user has only one account."
 };
 
-export function connectorTools(): Tool<ConnectorDeps>[] {
+export function connectorTools({ terminal = true }: { terminal?: boolean } = {}): Tool<ConnectorDeps>[] {
   return [
     {
       name: "list_accounts",
@@ -355,14 +363,21 @@ export function connectorTools(): Tool<ConnectorDeps>[] {
       run: async (args, deps): Promise<ToolResult> => {
         const pick = await pickAccount(deps, args.account_id);
         if ("error" in pick) return { text: pick.error as string, isError: true };
-        const { accounts, syncedAt } = await deps.syncAccounts();
+        const { accounts, syncedAt } = await deps.syncAccounts(pick.account!.id);
         const acct = accounts.find((a: any) => a.id === pick.account!.id);
         if (!acct) return { text: "That account could not be read just now. Try again shortly.", isError: true };
         const snap = shapeAccountSnapshot(acct);
         const n = snap.positions.length;
+        // Read through SnapTrade (Robinhood and the other linked brokers): its
+        // copy of the account, which SnapTrade refreshes from the broker about
+        // once a day, so the figures are as of that refresh, not this read.
+        const via = acct.source === "snaptrade";
+        const brokerAsOf = via ? acct.brokerAsOf ?? null : null;
         return {
-          text: `${pick.account!.name}: ${n} open position(s), read from the broker at ${syncedAt}.`,
-          data: { account: accountLabel(pick.account!), as_of: syncedAt, ...snap },
+          text: via
+            ? `${pick.account!.name}: ${n} open position(s), from SnapTrade's copy of the account${brokerAsOf ? `, last refreshed from the broker at ${brokerAsOf}` : " (refresh time not given)"}; read at ${syncedAt}. Trades made since that refresh are not in it yet.`
+            : `${pick.account!.name}: ${n} open position(s), read from the broker at ${syncedAt}.`,
+          data: { account: accountLabel(pick.account!), as_of: syncedAt, source: via ? "snaptrade" : "broker", broker_data_as_of: brokerAsOf, ...snap },
           isError: "error" in snap
         };
       }
@@ -563,6 +578,388 @@ export function connectorTools(): Tool<ConnectorDeps>[] {
           data: { account: accountLabel(pick.account!), ...shaped }
         };
       }
+    },
+    ...(terminal ? terminalTools() : [])
+  ];
+}
+
+// ---------- the trading terminal's reads ----------
+//
+// 7 Nov, the owner: "make sure that the connector has everything on deltamint,
+// including the gamma and terminal, everything, and the screener". What the
+// terminal shows, read through the terminal itself (functions/terminal, which
+// answers a connector token for its read actions only), so Claude and the
+// screen read the same figures the same way. Never an order: the terminal
+// refuses every action that is not a read from a connector token.
+
+const TICKER = /^[A-Z][A-Z0-9.]{0,5}$/;
+const COIN = /^[A-Z0-9]{2,10}\/[A-Z]{3,4}$/;
+const tickerOf = (v: unknown) => String(v || "").toUpperCase().trim();
+const pctOf = (v: number | null, base: number | null) => (v === null || !base ? null : r2(((v - base) / base) * 100));
+const iso = (ms: number) => new Date(ms).toISOString();
+
+// The terminal reads market data through one of the user's own Alpaca
+// accounts: the one named, else the first connected.
+async function terminalAccount(deps: ConnectorDeps, accountId: unknown) {
+  if (!deps.terminal) return { error: "The trading terminal's data is not available to this sign-in." };
+  const accounts = await deps.listAccounts();
+  const direct = accounts.filter((a) => !a.provider || a.provider === "alpaca");
+  if (accountId) {
+    const hit = direct.find((a) => a.id === accountId);
+    if (hit) return { account: hit };
+    return {
+      error: accounts.some((a) => a.id === accountId)
+        ? "That account is read through SnapTrade, which carries no market data; the terminal reads through a directly connected Alpaca account."
+        : `No account ${String(accountId)} for this user. Call list_accounts for the ids.`
+    };
+  }
+  if (!direct.length) return { error: "The terminal reads market data through a directly connected Alpaca account, and none is connected." };
+  return { account: direct[0] };
+}
+
+async function askTerminal(deps: ConnectorDeps, body: Record<string, unknown>) {
+  const r = await deps.terminal!(body);
+  if (r.status >= 400 || r.body?.error) return { error: String(r.body?.error || `The terminal answered ${r.status}.`) };
+  return { body: r.body };
+}
+
+const SCREEN_SORTS = {
+  change_pct: "change since the previous close",
+  gap_pct: "gap at the open",
+  volume: "volume",
+  dollar_volume: "dollar volume",
+  volume_vs_yesterday: "volume against the previous day's"
+} as const;
+
+function terminalTools(): Tool<ConnectorDeps>[] {
+  return [
+    {
+      name: "get_gamma_exposure",
+      title: "Get gamma exposure (GEX)",
+      description:
+        "Estimates options dealers' gamma exposure for a stock or fund, as DeltaMint's Gamma page shows it: the dollars of stock dealers would trade per 1% move, from every listed contract within 90 days and 20% of the price. " +
+        "Returns net gamma and its regime (positive tends to damp moves, negative to add to them), the zero-gamma flip, the call wall and put wall, the largest strikes, the split by expiry, the strikes within 5% of the price, and a plain read-out. " +
+        "An estimate that assumes dealers hold the other side of customers' trades (long calls, short puts); open interest is as of the previous close. Present it as context, not as advice.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          symbol: { type: "string", description: "A stock or fund, e.g. \"SPY\", \"QQQ\", \"TSLA\"." },
+          expiries: { type: "string", enum: ["nearest", "week", "month", "all"], description: "Which expiries count: the nearest only, within 7 days, within 30 days (default), or all within 90 days." },
+          expiry: { type: "string", description: "One expiry alone, YYYY-MM-DD, instead of a window." },
+          account_id: { type: "string", description: "The Alpaca account to read through; the first connected when left out." }
+        },
+        required: ["symbol"],
+        additionalProperties: false
+      },
+      run: async (args, deps): Promise<ToolResult> => {
+        const symbol = tickerOf(args.symbol);
+        if (!TICKER.test(symbol)) return { text: "Gamma exposure is for a stock or fund symbol, e.g. SPY.", isError: true };
+        const acct = await terminalAccount(deps, args.account_id);
+        if ("error" in acct) return { text: acct.error as string, isError: true };
+        const got = await askTerminal(deps, { action: "gex", accountId: acct.account!.id, symbol, days: 90 });
+        if ("error" in got) return { text: got.error as string, isError: true };
+        const chain = got.body;
+        const prepared = prepare(chain, deps.now().getTime());
+        const win = typeof args.expiries === "string" ? args.expiries : "month";
+        let one: number | null = null;
+        if (args.expiry !== undefined) {
+          one = prepared.expiries.findIndex((e: any) => e.expiry === args.expiry && e.open);
+          if (one < 0) {
+            return { text: `No open ${symbol} expiry ${String(args.expiry)} within 90 days. Expiries: ${prepared.expiries.filter((e: any) => e.open).map((e: any) => e.expiry).join(", ")}.`, isError: true };
+          }
+        }
+        const days = win === "nearest" ? 0 : win === "week" ? 7 : win === "all" ? null : 30;
+        const contracts = pickExpiries(prepared, one !== null ? { expiry: one } : { days });
+        if (!contracts.length) return { text: `No ${symbol} contracts with open interest in that window.`, isError: true };
+        const spot = Number(chain.spot);
+        const g = byStrike(contracts, spot, "gex");
+        const w = walls(g.rows);
+        const flip = flipOf(profile(contracts, spot), spot);
+        const expiries = byExpiry(prepared, pickExpiries(prepared), spot);
+        const nearest = expiries[0] || null;
+        const net = g.totals.netGex;
+        const counted = one !== null ? `the ${args.expiry} expiry` : win === "nearest" ? "the nearest expiry" : win === "week" ? "expiries within 7 days" : win === "all" ? "all expiries within 90 days" : "expiries within 30 days";
+        const lines = readout({ symbol, spot, netGex: net, flip, wall: w, nearest, oiDate: chain.oiDate });
+        const round = (v: number) => Math.round(v);
+        return {
+          text:
+            `${symbol} at ${r2(spot)} (read ${chain.at}), ${counted}: net gamma ${money(net)} per 1% move, ${net >= 0 ? "positive" : "negative"}; ` +
+            `zero-gamma flip ${flip === null ? "none within 12%" : `${r2(flip)} (${pctOf(flip, spot)}%)`}; call wall ${w.call ?? "none"}, put wall ${w.put ?? "none"}. ` +
+            `An estimate of dealer positioning; open interest as of ${chain.oiDate || "the last close"}.`,
+          data: {
+            symbol, price: r2(spot), read_at: chain.at, open_interest_as_of: chain.oiDate || null, expiries_counted: counted, contracts_counted: contracts.length,
+            net_gamma_per_1pct_move: round(net), regime: net >= 0 ? "positive" : "negative",
+            zero_gamma_flip: flip === null ? null : r2(flip), flip_distance_pct: pctOf(flip, spot),
+            call_wall: w.call, call_wall_distance_pct: pctOf(w.call, spot), put_wall: w.put, put_wall_distance_pct: pctOf(w.put, spot),
+            largest_strikes: w.top.map((t: any) => ({ strike: t.strike, net_gamma: round(t.net), distance_pct: pctOf(t.strike, spot) })),
+            by_expiry: expiries.slice(0, 12).map((e: any) => ({ expiry: e.expiry, days: e.days, call_gamma: round(e.call), put_gamma: round(e.put), net_gamma: round(e.net), share_of_gamma_pct: r2(e.share * 100) })),
+            strikes_within_5pct: g.rows.filter((r: any) => Math.abs(r.strike - spot) / spot <= 0.05).map((r: any) => ({
+              strike: r.strike, call_gamma: round(r.callGex), put_gamma: round(r.putGex), net_gamma: round(r.callGex + r.putGex),
+              call_open_interest: r.callOi, put_open_interest: r.putOi, call_volume_today: r.callVol, put_volume_today: r.putVol
+            })),
+            read_out: lines.map((l: any) => l.text),
+            method: "Per contract: Black-Scholes gamma from its own implied volatility x open interest x 100 x price^2 x 1%, calls plus and puts minus; the flip is where the total crosses zero as the price is moved. Strikes within 20% of the price, expiries within 90 days."
+          }
+        };
+      }
+    },
+
+    {
+      name: "screen_stocks",
+      title: "Screen stocks",
+      description:
+        "Runs DeltaMint's stock screener over every listed US share: the day's price, change, gap at the open, volume and dollar volume, against the previous day, with whether it has options, can be sold short, is a fund, and its next earnings date. " +
+        "Returns the shares matching the user's filters, sorted by the field asked. A filter left out does not apply. Present the results as matches to the user's filters, not as picks.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          min_price: { type: "number" }, max_price: { type: "number" },
+          min_change_pct: { type: "number", description: "Change since the previous close, percent; negative for losers." },
+          max_change_pct: { type: "number" },
+          min_gap_pct: { type: "number", description: "Today's open against the previous close, percent." },
+          max_gap_pct: { type: "number" },
+          min_volume: { type: "number", description: "Shares traded today." },
+          min_dollar_volume: { type: "number", description: "Price x shares traded today." },
+          min_volume_vs_yesterday: { type: "number", description: "Today's volume over the previous day's, e.g. 2 for twice." },
+          optionable: { type: "boolean", description: "Only shares with listed options." },
+          shortable: { type: "boolean", description: "Only shares Alpaca can lend for a short sale." },
+          funds: { type: "string", enum: ["include", "exclude", "only"], description: "Funds (ETFs and the like): include (default), exclude, or only." },
+          sort_by: { type: "string", enum: Object.keys(SCREEN_SORTS), description: "Default change_pct." },
+          ascending: { type: "boolean", description: "Smallest first (e.g. the biggest losers by change_pct). Default false." },
+          limit: { type: "integer", description: "Shares to return, 1-100. Default 25." },
+          account_id: { type: "string", description: "The Alpaca account to read through; the first connected when left out." }
+        },
+        additionalProperties: false
+      },
+      run: async (args, deps): Promise<ToolResult> => {
+        const acct = await terminalAccount(deps, args.account_id);
+        if ("error" in acct) return { text: acct.error as string, isError: true };
+        const PARTS = 4;
+        const parts = await Promise.all(Array.from({ length: PARTS }, (_, part) => askTerminal(deps, { action: "screen", accountId: acct.account!.id, part, parts: PARTS })));
+        const ok = parts.filter((p: any) => !p.error).map((p: any) => p.body);
+        if (!ok.length) return { text: `The screener could not be read: ${(parts[0] as any).error}`, isError: true };
+        const cols: string[] = ok[0].columns;
+        const at = (row: any[], c: string) => row[cols.indexOf(c)];
+        const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+        const all = ok.flatMap((b: any) => b.rows).map((row: any[]) => {
+          const price = n(at(row, "price"));
+          const prev = n(at(row, "prevClose"));
+          const open = n(at(row, "open"));
+          const volume = n(at(row, "volume"));
+          const prevVolume = n(at(row, "prevVolume"));
+          return {
+            symbol: at(row, "symbol"), name: at(row, "name"), exchange: at(row, "exchange"), trading_day: at(row, "day"),
+            price, price_at: at(row, "priceAt"), change_pct: pctOf(price, prev), gap_pct: pctOf(open, prev),
+            open, high: n(at(row, "high")), low: n(at(row, "low")), prev_close: prev, vwap: n(at(row, "vwap")),
+            volume, prev_volume: prevVolume, volume_vs_yesterday: volume !== null && prevVolume ? r2(volume / prevVolume) : null,
+            dollar_volume: price !== null && volume !== null ? Math.round(price * volume) : null,
+            options: !!at(row, "options"), shortable: !!at(row, "shortable"), easy_to_borrow: !!at(row, "easyToBorrow"), fund: !!at(row, "fund"),
+            earnings_date: at(row, "earnDate") || null, earnings_session: at(row, "earnSession") || null
+          };
+        });
+        const min = (v: number | null, m: unknown) => typeof m !== "number" || (v !== null && v >= m);
+        const max = (v: number | null, m: unknown) => typeof m !== "number" || (v !== null && v <= m);
+        const matched = all.filter((r: any) =>
+          min(r.price, args.min_price) && max(r.price, args.max_price) &&
+          min(r.change_pct, args.min_change_pct) && max(r.change_pct, args.max_change_pct) &&
+          min(r.gap_pct, args.min_gap_pct) && max(r.gap_pct, args.max_gap_pct) &&
+          min(r.volume, args.min_volume) && min(r.dollar_volume, args.min_dollar_volume) &&
+          min(r.volume_vs_yesterday, args.min_volume_vs_yesterday) &&
+          (args.optionable !== true || r.options) && (args.shortable !== true || r.shortable) &&
+          (args.funds === "exclude" ? !r.fund : args.funds === "only" ? r.fund : true));
+        const sortBy = typeof args.sort_by === "string" && args.sort_by in SCREEN_SORTS ? args.sort_by as keyof typeof SCREEN_SORTS : "change_pct";
+        const dir = args.ascending === true ? 1 : -1;
+        matched.sort((a: any, b: any) => {
+          const x = a[sortBy];
+          const y = b[sortBy];
+          if (x === null && y === null) return 0;
+          if (x === null) return 1;
+          if (y === null) return -1;
+          return (x - y) * dir;
+        });
+        const limit = Math.max(1, Math.min(100, typeof args.limit === "number" ? Math.floor(args.limit) : 25));
+        const listed = ok.reduce((t: number, b: any) => t + (b.listed || 0), 0);
+        return {
+          text:
+            `${matched.length} of ${all.length} priced shares match (${listed} listed); showing ${Math.min(limit, matched.length)}, ` +
+            `${args.ascending === true ? "smallest" : "largest"} ${SCREEN_SORTS[sortBy]} first. Read ${ok[0].at}; the day's candle and volume from ${ok[0].dayFeed === "delayed_sip" ? "every exchange, fifteen minutes late" : "IEX"}.` +
+            (ok.length < PARTS ? ` ${PARTS - ok.length} of ${PARTS} parts of the market could not be read; this is the rest.` : ""),
+          data: { read_at: ok[0].at, day_feed: ok[0].dayFeed, matched: matched.length, priced: all.length, listed, sort_by: sortBy, shares: matched.slice(0, limit) }
+        };
+      }
+    },
+
+    {
+      name: "get_quotes",
+      title: "Get quotes",
+      description: "Reads the latest price, change since the previous close, bid and ask, and the day's open, high, low and volume for up to 25 shares, funds or coins (\"BTC/USD\"), as the terminal shows them, each with the time of its last trade.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          symbols: { type: "array", items: { type: "string" }, description: "Up to 25 symbols." },
+          account_id: { type: "string", description: "The Alpaca account to read through; the first connected when left out." }
+        },
+        required: ["symbols"],
+        additionalProperties: false
+      },
+      run: async (args, deps): Promise<ToolResult> => {
+        const symbols = [...new Set((Array.isArray(args.symbols) ? args.symbols : []).map(tickerOf))].filter((s) => TICKER.test(s) || COIN.test(s)).slice(0, 25);
+        if (!symbols.length) return { text: "Give one or more symbols, e.g. [\"SPY\", \"BTC/USD\"].", isError: true };
+        const acct = await terminalAccount(deps, args.account_id);
+        if ("error" in acct) return { text: acct.error as string, isError: true };
+        const got = await askTerminal(deps, { action: "snapshot", accountId: acct.account!.id, symbols });
+        if ("error" in got) return { text: got.error as string, isError: true };
+        const q = got.body.quotes || {};
+        const quotes = symbols.filter((s) => q[s]).map((s) => ({
+          symbol: s, last: r4(q[s].last), change: r4(q[s].change), change_pct: q[s].changePct === null || q[s].changePct === undefined ? null : r2(q[s].changePct * 100),
+          bid: r4(q[s].bid), ask: r4(q[s].ask), open: r4(q[s].open), high: r4(q[s].high), low: r4(q[s].low), volume: q[s].volume ?? null,
+          prev_close: r4(q[s].prevClose), last_trade_at: q[s].at || null
+        }));
+        const missing = symbols.filter((s) => !q[s]);
+        return {
+          text: `${quotes.length} quote(s)${missing.length ? `; none for ${missing.join(", ")}` : ""}. Shares from ${got.body.feed === "iex" ? "IEX in real time (IEX trades only)" : String(got.body.feed || "the account's feed")}.`,
+          data: { feed: got.body.feed || null, quotes, missing }
+        };
+      }
+    },
+
+    {
+      name: "get_price_history",
+      title: "Get price history",
+      description: "Reads candles (open, high, low, close, volume) for a share, fund or coin at an interval from one minute to one month, as the terminal's chart draws them; the most recent ones, with the change and range over them.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          symbol: { type: "string" },
+          interval: { type: "string", enum: ["1Min", "5Min", "15Min", "30Min", "1Hour", "4Hour", "1Day", "1Week", "1Month"], description: "Default 1Day." },
+          bars: { type: "integer", description: "How many of the most recent candles, 1-500. Default 60." },
+          session: { type: "string", enum: ["regular", "all"], description: "Shares intraday: regular hours only (default) or including pre-market and after hours." },
+          account_id: { type: "string", description: "The Alpaca account to read through; the first connected when left out." }
+        },
+        required: ["symbol"],
+        additionalProperties: false
+      },
+      run: async (args, deps): Promise<ToolResult> => {
+        const symbol = tickerOf(args.symbol);
+        if (!TICKER.test(symbol) && !COIN.test(symbol)) return { text: "Give a symbol, e.g. SPY or BTC/USD.", isError: true };
+        const interval = typeof args.interval === "string" ? args.interval : "1Day";
+        const acct = await terminalAccount(deps, args.account_id);
+        if ("error" in acct) return { text: acct.error as string, isError: true };
+        const got = await askTerminal(deps, { action: "bars", accountId: acct.account!.id, symbol, interval, session: args.session === "all" ? "" : "regular" });
+        if ("error" in got) return { text: got.error as string, isError: true };
+        const want = Math.max(1, Math.min(500, typeof args.bars === "number" ? Math.floor(args.bars) : 60));
+        const list = (got.body.bars || []).slice(-want).map((b: any) => ({ time: iso(b.time * 1000), open: r4(b.open), high: r4(b.high), low: r4(b.low), close: r4(b.close), volume: b.volume ?? null }));
+        if (!list.length) return { text: `No ${interval} candles for ${symbol}.`, isError: true };
+        const first = list[0];
+        const last = list[list.length - 1];
+        const high = Math.max(...list.map((b: any) => b.high ?? -Infinity));
+        const low = Math.min(...list.map((b: any) => b.low ?? Infinity));
+        return {
+          text: `${symbol}, ${list.length} ${interval} candle(s) from ${first.time} to ${last.time}: ${first.open} to ${last.close} (${pctOf(last.close, first.open)}%), high ${high}, low ${low}.`,
+          data: { symbol, interval, feed: got.body.feed || null, change_pct: pctOf(last.close, first.open), high, low, candles: list }
+        };
+      }
+    },
+
+    {
+      name: "get_news",
+      title: "Get news",
+      description: "Reads recent news headlines for a share, fund or coin, newest first, with source, time, link and summary, as the terminal's News tab shows them.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          symbol: { type: "string" },
+          days: { type: "integer", description: "How far back, 1-30 days. Default 3." },
+          limit: { type: "integer", description: "Headlines, 1-50. Default 15." },
+          account_id: { type: "string", description: "The Alpaca account to read through; the first connected when left out." }
+        },
+        required: ["symbol"],
+        additionalProperties: false
+      },
+      run: async (args, deps): Promise<ToolResult> => {
+        const symbol = tickerOf(args.symbol);
+        if (!TICKER.test(symbol) && !COIN.test(symbol)) return { text: "Give a symbol, e.g. NVDA.", isError: true };
+        const acct = await terminalAccount(deps, args.account_id);
+        if ("error" in acct) return { text: acct.error as string, isError: true };
+        const days = Math.max(1, Math.min(30, typeof args.days === "number" ? Math.floor(args.days) : 3));
+        const limit = Math.max(1, Math.min(50, typeof args.limit === "number" ? Math.floor(args.limit) : 15));
+        const now = deps.now().getTime();
+        const got = await askTerminal(deps, { action: "news", accountId: acct.account!.id, symbols: [symbol], start: iso(now - days * 86400000), end: iso(now), sort: "desc", max: limit });
+        if ("error" in got) return { text: got.error as string, isError: true };
+        const items = (got.body.news || []).slice(0, limit).map((x: any) => ({
+          headline: x.headline, source: x.source, at: x.at, url: x.url || null,
+          summary: String(x.summary || "").slice(0, 400) || null, symbols: x.symbols || []
+        }));
+        return { text: `${items.length} headline(s) for ${symbol} in the last ${days} day(s), newest first.`, data: { symbol, days, news: items } };
+      }
+    },
+
+    {
+      name: "get_earnings",
+      title: "Get earnings dates",
+      description: "Reads a company's next earnings date (before the open, after the close, or during the day, when known) and its recent reports with earnings per share and revenue against estimates, as the terminal's chart marks them.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          symbol: { type: "string" },
+          account_id: { type: "string", description: "The Alpaca account to read through; the first connected when left out." }
+        },
+        required: ["symbol"],
+        additionalProperties: false
+      },
+      run: async (args, deps): Promise<ToolResult> => {
+        const symbol = tickerOf(args.symbol);
+        if (!TICKER.test(symbol)) return { text: "Give a company's symbol, e.g. AAPL.", isError: true };
+        const acct = await terminalAccount(deps, args.account_id);
+        if ("error" in acct) return { text: acct.error as string, isError: true };
+        const got = await askTerminal(deps, { action: "events", accountId: acct.account!.id, symbol });
+        if ("error" in got) return { text: got.error as string, isError: true };
+        const SESSION: Record<string, string> = { bmo: "before the open", amc: "after the close", dmh: "during market hours" };
+        const shape = (e: any) => ({
+          date: e.date, when: e.session ? SESSION[e.session] || e.session : null, period: e.period || null,
+          eps_actual: e.epsActual ?? null, eps_estimate: e.epsEstimate ?? null, revenue_actual: e.revenueActual ?? null, revenue_estimate: e.revenueEstimate ?? null
+        });
+        const list = got.body.earnings || [];
+        const next = list.find((e: any) => e.upcoming) || null;
+        const past = list.filter((e: any) => !e.upcoming).slice(-8).reverse();
+        return {
+          text: next ? `${symbol} next reports on ${next.date}${next.session ? `, ${SESSION[next.session] || next.session}` : ""}; ${past.length} recent report(s).` : `No upcoming ${symbol} report on the calendar; ${past.length} recent report(s).`,
+          data: { symbol, next: next ? shape(next) : null, recent: past.map(shape) }
+        };
+      }
+    },
+
+    {
+      name: "get_orders",
+      title: "Get orders",
+      description: "Reads an Alpaca account's working orders and the last week's finished ones (filled, cancelled, rejected), with the account's equity, cash, buying power and day trades, as the terminal's Orders and Account tabs show them. Accounts linked through SnapTrade (Robinhood and others) are not read here; get_positions gives their open-order count.",
+      inputSchema: { type: "object", properties: { account_id: ACCOUNT_ID }, additionalProperties: false },
+      run: async (args, deps): Promise<ToolResult> => {
+        const acct = await terminalAccount(deps, args.account_id);
+        if ("error" in acct) return { text: acct.error as string, isError: true };
+        const got = await askTerminal(deps, { action: "account", accountId: acct.account!.id });
+        if ("error" in got) return { text: got.error as string, isError: true };
+        const v = got.body;
+        const working = (v.orders || []).map((o: any) => ({
+          symbol: o.symbol, side: o.side, quantity: o.qty, notional: o.notional, filled: o.filled, type: o.type, limit: o.limit, stop: o.stop,
+          time_in_force: o.tif, status: o.status, order_class: o.orderClass, submitted_at: o.submittedAt,
+          legs: (o.legs || []).map((l: any) => ({ side: l.side, type: l.type, limit: l.limit, stop: l.stop, status: l.status }))
+        }));
+        const recent = (v.recent || []).map((o: any) => ({
+          symbol: o.symbol, side: o.side, quantity: o.qty, filled: o.filled, average_price: o.avgPrice, type: o.type, limit: o.limit, stop: o.stop,
+          status: o.status, submitted_at: o.submittedAt, filled_at: o.filledAt
+        }));
+        const s = v.summary || {};
+        return {
+          text: `${acct.account!.name}: ${working.length} working order(s), ${recent.length} finished in the last week.`,
+          data: {
+            account: accountLabel(acct.account!),
+            equity: r2(s.equity), day_change: r2(s.dayChange), cash: r2(s.cash), buying_power: r2(s.buyingPower), options_buying_power: r2(s.optionsBuyingPower),
+            day_trades: s.dayTradeCount ?? null, pattern_day_trader: !!s.patternDayTrader,
+            working, recent
+          }
+        };
+      }
     }
   ];
 }
@@ -573,5 +970,7 @@ export const CONNECTOR_INSTRUCTIONS = [
   "find_trades returns setups that match the filters the user gives, ranked by return on risk, exactly as DeltaMint's Strategy Scanner ranks them. Present them as matches to the user's criteria. Do not describe any of them as the best trade, a recommendation or a signal, and do not tell the user what to buy or sell.",
   "Quote prices with the time they were read. A scan is a snapshot: DeltaMint re-checks price and strikes when the user places an order in the app.",
   "A figure DeltaMint returns as null could not be computed reliably. Say that, and do not estimate it.",
+  "Accounts linked through SnapTrade (Robinhood and other brokers) are SnapTrade's copy of the account, which SnapTrade refreshes from the broker about once a day: say when, from broker_data_as_of, and that trades made since are not in it yet.",
+  "get_gamma_exposure is an estimate of dealer positioning, and screen_stocks returns shares matching the user's filters: present both as context and matches, not as what to trade.",
   "To act on a setup, the user opens DeltaMint. DeltaMint is software, not a broker-dealer or investment adviser."
 ].join("\n");

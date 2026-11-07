@@ -187,13 +187,17 @@ const RECENT_DAYS = 90;
 const recentStart = () => new Date(Date.now() - RECENT_DAYS * 86_400_000).toISOString().slice(0, 10);
 
 // Everything syncOne fetches from Alpaca, from SnapTrade instead.
-export async function fetchSnapTradeRaw(admin: any, account: any) {
+// `timeoutMs`: how long one call may take; the Claude connector waits longer
+// than the Dashboard, which refreshes on its own (7 Nov: a friend's eight
+// Robinhood accounts read at once all timed out at 8 s, and Claude got none of
+// their positions). A longer wait also tries again past a recent failure.
+export async function fetchSnapTradeRaw(admin: any, account: any, { timeoutMs = READ_TIMEOUT_MS }: { timeoutMs?: number } = {}) {
   const id = account.snaptrade_account_id;
   const hit = lastRead.get(id);
-  if (hit?.error && Date.now() - hit.at < FAILED_READ_CACHE_MS) throw new Error(hit.error);
+  if (hit?.error && timeoutMs <= READ_TIMEOUT_MS && Date.now() - hit.at < FAILED_READ_CACHE_MS) throw new Error(hit.error);
   if (hit && !hit.error && Date.now() - hit.at < READ_CACHE_MS) return hit.value;
 
-  const scoped = { ...(await scopedFor(admin, account)), timeoutMs: READ_TIMEOUT_MS };
+  const scoped = { ...(await scopedFor(admin, account)), timeoutMs };
   const [acct, balances, positions, orders, activities] = await Promise.all([
     snapFetch<any>({ path: `/accounts/${id}`, ...scoped }),
     snapFetch<any>({ path: `/accounts/${id}/balances`, ...scoped }),
@@ -206,6 +210,16 @@ export async function fetchSnapTradeRaw(admin: any, account: any) {
     // The whole history is fetchSnapTradeHistory's job, not this one's.
     snapFetch<any>({ path: `/accounts/${id}/activities`, query: { start_date: recentStart(), limit: 1000 }, ...scoped })
   ]);
+
+  // More than a thousand activities in ninety days: the rest, page by page.
+  // SnapTrade lists them oldest first, so the first page alone left out the
+  // newest (a friend's active Robinhood account, 6 Nov: exactly 1,000 every read).
+  const activityRows = listOf(activities.data);
+  for (let page = 1; activities.ok && page < 5 && activityRows.length === page * 1000; page++) {
+    const more = await snapFetch<any>({ path: `/accounts/${id}/activities`, query: { start_date: recentStart(), limit: 1000, offset: page * 1000 }, ...scoped });
+    if (!more.ok) break;
+    activityRows.push(...listOf(more.data));
+  }
 
   // One line per read, for diagnosing a real account without reading it:
   // timings, statuses, counts and the option price unit -- never an amount,
@@ -222,7 +236,7 @@ export async function fetchSnapTradeRaw(admin: any, account: any) {
     snaptradeRead: String(id).slice(0, 8),
     account: call(acct), balances: call(balances), positions: call(positions), orders: call(orders), activities: call(activities),
     rows: rows.length, kinds,
-    activityRows: listOf(activities.data).length,
+    activityRows: activityRows.length,
     unit: optionUnitFit(rows, num(info.cash), acct.ok ? num((acct.data as any)?.balance?.total?.amount) : null)
   }));
 
@@ -234,10 +248,12 @@ export async function fetchSnapTradeRaw(admin: any, account: any) {
   const value = {
     info,
     positions: toAlpacaPositions(rows),
-    activities: toEngineActivities(listOf(activities.data)).activities,
+    activities: toEngineActivities(activityRows).activities,
     openOrders: [],
     filledOrders: toAlpacaMultiLegOrders(listOf(orders.data)),
-    freshness: (positions.data as any)?.data_freshness ?? null
+    // When SnapTrade last refreshed its copy from the broker: about once a
+    // day on the plan in use, so the figures are as of then, not now.
+    freshness: (positions.data as any)?.data_freshness ?? (acct.data as any)?.sync_status?.holdings?.last_successful_sync ?? null
   };
   lastRead.set(id, { at: Date.now(), value });
   return value;

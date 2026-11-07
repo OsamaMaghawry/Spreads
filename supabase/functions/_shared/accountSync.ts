@@ -17,7 +17,10 @@ import { houseDataAccount } from "./marketData.ts";
 // -- behind both the Dashboard (syncAccounts) and the Claude connector (mcp).
 // Moved here unchanged from syncAccounts/index.ts; the caller has already
 // verified who is asking.
-export async function syncAccountsFor(admin: any, userId: string) {
+// `only`: one account's id, read alone (the rest still lend it a data
+// account); `snapTimeoutMs`: how long a SnapTrade call may take (the Claude
+// connector waits longer than the Dashboard: snaptradeAccount.ts).
+export async function syncAccountsFor(admin: any, userId: string, { only = null, snapTimeoutMs }: { only?: string | null; snapTimeoutMs?: number } = {}) {
   const { data: accounts, error } = await admin.from("trading_accounts").select("*").eq("user_id", userId);
   if (error) throw new Error(error.message);
 
@@ -44,7 +47,7 @@ export async function syncAccountsFor(admin: any, userId: string) {
   if (!dataAccount && decrypted.some((a) => a.provider === "snaptrade")) {
     dataAccount = await houseDataAccount(admin).catch(() => null);
   }
-  const results = await Promise.all(decrypted.map((a) => syncOne(a, dataAccount)));
+  const results = await Promise.all(decrypted.filter((a) => !only || a.id === only).map((a) => syncOne(a, dataAccount, { snapTimeoutMs })));
   return { accounts: results, syncedAt: new Date().toISOString() };
 }
 
@@ -69,7 +72,7 @@ const symbolsOf = (s: any): string[] => [
   )
 ];
 
-async function syncOne(account, dataAccount: any = null) {
+async function syncOne(account, dataAccount: any = null, { snapTimeoutMs }: { snapTimeoutMs?: number } = {}) {
   // The wheel-basis and stress-move lookups below read the database, and this
   // function is called per account without the request handler's client. A
   // free `admin` here bundled cleanly and took every account down with
@@ -83,8 +86,9 @@ async function syncOne(account, dataAccount: any = null) {
     // shapes (see snaptradeAccount.ts), so everything below runs unchanged.
     const viaSnapTrade = account.provider === "snaptrade";
     const marketAccount = viaSnapTrade ? dataAccount : account;
+    let brokerAsOf: string | null = null;
     const [info, positions, activities, openOrders, filledOrders] = viaSnapTrade
-      ? await fetchSnapTradeRaw(admin, account).then((r) => [r.info, r.positions, r.activities, r.openOrders, r.filledOrders])
+      ? await fetchSnapTradeRaw(admin, account, { timeoutMs: snapTimeoutMs }).then((r) => { brokerAsOf = r.freshness ?? null; return [r.info, r.positions, r.activities, r.openOrders, r.filledOrders]; })
       : await Promise.all([
           alpacaFetch(`${base}/account`, account),
           alpacaFetch(`${base}/positions`, account),
@@ -650,6 +654,8 @@ async function syncOne(account, dataAccount: any = null) {
       // order control on it; loadAccount refuses them regardless.
       readOnly: viaSnapTrade,
       source: viaSnapTrade ? "snaptrade" : "alpaca",
+      // When SnapTrade last refreshed this account from the broker (null when read from the broker directly).
+      brokerAsOf,
       equity,
       // Equity if the market froze now, time value vanished and every spread
       // settled at intrinsic value: swap mark-to-market P/L for expiration P/L.
