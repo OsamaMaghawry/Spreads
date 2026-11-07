@@ -4,32 +4,32 @@ Written daily by `.github/workflows/metrics-snapshot.yml`. Agents read
 these files; the Google credentials never leave CI. A dash means the source
 is not connected yet, not zero.
 
-## Latest — 2026-11-06
+## Latest — 2026-11-07
 
-- Search Console, last 28 days: 156 impressions, 2 clicks, CTR 1.3%
-- Indexing: 52 of 74 sitemap URLs indexed
+- Search Console, last 28 days: 164 impressions, 2 clicks, CTR 1.2%
+- Indexing: 53 of 75 sitemap URLs indexed
   - not indexed: https://deltamint.app/contact (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/tools/covered-call-calculator (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/tools/cash-secured-put-calculator (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/tools/expected-move-calculator (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/tools/option-roll-calculator (Discovered - currently not indexed)
+  - not indexed: https://deltamint.app/tools/option-roll-calculator (URL is unknown to Google)
   - not indexed: https://deltamint.app/blog/investing (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/assignment-risk-credit-spread (URL is unknown to Google)
+  - not indexed: https://deltamint.app/blog/close-credit-spread-early-or-hold (URL is unknown to Google)
   - not indexed: https://deltamint.app/blog/sell-puts-to-buy-stock (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/pmcc-vs-covered-call (URL is unknown to Google)
+  - not indexed: https://deltamint.app/blog/pmcc-vs-covered-call (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/stock-replacement-strategy (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/leaps-options-explained (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/put-spread-hedge (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/wheel-strategy-cost-basis (URL is unknown to Google)
   - not indexed: https://deltamint.app/blog/covered-call-after-assignment (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/rolling-options-explained (Discovered - currently not indexed)
+  - not indexed: https://deltamint.app/blog/rolling-options-explained (URL is unknown to Google)
   - not indexed: https://deltamint.app/blog/poor-mans-covered-call (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/calendar-spread-explained (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/credit-spread-delta-strike-selection (URL is unknown to Google)
+  - not indexed: https://deltamint.app/blog/credit-spread-delta-strike-selection (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/credit-spread-width (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/iron-condor-explained (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/wheel-strategy-explained (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/options-buying-power-requirement (URL is unknown to Google)
+  - not indexed: https://deltamint.app/blog/options-buying-power-requirement (Crawled - currently not indexed)
 - Submitted today: Google sitemap NOT submitted: Search Console refused (403). Give deltamint-metrics@deltamint-metrics.iam.gserviceaccount.com "Full" permission: Search Console → Settings → Users and permissions.; Google last read it 2026-11-05; 1 URL(s) sent to Bing and others via IndexNow
 - GA4, last 28 days: ga4 not configured
 - Funnel: 4 signed up (0 this week) → 3 connected → 3 traded → 1 traded live → 0 paying
@@ -39,7 +39,6 @@ is not connected yet, not zero.
 
 | Day | Impressions | Clicks | Sessions | Signed up | Connected | Traded live | Paying |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-10-08 | — | — | — | 4 | 3 | 1 | 0 |
 | 2026-10-09 | — | — | — | 4 | 3 | 1 | 0 |
 | 2026-10-10 | — | — | — | 4 | 3 | 1 | 0 |
 | 2026-10-11 | — | — | — | 4 | 3 | 1 | 0 |
@@ -69,3 +68,4 @@ is not connected yet, not zero.
 | 2026-11-04 | 7 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-11-05 | 14 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-11-06 | 2 | 0 | — | 4 | 3 | 1 | 0 |
+| 2026-11-07 | 11 | 0 | — | 4 | 3 | 1 | 0 |
