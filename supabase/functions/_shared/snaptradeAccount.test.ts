@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { toAlpacaPositions, toAlpacaInfo, toAlpacaMultiLegOrders, contractOf, listOf, optionUnitFit } from "./snaptradeAccount.ts";
+import { freshnessOf, toAlpacaPositions, toAlpacaInfo, toAlpacaMultiLegOrders, contractOf, listOf, optionUnitFit } from "./snaptradeAccount.ts";
 
 // A share row exactly as /positions/all returned it for the owner's paper
 // account on 10 Oct.
@@ -72,4 +72,12 @@ test("the option price unit is read from whether the account adds up", () => {
   assert.equal(fit.fits, "per share");
   assert.equal(fit.perShareError, 0);
   assert.equal(optionUnitFit([amzn], 1000, 27243), null);
+});
+
+test("SnapTrade's refresh time: a string or { as_of }, nothing else", () => {
+  assert.equal(freshnessOf({ as_of: "2026-11-07T15:48:36Z" }), "2026-11-07T15:48:36Z");
+  assert.equal(freshnessOf("2026-11-07T06:10:00Z"), "2026-11-07T06:10:00Z");
+  assert.equal(freshnessOf({}), null);
+  assert.equal(freshnessOf("soon"), null);
+  assert.equal(freshnessOf(null), null);
 });

@@ -191,6 +191,12 @@ const recentStart = () => new Date(Date.now() - RECENT_DAYS * 86_400_000).toISOS
 // than the Dashboard, which refreshes on its own (7 Nov: a friend's eight
 // Robinhood accounts read at once all timed out at 8 s, and Claude got none of
 // their positions). A longer wait also tries again past a recent failure.
+// A time SnapTrade gives as a string or as { as_of }, else null.
+export function freshnessOf(v: unknown): string | null {
+  const t = typeof v === "string" ? v : (v as any)?.as_of;
+  return typeof t === "string" && Number.isFinite(Date.parse(t)) ? t : null;
+}
+
 export async function fetchSnapTradeRaw(admin: any, account: any, { timeoutMs = READ_TIMEOUT_MS }: { timeoutMs?: number } = {}) {
   const id = account.snaptrade_account_id;
   const hit = lastRead.get(id);
@@ -253,7 +259,9 @@ export async function fetchSnapTradeRaw(admin: any, account: any, { timeoutMs = 
     filledOrders: toAlpacaMultiLegOrders(listOf(orders.data)),
     // When SnapTrade last refreshed its copy from the broker: about once a
     // day on the plan in use, so the figures are as of then, not now.
-    freshness: (positions.data as any)?.data_freshness ?? (acct.data as any)?.sync_status?.holdings?.last_successful_sync ?? null
+    // SnapTrade sends it as { as_of } with the positions (7 Nov: passed on
+    // whole, the connector showed an object where a time belongs).
+    freshness: freshnessOf((positions.data as any)?.data_freshness) ?? freshnessOf((acct.data as any)?.sync_status?.holdings?.last_successful_sync)
   };
   lastRead.set(id, { at: Date.now(), value });
   return value;
