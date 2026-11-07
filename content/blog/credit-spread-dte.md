@@ -83,7 +83,7 @@ The searches that bring a reader here usually ask for a number, and the pages th
 - **More days buys a larger credit and a gentler reaction to the stock.** The cost is slow decay and capital held for longer in a position that has to be watched for longer.
 - **Fewer days buys faster decay and a quick finish.** The cost is a small credit, a larger maximum loss for the same strikes and a spread that reacts sharply the moment the stock reaches the short strike.
 
-A trader who closes a position before expiration changes which rows apply, because the days actually held are the only ones that count. A spread opened at 45 days and closed at 21 never meets the 7-day row at all, and a spread opened at 14 spends its whole life in the fast-decay, high-reaction part of the table. That is a question about the exit, which the managing posts take up.
+A trader who closes a position before expiration changes which rows apply, because the days actually held are the only ones that count. A spread opened at 45 days and closed at 21 never meets the 7-day row at all, and a spread opened at 14 spends its whole life in the fast-decay, high-reaction part of the table. That is a question about the exit, which [closing a credit spread early vs holding to expiration](/blog/close-credit-spread-early-or-hold) takes up.
 
 Related: [credit spread width](/blog/credit-spread-width) covers the other setting that changes a spread's credit and maximum loss.
 
