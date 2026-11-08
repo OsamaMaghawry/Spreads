@@ -1113,7 +1113,9 @@ async function diagnose(account: any, mode: string, symbol: string, day: string)
 // (EODHD's one-minute candles). Each day is priced first and the run stops
 // before the total charged for the symbol over the range would pass `budget`
 // dollars, or after about 100 seconds; called again, it carries on.
-async function gexBackfill(admin: any, symbol: string, from: string, to: string, budget: number) {
+// `only`: that one day of the range, so several calls can run side by side;
+// the budget still counts everything kept over the range.
+async function gexBackfill(admin: any, symbol: string, from: string, to: string, budget: number, only = "") {
   const day = /^\d{4}-\d{2}-\d{2}$/;
   if (!SYMBOL.test(symbol)) return { error: "Which symbol?" };
   if (!day.test(from) || !day.test(to) || from > to) return { error: "from and to, YYYY-MM-DD." };
@@ -1133,6 +1135,7 @@ async function gexBackfill(admin: any, symbol: string, from: string, to: string,
     const d = new Date(t);
     if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) days.push(d.toISOString().slice(0, 10));
   }
+  if (only) days.splice(0, days.length, ...days.filter((d) => d === only));
   // The stock's price at the end of the minute the quotes are read in: its
   // one-minute candle from EODHD, else that day's close.
   const eodhd = async (path: string) => {
@@ -2351,7 +2354,7 @@ Deno.serve(async (req) => {
     // just 1 month of TSLA"): server only, with a scheduler ticket.
     if (body?.action === "gexBackfill") {
       if (!(await redeemCronTicket(admin, body.ticket, "gex_backfill"))) return jsonResponse({ error: "not authorised" }, 401);
-      const report = await gexBackfill(admin, String(body.symbol || "").toUpperCase(), String(body.from || ""), String(body.to || ""), Number(body.budget) || 0);
+      const report = await gexBackfill(admin, String(body.symbol || "").toUpperCase(), String(body.from || ""), String(body.to || ""), Number(body.budget) || 0, String(body.day || ""));
       console.log(`gex backfill: ${JSON.stringify(report)}`);
       return jsonResponse(report);
     }
