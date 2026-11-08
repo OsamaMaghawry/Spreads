@@ -138,6 +138,8 @@ do is keep the mark anywhere near comfortable meanwhile: with time still to run,
 the same $5-wide spread can be marked well beyond the credit against you at a
 price where expiration has decided nothing.
 
+Related: [a credit spread in the money](/blog/credit-spread-in-the-money) puts numbers on that boundary for one 50/45 spread, at 47 and at 43.
+
 ![The same hypothetical $5-wide put credit spread marked with time still to run: already worse than the $120 credit near the 95 long strike, never the full credit at the top, and flat today only at about 102.5.](/assets/blog/credit-spread-mark-vs-expiration.svg)
 
 Three consequences follow from that curve:

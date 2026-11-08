@@ -99,7 +99,7 @@ Put plainly, closing early turns an open-ended question into a settled one, and 
 
 **Is the last bit of credit free to take?** Only if the stock stays where it is. The remaining $22 is paid for by keeping the full $130 max loss in play until expiration, which is up to $178 worse than closing today.
 
-**What if the spread is losing instead?** The same arithmetic runs the other way: closing realizes the loss at today's price, and holding leaves the outcome to the stock, capped at the max loss (the width less the credit).
+**What if the spread is losing instead?** The same arithmetic runs the other way: closing realizes the loss at today's price, and holding leaves the outcome to the stock, capped at the max loss (the width less the credit). The in-the-money case is worked through with numbers, partly and fully, in [what happens when a credit spread goes in the money](/blog/credit-spread-in-the-money).
 
 The rest of the series on positions after they fill is in [After the fill](/blog/managing).
 

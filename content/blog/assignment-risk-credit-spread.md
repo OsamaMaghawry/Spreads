@@ -71,6 +71,8 @@ Most spreads are never assigned early. The holder of the option you sold gives u
 
 None of these predicts a given spread. A short leg only slightly in the money, with weeks left, still carries most of its time value.
 
+Related: [what happens when a credit spread goes in the money](/blog/credit-spread-in-the-money) separates the partly and fully in-the-money states and what closing costs in each.
+
 ## At expiration the question changes from "might" to "will"
 
 At expiration time value is gone, so the early-exercise logic gives way to a simple rule: options even a cent in the money at the close are exercised by exception, and a brokerage may apply its own threshold on top. A short leg that finishes in the money is almost always assigned, as covered in [what happens at expiration](/blog/what-happens-options-expiration). For a call spread:
