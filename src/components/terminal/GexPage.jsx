@@ -28,7 +28,10 @@ const cleanView = (v) => {
     lines: o.lines !== false,
     // Live, or past days (GexHistory.jsx), and the symbol History shows.
     mode: o.mode === "history" ? "history" : "live",
-    hsym: typeof o.hsym === "string" && /^[A-Z][A-Z0-9.]{0,5}$/.test(o.hsym) ? o.hsym : ""
+    hsym: typeof o.hsym === "string" && /^[A-Z][A-Z0-9.]{0,5}$/.test(o.hsym) ? o.hsym : "",
+    // History counts the options expiring at that day's close only when asked:
+    // they are gone by the next morning (8 Nov, the owner).
+    hsame: o.hsame === true
   };
 };
 

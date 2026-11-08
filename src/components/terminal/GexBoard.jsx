@@ -289,7 +289,7 @@ function ExpiryChart({ rows, width, counted, onPick, picked }) {
  * previous close). `onLevels` (Live only) puts the walls and the flip on the
  * Trade page's charts of the symbol.
  */
-export default function GexBoard({ sym, mine, prepared, spot, shownSpot, view, set, expiry, setExpiry, onLevels, history = false }) {
+export default function GexBoard({ sym, mine, prepared, spot, shownSpot, view, set, expiry, setExpiry, onLevels, history = false, sameDay = true }) {
   const spot0 = mine.spot;
   const days = view.win === "all" ? null : Number(view.win);
   const contracts = useMemo(() => (prepared ? pick(prepared, expiry !== null ? { expiry } : { days }) : []), [prepared, days, expiry]);
@@ -398,7 +398,7 @@ export default function GexBoard({ sym, mine, prepared, spot, shownSpot, view, s
 
       {history ? (
         <p className="px-1 text-[11px] leading-relaxed text-slate-500">
-          {mine.counts.used.toLocaleString("en-US")} contracts within 90 days and 20% of {at(spot0)}, as they stood at 3:59 p.m. New York on {mine.at.slice(0, 10)}: open interest as OPRA published it at 6:30 that morning, volatility from each contract&apos;s bid and offer a minute before the close (Databento){prepared.filled ? `; ${prepared.filled} contracts without a usable quote take their expiry's median` : ""}.
+          {mine.counts.used.toLocaleString("en-US")} contracts within 90 days and 20% of {at(spot0)}, as they stood at 3:59 p.m. New York on {mine.at.slice(0, 10)}: open interest as OPRA published it at 6:30 that morning, volatility from each contract&apos;s bid and offer a minute before the close (Databento){prepared.filled ? `; ${prepared.filled} contracts without a usable quote take their expiry's median` : ""}{sameDay ? "; the options expiring that day counted" : "; the options expiring that day left out, as they are gone by the next morning"}.
           {" "}An estimate of dealer positioning (calls counted long, puts short), for context only.
         </p>
       ) : (

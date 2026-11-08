@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { closeOf, bsGamma, prepare, pick, byStrike, band, profile, flipOf, walls, byExpiry, money, readout, exposureOf } from "./gex.js";
+import { closeOf, bsGamma, prepare, pick, byStrike, band, profile, flipOf, walls, byExpiry, money, readout, exposureOf, withoutExpiry } from "./gex.js";
 
 const NOW = Date.parse("2026-11-09T15:00:00Z"); // Monday 10:00 New York
 
@@ -118,4 +118,13 @@ test("money and the read-out: description only, regime by sign", () => {
 test("expiring today: the at-the-money strike can be the wall", () => {
   const p = prepare({ expiries: ["2026-11-09"], rows: [[600, 0, 1, 20000, 0.14, 0], [610, 0, 1, 50000, 0.15, 0]] }, NOW);
   assert.equal(walls(byStrike(pick(p), 600).rows).call, 600);
+});
+
+test("a chain without one expiry: its rows gone, the others re-indexed", () => {
+  const c = withoutExpiry(chain, "2026-11-09");
+  assert.deepEqual(c.expiries, ["2026-11-13", "2026-12-18", "2026-11-06"]);
+  assert.equal(c.rows.length, chain.rows.length - 2);
+  assert.ok(c.rows.every((r) => r[1] >= 0 && r[1] < 3));
+  assert.deepEqual(c.rows.find((r) => r[0] === 650), [650, 1, 1, 10000, 0.16, 100]);
+  assert.equal(withoutExpiry(chain, "2030-01-01"), chain);
 });

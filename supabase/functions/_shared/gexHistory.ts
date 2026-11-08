@@ -14,7 +14,7 @@
 // gexChain), so the same math (gex.js) reads a past day as it reads today.
 // Pure, and tested (gexHistory.test.ts); the terminal function does the I/O.
 
-import { RATE, YEAR_MS, closeOf, prepare, pick, byStrike, profile, flipOf, walls, byExpiry } from "./gex.js";
+import { RATE, YEAR_MS, closeOf, prepare, pick, byStrike, profile, flipOf, walls, byExpiry, withoutExpiry } from "./gex.js";
 
 export const OPEN_INTEREST = 9; // Databento StatType
 // Contracts counted, as on the live page: within 90 days and 20% of the price.
@@ -153,9 +153,15 @@ const r2 = (v: number | null) => (v === null || !Number.isFinite(v) ? null : Mat
 /**
  * The figures a backtest reads for each expiry window the page offers
  * (nearest, 7, 30 days, all within 90): net gamma per 1% move, the flip, the
- * call and put walls; and gamma by expiry.
+ * call and put walls; and gamma by expiry. Twice: as the day stood at 3:59
+ * p.m., and (`next`) without the options expiring at that day's close, which
+ * are gone by the next morning: the levels to plan the next day by.
  */
 export function historySummary(chain: ReturnType<typeof historyChain>) {
+  return { ...summaryOf(chain), next: summaryOf(withoutExpiry(chain, chain.at.slice(0, 10))) };
+}
+
+function summaryOf(chain: any) {
   const now = Date.parse(chain.at);
   const prepared = prepare(chain, now);
   const spot = chain.spot;

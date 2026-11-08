@@ -1124,7 +1124,7 @@ async function gexHistoryList(admin: any, symbol: string) {
   const sym = list.some((x: any) => x.symbol === symbol) ? symbol : list[0]?.symbol;
   if (!sym) return { symbols: [], symbol: null, days: [] };
   const { data, error: e } = await admin.from("gex_history")
-    .select("day, spot, at, oi_published, windows:summary->windows, nearest:summary->expiries->0")
+    .select("day, spot, at, oi_published, windows:summary->windows, nearest:summary->expiries->0, nextWindows:summary->next->windows, nextNearest:summary->next->expiries->0")
     .eq("symbol", sym).order("day").limit(5000);
   if (e) return { error: e.message };
   const slim = (w: any) => (w ? { netGex: w.netGex ?? null, flip: w.flip ?? null, callWall: w.callWall ?? null, putWall: w.putWall ?? null } : null);
@@ -1133,7 +1133,10 @@ async function gexHistoryList(admin: any, symbol: string) {
     days: (data || []).map((r: any) => ({
       day: r.day, spot: Number(r.spot), at: r.at, oiPublished: r.oi_published,
       windows: { nearest: slim(r.windows?.nearest), week: slim(r.windows?.week), month: slim(r.windows?.month), all: slim(r.windows?.all) },
-      nearest: r.nearest ? { expiry: r.nearest.expiry, share: r.nearest.share } : null
+      nearest: r.nearest ? { expiry: r.nearest.expiry, share: r.nearest.share } : null,
+      // Without the options expiring at that day's close.
+      next: r.nextWindows ? { nearest: slim(r.nextWindows.nearest), week: slim(r.nextWindows.week), month: slim(r.nextWindows.month), all: slim(r.nextWindows.all) } : null,
+      nextNearest: r.nextNearest ? { expiry: r.nextNearest.expiry, share: r.nextNearest.share } : null
     }))
   };
 }
@@ -2391,6 +2394,24 @@ Deno.serve(async (req) => {
       const report = await gexBackfill(admin, String(body.symbol || "").toUpperCase(), String(body.from || ""), String(body.to || ""), Number(body.budget) || 0, String(body.day || ""));
       console.log(`gex backfill: ${JSON.stringify(report)}`);
       return jsonResponse(report);
+    }
+    // Days already kept, summarised again from their own chains (no new read
+    // from Databento): adds the figures without that day's own expiry.
+    if (body?.action === "gexResummarize") {
+      if (!(await redeemCronTicket(admin, body.ticket, "gex_backfill"))) return jsonResponse({ error: "not authorised" }, 401);
+      const symbol = String(body.symbol || "").toUpperCase();
+      let q = admin.from("gex_history").select("day, chain").eq("symbol", symbol).is("summary->next", null);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(String(body.day || ""))) q = q.eq("day", String(body.day));
+      const { data, error } = await q.order("day").limit(8);
+      if (error) return jsonResponse({ error: error.message }, 400);
+      const done: string[] = [];
+      for (const r of data || []) {
+        const { error: e } = await admin.from("gex_history").update({ summary: historySummary(r.chain) }).eq("symbol", symbol).eq("day", r.day);
+        if (e) return jsonResponse({ error: e.message, done }, 400);
+        done.push(r.day);
+      }
+      const { count } = await admin.from("gex_history").select("day", { count: "exact", head: true }).eq("symbol", symbol).is("summary->next", null);
+      return jsonResponse({ symbol, done, left: count ?? null });
     }
     if (body?.action === "selftest") {
       if (!(await redeemCronTicket(admin, body.ticket, "terminal_selftest"))) return jsonResponse({ error: "not authorised" }, 401);

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, ChevronLeft, ChevronRight } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
-import { prepare, money } from "@/lib/gex";
+import { prepare, money, withoutExpiry } from "@/lib/gex";
 import GexBoard from "@/components/terminal/GexBoard";
 import { CALL, PUT, FLIP, INK, GRID, AXIS, WINDOWS, RANGES, METRICS, at, useWidth, step, Seg, Card, Legend } from "@/components/terminal/gexParts";
 
@@ -22,11 +22,13 @@ const pct = (v, digits = 1) => (v === null || v === undefined ? "—" : `${v >= 
 const moveTone = (v) => (v === null || v === undefined ? "text-slate-400" : v >= 0 ? "text-emerald-700" : "text-rose-700");
 const level = (v) => (v === null || v === undefined ? "—" : v % 1 ? v.toFixed(1) : String(v));
 
-// Each day with its figures for the expiry window shown, and what the price
-// did over the next 1, 5 and 10 days (3:59 p.m. to 3:59 p.m.).
-function withMoves(days, key) {
+// Each day with its figures for the expiry window shown, counting the options
+// expiring at that day's close (`same`) or not, and what the price did over
+// the next 1, 5 and 10 days (3:59 p.m. to 3:59 p.m.).
+function withMoves(days, key, same) {
   return days.map((d, i) => {
-    const w = d.windows?.[key] || d.windows?.all || {};
+    const set = same || !d.next ? d.windows : d.next;
+    const w = set?.[key] || set?.all || {};
     const ahead = (n) => (days[i + n] ? days[i + n].spot / d.spot - 1 : null);
     return { ...d, net: w.netGex ?? null, flip: w.flip ?? null, cw: w.callWall ?? null, pw: w.putWall ?? null, m1: ahead(1), m5: ahead(5), m10: ahead(10) };
   });
@@ -178,7 +180,8 @@ export default function GexHistory({ active, view, set, modeSwitch, onGuide }) {
 
   const sym = list.symbol;
   const key = WINDOW_KEY[view.win] || "month";
-  const rows = useMemo(() => withMoves(list.days, key), [list.days, key]);
+  const same = view.hsame === true;
+  const rows = useMemo(() => withMoves(list.days, key, same), [list.days, key, same]);
   const found = rows.findIndex((d) => d.day === pickedDay);
   // Opens on the newest day with a day after it kept, so "what the price did
   // next" has something to show.
@@ -205,7 +208,8 @@ export default function GexHistory({ active, view, set, modeSwitch, onGuide }) {
     return () => { alive = false; };
   }, [sym, d?.day]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const chain = day.chain && day.chain.symbol === sym && d && day.chain.day === d.day ? day.chain : null;
+  const read = day.chain && day.chain.symbol === sym && d && day.chain.day === d.day ? day.chain : null;
+  const chain = useMemo(() => (read && !same ? withoutExpiry(read, read.day) : read), [read, same]);
   const prepared = useMemo(() => (chain ? prepare(chain, Date.parse(chain.at)) : null), [chain]);
   // A past day carries no volume: Measure offers gamma and open interest only.
   const metrics = METRICS.filter(([id]) => id !== "volume");
@@ -235,6 +239,9 @@ export default function GexHistory({ active, view, set, modeSwitch, onGuide }) {
             {prepared.expiries.map((e, i) => e.open && <option key={e.expiry} value={i}>{e.expiry} ({e.days === 0 ? "that day" : `${e.days}d`})</option>)}
           </select>
         )}
+        <label className="flex items-center gap-1.5 text-xs text-slate-700" title="Options expiring at that day's close are gone by the next morning: left out, the levels are the ones still standing for the next day.">
+          <input type="checkbox" checked={same} onChange={(e) => set({ hsame: e.target.checked })} />Count that day&apos;s expiring options (0DTE)
+        </label>
         <Seg label="Range" value={view.range} options={RANGES} onChange={(r) => set({ range: r })} />
         <Seg label="Measure" value={boardView.metric} options={metrics} onChange={(m) => set({ metric: m })} />
         <div className="ml-auto flex items-center gap-2">
@@ -253,7 +260,7 @@ export default function GexHistory({ active, view, set, modeSwitch, onGuide }) {
 
       {rows.length > 0 && d && (
         <>
-          <Card title="Price and gamma levels, day by day" note={`Each day's flip and walls as they stood at 3:59 p.m. New York, ${WINDOWS.find(([id]) => id === view.win)?.[1].toLowerCase()} of expiries. Click a day to open it below.`}
+          <Card title="Price and gamma levels, day by day" note={`Each day's flip and walls at 3:59 p.m. New York, ${WINDOWS.find(([id]) => id === view.win)?.[1].toLowerCase()} of expiries, ${same ? "counting the options expiring that day" : "without the options expiring that day (the levels left for the next day)"}. Click a day to open it below.`}
             right={<Legend items={[[INK, "Price"], [FLIP, "Zero-gamma flip", true], [CALL, "Call wall"], [PUT, "Put wall"], [NEG_BAND, "Negative gamma"]]} />}>
             <div ref={seriesRef}><SeriesChart rows={rows} width={seriesW} picked={picked} onPick={go} /></div>
           </Card>
@@ -288,7 +295,7 @@ export default function GexHistory({ active, view, set, modeSwitch, onGuide }) {
           {!chain && day.loading && <p className="rounded-md border border-slate-200 bg-white px-3 py-6 text-center text-sm text-slate-500">Reading {shortDay(d.day)}…</p>}
           {chain && prepared && (
             <GexBoard sym={sym} mine={chain} prepared={prepared} spot={chain.spot} shownSpot={chain.spot} view={boardView} set={set}
-              expiry={expiry} setExpiry={setExpiry} history />
+              expiry={expiry} setExpiry={setExpiry} history sameDay={same} />
           )}
 
           <Card title={`How ${sym} moved after each regime`} note="From each day's 3:59 p.m. price to the following days' 3:59 p.m. prices. Moves either way are averaged without their sign.">

@@ -108,6 +108,22 @@ const gammaAt = (c, spot) => {
 export const exposureOf = (c, spot) => (c.call ? 1 : -1) * gammaAt(c, spot) * c.oi * MULTIPLIER * spot * spot * 0.01;
 
 /**
+ * The chain without one expiry, its rows re-indexed: a past day read at 3:59
+ * p.m. without the options expiring at that day's close, which are gone by the
+ * next morning (8 Nov, the owner: "if I am watching Oct 27th and trying to
+ * plan for 28th ... 0 DTE for 27th will mislead me").
+ */
+export function withoutExpiry(chain, expiry) {
+  const keep = (chain?.expiries || []).map((e) => e !== expiry);
+  if (keep.every(Boolean)) return chain;
+  const index = [];
+  const expiries = [];
+  chain.expiries.forEach((e, i) => { if (keep[i]) { index[i] = expiries.length; expiries.push(e); } });
+  const rows = chain.rows.filter((r) => keep[r[1]]).map((r) => [r[0], index[r[1]], ...r.slice(2)]);
+  return { ...chain, expiries, rows, counts: { ...(chain.counts || {}), used: rows.length } };
+}
+
+/**
  * Which contracts count: an expiry window (`days`: at most this many days
  * out; 0 for the nearest expiry only) or one expiry (`expiry` index).
  */

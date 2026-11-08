@@ -74,4 +74,8 @@ test("a past day's chain: within 90 days and 20% of the price, volatility from t
   assert.equal(s.windows.month.putWall, 440);
   assert.equal(s.filled, 1); // the put took its expiry's median
   assert.equal(s.expiries.length, 2);
+  // Without the options expiring at that day's close: the levels for the next day.
+  assert.equal(s.next.windows.month.callWall, 460);
+  assert.equal(s.next.windows.nearest.contracts, 2);
+  assert.deepEqual(s.next.expiries.map((e: any) => e.expiry), ["2026-11-20"]);
 });
