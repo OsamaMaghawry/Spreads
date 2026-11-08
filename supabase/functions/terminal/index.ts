@@ -24,6 +24,8 @@ import { isOwnerEmail, isAdminUser } from "../_shared/admin.ts";
 import { handBackFired, chaseFired } from "../_shared/stopGuardRun.ts";
 import { keepReplays } from "../_shared/replayKeep.ts";
 import { eodhdTime } from "../_shared/eodhdTime.ts";
+import { closeOf } from "../_shared/gex.js";
+import { csvObjects, openInterestOf, quotesOf, historyChain, historySummary } from "../_shared/gexHistory.ts";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -1101,6 +1103,101 @@ async function diagnose(account: any, mode: string, symbol: string, day: string)
     dailyBar: d1[0] ? { open: d1[0].o, high: d1[0].h, low: d1[0].l, close: d1[0].c, volume: d1[0].v, t: d1[0].t } : null,
     firstHours: h1.slice(0, 3).map((b: any) => ({ t: b.t, o: b.o, h: b.h, l: b.l, c: b.c }))
   };
+}
+
+// Gamma exposure on past days (lib: _shared/gexHistory.ts), kept in
+// gex_history. For each weekday from `from` to `to` not yet kept: the
+// options' open interest as OPRA published it at 6:30 New York, and their
+// best bid and offer in the minute before the close (Databento, read through
+// the project's DATABENTO_API_KEY), with the stock's price that minute
+// (EODHD's one-minute candles). Each day is priced first and the run stops
+// before the total charged for the symbol over the range would pass `budget`
+// dollars, or after about 100 seconds; called again, it carries on.
+async function gexBackfill(admin: any, symbol: string, from: string, to: string, budget: number) {
+  const day = /^\d{4}-\d{2}-\d{2}$/;
+  if (!SYMBOL.test(symbol)) return { error: "Which symbol?" };
+  if (!day.test(from) || !day.test(to) || from > to) return { error: "from and to, YYYY-MM-DD." };
+  if (!(budget > 0)) return { error: "A budget in dollars is required." };
+  const key = Deno.env.get("DATABENTO_API_KEY");
+  const eod = Deno.env.get("EODHD_API_KEY");
+  if (!key || !eod) return { error: "DATABENTO_API_KEY and EODHD_API_KEY are both needed." };
+  const auth = { Authorization: `Basic ${btoa(`${key}:`)}` };
+  const started = Date.now();
+  const { data: kept, error } = await admin.from("gex_history").select("day, usd").eq("symbol", symbol).gte("day", from).lte("day", to);
+  if (error) return { error: error.message };
+  const done = new Set((kept || []).map((r: any) => String(r.day)));
+  let spent = (kept || []).reduce((t: number, r: any) => t + (Number(r.usd) || 0), 0);
+
+  const days: string[] = [];
+  for (let t = Date.parse(`${from}T12:00:00Z`); t <= Date.parse(`${to}T12:00:00Z`); t += 86400000) {
+    const d = new Date(t);
+    if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) days.push(d.toISOString().slice(0, 10));
+  }
+  // The stock's one-minute candles over the range (one request), and its
+  // daily closes for a minute EODHD has no candle for.
+  const unix = (d: string) => Math.floor(Date.parse(`${d}T00:00:00Z`) / 1000);
+  const eodhd = async (path: string) => {
+    const r = await fetch(`https://eodhd.com/api/${path}&api_token=${encodeURIComponent(eod)}&fmt=json`);
+    return r.ok ? await r.json() : [];
+  };
+  const [minutes, daily] = await Promise.all([
+    eodhd(`intraday/${symbol}.US?interval=1m&from=${unix(from)}&to=${unix(to) + 2 * 86400}`),
+    eodhd(`eod/${symbol}.US?from=${from}&to=${to}`)
+  ]);
+  const minuteClose = new Map<number, number>((Array.isArray(minutes) ? minutes : []).map((b: any) => [Number(b.timestamp) * 1000, Number(b.close)]));
+  const dailyClose = new Map<string, number>((Array.isArray(daily) ? daily : []).map((b: any) => [String(b.date), Number(b.close)]));
+
+  const db = (path: string, q: Record<string, string>) => fetch(`https://hist.databento.com/v0/${path}?${new URLSearchParams(q)}`, { headers: auth });
+  const cost = async (q: Record<string, string>) => {
+    const r = await db("metadata.get_cost", q);
+    const v = Number(await r.text());
+    return r.ok && Number.isFinite(v) ? v : null;
+  };
+  const csv = async (q: Record<string, string>) => {
+    const r = await db("timeseries.get_range", { ...q, encoding: "csv", pretty_px: "true", pretty_ts: "true", map_symbols: "true" });
+    const text = await r.text();
+    if (!r.ok) throw new Error(`Databento ${r.status}: ${text.slice(0, 200)}`);
+    return csvObjects(text);
+  };
+
+  const out: any[] = [];
+  for (const d of days) {
+    if (done.has(d)) { out.push({ day: d, kept: "already" }); continue; }
+    if (Date.now() - started > 100000) { out.push({ day: d, left: "out of time; call again" }); break; }
+    const close = closeOf(d);
+    const base = { dataset: "OPRA.PILLAR", symbols: `${symbol}.OPT`, stype_in: "parent" };
+    // 5:30 to 7:30 New York, around the 6:30 publication; the minute 15:58.
+    const qOi = { ...base, schema: "statistics", start: iso(close - 10.5 * 3600000), end: iso(close - 8.5 * 3600000) };
+    const qQuotes = { ...base, schema: "cbbo-1m", start: iso(close - 120000), end: iso(close - 60000) };
+    const [c1, c2] = await Promise.all([cost(qOi), cost(qQuotes)]);
+    if (c1 === null || c2 === null) { out.push({ day: d, error: "Databento would not price the day." }); break; }
+    const usd = c1 + c2;
+    if (usd === 0) { out.push({ day: d, skipped: "no data (a market holiday?)" }); continue; }
+    if (spent + usd > budget) { out.push({ day: d, stopped: "budget", usd: Math.round(usd * 1e4) / 1e4, spent: Math.round(spent * 1e4) / 1e4 }); break; }
+    try {
+      const [statRows, quoteRows] = await Promise.all([csv(qOi), csv(qQuotes)]);
+      spent += usd;
+      const { oi, published } = openInterestOf(statRows);
+      const spot = minuteClose.get(close - 120000) || dailyClose.get(d) || null;
+      if (!oi.size || !spot) { out.push({ day: d, error: !oi.size ? "no open interest in the window" : "no stock price", usd }); continue; }
+      const chain = historyChain({ symbol, spot, at: close - 60000, oi, quotes: quotesOf(quoteRows), published });
+      const summary: any = historySummary(chain);
+      const m = summary.windows.month || summary.windows.all || {};
+      const row = {
+        symbol, day: d, spot, at: chain.at, oi_published: published, net_gex: m.netGex ?? null, flip: m.flip ?? null,
+        call_wall: m.callWall ?? null, put_wall: m.putWall ?? null, summary, chain,
+        counts: { ...chain.counts, oiRecords: statRows.length, quoteRecords: quoteRows.length, spotFrom: minuteClose.has(close - 120000) ? "minute" : "daily" },
+        source: "databento", usd
+      };
+      const { error: e } = await admin.from("gex_history").upsert(row);
+      if (e) { out.push({ day: d, error: e.message, usd }); continue; }
+      out.push({ day: d, usd: Math.round(usd * 1e4) / 1e4, spot, contracts: chain.rows.length, netGex: row.net_gex, flip: row.flip, callWall: row.call_wall, putWall: row.put_wall });
+    } catch (e) {
+      out.push({ day: d, error: String((e as Error)?.message || e) });
+      break;
+    }
+  }
+  return { symbol, from, to, budget, spent: Math.round(spent * 1e4) / 1e4, ms: Date.now() - started, days: out };
 }
 
 async function selftest(admin: any, only = "", seconds = 8, accountId = "", extra: string[] = []) {
@@ -2240,6 +2337,14 @@ Deno.serve(async (req) => {
     if (body?.action === "guardStops") {
       if (!(await redeemCronTicket(admin, body.ticket, "terminal_stop_guard"))) return jsonResponse({ error: "not authorised" }, 401);
       return jsonResponse(await guardStops(admin));
+    }
+    // Gamma on past days from Databento (8 Nov, the owner: "let's go with
+    // just 1 month of TSLA"): server only, with a scheduler ticket.
+    if (body?.action === "gexBackfill") {
+      if (!(await redeemCronTicket(admin, body.ticket, "gex_backfill"))) return jsonResponse({ error: "not authorised" }, 401);
+      const report = await gexBackfill(admin, String(body.symbol || "").toUpperCase(), String(body.from || ""), String(body.to || ""), Number(body.budget) || 0);
+      console.log(`gex backfill: ${JSON.stringify(report)}`);
+      return jsonResponse(report);
     }
     if (body?.action === "selftest") {
       if (!(await redeemCronTicket(admin, body.ticket, "terminal_selftest"))) return jsonResponse({ error: "not authorised" }, 401);

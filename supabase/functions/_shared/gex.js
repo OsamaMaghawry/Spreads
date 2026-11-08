@@ -21,8 +21,8 @@
 
 export const MULTIPLIER = 100;
 // A rate near the short-term Treasury yield; gamma barely moves with it.
-const RATE = 0.04;
-const YEAR_MS = 365 * 86400000;
+export const RATE = 0.04;
+export const YEAR_MS = 365 * 86400000;
 // An option in its last minutes is not infinitely sharp: fifteen minutes is the least time counted.
 const MIN_YEARS = 15 / (365 * 24 * 60);
 const IV_MIN = 0.01;
