@@ -1241,7 +1241,7 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     const back = (days: number) => nyDate(Date.parse(`${end}T12:00:00Z`) - days * 86400000);
     const symbols = extra.filter((x) => /^[A-Z]{1,5}$/.test(x));
     const asks: any[] = [];
-    for (const sym of extra.includes("SAMPLE") ? [] : symbols.length ? symbols : ["SPY", "QQQ"]) {
+    for (const sym of extra.includes("SAMPLE") || extra.includes("WINDOWS") ? [] : symbols.length ? symbols : ["SPY", "QQQ"]) {
       for (const schema of ["statistics", "ohlcv-1d", "definition"]) {
         for (const days of [1, 365, 730]) {
           const q = { dataset: "OPRA.PILLAR", symbols: `${sym}.OPT`, stype_in: "parent", schema, start: back(days), end };
@@ -1281,11 +1281,26 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
       }
       return { window: [from, to], usd: cost.body, ms: Date.now() - t, records: rows.length, byType };
     }));
+    // "WINDOWS": what gamma history needs, priced for one day (free): open
+    // interest alone (its 6:30 New York burst), and each contract's best bid
+    // and offer in one minute before the close (cbbo-1m) or one second
+    // (cbbo-1s), from which its implied volatility is worked out.
+    const windows = !extra.includes("WINDOWS") ? null : await Promise.all([
+      ["open interest burst", "statistics", "T11:00:00Z", "T12:30:00Z"],
+      ["quotes, one minute before the close", "cbbo-1m", "T20:58:00Z", "T20:59:00Z"],
+      ["quotes, one second before the close", "cbbo-1s", "T20:59:00Z", "T20:59:01Z"]
+    ].map(async ([what, schema, from, to]) => {
+      const day = back(1);
+      const q = { dataset: "OPRA.PILLAR", symbols: `${symbols[0] || "SPY"}.OPT`, stype_in: "parent", schema, start: `${day}${from}`, end: `${day}${to}` };
+      const [c, n, b] = await Promise.all([get("metadata.get_cost", q), get("metadata.get_record_count", q), get("metadata.get_billable_size", q)]);
+      return { what, schema, day, usd: c.status === 200 ? c.body : c, records: n.status === 200 ? n.body : n, mb: typeof b.body === "number" ? Math.round(b.body / 1e4) / 100 : b };
+    }));
     return {
       key: "works",
+      windows,
       datasets: datasets.body,
       opra: { range: range.status === 200 ? range.body : range, schemas: schemas.status === 200 ? schemas.body : schemas },
-      costs: sample ? "skipped with SAMPLE" : await Promise.all(asks),
+      costs: asks.length ? await Promise.all(asks) : "skipped",
       sample
     };
   }
