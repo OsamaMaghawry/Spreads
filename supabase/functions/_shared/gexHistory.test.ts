@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { occParts, bsPrice, impliedVol, csvObjects, openInterestOf, quotesOf, historyChain, historySummary } from "./gexHistory.ts";
+import { occParts, bsPrice, impliedVol, openInterestOf, quotesOf, historyChain, historySummary } from "./gexHistory.ts";
 import { closeOf, YEAR_MS } from "./gex.js";
 
 test("OCC symbols: root, expiry, side and strike", () => {
@@ -24,18 +24,19 @@ test("Black-Scholes: a textbook price, put-call parity, and the volatility found
 });
 
 test("Databento CSV read by its header; open interest only, largest kept; quotes last kept", () => {
-  const stats = csvObjects([
+  const stats = [
     "ts_recv,ts_event,rtype,publisher_id,instrument_id,ts_ref,price,quantity,sequence,ts_in_delta,stat_type,channel_id,update_action,stat_flags,symbol",
     "x,2026-11-06T11:30:00.58Z,24,108,1,,,3943,1,0,9,81,1,0,TSLA  261120C00450000",
     "x,2026-11-06T11:30:00.59Z,24,108,1,,,3950,2,0,9,81,1,0,TSLA  261120C00450000",
     "x,2026-11-06T11:30:00.57Z,24,108,2,,,120,3,0,9,81,1,0,TSLA  261120P00400000",
     "x,2026-11-06T21:40:45Z,24,21,2,,0,2147483647,4,0,11,81,1,0,TSLA  261120P00400000",
     ""
-  ].join("\n"));
-  const { oi, published } = openInterestOf(stats);
+  ].join("\n");
+  const { oi, published, records } = openInterestOf(stats);
+  assert.equal(records, 4);
   assert.deepEqual([...oi.entries()], [["TSLA  261120C00450000", 3950], ["TSLA  261120P00400000", 120]]);
   assert.equal(published, "2026-11-06T11:30:00.57Z");
-  const quotes = quotesOf(csvObjects("ts_recv,bid_px_00,ask_px_00,symbol\nx,10.1,10.3,A\nx,10.2,10.4,A\nx,,0.05,B"));
+  const quotes = quotesOf("ts_recv,bid_px_00,ask_px_00,symbol\nx,10.1,10.3,A\nx,10.2,10.4,A\nx,,0.05,B\n");
   assert.deepEqual(quotes.get("A"), { bid: 10.2, ask: 10.4 });
   assert.deepEqual(quotes.get("B"), { bid: 0, ask: 0.05 });
 });

@@ -64,43 +64,51 @@ export function impliedVol(price: number, spot: number, strike: number, years: n
   return (lo + hi) / 2;
 }
 
-/** Databento CSV, header first, as objects keyed by the header's names. */
-export function csvObjects(text: string) {
-  const lines = text.split("\n").filter((l) => l.trim());
-  if (!lines.length) return [];
-  const head = lines[0].split(",");
-  return lines.slice(1).map((l) => {
-    const cells = l.split(",");
-    const o: Record<string, string> = {};
-    head.forEach((h, i) => { o[h] = cells[i] ?? ""; });
-    return o;
-  });
+// Databento CSV, header first, read a line at a time for the columns named
+// only (a day of one stock's open interest is 100,000 lines; building an
+// object for each ran the function out of computing time, 8 Nov).
+function eachRow(text: string, names: string[], fn: (cells: string[]) => void) {
+  let start = text.indexOf("\n");
+  if (start < 0) return 0;
+  const head = text.slice(0, start).trim().split(",");
+  const at = names.map((n) => head.indexOf(n));
+  let n = 0;
+  while (start < text.length) {
+    let end = text.indexOf("\n", start + 1);
+    if (end < 0) end = text.length;
+    const line = text.slice(start + 1, end).trim();
+    start = end;
+    if (!line) continue;
+    const cells = line.split(",");
+    fn(at.map((i) => (i < 0 ? "" : cells[i] ?? "")));
+    n += 1;
+  }
+  return n;
 }
 
-/** Open interest per OCC symbol from statistics rows (stat_type 9); a contract repeated keeps its largest figure. */
-export function openInterestOf(rows: Record<string, string>[]) {
+/** Open interest per OCC symbol from statistics CSV (stat_type 9); a contract repeated keeps its largest figure. */
+export function openInterestOf(text: string) {
   const out = new Map<string, number>();
   let published: string | null = null;
-  for (const r of rows) {
-    if (Number(r.stat_type) !== OPEN_INTEREST || !r.symbol) continue;
-    const q = Number(r.quantity);
-    if (!Number.isFinite(q) || q < 0 || q >= 2147483647) continue;
-    out.set(r.symbol, Math.max(out.get(r.symbol) || 0, q));
-    const at = r.ts_event || r.ts_recv;
-    if (at && (!published || at < published)) published = at;
-  }
-  return { oi: out, published };
+  const records = eachRow(text, ["stat_type", "quantity", "symbol", "ts_event"], ([type, quantity, symbol, ts]) => {
+    if (Number(type) !== OPEN_INTEREST || !symbol) return;
+    const q = Number(quantity);
+    if (!Number.isFinite(q) || q < 0 || q >= 2147483647) return;
+    out.set(symbol, Math.max(out.get(symbol) || 0, q));
+    if (ts && (!published || ts < published)) published = ts;
+  });
+  return { oi: out, published, records };
 }
 
-/** Each contract's last best bid and offer from cbbo-1m rows. */
-export function quotesOf(rows: Record<string, string>[]) {
+/** Each contract's last best bid and offer from cbbo-1m CSV. */
+export function quotesOf(text: string) {
   const out = new Map<string, { bid: number; ask: number }>();
-  for (const r of rows) {
-    if (!r.symbol) continue;
-    const bid = Number(r.bid_px_00);
-    const ask = Number(r.ask_px_00);
-    out.set(r.symbol, { bid: Number.isFinite(bid) ? bid : 0, ask: Number.isFinite(ask) ? ask : 0 });
-  }
+  eachRow(text, ["bid_px_00", "ask_px_00", "symbol"], ([b, a, symbol]) => {
+    if (!symbol) return;
+    const bid = Number(b);
+    const ask = Number(a);
+    out.set(symbol, { bid: b !== "" && Number.isFinite(bid) ? bid : 0, ask: a !== "" && Number.isFinite(ask) ? ask : 0 });
+  });
   return out;
 }
 

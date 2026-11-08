@@ -25,7 +25,7 @@ import { handBackFired, chaseFired } from "../_shared/stopGuardRun.ts";
 import { keepReplays } from "../_shared/replayKeep.ts";
 import { eodhdTime } from "../_shared/eodhdTime.ts";
 import { closeOf } from "../_shared/gex.js";
-import { csvObjects, openInterestOf, quotesOf, historyChain, historySummary } from "../_shared/gexHistory.ts";
+import { openInterestOf, quotesOf, historyChain, historySummary } from "../_shared/gexHistory.ts";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -1133,19 +1133,22 @@ async function gexBackfill(admin: any, symbol: string, from: string, to: string,
     const d = new Date(t);
     if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) days.push(d.toISOString().slice(0, 10));
   }
-  // The stock's one-minute candles over the range (one request), and its
-  // daily closes for a minute EODHD has no candle for.
-  const unix = (d: string) => Math.floor(Date.parse(`${d}T00:00:00Z`) / 1000);
+  // The stock's price at the end of the minute the quotes are read in: its
+  // one-minute candle from EODHD, else that day's close.
   const eodhd = async (path: string) => {
     const r = await fetch(`https://eodhd.com/api/${path}&api_token=${encodeURIComponent(eod)}&fmt=json`);
     return r.ok ? await r.json() : [];
   };
-  const [minutes, daily] = await Promise.all([
-    eodhd(`intraday/${symbol}.US?interval=1m&from=${unix(from)}&to=${unix(to) + 2 * 86400}`),
-    eodhd(`eod/${symbol}.US?from=${from}&to=${to}`)
-  ]);
-  const minuteClose = new Map<number, number>((Array.isArray(minutes) ? minutes : []).map((b: any) => [Number(b.timestamp) * 1000, Number(b.close)]));
-  const dailyClose = new Map<string, number>((Array.isArray(daily) ? daily : []).map((b: any) => [String(b.date), Number(b.close)]));
+  const priceAt = async (d: string, ms: number) => {
+    const [minutes, daily] = await Promise.all([
+      eodhd(`intraday/${symbol}.US?interval=1m&from=${ms / 1000 - 120}&to=${ms / 1000 + 120}`),
+      eodhd(`eod/${symbol}.US?from=${d}&to=${d}`)
+    ]);
+    const m = (Array.isArray(minutes) ? minutes : []).find((b: any) => Number(b.timestamp) * 1000 === ms);
+    if (m && Number(m.close) > 0) return { spot: Number(m.close), from: "minute" };
+    const day = (Array.isArray(daily) ? daily : []).find((b: any) => String(b.date) === d);
+    return day && Number(day.close) > 0 ? { spot: Number(day.close), from: "daily" } : null;
+  };
 
   const db = (path: string, q: Record<string, string>) => fetch(`https://hist.databento.com/v0/${path}?${new URLSearchParams(q)}`, { headers: auth });
   const cost = async (q: Record<string, string>) => {
@@ -1157,13 +1160,16 @@ async function gexBackfill(admin: any, symbol: string, from: string, to: string,
     const r = await db("timeseries.get_range", { ...q, encoding: "csv", pretty_px: "true", pretty_ts: "true", map_symbols: "true" });
     const text = await r.text();
     if (!r.ok) throw new Error(`Databento ${r.status}: ${text.slice(0, 200)}`);
-    return csvObjects(text);
+    return text;
   };
 
   const out: any[] = [];
+  // One day read per call: a day's parsing uses most of a call's computing
+  // time (8 Nov: ten in one call stopped at the eighth, WORKER_RESOURCE_LIMIT).
+  let read = 0;
   for (const d of days) {
-    if (done.has(d)) { out.push({ day: d, kept: "already" }); continue; }
-    if (Date.now() - started > 100000) { out.push({ day: d, left: "out of time; call again" }); break; }
+    if (done.has(d)) continue;
+    if (read >= 1) { out.push({ day: d, left: "next call" }); break; }
     const close = closeOf(d);
     const base = { dataset: "OPRA.PILLAR", symbols: `${symbol}.OPT`, stype_in: "parent" };
     // 5:30 to 7:30 New York, around the 6:30 publication; the minute 15:58.
@@ -1175,18 +1181,21 @@ async function gexBackfill(admin: any, symbol: string, from: string, to: string,
     if (usd === 0) { out.push({ day: d, skipped: "no data (a market holiday?)" }); continue; }
     if (spent + usd > budget) { out.push({ day: d, stopped: "budget", usd: Math.round(usd * 1e4) / 1e4, spent: Math.round(spent * 1e4) / 1e4 }); break; }
     try {
-      const [statRows, quoteRows] = await Promise.all([csv(qOi), csv(qQuotes)]);
+      const [statText, quoteText] = await Promise.all([csv(qOi), csv(qQuotes)]);
       spent += usd;
-      const { oi, published } = openInterestOf(statRows);
-      const spot = minuteClose.get(close - 120000) || dailyClose.get(d) || null;
+      read += 1;
+      const { oi, published, records } = openInterestOf(statText);
+      const quotes = quotesOf(quoteText);
+      const px = await priceAt(d, close - 120000);
+      const spot = px?.spot || null;
       if (!oi.size || !spot) { out.push({ day: d, error: !oi.size ? "no open interest in the window" : "no stock price", usd }); continue; }
-      const chain = historyChain({ symbol, spot, at: close - 60000, oi, quotes: quotesOf(quoteRows), published });
+      const chain = historyChain({ symbol, spot, at: close - 60000, oi, quotes, published });
       const summary: any = historySummary(chain);
       const m = summary.windows.month || summary.windows.all || {};
       const row = {
         symbol, day: d, spot, at: chain.at, oi_published: published, net_gex: m.netGex ?? null, flip: m.flip ?? null,
         call_wall: m.callWall ?? null, put_wall: m.putWall ?? null, summary, chain,
-        counts: { ...chain.counts, oiRecords: statRows.length, quoteRecords: quoteRows.length, spotFrom: minuteClose.has(close - 120000) ? "minute" : "daily" },
+        counts: { ...chain.counts, oiRecords: records, quoteRecords: quotes.size, spotFrom: px?.from },
         source: "databento", usd
       };
       const { error: e } = await admin.from("gex_history").upsert(row);
