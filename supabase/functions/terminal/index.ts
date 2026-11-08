@@ -26,7 +26,7 @@ import { keepReplays } from "../_shared/replayKeep.ts";
 import { eodhdTime } from "../_shared/eodhdTime.ts";
 import { closeOf } from "../_shared/gex.js";
 import { openInterestOf, quotesOf, historyChain, historySummary } from "../_shared/gexHistory.ts";
-import { screenSummary, screenUniverse } from "../_shared/gexScreen.js";
+import { screenSummary, screenUniverse as gexUniverse } from "../_shared/gexScreen.js";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -1148,7 +1148,7 @@ async function gexScreenJob(admin: any, force = false, count = GEX_SCREEN_COUNT)
         pages += 1;
       } while (token && pages < 6);
     });
-    const top = screenUniverse(bars, day, Math.max(1, Math.min(1000, count)));
+    const top = gexUniverse(bars, day, Math.max(1, Math.min(1000, count)));
     if (!top.length) return { error: "No daily candles to rank the shares by.", optionable: symbols.length };
     const { error: e } = await admin.from("gex_daily").upsert(
       top.map((x, i) => ({ symbol: x.symbol, day, rank: i + 1, dollar_vol: Math.round(x.dollarVol) })),
