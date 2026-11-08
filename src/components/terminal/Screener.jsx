@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { RefreshCw, Plus, Check, X, ChevronDown, ChevronRight, History } from "lucide-react";
+import { RefreshCw, Plus, Check, X, ChevronDown, ChevronRight, History, LineChart } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { readPref, savePref } from "@/lib/terminalPrefs";
 import {
@@ -7,6 +7,8 @@ import {
   PRESETS, dailyCandidates, bigNumber, TREND_CHOICES, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown, combineScreens, conflicts, premarketPicks, afterHoursDay, afterHoursPicks
 } from "@/lib/screener";
 import { px, pctText } from "@/lib/terminal";
+import { gammaFields } from "@/lib/gexScreen";
+import { money } from "@/lib/gex";
 import { gapWindow, liveWindow, bySymbol } from "@/lib/news";
 
 // The stock screener (24 Oct 2026: "Stock Screener, with some extensive
@@ -69,17 +71,23 @@ const lastWeekday = () => {
   return nyYesterday();
 };
 
+// Gamma's columns (8 Nov, the approved design), live only: worked out each
+// morning (lib/gexScreen.js), read at the price now.
+const GAMMA_COLUMNS = [["gexSign", "Gamma"], ["gexNet", "Net gamma"], ["gexHedge", "Hedge vs vol"], ["gexToFlip", "To flip"], ["gexToCall", "Call wall"], ["gexToPut", "Put wall"]];
+const GAMMA_KEYS = new Set(GAMMA_COLUMNS.map(([k]) => k));
+const GAMMA_REFRESH_MS = 10 * 60000;
+
 // The table's columns, live and on a past day at its open or close.
 const COLUMN_SETS = {
   live: [
     ["symbol", "Symbol"], ["price", "Price"], ["changePct", "Chg %"], ["gapPct", "Gap %"], ["volume", "Volume"], ["relVol", "Rel vol"],
-    ["dollarVol", "$ Vol"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["fromHigh52", "vs 52w high"],
+    ["dollarVol", "$ Vol"], ...GAMMA_COLUMNS, ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["fromHigh52", "vs 52w high"],
     ["vsSma50", "vs 50d"], ["perf1m", "1 month"], ["earningsIn", "Earnings"], ["ahChangePct", "After-hrs %"], ["ahVolume", "After-hrs vol"], ["news", "News"]
   ],
   // Live before the open: the move so far is the gap.
   preOpen: [
     ["symbol", "Symbol"], ["price", "Price"], ["changePct", "Pre-mkt %"], ["news", "News"], ["volume", "Pre-mkt vol"], ["dollarVol", "Pre-mkt $ vol"], ["ahChangePct", "After-hrs %"], ["ahVolume", "After-hrs vol"], ["prevDollarVol", "$ Vol day before"],
-    ["relVol", "Rel vol"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["fromHigh52", "vs 52w high"], ["vsSma50", "vs 50d"], ["perf1m", "1 month"], ["earningsIn", "Earnings"]
+    ...GAMMA_COLUMNS, ["relVol", "Rel vol"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["fromHigh52", "vs 52w high"], ["vsSma50", "vs 50d"], ["perf1m", "1 month"], ["earningsIn", "Earnings"]
   ],
   open: [
     ["symbol", "Symbol"], ["price", "Open"], ["gapPct", "Gap %"], ["news", "News"], ["pmChangePct", "Pre-mkt %"], ["pmVolume", "Pre-mkt vol"], ["prevDollarVol", "$ Vol day before"],
@@ -96,6 +104,14 @@ function cell(row, key) {
   const v = row[key];
   if (key === "symbol") return null;
   if (v === null || v === undefined || (typeof v === "number" && !Number.isFinite(v))) return <span className="text-slate-300">—</span>;
+  if (key === "gexSign") return <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${v < 0 ? "bg-rose-50 text-rose-800" : "bg-blue-50 text-blue-800"}`}>{v < 0 ? "Negative" : "Positive"}</span>;
+  if (key === "gexNet") return <span className={v < 0 ? "text-rose-700" : "text-blue-800"}>{money(v)}</span>;
+  if (key === "gexHedge") return <span className={`font-semibold ${v < 0 ? "text-rose-700" : "text-blue-800"}`}>{pctText(v)}</span>;
+  if (key === "gexToFlip") return <span title={`Flip at ${px(row.gexFlip)}`} className={Math.abs(v) <= 0.01 ? "rounded bg-violet-100 px-1 font-semibold text-violet-900" : ""}>{pctText(v)}</span>;
+  if (key === "gexToCall" || key === "gexToPut") {
+    const level = key === "gexToCall" ? row.gexCallWall : row.gexPutWall;
+    return <span title={`${pctText(v)} from the price`}>{px(level)} <span className="text-slate-400">({pctText(v)})</span></span>;
+  }
   if (key === "price") return px(v);
   if (key === "volume" || key === "pmVolume" || key === "avgVol20") return bigNumber(v);
   if (key === "dollarVol" || key === "marketCap" || key === "prevDollarVol" || key === "avgDollar20") return `$${bigNumber(v)}`;
@@ -147,7 +163,7 @@ function RangeRow({ field, value, onChange }) {
   );
 }
 
-export default function Screener({ accountId, active, watch, onPick, onAdd, onReplay = () => {} }) {
+export default function Screener({ accountId, active, watch, onPick, onAdd, onReplay = () => {}, onGamma = null }) {
   const [universe, setUniverse] = useState({ rows: [], at: null, dayFeed: null, listed: 0, loading: false, error: null });
   const [daily, setDaily] = useState({});
   const [progress, setProgress] = useState({ done: 0, total: 0, loading: false, error: null });
@@ -396,14 +412,36 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
       .finally(() => { ahBusy.current = false; });
   }, [active, accountId, when.date, universe.at, universe.rows, ah.key, ah.at, ah.complete]);
 
+  // Gamma: each share's latest morning figures (functions/terminal
+  // "gexScreen"), read again every ten minutes while today's run fills in.
+  const [gamma, setGamma] = useState({ by: {}, today: null, day: null });
+  useEffect(() => {
+    if (!active || when.date) return undefined;
+    let alive = true;
+    const read = () => invokeFunction("terminal", { action: "gexScreen" })
+      .then((r) => {
+        if (!alive || r?.data?.error || !Array.isArray(r?.data?.rows)) return;
+        const by = {};
+        for (const [symbol, day, , summary] of r.data.rows) if (summary) by[symbol] = { ...summary, day };
+        setGamma({ by, today: r.data.today || null, day: r.data.day || null });
+      })
+      .catch(() => {});
+    read();
+    const t = setInterval(() => { if (document.visibilityState === "visible") read(); }, GAMMA_REFRESH_MS);
+    return () => { alive = false; clearInterval(t); };
+  }, [active, when.date]);
+
   const today = when.date || nyToday();
   const pmToday = !when.date && pm.key === `${accountId}|${today}` ? pm.by : null;
   const ahLast = !when.date && ah.key.startsWith(`${accountId}|`) ? ah.by : null;
   const rows = useMemo(() => universe.rows.map((u) => {
     let x = pmToday && pmToday[u.symbol] ? { ...u, ...pmToday[u.symbol] } : u;
     if (ahLast && ahLast[u.symbol]) x = { ...x, ...ahLast[u.symbol] };
-    return screenRow(x, daily[u.symbol] || (when.date ? partialStats(u) : null), today);
-  }), [universe.rows, daily, today, when.date, pmToday, ahLast]);
+    const row = screenRow(x, daily[u.symbol] || (when.date ? partialStats(u) : null), today);
+    // Gamma at the price now, live only.
+    const g = !when.date ? gamma.by[u.symbol] : null;
+    return g ? { ...row, ...gammaFields(g, row.price, row.avgDollar20) } : row;
+  }), [universe.rows, daily, today, when.date, pmToday, ahLast, gamma.by]);
   // Live before the open (most rows' day candle still the last session's).
   const preOpen = !when.date && rows.length > 0 && rows.filter((r) => r.preOpen).length > rows.length / 2;
   const lastSession = preOpen ? universe.rows.find((u) => u.day)?.day : null;
@@ -493,7 +531,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
           Stocks in play<span className="text-[10px] font-normal text-slate-500">pick any: all must hold, with your filters</span>
         </div>
         <div className="grid grid-cols-2 gap-1 px-2">
-          {PRESETS.filter((p) => mode !== "live" || presetKnown(p, "live")).map((p) => {
+          {PRESETS.filter((p) => !p.set && (mode !== "live" || presetKnown(p, "live"))).map((p) => {
             const known = presetKnown(p, mode);
             const on = presets.includes(p.id);
             return (
@@ -505,6 +543,23 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
             );
           })}
         </div>
+        {mode === "live" && (
+          <div className="px-2">
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-violet-800">Gamma</div>
+            <div className="grid grid-cols-2 gap-1">
+              {PRESETS.filter((p) => p.set === "gamma").map((p) => {
+                const on = presets.includes(p.id);
+                return (
+                  <button key={p.id} type="button" aria-pressed={on} title={p.note} onClick={() => togglePreset(p.id)}
+                    className={`flex items-center gap-1 rounded border px-1.5 py-1 text-left text-[11px] ${on ? "border-violet-900 bg-violet-900 text-white" : "border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100"}`}>
+                    <span className={`flex h-3 w-3 shrink-0 items-center justify-center rounded-sm border ${on ? "border-white bg-white text-violet-900" : "border-violet-300"}`}>{on && <Check className="h-2.5 w-2.5" />}</span>
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div className="flex items-center border-t border-slate-200 px-2 pt-2 text-xs font-semibold text-slate-700">
           Filters
           <button type="button" onClick={() => { setPresets([]); setScreen(cleanScreen({ ...EMPTY_SCREEN, sort: screen.sort })); }} className="ml-auto text-[11px] font-normal text-slate-500 hover:underline">Clear all</button>
@@ -530,9 +585,19 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
             <div key={g} className="rounded border border-slate-100">
               <button type="button" onClick={() => toggleGroup(g)} className="flex w-full items-center gap-1 px-1 py-1 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50">
                 {open.has(g) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}{g}
-                {FIELDS.some((f) => f.group === g && screen.ranges[f.id]) && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                {(FIELDS.some((f) => f.group === g && screen.ranges[f.id]) || (g === "Gamma (options)" && (screen.gamma !== "any" || screen.gammaOnly))) && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-500" />}
               </button>
-              {open.has(g) && FIELDS.filter((f) => f.group === g && fieldKnown(f.id, mode)).map((f) => <RangeRow key={f.id} field={f} value={screen.ranges[f.id]} onChange={setRange} />)}
+              {open.has(g) && g === "Gamma (options)" && mode === "live" && (
+                <div className="space-y-1 px-1 pb-1 text-[11px] text-slate-600">
+                  <label className="flex items-center justify-between gap-2">Gamma at the price
+                    <select value={screen.gamma} onChange={(e) => setChoice("gamma", e.target.value)} className="rounded border border-slate-200 px-1 py-0.5 text-[11px]">
+                      <option value="any">Any</option><option value="positive">Positive</option><option value="negative">Negative</option>
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-1"><input type="checkbox" checked={screen.gammaOnly} onChange={(e) => setChoice("gammaOnly", e.target.checked)} />Only shares with gamma worked out</label>
+                </div>
+              )}
+              {open.has(g) && FIELDS.filter((f) => f.group === g && !f.hidden && fieldKnown(f.id, mode)).map((f) => <RangeRow key={f.id} field={f} value={screen.ranges[f.id]} onChange={setRange} />)}
             </div>
           ))}
           <p className="px-1 pt-1 text-[10px] leading-snug text-slate-400">Type 500k, 2.5m or 1b for amounts; percentages as numbers (3 for 3%). Hover a filter for what it measures.</p>
@@ -621,7 +686,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
             <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] text-slate-500">
               <tr>
                 {COLUMNS.map(([key, name]) => (
-                  <th key={key} className={`whitespace-nowrap px-2 py-1 font-medium ${key === "news" ? "" : "cursor-pointer hover:text-slate-900"} ${key === "symbol" ? "text-left" : "text-right"}`}
+                  <th key={key} className={`whitespace-nowrap px-2 py-1 font-medium ${key === "news" ? "" : "cursor-pointer hover:text-slate-900"} ${key === "symbol" ? "text-left" : "text-right"} ${GAMMA_KEYS.has(key) ? "bg-violet-50 text-violet-900" : ""}`}
                     title={key === "news" ? `Articles naming the share, ${newsWhen}. Click a count for the headlines.` : FIELD[key]?.hint || FIELD[key]?.label || "Symbol"} onClick={() => key !== "news" && sortBy(key)}>
                     {name}{screen.sort.key === key ? (screen.sort.dir === "desc" ? " ↓" : " ↑") : ""}
                   </th>
@@ -636,6 +701,10 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
                   <td className="max-w-[14rem] px-2 py-1">
                     <span className="font-semibold">{r.symbol}</span>
                     {r.options && <span className="ml-1 rounded bg-slate-100 px-1 text-[9px] text-slate-500" title="Options listed">OPT</span>}
+                    {onGamma && r.gexNet !== undefined && r.gexNet !== null && (
+                      <button type="button" onClick={(e) => { e.stopPropagation(); onGamma(r.symbol); }} title={`Open ${r.symbol} on the Gamma page`} aria-label={`Open ${r.symbol} on the Gamma page`}
+                        className="ml-1 rounded p-0.5 align-middle text-violet-700 hover:bg-violet-100"><LineChart className="h-3 w-3" /></button>
+                    )}
                     <span className="ml-1.5 truncate text-[11px] text-slate-400" title={r.name}>{r.name.replace(/ (Common Stock|Class A Common Stock|Ordinary Shares)$/i, "").slice(0, 28)}</span>
                   </td>
                   {COLUMNS.slice(1).map(([key]) => (key === "news"
@@ -682,7 +751,12 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
           </p>
         ) : <p className="border-t border-slate-100 px-2 py-1 text-[10px] leading-snug text-slate-400">
           {universe.at ? `Read ${new Date(universe.at).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", second: "2-digit" })} New York. ` : ""}
-          From your own Alpaca account: prices are the later of the last trade on IEX (real time, 8:00 to 17:00 New York) and on the consolidated tape (every exchange, 15 minutes delayed); before the open, volume is the pre-market&apos;s; otherwise volume and the day&apos;s candle are the consolidated tape{universe.dayFeed === "delayed_sip" ? ", 15 minutes delayed" : universe.dayFeed ? " (IEX only: this account cannot read the consolidated tape, so volumes are IEX's share)" : ""}; daily figures from consolidated daily candles. Market cap uses shares outstanding from the company&apos;s latest SEC filing; earnings dates from the earnings calendar. A screen is a filter, not a recommendation.
+          From your own Alpaca account: prices are the later of the last trade on IEX (real time, 8:00 to 17:00 New York) and on the consolidated tape (every exchange, 15 minutes delayed); before the open, volume is the pre-market&apos;s; otherwise volume and the day&apos;s candle are the consolidated tape{universe.dayFeed === "delayed_sip" ? ", 15 minutes delayed" : universe.dayFeed ? " (IEX only: this account cannot read the consolidated tape, so volumes are IEX's share)" : ""}; daily figures from consolidated daily candles. Market cap uses shares outstanding from the company&apos;s latest SEC filing; earnings dates from the earnings calendar.
+          {" "}Gamma: {gamma.today?.listed
+            ? (gamma.today.done < gamma.today.listed ? `today's run has worked out ${gamma.today.done} of ${gamma.today.listed} shares so far; the rest show the day before's` : `worked out this morning for the ${gamma.today.listed} optionable shares that traded the most dollars the session before`)
+            : Object.keys(gamma.by).length ? `the latest morning's figures, for ${Object.keys(gamma.by).length} shares` : "worked out each weekday from 7:00 New York"}
+          {" "}(open interest of 6:30, expiries within 30 days, today&apos;s counted), then read at the price now; &quot;—&quot; for others. An estimate of dealer positioning.
+          {" "}A screen is a filter, not a recommendation.
         </p>}
       </section>
     </div>

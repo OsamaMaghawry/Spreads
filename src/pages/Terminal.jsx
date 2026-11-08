@@ -187,6 +187,8 @@ export default function Terminal() {
   // The Gamma page (components/terminal/GexPage.jsx), kept once opened; its
   // symbol streams while it shows, and its walls and flip go on the charts.
   const [gammaSeen, setGammaSeen] = useState(page === "gamma");
+  // A symbol the Scanner asks the Gamma page to open (its gamma link).
+  const [gexOpen, setGexOpen] = useState(null);
   useEffect(() => { if (page === "gamma") setGammaSeen(true); }, [page]);
   const [gexSymbol, setGexSymbol] = useState("");
   const [gexLevels, setGexLevels] = useState({});
@@ -708,13 +710,14 @@ export default function Terminal() {
       {gammaSeen && (
         <div className={page === "gamma" ? "" : "hidden"}>
           <GexPage accountId={accountId} active={page === "gamma"} chartSymbol={symbol} priceOf={(s) => quoteOf(s).last}
-            onSymbol={setGexSymbol} onLevels={putGexLevels} stockFeed={shares.history} />
+            onSymbol={setGexSymbol} onLevels={putGexLevels} stockFeed={shares.history} openRequest={gexOpen} />
         </div>
       )}
       {screenSeen && (
         <div className={page === "screen" ? "" : "hidden"}>
           <Screener accountId={accountId} active={page === "screen"} watch={watch}
             onPick={(s) => { setSymbol(s); setPage("trade"); }} onReplay={replayFromScreen}
+            onGamma={(s) => { setGexOpen({ sym: s, at: Date.now() }); setGammaSeen(true); setPage("gamma"); }}
             onAdd={(s) => setWatch((w) => (w.length >= WATCHLIST_MAX ? w : cleanWatchlist([...w, s])))} />
         </div>
       )}

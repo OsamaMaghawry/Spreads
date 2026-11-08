@@ -248,3 +248,24 @@ test("after hours: the session read, its change, and the fractionable filter", (
   ];
   assert.deepEqual(afterHoursPicks(rows, "2026-10-29", 1, 1), ["REPT", "MOVE", "BUSY"]);
 });
+
+test("gamma: positive or negative at the price, gamma-only, and the gamma screens", () => {
+  const rows = [
+    { symbol: "NEG", gexSign: -1, gexNet: -2e8, gexHedge: -0.02, gexFlipAbs: 0.03, gexWallAbs: 0.004 },
+    { symbol: "PIN", gexSign: 1, gexNet: 9e8, gexHedge: 0.05, gexFlipAbs: 0.006, gexWallAbs: 0.02 },
+    { symbol: "NONE", gexSign: null, gexNet: null }
+  ];
+  const pick = (screen) => rows.filter((r) => passes(r, screen)).map((r) => r.symbol);
+  assert.deepEqual(pick(cleanScreen({ gamma: "negative" })), ["NEG"]);
+  assert.deepEqual(pick(cleanScreen({ gamma: "positive" })), ["PIN"]);
+  assert.deepEqual(pick(cleanScreen({ gammaOnly: true })), ["NEG", "PIN"]);
+  assert.deepEqual(pick(cleanScreen({})), ["NEG", "PIN", "NONE"]);
+  assert.deepEqual(pick(combineScreens(cleanScreen({}), ["gexNegative"])), ["NEG"]);
+  assert.deepEqual(pick(combineScreens(cleanScreen({}), ["gexPinned"])), ["PIN"]);
+  assert.deepEqual(pick(combineScreens(cleanScreen({}), ["gexNearFlip"])), ["PIN"]);
+  assert.deepEqual(pick(combineScreens(cleanScreen({}), ["gexNearWall"])), ["NEG"]);
+  assert.deepEqual(pick(combineScreens(cleanScreen({ gamma: "positive" }), ["gexNegative"])), []);
+  // Known live only: not on a past day.
+  assert.equal(fieldKnown("gexHedge", "live"), true);
+  assert.equal(fieldKnown("gexHedge", "close"), false);
+});

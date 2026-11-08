@@ -26,6 +26,7 @@ import { keepReplays } from "../_shared/replayKeep.ts";
 import { eodhdTime } from "../_shared/eodhdTime.ts";
 import { closeOf } from "../_shared/gex.js";
 import { openInterestOf, quotesOf, historyChain, historySummary } from "../_shared/gexHistory.ts";
+import { screenSummary, screenUniverse } from "../_shared/gexScreen.js";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -1113,6 +1114,84 @@ async function diagnose(account: any, mode: string, symbol: string, day: string)
 // (EODHD's one-minute candles). Each day is priced first and the run stops
 // before the total charged for the symbol over the range would pass `budget`
 // dollars, or after about 100 seconds; called again, it carries on.
+// Gamma for the screener (8 Nov, the owner, approving the design: "let's try
+// this combination and see"; lib: _shared/gexScreen.js). From 7:00 New York
+// on weekdays, after the 6:30 open interest: the first run lists the day's
+// shares, the optionable ones that traded the most dollars in the last full
+// session; each run after works out one of them (its chain is most of a
+// request's processor time) and keeps it in gex_daily.
+const GEX_SCREEN_COUNT = 300;
+async function gexScreenJob(admin: any, force = false, count = GEX_SCREEN_COUNT) {
+  const now = Date.now();
+  const day = nyDate(now);
+  const dow = new Date(`${day}T12:00:00Z`).getUTCDay();
+  if (!force && (dow === 0 || dow === 6 || now < nyMoment(day, "07:00"))) return { day, wait: "weekdays from 7:00 New York" };
+  const house = await houseDataAccount(admin);
+  if (!house) return { error: "No account to read market data with." };
+  const { count: listed, error } = await admin.from("gex_daily").select("symbol", { count: "exact", head: true }).eq("day", day);
+  if (error) return { error: error.message };
+  if (!listed) {
+    const symbols = (await screenList(house)).filter((a: any) => a.options).map((a: any) => a.symbol);
+    const start = iso(Date.parse(`${day}T00:00:00Z`) - 8 * 86400000);
+    const end = iso(Math.min(now - 16 * 60000, Date.parse(`${day}T00:00:00Z`)));
+    const bars: Record<string, any[]> = {};
+    const chunks: string[][] = [];
+    for (let i = 0; i < symbols.length; i += 400) chunks.push(symbols.slice(i, i + 400));
+    await inBatches(chunks, 4, async (list) => {
+      let token: string | null = null;
+      let pages = 0;
+      do {
+        const page = await alpacaFetch(`${DATA}/stocks/bars?symbols=${list.join(",")}&timeframe=1Day&start=${start}&end=${end}&limit=10000&feed=sip&adjustment=raw` +
+          (token ? `&page_token=${encodeURIComponent(token)}` : ""), house);
+        for (const [sym, b] of Object.entries(page?.bars || {})) (bars[sym] = bars[sym] || []).push(...(b as any[]).map((x: any) => ({ t: nyDate(Date.parse(x.t) + 3600000), c: x.c, v: x.v })));
+        token = page?.next_page_token || null;
+        pages += 1;
+      } while (token && pages < 6);
+    });
+    const top = screenUniverse(bars, day, Math.max(1, Math.min(1000, count)));
+    if (!top.length) return { error: "No daily candles to rank the shares by.", optionable: symbols.length };
+    const { error: e } = await admin.from("gex_daily").upsert(
+      top.map((x, i) => ({ symbol: x.symbol, day, rank: i + 1, dollar_vol: Math.round(x.dollarVol) })),
+      { onConflict: "symbol,day", ignoreDuplicates: true }
+    );
+    if (e) return { error: e.message };
+    await admin.from("gex_daily").delete().lt("day", nyDate(now - 10 * 86400000));
+    return { day, listed: top.length, optionable: symbols.length };
+  }
+  const { data: claimed, error: ce } = await admin.rpc("gex_daily_claim", { p_day: day, p_n: 1 });
+  if (ce) return { error: ce.message };
+  const symbol = (claimed || []).map((r: any) => (typeof r === "string" ? r : r?.gex_daily_claim))[0];
+  if (!symbol) return { day, left: 0 };
+  try {
+    const chain: any = await gexChain(house, symbol, 90, "iex");
+    if (chain?.error) throw new Error(chain.error);
+    const summary = screenSummary(chain, Date.now());
+    const { error: ue } = await admin.from("gex_daily").update({
+      status: summary ? "done" : "error", at: new Date().toISOString(), summary, error: summary ? null : "No contracts open within 30 days."
+    }).eq("symbol", symbol).eq("day", day);
+    if (ue) return { error: ue.message, symbol };
+    return { day, symbol, done: !!summary, contracts: summary?.contracts ?? 0 };
+  } catch (e) {
+    const message = String((e as Error)?.message || e).slice(0, 300);
+    await admin.from("gex_daily").update({ status: "error", at: new Date().toISOString(), error: message }).eq("symbol", symbol).eq("day", day);
+    return { day, symbol, error: message };
+  }
+}
+
+// Each share's latest figures from the morning runs, and how today's run is
+// going, for the screener.
+async function gexScreenRead(admin: any) {
+  const day = nyDate();
+  const [{ data, error }, total, done] = await Promise.all([
+    admin.rpc("gex_daily_latest"),
+    admin.from("gex_daily").select("symbol", { count: "exact", head: true }).eq("day", day),
+    admin.from("gex_daily").select("symbol", { count: "exact", head: true }).eq("day", day).eq("status", "done")
+  ]);
+  if (error) return { error: error.message };
+  const rows = (data || []).map((r: any) => [r.symbol, r.day, r.at, r.summary]);
+  return { day, today: { listed: total.count ?? 0, done: done.count ?? 0 }, columns: ["symbol", "day", "at", "summary"], rows };
+}
+
 // The symbols with past days kept, and one symbol's days: each day's price at
 // 3:59 p.m. New York and its net gamma, flip and walls for every expiry window
 // (as gexBackfill kept them), for the Gamma page's History view (8 Nov, the
@@ -2395,6 +2474,14 @@ Deno.serve(async (req) => {
       console.log(`gex backfill: ${JSON.stringify(report)}`);
       return jsonResponse(report);
     }
+    // Gamma for the screener, each weekday morning (gex_daily, 0068): the
+    // database's minute job starts one run per share left.
+    if (body?.action === "gexScreenJob") {
+      if (!(await redeemCronTicket(admin, body.ticket, "gex_screen"))) return jsonResponse({ error: "not authorised" }, 401);
+      const report = await gexScreenJob(admin, body.force === true, Number(body.count) || GEX_SCREEN_COUNT);
+      if ((report as any).error) console.error(`gex screen: ${JSON.stringify(report)}`);
+      return jsonResponse(report);
+    }
     // Days already kept, summarised again from their own chains (no new read
     // from Databento): adds the figures without that day's own expiry.
     if (body?.action === "gexResummarize") {
@@ -2436,6 +2523,11 @@ Deno.serve(async (req) => {
     // the owner, whose plan it is, while the project holds its key.
     // And whether this person's live accounts trade from the terminal (the owner's only).
     if (action === "feeds") return jsonResponse({ eodhd: isOwnerEmail(user.email) && !!Deno.env.get("EODHD_API_KEY"), liveTrading: isOwnerEmail(user.email) });
+    // Gamma for the screener: each share's latest morning figures.
+    if (action === "gexScreen") {
+      const r = await gexScreenRead(admin);
+      return jsonResponse(r, (r as any).error ? 400 : 200);
+    }
     // Gamma on past days (gex_history), for the Gamma page's History view.
     if (action === "gexHistory") {
       const r = await gexHistoryList(admin, String(body.symbol || "").toUpperCase());

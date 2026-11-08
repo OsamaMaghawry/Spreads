@@ -92,7 +92,7 @@ function Guide({ onClose }) {
  * when streaming; `onSymbol` tells the page which symbol to stream;
  * `onLevels(symbol, levels)` puts the walls and flip on the Trade charts.
  */
-export default function GexPage({ accountId, active, chartSymbol, priceOf, onSymbol, onLevels, stockFeed = "iex" }) {
+export default function GexPage({ accountId, active, chartSymbol, priceOf, onSymbol, onLevels, stockFeed = "iex", openRequest = null }) {
   const [view, setView] = useAccountSetting("gexview", { localKey: "dm.terminal.gexView", initial: () => cleanView(null), clean: cleanView });
   const set = useCallback((patch) => setView((v) => ({ ...v, ...patch })), [setView]);
   const [typed, setTyped] = useState(view.sym);
@@ -102,6 +102,8 @@ export default function GexPage({ accountId, active, chartSymbol, priceOf, onSym
   const [guide, setGuide] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const sym = view.sym;
+  // The Scanner's gamma link: this symbol, on Live.
+  useEffect(() => { if (openRequest?.sym) set({ sym: openRequest.sym, mode: "live" }); }, [openRequest, set]);
   useEffect(() => { setTyped(sym); setExpiry(null); onSymbol?.(sym); }, [sym, onSymbol]);
 
   const load = useCallback(() => {

@@ -151,7 +151,20 @@ export const FIELDS = [
   { id: "perf6m", label: "Performance, 6 months", unit: "%", pct: true, group: "Performance", daily: true },
   { id: "perfYtd", label: "Performance, year to date", unit: "%", pct: true, group: "Performance", daily: true },
   { id: "perf1y", label: "Performance, 1 year", unit: "%", pct: true, group: "Performance", daily: true },
-  { id: "earningsIn", label: "Earnings within (days)", unit: "days", group: "Company and events", live: true, hint: "Calendar days to the next scheduled report" }
+  { id: "earningsIn", label: "Earnings within (days)", unit: "days", group: "Company and events", live: true, hint: "Calendar days to the next scheduled report" },
+  // Gamma exposure (8 Nov, the owner, approving the design: "let's try this
+  // combination and see"): worked out each weekday from 7:00 New York for the
+  // 300 optionable shares that traded the most dollars the session before
+  // (functions/terminal gexScreenJob, lib/gexScreen.js), then read at the
+  // price now. Live only. `hidden`: sorted on, not offered as a filter.
+  { id: "gexSign", label: "Gamma at the price", unit: "", group: "Gamma (options)", live: true, hidden: true },
+  { id: "gexHedge", label: "Hedge vs volume", unit: "%", pct: true, group: "Gamma (options)", live: true, hint: "Net gamma as a share of a normal day's dollar volume (20-day average): how big dealers' hedging is for this share per 1% move. Negative for negative gamma. The fair way to compare shares of different sizes." },
+  { id: "gexNet", label: "Net gamma", unit: "$", group: "Gamma (options)", live: true, hint: "Dollars of stock dealers would trade per 1% move, expiries within 30 days, at the price now (type 50m, -200m, 1b)" },
+  { id: "gexToFlip", label: "To the flip", unit: "%", pct: true, group: "Gamma (options)", live: true, hint: "From the price to the zero-gamma flip: plus when the flip is above the price" },
+  { id: "gexFlipAbs", label: "Distance to the flip, either side", unit: "%", pct: true, group: "Gamma (options)", live: true, hint: "How far the price is from the flip, above or below" },
+  { id: "gexToCall", label: "To the call wall", unit: "%", pct: true, group: "Gamma (options)", live: true, hint: "From the price to the strike with the most call gamma" },
+  { id: "gexToPut", label: "To the put wall", unit: "%", pct: true, group: "Gamma (options)", live: true, hint: "From the price to the strike with the most put gamma" },
+  { id: "gexWallAbs", label: "Distance to the nearest wall", unit: "%", pct: true, group: "Gamma (options)", live: true, hint: "How far the price is from the call wall or the put wall, whichever is nearer" }
 ];
 
 /**
@@ -181,7 +194,7 @@ export function parseAmount(text) {
  * A screen's settings: numeric ranges by field (as typed: 3 for 3%), and the
  * choices that are not ranges. Anything unknown or malformed is dropped.
  */
-export const EMPTY_SCREEN = { ranges: {}, type: "all", exchange: "all", options: false, shortable: false, fractionable: false, trend: "any", gapAbs: null, sort: { key: "dollarVol", dir: "desc" } };
+export const EMPTY_SCREEN = { ranges: {}, type: "all", exchange: "all", options: false, shortable: false, fractionable: false, trend: "any", gapAbs: null, gamma: "any", gammaOnly: false, sort: { key: "dollarVol", dir: "desc" } };
 
 export function cleanScreen(raw) {
   const r = raw && typeof raw === "object" ? raw : {};
@@ -203,6 +216,9 @@ export function cleanScreen(raw) {
     trend: ["any", "above3", "below3", "above200", "below200", "cross50"].includes(r.trend) ? r.trend : "any",
     // A gap at least this big either way, in percent.
     gapAbs: num(r.gapAbs) !== null && r.gapAbs > 0 ? num(r.gapAbs) : null,
+    // Gamma at the price: positive or negative only; and only shares with gamma worked out.
+    gamma: ["positive", "negative"].includes(r.gamma) ? r.gamma : "any",
+    gammaOnly: !!r.gammaOnly,
     sort: { key: sortKey, dir: r.sort?.dir === "asc" ? "asc" : "desc" }
   };
 }
@@ -232,6 +248,11 @@ export function passes(row, screen) {
   if (screen.fractionable && !row.fractionable) return false;
   for (const t of screen.trends || [screen.trend]) if (!TRENDS[t](row)) return false;
   if (screen.gapAbs !== null && screen.gapAbs !== undefined && !(Math.abs(row.gapPct) * 100 >= screen.gapAbs)) return false;
+  for (const g of screen.gammas || [screen.gamma || "any"]) {
+    if (g === "positive" && row.gexSign !== 1) return false;
+    if (g === "negative" && row.gexSign !== -1) return false;
+  }
+  if (screen.gammaOnly && (row.gexNet === null || row.gexNet === undefined)) return false;
   for (const [id, { min, max }] of Object.entries(screen.ranges)) {
     const v = row[id];
     if (v === null || v === undefined || !Number.isFinite(v)) return false;
@@ -271,6 +292,7 @@ const tighter = (a, b, pick) => (a === null || a === undefined ? b ?? null : b =
 export function combineScreens(mine, presetIds = []) {
   const ranges = Object.fromEntries(Object.entries(mine.ranges).map(([id, r]) => [id, { ...r }]));
   const trends = mine.trend && mine.trend !== "any" ? [mine.trend] : [];
+  const gammas = mine.gamma && mine.gamma !== "any" ? [mine.gamma] : [];
   let gapAbs = mine.gapAbs ?? null;
   for (const id of presetIds) {
     const p = PRESETS.find((x) => x.id === id)?.screen;
@@ -280,9 +302,10 @@ export function combineScreens(mine, presetIds = []) {
       ranges[field] = cur ? { min: tighter(cur.min, r.min, Math.max), max: tighter(cur.max, r.max, Math.min) } : { ...r };
     }
     if (p.trend && p.trend !== "any" && !trends.includes(p.trend)) trends.push(p.trend);
+    if (p.gamma && p.gamma !== "any" && !gammas.includes(p.gamma)) gammas.push(p.gamma);
     if (p.gapAbs) gapAbs = tighter(gapAbs, p.gapAbs, Math.max);
   }
-  return { ...mine, ranges, trends: trends.length ? trends : ["any"], gapAbs };
+  return { ...mine, ranges, trends: trends.length ? trends : ["any"], gammas: gammas.length ? gammas : ["any"], gapAbs };
 }
 
 /** The figures whose conditions cannot all hold at once (a minimum above the maximum). */
@@ -307,7 +330,12 @@ export const PRESETS = [
   { id: "overbought", label: "Overbought (RSI over 70)", note: "14-day RSI above 70", screen: { ranges: { price: { min: 2, max: null }, avgDollar20: { min: 5e6, max: null }, rsi: { min: 70, max: null } }, sort: { key: "rsi", dir: "desc" } } },
   { id: "uptrend", label: "Uptrend", note: "Above its 20, 50 and 200-day averages", screen: { ranges: { price: { min: 5, max: null }, avgDollar20: { min: 10e6, max: null } }, trend: "above3", sort: { key: "perf1m", dir: "desc" } } },
   { id: "volatile", label: "Wide daily ranges", note: "Average true range 5% of the price or more", screen: { ranges: { price: { min: 2, max: null }, avgDollar20: { min: 10e6, max: null }, atrPct: { min: 5, max: null } }, sort: { key: "atrPct", dir: "desc" } } },
-  { id: "earnings", label: "Earnings this week", note: "A report scheduled in the next 7 days", screen: { ranges: { price: { min: 2, max: null }, earningsIn: { min: 0, max: 7 } }, sort: { key: "earningsIn", dir: "asc" } } }
+  { id: "earnings", label: "Earnings this week", note: "A report scheduled in the next 7 days", screen: { ranges: { price: { min: 2, max: null }, earningsIn: { min: 0, max: 7 } }, sort: { key: "earningsIn", dir: "asc" } } },
+  // Gamma screens (8 Nov, the approved design); `set`: shown under their own heading.
+  { id: "gexNegative", set: "gamma", label: "Negative gamma", note: "Gamma at the price below zero: dealers' hedging goes with the move, so breaks tend to run. Most negative against volume first", screen: { ranges: { gexNet: { min: null, max: 0 } }, sort: { key: "gexHedge", dir: "asc" } } },
+  { id: "gexPinned", set: "gamma", label: "Strong positive gamma", note: "Hedging of 3% or more of a normal day's dollar volume per 1% move: ranges tend to stay tight. Most pinned first", screen: { ranges: { gexHedge: { min: 3, max: null } }, sort: { key: "gexHedge", dir: "desc" } } },
+  { id: "gexNearFlip", set: "gamma", label: "Near the flip", note: "Within 1% of the zero-gamma flip, either side: a small move can switch the regime", screen: { ranges: { gexFlipAbs: { min: null, max: 1 } }, sort: { key: "gexFlipAbs", dir: "asc" } } },
+  { id: "gexNearWall", set: "gamma", label: "Near a wall", note: "Within 1% of the call wall or the put wall", screen: { ranges: { gexWallAbs: { min: null, max: 1 } }, sort: { key: "gexWallAbs", dir: "asc" } } }
 ];
 
 /** Whether a ready-made screen can run at a moment: every field it filters and sorts on is known then. */

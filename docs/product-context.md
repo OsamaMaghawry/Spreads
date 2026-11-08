@@ -196,6 +196,7 @@ revoked from the browser role entirely.
 - **terminal_stop_fires** — order_id, user_id, account_id, symbol, side, qty, stop_price, limit_price, target_price, trigger_price, via, status, exit_order_id, note, created_at, updated_at, kind
 - **terminal_guard_seen** — account_id, user_id, seen_at
 - **gex_history** — symbol, day, spot, at, oi_published, net_gex, flip, call_wall, put_wall, summary, chain, counts, source, usd, created_at
+- **gex_daily** — symbol, day, rank, dollar_vol, status, claimed_at, at, summary, error
 
 ## Analytics vocabulary
 
