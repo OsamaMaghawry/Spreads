@@ -1113,6 +1113,40 @@ async function diagnose(account: any, mode: string, symbol: string, day: string)
 // (EODHD's one-minute candles). Each day is priced first and the run stops
 // before the total charged for the symbol over the range would pass `budget`
 // dollars, or after about 100 seconds; called again, it carries on.
+// The symbols with past days kept, and one symbol's days: each day's price at
+// 3:59 p.m. New York and its net gamma, flip and walls for every expiry window
+// (as gexBackfill kept them), for the Gamma page's History view (8 Nov, the
+// owner: "build it inside the Gamma page").
+async function gexHistoryList(admin: any, symbol: string) {
+  const { data: symbols, error } = await admin.rpc("gex_history_symbols");
+  if (error) return { error: error.message };
+  const list = (symbols || []).map((r: any) => ({ symbol: r.symbol, days: r.days, from: r.first_day, to: r.last_day }));
+  const sym = list.some((x: any) => x.symbol === symbol) ? symbol : list[0]?.symbol;
+  if (!sym) return { symbols: [], symbol: null, days: [] };
+  const { data, error: e } = await admin.from("gex_history")
+    .select("day, spot, at, oi_published, windows:summary->windows, nearest:summary->expiries->0")
+    .eq("symbol", sym).order("day").limit(5000);
+  if (e) return { error: e.message };
+  const slim = (w: any) => (w ? { netGex: w.netGex ?? null, flip: w.flip ?? null, callWall: w.callWall ?? null, putWall: w.putWall ?? null } : null);
+  return {
+    symbols: list, symbol: sym,
+    days: (data || []).map((r: any) => ({
+      day: r.day, spot: Number(r.spot), at: r.at, oiPublished: r.oi_published,
+      windows: { nearest: slim(r.windows?.nearest), week: slim(r.windows?.week), month: slim(r.windows?.month), all: slim(r.windows?.all) },
+      nearest: r.nearest ? { expiry: r.nearest.expiry, share: r.nearest.share } : null
+    }))
+  };
+}
+
+// One kept day's chain, in the live Gamma page's shape, for its charts.
+async function gexHistoryDay(admin: any, symbol: string, day: string) {
+  if (!SYMBOL.test(symbol) || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return { error: "Which symbol and day?" };
+  const { data, error } = await admin.from("gex_history").select("chain, oi_published").eq("symbol", symbol).eq("day", day).maybeSingle();
+  if (error) return { error: error.message };
+  if (!data) return { error: `No ${symbol} gamma kept for ${day}.` };
+  return { ...data.chain, oiPublished: data.oi_published, day };
+}
+
 // `only`: that one day of the range, so several calls can run side by side;
 // the budget still counts everything kept over the range.
 async function gexBackfill(admin: any, symbol: string, from: string, to: string, budget: number, only = "") {
@@ -2381,6 +2415,15 @@ Deno.serve(async (req) => {
     // the owner, whose plan it is, while the project holds its key.
     // And whether this person's live accounts trade from the terminal (the owner's only).
     if (action === "feeds") return jsonResponse({ eodhd: isOwnerEmail(user.email) && !!Deno.env.get("EODHD_API_KEY"), liveTrading: isOwnerEmail(user.email) });
+    // Gamma on past days (gex_history), for the Gamma page's History view.
+    if (action === "gexHistory") {
+      const r = await gexHistoryList(admin, String(body.symbol || "").toUpperCase());
+      return jsonResponse(r, (r as any).error ? 400 : 200);
+    }
+    if (action === "gexHistoryDay") {
+      const r = await gexHistoryDay(admin, String(body.symbol || "").toUpperCase(), String(body.day || ""));
+      return jsonResponse(r, (r as any).error ? 400 : 200);
+    }
     if (!accountId) return jsonResponse({ error: "Choose an account." }, 400);
     // The account's row (credentials still encrypted) kept 30 seconds by this
     // instance: a burst of key presses reads the database once.
