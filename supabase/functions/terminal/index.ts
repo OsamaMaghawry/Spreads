@@ -1209,6 +1209,57 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     }
     return { symbol: sym, from, ...out };
   }
+  if (only === "databento") {
+    // Databento, for gamma history (8 Nov, the owner: "I added Databento key.
+    // Test it ... This is for the Gamma historical"): whether the key works,
+    // how far back OPRA's options data reaches and in which forms, and what
+    // open interest and daily prices for a symbol's options would cost over a
+    // day, a year and two. Metadata only: nothing is downloaded or billed.
+    // The key is the project's DATABENTO_API_KEY secret, never returned.
+    const key = Deno.env.get("DATABENTO_API_KEY");
+    if (!key) return { error: "No DATABENTO_API_KEY secret on this project yet." };
+    const auth = `Basic ${btoa(`${key}:`)}`;
+    const get = async (path: string, q: Record<string, string> = {}) => {
+      const t = Date.now();
+      try {
+        const r = await fetch(`https://hist.databento.com/v0/${path}?${new URLSearchParams(q)}`, { headers: { Authorization: auth } });
+        const text = await r.text();
+        let body: any;
+        try { body = JSON.parse(text); } catch { body = text.slice(0, 300); }
+        return { status: r.status, ms: Date.now() - t, body };
+      } catch (e) {
+        return { status: 0, ms: Date.now() - t, body: String((e as Error)?.message || e) };
+      }
+    };
+    const datasets = await get("metadata.list_datasets");
+    if (datasets.status !== 200) return { key: "refused", datasets };
+    const [range, schemas] = await Promise.all([
+      get("metadata.get_dataset_range", { dataset: "OPRA.PILLAR" }),
+      get("metadata.list_schemas", { dataset: "OPRA.PILLAR" })
+    ]);
+    const end = String(range.body?.end || "").slice(0, 10) || nyDate();
+    const back = (days: number) => nyDate(Date.parse(`${end}T12:00:00Z`) - days * 86400000);
+    const symbols = extra.filter((x) => /^[A-Z]{1,5}$/.test(x));
+    const asks: any[] = [];
+    for (const sym of symbols.length ? symbols : ["SPY", "QQQ"]) {
+      for (const schema of ["statistics", "ohlcv-1d", "definition"]) {
+        for (const days of [1, 365, 730]) {
+          const q = { dataset: "OPRA.PILLAR", symbols: `${sym}.OPT`, stype_in: "parent", schema, start: back(days), end };
+          asks.push(Promise.all([get("metadata.get_cost", q), get("metadata.get_billable_size", q)]).then(([c, b]) => ({
+            symbol: sym, schema, days, start: q.start, end,
+            usd: c.status === 200 ? c.body : { status: c.status, error: c.body },
+            mb: b.status === 200 && typeof b.body === "number" ? Math.round(b.body / 1e4) / 100 : { status: b.status, error: b.body }
+          })));
+        }
+      }
+    }
+    return {
+      key: "works",
+      datasets: datasets.body,
+      opra: { range: range.status === 200 ? range.body : range, schemas: schemas.status === 200 ? schemas.body : schemas },
+      costs: await Promise.all(asks)
+    };
+  }
   if (only === "eodhd") {
     // EODHD, a data vendor the owner holds a plan with (26 Oct: "Check EODHD
     // api i already have for real-time data and extended hours. See if it
