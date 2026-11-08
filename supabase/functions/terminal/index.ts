@@ -1241,7 +1241,7 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     const back = (days: number) => nyDate(Date.parse(`${end}T12:00:00Z`) - days * 86400000);
     const symbols = extra.filter((x) => /^[A-Z]{1,5}$/.test(x));
     const asks: any[] = [];
-    for (const sym of symbols.length ? symbols : ["SPY", "QQQ"]) {
+    for (const sym of extra.includes("SAMPLE") ? [] : symbols.length ? symbols : ["SPY", "QQQ"]) {
       for (const schema of ["statistics", "ohlcv-1d", "definition"]) {
         for (const days of [1, 365, 730]) {
           const q = { dataset: "OPRA.PILLAR", symbols: `${sym}.OPT`, stype_in: "parent", schema, start: back(days), end };
@@ -1253,11 +1253,40 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
         }
       }
     }
+    // "SAMPLE": a few thousand statistics records from the start and the end
+    // of one day, each first priced and read only under five cents, to see
+    // which figures the statistics carry (stat_type), when each is published,
+    // and so how narrow a daily read of open interest alone can be.
+    const sample = !extra.includes("SAMPLE") ? null : await Promise.all([["00:00", "14:00"], ["19:30", "23:59"]].map(async ([from, to]) => {
+      const day = back(1);
+      const q = {
+        dataset: "OPRA.PILLAR", symbols: `${symbols[0] || "SPY"}.OPT`, stype_in: "parent", schema: "statistics",
+        start: `${day}T${from}:00Z`, end: `${day}T${to}:00Z`, limit: "3000"
+      };
+      const cost = await get("metadata.get_cost", q);
+      if (cost.status !== 200 || !(Number(cost.body) < 0.05)) return { window: [from, to], skipped: "cost", cost };
+      const t = Date.now();
+      const r = await fetch(`https://hist.databento.com/v0/timeseries.get_range?${new URLSearchParams({ ...q, encoding: "json", pretty_px: "true", pretty_ts: "true", map_symbols: "true" })}`, { headers: { Authorization: auth } });
+      const text = await r.text();
+      if (r.status !== 200) return { window: [from, to], status: r.status, body: text.slice(0, 300) };
+      const rows = text.split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+      const byType: Record<string, any> = {};
+      for (const x of rows) {
+        const k = String(x.stat_type);
+        const at = x.hd?.ts_event || x.ts_recv;
+        const b = byType[k] || (byType[k] = { n: 0, first: at, last: at, example: x });
+        b.n += 1;
+        if (at < b.first) b.first = at;
+        if (at > b.last) b.last = at;
+      }
+      return { window: [from, to], usd: cost.body, ms: Date.now() - t, records: rows.length, byType };
+    }));
     return {
       key: "works",
       datasets: datasets.body,
       opra: { range: range.status === 200 ? range.body : range, schemas: schemas.status === 200 ? schemas.body : schemas },
-      costs: await Promise.all(asks)
+      costs: sample ? "skipped with SAMPLE" : await Promise.all(asks),
+      sample
     };
   }
   if (only === "eodhd") {
