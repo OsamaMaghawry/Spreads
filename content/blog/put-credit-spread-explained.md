@@ -188,6 +188,8 @@ market reopens. Three cases decide when this matters:
 
 Related: [credit spread assignment risk](/blog/assignment-risk-credit-spread), the two ways to close out once the short leg is assigned and the long leg is still held.
 
+Related: [what happens when a credit spread goes in the money](/blog/credit-spread-in-the-money) separates the partly and fully in-the-money states and what closing costs in each.
+
 Nothing in the credit or the width warns about this case: both figures are
 exact, but they describe the two plateaus, and this close sits on the slope
 between them. A spread that finishes between its strikes is

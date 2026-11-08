@@ -172,6 +172,8 @@ afternoon - which is a separate subject from theta itself, taken up in the
 
 Related: an [iron condor](/blog/iron-condor-explained) is two credit spreads held together, so it is a net seller of theta on both wings.
 
+Related: [closing a credit spread early vs holding to expiration](/blog/close-credit-spread-early-or-hold) covers the choice a seller faces once most of the credit has been kept.
+
 ## Frequently asked questions
 
 - **Is theta quoted per share or per contract?** Per share, like the premium and delta. Multiply by 100 for a standard contract: −0.05 is about −$5 a day.
