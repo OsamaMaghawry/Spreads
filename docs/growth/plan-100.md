@@ -49,6 +49,30 @@ Two levers change this by more than any channel does:
   promise are there to push 15 % toward 25 %. At 25 %, 400 live connections
   suffice.
 
+## Measured rates — revised Mon 9 Nov 2026 (W46)
+
+Source: `docs/growth/metrics/2026-11-08.json`. Every sample is tiny; these
+replace a benchmark only as *direction*, and the benchmark stays in the table
+above until n is large enough (rule of thumb: ≥ 30 in the denominator).
+
+| Step | Benchmark | Measured | n | Read |
+| --- | --- | --- | --- | --- |
+| Visitors → signup | 3 % | **unmeasured** (GA4 not configured). Search clicks 2 in 28 days vs 4 signups all-time, 0 in last 7 | — | Cannot compute; GA4 is the blocker |
+| Signup → connected | (not in chain) | 3 of 4 = 75 % | 4 | Good direction; connection is not the leak |
+| Signup → live account | 25 % | 1 of 4 = 25 % | 4 | Matches benchmark, by coincidence of n |
+| Live → paid | 15 % | 0 of 1 = 0 % (billing live status not confirmed) | 1 | No information |
+
+Top of funnel, measured: 28-day Search Console 173 impressions / 2 clicks
+(CTR 1.2 %, position 15.7); 58 of 76 sitemap URLs indexed. Against the
+~760 visitors/day line the site is roughly two orders of magnitude short;
+organic impressions are rising (150 on 21 Oct → 173) but not yet clicks.
+Attribution: all 4 signups are `source = unknown`, so no channel can be credited.
+
+Consequence for the plan: the 31 Oct checkpoint ("measured rates replace every
+benchmark") was **not met** — GA4 and signup-source attribution are the two
+missing instruments. The 30 Nov checkpoint (paying > 25) is not reachable on
+current evidence; report it in the Friday pack.
+
 ## Where 760 visitors a day come from
 
 Organic search from a domain this young, with ~100 posts by December,
