@@ -1663,6 +1663,53 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
       .map((row) => ({ s: at(row, "symbol"), prevClose: at(row, "prevClose"), open: at(row, "open"), gap: Math.round(gap(row) * 1000) / 10, pm: pm.pm?.[at(row, "symbol")] || null, close: at(row, "close"), volume: at(row, "volume"), avgVol20: Math.round(at(row, "avgVol20") || 0) }));
     return { date, asOf, part, parts, msHistory, msPremarket: Date.now() - t1, listed: r.listed, rows: r.rows.length, premarket: Object.keys(pm.pm || {}).length, feed: r.dayFeed, top };
   }
+  if (only === "minutes") {
+    // One symbol's consolidated one-minute bars between two moments, and what
+    // traded in the minutes asked about: count, size, the price path in
+    // ten-second steps, the biggest prints with their exchange and condition
+    // codes (MINUTES: symbol, from ISO, to ISO, then minutes as ISO). 9 Nov,
+    // the owner: TSLA "went down heavily on a very heavy volume from 382 down
+    // to 377 ... in just 1 minute".
+    const sym = String(extra[0] || "SPY").toUpperCase();
+    const [from, to] = [extra[1], extra[2]];
+    const page = async (path: string) => {
+      const out: any[] = [];
+      let token: string | null = null;
+      let pages = 0;
+      do {
+        const r: any = await alpacaFetch(`${DATA}/stocks/${sym}/${path}&limit=10000&feed=sip` + (token ? `&page_token=${encodeURIComponent(token)}` : ""), house);
+        out.push(...(r?.bars || r?.trades || []));
+        token = r?.next_page_token || null;
+        pages += 1;
+      } while (token && pages < 20);
+      return out;
+    };
+    const bars = await page(`bars?timeframe=1Min&start=${encodeURIComponent(from)}&end=${encodeURIComponent(to)}&adjustment=raw`);
+    const minutes: any[] = [];
+    for (const m of extra.slice(3, 6)) {
+      const end = new Date(Date.parse(m) + 60000).toISOString();
+      const list = await page(`trades?start=${encodeURIComponent(m)}&end=${encodeURIComponent(end)}`);
+      const sum = (f: (t: any) => boolean) => list.filter(f).reduce((a, t) => a + t.s, 0);
+      const by = (key: (t: any) => string) => {
+        const o: Record<string, number> = {};
+        for (const t of list) o[key(t)] = (o[key(t)] || 0) + t.s;
+        return Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, 12);
+      };
+      const steps: any[] = [];
+      for (let s = 0; s < 60; s += 10) {
+        const lo = Date.parse(m) + s * 1000;
+        const part = list.filter((t) => Date.parse(t.t) >= lo && Date.parse(t.t) < lo + 10000);
+        if (part.length) steps.push({ s, first: part[0].p, low: Math.min(...part.map((t) => t.p)), high: Math.max(...part.map((t) => t.p)), last: part.at(-1).p, volume: part.reduce((a, t) => a + t.s, 0), trades: part.length });
+      }
+      minutes.push({
+        minute: m, trades: list.length, volume: sum(() => true), first: list[0]?.p, last: list.at(-1)?.p,
+        low: list.length ? Math.min(...list.map((t) => t.p)) : null, high: list.length ? Math.max(...list.map((t) => t.p)) : null,
+        steps, byCondition: by((t) => (t.c || []).join("") || "-"), byExchange: by((t) => t.x),
+        biggest: [...list].sort((a, b) => b.s - a.s).slice(0, 20).map((t) => ({ t: t.t, p: t.p, s: t.s, x: t.x, c: t.c }))
+      });
+    }
+    return { symbol: sym, from, to, bars: bars.map((b) => ({ t: b.t, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v, n: b.n, vw: b.vw })), minutes };
+  }
   if (only === "lasttrade") {
     // One symbol's latest trade as the screener reads it (both feeds, with
     // each trade's condition codes) and the consolidated tape's trades since
