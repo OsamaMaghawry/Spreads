@@ -4,27 +4,17 @@ Written daily by `.github/workflows/metrics-snapshot.yml`. Agents read
 these files; the Google credentials never leave CI. A dash means the source
 is not connected yet, not zero.
 
-## Latest — 2026-11-08
+## Latest — 2026-11-09
 
-- Search Console, last 28 days: 173 impressions, 2 clicks, CTR 1.2%
-- Indexing: 58 of 76 sitemap URLs indexed
-  - not indexed: https://deltamint.app/contact (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/tools/covered-call-calculator (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/tools/cash-secured-put-calculator (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/tools/expected-move-calculator (URL is unknown to Google)
-  - not indexed: https://deltamint.app/tools/option-roll-calculator (Discovered - currently not indexed)
+- Search Console, last 28 days: 193 impressions, 2 clicks, CTR 1.0%
+- Indexing: 69 of 77 sitemap URLs indexed
   - not indexed: https://deltamint.app/blog/investing (URL is unknown to Google)
-  - not indexed: https://deltamint.app/blog/credit-spread-in-the-money (URL is unknown to Google)
-  - not indexed: https://deltamint.app/blog/close-credit-spread-early-or-hold (URL is unknown to Google)
+  - not indexed: https://deltamint.app/blog/adjust-iron-condor (URL is unknown to Google)
   - not indexed: https://deltamint.app/blog/sell-puts-to-buy-stock (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/pmcc-vs-covered-call (URL is unknown to Google)
+  - not indexed: https://deltamint.app/blog/pmcc-vs-covered-call (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/stock-replacement-strategy (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/leaps-options-explained (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/calendar-spread-explained (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/credit-spread-delta-strike-selection (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/credit-spread-width (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/iron-condor-explained (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/wheel-strategy-explained (URL is unknown to Google)
+  - not indexed: https://deltamint.app/blog/wheel-strategy-explained (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/options-buying-power-requirement (Crawled - currently not indexed)
 - Submitted today: Google sitemap NOT submitted: Search Console refused (403). Give deltamint-metrics@deltamint-metrics.iam.gserviceaccount.com "Full" permission: Search Console → Settings → Users and permissions.; Google last read it 2026-11-05; 1 URL(s) sent to Bing and others via IndexNow
 - GA4, last 28 days: ga4 not configured
@@ -35,7 +25,6 @@ is not connected yet, not zero.
 
 | Day | Impressions | Clicks | Sessions | Signed up | Connected | Traded live | Paying |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-10-10 | — | — | — | 4 | 3 | 1 | 0 |
 | 2026-10-11 | — | — | — | 4 | 3 | 1 | 0 |
 | 2026-10-12 | 4 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-10-13 | 9 | 0 | — | 4 | 3 | 1 | 0 |
@@ -65,3 +54,4 @@ is not connected yet, not zero.
 | 2026-11-06 | 2 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-11-07 | 11 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-11-08 | 11 | 0 | — | 4 | 3 | 1 | 0 |
+| 2026-11-09 | 24 | 0 | — | 4 | 3 | 1 | 0 |
