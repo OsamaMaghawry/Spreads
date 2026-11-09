@@ -3,7 +3,7 @@ import { RefreshCw, Plus, Check, X, ChevronDown, ChevronRight, History, LineChar
 import { invokeFunction } from "@/lib/functions";
 import { readPref, savePref } from "@/lib/terminalPrefs";
 import {
-  decodeUniverse, uniqueBySymbol, screenRow, FIELDS, FIELD, GROUPS, parseAmount, cleanScreen, passes, sortRows, needsDaily,
+  decodeUniverse, uniqueBySymbol, screenRow, FIELDS, FIELD, fieldLabel, fieldHint, GROUPS, parseAmount, cleanScreen, passes, sortRows, needsDaily,
   PRESETS, dailyCandidates, bigNumber, TREND_CHOICES, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown, combineScreens, conflicts, premarketPicks, afterHoursDay, afterHoursPicks
 } from "@/lib/screener";
 import { px, pctText } from "@/lib/terminal";
@@ -140,7 +140,8 @@ function newsCell(n, onOpen, open) {
 }
 
 // One filter's minimum and maximum, as typed ("500k", "2.5m", "3").
-function RangeRow({ field, value, onChange }) {
+function RangeRow({ field, value, onChange, preOpen = false }) {
+  const label = fieldLabel(field, preOpen);
   const [text, setText] = useState({ min: value?.min ?? "", max: value?.max ?? "" });
   useEffect(() => { setText({ min: value?.min ?? "", max: value?.max ?? "" }); }, [value?.min, value?.max]);
   const set = (side, t) => {
@@ -153,9 +154,9 @@ function RangeRow({ field, value, onChange }) {
   const unit = field.unit === "$" ? "$" : field.unit === "%" ? "%" : field.unit === "x" ? "×" : "";
   return (
     <div className={`flex items-center gap-1 rounded px-1 py-0.5 ${on ? "bg-emerald-50" : ""}`}>
-      <span className="min-w-0 flex-1 truncate text-[11px] text-slate-600" title={field.hint || field.label}>{field.label}</span>
+      <span className="min-w-0 flex-1 truncate text-[11px] text-slate-600" title={fieldHint(field, preOpen)}>{label}</span>
       {["min", "max"].map((side) => (
-        <input key={side} value={text[side]} onChange={(e) => set(side, e.target.value)} placeholder={side} aria-label={`${field.label} ${side}`}
+        <input key={side} value={text[side]} onChange={(e) => set(side, e.target.value)} placeholder={side} aria-label={`${label} ${side}`}
           className="w-14 rounded border border-slate-200 px-1 py-0.5 text-right text-[11px] tabular-nums focus:border-emerald-500 focus:outline-none" />
       ))}
       <span className="w-3 text-[10px] text-slate-400">{unit}</span>
@@ -597,7 +598,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
                   <label className="flex items-center gap-1"><input type="checkbox" checked={screen.gammaOnly} onChange={(e) => setChoice("gammaOnly", e.target.checked)} />Only shares with gamma worked out</label>
                 </div>
               )}
-              {open.has(g) && FIELDS.filter((f) => f.group === g && !f.hidden && fieldKnown(f.id, mode)).map((f) => <RangeRow key={f.id} field={f} value={screen.ranges[f.id]} onChange={setRange} />)}
+              {open.has(g) && FIELDS.filter((f) => f.group === g && !f.hidden && fieldKnown(f.id, mode)).map((f) => <RangeRow key={f.id} field={f} value={screen.ranges[f.id]} onChange={setRange} preOpen={preOpen} />)}
             </div>
           ))}
           <p className="px-1 pt-1 text-[10px] leading-snug text-slate-400">Type 500k, 2.5m or 1b for amounts; percentages as numbers (3 for 3%). Hover a filter for what it measures.</p>
@@ -663,8 +664,8 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
               const amt = (v) => (f.unit === "$" ? `$${bigNumber(v)}` : f.unit === "shares" ? bigNumber(v) : `${v}${u}`);
               return (
                 <span key={id} className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-800">
-                  {f.label} {min !== null && max !== null ? `${amt(min)} to ${amt(max)}` : min !== null ? `≥ ${amt(min)}` : `≤ ${amt(max)}`}
-                  <button type="button" aria-label={`Remove ${f.label}`} onClick={() => setRange(id, { min: null, max: null })}><X className="h-3 w-3" /></button>
+                  {fieldLabel(f, preOpen)} {min !== null && max !== null ? `${amt(min)} to ${amt(max)}` : min !== null ? `≥ ${amt(min)}` : `≤ ${amt(max)}`}
+                  <button type="button" aria-label={`Remove ${fieldLabel(f, preOpen)}`} onClick={() => setRange(id, { min: null, max: null })}><X className="h-3 w-3" /></button>
                 </span>
               );
             })}
@@ -672,7 +673,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
         )}
         {clash.length > 0 && (
           <p className="border-b border-slate-100 px-2 py-1 text-[11px] text-rose-700">
-            No share can match: {clash.map((id) => FIELD[id].label).join(", ")} cannot be above and below at once with what is switched on. Switch one off.
+            No share can match: {clash.map((id) => fieldLabel(FIELD[id], preOpen)).join(", ")} cannot be above and below at once with what is switched on. Switch one off.
           </p>
         )}
         {(universe.error || progress.error) && <p className="px-2 py-1 text-xs text-rose-700">{universe.error || `Daily figures: ${progress.error}`}</p>}
@@ -687,7 +688,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
               <tr>
                 {COLUMNS.map(([key, name]) => (
                   <th key={key} className={`whitespace-nowrap px-2 py-1 font-medium ${key === "news" ? "" : "cursor-pointer hover:text-slate-900"} ${key === "symbol" ? "text-left" : "text-right"} ${GAMMA_KEYS.has(key) ? "bg-violet-50 text-violet-900" : ""}`}
-                    title={key === "news" ? `Articles naming the share, ${newsWhen}. Click a count for the headlines.` : FIELD[key]?.hint || FIELD[key]?.label || "Symbol"} onClick={() => key !== "news" && sortBy(key)}>
+                    title={key === "news" ? `Articles naming the share, ${newsWhen}. Click a count for the headlines.` : FIELD[key] ? fieldHint(FIELD[key], preOpen) : "Symbol"} onClick={() => key !== "news" && sortBy(key)}>
                     {name}{screen.sort.key === key ? (screen.sort.dir === "desc" ? " ↓" : " ↑") : ""}
                   </th>
                 ))}

@@ -138,7 +138,11 @@ export const FIELDS = [
   { id: "price", label: "Price", unit: "$", group: "Price and volume", hint: "Last trade, pre-market and after hours included" },
   { id: "volume", label: "Volume today", unit: "shares", group: "Price and volume", wholeDay: true, hint: "Consolidated, 15 minutes delayed; before the open, the pre-market's so far" },
   { id: "relVol", label: "Relative volume", unit: "x", group: "Price and volume", daily: true, wholeDay: true, hint: "Today's volume ÷ the 20-day average (not adjusted for time of day)" },
-  { id: "dollarVol", label: "Dollar volume today", unit: "$", group: "Price and volume", wholeDay: true },
+  // Before the open today's volume is the pre-market's (screenRow), so the
+  // filter takes the pre-market's name, as the "Pre-mkt $ vol" column does
+  // (9 Nov: the owner could not find that column's filter).
+  { id: "dollarVol", label: "Dollar volume today", unit: "$", group: "Price and volume", wholeDay: true,
+    preOpenLabel: "Pre-market dollar volume", preOpenHint: "Pre-market price × the pre-market's shares so far (from 4:00 New York, up to 15 minutes ago), read for the biggest movers and the most traded. From 9:30, the whole day's dollar volume" },
   { id: "prevDollarVol", label: "Dollar volume, the day before", unit: "$", group: "Price and volume", hint: "The previous session's close × its volume" },
   { id: "pmVolume", label: "Pre-market volume", unit: "shares", group: "Price and volume", hint: "4:00 to 9:30 New York, consolidated (today's up to 15 minutes ago); read for the biggest moves among shares trading $1M a day, and today for the most traded too" },
   { id: "avgVol20", label: "Average volume (20 days)", unit: "shares", group: "Price and volume", daily: true },
@@ -194,6 +198,9 @@ export function fieldKnown(id, when) {
   return when === "close" || !f.wholeDay;
 }
 export const FIELD = Object.fromEntries(FIELDS.map((f) => [f.id, f]));
+/** A field's name and what it measures, live before the open or otherwise. */
+export const fieldLabel = (f, preOpen) => (preOpen && f.preOpenLabel) || f.label;
+export const fieldHint = (f, preOpen) => (preOpen && f.preOpenHint) || f.hint || fieldLabel(f, preOpen);
 export const GROUPS = [...new Set(FIELDS.map((f) => f.group))];
 
 /** "500k", "2.5m", "1b", "3%", "1,200" typed into a filter, as a number (a percentage as typed). */

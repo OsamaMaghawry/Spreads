@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   decodeUniverse, screenRow, parseAmount, cleanScreen, passes, sortRows, needsDaily, presetScreen, PRESETS, FIELD,
-  dailyCandidates, bigNumber, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown, combineScreens, conflicts, premarketPicks, afterHoursDay, afterHoursPicks, uniqueBySymbol } from "./screener.js";
+  dailyCandidates, bigNumber, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown, combineScreens, conflicts, premarketPicks, afterHoursDay, afterHoursPicks, uniqueBySymbol,
+  fieldLabel, fieldHint } from "./screener.js";
 
 const close = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} != ${b}`);
 
@@ -184,6 +185,20 @@ test("a past day at the close: the whole day against the norms of the days befor
   const r = screenRow(u, partialStats(u), "2026-03-02");
   assert.ok(Math.abs(r.changePct - 0.2) < 1e-12);
   assert.deepEqual([r.relVol, r.dollarVol], [3, 36e6]);
+});
+
+test("before the open the dollar volume filter is named for the pre-market, like its column", () => {
+  // 9 Nov: "Is there pre-market volume $ in the filtering. I see the column but not the filter".
+  assert.equal(fieldLabel(FIELD.dollarVol, true), "Pre-market dollar volume");
+  assert.equal(fieldLabel(FIELD.dollarVol, false), "Dollar volume today");
+  assert.match(fieldHint(FIELD.dollarVol, true), /From 9:30, the whole day's/);
+  // Other fields keep their names; one without a hint is described by its name.
+  assert.equal(fieldLabel(FIELD.pmVolume, true), "Pre-market volume");
+  assert.equal(fieldHint(FIELD.avgVol20, true), "Average volume (20 days)");
+  // Before the open, today's dollar volume is the pre-market's: price × pre-market shares.
+  const r = screenRow({ ...AAPL, price: 356.4, pmVolume: 1.2e6 }, null, "2026-10-26");
+  assert.equal(r.preOpen, true);
+  close(r.dollarVol, 356.4 * 1.2e6, 1e-3);
 });
 
 test("what is known when: the open has no day's volume; the past has no live quote or calendar", () => {
