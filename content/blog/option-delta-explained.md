@@ -112,6 +112,8 @@ a promise, and not a measurement of anything.
 
 Related: the [stock replacement post](/blog/stock-replacement-strategy) sets a deep in-the-money call beside 100 shares on one hypothetical stock.
 
+Related: the [poor man's covered call versus a covered call](/blog/pmcc-vs-covered-call) compares a deep in-the-money long call's delta with owning the shares.
+
 ## How do traders use delta to compare strikes?
 
 Distance in dollars does not travel between stocks. A strike $5 below a $60
