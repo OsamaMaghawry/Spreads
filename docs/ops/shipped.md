@@ -610,3 +610,7 @@ English. Newest first.
 - 2026-10-09 · (staging) Analysis page: "How your trades ended" lists every closed trade in one of five rows (expired worthless, assigned, bought back on expiry day, bought back earlier, options bought), each opening to its trades worst first, so the rows add up to the booked total; a buyback on expiry day now counts as held to expiry, not an early exit (`d877d7a`, `7d237b7`) — awaiting owner review.
 - 2026-10-09 · (staging) Close ticket: closing a position that pays you now reads as money received, not a minus, and a resumed single-leg sell no longer opens at the furthest price it may concede (`458abbf`) — awaiting owner review.
 - 2026-10-09 · (staging) Trade history re-syncs right after you close a trade instead of waiting up to 15 minutes, so the closed-trades total no longer dips in between (`e7d29bd`).
+- 2026-11-08 · (staging) Gamma page: a History view shows past days as they stood a minute before the close, one named day per call, with the options expiring that day left out by default; history is kept per day from Databento (`300bab3`, `3b4e842`, `277523e`).
+- 2026-11-09 · (staging) Screener: each share appears once, so stocks-only no longer shows leftover ETF rows and the match count agrees with the table (`7f253c2`).
+- 2026-11-09 · (staging) Screener: before the open the dollar-volume filter is called "Pre-market dollar volume" (`188c181`).
+- 2026-11-09 · (staging) robots.txt keeps search crawlers off the Claude connector's two addresses, which Search Console counted as errors (`ed59693`).
