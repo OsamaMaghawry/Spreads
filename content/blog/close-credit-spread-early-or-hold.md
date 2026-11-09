@@ -25,7 +25,7 @@ A [put credit spread](/blog/put-credit-spread-explained) is two options sold and
 
 Because it is one order for one price, the spread has a quote of its own, a bid and an ask, just as each option does. Closing at the ask fills quickly; working an order between the bid and ask may save money and may not fill at all.
 
-Nothing about closing early is special to this structure. The same applies to a [call credit spread](/blog/call-credit-spread-explained) or an [iron condor](/blog/iron-condor-explained), which can be closed as one four-leg order or one side at a time.
+Nothing about closing early is special to this structure. The same applies to a [call credit spread](/blog/call-credit-spread-explained) or an [iron condor](/blog/iron-condor-explained), which can be closed as one four-leg order or one side at a time; [adjusting an iron condor](/blog/adjust-iron-condor) works out what closing one side does to the max loss.
 
 ## How much reward is left when the spread is cheap?
 
