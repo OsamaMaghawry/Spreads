@@ -1,5 +1,13 @@
 User-agent: *
 Allow: /
+# The Claude connector's addresses (src/connector.js) answer Claude, not a
+# browser: /mcp refuses a plain GET with 405 and /oauth/authorize without its
+# parameters with 400. Google found them in the connector's public setup files
+# (/.well-known/...) and reported them as "Blocked due to other 4xx issue"
+# (Search Console, 9 Nov 2026). They are not pages; Claude does not read this
+# file, so the connector is unaffected.
+Disallow: /mcp
+Disallow: /oauth/
 
 # The dashboard is an authenticated single-page app on its own subdomain. It
 # has nothing to index and every route behind the login renders empty to a
