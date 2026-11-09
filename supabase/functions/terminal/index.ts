@@ -1651,6 +1651,26 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
       .map((row) => ({ s: at(row, "symbol"), prevClose: at(row, "prevClose"), open: at(row, "open"), gap: Math.round(gap(row) * 1000) / 10, pm: pm.pm?.[at(row, "symbol")] || null, close: at(row, "close"), volume: at(row, "volume"), avgVol20: Math.round(at(row, "avgVol20") || 0) }));
     return { date, asOf, part, parts, msHistory, msPremarket: Date.now() - t1, listed: r.listed, rows: r.rows.length, premarket: Object.keys(pm.pm || {}).length, feed: r.dayFeed, top };
   }
+  if (only === "lasttrade") {
+    // One symbol's latest trade as the screener reads it (both feeds, with
+    // each trade's condition codes) and the consolidated tape's trades since
+    // `from` (LASTTRADE: symbol, from ISO), for a price that looks wrong.
+    const sym = String(extra[0] || "SPY").toUpperCase();
+    const from = extra[1] || new Date(Date.now() - 86400000).toISOString();
+    const snap = async (feed: string) => {
+      const s = await alpacaFetch(`${DATA}/stocks/snapshots?symbols=${sym}&feed=${feed}`, house).catch((e: Error) => ({ error: e.message }));
+      const x = (s as any)?.[sym];
+      return x ? { latestTrade: x.latestTrade, latestQuote: x.latestQuote, minuteBar: x.minuteBar, dailyBar: x.dailyBar, prevDailyBar: x.prevDailyBar } : s;
+    };
+    const end = new Date(Date.now() - 16 * 60000).toISOString();
+    const trades = await alpacaFetch(`${DATA}/stocks/${sym}/trades?start=${encodeURIComponent(from)}&end=${encodeURIComponent(end)}&limit=10000&feed=sip`, house)
+      .catch((e: Error) => ({ error: e.message }));
+    const list = (trades as any)?.trades || [];
+    return {
+      symbol: sym, from, end, iex: await snap(FEED), delayedSip: await snap("delayed_sip"),
+      trades: { count: list.length, error: (trades as any)?.error, last: list.slice(-25).map((t: any) => ({ t: t.t, p: t.p, s: t.s, x: t.x, c: t.c, z: t.z })) }
+    };
+  }
   if (only === "assets") {
     // What Alpaca allows on each symbol given, and whether the account takes
     // part shares at all (its configuration), for the ticket's badges and switch.
