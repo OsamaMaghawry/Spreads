@@ -197,3 +197,26 @@ Full list in `docs/context/compliance.md`; these are the ones that bite:
 | 2026-10-19 | `vix-hedge-explained` | hedging · 35 | Investopedia shape, two original SVGs (`vix-call-vs-stocks-three-outcomes`, `vix-option-priced-off-future`) plus one table, worked example on a hypothetical $100,000 of stocks and one VIX 20 call at 1.20 ($120) in three cases (calm -120, sharp selloff +880, slow decline -120), the option priced off the future so flat spot can still end worthless, and the roll in contango in points. No product claims. Reviewed: seo-editor (title/search_title/meta reworked, two FAQ backlinks added, row 35 reading added to `docs/seo/keywords.md`), desk-editor (four blocking mechanics findings fixed: call upside is uncapped, European style limits exercise not sale, ETNs track rather than hold futures, short-term products roll daily), compliance-gate (see commit). Links to `/blog/hedging`, `protective-put-explained`, `put-spread-hedge`, `implied-volatility-options-explained`, `hedge-concentrated-stock-position`; linked back from the last two |
 | 2026-10-20 | `hedge-cash-secured-puts` | hedging · 36 | Sixth hedging post. One original SVG (`short-puts-hedged-payoff`) plus two tables; hypothetical XYZ at $52, five short 50 puts at 1.40 ($700, $25,000 reserved) with five 46 puts bought at 0.45 ($225): a 50/46 spread, net credit 0.95, break-even 49.05, worst case $1,525, results at $53, $47 and $42; the index put (basis risk) and the VIX call set beside it; cash securing protects against forced liquidation, not the loss. Reviewed 20 Oct: seo-editor (row 36 study, title/meta/headings/FAQ, inbound links from `cash-secured-put-explained`, `put-spread-hedge`, `vix-hedge-explained`), desk-editor (eight blocking wording fixes: series vs expiration, collar legs, VIX decay, volatility sign, FAQ scope, index sizing, spread direction, link wording; SVG cost band extended), compliance-gate (outcome-implying wording, ranking superlative, absolute margin claim fixed; its length-ceiling finding not applied, the daily standard being 1,200-1,600 words with 1,000+ prose). `content:check` clean |
 | 2026-10-21 | `tail-risk-hedge-cost` | hedging · 37 | Seventh hedging post, the sequel to `protective-put-explained` held for a year. Two original SVGs (`tail-hedge-three-paths`, `tail-hedge-running-ledger`) plus two tables; one hypothetical 100-share XYZ lot at 100 with a 90 put bought each quarter at 1.20, over a calm year, a crash and a slow slide, then 95/90/80 strikes. Reviewed 21 Oct: seo-editor (headings, meta, reciprocal links from `protective-put-explained` and `hedge-cash-secured-puts`), desk-editor (put-sold-before-expiry mechanic, slow-slide wording, legend), compliance-gate (no hard findings) |
+
+### Catch-up — added by the 9 Nov reality check
+
+The Published table above stopped at 21 Oct while the daily run kept committing. These 16 posts are on `main` under `content/blog/` (file added on the date shown) but had no row. Dates are the day the file landed, not the plan's category/order numbers; the content run should replace each line with a full row. No post was published on 30 Oct.
+
+| Date | Slug |
+| --- | --- |
+| 2026-10-22 | `roll-protective-put` |
+| 2026-10-23 | `spx-vs-spy-options-hedge` |
+| 2026-10-26 | `married-put-tax` |
+| 2026-10-27 | `leaps-options-explained` |
+| 2026-10-28 | `stock-replacement-strategy` |
+| 2026-10-29 | `pmcc-vs-covered-call` |
+| 2026-10-31 | `sell-puts-to-buy-stock` |
+| 2026-11-01 | `buy-write-strategy` |
+| 2026-11-02 | `covered-call-dividend-risk-assignment` |
+| 2026-11-03 | `leaps-position-sizing` |
+| 2026-11-04 | `leaps-delta-theta` |
+| 2026-11-05 | `managing-multiple-option-positions` |
+| 2026-11-06 | `assignment-risk-credit-spread` |
+| 2026-11-07 | `close-credit-spread-early-or-hold` |
+| 2026-11-08 | `credit-spread-in-the-money` |
+| 2026-11-09 | `adjust-iron-condor` |
