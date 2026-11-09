@@ -665,3 +665,7 @@ English. Newest first.
 - 2026-11-04 · (staging) Position-watch emails: alert severity in words instead of emoji, brand colours, no dash in subjects (`4689836`, `eada0cc`).
 - 2026-11-04 · (staging) Marketing pages: titles without dashes, "Connect" wording, brand-mint wordmark (`5621f7c`).
 - 2026-11-05 · (staging) Break-even: a short call covered only by a longer-dated long call no longer shows an invented break-even, and shares that do not back the call no longer lend it their basis (`b839f32`).
+- 2026-11-08 · (staging) Screener: net gamma, flip price and gamma walls per share, with gamma filters and screens; a weekday-morning job works the figures out for the 300 most-traded optionable shares (`bbbc74d`, `dbd44e5`).
+- 2026-11-09 · (staging) Screener: each share appears once, so stocks-only no longer shows leftover ETF rows and the match count agrees with the table (`7f253c2`).
+- 2026-11-09 · (staging) Screener: before the open the dollar-volume filter is called "Pre-market dollar volume" (`188c181`).
+- 2026-11-09 · (staging) robots.txt keeps search crawlers off the Claude connector's two addresses, which Search Console counted as errors (`ed59693`).
