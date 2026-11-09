@@ -78,7 +78,8 @@ export function cardInputs() {
     return `--${t}: ${v};`;
   }).join(" ");
   return {
-    title: decode(title).replace(/^DeltaMint\s+[—-]\s+/, "").trim(),
+    // "DeltaMint — Headline" or, since titles dropped the dash, "DeltaMint: Headline".
+    title: decode(title).replace(/^DeltaMint\s*[—:-]\s+/, "").trim(),
     description: decode(description).trim(),
     lockup: mark.trim().replace(/\s+/g, " "),
     tokens,
