@@ -141,7 +141,7 @@ before expiration, where it is valued at the mark, the net of its four legs' mid
 
 The [max loss post](/blog/credit-spread-max-loss) is the place to start on what a
 mark does and does not tell you; a condor's mark is simply two of them
-added. At expiration, the most the example can lose is $97 whether XYZ sits at $50.00 or $47.50 now; what moves is how close that figure is to being reached.
+added. At expiration, the most the example can lose is $97 whether XYZ sits at $50.00 or $47.50 now; what moves is how close that figure is to being reached. [Adjusting an iron condor](/blog/adjust-iron-condor) prices closing or rolling the tested wing of this same 46/48/52/54 condor after XYZ falls to 47.
 
 ## Assignment: only one side at expiration, either side before it
 
