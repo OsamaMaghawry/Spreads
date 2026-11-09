@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   decodeUniverse, screenRow, parseAmount, cleanScreen, passes, sortRows, needsDaily, presetScreen, PRESETS, FIELD,
-  dailyCandidates, bigNumber, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown, combineScreens, conflicts, premarketPicks, afterHoursDay, afterHoursPicks } from "./screener.js";
+  dailyCandidates, bigNumber, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown, combineScreens, conflicts, premarketPicks, afterHoursDay, afterHoursPicks, uniqueBySymbol } from "./screener.js";
 
 const close = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} != ${b}`);
 
@@ -268,4 +268,18 @@ test("gamma: positive or negative at the price, gamma-only, and the gamma screen
   // Known live only: not on a past day.
   assert.equal(fieldKnown("gexHedge", "live"), true);
   assert.equal(fieldKnown("gexHedge", "close"), false);
+});
+
+test("the screen keeps one row per symbol, the latest priced (9 Nov: MSTW four times)", () => {
+  const rows = [
+    { symbol: "MSTW", priceAt: "2026-11-09T11:00:00Z", price: 3.4 },
+    { symbol: "NVDA", priceAt: "2026-11-09T11:01:00Z", price: 177.5 },
+    { symbol: "MSTW", priceAt: "2026-11-09T11:02:00Z", price: 3.47 },
+    { symbol: "MSTW", priceAt: null, price: 3.3 }
+  ];
+  const out = uniqueBySymbol(rows);
+  assert.deepEqual(out.map((r) => r.symbol).sort(), ["MSTW", "NVDA"]);
+  assert.equal(out.find((r) => r.symbol === "MSTW").price, 3.47);
+  const clean = [{ symbol: "A" }, { symbol: "B" }];
+  assert.equal(uniqueBySymbol(clean), clean);
 });

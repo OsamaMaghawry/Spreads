@@ -24,6 +24,21 @@ export function decodeUniverse(data) {
   return (data?.rows || []).map((r) => Object.fromEntries(cols.map((c, i) => [c, r[i]])));
 }
 
+/**
+ * One row per symbol, the one priced latest. The screen arrives in parts and
+ * a share must never be in two: the table is keyed by symbol, and a repeated
+ * key left rows from an earlier screen on show (9 Nov: "2 matches" over a
+ * table of 25, ETFs under "Stocks only").
+ */
+export function uniqueBySymbol(rows) {
+  const by = new Map();
+  for (const r of rows || []) {
+    const had = by.get(r.symbol);
+    if (!had || String(r.priceAt || "") > String(had.priceAt || "")) by.set(r.symbol, r);
+  }
+  return by.size === (rows || []).length ? rows : [...by.values()];
+}
+
 const ratio = (a, b) => (Number.isFinite(a) && Number.isFinite(b) && b !== 0 ? a / b - 1 : null);
 const num = (v) => (v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v));
 

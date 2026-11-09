@@ -616,9 +616,21 @@ async function screenList(account: any) {
 // of processor time on a fresh instance ("CPU Time exceeded", 28-29 Oct: the
 // screener said "Edge Function returned a non-2xx status code"). In parts,
 // the share counts come from their own request (stage "shares").
+// Which of `parts` a share is read in, from its symbol alone. The parts are
+// read side by side and each may be answered by a different instance, whose
+// copy of the share list was read at its own time: split by position in the
+// list, two copies a listing apart put the same share in several parts and
+// others in none (9 Nov: MSTW four times, and the table kept rows from the
+// screen before). By symbol, every instance splits the market alike.
+function partOf(symbol: string, parts: number) {
+  let h = 0;
+  for (let i = 0; i < symbol.length; i++) h = (Math.imul(h, 31) + symbol.charCodeAt(i)) >>> 0;
+  return h % parts;
+}
+
 async function screenUniverse(admin: any, account: any, part = 0, parts = 1) {
   const whole = await screenList(account);
-  const list = parts > 1 ? whole.filter((_, i) => i % parts === part) : whole;
+  const list = parts > 1 ? whole.filter((a) => partOf(a.symbol, parts) === part) : whole;
   const symbols = list.map((a) => a.symbol);
   // The day's candle and volume from the delayed consolidated tape; IEX
   // alone if the account cannot read that.
@@ -745,8 +757,8 @@ async function screenHistory(account: any, date: string, asOf: "open" | "close",
   if (hit && Date.now() - hit.at < 6 * 3600000) return hit.value;
 
   const everyone = (await assetList(account)).filter((a) => a.assetClass === "us_equity" && SCREEN_EXCHANGES.has(a.exchange) && SYMBOL.test(a.symbol));
-  const size = Math.ceil(everyone.length / parts);
-  const list = everyone.slice(part * size, (part + 1) * size);
+  // By symbol, as screenUniverse (partOf): never by position in this instance's list.
+  const list = parts > 1 ? everyone.filter((a) => partOf(a.symbol, parts) === part) : everyone;
   const [shares] = await Promise.all([sharesOutstanding().catch(() => null), cikFor("AAPL").catch(() => null)]);
   const start = iso(Date.parse(`${date}T00:00:00Z`) - 45 * 86400000);
   const end = iso(Date.parse(`${date}T23:59:59Z`));

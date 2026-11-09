@@ -3,7 +3,7 @@ import { RefreshCw, Plus, Check, X, ChevronDown, ChevronRight, History, LineChar
 import { invokeFunction } from "@/lib/functions";
 import { readPref, savePref } from "@/lib/terminalPrefs";
 import {
-  decodeUniverse, screenRow, FIELDS, FIELD, GROUPS, parseAmount, cleanScreen, passes, sortRows, needsDaily,
+  decodeUniverse, uniqueBySymbol, screenRow, FIELDS, FIELD, GROUPS, parseAmount, cleanScreen, passes, sortRows, needsDaily,
   PRESETS, dailyCandidates, bigNumber, TREND_CHOICES, EMPTY_SCREEN, partialStats, fieldKnown, presetKnown, combineScreens, conflicts, premarketPicks, afterHoursDay, afterHoursPicks
 } from "@/lib/screener";
 import { px, pctText } from "@/lib/terminal";
@@ -289,7 +289,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
       got.push(...await Promise.all([i, i + 1].filter((k) => k < HISTORY_PARTS)
         .map((part) => once({ stage: "history", date: when.date, asOf: when.asOf, part, parts: HISTORY_PARTS }))));
     }
-    const rows = got.flatMap((d) => decodeUniverse(d));
+    const rows = uniqueBySymbol(got.flatMap((d) => decodeUniverse(d)));
     if (!rows.length) throw new Error(`No trading on ${when.date}: a weekend or a market holiday.`);
     let premarket = null;
     if (when.asOf === "open") {
@@ -319,7 +319,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
     const [settled, shares] = await Promise.all([Promise.allSettled([...Array(UNIVERSE_PARTS).keys()].map(once)), sharesRead]);
     const got = settled.filter((x) => x.status === "fulfilled").map((x) => x.value);
     if (!got.length) throw settled[0].reason;
-    const rows = got.flatMap((d) => decodeUniverse(d));
+    const rows = uniqueBySymbol(got.flatMap((d) => decodeUniverse(d)));
     if (shares) for (const u of rows) if (u.shares == null && shares[u.symbol]) u.shares = shares[u.symbol];
     const missing = settled.length - got.length;
     return {
