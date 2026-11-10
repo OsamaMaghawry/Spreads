@@ -183,7 +183,9 @@ export function cleanIndicators(list) {
       for (const p of INDICATORS[x.type].params) {
         params[p.key] = p.key === "mult" ? Math.min(5, Math.max(0.5, Number(x.params?.[p.key]) || p.value)) : clampInt(x.params?.[p.key], 1, 500, p.value);
       }
-      return { id: x.id, type: x.type, params, color: LINE_COLORS.includes(x.color) ? x.color : LINE_COLORS[0] };
+      // `hidden`: kept with its settings, off the chart (10 Nov, the owner:
+      // "not to delete the moving average or the indicator, just to hide it").
+      return { id: x.id, type: x.type, params, color: LINE_COLORS.includes(x.color) ? x.color : LINE_COLORS[0], ...(x.hidden === true ? { hidden: true } : {}) };
     });
 }
 

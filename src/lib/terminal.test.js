@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, inRegularHours, sessionDay, amountToQty, orderState, orderNews, iexOpen, shareFeed, ticketChoices, mergeTape, clockMs, exitText, stopWaitText, cleanWatchlists, activeWatchlist, withActiveSymbols } from "./terminal.js";
+import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, inRegularHours, sessionDay, amountToQty, orderState, orderNews, iexOpen, shareFeed, ticketChoices, mergeTape, clockMs, exitText, stopWaitText, cleanWatchlists, activeWatchlist, withActiveSymbols, legendBar, valueAt } from "./terminal.js";
 
 const sec = (iso) => Date.parse(iso) / 1000;
 
@@ -263,4 +263,27 @@ test("several watchlists: checked as stored, the old single list kept as Main, c
   assert.equal(cleanWatchlists({ ...two, active: "gone" }).active, "main");
   const added = withActiveSymbols(two, (l) => [...l, "nuwe"]);
   assert.deepEqual(added.lists.map((l) => l.symbols), [["AIOK", "ELPW"], ["DAVI", "NUWE"]]);
+});
+
+test("the chart legend: the candle under the pointer, or the latest; its change; a line's value there", () => {
+  // TSLA, 9 Nov 2026, 15:45 to 15:47 New York (consolidated minutes).
+  const bars = [
+    { time: 1794256500, open: 381.03, high: 381.89, low: 381.03, close: 381.8845, volume: 131531 },
+    { time: 1794256560, open: 381.85, high: 382.2, low: 381.6, close: 381.645, volume: 152596 },
+    { time: 1794256620, open: 381.6799, high: 381.6799, low: 380.81, close: 380.9699, volume: 103010 }
+  ];
+  const at = legendBar(bars, 1794256560);
+  assert.equal(at.bar.high, 382.2);
+  assert.ok(Math.abs(at.change - (381.645 - 381.8845)) < 1e-9);
+  assert.ok(Math.abs(at.changePct - (381.645 / 381.8845 - 1)) < 1e-12);
+  // No candle under the pointer (off the chart, or past the last): the latest.
+  assert.equal(legendBar(bars, null).bar.time, 1794256620);
+  assert.equal(legendBar(bars, 1794256999).bar.time, 1794256620);
+  // The first candle has nothing before it to change from.
+  assert.equal(legendBar(bars, 1794256500).change, null);
+  assert.equal(legendBar([], 5), null);
+  const ema = [{ time: 1794256560, value: 381.37 }, { time: 1794256620, value: 381.2 }];
+  assert.equal(valueAt(ema, 1794256620), 381.2);
+  assert.equal(valueAt(ema, 1794256500), null);
+  assert.equal(valueAt([], 1), null);
 });

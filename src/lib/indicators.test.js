@@ -66,3 +66,10 @@ test("the indicator list: unknown types dropped, periods kept sensible; series l
   assert.equal(s.lines[0].data[0].time, 1000 + 8 * 60);
   assert.deepEqual(indicatorSeries(list[1], bars, () => 1).levels, [70, 30]);
 });
+
+test("a hidden indicator keeps its settings and stays hidden; a shown one carries no flag", () => {
+  const [shown, hidden] = cleanIndicators([{ id: "a", type: "ema", params: { period: 9 } }, { id: "b", type: "sma", params: { period: 20 }, hidden: true }]);
+  assert.equal(shown.hidden, undefined);
+  assert.deepEqual([hidden.hidden, hidden.params.period], [true, 20]);
+  assert.equal(cleanIndicators([{ id: "c", type: "vwap", hidden: "yes" }])[0].hidden, undefined);
+});

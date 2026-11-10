@@ -336,6 +336,43 @@ export const sizeText = (v) => {
   if (Number.isInteger(n)) return String(n);
   return n >= 1 ? String(Number(n.toFixed(4))) : String(Number(n.toFixed(8)));
 };
+/**
+ * The chart's legend (10 Nov, the owner: "When I hover on any bar, I see the
+ * high and low, close ... all the information above"): the candle at `time`,
+ * or the latest when there is none under the pointer, and its change from the
+ * close before. `bars` are in time order.
+ */
+export function legendBar(bars, time) {
+  if (!bars?.length) return null;
+  let i = bars.length - 1;
+  if (time !== null && time !== undefined) {
+    let lo = 0;
+    let hi = bars.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (bars[mid].time <= time) lo = mid;
+      else hi = mid - 1;
+    }
+    if (bars[lo].time === time) i = lo;
+  }
+  const bar = bars[i];
+  const before = i > 0 ? bars[i - 1].close : null;
+  const change = before === null ? null : bar.close - before;
+  return { bar, change, changePct: before ? change / before : null };
+}
+/** A line's value at `time`, from its { time, value } points in time order; null in its warm-up. */
+export function valueAt(points, time) {
+  let lo = 0;
+  let hi = (points?.length || 0) - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const t = points[mid].time;
+    if (t === time) return points[mid].value;
+    if (t < time) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  return null;
+}
 // A size in the order book: short enough to scan down a column.
 export const bookSize = (v) => {
   const n = Number(v) || 0;

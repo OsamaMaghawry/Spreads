@@ -1,8 +1,8 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { createChart, createSeriesMarkers, createTextWatermark, CandlestickSeries, HistogramSeries, LineSeries, LineStyle, CrosshairMode } from "lightweight-charts";
-import { MousePointer2, Slash, MoveUpRight, Minus, SeparatorVertical, RectangleHorizontal, Rows3, Ruler, Trash2, Eraser, Activity, X, Type, CalendarDays, History, Pencil, ArrowUpDown } from "lucide-react";
+import { MousePointer2, Slash, MoveUpRight, Minus, SeparatorVertical, RectangleHorizontal, Rows3, Ruler, Trash2, Eraser, Activity, X, Type, CalendarDays, History, Pencil, ArrowUpDown, Eye, EyeOff } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
-import { INTERVALS, applyTrade, applyMinuteBar, isCrypto, priceFormatFor, inRegularHours, sessionDay, sessionOf, px, sizeText } from "@/lib/terminal";
+import { INTERVALS, applyTrade, applyMinuteBar, isCrypto, priceFormatFor, inRegularHours, sessionDay, sessionOf, px, sizeText, legendBar, valueAt } from "@/lib/terminal";
 import { INDICATORS, LINE_COLORS, cleanIndicators, defaultParams, indicatorLabel, indicatorSeries } from "@/lib/indicators";
 import { TOOLS, COLORS, pointsFor, logicalToTime, hitTest, moveDrawing, readDrawings, writeDrawings, cleanDrawings } from "@/lib/chartDrawings";
 import { EVENT_KINDS, econEvents, earningsEvent, placeEvents, cleanShown, nextOfEach, eventWhen, badgeAt } from "@/lib/marketEvents";
@@ -116,6 +116,79 @@ const SCROLL = { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, 
 
 const newId = () => `d${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
+// A candle's moment: New York time, whatever the viewer's clock says. A
+// coin's day, week and month start at midnight UTC: read in New York time
+// they would show the evening before, so they are dated in UTC. With the
+// weekday and year, so a replayed moment is never in doubt.
+function momentText(t, crypto, interval) {
+  const day = CALENDAR.includes(interval);
+  return new Date(t * 1000).toLocaleString("en-US", {
+    timeZone: crypto && day ? "UTC" : "America/New_York", weekday: "short", year: "numeric", month: "short", day: "numeric",
+    ...(day ? {} : { hour: "2-digit", minute: "2-digit", hour12: false })
+  });
+}
+
+// An indicator's value: a price on the candles, two places (four when small) in a pane of its own.
+const indicatorValue = (type, v) => (v === null || v === undefined ? "—" : INDICATORS[type].pane === "price" ? px(v) : v.toFixed(Math.abs(v) < 1 ? 4 : 2));
+
+/**
+ * Top left of the chart: the candle under the pointer (the latest without
+ * one), its open, high, low, close, change and volume, and each indicator with
+ * its value there and buttons to hide or remove it (10 Nov, the owner: "When
+ * I hover on any bar, I see the high and low, close ... all the information
+ * above"; "not to delete the moving average or the indicator, just to hide
+ * it"). Its own state, so the chart is not drawn again as the pointer moves.
+ */
+function ChartLegend({ subscribe, read, indicators, onToggle, onRemove, crypto, interval }) {
+  const [, setTick] = useState(0);
+  const atRef = useRef(null);
+  useEffect(() => subscribe((t) => { atRef.current = t; setTick((n) => n + 1); }), [subscribe]);
+  // Without a pointer on the chart, the latest candle as it trades.
+  useEffect(() => {
+    const id = setInterval(() => { if (atRef.current === null) setTick((n) => n + 1); }, 1000);
+    return () => clearInterval(id);
+  }, []);
+  const got = read(atRef.current);
+  const tone = got && got.bar.close < got.bar.open ? "text-rose-600" : "text-emerald-600";
+  const changeTone = got?.change < 0 ? "text-rose-600" : "text-emerald-600";
+  return (
+    <div className="pointer-events-none absolute left-2 top-1 z-10 flex max-w-[calc(100%-5rem)] flex-col gap-0.5 text-[11px] tabular-nums">
+      {got && (
+        <div className="flex flex-wrap items-baseline gap-x-2 rounded bg-white/80 px-1">
+          <span className="text-slate-500">{momentText(got.bar.time, crypto, interval)}</span>
+          {[["O", got.bar.open], ["H", got.bar.high], ["L", got.bar.low], ["C", got.bar.close]].map(([k, v]) => (
+            <span key={k}><span className="text-slate-400">{k}</span> <span className={tone}>{px(v)}</span></span>
+          ))}
+          {got.change !== null && <span className={changeTone}>{got.change >= 0 ? "+" : ""}{px(got.change)} ({got.change >= 0 ? "+" : ""}{(got.changePct * 100).toFixed(2)}%)</span>}
+          {Number.isFinite(got.bar.volume) && <span><span className="text-slate-400">Vol</span> <span className="text-slate-700">{sizeText(got.bar.volume)}</span></span>}
+        </div>
+      )}
+      {indicators.length > 0 && (
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+          {indicators.map((x) => {
+            const values = got?.values[x.id] || [];
+            return (
+              <span key={x.id} className={`group pointer-events-auto flex items-center gap-1 rounded bg-white/80 px-1 ${x.hidden ? "text-slate-400" : "text-slate-600"}`}>
+                <span className={`h-0.5 w-3 ${x.hidden ? "opacity-40" : ""}`} style={{ backgroundColor: INDICATORS[x.type].pane === "price" ? x.color : "#94a3b8" }} />
+                <span>{indicatorLabel(x)}</span>
+                {!x.hidden && values.map((v, i) => (
+                  <span key={i} className="font-semibold" style={{ color: v.color }}>{indicatorValue(x.type, v.value)}</span>
+                ))}
+                <span className={`flex items-center gap-1 ${x.hidden || TOUCH ? "" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`}>
+                  <button type="button" title={x.hidden ? "Show" : "Hide"} aria-label={`${x.hidden ? "Show" : "Hide"} ${indicatorLabel(x)}`} onClick={() => onToggle(x.id)}>
+                    {x.hidden ? <EyeOff className="h-3 w-3 text-slate-400 hover:text-slate-700" /> : <Eye className="h-3 w-3 text-slate-500 hover:text-slate-900" />}
+                  </button>
+                  <button type="button" title="Remove" aria-label={`Remove ${indicatorLabel(x)}`} onClick={() => onRemove(x.id)}><X className="h-3 w-3 text-slate-400 hover:text-rose-600" /></button>
+                </span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * `replay`: the page's replay (useReplay), with `replayOn`, its moment
  * (`replayCursor`), a count that moves when candles arrive (`replayVersion`)
@@ -179,6 +252,14 @@ function PriceChart({
   const indicatorsRef = useRef(indicators);
   indicatorsRef.current = indicators;
   const indSeriesRef = useRef([]);
+  // Each indicator's lines as last drawn, by id, for the legend's values.
+  const indDataRef = useRef({});
+  const legendAt = useRef(null);
+  const legendFns = useRef(new Set());
+  const onLegend = useCallback((f) => {
+    legendFns.current.add(f);
+    return () => legendFns.current.delete(f);
+  }, []);
   const indTimer = useRef(null);
   const [menu, setMenu] = useState(false);
   // Events: which kinds show, the company's reports, and the badge under the pointer.
@@ -253,7 +334,10 @@ function PriceChart({
       autoSize: true,
       layout: { background: { color: "#ffffff" }, textColor: "#475569", attributionLogo: true },
       grid: { vertLines: { color: "#f1f5f9" }, horzLines: { color: "#f1f5f9" } },
-      crosshair: { mode: CrosshairMode.Normal },
+      // No tags on the axes under the pointer (10 Nov, the owner: "No need for
+      // these black ... boxes"): the legend top left gives the candle's moment
+      // and prices.
+      crosshair: { mode: CrosshairMode.Normal, vertLine: { labelVisible: false }, horzLine: { labelVisible: false } },
       rightPriceScale: { borderColor: "#e2e8f0" },
       timeScale: { borderColor: "#e2e8f0", timeVisible: true, secondsVisible: false, rightOffset: 8 },
       handleScroll: SCROLL,
@@ -263,13 +347,7 @@ function PriceChart({
         // York time they would show the evening before, so they are dated in
         // UTC. Everything else is New York time.
         // With the weekday and year, so a replayed moment is never in doubt.
-        timeFormatter: (t) => {
-          const day = CALENDAR.includes(intervalRef.current);
-          return new Date(t * 1000).toLocaleString("en-US", {
-            timeZone: cryptoRef.current && day ? "UTC" : "America/New_York", weekday: "short", year: "numeric", month: "short", day: "numeric",
-            ...(day ? {} : { hour: "2-digit", minute: "2-digit", hour12: false })
-          });
-        }
+        timeFormatter: (t) => momentText(t, cryptoRef.current, intervalRef.current)
       }
     });
     // And on the time axis: the library labels its ticks in UTC unless told
@@ -324,6 +402,12 @@ function PriceChart({
 
     // The second point follows the pointer until it is placed.
     const onMove = (param) => {
+      // The legend follows the candle under the pointer.
+      const at = param.time ?? null;
+      if (at !== legendAt.current) {
+        legendAt.current = at;
+        legendFns.current.forEach((f) => f(at));
+      }
       // The badge under the pointer, for its card.
       const badge = param.point ? badgeAt(layer.badges, param.point.x, param.point.y) : null;
       const id = badge?.event.id || null;
@@ -615,10 +699,13 @@ function PriceChart({
     indTimer.current = null;
     const bars = barsRef.current;
     const day = (t) => sessionDay(t, cryptoRef.current);
+    const data = {};
     for (const { ind, series } of indSeriesRef.current) {
       const out = indicatorSeries(ind, bars, day);
       out.lines.forEach((l, i) => series[i]?.setData(l.data));
+      data[ind.id] = out.lines.map((l) => l.data);
     }
+    indDataRef.current = data;
   }, []);
   const scheduleIndicators = useCallback(() => {
     if (!indTimer.current) indTimer.current = setTimeout(paintIndicators, 500);
@@ -841,7 +928,8 @@ function PriceChart({
     for (const { series } of indSeriesRef.current) series.forEach((x) => { try { chart.removeSeries(x); } catch { /* gone */ } });
     for (let i = chart.panes().length - 1; i >= 1; i--) { try { chart.removePane(i); } catch { /* gone */ } }
     let pane = 0;
-    indSeriesRef.current = indicators.map((ind) => {
+    // A hidden indicator: no lines and no pane, its settings kept.
+    indSeriesRef.current = indicators.filter((ind) => !ind.hidden).map((ind) => {
       const own = INDICATORS[ind.type].pane === "own";
       const at = own ? ++pane : 0;
       const sample = indicatorSeries(ind, [], () => 0);
@@ -856,7 +944,7 @@ function PriceChart({
       for (const level of sample.levels || []) {
         series[0]?.createPriceLine({ price: level, color: "#94a3b8", lineStyle: LineStyle.Dashed, lineWidth: 1, axisLabelVisible: false });
       }
-      return { ind, series };
+      return { ind, series, colors: sample.lines.map((l) => l.color || "#94a3b8") };
     });
     chart.panes().forEach((p, i) => p.setStretchFactor(i === 0 ? 3 : 1));
     paintIndicators();
@@ -962,6 +1050,19 @@ function PriceChart({
   };
   const editIndicator = (id, key, value) => setIndicators((list) => cleanIndicators(list.map((x) => (x.id === id ? { ...x, params: { ...x.params, [key]: value } } : x))));
   const removeIndicator = (id) => setIndicators((list) => list.filter((x) => x.id !== id));
+  const toggleIndicator = (id) => setIndicators((list) => list.map((x) => (x.id === id ? { ...x, hidden: !x.hidden } : x)));
+  const allHidden = indicators.length > 0 && indicators.every((x) => x.hidden);
+  const hideAll = () => setIndicators((list) => list.map((x) => ({ ...x, hidden: !allHidden })));
+  // The legend's figures at a moment: the candle, and each shown indicator's values.
+  const readLegend = useCallback((t) => {
+    const got = legendBar(barsRef.current, t);
+    if (!got) return null;
+    const values = {};
+    for (const { ind, colors } of indSeriesRef.current) {
+      values[ind.id] = (indDataRef.current[ind.id] || []).map((points, i) => ({ value: valueAt(points, got.bar.time), color: colors[i] }));
+    }
+    return { ...got, values };
+  }, []);
 
   // The note's words saved; an empty note is removed rather than left blank.
   const finishText = (keep) => {
@@ -1049,10 +1150,15 @@ function PriceChart({
                   <button key={type} type="button" onClick={() => addIndicator(type)} className="rounded border border-slate-200 px-1.5 py-1 text-left hover:bg-slate-50">{def.label}</button>
                 ))}
               </div>
-              {indicators.length > 0 && <div className="mb-1 mt-2 text-[10px] font-medium uppercase tracking-wider text-slate-500">On the chart</div>}
+              {indicators.length > 0 && (
+                <div className="mb-1 mt-2 flex items-baseline text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                  On the chart
+                  <button type="button" onClick={hideAll} className="ml-auto text-[11px] font-normal normal-case tracking-normal text-slate-700 underline hover:text-slate-900">{allHidden ? "Show all" : "Hide all"}</button>
+                </div>
+              )}
               {indicators.map((x) => (
-                <div key={x.id} className="flex items-center gap-1 border-t border-slate-100 py-1">
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: INDICATORS[x.type].pane === "price" ? x.color : "#94a3b8" }} />
+                <div key={x.id} className={`flex items-center gap-1 border-t border-slate-100 py-1 ${x.hidden ? "text-slate-400" : ""}`}>
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${x.hidden ? "opacity-40" : ""}`} style={{ backgroundColor: INDICATORS[x.type].pane === "price" ? x.color : "#94a3b8" }} />
                   <span className="w-12 shrink-0 font-medium">{x.type.toUpperCase()}</span>
                   {INDICATORS[x.type].params.map((p) => (
                     <label key={p.key} className="flex items-center gap-0.5 text-[10px] text-slate-500" title={p.label}>
@@ -1061,7 +1167,10 @@ function PriceChart({
                         onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} className="w-11 rounded border border-slate-200 px-1 py-0.5 text-xs text-slate-800" />
                     </label>
                   ))}
-                  <button type="button" title="Remove" className="ml-auto" onClick={() => removeIndicator(x.id)}><X className="h-3.5 w-3.5 text-slate-400 hover:text-rose-600" /></button>
+                  <button type="button" title={x.hidden ? "Show" : "Hide"} aria-label={`${x.hidden ? "Show" : "Hide"} ${indicatorLabel(x)}`} className="ml-auto" onClick={() => toggleIndicator(x.id)}>
+                    {x.hidden ? <EyeOff className="h-3.5 w-3.5 text-slate-400 hover:text-slate-700" /> : <Eye className="h-3.5 w-3.5 text-slate-500 hover:text-slate-900" />}
+                  </button>
+                  <button type="button" title="Remove" onClick={() => removeIndicator(x.id)}><X className="h-3.5 w-3.5 text-slate-400 hover:text-rose-600" /></button>
                 </div>
               ))}
             </div>
@@ -1209,17 +1318,8 @@ function PriceChart({
             style={{ left: editing.x, top: editing.y - 11 }}
           />
         )}
-        {indicators.length > 0 && (
-          <div className="pointer-events-none absolute left-2 top-1 z-10 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
-            {indicators.map((x) => (
-              <span key={x.id} className="pointer-events-auto flex items-center gap-1 rounded bg-white/80 px-1">
-                <span className="h-0.5 w-3" style={{ backgroundColor: INDICATORS[x.type].pane === "price" ? x.color : "#94a3b8" }} />
-                <span className="text-slate-600">{indicatorLabel(x)}</span>
-                <button type="button" title="Remove" onClick={() => removeIndicator(x.id)}><X className="h-3 w-3 text-slate-400 hover:text-rose-600" /></button>
-              </span>
-            ))}
-          </div>
-        )}
+        <ChartLegend subscribe={onLegend} read={readLegend} indicators={indicators} onToggle={toggleIndicator} onRemove={removeIndicator}
+          crypto={crypto} interval={interval} />
       </div>
     </div>
   );
