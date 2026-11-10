@@ -1,0 +1,31 @@
+<svg viewBox="0 0 720 280" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Three ways to finish a half-filled order of ten spreads with four filled at 0.60. Leave it working: four open now, ten if the rest fills at 0.60, credit 600 dollars, max loss 1,400 dollars. Cancel: four open, credit 240 dollars, max loss 560 dollars. Reprice the six to 0.55: ten open, credit 570 dollars, max loss 1,430 dollars.">
+  <rect width="720" height="280" fill="#FFFFFF"/>
+  <g font-size="12.5" fill="#14151C">
+    <text x="36" y="34" font-weight="600">Ending</text>
+    <text x="250" y="34" font-weight="600">Spreads open</text>
+    <text x="380" y="34" font-weight="600">Credit</text>
+    <text x="480" y="34" font-weight="600">Max loss</text>
+    <text x="590" y="34" font-weight="600">Break-even</text>
+  </g>
+  <line x1="36" y1="46" x2="684" y2="46" stroke="#E2E5EE"/>
+  <rect x="36" y="60" width="180" height="34" rx="6" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="48" y="82" font-size="12.5" fill="#14151C">Leave the six working</text>
+  <text x="250" y="82" font-size="12.5" fill="#14151C">4, or 10 if filled</text>
+  <text x="380" y="82" font-size="12.5" fill="#2E8B5F">$240 / $600</text>
+  <text x="480" y="82" font-size="12.5" fill="#B4485C">$560 / $1,400</text>
+  <text x="590" y="82" font-size="12.5" fill="#14151C">49.40</text>
+  <rect x="36" y="112" width="180" height="34" rx="6" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="48" y="134" font-size="12.5" fill="#14151C">Cancel the remainder</text>
+  <text x="250" y="134" font-size="12.5" fill="#14151C">4</text>
+  <text x="380" y="134" font-size="12.5" fill="#2E8B5F">$240</text>
+  <text x="480" y="134" font-size="12.5" fill="#B4485C">$560</text>
+  <text x="590" y="134" font-size="12.5" fill="#14151C">49.40</text>
+  <rect x="36" y="164" width="180" height="34" rx="6" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="48" y="186" font-size="12.5" fill="#14151C">Reprice the six to 0.55</text>
+  <text x="250" y="186" font-size="12.5" fill="#14151C">10, once filled</text>
+  <text x="380" y="186" font-size="12.5" fill="#2E8B5F">$570</text>
+  <text x="480" y="186" font-size="12.5" fill="#B4485C">$1,430</text>
+  <text x="590" y="186" font-size="12.5" fill="#14151C">49.43 blended</text>
+  <text x="36" y="236" font-size="12" fill="#767B8E">Four spreads filled at 0.60 in every row. That part never reprices.</text>
+  <text x="36" y="256" font-size="12" fill="#767B8E">Hypothetical 50/48 put credit spreads, $2.00 wide.</text>
+</svg>

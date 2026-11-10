@@ -1,0 +1,23 @@
+<svg viewBox="0 0 720 230" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A ten-spread order that has filled four. Four filled spreads are live positions: credit 240 dollars, max loss 560 dollars. Six unfilled spreads are only a working order with no credit and no risk until they trade.">
+  <rect width="720" height="230" fill="#FFFFFF"/>
+  <text x="36" y="36" font-size="13" font-weight="600" fill="#14151C">Order: sell 10 put credit spreads, limit 0.60</text>
+  <g>
+    <rect x="36" y="56" width="52" height="40" rx="5" fill="#DFF1E7" stroke="#2E8B5F"/>
+    <rect x="94" y="56" width="52" height="40" rx="5" fill="#DFF1E7" stroke="#2E8B5F"/>
+    <rect x="152" y="56" width="52" height="40" rx="5" fill="#DFF1E7" stroke="#2E8B5F"/>
+    <rect x="210" y="56" width="52" height="40" rx="5" fill="#DFF1E7" stroke="#2E8B5F"/>
+    <rect x="268" y="56" width="52" height="40" rx="5" fill="#FFFFFF" stroke="#767B8E" stroke-dasharray="4 4"/>
+    <rect x="326" y="56" width="52" height="40" rx="5" fill="#FFFFFF" stroke="#767B8E" stroke-dasharray="4 4"/>
+    <rect x="384" y="56" width="52" height="40" rx="5" fill="#FFFFFF" stroke="#767B8E" stroke-dasharray="4 4"/>
+    <rect x="442" y="56" width="52" height="40" rx="5" fill="#FFFFFF" stroke="#767B8E" stroke-dasharray="4 4"/>
+    <rect x="500" y="56" width="52" height="40" rx="5" fill="#FFFFFF" stroke="#767B8E" stroke-dasharray="4 4"/>
+    <rect x="558" y="56" width="52" height="40" rx="5" fill="#FFFFFF" stroke="#767B8E" stroke-dasharray="4 4"/>
+  </g>
+  <text x="36" y="122" font-size="13" font-weight="600" fill="#2E8B5F">4 filled: a live position</text>
+  <text x="268" y="122" font-size="13" font-weight="600" fill="#767B8E">6 unfilled: only an order</text>
+  <text x="36" y="154" font-size="12.5" fill="#14151C">Credit 4 x 0.60 x 100 = $240</text>
+  <text x="36" y="176" font-size="12.5" fill="#B4485C">Max loss 4 x $140 = $560</text>
+  <text x="268" y="154" font-size="12.5" fill="#4B4F60">No credit yet, no risk yet</text>
+  <text x="268" y="176" font-size="12.5" fill="#4B4F60">Adds $840 of max loss only if they fill</text>
+  <text x="36" y="210" font-size="12" fill="#767B8E">The account holds four. The ticket still says ten.</text>
+</svg>

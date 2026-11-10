@@ -42,7 +42,7 @@ more than the premium added.
 Buying power is commonly reserved in three situations:
 
 - **An open short option.** Collateral stays against it for as long as the position exists.
-- **A working order.** Many brokers reserve the requirement of an unfilled opening order.
+- **A working order.** Many brokers reserve the requirement of an unfilled opening order. Related: [what a partial fill on an options spread leaves in the account](/blog/partial-fill-options-spread).
 - **Shares held on margin.** A stock position carries its own requirement, drawn from the same pool.
 
 A bought option is usually paid for in full at the fill and cannot cost

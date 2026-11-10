@@ -91,6 +91,8 @@ wrong in both directions at once.
 
 ![Closing four contracts of a ten-lot: in reality one position shrinks to six. A per-execution tool records the ten-lot still open plus a phantom four-lot debit spread that was never traded.](/assets/blog/partial-close-phantom.svg)
 
+Related: [a partial fill on the way in, and what it leaves in the account](/blog/partial-fill-options-spread).
+
 Neither of these is exotic. They are Tuesday afternoon.
 
 ## What holding provenance actually requires
