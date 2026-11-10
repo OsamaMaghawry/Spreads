@@ -8,6 +8,14 @@ import { CALL, PUT, FLIP, INK, GRID, AXIS, WINDOWS, METRICS, at, dist, shortDate
 // day's close (GexHistory.jsx), so a past day reads exactly as Live would have
 // shown it.
 
+// Net gamma as a share of a normal day's dollar volume, as the screener's
+// "Hedge vs vol" (10 Nov, the owner: "you didn't add the percentage of volume").
+const hedgeText = (net, avgDollar20) => {
+  if (!(avgDollar20 > 0)) return "—";
+  const p = (net / avgDollar20) * 100;
+  return `${p < 0 ? "−" : ""}${Math.abs(p).toFixed(Math.abs(p) < 10 ? 1 : 0)}%`;
+};
+
 // Strikes down the side (high at the top, as on a price chart), puts to the
 // left and calls to the right of zero, or the net either way.
 function StrikeChart({ rows, width, spot, flip, wall, metric, view, bandWidth }) {
@@ -329,11 +337,13 @@ export default function GexBoard({ sym, mine, prepared, spot, shownSpot, view, s
   return (
     <>
       {/* The answer first. */}
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
         <Tile label="Price" value={at(shownSpot)} sub={history ? "at 3:59 p.m. New York" : mine.prevClose ? `${shownSpot >= mine.prevClose ? "+" : ""}${(((shownSpot - mine.prevClose) / mine.prevClose) * 100).toFixed(2)}% today` : null} />
         <Tile label="Net gamma" help="Dollars of stock dealers would trade per 1% move, all contracts counted (calls plus, puts minus). Positive tends to damp moves, negative to add to them."
           value={money(netGex)} sub={`per 1% move · ${filterName}`}
           pill={<span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${netGex >= 0 ? "bg-blue-50 text-blue-800" : "bg-rose-50 text-rose-800"}`}>{netGex >= 0 ? "Positive" : "Negative"}</span>} />
+        <Tile label="Hedge vs volume" help="Net gamma as a share of a normal day's dollar volume (20-day average): how big dealers' hedging is for this share per 1% move, as the screener shows it. Negative for negative gamma. The fair way to compare shares of different sizes."
+          value={hedgeText(netGex, mine.avgDollar20)} sub={mine.avgDollar20 > 0 ? `of a normal day's $ volume (${money(mine.avgDollar20)})` : history ? "live only" : "no volume history"} />
         <Tile label="Zero-gamma flip" help="The price where total gamma crosses zero: above it the estimate is positive, below it negative."
           value={flip !== null ? at(flip) : "None"} sub={flip !== null ? `${dist(flip, spot)} from the price` : "not within 12%"} />
         <Tile label="Call wall" help="The strike with the most call gamma." value={at(wall.call)} sub={wall.call !== null ? `${dist(wall.call, spot)} from the price` : null} />

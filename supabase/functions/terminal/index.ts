@@ -391,7 +391,15 @@ async function gexChain(account: any, symbol: string, days: number, sf: StockFee
     `${tradingBase(account)}/options/contracts?underlying_symbols=${encodeURIComponent(symbol)}&status=active&type=${type}` +
     `&expiration_date_gte=${today}&expiration_date_lte=${until}&strike_price_gte=${lo}&strike_price_lte=${hi}&limit=10000`,
     (page) => page?.option_contracts, 6);
-  const [calls, puts] = await Promise.all([contractsOf("call"), contractsOf("put")]);
+  // A normal day's dollar volume, as the screener's avgDollar20 (the last 20
+  // full sessions), for the hedge against volume (10 Nov, the owner: "In the
+  // gamma page ... you didn't add the percentage of volume").
+  const dailyOf = (f: string) => alpacaFetch(`${DATA}/stocks/bars?symbols=${encodeURIComponent(symbol)}&timeframe=1Day` +
+    `&start=${iso(Date.now() - 45 * 86400000)}&end=${iso(nyMoment(nyDate(), "00:00") - 1000)}&limit=100&feed=${f}&adjustment=split`, account);
+  const [calls, puts, daily] = await Promise.all([contractsOf("call"), contractsOf("put"),
+    dailyOf("sip").catch(() => dailyOf(FEED)).catch(() => null)]);
+  const last20 = ((daily?.bars?.[symbol] || []) as any[]).filter((b) => b.c > 0 && b.v > 0).slice(-20);
+  const avgDollar20 = last20.length >= 10 ? Math.round(last20.reduce((t, b) => t + b.c * b.v, 0) / last20.length) : null;
   const listed = [...calls, ...puts].filter((c) => c?.symbol && c?.expiration_date);
   if (!listed.length) return { error: `No listed options for ${symbol}.` };
   const expiries = [...new Set(listed.map((c) => String(c.expiration_date)))].sort();
@@ -432,7 +440,7 @@ async function gexChain(account: any, symbol: string, days: number, sf: StockFee
   }
   const oiDate = [...oiDates.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
   const body = {
-    symbol, spot, prevClose: num(d?.prevDailyBar?.c), at: new Date().toISOString(), days, span: GEX_SPAN, oiDate,
+    symbol, spot, prevClose: num(d?.prevDailyBar?.c), avgDollar20, at: new Date().toISOString(), days, span: GEX_SPAN, oiDate,
     expiries, rows, counts: { listed: listed.length, used: rows.length, noVol, expiriesFailed: failed }
   };
   gexCache.set(key, { at: Date.now(), body });
