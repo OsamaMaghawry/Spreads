@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { pick, byStrike, band, profile, flipOf, walls, byExpiry, readout, money, count } from "@/lib/gex";
+import { hedgePct } from "@/lib/gexChart";
 import { CALL, PUT, FLIP, INK, GRID, AXIS, WINDOWS, METRICS, at, dist, shortDate, useWidth, step, barPath, colPath, Seg, Tile, Card, Legend } from "@/components/terminal/gexParts";
 
 // The Gamma page's answer for one chain: the tiles, gamma by strike, the
@@ -7,14 +8,6 @@ import { CALL, PUT, FLIP, INK, GRID, AXIS, WINDOWS, METRICS, at, dist, shortDate
 // chain (GexPage.jsx); History a past day's, as it stood a minute before that
 // day's close (GexHistory.jsx), so a past day reads exactly as Live would have
 // shown it.
-
-// Net gamma as a share of a normal day's dollar volume, as the screener's
-// "Hedge vs vol" (10 Nov, the owner: "you didn't add the percentage of volume").
-const hedgeText = (net, avgDollar20) => {
-  if (!(avgDollar20 > 0)) return "—";
-  const p = (net / avgDollar20) * 100;
-  return `${p < 0 ? "−" : ""}${Math.abs(p).toFixed(Math.abs(p) < 10 ? 1 : 0)}%`;
-};
 
 // Strikes down the side (high at the top, as on a price chart), puts to the
 // left and calls to the right of zero, or the net either way.
@@ -294,10 +287,10 @@ function ExpiryChart({ rows, width, counted, onPick, picked }) {
  * ready (lib/gex prepare) at its own moment; `spot`: the price the figures are
  * worked at; `shownSpot`: the price shown (Live's last trade). `history`: a
  * past day's chain, read a minute before that day's close (no volume, no
- * previous close). `onLevels` (Live only) puts the walls and the flip on the
- * Trade page's charts of the symbol.
+ * previous close). The Trade page's charts read their own gamma levels
+ * (lib/gexChart.js).
  */
-export default function GexBoard({ sym, mine, prepared, spot, shownSpot, view, set, expiry, setExpiry, onLevels, history = false, sameDay = true }) {
+export default function GexBoard({ sym, mine, prepared, spot, shownSpot, view, set, expiry, setExpiry, history = false, sameDay = true }) {
   const spot0 = mine.spot;
   const days = view.win === "all" ? null : Number(view.win);
   const contracts = useMemo(() => (prepared ? pick(prepared, expiry !== null ? { expiry } : { days }) : []), [prepared, days, expiry]);
@@ -318,16 +311,6 @@ export default function GexBoard({ sym, mine, prepared, spot, shownSpot, view, s
   const nearest = expiries[0] || null;
   const lines = useMemo(() => (mine && spot ? readout({ symbol: sym, spot, netGex, flip, wall, nearest, oiDate: mine.oiDate }) : []), [mine, spot, sym, netGex, flip, wall, nearest]);
 
-  // The walls and the flip on the Trade page's charts of this symbol.
-  useEffect(() => {
-    if (!onLevels) return;
-    if (!view.lines || !mine) { onLevels(sym, null); return; }
-    onLevels(sym, [
-      wall.call !== null && { price: wall.call, color: CALL, title: "GEX call wall" },
-      wall.put !== null && { price: wall.put, color: PUT, title: "GEX put wall" },
-      flip !== null && { price: Math.round(flip * 100) / 100, color: FLIP, title: "Zero gamma" }
-    ].filter(Boolean));
-  }, [onLevels, sym, view.lines, mine, wall.call, wall.put, flip]);
 
   const [stripRef, stripW] = useWidth();
   const [profRef, profW] = useWidth();
@@ -343,7 +326,7 @@ export default function GexBoard({ sym, mine, prepared, spot, shownSpot, view, s
           value={money(netGex)} sub={`per 1% move · ${filterName}`}
           pill={<span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${netGex >= 0 ? "bg-blue-50 text-blue-800" : "bg-rose-50 text-rose-800"}`}>{netGex >= 0 ? "Positive" : "Negative"}</span>} />
         <Tile label="Hedge vs volume" help="Net gamma as a share of a normal day's dollar volume (20-day average): how big dealers' hedging is for this share per 1% move, as the screener shows it. Negative for negative gamma. The fair way to compare shares of different sizes."
-          value={hedgeText(netGex, mine.avgDollar20)} sub={mine.avgDollar20 > 0 ? `of a normal day's $ volume (${money(mine.avgDollar20)})` : history ? "live only" : "no volume history"} />
+          value={mine.avgDollar20 > 0 ? hedgePct(netGex / mine.avgDollar20) : "—"} sub={mine.avgDollar20 > 0 ? `of a normal day's $ volume (${money(mine.avgDollar20)})` : history ? "live only" : "no volume history"} />
         <Tile label="Zero-gamma flip" help="The price where total gamma crosses zero: above it the estimate is positive, below it negative."
           value={flip !== null ? at(flip) : "None"} sub={flip !== null ? `${dist(flip, spot)} from the price` : "not within 12%"} />
         <Tile label="Call wall" help="The strike with the most call gamma." value={at(wall.call)} sub={wall.call !== null ? `${dist(wall.call, spot)} from the price` : null} />

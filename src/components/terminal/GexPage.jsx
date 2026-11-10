@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BookOpen, RefreshCw, X } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { prepare } from "@/lib/gex";
+import { anyGexLine } from "@/lib/gexChart";
 import useAccountSetting from "@/components/terminal/useAccountSetting";
 import { WINDOWS, RANGES, METRICS, Seg } from "@/components/terminal/gexParts";
 import GexBoard from "@/components/terminal/GexBoard";
@@ -25,7 +26,6 @@ const cleanView = (v) => {
     range: RANGES.some(([r]) => r === o.range) ? o.range : 0.05,
     metric: METRICS.some(([id]) => id === o.metric) ? o.metric : "gex",
     view: o.view === "net" ? "net" : "split",
-    lines: o.lines !== false,
     // Live, or past days (GexHistory.jsx), and the symbol History shows.
     mode: o.mode === "history" ? "history" : "live",
     hsym: typeof o.hsym === "string" && /^[A-Z][A-Z0-9.]{0,5}$/.test(o.hsym) ? o.hsym : "",
@@ -59,7 +59,7 @@ function Guide({ onClose }) {
         <ol className="list-decimal space-y-1 pl-5">
           <li>Read the regime on the <b>Net gamma</b> tile.</li>
           <li>Check the distance to the <b>flip</b>: close means the regime can change quickly.</li>
-          <li>Mark the <b>walls</b>; tick <b>Levels on chart</b> to draw them on the Trade page.</li>
+          <li>Mark the <b>walls</b>: the Trade page&apos;s charts draw them and the flip (their <b>Gamma</b> button, or <b>Levels on chart</b> here, shows or hides them).</li>
           <li>Check <b>Expiring soonest</b>: when today&apos;s expiry carries much of the gamma, the map changes after the close.</li>
           <li>Switch <b>Measure</b> to <b>Volume today</b> to see where fresh trading is building.</li>
           <li>Refresh after a large move; the page also refreshes itself every five minutes.</li>
@@ -90,9 +90,10 @@ function Guide({ onClose }) {
  * `accountId`: whose Alpaca account reads the chain; `chartSymbol`: the Trade
  * page's symbol, offered as a shortcut; `priceOf(symbol)`: the live price,
  * when streaming; `onSymbol` tells the page which symbol to stream;
- * `onLevels(symbol, levels)` puts the walls and flip on the Trade charts.
+ * `chartLines`/`onChartLines`: the Trade charts' gamma levels (each chart reads
+ * its own symbol's, lib/gexChart.js), switched here too.
  */
-export default function GexPage({ accountId, active, chartSymbol, priceOf, onSymbol, onLevels, stockFeed = "iex", openRequest = null }) {
+export default function GexPage({ accountId, active, chartSymbol, priceOf, onSymbol, chartLines = null, onChartLines = null, stockFeed = "iex", openRequest = null }) {
   const [view, setView] = useAccountSetting("gexview", { localKey: "dm.terminal.gexView", initial: () => cleanView(null), clean: cleanView });
   const set = useCallback((patch) => setView((v) => ({ ...v, ...patch })), [setView]);
   const [typed, setTyped] = useState(view.sym);
@@ -169,9 +170,11 @@ export default function GexPage({ accountId, active, chartSymbol, priceOf, onSym
         )}
         <Seg label="Range" value={view.range} options={RANGES} onChange={(r) => set({ range: r })} />
         <Seg label="Measure" value={view.metric} options={METRICS} onChange={(m) => set({ metric: m })} />
-        <label className="flex items-center gap-1.5 text-xs text-slate-700" title="Draw the call wall, put wall and zero-gamma flip on the Trade page's charts of this symbol">
-          <input type="checkbox" checked={view.lines} onChange={(e) => set({ lines: e.target.checked })} />Levels on chart
-        </label>
+        {onChartLines && (
+          <label className="flex items-center gap-1.5 text-xs text-slate-700" title="The call wall, put wall and zero-gamma flip on the Trade page's charts (expiries within 30 days); the chart's Gamma menu picks which">
+            <input type="checkbox" checked={anyGexLine(chartLines)} onChange={(e) => onChartLines({ call: e.target.checked, put: e.target.checked, flip: e.target.checked })} />Levels on chart
+          </label>
+        )}
         <div className="ml-auto flex items-center gap-2">
           {at2 && <span className="text-[11px] text-slate-500">Read {at2}</span>}
           <button type="button" onClick={load} disabled={state.loading} className="flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50">
@@ -188,7 +191,7 @@ export default function GexPage({ accountId, active, chartSymbol, priceOf, onSym
 
       {mine && spot && (
         <GexBoard sym={sym} mine={mine} prepared={prepared} spot={spot} shownSpot={shownSpot} view={view} set={set}
-          expiry={expiry} setExpiry={setExpiry} onLevels={onLevels} />
+          expiry={expiry} setExpiry={setExpiry} />
       )}
       {guide && <Guide onClose={() => setGuide(false)} />}
     </div>

@@ -32,6 +32,7 @@ import SymbolSearch from "@/components/terminal/SymbolSearch";
 import useAccountSetting from "@/components/terminal/useAccountSetting";
 import { cleanSizes, cleanTicks, sendPlan } from "@/lib/accountGroup";
 import { acctIn, replayClock, isCalendar } from "@/lib/replay";
+import { GEX_LINES_DEFAULT, cleanGexLines } from "@/lib/gexChart";
 
 const Grid = WidthProvider(Responsive);
 
@@ -185,14 +186,17 @@ export default function Terminal() {
   const [screenSeen, setScreenSeen] = useState(page === "screen");
   useEffect(() => { if (page === "screen") setScreenSeen(true); }, [page]);
   // The Gamma page (components/terminal/GexPage.jsx), kept once opened; its
-  // symbol streams while it shows, and its walls and flip go on the charts.
+  // symbol streams while it shows.
   const [gammaSeen, setGammaSeen] = useState(page === "gamma");
   // A symbol the Scanner asks the Gamma page to open (its gamma link).
   const [gexOpen, setGexOpen] = useState(null);
   useEffect(() => { if (page === "gamma") setGammaSeen(true); }, [page]);
   const [gexSymbol, setGexSymbol] = useState("");
-  const [gexLevels, setGexLevels] = useState({});
-  const putGexLevels = useCallback((sym, levels) => setGexLevels((m) => (m[sym] === levels ? m : { ...m, [sym]: levels })), []);
+  // Which gamma levels every chart draws (each chart reads its own symbol's,
+  // lib/gexChart.js), switched from the chart's Gamma menu or the Gamma page.
+  const [gexLines, setGexLines] = useAccountSetting("chartgex", {
+    localKey: "dm.terminal.chartGex", initial: () => ({ ...GEX_LINES_DEFAULT }), clean: cleanGexLines
+  });
   pageRef.current = page;
 
   const quoteRef = useRef(null);
@@ -710,7 +714,7 @@ export default function Terminal() {
       {gammaSeen && (
         <div className={page === "gamma" ? "" : "hidden"}>
           <GexPage accountId={accountId} active={page === "gamma"} chartSymbol={symbol} priceOf={(s) => quoteOf(s).last}
-            onSymbol={setGexSymbol} onLevels={putGexLevels} stockFeed={shares.history} openRequest={gexOpen} />
+            onSymbol={setGexSymbol} chartLines={gexLines} onChartLines={setGexLines} stockFeed={shares.history} openRequest={gexOpen} />
         </div>
       )}
       {screenSeen && (
@@ -853,7 +857,7 @@ export default function Terminal() {
                   <PriceChart accountId={accountId} symbol={p.symbol} interval={p.interval} onInterval={paneInterval[i]} listen={listen} fills={fillsBySymbol[p.symbol] || NO_FILLS}
                     replay={replay} replayOn={replaying} replayCursor={session?.cursor ?? null} replayVersion={replayVersion} replayMove={session?.moveId || 0} replayAcct={session?.book[p.symbol] || null}
                     onReplayButton={replayButton} active={panes.active === i} label={panes.list.length > 1} stockFeed={shares.history} liveSource={shares.live}
-                    onSearch={() => setChartSearch({ pane: i, initial: "" })} fullView={full || chartFill} levels={gexLevels[p.symbol] || null} />
+                    onSearch={() => setChartSearch({ pane: i, initial: "" })} fullView={full || chartFill} gexLines={gexLines} onGexLines={setGexLines} />
                 </div>
               ))}
             </div>

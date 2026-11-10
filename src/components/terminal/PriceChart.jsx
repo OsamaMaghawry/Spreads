@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { createChart, createSeriesMarkers, createTextWatermark, CandlestickSeries, HistogramSeries, LineSeries, LineStyle, CrosshairMode } from "lightweight-charts";
-import { MousePointer2, Slash, MoveUpRight, Minus, SeparatorVertical, RectangleHorizontal, Rows3, Ruler, Trash2, Eraser, Activity, X, Type, CalendarDays, History, Pencil, ArrowUpDown, Eye, EyeOff } from "lucide-react";
+import { MousePointer2, Slash, MoveUpRight, Minus, SeparatorVertical, RectangleHorizontal, Rows3, Ruler, Trash2, Eraser, Activity, X, Type, CalendarDays, History, Pencil, ArrowUpDown, Eye, EyeOff, Magnet } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { INTERVALS, applyTrade, applyMinuteBar, isCrypto, priceFormatFor, inRegularHours, sessionDay, sessionOf, px, sizeText, legendBar, valueAt } from "@/lib/terminal";
 import { INDICATORS, LINE_COLORS, cleanIndicators, defaultParams, indicatorLabel, indicatorSeries } from "@/lib/indicators";
@@ -10,6 +10,9 @@ import { readPrefs, savePref, settle } from "@/lib/terminalPrefs";
 import useAccountSetting from "@/components/terminal/useAccountSetting";
 import { replayCandles, REPLAY_INTERVALS } from "@/lib/replay";
 import { DrawingLayer } from "./drawingLayer";
+import { chartGamma, gexLines as gexLineList, GEX_LINE_KINDS, anyGexLine, hedgePct } from "@/lib/gexChart";
+import { money } from "@/lib/gex";
+import { CALL, PUT, FLIP, INK, at as gexAt, dist as gexDist } from "@/components/terminal/gexParts";
 
 // The chart: TradingView Lightweight Charts (Apache-2.0), drawn from the
 // account's own Alpaca bars and kept live from its trade stream. The library's
@@ -198,7 +201,7 @@ function ChartLegend({ subscribe, read, indicators, onToggle, onRemove, crypto, 
 function PriceChart({
   accountId, symbol, interval, onInterval, listen, fills = [],
   replay = null, replayOn = false, replayCursor = null, replayVersion = 0, replayMove = 0, replayAcct = null, onReplayButton = () => {}, active = true, label = false,
-  stockFeed = "iex", liveSource = "iex", onSearch = null, fullView = false, levels = null
+  stockFeed = "iex", liveSource = "iex", onSearch = null, fullView = false, gexLines = null, onGexLines = null
 }) {
   const boxRef = useRef(null);
   const chartRef = useRef(null);
@@ -278,6 +281,7 @@ function PriceChart({
   const marksRef = useRef(marks);
   marksRef.current = marks;
   const [tradesMenu, setTradesMenu] = useState(false);
+  const [gammaMenu, setGammaMenu] = useState(false);
   // Several charts at once: one row of controls, the drawing tools behind a button.
   const compact = label;
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -1028,16 +1032,43 @@ function PriceChart({
       ...(acct.orders || []).map((o) => line(o.price, o.side === "buy" ? "#0d9488" : "#c026d3", `${o.side === "buy" ? "Buy" : "Sell"} ${o.kind === "limit" ? "limit" : "stop"} ${sizeText(o.qty)}`, LineStyle.SparseDotted))
     ].filter(Boolean);
   }, [acct, marks.lines]);
-  // Gamma levels from the Gamma page (GexPage.jsx): the call wall, put wall
-  // and zero-gamma flip, on the live chart only (never over a replay's past).
+  // Gamma on the chart (lib/gexChart.js): this chart reads its own symbol's
+  // options (expiries within 30 days, as the screener) and draws the walls and
+  // the flip that are switched on, on the live chart only (never over a
+  // replay's past); read again every five minutes while the page shows.
+  const [gex, setGex] = useState(null);
+  const [gexMsg, setGexMsg] = useState("");
+  const gexWanted = !crypto && !replayOn && !!accountId && !!symbol && (anyGexLine(gexLines) || gammaMenu);
+  useEffect(() => {
+    if (!gexWanted) return undefined;
+    let alive = true;
+    setGex((g) => (g && g.symbol === symbol ? g : null));
+    const load = () => {
+      setGexMsg((m) => m || "Reading the options…");
+      invokeFunction("terminal", { action: "gex", accountId, symbol, days: 90, stockFeed })
+        .then((r) => {
+          if (!alive) return;
+          if (r?.data?.error) { setGex(null); setGexMsg(r.data.error); return; }
+          const g = chartGamma(r.data, Date.now());
+          setGex(g);
+          setGexMsg(g ? "" : `No ${symbol} options open within 30 days.`);
+        })
+        .catch((e) => { if (alive) setGexMsg(String(e?.message || e)); });
+    };
+    load();
+    const t = setInterval(() => { if (document.visibilityState === "visible") load(); }, 5 * 60000);
+    return () => { alive = false; clearInterval(t); };
+  }, [gexWanted, accountId, symbol, stockFeed]);
+  const gexMine = gex && gex.symbol === symbol ? gex : null;
   const gexLinesRef = useRef([]);
   useEffect(() => {
     const series = candlesRef.current;
     if (!series) return;
     for (const l of gexLinesRef.current) { try { series.removePriceLine(l); } catch { /* gone */ } }
-    gexLinesRef.current = replayOn || !levels ? [] : levels.filter((l) => l.price > 0).map((l) =>
-      series.createPriceLine({ price: l.price, color: l.color, title: l.title, lineStyle: LineStyle.Dashed, lineWidth: 1, axisLabelVisible: true }));
-  }, [levels, replayOn]);
+    const color = { call: CALL, put: PUT, both: INK, flip: FLIP };
+    gexLinesRef.current = replayOn ? [] : gexLineList(gexMine, gexLines).map((l) =>
+      series.createPriceLine({ price: l.price, color: color[l.kind], title: l.title, lineStyle: LineStyle.Dashed, lineWidth: 1, axisLabelVisible: true }));
+  }, [gexMine, gexLines, replayOn]);
   // A seconds interval, which cannot be replayed, becomes one minute.
   useEffect(() => {
     if (replayOn && !REPLAY_INTERVALS.includes(interval)) onInterval("1Min");
@@ -1234,6 +1265,53 @@ function PriceChart({
             </div>
           )}
         </div>
+        {!crypto && onGexLines && (
+          <div className="relative">
+            <button type="button" onClick={() => setGammaMenu((v) => !v)} title="Gamma on the chart: the call wall, put wall and zero-gamma flip; show or hide them"
+              className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${gammaMenu ? "bg-slate-900 text-white" : !anyGexLine(gexLines) ? "text-slate-400 line-through hover:bg-slate-100" : "text-slate-600 hover:bg-slate-100"}`}>
+              <Magnet className="h-3.5 w-3.5" />{compact ? "" : "Gamma"}
+              {gexMine && anyGexLine(gexLines) && !replayOn && (
+                <span title={`${gexMine.net >= 0 ? "Positive" : "Negative"} gamma${gexMine.hedge !== null ? `; hedging ${hedgePct(gexMine.hedge)} of a normal day's dollar volume per 1% move` : ""}`}
+                  className={`rounded px-1 text-[9px] font-bold tabular-nums ${gexMine.net >= 0 ? "bg-blue-50 text-blue-800" : "bg-rose-50 text-rose-800"}`}>
+                  {gexMine.hedge !== null ? hedgePct(gexMine.hedge) : gexMine.net >= 0 ? "+" : "−"}
+                </span>
+              )}
+            </button>
+            {gammaMenu && (
+              <div className="absolute left-0 z-30 mt-1 w-72 rounded-md border border-slate-200 bg-white p-2 text-xs shadow-lg">
+                <div className="mb-1 flex items-center gap-2">
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-slate-500">Gamma on the chart</span>
+                  <button type="button" className="ml-auto text-[11px] text-slate-600 hover:underline" onClick={() => onGexLines({ call: true, put: true, flip: true })}>All</button>
+                  <button type="button" className="text-[11px] text-slate-600 hover:underline" onClick={() => onGexLines({ call: false, put: false, flip: false })}>None</button>
+                </div>
+                {GEX_LINE_KINDS.map(([k, name]) => {
+                  const price = gexMine ? (k === "call" ? gexMine.callWall : k === "put" ? gexMine.putWall : gexMine.flip) : null;
+                  return (
+                    <label key={k} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-slate-50">
+                      <input type="checkbox" checked={gexLines?.[k] === true} onChange={(e) => onGexLines({ ...gexLines, [k]: e.target.checked })} />
+                      <span className="h-0.5 w-4 shrink-0" style={{ backgroundColor: k === "call" ? CALL : k === "put" ? PUT : FLIP }} />
+                      <span className="min-w-0 flex-1 text-slate-700">{name}</span>
+                      <span className="tabular-nums text-slate-900">{price !== null && price !== undefined ? gexAt(price) : "—"}</span>
+                      <span className="w-11 shrink-0 text-right text-[10px] tabular-nums text-slate-400">{price !== null && price !== undefined ? gexDist(price, gexMine.spot) : ""}</span>
+                    </label>
+                  );
+                })}
+                {gexMine && (
+                  <div className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 border-t border-slate-100 pt-1.5 tabular-nums">
+                    <span className="text-slate-500">Net gamma</span>
+                    <span className="text-right"><b className={gexMine.net >= 0 ? "text-blue-800" : "text-rose-700"}>{gexMine.net >= 0 ? "Positive" : "Negative"}</b> · {money(gexMine.net)} per 1%</span>
+                    <span className="text-slate-500">Hedge vs volume</span>
+                    <span className="text-right">{gexMine.hedge !== null ? `${hedgePct(gexMine.hedge)} of a day's $ volume` : "—"}</span>
+                  </div>
+                )}
+                <p className="mt-1 border-t border-slate-100 pt-1 text-[10px] leading-snug text-slate-500">
+                  {replayOn ? "Hidden in a replay: these are today's levels, not the past's. " : gexMsg ? `${gexMsg} ` : ""}
+                  Expiries within 30 days, as the screener{gexMine?.at ? `; read ${new Date(gexMine.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}, again every 5 minutes` : ""}. Positive gamma tends to damp moves, negative to add to them.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
         {/* The drawing tools behind one button (1 Nov: "the chart itself,
             it's noisy"), open while one is in hand or chosen. */}
         <button type="button" title="Drawing tools" aria-label="Drawing tools" aria-expanded={toolsOpen} onClick={() => setToolsOpen((v) => !v)}
