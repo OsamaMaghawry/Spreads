@@ -216,7 +216,7 @@ export function parseAmount(text) {
  * A screen's settings: numeric ranges by field (as typed: 3 for 3%), and the
  * choices that are not ranges. Anything unknown or malformed is dropped.
  */
-export const EMPTY_SCREEN = { ranges: {}, type: "all", exchange: "all", options: false, shortable: false, fractionable: false, trend: "any", gapAbs: null, gamma: "any", gammaOnly: false, sort: { key: "dollarVol", dir: "desc" } };
+export const EMPTY_SCREEN = { ranges: {}, type: "all", exchange: "all", options: false, shortable: false, fractionable: false, trend: "any", gapAbs: null, gamma: "any", gammaOnly: false, quietDays: null, sort: { key: "dollarVol", dir: "desc" } };
 
 export function cleanScreen(raw) {
   const r = raw && typeof raw === "object" ? raw : {};
@@ -241,6 +241,8 @@ export function cleanScreen(raw) {
     // Gamma at the price: positive or negative only; and only shares with gamma worked out.
     gamma: ["positive", "negative"].includes(r.gamma) ? r.gamma : "any",
     gammaOnly: !!r.gammaOnly,
+    // No news in the last this many calendar days (components/terminal/Screener.jsx reads it).
+    quietDays: Number.isInteger(Number(r.quietDays)) && r.quietDays !== null && Number(r.quietDays) >= 1 && Number(r.quietDays) <= 90 ? Number(r.quietDays) : null,
     sort: { key: sortKey, dir: r.sort?.dir === "asc" ? "asc" : "desc" }
   };
 }

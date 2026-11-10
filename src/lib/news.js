@@ -37,6 +37,34 @@ export function liveWindow(now = Date.now() / 1000) {
   return { start: nyAt(d, "16:00"), end: Math.floor(now) };
 }
 
+/**
+ * The screener's "no news in the last N days" (10 Nov, the owner: "I want
+ * something that has no news over the last 3-4 days, 5 days, 10 days ... I
+ * need it to work in the past"): N calendar days back from the screen's
+ * moment, a past day's open or close (`date`, `asOf`) or `now`.
+ */
+export function quietWindow(date, asOf, days, now = Date.now() / 1000) {
+  const end = date ? nyAt(date, asOf === "close" ? "16:00" : "09:30") : Math.floor(now);
+  return { start: end - days * 86400, end };
+}
+
+// An article naming more shares than this is a market roundup ("12 Industrials
+// Stocks Moving In Wednesday's Pre-Market Session", "Earnings Scheduled For
+// April 29"): it lists a move rather than gives a reason for it, and nearly
+// every big mover is in one, so it does not count as the share's news.
+export const ROUNDUP = 5;
+
+/**
+ * One batch of symbols asked about together: those with an article, those
+ * with none, and those to ask again on their own because the batch's
+ * articles ran past the limit (`truncated`) before any named them.
+ */
+export function settleQuiet(batch, articles, truncated) {
+  const found = bySymbol((articles || []).filter((a) => (a.symbols || []).length <= ROUNDUP), batch);
+  const rest = batch.filter((s) => !found[s].length);
+  return { news: batch.filter((s) => found[s].length), none: truncated ? [] : rest, again: truncated ? rest : [] };
+}
+
 /** Each symbol's articles among them (an article naming several counts for each). */
 export function bySymbol(articles, symbols) {
   const want = new Map(symbols.map((s) => [newsSymbol(s), s]));

@@ -298,3 +298,11 @@ test("the screen keeps one row per symbol, the latest priced (9 Nov: MSTW four t
   const clean = [{ symbol: "A" }, { symbol: "B" }];
   assert.equal(uniqueBySymbol(clean), clean);
 });
+
+test("no news in the last N days is kept with the screen, whole days from 1 to 90", () => {
+  assert.equal(cleanScreen({ quietDays: 4 }).quietDays, 4);
+  assert.equal(cleanScreen({ quietDays: "10" }).quietDays, 10);
+  assert.deepEqual([0, 91, 2.5, null, "x", undefined].map((d) => cleanScreen({ quietDays: d }).quietDays), [null, null, null, null, null, null]);
+  assert.equal(EMPTY_SCREEN.quietDays, null);
+  assert.equal(combineScreens(cleanScreen({ quietDays: 5 }), ["gapUp"]).quietDays, 5);
+});

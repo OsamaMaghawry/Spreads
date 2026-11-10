@@ -9,7 +9,7 @@ import {
 import { px, pctText } from "@/lib/terminal";
 import { gammaFields } from "@/lib/gexScreen";
 import { money } from "@/lib/gex";
-import { gapWindow, liveWindow, bySymbol } from "@/lib/news";
+import { gapWindow, liveWindow, bySymbol, quietWindow, settleQuiet } from "@/lib/news";
 
 // The stock screener (24 Oct 2026: "Stock Screener, with some extensive
 // filtrations like the advanced tools to see the stocks in play"). The whole
@@ -55,6 +55,9 @@ const PM_ACTIVE = 100;
 const PM_EVERY = 5 * 60000;
 const NEWS_ROWS = 100;
 const NEWS_BATCH = 50;
+// "No news in the last N days": the news is read for this many matches, in
+// the screen's order.
+const QUIET_ROWS = 300;
 const AUTO_MS = 60000;
 const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -136,6 +139,26 @@ function newsCell(n, onOpen, open) {
       className={`rounded px-1.5 font-semibold ${open ? "bg-sky-700 text-white" : "bg-sky-100 text-sky-800 hover:bg-sky-200"}`}>
       {n.items.length}{n.more ? "+" : ""}
     </button>
+  );
+}
+
+// No news in the last N days: whole days, 1 to 90; empty for off.
+function QuietRow({ days, onChange }) {
+  const [text, setText] = useState(days ?? "");
+  useEffect(() => { setText(days ?? ""); }, [days]);
+  const set = (t) => {
+    setText(t);
+    const n = Number(t);
+    if (!t.trim()) onChange(null);
+    else if (Number.isInteger(n) && n >= 1 && n <= 90) onChange(n);
+  };
+  return (
+    <div className={`flex items-center gap-1 rounded px-1 py-0.5 ${days ? "bg-emerald-50" : ""}`}>
+      <span className="min-w-0 flex-1 truncate text-[11px] text-slate-600" title="Leaves out shares named in any news article, earnings reports included, in this many calendar days up to the screen's moment. Market roundups naming more than five shares (stocks moving pre-market, earnings calendars) do not count.">No news in the last</span>
+      <input value={text} onChange={(e) => set(e.target.value)} placeholder="days" inputMode="numeric" aria-label="No news in the last days"
+        className="w-14 rounded border border-slate-200 px-1 py-0.5 text-right text-[11px] tabular-nums focus:border-emerald-500 focus:outline-none" />
+      <span className="text-[10px] text-slate-400">days</span>
+    </div>
   );
 }
 
@@ -456,6 +479,64 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
   }, [combined, mode]);
   const clash = conflicts(effective);
   const matches = useMemo(() => sortRows(rows.filter((r) => passes(r, effective)), effective.sort), [rows, effective]);
+
+  // No news in the last N days (10 Nov, the owner: "I want something that has
+  // no news over the last 3-4 days, 5 days, 10 days ... I need it to work in
+  // the past"): N calendar days back from the screen's moment (a past day's
+  // open or close, or now), every article naming the share in the account's
+  // Alpaca news, earnings reports among them. Read for the first QUIET_ROWS
+  // matches; a batch whose articles run past the limit before naming a share
+  // asks about that share again in a smaller one, so a busy name never hides
+  // a quiet one's article.
+  const quietWin = useMemo(() => {
+    if (!screen.quietDays) return null;
+    if (when.date) return quietWindow(when.date, when.asOf, screen.quietDays);
+    return universe.at ? quietWindow(null, null, screen.quietDays, Math.floor(Date.parse(universe.at) / 300000) * 300) : null;
+  }, [screen.quietDays, when.date, when.asOf, universe.at]);
+  const quietKey = quietWin ? `${quietWin.start}|${quietWin.end}` : "";
+  const quietRef = useRef({ key: "", by: {}, error: null });
+  const [, setQuietTick] = useState(0);
+  const quietAsk = quietWin ? matches.slice(0, QUIET_ROWS).map((r) => r.symbol).join(",") : "";
+  useEffect(() => {
+    if (!active || !accountId || !quietWin || !quietAsk) return;
+    if (quietRef.current.key !== quietKey) quietRef.current = { key: quietKey, by: {}, error: null };
+    const state = quietRef.current;
+    const want = quietAsk.split(",").filter((sym) => !(sym in state.by));
+    if (!want.length) return;
+    for (const sym of want) state.by[sym] = null;
+    setQuietTick((n) => n + 1);
+    const span = { start: new Date(quietWin.start * 1000).toISOString(), end: new Date(quietWin.end * 1000).toISOString() };
+    (async () => {
+      let left = want;
+      for (const size of [50, 10, 2, 1]) {
+        if (!left.length || quietRef.current !== state) break;
+        const again = [];
+        const batches = [];
+        for (let i = 0; i < left.length; i += size) batches.push(left.slice(i, i + size));
+        await Promise.all(batches.map(async (batch) => {
+          const r = await invokeFunction("terminal", { action: "news", accountId, symbols: batch, ...span, sort: "desc", max: 500 }).catch((e) => ({ data: { error: String(e?.message || e) } }));
+          if (r?.data?.error) {
+            state.error = r.data.error;
+            for (const sym of batch) state.by[sym] = "error";
+            return;
+          }
+          const got = settleQuiet(batch, r?.data?.news || [], !!r?.data?.truncated);
+          for (const sym of got.news) state.by[sym] = "news";
+          for (const sym of got.none) state.by[sym] = "quiet";
+          again.push(...got.again);
+        }));
+        setQuietTick((n) => n + 1);
+        left = again;
+      }
+    })();
+  }, [active, accountId, quietKey, quietAsk]);
+  const quietBy = quietWin && quietRef.current.key === quietKey ? quietRef.current.by : {};
+  const quietPool = quietWin ? matches.slice(0, QUIET_ROWS) : [];
+  const quietLeft = quietPool.filter((r) => !quietBy[r.symbol]).length;
+  const quietFailed = quietPool.filter((r) => quietBy[r.symbol] === "error").length;
+  // What the table lists: the matches, or with the news filter on, those of
+  // the first QUIET_ROWS whose news has been read and found empty.
+  const listed = quietWin ? quietPool.filter((r) => quietBy[r.symbol] === "quiet") : matches;
   const COLUMNS = COLUMN_SETS[preOpen ? "preOpen" : mode];
 
   // Each share's news since the close before (live: until now, in five-minute
@@ -471,7 +552,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
   const newsRef = useRef({ key: "", by: {} });
   const [, setNewsTick] = useState(0);
   const [openNews, setOpenNews] = useState(null);
-  const shownSymbols = matches.slice(0, NEWS_ROWS).map((r) => r.symbol).join(",");
+  const shownSymbols = listed.slice(0, NEWS_ROWS).map((r) => r.symbol).join(",");
   useEffect(() => {
     if (!active || !accountId || !newsWin || !shownSymbols) return;
     if (newsRef.current.key !== newsKey) newsRef.current = { key: newsKey, by: {} };
@@ -585,11 +666,11 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
           {/* Only the groups with something to set at this moment: on a past day
               the events and gamma groups hold live figures only, and opened
               empty (10 Nov, the owner: "it doesn't open, doesn't drop down"). */}
-          {GROUPS.filter((g) => FIELDS.some((f) => f.group === g && !f.hidden && fieldKnown(f.id, mode)) || (g === "Gamma (options)" && mode === "live")).map((g) => (
+          {GROUPS.filter((g) => FIELDS.some((f) => f.group === g && !f.hidden && fieldKnown(f.id, mode)) || (g === "Gamma (options)" && mode === "live") || g === "Company and events").map((g) => (
             <div key={g} className="rounded border border-slate-100">
               <button type="button" onClick={() => toggleGroup(g)} className="flex w-full items-center gap-1 px-1 py-1 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50">
                 {open.has(g) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}{g}
-                {(FIELDS.some((f) => f.group === g && screen.ranges[f.id]) || (g === "Gamma (options)" && (screen.gamma !== "any" || screen.gammaOnly))) && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                {(FIELDS.some((f) => f.group === g && screen.ranges[f.id]) || (g === "Gamma (options)" && (screen.gamma !== "any" || screen.gammaOnly)) || (g === "Company and events" && screen.quietDays)) && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-500" />}
               </button>
               {open.has(g) && g === "Gamma (options)" && mode === "live" && (
                 <div className="space-y-1 px-1 pb-1 text-[11px] text-slate-600">
@@ -601,6 +682,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
                   <label className="flex items-center gap-1"><input type="checkbox" checked={screen.gammaOnly} onChange={(e) => setChoice("gammaOnly", e.target.checked)} />Only shares with gamma worked out</label>
                 </div>
               )}
+              {open.has(g) && g === "Company and events" && <QuietRow days={screen.quietDays} onChange={(d) => setChoice("quietDays", d)} />}
               {open.has(g) && FIELDS.filter((f) => f.group === g && !f.hidden && fieldKnown(f.id, mode)).map((f) => <RangeRow key={f.id} field={f} value={screen.ranges[f.id]} onChange={setRange} preOpen={preOpen} />)}
             </div>
           ))}
@@ -644,7 +726,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
           </p>
         )}
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-2 py-1.5 text-xs">
-          <span className="font-semibold">{matches.length.toLocaleString()} match{matches.length === 1 ? "" : "es"}</span>
+          <span className="font-semibold">{listed.length.toLocaleString()} match{listed.length === 1 ? "" : "es"}</span>
           <span className="text-slate-500">of {rows.length.toLocaleString()} {when.date ? "shares that traded that day" : "listed shares"}{chosen.length ? ` · ${chosen.map((p) => p.note.charAt(0).toLowerCase() + p.note.slice(1)).join(", and ")}`.replace(/^ · ./, (m) => m.toUpperCase()) : ""}</span>
           <div className="ml-auto flex items-center gap-2">
             {!when.date && <label className="flex items-center gap-1 text-[11px] text-slate-500"><input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />Every minute</label>}
@@ -653,8 +735,14 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
             </button>
           </div>
         </div>
-        {(activeRanges.length > 0 || chosen.length > 0) && (
+        {(activeRanges.length > 0 || chosen.length > 0 || screen.quietDays) && (
           <div className="flex flex-wrap gap-1 border-b border-slate-100 px-2 py-1">
+            {screen.quietDays && (
+              <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-800">
+                No news in {screen.quietDays} day{screen.quietDays === 1 ? "" : "s"}
+                <button type="button" aria-label="Remove no news" onClick={() => setChoice("quietDays", null)}><X className="h-3 w-3" /></button>
+              </span>
+            )}
             {chosen.map((p) => (
               <span key={p.id} className="flex items-center gap-1 rounded-full bg-slate-900 px-2 py-0.5 text-[11px] text-white" title={p.note}>
                 {p.label}
@@ -673,6 +761,13 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
               );
             })}
           </div>
+        )}
+        {quietWin && (quietLeft > 0 || quietFailed > 0 || matches.length > QUIET_ROWS) && (
+          <p className="border-b border-slate-100 px-2 py-1 text-[11px] text-slate-500">
+            {quietLeft > 0 ? `Reading the news: ${(quietPool.length - quietLeft).toLocaleString()} of ${quietPool.length.toLocaleString()} matches. ` : ""}
+            {quietFailed > 0 ? <span className="text-rose-700">News not read for {quietFailed}: {quietRef.current.error}. </span> : ""}
+            {matches.length > QUIET_ROWS ? `News read for the first ${QUIET_ROWS} of ${matches.length.toLocaleString()} matches, in this order.` : ""}
+          </p>
         )}
         {clash.length > 0 && (
           <p className="border-b border-slate-100 px-2 py-1 text-[11px] text-rose-700">
@@ -699,7 +794,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
               </tr>
             </thead>
             <tbody>
-              {matches.slice(0, SHOW_MAX).map((r) => (
+              {listed.slice(0, SHOW_MAX).map((r) => (
                 <Fragment key={r.symbol}>
                 <tr className="cursor-pointer border-t border-slate-100 hover:bg-emerald-50" onClick={() => onPick(r.symbol)}>
                   <td className="max-w-[14rem] px-2 py-1">
@@ -741,13 +836,13 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
               ))}
             </tbody>
           </table>
-          {!universe.loading && universe.at && matches.length === 0 && (
+          {!universe.loading && universe.at && listed.length === 0 && !quietLeft && (
             <p className="px-3 py-6 text-center text-xs text-slate-500">
               {preOpen && !pm.through ? "Before the open, screens on today's volume fill in once the pre-market has been read." : "Nothing matches every filter. Loosen one, or pick a ready-made screen."}
             </p>
           )}
           {!universe.at && universe.loading && <p className="px-3 py-6 text-center text-xs text-slate-500">{when.date ? `Reading every listed share on ${when.date}: about ten seconds the first time.` : "Reading every listed share…"}</p>}
-          {matches.length > SHOW_MAX && <p className="px-3 py-2 text-center text-[11px] text-slate-500">Showing the first {SHOW_MAX} of {matches.length.toLocaleString()}. Narrow the filters or sort differently to see others.</p>}
+          {listed.length > SHOW_MAX && <p className="px-3 py-2 text-center text-[11px] text-slate-500">Showing the first {SHOW_MAX} of {listed.length.toLocaleString()}. Narrow the filters or sort differently to see others.</p>}
         </div>
         {when.date ? (
           <p className="border-t border-slate-100 px-2 py-1 text-[10px] leading-snug text-slate-400">

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { newsSymbol, nyAt, gapWindow, liveWindow, bySymbol, mergeNews, visibleAt, ago } from "./news.js";
+import { newsSymbol, nyAt, gapWindow, liveWindow, bySymbol, mergeNews, visibleAt, ago, quietWindow, settleQuiet } from "./news.js";
 
 const iso = (t) => new Date(t * 1000).toISOString();
 const a = (id, at, symbols) => ({ id, at, headline: `#${id}`, symbols });
@@ -39,4 +39,23 @@ test("a replay shows only what had come out before its moment; lists merge newes
   assert.deepEqual(visibleAt(list, cursor).map((x) => x.id), [3, 1]);
   assert.equal(visibleAt(list, null), list);
   assert.deepEqual([ago("2026-03-26T13:00:00Z", cursor), ago("2026-03-26T10:00:00Z", cursor), ago("2026-03-24T10:00:00Z", cursor)], ["30m", "3h", "2d"]);
+});
+
+test("no news in the last N days: the window back from the screen's moment, and who to ask again", () => {
+  // 29 Apr 2026 at the open (9:30 New York, daylight time: 13:30 UTC), 4 days back.
+  const w = quietWindow("2026-04-29", "open", 4);
+  assert.equal(new Date(w.end * 1000).toISOString(), "2026-04-29T13:30:00.000Z");
+  assert.equal(new Date(w.start * 1000).toISOString(), "2026-04-25T13:30:00.000Z");
+  assert.equal(new Date(quietWindow("2026-04-29", "close", 4).end * 1000).toISOString(), "2026-04-29T20:00:00.000Z");
+  // Live: back from now.
+  assert.deepEqual(quietWindow(null, null, 10, 1794300000), { start: 1794300000 - 864000, end: 1794300000 });
+  const articles = [{ id: 1, symbols: ["NXPI"] }, { id: 2, symbols: ["BE", "NXPI"] }];
+  // Every article read: whoever none named had no news.
+  assert.deepEqual(settleQuiet(["NXPI", "BE", "XYZ"], articles, false), { news: ["NXPI", "BE"], none: ["XYZ"], again: [] });
+  // The limit reached first: those not named yet are asked again, not called quiet.
+  assert.deepEqual(settleQuiet(["NXPI", "BE", "XYZ"], articles, true), { news: ["NXPI", "BE"], none: [], again: ["XYZ"] });
+  // A roundup naming many shares (as Benzinga's "stocks moving pre-market" lists, 29 Apr) is not a share's news.
+  const roundup = { id: 3, symbols: ["AIXI", "BGIN", "DQ", "KUST", "NXPI", "OPTX", "XYZ"] };
+  assert.deepEqual(settleQuiet(["XYZ"], [roundup], false), { news: [], none: ["XYZ"], again: [] });
+  assert.deepEqual(settleQuiet(["XYZ"], [{ id: 4, symbols: ["XYZ", "ABC"] }], false).news, ["XYZ"]);
 });
