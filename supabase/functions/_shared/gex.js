@@ -268,7 +268,7 @@ const at = (v) => (v >= 100 ? v.toFixed(1).replace(/\.0$/, "") : v.toFixed(2));
  * sit against the price, how much expires soonest, and what the figures
  * stand on. Description only: what the estimate shows, never what to trade.
  */
-export function readout({ symbol, spot, netGex, flip, wall, nearest, oiDate }) {
+export function readout({ symbol, spot, netGex, flip, wall, nearest, oiDate, oiSource = null }) {
   const out = [];
   if (netGex > 0) {
     out.push({ kind: "regime", tone: "pos", text: `Positive gamma: dealers are estimated long ${money(netGex)} of gamma per 1% move. Their hedging leans against the move (selling rallies, buying dips), which tends to damp swings and pull price toward the large strikes.` });
@@ -290,6 +290,6 @@ export function readout({ symbol, spot, netGex, flip, wall, nearest, oiDate }) {
   if (nearest && nearest.share >= 0.2) {
     out.push({ kind: "expiry", text: `${Math.round(nearest.share * 100)}% of the gamma expires ${nearest.days === 0 ? "today" : nearest.days === 1 ? "tomorrow" : `on ${nearest.expiry}`}: these levels can shift once it rolls off.` });
   }
-  if (oiDate) out.push({ kind: "data", text: `Open interest as of ${oiDate} (published once a day); exposure moves through the day with the price only.` });
+  if (oiDate) out.push({ kind: "data", text: `Open interest as of ${oiDate}${oiSource === "cboe" ? " from Cboe" : ""} (published once a day); exposure moves through the day with the price only.` });
   return out;
 }

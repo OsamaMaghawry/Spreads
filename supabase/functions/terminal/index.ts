@@ -27,6 +27,7 @@ import { eodhdTime } from "../_shared/eodhdTime.ts";
 import { closeOf } from "../_shared/gex.js";
 import { openInterestOf, quotesOf, historyChain, historySummary } from "../_shared/gexHistory.ts";
 import { screenSummary, screenUniverse as gexUniverse } from "../_shared/gexScreen.js";
+import { cboeOpenInterest, mergeOpenInterest } from "../_shared/openInterest.ts";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -368,11 +369,35 @@ async function assetFor(account: any, symbol: string) {
 // the price, with its implied volatility, open interest and today's volume,
 // read with the caller's own Alpaca account. The exposure itself is worked
 // out in the browser (src/lib/gex.js), so changing the expiries or the range
-// costs nothing. Open interest from the contracts list (once a day, from the
-// previous close); volatility and volume from the option snapshots, one
-// request per expiry, eight at a time.
+// costs nothing. Open interest from Cboe's file where it has the contract,
+// else from the contracts list (once a day; Alpaca's is two sessions old in
+// the morning); volatility and volume from the option snapshots, one request
+// per expiry, eight at a time.
 const GEX_SPAN = 0.2;
 const gexCache = new Map<string, { at: number; body: any }>();
+
+// Open interest from Cboe's delayed-quotes file, a session fresher than
+// Alpaca's (10 Nov, the owner: "Yes, switch to Cboe for the admin terminal";
+// _shared/openInterest.ts). The terminal is admin-only: the file is licensed
+// for personal use, never for paying users. Read at most every 20 minutes a
+// symbol (a failed read is retried after 2), so the morning screener job
+// reads each once; Alpaca's figures stand in whenever it cannot be read.
+const cboeCache = new Map<string, { at: number; oi: Map<string, number> | null }>();
+async function cboeOi(symbol: string) {
+  const hit = cboeCache.get(symbol);
+  if (hit && Date.now() - hit.at < (hit.oi ? 20 : 2) * 60000) return hit.oi;
+  let oi: Map<string, number> | null = null;
+  try {
+    const r = await fetch(`https://cdn.cboe.com/api/global/delayed_quotes/options/${encodeURIComponent(symbol)}.json`, { signal: AbortSignal.timeout(20000) });
+    if (r.ok) oi = cboeOpenInterest(await r.json());
+    else console.error("cboe oi", symbol, r.status);
+  } catch (e) {
+    console.error("cboe oi", symbol, String((e as Error)?.message || e));
+  }
+  cboeCache.set(symbol, { at: Date.now(), oi });
+  if (cboeCache.size > 40) cboeCache.delete(cboeCache.keys().next().value!);
+  return oi;
+}
 
 async function gexChain(account: any, symbol: string, days: number, sf: StockFeed) {
   const key = `${account.id}|${symbol}|${days}`;
@@ -396,8 +421,9 @@ async function gexChain(account: any, symbol: string, days: number, sf: StockFee
   // gamma page ... you didn't add the percentage of volume").
   const dailyOf = (f: string) => alpacaFetch(`${DATA}/stocks/bars?symbols=${encodeURIComponent(symbol)}&timeframe=1Day` +
     `&start=${iso(Date.now() - 45 * 86400000)}&end=${iso(nyMoment(nyDate(), "00:00") - 1000)}&limit=100&feed=${f}&adjustment=split`, account);
-  const [calls, puts, daily] = await Promise.all([contractsOf("call"), contractsOf("put"),
-    dailyOf("sip").catch(() => dailyOf(FEED)).catch(() => null)]);
+  const [calls, puts, daily, cboe] = await Promise.all([contractsOf("call"), contractsOf("put"),
+    dailyOf("sip").catch(() => dailyOf(FEED)).catch(() => null), cboeOi(symbol)]);
+  const sessions = ((daily?.bars?.[symbol] || []) as any[]).map((b) => String(b.t).slice(0, 10));
   const last20 = ((daily?.bars?.[symbol] || []) as any[]).filter((b) => b.c > 0 && b.v > 0).slice(-20);
   const avgDollar20 = last20.length >= 10 ? Math.round(last20.reduce((t, b) => t + b.c * b.v, 0) / last20.length) : null;
   const listed = [...calls, ...puts].filter((c) => c?.symbol && c?.expiration_date);
@@ -425,23 +451,22 @@ async function gexChain(account: any, symbol: string, days: number, sf: StockFee
   });
   // [strike, expiry index, 1 for a call, open interest, implied volatility, volume]
   const index = new Map(expiries.map((e, i) => [e, i]));
-  const oiDates = new Map<string, number>();
+  const oiFrom = mergeOpenInterest(listed, cboe, sessions);
   const rows: number[][] = [];
   let noVol = 0;
   for (const c of listed) {
-    const oi = num(c.open_interest) || 0;
+    const oi = oiFrom.oiOf(c);
     const s = snaps[c.symbol];
     const vol = num(s?.dailyBar?.v) || 0;
     if (!oi && !vol) continue;
     const iv = num(s?.impliedVolatility);
     if (!iv) noVol += 1;
-    if (c.open_interest_date) oiDates.set(c.open_interest_date, (oiDates.get(c.open_interest_date) || 0) + 1);
     rows.push([Number(c.strike_price), index.get(String(c.expiration_date))!, c.type === "call" ? 1 : 0, oi, iv ? Number(iv.toFixed(4)) : 0, vol]);
   }
-  const oiDate = [...oiDates.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
   const body = {
-    symbol, spot, prevClose: num(d?.prevDailyBar?.c), avgDollar20, at: new Date().toISOString(), days, span: GEX_SPAN, oiDate,
-    expiries, rows, counts: { listed: listed.length, used: rows.length, noVol, expiriesFailed: failed }
+    symbol, spot, prevClose: num(d?.prevDailyBar?.c), avgDollar20, at: new Date().toISOString(), days, span: GEX_SPAN,
+    oiDate: oiFrom.date, oiSource: oiFrom.source, alpacaOiDate: oiFrom.alpacaDate,
+    expiries, rows, counts: { listed: listed.length, used: rows.length, noVol, expiriesFailed: failed, cboeMatched: oiFrom.matched, cboeDiffer: oiFrom.differ }
   };
   gexCache.set(key, { at: Date.now(), body });
   if (gexCache.size > 30) gexCache.delete(gexCache.keys().next().value!);

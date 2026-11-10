@@ -309,7 +309,7 @@ export default function GexBoard({ sym, mine, prepared, spot, shownSpot, view, s
   }, [measured, spot, view.range]);
   const netGex = gex?.totals.netGex ?? 0;
   const nearest = expiries[0] || null;
-  const lines = useMemo(() => (mine && spot ? readout({ symbol: sym, spot, netGex, flip, wall, nearest, oiDate: mine.oiDate }) : []), [mine, spot, sym, netGex, flip, wall, nearest]);
+  const lines = useMemo(() => (mine && spot ? readout({ symbol: sym, spot, netGex, flip, wall, nearest, oiDate: mine.oiDate, oiSource: mine.oiSource }) : []), [mine, spot, sym, netGex, flip, wall, nearest]);
 
 
   const [stripRef, stripW] = useWidth();
@@ -397,7 +397,7 @@ export default function GexBoard({ sym, mine, prepared, spot, shownSpot, view, s
       ) : (
         <p className="px-1 text-[11px] leading-relaxed text-slate-500">
           {mine.counts.used.toLocaleString("en-US")} contracts with open interest or volume, {prepared.expiries.filter((e) => e.open).length} expiries within 90 days, strikes within 20% of {at(spot0)}.
-          {" "}Open interest as of {mine.oiDate || "the last close"}; volatility and volume from Alpaca&apos;s option feed{prepared.filled ? `; ${prepared.filled} contracts without a volatility of their own take their expiry's median` : ""}{mine.counts.expiriesFailed ? `; ${mine.counts.expiriesFailed} expiries could not be read` : ""}.
+          {" "}Open interest as of {mine.oiDate || "the last close"}{mine.oiSource === "cboe" ? " from Cboe's delayed quotes" : mine.oiSource === "alpaca" ? " from Alpaca" : ""}; volatility and volume from Alpaca&apos;s option feed{prepared.filled ? `; ${prepared.filled} contracts without a volatility of their own take their expiry's median` : ""}{mine.counts.expiriesFailed ? `; ${mine.counts.expiriesFailed} expiries could not be read` : ""}.
           {" "}An estimate of dealer positioning (calls counted long, puts short), for context only.
         </p>
       )}

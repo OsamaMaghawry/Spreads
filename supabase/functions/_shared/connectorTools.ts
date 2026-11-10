@@ -679,7 +679,7 @@ function terminalTools(): Tool<ConnectorDeps>[] {
         const nearest = expiries[0] || null;
         const net = g.totals.netGex;
         const counted = one !== null ? `the ${args.expiry} expiry` : win === "nearest" ? "the nearest expiry" : win === "week" ? "expiries within 7 days" : win === "all" ? "all expiries within 90 days" : "expiries within 30 days";
-        const lines = readout({ symbol, spot, netGex: net, flip, wall: w, nearest, oiDate: chain.oiDate });
+        const lines = readout({ symbol, spot, netGex: net, flip, wall: w, nearest, oiDate: chain.oiDate, oiSource: chain.oiSource || null });
         const round = (v: number) => Math.round(v);
         return {
           text:
@@ -687,7 +687,7 @@ function terminalTools(): Tool<ConnectorDeps>[] {
             `zero-gamma flip ${flip === null ? "none within 12%" : `${r2(flip)} (${pctOf(flip, spot)}%)`}; call wall ${w.call ?? "none"}, put wall ${w.put ?? "none"}. ` +
             `An estimate of dealer positioning; open interest as of ${chain.oiDate || "the last close"}.`,
           data: {
-            symbol, price: r2(spot), read_at: chain.at, open_interest_as_of: chain.oiDate || null, expiries_counted: counted, contracts_counted: contracts.length,
+            symbol, price: r2(spot), read_at: chain.at, open_interest_as_of: chain.oiDate || null, open_interest_source: chain.oiSource || null, expiries_counted: counted, contracts_counted: contracts.length,
             net_gamma_per_1pct_move: round(net), regime: net >= 0 ? "positive" : "negative",
             zero_gamma_flip: flip === null ? null : r2(flip), flip_distance_pct: pctOf(flip, spot),
             call_wall: w.call, call_wall_distance_pct: pctOf(w.call, spot), put_wall: w.put, put_wall_distance_pct: pctOf(w.put, spot),

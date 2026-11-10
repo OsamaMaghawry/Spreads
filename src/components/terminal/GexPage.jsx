@@ -77,7 +77,7 @@ function Guide({ onClose }) {
         <H>Limits</H>
         <ul className="list-disc space-y-1 pl-5">
           <li>An estimate: real dealer positions are not published, and customers do not only buy calls and sell puts.</li>
-          <li>Open interest is published once a day, as of the previous close. During the day the exposure moves with the price only; today&apos;s new positions show under Volume today, which cannot say whether they opened or closed.</li>
+          <li>Open interest is published once a day, as of the previous close: from Cboe&apos;s delayed quotes, a session fresher than Alpaca&apos;s (whose figures stand in when Cboe&apos;s cannot be read). During the day the exposure moves with the price only; today&apos;s new positions show under Volume today, which cannot say whether they opened or closed.</li>
           <li>Volatility from Alpaca&apos;s option feed; strikes within 20% of the price, expiries within 90 days.</li>
           <li>For context, not a recommendation to trade.</li>
         </ul>
