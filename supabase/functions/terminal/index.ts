@@ -1663,6 +1663,97 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
       .map((row) => ({ s: at(row, "symbol"), prevClose: at(row, "prevClose"), open: at(row, "open"), gap: Math.round(gap(row) * 1000) / 10, pm: pm.pm?.[at(row, "symbol")] || null, close: at(row, "close"), volume: at(row, "volume"), avgVol20: Math.round(at(row, "avgVol20") || 0) }));
     return { date, asOf, part, parts, msHistory, msPremarket: Date.now() - t1, listed: r.listed, rows: r.rows.length, premarket: Object.keys(pm.pm || {}).length, feed: r.dayFeed, top };
   }
+  if (only === "gapDay") {
+    // One day of a pre-market gap strategy, for its backtest (10 Nov, the
+    // owner: "I want to play only the gaps that has no news for the past
+    // certain days ... would be good if you can test it for me on a couple of
+    // days"). GAPDAY: date, scan time HHMM, then either
+    //   SCAN, min |gap| %, max |gap| %, min previous volume, max price, news days:
+    //     every fractionable share's previous close and volume and its last
+    //     trade before the scan time (5-minute bars from 4:00), kept when the
+    //     gap is within the range, with how many hours before the scan it was
+    //     last named in the news (roundups naming more than five shares aside);
+    //   BARS, symbols...: their minutes from 9:30 to 9:45.
+    // Consolidated (SIP) data through the house account; read-only.
+    const date = String(extra[0] || "");
+    const hhmm = String(extra[1] || "0925");
+    const phase = String(extra[2] || "SCAN");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{4}$/.test(hhmm)) return { error: "GAPDAY: date, HHMM, SCAN or BARS" };
+    const scanAt = nyMoment(date, `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`);
+    const open = nyMoment(date, "09:30");
+    const multiBars = async (symbols: string[], tf: string, start: number, end: number) => {
+      const out: Record<string, any[]> = {};
+      const chunks: string[][] = [];
+      for (let i = 0; i < symbols.length; i += 100) chunks.push(symbols.slice(i, i + 100));
+      await inBatches(chunks, 6, async (c) => {
+        let token: string | null = null;
+        let pages = 0;
+        do {
+          const page: any = await alpacaFetch(`${DATA}/stocks/bars?symbols=${c.map(encodeURIComponent).join(",")}&timeframe=${tf}&start=${iso(start)}&end=${iso(end)}&limit=10000&feed=sip&adjustment=raw` +
+            (token ? `&page_token=${encodeURIComponent(token)}` : ""), house);
+          for (const [s, list] of Object.entries(page?.bars || {})) (out[s] = out[s] || []).push(...(list as any[]));
+          token = page?.next_page_token || null;
+          pages += 1;
+        } while (token && pages < 20);
+        return null;
+      });
+      return out;
+    };
+    if (phase === "BARS") {
+      const symbols = extra.slice(3).filter((s) => SYMBOL.test(s)).slice(0, 200);
+      const got = await multiBars(symbols, "1Min", open, nyMoment(date, "09:45"));
+      const bars: Record<string, number[][]> = {};
+      for (const [s, list] of Object.entries(got)) bars[s] = list.map((b: any) => [Math.round((Date.parse(b.t) - open) / 60000), b.o, b.h, b.l, b.c, b.v]);
+      return { date, bars };
+    }
+    const [minGap, maxGap, minVol, maxPrice, newsDays] = [Number(extra[3] ?? 1), Number(extra[4] ?? 1.99), Number(extra[5] ?? 500000), Number(extra[6] ?? 1000), Number(extra[7] ?? 10)];
+    const t0 = Date.now();
+    const universe = (await assetList(house)).filter((a) => a.assetClass === "us_equity" && a.fractionable && SYMBOL.test(a.symbol));
+    // The session before: the last daily candle stamped before this date.
+    const daily = await multiBars(universe.map((a) => a.symbol), "1Day", Date.parse(`${date}T00:00:00Z`) - 10 * 86400000, nyMoment(date, "00:00") - 1000);
+    const prev: Record<string, { c: number; v: number }> = {};
+    for (const [s, list] of Object.entries(daily)) {
+      const last = list.at(-1);
+      if (last && last.v >= minVol) prev[s] = { c: last.c, v: last.v };
+    }
+    // The last trade before the scan: the latest 5-minute bar that ended by then.
+    const pre = await multiBars(Object.keys(prev), "5Min", nyMoment(date, "04:00"), scanAt);
+    const assetOf = new Map(universe.map((a) => [a.symbol, a]));
+    const rows: any[] = [];
+    for (const [s, list] of Object.entries(pre)) {
+      const done = list.filter((b: any) => Date.parse(b.t) + 300000 <= scanAt);
+      const last = done.at(-1);
+      if (!last || !prev[s]) continue;
+      const gap = (last.c / prev[s].c - 1) * 100;
+      if (last.c > maxPrice || Math.abs(gap) < minGap || Math.abs(gap) > maxGap) continue;
+      const a = assetOf.get(s);
+      rows.push({ s, prevClose: prev[s].c, prevVol: prev[s].v, pm: last.c, pmAt: Math.round((Date.parse(last.t) - open) / 60000), etb: a?.easyToBorrow ? 1 : 0, shortable: a?.shortable ? 1 : 0, newsH: null as number | null });
+    }
+    // The news: the latest article naming each, newest first; a batch that ran
+    // past its limit before naming a share asks about it again in a smaller one.
+    const since = iso(scanAt - newsDays * 86400000);
+    let left = rows.map((r) => r.s);
+    const latest: Record<string, number> = {};
+    for (const size of [50, 10, 2, 1]) {
+      if (!left.length) break;
+      const again: string[] = [];
+      const batches: string[][] = [];
+      for (let i = 0; i < left.length; i += size) batches.push(left.slice(i, i + size));
+      await inBatches(batches, 4, async (batch) => {
+        const r: any = await newsFor(house, batch, since, iso(scanAt), "desc", 500);
+        if (r.error) return null;
+        for (const n of r.news) {
+          if ((n.symbols || []).length > 5) continue;
+          for (const s of n.symbols || []) if (batch.includes(s) && !(s in latest)) latest[s] = Date.parse(n.at);
+        }
+        if (r.truncated) again.push(...batch.filter((s) => !(s in latest)));
+        return null;
+      });
+      left = again;
+    }
+    for (const r of rows) r.newsH = r.s in latest ? Math.round((scanAt - latest[r.s]) / 360000) / 10 : null;
+    return { date, scan: hhmm, ms: Date.now() - t0, universe: universe.length, liquid: Object.keys(prev).length, newsUnsettled: left.length, rows };
+  }
   if (only === "minutes") {
     // One symbol's consolidated one-minute bars between two moments, and what
     // traded in the minutes asked about: count, size, the price path in
