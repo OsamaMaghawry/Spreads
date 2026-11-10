@@ -9,6 +9,7 @@ Every entry carries: the user problem in the user's words, its evidence, the
 smallest test that could disprove it, the kill criterion, and a cost guess.
 
 Last run: **2026-09-01** (vp-product, Tuesday cadence).
+End-of-day reconciliation: **2026-11-10** — no proposal shipped; see #1 note.
 
 ## Open proposals
 
@@ -78,6 +79,17 @@ What changed this run, in one line each:
   new data source. An OI floor on top of that is a further day and *does*
   need a new field plumbed from `/options/contracts`; propose it only if the
   width test comes back positive and width alone proves insufficient.
+- **Reconciled 2026-11-10 (end of day) — not shipped, not half-shipped; one
+  fact for the OI sub-step.** Nothing on `main` touches the spread scanner.
+  On `staging` only, the admin terminal now reads open interest from Cboe's
+  delayed-quotes file (`8b12742`, `_shared/openInterest.ts`) because Alpaca's
+  contracts carry OI two sessions old in the morning (commit's own example:
+  QQQ 20 Nov 667 put, 39 at Alpaca vs 4,125 at Cboe). For this proposal that
+  means: (a) an OI floor built on Alpaca's `/options/contracts` would filter
+  on stale figures, and (b) the Cboe file is licensed for personal use and
+  the code says it is never for paying users — so it cannot back a scanner
+  floor either. Strengthens the case for leading with quoted width, which
+  needs no OI at all.
 - **Hand-off, not mine:** whether `ask + $0.05` with no step cap is the right
   ceiling is a money-path question for `head-of-trading` / `agent-manager`,
   not a product one. Flagged, not investigated.
