@@ -27,6 +27,7 @@ The allowlist matches **exact hostnames** — an allowed apex whose site 301s to
 | apps.apple.com | ✅ (404 on fake path; host answers) | 2026-08-31 | Use a real app URL |
 | **www.sec.gov** | ✅ 200 **with EDGAR UA** | 2026-08-31 | 403 with a normal UA; 200 when the User-Agent is `DeltaMint research osamamaghawry@gmail.com` (SEC EDGAR requires a contact UA). Not a workaround — SEC's stated access rule |
 | **Not on the allowlist — 403 at CONNECT, before the site is ever asked** | | | The gateway refuses the tunnel. Reported, not routed around. Fix is an allowlist addition |
+| yecfbeohyakuoyczvdbj.supabase.co (sendDigest) | ❌ 403 (policy) | 2026-11-10 | Egress proxy refused CONNECT from the product run; digest email not sent. Needs an allowlist addition. Not routed around; PushNotification used instead |
 | tiblio.com / www.tiblio.com | ❌ 403 (policy) | 2026-11-10 (retested, unchanged; puthouse.com and optionstrat.com apex also still 403) | **The closest named competitor** (`docs/context/positioning.md`: screener + Alpaca OAuth + order routing + position tracking, ~$35/mo). A teardown to standard is impossible until this is allowed. Highest-value single addition for vp-product |
 | www.puthouse.com | ❌ 403 (policy) | 2026-09-01 | Second Alpaca-connected competitor named in positioning.md |
 | wingmantracker.com / www.wingmantracker.com | ❌ 403 (policy) | 2026-09-01 | The "Wingman" teardown listed as pending in `docs/product/pricing.md` |
