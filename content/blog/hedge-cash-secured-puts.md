@@ -34,6 +34,8 @@ The mark also moves before expiration, and sometimes by more than the stock expl
 
 A hedge is about the loss, not the cash. The three below limit it in different ways.
 
+Related: the [sell puts to buy stock post](/blog/sell-puts-to-buy-stock) covers what happens when that assignment arrives, and how it differs from a limit order.
+
 ## How does a long put hedge a cash-secured put?
 
 The numbers below are hypothetical. XYZ trades at $52.00. An account sells five 50-strike puts with 30 days left at 1.40, the premium used in the [cash-secured put post](/blog/cash-secured-put-explained), and reserves $25,000 against them. The premium received is 1.40 × 500 = **$700**.
