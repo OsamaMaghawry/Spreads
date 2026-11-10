@@ -138,6 +138,27 @@ documentation contradicts. Marketing should lead with what happens *after* the
 fill, not with the completeness of the chain, because the second claim is
 falsifiable in one search and the first is not.
 
+## Changes since August (vp-product, 2026-11-10)
+
+- **Claude connector.** We have a read-only connector (positions and closed
+  trades; `supabase/functions/_shared/connectorTools.ts`). It is on staging
+  per `shipped.md`; treat it as unlaunched until the owner says otherwise.
+  It is **not a differentiator on its own**: Alpaca itself ships an official
+  MCP server (V2, April 2026) and TradeStation launched one in January 2026,
+  both `reported` by web search, unverified at source. Ours is distinct only
+  in that it returns positions *grouped as structures* with booked P/L.
+- **Tiblio price:** one reported figure, $34.95/mo or $349.50/yr with a $1
+  7-day trial (daytradereview.com, undated). `tiblio.com` is still refused
+  at CONNECT (403, retested today), so the Aug "~$35" stands as `reported`,
+  not `verified`. The teardown remains impossible; the owner-screenshot route
+  in `reachable.md` is the only one.
+- **Our scanner is unchanged** since August (diff of `optionScan.ts`,
+  `ResultsTable.jsx` between `main` and `staging` is empty), so the
+  "Commodity" verdicts above stand. No claim here changed.
+- **Not positioning:** the admin-only terminal on staging serves a different
+  customer (day-trading stocks, gamma); until a user can reach it, it does
+  not move this file.
+
 ## Honest weaknesses
 
 - **No data moat.** No historical archive, so no credible backtesting story.

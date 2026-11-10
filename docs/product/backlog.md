@@ -8,7 +8,45 @@ recorded below, as prominently as additions.
 Every entry carries: the user problem in the user's words, its evidence, the
 smallest test that could disprove it, the kill criterion, and a cost guess.
 
-Last run: **2026-09-01** (vp-product, Tuesday cadence).
+Last run: **2026-11-10** (vp-product, Tuesday cadence). Previous: 2026-09-01.
+
+## Reconciliation — 2026-11-10 (read before the proposals)
+
+Ten weeks since the last run. Evidence: `git diff origin/main origin/staging`
+on the scanner files, `git grep` for each proposal's artefact on both
+branches, `docs/ops/shipped.md`, the daily ledgers.
+
+| # | Proposal | Verdict | Evidence |
+| --- | --- | --- | --- |
+| 1 | Quoted exit width on scan results | **Left.** Nothing shipped. | `src/components/scanner/ResultsTable.jsx` and `_shared/optionScan.ts` are unchanged between `main` and `staging` (empty diff); no width/exit-cost field in either. |
+| 2 | Probability-of-profit column | **Left.** | No POP/probability string in the scanner on either branch. |
+| 3 | Record what was scanned | **Left.** | No `scan_runs` table or insert on either branch; migrations run to 0068 (staging) with none for scans. |
+
+**Adjacent, not a ship:** staging added `wideQuote()` (`src/lib/holdingStrategies.js`)
+and a "wide quote" badge on the Protect/Repair dialog for *held* positions
+(commit "Protect and Repair: price at the bid and ask, flag wide quotes").
+That is the idea of #1 applied after the fill, on one dialog, on staging
+only. It does not touch the scan, so #1's problem (width unseen at entry)
+stands, but its test is now cheaper to build: the helper exists.
+
+**What shipped instead.** `main`'s only changes since 9 Oct are blog posts
+and SEO edits (last `src`/`supabase` commit on `main`: 2026-10-23, a blog
+publish). `staging` is 1,470 commits ahead, almost all of it an
+administrator-only trading terminal (`/terminal`, gated by `AdminOnly`):
+gamma exposure pages, a stock screener with pre-market filters, charts,
+replay, hotkeys, stops. None of it is reachable by a user, none of it
+serves the credit-spread backlog, and none of it has evidence in `growth/`
+behind it. Whether it is a product or a personal tool is the owner's
+question, not mine; it is flagged in the email as a decision. Also on
+staging/`main` (per migrations 0058/0059): a read-only Claude connector.
+
+**Process note:** `shipped.md` stopped being kept for product work after
+2026-10-09, so "shipped" cannot be read from it for the last month. Read
+from git instead; the duty ledger on 10 Nov says it added three lines.
+
+**State:** three of five slots used; no slot added or killed this run.
+No new proposal: nothing new in `growth/queue/` or funnel data supports
+one, and a fourth would be enthusiasm. Kills this run: none.
 
 ## Open proposals
 
