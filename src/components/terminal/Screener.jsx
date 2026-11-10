@@ -582,7 +582,10 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
             <label className="flex items-center gap-1"><input type="checkbox" checked={screen.shortable} onChange={(e) => setChoice("shortable", e.target.checked)} />Shortable</label>
             <label className="flex items-center gap-1" title="Alpaca trades part shares of it"><input type="checkbox" checked={!!screen.fractionable} onChange={(e) => setChoice("fractionable", e.target.checked)} />Fractionable</label>
           </div>
-          {GROUPS.map((g) => (
+          {/* Only the groups with something to set at this moment: on a past day
+              the events and gamma groups hold live figures only, and opened
+              empty (10 Nov, the owner: "it doesn't open, doesn't drop down"). */}
+          {GROUPS.filter((g) => FIELDS.some((f) => f.group === g && !f.hidden && fieldKnown(f.id, mode)) || (g === "Gamma (options)" && mode === "live")).map((g) => (
             <div key={g} className="rounded border border-slate-100">
               <button type="button" onClick={() => toggleGroup(g)} className="flex w-full items-center gap-1 px-1 py-1 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50">
                 {open.has(g) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}{g}
