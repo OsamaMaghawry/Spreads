@@ -1,0 +1,29 @@
+<svg viewBox="0 0 720 250" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Two ways to enter a 50/48 put credit spread for four contracts. As one multi-leg order the account holds four whole spreads with max loss 560 dollars. As two separate leg orders, if only the short puts fill, the account holds four short 50 puts with no long put and max loss 19,440 dollars.">
+  <rect width="720" height="250" fill="#FFFFFF"/>
+  <rect x="16" y="16" width="336" height="218" rx="10" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="36" y="44" font-size="13" font-weight="600" fill="#2E8B5F">One multi-leg order</text>
+  <text x="36" y="66" font-size="12" fill="#4B4F60">Exchange-native: legs trade as a unit</text>
+  <rect x="36" y="84" width="60" height="28" rx="5" fill="#DFF1E7" stroke="#2E8B5F"/>
+  <rect x="104" y="84" width="60" height="28" rx="5" fill="#DFF1E7" stroke="#2E8B5F"/>
+  <rect x="172" y="84" width="60" height="28" rx="5" fill="#DFF1E7" stroke="#2E8B5F"/>
+  <rect x="240" y="84" width="60" height="28" rx="5" fill="#DFF1E7" stroke="#2E8B5F"/>
+  <text x="66" y="103" font-size="11" text-anchor="middle" fill="#14151C">50/48</text>
+  <text x="134" y="103" font-size="11" text-anchor="middle" fill="#14151C">50/48</text>
+  <text x="202" y="103" font-size="11" text-anchor="middle" fill="#14151C">50/48</text>
+  <text x="270" y="103" font-size="11" text-anchor="middle" fill="#14151C">50/48</text>
+  <text x="36" y="150" font-size="12.5" fill="#14151C">Four whole spreads</text>
+  <text x="36" y="174" font-size="12.5" fill="#B4485C">Max loss $560</text>
+  <rect x="368" y="16" width="336" height="218" rx="10" fill="#F6F7FB" stroke="#E2E5EE"/>
+  <text x="388" y="44" font-size="13" font-weight="600" fill="#B4485C">Two separate leg orders</text>
+  <text x="388" y="66" font-size="12" fill="#4B4F60">Only the short puts have filled</text>
+  <rect x="388" y="84" width="60" height="28" rx="5" fill="#FBE7EB" stroke="#B4485C"/>
+  <rect x="456" y="84" width="60" height="28" rx="5" fill="#FBE7EB" stroke="#B4485C"/>
+  <rect x="524" y="84" width="60" height="28" rx="5" fill="#FBE7EB" stroke="#B4485C"/>
+  <rect x="592" y="84" width="60" height="28" rx="5" fill="#FBE7EB" stroke="#B4485C"/>
+  <text x="418" y="103" font-size="11" text-anchor="middle" fill="#14151C">short 50</text>
+  <text x="486" y="103" font-size="11" text-anchor="middle" fill="#14151C">short 50</text>
+  <text x="554" y="103" font-size="11" text-anchor="middle" fill="#14151C">short 50</text>
+  <text x="622" y="103" font-size="11" text-anchor="middle" fill="#14151C">short 50</text>
+  <text x="388" y="150" font-size="12.5" fill="#14151C">Four short puts, no long put under them</text>
+  <text x="388" y="174" font-size="12.5" fill="#B4485C">Max loss $19,440</text>
+</svg>

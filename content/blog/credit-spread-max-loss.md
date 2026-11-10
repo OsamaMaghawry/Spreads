@@ -241,7 +241,7 @@ offsetting each other; legging in as two separate orders leaves you holding the
 identical position, margined as a spread either way. The risk is not in the
 account but in the record kept of it:
 [a journal that rebuilds spreads from the legs by resemblance](/blog/options-journal-splits-spreads-into-legs)
-can report a max loss belonging to no trade anyone made.
+can report a max loss belonging to no trade anyone made. Related: [what happens when a spread order fills only in part, or one leg fills alone](/blog/partial-fill-options-spread).
 
 Those risk figures - the max loss, and what it is a share of - are what
 DeltaMint puts on the screen, at three moments:

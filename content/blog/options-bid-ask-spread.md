@@ -115,7 +115,7 @@ partway.
 What you give up is certainty about the fill. A limit inside the spread trades
 only if someone comes to it - which may take seconds, the session, or never,
 and on a contract that trades only a handful of times a day, never is
-ordinary.
+ordinary. Related: [what a partially filled spread order leaves in the account](/blog/partial-fill-options-spread).
 
 - **It is usually paid twice.** Entry and exit are separate crossings -
   unless the position expires worthless or is assigned, when there is no
