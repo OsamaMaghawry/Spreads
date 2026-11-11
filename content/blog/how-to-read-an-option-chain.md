@@ -103,7 +103,8 @@ post](/blog/options-bid-ask-spread), and it is not repeated here.
 
 The mark looks like a price because it is one number where the quote is two.
 On the 50 call it is 2.29, and nobody has offered to trade at 2.29. A limit
-order placed there may fill, and may not.
+order placed there may fill, and may not. When it sits unfilled, [options limit
+order not filling](/blog/options-limit-order-not-filling) covers what walking the price costs.
 
 A spread is two rows read at once, so the choice of number compounds. Take
 a hypothetical 50/48 [put credit
