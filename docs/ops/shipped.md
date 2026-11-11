@@ -678,3 +678,4 @@ English. Newest first.
 - 2026-11-11 · (staging) Terminal: buy/sell hotkeys and exits work overnight (20:00 to 4:00) as extended-hours limits priced from the overnight venue's quote; only the weekend is refused (`294b117`, `1f4fde0`).
 - 2026-11-11 · (staging) P/L tab: "today" now starts at the last 16:00 New York close instead of midnight, so a short opened just before midnight and covered after is counted inside the day (`1f4fde0`).
 - 2026-11-11 · (staging) Terminal self-test (owner/test tooling, no user-facing change): feeds by hour, one screener session read, and an account's whole record since a moment (`5edd035`, `f15e5df`, `8359cd5`).
+- 2026-11-11 · (staging) Admin terminal: the gamma board and the chart's Gamma menu call the Scanner by its name instead of "screener" (`f3dd3ce`).
