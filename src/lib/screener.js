@@ -58,6 +58,29 @@ export function partialStats(u) {
   };
 }
 
+// The four sessions' figures for a row: volume, change against the official
+// close it is measured from, high and low (on: overnight, pm: pre-market, rg:
+// regular, ah: after hours). Read for the picks only: elsewhere null.
+const SESSION_PREFIX = { overnight: "on", premarket: "pm", regular: "rg", afterhours: "ah" };
+function sessionFigures(u, ref) {
+  const out = {};
+  for (const [kind, p] of Object.entries(SESSION_PREFIX)) {
+    const x = u.sess?.[kind] || null;
+    out[`${p}Volume`] = x ? num(x.v) : null;
+    out[`${p}ChangePct`] = x ? ratio(num(x.last), num(x.ref)) : null;
+    out[`${p}High`] = x ? num(x.h) : null;
+    out[`${p}Low`] = x ? num(x.l) : null;
+  }
+  // A past day's screen: its pre-market from the day's own read.
+  if (!u.sess?.premarket) {
+    out.pmVolume = num(u.pmVolume);
+    out.pmChangePct = ratio(num(u.pmLast), ref);
+    out.pmHigh = num(u.pmHigh);
+    out.pmLow = num(u.pmLow);
+  }
+  return out;
+}
+
 /**
  * One share's screen row. `today` is the New York date. When the day's candle
  * is newer than the last finished day in the daily numbers, today is folded
@@ -93,7 +116,7 @@ export function screenRow(u, stats, today) {
   const mid = num(u.bid) && num(u.ask) && u.ask >= u.bid ? (u.bid + u.ask) / 2 : null;
   return {
     symbol: u.symbol, name: u.name || "", exchange: u.exchange || "", fund: !!u.fund, options: !!u.options, shortable: !!u.shortable, easyToBorrow: !!u.easyToBorrow,
-    fractionable: !!u.fractionable,
+    fractionable: !!u.fractionable, overnight: !!u.overnight,
     price, priceAt: u.priceAt || null, prevClose: ref, preOpen,
     changePct: ratio(price, ref),
     gapPct: preOpen ? ratio(price, ref) : ratio(num(u.open), ref),
@@ -121,15 +144,36 @@ export function screenRow(u, stats, today) {
     perf6m: ratio(price, s?.closes?.d126),
     perfYtd: ratio(price, s?.closes?.ytd),
     perf1y: ratio(price, s?.closes?.d252),
-    pmVolume: num(u.pmVolume),
-    pmChangePct: ratio(num(u.pmLast), ref),
-    ahVolume: num(u.ahVolume),
-    ahChangePct: ratio(num(u.ahLast), num(u.ahClose)),
+    // Each session's figures (lib/sessions.js, functions/terminal "session"):
+    // `u.sess` holds the latest of each kind as read; a past day's screen has
+    // only its pre-market (u.pmVolume, pmHigh, pmLow, pmLast).
+    ...sessionFigures(u, ref),
     earnDate: u.earnDate || null,
     earnSession: u.earnSession || null,
     earningsIn: u.earnDate ? dayDiff(u.earnDate, today) : null,
     hasDaily: !!s
   };
+}
+
+const SESSION_TEXT = {
+  overnight: ["Overnight", "on", "20:00 to 4:00 New York on Blue Ocean, the 24-hour venue (Alpaca's overnight feed; not on the consolidated tape), up to 15 minutes ago; it belongs to the trading day it leads into. Change against the last regular close"],
+  premarket: ["Pre-market", "pm", "4:00 to 9:30 New York, every exchange, up to 15 minutes ago. Change against the last regular close"],
+  regular: ["Regular session", "rg", "9:30 to 16:00 New York (13:00 on an early close), every exchange, up to 15 minutes ago. The volume includes the opening and closing auctions; the high, low and change stop before the closing auction's minute's late prints, and once it is over the change is the official close against the close before"],
+  afterhours: ["After-hours", "ah", "16:01 to 20:00 New York (from the minute after an early close to 17:00), every exchange, up to 15 minutes ago; the closing auction's minute is the regular session's. Change against that day's official close"]
+};
+function sessionFields() {
+  const out = [];
+  for (const [kind, [name, p, hint]] of Object.entries(SESSION_TEXT)) {
+    // A past day's screen knows its pre-market; the rest are live only.
+    const live = kind !== "premarket";
+    out.push(
+      { id: `${p}Volume`, label: `${name} volume`, unit: "shares", group: "Sessions", session: kind, live, hint },
+      { id: `${p}ChangePct`, label: `${name} change`, unit: "%", pct: true, group: "Sessions", session: kind, live, hint },
+      { id: `${p}High`, label: `${name} high`, unit: "$", group: "Sessions", session: kind, live, hint },
+      { id: `${p}Low`, label: `${name} low`, unit: "$", group: "Sessions", session: kind, live, hint }
+    );
+  }
+  return out;
 }
 
 // The fields a screen filters and sorts on. `pct`: stored as a fraction,
@@ -144,17 +188,18 @@ export const FIELDS = [
   { id: "dollarVol", label: "Dollar volume today", unit: "$", group: "Price and volume", wholeDay: true,
     preOpenLabel: "Pre-market dollar volume", preOpenHint: "Pre-market price × the pre-market's shares so far (from 4:00 New York, up to 15 minutes ago), read for the biggest movers and the most traded. From 9:30, the whole day's dollar volume" },
   { id: "prevDollarVol", label: "Dollar volume, the day before", unit: "$", group: "Price and volume", hint: "The previous session's close × its volume" },
-  { id: "pmVolume", label: "Pre-market volume", unit: "shares", group: "Price and volume", hint: "4:00 to 9:30 New York, consolidated (today's up to 15 minutes ago); read for the biggest moves among shares trading $1M a day, and today for the most traded too" },
   { id: "avgVol20", label: "Average volume (20 days)", unit: "shares", group: "Price and volume", daily: true },
   { id: "avgDollar20", label: "Average dollar volume (20 days)", unit: "$", group: "Price and volume", daily: true },
   { id: "marketCap", label: "Market cap", unit: "$", group: "Price and volume", hint: "Shares outstanding from the company's latest SEC filing × price" },
   { id: "spreadPct", label: "Bid-ask spread", unit: "%", pct: true, group: "Price and volume", live: true, hint: "IEX quote; wide outside market hours" },
   { id: "changePct", label: "Change today", unit: "%", pct: true, group: "Today", wholeDay: true },
   { id: "gapPct", label: "Gap", unit: "%", pct: true, group: "Today", hint: "The open against the previous close; before the open, the price now against it" },
-  { id: "pmChangePct", label: "Pre-market change", unit: "%", pct: true, group: "Today", hint: "The last pre-market price against the previous close" },
-  // 29 Oct: "Does the scanner have pre open and after market hours in the filter".
-  { id: "ahVolume", label: "After-hours volume", unit: "shares", group: "Price and volume", live: true, hint: "16:01 to 20:00 New York of the last session (today's from 16:00, up to 15 minutes ago), consolidated; the 16:00 minute, which holds the closing auction, is left out; read for the day's biggest movers, the most traded and those reporting after the close" },
-  { id: "ahChangePct", label: "After-hours change", unit: "%", pct: true, group: "Today", live: true, hint: "The last after-hours price against that session's 16:00 close" },
+  // The trading day's four sessions, each its latest, named with its day
+  // (10 Nov, the owner: "every time or every session I can filter correctly
+  // ... I need it accurate"; lib/sessions.js). Read for the day's biggest
+  // movers, the most traded and the companies reporting; overnight, for the
+  // shares Alpaca trades overnight.
+  ...sessionFields(),
   { id: "rangePos", label: "Position in today's range", unit: "%", pct: true, group: "Today", wholeDay: true, hint: "0% at the day's low, 100% at its high" },
   { id: "fromVwap", label: "Price vs VWAP", unit: "%", pct: true, group: "Today", wholeDay: true },
   { id: "rsi", label: "RSI (14 days)", unit: "", group: "Trend and momentum", daily: true },
@@ -199,8 +244,14 @@ export function fieldKnown(id, when) {
 }
 export const FIELD = Object.fromEntries(FIELDS.map((f) => [f.id, f]));
 /** A field's name and what it measures, live before the open or otherwise. */
-export const fieldLabel = (f, preOpen) => (preOpen && f.preOpenLabel) || f.label;
-export const fieldHint = (f, preOpen) => (preOpen && f.preOpenHint) || f.hint || fieldLabel(f, preOpen);
+// `days`: each session's day as the screen holds it ({ premarket: "Tue 11/10" }),
+// named after a session field's label.
+export const fieldLabel = (f, preOpen, days = null) => {
+  const base = (preOpen && f.preOpenLabel) || f.label;
+  const day = f.session && days?.[f.session];
+  return day ? `${base} · ${f.session === "overnight" ? `into ${day}` : day}` : base;
+};
+export const fieldHint = (f, preOpen, days = null) => (preOpen && f.preOpenHint) || f.hint || fieldLabel(f, preOpen, days);
 export const GROUPS = [...new Set(FIELDS.map((f) => f.group))];
 
 /** "500k", "2.5m", "1b", "3%", "1,200" typed into a filter, as a number (a percentage as typed). */
@@ -216,7 +267,7 @@ export function parseAmount(text) {
  * A screen's settings: numeric ranges by field (as typed: 3 for 3%), and the
  * choices that are not ranges. Anything unknown or malformed is dropped.
  */
-export const EMPTY_SCREEN = { ranges: {}, type: "all", exchange: "all", options: false, shortable: false, fractionable: false, trend: "any", gapAbs: null, gamma: "any", gammaOnly: false, quietDays: null, sort: { key: "dollarVol", dir: "desc" } };
+export const EMPTY_SCREEN = { ranges: {}, type: "all", exchange: "all", options: false, shortable: false, fractionable: false, overnight: false, trend: "any", gapAbs: null, gamma: "any", gammaOnly: false, quietDays: null, sort: { key: "dollarVol", dir: "desc" } };
 
 export function cleanScreen(raw) {
   const r = raw && typeof raw === "object" ? raw : {};
@@ -235,6 +286,7 @@ export function cleanScreen(raw) {
     options: !!r.options,
     shortable: !!r.shortable,
     fractionable: !!r.fractionable,
+    overnight: !!r.overnight,
     trend: ["any", "above3", "below3", "above200", "below200", "cross50"].includes(r.trend) ? r.trend : "any",
     // A gap at least this big either way, in percent.
     gapAbs: num(r.gapAbs) !== null && r.gapAbs > 0 ? num(r.gapAbs) : null,
@@ -270,6 +322,8 @@ export function passes(row, screen) {
   if (screen.shortable && !row.shortable) return false;
   // 29 Oct: "I want to include the fractionable ones": Alpaca trades part shares of it.
   if (screen.fractionable && !row.fractionable) return false;
+  // Traded overnight on Alpaca's 24-hour venue.
+  if (screen.overnight && !row.overnight) return false;
   for (const t of screen.trends || [screen.trend]) if (!TRENDS[t](row)) return false;
   if (screen.gapAbs !== null && screen.gapAbs !== undefined && !(Math.abs(row.gapPct) * 100 >= screen.gapAbs)) return false;
   for (const g of screen.gammas || [screen.gamma || "any"]) {

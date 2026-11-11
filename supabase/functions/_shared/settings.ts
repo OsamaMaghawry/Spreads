@@ -83,6 +83,13 @@ export const DIGEST_RELAY = "digest_relay";
 // keeps that account's positions and balances away from anyone else. Not in
 // WRITABLE_SETTINGS: it is set by hand, on purpose, and removed the same way.
 export const HOUSE_DATA_ACCOUNT = "house_data_account";
+// The account the trading terminal's screener reads every session through,
+// whichever account is on screen (10 Nov, the owner: "Alton Live for all
+// screener data": its plan holds the overnight session, Blue Ocean's, that
+// others' do not). A trading_accounts id of the terminal user's own; market
+// data only. Set by hand on staging, like the house account; absent, the
+// screener reads through the account on screen.
+export const SCREENER_DATA_ACCOUNT = "screener_data_account";
 
 // The keys an administrator may set through the panel. An allowlist rather
 // than "whatever key was posted", so the settings table cannot be used as a
@@ -122,6 +129,10 @@ export async function readSettings(admin: Admin) {
     // reaching a fetch as undefined.
     houseDataAccountId: (() => {
       const v = byKey.get(HOUSE_DATA_ACCOUNT);
+      return typeof v === "string" && v.trim() ? v.trim() : null;
+    })(),
+    screenerDataAccountId: (() => {
+      const v = byKey.get(SCREENER_DATA_ACCOUNT);
       return typeof v === "string" && v.trim() ? v.trim() : null;
     })(),
     terminalLab: byKey.get(TERMINAL_LAB) === true,

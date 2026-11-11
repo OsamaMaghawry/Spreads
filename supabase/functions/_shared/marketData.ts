@@ -30,6 +30,18 @@ const decrypted = async (a: any) => ({
   oauth_access_token: await decryptSecret(a.oauth_access_token)
 });
 
+// The screener's data account (SCREENER_DATA_ACCOUNT), credentials decrypted:
+// only one of `userId`'s own Alpaca accounts, else null (the screener then
+// reads through the account on screen). Market data only.
+export async function screenerDataAccount(admin: any, userId: string) {
+  const id = (await readSettings(admin)).screenerDataAccountId;
+  if (!id) return null;
+  const { data, error } = await admin.from("trading_accounts").select("*").eq("id", id).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data || data.user_id !== userId || (data.provider && data.provider !== "alpaca") || !(data.oauth_access_token || data.api_key)) return null;
+  return decrypted(data);
+}
+
 // The house account, credentials decrypted, or null when none is configured.
 export async function houseDataAccount(admin: any) {
   const id = (await readSettings(admin)).houseDataAccountId;
