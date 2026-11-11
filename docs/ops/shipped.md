@@ -673,3 +673,8 @@ English. Newest first.
 - 2026-11-10 · (staging) Chart: the candle under the pointer is read out top left, and an indicator can be hidden without deleting it (`a5ece69`).
 - 2026-11-10 · (staging) Terminal self-test (owner/test tooling, no user-facing change): replays a pre-market gap scan over one or several days with news, minute bars and five-minute candles (`475b853`, `00a093b`, `83942e1`).
 - 2026-11-10 · (staging) Terminal: the gamma page can hedge against volume, the price chart draws its own gamma levels with a Gamma menu, and open interest now comes from Cboe's delayed quotes (admin terminal) (`f59f3ae`, `143410e`, `8b12742`).
+- 2026-11-11 · (staging) Screener: after-hours volume, high and low start at 16:01, so a share's closing auction no longer counts as after-hours trading (`125ba99`).
+- 2026-11-11 · (staging) Screener: after hours runs through the night to 4:00 (Blue Ocean's overnight trades included), and the live table shows pre-market % and volume beside after-hours % and volume; the brief four-session version was reverted at the owner's ask (`4d0ee1a`, reverting `4c31d0f`).
+- 2026-11-11 · (staging) Terminal: buy/sell hotkeys and exits work overnight (20:00 to 4:00) as extended-hours limits priced from the overnight venue's quote; only the weekend is refused (`294b117`, `1f4fde0`).
+- 2026-11-11 · (staging) P/L tab: "today" now starts at the last 16:00 New York close instead of midnight, so a short opened just before midnight and covered after is counted inside the day (`1f4fde0`).
+- 2026-11-11 · (staging) Terminal self-test (owner/test tooling, no user-facing change): feeds by hour, one screener session read, and an account's whole record since a moment (`5edd035`, `f15e5df`, `8359cd5`).
