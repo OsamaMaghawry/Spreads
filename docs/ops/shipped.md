@@ -672,3 +672,4 @@ English. Newest first.
 - 2026-11-10 · (staging) Screener: a "no news in the last N days" filter works live and on past days, and on a past day filter groups that would open empty are no longer shown (`6bf2560`, `4f8931b`).
 - 2026-11-10 · (staging) Chart: the candle under the pointer is read out top left, and an indicator can be hidden without deleting it (`a5ece69`).
 - 2026-11-10 · (staging) Terminal self-test (owner/test tooling, no user-facing change): replays a pre-market gap scan over one or several days with news, minute bars and five-minute candles (`475b853`, `00a093b`, `83942e1`).
+- 2026-11-10 · (staging) Terminal: the gamma page can hedge against volume, the price chart draws its own gamma levels with a Gamma menu, and open interest now comes from Cboe's delayed quotes (admin terminal) (`f59f3ae`, `143410e`, `8b12742`).
