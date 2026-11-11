@@ -153,7 +153,7 @@ export const FIELDS = [
   { id: "gapPct", label: "Gap", unit: "%", pct: true, group: "Today", hint: "The open against the previous close; before the open, the price now against it" },
   { id: "pmChangePct", label: "Pre-market change", unit: "%", pct: true, group: "Today", hint: "The last pre-market price against the previous close" },
   // 29 Oct: "Does the scanner have pre open and after market hours in the filter".
-  { id: "ahVolume", label: "After-hours volume", unit: "shares", group: "Price and volume", live: true, hint: "16:00 to 20:00 New York of the last session (today's from 16:00, up to 15 minutes ago), consolidated; read for the day's biggest movers, the most traded and those reporting after the close" },
+  { id: "ahVolume", label: "After-hours volume", unit: "shares", group: "Price and volume", live: true, hint: "16:01 to 20:00 New York of the last session (today's from 16:00, up to 15 minutes ago), consolidated; the 16:00 minute, which holds the closing auction, is left out; read for the day's biggest movers, the most traded and those reporting after the close" },
   { id: "ahChangePct", label: "After-hours change", unit: "%", pct: true, group: "Today", live: true, hint: "The last after-hours price against that session's 16:00 close" },
   { id: "rangePos", label: "Position in today's range", unit: "%", pct: true, group: "Today", wholeDay: true, hint: "0% at the day's low, 100% at its high" },
   { id: "fromVwap", label: "Price vs VWAP", unit: "%", pct: true, group: "Today", wholeDay: true },

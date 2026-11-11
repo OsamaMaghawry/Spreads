@@ -55,7 +55,7 @@ test("the pre-market and New York times", () => {
 });
 
 // 29 Oct: "Does the scanner have pre open and after market hours in the filter".
-test("after hours: volume, high, low and last from 16:00, against the 15:59 close", () => {
+test("after hours: volume, high, low and last from 16:01, against the 15:59 close; the 16:00 minute's closing auction left out", () => {
   const bar = (t: string, c: number, v: number, h = c, l = c) => ({ t, o: c, h, l, c, v });
   const minutes = [
     bar("2026-10-28T19:59:00Z", 10, 5000),
@@ -63,6 +63,11 @@ test("after hours: volume, high, low and last from 16:00, against the 15:59 clos
     bar("2026-10-28T20:31:00Z", 11.2, 800, 11.3, 11.0),
     bar("2026-10-28T23:59:00Z", 11.0, 300)
   ];
-  assert.deepEqual(afterHours(minutes as any, "2026-10-28T20:00:00Z"), { ahVolume: 2300, ahHigh: 11.3, ahLow: 10.4, ahLast: 11.0, ahClose: 10 });
+  assert.deepEqual(afterHours(minutes as any, "2026-10-28T20:00:00Z"), { ahVolume: 1100, ahHigh: 11.3, ahLow: 11.0, ahLast: 11.0, ahClose: 10 });
+  // 10 Nov, JHX: the 16:00 minute held 51.7M shares (the closing auction and
+  // trades reported at its price), 16:01 on 1.8M.
+  const jhx = [bar("2026-11-10T20:59:00Z", 29.05, 1351192), bar("2026-11-10T21:00:00Z", 27.84, 51741733, 29.05, 27.84),
+    bar("2026-11-10T21:02:00Z", 28.54, 1455880), bar("2026-11-10T21:04:00Z", 29.046, 340829)];
+  assert.equal(afterHours(jhx as any, "2026-11-10T21:00:00Z").ahVolume, 1796709);
   assert.deepEqual(afterHours([bar("2026-10-28T19:59:00Z", 10, 5000)] as any, "2026-10-28T20:00:00Z"), { ahVolume: 0, ahHigh: null, ahLow: null, ahLast: null, ahClose: 10 });
 });

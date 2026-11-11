@@ -97,14 +97,18 @@ export function premarket(minutes: HistoryBar[]) {
 
 /**
  * A session's after hours from its minute candles (16:00 to 20:00 New York):
- * the volume, high, low and last price from `closeAt` on, and the regular
- * close they are measured against: the last candle before it (15:59).
+ * the volume, high, low and last price from the minute after `closeAt` on, and
+ * the regular close they are measured against: the last candle before it
+ * (15:59). The 16:00 minute is left out: it holds the closing auction and the
+ * trades done at the close reported in its first seconds (10 Nov, JHX: 39.0M
+ * shares crossed at 16:00:02 and 12.0M reported at that price by 16:00:05,
+ * against 1.8M traded after 16:01), which are not after-hours trading.
  */
 export function afterHours(minutes: HistoryBar[], closeAt: string) {
   const list = (Array.isArray(minutes) ? minutes : []).filter((m) => m && Number.isFinite(m.c)).sort((a, b) => a.t.localeCompare(b.t));
   const at = Date.parse(closeAt);
   const before = list.filter((m) => Date.parse(m.t) < at);
-  const after = list.filter((m) => Date.parse(m.t) >= at);
+  const after = list.filter((m) => Date.parse(m.t) >= at + 60000);
   const ahClose = before.length ? before[before.length - 1].c : null;
   if (!after.length) return { ahVolume: 0, ahHigh: null, ahLow: null, ahLast: null, ahClose };
   return {

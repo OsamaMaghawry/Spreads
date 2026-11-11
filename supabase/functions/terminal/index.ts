@@ -881,7 +881,8 @@ async function screenPremarket(account: any, date: string, symbolsIn: string[]) 
 
 // A session's after hours, 16:00 to 20:00 New York (29 Oct: "Does the scanner
 // have pre open and after market hours in the filter"): each symbol's volume,
-// high, low and last price after the close, and the 16:00 close they are
+// high, low and last price after the close (from 16:01: the 16:00 minute holds
+// the closing auction, screenHistory afterHours), and the close they are
 // measured against, from consolidated minute candles (today's up to fifteen
 // minutes ago).
 async function screenAfterHours(account: any, date: string, symbolsIn: string[]) {
@@ -892,7 +893,7 @@ async function screenAfterHours(account: any, date: string, symbolsIn: string[])
   const close = nyMoment(date, "16:00");
   const end = nyMoment(date, "20:00");
   const until = today ? Math.min(end, Date.now() - 16 * 60000) : end;
-  if (until <= close) return { date, ah: {}, feed: "sip", through: null, complete: false };
+  if (until <= close + 60000) return { date, ah: {}, feed: "sip", through: null, complete: false };
   const from = iso(close - 60000);
   const to = iso(until);
   const groups: string[][] = [];
