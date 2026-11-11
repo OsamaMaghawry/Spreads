@@ -1493,6 +1493,12 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
       const col = r.columns.indexOf("fractionable");
       return { ms: Date.now() - t, rows: r.rows.length, bytes: JSON.stringify(r).length, fractionable: r.rows.filter((x) => x[col]).length };
     }
+    if (extra[0] === "SESSION") {
+      // One session as the screener reads it (SESSION, kind, symbols...), timed.
+      const t = Date.now();
+      const r = await screenSession(house, extra[1] || "regular", extra.slice(2));
+      return { ms: Date.now() - t, ...r };
+    }
     if (extra[0] === "AH") {
       // One session's after hours (AH, date, symbols...), timed, as the screener reads it.
       const t = Date.now();
