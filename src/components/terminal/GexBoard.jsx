@@ -325,7 +325,7 @@ export default function GexBoard({ sym, mine, prepared, spot, shownSpot, view, s
         <Tile label="Net gamma" help="Dollars of stock dealers would trade per 1% move, all contracts counted (calls plus, puts minus). Positive tends to damp moves, negative to add to them."
           value={money(netGex)} sub={`per 1% move · ${filterName}`}
           pill={<span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${netGex >= 0 ? "bg-blue-50 text-blue-800" : "bg-rose-50 text-rose-800"}`}>{netGex >= 0 ? "Positive" : "Negative"}</span>} />
-        <Tile label="Hedge vs volume" help="Net gamma as a share of a normal day's dollar volume (20-day average): how big dealers' hedging is for this share per 1% move, as the screener shows it. Negative for negative gamma. The fair way to compare shares of different sizes."
+        <Tile label="Hedge vs volume" help="Net gamma as a share of a normal day's dollar volume (20-day average): how big dealers' hedging is for this share per 1% move, as the Scanner shows it. Negative for negative gamma. The fair way to compare shares of different sizes."
           value={mine.avgDollar20 > 0 ? hedgePct(netGex / mine.avgDollar20) : "—"} sub={mine.avgDollar20 > 0 ? `of a normal day's $ volume (${money(mine.avgDollar20)})` : history ? "live only" : "no volume history"} />
         <Tile label="Zero-gamma flip" help="The price where total gamma crosses zero: above it the estimate is positive, below it negative."
           value={flip !== null ? at(flip) : "None"} sub={flip !== null ? `${dist(flip, spot)} from the price` : "not within 12%"} />
