@@ -96,7 +96,8 @@ export function premarket(minutes: HistoryBar[]) {
 }
 
 /**
- * A session's after hours from its minute candles (16:00 to 20:00 New York):
+ * A session's after hours from its minute candles (16:00 to 4:00 the next
+ * morning New York, the night included):
  * the volume, high, low and last price from the minute after `closeAt` on, and
  * the regular close they are measured against: the last candle before it
  * (15:59). The 16:00 minute is left out: it holds the closing auction and the

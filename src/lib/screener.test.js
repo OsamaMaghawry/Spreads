@@ -248,15 +248,20 @@ test("after hours: the session read, its change, and the fractionable filter", (
   assert.equal(afterHoursDay("2026-10-29", 4), "2026-10-28"); // before the open: yesterday's
   assert.equal(afterHoursDay("2026-11-02", 9), "2026-10-30"); // Monday morning: Friday's
   assert.equal(afterHoursDay("2026-10-31", 18), "2026-10-30"); // Saturday: Friday's
-  const row = screenRow({ ...AAPL, sess: { afterhours: { v: 52000, h: 111, l: 99, last: 110, ref: 100 } }, fractionable: true }, null, "2026-10-28");
+  const row = screenRow({ ...AAPL, ahVolume: 52000, ahLast: 110, ahClose: 100, fractionable: true }, null, "2026-10-28");
   assert.equal(row.ahVolume, 52000);
   assert.ok(Math.abs(row.ahChangePct - 0.1) < 1e-12);
-  assert.deepEqual([row.ahHigh, row.ahLow], [111, 99]);
-  assert.equal(row.onVolume, null); // not read: no figure, so a range on it fails
   assert.equal(row.fractionable, true);
   const screen = cleanScreen({ fractionable: true });
   assert.equal(passes(row, screen), true);
   assert.equal(passes({ ...row, fractionable: false }, screen), false);
+  // 11 Nov: after hours runs to the pre-market, so at 2:00 it is still the evening before's.
+  assert.equal(afterHoursDay("2026-11-11", 2), "2026-11-10");
+  // A volume filter keeps the shares read above it and drops those below or not read.
+  const ahMin = cleanScreen({ ranges: { ahVolume: { min: 1e6, max: null } } });
+  assert.equal(passes(screenRow({ ...AAPL, ahVolume: 1796709, ahLast: 29.3, ahClose: 29.05 }, null, "2026-11-10"), ahMin), true);
+  assert.equal(passes(screenRow({ ...AAPL, ahVolume: 52000, ahLast: 110, ahClose: 100 }, null, "2026-11-10"), ahMin), false);
+  assert.equal(passes(screenRow({ ...AAPL }, null, "2026-11-10"), ahMin), false);
   const rows = [
     { symbol: "MOVE", price: 5, dollarVol: 5e6, changePct: 0.3 },
     { symbol: "BUSY", price: 50, dollarVol: 9e8, changePct: 0.001 },
@@ -307,32 +312,4 @@ test("no news in the last N days is kept with the screen, whole days from 1 to 9
   assert.deepEqual([0, 91, 2.5, null, "x", undefined].map((d) => cleanScreen({ quietDays: d }).quietDays), [null, null, null, null, null, null]);
   assert.equal(EMPTY_SCREEN.quietDays, null);
   assert.equal(combineScreens(cleanScreen({ quietDays: 5 }), ["gapUp"]).quietDays, 5);
-});
-
-// 10 Nov: "certain stocks are traded 24 hours. So I need to make sure that
-// every time or every session I can filter correctly".
-test("sessions: each session's figures, its day in the name, and the overnight filter", () => {
-  const sess = {
-    overnight: { v: 120000, h: 102, l: 98.5, last: 101, ref: 100 },
-    premarket: { v: 800000, h: 103, l: 100.5, last: 102.5, ref: 100 },
-    regular: { v: 9e6, h: 104, l: 99, last: 103, ref: 100 },
-    afterhours: { v: 400000, h: 104.2, l: 102, last: 102.06, ref: 103 }
-  };
-  const row = screenRow({ ...AAPL, sess, overnight: true }, null, "2026-10-28");
-  assert.equal(row.onVolume, 120000);
-  assert.ok(Math.abs(row.onChangePct - 0.01) < 1e-12);
-  assert.ok(Math.abs(row.pmChangePct - 0.025) < 1e-12);
-  assert.deepEqual([row.rgVolume, row.rgHigh, row.rgLow], [9e6, 104, 99]);
-  assert.ok(Math.abs(row.ahChangePct + 0.00912621359223301) < 1e-12);
-  assert.equal(passes(row, cleanScreen({ overnight: true, ranges: { onVolume: { min: 100000, max: null } } })), true);
-  assert.equal(passes({ ...row, overnight: false }, cleanScreen({ overnight: true })), false);
-  assert.equal(passes(row, cleanScreen({ ranges: { onChangePct: { min: 2, max: null } } })), false);
-  const days = { overnight: "Wed 11/11", afterhours: "Tue 11/10" };
-  assert.equal(fieldLabel(FIELD.onVolume, false, days), "Overnight volume · into Wed 11/11");
-  assert.equal(fieldLabel(FIELD.ahChangePct, false, days), "After-hours change · Tue 11/10");
-  assert.equal(fieldLabel(FIELD.rgVolume, false, days), "Regular session volume");
-  assert.equal(fieldLabel(FIELD.price, false, days), "Price");
-  // A past day's screen: its pre-market from the day's own read.
-  const past = screenRow({ ...AAPL, pmVolume: 5000, pmLast: 101, pmHigh: 102, pmLow: 99 }, null, "2026-10-28");
-  assert.deepEqual([past.pmVolume, past.pmHigh, past.pmLow], [5000, 102, 99]);
 });

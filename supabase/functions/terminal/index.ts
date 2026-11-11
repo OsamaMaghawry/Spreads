@@ -28,7 +28,6 @@ import { closeOf } from "../_shared/gex.js";
 import { openInterestOf, quotesOf, historyChain, historySummary } from "../_shared/gexHistory.ts";
 import { screenSummary, screenUniverse as gexUniverse } from "../_shared/gexScreen.js";
 import { cboeOpenInterest, mergeOpenInterest } from "../_shared/openInterest.ts";
-import { SESSION_KINDS, calendarDays, latestSessions, sessionStats, nyMs } from "../_shared/sessions.js";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -303,7 +302,7 @@ async function trades(account: any, symbol: string, sf: StockFeed = "iex") {
 // keystroke. A coin carries its own minimum order and quantity and price
 // steps, which the ticket shows and the order check uses.
 type Asset = {
-  symbol: string; name: string; exchange: string; shortable: boolean; fractionable: boolean; assetClass: "us_equity" | "crypto"; overnight?: boolean;
+  symbol: string; name: string; exchange: string; shortable: boolean; fractionable: boolean; assetClass: "us_equity" | "crypto";
   minOrderSize: number | null; minTradeIncrement: number | null; priceIncrement: number | null;
   options: boolean; easyToBorrow: boolean;
 };
@@ -314,9 +313,7 @@ const shape = (a: any): Asset => ({
   symbol: a.class === "crypto" ? cryptoSymbol(a.symbol) : a.symbol, name: a.name || "", exchange: a.exchange || "",
   shortable: !!a.shortable, fractionable: !!a.fractionable, assetClass: a.class === "crypto" ? "crypto" : "us_equity",
   minOrderSize: num(a.min_order_size), minTradeIncrement: num(a.min_trade_increment), priceIncrement: num(a.price_increment),
-  options: Array.isArray(a.attributes) && a.attributes.includes("has_options"), easyToBorrow: !!a.easy_to_borrow,
-  // Traded overnight (20:00 to 04:00 New York) on Alpaca's 24-hour venue.
-  overnight: Array.isArray(a.attributes) && a.attributes.includes("overnight_tradable")
+  options: Array.isArray(a.attributes) && a.attributes.includes("has_options"), easyToBorrow: !!a.easy_to_borrow
 });
 
 async function assetList(account: any): Promise<Asset[]> {
@@ -638,7 +635,7 @@ async function snapsFor(account: any, symbols: string[], feed: string) {
 
 const SCREEN_COLUMNS = [
   "symbol", "name", "exchange", "price", "priceAt", "day", "prevClose", "open", "high", "low", "close", "volume", "prevVolume", "vwap", "trades",
-  "bid", "ask", "options", "shortable", "easyToBorrow", "fund", "shares", "earnDate", "earnSession", "fractionable", "overnight"
+  "bid", "ask", "options", "shortable", "easyToBorrow", "fund", "shares", "earnDate", "earnSession", "fractionable"
 ];
 
 // The screen's listed shares, every one (13,195 on 28 Oct).
@@ -701,7 +698,7 @@ async function screenUniverse(admin: any, account: any, part = 0, parts = 1) {
       a.options, a.shortable, a.easyToBorrow, isFundName(a.name),
       cik && shares ? shares.get(cik) ?? null : null,
       earnings[a.symbol]?.[0] ?? null, earnings[a.symbol]?.[1] ?? null,
-      a.fractionable, !!a.overnight
+      a.fractionable
     ]);
   }
   return { columns: SCREEN_COLUMNS, rows, dayFeed, priceFeed: FEED, at: new Date().toISOString(), listed: list.length };
@@ -772,7 +769,7 @@ async function screenDaily(account: any, symbols: string[], asOf = "") {
 const HISTORY_COLUMNS = [
   "symbol", "name", "exchange", "price", "priceAt", "day", "prevClose", "open", "high", "low", "close", "volume", "prevVolume", "vwap", "trades",
   "bid", "ask", "options", "shortable", "easyToBorrow", "fund", "shares", "earnDate", "earnSession",
-  "lastDate", "lastClose", "avgVol20", "avgDollar20", "atr14", "sma20", "d5", "d21", "pmVolume", "pmHigh", "pmLow", "pmLast", "fractionable", "overnight"
+  "lastDate", "lastClose", "avgVol20", "avgDollar20", "atr14", "sma20", "d5", "d21", "pmVolume", "pmHigh", "pmLow", "pmLast", "fractionable"
 ];
 const HISTORY_CHUNK = 300;
 const PM_CANDIDATES = 300;
@@ -832,7 +829,7 @@ async function screenHistory(account: any, date: string, asOf: "open" | "close",
       a.symbol, a.name, a.exchange, asOf === "close" ? r.close : r.open, null, r.day, r.prevClose, r.open, r.high, r.low, r.close, r.volume, r.prevVolume, r.vwap, r.trades,
       null, null, a.options, a.shortable, a.easyToBorrow, isFundName(a.name), cik && shares ? shares.get(cik) ?? null : null, null, null,
       r.lastDate, r.lastClose, r.avgVol20, r.avgDollar20, r.atr14, r.sma20, r.d5, r.d21,
-      null, null, null, null, a.fractionable, !!a.overnight
+      null, null, null, null, a.fractionable
     ];
   });
   const value = { columns: HISTORY_COLUMNS, rows, history: true, date, asOf, part, parts, dayFeed: feed, priceFeed: feed, at: new Date().toISOString(), listed: everyone.length };
@@ -893,97 +890,52 @@ async function screenAfterHours(account: any, date: string, symbolsIn: string[])
   const problem = today ? null : pastDateProblem(date);
   if (problem) return { error: problem };
   const symbols = [...new Set(symbolsIn.map((x) => String(x).toUpperCase()))].filter((x) => SYMBOL.test(x)).slice(0, PM_CANDIDATES);
+  // After hours runs to the next pre-market (11 Nov, the owner: "Aftermarket
+  // goes until the pre-market. So everything before the pre-market, it's
+  // considered aftermarket"): 16:01 to 20:00 on the consolidated tape, then
+  // the night to 4:00 on the next weekday from Blue Ocean, Alpaca's overnight
+  // venue ("boats"; the consolidated tape holds next to none of it: NVDA,
+  // 9-10 Nov, 466 minutes there against 1), when the account's plan has it.
   const close = nyMoment(date, "16:00");
-  const end = nyMoment(date, "20:00");
-  const until = today ? Math.min(end, Date.now() - 16 * 60000) : end;
-  if (until <= close + 60000) return { date, ah: {}, feed: "sip", through: null, complete: false };
-  const from = iso(close - 60000);
-  const to = iso(until);
+  const evening = nyMoment(date, "20:00");
+  const end = nyMoment(nextWeekday(date), "04:00");
+  const until = Math.min(end, Date.now() - 16 * 60000);
+  if (until <= close + 60000) return { date, ah: {}, feed: "sip", overnight: false, through: null, complete: false };
   const groups: string[][] = [];
   for (let i = 0; i < symbols.length; i += PM_CHUNK) groups.push(symbols.slice(i, i + PM_CHUNK));
   const ah: Record<string, ReturnType<typeof afterHours>> = {};
   let feed = "sip";
-  const read = async (g: string[], f: string) => {
+  let overnight = until > evening;
+  const read = async (g: string[], f: string, from: number, to: number) => {
     const all: Record<string, any[]> = {};
     let token: string | null = null;
     let pages = 0;
     do {
-      const page = await alpacaFetch(`${DATA}/stocks/bars?symbols=${g.join(",")}&timeframe=1Min&start=${from}&end=${to}&limit=10000&feed=${f}` +
+      const page = await alpacaFetch(`${DATA}/stocks/bars?symbols=${g.join(",")}&timeframe=1Min&start=${iso(from)}&end=${iso(to)}&limit=10000&feed=${f}` +
         (token ? `&page_token=${encodeURIComponent(token)}` : ""), account);
       for (const [sym, bars] of Object.entries(page?.bars || {})) (all[sym] = all[sym] || []).push(...(bars as any[]));
       token = page?.next_page_token || null;
       pages += 1;
-    } while (token && pages < 6);
+    } while (token && pages < 10);
     return all;
   };
+  const eveningTo = Math.min(until, evening);
   await inBatches(groups, 6, async (g) => {
-    const all = await read(g, feed).catch(() => { feed = FEED; return read(g, FEED); });
-    for (const sym of g) ah[sym] = afterHours(all[sym] || [], iso(close));
-    return null;
-  });
-  return { date, ah, feed, through: to, complete: until === end };
-}
-
-// ---------- the trading day's sessions ----------
-//
-// Overnight, pre-market, regular and after hours, from Alpaca's trading
-// calendar (holidays and early closes; _shared/sessions.js), each read for the
-// screener the same way (10 Nov, the owner: "every time or every session I
-// can filter correctly ... I need it accurate"): its volume, high, low and
-// last from one-minute candles (the overnight's from Blue Ocean, Alpaca's
-// "boats" feed; the rest consolidated), up to fifteen minutes ago, and the
-// official close its change is measured from (Alpaca's daily close).
-let calendarCache: { at: number; days: ReturnType<typeof calendarDays> } | null = null;
-async function tradingCalendar(account: any) {
-  if (calendarCache && Date.now() - calendarCache.at < 6 * 3600000) return calendarCache.days;
-  const list = await alpacaFetch(`${tradingBase(account)}/calendar?start=${nyDate(Date.now() - 21 * 86400000)}&end=${nyDate(Date.now() + 21 * 86400000)}`, account);
-  const days = calendarDays(list);
-  if (days.length) calendarCache = { at: Date.now(), days };
-  return days;
-}
-
-async function screenSession(account: any, kind: string, symbolsIn: string[]) {
-  if (!SESSION_KINDS.includes(kind)) return { error: `Which session: ${SESSION_KINDS.join(", ")}?` };
-  const days = await tradingCalendar(account);
-  const now = Date.now();
-  const sessions = latestSessions(days, now);
-  const s = (sessions as any)[kind];
-  if (!s) return { error: "No trading calendar for that session." };
-  const symbols = [...new Set(symbolsIn.map((x) => String(x).toUpperCase()))].filter((x) => SYMBOL.test(x)).slice(0, PM_CANDIDATES);
-  const until = Math.min(s.to, now - 16 * 60000);
-  const base = { kind, session: s, sessions, stats: {} as Record<string, any>, through: null as string | null, complete: false };
-  if (until <= s.from || !symbols.length) return base;
-  const feed = kind === "overnight" ? "boats" : "sip";
-  const groups: string[][] = [];
-  for (let i = 0; i < symbols.length; i += PM_CHUNK) groups.push(symbols.slice(i, i + PM_CHUNK));
-  const pages = async (url: string) => {
-    const all: Record<string, any[]> = {};
-    let token: string | null = null;
-    let n = 0;
-    do {
-      const page = await alpacaFetch(url + (token ? `&page_token=${encodeURIComponent(token)}` : ""), account);
-      for (const [sym, bars] of Object.entries(page?.bars || {})) (all[sym] = all[sym] || []).push(...(bars as any[]));
-      token = page?.next_page_token || null;
-      n += 1;
-    } while (token && n < 20);
-    return all;
-  };
-  // The official closes the change is measured from (and the regular
-  // session's own, once it is over).
-  const refStart = nyDate(Date.parse(`${s.refDate || s.date}T12:00:00Z`) - 5 * 86400000);
-  const dayEnd = iso(Math.min(nyMs(s.date, "23:59"), now - 16 * 60000));
-  await inBatches(groups, 6, async (g) => {
-    const [bars, daily] = await Promise.all([
-      pages(`${DATA}/stocks/bars?symbols=${g.join(",")}&timeframe=1Min&start=${iso(s.from)}&end=${iso(until)}&limit=10000&feed=${feed}`),
-      pages(`${DATA}/stocks/bars?symbols=${g.join(",")}&timeframe=1Day&start=${refStart}&end=${dayEnd}&limit=10000&feed=sip&adjustment=raw`).catch(() => ({} as Record<string, any[]>))
+    const [day, night] = await Promise.all([
+      read(g, feed, close - 60000, eveningTo).catch(() => { feed = FEED; return read(g, FEED, close - 60000, eveningTo); }),
+      overnight ? read(g, "boats", evening, until).catch(() => { overnight = false; return {} as Record<string, any[]>; }) : ({} as Record<string, any[]>)
     ]);
-    for (const sym of g) {
-      const closeOn = (date: string | null) => (date ? (daily[sym] || []).find((b) => String(b.t).slice(0, 10) === date)?.c ?? null : null);
-      base.stats[sym] = sessionStats(bars[sym] || [], { ...s, live: until < s.to }, closeOn(s.refDate), kind === "regular" ? closeOn(s.date) : null);
-    }
+    for (const sym of g) ah[sym] = afterHours([...(day[sym] || []), ...(night[sym] || [])], iso(close));
     return null;
   });
-  return { ...base, feed, through: iso(until), complete: until >= s.to };
+  return { date, ah, feed, overnight, through: iso(until), complete: until === end };
+}
+
+/** The weekday after `date` ("YYYY-MM-DD"). */
+function nextWeekday(date: string) {
+  let d = new Date(`${date}T12:00:00Z`);
+  do { d = new Date(d.getTime() + 86400000); } while ([0, 6].includes(d.getUTCDay()));
+  return d.toISOString().slice(0, 10);
 }
 
 // One order as the terminal shows it, finished or not: what was asked, what
@@ -1492,12 +1444,6 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
       const r = await screenUniverse(admin, house, Number(extra[1]) || 0, 4);
       const col = r.columns.indexOf("fractionable");
       return { ms: Date.now() - t, rows: r.rows.length, bytes: JSON.stringify(r).length, fractionable: r.rows.filter((x) => x[col]).length };
-    }
-    if (extra[0] === "SESSION") {
-      // One session as the screener reads it (SESSION, kind, symbols...), timed.
-      const t = Date.now();
-      const r = await screenSession(house, extra[1] || "regular", extra.slice(2));
-      return { ms: Date.now() - t, ...r };
     }
     if (extra[0] === "AH") {
       // One session's after hours (AH, date, symbols...), timed, as the screener reads it.
@@ -2947,12 +2893,9 @@ Deno.serve(async (req) => {
     }
     if (action === "screen") {
       // Every stage through the screener's own data account when one is set
-      // (SCREENER_DATA_ACCOUNT, the user's own), else the account on screen.
+      // (SCREENER_DATA_ACCOUNT, the user's own; Alton Live on staging, whose
+      // plan holds the overnight), else the account on screen. Market data only.
       const data = (await screenerDataAccount(admin, user.id).catch(() => null)) || account;
-      if (body.stage === "session") {
-        const r = await screenSession(data, String(body.kind || ""), Array.isArray(body.symbols) ? body.symbols : []);
-        return jsonResponse(r, (r as any).error ? 400 : 200);
-      }
       if (body.stage === "daily") return jsonResponse(await screenDaily(data, Array.isArray(body.symbols) ? body.symbols : [], String(body.asOf || "")));
       if (body.stage === "history") {
         const r = await screenHistory(data, String(body.date || ""), body.asOf === "close" ? "close" : "open", Number(body.part) || 0, Number(body.parts) || 1);
