@@ -54,10 +54,37 @@ test("a short, coins in fractions, and a holding with no close to hand", () => {
   assert.ok(Math.abs(book["ETH/USD"].qty - 0.748749999) < 1e-12);
 });
 
-test("periods start at New York midnight", () => {
-  const now = at("2026-10-26T14:30:00Z");
-  assert.equal(new Date(periodStart("today", now) * 1000).toISOString(), "2026-10-26T04:00:00.000Z");
-  assert.equal(new Date(periodStart("week", now) * 1000).toISOString(), "2026-10-20T04:00:00.000Z");
-  // Across the clocks going back (1 Nov 2026): winter time, five hours behind.
-  assert.equal(new Date(periodStart("today", at("2026-11-03T15:00:00Z")) * 1000).toISOString(), "2026-11-03T05:00:00.000Z");
+test("today starts at the last 16:00 close; the trading day rolls at 20:00", () => {
+  const ny = (s) => new Date(periodStart("today", at(s)) * 1000).toISOString();
+  // Wednesday 7:40 (pre-market): Tuesday's close.
+  assert.equal(ny("2026-11-11T12:40:00Z"), "2026-11-10T21:00:00.000Z");
+  // 23:59:58 Tuesday and 0:01 Wednesday: the same trading day, from Tuesday's close (11 Nov, INTC).
+  assert.equal(ny("2026-11-11T04:59:58Z"), "2026-11-10T21:00:00.000Z");
+  assert.equal(ny("2026-11-11T05:01:48Z"), "2026-11-10T21:00:00.000Z");
+  // Tuesday 17:00, before the overnight: Monday's close.
+  assert.equal(ny("2026-11-10T22:00:00Z"), "2026-11-09T21:00:00.000Z");
+  // Saturday and Friday night: Friday's close.
+  assert.equal(ny("2026-11-14T17:00:00Z"), "2026-11-13T21:00:00.000Z");
+  assert.equal(ny("2026-11-14T02:00:00Z"), "2026-11-13T21:00:00.000Z");
+  // Summer time (Monday 26 Oct, 10:30): Friday's close at 20:00 UTC.
+  assert.equal(ny("2026-10-26T14:30:00Z"), "2026-10-23T20:00:00.000Z");
+  assert.equal(new Date(periodStart("week", at("2026-11-11T12:40:00Z")) * 1000).toISOString(), "2026-11-04T21:00:00.000Z");
+});
+
+test("the night of 10-11 Nov on Alton Live: shorts opened and covered, the day's P/L from Tuesday's close", () => {
+  const f = (symbol, side, qty, price, t) => ({ symbol, side, qty, price, time: at(t) });
+  const fills = [
+    f("AMZN", "sell", 7, 271.2537, "2026-11-10T23:57:33Z"), f("AMZN", "buy", 7, 273.1, "2026-11-11T04:02:22Z"),
+    f("INTC", "sell", 109, 59.68, "2026-11-11T04:59:58Z"), f("NVDA", "sell", 37, 172.53, "2026-11-11T05:01:48Z"),
+    f("INTC", "buy", 27, 60.21, "2026-11-11T05:33:20Z"), f("INTC", "buy", 27, 60.22, "2026-11-11T05:34:32Z"), f("INTC", "buy", 55, 60.27, "2026-11-11T05:35:57Z"),
+    f("NVDA", "buy", 1, 172.828, "2026-11-11T05:43:23Z"), f("NVDA", "buy", 36, 172.85, "2026-11-11T05:44:02Z")
+  ];
+  const positions = { SH: { qty: 193, last: 32.8, avg: 33.1598 } };
+  const marks = { AMZN: 270.87, INTC: 58.13, NVDA: 168.89, SH: 33.08 };
+  const { book, carried } = demoBook({ fills, positions, marks, start: periodStart("today", at("2026-11-11T12:40:00Z")) });
+  // Nothing short carried in: INTC's 109 were sold short at 59.68, not held short from the 58.13 close.
+  assert.equal(carried.INTC, undefined);
+  assert.ok(Math.abs(book.INTC.realized - (59.68 * 109 - (27 * 60.21 + 27 * 60.22 + 55 * 60.27))) < 1e-6); // −61.31
+  assert.ok(Math.abs(book.AMZN.realized - 7 * (271.2537 - 273.1)) < 1e-6);
+  assert.deepEqual(carried.SH, { qty: 193, price: 33.08, from: "close" });
 });

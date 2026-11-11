@@ -66,10 +66,12 @@ const FEED = "iex";
 // 5:21 New York: "Premarket is open now and I don't see any execution,
 // change in prices, time & sales!!"; IEX had nothing, the consolidated tape
 // had AAPL at 342.79 from 5:06).
-type StockFeed = "iex" | "delayed";
-const stockFeedOf = (v: unknown): StockFeed => (v === "delayed" ? "delayed" : "iex");
+type StockFeed = "iex" | "delayed" | "overnight";
+// "overnight": Alpaca's overnight venue (Blue Ocean), for a latest quote at
+// night (20:00 to 4:00), when the others have stopped; history reads IEX.
+const stockFeedOf = (v: unknown): StockFeed => (v === "delayed" ? "delayed" : v === "overnight" ? "overnight" : "iex");
 const historyFeed = (sf: StockFeed) => (sf === "delayed" ? `feed=sip&end=${new Date(Date.now() - 16 * 60000).toISOString()}` : `feed=${FEED}`);
-const latestFeed = (sf: StockFeed) => (sf === "delayed" ? "delayed_sip" : FEED);
+const latestFeed = (sf: StockFeed) => (sf === "delayed" ? "delayed_sip" : sf === "overnight" ? "overnight" : FEED);
 const feedName = (sf: StockFeed) => (sf === "delayed" ? "sip-delayed" : FEED);
 const TERMINAL_SYMBOL = (s: string) => SYMBOL.test(s) || CRYPTO.test(s);
 
@@ -2355,8 +2357,11 @@ async function accountFills(account: any, startIso: string) {
         ? `${CRYPTO_DATA}/bars?symbols=${encodeURIComponent(chunk)}&timeframe=1Day&start=${from}&end=${until}&limit=10000`
         : `${DATA}/stocks/bars?symbols=${chunk}&timeframe=1Day&start=${from}&end=${until}&limit=10000&feed=${feed}&adjustment=split`;
       const page = await alpacaFetch(url("sip"), account).catch(() => alpacaFetch(url(FEED), account)).catch(() => null);
+      // A day's close counts once it has happened by the start: a share's at
+      // 16:00 New York, a coin's at the end of its UTC day.
+      const closedBy = (b: any) => (crypto ? Date.parse(b.t) + 86400000 : nyMoment(nyDate(Date.parse(b.t)), "16:00")) <= start;
       for (const [sym, bars] of Object.entries(page?.bars || {})) {
-        const before = (bars as any[]).filter((b) => Date.parse(b.t) < start);
+        const before = (bars as any[]).filter(closedBy);
         if (before.length) marks[crypto ? cryptoSymbol(sym) : sym] = Number(before.at(-1).c);
       }
     }
@@ -2652,7 +2657,8 @@ async function exitPosition(admin: any, user: any, account: any, input: any) {
   // Outside regular hours the limit is priced against the broker's own mark
   // and the screen's quote as well as IEX's (positionTools.ts exitPlan).
   const plan = exitPlan(pos, amount, session, {
-    bid: num((quote as any).bp), ask: num((quote as any).ap), ref: pos.last, live: { bid: num(input?.bid), ask: num(input?.ask) }
+    // Overnight the screen's quote is the one from 20:00, so only the overnight venue's counts.
+    bid: num((quote as any).bp), ask: num((quote as any).ap), ref: pos.last, live: usOvernight(Date.now()) ? {} : { bid: num(input?.bid), ask: num(input?.ask) }
   }, crypto);
   if (!plan.ok) return { status: 400, body: { error: plan.reason } };
   // Every other working order on the symbol holds shares the exit needs. A

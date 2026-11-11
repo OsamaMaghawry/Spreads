@@ -335,7 +335,7 @@ export function DemoResults({ accountId, refreshKey = null }) {
           ))}
         </div>
         <span className="text-slate-500">
-          {data ? `${data.fills.length} fill${data.fills.length === 1 ? "" : "s"} since ${new Date(data.startSec * 1000).toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric" })}` : state.loading ? "Reading your fills…" : ""}
+          {data ? `${data.fills.length} fill${data.fills.length === 1 ? "" : "s"} since the close ${new Date(data.startSec * 1000).toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric" })}, 4:00 p.m.` : state.loading ? "Reading your fills…" : ""}
         </span>
       </div>
       {state.error && state.key === key && <p className="px-2 py-1 text-rose-700">{state.error}</p>}

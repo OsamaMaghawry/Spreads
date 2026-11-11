@@ -166,7 +166,21 @@ export async function runHotkey(h, ctx) {
     // bought $100 when it was on screen and its own size was passed over).
     const heldNow = ctx.position ? (ctx.position.side === "short" ? -Math.abs(ctx.position.qty) : Math.abs(ctx.position.qty)) : 0;
     const asset = await assetFor(account.id, symbol);
-    const sized = { symbol, crypto, quote: ctx.quote, equity: ctx.view?.equity, buyingPower: ctx.view?.buyingPower, step: crypto ? asset.step : null, fractionable: !crypto && asset.fractionable, session: session(), held: heldNow };
+    // Overnight (20:00 to 4:00) the screen's quote stopped at 20:00 (11 Nov:
+    // INTC sold with a limit at 58.77, the evening's bid, against 59.68 on the
+    // overnight venue), so the price comes from the overnight venue's own
+    // quote, read now; with none, nothing is sent.
+    let quote = ctx.quote;
+    if (!crypto && overnightOf(Date.now() / 1000)) {
+      const r = await invokeFunction("terminal", { action: "snapshot", accountId: account.id, symbols: [symbol], stockFeed: "overnight" }).catch(() => null);
+      const q = r?.data?.quotes?.[symbol];
+      if (!q || !(q.bid > 0 || q.ask > 0 || q.last > 0)) {
+        notify({ key, tone: "bad", title: `No overnight price for ${symbol}: nothing sent`, detail: "Alpaca's overnight venue has no quote for it now (not every share trades overnight)." });
+        return;
+      }
+      quote = { bid: q.bid, ask: q.ask, last: q.last };
+    }
+    const sized = { symbol, crypto, quote, equity: ctx.view?.equity, buyingPower: ctx.view?.buyingPower, step: crypto ? asset.step : null, fractionable: !crypto && asset.fractionable, session: session(), held: heldNow };
     // Not ticked on screen: the order's price and kind only, worked out here;
     // no size, and nothing sent to it.
     const built = leadOff ? hotkeyOrder({ ...h, size: "shares", amount: 1 }, { ...sized, held: 0 }) : hotkeyOrder(withOwnSize(h, ctx.leadSize), sized);

@@ -6,7 +6,7 @@
 // are functions/terminal "fills", the view components/terminal/ReplayPanels.jsx.
 //
 // Shares or coins held from before the start count from the last close before
-// it (yesterday's close, for today), as a broker's day P/L does; with no close
+// it (the last session's 16:00 close, for today), as a broker's day P/L does; with no close
 // to hand, from their average cost. What is held is the fills since then plus
 // what was carried in, so the carried-in part is the holding now less the net
 // of those fills.
@@ -39,12 +39,28 @@ export function demoBook({ fills = [], positions = {}, marks = {}, start }) {
   return { book, carried };
 }
 
-/** Where a period starts: today (New York), or that many days back, at New York midnight. */
+/**
+ * Where a period starts (11 Nov, the owner: "The PNL for today's trading ...
+ * it's totally wrong"; a short opened at 23:59:58 fell before a midnight
+ * start, and the closing buy after it read as covering a short carried from
+ * the 16:00 close). Today: the last regular close before the trading day,
+ * 16:00 New York, the moment the closes that value what was held are from, as
+ * Alpaca's own day change counts. The trading day rolls at 20:00, when the
+ * overnight session into the next one opens; a weekend's is Monday's. Exchange
+ * holidays are not known here. 7 or 30 days: that many days before it.
+ */
 export function periodStart(id, now = Date.now() / 1000) {
   const days = { today: 0, week: 6, month: 29 }[id] ?? 0;
-  const at = now - days * 86400;
-  const d = new Date(at * 1000).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-  const guess = Date.parse(`${d}T04:00:00Z`) / 1000;
-  const hour = Number(new Date(guess * 1000).toLocaleString("en-US", { timeZone: "America/New_York", hour: "2-digit", hourCycle: "h23" }));
-  return hour === 0 ? guess : guess + 3600;
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" })
+    .formatToParts(new Date(now * 1000)).map((x) => [x.type, x.value]));
+  const DAY = 86400000;
+  const weekend = (d) => [0, 6].includes(d.getUTCDay());
+  let d = new Date(`${p.year}-${p.month}-${p.day}T12:00:00Z`);
+  if (Number(p.hour) >= 20) d = new Date(d.getTime() + DAY);
+  while (weekend(d)) d = new Date(d.getTime() + DAY);
+  do { d = new Date(d.getTime() - DAY); } while (weekend(d));
+  const date = d.toISOString().slice(0, 10);
+  const guess = Date.parse(`${date}T20:00:00Z`);
+  const hour = Number(new Date(guess).toLocaleString("en-US", { timeZone: "America/New_York", hour: "2-digit", hourCycle: "h23" }));
+  return (hour === 16 ? guess : guess + 3600000) / 1000 - days * 86400;
 }
