@@ -23,7 +23,7 @@ Key Takeaways:
 
 A [put credit spread](/blog/put-credit-spread-explained) is two options sold and bought together: you sell a put, buy a lower put, and receive a net credit. To close it you reverse both legs at once, buying back the short put and selling the long put as a single order, for a net debit. The credit you received minus the debit you pay is the result, before fees.
 
-Because it is one order for one price, the spread has a quote of its own, a bid and an ask, just as each option does. Closing at the ask fills quickly; working an order between the bid and ask may save money and may not fill at all.
+Because it is one order for one price, the spread has a quote of its own, a bid and an ask, just as each option does. Closing at the ask fills quickly; working an order between the bid and ask may save money and may not fill at all. Related: [an options limit order that is not filling](/blog/options-limit-order-not-filling).
 
 Nothing about closing early is special to this structure. The same applies to a [call credit spread](/blog/call-credit-spread-explained) or an [iron condor](/blog/iron-condor-explained), which can be closed as one four-leg order or one side at a time; [adjusting an iron condor](/blog/adjust-iron-condor) works out what closing one side does to the max loss.
 

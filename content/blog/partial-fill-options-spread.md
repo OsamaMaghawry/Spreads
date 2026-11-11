@@ -101,4 +101,6 @@ The practical effect is that a position stays in a half-built state, and the usu
 
 A partial fill splits an order into a position and a promise. The position is exactly the quantity that traded, with its credit, maximum loss and collateral scaled to that number. The promise is whatever is still working, and at many brokers it keeps reserving buying power until it fills or is cancelled. Cancelling, waiting or repricing each leave the account in a different state, and the arithmetic above shows what each state holds.
 
+Read next: [an options limit order that is not filling](/blog/options-limit-order-not-filling), on what walking the price of the unfilled part costs.
+
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.
