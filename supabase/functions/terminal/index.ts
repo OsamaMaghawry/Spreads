@@ -1977,6 +1977,35 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
     if (r.error) return r;
     return { start: r.start, fills: r.fills.length, first: r.fills.slice(0, 6), positions: r.positions, marks: r.marks, options: r.options, truncated: r.truncated };
   }
+  if (only === "ledger") {
+    // An account's record since a moment, as Alpaca keeps it (11 Nov: fills
+    // overnight that the positions do not hold): every activity of every
+    // kind, the positions and the account now, and each order of the period
+    // read again by its id (status, filled quantity and price, last change).
+    const base = tradingBase(house);
+    const after = extra[0] || iso(nyMoment(nyDate(), "00:00"));
+    const acts: any[] = [];
+    let token: string | null = null;
+    for (let page = 0; page < 5; page++) {
+      const list = await alpacaFetch(`${base}/account/activities?after=${encodeURIComponent(after)}&direction=asc&page_size=100` + (token ? `&page_token=${encodeURIComponent(token)}` : ""), house);
+      const rows = Array.isArray(list) ? list : [];
+      acts.push(...rows);
+      token = rows.length === 100 ? rows.at(-1)?.id || null : null;
+      if (!token) break;
+    }
+    const [positions, acct, orders] = await Promise.all([
+      alpacaFetch(`${base}/positions`, house),
+      alpacaFetch(`${base}/account`, house),
+      alpacaFetch(`${base}/orders?status=all&after=${encodeURIComponent(after)}&limit=200&direction=asc`, house)
+    ]);
+    return {
+      after,
+      activities: acts.map((a) => [a.activity_type, a.type || null, a.symbol || null, a.side || null, a.qty || null, a.price || null, a.net_amount || null, a.transaction_time || a.date || null, a.order_status || null, a.description || null]),
+      positions: (positions || []).map((p: any) => [p.symbol, p.qty, p.avg_entry_price, p.current_price, p.lastday_price]),
+      account: { cash: acct?.cash, equity: acct?.equity, last_equity: acct?.last_equity, long: acct?.long_market_value, short: acct?.short_market_value },
+      orders: (Array.isArray(orders) ? orders : []).filter((o: any) => Number(o.filled_qty) > 0).map((o: any) => [o.symbol, o.side, o.filled_qty, o.filled_avg_price, o.status, o.extended_hours, o.filled_at, o.updated_at])
+    };
+  }
   if (only === "pmToday") {
     // Today's pre-market as the live screen reads it before the open: the
     // biggest moves since the last close among shares that traded $1M then,
