@@ -1,0 +1,38 @@
+<svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A hypothetical 50/48 put credit spread quoted 0.50 natural, 0.60 mid and 0.70 far. A sell order starts at the 0.60 mid and does not fill, steps to 0.58 and does not fill, then steps to 0.56 and fills. Against the quotes first shown, the fill is 4 cents below the starting mid and 6 cents above the starting natural; the worked example shows those quotes moving during the walk.">
+  <rect width="720" height="260" fill="#FFFFFF"/>
+  <text x="36" y="34" font-size="13" font-weight="600" fill="#14151C">Spread credit, per share</text>
+  <line x1="110" y1="150" x2="610" y2="150" stroke="#14151C" stroke-width="1.5"/>
+  <g stroke="#767B8E">
+    <line x1="110" y1="144" x2="110" y2="156"/>
+    <line x1="160" y1="146" x2="160" y2="154"/>
+    <line x1="210" y1="146" x2="210" y2="154"/>
+    <line x1="260" y1="146" x2="260" y2="154"/>
+    <line x1="310" y1="146" x2="310" y2="154"/>
+    <line x1="360" y1="144" x2="360" y2="156"/>
+    <line x1="410" y1="146" x2="410" y2="154"/>
+    <line x1="460" y1="146" x2="460" y2="154"/>
+    <line x1="510" y1="146" x2="510" y2="154"/>
+    <line x1="560" y1="146" x2="560" y2="154"/>
+    <line x1="610" y1="144" x2="610" y2="156"/>
+  </g>
+  <g font-size="12.5" fill="#14151C" text-anchor="middle">
+    <text x="110" y="176">0.50</text>
+    <text x="360" y="176">0.60</text>
+    <text x="610" y="176">0.70</text>
+  </g>
+  <g font-size="12" fill="#767B8E" text-anchor="middle">
+    <text x="110" y="196">Natural</text>
+    <text x="360" y="196">Mid</text>
+    <text x="610" y="196">Far</text>
+  </g>
+  <g font-size="12.5" text-anchor="middle">
+    <circle cx="360" cy="110" r="9" fill="#FFFFFF" stroke="#767B8E" stroke-width="2"/>
+    <text x="360" y="86" fill="#767B8E">1: 0.60</text>
+    <circle cx="310" cy="110" r="9" fill="#FFFFFF" stroke="#767B8E" stroke-width="2"/>
+    <text x="310" y="86" fill="#767B8E">2: 0.58</text>
+    <circle cx="260" cy="110" r="9" fill="#2E8B5F"/>
+    <text x="260" y="86" fill="#2E8B5F" font-weight="600">3: 0.56 filled</text>
+  </g>
+  <path d="M348 110 L324 110 M298 110 L274 110" stroke="#767B8E" stroke-width="1.5" fill="none"/>
+  <path d="M328 106 L322 110 L328 114 M278 106 L272 110 L278 114" stroke="#767B8E" stroke-width="1.5" fill="none"/>
+</svg>

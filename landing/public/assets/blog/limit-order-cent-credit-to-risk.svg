@@ -1,0 +1,27 @@
+<svg viewBox="0 0 720 250" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="The same $2-wide put credit spread filled at three prices. At 0.60 the credit is $60 and the max loss $140. At 0.56 the credit is $56 and the max loss $144. At 0.50 the credit is $50 and the max loss $150. The two always add up to the $200 width.">
+  <rect width="720" height="250" fill="#FFFFFF"/>
+  <text x="36" y="34" font-size="13" font-weight="600" fill="#14151C">One $2-wide spread, $200 per contract</text>
+  <g font-size="12.5" fill="#14151C">
+    <text x="36" y="80">Fill 0.60</text>
+    <text x="36" y="130">Fill 0.56</text>
+    <text x="36" y="180">Fill 0.50</text>
+  </g>
+  <rect x="120" y="62" width="150" height="26" fill="#2E8B5F"/>
+  <rect x="270" y="62" width="350" height="26" fill="#B4485C"/>
+  <rect x="120" y="112" width="140" height="26" fill="#2E8B5F"/>
+  <rect x="260" y="112" width="360" height="26" fill="#B4485C"/>
+  <rect x="120" y="162" width="125" height="26" fill="#2E8B5F"/>
+  <rect x="245" y="162" width="375" height="26" fill="#B4485C"/>
+  <g font-size="12.5" fill="#FFFFFF" font-weight="600">
+    <text x="130" y="80">$60</text>
+    <text x="280" y="80">$140</text>
+    <text x="130" y="130">$56</text>
+    <text x="270" y="130">$144</text>
+    <text x="130" y="180">$50</text>
+    <text x="255" y="180">$150</text>
+  </g>
+  <g font-size="12" fill="#767B8E">
+    <text x="120" y="222" fill="#2E8B5F">Credit</text>
+    <text x="180" y="222" fill="#B4485C">Max loss</text>
+  </g>
+</svg>
