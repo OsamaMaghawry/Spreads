@@ -1886,6 +1886,40 @@ async function selftest(admin: any, only = "", seconds = 8, accountId = "", extr
       trades: { count: list.length, error: (trades as any)?.error, last: list.slice(-25).map((t: any) => ({ t: t.t, p: t.p, s: t.s, x: t.x, c: t.c, z: t.z })) }
     };
   }
+  if (only === "feeds") {
+    // Which of Alpaca's feeds hold which part of the day, overnight included
+    // (10 Nov, the owner: "certain stocks are traded 24 hours. So I need to
+    // make sure that every time or every session I can filter correctly"):
+    // FEEDS, from ISO, to ISO, symbols... — each feed's one-minute candles in
+    // the window by New York hour (count and volume), each feed's latest
+    // trade, and the first symbol's asset record (its attributes). Read-only.
+    const [from, to] = [extra[0], extra[1]];
+    const syms = extra.slice(2).filter((s) => SYMBOL.test(s)).slice(0, 5);
+    const hourOf = (t: string) => new Date(t).toLocaleString("en-US", { timeZone: "America/New_York", hour: "2-digit", hourCycle: "h23", day: "2-digit" });
+    const bars: Record<string, any> = {};
+    const latest: Record<string, any> = {};
+    for (const f of ["sip", "iex", "boats", "overnight", "delayed_sip"]) {
+      try {
+        const page: any = await alpacaFetch(`${DATA}/stocks/bars?symbols=${syms.join(",")}&timeframe=1Min&start=${encodeURIComponent(from)}&end=${encodeURIComponent(to)}&limit=10000&feed=${f}`, house);
+        bars[f] = Object.fromEntries(syms.map((s) => {
+          const list: any[] = page?.bars?.[s] || [];
+          const byHour: Record<string, [number, number]> = {};
+          for (const b of list) { const h = hourOf(b.t); byHour[h] = [(byHour[h]?.[0] || 0) + 1, (byHour[h]?.[1] || 0) + b.v]; }
+          return [s, { candles: list.length, volume: list.reduce((a, b) => a + b.v, 0), first: list[0]?.t || null, last: list.at(-1)?.t || null, byHour, more: !!page?.next_page_token }];
+        }));
+      } catch (e) {
+        bars[f] = { error: String((e as Error)?.message || e).slice(0, 200) };
+      }
+      try {
+        const s: any = await alpacaFetch(`${DATA}/stocks/snapshots?symbols=${syms.join(",")}&feed=${f}`, house);
+        latest[f] = Object.fromEntries(syms.map((x) => [x, s?.[x]?.latestTrade ? { t: s[x].latestTrade.t, p: s[x].latestTrade.p, x: s[x].latestTrade.x } : null]));
+      } catch (e) {
+        latest[f] = { error: String((e as Error)?.message || e).slice(0, 200) };
+      }
+    }
+    const asset = syms[0] ? await alpacaFetch(`${tradingBase(house)}/assets/${syms[0]}`, house).catch((e: Error) => ({ error: e.message })) : null;
+    return { from, to, bars, latest, asset };
+  }
   if (only === "assets") {
     // What Alpaca allows on each symbol given, and whether the account takes
     // part shares at all (its configuration), for the ticket's badges and switch.
