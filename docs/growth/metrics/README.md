@@ -4,15 +4,15 @@ Written daily by `.github/workflows/metrics-snapshot.yml`. Agents read
 these files; the Google credentials never leave CI. A dash means the source
 is not connected yet, not zero.
 
-## Latest — 2026-11-10
+## Latest — 2026-11-11
 
-- Search Console, last 28 days: 199 impressions, 2 clicks, CTR 1.0%
-- Indexing: 72 of 78 sitemap URLs indexed
+- Search Console, last 28 days: 214 impressions, 2 clicks, CTR 0.9%
+- Indexing: 73 of 79 sitemap URLs indexed
   - not indexed: https://deltamint.app/blog/investing (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/partial-fill-options-spread (URL is unknown to Google)
+  - not indexed: https://deltamint.app/blog/options-limit-order-not-filling (URL is unknown to Google)
   - not indexed: https://deltamint.app/blog/sell-puts-to-buy-stock (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/pmcc-vs-covered-call (URL is unknown to Google)
-  - not indexed: https://deltamint.app/blog/stock-replacement-strategy (URL is unknown to Google)
+  - not indexed: https://deltamint.app/blog/pmcc-vs-covered-call (Discovered - currently not indexed)
+  - not indexed: https://deltamint.app/blog/stock-replacement-strategy (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/leaps-options-explained (URL is unknown to Google)
 - Submitted today: Google sitemap NOT submitted: Search Console refused (403). Give deltamint-metrics@deltamint-metrics.iam.gserviceaccount.com "Full" permission: Search Console → Settings → Users and permissions.; Google last read it 2026-11-10; 1 URL(s) sent to Bing and others via IndexNow
 - GA4, last 28 days: ga4 not configured
@@ -23,7 +23,6 @@ is not connected yet, not zero.
 
 | Day | Impressions | Clicks | Sessions | Signed up | Connected | Traded live | Paying |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-10-12 | 4 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-10-13 | 9 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-10-14 | 3 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-10-15 | 0 | 0 | — | 4 | 3 | 1 | 0 |
@@ -53,3 +52,4 @@ is not connected yet, not zero.
 | 2026-11-08 | 11 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-11-09 | 24 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-11-10 | 15 | 0 | — | 4 | 3 | 1 | 0 |
+| 2026-11-11 | 18 | 0 | — | 4 | 3 | 1 | 0 |
