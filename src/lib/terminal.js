@@ -74,6 +74,19 @@ export function sessionOf(sec) {
 }
 
 /**
+ * Whether a moment is in Alpaca's overnight session (20:00 to 4:00 New York,
+ * Sunday night to Friday morning; Blue Ocean), when shares marked for it
+ * trade on a limit order for extended hours, as the ticket sends (11 Nov, the
+ * owner: the hotkey did not work at night; the ticket did).
+ */
+export function overnightOf(sec) {
+  const { weekday, minutes } = nyClock(sec);
+  if (minutes >= 20 * 60) return ["Sun", "Mon", "Tue", "Wed", "Thu"].includes(weekday);
+  if (minutes < 4 * 60) return ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(weekday);
+  return false;
+}
+
+/**
  * Whether a share's candle belongs on a regular-hours chart: any part of it
  * inside 9:30 to 16:00. An hourly candle stamped 9:00 holds 9:30 to 10:00, so
  * it stays; a 5-minute candle stamped 9:25 does not.

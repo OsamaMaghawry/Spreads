@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { usSession, stopPlan, stopsToReplace, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit, openingQty, replaceable } from "./positionTools.ts";
+import { usSession, usOvernight, stopPlan, stopsToReplace, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit, openingQty, replaceable } from "./positionTools.ts";
 
 test("the part of an order that opens or adds to a position; closing never counts", () => {
   assert.equal(openingQty("buy", 100, 0), 100, "a new long");
@@ -40,6 +40,11 @@ test("the share market's hours, New York time", () => {
   assert.equal(usSession(Date.parse("2026-10-23T12:00:00Z")), "extended");  // Fri 8:00
   assert.equal(usSession(Date.parse("2026-10-23T22:30:00Z")), "extended");  // Fri 18:30
   assert.equal(usSession(Date.parse("2026-10-24T02:00:00Z")), "closed");    // Fri 22:00
+  assert.equal(usSession(Date.parse("2026-11-11T01:45:00Z")), "extended");  // Tue 20:45, overnight
+  assert.equal(usSession(Date.parse("2026-11-11T08:30:00Z")), "extended");  // Wed 3:30, overnight
+  assert.equal(usSession(Date.parse("2026-11-16T01:30:00Z")), "extended");  // Sun 20:30, overnight
+  assert.equal(usSession(Date.parse("2026-11-15T23:00:00Z")), "closed");    // Sun 18:00
+  assert.equal(usOvernight(Date.parse("2026-11-11T00:59:00Z")), false);     // Tue 19:59, after hours
   assert.equal(usSession(Date.parse("2026-10-24T15:00:00Z")), "closed");    // Saturday
 });
 

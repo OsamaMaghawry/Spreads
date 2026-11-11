@@ -16,7 +16,7 @@ import { currentReports } from "../_shared/earnings.ts";
 import { secReports, withFigures, earningsTimeline, cikMap } from "../_shared/earningsHistory.ts";
 import { dailyStats, isFundName } from "../_shared/screenStats.ts";
 import { historyRow, premarket, afterHours, nyMoment } from "../_shared/screenHistory.ts";
-import { usSession, stopPlan, stopLimitPrice, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit, replaceable } from "../_shared/positionTools.ts";
+import { usSession, usOvernight, stopPlan, stopLimitPrice, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit, replaceable } from "../_shared/positionTools.ts";
 import { inBackground } from "../_shared/background.ts";
 import { allocate } from "../_shared/proRata.ts";
 import { orderStream } from "../_shared/orderStream.ts";
@@ -2598,7 +2598,12 @@ async function exitPosition(admin: any, user: any, account: any, input: any) {
     openOrdersFor(account, symbol),
     partial ? alpacaFetch(`${tradingBase(account)}/account/activities/FILL?direction=desc&page_size=100`, account).catch(() => []) : Promise.resolve([]),
     partial && crypto ? assetFor(account, symbol) : Promise.resolve(null),
-    crypto || session === "regular" ? Promise.resolve({}) : alpacaFetch(`${DATA}/stocks/${encodeURIComponent(symbol)}/quotes/latest?feed=${FEED}`, account).then((r: any) => r?.quote || {}).catch(() => ({}))
+    // Overnight, the quote from Alpaca's overnight venue; the consolidated
+    // one stops at 20:00.
+    crypto || session === "regular" ? Promise.resolve({}) : (async () => {
+      const latest = (feed: string) => alpacaFetch(`${DATA}/stocks/${encodeURIComponent(symbol)}/quotes/latest?feed=${feed}`, account).then((r: any) => r?.quote || {});
+      return (usOvernight(Date.now()) ? latest("overnight").catch(() => latest(FEED)) : latest(FEED)).catch(() => ({}));
+    })()
   ]);
   if (!pos) return { status: 400, body: { error: `No ${symbol} position to exit.` } };
   const held = Math.abs(pos.qty);

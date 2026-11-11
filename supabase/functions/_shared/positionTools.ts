@@ -22,11 +22,27 @@ const round = (v: number) => (v >= 1 ? Math.round(v * 100) / 100 : Math.round(v 
 export function usSession(ms: number): "regular" | "extended" | "closed" {
   const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
     .formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+  if (usOvernight(ms)) return "extended";
   if (p.weekday === "Sat" || p.weekday === "Sun") return "closed";
   const m = Number(p.hour) * 60 + Number(p.minute);
   if (m >= 570 && m < 960) return "regular";
   if (m >= 240 && m < 1200) return "extended";
   return "closed";
+}
+
+/**
+ * Alpaca's overnight session: 20:00 to 4:00 New York, Sunday night to Friday
+ * morning (Blue Ocean), where shares marked for it trade on a limit for
+ * extended hours (11 Nov, the owner: the hotkey did not work at night; the
+ * ticket did). Counted as extended hours.
+ */
+export function usOvernight(ms: number) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+    .formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+  const m = Number(p.hour) * 60 + Number(p.minute);
+  if (m >= 1200) return ["Sun", "Mon", "Tue", "Wed", "Thu"].includes(p.weekday);
+  if (m < 240) return ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(p.weekday);
+  return false;
 }
 
 /**
@@ -270,7 +286,8 @@ type Side = { bid?: number | null; ask?: number | null };
  * (`quote.live`, every exchange where the trader has it) before IEX's; but
  * only one within EXIT_BAND of the broker's mark (`quote.ref`), and failing
  * that EXIT_THROUGH beyond the mark, which still fills at the best price
- * there is. Overnight and at weekends shares cannot trade at all: refused.
+ * there is. Overnight (20:00 to 4:00) counts as extended hours; at the
+ * weekend shares cannot trade at all: refused.
  */
 export function exitPlan(position: Position, amount: { all: boolean; qty: number }, session: "regular" | "extended" | "closed", quote: Side & { ref?: number | null; live?: Side }, crypto = false):
   { ok: true; how: "close"; all: boolean; qty: number } | { ok: true; how: "limit"; side: "buy" | "sell"; qty: number; limitPrice: number; note: string | null } | { ok: false; reason: string } {
@@ -279,7 +296,7 @@ export function exitPlan(position: Position, amount: { all: boolean; qty: number
   const wanted = amount.all ? held : Math.min(held, Math.abs(num(amount.qty) || 0));
   if (!(wanted > 0)) return { ok: false, reason: "Nothing to exit." };
   if (crypto || session === "regular") return { ok: true, how: "close", all: amount.all || wanted >= held - 1e-12, qty: wanted };
-  if (session === "closed") return { ok: false, reason: "The share market is shut now (overnight or weekend); exits can be sent from 4:00 a.m. New York." };
+  if (session === "closed") return { ok: false, reason: "The share market is shut now (the weekend); exits can be sent from 8:00 p.m. New York on Sunday." };
   const long = position.side !== "short" && position.qty > 0;
   const word = long ? "bid" : "ask";
   const seen = [quote.live?.[word], quote[word]].map(num).filter((v): v is number => !!v && v > 0);

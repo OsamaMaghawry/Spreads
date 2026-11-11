@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, inRegularHours, sessionDay, amountToQty, orderState, orderNews, iexOpen, shareFeed, ticketChoices, mergeTape, clockMs, exitText, stopWaitText, cleanWatchlists, activeWatchlist, withActiveSymbols, legendBar, valueAt } from "./terminal.js";
+import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, overnightOf, inRegularHours, sessionDay, amountToQty, orderState, orderNews, iexOpen, shareFeed, ticketChoices, mergeTape, clockMs, exitText, stopWaitText, cleanWatchlists, activeWatchlist, withActiveSymbols, legendBar, valueAt } from "./terminal.js";
 
 const sec = (iso) => Date.parse(iso) / 1000;
 
@@ -127,6 +127,17 @@ test("sessions: pre-market, regular, after hours, closed, in New York time", () 
   // Standard time (UTC-5): 9:30 is 14:30 UTC.
   assert.equal(sessionOf(sec("2026-12-01T14:29:00Z")), "pre");
   assert.equal(sessionOf(sec("2026-12-01T14:30:00Z")), "regular");
+});
+
+test("the overnight session: 20:00 to 4:00 New York, Sunday night to Friday morning", () => {
+  assert.equal(overnightOf(sec("2026-11-11T01:45:00Z")), true); // Tuesday 20:45
+  assert.equal(overnightOf(sec("2026-11-11T08:59:00Z")), true); // Wednesday 3:59
+  assert.equal(overnightOf(sec("2026-11-11T09:00:00Z")), false); // 4:00, the pre-market
+  assert.equal(overnightOf(sec("2026-11-11T00:59:00Z")), false); // Tuesday 19:59, after hours
+  assert.equal(overnightOf(sec("2026-11-14T02:00:00Z")), false); // Friday 21:00
+  assert.equal(overnightOf(sec("2026-11-15T15:00:00Z")), false); // Saturday
+  assert.equal(overnightOf(sec("2026-11-16T01:30:00Z")), true); // Sunday 20:30
+  assert.equal(overnightOf(sec("2026-11-16T08:00:00Z")), true); // Monday 3:00
 });
 
 test("regular-hours chart: a candle stays if any of it is inside 9:30 to 16:00", () => {

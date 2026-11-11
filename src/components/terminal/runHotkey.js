@@ -1,6 +1,6 @@
 import { invokeFunction } from "@/lib/functions";
 import { hotkeyOrder, describe, withOwnSize, hotkeyPercent } from "@/lib/hotkeys";
-import { orderNews, orderState, sessionOf, isCrypto, px, sizeText, exitText } from "@/lib/terminal";
+import { orderNews, orderState, sessionOf, overnightOf, isCrypto, px, sizeText, exitText } from "@/lib/terminal";
 import { groupNews, resolveSize } from "@/lib/accountGroup";
 import { onOrder } from "./orderFeed";
 
@@ -121,9 +121,12 @@ function afterExit(d, { accountId, symbol, key, notify, refresh, who = "" }) {
   return { restop, putBack };
 }
 
+// Overnight (20:00 to 4:00) counts as extended: a limit for extended hours,
+// as the ticket sends, which Alpaca routes to its overnight venue.
 const session = () => {
-  const s = sessionOf(Date.now() / 1000);
-  return s === "pre" || s === "post" ? "extended" : s;
+  const now = Date.now() / 1000;
+  const s = sessionOf(now);
+  return s === "pre" || s === "post" || overnightOf(now) ? "extended" : s;
 };
 
 /**
