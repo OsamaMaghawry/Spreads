@@ -1,9 +1,9 @@
 ---
 title: "Call vs put options: how each one works"
 slug: call-vs-put-option-explained
-search_title: "Call vs Put Options: Buyer, Seller and the Numbers"
+search_title: "Call vs Put Options: Differences for Buyers and Sellers"
 excerpt: A call is the right to buy 100 shares at a set price; a put is the right to sell 100 shares at a set price - and each one has a seller carrying the matching obligation.
-meta_description: "Call vs put options: a call is the right to buy 100 shares at a set price, a put the right to sell. What the buyer pays and the seller owes."
+meta_description: "Call vs put options: a call is the right to buy 100 shares at a set price, a put the right to sell. One example settles all four positions, buyer and seller."
 author: Osama Safwat Maghawry
 published_at: 2026-09-09T10:56:26+00:00
 category: foundations
