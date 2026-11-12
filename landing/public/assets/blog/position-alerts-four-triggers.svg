@@ -1,0 +1,32 @@
+<svg viewBox="0 0 720 420" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Line chart of a hypothetical XYZ 50/45 put credit spread over its last 30 days. The stock starts at 52.00 and drifts down. A shaded band between the 50 short strike and a 51.00 trigger line marks a thin cushion. Four numbered markers show where alerts fire: 1, the stock closes at 50.90 inside the band with 15 days left; 2, the day before earnings with 12 days left; 3, the earnings gap to 49.00 puts the short strike in the money with 11 days left; 4, expiration week begins with 5 days left and the short put still in the money at 49.50.">
+<rect width="720" height="420" fill="#FFFFFF"/>
+<rect x="580" y="60" width="100" height="280" fill="#767B8E" fill-opacity="0.10"/>
+<rect x="80" y="184.4" width="600" height="62.3" fill="#B4485C" fill-opacity="0.10"/>
+<line x1="80" y1="340" x2="680" y2="340" stroke="#767B8E"/><line x1="80" y1="60" x2="80" y2="340" stroke="#767B8E"/>
+<text x="80" y="360" font-size="13" fill="#767B8E" text-anchor="middle">30</text>
+<text x="280" y="360" font-size="13" fill="#767B8E" text-anchor="middle">20</text>
+<text x="480" y="360" font-size="13" fill="#767B8E" text-anchor="middle">10</text>
+<text x="680" y="360" font-size="13" fill="#767B8E" text-anchor="middle">0</text>
+<text x="70" y="312.9" font-size="13" fill="#767B8E" text-anchor="end">49</text>
+<text x="70" y="188.4" font-size="13" fill="#767B8E" text-anchor="end">51</text>
+<text x="70" y="64.0" font-size="13" fill="#767B8E" text-anchor="end">53</text>
+<text x="380" y="392" font-size="14" fill="#767B8E" text-anchor="middle">Days left</text>
+<text x="24" y="200" font-size="14" fill="#767B8E" text-anchor="middle" transform="rotate(-90 24 200)">XYZ</text>
+<line x1="80" y1="246.7" x2="680" y2="246.7" stroke="#B4485C" stroke-width="1.5" stroke-dasharray="6 4"/>
+<line x1="80" y1="184.4" x2="680" y2="184.4" stroke="#767B8E" stroke-dasharray="2 3"/>
+<text x="676" y="262.7" font-size="13" fill="#B4485C" text-anchor="end">Short strike 50</text>
+<text x="676" y="178.4" font-size="13" fill="#767B8E" text-anchor="end">Trigger 51.00</text>
+<line x1="450.0" y1="60" x2="450.0" y2="340" stroke="#767B8E" stroke-dasharray="4 4"/>
+<text x="450.0" y="52" font-size="13" fill="#767B8E" text-anchor="middle">Earnings</text>
+<text x="630.0" y="52" font-size="13" fill="#767B8E" text-anchor="middle">Expiry week</text>
+<polyline points="80,122.2 140,97.3 200,116.0 260,140.9 320,159.6 380,190.7 400,165.8 420,178.2 440,187.6 460,308.9 500,284.0 540,259.1 580,277.8 640,271.6 680,277.8" fill="none" stroke="#14151C" stroke-width="2.5" stroke-linejoin="round"/>
+<circle cx="80" cy="122.2" r="5" fill="#2E8B5F"/>
+<circle cx="380" cy="190.7" r="4" fill="#B4485C"/>
+<circle cx="366" cy="168.7" r="11" fill="#B4485C"/><text x="366" y="173.7" font-size="13" font-weight="600" fill="#FFFFFF" text-anchor="middle">1</text>
+<circle cx="440" cy="187.6" r="4" fill="#B4485C"/>
+<circle cx="454" cy="165.6" r="11" fill="#B4485C"/><text x="454" y="170.6" font-size="13" font-weight="600" fill="#FFFFFF" text-anchor="middle">2</text>
+<circle cx="460" cy="308.9" r="4" fill="#B4485C"/>
+<circle cx="460" cy="330.9" r="11" fill="#B4485C"/><text x="460" y="335.9" font-size="13" font-weight="600" fill="#FFFFFF" text-anchor="middle">3</text>
+<circle cx="580" cy="277.8" r="4" fill="#B4485C"/>
+<circle cx="580" cy="299.8" r="11" fill="#B4485C"/><text x="580" y="304.8" font-size="13" font-weight="600" fill="#FFFFFF" text-anchor="middle">4</text>
+</svg>

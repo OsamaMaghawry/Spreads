@@ -1568,6 +1568,30 @@ Results pages read that day, not measured. No rank tracker or volume tool. Seven
 
 **Could not establish:** volume, difficulty or rank for any phrasing; whether "not filling" or "not filled" is the more common typed form (titles use both, a count of titles and not demand); whether reddit.com itself ranks, since only mirrors surfaced; any Search Console data, since the post is unpublished.
 
+## Reading for row 57 - options position alerts (read 2026-11-12)
+
+Results pages read that day, not measured. No rank tracker or volume tool. Five searches, one day.
+
+**Query space.** "options position alerts" (the target), "options alerts" (the hub head term), "what alerts should I set on a credit spread short strike", "price alert on option spread mark vs stock price alert", "notify me when my short put goes in the money before expiration".
+
+| Phrasing | What surfaces | Read as |
+| --- | --- | --- |
+| options position alerts (target) | Robinhood support "Options alerts" (two hosts), Webull courseware "Exit Options Positions with Option Alerts" (two URLs), IBKR Campus "Risk Navigator and alarms", Fidelity Active Trader help (two), Option Alpha (podcast, docs), stockalarm.io setup guide, Benzinga and stockanalysis alert-service pages, Simpler Trading, a TradingView script, Tradejini, Wealth-Lab forum (off-intent) | **winnable, product-owned** - every page describes one platform's alert menu or sells a service; none asks which conditions deserve one |
+| options alerts (head) | Robinhood (two), stockalarm.io, Benzinga (two), Traders Union (two), Webull, Blackbox help, Optionomics docs, levelfields, tradealgo "worth the subscription in 2026", and IT-software "alerts options" pages (ZAP, Oracle, OSSEC, Infor) | **do not target** - mostly trade-signal service intent, polluted by software settings |
+| alerts on a credit spread short strike | TradingView idea, optionstradingiq (three), TradeStation insights, Options AI learn, Benzinga, Barchart, Alpaca learn, Wikipedia, tastylive (2016), a pages.dev course | **winnable, the post's home intent** - triggers appear as rules inside entry guides (3% from the strike, 30 delta, 50% of credit), never as the subject |
+| stock vs mark alert on a spread | Robinhood (five hosts, plus price alerts), stockalarm.io, Webull, Firstrade, Schwab StreetSmart conditions, hahn-tech "Iron condor price alerts", tradersagency (thinkorswim), IG, Fidelity, quantcha | **winnable as an H2** - help pages state which price each platform uses (mark, bid, ask); none compares the two as triggers on a spread |
+| notify when short put goes in the money | Ticker Tape (two), Investing Daily help (two), Robinhood, Benzinga 2013 early assignment, FXStreet, stockalarm.io, Option Alpha episode on delta alerts, pulse.bot | **section-level** - forum-grade and help-desk answers |
+
+**Gap.** The pages say what one platform can alert on, or give a trigger as a rule inside an entry strategy. None sorts conditions by when they can be known (dates at the fill against prices as they happen), none says what makes each fire falsely, none treats the mark as a midpoint that moves with the quote, and none counts a partial fill or an early assignment as a condition, since neither shows on a price. That is the angle.
+
+**Title / meta.** Headline keeps "Options position alerts" at the front. Search title: "Options Position Alerts: What to Watch on a Spread" (50), kept as drafted. Meta leads with the target and the gap (state, dates known at the fill, mark as a quote) rather than "explained", which every result says. Slug `options-position-alerts`, not live, so no redirect is in play. H2s that can carry searched phrasings: "Which conditions on a spread are worth an alert?", "Is the stock or the spread's mark the cleaner price alert?".
+
+**Restraint.** "Options alerts" (signal-service intent), "best options alert service", "options alerts app", "free options alerts", any percent, delta or profit-target trigger rule, and any wording that implies a product sends alerts are not targeted. The post names no platform's alert feature, and states nothing about what the product does.
+
+**Links.** Out: `/blog/managing`, `managing-multiple-option-positions`, `what-happens-options-expiration`, `selling-options-before-earnings`, `covered-call-dividend-risk-assignment`, `options-limit-order-not-filling`, `option-assignment-what-happens`, `assignment-risk-credit-spread`, `partial-fill-options-spread`; all are files in `content/blog/`. Wanted back (link-only, once live): `managing-multiple-option-positions` (end of the spreadsheet section), `options-limit-order-not-filling` (end of the "at the mid" section), `what-happens-options-expiration` (end of "Monday's account"). No `TOOL_FOR_POST` entry: no calculator sets alerts.
+
+**Could not establish:** volume, difficulty or rank for any phrasing; whether "option alerts" or "options alerts" is the more typed form; whether reddit.com ranks, since none surfaced; any Search Console data, since the post is unpublished.
+
 
 ## Next ten unwritten topics, read 4 Nov
 
@@ -1596,7 +1620,7 @@ Rows 49 and 51 to 56 of the 4 Nov queue are now published. Only eight PLAN topic
 
 | # | Topic | Target query (long tail) | Head term (hub) | Competing today | Our angle |
 | --- | --- | --- | --- | --- | --- |
-| 57 | What to alert on in a book | options position alerts | options alerts | Robinhood, Webull, IBKR Campus, vendor pages; product pages dominate (4 Nov) | which conditions are worth an alert, described as mechanics; no feature we lack may be implied |
+| 57 | What to alert on in a book | options position alerts (also searched as "what alerts should I set on a credit spread", "stock vs mark price alert on a spread", "notify when short put goes in the money"; see the row 57 reading). Slug `options-position-alerts` | options alerts | Robinhood support, Webull courseware, IBKR Campus, Fidelity help, stockalarm.io and alert-service pages; product pages dominate the target, signal services and software docs the head (read 12 Nov). Winnable on the tail | which conditions are worth an alert, described as mechanics; no feature we lack may be implied |
 | 58 | The naked short call you did not know you had | naked call risk | naked call | Wikipedia, tastylive, SoFi, Lightspeed, SmartAsset; hard head term (4 Nov) | how a short call becomes uncovered after the shares are sold or called away |
 | 60 | What a closed-position record has to contain | options trade record realized pl | options trading journal | journal tool pages (Tradervue, Optionomics), Schwab help; product pages (4 Nov) | what fields make a realized figure reproducible, including partial closes and rolls |
 | 61 | Peak concurrent collateral | capital at risk options portfolio | options portfolio risk | TradesViz glossary (premium for longs, strike × 100 for short puts), IBKR portfolio tool page, QuantWheel and Wright Research risk guides, academic papers (Journal of Risk, KTH thesis), a 2019 tastylive episode. No page answers "at the same time". Winnable | the most collateral held at once across overlapping positions, against the sum of each position's max loss, on one hypothetical book; descriptive, no sizing rule |

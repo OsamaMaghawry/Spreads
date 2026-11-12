@@ -42,6 +42,8 @@ The common reasons an order at or near the mid does not fill:
 - **The legs' quotes are wide.** Each leg here is ten cents wide, so the spread is twenty. The wider the legs, the further the mid sits from any shown price.
 - **The order is not live.** Most listed equity options trade only in regular hours. An order entered after the close waits, and an unfilled day order is cancelled at the close.
 
+Related: [options position alerts](/blog/options-position-alerts), on why an alert on a spread's mark is partly an alert on its quote.
+
 ## What is price walking, and how does it work on a spread?
 
 Price walking is a sequence of replaced orders, each at a slightly worse price for the trader. On the hypothetical spread, a trader might start at the 0.60 mid, wait, move to 0.58, wait again, then try 0.56. The step size and the wait are the trader's choice; nothing in the market sets them.
