@@ -682,3 +682,4 @@ English. Newest first.
 - 2026-11-12 · (staging) Terminal: overnight buy/sell hotkeys price only from the overnight venue's bid or ask and send nothing without one, never from the 15-minute-delayed last trade (`b5266af`).
 - 2026-11-12 · (staging) P/L tab: the week and month windows start at the 16:00 New York close even across a clock change, so fills between 16:00 and 17:00 on the first day are no longer left out (`ae17c81`).
 - 2026-11-12 · (staging) Positions: a covered call backed partly by shares and partly by a long call no longer shows the shares' break-even; that row shows none (`f10088f`).
+- 2026-11-12 · (staging) Option chain: days to expiry count on New York's calendar, so Friday's expiry reads "1d" on Thursday instead of "today" (`944798c`).
