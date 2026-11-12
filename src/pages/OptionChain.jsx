@@ -3,7 +3,7 @@ import { Search, RefreshCw, AlertTriangle, X } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { fmtMoney } from "@/lib/format";
 import TradeDialog from "@/components/scanner/TradeDialog";
-import { contractSetup, collarSetup, repairSetup, protectedRepairSetup, chainLegQuantities, chainContext, withEarnings } from "@/lib/optionChain";
+import { contractSetup, collarSetup, repairSetup, protectedRepairSetup, chainLegQuantities, chainContext, withEarnings, expiryLabel } from "@/lib/optionChain";
 
 // The option chain, as a ladder, with every strike tradeable.
 //
@@ -37,11 +37,6 @@ const pct = (v) => (num(v) === null ? "—" : `${(v * 100).toFixed(1)}%`);
 
 const cell = "px-2 py-1 text-right tabular-nums whitespace-nowrap";
 const head = "px-2 py-2 text-[10px] uppercase tracking-wider font-semibold whitespace-nowrap";
-
-const dte = (d) => {
-  const days = Math.round((new Date(`${d}T00:00:00Z`) - Date.now()) / 86400000);
-  return days < 0 ? "expired" : days === 0 ? "today" : `${days}d`;
-};
 
 export default function OptionChain() {
   const [accounts, setAccounts] = useState([]);
@@ -240,7 +235,7 @@ export default function OptionChain() {
               className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm"
             >
               {data.expiries.map((d) => (
-                <option key={d} value={d}>{d} · {dte(d)}</option>
+                <option key={d} value={d}>{d} · {expiryLabel(d)}</option>
               ))}
             </select>
           </div>

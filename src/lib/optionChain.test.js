@@ -789,3 +789,22 @@ test("a collar for a count: one put per call, 100 free shares each", () => {
   assert.match(collarSetup(legs(3), held).reason, /300 for 3/);
   assert.match(collarSetup([{ row: P(380, 6), action: "buy", qty: 1 }, { row: C(430, 7), action: "sell", qty: 2 }], held).reason, /one put for each call/);
 });
+
+import { expiryLabel } from "./optionChain.js";
+
+test("expiryLabel: Friday's expiry is 1d on Thursday morning, not today", () => {
+  const thuMorning = new Date("2026-11-12T16:28:00Z"); // 11:28 a.m. New York, 8:28 a.m. Pacific
+  assert.equal(expiryLabel("2026-11-13", thuMorning), "1d");
+  assert.equal(expiryLabel("2026-11-12", thuMorning), "today");
+  assert.equal(expiryLabel("2026-11-11", thuMorning), "expired");
+  assert.equal(expiryLabel("2026-11-20", thuMorning), "8d");
+});
+
+test("expiryLabel: counts on New York's date, late at night and just after midnight", () => {
+  // 11:30 p.m. Thursday in New York is already Friday in UTC.
+  assert.equal(expiryLabel("2026-11-13", new Date("2026-11-13T04:30:00Z")), "1d");
+  // Ten past midnight Friday in New York.
+  assert.equal(expiryLabel("2026-11-13", new Date("2026-11-13T05:10:00Z")), "today");
+  // Summer time: 11:30 p.m. on 30 June in New York.
+  assert.equal(expiryLabel("2026-07-01", new Date("2026-07-01T03:30:00Z")), "1d");
+});

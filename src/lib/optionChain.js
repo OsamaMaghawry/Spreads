@@ -876,6 +876,22 @@ export function withEarnings(result, ctx, today) {
 }
 
 /**
+ * How far away an expiry is, in calendar days on New York's clock: "today",
+ * "1d", "7d", or "expired".
+ *
+ * The owner, on Thursday 12 November at 8:27 a.m. Pacific, looking at Friday's
+ * expiry marked "today": "Is today 13?" The chain divided the hours left until
+ * midnight UTC on the 13th (seven and a half) by 24 and rounded to zero.
+ * Options expire on New York's calendar, so this counts whole days between New
+ * York's date now and the expiry date, wherever the reader is.
+ */
+export function expiryLabel(expiry, now = new Date()) {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(now);
+  const days = Math.round((Date.parse(`${expiry}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000);
+  return days < 0 ? "expired" : days === 0 ? "today" : `${days}d`;
+}
+
+/**
  * A collar on shares the account holds: one put BOUGHT below the price as a
  * floor, one call SOLD above it as a cap, per 100 shares, one order.
  *
