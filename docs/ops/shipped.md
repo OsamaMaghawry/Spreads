@@ -679,3 +679,6 @@ English. Newest first.
 - 2026-11-11 · (staging) P/L tab: "today" now starts at the last 16:00 New York close instead of midnight, so a short opened just before midnight and covered after is counted inside the day (`1f4fde0`).
 - 2026-11-11 · (staging) Terminal self-test (owner/test tooling, no user-facing change): feeds by hour, one screener session read, and an account's whole record since a moment (`5edd035`, `f15e5df`, `8359cd5`).
 - 2026-11-11 · (staging) Admin terminal: the gamma board and the chart's Gamma menu call the Scanner by its name instead of "screener" (`f3dd3ce`).
+- 2026-11-12 · (staging) Terminal: overnight buy/sell hotkeys price only from the overnight venue's bid or ask and send nothing without one, never from the 15-minute-delayed last trade (`b5266af`).
+- 2026-11-12 · (staging) P/L tab: the week and month windows start at the 16:00 New York close even across a clock change, so fills between 16:00 and 17:00 on the first day are no longer left out (`ae17c81`).
+- 2026-11-12 · (staging) Positions: a covered call backed partly by shares and partly by a long call no longer shows the shares' break-even; that row shows none (`f10088f`).
