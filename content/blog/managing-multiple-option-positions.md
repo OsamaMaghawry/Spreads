@@ -94,6 +94,8 @@ That is why a book needs re-sorting rather than sorting once:
 
 Everything above is a sort by two numbers, and it can be done in a spreadsheet. What gets harder at twenty positions is doing it every day, and doing it on positions the tool has first put back together correctly. If a tool shows one spread as two legs, as [the earlier post on broker feeds](/blog/options-journal-splits-spreads-into-legs) described, the cushion and the maximum loss are computed on the wrong object and the sort goes wrong before it starts.
 
+Related: [options position alerts](/blog/options-position-alerts), on which changes to a spread are worth a notification.
+
 ## Frequently asked questions
 
 - **How many positions can one person manage?** There is no honest number. It depends on how different the positions are from one another and how much time you have each day. What changes with count is the cost of looking, not the mechanics of any one trade.

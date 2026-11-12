@@ -172,6 +172,8 @@ expiring on the same Friday, each leg of each one has been judged separately
 against its own strike, and the account on Monday is the sum of those
 separate results.
 
+Related: [options position alerts](/blog/options-position-alerts), on the expiration-week and in-the-money conditions worth a notification.
+
 ## Frequently asked questions
 
 - **What happens if I don't sell my option before expiration?** A cent in the money is exercised; anything else expires.
