@@ -59,8 +59,11 @@ export function periodStart(id, now = Date.now() / 1000) {
   if (Number(p.hour) >= 20) d = new Date(d.getTime() + DAY);
   while (weekend(d)) d = new Date(d.getTime() + DAY);
   do { d = new Date(d.getTime() - DAY); } while (weekend(d));
+  // The window's days come off the calendar date before 16:00 is read in New
+  // York time, so a window across a clock change still starts at the close.
+  d = new Date(d.getTime() - days * DAY);
   const date = d.toISOString().slice(0, 10);
   const guess = Date.parse(`${date}T20:00:00Z`);
   const hour = Number(new Date(guess).toLocaleString("en-US", { timeZone: "America/New_York", hour: "2-digit", hourCycle: "h23" }));
-  return (hour === 16 ? guess : guess + 3600000) / 1000 - days * 86400;
+  return (hour === 16 ? guess : guess + 3600000) / 1000;
 }

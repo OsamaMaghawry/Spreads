@@ -1306,7 +1306,7 @@ function PriceChart({
                 )}
                 <p className="mt-1 border-t border-slate-100 pt-1 text-[10px] leading-snug text-slate-500">
                   {replayOn ? "Hidden in a replay: these are today's levels, not the past's. " : gexMsg ? `${gexMsg} ` : ""}
-                  Expiries within 30 days, as the screener{gexMine?.at ? `; read ${new Date(gexMine.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}, again every 5 minutes` : ""}. Positive gamma tends to damp moves, negative to add to them.
+                  Expiries within 30 days, as the Scanner{gexMine?.at ? `; read ${new Date(gexMine.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}, again every 5 minutes` : ""}. Positive gamma tends to damp moves, negative to add to them.
                 </p>
               </div>
             )}

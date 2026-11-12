@@ -513,3 +513,18 @@ test("a short call covered by a long call gets no share-basis break-even", () =>
   assert.ok(shortCall, "short call row present");
   assert.equal(shortCall.breakEven, null);
 });
+
+// Audit 2026-W46 F5: the same short call twice, one contract covered by the
+// 100 shares and one by the long call, came out as one covered-call row of 2
+// with the share break-even (48.50), so the long-covered contract inherited a
+// break-even it does not have. A row covered partly by a long call has no
+// single break-even, so none is shown.
+test("a covered-call row backed partly by a long call gets no share-basis break-even", () => {
+  const out = pairSpreads(
+    [opt("XYZ261218C00060000", 1, 22, 21), opt("XYZ261120C00090000", -2, 1.5, 1.2), stock("XYZ", 100, 50, 5000)],
+    []
+  ) as any[];
+  const rows = out.filter((r: any) => r.shortSymbol === "XYZ261120C00090000" || r.symbol === "XYZ261120C00090000");
+  assert.ok(rows.length > 0, "short call row present");
+  for (const r of rows) assert.notEqual(r.breakEven, 48.5);
+});

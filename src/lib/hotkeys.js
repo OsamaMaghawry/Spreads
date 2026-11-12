@@ -135,6 +135,19 @@ export function describe(h) {
  * bought or sold at market, so a market key sends a limit at the ask or bid
  * for the extended session.
  */
+/**
+ * The quote a key prices from overnight: the overnight venue's bid and ask
+ * only. Its last trade is 15 minutes delayed on Alpaca's feed, so it is never
+ * the price; with neither bid nor ask there is no price (null), and nothing
+ * is sent.
+ */
+export function overnightQuote(q) {
+  const bid = n(q?.bid);
+  const ask = n(q?.ask);
+  if (!(bid > 0) && !(ask > 0)) return null;
+  return { bid: bid > 0 ? bid : null, ask: ask > 0 ? ask : null, last: null };
+}
+
 export function hotkeyOrder(h, ctx) {
   const buy = h.action === "buy";
   const q = ctx.quote || {};

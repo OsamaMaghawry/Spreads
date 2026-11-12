@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { comboOf, keyWarning, cleanHotkeys, suggestedHotkeys, describe, hotkeyOrder, withOwnSize, hotkeyPercent } from "./hotkeys.js";
+import { comboOf, keyWarning, cleanHotkeys, suggestedHotkeys, describe, hotkeyOrder, withOwnSize, hotkeyPercent, overnightQuote } from "./hotkeys.js";
 
 const key = (code, key, mods = {}) => ({ code, key, shiftKey: false, ctrlKey: false, altKey: false, metaKey: false, ...mods });
 
@@ -138,4 +138,23 @@ test("a buy under one share of a stock traded in part shares: the part share; a 
   // Not traded in part shares, or a sale: as before.
   assert.match(hotkeyOrder(usd(100), { ...ctx, fractionable: false }).reason, /less than one share/);
   assert.match(hotkeyOrder({ ...usd(100), action: "sell", price: "bid" }, ctx).reason, /less than one share/);
+});
+
+// Audit 2026-W46 F2: overnight, a key priced from the overnight venue's last
+// trade (15 minutes delayed) when it had no bid or ask: 109 INTC sold with a
+// limit at 59.10 though there was no overnight bid. The overnight price is the
+// bid or ask, or nothing is sent.
+test("overnight, a key never prices from the last trade", () => {
+  assert.equal(overnightQuote({ bid: null, ask: null, last: 59.1 }), null);
+  assert.equal(overnightQuote(null), null);
+  const ctx = (quote) => ({ symbol: "INTC", crypto: false, quote, equity: 1e5, buyingPower: 1e5, fractionable: true, session: "extended", held: 109 });
+  const sell = hotkeyOrder({ action: "sell", price: "market", size: "shares", amount: 109, keys: "F2" }, ctx(overnightQuote({ bid: null, ask: 59.7, last: 59.1 })));
+  assert.equal(sell.order, undefined);
+  assert.ok(sell.reason);
+  const buy = hotkeyOrder({ action: "buy", price: "market", size: "shares", amount: 100, keys: "F1" }, ctx(overnightQuote({ bid: 59.6, ask: null, last: 59.1 })));
+  assert.equal(buy.order, undefined);
+  const mid = hotkeyOrder({ action: "buy", price: "mid", size: "shares", amount: 100, keys: "F3" }, ctx(overnightQuote({ bid: 59.6, ask: null, last: 59.1 })));
+  assert.equal(mid.order, undefined);
+  const ok = hotkeyOrder({ action: "sell", price: "market", size: "shares", amount: 109, keys: "F2" }, ctx(overnightQuote({ bid: 59.68, ask: 59.75, last: 59.1 })));
+  assert.equal(ok.order.limitPrice, 59.68);
 });

@@ -617,8 +617,9 @@ export function pairSpreads(positions, activities, filledOrders = [], { cash = n
   const coverExtra = (leg, cover) => {
     const lot = shareLots[leg.ticker];
     // Shares that do not back this call (a long call does) give it no basis,
-    // so no break-even is derived from them.
-    const sharesBack = !!lot && cover.fromShares > 0;
+    // so no break-even is derived from them; nor when a long call backs part
+    // of the row, which then has no single break-even (audit 2026-W46 F5).
+    const sharesBack = !!lot && cover.fromShares > 0 && cover.byLongs.length === 0;
     return {
       shareBasis: sharesBack ? (lot.adjustedBasis ?? lot.avgEntryPrice) : 0,
       shareMarketPrice: lot ? lot.currentPrice : 0,

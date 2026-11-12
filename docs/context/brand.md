@@ -264,3 +264,9 @@ pages at `deltamint.app` and `dashboard.deltamint.app`.
 - **(proposed)** Email subjects and page titles use a colon after the brand, `DeltaMint: <thing>`, never a dash.
 - **(proposed)** Sign-up wording: one verb on the button (today "Sign up", "Start for free", "Create account"); the others stay CTA copy.
 - **(proposed)** Lifecycle status chips (closed, assigned, exercised): record sky/amber/violet as sanctioned, or collapse to one neutral chip.
+
+## Rules added by the audit (proposed, 2026-W46)
+
+- **(proposed)** Blog diagrams use one red and one green: either the sanctioned diagram pair `#B4485C` / `#2E8B5F` or the `dm` hexes, never both families in one diagram.
+- **(proposed)** Terminal (admin-only) tabs are Trade, Scanner, Gamma; running text and help text say "Scanner", never "screener".
+- **(proposed)** In the Terminal, red means loss, risk or a live-money warning; a market state such as negative gamma takes a neutral or the blue pair, not rose.
