@@ -1,9 +1,9 @@
 ---
 title: "Collar option strategy: the floor, the cap and the day after expiry"
-search_title: "Collar option strategy: example, break-even and max loss"
+search_title: "Collar Option Strategy: Covered Call Plus Protective Put"
 slug: collar-option-strategy
 excerpt: A collar is 100 shares held with a put bought below the stock and a call sold above it, so the position has a floor and a cap until the options expire.
-meta_description: "A collar pairs a bought put with a sold call on 100 shares. Worked example: floor, cap, break-even, max loss, and what the account holds after expiry."
+meta_description: "A collar is a covered call and a protective put on the same 100 shares. Worked example: floor, cap, break-even, and what an early assignment leaves behind."
 author: Osama Safwat Maghawry
 category: hedging
 series_order: 32

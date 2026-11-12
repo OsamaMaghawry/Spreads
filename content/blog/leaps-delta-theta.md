@@ -63,6 +63,8 @@ The 40 call is the more interesting case. It is deep in the money, so most of it
 
 What remains near expiry is mostly the model's interest-rate term: a deep in-the-money call is partly a way of not paying the strike yet, and that financing value bleeds away as expiration approaches. That is a modelling detail and the realised result depends on the actual quotes, but it is why a deep call's theta is not simply the at-the-money pattern scaled down.
 
+Related: [poor man's covered call vs covered call](/blog/pmcc-vs-covered-call), on a deep LEAPS call like this one standing in for the shares under a short call.
+
 ## Why does vega matter more on a LEAPS?
 
 Vega is how much an option's value changes for a one-point change in [implied volatility](/blog/implied-volatility-options-explained). Because a LEAPS has a long time for volatility to matter, it carries far more of it:
