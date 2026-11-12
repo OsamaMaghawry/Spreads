@@ -122,3 +122,6 @@ Attempted, not finished. What is established:
   allowed for that session. The owner email for the W43 STOP could not be sent
   that way. Done instead: a PushNotification to the owner, and the full text in
   `docs/trading-audit/2026-W43.md` and `docs/ops/queue.md`.
+- 2026-11-12 (W46 audit): still `CONNECT tunnel failed, response 403`. Also,
+  `.claude/agents/vp-product.md` no longer holds the sendDigest curl recipe the
+  audit and duty briefs point to. Done instead: PushNotification to the owner.
