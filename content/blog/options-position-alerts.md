@@ -83,7 +83,7 @@ Here is what happens in the invented path, and which condition fires:
 
 Between alerts 1 and 2 the stock rose to 51.30 and fell back, crossing the trigger twice. An alert that re-armed on every crossing would have fired again on day 12, a second time in three days for the same cushion. Counted as a change of state, it fired once, and the earnings alert, not the price alert, was the one that fired for a new reason on day 12.
 
-At expiration, if XYZ stays at 49.50, the short 50 put is in the money by 0.50 and would normally be assigned, and the long 45 put expires worthless. As [the assignment post](/blog/option-assignment-what-happens) describes, the account then holds 100 shares bought at 50 and no spread. If the put is assigned, the account holds 100 shares bought at 50, the 1.00 credit stays in the account, and the long 45 put has expired worthless. Closing the spread at 0.50 instead would end the position without shares. The expiration-week alert is the notice that the first ending is possible.
+At expiration, if XYZ stays at 49.50, the short 50 put is in the money by 0.50 and would normally be assigned, and the long 45 put expires worthless. As [the assignment post](/blog/option-assignment-what-happens) describes, if the put is assigned, the account holds 100 shares bought at 50, the 1.00 credit stays in the account, and the long 45 put has expired worthless. Closing the spread at 0.50 instead would end the position without shares. The expiration-week alert is the notice that the first ending is possible.
 
 ## What the account itself can change, without the stock moving
 
