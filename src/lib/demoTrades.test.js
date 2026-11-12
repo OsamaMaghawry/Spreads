@@ -88,3 +88,17 @@ test("the night of 10-11 Nov on Alton Live: shorts opened and covered, the day's
   assert.ok(Math.abs(book.AMZN.realized - 7 * (271.2537 - 273.1)) < 1e-6);
   assert.deepEqual(carried.SH, { qty: 193, price: 33.08, from: "close" });
 });
+
+// Audit 2026-W46 F6: a 7- or 30-day window that spans a clock change started
+// at 17:00, not 16:00: the days were taken off in 24-hour steps after the
+// close had been resolved in New York time.
+test("a week or month window starts at 16:00 New York across a clock change", () => {
+  const iso = (id, s) => new Date(periodStart(id, at(s)) * 1000).toISOString();
+  // Thu 12 Nov 11:00 (winter): 29 days back is Tue 13 Oct (summer), close 20:00 UTC.
+  assert.equal(iso("month", "2026-11-12T16:00:00Z"), "2026-10-13T20:00:00.000Z");
+  // Thu 5 Nov 11:00: today from Wed 4 Nov, 6 days back is Thu 29 Oct (summer).
+  assert.equal(iso("week", "2026-11-05T16:00:00Z"), "2026-10-29T20:00:00.000Z");
+  // Spring (clocks change Sun 14 Mar 2027): Thu 18 Mar 11:00, today from Wed 17 Mar,
+  // 6 days back is Thu 11 Mar (winter), close 21:00 UTC.
+  assert.equal(iso("week", "2027-03-18T15:00:00Z"), "2027-03-11T21:00:00.000Z");
+});
