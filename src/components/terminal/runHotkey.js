@@ -1,5 +1,5 @@
 import { invokeFunction } from "@/lib/functions";
-import { hotkeyOrder, describe, withOwnSize, hotkeyPercent } from "@/lib/hotkeys";
+import { hotkeyOrder, describe, withOwnSize, hotkeyPercent, overnightQuote } from "@/lib/hotkeys";
 import { orderNews, orderState, sessionOf, overnightOf, isCrypto, px, sizeText, exitText } from "@/lib/terminal";
 import { groupNews, resolveSize } from "@/lib/accountGroup";
 import { onOrder } from "./orderFeed";
@@ -173,12 +173,12 @@ export async function runHotkey(h, ctx) {
     let quote = ctx.quote;
     if (!crypto && overnightOf(Date.now() / 1000)) {
       const r = await invokeFunction("terminal", { action: "snapshot", accountId: account.id, symbols: [symbol], stockFeed: "overnight" }).catch(() => null);
-      const q = r?.data?.quotes?.[symbol];
-      if (!q || !(q.bid > 0 || q.ask > 0 || q.last > 0)) {
+      const q = overnightQuote(r?.data?.quotes?.[symbol]);
+      if (!q) {
         notify({ key, tone: "bad", title: `No overnight price for ${symbol}: nothing sent`, detail: "Alpaca's overnight venue has no quote for it now (not every share trades overnight)." });
         return;
       }
-      quote = { bid: q.bid, ask: q.ask, last: q.last };
+      quote = q;
     }
     const sized = { symbol, crypto, quote, equity: ctx.view?.equity, buyingPower: ctx.view?.buyingPower, step: crypto ? asset.step : null, fractionable: !crypto && asset.fractionable, session: session(), held: heldNow };
     // Not ticked on screen: the order's price and kind only, worked out here;
