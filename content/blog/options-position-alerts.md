@@ -89,7 +89,7 @@ At expiration, if XYZ stays at 49.50, the short 50 put is in the money by 0.50 a
 
 Some state changes come from the broker, not the market, and are invisible on a price chart.
 
-- **A leg is assigned early.** The short leg becomes shares and the long leg is left on its own, so the position is no longer the spread opened. [Assignment risk on a credit spread](/blog/assignment-risk-credit-spread) covers what the account shows after.
+- **A leg is assigned early.** The short leg becomes shares and the long leg is left on its own, so the position is no longer the spread opened. [Assignment risk on a credit spread](/blog/assignment-risk-credit-spread) covers what the account shows after, and [naked call risk](/blog/naked-call-risk) covers a short call whose shares or long call leave first.
 - **An order fills partly.** Four spreads of ten, or one leg without the other, leave a position that does not match the plan. [The partial fill post](/blog/partial-fill-options-spread) sets out the cases.
 - **An order is still resting at the close.** A day order to close that never filled is cancelled, and the position is still open into the next session.
 

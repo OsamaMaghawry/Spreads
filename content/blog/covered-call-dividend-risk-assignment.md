@@ -75,7 +75,7 @@ That $500 is the spread's width, and the [maximum loss](/blog/credit-spread-max-
 
 ![Three hypothetical accounts with the 50 call assigned the evening before a 0.50 dividend: the covered call forgoes the $50, the call credit spread and the uncovered short call each owe it.](/assets/blog/short-call-assigned-before-ex-date.svg)
 
-An uncovered short call has the same $50 debit and no long call to cap what comes after it. The short shares are exposed to the stock's rise above 50 until they are bought back, and that gap, rather than the dividend, is the larger risk.
+An [uncovered short call](/blog/naked-call-risk) has the same $50 debit and no long call to cap what comes after it. The short shares are exposed to the stock's rise above 50 until they are bought back, and that gap, rather than the dividend, is the larger risk.
 
 ## Will a short call be assigned before the ex-dividend date?
 

@@ -1,0 +1,20 @@
+<svg viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Result per share at expiration of a hypothetical short XYZ 52 call sold for 1.42, held two ways, for XYZ prices from 44 to 64. Held with 100 shares bought at 48, the line rises with the stock up to the 52 strike and then stays flat at plus 5.42 however high XYZ goes, while below 46.58 the position loses money. Held alone, after the shares have left the account, the call keeps the 1.42 premium up to 52, crosses zero at 53.42 and loses 1 for every 1 XYZ rises after that, reaching minus 10.58 at 64 with no floor.">
+  <rect width="720" height="360" fill="#FFFFFF"/>
+
+  <!-- zero line and strike guide -->
+  <line x1="80" y1="141.1" x2="660" y2="141.1" stroke="#C9CEDC" stroke-width="1.5"/>
+  <text x="70" y="146.5" font-size="16" font-weight="600" text-anchor="end" fill="#767B8E">0</text>
+  <line x1="312" y1="40" x2="312" y2="300" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="312" y="328" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">52 strike</text>
+
+  <!-- covered: shares plus short call, flat above the strike -->
+  <path d="M80 178.4 L312 62.8 L660 62.8" fill="none" stroke="#14151C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="660" y="50" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">covered: flat at +5.42</text>
+
+  <!-- uncovered: short call alone, no floor -->
+  <path d="M80 120.6 L312 120.6 L660 293.9" fill="none" stroke="#B4485C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="10 6"/>
+  <text x="560" y="292" font-size="15" font-weight="600" text-anchor="end" fill="#B4485C">uncovered: no floor</text>
+
+  <!-- axis label -->
+  <text x="370" y="352" font-size="15" text-anchor="middle" fill="#767B8E">Hypothetical XYZ at expiration, per share</text>
+</svg>
