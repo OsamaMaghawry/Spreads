@@ -44,7 +44,7 @@ ever settle against each other for.
 The structure sits next to the [covered call](/blog/covered-call-explained),
 which is also a short call, but a covered call has shares behind it. A call
 credit spread has a second option behind it instead. A short call with
-neither is uncovered, and brokers generally restrict it to approved margin
+neither is [uncovered](/blog/naked-call-risk), and brokers generally restrict it to approved margin
 accounts, while spreads are often available in more account types. Each broker
 sets its own rules, so it is worth reading them rather than assuming.
 

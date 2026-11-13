@@ -86,7 +86,7 @@ Whether any of these is wise depends on what a trader expects to do with the sha
 
 The call is a contract with its own life. The shares do not move when it is sold, but the position they sit in changes in four practical ways, and each is a way the call can end:
 
-- **The shares are tied up.** They collateralize the call, so selling them while the call is open leaves a short call with nothing behind it. Buying the call back first is the way out, and it costs whatever the call is then worth.
+- **The shares are tied up.** They collateralize the call, so selling them while the call is open leaves a [short call with nothing behind it](/blog/naked-call-risk). Buying the call back first is the way out, and it costs whatever the call is then worth.
 - **Assignment can come early.** A short call can be assigned before expiration, most often when it is in the money and an ex-dividend date is near, as the [early exercise post](/blog/early-exercise-options) explains. The assignment notice usually arrives the next morning, and the shares are delivered at the strike.
 - **Assignment can also be the intent.** If the shares are called away, the account holds cash at the strike, as the [covered call post](/blog/covered-call-explained) shows the morning after, and the [wheel](/blog/wheel-strategy-explained) is back where it began.
 - **Usually nothing happens at expiration if the call is out of the money.** It [expires worthless](/blog/what-happens-options-expiration), the premium is kept, and the account holds shares with no call, as it did the morning after assignment.
