@@ -95,6 +95,8 @@ never have paid. Whether that trade is worth it comes down to one comparison:
 - **The call has to be deep enough in the money that its protection is worth almost nothing.** A call holder's downside stops at the strike; a shareholder's does not. That protection is most of what a call's extrinsic value is made of, so a call with a real chance of finishing out of the money is never an early-exercise candidate, whatever the dividend.
 - **The timing is narrow.** The comparison only favors exercising right before the ex-dividend date. Earlier, the dividend has not moved the arithmetic yet; after, the stock has already priced it in.
 
+Related: a deep in-the-money call held in place of shares collects none of those dividends, which [stock replacement with a deep call](/blog/stock-replacement-strategy) sets beside owning 100 shares.
+
 ## Does early exercise ever make sense on a put?
 
 There is a put version, and it runs on interest rather than dividends. A deep
