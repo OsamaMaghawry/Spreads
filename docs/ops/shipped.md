@@ -3,6 +3,7 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-11-13 · New blog post: naked call risk — five routine trades (selling the shares, closing or letting expire the long call, and others) that leave a covered call or call credit spread uncovered, closing the "After the fill" series; the calendar and diagonal spread posts got search titles (`6cfc9da`, published `95bec6e`; `23e9951`, published `01600a9`).
 - 2026-10-06 · New blog post: the diagonal spread explained, with two diagrams comparing it to a calendar spread (`4cef92c`).
 - 2026-09-28 · New blog post: the wheel strategy explained, with two diagrams, and a cross-link from the covered-call post (`9a76e9d`).
 - 2026-09-27 · The Saturday weekly digest no longer goes silent for
