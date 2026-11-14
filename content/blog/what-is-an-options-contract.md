@@ -64,6 +64,8 @@ of your fill, and never need to find them again to get out.
 | Exercise style | Exchange, at listing | No |
 | Premium | The two people trading it | Constantly, while it stays listed |
 
+Related: an expiration a year or more away is still this same listed contract; [LEAPS options explained](/blog/leaps-options-explained) covers what the extra time does to the premium.
+
 ## How many shares is one contract? 100, so a $1.20 quote costs $120
 
 The most common early mistake is not conceptual, it is arithmetic. Option prices
