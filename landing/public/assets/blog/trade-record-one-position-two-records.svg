@@ -1,0 +1,15 @@
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="One hypothetical position of ten XYZ 50/45 put credit spreads opened at a 1.45 net credit splits into two closed-position records. Record A covers four spreads closed at a 0.70 debit and realized plus 300 dollars. Record B covers the other six closed at a 1.82 debit and realized minus 222 dollars.">
+  <rect width="720" height="300" fill="#FFFFFF"/>
+  <rect x="240" y="28" width="240" height="56" rx="6" fill="#FFFFFF" stroke="#14151C"/>
+  <text x="360" y="62" font-size="17" font-weight="600" fill="#14151C" text-anchor="middle">Hypothetical 10-lot, 1.45</text>
+  <path d="M320 84 L180 140" stroke="#767B8E" stroke-width="1.5" fill="none"/>
+  <path d="M400 84 L540 140" stroke="#767B8E" stroke-width="1.5" fill="none"/>
+  <rect x="60" y="140" width="240" height="120" rx="6" fill="#DFF1E7" stroke="#2E8B5F"/>
+  <text x="180" y="174" font-size="14" font-weight="600" fill="#767B8E" text-anchor="middle">Record A</text>
+  <text x="180" y="204" font-size="17" fill="#14151C" text-anchor="middle">4 at 0.70</text>
+  <text x="180" y="240" font-size="24" font-weight="600" fill="#2E8B5F" text-anchor="middle">+$300</text>
+  <rect x="420" y="140" width="240" height="120" rx="6" fill="#F8E3E7" stroke="#B4485C"/>
+  <text x="540" y="174" font-size="14" font-weight="600" fill="#767B8E" text-anchor="middle">Record B</text>
+  <text x="540" y="204" font-size="17" fill="#14151C" text-anchor="middle">6 at 1.82</text>
+  <text x="540" y="240" font-size="24" font-weight="600" fill="#B4485C" text-anchor="middle">-$222</text>
+</svg>

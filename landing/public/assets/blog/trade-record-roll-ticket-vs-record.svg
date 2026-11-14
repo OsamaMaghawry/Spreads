@@ -1,0 +1,14 @@
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A hypothetical roll ticket shows a net credit of plus 168 dollars, made of two halves: six spreads bought back at a 1.82 debit for 1,092 dollars, which completes a record that realized minus 222 dollars against its original credit, and six new spreads opened at a 2.10 credit for 1,260 dollars, still open with no result yet.">
+  <rect width="720" height="300" fill="#FFFFFF"/>
+  <rect x="36" y="90" width="200" height="120" rx="6" fill="#FFFFFF" stroke="#14151C"/>
+  <text x="136" y="134" font-size="14" font-weight="600" fill="#767B8E" text-anchor="middle">Hypothetical roll ticket</text>
+  <text x="136" y="176" font-size="24" font-weight="600" fill="#14151C" text-anchor="middle">+$168 net</text>
+  <path d="M236 130 L330 85" stroke="#767B8E" stroke-width="1.5" fill="none"/>
+  <path d="M236 170 L330 215" stroke="#767B8E" stroke-width="1.5" fill="none"/>
+  <rect x="330" y="30" width="350" height="110" rx="6" fill="#F8E3E7" stroke="#B4485C"/>
+  <text x="505" y="72" font-size="17" fill="#14151C" text-anchor="middle">Closed 6</text>
+  <text x="505" y="110" font-size="22" font-weight="600" fill="#B4485C" text-anchor="middle">-$1,092 paid</text>
+  <rect x="330" y="160" width="350" height="110" rx="6" fill="#FFFFFF" stroke="#767B8E" stroke-dasharray="5 4"/>
+  <text x="505" y="202" font-size="17" fill="#14151C" text-anchor="middle">Opened 6</text>
+  <text x="505" y="240" font-size="20" font-weight="600" fill="#767B8E" text-anchor="middle">+$1,260 still open</text>
+</svg>
