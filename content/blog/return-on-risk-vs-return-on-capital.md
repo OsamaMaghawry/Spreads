@@ -129,4 +129,6 @@ falls before expiration are separate questions and have to be asked separately.
 What return on risk does is make two positions comparable at all. That is a
 smaller claim than "rank by this and do well", and it is the true one.
 
+Read next: [what a closed-position record has to contain](/blog/options-trade-record-realized-pl), so a realized figure can be recomputed from the row.
+
 This post is educational and is not investment advice.
