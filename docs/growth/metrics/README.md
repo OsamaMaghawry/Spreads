@@ -4,16 +4,16 @@ Written daily by `.github/workflows/metrics-snapshot.yml`. Agents read
 these files; the Google credentials never leave CI. A dash means the source
 is not connected yet, not zero.
 
-## Latest — 2026-11-13
+## Latest — 2026-11-14
 
-- Search Console, last 28 days: 296 impressions, 2 clicks, CTR 0.7%
-- Indexing: 73 of 81 sitemap URLs indexed
-  - not indexed: https://deltamint.app/blog/investing (URL is unknown to Google)
+- Search Console, last 28 days: 291 impressions, 2 clicks, CTR 0.7%
+- Indexing: 74 of 82 sitemap URLs indexed
+  - not indexed: https://deltamint.app/blog/investing (Discovered - currently not indexed)
+  - not indexed: https://deltamint.app/blog/options-trade-record-realized-pl (URL is unknown to Google)
   - not indexed: https://deltamint.app/blog/naked-call-risk (URL is unknown to Google)
-  - not indexed: https://deltamint.app/blog/options-position-alerts (URL is unknown to Google)
   - not indexed: https://deltamint.app/blog/options-limit-order-not-filling (URL is unknown to Google)
-  - not indexed: https://deltamint.app/blog/sell-puts-to-buy-stock (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/pmcc-vs-covered-call (Discovered - currently not indexed)
+  - not indexed: https://deltamint.app/blog/sell-puts-to-buy-stock (URL is unknown to Google)
+  - not indexed: https://deltamint.app/blog/pmcc-vs-covered-call (URL is unknown to Google)
   - not indexed: https://deltamint.app/blog/stock-replacement-strategy (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/leaps-options-explained (Discovered - currently not indexed)
 - Submitted today: Google sitemap NOT submitted: Search Console refused (403). Give deltamint-metrics@deltamint-metrics.iam.gserviceaccount.com "Full" permission: Search Console → Settings → Users and permissions.; Google last read it 2026-11-10; 1 URL(s) sent to Bing and others via IndexNow
@@ -25,7 +25,6 @@ is not connected yet, not zero.
 
 | Day | Impressions | Clicks | Sessions | Signed up | Connected | Traded live | Paying |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-10-15 | 0 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-10-16 | 5 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-10-17 | 5 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-10-18 | 5 | 0 | — | 4 | 3 | 1 | 0 |
@@ -55,3 +54,4 @@ is not connected yet, not zero.
 | 2026-11-11 | 18 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-11-12 | 45 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-11-13 | 42 | 0 | — | 4 | 3 | 1 | 0 |
+| 2026-11-14 | 0 | 0 | — | 4 | 3 | 1 | 0 |
