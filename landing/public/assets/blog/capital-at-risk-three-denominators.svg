@@ -1,0 +1,12 @@
+<svg viewBox="0 0 720 250" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Three ways to size the same hypothetical book of five put credit spreads, drawn as bars on one scale. The largest single max loss is 400 dollars. The peak held at once is 900 dollars. The sum of all five max losses is 1,600 dollars, which counts collateral that was released and reused as if it had been held together.">
+  <rect width="720" height="250" fill="#FFFFFF"/>
+  <text x="30" y="62" font-size="15" fill="#14151C">Largest single</text>
+  <rect x="200" y="40" width="120" height="34" rx="4" fill="#767B8E"/>
+  <text x="332" y="63" font-size="17" font-weight="600" fill="#14151C">$400</text>
+  <text x="30" y="132" font-size="15" font-weight="600" fill="#14151C">Peak at once</text>
+  <rect x="200" y="110" width="270" height="34" rx="4" fill="#B4485C"/>
+  <text x="482" y="133" font-size="17" font-weight="600" fill="#B4485C">$900</text>
+  <text x="30" y="202" font-size="15" fill="#14151C">Sum of all five</text>
+  <rect x="200" y="180" width="480" height="34" rx="4" fill="#F8E3E7" stroke="#B4485C"/>
+  <text x="668" y="203" font-size="17" font-weight="600" fill="#14151C" text-anchor="end">$1,600</text>
+</svg>

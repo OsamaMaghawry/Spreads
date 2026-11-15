@@ -163,6 +163,8 @@ That fixed hold is what adds up on a book of positions. Ten spreads on ten
 underlyings reserve ten widths at once, each unchanged by how it is doing,
 and the account's buying power is whatever is left after all of them.
 
+Related: [capital at risk in an options portfolio](/blog/capital-at-risk-options-portfolio) follows that combined hold over time and shows why the most held at once is usually smaller than adding every position's max loss, because not every position was open on the same day.
+
 ## Frequently asked questions
 
 - **What is buying power reduction on an option trade?** The amount of buying power a position or working order takes away while it is open.
