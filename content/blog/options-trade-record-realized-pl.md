@@ -106,4 +106,6 @@ The result is shown in three parts, Premium, Early Close and From Assignment, be
 
 The test for any row is whether a reader can get its realized figure back from what the row says. In the worked example, one ten-lot became +$300 and -$222 in two records, a roll ticket's +$168 netted a buy-back against a credit still at risk, and an average got the total right while hiding both. The rest of the [measuring series](/blog/measuring) builds on rows that hold up to that test.
 
+Read next: [capital at risk in an options portfolio](/blog/capital-at-risk-options-portfolio), the peak held at once rather than the sum of every max loss.
+
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.

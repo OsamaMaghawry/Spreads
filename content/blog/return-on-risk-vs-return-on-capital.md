@@ -118,6 +118,8 @@ the screen lists what matches them and shows the arithmetic underneath. What the
 software will not do is let a wide, thin structure hide behind a credit that
 looks the same as everyone else's.
 
+Related: [capital at risk in an options portfolio](/blog/capital-at-risk-options-portfolio) follows max loss across a book as positions open and close, and reads its highest point rather than the sum of every max loss.
+
 ## The honest limit of the metric
 
 Return on risk says nothing about how likely the loss is. A structure with an

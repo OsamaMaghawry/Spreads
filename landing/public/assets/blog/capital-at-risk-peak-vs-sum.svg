@@ -1,0 +1,13 @@
+<svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A step chart of capital at risk in one hypothetical book of five put credit spreads over 70 days. The running total of open max losses rises to 400 dollars, then 700, peaks at 900 dollars between day 15 and day 22, falls and rises again to 700, and returns to zero on day 70. A dashed line far above it marks the 1,600 dollar sum of all five max losses, a level the account never held at once.">
+  <rect width="720" height="340" fill="#FFFFFF"/>
+  <line x1="80" y1="280" x2="680" y2="280" stroke="#767B8E" stroke-width="1"/>
+  <line x1="80" y1="40" x2="680" y2="40" stroke="#767B8E" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="680" y="30" font-size="15" font-weight="600" fill="#767B8E" text-anchor="end">Sum of max losses $1,600</text>
+  <path d="M88.6 280 V220 H148.6 V175 H208.6 V145 H268.6 V190 H328.6 V250 H337.1 V190 H457.1 V220 H474.3 V175 H585.7 V235 H680 V280 Z" fill="#F8E3E7"/>
+  <path d="M88.6 280 V220 H148.6 V175 H208.6 V145 H268.6 V190 H328.6 V250 H337.1 V190 H457.1 V220 H474.3 V175 H585.7 V235 H680 V280" fill="none" stroke="#B4485C" stroke-width="2.5"/>
+  <line x1="238.6" y1="145" x2="238.6" y2="100" stroke="#B4485C" stroke-width="1.5"/>
+  <text x="238.6" y="90" font-size="18" font-weight="600" fill="#B4485C" text-anchor="middle">Peak $900</text>
+  <text x="70" y="285" font-size="14" fill="#767B8E" text-anchor="end">$0</text>
+  <text x="88.6" y="304" font-size="14" fill="#767B8E" text-anchor="middle">Day 1</text>
+  <text x="680" y="304" font-size="14" fill="#767B8E" text-anchor="end">Day 70</text>
+</svg>
