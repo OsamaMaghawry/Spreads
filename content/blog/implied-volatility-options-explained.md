@@ -145,7 +145,7 @@ holding several of them sees one input revalue every line in the same moment
 rather than line by line - a problem of scale taken up in the [after the
 fill](/blog/managing) posts rather than this one.
 
-Related: a [calendar spread](/blog/calendar-spread-explained) holds options at two expirations, so a change in implied volatility reaches its two legs differently.
+Related: a [calendar spread](/blog/calendar-spread-explained) holds options at two expirations, so a change in implied volatility reaches its two legs differently. A [diagonal spread](/blog/diagonal-spread-explained) does the same with the two legs at different strikes as well.
 
 ## Does high implied volatility mean the stock will move?
 
