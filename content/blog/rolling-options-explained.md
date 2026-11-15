@@ -91,6 +91,8 @@ A roll feels like a continuation because the account still shows a short put at 
 - **It does not remove the risk.** If XYZ keeps falling, a put in the money can still be assigned at 50, and is exercised if it finishes in the money, and the account still buys shares at a price above the market.
 - **The tax treatment is its own question.** The closing trade is a closed loss, and how a loss is treated depends on rules this post does not cover.
 
+Related: [options trade records](/blog/options-trade-record-realized-pl) shows how a roll is recorded as a close and an open, so its realized figure can be recomputed later.
+
 A covered call rolls the same way: buy back the short call, sell a later one, and let the shares collateralize it. The arithmetic of the ticket is identical, with a call's price in place of a put's. The covered call's own mechanics are in the [covered call post](/blog/covered-call-explained).
 
 A long option rolls the other way round: the old one is sold to close and a later one bought to open, so at the same strike the ticket is a debit. [Rolling a protective put](/blog/roll-protective-put) prices that case on a hedged lot. On a spread the ticket has four legs: [adjusting an iron condor](/blog/adjust-iron-condor) prices a roll of one tested wing and what it does to the credit and max loss.

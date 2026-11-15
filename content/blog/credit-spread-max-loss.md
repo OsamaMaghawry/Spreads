@@ -116,6 +116,8 @@ One more thing that hold is not: a denominator. The credit set against it is not
 a return. It has no holding period attached, and it says nothing about how often
 the losing case arrives - only about what is posted while you wait to find out.
 
+Related: [capital at risk in an options portfolio](/blog/capital-at-risk-options-portfolio) works out how much of that total was open at once for a book whose spreads open and close on different days.
+
 ## Before expiration the cap is a boundary, not your current profit and loss
 
 The payoff diagram describes one instant - the last one. Every day until then,
