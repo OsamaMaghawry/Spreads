@@ -2349,7 +2349,10 @@ async function accountFills(account: any, startIso: string) {
   const symbols = [...new Set([...fills.map((f) => f.symbol), ...Object.keys(positions)])];
   const marks: Record<string, number> = {};
   const from = iso(start - 12 * 86400000);
-  const until = iso(start);
+  // The day's close is in by 16:00, four hours before today's start (20:00): asking only
+  // up to then keeps a read made just after 20:00 off the consolidated feed's most recent
+  // 15 minutes, which an account without the paid data plan may not read (16 Nov review).
+  const until = iso(start - 4 * 3600000);
   const readMarks = async (list: string[], crypto: boolean) => {
     for (let i = 0; i < list.length; i += 100) {
       const chunk = list.slice(i, i + 100).join(",");

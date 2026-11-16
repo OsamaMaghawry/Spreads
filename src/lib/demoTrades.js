@@ -47,9 +47,11 @@ export function demoBook({ fills = [], positions = {}, marks = {}, start }) {
  * the 16:00 close). Today: 20:00 New York on the trading day before, when its
  * after-hours session ends and the overnight one into today opens; the trading
  * day rolls then, and a weekend's is Monday's. What was held at that moment
- * counts from that day's 16:00 close (the marks). That is Alpaca's own day
- * change: its last_equity is the day's cash after the after-hours trades plus
- * what is still held at the 16:00 close (Alton RS, 16 Nov, to the cent).
+ * counts from the last 16:00 close before then (the marks). Across a weekend
+ * that matches Alpaca's own day change: its last_equity was Friday's cash
+ * after the after-hours trades plus what was still held at Friday's 16:00
+ * close (Alton RS, 16 Nov, to the cent). Trades in the overnight session
+ * (20:00 to 4:00) have not been checked against Alpaca's figure yet.
  * Until 16 Nov this started at 16:00, so Friday's after-hours trades on Alton
  * Live showed as Monday's (−$102.33 "today" with no trade made; the owner:
  * "It is showing loss 106 today and I haven't even traded anything so far").

@@ -91,7 +91,7 @@ test("Monday 16 Nov on Alton Live: Friday's after-hours trades are Friday's, not
   assert.deepEqual(carried, {});
 });
 
-test("held across after-hours: counted from the 16:00 close, the way Alpaca's day change counts it", () => {
+test("held across after-hours: counted from the 16:00 close, as Alpaca's last_equity was across the weekend", () => {
   // Alton RS, 16 Nov: 400 WMT held over the weekend, Friday's close 128.09, 128.5899 now.
   const start = periodStart("today", at("2026-11-16T14:46:00Z"));
   const { book, carried } = demoBook({ fills: [], positions: { WMT: { qty: 400, last: 128.5899, avg: 107.5 } }, marks: { WMT: 128.09 }, start });
@@ -114,7 +114,7 @@ test("the night of 10-11 Nov on Alton Live: shorts opened and covered, the day's
   assert.equal(carried.INTC, undefined);
   assert.ok(Math.abs(book.INTC.realized - (59.68 * 109 - (27 * 60.21 + 27 * 60.22 + 55 * 60.27))) < 1e-6); // −61.31
   // AMZN was sold short at 18:57 Tuesday, in after-hours: Tuesday's. Wednesday's
-  // part runs from Tuesday's close to the cover, as Alpaca's day change has it.
+  // part runs from Tuesday's close to the cover, as for anything held across 20:00.
   assert.deepEqual(carried.AMZN, { qty: -7, price: 270.87, from: "close" });
   assert.ok(Math.abs(book.AMZN.realized - 7 * (270.87 - 273.1)) < 1e-6);
   assert.deepEqual(carried.SH, { qty: 193, price: 33.08, from: "close" });

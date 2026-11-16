@@ -335,7 +335,7 @@ export function DemoResults({ accountId, refreshKey = null }) {
           ))}
         </div>
         <span className="text-slate-500">
-          {data ? `${data.fills.length} fill${data.fills.length === 1 ? "" : "s"} since ${new Date(data.startSec * 1000).toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric" })}, 8:00 p.m., when after-hours ended` : state.loading ? "Reading your fills…" : ""}
+          {data ? `${data.fills.length} fill${data.fills.length === 1 ? "" : "s"} since ${new Date(data.startSec * 1000).toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric" })}, 8:00 p.m.${period === "today" ? ", when after-hours ended" : ""}` : state.loading ? "Reading your fills…" : ""}
         </span>
       </div>
       {state.error && state.key === key && <p className="px-2 py-1 text-rose-700">{state.error}</p>}
@@ -345,7 +345,7 @@ export function DemoResults({ accountId, refreshKey = null }) {
           <TradeResults book={built.book} priceOf={priceOf} carriedAt={data.startSec} showHow={false}
             empty={`No share or coin trades ${period === "today" ? "today" : "in this period"}, and nothing held.`}
             openHint="Positions still held, at the last price" holdHint="Open to close"
-            note={`From this account's own fills at Alpaca, no commission. ${carried ? `Held from before the period (${carried} symbol${carried === 1 ? "" : "s"}): counted from that day's 4:00 p.m. close, as Alpaca's day change is; "held before" in the list. ` : ""}${data.options ? `${data.options} option fill${data.options === 1 ? "" : "s"} left out. ` : ""}Shares from an option assignment count from the close before the period. Return is on the cost of the part closed.`} />
+            note={`From this account's own share and coin fills at Alpaca; no commission, and fees, dividends and interest are not in it. ${carried ? `Held from before the period (${carried} symbol${carried === 1 ? "" : "s"}): counted from the last regular close before then (a coin: its last daily close, UTC); "held before" in the list. ` : ""}${data.options ? `${data.options} option fill${data.options === 1 ? "" : "s"} left out. ` : ""}Shares from an option assignment count from the close before the period. Return is on the cost of the part closed.`} />
         )}
       </div>
     </div>
