@@ -10,6 +10,8 @@ smallest test that could disprove it, the kill criterion, and a cost guess.
 
 Last run: **2026-09-01** (vp-product, Tuesday cadence).
 
+End-of-day reconciliation **2026-11-16**: nothing shipped against #1–#3. Today's only product change (staging, admin-only terminal P/L tab, `6075269`/`cc6d59c`) touches none of them; `ResultsTable.jsx` still renders no width or POP, and no `scan_runs` table exists on `main` or `staging`. No status changes.
+
 ## Open proposals
 
 **Three of five slots used.** Two deliberately left empty — this run killed one
