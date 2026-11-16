@@ -12,12 +12,14 @@ why, is in §3.
 
 - **No billing exists.** No Stripe code, no plan column, no subscription
   table. (Being built on staging, 2 Sep — see `docs/ops/queue.md`.)
-- **A pricing page is published** at `/pricing` with Paper $0 / Pro $39 /
-  Desk $99 and a nine-row matrix of which at least seven rows are false
-  against the code: position caps, account caps, condors Pro-only,
-  single-leg closing Pro-only, risk aggregation Desk-only, PDF Desk-only,
-  "60-second auto-refresh". All three buttons go to `/register`. It is
-  replaced by the two-tier page below at the Stripe switch.
+- **No pricing page is published.** The three-tier page (Paper $0 / Pro $39 /
+  Desk $99) was taken down on 12 Sep at the owner's ask (`95b03b7`, demo
+  mode): it now sits in `landing/drafts/pricing/`, `/pricing` returns the
+  site's 404 page, and it is out of the sitemap. Its nine-row matrix was
+  false against the code in at least seven rows, so it must not go back as
+  it is; it is replaced by the two-tier page below at the Stripe switch.
+  (Corrected 16 Nov by the reality check; this bullet said the page was
+  live.)
 - Pre-revenue; Alpaca live-trading approval pending. Paper is free by design.
 - Our marginal cost per free user is Supabase invocations, not broker data:
   every broker call runs on the user's own token or keys, and the price

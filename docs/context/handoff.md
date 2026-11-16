@@ -29,10 +29,15 @@ need `npx wrangler deploy` by hand.
   broker refusals recorded, activation funnel no longer inverts.
 - **positionWatch**: runs every 15 min in-session + one report after close.
 - **Email**: sends through Brevo as `DeltaMint <support@deltamint.app>`.
+  *(16 Nov: agent Routines cannot reach `sendDigest` at all — the production
+  Supabase host is refused at the proxy, so every agent email since at least
+  11 Nov went out only as a push notification. Fix is the owner's: allow
+  `yecfbeohyakuoyczvdbj.supabase.co` in the Routine environment's network
+  settings.)*
 
 ## Waiting on the owner
 
-*Re-checked 26 Oct, 2 Nov and 9 Nov by the reality check (still no closing evidence; production still 403 from agent sessions): items 1–3 below have no evidence of closure in the repo, and production is unreachable from agent sessions (403 at the proxy), so they cannot be confirmed either way. Treat them as **unresolved, unverified** — the owner's one-word answer closes each. The live ledger of owner items is `docs/ops/queue.md` § Needs owner.*
+*Re-checked 26 Oct, 2 Nov, 9 Nov and 16 Nov by the reality check (still no closing evidence; production still 403 from agent sessions): items 1–3 below have no evidence of closure in the repo, and production is unreachable from agent sessions (403 at the proxy), so they cannot be confirmed either way. Treat them as **unresolved, unverified** — the owner's one-word answer closes each. The live ledger of owner items is `docs/ops/queue.md` § Needs owner.*
 
 1. `BREVO_API_KEY` → Supabase (Spread) → Edge Functions → Secrets. Alerts are
    recorded but not emailed until this exists.
