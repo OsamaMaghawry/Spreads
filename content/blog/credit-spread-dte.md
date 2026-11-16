@@ -85,7 +85,7 @@ The searches that bring a reader here usually ask for a number, and the pages th
 
 A trader who closes a position before expiration changes which rows apply, because the days actually held are the only ones that count. A spread opened at 45 days and closed at 21 never meets the 7-day row at all, and a spread opened at 14 spends its whole life in the fast-decay, high-reaction part of the table. That is a question about the exit, which [closing a credit spread early vs holding to expiration](/blog/close-credit-spread-early-or-hold) takes up.
 
-Related: [credit spread width](/blog/credit-spread-width) covers the other setting that changes a spread's credit and maximum loss.
+Related: [credit spread width](/blog/credit-spread-width) covers the other setting that changes a spread's credit and maximum loss. [Why an options win rate is not a result](/blog/options-win-rate-misleading) shows how the size of a win against the size of a loss sets the share of trades a book has to win to break even.
 
 Two cautions apply to every figure here. The numbers come from one model at one volatility, and a real chain moves strikes unevenly, so the comparison between rows is the point and the cents are not. And the stock was assumed to sit still or fall exactly $4, which no real stock is obliged to do.
 

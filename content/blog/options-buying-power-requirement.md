@@ -1,5 +1,6 @@
 ---
 title: "Options buying power requirement: what a put and a spread hold"
+search_title: "Options Buying Power: What Puts, Spreads and Calls Hold"
 slug: options-buying-power-requirement
 excerpt: A short option reserves part of the account for as long as it is open, and a cash-secured put, a credit spread and a covered call each reserve something different.
 meta_description: "Options buying power requirement: a cash-secured put holds the strike, a credit spread its width less credit, until closed, expired or assigned."
@@ -108,6 +109,8 @@ it. Its requirement comes from a formula in exchange and regulatory rules,
 plus whatever the broker adds, recalculated as the stock moves. It can be
 substantial and can grow while the position is open. The exact figures
 belong to each broker and vary too much to state as a rule.
+
+Related: [naked call risk](/blog/naked-call-risk) covers the routine trades that can leave a covered call uncovered while the call stays open.
 
 ## Example: one hypothetical account, short the same 50 put two ways
 
