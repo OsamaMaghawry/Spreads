@@ -45,6 +45,8 @@ None of these is a prediction about where XYZ goes. They describe what is left t
 
 This is the part that the opening credit hides. A spread sold for $70 looks like a $70 position, but the credit is paid out in the price of the spread over time, and the risk is paid out only at the end. A reader who checks the position after three weeks sees a small gain on the screen and a large number in the collateral column, and the two have drifted apart since the day it was opened. Neither number is wrong. They answer different questions: what has been earned so far, and what could still be lost.
 
+Related: [why an options win rate is misleading](/blog/options-win-rate-misleading), on how the size of each win and loss sets the win rate a book needs to break even.
+
 ## What happens if you hold a credit spread to expiration?
 
 Holding hands the result to the stock's price at the close on the expiration date. For the same spread, compared with having closed at 0.22:

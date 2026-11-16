@@ -1,0 +1,19 @@
+<svg viewBox="0 0 720 210" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Eight hypothetical winning trades of 50 dollars each, laid end to end, reach 400 dollars, exactly the length of one losing trade at the full 400 dollar max loss. With wins and losses of those sizes, nine trades with eight winners end flat.">
+  <rect width="720" height="210" fill="#FFFFFF"/>
+  <text x="690" y="22" font-size="13" fill="#767B8E" text-anchor="end">Hypothetical</text>
+  <text x="30" y="62" font-size="15" fill="#14151C">8 wins at $50</text>
+  <g fill="#2E8B5F" stroke="#FFFFFF" stroke-width="2">
+    <rect x="180" y="40" width="60" height="34"/>
+    <rect x="240" y="40" width="60" height="34"/>
+    <rect x="300" y="40" width="60" height="34"/>
+    <rect x="360" y="40" width="60" height="34"/>
+    <rect x="420" y="40" width="60" height="34"/>
+    <rect x="480" y="40" width="60" height="34"/>
+    <rect x="540" y="40" width="60" height="34"/>
+    <rect x="600" y="40" width="60" height="34"/>
+  </g>
+  <text x="30" y="132" font-size="15" fill="#14151C">1 loss at $400</text>
+  <rect x="180" y="110" width="480" height="34" rx="4" fill="#B4485C"/>
+  <line x1="660" y1="30" x2="660" y2="156" stroke="#767B8E" stroke-dasharray="4 4"/>
+  <text x="660" y="186" font-size="15" font-weight="600" fill="#14151C" text-anchor="end">Nine trades, flat</text>
+</svg>

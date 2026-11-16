@@ -97,4 +97,6 @@ A spread counts at (width - credit) × 100 × contracts, a short option with no 
 
 In the worked example, five spreads with $1,600 of max loss between them never had more than $900 open at once, and the largest of them alone was $400. The figure that describes the account is the $900, read from the timeline on the days it happened. Later posts in the [measuring series](/blog/measuring) use that peak where a book's result needs a denominator.
 
+Read next: [why an options win rate is misleading](/blog/options-win-rate-misleading), on what a count of winning trades leaves out.
+
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.

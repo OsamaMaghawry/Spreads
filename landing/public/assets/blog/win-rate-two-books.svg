@@ -1,0 +1,36 @@
+<svg viewBox="0 0 720 270" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Two hypothetical books of ten put credit spreads, each trade drawn as a bar sized by its dollar result. Both books have eight winners of 50 dollars and two losers. In Book A the two losers are 100 dollars each and the book ends 200 dollars up. In Book B the two losers are the full 400 dollar max loss each and the book ends 400 dollars down.">
+  <rect width="720" height="270" fill="#FFFFFF"/>
+  <text x="40" y="36" font-size="16" font-weight="600" fill="#14151C">Book A</text>
+  <text x="400" y="36" font-size="16" font-weight="600" fill="#14151C">Book B</text>
+  <text x="40" y="58" font-size="13" fill="#767B8E">8 wins, 2 losses</text>
+  <text x="400" y="58" font-size="13" fill="#767B8E">8 wins, 2 losses</text>
+  <line x1="30" y1="110" x2="340" y2="110" stroke="#767B8E" stroke-width="1"/>
+  <line x1="390" y1="110" x2="700" y2="110" stroke="#767B8E" stroke-width="1"/>
+  <text x="700" y="36" font-size="12" fill="#767B8E" text-anchor="end">Hypothetical</text>
+  <g fill="#2E8B5F">
+    <rect x="40" y="100" width="20" height="10" rx="2"/>
+    <rect x="70" y="100" width="20" height="10" rx="2"/>
+    <rect x="100" y="100" width="20" height="10" rx="2"/>
+    <rect x="130" y="100" width="20" height="10" rx="2"/>
+    <rect x="160" y="100" width="20" height="10" rx="2"/>
+    <rect x="190" y="100" width="20" height="10" rx="2"/>
+    <rect x="220" y="100" width="20" height="10" rx="2"/>
+    <rect x="250" y="100" width="20" height="10" rx="2"/>
+    <rect x="400" y="100" width="20" height="10" rx="2"/>
+    <rect x="430" y="100" width="20" height="10" rx="2"/>
+    <rect x="460" y="100" width="20" height="10" rx="2"/>
+    <rect x="490" y="100" width="20" height="10" rx="2"/>
+    <rect x="520" y="100" width="20" height="10" rx="2"/>
+    <rect x="550" y="100" width="20" height="10" rx="2"/>
+    <rect x="580" y="100" width="20" height="10" rx="2"/>
+    <rect x="610" y="100" width="20" height="10" rx="2"/>
+  </g>
+  <g fill="#B4485C">
+    <rect x="280" y="110" width="20" height="20" rx="2"/>
+    <rect x="310" y="110" width="20" height="20" rx="2"/>
+    <rect x="640" y="110" width="20" height="80" rx="2"/>
+    <rect x="670" y="110" width="20" height="80" rx="2"/>
+  </g>
+  <text x="40" y="244" font-size="17" font-weight="600" fill="#2E8B5F">+$200</text>
+  <text x="400" y="244" font-size="17" font-weight="600" fill="#B4485C">-$400</text>
+</svg>

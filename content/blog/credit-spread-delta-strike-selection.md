@@ -95,6 +95,8 @@ Delta is often read as the probability that the option finishes in the money, an
 
 So a 0.22 delta can be read as "roughly a 22-in-100 label on finishing below the short strike" (for the 46 put the model's own probability of finishing below the strike is about 25 in 100 on these inputs, an output of the assumed volatility and not a forecast for any stock). It is a way to rank strikes against each other on one chain. It was never a promise about outcomes, and it is not the odds of the spread paying.
 
+Related: [why an options win rate is misleading](/blog/options-win-rate-misleading), on how a book's count of winning trades differs from any entry estimate.
+
 ## Why does the short strike's delta change after you open the spread?
 
 Delta is a snapshot at one stock price and one date. The 46 put keeps its strike for the whole life of the spread, but the number attached to it does not.
