@@ -9,14 +9,15 @@
 // it (the last session's 16:00 close, for today), as a broker's day P/L does; with no close
 // to hand, from their average cost. What is held is the fills since then plus
 // what was carried in, so the carried-in part is the holding now less the net
-// of those fills.
+// of those fills. A fill from before the start is already in what was carried
+// in, so it is left out here.
 
 import { newPractice, practiceFill } from "./replay.js";
 
 /** The fills since `start` (UTC seconds), the holdings now and the closes before, as a book. */
 export function demoBook({ fills = [], positions = {}, marks = {}, start }) {
   const by = {};
-  for (const f of [...fills].sort((a, b) => a.time - b.time)) (by[f.symbol] = by[f.symbol] || []).push(f);
+  for (const f of [...fills].filter((f) => !(f.time < start)).sort((a, b) => a.time - b.time)) (by[f.symbol] = by[f.symbol] || []).push(f);
   const symbols = new Set([...Object.keys(by), ...Object.keys(positions)]);
   const book = {};
   const carried = {};
@@ -43,11 +44,16 @@ export function demoBook({ fills = [], positions = {}, marks = {}, start }) {
  * Where a period starts (11 Nov, the owner: "The PNL for today's trading ...
  * it's totally wrong"; a short opened at 23:59:58 fell before a midnight
  * start, and the closing buy after it read as covering a short carried from
- * the 16:00 close). Today: the last regular close before the trading day,
- * 16:00 New York, the moment the closes that value what was held are from, as
- * Alpaca's own day change counts. The trading day rolls at 20:00, when the
- * overnight session into the next one opens; a weekend's is Monday's. Exchange
- * holidays are not known here. 7 or 30 days: that many days before it.
+ * the 16:00 close). Today: 20:00 New York on the trading day before, when its
+ * after-hours session ends and the overnight one into today opens; the trading
+ * day rolls then, and a weekend's is Monday's. What was held at that moment
+ * counts from that day's 16:00 close (the marks). That is Alpaca's own day
+ * change: its last_equity is the day's cash after the after-hours trades plus
+ * what is still held at the 16:00 close (Alton RS, 16 Nov, to the cent).
+ * Until 16 Nov this started at 16:00, so Friday's after-hours trades on Alton
+ * Live showed as Monday's (−$102.33 "today" with no trade made; the owner:
+ * "It is showing loss 106 today and I haven't even traded anything so far").
+ * Exchange holidays are not known here. 7 or 30 days: that many days before it.
  */
 export function periodStart(id, now = Date.now() / 1000) {
   const days = { today: 0, week: 6, month: 29 }[id] ?? 0;
@@ -59,11 +65,11 @@ export function periodStart(id, now = Date.now() / 1000) {
   if (Number(p.hour) >= 20) d = new Date(d.getTime() + DAY);
   while (weekend(d)) d = new Date(d.getTime() + DAY);
   do { d = new Date(d.getTime() - DAY); } while (weekend(d));
-  // The window's days come off the calendar date before 16:00 is read in New
-  // York time, so a window across a clock change still starts at the close.
+  // The window's days come off the calendar date before 20:00 is read in New
+  // York time, so a window across a clock change still starts at 20:00.
   d = new Date(d.getTime() - days * DAY);
   const date = d.toISOString().slice(0, 10);
-  const guess = Date.parse(`${date}T20:00:00Z`);
+  const guess = Date.parse(`${date}T00:00:00Z`) + DAY; // 20:00 New York in summer time, 19:00 in winter
   const hour = Number(new Date(guess).toLocaleString("en-US", { timeZone: "America/New_York", hour: "2-digit", hourCycle: "h23" }));
-  return (hour === 16 ? guess : guess + 3600000) / 1000;
+  return (hour === 20 ? guess : guess + 3600000) / 1000;
 }

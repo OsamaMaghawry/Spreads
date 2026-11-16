@@ -54,24 +54,52 @@ test("a short, coins in fractions, and a holding with no close to hand", () => {
   assert.ok(Math.abs(book["ETH/USD"].qty - 0.748749999) < 1e-12);
 });
 
-test("today starts at the last 16:00 close; the trading day rolls at 20:00", () => {
+test("today starts at 20:00 on the trading day before, when after-hours ends; the trading day rolls then", () => {
   const ny = (s) => new Date(periodStart("today", at(s)) * 1000).toISOString();
-  // Wednesday 7:40 (pre-market): Tuesday's close.
-  assert.equal(ny("2026-11-11T12:40:00Z"), "2026-11-10T21:00:00.000Z");
-  // 23:59:58 Tuesday and 0:01 Wednesday: the same trading day, from Tuesday's close (11 Nov, INTC).
-  assert.equal(ny("2026-11-11T04:59:58Z"), "2026-11-10T21:00:00.000Z");
-  assert.equal(ny("2026-11-11T05:01:48Z"), "2026-11-10T21:00:00.000Z");
-  // Tuesday 17:00, before the overnight: Monday's close.
-  assert.equal(ny("2026-11-10T22:00:00Z"), "2026-11-09T21:00:00.000Z");
-  // Saturday and Friday night: Friday's close.
-  assert.equal(ny("2026-11-14T17:00:00Z"), "2026-11-13T21:00:00.000Z");
-  assert.equal(ny("2026-11-14T02:00:00Z"), "2026-11-13T21:00:00.000Z");
-  // Summer time (Monday 26 Oct, 10:30): Friday's close at 20:00 UTC.
-  assert.equal(ny("2026-10-26T14:30:00Z"), "2026-10-23T20:00:00.000Z");
-  assert.equal(new Date(periodStart("week", at("2026-11-11T12:40:00Z")) * 1000).toISOString(), "2026-11-04T21:00:00.000Z");
+  // Wednesday 7:40 (pre-market): Tuesday 20:00 (01:00 UTC Wednesday, winter).
+  assert.equal(ny("2026-11-11T12:40:00Z"), "2026-11-11T01:00:00.000Z");
+  // 23:59:58 Tuesday and 0:01 Wednesday: the same trading day, from Tuesday 20:00 (11 Nov, INTC).
+  assert.equal(ny("2026-11-11T04:59:58Z"), "2026-11-11T01:00:00.000Z");
+  assert.equal(ny("2026-11-11T05:01:48Z"), "2026-11-11T01:00:00.000Z");
+  // Tuesday 17:00, in after-hours: still Tuesday's trading day, from Monday 20:00.
+  assert.equal(ny("2026-11-10T22:00:00Z"), "2026-11-10T01:00:00.000Z");
+  // Saturday, and Friday 21:00 (past the roll): Monday's, from Friday 20:00.
+  assert.equal(ny("2026-11-14T17:00:00Z"), "2026-11-14T01:00:00.000Z");
+  assert.equal(ny("2026-11-14T02:00:00Z"), "2026-11-14T01:00:00.000Z");
+  // Summer time (Monday 26 Oct, 10:30): Friday 20:00 is 00:00 UTC Saturday.
+  assert.equal(ny("2026-10-26T14:30:00Z"), "2026-10-24T00:00:00.000Z");
+  assert.equal(new Date(periodStart("week", at("2026-11-11T12:40:00Z")) * 1000).toISOString(), "2026-11-05T01:00:00.000Z");
 });
 
-test("the night of 10-11 Nov on Alton Live: shorts opened and covered, the day's P/L from Tuesday's close", () => {
+// 16 Nov, the owner: "It is showing loss 106 today and I haven't even traded
+// anything so far". Alton Live closed everything after hours on Friday (TSLA
+// long 72 bought 15:51 at 392.256, sold 16:05-16:15; SPCX, NVDA and TSLA
+// shorts); Monday's "today" counted those from Friday's 16:00 close: −$102.33.
+// Alpaca's own day change was $0.00.
+test("Monday 16 Nov on Alton Live: Friday's after-hours trades are Friday's, not today's", () => {
+  const f = (symbol, side, qty, price, t) => ({ symbol, side, qty, price, time: at(t) });
+  const friday = [
+    f("TSLA", "sell", 18, 387.79, "2026-11-13T21:05:55Z"), f("TSLA", "sell", 13, 387.8346, "2026-11-13T21:05:55Z"),
+    f("SPCX", "buy", 11, 138.12, "2026-11-13T21:07:10Z"), f("NVDA", "buy", 38, 162.07, "2026-11-13T21:17:18Z")
+  ];
+  const start = periodStart("today", at("2026-11-16T14:30:00Z"));
+  assert.equal(new Date(start * 1000).toISOString(), "2026-11-14T01:00:00.000Z");
+  assert.ok(friday.every((x) => x.time < start));
+  // Nothing held, no fill since Friday 20:00: nothing today, even if Friday's fills are handed in.
+  const { book, carried } = demoBook({ fills: friday, positions: {}, marks: { TSLA: 390.22, SPCX: 139.11, NVDA: 162.85 }, start });
+  assert.deepEqual(book, {});
+  assert.deepEqual(carried, {});
+});
+
+test("held across after-hours: counted from the 16:00 close, the way Alpaca's day change counts it", () => {
+  // Alton RS, 16 Nov: 400 WMT held over the weekend, Friday's close 128.09, 128.5899 now.
+  const start = periodStart("today", at("2026-11-16T14:46:00Z"));
+  const { book, carried } = demoBook({ fills: [], positions: { WMT: { qty: 400, last: 128.5899, avg: 107.5 } }, marks: { WMT: 128.09 }, start });
+  assert.deepEqual(carried.WMT, { qty: 400, price: 128.09, from: "close" });
+  assert.ok(Math.abs(book.WMT.qty - 400) < 1e-9);
+});
+
+test("the night of 10-11 Nov on Alton Live: shorts opened and covered, the day's P/L from Tuesday 20:00", () => {
   const f = (symbol, side, qty, price, t) => ({ symbol, side, qty, price, time: at(t) });
   const fills = [
     f("AMZN", "sell", 7, 271.2537, "2026-11-10T23:57:33Z"), f("AMZN", "buy", 7, 273.1, "2026-11-11T04:02:22Z"),
@@ -82,23 +110,26 @@ test("the night of 10-11 Nov on Alton Live: shorts opened and covered, the day's
   const positions = { SH: { qty: 193, last: 32.8, avg: 33.1598 } };
   const marks = { AMZN: 270.87, INTC: 58.13, NVDA: 168.89, SH: 33.08 };
   const { book, carried } = demoBook({ fills, positions, marks, start: periodStart("today", at("2026-11-11T12:40:00Z")) });
-  // Nothing short carried in: INTC's 109 were sold short at 59.68, not held short from the 58.13 close.
+  // Nothing short carried in: INTC's 109 were sold short at 59.68 (23:59:58), not held short from the 58.13 close.
   assert.equal(carried.INTC, undefined);
   assert.ok(Math.abs(book.INTC.realized - (59.68 * 109 - (27 * 60.21 + 27 * 60.22 + 55 * 60.27))) < 1e-6); // −61.31
-  assert.ok(Math.abs(book.AMZN.realized - 7 * (271.2537 - 273.1)) < 1e-6);
+  // AMZN was sold short at 18:57 Tuesday, in after-hours: Tuesday's. Wednesday's
+  // part runs from Tuesday's close to the cover, as Alpaca's day change has it.
+  assert.deepEqual(carried.AMZN, { qty: -7, price: 270.87, from: "close" });
+  assert.ok(Math.abs(book.AMZN.realized - 7 * (270.87 - 273.1)) < 1e-6);
   assert.deepEqual(carried.SH, { qty: 193, price: 33.08, from: "close" });
 });
 
 // Audit 2026-W46 F6: a 7- or 30-day window that spans a clock change started
-// at 17:00, not 16:00: the days were taken off in 24-hour steps after the
-// close had been resolved in New York time.
-test("a week or month window starts at 16:00 New York across a clock change", () => {
+// an hour off: the days were taken off in 24-hour steps after the start had
+// been resolved in New York time.
+test("a week or month window starts at 20:00 New York across a clock change", () => {
   const iso = (id, s) => new Date(periodStart(id, at(s)) * 1000).toISOString();
-  // Thu 12 Nov 11:00 (winter): 29 days back is Tue 13 Oct (summer), close 20:00 UTC.
-  assert.equal(iso("month", "2026-11-12T16:00:00Z"), "2026-10-13T20:00:00.000Z");
+  // Thu 12 Nov 11:00 (winter): 29 days back is Tue 13 Oct (summer), 20:00 is 00:00 UTC.
+  assert.equal(iso("month", "2026-11-12T16:00:00Z"), "2026-10-14T00:00:00.000Z");
   // Thu 5 Nov 11:00: today from Wed 4 Nov, 6 days back is Thu 29 Oct (summer).
-  assert.equal(iso("week", "2026-11-05T16:00:00Z"), "2026-10-29T20:00:00.000Z");
+  assert.equal(iso("week", "2026-11-05T16:00:00Z"), "2026-10-30T00:00:00.000Z");
   // Spring (clocks change Sun 14 Mar 2027): Thu 18 Mar 11:00, today from Wed 17 Mar,
-  // 6 days back is Thu 11 Mar (winter), close 21:00 UTC.
-  assert.equal(iso("week", "2027-03-18T15:00:00Z"), "2027-03-11T21:00:00.000Z");
+  // 6 days back is Thu 11 Mar (winter), 20:00 is 01:00 UTC.
+  assert.equal(iso("week", "2027-03-18T15:00:00Z"), "2027-03-12T01:00:00.000Z");
 });
