@@ -683,3 +683,4 @@ English. Newest first.
 - 2026-11-12 · (staging) P/L tab: the week and month windows start at the 16:00 New York close even across a clock change, so fills between 16:00 and 17:00 on the first day are no longer left out (`ae17c81`).
 - 2026-11-12 · (staging) Positions: a covered call backed partly by shares and partly by a long call no longer shows the shares' break-even; that row shows none (`f10088f`).
 - 2026-11-12 · (staging) Option chain: days to expiry count on New York's calendar, so Friday's expiry reads "1d" on Thursday instead of "today" (`944798c`).
+- 2026-11-16 · (staging) P/L tab: "today" starts at 20:00 New York the trading day before, when after-hours ends, so Friday's after-hours fills no longer show as Monday's P/L; carried holdings still count from the 16:00 close, the week and month windows also start at 20:00, and the note no longer claims an exact match with Alpaca's day change (`6075269`, `cc6d59c`).
