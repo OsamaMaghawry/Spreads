@@ -41,6 +41,30 @@ switch. The arithmetic is shown so the replacement is one edit.
 | ← Signups connecting a live account | 25 % (the rest stay on paper, at least at first) | **~2,700 signups** |
 | ← Visitors signing up | 3 % (intent-matched educational traffic) | **~90,000 visitors** over 17 weeks ≈ **5,300 a week** ≈ **760 a day** |
 
+### Measured rates — revised Mon 16 Nov 2026 (W47)
+
+Source: `docs/growth/metrics/2026-11-15.json` on `main`, the newest snapshot.
+The sample is four signups. These are counts, not rates anyone should plan
+on yet. They replace a benchmark only where the data exists.
+
+| Step | Benchmark | Measured (n) | Used for planning |
+| --- | --- | --- | --- |
+| Visitors → signup | 3 % | **not measurable**: GA4 not configured; Search Console shows 2 clicks in 28 days and 0 signups since 22 Sep | 3 % (benchmark kept) |
+| Signup → broker connected | — | **75 %** (3 of 4) | — |
+| Signup → live account trading | 25 % | **25 %** (1 of 4) | 25 %, now measured |
+| Live → paid | 15 % | **no data**: 0 of 1, and `billing_enforced` is not flipped, so no one can pay | 15 % (benchmark kept) |
+
+Actual against the line:
+
+- Visitors: about **0.07 search clicks a day**, against 760 a day.
+- Signups: **4 in total**, and none in the 8 weeks since 22 Sep.
+- Paying: **0**.
+
+At the measured rates, the chain above still needs about 90,000 visitors.
+The 30 Nov checkpoint (Paying > 25) and the 31 Dec target will both be
+missed. Restating the target and its date is an owner decision for the
+Friday pack.
+
 Two levers change this by more than any channel does:
 
 - **Signup → live**: if the product's own paper experience pushes the rate
