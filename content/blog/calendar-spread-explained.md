@@ -36,6 +36,8 @@ The worked example uses the hypothetical XYZ, trading at $50, with a Black-Schol
 
 The trader pays 3.23 and receives 2.29, a net debit of 0.94, or $94 per spread. Both prices are model values standing in for the midpoint marks. Real fills cross the [bid-ask spread](/blog/options-bid-ask-spread) twice, once on each leg, so the debit actually paid is usually a little higher than the figure here.
 
+Related: [options limit order not filling](/blog/options-limit-order-not-filling) covers why a spread order at the mid can sit unfilled, and what walking the price a cent at a time gives up.
+
 Because the far option expires later than the near one, a broker can treat the pair as a spread. The [buying power post](/blog/options-buying-power-requirement) lists that condition for spreads. The amount held is commonly the debit paid, with no extra collateral for the short call, but the broker's own rule governs.
 
 ## Why does the near leg lose value faster?
