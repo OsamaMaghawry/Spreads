@@ -22,13 +22,15 @@ The allowlist matches **exact hostnames** — an allowed apex whose site 301s to
 | www.youtube.com | ✅ 200 | 2026-08-31 | |
 | www.irs.gov | ✅ 200 | 2026-08-31 | |
 | en.wikipedia.org | ✅ 200 | 2026-08-31 | Now reachable (was blocked pre-allowlist) |
-| docs.alpaca.markets / alpaca.markets | ✅ | 2026-08-31 | Broker facts at source |
+| docs.alpaca.markets / alpaca.markets | ✅ 200 | 2026-11-17 | Broker facts at source. Retested by vp-product: MCP server docs and launch blog both fetched |
 | play.google.com | ✅ 302 | 2026-08-31 | App-store listings |
 | apps.apple.com | ✅ (404 on fake path; host answers) | 2026-08-31 | Use a real app URL |
 | **www.sec.gov** | ✅ 200 **with EDGAR UA** | 2026-08-31 | 403 with a normal UA; 200 when the User-Agent is `DeltaMint research osamamaghawry@gmail.com` (SEC EDGAR requires a contact UA). Not a workaround — SEC's stated access rule |
 | **Not on the allowlist — 403 at CONNECT, before the site is ever asked** | | | The gateway refuses the tunnel. Reported, not routed around. Fix is an allowlist addition |
-| tiblio.com / www.tiblio.com | ❌ 403 (policy) | 2026-09-01 | **The closest named competitor** (`docs/context/positioning.md`: screener + Alpaca OAuth + order routing + position tracking, ~$35/mo). A teardown to standard is impossible until this is allowed. Highest-value single addition for vp-product |
-| www.puthouse.com | ❌ 403 (policy) | 2026-09-01 | Second Alpaca-connected competitor named in positioning.md |
+| nexusfi.com | ❌ 403 (policy) | 2026-11-17 | Third-party listing carrying Tiblio's plan prices (Explore $38, top plan $99). Used the search snippet, marked `reported` |
+| tradier.com | ❌ 403 (policy) | 2026-11-17 | Tiblio–Tradier partnership press release. Search snippet only. (`trade.tradier.com` not tested) |
+| tiblio.com / www.tiblio.com | ❌ 403 (policy) | 2026-11-17 (retested; also 2026-11-10) | **The closest named competitor** (`docs/context/positioning.md`: screener + Alpaca OAuth + order routing + position tracking, ~$35/mo). A teardown to standard is impossible until this is allowed. Highest-value single addition for vp-product |
+| www.puthouse.com | ❌ 403 (policy) | 2026-11-17 (retested) | Second Alpaca-connected competitor named in positioning.md |
 | wingmantracker.com / www.wingmantracker.com | ❌ 403 (policy) | 2026-09-01 | The "Wingman" teardown listed as pending in `docs/product/pricing.md` |
 | optionstrat.com (apex) | ❌ 403 (policy) | 2026-09-01 | See the `www.optionstrat.com` row — the apex is where the content actually lives |
 | **Reached, but the site's own bot-wall refuses (403)** | | | Allowlist is fine; the *origin* blocks datacenter traffic. Not circumventable within the rules — use WebSearch |
@@ -47,7 +49,7 @@ The allowlist matches **exact hostnames** — an allowed apex whose site 301s to
 | www.deltamint.app | ⚠️ 522 | 2026-08-31 | Cloudflare has no origin for the www host — cosmetic; canonical is the apex + dashboard |
 | spreads.osamamaghawry.workers.dev | ✅ 301 → dashboard | 2026-08-31 | Canonical redirect confirmed live |
 | wpwaomzgpbozzghohwmf.supabase.co (staging project, edge functions) | ❌ 403 (policy, at CONNECT) | 2026-09-14 | Tested for the first time by duty-engineer, looking for any reachable `sendDigest` after the production one failed. Blocked identically. **So no Supabase host of ours is reachable from a session** — the brief's "email the owner through `sendDigest`" step cannot run at all, on either project. Also tried `email-digest.yml` (this repo's CI substitute): `workflow_dispatch` returns `403 Resource not accessible by integration` for the session token. Recorded, not routed around; filed as a `needs owner` item in `docs/ops/queue.md` |
-| yecfbeohyakuoyczvdbj.supabase.co (production project, edge functions incl. `sendDigest`) | ❌ 403 (policy, at CONNECT) | 2026-09-09 | duty-engineer tried to email the owner via `sendDigest` per its brief (`.claude/agents/duty-engineer.md`) over a live production security finding and got `CONNECT tunnel failed, response 403` — same failure mode as `deltamint.app`. Not tested before; needs an allowlist addition alongside the `dashboard.deltamint.app` item already open in `docs/ops/queue.md` if the duty-engineer email step is meant to work from this environment. Worked around by using `PushNotification` to reach the owner directly instead — recorded, not routed around |
+| yecfbeohyakuoyczvdbj.supabase.co (production project, edge functions incl. `sendDigest`) | ❌ 403 (policy, at CONNECT) | 2026-11-17 (retested by vp-product; also 2026-11-03, 2026-11-10 on unmerged branches; product email not sent, PushNotification used) | duty-engineer tried to email the owner via `sendDigest` per its brief (`.claude/agents/duty-engineer.md`) over a live production security finding and got `CONNECT tunnel failed, response 403` — same failure mode as `deltamint.app`. Not tested before; needs an allowlist addition alongside the `dashboard.deltamint.app` item already open in `docs/ops/queue.md` if the duty-engineer email step is meant to work from this environment. Worked around by using `PushNotification` to reach the owner directly instead — recorded, not routed around |
 
 
 Channels that are not the proxy:

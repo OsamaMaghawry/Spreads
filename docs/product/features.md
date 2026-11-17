@@ -1,5 +1,12 @@
 # Every feature, and what it is worth — 2026-09-02
 
+> **Stale against `staging` (noted 2026-11-17).** Accurate for `main`, which
+> has not changed product behaviour since. Staging is 1,571 commits ahead
+> (option-chain ratios and collars, Protect & Repair, read-only accounts,
+> SnapTrade/Tradier plumbing, the admin terminal). Re-inventory the day a
+> release scope is chosen (backlog #1), not before — inventorying code that
+> may never ship is the wrong use of a run.
+
 Owned by `vp-product`. Read from the code on `main` at `3a22207` plus the
 `staging` delta (`git diff --stat main staging` = one migration and the
 generated context file; everything shipped on 2 Sep is on `main`). This is the
