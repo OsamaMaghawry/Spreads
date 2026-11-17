@@ -101,6 +101,8 @@ Across a book, that distinction decides which positions are still earning their
 collateral and which are holding down max loss for a few dollars of remaining
 credit. Neither question is answerable from a list of premiums.
 
+Related: [premium capture on credit spreads](/blog/credit-spread-premium-capture) measures how much of the credit was kept at the close, and why that share leaves out the max loss it was carried against.
+
 ## What this looks like in DeltaMint
 
 The ratio appears at three moments, and it is the same arithmetic each time:

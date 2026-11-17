@@ -1,0 +1,24 @@
+<svg viewBox="0 0 720 200" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A scale of premium capture for a hypothetical 50/45 put credit spread sold for a 100 dollar credit. The scale runs from minus 400 percent at the full 400 dollar max loss, through zero, up to plus 100 percent when the whole credit is kept. The part below zero is four times as long as the part above it. Marks show minus 100, plus 50 and plus 75 percent.">
+  <rect width="720" height="200" fill="#FFFFFF"/>
+  <text x="680" y="32" font-size="12" fill="#767B8E" text-anchor="end">Hypothetical</text>
+  <rect x="60" y="96" width="480" height="16" rx="3" fill="#B4485C" opacity="0.85"/>
+  <rect x="540" y="96" width="120" height="16" rx="3" fill="#2E8B5F"/>
+  <line x1="540" y1="84" x2="540" y2="124" stroke="#14151C" stroke-width="1.5"/>
+  <g stroke="#14151C" stroke-width="1">
+    <line x1="60" y1="88" x2="60" y2="120"/>
+    <line x1="420" y1="88" x2="420" y2="120"/>
+    <line x1="600" y1="88" x2="600" y2="120"/>
+    <line x1="630" y1="88" x2="630" y2="120"/>
+    <line x1="660" y1="88" x2="660" y2="120"/>
+  </g>
+  <g font-size="13" fill="#14151C" text-anchor="middle">
+    <text x="60" y="142">-400%</text>
+    <text x="420" y="142">-100%</text>
+    <text x="540" y="142">0</text>
+    <text x="600" y="78">50%</text>
+    <text x="630" y="62">75%</text>
+    <text x="660" y="142">100%</text>
+  </g>
+  <text x="60" y="166" font-size="13" fill="#B4485C" font-weight="600">Max loss</text>
+  <text x="660" y="166" font-size="13" fill="#2E8B5F" font-weight="600" text-anchor="end">Full credit</text>
+</svg>

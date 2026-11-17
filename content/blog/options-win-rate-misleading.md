@@ -96,4 +96,6 @@ In the worked example, two books with eight winners in ten ended $200 up and $40
 
 DeltaMint's Analysis page does show a win rate, but not alone. The card prints the count of wins and losses under it, and sits beside the profit factor, expectancy per trade, payoff ratio (average win over average loss), average win and average loss, all measured over settled trades, with the largest loss shown separately. A trade whose result is not final, such as an assignment whose shares are still held, is left out of the count, and the card says how many were excluded.
 
+Read next: [premium capture on credit spreads](/blog/credit-spread-premium-capture), on what share of the credit a spread kept, held or closed early.
+
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.
