@@ -110,7 +110,7 @@ With the long strike below the short strike, the position has a defined worst ca
 
 - **Is a diagonal spread a debit or a credit spread?** It depends on the strikes and dates. The version here, buying the later, lower-strike call and selling the nearer, higher-strike call, is a debit. Other arrangements can be a credit and have different risks.
 - **What is the most a long diagonal spread can lose?** The debit paid, in this model, while both legs are held and the long strike is below the short strike. A dividend owed after early assignment can change that.
-- **Is a diagonal spread the same as a poor man's covered call?** The structure is related: a long, later-dated, deep in-the-money call against a nearer short call. That use is the [poor man's covered call](/blog/poor-mans-covered-call), the next post in this series.
+- **Is a diagonal spread the same as a poor man's covered call?** The structure is related: a long, later-dated, deep in-the-money call against a nearer short call. That use is the [poor man's covered call](/blog/poor-mans-covered-call), the next post in this series, and [poor man's covered call vs covered call](/blog/pmcc-vs-covered-call) sets it beside 100 shares with the same short call.
 
 ## The bottom line
 

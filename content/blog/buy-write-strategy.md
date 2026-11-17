@@ -71,6 +71,8 @@ What differs is the shares underneath:
 
 From the moment the call is sold, all three move the same way with the stock. The last two rows are where a long-term holder's account differs, and they are about records, not the payoff.
 
+Related: [poor man's covered call vs covered call](/blog/pmcc-vs-covered-call) writes the same short call against a long call instead of shares, and compares what each ties up and how each pays at the call's expiration.
+
 ## Which shares are called away when a buy-write is assigned?
 
 A buy-write on a stock the account already holds adds a new lot beside the old one. Say a hypothetical investor has held 100 XYZ for several years at a cost of $30.00 a share, and opens the buy-write above. The account now shows 200 shares, two lots, and one short 52 call.
