@@ -949,7 +949,10 @@ function orderView(o: any) {
     qty: num(o.qty), notional: num(o.notional), filled: num(o.filled_qty), avgPrice: num(o.filled_avg_price),
     limit: num(o.limit_price), stop: num(o.stop_price),
     submittedAt: o.submitted_at || o.created_at || null, filledAt: o.filled_at || null,
-    updatedAt: o.updated_at || null, orderClass: o.order_class || "simple"
+    updatedAt: o.updated_at || null, orderClass: o.order_class || "simple",
+    // A price change makes a new order at Alpaca; the old one ends "replaced"
+    // and names it, so whatever follows the order carries on with the new one.
+    replacedBy: o.replaced_by || null
   };
 }
 

@@ -29,7 +29,9 @@ export function orderUpdate(m: any) {
   return {
     type: "order", event: String(m.data.event || ""), id: String(o.id), symbol: o.symbol, side: o.side,
     status: o.status, qty: num(o.qty), filled: num(o.filled_qty), avgPrice: num(o.filled_avg_price),
-    limit: num(o.limit_price), at: m.data.timestamp || o.updated_at || null
+    limit: num(o.limit_price), at: m.data.timestamp || o.updated_at || null,
+    // The order that took this one's place when its price was changed.
+    ...(o.replaced_by ? { replacedBy: String(o.replaced_by) } : {})
   };
 }
 

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
@@ -56,17 +57,37 @@ export default defineConfig(({ mode }) => {
   // tell when a newer one is out and say so (src/lib/useNewVersion.js). The
   // owner keeps the terminal open for hours; on 27 Oct a fix deployed at
   // 16:18 was not on his screen at 16:21, and a sale went out the old way.
-  const BUILD_ID = (process.env.GITHUB_SHA || '').slice(0, 12) || new Date().toISOString();
+  //
+  // The id is the code's own fingerprint: the same code gives the same id,
+  // whoever builds it and whenever. It was the commit, or the time when there
+  // was none, and Cloudflare also rebuilds dev-dash on every push to staging,
+  // the hourly duty-ledger notes included: each rebuild was "a new version"
+  // with nothing new in it (17 Nov, the owner: "This new version keeps poping
+  // up every now and then even after loading it ... during multiple browsers").
+  // The code is built with a placeholder of the id's length, fingerprinted,
+  // and the placeholder then swapped for the fingerprint.
+  const PLACEHOLDER = '__BUILD_ID__';
   const buildId = {
     name: 'build-id',
-    generateBundle() {
-      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ build: BUILD_ID }) });
+    generateBundle(_options, bundle) {
+      const hash = createHash('sha256');
+      for (const name of Object.keys(bundle).sort()) {
+        const f = bundle[name];
+        if (name === 'index.html' || name === 'version.json' || name.endsWith('.map')) continue;
+        hash.update(name);
+        hash.update(f.type === 'chunk' ? f.code : f.source);
+      }
+      const id = hash.digest('hex').slice(0, PLACEHOLDER.length);
+      for (const f of Object.values(bundle)) {
+        if (f.type === 'chunk' && f.code.includes(PLACEHOLDER)) f.code = f.code.split(PLACEHOLDER).join(id);
+      }
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ build: id }) });
     }
   };
 
   return {
     plugins: [react(), buildId],
-    define: { 'import.meta.env.VITE_BUILD_ID': JSON.stringify(BUILD_ID) },
+    define: { 'import.meta.env.VITE_BUILD_ID': JSON.stringify(PLACEHOLDER) },
     resolve: {
       alias: {
         // Longest-first: '@' would otherwise swallow every '@/...' lab path

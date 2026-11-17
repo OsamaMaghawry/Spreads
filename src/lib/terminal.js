@@ -440,6 +440,24 @@ export function orderState(status) {
 }
 
 /**
+ * How long to wait before asking about an order again, `elapsed` ms after it
+ * was sent, or null to stop. Another account's order has no stream (the
+ * stream is the account on screen's), so asking is all there is: every second
+ * at first, then every 3 s for two minutes, 10 s for half an hour, 30 s to the
+ * end of a trading day. It stopped after 40 asks, about a minute and a half,
+ * and a limit order filling after that read "waiting" for good (17 Nov, the
+ * owner: "The second one usually gets stuck").
+ */
+export function followDelay(elapsed) {
+  if (!(elapsed >= 0)) return 1000;
+  if (elapsed < 15000) return 1000;
+  if (elapsed < 120000) return 3000;
+  if (elapsed < 1800000) return 10000;
+  if (elapsed < 16 * 3600000) return 30000;
+  return null;
+}
+
+/**
  * The pop-up for an order at each step: a tone (ok, wait, muted, bad), a
  * title a glance can take, and one line of detail. `order` is what the
  * terminal tracks: the words of the ticket, side, unit, and the broker's

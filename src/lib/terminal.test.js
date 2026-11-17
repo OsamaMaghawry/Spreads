@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, overnightOf, inRegularHours, sessionDay, amountToQty, orderState, orderNews, iexOpen, shareFeed, ticketChoices, mergeTape, clockMs, exitText, stopWaitText, cleanWatchlists, activeWatchlist, withActiveSymbols, legendBar, valueAt } from "./terminal.js";
+import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, overnightOf, inRegularHours, sessionDay, amountToQty, orderState, orderNews, iexOpen, shareFeed, ticketChoices, mergeTape, clockMs, exitText, stopWaitText, cleanWatchlists, activeWatchlist, withActiveSymbols, legendBar, valueAt, followDelay } from "./terminal.js";
 
 const sec = (iso) => Date.parse(iso) / 1000;
 
@@ -297,4 +297,14 @@ test("the chart legend: the candle under the pointer, or the latest; its change;
   assert.equal(valueAt(ema, 1794256620), 381.2);
   assert.equal(valueAt(ema, 1794256500), null);
   assert.equal(valueAt([], 1), null);
+});
+
+test("another account's order is asked about until it ends, not for 90 seconds only", () => {
+  assert.equal(followDelay(0), 1000);
+  assert.equal(followDelay(14999), 1000);
+  assert.equal(followDelay(60000), 3000);
+  assert.equal(followDelay(10 * 60000), 10000);
+  // A limit resting an hour (17 Nov: TQQQ on Alpaca Live) is still followed.
+  assert.equal(followDelay(3600000), 30000);
+  assert.equal(followDelay(16 * 3600000), null);
 });

@@ -20,3 +20,13 @@ test("a trade update as the terminal reads it", () => {
   assert.equal(orderUpdate({ stream: "listening", data: {} }), null);
   assert.equal(orderUpdate({ stream: "trade_updates", data: { event: "fill" } }), null);
 });
+
+test("a price change names the order that took its place", () => {
+  const m = {
+    stream: "trade_updates",
+    data: { event: "replaced", timestamp: "2026-11-17T17:23:18.770Z",
+      order: { id: "old", symbol: "TQQQ", side: "buy", status: "replaced", qty: "61", filled_qty: "0", filled_avg_price: null, limit_price: "51.53", replaced_by: "new" } }
+  };
+  assert.equal(orderUpdate(m)?.replacedBy, "new");
+  assert.equal(orderUpdate(m)?.status, "replaced");
+});

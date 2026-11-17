@@ -112,6 +112,13 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     const see = (o) => {
       const cur = trackedRef.current;
       if (!o || !cur || cur.id !== o.id) return false;
+      // Its price changed: the new order Alpaca put in its place is followed
+      // from here (this effect starts again on the new id).
+      if (o.status === "replaced" && o.replacedBy) {
+        trackedRef.current = { ...cur, id: o.replacedBy, status: "new" };
+        setTracked(trackedRef.current);
+        return true;
+      }
       const next = { ...cur, ...o };
       // The pop-up follows the order; once it is over, the ticket lets go of it.
       const moved = cur.status !== o.status || Number(cur.filled || 0) !== Number(o.filled || 0);

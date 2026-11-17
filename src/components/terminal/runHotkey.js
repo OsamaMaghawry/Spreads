@@ -1,6 +1,6 @@
 import { invokeFunction } from "@/lib/functions";
 import { hotkeyOrder, describe, withOwnSize, hotkeyPercent, overnightQuote } from "@/lib/hotkeys";
-import { orderNews, orderState, sessionOf, overnightOf, isCrypto, px, sizeText, exitText } from "@/lib/terminal";
+import { orderNews, orderState, followDelay, sessionOf, overnightOf, isCrypto, px, sizeText, exitText } from "@/lib/terminal";
 import { groupNews, resolveSize } from "@/lib/accountGroup";
 import { onOrder } from "./orderFeed";
 
@@ -32,12 +32,25 @@ export const prefetchStep = (accountId, symbol) => { if (accountId && symbol) as
  * for that account's updates the stream missed and for the other accounts.
  */
 export function trackOrder({ accountId, id, key, base, notify, onChange, onUpdate, onFilled, onUnfilled }) {
-  let polls = 0;
+  const sent = Date.now();
+  let current = id;
   let last = `${base.status}|0`;
   let done = false;
   let off = null;
+  const record = (orderId) => invokeFunction("terminal", { action: "orderStatus", accountId, orderId }).catch(() => null);
   const see = (o) => {
-    if (done) return;
+    if (done || (o.id && o.id !== current)) return;
+    // Its price changed: Alpaca put a new order in its place, and that one is
+    // followed from here (17 Nov: the group's pop-up stayed on "waiting" after
+    // a price change, following the old order while the new one filled).
+    if (o.status === "replaced" && o.replacedBy) {
+      record(current);
+      off?.();
+      current = o.replacedBy;
+      last = "";
+      off = onOrder(current, heard);
+      return;
+    }
     const now = `${o.status}|${o.filled}`;
     if (now !== last) { last = now; notify({ key, ...orderNews({ ...base, ...o }) }); onUpdate?.(o); onChange?.(); }
     if (!orderState(o.status).final) return;
@@ -46,18 +59,26 @@ export function trackOrder({ accountId, id, key, base, notify, onChange, onUpdat
     if (o.status === "filled") onFilled?.(o);
     else onUnfilled?.(o);
   };
-  off = onOrder(id, (m) => {
+  function heard(m) {
+    const was = current;
     see(m);
     // Asked once more at the end, which also writes the result to the order's record.
-    if (done) invokeFunction("terminal", { action: "orderStatus", accountId, orderId: id }).catch(() => null);
-  });
+    if (done) record(was);
+  }
+  off = onOrder(current, heard);
   if (done) off();
+  // Asked until it ends: the other accounts' orders have no stream, and a
+  // resting limit can fill an hour later. A page in the background skips its
+  // turn and asks again when it is back in view.
   const tick = async () => {
     if (done) return;
-    const r = await invokeFunction("terminal", { action: "orderStatus", accountId, orderId: id }).catch(() => null);
-    if (r?.data?.order) see(r.data.order);
-    polls += 1;
-    if (!done && polls < 40) setTimeout(tick, polls < 15 ? 1000 : 3000);
+    const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+    if (!hidden) {
+      const r = await record(current);
+      if (r?.data?.order) see(r.data.order);
+    }
+    const wait = followDelay(Date.now() - sent);
+    if (!done && wait !== null) setTimeout(tick, wait);
   };
   setTimeout(tick, 600);
 }
