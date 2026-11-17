@@ -1,0 +1,30 @@
+<svg viewBox="0 0 720 270" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="One hypothetical put credit spread sold for a 100 dollar credit, ended four different ways and drawn as bars from a zero line. Bought back at 0.50 it kept 50 dollars. Bought back at 0.25 it kept 75 dollars. Held until both legs expired worthless it kept the full 100 dollars. Bought back at 2.00 it lost 100 dollars, a bar of the same length pointing the other way.">
+  <rect width="720" height="270" fill="#FFFFFF"/>
+  <text x="680" y="32" font-size="12" fill="#767B8E" text-anchor="end">Hypothetical</text>
+  <text x="500" y="58" font-size="13" fill="#767B8E" text-anchor="middle">$100 credit</text>
+  <line x1="420" y1="70" x2="420" y2="250" stroke="#767B8E" stroke-width="1"/>
+  <g fill="none" stroke="#767B8E" stroke-width="1" stroke-dasharray="4 3">
+    <rect x="420" y="80" width="160" height="26" rx="2"/>
+    <rect x="420" y="124" width="160" height="26" rx="2"/>
+    <rect x="420" y="168" width="160" height="26" rx="2"/>
+    <rect x="420" y="212" width="160" height="26" rx="2"/>
+  </g>
+  <g fill="#2E8B5F">
+    <rect x="420" y="80" width="80" height="26" rx="2"/>
+    <rect x="420" y="124" width="120" height="26" rx="2"/>
+    <rect x="420" y="168" width="160" height="26" rx="2"/>
+  </g>
+  <rect x="260" y="212" width="160" height="26" rx="2" fill="#B4485C"/>
+  <g font-size="14" fill="#14151C">
+    <text x="40" y="98">0.50 close</text>
+    <text x="40" y="142">0.25 close</text>
+    <text x="40" y="186">Expired</text>
+    <text x="40" y="230">2.00 close</text>
+  </g>
+  <g font-size="15" font-weight="600" text-anchor="end">
+    <text x="680" y="98" fill="#2E8B5F">+$50</text>
+    <text x="680" y="142" fill="#2E8B5F">+$75</text>
+    <text x="680" y="186" fill="#2E8B5F">+$100</text>
+    <text x="680" y="230" fill="#B4485C">-$100</text>
+  </g>
+</svg>

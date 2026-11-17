@@ -103,6 +103,8 @@ Put plainly, closing early turns an open-ended question into a settled one, and 
 
 **What if the spread is losing instead?** The same arithmetic runs the other way: closing realizes the loss at today's price, and holding leaves the outcome to the stock, capped at the max loss (the width less the credit). The in-the-money case is worked through with numbers, partly and fully, in [what happens when a credit spread goes in the money](/blog/credit-spread-in-the-money).
 
+Related: [premium capture on credit spreads](/blog/credit-spread-premium-capture) measures what share of the credit each of these exits kept, and why that share alone cannot rank them.
+
 The rest of the series on positions after they fill is in [After the fill](/blog/managing).
 
 This post is educational and is not investment advice.
