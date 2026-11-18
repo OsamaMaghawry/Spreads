@@ -177,8 +177,8 @@ const holdingsPanel = (s: Snapshot) => {
 
   return panel(
     "What you hold",
-    (s.shareCount ? head(`Shares — ${s.shareCount} ${s.shareCount === 1 ? "position" : "positions"}`) + shareRows : "") +
-      (s.optionCount ? head(`Option legs — ${s.optionCount}`) + optionRows : ""),
+    (s.shareCount ? head(`Shares: ${s.shareCount} ${s.shareCount === 1 ? "position" : "positions"}`) + shareRows : "") +
+      (s.optionCount ? head(`Option legs: ${s.optionCount}`) + optionRows : ""),
     "Your broker's own quantities and marks, as they stand now. Unrealized figures move until a position is closed."
   );
 };
@@ -200,7 +200,7 @@ const ordersPanel = (s: Snapshot) => {
       </tr>`)
     .join("");
   return panel(
-    `Still working — ${s.openOrderCount} order${s.openOrderCount === 1 ? "" : "s"}`,
+    `Still working: ${s.openOrderCount} order${s.openOrderCount === 1 ? "" : "s"}`,
     rows,
     "Orders your broker still has open. They can be changed or cancelled from the Orders tab."
   );
@@ -714,7 +714,7 @@ export function renderAccountWeek(
   <tr><td align="center">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;">
       <tr><td style="padding:0 0 18px;">
-        <div style="font:700 20px ${FONT};color:${BRAND.text};letter-spacing:-.02em;">DeltaMint</div>
+        <div style="font:700 20px ${FONT};color:${BRAND.text};letter-spacing:-.02em;">delta<span style="color:#3FA672;">mint</span></div>
         <div style="font:600 15px ${FONT};color:${BRAND.text};margin-top:6px;">${esc(a.name)}</div>
         <div style="font:400 13px ${FONT};color:${BRAND.sub};margin-top:2px;">Your week, ${esc(span)}</div>
       </td></tr>
@@ -724,7 +724,7 @@ export function renderAccountWeek(
         ${body}
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
           <tr><td align="center" style="padding:6px 0 18px;">
-            <a href="${esc(app)}" style="display:inline-block;background:${BRAND.accent};color:#FFFFFF;font:600 14px ${FONT};text-decoration:none;padding:11px 22px;border-radius:9px;">Open your dashboard</a>
+            <a href="${esc(app)}" style="display:inline-block;background:${BRAND.accent};color:#FFFFFF;font:600 14px ${FONT};text-decoration:none;padding:11px 22px;border-radius:9px;">Open your Dashboard</a>
           </td></tr>
         </table>
         ${disclaimer(a, opts.unsubscribeUrl)}
@@ -736,7 +736,7 @@ export function renderAccountWeek(
   const line = (l: string, v: string) => `${l}: ${v}`;
   const text = [
     opts.previewFor ? `REVIEW COPY — the email ${opts.previewFor} would receive for this account. Not sent to them.` : null,
-    `DeltaMint — ${a.name}${a.isPaper ? " (paper — simulated money)" : ""}`,
+    `DeltaMint: ${a.name}${a.isPaper ? " (paper — simulated money)" : ""}`,
     `Your week, ${span}`,
     "",
     a.quiet
