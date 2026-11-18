@@ -56,3 +56,70 @@ test("funds by name", () => {
   for (const n of ["SPDR S&P 500 ETF Trust", "Invesco QQQ Trust, Series 1", "iShares Russell 2000 ETF", "ProShares UltraPro QQQ", "Direxion Daily Semiconductor Bull 3X Shares"]) assert.equal(isFundName(n), true, n);
   for (const n of ["Apple Inc. Common Stock", "NVIDIA Corporation Common Stock", "Palantir Technologies Inc."]) assert.equal(isFundName(n), false, n);
 });
+
+// ---------------------------------------------------------------------------
+// The standard deviation channel (18 Nov): the screen's figure is the chart's
+// channel (src/lib/indicators.js regressionChannel) at the last day, today's
+// price included as today's close.
+// ---------------------------------------------------------------------------
+import { channelSums, CHANNEL_DAYS } from "./screenStats.ts";
+import { channelAt, screenRow } from "../../../src/lib/screener.js";
+import { regressionChannel } from "../../../src/lib/indicators.js";
+
+// A walk with drift and noise, as a share's closes might go.
+const walk = (n: number) => {
+  let seed = 11;
+  let p = 80;
+  return Array.from({ length: n }, () => { seed = (seed * 16807) % 2147483647; p *= 1 + (seed / 2147483647 - 0.48) * 0.05; return p; });
+};
+const near = (a: number, b: number, eps: number) => assert.ok(Math.abs(a - b) <= eps, `${a} vs ${b}`);
+
+test("channel: needs 499 finished days; the day before them only from 500", () => {
+  assert.equal(CHANNEL_DAYS, 500);
+  assert.equal(channelSums(walk(498)), null);
+  assert.equal(channelSums(walk(499))!.prev, null);
+  const s = channelSums(walk(620))!;
+  assert.equal(s.n, 499);
+  assert.equal(s.ref, walk(620)[619]);
+  assert.equal(s.prev, walk(620)[620 - 500]);
+});
+
+test("channel: today's price joins the fit, exactly as the chart's channel", () => {
+  const closes = walk(640);
+  const s = dailyStats(bars(641, (i) => (i < 640 ? closes[i] : 0)), day(640))!;
+  const price = closes[639] * 1.07;
+  const got = channelAt(s.chan, price, true)!;
+  const want = regressionChannel([...closes.slice(-499), price], 500)!;
+  const line = want.start + want.slope * (want.length - 1);
+  near(got.mid, line, 1e-7);
+  near(got.sd, want.sd, 1e-7);
+  near(got.slope, want.slope, 1e-9);
+  near(got.z!, (price - line) / want.sd, 1e-7);
+});
+
+test("channel: a weekend or before the open, the last 500 finished days, the price against their last", () => {
+  const closes = walk(700);
+  const s = dailyStats(bars(700, (i) => closes[i]), day(700))!;
+  const price = closes[699] - 3;
+  const got = channelAt(s.chan, price, false)!;
+  const want = regressionChannel(closes, 500)!;
+  const line = want.start + want.slope * 499;
+  near(got.mid, line, 1e-7);
+  near(got.sd, want.sd, 1e-7);
+  near(got.z!, (price - line) / want.sd, 1e-7);
+  // 499 days only: nothing to measure a finished fit with, and no figure.
+  assert.equal(channelAt(channelSums(closes.slice(-499)), price, false), null);
+  assert.equal(channelAt(null, price, true), null);
+});
+
+test("channel: the screen row's figure, live on a weekday, and on a Saturday", () => {
+  const closes = walk(600);
+  const stats = dailyStats(bars(600, (i) => closes[i]), day(600))!;
+  const last = stats.lastDate;
+  const today = "2026-11-18";
+  const live = screenRow({ symbol: "X", price: closes[599] * 1.1, day: today, prevClose: closes[599] }, stats, today);
+  near(live.chanZ, channelAt(stats.chan, closes[599] * 1.1, true)!.z!, 1e-12);
+  const weekend = screenRow({ symbol: "X", price: closes[599], day: last, prevClose: closes[598] }, stats, "2026-11-21");
+  near(weekend.chanZ, channelAt(stats.chan, closes[599], false)!.z!, 1e-12);
+  assert.ok(Number.isFinite(live.chanMid) && live.chanSd > 0);
+});

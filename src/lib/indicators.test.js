@@ -129,7 +129,7 @@ test("a channel's settings kept within sense: choices from their list, bands may
   const [kept] = cleanIndicators([{ id: "s1", type: "sdc", color: "#d97706", params: { length: 5000, src: "hlc3", up1: 1.5, up2: 0, dn1: 3, dn2: 4, extend: "both" } }]);
   assert.deepEqual(kept.params, { length: 5000, src: "hlc3", up1: 1.5, up2: 0, dn1: 3, dn2: 4, extend: "both" });
   const [fixed] = cleanIndicators([{ id: "s2", type: "sdc", params: { length: 9000, src: "vwap", up1: -1, extend: "up" } }]);
-  assert.deepEqual(fixed.params, { length: 500, src: "close", up1: 1, up2: 2, dn1: 3, dn2: 4, extend: "right" });
+  assert.deepEqual(fixed.params, { length: 500, src: "close", up1: 1, up2: 2, dn1: 1, dn2: 2, extend: "right" });
   assert.equal(indicatorLabel(kept), "Std dev 5000 hlc3");
   // The others as before.
   const [bb] = cleanIndicators([{ id: "b", type: "bb", params: { period: 20, mult: 2 } }]);

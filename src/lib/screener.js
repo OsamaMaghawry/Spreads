@@ -54,8 +54,48 @@ export function partialStats(u) {
     lastDate: u.lastDate, lastClose: num(u.lastClose), bars: null,
     closes: { d5: num(u.d5), d21: num(u.d21), d63: null, d126: null, d252: null, ytd: null },
     avgVol20: num(u.avgVol20), avgVol50: null, avgDollar20: num(u.avgDollar20),
-    sma20: num(u.sma20), sma50: null, sma200: null, rsi: null, atr14: num(u.atr14), high52: null, low52: null, partial: true
+    sma20: num(u.sma20), sma50: null, sma200: null, rsi: null, atr14: num(u.atr14), high52: null, low52: null, chan: null, partial: true
   };
+}
+
+/** Days in the screen's standard deviation channel (functions/_shared/screenStats.ts CHANNEL_DAYS). */
+export const CHANNEL_DAYS = 500;
+
+/**
+ * The standard deviation channel at the last day (18 Nov, the owner: "I need
+ * something to find stocks above or below upper boundaries"): the linear
+ * regression of the last 500 daily closes, as the chart's "Std dev channel"
+ * draws it (lib/indicators.js regressionChannel), from the sums the server
+ * sends (`chan`). `live`: today is a new day, so `price` is its close so far
+ * and joins the fit; otherwise the fit is the last 500 finished days and the
+ * price is measured against its last day. `mid` the line there, `sd` the
+ * standard deviation around it, `z` the price in standard deviations from
+ * the line (above +2: over the +2 band). Null without 500 days of history.
+ */
+export function channelAt(chan, price, live) {
+  if (!chan || !Number.isFinite(price) || !Number.isFinite(chan.ref)) return null;
+  let { n, sy, sxy, syy } = chan;
+  if (live) {
+    const y = price - chan.ref;
+    sy += y; sxy += n * y; syy += y * y;
+    n += 1;
+  } else {
+    if (!Number.isFinite(chan.prev)) return null;
+    // The days shift one to the right to make room for the day before them at 0.
+    const y = chan.prev - chan.ref;
+    sxy += sy; sy += y; syy += y * y;
+    n += 1;
+  }
+  if (n < 3) return null;
+  const sx = (n * (n - 1)) / 2;
+  const sxx = ((n - 1) * n * (2 * n - 1)) / 6;
+  const den = n * sxx - sx * sx;
+  const slope = (n * sxy - sx * sy) / den;
+  const start = (sy - slope * sx) / n;
+  const resid = Math.max(0, syy - start * sy - slope * sxy);
+  const sd = Math.sqrt(resid / (n - 1));
+  const mid = chan.ref + start + slope * (n - 1);
+  return { mid, sd, slope, z: sd > 0 ? (price - mid) / sd : null };
 }
 
 /**
@@ -89,6 +129,7 @@ export function screenRow(u, stats, today) {
     }
     rsi = loss === 0 ? (gain === 0 ? 50 : 100) : 100 - 100 / (1 + gain / loss);
   }
+  const channel = channelAt(s?.chan, price, live);
   const range = !preOpen && num(u.high) !== null && num(u.low) !== null && u.high > u.low ? (price - u.low) / (u.high - u.low) : null;
   const mid = num(u.bid) && num(u.ask) && u.ask >= u.bid ? (u.bid + u.ask) / 2 : null;
   return {
@@ -112,6 +153,9 @@ export function screenRow(u, stats, today) {
     fromLow52: ratio(price, low52),
     rsi,
     atrPct: s?.atr14 && price ? s.atr14 / price : null,
+    chanZ: channel?.z ?? null,
+    chanMid: channel?.mid ?? null,
+    chanSd: channel?.sd ?? null,
     vsSma20: ratio(price, s?.sma20),
     vsSma50: ratio(price, s?.sma50),
     vsSma200: ratio(price, s?.sma200),
@@ -159,6 +203,8 @@ export const FIELDS = [
   { id: "fromVwap", label: "Price vs VWAP", unit: "%", pct: true, group: "Today", wholeDay: true },
   { id: "rsi", label: "RSI (14 days)", unit: "", group: "Trend and momentum", daily: true },
   { id: "atrPct", label: "ATR (14 days) as % of price", unit: "%", pct: true, group: "Trend and momentum", daily: true },
+  { id: "chanZ", label: "Std dev channel (500 days)", unit: "sd", group: "Trend and momentum", daily: true,
+    hint: "Where the price is in the 500-day standard deviation channel of daily closes (the chart's \"Std dev channel\"), in standard deviations from its line: 1 or more is above the +1 band, 2 or more above the +2 band, −1 or less below the −1 band, −2 or less below the −2 band. Today's price counts as today's close. Shares with under 500 days of history have none" },
   { id: "vsSma20", label: "Price vs 20-day average", unit: "%", pct: true, group: "Trend and momentum", daily: true },
   { id: "vsSma50", label: "Price vs 50-day average", unit: "%", pct: true, group: "Trend and momentum", daily: true },
   { id: "vsSma200", label: "Price vs 200-day average", unit: "%", pct: true, group: "Trend and momentum", daily: true },
@@ -340,6 +386,8 @@ export const conflicts = (screen) => Object.entries(screen.ranges).filter(([, r]
 const liquid = { price: { min: 2, max: null }, dollarVol: { min: 1e6, max: null } };
 // A gap is known before the day's volume is: its floor is the day before's.
 const liquidBefore = { price: { min: 2, max: null }, prevDollarVol: { min: 1e6, max: null } };
+// As the RSI screens: $2 and up, $5M a day on average.
+const channelFloor = { price: { min: 2, max: null }, avgDollar20: { min: 5e6, max: null } };
 export const PRESETS = [
   { id: "gapUp", label: "Gapping up", note: "Opened 3% or more above yesterday's close", screen: { ranges: { ...liquidBefore, gapPct: { min: 3, max: null } }, sort: { key: "gapPct", dir: "desc" } } },
   { id: "gapDown", label: "Gapping down", note: "Opened 3% or more below yesterday's close", screen: { ranges: { ...liquidBefore, gapPct: { min: null, max: -3 } }, sort: { key: "gapPct", dir: "asc" } } },
@@ -355,6 +403,13 @@ export const PRESETS = [
   { id: "uptrend", label: "Uptrend", note: "Above its 20, 50 and 200-day averages", screen: { ranges: { price: { min: 5, max: null }, avgDollar20: { min: 10e6, max: null } }, trend: "above3", sort: { key: "perf1m", dir: "desc" } } },
   { id: "volatile", label: "Wide daily ranges", note: "Average true range 5% of the price or more", screen: { ranges: { price: { min: 2, max: null }, avgDollar20: { min: 10e6, max: null }, atrPct: { min: 5, max: null } }, sort: { key: "atrPct", dir: "desc" } } },
   { id: "earnings", label: "Earnings this week", note: "A report scheduled in the next 7 days", screen: { ranges: { price: { min: 2, max: null }, earningsIn: { min: 0, max: 7 } }, sort: { key: "earningsIn", dir: "asc" } } },
+  // The standard deviation channel's bands (18 Nov, the owner: "find stocks
+  // above or below upper boundaries make it the default boundaries 1 - 2 &
+  // 1 - 2"); `set`: shown under their own heading.
+  { id: "chanAbove2", set: "channel", label: "Above the +2 band", note: "The price 2 standard deviations or more above the 500-day channel's line", screen: { ranges: { ...channelFloor, chanZ: { min: 2, max: null } }, sort: { key: "chanZ", dir: "desc" } } },
+  { id: "chanAbove1", set: "channel", label: "Above the +1 band", note: "The price 1 standard deviation or more above the 500-day channel's line (the +2 band's included)", screen: { ranges: { ...channelFloor, chanZ: { min: 1, max: null } }, sort: { key: "chanZ", dir: "desc" } } },
+  { id: "chanBelow1", set: "channel", label: "Below the −1 band", note: "The price 1 standard deviation or more below the 500-day channel's line (the −2 band's included)", screen: { ranges: { ...channelFloor, chanZ: { min: null, max: -1 } }, sort: { key: "chanZ", dir: "asc" } } },
+  { id: "chanBelow2", set: "channel", label: "Below the −2 band", note: "The price 2 standard deviations or more below the 500-day channel's line", screen: { ranges: { ...channelFloor, chanZ: { min: null, max: -2 } }, sort: { key: "chanZ", dir: "asc" } } },
   // Gamma screens (8 Nov, the approved design); `set`: shown under their own heading.
   { id: "gexNegative", set: "gamma", label: "Negative gamma", note: "Gamma at the price below zero: dealers' hedging goes with the move, so breaks tend to run. Most negative against volume first", screen: { ranges: { gexNet: { min: null, max: 0 } }, sort: { key: "gexHedge", dir: "asc" } } },
   { id: "gexPinned", set: "gamma", label: "Strong positive gamma", note: "Hedging of 3% or more of a normal day's dollar volume per 1% move: ranges tend to stay tight. Most pinned first", screen: { ranges: { gexHedge: { min: 3, max: null } }, sort: { key: "gexHedge", dir: "desc" } } },

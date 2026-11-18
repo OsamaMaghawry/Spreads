@@ -569,6 +569,8 @@ async function earningsFor(admin: any, symbol: string) {
 const SCREEN_EXCHANGES = new Set(["NYSE", "NASDAQ", "ARCA", "AMEX", "BATS"]);
 const SNAP_CHUNK = 800;
 const DAILY_MAX = 200;
+// 200 shares x two years of daily candles: about 100,000, ten pages.
+const DAILY_PAGES = 30;
 
 async function inBatches<T, R>(items: T[], size: number, run: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = [];
@@ -725,7 +727,10 @@ async function screenDaily(account: any, symbols: string[], asOf = "") {
   if (!list.length) return { stats: {}, feed: "sip" };
   const past = /^\d{4}-\d{2}-\d{2}$/.test(asOf) && asOf < nyDate() ? asOf : "";
   const until = past ? Date.parse(`${past}T00:00:00Z`) : Date.now();
-  const start = iso(until - 380 * 86400000);
+  // Two years and a little: the standard deviation channel fits the last
+  // 500 daily closes (_shared/screenStats.ts CHANNEL_DAYS); everything else
+  // needs a year.
+  const start = iso(until - 740 * 86400000);
   // Consolidated history ends fifteen minutes back for an account without a
   // paid data plan; finished days are all the screen uses anyway.
   const end = iso(past ? until : Date.now() - 16 * 60000);
@@ -739,7 +744,10 @@ async function screenDaily(account: any, symbols: string[], asOf = "") {
       for (const [s, bars] of Object.entries(page?.bars || {})) (all[s] = all[s] || []).push(...(bars as any[]));
       token = page?.next_page_token || null;
       pages += 1;
-    } while (token && pages < 12);
+    } while (token && pages < DAILY_PAGES);
+    // A read cut short would leave the last symbols' recent days out (pages
+    // run symbol by symbol) and their figures wrong: refuse it instead.
+    if (token) throw new Error(`Daily candles for ${list.length} shares ran past ${DAILY_PAGES} pages`);
     return all;
   };
   let feed = "sip";

@@ -37,7 +37,8 @@ import { gapWindow, liveWindow, bySymbol, quietWindow, settleQuiet } from "@/lib
 // again every five minutes until it reaches 9:30, and kept for the day.
 
 const SCREEN_KEY = "dm.screener.v1";
-const DAILY_KEY = "dm.screener.daily.v1";
+// v2: the daily numbers carry the standard deviation channel (18 Nov).
+const DAILY_KEY = "dm.screener.daily.v2";
 const SHOW_MAX = 300;
 const DAILY_BATCH = 200;
 const DAILY_PARALLEL = 2;
@@ -84,21 +85,21 @@ const GAMMA_REFRESH_MS = 10 * 60000;
 const COLUMN_SETS = {
   live: [
     ["symbol", "Symbol"], ["price", "Price"], ["changePct", "Chg %"], ["gapPct", "Gap %"], ["volume", "Volume"], ["relVol", "Rel vol"],
-    ["dollarVol", "$ Vol"], ...GAMMA_COLUMNS, ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["fromHigh52", "vs 52w high"],
+    ["dollarVol", "$ Vol"], ...GAMMA_COLUMNS, ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["chanZ", "Channel"], ["fromHigh52", "vs 52w high"],
     ["vsSma50", "vs 50d"], ["perf1m", "1 month"], ["earningsIn", "Earnings"], ["pmChangePct", "Pre-mkt %"], ["pmVolume", "Pre-mkt vol"], ["ahChangePct", "After-hrs %"], ["ahVolume", "After-hrs vol"], ["news", "News"]
   ],
   // Live before the open: the move so far is the gap.
   preOpen: [
     ["symbol", "Symbol"], ["price", "Price"], ["changePct", "Pre-mkt %"], ["news", "News"], ["volume", "Pre-mkt vol"], ["dollarVol", "Pre-mkt $ vol"], ["ahChangePct", "After-hrs %"], ["ahVolume", "After-hrs vol"], ["prevDollarVol", "$ Vol day before"],
-    ...GAMMA_COLUMNS, ["relVol", "Rel vol"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["fromHigh52", "vs 52w high"], ["vsSma50", "vs 50d"], ["perf1m", "1 month"], ["earningsIn", "Earnings"]
+    ...GAMMA_COLUMNS, ["relVol", "Rel vol"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["chanZ", "Channel"], ["fromHigh52", "vs 52w high"], ["vsSma50", "vs 50d"], ["perf1m", "1 month"], ["earningsIn", "Earnings"]
   ],
   open: [
     ["symbol", "Symbol"], ["price", "Open"], ["gapPct", "Gap %"], ["news", "News"], ["pmChangePct", "Pre-mkt %"], ["pmVolume", "Pre-mkt vol"], ["prevDollarVol", "$ Vol day before"],
-    ["avgVol20", "Avg vol"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["fromHigh52", "vs 52w high"], ["vsSma50", "vs 50d"], ["perf1m", "1 month"]
+    ["avgVol20", "Avg vol"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["chanZ", "Channel"], ["fromHigh52", "vs 52w high"], ["vsSma50", "vs 50d"], ["perf1m", "1 month"]
   ],
   close: [
     ["symbol", "Symbol"], ["price", "Close"], ["changePct", "Chg %"], ["gapPct", "Gap %"], ["news", "News"], ["volume", "Volume"], ["relVol", "Rel vol"], ["dollarVol", "$ Vol"],
-    ["rangePos", "In range"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["fromHigh52", "vs 52w high"], ["vsSma50", "vs 50d"], ["perf1m", "1 month"]
+    ["rangePos", "In range"], ["marketCap", "Mkt cap"], ["rsi", "RSI"], ["atrPct", "ATR %"], ["chanZ", "Channel"], ["fromHigh52", "vs 52w high"], ["vsSma50", "vs 50d"], ["perf1m", "1 month"]
   ]
 };
 const SESSION = { bmo: "before open", amc: "after close", dmh: "in session" };
@@ -120,6 +121,12 @@ function cell(row, key) {
   if (key === "dollarVol" || key === "marketCap" || key === "prevDollarVol" || key === "avgDollar20") return `$${bigNumber(v)}`;
   if (key === "relVol") return `${v.toFixed(2)}×`;
   if (key === "rsi") return v.toFixed(0);
+  if (key === "chanZ") {
+    const band = (k) => px(row.chanMid + k * row.chanSd);
+    const title = `In standard deviations from the 500-day channel's line. Line ${px(row.chanMid)} · +1 ${band(1)} · +2 ${band(2)} · −1 ${band(-1)} · −2 ${band(-2)}`;
+    const outside = Math.abs(v) >= 2 ? "rounded bg-slate-900 px-1 font-semibold text-white" : Math.abs(v) >= 1 ? "font-semibold" : "";
+    return <span title={title} className={outside}>{v >= 0 ? "+" : "−"}{Math.abs(v).toFixed(2)}</span>;
+  }
   if (key === "earningsIn") return `${v === 0 ? "today" : `in ${v}d`}${row.earnSession ? ` · ${SESSION[row.earnSession] || ""}` : ""}`;
   if (FIELD[key]?.pct) {
     const tone = ["changePct", "gapPct", "pmChangePct", "ahChangePct", "perf1m", "fromVwap"].includes(key) ? (v >= 0 ? "text-emerald-700" : "text-rose-700") : "";
@@ -625,6 +632,21 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
             );
           })}
         </div>
+        <div className="px-2">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500" title="The chart's Std dev channel: 500 daily closes, bands at 1 and 2 standard deviations">Std dev channel · 500 days</div>
+          <div className="grid grid-cols-2 gap-1">
+            {PRESETS.filter((p) => p.set === "channel").map((p) => {
+              const on = presets.includes(p.id);
+              return (
+                <button key={p.id} type="button" aria-pressed={on} title={p.note} onClick={() => togglePreset(p.id)}
+                  className={`flex items-center gap-1 rounded border px-1.5 py-1 text-left text-[11px] ${on ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}>
+                  <span className={`flex h-3 w-3 shrink-0 items-center justify-center rounded-sm border ${on ? "border-white bg-white text-slate-900" : "border-slate-300"}`}>{on && <Check className="h-2.5 w-2.5" />}</span>
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         {mode === "live" && (
           <div className="px-2">
             <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-violet-800">Gamma</div>
@@ -777,7 +799,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
         {(universe.error || progress.error) && <p className="px-2 py-1 text-xs text-rose-700">{universe.error || `Daily figures: ${progress.error}`}</p>}
         {needsDaily(effective) && (progress.loading || covered < rows.length) && rows.length > 0 && (
           <p className="px-2 py-1 text-[11px] text-amber-800">
-            {progress.loading ? `Reading a year of daily candles: ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()} shares. Matches fill in as they arrive.` : `Averages, RSI, ATR, 52-week and performance figures cover the ${covered.toLocaleString()} most traded shares.`}
+            {progress.loading ? `Reading two years of daily candles: ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()} shares. Matches fill in as they arrive.` : `Averages, RSI, ATR, the channel, 52-week and performance figures cover the ${covered.toLocaleString()} most traded shares.`}
           </p>
         )}
         <div className="min-h-0 flex-1 overflow-auto">
@@ -846,7 +868,7 @@ export default function Screener({ accountId, active, watch, onPick, onAdd, onRe
         </div>
         {when.date ? (
           <p className="border-t border-slate-100 px-2 py-1 text-[10px] leading-snug text-slate-400">
-            {when.date} {when.asOf === "open" ? "at the open: the opening price and gap; pre-market (4:00 to 9:30) for the biggest gaps among shares trading $1M a day" : "at the close: the whole day"}; averages, RSI and 52-week figures from the days before. From your own Alpaca account, consolidated daily candles{universe.dayFeed && universe.dayFeed !== "sip" ? " (IEX only: this account cannot read the consolidated tape)" : ""}. Only shares listed today are included, so companies delisted since are missing; names, market cap (today&apos;s shares outstanding) and options are today&apos;s. A screen is a filter, not a recommendation.
+            {when.date} {when.asOf === "open" ? "at the open: the opening price and gap; pre-market (4:00 to 9:30) for the biggest gaps among shares trading $1M a day" : "at the close: the whole day"}; averages, RSI, the channel and 52-week figures from the days before. From your own Alpaca account, consolidated daily candles{universe.dayFeed && universe.dayFeed !== "sip" ? " (IEX only: this account cannot read the consolidated tape)" : ""}. Only shares listed today are included, so companies delisted since are missing; names, market cap (today&apos;s shares outstanding) and options are today&apos;s. A screen is a filter, not a recommendation.
           </p>
         ) : <p className="border-t border-slate-100 px-2 py-1 text-[10px] leading-snug text-slate-400">
           {universe.at ? `Read ${new Date(universe.at).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", second: "2-digit" })} New York. ` : ""}

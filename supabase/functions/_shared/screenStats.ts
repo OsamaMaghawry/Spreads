@@ -29,7 +29,37 @@ export type DailyStats = {
   atr14: number | null;
   high52: number | null;
   low52: number | null;
+  chan: ChannelSums | null;
 };
+
+// The standard deviation channel (18 Nov, the owner: "I need something to
+// find stocks above or below upper boundaries"): the linear regression of
+// the last CHANNEL_DAYS daily closes, as on the terminal's chart
+// (src/lib/indicators.js regressionChannel). The fit takes today's price as
+// today's close, so the screen sends the sums over the finished days before
+// it and the browser adds the price (src/lib/screener.js channelAt).
+// `n` closes at x = 0..n-1, each less `ref` (the last close, which keeps the
+// sums small); `prev`: the close before them, for when today is already a
+// finished day (a weekend, or before the open).
+export const CHANNEL_DAYS = 500;
+export type ChannelSums = { n: number; ref: number; sy: number; sxy: number; syy: number; prev: number | null };
+
+export function channelSums(closes: number[], days = CHANNEL_DAYS): ChannelSums | null {
+  const n = days - 1;
+  if (closes.length < n || n < 1) return null;
+  const ref = closes[closes.length - 1];
+  let sy = 0;
+  let sxy = 0;
+  let syy = 0;
+  const from = closes.length - n;
+  for (let i = 0; i < n; i++) {
+    const y = closes[from + i] - ref;
+    sy += y;
+    sxy += i * y;
+    syy += y * y;
+  }
+  return { n, ref, sy, sxy, syy, prev: from > 0 ? closes[from - 1] : null };
+}
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const tail = <T>(xs: T[], n: number) => (xs.length >= n ? xs.slice(-n) : null);
@@ -95,7 +125,8 @@ export function dailyStats(all: DailyBar[], today: string): DailyStats | null {
     rsi,
     atr14,
     high52: Math.max(...yearBars.map((b) => b.h)),
-    low52: Math.min(...yearBars.map((b) => b.l))
+    low52: Math.min(...yearBars.map((b) => b.l)),
+    chan: channelSums(closes)
   };
 }
 

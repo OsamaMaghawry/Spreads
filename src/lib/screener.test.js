@@ -313,3 +313,32 @@ test("no news in the last N days is kept with the screen, whole days from 1 to 9
   assert.equal(EMPTY_SCREEN.quietDays, null);
   assert.equal(combineScreens(cleanScreen({ quietDays: 5 }), ["gapUp"]).quietDays, 5);
 });
+
+test("the channel's screens: above +1 and +2, below -1 and -2, under their own heading", () => {
+  const ids = PRESETS.filter((p) => p.set === "channel").map((p) => p.id);
+  assert.deepEqual(ids, ["chanAbove2", "chanAbove1", "chanBelow1", "chanBelow2"]);
+  const row = (z) => ({ price: 50, avgDollar20: 2e7, chanZ: z });
+  const pass = (id, z) => passes(row(z), presetScreen(id));
+  assert.deepEqual([2.4, 2, 1.99, 1, 0.5].map((z) => pass("chanAbove2", z)), [true, true, false, false, false]);
+  assert.deepEqual([2.4, 1, 0.99, -1].map((z) => pass("chanAbove1", z)), [true, true, false, false]);
+  assert.deepEqual([-2.5, -1, -0.99, 1].map((z) => pass("chanBelow1", z)), [true, true, false, false]);
+  assert.deepEqual([-2.5, -2, -1.5].map((z) => pass("chanBelow2", z)), [true, true, false]);
+  // No channel (under 500 days of history): no match either way.
+  assert.equal(pass("chanAbove1", null), false);
+  // Thin shares are left out, as on the RSI screens.
+  assert.equal(passes({ price: 50, avgDollar20: 1e6, chanZ: 3 }, presetScreen("chanAbove2")), false);
+  // A field of its own: typed as standard deviations, kept by a saved screen, needs the daily numbers.
+  assert.equal(FIELD.chanZ.pct, undefined);
+  assert.deepEqual(cleanScreen({ ranges: { chanZ: { min: "1.5", max: null } } }).ranges, { chanZ: { min: 1.5, max: null } });
+  assert.equal(needsDaily(cleanScreen({ ranges: { chanZ: { min: 1, max: null } } })), true);
+  // Known at a past day's open (the opening price as today's close) and close.
+  assert.equal(fieldKnown("chanZ", "open"), true);
+  // Both sides at once cannot hold.
+  assert.deepEqual(conflicts(combineScreens(cleanScreen(EMPTY_SCREEN), ["chanAbove1", "chanBelow1"])), ["chanZ"]);
+});
+
+test("the channel: a row without the channel's sums has no figure", () => {
+  const r = screenRow(AAPL, AAPL_DAILY, "2026-10-24");
+  assert.equal(r.chanZ, null);
+  assert.equal(partialStats({ lastDate: "2026-10-23", lastClose: 1 }).chan, null);
+});

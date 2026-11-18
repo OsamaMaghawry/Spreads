@@ -227,14 +227,17 @@ export const INDICATORS = {
   atr: { label: "ATR", pane: "own", params: [{ key: "period", label: "Period", value: 14 }] },
   // Drawn as one layer over the candles (components/terminal/channelLayer.js),
   // not as lines, so it can run past the last candle to the chart's edge.
+  // Bands at 1 and 2 standard deviations each side unless set otherwise
+  // (18 Nov, the owner: "make it the default boundaries 1 - 2 & 1 - 2"), as
+  // the scanner's channel screens use (lib/screener.js).
   sdc: {
     label: "Std dev channel", pane: "price", params: [
       { key: "length", label: "Length", hint: "Bars in the fit", value: 500, min: 2, max: 5000 },
       { key: "src", label: "Source", value: "close", options: ["close", "open", "high", "low", "hl2", "hlc3", "ohlc4"] },
       { key: "up1", label: "+1", hint: "Upper band 1, in standard deviations (0: off)", value: 1, min: 0, max: 10, step: 0.5 },
       { key: "up2", label: "+2", hint: "Upper band 2, in standard deviations (0: off)", value: 2, min: 0, max: 10, step: 0.5 },
-      { key: "dn1", label: "−1", hint: "Lower band 1, in standard deviations (0: off)", value: 3, min: 0, max: 10, step: 0.5 },
-      { key: "dn2", label: "−2", hint: "Lower band 2, in standard deviations (0: off)", value: 4, min: 0, max: 10, step: 0.5 },
+      { key: "dn1", label: "−1", hint: "Lower band 1, in standard deviations (0: off)", value: 1, min: 0, max: 10, step: 0.5 },
+      { key: "dn2", label: "−2", hint: "Lower band 2, in standard deviations (0: off)", value: 2, min: 0, max: 10, step: 0.5 },
       { key: "extend", label: "Extend", hint: "Lines past the fit: right, both ways or none", value: "right", options: ["right", "both", "none"] }
     ]
   }
