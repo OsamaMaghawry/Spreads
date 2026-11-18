@@ -74,6 +74,8 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   // and only while the size is still the one they put in (a later order with
   // a size typed or reset must never take everything held).
   const [closeQty, setCloseQty] = useState(null);
+  // Another account on screen: its own holding, not the one Close or Max read.
+  useEffect(() => { setCloseQty(null); }, [account?.id]);
   const [amount, setAmount] = useState("");
   const [tracked, setTracked] = useState(null);
   const trackedRef = useRef(null);

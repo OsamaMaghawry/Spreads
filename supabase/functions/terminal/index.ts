@@ -2150,7 +2150,9 @@ async function placeOrder(admin: any, user: any, account: any, input: any) {
   // holding read again right before sending, never more than it, and nothing
   // sent where it is gone, rather than open the other way.
   if (input?.reduceOnly === true && body.qty) {
-    const now = await positionOf(account, sym).catch(() => null);
+    // A read that fails is a refusal with its own reason (never "no longer
+    // holds": that would tell the trader he is flat when he may not be).
+    const now = await positionOf(account, sym);
     const closes = now && ((body.side === "sell" && now.side === "long") || (body.side === "buy" && now.side === "short")) && Math.abs(now.qty) > 0;
     if (!closes) return { status: 200, body: { skipped: `No longer holds ${sym} ${body.side === "sell" ? "long" : "short"}: nothing sent.` } };
     if (Number(body.qty) > Math.abs(now!.qty)) body.qty = String(now!.qtyText).replace(/^-/, "");
