@@ -18,7 +18,7 @@ import { dailyStats, isFundName } from "../_shared/screenStats.ts";
 import { historyRow, premarket, afterHours, nyMoment } from "../_shared/screenHistory.ts";
 import { usSession, usOvernight, stopPlan, stopLimitPrice, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit, replaceable } from "../_shared/positionTools.ts";
 import { inBackground } from "../_shared/background.ts";
-import { allocate, splitTotal } from "../_shared/proRata.ts";
+import { allocate, splitTotal, wholeHoldings } from "../_shared/proRata.ts";
 import { orderStream } from "../_shared/orderStream.ts";
 import { isOwnerEmail, isAdminUser } from "../_shared/admin.ts";
 import { handBackFired, chaseFired } from "../_shared/stopGuardRun.ts";
@@ -2247,15 +2247,27 @@ async function allocation(admin: any, user: any, lead: any, ids: unknown, input:
   // The ticket's total shared by portfolio value over every account it goes
   // to, the one on screen too when ticked (18 Nov, _shared/proRata.ts
   // splitTotal): each part is shown in the review and sent as it stands.
-  if (input?.split === "total") {
+  // `split: "holdings"`: Close, Stop or Max on a position: each account's
+  // whole holding, as before the total was shared out (18 Nov review).
+  if (input?.split === "total" || input?.split === "holdings") {
     const onScreen = input?.leadOff !== true;
-    const parts = splitTotal({ side, qty: given(input?.qty), notional: given(input?.notional) }, [...(onScreen ? [leadBook] : []), ...ready],
-      { crypto, symbol, parts: typeof input?.parts === "boolean" ? input.parts : undefined });
+    const taking = [...(onScreen ? [leadBook] : []), ...ready];
+    // Whole shares unless the number itself is in part shares (18 Nov review:
+    // Part shares on split a whole 50 into parts, each then refused).
+    const parts = input.split === "holdings" ? wholeHoldings(side, taking, { symbol })
+      : splitTotal({ side, qty: given(input?.qty), notional: given(input?.notional) }, taking, { crypto, symbol });
+    const closes = (held: number) => (side === "sell" && held > 0) || (side === "buy" && held < 0);
     const partOf = (id: string) => parts.find((x) => x.id === id);
-    const row = (b: any, sh: any) => ({ qty: sh.all ? (b.qtyText ? Number(b.qtyText) : sh.qty) : sh.qty, qtyText: sh.all ? b.qtyText ?? null : null, notional: sh.notional, all: sh.all, basis: sh.basis, skip: sh.skip, equity: b.equity, held: b.held });
+    const row = (b: any, sh: any) => ({
+      qty: sh.all ? (b.qtyText ? Number(b.qtyText) : sh.qty) : sh.qty, qtyText: sh.all ? b.qtyText ?? null : null, notional: sh.notional, all: sh.all, basis: sh.basis, skip: sh.skip,
+      equity: b.equity, buyingPower: b.buyingPower, held: b.held
+    });
     const mine = onScreen ? partOf(lead.id) : null;
     return {
-      symbol, side, split: "total",
+      symbol, side, split: input.split,
+      // Whether it closes holdings: the ticket then sends it reduce-only, so
+      // an account that no longer holds at sending opens nothing.
+      closing: taking.some((b: any) => closes(Number(b.held) || 0)),
       lead: { accountId: lead.id, name: lead.name, equity: leadBook.equity, buyingPower: leadBook.buyingPower, held: leadBook.held, ...(mine ? { part: row(leadBook, mine) } : {}) },
       group: group.map((g, i) => {
         const b: any = books[i];
@@ -2280,6 +2292,13 @@ async function allocation(admin: any, user: any, lead: any, ids: unknown, input:
     if (!canTrade(user, g.account)) return groupRow(g.id, g.account, { skip: "a live account the terminal does not trade" });
     if (b?.error) return groupRow(g.id, g.account, { skip: `could not be read: ${b.error}` });
     const sh = shares.find((x) => x.id === g.id)!;
+    // Reduce-only (a ticket's review that closed holdings): an account that no
+    // longer holds the symbol on that side is sent nothing, rather than open
+    // the other way (18 Nov review: a review left open while a stop filled).
+    const held = Number(b.held) || 0;
+    if (input?.reduceOnly === true && !((side === "sell" && held > 0) || (side === "buy" && held < 0))) {
+      return groupRow(g.id, g.account, { skip: `no longer holds ${symbol} ${side === "sell" ? "long" : "short"}: nothing sent` });
+    }
     return groupRow(g.id, g.account, { qty: sh.all ? Number(b.qtyText) : sh.qty, qtyText: sh.all ? b.qtyText : null, notional: sh.notional, all: sh.all, basis: sh.basis, skip: sh.skip });
   });
   return { symbol, side, lead: { accountId: lead.id, name: lead.name, equity: leadBook.equity, buyingPower: leadBook.buyingPower, held: leadBook.held }, group: rows, accounts: group };
@@ -2317,9 +2336,14 @@ async function orderForGroup(admin: any, user: any, lead: any, ids: unknown, inp
   };
   // Too small on the account on screen alone (a hotkey's size there under one
   // share): nothing sent there, the others still take theirs.
+  // Reduce-only, the account on screen as read just now (the browser's book,
+  // when it sent one, is the review's own, under 30 seconds old).
+  const leadHeld = Number(plan.lead?.held) || 0;
+  const leadGone = !early && input?.reduceOnly === true && !((plan.side === "sell" && leadHeld > 0) || (plan.side === "buy" && leadHeld < 0));
   const [r, ...group] = await Promise.all([
     notTicked ? Promise.resolve({ status: 200, body: { leadOff: true } as any })
-      : leadOff ? Promise.resolve({ status: 200, body: { skipped: String(input?.leadSkip || "Too small on this account.") } as any }) : early ?? own(),
+      : leadOff ? Promise.resolve({ status: 200, body: { skipped: String(input?.leadSkip || "Too small on this account.") } as any })
+        : leadGone ? Promise.resolve({ status: 200, body: { skipped: `This account no longer holds ${plan.symbol} ${plan.side === "sell" ? "long" : "short"}: nothing sent.` } as any }) : early ?? own(),
     ...plan.group.map(send)
   ]);
   return { status: r.status, body: { ...r.body, group } };

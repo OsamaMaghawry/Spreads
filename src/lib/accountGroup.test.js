@@ -182,3 +182,11 @@ test("resplit: a new total in the same proportions, never under what filled", ()
   const part = resplit([{ accountId: "L", name: "L", order: { id: "1", qty: 1.5, filled: 0 } }, { accountId: "P", name: "P", order: { id: "2", qty: 0.5, filled: 0 } }], 3);
   assert.deepEqual(part.rows.map((x) => x.qty), [2.25, 0.75]);
 });
+
+test("order blocks: an order listed twice counts once; a stop read as 0 is no stop (18 Nov review)", () => {
+  const o = { id: "1", symbol: "AAPL", side: "buy", type: "limit", qty: 31, filled: 0, limit: 230, submittedAt: "2026-11-18T15:00:00Z" };
+  const blocks = orderBlocks([{ accountId: "L", name: "L", orders: [o] }, { accountId: "L", name: "L", orders: [o] }]);
+  assert.deepEqual([blocks.length, blocks[0].rows.length, blocks[0].qty], [1, 1, 31]);
+  assert.equal(stopOf({ stop: 0, legs: [{ stop: 0 }, { stop: 181 }] }), 181);
+  assert.equal(stopOf({ stop: 0 }), null);
+});

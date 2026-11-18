@@ -215,7 +215,7 @@ export function refusalNews(rows) {
 }
 
 /** A working order's stop: its own, or its stop leg's. */
-export const stopOf = (o) => o?.stop ?? (o?.legs || []).find((l) => l.stop)?.stop ?? null;
+export const stopOf = (o) => (Number(o?.stop) > 0 ? o.stop : null) ?? (o?.legs || []).find((l) => Number(l.stop) > 0)?.stop ?? null;
 
 /**
  * Every ticked account's working orders, the same order on each kept together
@@ -226,8 +226,12 @@ export const stopOf = (o) => o?.stop ?? (o?.legs || []).find((l) => l.stop)?.sto
  */
 export function orderBlocks(accounts) {
   const blocks = new Map();
+  const seen = new Set();
   for (const a of Array.isArray(accounts) ? accounts : []) {
     for (const o of a?.orders || []) {
+      // One order once, however many reads list it.
+      if (o?.id && seen.has(o.id)) continue;
+      if (o?.id) seen.add(o.id);
       const key = [o.symbol, o.side, orderKind(o), o.limit ?? "", stopOf(o) ?? ""].join("|");
       if (!blocks.has(key)) blocks.set(key, { key, symbol: o.symbol, side: o.side, type: o.type, tif: o.tif, orderClass: o.orderClass, limit: o.limit ?? null, stop: stopOf(o), first: o, rows: [], at: "" });
       const b = blocks.get(key);

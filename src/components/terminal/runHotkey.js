@@ -98,6 +98,10 @@ export function reportGroup(rows, { key, notify, refresh }) {
   if (bad) notify({ key, ...bad });
   list.forEach((r, i) => {
     if (!r.orderId || r.ok === false) return;
+    if (r.status === "rejected") {
+      notify({ key: `${key}${i}`, tone: "bad", title: `Rejected on ${r.name}${r.live ? " (live)" : ""}`, detail: "The broker rejected the order as it was placed. See the Orders tab." });
+      return;
+    }
     trackOrder({
       accountId: r.accountId, id: r.orderId, key: `${key}${i}`, base: { status: r.status || "new" }, notify: () => {},
       onUpdate: (o) => {

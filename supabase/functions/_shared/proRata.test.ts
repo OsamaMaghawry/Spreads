@@ -206,7 +206,7 @@ test("a buy under one share of a fractionable stock: the part share, never under
 // The ticket's total shared by portfolio value (18 Nov: "pro rata not 25 per
 // each"; "The sizing based on equity").
 // ---------------------------------------------------------------------------
-import { splitTotal } from "./proRata.ts";
+import { splitTotal, wholeHoldings } from "./proRata.ts";
 
 const live = { id: "L", name: "Alpaca Live", equity: 160240, buyingPower: 160240, held: 0 };
 const paper = { id: "P", name: "Paper 2", equity: 98110, buyingPower: 196220, held: 0 };
@@ -269,4 +269,30 @@ test("split: nothing to share, or no portfolio value read", () => {
   const rows = splitTotal({ side: "buy", qty: 10 }, [live, { ...paper, equity: null }]);
   assert.deepEqual(rows.map((r) => r.qty), [10, null]);
   assert.match(rows[1].skip!, /no portfolio value/);
+});
+
+test("explicit sizes go out as asked: no billionth lost, no cent lost (18 Nov review)", () => {
+  // 16 shares with part shares on was 15.999999999; $1.14 was $1.13.
+  for (const v of [16, 3, 7, 115, 199]) {
+    const [r] = allocate({ side: "buy", qty: 1 }, lead, [{ ...half, rule: { mode: "shares", value: v } }], { parts: true });
+    assert.equal(r.qty, v, `shares ${v}`);
+  }
+  const [d] = allocate({ side: "buy", notional: 10 }, lead, [{ ...half, rule: { mode: "dollars", value: 1.14 } }]);
+  assert.equal(d.notional, 1.14);
+  // A fractional holding sold whole stays whole (exact, not a billionth short).
+  const [all] = allocate({ side: "sell", qty: 1 }, { ...lead, held: 5 }, [{ ...half, held: 0.111111111, rule: { mode: "shares", value: 0.111111111 } }], { parts: true });
+  assert.deepEqual([all.qty, all.all], [0.111111111, true]);
+});
+
+test("whole holdings: Close, Stop and Max close each account's own holding (18 Nov review)", () => {
+  const rows = wholeHoldings("sell", [{ ...live, held: 100 }, { ...paper, held: 60 }, { ...paper, id: "Q", held: 0 }], { symbol: "AAPL" });
+  assert.deepEqual(rows.map((r) => [r.qty, r.all]), [[100, true], [60, true], [null, false]]);
+  assert.match(rows[2].skip!, /holds no AAPL to sell/);
+  const cover = wholeHoldings("buy", [{ ...live, held: -40 }, { ...paper, held: 10 }]);
+  assert.deepEqual(cover.map((r) => r.qty), [40, null]);
+});
+
+test("split: a sale of what is held is never sized in dollars", () => {
+  const rows = splitTotal({ side: "sell", notional: 1000 }, [{ ...live, held: 100 }, { ...paper, held: 10 }]);
+  assert.ok(rows.every((r) => r.notional === null && /in shares/.test(r.skip!)));
 });

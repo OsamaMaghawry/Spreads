@@ -222,15 +222,18 @@ export function Orders({ accountId, name = "This account", live = false, orders,
   const [busy, setBusy] = useState(null);
   const [edit, setEdit] = useState({});
   const [note, setNote] = useState(null);
-  const many = others.length > 0;
-  const accounts = [{ accountId, name, live, orders }, ...others.map((g) => ({ accountId: g.accountId, name: g.name, live: !!g.live, orders: g.orders || [] }))];
+  const many = others.some((g) => g.accountId !== accountId);
+  // The account on screen from its own view only: a read of the others from
+  // before a switch could list it twice (18 Nov review).
+  const theirs = others.filter((g) => g.accountId !== accountId);
+  const accounts = [{ accountId, name, live, orders }, ...theirs.map((g) => ({ accountId: g.accountId, name: g.name, live: !!g.live, orders: g.orders || [] }))];
   const blocks = orderBlocks(accounts);
-  const working = accounts.reduce((sum, a) => sum + a.orders.length, 0);
+  const working = blocks.reduce((sum, b) => sum + b.rows.length, 0);
   const todayNy = new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" });
   const when = (o) => o.filledAt || o.updatedAt || "";
   const finishedAll = [
     ...recent.map((o) => ({ ...o, account: name, accountLive: live })),
-    ...others.flatMap((g) => (g.recent || []).map((o) => ({ ...o, account: g.name, accountLive: !!g.live })))
+    ...theirs.flatMap((g) => (g.recent || []).map((o) => ({ ...o, account: g.name, accountLive: !!g.live })))
   ].sort((x, y) => String(when(y)).localeCompare(String(when(x))));
   const today = finishedAll.filter((o) => (when(o) ? new Date(when(o)).toLocaleDateString("en-US", { timeZone: "America/New_York" }) === todayNy : false));
 
@@ -285,12 +288,16 @@ export function Orders({ accountId, name = "This account", live = false, orders,
       if (newStop || newTarget) {
         setBusy(b.key);
         const kind = newStop && newTarget ? "both" : newStop ? "stop" : "target";
+        // Only the accounts in this block (18 Nov review: every ticked account's
+        // stop was set again, the screen's too, whatever block was changed).
+        const inBlock = b.rows.map((r) => r.accountId);
         const r = await invokeFunction("terminal", {
           action: "protect", accountId, symbol: b.symbol, kind, mode: "price", value: newStop ?? newTarget,
-          stopPrice: newStop ?? b.stop, targetPrice: newTarget ?? b.limit, group
+          stopPrice: newStop ?? b.stop, targetPrice: newTarget ?? b.limit,
+          group: group.filter((g) => inBlock.includes(g?.id ?? g)), leadOff: !inBlock.includes(accountId)
         }).catch((x) => ({ data: { error: String(x?.message || x) } }));
         const d = r?.data || {};
-        const rows = [{ name, error: d.error || null }, ...(d.group || []).map((g) => ({ name: g.name, error: g.ok === false && !g.skip ? g.error || "refused" : null }))];
+        const rows = [...(inBlock.includes(accountId) ? [{ name, error: d.error || null }] : []), ...(d.group || []).map((g) => ({ name: g.name, error: g.ok === false && !g.skip ? g.error || "refused" : null }))];
         setBusy(null);
         failed("Exits", rows);
       }

@@ -56,10 +56,14 @@ function resubmitBody(current: any, patch: any, filled: number) {
   if (!(remaining > 0)) return null;
   const price = patch.limit_price !== undefined ? Number(patch.limit_price) : Number(current.limit_price);
   const base: any = {
-    qty: String(remaining),
+    // Nine places at most, never an exponent (orderReplace.ts QTY_DECIMALS).
+    qty: String(Number(remaining.toFixed(9))),
     type: current.type,
     time_in_force: current.time_in_force || "day",
-    client_order_id: `APP_REPRICE_${Date.now()}`
+    client_order_id: `APP_REPRICE_${Date.now()}`,
+    // An order working before the open or after the close stays one (18 Nov
+    // review: resent without it, it would wait for 9:30).
+    ...(current.extended_hours === true ? { extended_hours: true } : {})
   };
   if (current.type === "limit") base.limit_price = String(Math.round(price * 100) / 100);
   if (Array.isArray(current.legs) && current.legs.length) {
@@ -108,6 +112,12 @@ Deno.serve(async (req) => {
     // order gets its own row, so the audit trail shows both prices.
     if (action === "replace") {
       const current = await alpacaFetch(`${base}/orders/${orderId}?nested=true`, account);
+      // A new size once part has filled: how Alpaca counts the filled part on
+      // a change is not settled (18 Nov review), so it is refused here, as
+      // the Orders tab already does, rather than risk a size nobody meant.
+      if (qty !== undefined && qty !== null && qty !== "" && Number(current.filled_qty) > 0) {
+        return jsonResponse({ error: `${current.filled_qty} of this order has already filled: change its price, or cancel it and send the rest again.` }, 400);
+      }
       const patch = replaceBody({ order: current, limitPrice, qty });
       if (!patch) return jsonResponse({ error: "A positive limit price or a whole-number quantity is required to change a limit order" }, 400);
       let replaced: any;

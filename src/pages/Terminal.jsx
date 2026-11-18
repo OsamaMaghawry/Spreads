@@ -468,15 +468,18 @@ export default function Terminal() {
   // account's orders there), every tenth read (30 seconds) and after any
   // order; kept between those reads.
   const othersReads = useRef(0);
+  // Answers can arrive out of order: only the newest read is kept.
+  const othersSeq = useRef(0);
   const loadOthers = useCallback((withRecent = false) => {
     const group = JSON.parse(groupWire);
     if (!accountId || !group.length) { setOthers([]); return; }
     if (document.visibilityState === "hidden") return;
     const recent = withRecent === true || othersReads.current % 10 === 0;
     othersReads.current += 1;
+    const seq = ++othersSeq.current;
     invokeFunction("terminal", { action: "groupView", accountId, group, recent })
       .then((r) => {
-        if (r?.data?.error) return;
+        if (r?.data?.error || seq !== othersSeq.current) return;
         const rows = r?.data?.group || [];
         setOthers((was) => rows.map((g) => (g.recent ? g : { ...g, recent: was.find((x) => x.accountId === g.accountId)?.recent || [] })));
       })

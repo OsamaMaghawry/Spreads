@@ -56,7 +56,16 @@ export type Share = {
 const RULES = new Set(["times", "percent", "shares", "dollars"]);
 
 const fin = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
-const down = (v: number, step: number) => Math.floor(v / step + 1e-9) * step;
+// Division in binary floating point lands just under whole numbers (16 /
+// 0.000000001 is 15999999999.999998; 1.14 * 100 is 113.99999999999999), so
+// the count of steps is settled to the 15 digits a number holds before
+// rounding down (six decimals, as cryptoOrder.ts onStep settles, is not
+// enough at 16 billion billionths): what was asked for is kept, anything
+// genuinely between two steps still rounds down (18 Nov review: 16 shares
+// went out as 15.999999999, $1.14 as $1.13).
+const settle = (x: number) => Number(x.toPrecision(15));
+const steps = (v: number, step: number) => Math.floor(settle(v / step));
+const down = (v: number, step: number) => steps(v, step) * step;
 const clean = (v: number) => Number(v.toFixed(9));
 
 export function allocate(
@@ -142,7 +151,7 @@ export function allocate(
   };
 
   const leadSize = fin(lead[basis]);
-  const cents = (v: number) => Math.floor(v * 100) / 100;
+  const cents = (v: number) => steps(v, 0.01) / 100;
 
   if (reducing) {
     const leadAbs = Math.abs(leadHeld);
@@ -257,6 +266,10 @@ export function splitTotal(
   const unit = opts.crypto ? "step" : "share";
   const blank = (b: Book): Share => ({ id: b.id, name: b.name, qty: null, notional: null, all: false, basis: "equity", skip: null });
   if (!(total !== null && total > 0)) return books.map((b) => ({ ...blank(b), skip: "no quantity to share out" }));
+  // A sale of what is held is shared by the number of shares, never in
+  // dollars: a dollar part could not be held to what an account holds
+  // (18 Nov review: $379.76 shown, half a share sold).
+  if (dollars && closing) return books.map((b) => ({ ...blank(b), skip: "a sale of shares held is sized in shares: switch the ticket to shares" }));
 
   const out = books.map((b): Share => {
     const held = fin(b.held) || 0;
@@ -271,17 +284,22 @@ export function splitTotal(
 
   // In whole steps: each part rounded down, then one step more for the
   // largest remainders until the total is met.
-  const steps = Math.round(total / step);
+  const count = Math.round(total / step);
   const parts = taking.map(({ b, i }) => {
-    const raw = (steps * (fin(b.equity) as number)) / sum;
-    const whole = Math.floor(raw + 1e-9);
+    const raw = (count * (fin(b.equity) as number)) / sum;
+    const whole = Math.floor(settle(raw));
     return { i, equity: fin(b.equity) as number, whole, rest: raw - whole };
   });
-  let left = steps - parts.reduce((s, p) => s + p.whole, 0);
+  let left = count - parts.reduce((s, p) => s + p.whole, 0);
   for (const p of [...parts].sort((x, y) => y.rest - x.rest || y.equity - x.equity)) {
     if (left <= 0) break;
     p.whole += 1;
     left -= 1;
+  }
+  // Settling can round one part up past its share: never more than the total.
+  for (const p of [...parts].sort((x, y) => x.rest - y.rest || x.equity - y.equity)) {
+    if (left >= 0) break;
+    if (p.whole > 0) { p.whole -= 1; left += 1; }
   }
 
   for (const p of parts) {
@@ -297,4 +315,21 @@ export function splitTotal(
     else out[p.i] = { ...out[p.i], qty: amount };
   }
   return out;
+}
+
+/**
+ * Every ticked account's whole holding, on the side the order closes (18 Nov
+ * review: Close, Stop and Max on a position close it on each account, as they
+ * did before the total was shared out): each holder its exact holding, an
+ * account holding none sits it out.
+ */
+export function wholeHoldings(side: "buy" | "sell", books: Book[], opts: { symbol?: string } = {}): Share[] {
+  const what = opts.symbol || "it";
+  return books.map((b): Share => {
+    const held = fin(b.held) || 0;
+    const closes = (side === "sell" && held > 0) || (side === "buy" && held < 0);
+    const base = { id: b.id, name: b.name, notional: null, basis: "holding" as const };
+    return closes ? { ...base, qty: Math.abs(held), all: true, skip: null }
+      : { ...base, qty: null, all: false, skip: `holds no ${what} to ${side === "sell" ? "sell" : "buy back"}` };
+  });
 }
