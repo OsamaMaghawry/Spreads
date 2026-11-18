@@ -64,6 +64,8 @@ const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
   set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* full or private */ } }
 };
+// The cache before the channel, a megabyte or two: left, it could fill the browser's storage.
+try { localStorage.removeItem("dm.screener.daily.v1"); } catch { /* private */ }
 const nyToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 const nyYesterday = () => new Date(Date.now() - 86400000).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 // The last weekday before today, New York: where a past day starts.
