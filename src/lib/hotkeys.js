@@ -194,7 +194,9 @@ export function hotkeyOrder(h, ctx) {
   let part = false;
   if (!(qty > 0) && buy && !ctx.crypto && ctx.fractionable && held >= 0) {
     const want = h.size === "shares" ? n(h.amount) || 0 : (amount || 0) / price;
-    const mine = Math.floor(want * 1e9 + 1e-6) / 1e9;
+    // Billionths settled to the 15 digits a number holds before rounding down,
+    // as proRata.ts does (18 Nov review: 41.73501752 went as 41.735017519).
+    const mine = Math.floor(Number((want * 1e9).toPrecision(15))) / 1e9;
     if (mine > 0 && mine * price >= 1) { qty = Number(mine.toFixed(9)); part = true; }
     else if (mine > 0) return { reason: `${money(mine * price)} is under Alpaca's $1 smallest part share.`, tooSmall: true, order: { symbol: ctx.symbol, side: "buy", qty: null, type, timeInForce: "day", ...(type === "limit" ? { limitPrice: price } : {}), ...(extended ? { extendedHours: true } : {}) }, price };
   }

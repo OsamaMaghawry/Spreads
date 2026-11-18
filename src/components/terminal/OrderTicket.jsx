@@ -4,7 +4,6 @@ import { px, sizeText, isCrypto, amountToQty, orderState, orderNews, sessionOf, 
 import { refusalNews } from "@/lib/accountGroup";
 import { onOrder } from "./orderFeed";
 import { reportGroup } from "./runHotkey";
-import useAccountSetting from "./useAccountSetting";
 import { fmtMoney } from "@/lib/format";
 
 // The ticket, for shares and coins. Two steps, review then send, like a desk
@@ -61,10 +60,10 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   // Part shares (28 Oct: "be able to execute as fractional shares"), for a
   // stock Alpaca trades in fractions: on, the quantity takes decimals and an
   // amount in dollars becomes its exact part-share quantity. Kept with the
-  // account; one switch with the hotkey buys, held by the page when it gives it.
-  const [ownParts, setOwnParts] = useAccountSetting("fractional", { localKey: "terminal.fractional", initial: () => false, clean: (v) => v === true });
-  const partsOn = onPartsOn ? !!partsGiven : ownParts;
-  const setPartsOn = onPartsOn || setOwnParts;
+  // account by the page (pages/Terminal.jsx), one switch with the hotkey buys:
+  // one copy only, so a switch flipped early is never written back over.
+  const partsOn = !!partsGiven;
+  const setPartsOn = onPartsOn || (() => {});
   const parts = !crypto && !!asset?.fractionable && partsOn;
   // A stock Alpaca trades in part shares: a part share typed is taken as typed,
   // and an amount in dollars under one share buys the part share (3 Nov, the

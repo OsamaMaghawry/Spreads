@@ -352,3 +352,19 @@ test("Part shares switched on: the other accounts take their exact part share; a
   const [usd] = allocate({ side: "buy", qty: 60.788 }, lead, [{ ...small, held: -10, rule: { mode: "dollars", value: 150 } }], { price: 52.14, fractionable: true, parts: true });
   assert.equal(usd.qty, 2);
 });
+
+test("part shares: never under $1 on another account; a short account's part shown whole (18 Nov review)", () => {
+  const lead = { id: "L", name: "Lead", equity: 126780.6, buyingPower: 470431.5, held: 0 };
+  // 0.05% of $1,411.53 at 52.14 is $0.71: skipped, as the screen's own account refuses it.
+  const [tiny] = allocate({ side: "buy", qty: 1.2 }, lead, [{ id: "P", name: "Paper", equity: 1411.53, buyingPower: 1408.25, held: 0 }], { pct: 0.05, price: 52.14, fractionable: true, parts: true });
+  assert.equal(tiny.qty, null);
+  assert.ok(tiny.skip);
+  // The ticket's split in part shares: a short account's buy back is whole shares in the review itself.
+  const rows = splitTotal({ side: "buy", qty: 3.1 }, [{ ...lead, held: -10 }, { id: "S", name: "Short", equity: 98110, buyingPower: 1, held: -40 }]);
+  assert.ok(rows.every((r) => r.qty === null || Number.isInteger(r.qty)), JSON.stringify(rows.map((r) => r.qty)));
+  // A short sale in part shares likewise; a long holder's sale stays exact.
+  const sale = splitTotal({ side: "sell", qty: 3.1 }, [{ ...lead, held: 0 }, { id: "S", name: "Flat", equity: 98110, buyingPower: 1, held: 0 }]);
+  assert.ok(sale.every((r) => r.qty === null || Number.isInteger(r.qty)));
+  const longSale = splitTotal({ side: "sell", qty: 3.1 }, [{ ...lead, held: 50 }]);
+  assert.equal(longSale[0].qty, 3.1);
+});

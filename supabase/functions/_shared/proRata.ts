@@ -118,7 +118,12 @@ export function allocate(
   // whole shares even when part shares are asked for (18 Nov).
   const stepOf = (b: Book) => (!opts.crypto && (fin(b.held) || 0) < 0 ? 1 : step);
   const toShares = (b: Book, want: number) => {
-    if (stepOf(b) !== 1) return clean(down(want, step));
+    if (stepOf(b) !== 1) {
+      // Part shares: never under Alpaca's $1 smallest part-share order (18 Nov
+      // review: $0.71 went to an account where the screen's own refused it).
+      const mine = clean(down(want, step));
+      return !opts.crypto && price !== null && mine * price < 1 ? 0 : mine;
+    }
     // Under one share of a stock traded in part shares, a buy (not while
     // short) is left to `partOf`, the exact part share: half a share rounded
     // up to one would be twice the percent (18 Nov review).
@@ -194,7 +199,7 @@ export function allocate(
       }
       if (part === null) return capped(b, share(b));
       if (part >= 1 - 1e-9) return { ...base, qty: same, all: true, skip: null };
-      const mine = clean(down(same * part, step));
+      const mine = clean(down(same * part, stepOf(b)));
       if (!(mine > 0)) return { ...base, qty: null, all: false, skip: `its part of ${same} comes to less than one ${unit}` };
       return { ...base, qty: Math.min(mine, same), all: mine >= same, skip: null };
     })()));
@@ -327,10 +332,15 @@ export function splitTotal(
       out[p.i] = amount >= 1 ? { ...out[p.i], notional: Math.round(amount * 100) / 100 } : { ...out[p.i], skip: amount > 0 ? "its part comes to less than $1" : "its part comes to nothing" };
       continue;
     }
-    if (!(amount > 0)) { out[p.i] = { ...out[p.i], skip: `its part comes to less than one ${unit}` }; continue; }
     const held = fin(b.held) || 0;
-    if (closes(held) && amount >= Math.abs(held) - 1e-12) out[p.i] = { ...out[p.i], qty: Math.abs(held), all: true };
-    else out[p.i] = { ...out[p.i], qty: amount };
+    // Part shares cannot be held short: a short account's buy back, or a sale
+    // that would leave or open a short, goes in whole shares, shown here as it
+    // will be sent (18 Nov review: 1.55 shown, 1 sent).
+    const shortSide = !opts.crypto && step !== 1 && (held < 0 || (order.side === "sell" && held <= 0));
+    const mine = shortSide ? steps(amount, 1) : amount;
+    if (!(mine > 0)) { out[p.i] = { ...out[p.i], skip: shortSide ? "less than one whole share (part shares cannot be held short)" : `its part comes to less than one ${unit}` }; continue; }
+    if (closes(held) && mine >= Math.abs(held) - 1e-12) out[p.i] = { ...out[p.i], qty: Math.abs(held), all: true };
+    else out[p.i] = { ...out[p.i], qty: mine };
   }
   return out;
 }

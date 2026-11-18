@@ -217,3 +217,14 @@ test("Part shares switched on: a buy key takes its exact part-share size (18 Nov
   assert.equal(hotkeyOrder({ ...key, action: "sell", price: "bid" }, { ...ctx, equity: 5998.9, held: 10 }).order.qty, 3);
   assert.equal(hotkeyOrder(key, { ...ctx, equity: 5998.9, buyingPower: 23682.01, held: -10 }).order.qty, 3);
 });
+
+test("part shares on the screen's account: no billionth lost at large sizes (18 Nov review)", () => {
+  const ctx = { symbol: "TQQQ", crypto: false, quote: { bid: 52.13, ask: 52.14, last: 52.14 }, session: "regular", held: 0, fractionable: true, parts: true };
+  // $2,176.06 at 52.14 is 41.73501726... : nine places, settled before rounding down.
+  const o = hotkeyOrder({ action: "buy", size: "usd", amount: 2176.06, price: "ask", offset: 0 }, { ...ctx, equity: 100000 });
+  assert.equal(o.order.qty, Math.floor(Number((2176.06 / 52.14 * 1e9).toPrecision(15))) / 1e9);
+  for (const v of [16, 115, 2000.5]) {
+    const q = hotkeyOrder({ action: "buy", size: "usd", amount: v * 52.14, price: "ask", offset: 0 }, { ...ctx, equity: 1e6 }).order.qty;
+    assert.equal(q, v, `${v}`);
+  }
+});
