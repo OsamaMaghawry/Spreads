@@ -70,8 +70,10 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   const fractional = !crypto && !!asset?.fractionable;
   const [unit, setUnit] = useState("qty");
   // Close, Stop or Max on a position (18 Nov review): with other accounts
-  // ticked, each closes its own whole holding rather than a share of this one.
-  const [closeAll, setCloseAll] = useState(false);
+  // ticked, each closes its own whole holding rather than a share of this one,
+  // and only while the size is still the one they put in (a later order with
+  // a size typed or reset must never take everything held).
+  const [closeQty, setCloseQty] = useState(null);
   const [amount, setAmount] = useState("");
   const [tracked, setTracked] = useState(null);
   const trackedRef = useRef(null);
@@ -79,7 +81,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   // A new symbol starts a new ticket, priced at the side it would trade, with
   // only the choices its market has.
   useEffect(() => {
-    setLimit(""); setStop(""); setTp(""); setSl(""); setReview(false); setCloseAll(false);
+    setLimit(""); setStop(""); setTp(""); setSl(""); setReview(false); setCloseQty(null);
     setAsset(null);
     if (isCrypto(symbol)) {
       setType((t) => (t === "stop" || t === "trailing_stop" ? "stop_limit" : t));
@@ -167,7 +169,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   useEffect(() => {
     if (!preset || preset.symbol !== symbol || appliedPreset.current === preset.at) return;
     appliedPreset.current = preset.at;
-    setCloseAll(true);
+    setCloseQty(String(preset.qtyText));
     setSide(preset.side);
     setUnit("qty");
     setQty(preset.qtyText);
@@ -290,7 +292,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   // each can be changed, and what it shows is what is sent. The hotkeys keep
   // each account's own size from the Accounts list.
   const groupIds = group.map((a) => a.id);
-  const wholeHoldings = closeAll && !notional && ((side === "sell" && held > 0) || (side === "buy" && held < 0) || leadOff);
+  const wholeHoldings = closeQty !== null && unit === "qty" && qty === closeQty && !notional && ((side === "sell" && held > 0) || (side === "buy" && held < 0) || leadOff);
   const [shares, setShares] = useState(null);
   const [partText, setPartText] = useState({});
   useEffect(() => {
@@ -354,9 +356,13 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     setBusy(false);
     setReview(false);
     if (r?.data?.error) onNotify({ key, ...orderNews({ error: r.data.error }) });
-    else if (r?.data?.leadOff) {
+    else if (r?.data?.skipped) {
+      // The server sent nothing here (no longer holds what the review closed): said, not tracked.
+      onNotify({ key, tone: "muted", title: `Not on ${account.name || "this account"}`, detail: r.data.skipped });
+      setQty(crypto ? "" : "1"); setAmount(""); setCloseQty(null); onPlaced?.();
+    } else if (r?.data?.leadOff) {
       if (!r?.data?.group?.some((g) => g.ok === false || (g.skip && !/^holds no/.test(g.skip)))) onNotify({ key, tone: "ok", title: `Sent to ${groupOut.length} account${groupOut.length === 1 ? "" : "s"}`, detail: `${words}. See the Orders tab.` });
-      setQty(crypto ? "" : "1"); setAmount(""); onPlaced?.();
+      setQty(crypto ? "" : "1"); setAmount(""); setCloseQty(null); onPlaced?.();
     } else {
       // With others ticked, this account's own part, not the total.
       const own = !groupIds.length ? words
@@ -369,6 +375,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
       // against a holding that has since changed.
       setQty(crypto ? "" : "1");
       setAmount("");
+      setCloseQty(null);
       onPlaced?.();
     }
   };
@@ -397,7 +404,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
       )}
       <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1">
         {["buy", "sell"].map((s) => (
-          <button key={s} type="button" onClick={() => { setSide(s); setLimit(""); setReview(false); setCloseAll(false); }}
+          <button key={s} type="button" onClick={() => { setSide(s); setLimit(""); setReview(false); setCloseQty(null); }}
             className={`rounded-md py-1.5 text-sm font-semibold ${side === s ? (s === "buy" ? "bg-emerald-600 text-white" : "bg-rose-600 text-white") : "text-slate-600"}`}>
             {s === "buy" ? "Buy" : "Sell"}
           </button>
@@ -430,7 +437,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
             <label className="block text-[11px] uppercase tracking-wider text-slate-500" htmlFor="t-qty">{unit === "usd" ? "Amount ($)" : crypto ? `Quantity (${coin})` : "Shares"}</label>
             <div className="flex overflow-hidden rounded border border-slate-200 text-[10px]" role="group" aria-label="Size in">
               {[["qty", crypto ? coin : "Shares"], ["usd", "$"]].map(([id, name]) => (
-                <button key={id} type="button" onClick={() => { setUnit(id); setReview(false); setCloseAll(false); }} className={`px-1.5 ${unit === id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}>{name}</button>
+                <button key={id} type="button" onClick={() => { setUnit(id); setReview(false); setCloseQty(null); }} className={`px-1.5 ${unit === id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}>{name}</button>
               ))}
             </div>
           </div>
@@ -439,7 +446,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
               onChange={(e) => { setAmount(e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1")); setReview(false); }} />
           ) : (
             <input id="t-qty" className={input} inputMode={crypto || fractional ? "decimal" : "numeric"} value={qty} placeholder={crypto && asset?.minOrderSize ? `min ${asset.minOrderSize}` : fractional ? "e.g. 2.5" : ""}
-              onChange={(e) => { setQty(e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1")); setReview(false); setCloseAll(false); }} />
+              onChange={(e) => { setQty(e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1")); setReview(false); setCloseQty(null); }} />
           )}
           {wholeOnly && (
             <p className="mt-0.5 text-[10px] text-amber-700">
@@ -543,7 +550,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
           <span className="flex items-center gap-1.5 tabular-nums">
             {crypto && heldText ? String(Number(heldText)) : sizeText(held)} {crypto ? coin : "shares"}
             {side === "sell" && held > 0 && !dust && (
-              <button type="button" title="Sell exactly what you hold" onClick={() => { setUnit("qty"); setQty(heldText || String(held)); setReview(false); setCloseAll(true); }}
+              <button type="button" title="Sell exactly what you hold" onClick={() => { setUnit("qty"); setQty(heldText || String(held)); setReview(false); setCloseQty(heldText || String(held)); }}
                 className="rounded border border-slate-300 px-1 text-[10px] text-slate-700 hover:bg-slate-50">Max</button>
             )}
           </span>

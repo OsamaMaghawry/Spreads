@@ -2146,6 +2146,15 @@ async function placeOrder(admin: any, user: any, account: any, input: any) {
   // the owner: "Replace it"). The earlier one is cancelled first, which frees
   // its shares, and the new one goes for its full size, never more than is
   // then held: part of the earlier one may have filled meanwhile.
+  // Reduce-only (a ticket's review that closed holdings, 18 Nov review): the
+  // holding read again right before sending, never more than it, and nothing
+  // sent where it is gone, rather than open the other way.
+  if (input?.reduceOnly === true && body.qty) {
+    const now = await positionOf(account, sym).catch(() => null);
+    const closes = now && ((body.side === "sell" && now.side === "long") || (body.side === "buy" && now.side === "short")) && Math.abs(now.qty) > 0;
+    if (!closes) return { status: 200, body: { skipped: `No longer holds ${sym} ${body.side === "sell" ? "long" : "short"}: nothing sent.` } };
+    if (Number(body.qty) > Math.abs(now!.qty)) body.qty = String(now!.qtyText).replace(/^-/, "");
+  }
   let replaced = 0;
   if (fromKey && body.side === "sell" && body.qty) {
     const waiting = (await openOrdersFor(account, sym)).filter(replaceable);
@@ -2331,7 +2340,8 @@ async function orderForGroup(admin: any, user: any, lead: any, ids: unknown, inp
     const account = plan.accounts.find((g) => g.id === row.accountId)?.account;
     if (row.skip || !account) return Promise.resolve({ ...row, status: "skipped" });
     return placeOrder(admin, user, account, { ...input, qty: row.qtyText ?? row.qty, notional: row.notional })
-      .then((r) => ({ ...row, ...(r.body as any), ok: r.status === 200 }))
+      // Sent nothing there (reduce-only, no longer held): a skip, which the ticket reports.
+      .then((r) => ({ ...row, ...(r.body as any), ...((r.body as any)?.skipped ? { skip: (r.body as any).skipped, orderId: undefined } : {}), ok: r.status === 200 }))
       .catch((e: Error) => ({ ...row, ok: false, error: String(e?.message || e) }));
   };
   // Too small on the account on screen alone (a hotkey's size there under one

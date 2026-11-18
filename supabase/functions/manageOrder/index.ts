@@ -57,7 +57,7 @@ function resubmitBody(current: any, patch: any, filled: number) {
   const price = patch.limit_price !== undefined ? Number(patch.limit_price) : Number(current.limit_price);
   const base: any = {
     // Nine places at most, never an exponent (orderReplace.ts QTY_DECIMALS).
-    qty: String(Number(remaining.toFixed(9))),
+    qty: remaining.toFixed(9).replace(/0+$/, "").replace(/\.$/, ""),
     type: current.type,
     time_in_force: current.time_in_force || "day",
     client_order_id: `APP_REPRICE_${Date.now()}`,

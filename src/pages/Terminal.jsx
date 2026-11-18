@@ -472,7 +472,8 @@ export default function Terminal() {
   const othersSeq = useRef(0);
   const loadOthers = useCallback((withRecent = false) => {
     const group = JSON.parse(groupWire);
-    if (!accountId || !group.length) { setOthers([]); return; }
+    // None ticked: a read still on its way is dropped too (18 Nov review).
+    if (!accountId || !group.length) { othersSeq.current += 1; setOthers([]); return; }
     if (document.visibilityState === "hidden") return;
     const recent = withRecent === true || othersReads.current % 10 === 0;
     othersReads.current += 1;
