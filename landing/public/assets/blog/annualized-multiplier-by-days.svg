@@ -1,0 +1,27 @@
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Horizontal bars showing the simple annualizing multiplier, 365 divided by the days a trade was held. A 5-day hold is multiplied by 73, a 9-day hold by about 40.6, a 30-day hold by about 12.2, a 90-day hold by about 4.1, and a 365-day hold by 1. The shorter the hold, the longer the bar.">
+  <rect width="720" height="300" fill="#FFFFFF"/>
+  <text x="40" y="32" font-size="13" fill="#767B8E">Days held</text>
+  <text x="680" y="32" font-size="13" fill="#767B8E" text-anchor="end">Multiplier: 365 ÷ days</text>
+  <line x1="120" y1="48" x2="120" y2="270" stroke="#14151C" stroke-width="1.5"/>
+  <g font-size="14" fill="#14151C" text-anchor="end">
+    <text x="104" y="77">5</text>
+    <text x="104" y="125">9</text>
+    <text x="104" y="173">30</text>
+    <text x="104" y="221">90</text>
+    <text x="104" y="269">365</text>
+  </g>
+  <g fill="#B4485C">
+    <rect x="120" y="58" width="500" height="26" rx="3"/>
+    <rect x="120" y="106" width="278" height="26" rx="3" opacity="0.85"/>
+    <rect x="120" y="154" width="83" height="26" rx="3" opacity="0.7"/>
+    <rect x="120" y="202" width="28" height="26" rx="3" opacity="0.6"/>
+  </g>
+  <rect x="120" y="250" width="7" height="26" rx="2" fill="#2E8B5F"/>
+  <g font-size="14" fill="#14151C" font-weight="600">
+    <text x="632" y="77">×73</text>
+    <text x="410" y="125">×40.6</text>
+    <text x="215" y="173">×12.2</text>
+    <text x="160" y="221">×4.1</text>
+    <text x="139" y="269">×1</text>
+  </g>
+</svg>
