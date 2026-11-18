@@ -39,7 +39,7 @@ const TIF_TEXT = { day: "for the day", gtc: "good till cancelled", ioc: "immedia
 const input = "w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm tabular-nums focus:border-emerald-500 focus:outline-none";
 const label = "mb-1 block text-[11px] uppercase tracking-wider text-slate-500";
 
-export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, onPlaced, pick = null, preset = null, onNotify = (news) => void news, liveOk = false, group = [], groupHeld = [], leadOff = false, none = false }) {
+export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, onPlaced, pick = null, preset = null, onNotify = (news) => void news, liveOk = false, group = [], groupHeld = [], leadOff = false, none = false, partsOn: partsGiven, onPartsOn }) {
   const crypto = isCrypto(symbol);
   const TYPES = crypto ? CRYPTO_TYPES : STOCK_TYPES;
   const [side, setSide] = useState("buy");
@@ -60,8 +60,11 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   const [asset, setAsset] = useState(null);
   // Part shares (28 Oct: "be able to execute as fractional shares"), for a
   // stock Alpaca trades in fractions: on, the quantity takes decimals and an
-  // amount in dollars becomes its exact part-share quantity. Kept with the account.
-  const [partsOn, setPartsOn] = useAccountSetting("fractional", { localKey: "terminal.fractional", initial: () => false, clean: (v) => v === true });
+  // amount in dollars becomes its exact part-share quantity. Kept with the
+  // account; one switch with the hotkey buys, held by the page when it gives it.
+  const [ownParts, setOwnParts] = useAccountSetting("fractional", { localKey: "terminal.fractional", initial: () => false, clean: (v) => v === true });
+  const partsOn = onPartsOn ? !!partsGiven : ownParts;
+  const setPartsOn = onPartsOn || setOwnParts;
   const parts = !crypto && !!asset?.fractionable && partsOn;
   // A stock Alpaca trades in part shares: a part share typed is taken as typed,
   // and an amount in dollars under one share buys the part share (3 Nov, the
@@ -425,7 +428,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
             {asset.shortable ? (asset.easyToBorrow ? "Shortable · easy to borrow" : "Shortable · hard to borrow") : "Not shortable"}
           </span>
           {asset.fractionable && (
-            <label className="ml-auto flex items-center gap-1 text-slate-600" title="Every amount in dollars bought as its exact part-share quantity, not whole shares. For the day; no take-profit and stop-loss attached. (A part share typed, or a dollar amount under one share, is bought either way.)">
+            <label className="ml-auto flex items-center gap-1 text-slate-600" title="Every amount in dollars, and every hotkey buy sized in dollars or a percent, bought as its exact part-share quantity on each ticked account, not whole shares. For the day; no take-profit and stop-loss attached; a stop on a position with part of a share lasts for today only. (A part share typed, or a buy under one share, is bought either way.)">
               <input type="checkbox" checked={partsOn} onChange={(e) => { setPartsOn(e.target.checked); setReview(false); }} />
               Part shares
             </label>

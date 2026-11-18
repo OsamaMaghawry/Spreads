@@ -114,8 +114,11 @@ export function allocate(
   // share, not down (18 Nov, the owner, on 2.5% keys sending 60 and 2 for
   // 60.79 and 2.88: "Are you sure the Prorata is accurate?"), never past its
   // buying power on a buy (then down). Part shares and coins: to the step.
+  // Part shares cannot be held short: an account short the stock buys back in
+  // whole shares even when part shares are asked for (18 Nov).
+  const stepOf = (b: Book) => (!opts.crypto && (fin(b.held) || 0) < 0 ? 1 : step);
   const toShares = (b: Book, want: number) => {
-    if (step !== 1) return clean(down(want, step));
+    if (stepOf(b) !== 1) return clean(down(want, step));
     // Under one share of a stock traded in part shares, a buy (not while
     // short) is left to `partOf`, the exact part share: half a share rounded
     // up to one would be twice the percent (18 Nov review).
@@ -137,7 +140,7 @@ export function allocate(
     const v = fin(rule.value);
     if (!(v && v > 0)) return { skip: "no size set for it" };
     if (rule.mode === "shares") {
-      const mine = clean(down(v, step));
+      const mine = clean(down(v, stepOf(b)));
       return mine > 0 ? { qty: mine } : { skip: `less than one ${unit}` };
     }
     if (!(price && price > 0)) return { skip: "no price to turn its size into shares" };
@@ -145,7 +148,7 @@ export function allocate(
     if (rule.mode === "percent" && !(equity && equity > 0)) return { skip: "no portfolio value to size from" };
     const dollars = rule.mode === "percent" ? equity! * v / 100 : v;
     // Its own percent to the nearest share; its own dollars stay a ceiling.
-    const mine = rule.mode === "percent" ? toShares(b, dollars / price!) : clean(down(dollars / price!, step));
+    const mine = rule.mode === "percent" ? toShares(b, dollars / price!) : clean(down(dollars / price!, stepOf(b)));
     return mine > 0 ? { qty: mine } : { skip: `$${Math.floor(dollars * 100) / 100} is less than one ${unit} at ${price}` };
   };
   // Never more than an account holds when the order closes its position.
@@ -207,7 +210,7 @@ export function allocate(
       const v = fin(rule.value);
       if (!(v && v > 0)) return { ...out, skip: "no size set for it" };
       if (mode === "shares") {
-        const mine = clean(down(v, step)) || partOf(b, v);
+        const mine = clean(down(v, stepOf(b))) || partOf(b, v);
         return mine > 0 ? { ...out, qty: mine, skip: null } : { ...out, skip: `less than one ${unit}` };
       }
       const equity = fin(b.equity);
@@ -217,7 +220,7 @@ export function allocate(
         return cents(dollars) >= 1 ? { ...out, notional: cents(dollars), skip: null } : { ...out, skip: "its size comes to less than $1" };
       }
       if (!(price && price > 0)) return { ...out, skip: "no price to turn its size into shares" };
-      const mine = (mode === "percent" ? toShares(b, dollars / price) : clean(down(dollars / price, step))) || partOf(b, dollars / price);
+      const mine = (mode === "percent" ? toShares(b, dollars / price) : clean(down(dollars / price, stepOf(b)))) || partOf(b, dollars / price);
       return mine > 0 ? { ...out, qty: mine, skip: null } : { ...out, skip: opts.fractionable && order.side === "buy" && (fin(b.held) || 0) >= 0 ? `$${cents(dollars)} is under Alpaca's $1 smallest part share` : `$${cents(dollars)} is less than one ${unit} at ${price}` };
     }
     const times = rule ? fin(rule.value) : 1;
@@ -237,7 +240,7 @@ export function allocate(
       return { ...base, qty: null, notional: dollars, skip: null };
     }
     if (qty === null) return { ...base, qty: null, notional: null, skip: "no quantity to share out" };
-    const mine = clean(down(qty * ratio, step)) || partOf(b, qty * ratio);
+    const mine = clean(down(qty * ratio, stepOf(b))) || partOf(b, qty * ratio);
     if (!(mine > 0)) return { ...base, qty: null, notional: null, skip: `its part comes to less than one ${unit}` };
     return { ...base, qty: mine, notional: null, skip: null };
   }

@@ -199,3 +199,21 @@ test("a percent buy under one share of a part-share stock takes the exact part s
   // Not a part-share stock: 7.5% (0.75) is the nearest whole share.
   assert.equal(hotkeyOrder({ action: "buy", size: "equity", amount: 7.5, price: "ask", offset: 0 }, { ...ctx, fractionable: false }).order.qty, 1);
 });
+
+test("Part shares switched on: a buy key takes its exact part-share size (18 Nov)", () => {
+  const key = { action: "buy", size: "equity", amount: 2.5, price: "ask", offset: 0 };
+  const ctx = { symbol: "TQQQ", crypto: false, quote: { bid: 52.13, ask: 52.14, last: 52.14 }, session: "regular", held: 0, fractionable: true, parts: true };
+  const alton = hotkeyOrder(key, { ...ctx, equity: 126780.6, buyingPower: 470431.5 });
+  const small = hotkeyOrder(key, { ...ctx, equity: 5998.9, buyingPower: 23682.01 });
+  assert.ok(Math.abs(alton.order.qty - 126780.6 * 0.025 / 52.14) < 1e-8, String(alton.order.qty));
+  assert.ok(Math.abs(small.order.qty - 5998.9 * 0.025 / 52.14) < 1e-8, String(small.order.qty));
+  assert.match(alton.words, /part shares: a stop on it lasts for today only/);
+  // Dollars likewise: $150 is 2.876 shares.
+  assert.ok(Math.abs(hotkeyOrder({ ...key, size: "usd", amount: 150 }, { ...ctx, equity: 5998.9 }).order.qty - 150 / 52.14) < 1e-8);
+  // Switched off, or a stock without part shares: whole shares, to the nearest.
+  assert.equal(hotkeyOrder(key, { ...ctx, parts: false, equity: 126780.6, buyingPower: 470431.5 }).order.qty, 61);
+  assert.equal(hotkeyOrder(key, { ...ctx, fractionable: false, equity: 5998.9, buyingPower: 23682.01 }).order.qty, 3);
+  // A sell key, or a buy back of a short, stays in whole shares.
+  assert.equal(hotkeyOrder({ ...key, action: "sell", price: "bid" }, { ...ctx, equity: 5998.9, held: 10 }).order.qty, 3);
+  assert.equal(hotkeyOrder(key, { ...ctx, equity: 5998.9, buyingPower: 23682.01, held: -10 }).order.qty, 3);
+});

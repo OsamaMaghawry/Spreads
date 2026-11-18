@@ -340,3 +340,15 @@ test("a percent buy under one share of a part-share stock on the other accounts:
   const [whole] = allocate({ side: "buy", qty: 10 }, lead, [small], { pct: 7.5, price: 600 });
   assert.equal(whole.qty, 1);
 });
+
+test("Part shares switched on: the other accounts take their exact part share; a short one whole shares (18 Nov)", () => {
+  const lead = { id: "L", name: "Alton Live", equity: 126780.6, buyingPower: 470431.5, held: 0 };
+  const small = { id: "S", name: "Alpaca Live", equity: 5998.9, buyingPower: 23682.01, held: 0 };
+  const [s] = allocate({ side: "buy", qty: 60.788 }, lead, [small], { pct: 2.5, price: 52.14, fractionable: true, parts: true });
+  assert.ok(Math.abs(s.qty! - 5998.9 * 0.025 / 52.14) < 1e-8, String(s.qty));
+  // Short the stock: part shares cannot be held short, so whole shares, never past the short.
+  const [short] = allocate({ side: "buy", qty: 60.788 }, lead, [{ ...small, held: -2 }], { pct: 2.5, price: 52.14, fractionable: true, parts: true });
+  assert.deepEqual([short.qty, short.all], [2, true]);
+  const [usd] = allocate({ side: "buy", qty: 60.788 }, lead, [{ ...small, held: -10, rule: { mode: "dollars", value: 150 } }], { price: 52.14, fractionable: true, parts: true });
+  assert.equal(usd.qty, 2);
+});

@@ -449,6 +449,10 @@ export default function Terminal() {
   // Partial exit has a key ... stop loss ... with keys"): the list is kept with
   // the account; on or off is this browser's, and off until turned on here.
   const [hotkeys, setHotkeys] = useState([]);
+  // Part shares, one switch for the ticket and the hotkey buys (18 Nov, the
+  // owner: "Why we don't use Fractional Shares with buy?"): kept with the
+  // account, set in the ticket.
+  const [partsOn, setPartsOn] = useAccountSetting("fractional", { localKey: "terminal.fractional", initial: () => false, clean: (v) => v === true });
   const [hotkeysOn, setHotkeysOn] = useAccountSetting("hotkeyson", {
     localKey: HOTKEYS_ON_KEY, initial: () => false, clean: (v) => v === true || v === "1", fromLocal: (raw) => raw === "1", toLocal: (v) => (v ? "1" : "0")
   });
@@ -608,7 +612,7 @@ export default function Terminal() {
   // Everything a key press reads, current at the moment it is pressed.
   const live$ = useRef({});
   live$.current = {
-    account, symbol, quote, view, position, hotkeys, notify, refresh: refreshAll, replaying, liveOk,
+    account, symbol, quote, view, position, hotkeys, notify, refresh: refreshAll, replaying, liveOk, parts: partsOn,
     group: replaying ? [] : groupSend, leadOff: !replaying && plan.leadOff, none: !replaying && plan.none, leadSize: replaying ? null : plan.leadSize
   };
   useEffect(() => {
@@ -951,7 +955,7 @@ export default function Terminal() {
               </p>
             )}
             <OrderTicket account={account} symbol={symbol} quote={quote} held={held} heldText={held > 0 && position?.qtyText ? position.qtyText : ""}
-              buyingPower={view?.buyingPower ?? null} onPlaced={refreshAll} pick={pick} preset={preset} onNotify={notify} liveOk={liveOk}
+              buyingPower={view?.buyingPower ?? null} onPlaced={refreshAll} pick={pick} preset={preset} onNotify={notify} liveOk={liveOk} partsOn={partsOn} onPartsOn={setPartsOn}
               leadOff={plan.leadOff} none={plan.none}
               group={groupSend.map((g) => ({ ...accounts.find((a) => a.id === g.id), size: g })).filter((a) => a.id)}
               groupHeld={others.map((g) => ({ id: g.accountId, name: g.name, qty: signedQty((g.positions || []).find((p) => p.symbol === symbol)) }))} />

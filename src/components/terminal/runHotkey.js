@@ -210,7 +210,10 @@ export async function runHotkey(h, ctx) {
       }
       quote = q;
     }
-    const sized = { symbol, crypto, quote, equity: ctx.view?.equity, buyingPower: ctx.view?.buyingPower, step: crypto ? asset.step : null, fractionable: !crypto && asset.fractionable, session: session(), held: heldNow };
+    // Part shares switched on (18 Nov): a buy of a stock Alpaca trades in part
+    // shares takes its exact size on every ticked account, not whole shares.
+    const exactParts = !!ctx.parts && !crypto && !!asset.fractionable && h.action === "buy";
+    const sized = { symbol, crypto, quote, equity: ctx.view?.equity, buyingPower: ctx.view?.buyingPower, step: crypto ? asset.step : null, fractionable: !crypto && asset.fractionable, parts: exactParts, session: session(), held: heldNow };
     // Not ticked on screen: the order's price and kind only, worked out here;
     // no size, and nothing sent to it.
     const built = leadOff ? hotkeyOrder({ ...h, size: "shares", amount: 1 }, { ...sized, held: 0 }) : hotkeyOrder(withOwnSize(h, ctx.leadSize), sized);
@@ -227,8 +230,9 @@ export async function runHotkey(h, ctx) {
     // dollars or percent turns that into shares at the same price.
     const order = {
       // fromKey: a sell key pressed again replaces the account's earlier one still waiting.
-      // Whole shares on the other accounts, a part share only where a buy there comes to under one.
-      ...built.order, fromKey: true, parts: false, basis: h.size === "bp" ? "buyingPower" : "equity", reference: built.price ?? null,
+      // Whole shares on the other accounts, a part share only where a buy there
+      // comes to under one; their exact part shares with Part shares on (a buy).
+      ...built.order, fromKey: true, parts: exactParts, basis: h.size === "bp" ? "buyingPower" : "equity", reference: built.price ?? null,
       // A percent key: the same percent of each account's own portfolio (or buying power).
       pct: leadOff ? (h.size === "equity" || h.size === "bp" ? Number(h.amount) || null : null)
         : hotkeyPercent(h, { equity: ctx.view?.equity, buyingPower: ctx.view?.buyingPower, price: built.price }),

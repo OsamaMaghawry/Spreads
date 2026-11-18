@@ -175,7 +175,12 @@ export function hotkeyOrder(h, ctx) {
   // Under one share of a stock traded in part shares, a buy (not while short)
   // takes the exact part share below, never a whole share: half a share
   // rounded up to one would be twice the percent (18 Nov review).
-  const partBuy = percent && buy && ctx.fractionable && (n(ctx.held) || 0) >= 0 && amount / price < 1;
+  // Part shares switched on (18 Nov, the owner: "Why we don't use Fractional
+  // Shares with buy?"): a buy in dollars or a percent takes its exact part-share
+  // quantity whatever its size, at the cost of exits that are weaker on part
+  // of a share (a stop for the day only, no stop and target pair).
+  const exact = buy && !ctx.crypto && !!ctx.parts && !!ctx.fractionable && (n(ctx.held) || 0) >= 0 && amount !== null;
+  const partBuy = exact || (percent && buy && ctx.fractionable && (n(ctx.held) || 0) >= 0 && amount / price < 1);
   let qty = h.size === "shares" ? (ctx.crypto ? h.amount : Math.floor(h.amount))
     : partBuy ? 0
       : percent ? nearestShares(amount, price, buy ? n(ctx.buyingPower) : null)
@@ -207,7 +212,8 @@ export function hotkeyOrder(h, ctx) {
   // than is held, so one key never turns a holding into its opposite.
   let all = false;
   if ((!buy && held > 0 && qty > held) || (buy && held < 0 && qty > -held)) { qty = Math.abs(held); all = true; order.qty = qty; }
-  const words = `${buy ? "Buy" : "Sell"} ${qty} ${ctx.symbol}${all ? " (all held)" : ""}${part ? " (part share)" : ""} ${type === "market" ? "at market" : `limit ${px(price)}`}${extended ? " (extended hours)" : ""}`;
+  const partWords = !part ? "" : qty >= 1 && !Number.isInteger(qty) ? " (part shares: a stop on it lasts for today only)" : qty < 1 ? " (part share)" : "";
+  const words = `${buy ? "Buy" : "Sell"} ${qty} ${ctx.symbol}${all ? " (all held)" : ""}${partWords} ${type === "market" ? "at market" : `limit ${px(price)}`}${extended ? " (extended hours)" : ""}`;
   return { order, words, value: qty * price, price };
 }
 
