@@ -186,3 +186,16 @@ test("overnight, a key never prices from the last trade", () => {
   const ok = hotkeyOrder({ action: "sell", price: "market", size: "shares", amount: 109, keys: "F2" }, ctx(overnightQuote({ bid: 59.68, ask: 59.75, last: 59.1 })));
   assert.equal(ok.order.limitPrice, 59.68);
 });
+
+test("a percent buy under one share of a part-share stock takes the exact part share (18 Nov review)", () => {
+  // $5,998.90 at QQQ 600: 4% is 0.40 of a share, 5.01% is 0.50, 7.5% is 0.75: each its own part share, never a whole one.
+  const ctx = { symbol: "QQQ", crypto: false, quote: { bid: 599.9, ask: 600, last: 600 }, equity: 5998.9, buyingPower: 23682.01, session: "regular", held: 0, fractionable: true };
+  for (const pct of [4, 5.01, 7.5]) {
+    const o = hotkeyOrder({ action: "buy", size: "equity", amount: pct, price: "ask", offset: 0 }, ctx);
+    assert.ok(o.order.qty < 1 && Math.abs(o.order.qty * 600 - 5998.9 * pct / 100) < 0.01, `${pct}%: ${o.order.qty}`);
+  }
+  // A share or more still rounds to the nearest whole share: 15% is 1.4997, one share.
+  assert.equal(hotkeyOrder({ action: "buy", size: "equity", amount: 15, price: "ask", offset: 0 }, ctx).order.qty, 1);
+  // Not a part-share stock: 7.5% (0.75) is the nearest whole share.
+  assert.equal(hotkeyOrder({ action: "buy", size: "equity", amount: 7.5, price: "ask", offset: 0 }, { ...ctx, fractionable: false }).order.qty, 1);
+});

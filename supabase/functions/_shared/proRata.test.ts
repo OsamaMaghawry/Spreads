@@ -323,3 +323,20 @@ test("a percent key on the other accounts: to the nearest whole share (18 Nov, T
   const [tiny] = allocate({ side: "buy", qty: 1 }, small, [{ ...small, equity: 1000 }], { pct: 2.5, price: 52.14 });
   assert.match(tiny.skip!, /less than one share/);
 });
+
+test("a percent buy under one share of a part-share stock on the other accounts: the part share (18 Nov review)", () => {
+  const small = { id: "S", name: "Alpaca Live", equity: 5998.9, buyingPower: 23682.01, held: 0 };
+  const lead = { id: "L", name: "Alton Live", equity: 126780.6, buyingPower: 470431.5, held: 0 };
+  for (const pct of [4, 5.01, 7.5]) {
+    const [s] = allocate({ side: "buy", qty: 10 }, lead, [small], { pct, price: 600, fractionable: true, symbol: "QQQ" });
+    assert.ok(s.qty! < 1 && Math.abs(s.qty! * 600 - 5998.9 * pct / 100) < 0.01, `${pct}%: ${s.qty}`);
+  }
+  // Its own percent rule likewise; a whole share or more still to the nearest.
+  const [own] = allocate({ side: "buy", qty: 10 }, lead, [{ ...small, rule: { mode: "percent", value: 7.5 } }], { price: 600, fractionable: true });
+  assert.ok(own.qty! < 1);
+  const [one] = allocate({ side: "buy", qty: 10 }, lead, [small], { pct: 15, price: 600, fractionable: true });
+  assert.equal(one.qty, 1);
+  // Not a part-share stock: the nearest whole share.
+  const [whole] = allocate({ side: "buy", qty: 10 }, lead, [small], { pct: 7.5, price: 600 });
+  assert.equal(whole.qty, 1);
+});

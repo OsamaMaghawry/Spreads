@@ -172,9 +172,14 @@ export function hotkeyOrder(h, ctx) {
   // share, not down (18 Nov), never past buying power on a buy. Dollars stay
   // a ceiling (rounded down); coins go to their step.
   const percent = (h.size === "equity" || h.size === "bp") && !ctx.crypto;
+  // Under one share of a stock traded in part shares, a buy (not while short)
+  // takes the exact part share below, never a whole share: half a share
+  // rounded up to one would be twice the percent (18 Nov review).
+  const partBuy = percent && buy && ctx.fractionable && (n(ctx.held) || 0) >= 0 && amount / price < 1;
   let qty = h.size === "shares" ? (ctx.crypto ? h.amount : Math.floor(h.amount))
-    : percent ? nearestShares(amount, price, buy ? n(ctx.buyingPower) : null)
-      : amountToQty(amount, price, { crypto: ctx.crypto, step: ctx.step });
+    : partBuy ? 0
+      : percent ? nearestShares(amount, price, buy ? n(ctx.buyingPower) : null)
+        : amountToQty(amount, price, { crypto: ctx.crypto, step: ctx.step });
   const held = n(ctx.held) || 0;
   // A buy under one whole share of a stock Alpaca trades in part shares: the
   // part share, at least Alpaca's $1 (3 Nov, the owner: "It refuses to buy

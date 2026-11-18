@@ -116,6 +116,10 @@ export function allocate(
   // buying power on a buy (then down). Part shares and coins: to the step.
   const toShares = (b: Book, want: number) => {
     if (step !== 1) return clean(down(want, step));
+    // Under one share of a stock traded in part shares, a buy (not while
+    // short) is left to `partOf`, the exact part share: half a share rounded
+    // up to one would be twice the percent (18 Nov review).
+    if (opts.fractionable && order.side === "buy" && (fin(b.held) || 0) >= 0 && settle(want) < 1) return 0;
     const up = Math.round(settle(want));
     const bp = fin(b.buyingPower);
     return order.side === "buy" && bp !== null && price !== null && up * price > bp ? steps(want, 1) : up;
