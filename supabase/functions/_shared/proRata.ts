@@ -218,3 +218,83 @@ export function allocate(
     return { ...base, qty: mine, notional: null, skip: null };
   }
 }
+
+// ---------------------------------------------------------------------------
+// The ticket's order as one total, shared out over every account it goes to
+// (18 Nov, the owner: "When I need to sell or buy 50 stocks for example, I
+// need them pro rata not 25 per each as the account sizes are different";
+// asked what to share by: "The sizing based on equity"). The hotkeys keep
+// `allocate` above and each account's own size.
+//
+//   - Each account's part is the total times its portfolio value (equity)
+//     over all of theirs, the account on screen included when it is ticked.
+//   - Rounded down to whole shares (part shares when asked for, or typed;
+//     coins to a billionth; dollars to the cent), and what rounding leaves
+//     goes a step at a time to the largest remainders, so the parts add up to
+//     exactly the total.
+//   - An order that closes a holding (a sale where any of the accounts holds
+//     the symbol, a buy back where any is short) is shared among the accounts
+//     that hold it, and never takes more than an account holds: what is over
+//     stays unsent and the review says so. An account holding none sits it
+//     out rather than open the other way.
+//   - A part that comes to nothing (or under Alpaca's $1 for dollars) is
+//     skipped, with why.
+// ---------------------------------------------------------------------------
+
+export function splitTotal(
+  order: { side: "buy" | "sell"; qty?: number | null; notional?: number | null },
+  books: Book[],
+  opts: { crypto?: boolean; symbol?: string; parts?: boolean } = {}
+): Share[] {
+  const qty = fin(order.qty);
+  const notional = fin(order.notional);
+  const dollars = notional !== null;
+  const total = dollars ? notional : qty;
+  const what = opts.symbol || "it";
+  const closes = (held: number) => (order.side === "sell" && held > 0) || (order.side === "buy" && held < 0);
+  const closing = books.some((b) => closes(fin(b.held) || 0));
+  const step = dollars ? 0.01 : opts.crypto || opts.parts || (qty !== null && !Number.isInteger(qty)) ? 1e-9 : 1;
+  const unit = opts.crypto ? "step" : "share";
+  const blank = (b: Book): Share => ({ id: b.id, name: b.name, qty: null, notional: null, all: false, basis: "equity", skip: null });
+  if (!(total !== null && total > 0)) return books.map((b) => ({ ...blank(b), skip: "no quantity to share out" }));
+
+  const out = books.map((b): Share => {
+    const held = fin(b.held) || 0;
+    if (closing && !closes(held)) return { ...blank(b), skip: `holds no ${what} to ${order.side === "sell" ? "sell" : "buy back"}` };
+    const equity = fin(b.equity);
+    if (!(equity !== null && equity > 0)) return { ...blank(b), skip: "no portfolio value to size from" };
+    return blank(b);
+  });
+  const taking = books.map((b, i) => ({ b, i })).filter(({ i }) => !out[i].skip);
+  const sum = taking.reduce((s, { b }) => s + (fin(b.equity) as number), 0);
+  if (!(sum > 0)) return out;
+
+  // In whole steps: each part rounded down, then one step more for the
+  // largest remainders until the total is met.
+  const steps = Math.round(total / step);
+  const parts = taking.map(({ b, i }) => {
+    const raw = (steps * (fin(b.equity) as number)) / sum;
+    const whole = Math.floor(raw + 1e-9);
+    return { i, equity: fin(b.equity) as number, whole, rest: raw - whole };
+  });
+  let left = steps - parts.reduce((s, p) => s + p.whole, 0);
+  for (const p of [...parts].sort((x, y) => y.rest - x.rest || y.equity - x.equity)) {
+    if (left <= 0) break;
+    p.whole += 1;
+    left -= 1;
+  }
+
+  for (const p of parts) {
+    const b = books[p.i];
+    const amount = clean(p.whole * step);
+    if (dollars) {
+      out[p.i] = amount >= 1 ? { ...out[p.i], notional: Math.round(amount * 100) / 100 } : { ...out[p.i], skip: amount > 0 ? "its part comes to less than $1" : "its part comes to nothing" };
+      continue;
+    }
+    if (!(amount > 0)) { out[p.i] = { ...out[p.i], skip: `its part comes to less than one ${unit}` }; continue; }
+    const held = fin(b.held) || 0;
+    if (closes(held) && amount >= Math.abs(held) - 1e-12) out[p.i] = { ...out[p.i], qty: Math.abs(held), all: true };
+    else out[p.i] = { ...out[p.i], qty: amount };
+  }
+  return out;
+}

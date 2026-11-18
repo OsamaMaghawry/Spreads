@@ -8,7 +8,9 @@ import { px, sizeText } from "@/lib/terminal";
 // don't see Alton is it checked"): a tick for each account orders go to,
 // each one's size (the key's own, or its own in dollars, shares or a percent
 // of its portfolio), which one is on screen, and the default the terminal
-// opens on ("a default account to open on"). The button shows where orders
+// opens on ("a default account to open on"). Since 18 Nov the size is the
+// hotkeys' only: the ticket's number is a total shared by portfolio value
+// (functions/_shared/proRata.ts splitTotal). The button shows where orders
 // go at all times, red when a live account is ticked, with what each holds
 // of the chart's symbol and whether a stop sits at Alpaca for it (30 Oct:
 // "knowing which account is buying or selling now is so confusing").
@@ -54,7 +56,7 @@ export default function AccountsMenu({ accounts, liveOk, ticks, onTicks, shownId
           <div className="overflow-x-auto">
             <div className="min-w-[36rem]">
               <div className="grid grid-cols-[1.75rem_minmax(0,1fr)_4.5rem_15rem_3rem_3.5rem] items-center gap-2 px-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                <span /><span>Account</span><span /><span>Size</span><span className="text-center">Show</span><span className="text-center">Default</span>
+                <span /><span>Account</span><span /><span title="Each account's size for a hotkey. The ticket's number is the total, shared by portfolio value.">Hotkey size</span><span className="text-center">Show</span><span className="text-center">Default</span>
               </div>
               {accounts.map((a) => {
                 const can = canSend(a, liveOk);

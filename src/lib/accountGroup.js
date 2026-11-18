@@ -188,3 +188,95 @@ export function exitsOf(qty, orders) {
   }
   return { held, stop, target, other, bare: held !== 0 && stop === null };
 }
+
+/**
+ * What the other accounts did not do, as one pop-up, or null when every one
+ * did it (18 Nov, the owner, on "Also on 1 account: 0 filled, 1 waiting": "it
+ * adds nothing. I just need to see the orders posted"; the orders are in the
+ * Orders tab). A refusal or a size that came to nothing still says so: a
+ * refusal nobody saw is how positions stacked up on 28 Oct. An account that
+ * holds none of what an exit or a sale is for has nothing to do: not news.
+ */
+export function refusalNews(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const lines = [];
+  const names = [];
+  for (const r of list) {
+    const name = `${r.name}${r.live ? " (live)" : ""}`;
+    if (r.skip) {
+      if (/^holds no(ne|\b)/.test(String(r.skip))) continue;
+      lines.push(`${name}: not sent, ${r.skip}`);
+    } else if (r.ok === false) lines.push(`${name}: refused, ${r.error || "no reason given"}`);
+    else continue;
+    names.push(name);
+  }
+  if (!lines.length) return null;
+  return { tone: "bad", title: `Not done on ${names.length === 1 ? names[0] : `${names.length} of ${list.length} accounts`}`, detail: lines.join(" · ") };
+}
+
+/** A working order's stop: its own, or its stop leg's. */
+export const stopOf = (o) => o?.stop ?? (o?.legs || []).find((l) => l.stop)?.stop ?? null;
+
+/**
+ * Every ticked account's working orders, the same order on each kept together
+ * (18 Nov: "I can't see the other account's orders. I need to switch the
+ * accounts to see"): one block per symbol, side, kind and price, a row per
+ * account's order in it. `accounts`: [{ accountId, name, live, orders }], the
+ * one on screen first. Newest block first.
+ */
+export function orderBlocks(accounts) {
+  const blocks = new Map();
+  for (const a of Array.isArray(accounts) ? accounts : []) {
+    for (const o of a?.orders || []) {
+      const key = [o.symbol, o.side, orderKind(o), o.limit ?? "", stopOf(o) ?? ""].join("|");
+      if (!blocks.has(key)) blocks.set(key, { key, symbol: o.symbol, side: o.side, type: o.type, tif: o.tif, orderClass: o.orderClass, limit: o.limit ?? null, stop: stopOf(o), first: o, rows: [], at: "" });
+      const b = blocks.get(key);
+      b.rows.push({ accountId: a.accountId, name: a.name, live: !!a.live, order: o });
+      if (String(o.submittedAt || "") > b.at) b.at = String(o.submittedAt || "");
+    }
+  }
+  return [...blocks.values()].map((b) => ({
+    ...b,
+    qty: b.rows.every((r) => r.order.qty != null) ? Number(b.rows.reduce((s, r) => s + Number(r.order.qty), 0).toFixed(9)) : null,
+    notional: b.rows.every((r) => r.order.qty == null && r.order.notional != null) ? b.rows.reduce((s, r) => s + Number(r.order.notional), 0) : null,
+    filled: b.rows.reduce((s, r) => s + (Number(r.order.filled) || 0), 0)
+  })).sort((x, y) => y.at.localeCompare(x.at));
+}
+
+/**
+ * A block's new total shared in the proportions its orders already have
+ * (18 Nov: "there is no quantity change only price"): whole shares unless any
+ * order is in part shares (or a coin), the steps left by rounding to the
+ * largest remainders, so the parts add up to the total. None below what has
+ * already filled on its account: that is an error, and nothing is sent.
+ * `rows`: [{ accountId, name, order: { id, qty, filled } }].
+ */
+export function resplit(rows, total, { crypto = false } = {}) {
+  const list = (Array.isArray(rows) ? rows : []).filter((r) => Number(r?.order?.qty) > 0);
+  const t = Number(total);
+  if (!(t > 0) || !list.length) return { error: "Enter how many shares in all." };
+  const fine = crypto || list.some((r) => !Number.isInteger(Number(r.order.qty))) || !Number.isInteger(t);
+  const step = fine ? 1e-9 : 1;
+  const sum = list.reduce((s, r) => s + Number(r.order.qty), 0);
+  const steps = Math.round(t / step);
+  const parts = list.map((r, i) => {
+    const raw = (steps * Number(r.order.qty)) / sum;
+    const whole = Math.floor(raw + 1e-9);
+    return { i, whole, rest: raw - whole, weight: Number(r.order.qty) };
+  });
+  let left = steps - parts.reduce((s, p) => s + p.whole, 0);
+  for (const p of [...parts].sort((x, y) => y.rest - x.rest || y.weight - x.weight)) {
+    if (left <= 0) break;
+    p.whole += 1;
+    left -= 1;
+  }
+  const out = parts.map((p) => {
+    const r = list[p.i];
+    return { accountId: r.accountId, name: r.name, orderId: r.order.id, qty: Number((p.whole * step).toFixed(9)), filled: Number(r.order.filled) || 0 };
+  });
+  const under = out.filter((x) => !(x.qty > 0) || x.qty < x.filled);
+  if (under.length) {
+    return { error: under.map((x) => (x.qty < x.filled ? `${x.name} has already filled ${x.filled}` : `${x.name} would get none`)).join("; "), rows: out };
+  }
+  return { rows: out };
+}

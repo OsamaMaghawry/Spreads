@@ -120,3 +120,10 @@ test("a sub-millionth quantity never goes out as an exponent", () => {
     "0.000000818"
   );
 });
+
+test("a share order's size alone (18 Nov: the Orders tab changes quantity as well as price)", () => {
+  // The price untouched: only the quantity goes to the broker.
+  assert.deepEqual(replaceBody({ order: { type: "limit", limit_price: "230", qty: "31", asset_class: "us_equity", symbol: "AAPL" }, qty: 50 }), { qty: "50" });
+  // Both at once.
+  assert.deepEqual(replaceBody({ order: { type: "limit", limit_price: "230", qty: "31", asset_class: "us_equity", symbol: "AAPL" }, limitPrice: 230.1, qty: 50 }), { limit_price: "230.1", qty: "50" });
+});

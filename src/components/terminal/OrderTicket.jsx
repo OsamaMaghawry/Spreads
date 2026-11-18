@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { px, sizeText, isCrypto, amountToQty, orderState, orderNews, sessionOf, ticketChoices, exitText, stopWaitText } from "@/lib/terminal";
-import { groupNews, resolveSize } from "@/lib/accountGroup";
+import { refusalNews } from "@/lib/accountGroup";
 import { onOrder } from "./orderFeed";
-import { followGroup } from "./runHotkey";
+import { reportGroup } from "./runHotkey";
 import useAccountSetting from "./useAccountSetting";
 import { fmtMoney } from "@/lib/format";
 
@@ -39,7 +39,7 @@ const TIF_TEXT = { day: "for the day", gtc: "good till cancelled", ioc: "immedia
 const input = "w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm tabular-nums focus:border-emerald-500 focus:outline-none";
 const label = "mb-1 block text-[11px] uppercase tracking-wider text-slate-500";
 
-export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, onPlaced, pick = null, preset = null, onNotify = () => {}, liveOk = false, group = [], groupHeld = [], leadOff = false, none = false }) {
+export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, onPlaced, pick = null, preset = null, onNotify = (news) => void news, liveOk = false, group = [], groupHeld = [], leadOff = false, none = false }) {
   const crypto = isCrypto(symbol);
   const TYPES = crypto ? CRYPTO_TYPES : STOCK_TYPES;
   const [side, setSide] = useState("buy");
@@ -231,8 +231,11 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   const dust = crypto && held > 0 && asset?.minOrderSize && held < asset.minOrderSize;
   const minDollars = asset?.minOrderSize && ref ? asset.minOrderSize * ref : null;
   const value = notional ? dollars : at && n ? at * n : null;
-  const short = side === "sell" && n > Math.max(0, held) + 1e-12;
-  const overBp = side === "buy" && value !== null && buyingPower !== null && value > buyingPower;
+  // On this account alone: with others ticked the number is shared out, and
+  // the review shows each account's part (an account never sells more than
+  // it holds there).
+  const short = !group.length && side === "sell" && n > Math.max(0, held) + 1e-12;
+  const overBp = !group.length && side === "buy" && value !== null && buyingPower !== null && value > buyingPower;
   const sized = notional ? dollars >= 1 : n > 0;
   const ready = tradable && symbol && sized && !belowMin && !(crypto && short) &&
     (!needsLimit || Number(limit) > 0) && (!needsStop || Number(stop) > 0) && (!needsTrail || Number(trail) > 0) && (!bracket || (Number(tp) > 0 && Number(sl) > 0));
@@ -275,22 +278,41 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     parts: !crypto && parts,
     ...(leadOff ? { leadOff: true } : {})
   });
-  // With other accounts ticked, the review shows each one's size before
-  // anything is sent (functions/_shared/proRata.ts): its own, or this
-  // ticket's ("Same as the key": the same dollars, or the same shares).
+  // With other accounts ticked, the ticket's number is the total, shared by
+  // portfolio value over every account it goes to (18 Nov, the owner: "When I
+  // need to sell or buy 50 stocks ... I need them pro rata not 25 per each as
+  // the account sizes are different"; "The sizing based on equity";
+  // functions/_shared/proRata.ts splitTotal). The review shows each part,
+  // each can be changed, and what it shows is what is sent. The hotkeys keep
+  // each account's own size from the Accounts list.
   const groupIds = group.map((a) => a.id);
-  const ticketSize = unit === "usd" ? { size: "usd", amount: dollars } : { size: "shares", amount: n };
-  const groupSend = group.map((a) => resolveSize(a.size || { id: a.id, mode: "key" }, ticketSize));
   const [shares, setShares] = useState(null);
+  const [partText, setPartText] = useState({});
   useEffect(() => {
-    if (!review || !groupIds.length || !account?.id) { setShares(null); return undefined; }
+    if (!review || !groupIds.length || !account?.id) { setShares(null); setPartText({}); return undefined; }
     let gone = false;
     setShares({ loading: true });
-    invokeFunction("terminal", { action: "allocate", accountId: account.id, order: order(), group: groupSend })
-      .then((r) => { if (!gone) setShares(r?.data?.error ? { error: r.data.error } : { rows: r?.data?.group || [], lead: r?.data?.lead || null, at: Date.now() }); })
+    invokeFunction("terminal", { action: "allocate", accountId: account.id, order: { ...order(), split: "total" }, group: groupIds })
+      .then((r) => {
+        if (gone) return;
+        if (r?.data?.error) { setShares({ error: r.data.error }); return; }
+        const rows = r?.data?.group || [];
+        const lead = r?.data?.lead || null;
+        setShares({ rows, lead, at: Date.now() });
+        const text = (p) => (p && !p.skip ? String(p.notional ?? p.qtyText ?? p.qty ?? "") : "0");
+        setPartText({ ...(lead && !leadOff ? { [account.id]: text(lead.part) } : {}), ...Object.fromEntries(rows.map((g) => [g.accountId, text(g)])) });
+      })
       .catch((e) => { if (!gone) setShares({ error: String(e?.message || e) }); });
     return () => { gone = true; };
-  }, [review, JSON.stringify(groupSend), account?.id]);
+  }, [review, JSON.stringify(groupIds), account?.id]);
+  // Each account's part as it stands in the review (a number, 0 for none).
+  const partOf = (id) => { const v = Number(partText[id]); return Number.isFinite(v) && v > 0 ? v : 0; };
+  const splitRows = shares?.rows ? [
+    ...(!leadOff && shares.lead ? [{ accountId: account.id, name: account?.name, live: account?.type === "Live", onScreen: true, ...(shares.lead.part || {}), equity: shares.lead.equity }] : []),
+    ...shares.rows
+  ] : [];
+  const splitTotal = splitRows.reduce((sum, g) => sum + partOf(g.accountId), 0);
+  const splitReady = !groupIds.length || (!!shares?.rows && splitTotal > 0);
   const send = async () => {
     setBusy(true);
     const key = `o${Date.now()}`;
@@ -300,15 +322,37 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     // order is sent at once, alongside the reading of the others'.
     const fresh = !leadOff && groupIds.length && shares?.lead && Date.now() - shares.at < 30000;
     const leadBook = fresh ? { equity: shares.lead.equity, buyingPower: shares.lead.buyingPower, held: shares.lead.held } : undefined;
-    const r = await invokeFunction("terminal", { action: "order", accountId: account.id, order: { ...order(), leadBook }, group: groupSend });
-    // Each other account's order followed until it fills or ends, in the one pop-up.
-    followGroup(r?.data?.group, { key: leadOff ? key : `${key}g`, verb: "sent", unit: unitName, notify: onNotify, refresh: onPlaced });
+    // With others ticked: each account's part from the review, exactly; the
+    // whole holding as the broker's exact quantity where the part is all of it.
+    let body = { ...order(), leadBook };
+    let groupOut = [];
+    if (groupIds.length) {
+      const exact = (g) => (g.all && g.qtyText && String(partText[g.accountId]) === String(g.qtyText ?? g.qty) ? g.qtyText : partOf(g.accountId));
+      const mine = splitRows.find((g) => g.onScreen);
+      const myPart = mine ? partOf(mine.accountId) : 0;
+      groupOut = (shares?.rows || []).filter((g) => partOf(g.accountId) > 0)
+        .map((g) => ({ id: g.accountId, mode: notional ? "dollars" : "shares", value: notional ? partOf(g.accountId) : exact(g) }));
+      const anyPart = splitRows.some((g) => !Number.isInteger(partOf(g.accountId)));
+      body = {
+        ...body, parts: !crypto && (parts || anyPart),
+        // Nothing for the account on screen: sent as not ticked, the others still take theirs.
+        ...(myPart > 0 ? (notional ? { notional: myPart, qty: null } : { qty: exact(mine), notional: null }) : { leadOff: true, leadBook: undefined })
+      };
+    }
+    const r = await invokeFunction("terminal", { action: "order", accountId: account.id, order: body, group: groupOut });
+    // The other accounts' orders are in the Orders tab; a pop-up only for what was not done there.
+    reportGroup(r?.data?.group, { key: body.leadOff ? key : `${key}g`, notify: onNotify, refresh: onPlaced });
     setBusy(false);
     setReview(false);
     if (r?.data?.error) onNotify({ key, ...orderNews({ error: r.data.error }) });
-    else if (r?.data?.leadOff) { setQty(crypto ? "" : "1"); setAmount(""); onPlaced?.(); }
-    else {
-      const placed = { key, id: r?.data?.orderId, status: r?.data?.status || "new", words, symbol, side, unitName };
+    else if (r?.data?.leadOff) {
+      if (!r?.data?.group?.some((g) => g.ok === false || (g.skip && !/^holds no/.test(g.skip)))) onNotify({ key, tone: "ok", title: `Sent to ${groupOut.length} account${groupOut.length === 1 ? "" : "s"}`, detail: `${words}. See the Orders tab.` });
+      setQty(crypto ? "" : "1"); setAmount(""); onPlaced?.();
+    } else {
+      // With others ticked, this account's own part, not the total.
+      const own = !groupIds.length ? words
+        : notional ? words.replace(/^(Buy|Sell) \S+/, `$1 ${fmtMoney(Number(body.notional))}`) : words.replace(/^(Buy|Sell) \S+/, `$1 ${String(Number(body.qty))}`);
+      const placed = { key, id: r?.data?.orderId, status: r?.data?.status || "new", words: own, symbol, side, unitName };
       trackedRef.current = placed;
       setTracked(placed);
       onNotify({ key, ...orderNews(placed) });
@@ -525,28 +569,40 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
           <p className="text-sm text-slate-800">{words}.</p>
           {group.length > 0 && (
             <div className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] leading-snug text-slate-700">
-              <div className="font-semibold text-slate-900">On {count} account{count === 1 ? "" : "s"}:</div>
-              {!leadOff && (
-                <div className="flex justify-between gap-2">
-                  <span className="truncate">{account?.name}{account?.type === "Live" ? " (LIVE)" : ""} <span className="text-slate-400">on screen</span></span>
-                  <span className="shrink-0 tabular-nums">{notional ? fmtMoney(dollars) : `${sizeText(n)} ${crypto ? coin : "shares"}`}</span>
-                </div>
-              )}
-              {shares?.loading && <div className="text-slate-500">Working out each share…</div>}
+              <div className="flex justify-between gap-2 font-semibold text-slate-900">
+                <span>On {count} account{count === 1 ? "" : "s"}, by portfolio value</span>
+                {shares?.rows && <span className="tabular-nums">{notional ? fmtMoney(splitTotal) : `${sizeText(splitTotal)} ${crypto ? coin : "shares"}`} in all</span>}
+              </div>
+              {shares?.loading && <div className="text-slate-500">Working out each account&apos;s part…</div>}
               {shares?.error && <div className="text-rose-700">{shares.error}</div>}
-              {(shares?.rows || []).map((g) => (
-                <div key={g.accountId}>
-                  <div className="flex justify-between gap-2">
-                    <span className="truncate">{g.name}{g.live ? " (LIVE)" : ""}</span>
-                    {!g.skip && <span className="shrink-0 tabular-nums">{g.notional ? fmtMoney(g.notional) : `${sizeText(g.qty)} ${crypto ? coin : "shares"}`}</span>}
+              {splitRows.map((g) => (
+                <div key={g.accountId} className="py-0.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate">
+                      {g.name}{g.live ? " (LIVE)" : ""}{g.onScreen ? <span className="text-slate-400"> on screen</span> : null}
+                      {g.equity ? <span className="text-slate-400"> · {fmtMoney(g.equity)}</span> : null}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1">
+                      {notional && <span className="text-slate-400">$</span>}
+                      <input aria-label={`${g.name} ${notional ? "amount" : crypto ? coin : "shares"}`} inputMode="decimal" value={partText[g.accountId] ?? ""}
+                        onChange={(e) => setPartText((t) => ({ ...t, [g.accountId]: e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1") }))}
+                        className="w-16 rounded border border-slate-300 px-1 py-0.5 text-right tabular-nums focus:border-emerald-500 focus:outline-none" />
+                      {!notional && <span className="w-8 text-slate-400">{crypto ? coin : "sh"}</span>}
+                    </span>
                   </div>
-                  {g.skip && <div className="text-slate-400">skipped: {g.skip}</div>}
+                  {g.skip && <div className="text-slate-400">nothing sent: {g.skip}</div>}
+                  {!g.skip && g.all && <div className="text-slate-400">all it holds</div>}
                 </div>
               ))}
+              {shares?.rows && Math.abs(splitTotal - (notional ? dollars : n)) > 1e-9 && (
+                <div className="text-amber-800">
+                  {notional ? fmtMoney(splitTotal) : sizeText(splitTotal)} of {notional ? fmtMoney(dollars) : sizeText(n)} will be sent{splitRows.some((g) => g.all) ? ": an account cannot sell more than it holds" : ""}.
+                </div>
+              )}
             </div>
           )}
           <div className="flex gap-2">
-            <button type="button" onClick={send} disabled={busy}
+            <button type="button" onClick={send} disabled={busy || !splitReady}
               className={`flex-1 rounded-md py-2 text-sm font-semibold text-white disabled:opacity-50 ${side === "buy" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"}`}>
               {busy ? "Sending…" : count > 1 || leadOff ? `Send to ${count} account${count === 1 ? "" : "s"}` : "Send order"}
             </button>
@@ -607,7 +663,7 @@ function PositionExits({ account, symbol, held, crypto, tradable, session, onNot
     onNotify({ key, tone: "wait", title: `Setting exits on ${symbol}…`, detail: words });
     const r = await invokeFunction("terminal", { action: "protect", accountId: account.id, symbol, kind: s && t ? "both" : s ? "stop" : "target", mode: "price", value: s ?? t, stopPrice: s, targetPrice: t, group: group.map((a) => a.id), leadOff })
       .catch((e) => ({ data: { error: String(e?.message || e) } }));
-    const g = groupNews(r?.data?.group, "exits set");
+    const g = refusalNews(r?.data?.group);
     if (g) onNotify({ key: leadOff ? key : `${key}g`, ...g });
     setBusy(false);
     setReview(false);

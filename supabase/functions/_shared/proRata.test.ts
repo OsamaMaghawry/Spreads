@@ -201,3 +201,72 @@ test("a buy under one share of a fractionable stock: the part share, never under
   assert.match(allocate({ side: "buy", qty: 1 }, screen, [{ ...half, rule: { mode: "dollars" as const, value: 10 } }], { ...opts, fractionable: false })[0].skip!, /less than one share/);
   assert.match(allocate({ side: "sell", qty: 1 }, screen, [{ ...half, rule: { mode: "dollars" as const, value: 10 } }], opts)[0].skip!, /less than one share/);
 });
+
+// ---------------------------------------------------------------------------
+// The ticket's total shared by portfolio value (18 Nov: "pro rata not 25 per
+// each"; "The sizing based on equity").
+// ---------------------------------------------------------------------------
+import { splitTotal } from "./proRata.ts";
+
+const live = { id: "L", name: "Alpaca Live", equity: 160240, buyingPower: 160240, held: 0 };
+const paper = { id: "P", name: "Paper 2", equity: 98110, buyingPower: 196220, held: 0 };
+const sumOf = (rows: any[]) => rows.reduce((s, r) => s + (r.qty ?? r.notional ?? 0), 0);
+
+test("split: 50 shares by portfolio value, adding up to exactly 50", () => {
+  const rows = splitTotal({ side: "buy", qty: 50 }, [live, paper], { symbol: "AAPL" });
+  // 50 x 160240 / 258350 = 31.01; 50 x 98110 / 258350 = 18.99: the leftover share to the larger remainder.
+  assert.deepEqual(rows.map((r) => [r.id, r.qty, r.skip]), [["L", 31, null], ["P", 19, null]]);
+  assert.equal(sumOf(rows), 50);
+  // Three accounts, awkward sizes: always the exact total.
+  for (const total of [1, 2, 3, 7, 10, 99, 100, 1001]) {
+    const three = splitTotal({ side: "buy", qty: total }, [live, paper, { ...paper, id: "Q", equity: 12345 }]);
+    assert.equal(sumOf(three), total, `total ${total}`);
+  }
+  // One share between two: the bigger account takes it, the other says why.
+  const one = splitTotal({ side: "buy", qty: 1 }, [live, paper]);
+  assert.deepEqual(one.map((r) => r.qty), [1, null]);
+  assert.match(one[1].skip!, /less than one share/);
+});
+
+test("split: equal accounts share evenly; a sale opening a short is shared by value too", () => {
+  const twin = { ...live, id: "T", name: "Twin" };
+  assert.deepEqual(splitTotal({ side: "buy", qty: 50 }, [live, twin]).map((r) => r.qty), [25, 25]);
+  // Nobody holds it: a short across both, by portfolio value.
+  assert.deepEqual(splitTotal({ side: "sell", qty: 50 }, [live, paper]).map((r) => r.qty), [31, 19]);
+});
+
+test("split: selling what is held, by portfolio value, never more than an account holds", () => {
+  const rows = splitTotal({ side: "sell", qty: 50 }, [{ ...live, held: 100 }, { ...paper, held: 10 }], { symbol: "AAPL" });
+  // Paper's part is 19 but it holds 10: it sells its 10, exactly; the 9 over are not moved to Live.
+  assert.deepEqual(rows.map((r) => [r.qty, r.all]), [[31, false], [10, true]]);
+  // An account holding none sits a sale out (no short opened there); the holders share it by value.
+  const mixed = splitTotal({ side: "sell", qty: 30 }, [{ ...live, held: 40 }, paper], { symbol: "AAPL" });
+  assert.deepEqual([mixed[0].qty, mixed[1].qty], [30, null]);
+  assert.match(mixed[1].skip!, /holds no AAPL to sell/);
+  // Buying back a short: the same, on the short side.
+  const cover = splitTotal({ side: "buy", qty: 20 }, [{ ...live, held: -5 }, { ...paper, held: -40 }]);
+  assert.deepEqual(cover.map((r) => [r.qty, r.all]), [[5, true], [8, false]]);
+});
+
+test("split: part shares, coins and dollars", () => {
+  const p = splitTotal({ side: "buy", qty: 2.5 }, [live, paper]);
+  assert.ok(Math.abs(sumOf(p) - 2.5) < 1e-9);
+  assert.ok(!Number.isInteger(p[0].qty!));
+  const asked = splitTotal({ side: "buy", qty: 10 }, [live, paper], { parts: true });
+  assert.ok(Math.abs(sumOf(asked) - 10) < 1e-9);
+  assert.ok(Math.abs(asked[0].qty! - 10 * 160240 / 258350) < 1e-8);
+  const coin = splitTotal({ side: "buy", qty: 0.3 }, [live, paper], { crypto: true });
+  assert.ok(Math.abs(sumOf(coin) - 0.3) < 1e-9);
+  const usd = splitTotal({ side: "buy", notional: 1000 }, [live, paper]);
+  assert.deepEqual(usd.map((r) => [r.notional, r.qty]), [[620.24, null], [379.76, null]]); // 620.244 and 379.756: the cent left over to the larger remainder
+  assert.equal(Math.round(sumOf(usd) * 100), 100000);
+  const small = splitTotal({ side: "buy", notional: 2 }, [live, { ...paper, equity: 500 }]);
+  assert.match(small[1].skip!, /less than \$1/);
+});
+
+test("split: nothing to share, or no portfolio value read", () => {
+  assert.match(splitTotal({ side: "buy", qty: 0 }, [live])[0].skip!, /no quantity/);
+  const rows = splitTotal({ side: "buy", qty: 10 }, [live, { ...paper, equity: null }]);
+  assert.deepEqual(rows.map((r) => r.qty), [10, null]);
+  assert.match(rows[1].skip!, /no portfolio value/);
+});

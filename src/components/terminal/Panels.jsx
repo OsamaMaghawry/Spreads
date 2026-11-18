@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { px, sizeText, clockMs, pctText, isCrypto, orderState } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
-import { sameOrders } from "@/lib/accountGroup";
+import { orderBlocks, resplit, stopOf } from "@/lib/accountGroup";
 import useAccountSetting from "@/components/terminal/useAccountSetting";
 
 // The terminal's lower panels: the tape, the account's shares and coins, and
@@ -207,112 +207,132 @@ function OtherAccount({ g, onPick }) {
   );
 }
 
-export function Orders({ accountId, orders, recent = [], onChanged, onPick, others = [], group = [], onNotify = () => {} }) {
+// Every ticked account's orders (18 Nov, the owner: "I can't see the other
+// account's orders. I need to switch the accounts to see"): the same order on
+// each account kept together as one block, its total above a row per account.
+// A block's Change and Cancel go to every account in it (28 Oct: "any price
+// changes for all accounts at once"); a row's Cancel to that account only.
+// Change takes the quantity as well as the price ("there is no quantity
+// change only price"): a new total, shared in the proportions the orders
+// already have. A pop-up only when something was not done.
+export function Orders({ accountId, name = "This account", live = false, orders, recent = [], onChanged, onPick, others = [], group = [], onNotify = () => {} }) {
   // Working orders and today's finished ones, together, by default; the
   // whole week on request ("today's order is not showing", 24 Oct).
   const [show, setShow] = useState("today");
-  const todayNy = new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" });
-  const today = recent.filter((o) => o.filledAt || o.updatedAt ? new Date(o.filledAt || o.updatedAt).toLocaleDateString("en-US", { timeZone: "America/New_York" }) === todayNy : false);
   const [busy, setBusy] = useState(null);
   const [edit, setEdit] = useState({});
   const [note, setNote] = useState(null);
-
-  // With other accounts picked, a price change or a cancel goes to the same
-  // order on each of them too (28 Oct: "any price changes for all accounts at
-  // once. not changing each one separately").
   const many = others.length > 0;
-  const stopOf = (o) => o.stop ?? (o.legs || []).find((l) => l.stop)?.stop ?? null;
+  const accounts = [{ accountId, name, live, orders }, ...others.map((g) => ({ accountId: g.accountId, name: g.name, live: !!g.live, orders: g.orders || [] }))];
+  const blocks = orderBlocks(accounts);
+  const working = accounts.reduce((sum, a) => sum + a.orders.length, 0);
+  const todayNy = new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" });
+  const when = (o) => o.filledAt || o.updatedAt || "";
+  const finishedAll = [
+    ...recent.map((o) => ({ ...o, account: name, accountLive: live })),
+    ...others.flatMap((g) => (g.recent || []).map((o) => ({ ...o, account: g.name, accountLive: !!g.live })))
+  ].sort((x, y) => String(when(y)).localeCompare(String(when(x))));
+  const today = finishedAll.filter((o) => (when(o) ? new Date(when(o)).toLocaleDateString("en-US", { timeZone: "America/New_York" }) === todayNy : false));
+
   // A stop, or a stop and take profit pair, protecting what is held.
   const protective = (o) => ["stop", "stop_limit"].includes(o.type) || o.orderClass === "oco";
   const editable = (o) => (o.type === "limit" && o.orderClass !== "bracket") || (protective(o) && o.orderClass !== "bracket");
-  const say = (title, rows) => {
-    const failed = rows.filter((r) => r.error);
+  const failed = (title, rows) => {
+    const bad = rows.filter((r) => r.error);
+    if (!bad.length) return;
     onNotify({
-      key: `orders${Date.now()}`, tone: failed.length ? "bad" : "ok",
-      title: `${title}: ${rows.length - failed.length} of ${rows.length} account${rows.length === 1 ? "" : "s"}`,
-      detail: rows.map((r) => `${r.name}: ${r.error ? `not done, ${r.error}` : r.did}`).join(" · ")
+      key: `orders${Date.now()}`, tone: "bad",
+      title: `${title}: not done on ${bad.length} of ${rows.length} account${rows.length === 1 ? "" : "s"}`,
+      detail: bad.map((r) => `${r.name}: ${r.error}`).join(" · ")
     });
+    setNote(bad.map((r) => `${r.name}: ${r.error}`).join(" · "));
   };
-  // Each account's matching orders: this one's own, and the same kind on each other.
-  const targets = (o) => [
-    { accountId, name: "This account", orders: [o] },
-    ...others.map((g) => ({ accountId: g.accountId, name: g.name, orders: sameOrders(o, g.orders) }))
-  ];
-  const manage = async (o, action, limitPrice) => {
-    const rows = [];
-    await Promise.all(targets(o).map(async (t) => {
-      if (!t.orders.length) { if (many) rows.push({ name: t.name, did: "no such order there" }); return; }
-      for (const x of t.orders) {
-        const r = await invokeFunction("manageOrder", { accountId: t.accountId, orderId: x.id, action, limitPrice }).catch((e) => ({ data: { error: String(e?.message || e) } }));
-        rows.push({ name: t.name, error: r?.data?.error || null, did: action === "cancel" ? "cancelled" : `now ${px(limitPrice)}` });
-      }
-    }));
-    return rows;
+  const manage = (row, action, extra = {}) => invokeFunction("manageOrder", { accountId: row.accountId, orderId: row.order.id, action, ...extra })
+    .then((r) => ({ name: row.name, error: r?.data?.error || null }))
+    .catch((e) => ({ name: row.name, error: String(e?.message || e) }));
+
+  const cancel = async (b, row = null) => {
+    setBusy(row ? row.order.id : b.key);
+    setNote(null);
+    const rows = await Promise.all((row ? [row] : b.rows).map((x) => manage(x, "cancel")));
+    setBusy(null);
+    failed("Cancel", rows);
+    onChanged?.();
   };
 
-  const act = async (o, action) => {
-    setBusy(o.id);
-    setNote(null);
-    const e = edit[o.id] || {};
+  // The new quantity, where it can change: not on a stop that covers what is
+  // held, and not once part of it has filled (how the broker counts the filled
+  // part on a change is not yet checked on paper: cancel and send the rest).
+  const qtyOk = (b) => !protective(b.first) && b.rows.every((r) => r.order.qty != null && !(Number(r.order.filled) > 0));
+  const plan = (b) => {
+    const e = edit[b.key] || {};
+    const total = e.qty !== undefined && e.qty !== "" ? Number(e.qty) : null;
+    if (total === null || !qtyOk(b) || Math.abs(total - (b.qty || 0)) < 1e-12) return null;
+    return resplit(b.rows, total, { crypto: isCrypto(b.symbol) });
+  };
+
+  const change = async (b) => {
+    const e = edit[b.key] || {};
     const limit = e.limit !== undefined && e.limit !== "" ? Number(e.limit) : null;
     const stop = e.stop !== undefined && e.stop !== "" ? Number(e.stop) : null;
-    let rows = [];
-    let title = "";
-    if (action === "cancel") {
-      title = "Cancelled";
-      rows = await manage(o, "cancel");
-    } else if (protective(o)) {
+    setNote(null);
+    if (protective(b.first)) {
       // A stop or a stop and target pair: set again at the new prices on
       // every account holding the symbol, each for all it holds (functions/
       // terminal "protect"), the other half of a pair kept.
-      const newStop = stop !== null && stop !== stopOf(o) ? stop : null;
-      const newTarget = o.orderClass === "oco" && limit !== null && limit !== o.limit ? limit : null;
+      const newStop = stop !== null && stop !== b.stop ? stop : null;
+      const newTarget = b.orderClass === "oco" && limit !== null && limit !== b.limit ? limit : null;
       if (newStop || newTarget) {
-        title = "Exits changed";
+        setBusy(b.key);
         const kind = newStop && newTarget ? "both" : newStop ? "stop" : "target";
         const r = await invokeFunction("terminal", {
-          action: "protect", accountId, symbol: o.symbol, kind, mode: "price", value: newStop ?? newTarget,
-          stopPrice: newStop ?? stopOf(o), targetPrice: newTarget ?? o.limit, group
+          action: "protect", accountId, symbol: b.symbol, kind, mode: "price", value: newStop ?? newTarget,
+          stopPrice: newStop ?? b.stop, targetPrice: newTarget ?? b.limit, group
         }).catch((x) => ({ data: { error: String(x?.message || x) } }));
         const d = r?.data || {};
-        const did = `stop ${px(newStop ?? stopOf(o))}${(newTarget ?? o.limit) && o.orderClass === "oco" ? `, target ${px(newTarget ?? o.limit)}` : ""}`;
-        rows = [{ name: "This account", error: d.error || null, did: d.skipped ? "holds none" : did }];
-        for (const g of d.group || []) rows.push({ name: g.name, error: g.ok === false && !g.skip ? g.error || "refused" : null, did: g.skip ? g.skip : did });
+        const rows = [{ name, error: d.error || null }, ...(d.group || []).map((g) => ({ name: g.name, error: g.ok === false && !g.skip ? g.error || "refused" : null }))];
+        setBusy(null);
+        failed("Exits", rows);
       }
-    } else if (limit !== null && limit !== o.limit) {
-      title = "Price changed";
-      rows = await manage(o, "replace", limit);
+    } else {
+      const newLimit = limit !== null && limit !== b.limit ? limit : null;
+      const split = plan(b);
+      if (split?.error) { setNote(split.error); return; }
+      if (newLimit === null && !split) { setEdit((x) => ({ ...x, [b.key]: undefined })); return; }
+      setBusy(b.key);
+      const rows = await Promise.all(b.rows.map((row) => {
+        const q = split?.rows.find((x) => x.orderId === row.order.id)?.qty;
+        return manage(row, "replace", { ...(newLimit !== null ? { limitPrice: newLimit } : {}), ...(q ? { qty: q } : {}) });
+      }));
+      setBusy(null);
+      failed("Change", rows);
     }
-    setBusy(null);
-    setEdit((x) => ({ ...x, [o.id]: undefined }));
-    if (rows.length) {
-      if (many || rows.some((r) => r.error)) say(title, rows);
-      const mine = rows.find((r) => r.name === "This account" && r.error);
-      if (mine) setNote(mine.error);
-    }
+    setEdit((x) => ({ ...x, [b.key]: undefined }));
     onChanged?.();
   };
 
   const switcher = (
     <div className="flex gap-1 px-2 pt-1 text-[11px]">
-      {[["today", `Working (${orders.length}) and today (${today.length})`], ["done", `Finished, last 7 days (${recent.length})`]].map(([id, name]) => (
-        <button key={id} type="button" onClick={() => setShow(id)} className={`rounded px-1.5 py-0.5 ${show === id ? "bg-slate-200 font-medium text-slate-800" : "text-slate-500 hover:bg-slate-100"}`}>{name}</button>
+      {[["today", `Working (${working}) and today (${today.length})`], ["done", `Finished, last 7 days (${finishedAll.length})`]].map(([id, label]) => (
+        <button key={id} type="button" onClick={() => setShow(id)} className={`rounded px-1.5 py-0.5 ${show === id ? "bg-slate-200 font-medium text-slate-800" : "text-slate-500 hover:bg-slate-100"}`}>{label}</button>
       ))}
+      {many && <span className="ml-auto self-center text-[10px] text-slate-400">{accounts.length} accounts</span>}
     </div>
   );
 
-  // Finished orders: what filled, at what average price, when. Newest first.
+  // Finished orders: what filled, at what average price, when, and where. Newest first.
   const finished = (list, title) => (
     <>
       {title && <div className="px-2 pb-0.5 pt-2 text-[10px] font-medium uppercase tracking-wider text-slate-500">{title}</div>}
       <table className="w-full text-xs">
-        <thead className="sticky top-0 bg-white"><tr><th className={th}>Time (ET)</th><th className={th}>Symbol</th><th className={th}>Side</th><th className={th}>Filled</th><th className={th}>Avg price</th><th className={th}>Value</th><th className={th}>Status</th></tr></thead>
+        <thead className="sticky top-0 bg-white"><tr><th className={th}>Time (ET)</th>{many && <th className={th}>Account</th>}<th className={th}>Symbol</th><th className={th}>Side</th><th className={th}>Filled</th><th className={th}>Avg price</th><th className={th}>Value</th><th className={th}>Status</th></tr></thead>
         <tbody>
           {list.map((o) => {
             const st = orderState(o.status);
             return (
               <tr key={o.id} className="cursor-pointer whitespace-nowrap border-t border-slate-100 hover:bg-slate-50" onClick={() => onPick?.(o.symbol)}>
-                <td className={td}>{o.filledAt || o.updatedAt ? new Date(o.filledAt || o.updatedAt).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) : "—"}</td>
+                <td className={td}>{when(o) ? new Date(when(o)).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) : "—"}</td>
+                {many && <td className={`${td} max-w-[9rem] truncate text-slate-600`}>{o.account}{o.accountLive ? " (live)" : ""}</td>}
                 <td className={`${td} font-semibold`}>{o.symbol}</td>
                 <td className={`${td} ${o.side === "buy" ? "text-emerald-700" : "text-rose-700"}`}>{o.side}</td>
                 <td className={td}>{sizeText(o.filled)}{o.qty ? ` / ${sizeText(o.qty)}` : o.notional ? ` (${fmtMoney(o.notional)})` : ""}</td>
@@ -331,11 +351,14 @@ export function Orders({ accountId, orders, recent = [], onChanged, onPick, othe
     return (
       <div className="h-full overflow-auto">
         {switcher}
-        {finished(recent, null)}
-        {!recent.length && <p className="px-2 py-3 text-xs text-slate-500">No finished orders in the last 7 days.</p>}
+        {finished(finishedAll, null)}
+        {!finishedAll.length && <p className="px-2 py-3 text-xs text-slate-500">No finished orders in the last 7 days.</p>}
       </div>
     );
   }
+  const qtyText = (o) => (o.qty === null && o.notional ? fmtMoney(o.notional) : `${o.filled ? `${sizeText(o.filled)}/` : ""}${sizeText(o.qty)}`);
+  const priceText = (b) => `${b.limit ? px(b.limit) : ""}${b.stop ? ` stop ${px(b.stop)}` : ""}${!b.limit && !b.stop ? "market" : ""}`;
+  const input = "w-16 rounded border px-1 py-0.5 text-right tabular-nums focus:outline-none";
   return (
     <div className="h-full overflow-auto">
       {switcher}
@@ -343,50 +366,97 @@ export function Orders({ accountId, orders, recent = [], onChanged, onPick, othe
       <table className="w-full text-xs">
         <thead className="sticky top-0 bg-white"><tr><th className={th}>Symbol</th><th className={th}>Side</th><th className={th}>Qty</th><th className={th}>Type</th><th className={th}>Price</th><th className={th}>Status</th><th className={th} /></tr></thead>
         <tbody>
-          {orders.map((o) => (
-            <tr key={o.id} className="border-t border-slate-100">
-              <td className={`${td} font-semibold`}>{o.symbol}{o.orderClass === "bracket" ? <span className="ml-1 text-[10px] text-slate-400">bracket</span> : null}</td>
-              <td className={`${td} ${o.side === "buy" ? "text-emerald-700" : "text-rose-700"}`}>{o.side}</td>
-              <td className={td}>{o.qty === null && o.notional ? fmtMoney(o.notional) : <>{o.filled ? `${sizeText(o.filled)}/` : ""}{sizeText(o.qty)}</>}</td>
-              <td className={td}>{o.type.replace("_", " ")} · {o.tif}</td>
-              <td className={td}>
-                {edit[o.id] !== undefined ? (
-                  <span className="flex items-center gap-1">
-                    {(o.type === "limit" || o.limit != null) && (
-                      <input aria-label="Limit price" placeholder="limit" className="w-16 rounded border border-slate-300 px-1 py-0.5" inputMode="decimal" value={edit[o.id].limit ?? ""}
-                        onChange={(e) => setEdit((x) => ({ ...x, [o.id]: { ...x[o.id], limit: e.target.value.replace(/[^\d.]/g, "") } }))} />
+          {blocks.map((b) => {
+            const split = b.rows.length > 1 || many;
+            const statuses = [...new Set(b.rows.map((r) => r.order.status))];
+            const e = edit[b.key];
+            const p = e ? plan(b) : null;
+            return (
+              <FragmentRows key={b.key}>
+                <tr className="border-t border-slate-200">
+                  <td className={`${td} font-semibold`}>
+                    <button type="button" className="hover:underline" onClick={() => onPick?.(b.symbol)}>{b.symbol}</button>
+                    {b.orderClass === "bracket" ? <span className="ml-1 text-[10px] font-normal text-slate-400">bracket</span> : null}
+                  </td>
+                  <td className={`${td} ${b.side === "buy" ? "text-emerald-700" : "text-rose-700"}`}>{b.side}</td>
+                  <td className={td}>{b.qty === null && b.notional ? fmtMoney(b.notional) : `${b.filled ? `${sizeText(b.filled)}/` : ""}${sizeText(b.qty)}`}</td>
+                  <td className={td}>{String(b.type).replace("_", " ")} · {b.tif}</td>
+                  <td className={td}>{priceText(b)}</td>
+                  <td className={td}>{statuses.length === 1 ? statuses[0].replace("_", " ") : ""}</td>
+                  <td className={`${td} whitespace-nowrap text-right`}>
+                    {editable(b.first) && !e && (
+                      <button type="button" className="mr-2 text-slate-600 hover:underline"
+                        onClick={() => setEdit((x) => ({ ...x, [b.key]: { limit: b.limit != null ? String(b.limit) : "", stop: b.stop != null ? String(b.stop) : "", qty: b.qty != null ? String(b.qty) : "" } }))}>Change</button>
                     )}
-                    {protective(o) && (
-                      <input aria-label="Stop price" placeholder="stop" className="w-16 rounded border border-amber-300 px-1 py-0.5" inputMode="decimal" value={edit[o.id].stop ?? ""}
-                        onChange={(e) => setEdit((x) => ({ ...x, [o.id]: { ...x[o.id], stop: e.target.value.replace(/[^\d.]/g, "") } }))} />
-                    )}
-                  </span>
-                ) : (
-                  <>{o.limit ? px(o.limit) : ""}{stopOf(o) ? ` stop ${px(stopOf(o))}` : ""}{!o.limit && !stopOf(o) ? "market" : ""}</>
+                    <button type="button" disabled={busy === b.key} className="text-rose-700 hover:underline" onClick={() => cancel(b)}>
+                      {busy === b.key ? "…" : b.rows.length > 1 ? `Cancel on all ${b.rows.length}` : "Cancel"}
+                    </button>
+                  </td>
+                </tr>
+                {e && (
+                  <tr className="bg-slate-50">
+                    <td colSpan={7} className="px-2 py-1">
+                      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                        {(b.type === "limit" || b.limit != null) && (
+                          <label className="flex items-center gap-1">{protective(b.first) ? "Target" : "Price"}
+                            <input aria-label="Limit price" className={`${input} border-slate-300`} inputMode="decimal" value={e.limit ?? ""}
+                              onChange={(ev) => setEdit((x) => ({ ...x, [b.key]: { ...x[b.key], limit: ev.target.value.replace(/[^\d.]/g, "") } }))} />
+                          </label>
+                        )}
+                        {protective(b.first) && (
+                          <label className="flex items-center gap-1">Stop
+                            <input aria-label="Stop price" className={`${input} border-amber-300`} inputMode="decimal" value={e.stop ?? ""}
+                              onChange={(ev) => setEdit((x) => ({ ...x, [b.key]: { ...x[b.key], stop: ev.target.value.replace(/[^\d.]/g, "") } }))} />
+                          </label>
+                        )}
+                        {qtyOk(b) ? (
+                          <label className="flex items-center gap-1">{b.rows.length > 1 ? "Shares in all" : "Shares"}
+                            <input aria-label="Quantity" className={`${input} border-slate-300`} inputMode="decimal" value={e.qty ?? ""}
+                              onChange={(ev) => setEdit((x) => ({ ...x, [b.key]: { ...x[b.key], qty: ev.target.value.replace(/[^\d.]/g, "") } }))} />
+                          </label>
+                        ) : (
+                          <span className="text-slate-500">{protective(b.first) ? "A stop covers what is held: price only." : "Part filled: price only. To change the size, cancel and send the rest again."}</span>
+                        )}
+                        {p?.rows && b.rows.length > 1 && <span className="text-slate-600">→ {p.rows.map((x) => `${x.name} ${sizeText(x.qty)}`).join(" · ")}</span>}
+                        {p?.error && <span className="text-rose-700">{p.error}</span>}
+                        <span className="ml-auto flex gap-2">
+                          <button type="button" disabled={busy === b.key || !!p?.error} className="font-medium text-emerald-700 hover:underline disabled:opacity-50" onClick={() => change(b)}>
+                            {busy === b.key ? "Sending…" : b.rows.length > 1 ? `Send to all ${b.rows.length}` : "Send"}
+                          </button>
+                          <button type="button" className="text-slate-500 hover:underline" onClick={() => setEdit((x) => ({ ...x, [b.key]: undefined }))}>Back</button>
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
                 )}
-              </td>
-              <td className={td}>{o.status.replace("_", " ")}</td>
-              <td className={`${td} whitespace-nowrap text-right`}>
-                {editable(o) && (edit[o.id] !== undefined ? (
-                  <button type="button" disabled={busy === o.id} className="mr-2 text-emerald-700 hover:underline" onClick={() => act(o, "replace")}>
-                    {many ? `Send to all ${others.length + 1}` : "Send price"}
-                  </button>
-                ) : (
-                  <button type="button" className="mr-2 text-slate-600 hover:underline"
-                    onClick={() => setEdit((x) => ({ ...x, [o.id]: { limit: o.limit != null ? String(o.limit) : "", stop: stopOf(o) != null ? String(stopOf(o)) : "" } }))}>Change price</button>
+                {split && b.rows.map((r) => (
+                  <tr key={r.order.id} className="text-slate-600">
+                    <td className={`${td} max-w-[10rem] truncate pl-5`} colSpan={2}>{r.name}{r.live ? " (live)" : ""}{r.accountId === accountId && many ? <span className="text-slate-400"> on screen</span> : null}</td>
+                    <td className={td}>{qtyText(r.order)}</td>
+                    <td className={td} />
+                    <td className={td}>{r.order.limit !== b.limit || stopOf(r.order) !== b.stop ? priceText({ limit: r.order.limit, stop: stopOf(r.order) }) : ""}</td>
+                    <td className={td}>{String(r.order.status).replace("_", " ")}</td>
+                    <td className={`${td} text-right`}>
+                      {b.rows.length > 1 && (
+                        <button type="button" disabled={busy === r.order.id} className="text-rose-700/80 hover:underline" onClick={() => cancel(b, r)}>{busy === r.order.id ? "…" : "Cancel"}</button>
+                      )}
+                    </td>
+                  </tr>
                 ))}
-                <button type="button" disabled={busy === o.id} className="text-rose-700 hover:underline" onClick={() => act(o, "cancel")}>
-                  {busy === o.id ? "…" : many ? `Cancel on all ${others.length + 1}` : "Cancel"}
-                </button>
-              </td>
-            </tr>
-          ))}
+              </FragmentRows>
+            );
+          })}
         </tbody>
       </table>
-      {!orders.length && <p className="px-2 py-3 text-xs text-slate-500">No working orders.</p>}
+      {!working && <p className="px-2 py-3 text-xs text-slate-500">No working orders{many ? " on the ticked accounts" : ""}.</p>}
       {today.length > 0 && finished(today, "Today")}
     </div>
   );
+}
+
+// Several table rows under one key.
+function FragmentRows({ children }) {
+  return <>{children}</>;
 }
 
 // The account summary: the broker's own figures, grouped the way a desk reads

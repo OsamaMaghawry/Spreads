@@ -18,7 +18,7 @@ import { dailyStats, isFundName } from "../_shared/screenStats.ts";
 import { historyRow, premarket, afterHours, nyMoment } from "../_shared/screenHistory.ts";
 import { usSession, usOvernight, stopPlan, stopLimitPrice, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit, replaceable } from "../_shared/positionTools.ts";
 import { inBackground } from "../_shared/background.ts";
-import { allocate } from "../_shared/proRata.ts";
+import { allocate, splitTotal } from "../_shared/proRata.ts";
 import { orderStream } from "../_shared/orderStream.ts";
 import { isOwnerEmail, isAdminUser } from "../_shared/admin.ts";
 import { handBackFired, chaseFired } from "../_shared/stopGuardRun.ts";
@@ -2244,6 +2244,29 @@ async function allocation(admin: any, user: any, lead: any, ids: unknown, input:
   const ready = (books.filter((b: any) => b && !b.error) as any[]).map((b) => ({ ...b, rule: groupRule(ids, b.id) }));
   // The order's own price, for a size set in dollars or percent.
   const price = given(input?.limitPrice) ?? given(input?.stopPrice) ?? given(input?.reference);
+  // The ticket's total shared by portfolio value over every account it goes
+  // to, the one on screen too when ticked (18 Nov, _shared/proRata.ts
+  // splitTotal): each part is shown in the review and sent as it stands.
+  if (input?.split === "total") {
+    const onScreen = input?.leadOff !== true;
+    const parts = splitTotal({ side, qty: given(input?.qty), notional: given(input?.notional) }, [...(onScreen ? [leadBook] : []), ...ready],
+      { crypto, symbol, parts: typeof input?.parts === "boolean" ? input.parts : undefined });
+    const partOf = (id: string) => parts.find((x) => x.id === id);
+    const row = (b: any, sh: any) => ({ qty: sh.all ? (b.qtyText ? Number(b.qtyText) : sh.qty) : sh.qty, qtyText: sh.all ? b.qtyText ?? null : null, notional: sh.notional, all: sh.all, basis: sh.basis, skip: sh.skip, equity: b.equity, held: b.held });
+    const mine = onScreen ? partOf(lead.id) : null;
+    return {
+      symbol, side, split: "total",
+      lead: { accountId: lead.id, name: lead.name, equity: leadBook.equity, buyingPower: leadBook.buyingPower, held: leadBook.held, ...(mine ? { part: row(leadBook, mine) } : {}) },
+      group: group.map((g, i) => {
+        const b: any = books[i];
+        if (!g.account) return groupRow(g.id, null, { skip: "not an account the terminal can trade" });
+        if (!canTrade(user, g.account)) return groupRow(g.id, g.account, { skip: "a live account the terminal does not trade" });
+        if (b?.error) return groupRow(g.id, g.account, { skip: `could not be read: ${b.error}` });
+        return groupRow(g.id, g.account, row(b, partOf(g.id)!));
+      }),
+      accounts: group
+    };
+  }
   // The account on screen not ticked (input.leadOff, 3 Nov): whether the
   // order closes a holding is read from the accounts it goes to.
   const shares = allocate({ side, qty: given(input?.qty), notional: given(input?.notional) }, leadBook, ready,
@@ -2905,11 +2928,18 @@ Deno.serve(async (req) => {
       const rows = await forGroup(admin, user, account, body.group, async (acct) => {
         if (!canTrade(user, acct)) return { status: 403, body: { error: NOT_LIVE } };
         const base = tradingBase(acct);
-        const [positions, orders] = await Promise.all([
+        // `recent`: the last week's finished orders too, asked for less often
+        // (18 Nov: every ticked account's orders in the Orders tab).
+        const week = new Date(Date.now() - 7 * 86400000).toISOString();
+        const [positions, orders, closed] = await Promise.all([
           alpacaFetch(`${base}/positions`, acct),
-          alpacaFetch(`${base}/orders?status=open&nested=true&limit=200`, acct)
+          alpacaFetch(`${base}/orders?status=open&nested=true&limit=200`, acct),
+          body.recent === true ? alpacaFetch(`${base}/orders?status=closed&after=${week}&limit=100&direction=desc`, acct).catch(() => null) : Promise.resolve(null)
         ]);
-        return { status: 200, body: { positions: positionsView(positions), orders: workingView(orders) } };
+        return {
+          status: 200,
+          body: { positions: positionsView(positions), orders: workingView(orders), ...(Array.isArray(closed) ? { recent: closed.map(orderView) } : {}) }
+        };
       });
       return jsonResponse({ group: rows || [] });
     }

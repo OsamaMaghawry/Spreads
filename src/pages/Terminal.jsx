@@ -464,21 +464,34 @@ export default function Terminal() {
   // filled, and nothing on screen showed it until they had stacked up).
   const [others, setOthers] = useState([]);
   const groupWire = JSON.stringify(replaying ? [] : groupSend);
-  const loadOthers = useCallback(() => {
+  // Their finished orders too, for the Orders tab (18 Nov: every ticked
+  // account's orders there), every tenth read (30 seconds) and after any
+  // order; kept between those reads.
+  const othersReads = useRef(0);
+  const loadOthers = useCallback((withRecent = false) => {
     const group = JSON.parse(groupWire);
     if (!accountId || !group.length) { setOthers([]); return; }
     if (document.visibilityState === "hidden") return;
-    invokeFunction("terminal", { action: "groupView", accountId, group })
-      .then((r) => { if (!r?.data?.error) setOthers(r?.data?.group || []); })
+    const recent = withRecent === true || othersReads.current % 10 === 0;
+    othersReads.current += 1;
+    invokeFunction("terminal", { action: "groupView", accountId, group, recent })
+      .then((r) => {
+        if (r?.data?.error) return;
+        const rows = r?.data?.group || [];
+        setOthers((was) => rows.map((g) => (g.recent ? g : { ...g, recent: was.find((x) => x.accountId === g.accountId)?.recent || [] })));
+      })
       .catch(() => {});
   }, [accountId, groupWire]);
+  useEffect(() => { othersReads.current = 0; }, [accountId, groupWire]);
   useEffect(() => {
     loadOthers();
-    const t = setInterval(loadOthers, 3000);
+    const t = setInterval(() => loadOthers(), 3000);
     return () => clearInterval(t);
   }, [loadOthers]);
   // After an order here or there, everything at once: this account and the others.
-  const refreshAll = useCallback(() => { loadView(); loadOthers(); }, [loadView, loadOthers]);
+  const refreshAll = useCallback(() => { loadView(); loadOthers(true); }, [loadView, loadOthers]);
+  // Working orders on every ticked account, for the Orders tab's name.
+  const workingCount = (view?.orders?.length || 0) + others.reduce((sum, g) => sum + (g.orders?.length || 0), 0);
   const signedQty = (p) => (p ? (p.side === "short" ? -Math.abs(Number(p.qty) || 0) : Math.abs(Number(p.qty) || 0)) : 0);
   // Each sending account's holding of the chart's symbol and its orders on
   // it, for the account strip: the one on screen once its view is read, and
@@ -870,7 +883,7 @@ export default function Terminal() {
             {[
               ...(session || lastReplay ? [["practice", "Practice"]] : []),
               ...(session || lastReplay || savedReplays?.length ? [["results", "Replay results"]] : []),
-              ["positions", `Positions${view?.positions?.length ? ` (${view.positions.length})` : ""}`], ["orders", `Orders${view?.orders?.length ? ` (${view.orders.length})` : ""}`],
+              ["positions", `Positions${view?.positions?.length ? ` (${view.positions.length})` : ""}`], ["orders", `Orders${workingCount ? ` (${workingCount})` : ""}`],
               ["demo", account?.type === "Paper" ? "Demo P/L" : "Trades P/L"], ["account", "Account"],
               ["news", `News${news.recent ? ` (${news.recent})` : ""}`]
             ].map(([id, name]) => (
@@ -890,7 +903,7 @@ export default function Terminal() {
             )}
             {tab === "news" && <NewsPanel news={news} symbol={symbol} crypto={crypto} cursor={session?.cursor ?? null} clock={session ? replayClock(session.cursor, crypto) : ""} onPick={setSymbol} />}
             {tab === "positions" && <Positions positions={view?.positions || []} others={others} onPick={setSymbol} onClose={closePosition} onStop={stopPosition} />}
-            {tab === "orders" && <Orders accountId={accountId} orders={view?.orders || []} recent={view?.recent || []} onChanged={refreshAll} onPick={setSymbol}
+            {tab === "orders" && <Orders accountId={accountId} name={account?.name || "This account"} live={account?.type === "Live"} orders={view?.orders || []} recent={view?.recent || []} onChanged={refreshAll} onPick={setSymbol}
               others={others} group={replaying ? [] : groupSend} onNotify={notify} />}
             {tab === "demo" && <DemoResults accountId={accountId} refreshKey={`${view?.recent?.[0]?.id || ""}|${view?.recent?.[0]?.status || ""}|${view?.positions?.length || 0}`} />}
             {tab === "account" && <AccountSummary summary={view?.summary} paper={view?.paper} name={account?.name} />}

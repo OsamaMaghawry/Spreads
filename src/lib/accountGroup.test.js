@@ -133,3 +133,52 @@ test("exitsOf: a holding's stop and target at Alpaca, and whether it has no stop
   assert.equal(exitsOf(50, [{ side: "sell", type: "limit", tif: "gtc", limit: 12, legs: [] }]).bare, true);
   assert.deepEqual(exitsOf(0, [{ side: "buy", type: "limit", tif: "day", limit: 5, legs: [] }]), { held: 0, stop: null, target: null, other: 1, bare: false });
 });
+
+// ---------------------------------------------------------------------------
+// 18 Nov: every ticked account's orders in one place, no "Also on" pop-up,
+// and a new quantity shared like the old one.
+// ---------------------------------------------------------------------------
+import { refusalNews, orderBlocks, resplit, stopOf } from "./accountGroup.js";
+
+test("refusal news: only what was not done, never a success", () => {
+  assert.equal(refusalNews([{ name: "Paper 2", ok: true, qty: 19, orderId: "x" }]), null);
+  assert.equal(refusalNews([]), null);
+  // Holding none of it is nothing to do, not a failure.
+  assert.equal(refusalNews([{ name: "Paper 2", ok: true, skip: "holds none" }, { name: "B", skip: "holds no AAPL to sell" }]), null);
+  const one = refusalNews([{ name: "Alpaca Live", live: true, ok: false, error: "insufficient buying power" }, { name: "Paper 2", ok: true }]);
+  assert.equal(one.tone, "bad");
+  assert.equal(one.title, "Not done on Alpaca Live (live)");
+  assert.equal(one.detail, "Alpaca Live (live): refused, insufficient buying power");
+  const two = refusalNews([{ name: "A", ok: false, error: "x" }, { name: "B", skip: "its part comes to less than one share" }, { name: "C", ok: true }]);
+  assert.equal(two.title, "Not done on 2 of 3 accounts");
+  assert.match(two.detail, /B: not sent, its part comes to less than one share/);
+});
+
+test("order blocks: the same order on each account together, newest first", () => {
+  const buy = (id, qty, at, extra = {}) => ({ id, symbol: "AAPL", side: "buy", type: "limit", tif: "day", orderClass: "simple", qty, filled: 0, limit: 230, submittedAt: at, ...extra });
+  const blocks = orderBlocks([
+    { accountId: "L", name: "Alpaca Live", live: true, orders: [buy("1", 31, "2026-11-18T15:00:01Z"), { ...buy("2", 12, "2026-11-18T14:00:00Z"), symbol: "TSLA", side: "sell", type: "stop", limit: null, stop: 380 }] },
+    { accountId: "P", name: "Paper 2", orders: [buy("3", 19, "2026-11-18T15:00:02Z", { filled: 4 }), buy("4", 5, "2026-11-18T13:00:00Z", { limit: 229 })] }
+  ]);
+  assert.deepEqual(blocks.map((b) => [b.symbol, b.limit, b.rows.map((r) => r.order.id)]), [
+    ["AAPL", 230, ["1", "3"]], ["TSLA", null, ["2"]], ["AAPL", 229, ["4"]]
+  ]);
+  assert.deepEqual([blocks[0].qty, blocks[0].filled], [50, 4]);
+  assert.equal(blocks[0].rows[0].live, true);
+  assert.equal(blocks[1].stop, 380);
+  assert.equal(stopOf({ legs: [{ stop: 9 }] }), 9);
+  assert.deepEqual(orderBlocks(null), []);
+});
+
+test("resplit: a new total in the same proportions, never under what filled", () => {
+  const rows = [{ accountId: "L", name: "Alpaca Live", order: { id: "1", qty: 31, filled: 0 } }, { accountId: "P", name: "Paper 2", order: { id: "3", qty: 19, filled: 4 } }];
+  const r = resplit(rows, 80);
+  assert.deepEqual(r.rows.map((x) => [x.orderId, x.qty]), [["1", 50], ["3", 30]]); // 49.6 and 30.4: the share left over to the larger remainder
+  assert.equal(r.rows.reduce((s, x) => s + x.qty, 0), 80);
+  const low = resplit(rows, 5);
+  assert.match(low.error, /Paper 2 has already filled 4/);
+  assert.match(resplit(rows, 0).error, /how many/);
+  // Part shares stay part shares.
+  const part = resplit([{ accountId: "L", name: "L", order: { id: "1", qty: 1.5, filled: 0 } }, { accountId: "P", name: "P", order: { id: "2", qty: 0.5, filled: 0 } }], 3);
+  assert.deepEqual(part.rows.map((x) => x.qty), [2.25, 0.75]);
+});

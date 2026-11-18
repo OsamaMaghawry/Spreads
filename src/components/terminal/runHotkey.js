@@ -1,7 +1,7 @@
 import { invokeFunction } from "@/lib/functions";
 import { hotkeyOrder, describe, withOwnSize, hotkeyPercent, overnightQuote } from "@/lib/hotkeys";
 import { orderNews, orderState, followDelay, sessionOf, overnightOf, isCrypto, px, sizeText, exitText } from "@/lib/terminal";
-import { groupNews, resolveSize } from "@/lib/accountGroup";
+import { refusalNews, resolveSize } from "@/lib/accountGroup";
 import { onOrder } from "./orderFeed";
 
 // What a pressed hotkey does: works out the order (lib/hotkeys.js) or asks the
@@ -84,23 +84,28 @@ export function trackOrder({ accountId, id, key, base, notify, onChange, onUpdat
 }
 
 /**
- * The other accounts' orders followed to the end, in the one group pop-up:
- * filled, part filled, still waiting, or ended unfilled (28 Oct: their sells
- * sat unfilled or refused while the screen showed only this account's fills,
- * and the positions stacked up). Each change also refreshes the screen.
+ * The other accounts' answers after an order: a pop-up only for what was not
+ * done there (18 Nov, the owner, on "Also on 1 account: 0 filled, 1 waiting":
+ * "it adds nothing. I just need to see the orders posted"; they are in the
+ * Orders tab, every ticked account's). Each order sent is still followed
+ * quietly, so the screen refreshes as it fills, and one the broker rejects
+ * after taking it still pops up: a refusal nobody saw is how positions
+ * stacked up on 28 Oct.
  */
-export function followGroup(rows, { key, verb, unit, notify, refresh }) {
-  const list = (Array.isArray(rows) ? rows : []).map((r) => ({ ...r, track: !!r.orderId && r.ok !== false }));
-  const show = () => { const g = groupNews(list, verb, unit); if (g) notify({ key, ...g }); };
+export function reportGroup(rows, { key, notify, refresh }) {
+  const list = Array.isArray(rows) ? rows : [];
+  const bad = refusalNews(list);
+  if (bad) notify({ key, ...bad });
   list.forEach((r, i) => {
-    if (!r.track) return;
+    if (!r.orderId || r.ok === false) return;
     trackOrder({
       accountId: r.accountId, id: r.orderId, key: `${key}${i}`, base: { status: r.status || "new" }, notify: () => {},
-      onUpdate: (o) => { list[i] = { ...list[i], status: o.status, filled: o.filled, avgPrice: o.avgPrice }; show(); },
+      onUpdate: (o) => {
+        if (o.status === "rejected") notify({ key: `${key}${i}`, tone: "bad", title: `Rejected on ${r.name}${r.live ? " (live)" : ""}`, detail: "The broker took the order, then rejected it. See the Orders tab." });
+      },
       onChange: refresh
     });
   });
-  show();
 }
 
 // After an exit: a partial exit took the stop and target off to free the
@@ -166,8 +171,8 @@ export async function runHotkey(h, ctx) {
   const group = Array.isArray(ctx.group) ? ctx.group : [];
   const leadOff = !!ctx.leadOff && group.length > 0;
   const unit = crypto ? symbol.split("/")[0] : "shares";
-  // With the account on screen not ticked, the group's pop-up is the only one.
-  const tellGroup = (rows, verb) => { const g = groupNews(rows, verb, unit); if (g) notify({ key: leadOff ? key : `${key}g`, ...g }); };
+  // The other accounts: a pop-up only for what was not done there (18 Nov).
+  const tellGroup = (rows) => { const g = refusalNews(rows); if (g) notify({ key: leadOff ? key : `${key}g`, ...g }); };
   const label = `${h.keys} · ${describe(h)}`;
   if (!account?.id) return;
   if (ctx.none) {
@@ -230,7 +235,7 @@ export async function runHotkey(h, ctx) {
       ...(!leadOff && group.length && ctx.view ? { leadBook: { equity: ctx.view.equity ?? null, buyingPower: ctx.view.buyingPower ?? null, held: heldNow } } : {})
     };
     const r = await invokeFunction("terminal", { action: "order", accountId: account.id, order, group: sends }).catch((e) => ({ data: { error: String(e?.message || e) } }));
-    followGroup(r?.data?.group, { key: leadOff ? key : `${key}g`, verb: "sent", unit, notify, refresh });
+    reportGroup(r?.data?.group, { key: leadOff ? key : `${key}g`, notify, refresh });
     if (leadOff) { if (r?.data?.error) notify({ key, ...orderNews({ error: r.data.error }) }); refresh?.(); return; }
     if (r?.data?.skipped) { notify({ key, tone: "muted", title: `Not on ${account.name || "this account"}`, detail: `${r.data.skipped} The other accounts took their own sizes.` }); refresh?.(); return; }
     if (r?.data?.error) { notify({ key, ...orderNews({ error: r.data.error }) }); return; }
@@ -247,7 +252,7 @@ export async function runHotkey(h, ctx) {
     // The screen's own bid and ask go with it: outside regular hours the
     // server prices the limit from the best quote it can trust.
     const r = await invokeFunction("terminal", { action: "exit", accountId: account.id, symbol, percent: h.percent, bid: ctx.quote?.bid ?? null, ask: ctx.quote?.ask ?? null, group, leadOff }).catch((e) => ({ data: { error: String(e?.message || e) } }));
-    tellGroup(r?.data?.group, "exit sent");
+    tellGroup(r?.data?.group);
     // The group's exits are followed as the lead's is, quietly but for what
     // matters: their stop and target back on what each still holds. Armed
     // first, so they are followed even when the lead's own exit was refused.
@@ -279,7 +284,7 @@ export async function runHotkey(h, ctx) {
     const stop = h.action === "stop";
     notify({ key, tone: "wait", title: `Placing a ${stop ? "stop" : "take-profit"} on ${symbol}…`, detail: label });
     const r = await invokeFunction("terminal", { action: "protect", accountId: account.id, symbol, kind: h.action, mode: h.stopMode, value: h.stopValue, from: h.from, group, leadOff }).catch((e) => ({ data: { error: String(e?.message || e) } }));
-    tellGroup(r?.data?.group, stop ? "stop placed" : "take-profit placed");
+    tellGroup(r?.data?.group);
     if (r?.data?.error) { notify({ key, tone: "bad", title: `${stop ? "Stop" : "Take-profit"} not placed`, detail: r.data.error }); return; }
     if (r?.data?.leadOff) { refresh?.(); return; }
     if (r?.data?.skipped) { notify({ key, tone: "muted", title: `Not on ${account.name || "this account"}`, detail: r.data.skipped }); refresh?.(); return; }
@@ -298,7 +303,7 @@ export async function runHotkey(h, ctx) {
 
   if (h.action === "cancelSymbol" || h.action === "cancelAll") {
     const r = await invokeFunction("terminal", { action: "cancelOrders", accountId: account.id, symbol: h.action === "cancelSymbol" ? symbol : "", group, leadOff }).catch((e) => ({ data: { error: String(e?.message || e) } }));
-    tellGroup(r?.data?.group, "cancelled");
+    tellGroup(r?.data?.group);
     if (r?.data?.error) { notify({ key, tone: "bad", title: "Not cancelled", detail: r.data.error }); return; }
     if (r?.data?.leadOff) { refresh?.(); return; }
     const n = r.data.cancelled || 0;
