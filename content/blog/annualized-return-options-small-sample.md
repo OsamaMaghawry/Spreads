@@ -1,9 +1,9 @@
 ---
 title: "Annualized return on options: why a small sample cannot carry it"
-search_title: "Annualized Return on Options Trades: Small Samples"
+search_title: "Annualized Return on Options: Why a Few Short Trades Mislead"
 slug: annualized-return-options-small-sample
 excerpt: An annualized return scales a trade's return to a 365-day year, and on a short hold or a handful of trades that scaling turns a modest result into a very large figure that the next trade can reverse.
-meta_description: "How annualized return on an options trade is calculated, and why a few short trades cannot support it. One hypothetical spread: 12.5% in 9 days."
+meta_description: "How to annualize an options return, simple or compounded, and why a few short trades cannot carry it: in one hypothetical record, the fifth flips the sign."
 author: Osama Safwat Maghawry
 category: measuring
 series_order: 64
@@ -24,7 +24,7 @@ Key Takeaways:
 - **One trade can reverse the sign.** On five trades, the fifth can flip it.
 - **An annualized figure is a rate, not a forecast.** It compares trades; it does not say what a year produces.
 
-## Annualizing scales a period return by 365 over the days held
+## Annualizing an options return multiplies it by 365 over the days held
 
 The calculation needs three numbers from a closed trade: what it made or lost, the capital it was measured against, and how many days it was open.
 
@@ -36,7 +36,7 @@ The capital is a choice, and it changes the answer. On a credit spread, return o
 
 ![The simple annualizing multiplier is 365 divided by the days held, so a 5-day hold is multiplied by 73, a 9-day hold by about 40.6, a 30-day hold by about 12.2, a 90-day hold by about 4.1 and a full year by 1.](/assets/blog/annualized-multiplier-by-days.svg)
 
-The table shows what the same 1% period return becomes at each length of hold:
+The table shows what a hypothetical 1% period return becomes at each length of hold:
 
 | Days held | Simple multiplier | 1% becomes, simple | 1% becomes, compounded |
 | --- | --- | --- | --- |
@@ -46,7 +46,7 @@ The table shows what the same 1% period return becomes at each length of hold:
 | 90 | about 4.1 | about 4.1% | about 4.1% |
 | 365 | 1 | 1% | 1% |
 
-At 90 days the two methods barely differ. At 5 days the compounded figure is half as large again as the simple one, because it raises the period return to the 73rd power rather than multiplying it by 73.
+At 90 days the two methods barely differ. At 5 days the compounded figure is about half as large again as the simple one, because it raises 1.01 to the 73rd power rather than multiplying 1% by 73.
 
 ## One nine-day spread annualizes into a figure no year resembles
 
@@ -58,7 +58,7 @@ Simple annualizing multiplies that 12.5% by 365 / 9, about 40.6, and prints abou
 
 Nothing about the trade changed between the first line and the third. The $50 is the same $50. The difference is an assumption: that the same 12.5% could be earned roughly 40 more times in a row, and in the compounded case on an account that grows by an eighth each time.
 
-The same spread on a falling path shows the method running the other way. Bought back at 2.00 on day 15, it lost $100, a period return of -25% on the $400 at risk. Simple annualizing turns that into about -608%, a figure below -100%: more than the whole $400 it is measured against. Compounding cannot go below -100%, and reads about -99.9%: as near to a total loss as the formula allows.
+The same spread on a falling path shows the method running the other way. Bought back at 2.00 on day 15, it lost $100, a period return of -25% on the $400 at risk. Simple annualizing turns that into about -608%, a figure below -100%: more than the whole $400 it is measured against. Compounding cannot go below -100%, and reads about -99.9%.
 
 Two versions of one hypothetical trade, then, annualize to about +507% and about -608%. Neither describes anything a year of trading was seen to do. Both describe nine or fifteen days, multiplied.
 
@@ -99,6 +99,6 @@ None of this makes annualizing wrong. Set side by side, a 9-day trade and a 45-d
 
 In the worked example, one hypothetical nine-day spread that kept $50 of its credit annualized to about +507% simple and about 11,800% compounded. A five-trade record moved from about +507% to about -406% on its fifth trade. The arithmetic was right each time. The sample was too small to carry it.
 
-DeltaMint's Analysis page leaves its two annualized cards, simple and compounded, blank until the record holds at least 30 closed trades spread over at least 90 days, and says so under the dash. It also leaves them blank while the total includes an unrealized mark on open positions.
+DeltaMint's Analysis page leaves its two annualized cards, simple and compounded return on capital, blank until the record holds at least 30 closed trades over at least 90 days, a display floor and not a mark of reliability, and says so under the dash. It also leaves them blank while the total includes an unrealized mark on open positions.
 
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.
