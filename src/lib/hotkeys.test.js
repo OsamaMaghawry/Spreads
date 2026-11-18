@@ -89,19 +89,21 @@ test("coins: fractions on the coin's step, good till cancelled, any hour", () =>
 test("a small account: its own size on screen, sales capped at the holding, too small still says how it would go", () => {
   const ctx = { symbol: "NUWE", crypto: false, quote: { bid: 4.84, ask: 4.85, last: 4.85 }, equity: 600, buyingPower: 600, session: "regular", held: 10 };
   const key = { action: "sell", size: "equity", amount: 0.5, price: "ask", offset: 0 };
-  // 0.5% of $600 is under one share: with none held, too small; holding 10, it sells one (28 Oct).
-  const small = hotkeyOrder(key, { ...ctx, held: 0 });
+  // 0.2% of $600 is a quarter share: with none held, too small; holding 10, it sells one (28 Oct).
+  const small = hotkeyOrder({ ...key, amount: 0.2 }, { ...ctx, held: 0 });
   assert.equal(small.tooSmall, true);
   assert.match(small.reason, /less than one share/);
   assert.deepEqual([small.order.side, small.order.qty, small.order.limitPrice, small.price], ["sell", null, 4.85, 4.85]);
-  assert.deepEqual([hotkeyOrder(key, ctx).order.qty, hotkeyOrder(key, ctx).tooSmall], [1, undefined]);
+  assert.deepEqual([hotkeyOrder({ ...key, amount: 0.2 }, ctx).order.qty, hotkeyOrder({ ...key, amount: 0.2 }, ctx).tooSmall], [1, undefined]);
+  // 0.5% is 0.62 of a share: to the nearest share since 18 Nov, one share.
+  assert.deepEqual([hotkeyOrder(key, { ...ctx, held: 0 }).order.qty, hotkeyOrder(key, ctx).order.qty], [1, 1]);
   // Its own size, 10% of its portfolio: $60 is 12 shares, and it holds 10.
   const own = hotkeyOrder(withOwnSize(key, { mode: "percent", value: "10" }), ctx);
   assert.deepEqual([own.order.qty, own.tooSmall], [10, undefined]);
   assert.match(own.words, /Sell 10 NUWE \(all held\)/);
   // Buying is not capped; a multiple multiplies the key's own size.
   const buy = hotkeyOrder(withOwnSize({ ...key, action: "buy" }, { mode: "times", value: 40 }), ctx);
-  assert.equal(buy.order.qty, 24); // 20% of $600 at $4.85
+  assert.equal(buy.order.qty, 25); // 20% of $600 at $4.85 is 24.74: the nearest share (18 Nov)
   assert.deepEqual(withOwnSize(key, { mode: "prorata" }), key);
   assert.deepEqual(withOwnSize(key, { mode: "shares", value: "" }), key);
   // The key's size as a percent, for the others to take of their own.
@@ -119,8 +121,34 @@ test("a sell key on shares held sells at least one, never more than held", () =>
   assert.equal(held.order.qty, 1);
   assert.equal(held.tooSmall, undefined);
   assert.equal(held.words, "Sell 1 ELPW limit 3.57 (extended hours)");
-  assert.equal(hotkeyOrder(key, { ...ctx, held: 0 }).tooSmall, true);
-  assert.equal(hotkeyOrder({ ...key, action: "buy" }, { ...ctx, held: 1 }).tooSmall, true);
+  // $3.53 is 0.99 of a share: to the nearest share since 18 Nov, one either way.
+  assert.equal(hotkeyOrder(key, { ...ctx, held: 0 }).order.qty, 1);
+  assert.equal(hotkeyOrder({ ...key, action: "buy" }, { ...ctx, held: 1 }).order.qty, 1);
+  // 0.1% ($1.41, 0.4 of a share) is still too small, unless shares are held to sell.
+  const tiny = { ...key, amount: 0.1 };
+  assert.equal(hotkeyOrder(tiny, { ...ctx, held: 0 }).tooSmall, true);
+  assert.equal(hotkeyOrder({ ...tiny, action: "buy" }, { ...ctx, held: 1 }).tooSmall, true);
+  assert.equal(hotkeyOrder(tiny, { ...ctx, held: 1 }).order.qty, 1);
+});
+
+// 18 Nov, TQQQ at 52.14 with 2.5% keys: 60.79 and 2.88 shares went as 60 and
+// 2, rounded down (the owner: "Are you sure the Prorata is accurate?").
+test("a percent key: to the nearest whole share, never past buying power", () => {
+  const key = { action: "buy", size: "equity", amount: 2.5, price: "ask", offset: 0 };
+  const quote = { bid: 52.13, ask: 52.14, last: 52.14 };
+  const alton = hotkeyOrder(key, { symbol: "TQQQ", crypto: false, quote, equity: 126780.6, buyingPower: 470431.5, session: "regular", held: 0 });
+  const small = hotkeyOrder(key, { symbol: "TQQQ", crypto: false, quote, equity: 5998.9, buyingPower: 23682.01, session: "regular", held: 0 });
+  assert.deepEqual([alton.order.qty, small.order.qty], [61, 3]);
+  // Rounding up past buying power: rounded down instead.
+  assert.equal(hotkeyOrder(key, { symbol: "TQQQ", crypto: false, quote, equity: 5998.9, buyingPower: 150, session: "regular", held: 0 }).order.qty, 2);
+  // Dollars stay a ceiling: $150 at 52.14 is 2.88, two shares.
+  assert.equal(hotkeyOrder({ ...key, size: "usd", amount: 150 }, { symbol: "TQQQ", crypto: false, quote, equity: 5998.9, session: "regular", held: 0 }).order.qty, 2);
+  // A sale never more than held: 2.88 rounds to 3, two held, two sold.
+  const sell = hotkeyOrder({ ...key, action: "sell", price: "bid" }, { symbol: "TQQQ", crypto: false, quote, equity: 5998.9, session: "regular", held: 2 });
+  assert.deepEqual([sell.order.qty, /all held/.test(sell.words)], [2, true]);
+  // Coins still go to their step, rounded down.
+  const coin = hotkeyOrder(key, { symbol: "BTC/USD", crypto: true, quote: { bid: 90000, ask: 90010, last: 90005 }, equity: 5998.9, session: "regular", held: 0, step: 0.000001 });
+  assert.equal(coin.order.qty, 0.001666);
 });
 
 // 3 Nov, the owner: "It refuses to buy QQQ below 1 share!"

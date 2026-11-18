@@ -12,7 +12,7 @@
 // is worked out here, in full, and shown in the hotkey list before it is ever
 // pressed. Pure and tested (hotkeys.test.js); the page listens for the keys.
 
-import { amountToQty, px } from "./terminal.js";
+import { amountToQty, nearestShares, px } from "./terminal.js";
 
 export const ACTIONS = {
   buy: { label: "Buy", sized: true, priced: true },
@@ -168,7 +168,13 @@ export function hotkeyOrder(h, ctx) {
   }
   const amount = h.size === "usd" ? h.amount : h.size === "equity" ? (n(ctx.equity) || 0) * h.amount / 100 : h.size === "bp" ? (n(ctx.buyingPower) || 0) * h.amount / 100 : null;
   if (amount !== null && !(amount > 0)) return { reason: `No ${h.size === "equity" ? "portfolio value" : "buying power"} to size from.` };
-  let qty = h.size === "shares" ? (ctx.crypto ? h.amount : Math.floor(h.amount)) : amountToQty(amount, price, { crypto: ctx.crypto, step: ctx.step });
+  // A percent of the portfolio (or buying power) in shares: to the nearest
+  // share, not down (18 Nov), never past buying power on a buy. Dollars stay
+  // a ceiling (rounded down); coins go to their step.
+  const percent = (h.size === "equity" || h.size === "bp") && !ctx.crypto;
+  let qty = h.size === "shares" ? (ctx.crypto ? h.amount : Math.floor(h.amount))
+    : percent ? nearestShares(amount, price, buy ? n(ctx.buyingPower) : null)
+      : amountToQty(amount, price, { crypto: ctx.crypto, step: ctx.step });
   const held = n(ctx.held) || 0;
   // A buy under one whole share of a stock Alpaca trades in part shares: the
   // part share, at least Alpaca's $1 (3 Nov, the owner: "It refuses to buy

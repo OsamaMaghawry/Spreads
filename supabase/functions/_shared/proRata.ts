@@ -110,11 +110,21 @@ export function allocate(
   const pct = fin(opts.pct);
   const pctOn = !!(pct && pct > 0 && price && price > 0) && notional === null;
   const word = basis === "equity" ? "portfolio value" : "buying power";
+  // A percent of an account's own value in whole shares: to the nearest
+  // share, not down (18 Nov, the owner, on 2.5% keys sending 60 and 2 for
+  // 60.79 and 2.88: "Are you sure the Prorata is accurate?"), never past its
+  // buying power on a buy (then down). Part shares and coins: to the step.
+  const toShares = (b: Book, want: number) => {
+    if (step !== 1) return clean(down(want, step));
+    const up = Math.round(settle(want));
+    const bp = fin(b.buyingPower);
+    return order.side === "buy" && bp !== null && price !== null && up * price > bp ? steps(want, 1) : up;
+  };
   const ofOwn = (b: Book, times = 1) => {
     const size = fin(b[basis]);
     if (!(size && size > 0)) return { skip: `no ${word} to size from` };
     const want = (size * pct! / 100 / price!) * times;
-    const mine = clean(down(want, step)) || partOf(b, want);
+    const mine = toShares(b, want) || partOf(b, want);
     return mine > 0 ? { qty: mine } : { skip: `its ${pct}% comes to less than one ${unit} at ${price}` };
   };
   // An account's own size in shares at the order's price: a percent of its
@@ -130,7 +140,8 @@ export function allocate(
     const equity = fin(b.equity);
     if (rule.mode === "percent" && !(equity && equity > 0)) return { skip: "no portfolio value to size from" };
     const dollars = rule.mode === "percent" ? equity! * v / 100 : v;
-    const mine = clean(down(dollars / price!, step));
+    // Its own percent to the nearest share; its own dollars stay a ceiling.
+    const mine = rule.mode === "percent" ? toShares(b, dollars / price!) : clean(down(dollars / price!, step));
     return mine > 0 ? { qty: mine } : { skip: `$${Math.floor(dollars * 100) / 100} is less than one ${unit} at ${price}` };
   };
   // Never more than an account holds when the order closes its position.
@@ -202,7 +213,7 @@ export function allocate(
         return cents(dollars) >= 1 ? { ...out, notional: cents(dollars), skip: null } : { ...out, skip: "its size comes to less than $1" };
       }
       if (!(price && price > 0)) return { ...out, skip: "no price to turn its size into shares" };
-      const mine = clean(down(dollars / price, step)) || partOf(b, dollars / price);
+      const mine = (mode === "percent" ? toShares(b, dollars / price) : clean(down(dollars / price, step))) || partOf(b, dollars / price);
       return mine > 0 ? { ...out, qty: mine, skip: null } : { ...out, skip: opts.fractionable && order.side === "buy" && (fin(b.held) || 0) >= 0 ? `$${cents(dollars)} is under Alpaca's $1 smallest part share` : `$${cents(dollars)} is less than one ${unit} at ${price}` };
     }
     const times = rule ? fin(rule.value) : 1;

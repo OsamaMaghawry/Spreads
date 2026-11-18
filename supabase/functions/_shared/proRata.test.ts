@@ -136,10 +136,11 @@ test("a percent-of-portfolio hotkey: each account takes the percent of its own",
   assert.match(r.skip!, /holds no NUWE/);
   // Buying: 0.5% of each own portfolio, whatever the one on screen came to.
   const [bl, br] = allocate({ side: "buy", qty: null }, { ...small, held: 0 }, [{ ...live, held: 0 }, rs], opts);
-  assert.deepEqual([bl.qty, br.qty], [131, 115]);
-  // With its own multiple: three times its 0.5%.
+  // 131.48 and 115.61 shares: to the nearest share since 18 Nov.
+  assert.deepEqual([bl.qty, br.qty], [131, 116]);
+  // With its own multiple: three times its 0.5% (346.85 shares).
   const [x3] = allocate({ side: "buy", qty: null }, small, [{ ...rs, rule: { mode: "times", value: 3 } }], opts);
-  assert.equal(x3.qty, 346);
+  assert.equal(x3.qty, 347);
   // Its own size still wins over the hotkey's percent.
   const [own] = allocate({ side: "buy", qty: null }, small, [{ ...rs, rule: { mode: "shares", value: 20 } }], opts);
   assert.equal(own.qty, 20);
@@ -174,8 +175,12 @@ test("selling shares held never comes to less than one share", () => {
   assert.match(n.skip!, /holds no ELPW/);
   const [q] = allocate({ side: "sell", qty: 1 }, { ...lead, held: 0 }, [one], opts);
   assert.deepEqual([q.qty, q.skip], [1, null]);
+  // A buy of 0.25% ($3.53, 0.99 of a share): one share since 18 Nov (the nearest).
   const [b] = allocate({ side: "buy", qty: 78 }, { ...lead, held: 0 }, [one], opts);
-  assert.match(b.skip!, /less than one share/);
+  assert.deepEqual([b.qty, b.skip], [1, null]);
+  // 0.1% ($1.41, 0.4 of a share) is still too small to buy.
+  const [t] = allocate({ side: "buy", qty: 78 }, { ...lead, held: 0 }, [one], { ...opts, pct: 0.1 });
+  assert.match(t.skip!, /less than one share/);
 });
 
 // 3 Nov, the owner: "It refuses to buy QQQ below 1 share!" A buy under one
@@ -295,4 +300,26 @@ test("whole holdings: Close, Stop and Max close each account's own holding (18 N
 test("split: a sale of what is held is never sized in dollars", () => {
   const rows = splitTotal({ side: "sell", notional: 1000 }, [{ ...live, held: 100 }, { ...paper, held: 10 }]);
   assert.ok(rows.every((r) => r.notional === null && /in shares/.test(r.skip!)));
+});
+
+test("a percent key on the other accounts: to the nearest whole share (18 Nov, TQQQ 60 and 2)", () => {
+  // 2.5% of each account's own value at 52.14: 60.79 and 2.88, now 61 and 3.
+  const alton = { id: "A", name: "Alton Live", equity: 126780.6, buyingPower: 470431.5, held: 0 };
+  const small = { id: "S", name: "Alpaca Live", equity: 5998.9, buyingPower: 23682.01, held: 0 };
+  const [a, s] = allocate({ side: "buy", qty: 61 }, small, [alton, small], { pct: 2.5, price: 52.14, symbol: "TQQQ" });
+  assert.deepEqual([a.qty, s.qty], [61, 3]);
+  // Past its buying power: rounded down instead.
+  const [poor] = allocate({ side: "buy", qty: 3 }, small, [{ ...small, buyingPower: 150 }], { pct: 2.5, price: 52.14 });
+  assert.equal(poor.qty, 2);
+  // A sale of what is held: the nearest share, never more than held.
+  const [held] = allocate({ side: "sell", qty: 3 }, { ...small, held: 3 }, [{ ...small, held: 2 }], { pct: 2.5, price: 52.14 });
+  assert.deepEqual([held.qty, held.all], [2, true]);
+  // An account's own percent rule rounds the same way; its own dollars stay a ceiling.
+  const [own] = allocate({ side: "buy", qty: 1 }, small, [{ ...small, rule: { mode: "percent", value: 2.5 } }], { price: 52.14 });
+  assert.equal(own.qty, 3);
+  const [usd] = allocate({ side: "buy", qty: 1 }, small, [{ ...small, rule: { mode: "dollars", value: 149.97 } }], { price: 52.14 });
+  assert.equal(usd.qty, 2);
+  // Under half a share: too small, as before.
+  const [tiny] = allocate({ side: "buy", qty: 1 }, small, [{ ...small, equity: 1000 }], { pct: 2.5, price: 52.14 });
+  assert.match(tiny.skip!, /less than one share/);
 });

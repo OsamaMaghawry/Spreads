@@ -403,6 +403,23 @@ export const clockMs = (iso) => {
 // ---------- the ticket's orders ----------
 
 /**
+ * A percent of an account's value in whole shares, to the nearest share
+ * (18 Nov, the owner, on 2.5% keys that bought 60 on a $126,780 account and
+ * 2 on a $5,999 one: "Are you sure the Prorata is accurate?" Rounded down,
+ * the small account's 2.88 lost most of a share, 0.4% of its value). Never
+ * past `buyingPower` on a buy: then rounded down. 0 under half a share.
+ */
+export function nearestShares(amount, price, buyingPower = null) {
+  const a = Number(amount);
+  const p = Number(price);
+  if (!(a > 0) || !(p > 0)) return 0;
+  const raw = Number((a / p).toPrecision(15));
+  const up = Math.round(raw);
+  const bp = buyingPower === null || buyingPower === undefined ? NaN : Number(buyingPower);
+  return Number.isFinite(bp) && up * p > bp ? Math.floor(raw) : up;
+}
+
+/**
  * A dollar amount as a quantity at a price: whole shares for a stock, or a
  * coin's own step (rounded down, so the order never costs more than the
  * amount). Used where the broker takes no dollar amount: limit and stop
