@@ -10,6 +10,14 @@ smallest test that could disprove it, the kill criterion, and a cost guess.
 
 Last run: **2026-09-01** (vp-product, Tuesday cadence).
 
+Daily reconciliation **2026-11-18**: no proposal moved. `main` took one blog
+post; `staging` took admin-only Terminal work (std dev channel on chart and
+Scanner, part-share and percent hotkeys, several-account sizing) and a brand
+tidy-up. None touches #1 (no bid/ask width shown in `ResultsTable.jsx`), #2
+(no probability column; `optionScan.ts` still ranks by return on risk only)
+or #3 (no `scan_runs` table on `main` or `staging`). Evidence:
+`git grep scan_runs origin/staging` empty.
+
 ## Open proposals
 
 **Three of five slots used.** Two deliberately left empty — this run killed one
