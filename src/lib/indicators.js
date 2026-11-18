@@ -148,6 +148,72 @@ export function vwap(bars, sessionOf) {
   return out;
 }
 
+// ---------- standard deviation channel ----------
+//
+// The owner, 18 Nov, with TradingView's "Std Dev Chn" on NVDA (length 500,
+// close, +1 and +2 above, 3 and 4 below, lines extended right): "Can you
+// create this indicator on the terminal?" The line is the least-squares fit
+// through the last `length` values, and each band sits a number of standard
+// deviations of the values around that line above or below it, worked out as
+// TradingView's linear regression channel does (squared distances from the
+// line over n - 1). Pearson's R says how closely the values follow the line.
+
+/** A bar's value for a channel's source: close, open, high, low, hl2, hlc3 or ohlc4. */
+export function sourceValue(bar, src = "close") {
+  switch (src) {
+    case "open": return bar.open;
+    case "high": return bar.high;
+    case "low": return bar.low;
+    case "hl2": return (bar.high + bar.low) / 2;
+    case "hlc3": return (bar.high + bar.low + bar.close) / 3;
+    case "ohlc4": return (bar.open + bar.high + bar.low + bar.close) / 4;
+    default: return bar.close;
+  }
+}
+
+/**
+ * The fit through the last `length` values (all of them when there are
+ * fewer): `from` the index of the first value used, `start` the line's value
+ * there, `slope` its change per bar, `sd` the standard deviation of the
+ * values around it, `r` Pearson's R. Null with fewer than two values.
+ */
+export function regressionChannel(values, length) {
+  const n = Math.min(Math.floor(Number(length)) || 0, values.length);
+  if (n < 2) return null;
+  const from = values.length - n;
+  let sx = 0;
+  let sy = 0;
+  let sxx = 0;
+  let sxy = 0;
+  for (let i = 0; i < n; i++) {
+    const y = values[from + i];
+    sx += i; sy += y; sxx += i * i; sxy += i * y;
+  }
+  const den = n * sxx - sx * sx;
+  const slope = den ? (n * sxy - sx * sy) / den : 0;
+  const start = (sy - slope * sx) / n;
+  const meanY = sy / n;
+  const meanLine = start + (slope * (n - 1)) / 2;
+  let ss = 0;
+  let syy = 0;
+  let sll = 0;
+  let syl = 0;
+  for (let i = 0; i < n; i++) {
+    const y = values[from + i];
+    const l = start + slope * i;
+    ss += (y - l) ** 2;
+    syy += (y - meanY) ** 2;
+    sll += (l - meanLine) ** 2;
+    syl += (y - meanY) * (l - meanLine);
+  }
+  return { from, to: values.length - 1, length: n, start, slope, sd: Math.sqrt(ss / (n - 1)), r: syy && sll ? syl / Math.sqrt(syy * sll) : 0 };
+}
+
+// The channel's colours, as on the owner's TradingView chart: the line and
+// the first band below in orange, the first band above in blue, the outer
+// two in green, the inner space above and below lightly filled.
+const CHANNEL = { mid: "#f59e0b", up1: "#3b82f6", up2: "#22c55e", dn1: "#f59e0b", dn2: "#22c55e", fillUp: "rgba(59, 130, 246, 0.08)", fillDown: "rgba(245, 158, 11, 0.08)" };
+
 // ---------- the catalogue the chart offers ----------
 
 export const INDICATORS = {
@@ -158,7 +224,20 @@ export const INDICATORS = {
   rsi: { label: "RSI", pane: "own", params: [{ key: "period", label: "Period", value: 14 }] },
   macd: { label: "MACD", pane: "own", params: [{ key: "fast", label: "Fast", value: 12 }, { key: "slow", label: "Slow", value: 26 }, { key: "signal", label: "Signal", value: 9 }] },
   stoch: { label: "Stochastic", pane: "own", params: [{ key: "period", label: "%K", value: 14 }, { key: "smooth", label: "Smooth", value: 3 }, { key: "d", label: "%D", value: 3 }] },
-  atr: { label: "ATR", pane: "own", params: [{ key: "period", label: "Period", value: 14 }] }
+  atr: { label: "ATR", pane: "own", params: [{ key: "period", label: "Period", value: 14 }] },
+  // Drawn as one layer over the candles (components/terminal/channelLayer.js),
+  // not as lines, so it can run past the last candle to the chart's edge.
+  sdc: {
+    label: "Std dev channel", pane: "price", params: [
+      { key: "length", label: "Length", hint: "Bars in the fit", value: 500, min: 2, max: 5000 },
+      { key: "src", label: "Source", value: "close", options: ["close", "open", "high", "low", "hl2", "hlc3", "ohlc4"] },
+      { key: "up1", label: "+1", hint: "Upper band 1, in standard deviations (0: off)", value: 1, min: 0, max: 10, step: 0.5 },
+      { key: "up2", label: "+2", hint: "Upper band 2, in standard deviations (0: off)", value: 2, min: 0, max: 10, step: 0.5 },
+      { key: "dn1", label: "−1", hint: "Lower band 1, in standard deviations (0: off)", value: 3, min: 0, max: 10, step: 0.5 },
+      { key: "dn2", label: "−2", hint: "Lower band 2, in standard deviations (0: off)", value: 4, min: 0, max: 10, step: 0.5 },
+      { key: "extend", label: "Extend", hint: "Lines past the fit: right, both ways or none", value: "right", options: ["right", "both", "none"] }
+    ]
+  }
 };
 
 // Line colours: each new average takes the next, so EMA 9 and EMA 21 differ.
@@ -172,6 +251,11 @@ const clampInt = (v, lo, hi, fallback) => {
   const n = Math.round(Number(v));
   return Number.isFinite(n) && n >= lo && n <= hi ? n : fallback;
 };
+// A setting that may be a fraction or zero (a band's deviations; 0 turns it off).
+const clampNum = (v, lo, hi, fallback) => {
+  const n = v === null || v === undefined || v === "" ? NaN : Number(v);
+  return Number.isFinite(n) && n >= lo && n <= hi ? n : fallback;
+};
 
 /** The indicator list read back from storage: unknown types dropped, periods kept within sense. */
 export function cleanIndicators(list) {
@@ -181,7 +265,11 @@ export function cleanIndicators(list) {
     .map((x) => {
       const params = {};
       for (const p of INDICATORS[x.type].params) {
-        params[p.key] = p.key === "mult" ? Math.min(5, Math.max(0.5, Number(x.params?.[p.key]) || p.value)) : clampInt(x.params?.[p.key], 1, 500, p.value);
+        const v = x.params?.[p.key];
+        params[p.key] = p.options ? (p.options.includes(v) ? v : p.value)
+          : p.key === "mult" ? Math.min(5, Math.max(0.5, Number(v) || p.value))
+          : p.step && p.step < 1 ? clampNum(v, p.min ?? 0, p.max ?? 10, p.value)
+          : clampInt(v, p.min ?? 1, p.max ?? 500, p.value);
       }
       // `hidden`: kept with its settings, off the chart (10 Nov, the owner:
       // "not to delete the moving average or the indicator, just to hide it").
@@ -200,6 +288,7 @@ export function indicatorLabel(x) {
     case "macd": return `MACD ${p.fast}, ${p.slow}, ${p.signal}`;
     case "stoch": return `Stoch ${p.period}, ${p.smooth}, ${p.d}`;
     case "atr": return `ATR ${p.period}`;
+    case "sdc": return `Std dev ${p.length}${p.src && p.src !== "close" ? ` ${p.src}` : ""}`;
     default: return x.type;
   }
 }
@@ -240,6 +329,20 @@ export function indicatorSeries(x, bars, sessionOf) {
       return { lines: [line("k", s.k, "#2563eb"), line("d", s.d, "#d97706")], levels: [80, 20], range: [0, 100] };
     }
     case "atr": return { lines: [line("atr", atr(bars, p.period), "#0891b2")] };
+    case "sdc": {
+      // No lines: the channel is drawn by the chart's channel layer. Its
+      // centre line, bar by bar, is what the legend reads.
+      const c = regressionChannel(bars.map((b) => sourceValue(b, p.src)), p.length);
+      const legend = [{ color: CHANNEL.mid, data: c ? bars.slice(c.from).map((b, i) => ({ time: b.time, value: c.start + c.slope * i })) : [] }];
+      if (!c) return { lines: [], legend, channel: null };
+      const bands = [
+        { k: 0, color: CHANNEL.mid },
+        p.up1 > 0 && { k: p.up1, color: CHANNEL.up1 }, p.up2 > 0 && { k: p.up2, color: CHANNEL.up2 },
+        p.dn1 > 0 && { k: -p.dn1, color: CHANNEL.dn1 }, p.dn2 > 0 && { k: -p.dn2, color: CHANNEL.dn2 }
+      ].filter(Boolean);
+      const fills = [p.up1 > 0 && { from: 0, to: p.up1, color: CHANNEL.fillUp }, p.dn1 > 0 && { from: 0, to: -p.dn1, color: CHANNEL.fillDown }].filter(Boolean);
+      return { lines: [], legend, channel: { id: x.id, ...c, wanted: p.length, extend: p.extend, bands, fills } };
+    }
     default: return { lines: [] };
   }
 }

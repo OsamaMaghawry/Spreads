@@ -10,6 +10,7 @@ import { readPrefs, savePref, settle } from "@/lib/terminalPrefs";
 import useAccountSetting from "@/components/terminal/useAccountSetting";
 import { replayCandles, REPLAY_INTERVALS } from "@/lib/replay";
 import { DrawingLayer } from "./drawingLayer";
+import { ChannelLayer } from "./channelLayer";
 import { chartGamma, gexLines as gexLineList, GEX_LINE_KINDS, anyGexLine, hedgePct } from "@/lib/gexChart";
 import { money } from "@/lib/gex";
 import { CALL, PUT, FLIP, INK, at as gexAt, dist as gexDist } from "@/components/terminal/gexParts";
@@ -208,6 +209,8 @@ function PriceChart({
   const candlesRef = useRef(null);
   const volumeRef = useRef(null);
   const layerRef = useRef(null);
+  // The standard deviation channels' own layer (channelLayer.js).
+  const channelRef = useRef(null);
   const lastRef = useRef(null);
   // The first candle built from live trades since the history was read: what
   // the history read again is joined to, never drawn over.
@@ -380,6 +383,9 @@ function PriceChart({
       extended: !cryptoRef.current && sessionRef.current === "all" && !["1Day", "1Week", "1Month"].includes(intervalRef.current) ? extRef.current : null
     }));
     candles.attachPrimitive(layer);
+    const channels = new ChannelLayer();
+    candles.attachPrimitive(channels);
+    channelRef.current = channels;
     markersRef.current = createSeriesMarkers(candles, []);
     candlesRef.current = candles;
     layerRef.current = layer;
@@ -704,12 +710,16 @@ function PriceChart({
     const bars = barsRef.current;
     const day = (t) => sessionDay(t, cryptoRef.current);
     const data = {};
+    const channels = [];
     for (const { ind, series } of indSeriesRef.current) {
       const out = indicatorSeries(ind, bars, day);
       out.lines.forEach((l, i) => series[i]?.setData(l.data));
-      data[ind.id] = out.lines.map((l) => l.data);
+      // A channel has no lines of its own: the legend reads its centre line.
+      data[ind.id] = (out.lines.length ? out.lines : out.legend || []).map((l) => l.data);
+      if (out.channel) channels.push(out.channel);
     }
     indDataRef.current = data;
+    channelRef.current?.set(channels);
   }, []);
   const scheduleIndicators = useCallback(() => {
     if (!indTimer.current) indTimer.current = setTimeout(paintIndicators, 500);
@@ -948,7 +958,7 @@ function PriceChart({
       for (const level of sample.levels || []) {
         series[0]?.createPriceLine({ price: level, color: "#94a3b8", lineStyle: LineStyle.Dashed, lineWidth: 1, axisLabelVisible: false });
       }
-      return { ind, series, colors: sample.lines.map((l) => l.color || "#94a3b8") };
+      return { ind, series, colors: (sample.lines.length ? sample.lines : sample.legend || []).map((l) => l.color || "#94a3b8") };
     });
     chart.panes().forEach((p, i) => p.setStretchFactor(i === 0 ? 3 : 1));
     paintIndicators();
@@ -1076,7 +1086,8 @@ function PriceChart({
 
   const addIndicator = (type) => {
     const used = indicators.filter((x) => INDICATORS[x.type].pane === "price").map((x) => x.color);
-    const color = LINE_COLORS.find((c) => !used.includes(c)) || LINE_COLORS[0];
+    // A channel's legend mark in its line's orange.
+    const color = type === "sdc" ? "#d97706" : LINE_COLORS.find((c) => !used.includes(c)) || LINE_COLORS[0];
     setIndicators((list) => [...list, { id: newId(), type, params: defaultParams(type), color }]);
   };
   const editIndicator = (id, key, value) => setIndicators((list) => cleanIndicators(list.map((x) => (x.id === id ? { ...x, params: { ...x.params, [key]: value } } : x))));
@@ -1188,14 +1199,21 @@ function PriceChart({
                 </div>
               )}
               {indicators.map((x) => (
-                <div key={x.id} className={`flex items-center gap-1 border-t border-slate-100 py-1 ${x.hidden ? "text-slate-400" : ""}`}>
+                <div key={x.id} className={`flex flex-wrap items-center gap-1 border-t border-slate-100 py-1 ${x.hidden ? "text-slate-400" : ""}`}>
                   <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${x.hidden ? "opacity-40" : ""}`} style={{ backgroundColor: INDICATORS[x.type].pane === "price" ? x.color : "#94a3b8" }} />
                   <span className="w-12 shrink-0 font-medium">{x.type.toUpperCase()}</span>
                   {INDICATORS[x.type].params.map((p) => (
-                    <label key={p.key} className="flex items-center gap-0.5 text-[10px] text-slate-500" title={p.label}>
+                    <label key={p.key} className="flex items-center gap-0.5 text-[10px] text-slate-500" title={p.hint || p.label}>
                       {p.label.slice(0, 6)}
-                      <input type="number" min={1} step={p.key === "mult" ? 0.5 : 1} defaultValue={x.params[p.key]} onBlur={(e) => editIndicator(x.id, p.key, e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} className="w-11 rounded border border-slate-200 px-1 py-0.5 text-xs text-slate-800" />
+                      {p.options ? (
+                        <select defaultValue={x.params[p.key]} onChange={(e) => editIndicator(x.id, p.key, e.target.value)}
+                          className="rounded border border-slate-200 px-0.5 py-0.5 text-xs text-slate-800">
+                          {p.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : (
+                        <input type="number" min={p.min ?? 1} max={p.max} step={p.step ?? (p.key === "mult" ? 0.5 : 1)} defaultValue={x.params[p.key]} onBlur={(e) => editIndicator(x.id, p.key, e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} className="w-11 rounded border border-slate-200 px-1 py-0.5 text-xs text-slate-800" />
+                      )}
                     </label>
                   ))}
                   <button type="button" title={x.hidden ? "Show" : "Hide"} aria-label={`${x.hidden ? "Show" : "Hide"} ${indicatorLabel(x)}`} className="ml-auto" onClick={() => toggleIndicator(x.id)}>

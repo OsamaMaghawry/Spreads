@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { sma, ema, bollinger, rsi, macd, stochastic, atr, vwap, cleanIndicators, indicatorSeries, indicatorLabel } from "./indicators.js";
+import { sma, ema, bollinger, rsi, macd, stochastic, atr, vwap, cleanIndicators, indicatorSeries, indicatorLabel, regressionChannel, sourceValue } from "./indicators.js";
 
 const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} != ${b}`);
 
@@ -72,4 +72,66 @@ test("a hidden indicator keeps its settings and stays hidden; a shown one carrie
   assert.equal(shown.hidden, undefined);
   assert.deepEqual([hidden.hidden, hidden.params.period], [true, 20]);
   assert.equal(cleanIndicators([{ id: "c", type: "vwap", hidden: "yes" }])[0].hidden, undefined);
+});
+
+// ---------- standard deviation channel (18 Nov, the owner's TradingView "Std Dev Chn") ----------
+
+test("a straight run of closes is its own line: no spread, R of 1", () => {
+  const c = regressionChannel([10, 12, 14, 16], 4);
+  close(c.slope, 2);
+  close(c.start, 10);
+  close(c.sd, 0);
+  close(c.r, 1);
+  assert.deepEqual([c.from, c.to, c.length], [0, 3, 4]);
+});
+
+test("the fit, the spread over n - 1, and Pearson's R, worked by hand", () => {
+  // x 0..3, y 1 3 2 4: slope 0.8, the line 1.3 2.1 2.9 3.7, misses -0.3 0.9 -0.9 0.3.
+  const c = regressionChannel([1, 3, 2, 4], 4);
+  close(c.slope, 0.8);
+  close(c.start, 1.3);
+  close(c.sd, Math.sqrt(1.8 / 3));
+  close(c.r, 0.8);
+});
+
+test("only the last `length` values are fitted; all of them when there are fewer", () => {
+  const c = regressionChannel([50, 1, 3, 2, 4], 4);
+  assert.equal(c.from, 1);
+  close(c.slope, 0.8);
+  assert.equal(regressionChannel([1, 2, 3], 500).length, 3);
+  assert.equal(regressionChannel([7], 500), null);
+});
+
+test("a channel's source", () => {
+  const bar = { open: 10, high: 14, low: 8, close: 12 };
+  assert.deepEqual(["close", "open", "high", "low", "hl2", "hlc3", "ohlc4"].map((s) => sourceValue(bar, s)), [12, 10, 14, 8, 11, 34 / 3, 11]);
+});
+
+test("the channel's bands and fills, as the owner set them: +1 and +2 above, 3 and 4 below", () => {
+  const bars = [1, 3, 2, 4].map((c, i) => ({ time: 1000 + i * 60, open: c, high: c, low: c, close: c }));
+  const x = { id: "s1", type: "sdc", params: { length: 500, src: "close", up1: 1, up2: 2, dn1: 3, dn2: 4, extend: "right" } };
+  const out = indicatorSeries(x, bars, () => 0);
+  assert.equal(out.lines.length, 0);
+  assert.deepEqual(out.channel.bands.map((b) => b.k), [0, 1, 2, -3, -4]);
+  assert.deepEqual(out.channel.fills.map((f) => [f.from, f.to]), [[0, 1], [0, -3]]);
+  assert.equal(out.channel.extend, "right");
+  assert.equal(out.channel.wanted, 500);
+  // The legend reads the centre line, bar by bar.
+  assert.deepEqual(out.legend[0].data.map((p) => Number(p.value.toFixed(2))), [1.3, 2.1, 2.9, 3.7]);
+  // A band set to 0 is off.
+  const off = indicatorSeries({ ...x, params: { ...x.params, up2: 0, dn1: 0 } }, bars, () => 0);
+  assert.deepEqual(off.channel.bands.map((b) => b.k), [0, 1, -4]);
+  assert.deepEqual(off.channel.fills.map((f) => f.to), [1]);
+  assert.equal(indicatorSeries(x, [], () => 0).channel, null);
+});
+
+test("a channel's settings kept within sense: choices from their list, bands may be 0 or a half", () => {
+  const [kept] = cleanIndicators([{ id: "s1", type: "sdc", color: "#d97706", params: { length: 5000, src: "hlc3", up1: 1.5, up2: 0, dn1: 3, dn2: 4, extend: "both" } }]);
+  assert.deepEqual(kept.params, { length: 5000, src: "hlc3", up1: 1.5, up2: 0, dn1: 3, dn2: 4, extend: "both" });
+  const [fixed] = cleanIndicators([{ id: "s2", type: "sdc", params: { length: 9000, src: "vwap", up1: -1, extend: "up" } }]);
+  assert.deepEqual(fixed.params, { length: 500, src: "close", up1: 1, up2: 2, dn1: 3, dn2: 4, extend: "right" });
+  assert.equal(indicatorLabel(kept), "Std dev 5000 hlc3");
+  // The others as before.
+  const [bb] = cleanIndicators([{ id: "b", type: "bb", params: { period: 20, mult: 2 } }]);
+  assert.deepEqual(bb.params, { period: 20, mult: 2 });
 });
