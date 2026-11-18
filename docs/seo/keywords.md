@@ -1736,3 +1736,9 @@ Rows 49 and 51 to 56 of the 4 Nov queue are now published. Only eight PLAN topic
 | 65 | Reading the chain is not the hard part | options screener limitations | options screener | vendor and broker pages: BMO, SoFi, Barchart help, Schwab StreetSmart, moomoo, Questrade, Robinhood, plus "best screener" lists. No page is about limitations as such. Winnable but low intent | what a screen cannot see, such as stale pre-market IV, wide spreads behind a mark, and existing positions; descriptive, with no screener product implied |
 
 Not established: search volume for any query. Revised by the numbers: none. The 28-day window to 8 Nov has 214 impressions and 2 clicks, which is too thin to contradict a row. The real queries "spx vs spy" (76.5) and "when do covered calls get assigned" (56.5) match rows 39 and 15 as mapped.
+
+## Map check, read 18 Nov
+
+Only row 65 ("options screener limitations") remains unwritten in content/PLAN.md; row 64 was published today. The row stands as read on 11 Nov. When it is written, PLAN.md runs out of topics, and the next block of the syllabus is content-engine's and desk-editor's call, not this map's. No row can be added for a topic that does not exist yet.
+
+Revised by the numbers (28 days to 14 Nov, 460 impressions, 2 clicks): none contradicted. The real queries confirm the mapped targets: "calendar spread" (19 impressions, position 33.7) for row 25, "rolling options" (10, 37.7) and "rolling call options" (2, 30) for row 28, "intraday buying power" (1, 13) and "margin buying power" (1, 26) for row 13, "buy write options" (1, 22) for the buy-write post. One query is not mapped to any row: "reserved cash" (8 impressions, position 56.8), the cash-secured-put post's own term for collateral; no target change, since it is not how traders phrase the question. Not established: search volume for any query.
