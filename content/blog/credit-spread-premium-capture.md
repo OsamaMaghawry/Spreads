@@ -107,4 +107,6 @@ In the worked example, one hypothetical spread captured 50%, 75%, 100% or -100% 
 
 DeltaMint's Analysis page shows a Credit capture figure, the kept share of premium sold, measured on the option legs only so that assigned shares cannot push it past 100%, though an assignment then counts as a full capture. A table headed "How your trades ended" groups every closed trade by its ending, such as expired worthless, assigned or bought back earlier, with each row's count and result.
 
+Read next: [annualized return on options](/blog/annualized-return-options-small-sample), on why a few short trades cannot carry a yearly rate.
+
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.
