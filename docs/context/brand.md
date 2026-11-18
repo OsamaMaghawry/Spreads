@@ -270,3 +270,14 @@ pages at `deltamint.app` and `dashboard.deltamint.app`.
 - **(proposed)** Blog diagrams use one red and one green: either the sanctioned diagram pair `#B4485C` / `#2E8B5F` or the `dm` hexes, never both families in one diagram.
 - **(proposed)** Terminal (admin-only) tabs are Trade, Scanner, Gamma; running text and help text say "Scanner", never "screener".
 - **(proposed)** In the Terminal, red means loss, risk or a live-money warning; a market state such as negative gamma takes a neutral or the blue pair, not rose.
+
+## Rules added by the audit (proposed, 2026-W47)
+
+- **(proposed)** Email headers carry the logotype (**delta** in the text colour, **mint** in `#3FA672`), never the camel-case word.
+- **(proposed)** Headings and labels on landing, email and PDF read "Label: value" with a colon, never "Label — value".
+- **(proposed)** Blog and blog-hub titles follow `DeltaMint: <thing>`; tools pages read `<Calculator name>: <what it gives>` with no brand (search-facing: desk-editor and seo-editor to confirm before it is applied).
+- **(proposed)** The landing footer is identical on every page: About, Blog, Tools, Terms, Privacy, Contact, Open the app.
+- **(proposed)** "Dashboard" is capitalised whenever it names the page, button labels included ("Open your Dashboard").
+- **(proposed)** Loading labels say "Reading your <thing>…", never "Syncing".
+- **(proposed)** The weekly email subject "DeltaMint Weekly Digest" is the one recorded exception to the colon rule.
+- **(proposed)** "Scanner" is the Strategy Scanner only; the admin Terminal's stock filter needs one name of its own (owner decision, see the W47 queue entry).

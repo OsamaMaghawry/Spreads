@@ -67,7 +67,7 @@ function evaluate(account, positions, spots, earnings, equity, settings, shares 
         const near = Math.abs(spot.price - occ.strike) / occ.strike <= settings.strike_proximity_pct;
         if (through) {
           add("short_through_strike", "critical", p.symbol,
-            `${occ.ticker} ${occ.strike}${occ.type} is in the money — spot ${spot.price.toFixed(2)}`,
+            `${occ.ticker} ${occ.strike}${occ.type} is in the money: spot ${spot.price.toFixed(2)}`,
             { spot: spot.price, strike: occ.strike, qty });
         } else if (near) {
           add("short_near_strike", "warning", p.symbol,
@@ -103,7 +103,7 @@ function evaluate(account, positions, spots, earnings, equity, settings, shares 
   // fires whatever the price is doing -- a naked call is critical at any spot.
   for (const n of nakedShortCalls(parsed, shares, cash)) {
     add("naked_short_call", "critical", n.symbol,
-      `${n.occ.ticker} ${n.occ.strike}C: ${n.uncovered} of ${n.contracts} short uncovered — no long call and ${n.shares} shares behind it`,
+      `${n.occ.ticker} ${n.occ.strike}C: ${n.uncovered} of ${n.contracts} short uncovered: no long call and ${n.shares} shares behind it`,
       { contracts: n.contracts, uncovered: n.uncovered, shares: n.shares, coveredByLongs: n.coveredByLongs });
   }
   // Rule: a short call on an ADJUSTED contract, which the rule above cannot
@@ -128,8 +128,8 @@ function evaluate(account, positions, spots, earnings, equity, settings, shares 
   for (const [ticker, info] of unjudged) {
     add("price_untrusted", "info", ticker,
       info.price
-        ? `Can't judge ${ticker} — ${info.reason}; last seen $${Number(info.price).toFixed(2)}`
-        : `Can't judge ${ticker} — ${info.reason}`,
+        ? `Can't judge ${ticker}: ${info.reason}; last seen $${Number(info.price).toFixed(2)}`
+        : `Can't judge ${ticker}: ${info.reason}`,
       { price: info.price, reason: info.reason });
   }
 

@@ -184,7 +184,7 @@ export default function ExportPdfButton({ targetRef, title, subtitle, isPaper = 
           ? `DeltaMint — PAPER TRADING, SIMULATED RESULTS.${view}${unattributed} Not a tax document and not investment advice.`
           : `DeltaMint — economic performance report.${view}${unattributed} Not a tax document and not investment advice.`;
         pdf.setFontSize(7);
-        pdf.setTextColor(120, 130, 150);
+        pdf.setTextColor(106, 98, 148);
         const identityY = ph - 22 - (disclaimerLines.length - 1) * 8;
         // Wrapped rather than truncated once the completeness clause is on it:
         // `fit` drops from the RIGHT, which is exactly where that clause sits,

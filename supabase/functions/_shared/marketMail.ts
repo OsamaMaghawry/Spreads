@@ -226,14 +226,14 @@ function frame(top: string, preheader: string, body: string, footerExtra = ""): 
   <tr><td align="center">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;">
       <tr><td style="padding:0 0 18px;">
-        <div style="font:700 20px ${FONT};color:${BRAND.text};letter-spacing:-.02em;">delta<span style="color:#1D9E75;">mint</span></div>
+        <div style="font:700 20px ${FONT};color:${BRAND.text};letter-spacing:-.02em;">delta<span style="color:#3FA672;">mint</span></div>
         ${top}
       </td></tr>
       <tr><td>
         ${body}
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
           <tr><td align="center" style="padding:6px 0 18px;">
-            <a href="${app}" style="display:inline-block;background:${BRAND.accent};color:#FFFFFF;font:600 14px ${FONT};text-decoration:none;padding:11px 22px;border-radius:9px;">Open your dashboard</a>
+            <a href="${app}" style="display:inline-block;background:${BRAND.accent};color:#FFFFFF;font:600 14px ${FONT};text-decoration:none;padding:11px 22px;border-radius:9px;">Open your Dashboard</a>
           </td></tr>
         </table>
         <div style="font:400 12px/1.6 ${FONT};color:${BRAND.sub};max-width:480px;margin:0 auto;text-align:center;">

@@ -161,7 +161,7 @@ const robotsMeta = (noindex) => (noindex ? '<meta name="robots" content="noindex
 function notFound(site) {
   return new Response(
     page({
-      title: "Not found | DeltaMint",
+      title: "DeltaMint: Not found",
       description: "That page could not be found.",
       canonical: `${site}/blog`,
       head: '<meta name="robots" content="noindex">',
@@ -495,7 +495,7 @@ async function handle(request, env, ctx) {
     // might then de-index it. 503 with no cache tells it to come back.
     return new Response(
       page({
-        title: "Temporarily unavailable | DeltaMint",
+        title: "DeltaMint: Temporarily unavailable",
         description: "The blog is temporarily unavailable.",
         canonical: `${site}/blog`,
         head: '<meta name="robots" content="noindex">',

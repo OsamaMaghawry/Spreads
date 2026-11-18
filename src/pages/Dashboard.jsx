@@ -45,7 +45,7 @@ export default function Dashboard() {
     return (
       <div className="flex flex-col items-center justify-center py-32 gap-3 text-slate-500">
         <RefreshCw className="w-6 h-6 animate-spin" />
-        <span className="text-sm">Syncing accounts…</span>
+        <span className="text-sm">Reading your accounts…</span>
       </div>
     );
   }
