@@ -331,6 +331,7 @@ export function DemoResults({ accountId, refreshKey = null }) {
   const custom = period === "custom";
   const win = custom ? customPeriod(from, to) : { start: periodStart(period), end: null };
   const [state, setState] = useState({ key: "", data: null, error: null, loading: false });
+  const [showNotes, setShowNotes] = useState(false);
   const key = win ? `${accountId}|${period}|${win.start}|${win.end ?? "now"}` : "";
   // A period that has ended does not change with an order, and nothing can be
   // shown from a read cut short: neither is read again after one (19 Nov review).
@@ -393,6 +394,17 @@ export function DemoResults({ accountId, refreshKey = null }) {
     : custom ? `${fillText} from ${dayName(data.startSec)}, 8:00 p.m., to ${ended ? `${dayName(data.endSec - 3600)}, 8:00 p.m.` : "now"}`
       : `${fillText} since ${dayName(data.startSec)}, 8:00 p.m.${period === "today" ? ", when after-hours ended" : ""}`;
   const setDates = (next) => setPick((p) => ({ ...p, from, to, ...next }));
+  // What to know about the figures, folded into one button by the period so
+  // the figures stay in view in a short panel (19 Nov, the owner: "I can't
+  // see nothing from all this text you put").
+  const notes = [
+    ...(built && named.length ? [{ warn: true, short: `${named.length} left out`, text: `Left out: ${named.map((e) => `${e.symbol} (${e.type === "SPLIT_SINCE" ? "a split since the start" : `${EVENT_NAMES[e.type] || e.type} on ${dateName(e.date)}`})`).join(", ")}. Shares changed without a trade, so these figures cannot be worked out from the fills.` }] : []),
+    ...(built && unnamed.length ? [{ warn: true, short: "unnamed event", text: `Alpaca recorded ${unnamed.map((e) => `a ${EVENT_NAMES[e.type] || e.type} on ${dateName(e.date)}`).join(", ")} without naming the stock: if it moved shares you held, that stock's figures here are off.` }] : []),
+    ...(delivered.length ? [{ warn: false, short: `${delivered.length} from options`, text: `Includes shares from options: ${delivered.map((f) => `${f.symbol} ${f.side === "buy" ? "bought" : "sold"} ${sizeText(f.qty)} at ${px(f.price)} on ${dateName(tradingDay(f.time))}`).join(", ")}, at the strike. What the option itself made or lost is not here.` }] : []),
+    ...(built && data.eventsRead === false ? [{ warn: true, short: "not all checked", text: "Assignments, splits and transfers could not be checked this time: if a symbol had one since the start, its figures are off." }] : []),
+    ...(fromCost.length ? [{ warn: true, short: `${fromCost.length} from cost`, text: `No close found before the start for ${fromCost.join(", ")}: counted from the average cost now, or else its first trade in the period.` }] : []),
+    ...(unpriced.length ? [{ warn: true, short: `${unpriced.length} without a close`, text: `No close found for ${unpriced.join(", ")} at the end: held at cost, with no open P/L.` }] : [])
+  ];
   const dateInput = "rounded border border-slate-200 px-1 py-0.5 text-xs text-slate-700";
   const optionsText = data?.options ? `options not included (${data.options} fill${data.options === 1 ? "" : "s"})` : "shares and coins only";
   return (
@@ -415,29 +427,22 @@ export function DemoResults({ accountId, refreshKey = null }) {
           </span>
         )}
         <span className="text-slate-500">{label}</span>
+        {notes.length > 0 && (
+          <button type="button" onClick={() => setShowNotes((v) => !v)} aria-expanded={showNotes} title="What to know about these figures"
+            className={`rounded border px-1.5 py-0.5 text-[11px] ${notes.some((x) => x.warn) ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+            {`${notes.map((x) => x.short).join(" · ")} ${showNotes ? "▴" : "▾"}`}
+          </button>
+        )}
       </div>
       {custom && !win && <p className="px-2 py-1 text-amber-800">Pick dates with at least one trading day, within the last 92 days.</p>}
       {state.error && state.key === key && <p className="px-2 py-1 text-rose-700">{state.error}</p>}
       {data?.truncated && <p className="px-2 py-1 text-amber-800">{`More than ${custom ? "3,000" : "1,000"} fills from the start to now, so what was held at the start cannot be worked out and no figures are shown. ${custom ? "Choose a later From date." : "Choose a shorter period."}`}</p>}
-      {built && named.length > 0 && (
-        <p className="px-2 py-1 text-amber-800">
-          {`Left out: ${named.map((e) => `${e.symbol} (${e.type === "SPLIT_SINCE" ? "a split since the start" : `${EVENT_NAMES[e.type] || e.type} on ${dateName(e.date)}`})`).join(", ")}. Its shares changed without a trade, so its figures cannot be worked out from the fills.`}
-        </p>
-      )}
-      {built && unnamed.length > 0 && (
-        <p className="px-2 py-1 text-amber-800">
-          {`Alpaca recorded ${unnamed.map((e) => `a ${EVENT_NAMES[e.type] || e.type} on ${dateName(e.date)}`).join(", ")} without naming the stock: if it moved shares you held, that stock's figures here are off.`}
-        </p>
-      )}
-      {delivered.length > 0 && (
-        <p className="px-2 py-1 text-slate-600">
-          {`Includes shares from options: ${delivered.map((f) => `${f.symbol} ${f.side === "buy" ? "bought" : "sold"} ${sizeText(f.qty)} at ${px(f.price)} on ${dateName(tradingDay(f.time))}`).join(", ")}, at the strike. What the option itself made or lost is not here.`}
-        </p>
-      )}
-      {built && data.eventsRead === false && <p className="px-2 py-1 text-amber-800">Assignments, splits and transfers could not be checked this time: if a symbol had one since the start, its figures are off.</p>}
       {unchecked && <p className="px-2 py-1 text-amber-800">Assignments, splits and transfers since the start could not all be read, so what was held then cannot be worked out and no figures are shown. Try again, or choose a later From date.</p>}
-      {fromCost.length > 0 && <p className="px-2 py-1 text-amber-800">{`No close found before the start for ${fromCost.join(", ")}: counted from the average cost now, or else its first trade in the period.`}</p>}
-      {unpriced.length > 0 && <p className="px-2 py-1 text-amber-800">{`No close found for ${unpriced.join(", ")} at the end: held at cost, with no open P/L.`}</p>}
+      {showNotes && notes.length > 0 && (
+        <ul className="max-h-28 space-y-0.5 overflow-y-auto border-b border-slate-100 px-2 py-1 text-[11px] leading-snug">
+          {notes.map((x) => <li key={x.short} className={x.warn ? "text-amber-800" : "text-slate-600"}>{x.text}</li>)}
+        </ul>
+      )}
       <div className="min-h-0 flex-1">
         {built && (
           <TradeResults book={built.book} priceOf={priceOf} carriedAt={data.startSec} showHow={false}
