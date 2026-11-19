@@ -3,7 +3,7 @@ title: "SPX vs SPY options for hedging: size, settlement and basis"
 search_title: "SPX vs SPY Options: Size, Settlement and Hedge Basis Risk"
 slug: spx-vs-spy-options-hedge
 excerpt: SPX and SPY puts hedge the same index but differ in size, settlement and exercise style, and either one pays on the index rather than on the stock you hold.
-meta_description: "SPX vs SPY options for a hedge: size, settlement and exercise, then one worked example where your stock falls and the index does not."
+meta_description: "SPX vs SPY options: SPX is the index, SPY the fund. An SPX option is about ten times larger, cash-settled and European-style. Then the basis risk, worked."
 author: Osama Safwat Maghawry
 category: hedging
 series_order: 39

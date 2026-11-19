@@ -82,6 +82,8 @@ propositions, and a credit sort ranks them correctly by accident. It gets the
 comparison right only when the denominators happen to match, which on a book
 running several widths and several underlyings is almost never.
 
+Related: [annualized return on options](/blog/annualized-return-options-small-sample) scales a trade's return to a 365-day year, and shows why a handful of short trades cannot carry that figure.
+
 ## After the fill, the ratio changes shape
 
 Entry return on risk is a screening number, and it stops being interesting the
