@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, overnightOf, inRegularHours, sessionDay, amountToQty, orderState, orderNews, iexOpen, shareFeed, ticketChoices, mergeTape, clockMs, exitText, stopWaitText, cleanWatchlists, activeWatchlist, withActiveSymbols, legendBar, valueAt, followDelay } from "./terminal.js";
+import { bucketStart, nyMidnight, applyTrade, applyMinuteBar, tapeRow, pushTape, TAPE_MAX, cleanWatchlist, readWatchlist, DEFAULT_WATCHLIST, px, pctText, sizeText, isCrypto, applyBook, bookLevels, priceFormatFor, withCoinsOnce, bookSize, sessionOf, overnightOf, inRegularHours, sessionDay, amountToQty, orderState, orderNews, iexOpen, shareFeed, ticketChoices, mergeTape, clockMs, exitText, stopWaitText, cleanWatchlists, activeWatchlist, withActiveSymbols, legendBar, valueAt, followDelay, percentQty } from "./terminal.js";
 
 const sec = (iso) => Date.parse(iso) / 1000;
 
@@ -307,4 +307,31 @@ test("another account's order is asked about until it ends, not for 90 seconds o
   // A limit resting an hour (17 Nov: TQQQ on Alpaca Live) is still followed.
   assert.equal(followDelay(3600000), 30000);
   assert.equal(followDelay(16 * 3600000), null);
+});
+
+// 19 Nov, the owner: "add in the ticker percentage of the equity account in
+// addition to the number of shares and Dollar, and when writing a percentage,
+// it should go pro rata". The ticket's % and the % hotkeys share one rule.
+test("a percent of equity in shares: nearest share, buying power, part shares, sales capped", () => {
+  // 5% of Alton's $126,780.60 at 117.40: 53.99, 54 shares; Alpaca's $5,998.90: 2.55, 3.
+  assert.deepEqual(percentQty(126780.6 * 0.05, 117.4), { qty: 54, part: false, all: false, under1: null });
+  assert.equal(percentQty(5998.9 * 0.05, 117.4).qty, 3);
+  // Rounding up past buying power: down instead.
+  assert.equal(percentQty(5998.9 * 0.05, 117.4, { buyingPower: 300 }).qty, 2);
+  // Part shares asked for, on a stock traded in them: the exact part share.
+  assert.deepEqual(percentQty(300, 117.4, { fractionable: true, parts: true }), { qty: 2.555366269, part: true, all: false, under1: null });
+  // Under one share: the part share, never under $1.
+  assert.equal(percentQty(50, 610, { fractionable: true }).qty, 0.081967213);
+  assert.ok(Math.abs(percentQty(0.5, 610, { fractionable: true }).under1 - 0.5) < 1e-6);
+  // Not while short: whole shares.
+  assert.equal(percentQty(300, 117.4, { fractionable: true, parts: true, held: -5 }).qty, 3);
+  // A sale: never more than held, at least one held share.
+  assert.deepEqual(percentQty(1000, 117.4, { side: "sell", held: 4 }), { qty: 4, part: false, all: true, under1: null });
+  assert.equal(percentQty(20, 117.4, { side: "sell", held: 4 }).qty, 1);
+  // Nothing held: a sale of the percent (a short), as typed shares would be.
+  assert.equal(percentQty(300, 117.4, { side: "sell", held: 0 }).qty, 3);
+  // A buy back of a short: never more than is short.
+  assert.deepEqual(percentQty(1000, 117.4, { side: "buy", held: -2 }), { qty: 2, part: false, all: true, under1: null });
+  assert.equal(percentQty(0, 117.4).qty, 0);
+  assert.equal(percentQty(100, 0).qty, 0);
 });

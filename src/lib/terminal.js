@@ -420,6 +420,41 @@ export function nearestShares(amount, price, buyingPower = null) {
 }
 
 /**
+ * A percent of an account's own value, as dollars (`amount`), in shares at a
+ * price: the one rule the % hotkeys (lib/hotkeys.js) and the ticket's % size
+ * share (19 Nov, the owner: "add in the ticker percentage of the equity
+ * account ... and when writing a percentage, it should go pro rata"; the
+ * other accounts' parts, from their own equity: functions/_shared/proRata.ts).
+ * To the nearest whole share (18 Nov), never past buying power on a buy. A buy
+ * of a stock traded in part shares, not while short, takes the exact part
+ * share when part shares are asked for, or when it comes to under one share,
+ * never under Alpaca's $1 (`under1`: what it came to). A sale of shares held
+ * sells at least one; a sale, or a buy back of a short, never more than is
+ * held (`all`). Shares only: coins go by their step (amountToQty).
+ */
+export function percentQty(amount, price, { side = "buy", held = 0, buyingPower = null, fractionable = false, parts = false } = {}) {
+  const a = Number(amount);
+  const p = Number(price);
+  const none = { qty: 0, part: false, all: false, under1: null };
+  if (!(a > 0) || !(p > 0)) return none;
+  const buy = side === "buy";
+  const h = Number(held) || 0;
+  const partOk = buy && !!fractionable && h >= 0;
+  let qty = partOk && (parts || a / p < 1) ? 0 : nearestShares(a, p, buy ? buyingPower : null);
+  let part = false;
+  if (!(qty > 0) && partOk) {
+    // Billionths settled to the 15 digits a number holds before rounding down (18 Nov review).
+    const mine = Math.floor(Number((a / p * 1e9).toPrecision(15))) / 1e9;
+    if (mine > 0 && mine * p >= 1) { qty = Number(mine.toFixed(9)); part = true; }
+    else if (mine > 0) return { ...none, under1: mine * p };
+  }
+  if (!(qty > 0) && !buy && h > 0) qty = Math.min(1, h);
+  let all = false;
+  if ((!buy && h > 0 && qty > h) || (buy && h < 0 && qty > -h)) { qty = Math.abs(h); all = true; }
+  return { qty, part, all, under1: null };
+}
+
+/**
  * A dollar amount as a quantity at a price: whole shares for a stock, or a
  * coin's own step (rounded down, so the order never costs more than the
  * amount). Used where the broker takes no dollar amount: limit and stop

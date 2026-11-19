@@ -12,7 +12,7 @@
 // is worked out here, in full, and shown in the hotkey list before it is ever
 // pressed. Pure and tested (hotkeys.test.js); the page listens for the keys.
 
-import { amountToQty, nearestShares, px } from "./terminal.js";
+import { amountToQty, percentQty, px } from "./terminal.js";
 
 export const ACTIONS = {
   buy: { label: "Buy", sized: true, priced: true },
@@ -179,20 +179,22 @@ export function hotkeyOrder(h, ctx) {
   // Shares with buy?"): a buy in dollars or a percent takes its exact part-share
   // quantity whatever its size, at the cost of exits that are weaker on part
   // of a share (a stop for the day only, no stop and target pair).
-  const exact = buy && !ctx.crypto && !!ctx.parts && !!ctx.fractionable && (n(ctx.held) || 0) >= 0 && amount !== null;
-  const partBuy = exact || (percent && buy && ctx.fractionable && (n(ctx.held) || 0) >= 0 && amount / price < 1);
-  let qty = h.size === "shares" ? (ctx.crypto ? h.amount : Math.floor(h.amount))
-    : partBuy ? 0
-      : percent ? nearestShares(amount, price, buy ? n(ctx.buyingPower) : null)
-        : amountToQty(amount, price, { crypto: ctx.crypto, step: ctx.step });
   const held = n(ctx.held) || 0;
+  // A percent: the rule the ticket's % size shares (lib/terminal.js percentQty).
+  const pq = percent ? percentQty(amount, price, { side: buy ? "buy" : "sell", held, buyingPower: n(ctx.buyingPower), fractionable: !!ctx.fractionable, parts: !!ctx.parts }) : null;
+  const exact = buy && !ctx.crypto && !!ctx.parts && !!ctx.fractionable && held >= 0 && amount !== null;
+  let qty = h.size === "shares" ? (ctx.crypto ? h.amount : Math.floor(h.amount))
+    : percent ? pq.qty
+      : exact ? 0
+        : amountToQty(amount, price, { crypto: ctx.crypto, step: ctx.step });
   // A buy under one whole share of a stock Alpaca trades in part shares: the
   // part share, at least Alpaca's $1 (3 Nov, the owner: "It refuses to buy
   // QQQ below 1 share!"). A share or more stays whole shares, so its stop
   // lasts past today and pairs with a take profit. Not while short: part
   // shares cannot be held short.
-  let part = false;
-  if (!(qty > 0) && buy && !ctx.crypto && ctx.fractionable && held >= 0) {
+  let part = !!pq?.part;
+  if (pq?.under1) return { reason: `${money(pq.under1)} is under Alpaca's $1 smallest part share.`, tooSmall: true, order: { symbol: ctx.symbol, side: "buy", qty: null, type, timeInForce: "day", ...(type === "limit" ? { limitPrice: price } : {}), ...(extended ? { extendedHours: true } : {}) }, price };
+  if (!percent && !(qty > 0) && buy && !ctx.crypto && ctx.fractionable && held >= 0) {
     const want = h.size === "shares" ? n(h.amount) || 0 : (amount || 0) / price;
     // Billionths settled to the 15 digits a number holds before rounding down,
     // as proRata.ts does (18 Nov review: 41.73501752 went as 41.735017519).
@@ -212,7 +214,7 @@ export function hotkeyOrder(h, ctx) {
   if (!(qty > 0)) return { reason: `${money(amount ?? 0)} is less than one ${ctx.crypto ? "step" : "share"} at ${px(price)}.`, tooSmall: true, order: { ...order, qty: null }, price };
   // A sale of shares held (or a buy back of a short) closes them: never more
   // than is held, so one key never turns a holding into its opposite.
-  let all = false;
+  let all = !!pq?.all;
   if ((!buy && held > 0 && qty > held) || (buy && held < 0 && qty > -held)) { qty = Math.abs(held); all = true; order.qty = qty; }
   const partWords = !part ? "" : qty >= 1 && !Number.isInteger(qty) ? " (part shares: a stop on it lasts for today only)" : qty < 1 ? " (part share)" : "";
   const words = `${buy ? "Buy" : "Sell"} ${qty} ${ctx.symbol}${all ? " (all held)" : ""}${partWords} ${type === "market" ? "at market" : `limit ${px(price)}`}${extended ? " (extended hours)" : ""}`;

@@ -401,3 +401,28 @@ test("split with Part shares on: a short sale or buy back still meets the total 
   const typed = splitTotal({ side: "sell", qty: 49.5 }, [alton, small], { price: 52.14 });
   assert.equal(typed.reduce((s, r) => s + (r.qty || 0), 0), 49);
 });
+
+// 19 Nov, the owner: "add in the ticker percentage of the equity account in
+// addition to the number of shares and Dollar, and when writing a percentage,
+// it should go pro rata". The ticket's % (functions/terminal allocation,
+// split "percent"): every account it goes to, the one on screen among them,
+// its own percent of its own equity, as a % hotkey sizes it.
+test("the ticket's percent of equity: each account its own, nearest share; sales capped; part shares", () => {
+  const alton = { id: "A", name: "Alton", equity: 126780.6, buyingPower: 470431.5, held: 0 };
+  const small = { id: "B", name: "Alpaca", equity: 5998.9, buyingPower: 23682.01, held: 0 };
+  const o = (side: "buy" | "sell") => ({ side, qty: null, notional: null });
+  const opts = { basis: "equity" as const, pct: 5, price: 117.4, closing: "group" as const, symbol: "XYZ" };
+  const qtys = (rows: any[]) => rows.map((r) => r.qty);
+  // 5% at 117.40: 53.995 and 2.555, to the nearest share.
+  assert.deepEqual(qtys(allocate(o("buy"), alton, [alton, small], opts)), [54, 3]);
+  // Never past buying power on a buy: down instead.
+  assert.deepEqual(qtys(allocate(o("buy"), alton, [alton, { ...small, buyingPower: 300 }], opts)), [54, 2]);
+  // Part shares asked for: the exact part shares.
+  assert.deepEqual(qtys(allocate(o("buy"), alton, [alton, small], { ...opts, fractionable: true, parts: true })), [53.995144804, 2.554897785]);
+  // A sale when one account holds: at most its holding; the other, holding none, sends nothing.
+  const sale = allocate(o("sell"), { ...alton, held: 30 }, [{ ...alton, held: 30 }, small], opts);
+  assert.deepEqual(sale.map((r) => [r.qty, r.all]), [[30, true], [null, false]]);
+  assert.match(sale[1].skip!, /holds no XYZ/);
+  // Nobody holds: each sells (short) its own percent.
+  assert.deepEqual(qtys(allocate(o("sell"), alton, [alton, small], opts)), [54, 3]);
+});

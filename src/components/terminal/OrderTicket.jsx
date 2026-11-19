@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
-import { px, sizeText, isCrypto, amountToQty, orderState, orderNews, sessionOf, ticketChoices, exitText, stopWaitText } from "@/lib/terminal";
+import { px, sizeText, isCrypto, amountToQty, percentQty, orderState, orderNews, sessionOf, ticketChoices, exitText, stopWaitText } from "@/lib/terminal";
 import { refusalNews, partShareDay, exitsLifetime, dayOnlyNews } from "@/lib/accountGroup";
 import { onOrder } from "./orderFeed";
 import { reportGroup } from "./runHotkey";
@@ -38,7 +38,7 @@ const TIF_TEXT = { day: "for the day", gtc: "good till cancelled", ioc: "immedia
 const input = "w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm tabular-nums focus:border-emerald-500 focus:outline-none";
 const label = "mb-1 block text-[11px] uppercase tracking-wider text-slate-500";
 
-export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, onPlaced, pick = null, preset = null, onNotify = (news) => void news, liveOk = false, group = [], groupHeld = [], leadOff = false, none = false, partsOn: partsGiven, onPartsOn }) {
+export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, equity = null, onPlaced, pick = null, preset = null, onNotify = (news) => void news, liveOk = false, group = [], groupHeld = [], leadOff = false, none = false, partsOn: partsGiven, onPartsOn }) {
   const crypto = isCrypto(symbol);
   const TYPES = crypto ? CRYPTO_TYPES : STOCK_TYPES;
   const [side, setSide] = useState("buy");
@@ -71,6 +71,11 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   // dollar amount its exact part-share quantity.
   const fractional = !crypto && !!asset?.fractionable;
   const [unit, setUnit] = useState("qty");
+  // A size as a percent of the account's own equity (19 Nov, the owner: "add
+  // in the ticker percentage of the equity account in addition to the number
+  // of shares and Dollar, and when writing a percentage, it should go pro
+  // rata"): each account ticked takes that percent of its own equity.
+  const [pctIn, setPctIn] = useState("");
   // Close, Stop or Max on a position (18 Nov review): with other accounts
   // ticked, each closes its own whole holding rather than a share of this one,
   // and only while the size is still the one they put in (a later order with
@@ -220,15 +225,20 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   // In dollars: a market order sends the amount itself where the broker
   // takes one; anything else becomes a quantity at the order's price.
   const dollars = unit === "usd" ? Number(amount) || 0 : 0;
+  // In percent: this account's own percent, as a % hotkey sizes it (lib/terminal.js percentQty).
+  const pct = unit === "pct" ? Number(pctIn) || 0 : 0;
+  const pctDollars = pct > 0 && Number(equity) > 0 ? Number(equity) * pct / 100 : 0;
+  const pctSize = unit === "pct" && !crypto ? percentQty(pctDollars, at, { side, held, buyingPower, fractionable: fractional, parts }) : null;
   const notional = unit === "usd" && type === "market" && (crypto || !!asset?.fractionable);
   const inParts = (d) => (d >= 1 ? amountToQty(d, at, { crypto: true, step: 1e-9 }) : 0);
   const wholeQty = unit === "usd" && !notional && !parts ? amountToQty(dollars, at, { crypto, step: asset?.minTradeIncrement }) : 0;
-  const typed = unit === "usd"
-    ? (notional ? (ref ? dollars / ref : 0) : parts ? inParts(dollars) : wholeQty > 0 || !fractional ? wholeQty : inParts(dollars))
-    : crypto || fractional ? Number(qty) || 0 : Number.isInteger(Number(qty)) ? Number(qty) || 0 : 0;
+  const typed = unit === "pct" ? (crypto ? amountToQty(pctDollars, at, { crypto, step: asset?.minTradeIncrement }) : pctSize.qty)
+    : unit === "usd"
+      ? (notional ? (ref ? dollars / ref : 0) : parts ? inParts(dollars) : wholeQty > 0 || !fractional ? wholeQty : inParts(dollars))
+      : crypto || fractional ? Number(qty) || 0 : Number.isInteger(Number(qty)) ? Number(qty) || 0 : 0;
   // Part of a share typed where it cannot go: said, never rounded into whole
   // shares (28 Oct: "0.5" read as 5 once the dot was dropped).
-  const wholeOnly = !crypto && !fractional && unit !== "usd" && qty !== "" && !Number.isInteger(Number(qty));
+  const wholeOnly = !crypto && !fractional && unit === "qty" && qty !== "" && !Number.isInteger(Number(qty));
   // A sale typed as the holding shown, rounded for display, is the holding:
   // 0.49875 on screen is 0.498749999 at the broker.
   const sellAll = side === "sell" && held > 0 && typed > held && typed - held < 1e-8;
@@ -246,7 +256,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   // it holds there).
   const short = !group.length && side === "sell" && n > Math.max(0, held) + 1e-12;
   const overBp = !group.length && side === "buy" && value !== null && buyingPower !== null && value > buyingPower;
-  const sized = notional ? dollars >= 1 : n > 0;
+  const sized = (notional ? dollars >= 1 : n > 0) && !(unit === "pct" && pct > 100);
   // Part of a share: Alpaca takes it for the day and without a take-profit and
   // stop-loss attached, and not as a trailing stop. So too with Part shares on
   // and other accounts ticked (19 Nov, the owner: "turn on part shares for the
@@ -280,7 +290,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   }, [bracket, extended, choices.bracket.ok, choices.extended.ok]);
 
   // Selling the whole holding sends the broker's exact quantity; say that one.
-  const exactSale = !notional && side === "sell" && !!heldText && (sellAll || Number(qty) === held);
+  const exactSale = !notional && side === "sell" && !!heldText && (unit === "pct" ? !!pctSize?.all : sellAll || Number(qty) === held);
   const words = (notional
     ? `${side === "buy" ? "Buy" : "Sell"} ${fmtMoney(dollars)} of ${symbol} `
     : `${side === "buy" ? "Buy" : "Sell"} ${exactSale ? String(Number(heldText)) : n ? sizeText(n) : "?"} ${crypto ? coin : symbol || ""} `) +
@@ -315,7 +325,9 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     if (!review || !groupIds.length || !account?.id) { setShares(null); setPartText({}); return undefined; }
     let gone = false;
     setShares({ loading: true });
-    invokeFunction("terminal", { action: "allocate", accountId: account.id, order: { ...order(), split: wholeHoldings ? "holdings" : "total" }, group: groupIds })
+    // In percent: each account its own percent of its own equity (split "percent").
+    const split = wholeHoldings ? "holdings" : unit === "pct" ? "percent" : "total";
+    invokeFunction("terminal", { action: "allocate", accountId: account.id, order: { ...order(), split, ...(split === "percent" ? { pct } : {}) }, group: groupIds })
       .then((r) => {
         if (gone) return;
         if (r?.data?.error) { setShares({ error: r.data.error }); return; }
@@ -330,7 +342,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     // Asked again when where it goes or how it is sized changes under an open
     // review (18 Nov review: the screen account's tick; the stock's part-share
     // answer arriving late turns a share count into dollars).
-  }, [review, JSON.stringify(groupIds), account?.id, leadOff, notional, wholeHoldings]);
+  }, [review, JSON.stringify(groupIds), account?.id, leadOff, notional, wholeHoldings, unit]);
   // Each account's part as it stands in the review (a number, 0 for none).
   const partOf = (id) => { const v = Number(partText[id]); return Number.isFinite(v) && v > 0 ? v : 0; };
   const splitRows = shares?.rows ? [
@@ -450,14 +462,17 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
       <div className="grid grid-cols-2 gap-2">
         <div>
           <div className="mb-1 flex items-center justify-between">
-            <label className="block text-[11px] uppercase tracking-wider text-slate-500" htmlFor="t-qty">{unit === "usd" ? "Amount ($)" : crypto ? `Quantity (${coin})` : "Shares"}</label>
+            <label className="block text-[11px] uppercase tracking-wider text-slate-500" htmlFor="t-qty">{unit === "pct" ? "% of equity" : unit === "usd" ? "Amount ($)" : crypto ? `Quantity (${coin})` : "Shares"}</label>
             <div className="flex overflow-hidden rounded border border-slate-200 text-[10px]" role="group" aria-label="Size in">
-              {[["qty", crypto ? coin : "Shares"], ["usd", "$"]].map(([id, name]) => (
+              {[["qty", crypto ? coin : "Shares"], ["usd", "$"], ["pct", "%"]].map(([id, name]) => (
                 <button key={id} type="button" onClick={() => { setUnit(id); setReview(false); setCloseQty(null); }} className={`px-1.5 ${unit === id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}>{name}</button>
               ))}
             </div>
           </div>
-          {unit === "usd" ? (
+          {unit === "pct" ? (
+            <input id="t-qty" className={input} inputMode="decimal" value={pctIn} placeholder="e.g. 5"
+              onChange={(e) => { setPctIn(e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1")); setReview(false); }} />
+          ) : unit === "usd" ? (
             <input id="t-qty" className={input} inputMode="decimal" value={amount} placeholder="e.g. 500"
               onChange={(e) => { setAmount(e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1")); setReview(false); }} />
           ) : (
@@ -467,6 +482,16 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
           {wholeOnly && (
             <p className="mt-0.5 text-[10px] text-amber-700">
               {`${symbol} trades in whole shares only at Alpaca.`}
+            </p>
+          )}
+          {unit === "pct" && pct > 0 && (
+            <p className="mt-0.5 text-[10px] text-slate-500">
+              {pct > 100 ? "At most 100% of equity."
+                : !(Number(equity) > 0) ? "Reading this account's equity…"
+                  : `= ${pct}% of ${fmtMoney(Number(equity))} = ${fmtMoney(pctDollars)}${pctSize?.under1 ? `: under Alpaca's $1 smallest part share`
+                    : n > 0 ? ` → ${sizeText(n)} ${crypto ? coin : n === 1 ? "share" : "shares"} at ${px(at)}${pctSize?.all ? " (all held)" : ""}`
+                      : at ? `: less than one ${crypto ? "step" : "share"} at ${px(at)}` : ": enter a price"}`}
+              {group.length > 0 && Number(equity) > 0 && pct <= 100 ? ". Each account ticked: the same percent of its own equity." : ""}
             </p>
           )}
           {unit === "usd" && dollars > 0 && (
@@ -644,7 +669,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
                   )}
                 </div>
               ))}
-              {shares?.rows && shares.split !== "holdings" && Math.abs(splitTotal - (notional ? dollars : n)) > 1e-9 && (
+              {shares?.rows && shares.split === "total" && Math.abs(splitTotal - (notional ? dollars : n)) > 1e-9 && (
                 <div className="text-amber-800">
                   {notional ? fmtMoney(splitTotal) : sizeText(splitTotal)} of {notional ? fmtMoney(dollars) : sizeText(n)} will be sent{splitRows.some((g) => g.all) ? ": an account cannot sell more than it holds" : ""}.
                 </div>

@@ -2261,17 +2261,30 @@ async function allocation(admin: any, user: any, lead: any, ids: unknown, input:
   // splitTotal): each part is shown in the review and sent as it stands.
   // `split: "holdings"`: Close, Stop or Max on a position: each account's
   // whole holding, as before the total was shared out (18 Nov review).
-  if (input?.split === "total" || input?.split === "holdings") {
+  // `split: "percent"` (19 Nov, the owner: "add in the ticker percentage of
+  // the equity account ... and when writing a percentage, it should go pro
+  // rata"): each account its own `pct` of its own equity, as a % hotkey sizes
+  // it (_shared/proRata.ts allocate; lib/terminal.js percentQty on screen),
+  // never more than it holds when it closes a holding; the accounts' own
+  // hotkey sizes play no part.
+  if (input?.split === "total" || input?.split === "holdings" || input?.split === "percent") {
     const onScreen = input?.leadOff !== true;
     const taking = [...(onScreen ? [leadBook] : []), ...ready];
+    const pct = given(input?.pct);
+    if (input.split === "percent" && !(pct !== null && pct > 0 && pct <= 100)) throw new Error("Enter a percent of equity between 0 and 100.");
+    if (input.split === "percent" && !(price !== null && price > 0)) throw new Error("No price to size the percent at.");
     // Whole shares unless the number itself is in part shares, or the ticket's
     // Part shares switch is on (19 Nov, the owner: "turn on part shares for
     // the ticket too"; the ticket then holds the order to Alpaca's part-share
     // rules: for the day, no bracket, no trailing stop). `price`: for the $1
     // smallest part share.
+    const partShares = input?.parts === true && !crypto && await fractionable;
     const parts = input.split === "holdings" ? wholeHoldings(side, taking, { symbol })
-      : splitTotal({ side, qty: given(input?.qty), notional: given(input?.notional) }, taking,
-        { crypto, symbol, parts: input?.parts === true && !crypto && await fractionable ? true : undefined, price });
+      : input.split === "percent"
+        ? allocate({ side, qty: null, notional: null }, leadBook, taking.map((b: any) => ({ ...b, rule: null })),
+          { basis: "equity", crypto, symbol, price, pct, closing: "group", fractionable: await fractionable, parts: crypto ? undefined : partShares })
+        : splitTotal({ side, qty: given(input?.qty), notional: given(input?.notional) }, taking,
+          { crypto, symbol, parts: partShares ? true : undefined, price });
     const closes = (held: number) => (side === "sell" && held > 0) || (side === "buy" && held < 0);
     const partOf = (id: string) => parts.find((x) => x.id === id);
     const row = (b: any, sh: any) => ({

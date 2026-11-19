@@ -955,7 +955,7 @@ export default function Terminal() {
               </p>
             )}
             <OrderTicket account={account} symbol={symbol} quote={quote} held={held} heldText={held > 0 && position?.qtyText ? position.qtyText : ""}
-              buyingPower={view?.buyingPower ?? null} onPlaced={refreshAll} pick={pick} preset={preset} onNotify={notify} liveOk={liveOk} partsOn={partsOn} onPartsOn={setPartsOn}
+              buyingPower={view?.buyingPower ?? null} equity={view?.equity ?? null} onPlaced={refreshAll} pick={pick} preset={preset} onNotify={notify} liveOk={liveOk} partsOn={partsOn} onPartsOn={setPartsOn}
               leadOff={plan.leadOff} none={plan.none}
               group={groupSend.map((g) => ({ ...accounts.find((a) => a.id === g.id), size: g })).filter((a) => a.id)}
               groupHeld={others.map((g) => ({ id: g.accountId, name: g.name, qty: signedQty((g.positions || []).find((p) => p.symbol === symbol)) }))} />
