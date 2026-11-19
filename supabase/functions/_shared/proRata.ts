@@ -276,11 +276,12 @@ export function allocate(
 export function splitTotal(
   order: { side: "buy" | "sell"; qty?: number | null; notional?: number | null },
   books: Book[],
-  opts: { crypto?: boolean; symbol?: string; parts?: boolean } = {}
+  opts: { crypto?: boolean; symbol?: string; parts?: boolean; price?: number | null } = {}
 ): Share[] {
   const qty = fin(order.qty);
   const notional = fin(order.notional);
   const dollars = notional !== null;
+  const price = fin(opts.price);
   const total = dollars ? notional : qty;
   const what = opts.symbol || "it";
   const closes = (held: number) => (order.side === "sell" && held > 0) || (order.side === "buy" && held < 0);
@@ -339,6 +340,12 @@ export function splitTotal(
     const shortSide = !opts.crypto && step !== 1 && (held < 0 || (order.side === "sell" && held <= 0));
     const mine = shortSide ? steps(amount, 1) : amount;
     if (!(mine > 0)) { out[p.i] = { ...out[p.i], skip: shortSide ? "less than one whole share (part shares cannot be held short)" : `its part comes to less than one ${unit}` }; continue; }
+    // A part share is never under Alpaca's $1 smallest part-share order (19 Nov).
+    const partShare = !opts.crypto && !Number.isInteger(mine);
+    if (partShare && price !== null && mine * price < 1 && !(closes(held) && mine >= Math.abs(held) - 1e-12)) {
+      out[p.i] = { ...out[p.i], skip: `its part, $${(Math.floor(mine * price * 100) / 100).toFixed(2)}, is under Alpaca's $1 smallest part share` };
+      continue;
+    }
     if (closes(held) && mine >= Math.abs(held) - 1e-12) out[p.i] = { ...out[p.i], qty: Math.abs(held), all: true };
     else out[p.i] = { ...out[p.i], qty: mine };
   }

@@ -247,14 +247,18 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   const short = !group.length && side === "sell" && n > Math.max(0, held) + 1e-12;
   const overBp = !group.length && side === "buy" && value !== null && buyingPower !== null && value > buyingPower;
   const sized = notional ? dollars >= 1 : n > 0;
-  const ready = tradable && symbol && sized && !belowMin && !(crypto && short) &&
+  // Part of a share: Alpaca takes it for the day and without a take-profit and
+  // stop-loss attached, and not as a trailing stop. So too with Part shares on
+  // and other accounts ticked (19 Nov, the owner: "turn on part shares for the
+  // ticket too"): each account's part is then its exact part share.
+  const partShare = !crypto && n > 0 && (!Number.isInteger(n) || (parts && group.length > 0));
+  const trailingPart = partShare && type === "trailing_stop";
+  const ready = tradable && symbol && sized && !belowMin && !(crypto && short) && !trailingPart &&
     (!needsLimit || Number(limit) > 0) && (!needsStop || Number(stop) > 0) && (!needsTrail || Number(trail) > 0) && (!bracket || (Number(tp) > 0 && Number(sl) > 0));
   // A stock's dollar-amount order is a market order for the day, in regular hours, without exits.
   useEffect(() => {
     if (notional && !crypto) { setTif("day"); setExtended(false); setBracket(false); }
   }, [notional, crypto]);
-  // Part of a share: Alpaca takes it for the day and without a take-profit and stop-loss attached.
-  const partShare = !crypto && n > 0 && !Number.isInteger(n);
   useEffect(() => {
     if (partShare) { setTif("day"); setBracket(false); }
   }, [partShare]);
@@ -500,7 +504,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
           <label className={label} htmlFor="t-tif">Time in force</label>
           <select id="t-tif" className={input} value={tif} onChange={(e) => { setTif(e.target.value); setReview(false); if (e.target.value !== "day") setExtended(false); }}>
             {!crypto && <option value="day">Day</option>}
-            <option value="gtc">Good till cancelled</option>
+            <option value="gtc" disabled={partShare}>Good till cancelled{partShare ? " (not for part shares)" : ""}</option>
             {crypto && <option value="ioc">Immediate or cancel</option>}
           </select>
         </div>
@@ -527,7 +531,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
       {!crypto && (
       <div className="rounded-lg border border-slate-200 p-2">
         <label className={`flex items-center gap-2 text-xs font-medium ${choices.bracket.ok ? "text-slate-700" : "text-slate-400"}`}>
-          <input type="checkbox" checked={bracket} disabled={!choices.bracket.ok} onChange={(e) => { setBracket(e.target.checked); setReview(false); }} />
+          <input type="checkbox" checked={bracket} disabled={!choices.bracket.ok || partShare} onChange={(e) => { setBracket(e.target.checked); setReview(false); }} />
           Attach take-profit and stop-loss
         </label>
         {!choices.bracket.ok && <p className="ml-5 text-[10px] leading-snug text-slate-500">{choices.bracket.why}</p>}
@@ -577,6 +581,12 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
         <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">Too small: Alpaca&apos;s smallest {coin} order is {asset.minOrderSize} {coin} (about {fmtMoney(minDollars || 1)}).</p>
       ) : null}
       {overBp && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">This is more than the account's buying power; the broker will likely refuse it.</p>}
+      {partShare && group.length > 0 && parts && (
+        <p className="rounded-md bg-slate-50 px-2 py-1.5 text-xs text-slate-700">
+          Part shares on: each account gets its exact share by portfolio value, for the day, with no take-profit and stop-loss attached; a stop on a position with part of a share lasts for today only.
+        </p>
+      )}
+      {trailingPart && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">Alpaca takes no trailing stop on part of a share. Choose another type, or turn Part shares off.</p>}
       {!crypto && choices.stopWaits && (
         <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
           {stopWaitText(session)} This order goes to Alpaca now and waits there until then. To trade before then, use a limit order with &ldquo;Pre-market and after hours&rdquo; ticked.

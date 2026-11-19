@@ -2263,10 +2263,14 @@ async function allocation(admin: any, user: any, lead: any, ids: unknown, input:
   if (input?.split === "total" || input?.split === "holdings") {
     const onScreen = input?.leadOff !== true;
     const taking = [...(onScreen ? [leadBook] : []), ...ready];
-    // Whole shares unless the number itself is in part shares (18 Nov review:
-    // Part shares on split a whole 50 into parts, each then refused).
+    // Whole shares unless the number itself is in part shares, or the ticket's
+    // Part shares switch is on (19 Nov, the owner: "turn on part shares for
+    // the ticket too"; the ticket then holds the order to Alpaca's part-share
+    // rules: for the day, no bracket, no trailing stop). `price`: for the $1
+    // smallest part share.
     const parts = input.split === "holdings" ? wholeHoldings(side, taking, { symbol })
-      : splitTotal({ side, qty: given(input?.qty), notional: given(input?.notional) }, taking, { crypto, symbol });
+      : splitTotal({ side, qty: given(input?.qty), notional: given(input?.notional) }, taking,
+        { crypto, symbol, parts: input?.parts === true && !crypto && await fractionable ? true : undefined, price });
     const closes = (held: number) => (side === "sell" && held > 0) || (side === "buy" && held < 0);
     const partOf = (id: string) => parts.find((x) => x.id === id);
     const row = (b: any, sh: any) => ({

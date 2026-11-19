@@ -368,3 +368,24 @@ test("part shares: never under $1 on another account; a short account's part sho
   const longSale = splitTotal({ side: "sell", qty: 3.1 }, [{ ...lead, held: 50 }]);
   assert.equal(longSale[0].qty, 3.1);
 });
+
+test("split with Part shares on: each account's exact part share by value, never under $1 (19 Nov)", () => {
+  const alton = { id: "A", name: "Alton Live", equity: 126780.6, buyingPower: 470431.5, held: 0 };
+  const small = { id: "S", name: "Alpaca Live", equity: 5998.9, buyingPower: 23682.01, held: 0 };
+  const rows = splitTotal({ side: "buy", qty: 50 }, [alton, small], { parts: true, price: 52.14 });
+  assert.ok(Math.abs(rows[0].qty! - 50 * 126780.6 / 132779.5) < 1e-8, String(rows[0].qty));
+  assert.ok(Math.abs(rows[1].qty! - 50 * 5998.9 / 132779.5) < 1e-8, String(rows[1].qty));
+  assert.ok(Math.abs(rows[0].qty! + rows[1].qty! - 50) < 1e-9);
+  // Switched off: whole shares, as before (47.74 and 2.26: 48 and 2).
+  assert.deepEqual(splitTotal({ side: "buy", qty: 50 }, [alton, small], { price: 52.14 }).map((r) => r.qty), [48, 2]);
+  // A part under $1: skipped with the reason.
+  const tiny = splitTotal({ side: "buy", qty: 1 }, [alton, { ...small, equity: 50 }], { parts: true, price: 52.14 });
+  assert.match(tiny[1].skip!, /under Alpaca's \$1 smallest part share/);
+  // A short sale with Part shares on: whole shares on each account.
+  const shortSale = splitTotal({ side: "sell", qty: 50 }, [alton, small], { parts: true, price: 52.14 });
+  assert.ok(shortSale.every((r) => r.qty === null || Number.isInteger(r.qty)));
+  // A long holder's sale in part shares stays exact; its whole holding is sent as all of it.
+  const sale = splitTotal({ side: "sell", qty: 10 }, [{ ...alton, held: 100 }, { ...small, held: 0.4 }], { parts: true, price: 52.14 });
+  assert.ok(!Number.isInteger(sale[0].qty!));
+  assert.deepEqual([sale[1].qty, sale[1].all], [0.4, true]);
+});
