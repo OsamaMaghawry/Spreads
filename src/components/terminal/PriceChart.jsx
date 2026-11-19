@@ -490,7 +490,7 @@ function PriceChart({
       const { x, y } = local(e);
       const p = pointAt(x, y);
       if (!p) return;
-      drawingsRef.current = drawingsRef.current.map((d) => (d.id === drag.id ? moveDrawing(drag.original, drag.handle, drag.start, p) : d));
+      drawingsRef.current = drawingsRef.current.map((d) => (d.id === drag.id ? moveDrawing(drag.original, drag.handle, drag.start, p, { times: timesRef.current, step: stepRef.current }) : d));
       repaint();
     };
     const onDragEnd = () => {

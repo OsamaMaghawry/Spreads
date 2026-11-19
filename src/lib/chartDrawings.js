@@ -139,21 +139,35 @@ export function hitTest(drawings, xy, x, y) {
 
 /**
  * A drawing moved: one point dragged (handle 0 or 1), or the whole drawing
- * shifted by the same time and price (handle null). Horizontal and vertical
- * lines move along their one axis only.
+ * shifted by the same price and the same number of bars (handle null).
+ * Horizontal and vertical lines move along their one axis only.
+ *
+ * `bars` ({ times, step }, the chart's candle times): the shift is counted in
+ * bars, as the chart lays them out, not in seconds. Shifted by seconds, a
+ * drawing dragged across a night or a weekend, which has no bars, had one
+ * point land in the gap and the other not, so it shrank, stretched or all but
+ * vanished (19 Nov, the owner: "when i move or drag any drawing ... it gets
+ * messing and starts disappear or getting larger or smaller"). Without
+ * `bars` (or candles), by seconds.
  */
-export function moveDrawing(d, handle, from, to) {
-  const dt = to.time - from.time;
+export function moveDrawing(d, handle, from, to, bars = null) {
   const dp = to.price - from.price;
   if (handle === 0 || handle === 1) {
     const points = d.points.map((p, i) => (i === handle ? { time: to.time, price: to.price } : p));
     return { ...d, points };
   }
-  const shift = (p) => ({
-    time: d.type === "hline" ? p.time : p.time + dt,
+  let moveTime = (t) => t + (to.time - from.time);
+  const times = bars?.times;
+  const step = bars?.step;
+  if (times?.length && step > 0) {
+    const shift = timeToLogical(times, to.time, step) - timeToLogical(times, from.time, step);
+    if (Number.isFinite(shift)) moveTime = (t) => logicalToTime(times, timeToLogical(times, t, step) + shift, step);
+  }
+  const move = (p) => ({
+    time: d.type === "hline" ? p.time : moveTime(p.time),
     price: d.type === "vline" ? p.price : p.price + dp
   });
-  return { ...d, points: d.points.map(shift) };
+  return { ...d, points: d.points.map(move) };
 }
 
 // ---------- saving ----------

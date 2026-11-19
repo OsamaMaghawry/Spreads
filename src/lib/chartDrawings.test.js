@@ -55,6 +55,34 @@ test("moving: a handle moves one point; the body moves both; lines keep their ax
   assert.deepEqual(moveDrawing(h, null, { time: 0, price: 10 }, { time: 99, price: 12 }).points, [{ time: 5, price: 12 }]);
 });
 
+// 19 Nov, the owner: "when i move or drag any drawing ... it gets messing and
+// starts disappear or getting larger or smaller". A 5-minute chart with the
+// night between two sessions: Tuesday 15:45, 15:50, 15:55, then Wednesday
+// 9:30, 9:35, 9:40 (seconds from Tuesday 15:45).
+test("moving the whole drawing goes by bars: across a night it keeps its width", () => {
+  const night = 17.5 * 3600 + 300;
+  const times = [0, 300, 600, 600 + night, 900 + night, 1200 + night];
+  const bars = { times, step: 300 };
+  const t = { id: "t", type: "trend", points: [{ time: 0, price: 10 }, { time: 600, price: 12 }] };
+  // Dragged one bar right, from 15:55 to 9:30: each point one bar on.
+  const moved = moveDrawing(t, null, { time: 600, price: 12 }, { time: 600 + night, price: 13 }, bars);
+  assert.deepEqual(moved.points, [{ time: 300, price: 11 }, { time: 600 + night, price: 13 }]);
+  // Two bars wide before and after.
+  const width = (d) => timeToLogical(times, d.points[1].time, 300) - timeToLogical(times, d.points[0].time, 300);
+  assert.equal(width(t), 2);
+  assert.equal(width(moved), 2);
+  // By seconds, the left end landed in the night and the line all but vanished.
+  assert.ok(width(moveDrawing(t, null, { time: 600, price: 12 }, { time: 600 + night, price: 13 })) < 0.1);
+  // Past the last candle and back before the first, it keeps its width too.
+  assert.equal(width(moveDrawing(t, null, { time: 0, price: 10 }, { time: 1200 + night + 900, price: 10 }, bars)), 2);
+  assert.equal(width(moveDrawing(t, null, { time: 600, price: 10 }, { time: -900, price: 10 }, bars)), 2);
+  // A vertical line moves by bars; a horizontal one keeps its moment.
+  const v = { id: "v", type: "vline", points: [{ time: 300, price: 5 }] };
+  assert.deepEqual(moveDrawing(v, null, { time: 300, price: 5 }, { time: 900 + night, price: 9 }, bars).points, [{ time: 900 + night, price: 5 }]);
+  const h = { id: "h", type: "hline", points: [{ time: 300, price: 5 }] };
+  assert.deepEqual(moveDrawing(h, null, { time: 300, price: 5 }, { time: 900 + night, price: 9 }, bars).points, [{ time: 300, price: 9 }]);
+});
+
 test("saving: per symbol, malformed drawings dropped, an empty list removes the symbol", () => {
   const good = { id: "a", type: "hline", points: [{ time: 1, price: 2 }], color: "#2563eb" };
   const raw = writeDrawings(null, "BTC/USD", [good, { id: "b", type: "trend", points: [{ time: 1, price: 2 }] }, { id: "c", type: "laser", points: [] }]);
