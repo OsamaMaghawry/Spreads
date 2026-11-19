@@ -125,3 +125,5 @@ Attempted, not finished. What is established:
 - 2026-11-12 (W46 audit): still `CONNECT tunnel failed, response 403`. Also,
   `.claude/agents/vp-product.md` no longer holds the sendDigest curl recipe the
   audit and duty briefs point to. Done instead: PushNotification to the owner.
+- 2026-11-19 (W47 audit): still `CONNECT tunnel failed, response 403`, and the
+  recipe is still absent from `vp-product.md`. Done instead: PushNotification.

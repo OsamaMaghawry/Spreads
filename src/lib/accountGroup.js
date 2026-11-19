@@ -214,6 +214,38 @@ export function refusalNews(rows) {
   return { tone: "bad", title: `Not done on ${names.length === 1 ? names[0] : `${names.length} of ${list.length} accounts`}`, detail: lines.join(" · ") };
 }
 
+/**
+ * Part of a share (trading audit W47-F1, 19 Nov): Alpaca takes it for the day
+ * only and with no exits attached, so the server sends it that way
+ * (positionTools stopPlan; the terminal's group send) whatever the ticket
+ * asked. What that changes for one account's order, or null when nothing.
+ */
+const partOfShare = (qty, crypto, notional) => {
+  const q = Math.abs(Number(qty));
+  return !crypto && !notional && Number.isFinite(q) && q > 0 && !Number.isInteger(q);
+};
+export function partShareDay({ qty, tif, bracket = false, crypto = false, notional = false }) {
+  if (!partOfShare(qty, crypto, notional) || (tif === "day" && !bracket)) return null;
+  return bracket ? "part of a share: for today only, no take-profit or stop-loss attached" : "part of a share: for today only";
+}
+
+/** How long a holding's exits last across its holders [{ name, qty }]. */
+export function exitsLifetime(holders, crypto = false) {
+  const list = (Array.isArray(holders) ? holders : []).filter((h) => Number(h?.qty));
+  const part = list.filter((h) => partOfShare(h.qty, crypto, false)).map((h) => h.name);
+  if (!part.length) return "Good till cancelled";
+  if (part.length === list.length) return "For today only (part of a share)";
+  return `Good till cancelled, but for today only on ${part.join(", ")} (part of a share)`;
+}
+
+/** The group's orders that went for today only, said beside the refusals. */
+export function dayOnlyNews(rows) {
+  const list = (Array.isArray(rows) ? rows : []).filter((r) => r && r.ok !== false && !r.skip && /today only/.test(String(r.note || "")));
+  if (!list.length) return null;
+  const names = list.map((r) => `${r.name}${r.live ? " (live)" : ""}`);
+  return { tone: "muted", title: `For today only on ${names.join(", ")}`, detail: list.map((r, i) => `${names[i]}: ${r.note}`).join(" · ") };
+}
+
 /** A working order's stop: its own, or its stop leg's. */
 export const stopOf = (o) => (Number(o?.stop) > 0 ? o.stop : null) ?? (o?.legs || []).find((l) => Number(l.stop) > 0)?.stop ?? null;
 

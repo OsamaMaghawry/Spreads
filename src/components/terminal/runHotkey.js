@@ -1,7 +1,7 @@
 import { invokeFunction } from "@/lib/functions";
 import { hotkeyOrder, describe, withOwnSize, hotkeyPercent, overnightQuote } from "@/lib/hotkeys";
 import { orderNews, orderState, followDelay, sessionOf, overnightOf, isCrypto, px, sizeText, exitText } from "@/lib/terminal";
-import { refusalNews, resolveSize } from "@/lib/accountGroup";
+import { refusalNews, resolveSize, dayOnlyNews } from "@/lib/accountGroup";
 import { onOrder } from "./orderFeed";
 
 // What a pressed hotkey does: works out the order (lib/hotkeys.js) or asks the
@@ -176,7 +176,13 @@ export async function runHotkey(h, ctx) {
   const leadOff = !!ctx.leadOff && group.length > 0;
   const unit = crypto ? symbol.split("/")[0] : "shares";
   // The other accounts: a pop-up only for what was not done there (18 Nov).
-  const tellGroup = (rows) => { const g = refusalNews(rows); if (g) notify({ key: leadOff ? key : `${key}g`, ...g }); };
+  const tellGroup = (rows) => {
+    const g = refusalNews(rows);
+    if (g) notify({ key: leadOff ? key : `${key}g`, ...g });
+    // A stop on part of a share there went for today only (audit W47-F1).
+    const day = dayOnlyNews(rows);
+    if (day) notify({ key: `${key}d`, ...day });
+  };
   const label = `${h.keys} · ${describe(h)}`;
   if (!account?.id) return;
   if (ctx.none) {
