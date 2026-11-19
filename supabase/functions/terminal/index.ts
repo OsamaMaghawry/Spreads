@@ -2345,7 +2345,12 @@ async function orderForGroup(admin: any, user: any, lead: any, ids: unknown, inp
   const send = (row: any) => {
     const account = plan.accounts.find((g) => g.id === row.accountId)?.account;
     if (row.skip || !account) return Promise.resolve({ ...row, status: "skipped" });
-    return placeOrder(admin, user, account, { ...input, qty: row.qtyText ?? row.qty, notional: row.notional })
+    // Part of a share on this account (its part, or its whole holding on a
+    // Close or Stop): Alpaca takes it for the day only, without exits
+    // attached; an account in whole shares keeps the order as asked (19 Nov review).
+    const q = Number(row.qtyText ?? row.qty);
+    const part = !isCrypto(cryptoSymbol(input?.symbol)) && row.notional == null && Number.isFinite(q) && !Number.isInteger(q);
+    return placeOrder(admin, user, account, { ...input, qty: row.qtyText ?? row.qty, notional: row.notional, ...(part ? { timeInForce: "day", takeProfit: null, stopLoss: null } : {}) })
       // Sent nothing there (reduce-only, no longer held): a skip, which the ticket reports.
       .then((r) => ({ ...row, ...(r.body as any), ...((r.body as any)?.skipped ? { skip: (r.body as any).skipped, orderId: undefined } : {}), ok: r.status === 200 }))
       .catch((e: Error) => ({ ...row, ok: false, error: String(e?.message || e) }));

@@ -389,3 +389,15 @@ test("split with Part shares on: each account's exact part share by value, never
   assert.ok(!Number.isInteger(sale[0].qty!));
   assert.deepEqual([sale[1].qty, sale[1].all], [0.4, true]);
 });
+
+test("split with Part shares on: a short sale or buy back still meets the total in whole shares (19 Nov review)", () => {
+  const alton = { id: "A", name: "Alton Live", equity: 126780.6, buyingPower: 470431.5, held: 0 };
+  const small = { id: "S", name: "Alpaca Live", equity: 5998.9, buyingPower: 23682.01, held: 0 };
+  const sale = splitTotal({ side: "sell", qty: 50 }, [alton, small], { parts: true, price: 52.14 });
+  assert.deepEqual(sale.map((r) => r.qty), [48, 2]);
+  const cover = splitTotal({ side: "buy", qty: 50 }, [{ ...alton, held: -100 }, { ...small, held: -10 }], { parts: true, price: 52.14 });
+  assert.deepEqual(cover.map((r) => r.qty), [48, 2]);
+  // A total typed in part shares: its whole shares, never more.
+  const typed = splitTotal({ side: "sell", qty: 49.5 }, [alton, small], { price: 52.14 });
+  assert.equal(typed.reduce((s, r) => s + (r.qty || 0), 0), 49);
+});

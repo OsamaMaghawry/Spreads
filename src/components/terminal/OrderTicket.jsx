@@ -251,7 +251,12 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   // stop-loss attached, and not as a trailing stop. So too with Part shares on
   // and other accounts ticked (19 Nov, the owner: "turn on part shares for the
   // ticket too"): each account's part is then its exact part share.
-  const partShare = !crypto && n > 0 && (!Number.isInteger(n) || (parts && group.length > 0));
+  // Close, Stop or Max with other accounts ticked: each account's whole holding
+  // (see the review below), not a share of a total.
+  const wholeHoldings = closeQty !== null && unit === "qty" && qty === closeQty && !notional && ((side === "sell" && held > 0) || (side === "buy" && held < 0) || leadOff);
+  // Not for Close, Stop or Max: each account's whole holding goes as it is, a
+  // whole-share holding keeping its stop good till cancelled (19 Nov review).
+  const partShare = !crypto && n > 0 && (!Number.isInteger(n) || (parts && group.length > 0 && !wholeHoldings));
   const trailingPart = partShare && type === "trailing_stop";
   const ready = tradable && symbol && sized && !belowMin && !(crypto && short) && !trailingPart &&
     (!needsLimit || Number(limit) > 0) && (!needsStop || Number(stop) > 0) && (!needsTrail || Number(trail) > 0) && (!bracket || (Number(tp) > 0 && Number(sl) > 0));
@@ -260,8 +265,10 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     if (notional && !crypto) { setTif("day"); setExtended(false); setBracket(false); }
   }, [notional, crypto]);
   useEffect(() => {
-    if (partShare) { setTif("day"); setBracket(false); }
-  }, [partShare]);
+    // Again whenever either is set afterwards (19 Nov review: the Stop button
+    // set good till cancelled after this had run).
+    if (partShare) { if (tif !== "day") setTif("day"); if (bracket) setBracket(false); }
+  }, [partShare, tif, bracket]);
   // What the order can take now, and why not. Selling shares held (or buying
   // back a short) closes them: a bracket's legs would open the other way.
   const closing = !crypto && ((side === "sell" && held > 0) || (side === "buy" && held < 0));
@@ -284,10 +291,12 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
 
   const order = () => ({
     symbol, side, qty: notional ? null : exactSale ? heldText : n,
-    notional: notional ? dollars : null, type, timeInForce: tif, extendedHours: extended,
+    // Part shares go for the day only, without exits attached, whatever the
+    // screen still shows (19 Nov review).
+    notional: notional ? dollars : null, type, timeInForce: partShare ? "day" : tif, extendedHours: extended,
     limitPrice: needsLimit ? limit : null, stopPrice: needsStop ? stop : null,
     trailPercent: needsTrail && trailBy === "pct" ? trail : null, trailPrice: needsTrail && trailBy === "usd" ? trail : null,
-    takeProfit: bracket ? tp : null, stopLoss: bracket ? sl : null, reference: ref ?? null,
+    takeProfit: bracket && !partShare ? tp : null, stopLoss: bracket && !partShare ? sl : null, reference: ref ?? null,
     // The other accounts: exact part shares with Part shares on, else whole shares.
     parts: !crypto && parts,
     ...(leadOff ? { leadOff: true } : {})
@@ -300,7 +309,6 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   // each can be changed, and what it shows is what is sent. The hotkeys keep
   // each account's own size from the Accounts list.
   const groupIds = group.map((a) => a.id);
-  const wholeHoldings = closeQty !== null && unit === "qty" && qty === closeQty && !notional && ((side === "sell" && held > 0) || (side === "buy" && held < 0) || leadOff);
   const [shares, setShares] = useState(null);
   const [partText, setPartText] = useState({});
   useEffect(() => {

@@ -286,7 +286,12 @@ export function splitTotal(
   const what = opts.symbol || "it";
   const closes = (held: number) => (order.side === "sell" && held > 0) || (order.side === "buy" && held < 0);
   const closing = books.some((b) => closes(fin(b.held) || 0));
-  const step = dollars ? 0.01 : opts.crypto || opts.parts || (qty !== null && !Number.isInteger(qty)) ? 1e-9 : 1;
+  // Part shares cannot be held short: a short sale (no account holds it long)
+  // or a buy back of shorts (only short accounts take part) is shared out in
+  // whole shares from the start, so the parts still meet the total (19 Nov
+  // review: 50 went as 47 and 2 with Part shares on).
+  const shortTrade = !dollars && !opts.crypto && ((order.side === "sell" && !closing) || (order.side === "buy" && closing));
+  const step = dollars ? 0.01 : shortTrade ? 1 : opts.crypto || opts.parts || (qty !== null && !Number.isInteger(qty)) ? 1e-9 : 1;
   const unit = opts.crypto ? "step" : "share";
   const blank = (b: Book): Share => ({ id: b.id, name: b.name, qty: null, notional: null, all: false, basis: "equity", skip: null });
   if (!(total !== null && total > 0)) return books.map((b) => ({ ...blank(b), skip: "no quantity to share out" }));
@@ -308,7 +313,8 @@ export function splitTotal(
 
   // In whole steps: each part rounded down, then one step more for the
   // largest remainders until the total is met.
-  const count = Math.round(total / step);
+  // A short trade's total typed in part shares: its whole shares, never more.
+  const count = shortTrade ? steps(total, 1) : Math.round(total / step);
   const parts = taking.map(({ b, i }) => {
     const raw = (count * (fin(b.equity) as number)) / sum;
     const whole = Math.floor(settle(raw));
