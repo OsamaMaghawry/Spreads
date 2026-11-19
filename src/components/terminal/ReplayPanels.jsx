@@ -4,7 +4,7 @@ import { invokeFunction } from "@/lib/functions";
 import { px, sizeText, isCrypto } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
 import { bookValue, bookTrips, tradeStats, replayDate } from "@/lib/replay";
-import { demoBook, periodStart, customPeriod, customBounds } from "@/lib/demoTrades";
+import { demoBook, periodStart, customPeriod, customBounds, tradingDay } from "@/lib/demoTrades";
 import useAccountSetting from "./useAccountSetting";
 
 // The replay's practice book in the account window: what is held in each
@@ -307,7 +307,8 @@ const dateName = (date) => new Date(`${date}T12:00:00Z`).toLocaleDateString("en-
 const EVENT_NAMES = {
   OPASN: "option assignment", OPEXC: "option exercise", SPLIT: "split", SSP: "split", SPIN: "spin-off", SSO: "spin-off",
   MA: "merger", NC: "name change", SC: "symbol change", REO: "reorganisation", REORG: "reorganisation", ACATS: "transfer",
-  JNLS: "share journal", OPCA: "option corporate action", FOPT: "transfer", VOF: "voluntary offer"
+  JNLS: "share journal", OPCA: "option corporate action", FOPT: "transfer", VOF: "voluntary offer", EXTRD: "trade outside Alpaca",
+  DVF: "settlement", OPTRD: "option delivery"
 };
 
 /**
@@ -331,15 +332,20 @@ export function DemoResults({ accountId, refreshKey = null }) {
   const win = custom ? customPeriod(from, to) : { start: periodStart(period), end: null };
   const [state, setState] = useState({ key: "", data: null, error: null, loading: false });
   const key = win ? `${accountId}|${period}|${win.start}|${win.end ?? "now"}` : "";
-  // A period that has ended does not change with an order: read once (19 Nov review).
-  const reread = win && win.end === null ? refreshKey : null;
+  // A period that has ended does not change with an order, and nothing can be
+  // shown from a read cut short: neither is read again after one (19 Nov review).
+  const cutShort = state.key === key && !!state.data?.truncated;
+  const reread = win && win.end === null && !cutShort ? refreshKey : null;
   useEffect(() => {
     if (!accountId || !win) return undefined;
     let alive = true;
     let timer = null;
     const { start, end } = win;
-    const load = () => {
-      if (document.visibilityState === "hidden") return;
+    // Read again while the period runs: every half minute, every two once
+    // there are hundreds of fills to read each time.
+    const again = (ms) => { if (alive && end === null) timer = setTimeout(load, ms); };
+    function load() {
+      if (document.visibilityState === "hidden") { again(DEMO_REFRESH_MS); return; }
       setState((s) => ({ ...s, loading: true }));
       const req = { action: "fills", accountId, start: new Date(start * 1000).toISOString(), custom };
       if (end !== null) req.end = new Date(end * 1000).toISOString();
@@ -347,32 +353,37 @@ export function DemoResults({ accountId, refreshKey = null }) {
         if (!alive) return;
         if (r?.data?.error || !r?.data) setState({ key, data: null, error: r?.data?.error || "Your fills could not be read.", loading: false });
         else setState({ key, data: { ...r.data, startSec: start, endSec: r.data.end ? Date.parse(r.data.end) / 1000 : null }, error: null, loading: false });
-        // Nothing can be shown from a read cut short: no point reading it again.
-        if (r?.data?.truncated) clearInterval(timer);
+        if (!r?.data?.truncated) again((r?.data?.fills?.length || 0) > 300 ? 4 * DEMO_REFRESH_MS : DEMO_REFRESH_MS);
       });
-    };
+    }
     load();
-    if (end === null) timer = setInterval(load, DEMO_REFRESH_MS);
-    return () => { alive = false; clearInterval(timer); };
+    return () => { alive = false; clearTimeout(timer); };
   }, [accountId, key, reread]);
   const data = state.key === key && key ? state.data : null;
   // Ended as the server read it: its closes are there.
   const ended = data ? data.endSec !== null : false;
   const heldBack = data?.heldBack || [];
   const skip = new Set(heldBack.map((e) => e.symbol).filter(Boolean));
+  const named = heldBack.filter((e) => e.symbol);
+  const unnamed = heldBack.filter((e) => !e.symbol);
+  // A period that has ended, with the movements that were not trades unread:
+  // one after it would be read into it, so nothing is shown.
+  const unchecked = !!data && ended && data.eventsRead === false;
   const built = useMemo(() => {
-    if (!data || data.truncated) return null;
+    if (!data || data.truncated || unchecked) return null;
     const keep = (s) => !skip.has(s);
     return demoBook({
       fills: data.fills.filter((f) => keep(f.symbol)), positions: Object.fromEntries(Object.entries(data.positions).filter(([s]) => keep(s))),
       marks: data.marks, start: data.startSec, end: data.endSec, fees: (data.fees || []).filter((f) => keep(f.symbol))
     });
-  }, [data]);
+  }, [data, unchecked]);
   const priceOf = (s) => (ended ? data?.endMarks?.[s] ?? null : data?.positions?.[s]?.last ?? null);
   const carried = built ? Object.keys(built.carried).length : 0;
   const fromCost = built ? Object.entries(built.carried).filter(([, c]) => c.from === "cost").map(([s]) => s) : [];
   const unpriced = built && ended ? Object.entries(built.book).filter(([s, a]) => a.qty && !(data.endMarks?.[s] > 0)).map(([s]) => s) : [];
-  const fillCount = data ? data.fills.filter((f) => !f.delivery && f.time >= data.startSec && (!ended || f.time < data.endSec)).length : 0;
+  const inWindow = (f) => f.time >= data.startSec && (!ended || f.time < data.endSec);
+  const fillCount = data ? data.fills.filter((f) => !f.delivery && inWindow(f)).length : 0;
+  const delivered = data && built ? data.fills.filter((f) => f.delivery && inWindow(f) && !skip.has(f.symbol)) : [];
   const fillText = `${fillCount} fill${fillCount === 1 ? "" : "s"}`;
   const closeName = ended ? (data.endClose ? dateName(data.endClose) : dayName(data.endSec - 3600)) : "";
   const label = !data ? (state.loading && win ? "Reading your fills…" : "")
@@ -405,13 +416,24 @@ export function DemoResults({ accountId, refreshKey = null }) {
       {custom && !win && <p className="px-2 py-1 text-amber-800">Pick dates with at least one trading day, within the last 92 days.</p>}
       {state.error && state.key === key && <p className="px-2 py-1 text-rose-700">{state.error}</p>}
       {data?.truncated && <p className="px-2 py-1 text-amber-800">{`More than ${custom ? "3,000" : "1,000"} fills from the start to now, so what was held at the start cannot be worked out and no figures are shown. ${custom ? "Choose a later From date." : "Choose a shorter period."}`}</p>}
-      {built && heldBack.length > 0 && (
+      {built && named.length > 0 && (
         <p className="px-2 py-1 text-amber-800">
-          {`Left out: ${heldBack.map((e) => `${e.symbol || "a holding"} (${EVENT_NAMES[e.type] || e.type} on ${dateName(e.date)})`).join(", ")}. Its shares changed without a trade, so its figures cannot be worked out from the fills.`}
+          {`Left out: ${named.map((e) => `${e.symbol} (${EVENT_NAMES[e.type] || e.type} on ${dateName(e.date)})`).join(", ")}. Its shares changed without a trade, so its figures cannot be worked out from the fills.`}
+        </p>
+      )}
+      {built && unnamed.length > 0 && (
+        <p className="px-2 py-1 text-amber-800">
+          {`Alpaca recorded ${unnamed.map((e) => `a ${EVENT_NAMES[e.type] || e.type} on ${dateName(e.date)}`).join(", ")} without naming the stock: if it moved shares you held, that stock's figures here are off.`}
+        </p>
+      )}
+      {delivered.length > 0 && (
+        <p className="px-2 py-1 text-slate-600">
+          {`Includes shares from options: ${delivered.map((f) => `${f.symbol} ${f.side === "buy" ? "bought" : "sold"} ${sizeText(f.qty)} at ${px(f.price)} on ${dateName(tradingDay(f.time))}`).join(", ")}, at the strike. What the option itself made or lost is not here.`}
         </p>
       )}
       {built && data.eventsRead === false && <p className="px-2 py-1 text-amber-800">Assignments, splits and transfers could not be checked this time: if a symbol had one since the start, its figures are off.</p>}
-      {fromCost.length > 0 && <p className="px-2 py-1 text-amber-800">{`No close found before the start for ${fromCost.join(", ")}: counted from the average cost now.`}</p>}
+      {unchecked && <p className="px-2 py-1 text-amber-800">Assignments, splits and transfers since the start could not all be read, so what was held then cannot be worked out and no figures are shown. Try again, or choose a later From date.</p>}
+      {fromCost.length > 0 && <p className="px-2 py-1 text-amber-800">{`No close found before the start for ${fromCost.join(", ")}: counted from the average cost now, or else its first trade in the period.`}</p>}
       {unpriced.length > 0 && <p className="px-2 py-1 text-amber-800">{`No close found for ${unpriced.join(", ")} at the end: held at cost, with no open P/L.`}</p>}
       <div className="min-h-0 flex-1">
         {built && (
@@ -420,7 +442,7 @@ export function DemoResults({ accountId, refreshKey = null }) {
             netHint={`Closed plus open; ${optionsText}`}
             closedHint={carried ? "Profit taken; what was held before counts from the close before the period" : "Profit taken, every symbol"}
             openHint={ended ? `Positions still held at the end, at ${closeName}'s regular close` : "Positions still held, at the last price"} holdHint="Open to close"
-            note={`From this account's own share and coin fills at Alpaca; options are not in it, nor commission, fees, dividends or interest. ${carried ? `Held from before the period (${carried} symbol${carried === 1 ? "" : "s"}): counted from the last regular close before then (a coin: its last daily close, UTC), not from what was paid; "held before" in the list. ` : ""}${ended ? "Trades after the period are left out; what was still held at its end is valued at that day's regular close (a coin: its daily close, UTC). " : ""}Shares delivered by an option assignment or exercise count as bought or sold at the strike, that day at 4:00 p.m. Coin fees taken in the coin come off the buy they were charged on. Return is on the cost of the part closed.`} />
+            note={`From this account's own share and coin fills at Alpaca; options are not in it, nor commission, fees, dividends or interest. ${carried ? `Held from before the period (${carried} symbol${carried === 1 ? "" : "s"}): counted from the last regular close before then (a coin: its last daily close, UTC), not from what was paid; "held before" in the list. ` : ""}${ended ? "Trades after the period are left out; what was still held at its end is valued at that day's regular close (a coin: its daily close, UTC). " : ""}Shares delivered by an option assignment or exercise count as bought or sold at the strike, from the start of that trading day. Coin fees taken in the coin are left out: those coins count as never bought. Return is on the cost of the part closed.`} />
         )}
       </div>
     </div>

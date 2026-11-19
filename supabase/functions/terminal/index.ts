@@ -19,6 +19,7 @@ import { historyRow, premarket, afterHours, nyMoment } from "../_shared/screenHi
 import { usSession, usOvernight, stopPlan, stopLimitPrice, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit, replaceable } from "../_shared/positionTools.ts";
 import { inBackground } from "../_shared/background.ts";
 import { allocate, splitTotal, wholeHoldings } from "../_shared/proRata.ts";
+import { shareMoves, SHARE_EVENTS, SHARE_EVENTS_CORE } from "../_shared/shareMoves.ts";
 import { orderStream } from "../_shared/orderStream.ts";
 import { isOwnerEmail, isAdminUser } from "../_shared/admin.ts";
 import { handBackFired, chaseFired } from "../_shared/stopGuardRun.ts";
@@ -2417,69 +2418,29 @@ async function accountFills(account: any, startIso: string, endIso = "", pages =
   if (endIso && !(Number.isFinite(endMs) && endMs > start && endMs <= Date.now() + 15 * 60000)) return { error: "Pick when the period ends." };
   const end = endIso ? endMs : null;
   const base = tradingBase(account);
-  const raw: any[] = [];
-  let token: string | null = null;
-  let truncated = false;
-  for (let page = 0; page < pages; page++) {
-    const list = await alpacaFetch(`${base}/account/activities/FILL?after=${encodeURIComponent(iso(start))}&direction=asc&page_size=100` +
-      (token ? `&page_token=${encodeURIComponent(token)}` : ""), account);
-    const rows = Array.isArray(list) ? list : [];
-    raw.push(...rows);
-    token = rows.length === 100 ? rows.at(-1)?.id || null : null;
-    if (!token) break;
-    if (page === pages - 1) truncated = true;
-  }
+  // The fills, and the share movements that are not fills (shareMoves.ts),
+  // read side by side.
+  const readFills = async () => {
+    const raw: any[] = [];
+    let token: string | null = null;
+    for (let page = 0; page < pages; page++) {
+      const list = await alpacaFetch(`${base}/account/activities/FILL?after=${encodeURIComponent(iso(start))}&direction=asc&page_size=100` +
+        (token ? `&page_token=${encodeURIComponent(token)}` : ""), account);
+      const rows = Array.isArray(list) ? list : [];
+      raw.push(...rows);
+      token = rows.length === 100 ? rows.at(-1)?.id || null : null;
+      if (!token) return { raw, truncated: false };
+    }
+    return { raw, truncated: true };
+  };
+  const [{ raw, truncated }, events] = await Promise.all([readFills(), nonTradeEvents(account, base, start)]);
   const options = raw.filter((a) => OCC_SYMBOL.test(String(a.symbol || "")) && !(end && Date.parse(a.transaction_time) >= end)).length;
   const fills = raw.filter((a) => a.symbol && !OCC_SYMBOL.test(String(a.symbol)) && num(a.qty) && num(a.price)).map((a) => ({
-    symbol: fillSymbol(String(a.symbol)), side: a.side === "buy" ? "buy" : "sell", qty: Number(a.qty), price: Number(a.price),
+    symbol: fillSymbol(String(a.symbol)), side: (a.side === "buy" ? "buy" : "sell") as "buy" | "sell", qty: Number(a.qty), price: Number(a.price),
     time: Math.floor(Date.parse(a.transaction_time) / 1000), orderId: a.order_id || null, delivery: false
   }));
-  // Shares that moved without a fill (19 Nov reviews): what was held at the
-  // start is the holding now less every share movement since, so these count
-  // too. An option assignment or exercise delivers the shares as an OPTRD
-  // entry on the underlying at the strike: a fill, dated only, so at that
-  // day's 16:00. A coin fee taken in the coin (CFEE, posted at day's end)
-  // comes off the buy it was charged on (lib/demoTrades.js). A split, a
-  // transfer or another corporate action cannot be read as a fill: that
-  // symbol's figures are held back and the reason shown (`heldBack`). Read
-  // from two days before the start, as these carry a date and not a moment.
-  const events = await nonTradeEvents(account, base, start);
-  const startDate = nyDate(start);
-  const optionDays = new Set<string>();
-  const deliveredDays = new Set<string>();
-  const heldBack: { symbol: string; type: string; date: string }[] = [];
-  const fees: { symbol: string; qty: number; time: number }[] = [];
-  for (const a of events || []) {
-    const type = String(a.activity_type || "");
-    const sym = String(a.symbol || "");
-    const date = String(a.date || "").slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
-    if (type === "OPTRD") {
-      // An option's own trade is left out with the other option fills.
-      if (!sym || OCC_SYMBOL.test(sym)) continue;
-      const time = Math.floor(nyMoment(date, "16:00") / 1000);
-      const qty = Number(a.qty);
-      const price = Math.abs(Number(a.net_amount) / qty) || Number(a.price);
-      if (!qty || !(price > 0)) continue;
-      deliveredDays.add(`${fillSymbol(sym)}|${date}`);
-      // Delivered before the start: already in what was held then.
-      if (time * 1000 >= start) fills.push({ symbol: fillSymbol(sym), side: qty > 0 ? "buy" : "sell", qty: Math.abs(qty), price, time, orderId: null, delivery: true });
-    } else if (type === "OPASN" || type === "OPEXC") {
-      const m = sym.match(/^([A-Z]{1,6})\d{6}[CP]\d{8}$/);
-      if (m && date >= startDate) optionDays.add(`${m[1]}|${date}|${type}`);
-    } else if (type === "CFEE") {
-      // In the coin when no cash moved (a buy's fee); a sell's fee is in dollars.
-      const qty = Math.abs(Number(a.qty));
-      if (sym && qty > 0 && !Number(a.net_amount)) fees.push({ symbol: fillSymbol(sym), qty, time: Math.floor(Date.parse(`${date}T23:59:59Z`) / 1000) });
-    } else if (date >= startDate) {
-      heldBack.push({ symbol: sym ? fillSymbol(sym) : "", type, date });
-    }
-  }
-  // An assignment or exercise whose shares were not found as an OPTRD: held back too.
-  for (const k of optionDays) {
-    const [symbol, date, type] = k.split("|");
-    if (!deliveredDays.has(`${symbol}|${date}`)) heldBack.push({ symbol, type, date });
-  }
+  const moves = events ? shareMoves(events, fills, start, fillSymbol) : { deliveries: [], fees: [], heldBack: [] };
+  fills.push(...moves.deliveries);
   fills.sort((a, b) => a.time - b.time);
   const held = await alpacaFetch(`${base}/positions`, account);
   const positions: Record<string, { qty: number; last: number | null; avg: number | null }> = {};
@@ -2502,8 +2463,12 @@ async function accountFills(account: any, startIso: string, endIso = "", pages =
       const chunk = list.slice(i, i + 100).join(",");
       const url = (feed: string) => crypto
         ? `${CRYPTO_DATA}/bars?symbols=${encodeURIComponent(chunk)}&timeframe=1Day&start=${from}&end=${until}&limit=10000`
-        : `${DATA}/stocks/bars?symbols=${chunk}&timeframe=1Day&start=${from}&end=${until}&limit=10000&feed=${feed}&adjustment=split`;
+        : `${DATA}/stocks/bars?symbols=${chunk}&timeframe=1Day&start=${from}&end=${until}&limit=10000&feed=${feed}&adjustment=${end ? "raw" : "split"}`;
       const page = await alpacaFetch(url("sip"), account).catch(() => alpacaFetch(url(FEED), account)).catch(() => null);
+      // A period that has ended: closes as they printed, as its fills did;
+      // adjusted for a later split, they no longer match (19 Nov review). One
+      // running to now: adjusted, as the holdings now are. A split in a symbol
+      // held then holds that symbol back either way (shareMoves.ts).
       // A day's close counts once it has happened by then: a share's at
       // 16:00 New York, a coin's at the end of its UTC day.
       const closedBy = (b: any) => (crypto ? Date.parse(b.t) + 86400000 : nyMoment(nyDate(Date.parse(b.t)), "16:00")) <= at;
@@ -2524,30 +2489,39 @@ async function accountFills(account: any, startIso: string, endIso = "", pages =
   // The day of the latest close read for the end, to name it (a holiday's is the day before).
   const endClose = end ? closeDays.sort().at(-1) || null : null;
   return {
-    start: iso(start), fills, positions, marks, options, truncated, fees, heldBack, eventsRead: events !== null,
+    start: iso(start), fills, positions, marks, options, truncated, fees: moves.fees, heldBack: moves.heldBack, eventsRead: events !== null,
     ...(end ? { end: iso(end), endMarks, endClose } : {})
   };
 }
 
-// The share-moving entries that are not fills (19 Nov reviews), from two days
-// before `start` on; null when they could not be read.
-const SHARE_EVENTS = "OPTRD,OPASN,OPEXC,CFEE,SPLIT,SSP,SPIN,SSO,MA,NC,SC,REO,REORG,ACATS,JNLS,OPCA,FOPT,VOF";
+// The share-moving entries that are not fills (shareMoves.ts), from two days
+// before `start` on (they are dated, and `after` reads when they were
+// entered); null when they could not all be read. If Alpaca refuses the list
+// of types (it accepts only some as filters), the shorter documented one.
+const EVENT_PAGES = 10;
 async function nonTradeEvents(account: any, base: string, start: number) {
-  const out: any[] = [];
-  let token: string | null = null;
-  try {
-    for (let page = 0; page < 5; page++) {
-      const list = await alpacaFetch(`${base}/account/activities?activity_types=${SHARE_EVENTS}&after=${nyDate(start - 2 * 86400000)}&direction=asc&page_size=100` +
+  const read = async (types: string) => {
+    const out: any[] = [];
+    let token: string | null = null;
+    for (let page = 0; page < EVENT_PAGES; page++) {
+      const list = await alpacaFetch(`${base}/account/activities?activity_types=${types}&after=${nyDate(start - 2 * 86400000)}&direction=asc&page_size=100` +
         (token ? `&page_token=${encodeURIComponent(token)}` : ""), account);
       if (!Array.isArray(list)) return null;
       out.push(...list);
       token = list.length === 100 ? list.at(-1)?.id || null : null;
       if (!token) return out;
     }
-    return out;
+    // More than the pages read: the newest, the ones that matter most after a period, are missing.
+    return null;
+  };
+  try {
+    return await read(SHARE_EVENTS);
   } catch (e) {
     console.warn("non-trade activities", String((e as Error)?.message || e).slice(0, 200));
-    return null;
+    try { return await read(SHARE_EVENTS_CORE); } catch (e2) {
+      console.warn("non-trade activities (core)", String((e2 as Error)?.message || e2).slice(0, 200));
+      return null;
+    }
   }
 }
 

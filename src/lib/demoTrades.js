@@ -46,7 +46,7 @@ export function demoBook({ fills = [], positions = {}, marks = {}, start, end = 
     let acct = newPractice(0);
     if (Math.abs(before) > 1e-9) {
       const mark = Number.isFinite(marks[s]) ? marks[s] : null;
-      const price = mark ?? positions[s]?.avg ?? list[0]?.price ?? null;
+      const price = mark ?? positions[s]?.avg ?? list.find(inPeriod)?.price ?? list[0]?.price ?? null;
       if (price > 0) {
         acct = practiceFill(acct, { side: before > 0 ? "buy" : "sell", qty: Math.abs(before), price, time: start, why: "carried" });
         carried[s] = { qty: before, price, from: mark !== null ? "close" : "cost" };
