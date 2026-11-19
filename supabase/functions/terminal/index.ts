@@ -18,7 +18,7 @@ import { dailyStats, isFundName } from "../_shared/screenStats.ts";
 import { historyRow, premarket, afterHours, nyMoment } from "../_shared/screenHistory.ts";
 import { usSession, usOvernight, stopPlan, stopLimitPrice, exitPlan, tradeSize, partialQty, targetPlan, existingExits, exitBody, exitSplit, replaceable } from "../_shared/positionTools.ts";
 import { inBackground } from "../_shared/background.ts";
-import { allocate, splitTotal, wholeHoldings } from "../_shared/proRata.ts";
+import { allocate, splitTotal, wholeHoldings, percentSplit } from "../_shared/proRata.ts";
 import { shareMoves, SHARE_EVENTS, SHARE_EVENTS_CORE } from "../_shared/shareMoves.ts";
 import { orderStream } from "../_shared/orderStream.ts";
 import { isOwnerEmail, isAdminUser } from "../_shared/admin.ts";
@@ -2278,14 +2278,13 @@ async function allocation(admin: any, user: any, lead: any, ids: unknown, input:
     // the ticket too"; the ticket then holds the order to Alpaca's part-share
     // rules: for the day, no bracket, no trailing stop). `price`: for the $1
     // smallest part share.
-    const partShares = input?.parts === true && !crypto && await fractionable;
+    const fr = await fractionable;
+    const partShares = input?.parts === true && !crypto && fr;
+    const closes = (held: number) => (side === "sell" && held > 0) || (side === "buy" && held < 0);
     const parts = input.split === "holdings" ? wholeHoldings(side, taking, { symbol })
-      : input.split === "percent"
-        ? allocate({ side, qty: null, notional: null }, leadBook, taking.map((b: any) => ({ ...b, rule: null })),
-          { basis: "equity", crypto, symbol, price, pct, closing: "group", fractionable: await fractionable, parts: crypto ? undefined : partShares })
+      : input.split === "percent" ? percentSplit(side, taking, { pct: pct!, price: price!, crypto, symbol, fractionable: fr, parts: partShares })
         : splitTotal({ side, qty: given(input?.qty), notional: given(input?.notional) }, taking,
           { crypto, symbol, parts: partShares ? true : undefined, price });
-    const closes = (held: number) => (side === "sell" && held > 0) || (side === "buy" && held < 0);
     const partOf = (id: string) => parts.find((x) => x.id === id);
     const row = (b: any, sh: any) => ({
       qty: sh.all ? (b.qtyText ? Number(b.qtyText) : sh.qty) : sh.qty, qtyText: sh.all ? b.qtyText ?? null : null, notional: sh.notional, all: sh.all, basis: sh.basis, skip: sh.skip,
@@ -2296,7 +2295,10 @@ async function allocation(admin: any, user: any, lead: any, ids: unknown, input:
       symbol, side, split: input.split,
       // Whether it closes holdings: the ticket then sends it reduce-only, so
       // an account that no longer holds at sending opens nothing.
-      closing: taking.some((b: any) => closes(Number(b.held) || 0)),
+      // A percent buy goes reduce-only only when every account is covering a short.
+      closing: input.split === "percent" && side === "buy"
+        ? taking.length > 0 && taking.every((b: any) => closes(Number(b.held) || 0))
+        : taking.some((b: any) => closes(Number(b.held) || 0)),
       lead: { accountId: lead.id, name: lead.name, equity: leadBook.equity, buyingPower: leadBook.buyingPower, held: leadBook.held, ...(mine ? { part: row(leadBook, mine) } : {}) },
       group: group.map((g, i) => {
         const b: any = books[i];

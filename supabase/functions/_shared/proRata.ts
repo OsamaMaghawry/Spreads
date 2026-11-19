@@ -374,3 +374,32 @@ export function wholeHoldings(side: "buy" | "sell", books: Book[], opts: { symbo
       : { ...base, qty: null, all: false, skip: `holds no ${what} to ${side === "sell" ? "sell" : "buy back"}` };
   });
 }
+
+// ---------------------------------------------------------------------------
+// The ticket's size as a percent of equity (19 Nov, the owner: "add in the
+// ticker percentage of the equity account in addition to the number of
+// shares and Dollar, and when writing a percentage, it should go pro rata"):
+// every account it goes to, the one on screen among them, its own percent of
+// its own equity, by `allocate`'s own-percent rule (the % hotkeys'; on screen,
+// lib/terminal.js percentQty), the accounts' hotkey sizes playing no part.
+// Part shares on buys only, as the hotkeys (a sale in part shares would leave
+// whole holdings fractional; a short sale in part shares is refused). A buy:
+// each account on its own, a short one covering at most its short. A sale:
+// never more than an account holds, one holding none sending nothing when
+// any holds; coins are never sold short (19 Nov review).
+export function percentSplit(
+  side: "buy" | "sell",
+  books: Book[],
+  opts: { pct: number; price: number; crypto?: boolean; symbol?: string; fractionable?: boolean; parts?: boolean }
+): Share[] {
+  const own = books.map((b) => ({ ...b, rule: null }));
+  const o = {
+    basis: "equity" as const, crypto: opts.crypto, symbol: opts.symbol, price: opts.price, pct: opts.pct,
+    fractionable: opts.fractionable, parts: side === "buy" && opts.parts ? true : undefined
+  };
+  const order = { side, qty: null, notional: null };
+  if (side === "buy") return own.map((b) => allocate(order, b, [b], { ...o, closing: "lead" })[0]);
+  if (!own.length) return [];
+  const rows = allocate(order, own[0], own, { ...o, closing: "group" });
+  return rows.map((r, i) => (!opts.crypto || r.skip || (fin(own[i].held) || 0) > 0 ? r : { ...r, qty: null, notional: null, all: false, skip: "coins cannot be sold short" }));
+}

@@ -76,6 +76,9 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   // of shares and Dollar, and when writing a percentage, it should go pro
   // rata"): each account ticked takes that percent of its own equity.
   const [pctIn, setPctIn] = useState("");
+  // The review's parts for the accounts ticked (functions/terminal "allocate"), as shown and sent.
+  const [shares, setShares] = useState(null);
+  const [partText, setPartText] = useState({});
   // Close, Stop or Max on a position (18 Nov review): with other accounts
   // ticked, each closes its own whole holding rather than a share of this one,
   // and only while the size is still the one they put in (a later order with
@@ -256,7 +259,10 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   // it holds there).
   const short = !group.length && side === "sell" && n > Math.max(0, held) + 1e-12;
   const overBp = !group.length && side === "buy" && value !== null && buyingPower !== null && value > buyingPower;
-  const sized = (notional ? dollars >= 1 : n > 0) && !(unit === "pct" && pct > 100);
+  // In percent with other accounts ticked, the review sizes every account,
+  // the one on screen too: its own part may come to nothing (19 Nov review).
+  const sized = unit === "pct" && group.length > 0 ? pct > 0 && pct <= 100 && Number(equity) > 0
+    : (notional ? dollars >= 1 : n > 0) && !(unit === "pct" && pct > 100);
   // Part of a share: Alpaca takes it for the day and without a take-profit and
   // stop-loss attached, and not as a trailing stop. So too with Part shares on
   // and other accounts ticked (19 Nov, the owner: "turn on part shares for the
@@ -266,7 +272,12 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   const wholeHoldings = closeQty !== null && unit === "qty" && qty === closeQty && !notional && ((side === "sell" && held > 0) || (side === "buy" && held < 0) || leadOff);
   // Not for Close, Stop or Max: each account's whole holding goes as it is, a
   // whole-share holding keeping its stop good till cancelled (19 Nov review).
-  const partShare = !crypto && n > 0 && (!Number.isInteger(n) || (parts && group.length > 0 && !wholeHoldings));
+  // Any account's part in part shares, as the review shows it (19 Nov review:
+  // with Part shares off, a small account's buy under one share is one), or
+  // typed into a row: every account's order then goes for the day, no exits.
+  const rowsInParts = !crypto && group.length > 0 && Object.values(partText).some((v) => { const x = Number(v); return x > 0 && !Number.isInteger(x); });
+  const partShare = !crypto && (rowsInParts ||
+    (n > 0 && (!Number.isInteger(n) || (parts && group.length > 0 && !wholeHoldings && !(unit === "pct" && side === "sell")))));
   const trailingPart = partShare && type === "trailing_stop";
   const ready = tradable && symbol && sized && !belowMin && !(crypto && short) && !trailingPart &&
     (!needsLimit || Number(limit) > 0) && (!needsStop || Number(stop) > 0) && (!needsTrail || Number(trail) > 0) && (!bracket || (Number(tp) > 0 && Number(sl) > 0));
@@ -293,7 +304,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   const exactSale = !notional && side === "sell" && !!heldText && (unit === "pct" ? !!pctSize?.all : sellAll || Number(qty) === held);
   const words = (notional
     ? `${side === "buy" ? "Buy" : "Sell"} ${fmtMoney(dollars)} of ${symbol} `
-    : `${side === "buy" ? "Buy" : "Sell"} ${exactSale ? String(Number(heldText)) : n ? sizeText(n) : "?"} ${crypto ? coin : symbol || ""} `) +
+    : `${side === "buy" ? "Buy" : "Sell"} ${exactSale ? String(Number(heldText)) : n ? sizeText(n) : unit === "pct" && pct > 0 ? `${pct}%` : "?"} ${crypto ? coin : symbol || ""} `) +
     (type === "market" ? "at market" : type === "limit" ? `limit ${px(limit)}` : type === "stop" ? `stop ${px(stop)}`
       : type === "trailing_stop" ? `trailing stop ${trailBy === "pct" ? `${trail}%` : fmtMoney(Number(trail))} behind the price` : `stop ${px(stop)}, limit ${px(limit)}`) +
     `, ${TIF_TEXT[tif] || TIF_TEXT.day}${extended ? ", including pre-market and after hours" : ""}` +
@@ -319,8 +330,6 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   // each can be changed, and what it shows is what is sent. The hotkeys keep
   // each account's own size from the Accounts list.
   const groupIds = group.map((a) => a.id);
-  const [shares, setShares] = useState(null);
-  const [partText, setPartText] = useState({});
   useEffect(() => {
     if (!review || !groupIds.length || !account?.id) { setShares(null); setPartText({}); return undefined; }
     let gone = false;

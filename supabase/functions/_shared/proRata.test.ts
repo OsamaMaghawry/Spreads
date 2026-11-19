@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { allocate } from "./proRata.ts";
+import { allocate, percentSplit } from "./proRata.ts";
 
 const lead = { id: "L", name: "Lead", equity: 100000, buyingPower: 200000, held: 0 };
 const half = { id: "A", name: "Half", equity: 50000, buyingPower: 50000, held: 0 };
@@ -407,22 +407,34 @@ test("split with Part shares on: a short sale or buy back still meets the total 
 // it should go pro rata". The ticket's % (functions/terminal allocation,
 // split "percent"): every account it goes to, the one on screen among them,
 // its own percent of its own equity, as a % hotkey sizes it.
-test("the ticket's percent of equity: each account its own, nearest share; sales capped; part shares", () => {
+test("the ticket's percent of equity: each account its own, nearest share; sales capped; part shares on buys", () => {
   const alton = { id: "A", name: "Alton", equity: 126780.6, buyingPower: 470431.5, held: 0 };
   const small = { id: "B", name: "Alpaca", equity: 5998.9, buyingPower: 23682.01, held: 0 };
-  const o = (side: "buy" | "sell") => ({ side, qty: null, notional: null });
-  const opts = { basis: "equity" as const, pct: 5, price: 117.4, closing: "group" as const, symbol: "XYZ" };
+  const opts = { pct: 5, price: 117.4, symbol: "XYZ" };
   const qtys = (rows: any[]) => rows.map((r) => r.qty);
   // 5% at 117.40: 53.995 and 2.555, to the nearest share.
-  assert.deepEqual(qtys(allocate(o("buy"), alton, [alton, small], opts)), [54, 3]);
+  assert.deepEqual(qtys(percentSplit("buy", [alton, small], opts)), [54, 3]);
   // Never past buying power on a buy: down instead.
-  assert.deepEqual(qtys(allocate(o("buy"), alton, [alton, { ...small, buyingPower: 300 }], opts)), [54, 2]);
-  // Part shares asked for: the exact part shares.
-  assert.deepEqual(qtys(allocate(o("buy"), alton, [alton, small], { ...opts, fractionable: true, parts: true })), [53.995144804, 2.554897785]);
+  assert.deepEqual(qtys(percentSplit("buy", [alton, { ...small, buyingPower: 300 }], opts)), [54, 2]);
+  // Part shares asked for: the exact part shares on a buy...
+  assert.deepEqual(qtys(percentSplit("buy", [alton, small], { ...opts, fractionable: true, parts: true })), [53.995144804, 2.554897785]);
+  // ...but whole shares on a sale, held or not (review S1, S3).
+  assert.deepEqual(qtys(percentSplit("sell", [{ ...alton, held: 100 }, { ...small, held: 10 }], { ...opts, fractionable: true, parts: true })), [54, 3]);
+  assert.deepEqual(qtys(percentSplit("sell", [alton, small], { ...opts, fractionable: true, parts: true })), [54, 3]);
   // A sale when one account holds: at most its holding; the other, holding none, sends nothing.
-  const sale = allocate(o("sell"), { ...alton, held: 30 }, [{ ...alton, held: 30 }, small], opts);
+  const sale = percentSplit("sell", [{ ...alton, held: 30 }, small], opts);
   assert.deepEqual(sale.map((r) => [r.qty, r.all]), [[30, true], [null, false]]);
   assert.match(sale[1].skip!, /holds no XYZ/);
   // Nobody holds: each sells (short) its own percent.
-  assert.deepEqual(qtys(allocate(o("sell"), alton, [alton, small], opts)), [54, 3]);
+  assert.deepEqual(qtys(percentSplit("sell", [alton, small], opts)), [54, 3]);
+  // A buy with one account short (review W2): it covers at most its short; the other buys its percent.
+  const cover = percentSplit("buy", [alton, { ...small, held: -10 }], opts);
+  assert.deepEqual(cover.map((r) => [r.qty, r.all]), [[54, false], [3, false]]);
+  assert.deepEqual(qtys(percentSplit("buy", [alton, { ...small, held: -2 }], opts)), [54, 2]);
+  // Coins are never sold short (review W4).
+  const coins = percentSplit("sell", [{ ...alton, held: 0.5 }, small], { pct: 1, price: 90000, crypto: true, symbol: "BTC/USD" });
+  assert.equal(coins[0].qty, 0.014086733);
+  assert.match(coins[1].skip!, /holds no BTC\/USD|cannot be sold short/);
+  const none = percentSplit("sell", [alton, small], { pct: 1, price: 90000, crypto: true, symbol: "BTC/USD" });
+  assert.deepEqual(none.map((r) => r.skip), ["coins cannot be sold short", "coins cannot be sold short"]);
 });

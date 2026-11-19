@@ -295,9 +295,14 @@ export default function Terminal() {
   // The account's shares and orders, every few seconds while the tab is open.
   // Not while the screener is up: nothing shows them there, and its first
   // read of the market needs the account's request allowance.
+  // A read for an account no longer on screen is dropped: landing after a
+  // switch, it would show (and size a % order from) the other account's
+  // equity, buying power and holdings (19 Nov review).
+  const viewFor = useRef(accountId);
+  viewFor.current = accountId;
   const loadView = useCallback(() => {
     if (!accountId || document.visibilityState === "hidden" || pageRef.current === "screen") return;
-    invokeFunction("terminal", { action: "account", accountId }).then((r) => { if (!r?.data?.error) setView(r.data); });
+    invokeFunction("terminal", { action: "account", accountId }).then((r) => { if (!r?.data?.error && viewFor.current === accountId) setView(r.data); });
   }, [accountId]);
   useEffect(() => {
     setView(null);
