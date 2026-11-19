@@ -190,3 +190,38 @@ test("order blocks: an order listed twice counts once; a stop read as 0 is no st
   assert.equal(stopOf({ stop: 0, legs: [{ stop: 0 }, { stop: 181 }] }), 181);
   assert.equal(stopOf({ stop: 0 }), null);
 });
+
+// ---------------------------------------------------------------------------
+// Trading audit W47-F1 (19 Nov): an account holding part of a share gets its
+// stop for the day only and no exits attached (positionTools stopPlan; the
+// terminal's group send). The screen said "Good till cancelled" and the
+// group's day-only notes were thrown away with the successes.
+// ---------------------------------------------------------------------------
+import { partShareDay, exitsLifetime, dayOnlyNews } from "./accountGroup.js";
+
+test("part-share day note: only where a part share changes what is sent", () => {
+  assert.equal(partShareDay({ qty: 100, tif: "gtc" }), null);
+  assert.equal(partShareDay({ qty: 41.735, tif: "day" }), null);
+  assert.match(partShareDay({ qty: 41.735, tif: "gtc" }), /today only/);
+  assert.match(partShareDay({ qty: 4.5, tif: "day", bracket: true }), /no take-profit or stop-loss attached/);
+  assert.equal(partShareDay({ qty: 0.5, tif: "gtc", crypto: true }), null);
+  assert.equal(partShareDay({ qty: 12.5, tif: "gtc", notional: true }), null);
+  assert.equal(partShareDay({ qty: 0, tif: "gtc" }), null);
+});
+
+test("exits' lifetime: good till cancelled only where every holder holds whole shares", () => {
+  assert.equal(exitsLifetime([{ name: "A", qty: 100 }, { name: "B", qty: -50 }]), "Good till cancelled");
+  const mixed = exitsLifetime([{ name: "A", qty: 100 }, { name: "B", qty: 41.735 }]);
+  assert.doesNotMatch(mixed, /^Good till cancelled$/);
+  assert.match(mixed, /for today only on B/);
+  assert.match(exitsLifetime([{ name: "here", qty: 41.735 }]), /^For today only/);
+  assert.equal(exitsLifetime([{ name: "A", qty: 0.25 }], true), "Good till cancelled");
+});
+
+test("day-only news: a group stop sent for today only is said, not dropped", () => {
+  assert.equal(dayOnlyNews([{ name: "A", ok: true, note: null }]), null);
+  assert.equal(dayOnlyNews([{ name: "A", ok: false, note: "a position with part of a share: the stop lasts for today only" }]), null);
+  const n = dayOnlyNews([{ name: "B", ok: true, note: "a position with part of a share: the stop lasts for today only" }, { name: "A", ok: true }]);
+  assert.match(n.title, /today only on B/);
+  assert.match(n.detail, /B: a position with part of a share/);
+});

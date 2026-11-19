@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { px, sizeText, isCrypto, amountToQty, orderState, orderNews, sessionOf, ticketChoices, exitText, stopWaitText } from "@/lib/terminal";
-import { refusalNews } from "@/lib/accountGroup";
+import { refusalNews, partShareDay, exitsLifetime, dayOnlyNews } from "@/lib/accountGroup";
 import { onOrder } from "./orderFeed";
 import { reportGroup } from "./runHotkey";
 import { fmtMoney } from "@/lib/format";
@@ -631,6 +631,10 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
                   </div>
                   {g.skip && <div className="text-slate-400">nothing sent: {g.skip}</div>}
                   {!g.skip && g.all && <div className="text-slate-400">all it holds</div>}
+                  {/* Sent for the day, without exits, on part of a share (audit W47-F1). */}
+                  {!g.skip && partShareDay({ qty: partOf(g.accountId), tif, bracket, crypto, notional }) && (
+                    <div className="font-medium text-amber-800">{partShareDay({ qty: partOf(g.accountId), tif, bracket, crypto, notional })}</div>
+                  )}
                   {/* What the part does there (18 Nov review): a sale past what it holds is a short; a buy past its buying power is likely refused. */}
                   {!notional && side === "sell" && partOf(g.accountId) > Math.max(0, Number(g.held) || 0) + 1e-12 && (
                     <div className="font-medium text-amber-800">sells {sizeText(partOf(g.accountId) - Math.max(0, Number(g.held) || 0))} it does not hold: a short sale{Number(g.held) > 0 ? ` (holds ${sizeText(Number(g.held))})` : ""}</div>
@@ -702,7 +706,7 @@ function PositionExits({ account, symbol, held, crypto, tradable, session, onNot
   const floor = s && !crypto ? Math.round((long ? s * 0.98 : s * 1.02) * (s >= 1 ? 100 : 10000)) / (s >= 1 ? 100 : 10000) : null;
   const words = exitText({ side: long ? "sell" : "buy", qty, stopPrice: s, limitPrice: floor, targetPrice: t }, name, session)
     .replace(/^(Sell|Buy back) [^:]+:/, (m, out) => (many ? `${out} all ${name} held (${holders.join(", ")}):` : m)) +
-    `. Good till cancelled; replaces the ${s && t ? "stop and take profit" : s ? "stop" : "take profit"} working on ${symbol}${many ? " on each account" : ""}, if any`;
+    `. ${exitsLifetime([{ name: "here", qty: held }, ...groupHeld], crypto)}; replaces the ${s && t ? "stop and take profit" : s ? "stop" : "take profit"} working on ${symbol}${many ? " on each account" : ""}, if any`;
   const send = async () => {
     setBusy(true);
     const key = `x${Date.now()}`;
@@ -711,6 +715,8 @@ function PositionExits({ account, symbol, held, crypto, tradable, session, onNot
       .catch((e) => ({ data: { error: String(e?.message || e) } }));
     const g = refusalNews(r?.data?.group);
     if (g) onNotify({ key: leadOff ? key : `${key}g`, ...g });
+    const day = dayOnlyNews(r?.data?.group);
+    if (day) onNotify({ key: `${key}d`, ...day });
     setBusy(false);
     setReview(false);
     if (r?.data?.error) { onNotify({ key, tone: "bad", title: "Exits not set", detail: r.data.error }); return; }
