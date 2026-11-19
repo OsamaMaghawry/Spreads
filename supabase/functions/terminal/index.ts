@@ -2453,7 +2453,7 @@ async function accountFills(account: any, startIso: string, endIso = "", pages =
   const marks: Record<string, number> = {};
   const endMarks: Record<string, number> = {};
   const closeDays: string[] = [];
-  const readMarks = async (list: string[], crypto: boolean, at: number, into: Record<string, number>) => {
+  const readMarks = async (list: string[], crypto: boolean, at: number, into: Record<string, number>, adjustment = "raw") => {
     const from = iso(at - 12 * 86400000);
     // The day's close is in by 16:00, four hours before a period's start or end (20:00): asking only
     // up to then keeps a read made just after 20:00 off the consolidated feed's most recent
@@ -2463,12 +2463,10 @@ async function accountFills(account: any, startIso: string, endIso = "", pages =
       const chunk = list.slice(i, i + 100).join(",");
       const url = (feed: string) => crypto
         ? `${CRYPTO_DATA}/bars?symbols=${encodeURIComponent(chunk)}&timeframe=1Day&start=${from}&end=${until}&limit=10000`
-        : `${DATA}/stocks/bars?symbols=${chunk}&timeframe=1Day&start=${from}&end=${until}&limit=10000&feed=${feed}&adjustment=${end ? "raw" : "split"}`;
+        : `${DATA}/stocks/bars?symbols=${chunk}&timeframe=1Day&start=${from}&end=${until}&limit=10000&feed=${feed}&adjustment=${adjustment}`;
       const page = await alpacaFetch(url("sip"), account).catch(() => alpacaFetch(url(FEED), account)).catch(() => null);
-      // A period that has ended: closes as they printed, as its fills did;
-      // adjusted for a later split, they no longer match (19 Nov review). One
-      // running to now: adjusted, as the holdings now are. A split in a symbol
-      // held then holds that symbol back either way (shareMoves.ts).
+      // Closes as they printed, as the fills did (19 Nov review); a split
+      // since the start holds the symbol back (below).
       // A day's close counts once it has happened by then: a share's at
       // 16:00 New York, a coin's at the end of its UTC day.
       const closedBy = (b: any) => (crypto ? Date.parse(b.t) + 86400000 : nyMoment(nyDate(Date.parse(b.t)), "16:00")) <= at;
@@ -2482,10 +2480,22 @@ async function accountFills(account: any, startIso: string, endIso = "", pages =
   };
   const shares = symbols.filter((s) => !isCrypto(s));
   const coins = symbols.filter((s) => isCrypto(s));
+  const adjusted: Record<string, number> = {};
   await Promise.all([
-    readMarks(shares, false, start, marks), readMarks(coins, true, start, marks),
+    readMarks(shares, false, start, marks), readMarks(shares, false, start, adjusted, "split"), readMarks(coins, true, start, marks),
     ...(end ? [readMarks(shares, false, end, endMarks), readMarks(coins, true, end, endMarks)] : [])
   ]);
+  // A split since the start (19 Nov review): the close before it, adjusted,
+  // no longer is the close as it printed. Fills before the split and the
+  // holding after it are then in different shares, and an account that held
+  // none at the split has no split entry to say so: the symbol is held back.
+  for (const sym of shares) {
+    const raw = marks[sym];
+    const adj = adjusted[sym];
+    if (raw > 0 && adj > 0 && Math.abs(adj - raw) > 1e-6 * raw && !moves.heldBack.some((e) => e.symbol === sym)) {
+      moves.heldBack.push({ symbol: sym, type: "SPLIT_SINCE", date: nyDate(start) });
+    }
+  }
   // The day of the latest close read for the end, to name it (a holiday's is the day before).
   const endClose = end ? closeDays.sort().at(-1) || null : null;
   return {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { px, sizeText, isCrypto } from "@/lib/terminal";
@@ -335,7 +335,10 @@ export function DemoResults({ accountId, refreshKey = null }) {
   // A period that has ended does not change with an order, and nothing can be
   // shown from a read cut short: neither is read again after one (19 Nov review).
   const cutShort = state.key === key && !!state.data?.truncated;
-  const reread = win && win.end === null && !cutShort ? refreshKey : null;
+  // Held at its last value once cut short, so the effect does not run (and read) once more.
+  const lastRefresh = useRef(refreshKey);
+  if (!cutShort) lastRefresh.current = refreshKey;
+  const reread = win && win.end === null ? (cutShort ? lastRefresh.current : refreshKey) : null;
   useEffect(() => {
     if (!accountId || !win) return undefined;
     let alive = true;
@@ -418,7 +421,7 @@ export function DemoResults({ accountId, refreshKey = null }) {
       {data?.truncated && <p className="px-2 py-1 text-amber-800">{`More than ${custom ? "3,000" : "1,000"} fills from the start to now, so what was held at the start cannot be worked out and no figures are shown. ${custom ? "Choose a later From date." : "Choose a shorter period."}`}</p>}
       {built && named.length > 0 && (
         <p className="px-2 py-1 text-amber-800">
-          {`Left out: ${named.map((e) => `${e.symbol} (${EVENT_NAMES[e.type] || e.type} on ${dateName(e.date)})`).join(", ")}. Its shares changed without a trade, so its figures cannot be worked out from the fills.`}
+          {`Left out: ${named.map((e) => `${e.symbol} (${e.type === "SPLIT_SINCE" ? "a split since the start" : `${EVENT_NAMES[e.type] || e.type} on ${dateName(e.date)}`})`).join(", ")}. Its shares changed without a trade, so its figures cannot be worked out from the fills.`}
         </p>
       )}
       {built && unnamed.length > 0 && (
