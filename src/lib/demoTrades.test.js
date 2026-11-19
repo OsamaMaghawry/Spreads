@@ -227,3 +227,50 @@ test("To today: the same book as the live view", () => {
   const live = demoBook({ fills, positions, marks: {}, start: p.start });
   assert.deepEqual(custom, live);
 });
+
+// 19 Nov reviews: shares that moved without a fill after a period ended were
+// pushed back into it. The server now hands an assignment's or exercise's
+// shares in as a fill at the strike (Alpaca's OPTRD), dated, at 16:00.
+test("an assignment after a period ended: no phantom holding carried in", () => {
+  const f = (symbol, side, qty, price, t, extra = {}) => ({ symbol, side, qty, price, time: at(t), ...extra });
+  const now = at("2026-11-19T15:00:00Z");
+  const { start, end } = customPeriod("2026-11-03", "2026-11-06", now);
+  // A: a short put assigned on 13 Nov, 100 XYZ delivered at 55 and still held.
+  const a = demoBook({
+    fills: [f("XYZ", "buy", 100, 55, "2026-11-13T21:00:00Z", { delivery: true })],
+    positions: { XYZ: { qty: 100, last: 52, avg: 55 } }, marks: { XYZ: 54 }, start, end
+  });
+  assert.deepEqual(a.book, {});
+  assert.deepEqual(a.carried, {});
+  // B: 100 ABC bought on 3 Nov at 40; a covered call assigned on 13 Nov took them at 45.
+  const b = demoBook({
+    fills: [f("ABC", "buy", 100, 40, "2026-11-03T15:00:00Z"), f("ABC", "sell", 100, 45, "2026-11-13T21:00:00Z", { delivery: true })],
+    positions: {}, marks: { ABC: 39 }, start, end
+  });
+  assert.deepEqual(b.carried, {});
+  assert.equal(b.book.ABC.qty, 100);
+  const v = bookValue(b.book, (s) => ({ ABC: 42 })[s] ?? null);
+  assert.ok(Math.abs(v.unrealized - 200) < 1e-9);
+  assert.equal(v.realized, 0);
+});
+
+test("a coin fee taken in the coin comes off that day's buy: no phantom short", () => {
+  const f = (symbol, side, qty, price, t) => ({ symbol, side, qty, price, time: at(t) });
+  const start = periodStart("today", at("2026-11-19T15:00:00Z"));
+  const fills = [f("BTC/USD", "buy", 1, 90000, "2026-11-19T13:00:00Z"), f("BTC/USD", "sell", 0.9975, 92000, "2026-11-19T14:30:00Z")];
+  const fees = [{ symbol: "BTC/USD", qty: 0.0025, time: at("2026-11-19T23:59:59Z") }];
+  const { book, carried } = demoBook({ fills, positions: {}, marks: {}, start, fees });
+  assert.deepEqual(carried, {});
+  assert.ok(Math.abs(book["BTC/USD"].qty) < 1e-12);
+  const trips = bookTrips(book);
+  assert.equal(trips.length, 1);
+  assert.equal(trips[0].open, false);
+  assert.ok(Math.abs(trips[0].realized - 0.9975 * 2000) < 1e-6);
+  // Still held: the holding is the buy less the fee.
+  const held = demoBook({ fills: fills.slice(0, 1), positions: { "BTC/USD": { qty: 0.9975, last: 91000, avg: 90225.56 } }, marks: {}, start, fees });
+  assert.deepEqual(held.carried, {});
+  assert.ok(Math.abs(held.book["BTC/USD"].qty - 0.9975) < 1e-12);
+  // A fee from a buy before the start (no buy that day since then) changes nothing.
+  const earlier = demoBook({ fills: [], positions: { "BTC/USD": { qty: 0.5, last: 91000, avg: 88000 } }, marks: { "BTC/USD": 90500 }, start, fees: [{ symbol: "BTC/USD", qty: 0.001, time: at("2026-11-18T23:59:59Z") }] });
+  assert.deepEqual(earlier.carried["BTC/USD"], { qty: 0.5, price: 90500, from: "close" });
+});

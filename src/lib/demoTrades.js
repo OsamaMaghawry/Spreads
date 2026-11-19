@@ -20,10 +20,21 @@ import { newPractice, practiceFill } from "./replay.js";
  * the book; what was carried in is still the holding now less every fill since
  * the start, so `fills` must run up to now. What is still held at the end is
  * valued by the caller at that day's close (the server's `endMarks`).
+ * `fees`: coin fees taken in the coin ({ symbol, qty, time }).
  */
-export function demoBook({ fills = [], positions = {}, marks = {}, start, end = null }) {
+export function demoBook({ fills = [], positions = {}, marks = {}, start, end = null, fees = [] }) {
+  const since = fills.filter((f) => !(f.time < start)).map((f) => ({ ...f })).sort((a, b) => a.time - b.time);
+  // A coin fee taken in the coin (Alpaca's CFEE, dated, posted at the UTC
+  // day's end) comes off a buy of that coin that day, so the holding now and
+  // the fills agree and the fee is not read as a short carried in (19 Nov
+  // review). With no such buy since the start, it was charged before.
+  for (const fee of [...fees].sort((a, b) => a.time - b.time)) {
+    const day = since.filter((f) => f.symbol === fee.symbol && f.side === "buy" && f.time <= fee.time && f.time > fee.time - 86400 && f.qty > fee.qty);
+    const buy = day.filter((f) => !f.fee).at(-1) || day.at(-1);
+    if (buy) { buy.qty -= fee.qty; buy.fee = (buy.fee || 0) + fee.qty; }
+  }
   const by = {};
-  for (const f of [...fills].filter((f) => !(f.time < start)).sort((a, b) => a.time - b.time)) (by[f.symbol] = by[f.symbol] || []).push(f);
+  for (const f of since) (by[f.symbol] = by[f.symbol] || []).push(f);
   const inPeriod = (f) => end === null || f.time < end;
   const symbols = new Set([...Object.keys(by), ...Object.keys(positions)]);
   const book = {};
