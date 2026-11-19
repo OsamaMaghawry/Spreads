@@ -4,7 +4,7 @@ Written daily by `.github/workflows/metrics-snapshot.yml`. Agents read
 these files; the Google credentials never leave CI. A dash means the source
 is not connected yet, not zero.
 
-## Latest — 2026-11-18
+## Latest — 2026-11-19
 
 - Search Console, last 28 days: 471 impressions, 2 clicks, CTR 0.4%
 - Indexing: 74 of 86 sitemap URLs indexed
@@ -13,14 +13,14 @@ is not connected yet, not zero.
   - not indexed: https://deltamint.app/blog/credit-spread-premium-capture (URL is unknown to Google)
   - not indexed: https://deltamint.app/blog/options-win-rate-misleading (URL is unknown to Google)
   - not indexed: https://deltamint.app/blog/capital-at-risk-options-portfolio (URL is unknown to Google)
-  - not indexed: https://deltamint.app/blog/options-trade-record-realized-pl (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/naked-call-risk (Discovered - currently not indexed)
+  - not indexed: https://deltamint.app/blog/options-trade-record-realized-pl (URL is unknown to Google)
+  - not indexed: https://deltamint.app/blog/naked-call-risk (URL is unknown to Google)
   - not indexed: https://deltamint.app/blog/options-limit-order-not-filling (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/sell-puts-to-buy-stock (URL is unknown to Google)
+  - not indexed: https://deltamint.app/blog/sell-puts-to-buy-stock (Discovered - currently not indexed)
   - not indexed: https://deltamint.app/blog/pmcc-vs-covered-call (Discovered - currently not indexed)
-  - not indexed: https://deltamint.app/blog/stock-replacement-strategy (URL is unknown to Google)
-  - not indexed: https://deltamint.app/blog/leaps-options-explained (Discovered - currently not indexed)
-- Submitted today: Google sitemap NOT submitted: Search Console refused (403). Give deltamint-metrics@deltamint-metrics.iam.gserviceaccount.com "Full" permission: Search Console → Settings → Users and permissions.; Google last read it 2026-11-14; 1 URL(s) sent to Bing and others via IndexNow
+  - not indexed: https://deltamint.app/blog/stock-replacement-strategy (Discovered - currently not indexed)
+  - not indexed: https://deltamint.app/blog/leaps-options-explained (URL is unknown to Google)
+- Submitted today: Google sitemap NOT submitted: Search Console refused (403). Give deltamint-metrics@deltamint-metrics.iam.gserviceaccount.com "Full" permission: Search Console → Settings → Users and permissions.; Google last read it 2026-11-14; 0 URL(s) sent to Bing and others via IndexNow
 - GA4, last 28 days: ga4 not configured
 - Funnel: 4 signed up (0 this week) → 3 connected → 3 traded → 1 traded live → 0 paying
 - Target (docs/growth/plan-100.md): 100 paying by 2026-12-31.
@@ -29,7 +29,6 @@ is not connected yet, not zero.
 
 | Day | Impressions | Clicks | Sessions | Signed up | Connected | Traded live | Paying |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-10-20 | 4 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-10-21 | 3 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-10-22 | 5 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-10-23 | 8 | 0 | — | 4 | 3 | 1 | 0 |
@@ -59,3 +58,4 @@ is not connected yet, not zero.
 | 2026-11-16 | 55 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-11-17 | 46 | 0 | — | 4 | 3 | 1 | 0 |
 | 2026-11-18 | 14 | 0 | — | 4 | 3 | 1 | 0 |
+| 2026-11-19 | 5 | 0 | — | 4 | 3 | 1 | 0 |
