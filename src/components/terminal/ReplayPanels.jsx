@@ -4,7 +4,8 @@ import { invokeFunction } from "@/lib/functions";
 import { px, sizeText, isCrypto } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
 import { bookValue, bookTrips, tradeStats, replayDate } from "@/lib/replay";
-import { demoBook, periodStart } from "@/lib/demoTrades";
+import { demoBook, periodStart, customPeriod, customBounds } from "@/lib/demoTrades";
+import useAccountSetting from "./useAccountSetting";
 
 // The replay's practice book in the account window: what is held in each
 // symbol, and the results of the trades (25 Oct: "p/l taking the numbers
@@ -292,60 +293,100 @@ export function TradeResults({ book, priceOf, banner = null, empty, openHint, ho
   );
 }
 
-const PERIODS = [["today", "Today"], ["week", "7 days"], ["month", "30 days"]];
+const PERIODS = [["today", "Today"], ["week", "7 days"], ["month", "30 days"], ["custom", "Custom"]];
 const DEMO_REFRESH_MS = 30000;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const cleanPeriod = (v) => ({
+  id: PERIODS.some(([id]) => id === v?.id) ? v.id : "today",
+  from: DATE.test(String(v?.from)) ? v.from : "",
+  to: DATE.test(String(v?.to)) ? v.to : ""
+});
+const dayName = (sec) => new Date(sec * 1000).toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric" });
+const dateName = (date) => new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" });
 
 /**
- * The demo account's results, from its own fills (functions/terminal
- * "fills"): today's, or the last 7 or 30 days', read again every half minute
- * and after each order (`refreshKey`).
+ * The account's results, from its own fills (functions/terminal "fills"):
+ * today's, the last 7 or 30 days', or a custom period's (19 Nov, the owner:
+ * "for the P/L, I need custom period too"), read again every half minute and
+ * after each order (`refreshKey`) while the period runs to now. The period
+ * picked is kept with the person's account. A custom period that has ended
+ * values what was still held then at that day's 16:00 close, as Alpaca's day
+ * does (the owner: "So the close same as Alpaca").
  */
 export function DemoResults({ accountId, refreshKey = null }) {
-  const [period, setPeriod] = useState("today");
+  const [pick, setPick] = useAccountSetting("plperiod", { localKey: "dm.terminal.plperiod", initial: () => cleanPeriod(null), clean: cleanPeriod });
+  const period = pick.id;
+  const bounds = customBounds();
+  const from = pick.from || bounds.max;
+  const to = pick.to || bounds.max;
+  const custom = period === "custom";
+  const win = custom ? customPeriod(from, to) : { start: periodStart(period), end: null };
   const [state, setState] = useState({ key: "", data: null, error: null, loading: false });
-  const key = `${accountId}|${period}`;
+  const key = win ? `${accountId}|${period}|${win.start}|${win.end ?? "now"}` : "";
   useEffect(() => {
-    if (!accountId) return undefined;
+    if (!accountId || !win) return undefined;
     let alive = true;
-    const start = periodStart(period);
+    const { start, end } = win;
     const load = () => {
       if (document.visibilityState === "hidden") return;
       setState((s) => ({ ...s, loading: true }));
-      invokeFunction("terminal", { action: "fills", accountId, start: new Date(start * 1000).toISOString() }).then((r) => {
+      const req = { action: "fills", accountId, start: new Date(start * 1000).toISOString(), custom };
+      if (end !== null) req.end = new Date(end * 1000).toISOString();
+      invokeFunction("terminal", req).then((r) => {
         if (!alive) return;
         if (r?.data?.error) setState({ key, data: null, error: r.data.error, loading: false });
-        else setState({ key, data: { ...r.data, startSec: start }, error: null, loading: false });
+        else setState({ key, data: { ...r.data, startSec: start, endSec: end }, error: null, loading: false });
       });
     };
     load();
-    const t = setInterval(load, DEMO_REFRESH_MS);
+    // A period that has ended does not change: read once.
+    const t = end === null ? setInterval(load, DEMO_REFRESH_MS) : null;
     return () => { alive = false; clearInterval(t); };
-  }, [accountId, period, key, refreshKey]);
-  const data = state.key === key ? state.data : null;
-  const built = useMemo(() => (data ? demoBook({ fills: data.fills, positions: data.positions, marks: data.marks, start: data.startSec }) : null), [data]);
-  const priceOf = (s) => data?.positions?.[s]?.last ?? null;
+  }, [accountId, key, refreshKey]);
+  const data = state.key === key && key ? state.data : null;
+  const ended = data ? data.endSec !== null : false;
+  const built = useMemo(() => (data && !data.truncated ? demoBook({ fills: data.fills, positions: data.positions, marks: data.marks, start: data.startSec, end: data.endSec }) : null), [data]);
+  const priceOf = (s) => (ended ? data?.endMarks?.[s] ?? null : data?.positions?.[s]?.last ?? null);
   const carried = built ? Object.keys(built.carried).length : 0;
+  const unpriced = built && ended ? Object.entries(built.book).filter(([s, a]) => a.qty && !(data.endMarks?.[s] > 0)).map(([s]) => s) : [];
+  const fillCount = data ? data.fills.filter((f) => f.time >= data.startSec && (!ended || f.time < data.endSec)).length : 0;
+  const fillText = `${fillCount} fill${fillCount === 1 ? "" : "s"}`;
+  const label = !data ? (state.loading ? "Reading your fills…" : "")
+    : custom ? `${fillText} from ${dateName(from)} to ${ended ? dateName(to) : "now"} (each day from 8:00 p.m. the evening before)`
+      : `${fillText} since ${dayName(data.startSec)}, 8:00 p.m.${period === "today" ? ", when after-hours ended" : ""}`;
+  const setDates = (next) => setPick((p) => ({ ...p, from, to, ...next }));
+  const dateInput = "rounded border border-slate-200 px-1 py-0.5 text-xs text-slate-700";
   return (
     <div className="flex h-full min-h-0 flex-col text-xs">
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-2 py-1">
-        <span className="font-semibold text-slate-700">Demo account</span>
+        <span className="font-semibold text-slate-700">Account P/L</span>
         <div className="flex overflow-hidden rounded border border-slate-200" role="group" aria-label="Period">
           {PERIODS.map(([id, name]) => (
-            <button key={id} type="button" onClick={() => setPeriod(id)} className={`px-2 py-0.5 ${period === id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}>{name}</button>
+            <button key={id} type="button" onClick={() => setPick((p) => ({ ...p, id }))} className={`px-2 py-0.5 ${period === id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}>{name}</button>
           ))}
         </div>
-        <span className="text-slate-500">
-          {data ? `${data.fills.length} fill${data.fills.length === 1 ? "" : "s"} since ${new Date(data.startSec * 1000).toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric" })}, 8:00 p.m.${period === "today" ? ", when after-hours ended" : ""}` : state.loading ? "Reading your fills…" : ""}
-        </span>
+        {custom && (
+          <span className="flex items-center gap-1 text-slate-500">
+            <label className="flex items-center gap-1">From
+              <input type="date" className={dateInput} value={from} min={bounds.min} max={bounds.max} onChange={(e) => e.target.value && setDates({ from: e.target.value, ...(e.target.value > to ? { to: e.target.value } : {}) })} />
+            </label>
+            <label className="flex items-center gap-1">To
+              <input type="date" className={dateInput} value={to} min={from} max={bounds.max} onChange={(e) => e.target.value && setDates({ to: e.target.value })} />
+            </label>
+          </span>
+        )}
+        <span className="text-slate-500">{label}</span>
       </div>
+      {custom && !win && <p className="px-2 py-1 text-amber-800">Pick dates with at least one trading day, within the last 92 days.</p>}
       {state.error && state.key === key && <p className="px-2 py-1 text-rose-700">{state.error}</p>}
-      {data?.truncated && <p className="px-2 py-1 text-amber-800">More than 1,000 fills: only the first 1,000 are counted. Choose a shorter period.</p>}
+      {data?.truncated && <p className="px-2 py-1 text-amber-800">{`More than ${custom ? "3,000" : "1,000"} fills since the start, so what was held then cannot be worked out and no figures are shown. ${custom ? "Choose a later From date." : "Choose a shorter period."}`}</p>}
+      {unpriced.length > 0 && <p className="px-2 py-1 text-amber-800">{`No close found for ${unpriced.join(", ")} at the end: held at cost, with no open P/L.`}</p>}
       <div className="min-h-0 flex-1">
         {built && (
           <TradeResults book={built.book} priceOf={priceOf} carriedAt={data.startSec} showHow={false}
             empty={`No share or coin trades ${period === "today" ? "today" : "in this period"}, and nothing held.`}
-            openHint="Positions still held, at the last price" holdHint="Open to close"
-            note={`From this account's own share and coin fills at Alpaca; no commission, and fees, dividends and interest are not in it. ${carried ? `Held from before the period (${carried} symbol${carried === 1 ? "" : "s"}): counted from the last regular close before then (a coin: its last daily close, UTC); "held before" in the list. ` : ""}${data.options ? `${data.options} option fill${data.options === 1 ? "" : "s"} left out. ` : ""}Shares from an option assignment count from the close before the period. Return is on the cost of the part closed.`} />
+            openHint={ended ? `Positions still held at the end, at ${dateName(to)}'s 4:00 p.m. close` : "Positions still held, at the last price"} holdHint="Open to close"
+            note={`From this account's own share and coin fills at Alpaca; no commission, and fees, dividends and interest are not in it. ${carried ? `Held from before the period (${carried} symbol${carried === 1 ? "" : "s"}): counted from the last regular close before then (a coin: its last daily close, UTC); "held before" in the list. ` : ""}${ended ? "Trades after the period are left out; what was still held at its end is valued at that day's regular close (a coin: its daily close, UTC). " : ""}${data.options ? `${data.options} option fill${data.options === 1 ? "" : "s"} left out. ` : ""}Shares from an option assignment count from the close before the period. Return is on the cost of the part closed.`} />
         )}
       </div>
     </div>

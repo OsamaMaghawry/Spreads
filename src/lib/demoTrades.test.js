@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { demoBook, periodStart } from "./demoTrades.js";
+import { demoBook, periodStart, customPeriod, customBounds, dayStart } from "./demoTrades.js";
 import { bookTrips, bookValue, tradeStats } from "./replay.js";
 
 const at = (s) => Date.parse(s) / 1000;
@@ -132,4 +132,98 @@ test("a week or month window starts at 20:00 New York across a clock change", ()
   // Spring (clocks change Sun 14 Mar 2027): Thu 18 Mar 11:00, today from Wed 17 Mar,
   // 6 days back is Thu 11 Mar (winter), 20:00 is 01:00 UTC.
   assert.equal(iso("week", "2027-03-18T15:00:00Z"), "2027-03-12T01:00:00.000Z");
+});
+
+// 19 Nov, the owner: "for the P/L, I need custom period too." and "So the
+// close same as Alpaca": each day from 20:00 the evening before, as Today; a
+// position still held when a past period ends is valued at that day's 16:00 close.
+test("a custom period: from 20:00 the evening before From to 20:00 on To", () => {
+  const iso = (x) => (x === null ? null : new Date(x * 1000).toISOString());
+  const now = at("2026-11-19T15:00:00Z"); // Thursday 10:00
+  const p = (f, t, n = now) => { const r = customPeriod(f, t, n); return r && { start: iso(r.start), end: iso(r.end) }; };
+  // One past day: Monday 16 Nov 20:00 to Tuesday 17 Nov 20:00.
+  assert.deepEqual(p("2026-11-17", "2026-11-17"), { start: "2026-11-17T01:00:00.000Z", end: "2026-11-18T01:00:00.000Z" });
+  // From a Monday: Friday 20:00. To today: runs to now.
+  assert.deepEqual(p("2026-11-16", "2026-11-19"), { start: "2026-11-14T01:00:00.000Z", end: null });
+  // To today, after 20:00: today's trading day has ended.
+  assert.deepEqual(p("2026-11-19", "2026-11-19", at("2026-11-20T02:00:00Z")), { start: "2026-11-19T01:00:00.000Z", end: "2026-11-20T01:00:00.000Z" });
+  // A weekend To ends with Friday's trading day; a weekend alone has none.
+  assert.deepEqual(p("2026-11-13", "2026-11-15"), { start: "2026-11-13T01:00:00.000Z", end: "2026-11-14T01:00:00.000Z" });
+  assert.equal(p("2026-11-14", "2026-11-15"), null);
+  // To before From, a future From, a bad date, or more than 92 days back.
+  assert.equal(p("2026-11-18", "2026-11-17"), null);
+  assert.equal(p("2026-11-20", "2026-11-20"), null);
+  assert.equal(p("17/11/2026", "2026-11-17"), null);
+  assert.equal(p("2026-08-01", "2026-08-03"), null);
+  // The earliest date offered still starts within 92 days, on any weekday.
+  for (let d = 0; d < 7; d++) {
+    const n = now + d * 86400;
+    const { min, max } = customBounds(n);
+    assert.ok(n - dayStart(min) <= 92 * 86400, min);
+    assert.ok(customPeriod(min, max, n));
+  }
+  // Today's custom period is Today's.
+  assert.equal(customPeriod("2026-11-19", "2026-11-19", now).start, periodStart("today", now));
+});
+
+test("a period that ended: later fills left out, what was carried in still counted from all of them", () => {
+  const f = (symbol, side, qty, price, t) => ({ symbol, side, qty, price, time: at(t) });
+  const { start, end } = customPeriod("2026-11-17", "2026-11-17", at("2026-11-19T15:00:00Z"));
+  // 100 AAPL held from before (close 200); 50 sold Tuesday at 205; 60 NVDA
+  // bought Tuesday at 180 and still held at Tuesday's close (182); Wednesday
+  // the rest of AAPL was sold and 20 MSFT bought: not Tuesday's.
+  const fills = [
+    f("AAPL", "sell", 50, 205, "2026-11-17T15:00:00Z"), f("NVDA", "buy", 60, 180, "2026-11-17T16:00:00Z"),
+    f("AAPL", "sell", 50, 207, "2026-11-18T15:00:00Z"), f("MSFT", "buy", 20, 500, "2026-11-18T15:30:00Z")
+  ];
+  const positions = { NVDA: { qty: 60, last: 190, avg: 180 }, MSFT: { qty: 20, last: 505, avg: 500 } };
+  const { book, carried } = demoBook({ fills, positions, marks: { AAPL: 200, NVDA: 175, MSFT: 495 }, start, end });
+  assert.deepEqual(carried.AAPL, { qty: 100, price: 200, from: "close" });
+  assert.equal(carried.NVDA, undefined);
+  assert.equal(carried.MSFT, undefined);
+  assert.equal(book.MSFT, undefined);
+  assert.ok(Math.abs(book.AAPL.realized - 250) < 1e-9);
+  assert.equal(book.AAPL.qty, 50);
+  assert.equal(book.NVDA.qty, 60);
+  // At Tuesday's closes: AAPL 204, NVDA 182.
+  const endMarks = { AAPL: 204, NVDA: 182 };
+  const v = bookValue(book, (s) => endMarks[s] ?? null);
+  assert.ok(Math.abs(v.unrealized - (50 * 4 + 60 * 2)) < 1e-9);
+});
+
+test("back-to-back periods add up to the one that covers both", () => {
+  const f = (symbol, side, qty, price, t) => ({ symbol, side, qty, price, time: at(t) });
+  const now = at("2026-11-19T15:00:00Z");
+  const fills = [
+    f("TSLA", "buy", 10, 400, "2026-11-17T15:00:00Z"), f("TSLA", "sell", 4, 410, "2026-11-17T19:00:00Z"),
+    f("TSLA", "sell", 6, 395, "2026-11-18T15:00:00Z"), f("SPY", "sell", 5, 600, "2026-11-18T16:00:00Z"),
+    f("QQQ", "buy", 3, 520, "2026-11-19T14:40:00Z")
+  ];
+  const positions = { SPY: { qty: 15, last: 601, avg: 590 }, QQQ: { qty: 3, last: 521, avg: 520 } };
+  // Closes: Monday 16th (before Tuesday), Tuesday 17th, Wednesday 18th.
+  const close = { "2026-11-16": { TSLA: 398, SPY: 595, QQQ: 515 }, "2026-11-17": { TSLA: 405, SPY: 597, QQQ: 517 }, "2026-11-18": { TSLA: 401, SPY: 599, QQQ: 519 } };
+  const total = (from, to, startClose, endClose) => {
+    const p = customPeriod(from, to, now);
+    const { book } = demoBook({ fills, positions, marks: close[startClose], start: p.start, end: p.end });
+    const v = bookValue(book, (s) => close[endClose][s] ?? null);
+    return v.realized + v.unrealized;
+  };
+  const tue = total("2026-11-17", "2026-11-17", "2026-11-16", "2026-11-17");
+  const wed = total("2026-11-18", "2026-11-18", "2026-11-17", "2026-11-18");
+  const both = total("2026-11-17", "2026-11-18", "2026-11-16", "2026-11-18");
+  // Tuesday: TSLA 4 × 10 realized + 6 × 5 open; SPY 20 held, 595 → 597.
+  assert.ok(Math.abs(tue - (40 + 30 + 40)) < 1e-9);
+  assert.ok(Math.abs(tue + wed - both) < 1e-9);
+});
+
+test("To today: the same book as the live view", () => {
+  const f = (symbol, side, qty, price, t) => ({ symbol, side, qty, price, time: at(t) });
+  const now = at("2026-11-19T15:00:00Z");
+  const fills = [f("AMD", "buy", 10, 150, "2026-11-18T15:00:00Z"), f("AMD", "sell", 5, 155, "2026-11-19T14:45:00Z")];
+  const positions = { AMD: { qty: 5, last: 156, avg: 150 } };
+  const p = customPeriod("2026-11-18", "2026-11-19", now);
+  assert.equal(p.end, null);
+  const custom = demoBook({ fills, positions, marks: {}, start: p.start, end: p.end });
+  const live = demoBook({ fills, positions, marks: {}, start: p.start });
+  assert.deepEqual(custom, live);
 });

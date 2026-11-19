@@ -2396,24 +2396,35 @@ const OCC_SYMBOL = /^[A-Z]{1,6}\d{6}[CP]\d{8}$/;
 const fillSymbol = (s: string) => (s.includes("/") || (s.length >= 6 && /(USD|USDT|USDC)$/.test(s)) ? cryptoSymbol(s) : s);
 const FILL_PAGES = 10;
 
-async function accountFills(account: any, startIso: string) {
+// A custom period (19 Nov, the owner: "for the P/L, I need custom period
+// too"): what was held at its start is today's holdings less every fill since,
+// so more of them are read.
+const FILL_PAGES_CUSTOM = 30;
+
+// `endIso`: a period that ended (a custom one, before now): the fills are
+// still read up to now, for what was held at the start, and each symbol's
+// close at the end comes back too (`endMarks`), to value what was still held
+// then, as Alpaca's day does (19 Nov, the owner: "So the close same as Alpaca").
+async function accountFills(account: any, startIso: string, endIso = "", pages = FILL_PAGES) {
   const start = Date.parse(startIso);
   if (!Number.isFinite(start) || start > Date.now()) return { error: "Pick when to start." };
   if (Date.now() - start > 92 * 86400000) return { error: "At most 92 days at a time." };
+  const endMs = endIso ? Date.parse(endIso) : NaN;
+  const end = Number.isFinite(endMs) && endMs > start && endMs < Date.now() ? endMs : null;
   const base = tradingBase(account);
   const raw: any[] = [];
   let token: string | null = null;
   let truncated = false;
-  for (let page = 0; page < FILL_PAGES; page++) {
+  for (let page = 0; page < pages; page++) {
     const list = await alpacaFetch(`${base}/account/activities/FILL?after=${encodeURIComponent(iso(start))}&direction=asc&page_size=100` +
       (token ? `&page_token=${encodeURIComponent(token)}` : ""), account);
     const rows = Array.isArray(list) ? list : [];
     raw.push(...rows);
     token = rows.length === 100 ? rows.at(-1)?.id || null : null;
     if (!token) break;
-    if (page === FILL_PAGES - 1) truncated = true;
+    if (page === pages - 1) truncated = true;
   }
-  const options = raw.filter((a) => OCC_SYMBOL.test(String(a.symbol || ""))).length;
+  const options = raw.filter((a) => OCC_SYMBOL.test(String(a.symbol || "")) && !(end && Date.parse(a.transaction_time) >= end)).length;
   const fills = raw.filter((a) => a.symbol && !OCC_SYMBOL.test(String(a.symbol)) && num(a.qty) && num(a.price)).map((a) => ({
     symbol: fillSymbol(String(a.symbol)), side: a.side === "buy" ? "buy" : "sell", qty: Number(a.qty), price: Number(a.price),
     time: Math.floor(Date.parse(a.transaction_time) / 1000), orderId: a.order_id || null
@@ -2424,32 +2435,38 @@ async function accountFills(account: any, startIso: string) {
     if (p.asset_class === "us_option" || OCC_SYMBOL.test(String(p.symbol))) continue;
     positions[ownSymbol(p)] = { qty: num(p.qty) || 0, last: num(p.current_price), avg: num(p.avg_entry_price) };
   }
-  // The last close before the start, for every symbol in play.
+  // The last close before the start (and before a past end), for every symbol in play.
   const symbols = [...new Set([...fills.map((f) => f.symbol), ...Object.keys(positions)])];
   const marks: Record<string, number> = {};
-  const from = iso(start - 12 * 86400000);
-  // The day's close is in by 16:00, four hours before today's start (20:00): asking only
-  // up to then keeps a read made just after 20:00 off the consolidated feed's most recent
-  // 15 minutes, which an account without the paid data plan may not read (16 Nov review).
-  const until = iso(start - 4 * 3600000);
-  const readMarks = async (list: string[], crypto: boolean) => {
+  const endMarks: Record<string, number> = {};
+  const readMarks = async (list: string[], crypto: boolean, at: number, into: Record<string, number>) => {
+    const from = iso(at - 12 * 86400000);
+    // The day's close is in by 16:00, four hours before a period's start or end (20:00): asking only
+    // up to then keeps a read made just after 20:00 off the consolidated feed's most recent
+    // 15 minutes, which an account without the paid data plan may not read (16 Nov review).
+    const until = iso(at - 4 * 3600000);
     for (let i = 0; i < list.length; i += 100) {
       const chunk = list.slice(i, i + 100).join(",");
       const url = (feed: string) => crypto
         ? `${CRYPTO_DATA}/bars?symbols=${encodeURIComponent(chunk)}&timeframe=1Day&start=${from}&end=${until}&limit=10000`
         : `${DATA}/stocks/bars?symbols=${chunk}&timeframe=1Day&start=${from}&end=${until}&limit=10000&feed=${feed}&adjustment=split`;
       const page = await alpacaFetch(url("sip"), account).catch(() => alpacaFetch(url(FEED), account)).catch(() => null);
-      // A day's close counts once it has happened by the start: a share's at
+      // A day's close counts once it has happened by then: a share's at
       // 16:00 New York, a coin's at the end of its UTC day.
-      const closedBy = (b: any) => (crypto ? Date.parse(b.t) + 86400000 : nyMoment(nyDate(Date.parse(b.t)), "16:00")) <= start;
+      const closedBy = (b: any) => (crypto ? Date.parse(b.t) + 86400000 : nyMoment(nyDate(Date.parse(b.t)), "16:00")) <= at;
       for (const [sym, bars] of Object.entries(page?.bars || {})) {
         const before = (bars as any[]).filter(closedBy);
-        if (before.length) marks[crypto ? cryptoSymbol(sym) : sym] = Number(before.at(-1).c);
+        if (before.length) into[crypto ? cryptoSymbol(sym) : sym] = Number(before.at(-1).c);
       }
     }
   };
-  await Promise.all([readMarks(symbols.filter((s) => !isCrypto(s)), false), readMarks(symbols.filter((s) => isCrypto(s)), true)]);
-  return { start: iso(start), fills, positions, marks, options, truncated };
+  const shares = symbols.filter((s) => !isCrypto(s));
+  const coins = symbols.filter((s) => isCrypto(s));
+  await Promise.all([
+    readMarks(shares, false, start, marks), readMarks(coins, true, start, marks),
+    ...(end ? [readMarks(shares, false, end, endMarks), readMarks(coins, true, end, endMarks)] : [])
+  ]);
+  return { start: iso(start), fills, positions, marks, options, truncated, ...(end ? { end: iso(end), endMarks } : {}) };
 }
 
 // ---------- stops: what earlier fires left ----------
@@ -3013,7 +3030,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ fires: data || [] });
     }
     if (action === "fills") {
-      const r = await accountFills(account, String(body.start || ""));
+      const r = await accountFills(account, String(body.start || ""), String(body.end || ""), body.custom === true ? FILL_PAGES_CUSTOM : FILL_PAGES);
       return jsonResponse(r, (r as any).error ? 400 : 200);
     }
     if (action === "events") {
