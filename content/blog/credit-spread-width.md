@@ -169,6 +169,8 @@ How to weigh a credit against the risk behind it is its own subject, and
 [return on risk against return on
 capital](/blog/return-on-risk-vs-return-on-capital) works through it.
 
+Related: [annualized return on options](/blog/annualized-return-options-small-sample) scales a trade's return to a 365-day year, and shows why a handful of short trades cannot carry that figure.
+
 ## Frequently asked questions
 
 - **What is the width of a credit spread?** The distance between the short strike and the long strike. On the 50/48 put spread it is $2.00, or $200 per spread once multiplied by 100.
