@@ -92,9 +92,9 @@ export function trackOrder({ accountId, id, key, base, notify, onChange, onUpdat
  * after taking it still pops up: a refusal nobody saw is how positions
  * stacked up on 28 Oct.
  */
-export function reportGroup(rows, { key, notify, refresh }) {
+export function reportGroup(rows, { key, notify, refresh, expected = [] }) {
   const list = Array.isArray(rows) ? rows : [];
-  const bad = refusalNews(list);
+  const bad = refusalNews(list, { expected });
   if (bad) notify({ key, ...bad });
   list.forEach((r, i) => {
     if (!r.orderId || r.ok === false) return;

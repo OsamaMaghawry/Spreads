@@ -73,7 +73,7 @@ export function allocate(
   lead: Book,
   others: Book[],
   opts: {
-    basis?: "equity" | "buyingPower"; crypto?: boolean; symbol?: string; price?: number | null; pct?: number | null; closing?: "lead" | "group";
+    basis?: "equity" | "buyingPower"; crypto?: boolean; symbol?: string; price?: number | null; pct?: number | null; closing?: "lead" | "group" | "each";
     // The stock trades in part shares at Alpaca; `parts`: part shares asked
     // for (the ticket's Part shares), else whole shares, a part share only
     // where a buy comes to less than one.
@@ -176,10 +176,10 @@ export function allocate(
   const leadSize = fin(lead[basis]);
   const cents = (v: number) => steps(v, 0.01) / 100;
 
-  if (reducing) {
-    const leadAbs = Math.abs(leadHeld);
-    const part = qty !== null && leadAbs > 0 ? qty / leadAbs : null;
-    return others.map((b) => atLeastOne(b, ((): Share => {
+  const leadAbs = Math.abs(leadHeld);
+  const part = qty !== null && leadAbs > 0 ? qty / leadAbs : null;
+  // An account's part of an order that closes holdings: never more than it holds.
+  const reduceRow = (b: Book): Share => atLeastOne(b, ((): Share => {
       const held = fin(b.held) || 0;
       const same = closes(held) ? Math.abs(held) : 0;
       const base = { id: b.id, name: b.name, notional: null, basis: "holding" as const };
@@ -202,9 +202,15 @@ export function allocate(
       const mine = clean(down(same * part, stepOf(b)));
       if (!(mine > 0)) return { ...base, qty: null, all: false, skip: `its part of ${same} comes to less than one ${unit}` };
       return { ...base, qty: Math.min(mine, same), all: mine >= same, skip: null };
-    })()));
-  }
+    })());
 
+  // `closing: "each"` (19 Nov review: a % buy beside an account short the
+  // stock): whether the order closes is read account by account, as the
+  // ticket's percent review sizes it. One that closes its holding is capped
+  // at it; any other takes its own size, rather than being skipped because
+  // another account was closing.
+  if (opts.closing === "each") return others.map((b) => (closes(fin(b.held) || 0) ? reduceRow(b) : capped(b, atLeastOne(b, share(b)))));
+  if (reducing) return others.map(reduceRow);
   return others.map((b) => capped(b, atLeastOne(b, share(b))));
   function share(b: Book): Share {
     // The account's own size, where it has one.

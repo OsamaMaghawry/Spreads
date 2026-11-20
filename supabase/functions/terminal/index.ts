@@ -2314,7 +2314,10 @@ async function allocation(admin: any, user: any, lead: any, ids: unknown, input:
   // order closes a holding is read from the accounts it goes to.
   const shares = allocate({ side, qty: given(input?.qty), notional: given(input?.notional) }, leadBook, ready,
     {
-      basis: input?.basis === "buyingPower" ? "buyingPower" : "equity", crypto, symbol, price, pct: given(input?.pct), closing: input?.leadOff === true ? "group" : "lead",
+      basis: input?.basis === "buyingPower" ? "buyingPower" : "equity", crypto, symbol, price, pct: given(input?.pct),
+      // The ticket sending a percent review's parts as shown (`asShown`): each
+      // account's closing read on its own, as the review sized it (19 Nov review).
+      closing: input?.asShown === true ? "each" : input?.leadOff === true ? "group" : "lead",
       fractionable: await fractionable, parts: typeof input?.parts === "boolean" ? input.parts : undefined
     });
   const rows = group.map((g, i) => {

@@ -197,14 +197,17 @@ export function exitsOf(qty, orders) {
  * refusal nobody saw is how positions stacked up on 28 Oct. An account that
  * holds none of what an exit or a sale is for has nothing to do: not news.
  */
-export function refusalNews(rows) {
+export function refusalNews(rows, { expected = [] } = {}) {
   const list = Array.isArray(rows) ? rows : [];
+  // Accounts a part was sent to (the ticket's review): any skip there is news,
+  // "holds no" too, as the review showed it trading (19 Nov review).
+  const meant = new Set(expected);
   const lines = [];
   const names = [];
   for (const r of list) {
     const name = `${r.name}${r.live ? " (live)" : ""}`;
     if (r.skip) {
-      if (/^holds no(ne|\b)/.test(String(r.skip))) continue;
+      if (/^holds no(ne|\b)/.test(String(r.skip)) && !meant.has(r.accountId)) continue;
       lines.push(`${name}: not sent, ${r.skip}`);
     } else if (r.ok === false) lines.push(`${name}: refused, ${r.error || "no reason given"}`);
     else continue;

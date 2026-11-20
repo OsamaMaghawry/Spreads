@@ -225,3 +225,12 @@ test("day-only news: a group stop sent for today only is said, not dropped", () 
   assert.match(n.title, /today only on B/);
   assert.match(n.detail, /B: a position with part of a share/);
 });
+
+// 19 Nov review (B1): an account the ticket sent a part to that the server
+// then skipped is news, "holds no" too.
+test("a skip on an account a part was sent to is reported", () => {
+  const rows = [{ accountId: "B", name: "B", skip: "holds no XYZ to buy back" }, { accountId: "C", name: "C", ok: true }];
+  assert.equal(refusalNews(rows), null);
+  const news = refusalNews(rows, { expected: ["B"] });
+  assert.match(news.detail, /B: not sent, holds no XYZ/);
+});

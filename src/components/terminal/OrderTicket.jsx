@@ -383,13 +383,16 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
       body = {
         // Part shares only where a part is one; reduce-only when the review closed holdings.
         ...body, parts: !crypto && anyPart, ...(shares?.closing ? { reduceOnly: true } : {}),
+        // A percent review's parts go as shown, each account's closing read on its own.
+        ...(shares?.split === "percent" ? { asShown: true } : {}),
         // Nothing for the account on screen: sent as not ticked, the others still take theirs.
         ...(myPart > 0 ? (notional ? { notional: myPart, qty: null } : { qty: exact(mine), notional: null }) : { leadOff: true, leadBook: undefined })
       };
     }
     const r = await invokeFunction("terminal", { action: "order", accountId: account.id, order: body, group: groupOut });
     // The other accounts' orders are in the Orders tab; a pop-up only for what was not done there.
-    reportGroup(r?.data?.group, { key: body.leadOff ? key : `${key}g`, notify: onNotify, refresh: onPlaced });
+    const sentTo = groupOut.map((g) => g.id);
+    reportGroup(r?.data?.group, { key: body.leadOff ? key : `${key}g`, notify: onNotify, refresh: onPlaced, expected: sentTo });
     setBusy(false);
     setReview(false);
     if (r?.data?.error) onNotify({ key, ...orderNews({ error: r.data.error }) });
@@ -398,7 +401,7 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
       onNotify({ key, tone: "muted", title: `Not on ${account.name || "this account"}`, detail: r.data.skipped });
       setQty(crypto ? "" : "1"); setAmount(""); setCloseQty(null); onPlaced?.();
     } else if (r?.data?.leadOff) {
-      if (!r?.data?.group?.some((g) => g.ok === false || (g.skip && !/^holds no/.test(g.skip)))) onNotify({ key, tone: "ok", title: `Sent to ${groupOut.length} account${groupOut.length === 1 ? "" : "s"}`, detail: `${words}. See the Orders tab.` });
+      if (!r?.data?.group?.some((g) => g.ok === false || (g.skip && (!/^holds no/.test(g.skip) || sentTo.includes(g.accountId))))) onNotify({ key, tone: "ok", title: `Sent to ${groupOut.length} account${groupOut.length === 1 ? "" : "s"}`, detail: `${words}. See the Orders tab.` });
       setQty(crypto ? "" : "1"); setAmount(""); setCloseQty(null); onPlaced?.();
     } else {
       // With others ticked, this account's own part, not the total.

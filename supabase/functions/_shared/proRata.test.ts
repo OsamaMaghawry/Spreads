@@ -438,3 +438,38 @@ test("the ticket's percent of equity: each account its own, nearest share; sales
   const none = percentSplit("sell", [alton, small], { pct: 1, price: 90000, crypto: true, symbol: "BTC/USD" });
   assert.deepEqual(none.map((r) => r.skip), ["coins cannot be sold short", "coins cannot be sold short"]);
 });
+
+// 19 Nov review (B1): a percent buy beside an account short the stock. The
+// review sizes each account on its own; the send of those parts must too,
+// rather than skip every account not short ("holds no XYZ to buy back").
+test("a percent buy: what the review shows is what is sent, an account short or not", () => {
+  const opts = { pct: 10, price: 100, symbol: "XYZ" };
+  // The send, as functions/terminal orderForGroup does it: each other account's
+  // part as its own rule in shares, the screen account's as the order's own.
+  const send = (lead: any, others: any[], parts: Record<string, number | null>, leadQty: number | null) =>
+    allocate({ side: "buy", qty: leadQty, notional: null }, lead,
+      others.map((b) => ({ ...b, rule: { mode: "shares", value: parts[b.id] ?? 0 } })),
+      { basis: "equity", price: 100, symbol: "XYZ", closing: "each" });
+  const shown = (rows: any[]) => Object.fromEntries(rows.map((r) => [r.id, r.skip ? null : r.qty]));
+  const sent = (rows: any[]) => Object.fromEntries(rows.map((r) => [r.id, r.skip ? null : r.qty]));
+  const A = { id: "A", name: "A", equity: 50000, buyingPower: 100000, held: 0 };
+  const B = { id: "B", name: "B", equity: 100000, buyingPower: 200000, held: 0 };
+  const C = { id: "C", name: "C", equity: 80000, buyingPower: 160000, held: 0 };
+  // 1. The screen account ticked and short 20; B flat.
+  const a1 = { ...A, held: -20 };
+  const r1 = shown(percentSplit("buy", [a1, B], opts));
+  assert.deepEqual(r1, { A: 20, B: 100 });
+  assert.deepEqual(sent(send(a1, [B], r1, r1.A)), { B: 100 });
+  // 2. The screen account not ticked; B short 20, C flat.
+  const b2 = { ...B, held: -20 };
+  const r2 = shown(percentSplit("buy", [b2, C], opts));
+  assert.deepEqual(r2, { B: 20, C: 80 });
+  assert.deepEqual(sent(send(A, [b2, C], r2, null)), { B: 20, C: 80 });
+  // 3. The screen account's part comes to nothing (sent as not ticked); B short 5, C flat.
+  const b3 = { ...B, held: -5 };
+  const r3 = shown(percentSplit("buy", [b3, C], opts));
+  assert.deepEqual(sent(send(A, [b3, C], r3, null)), r3);
+  // Control: nobody closing.
+  const r4 = shown(percentSplit("buy", [A, B, C], opts));
+  assert.deepEqual(sent(send(A, [B, C], r4, r4.A)), { B: r4.B, C: r4.C });
+});
