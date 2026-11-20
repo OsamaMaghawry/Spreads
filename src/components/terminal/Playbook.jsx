@@ -225,9 +225,11 @@ function Problems({ book }) {
   );
 }
 
+// When a stop order was placed, against the entry.
+const stopWhen = (s) => (Math.abs(s) < 60 ? "placed with the entry" : s < 0 ? `placed ${Math.round(-s / 60)} min before the entry` : `placed ${Math.round(s / 60)} min after the entry`);
 // How the trade's initial stop was found, in words.
 const stopWords = (t) => (t.typedWrong ? "The stop typed is on the wrong side of the entry, so it is not used. " : "") + (!t.stop ? "No initial stop found: add it in Review."
-  : `Stop ${px(t.stop)}: ${t.stopFrom === "hand" ? "typed in review" : t.stopFrom === "bracket" ? "from the entry's bracket" : `the first stop placed on it, ${t.stopAfter < 60 ? "with the entry" : `${Math.round(t.stopAfter / 60)} min after the entry`}`}.${t.tinyRisk ? " Under 0.2% from the entry: too close to measure R by." : ""}`);
+  : `Stop ${px(t.stop)}: ${t.stopFrom === "hand" ? "typed in review" : t.stopFrom === "bracket" ? "from the entry's bracket" : `a stop order ${stopWhen(t.stopAfter)}`}.${t.tinyRisk ? " Under 0.05% from the entry: too close to measure R by." : ""}`);
 
 // ---------- Plays ----------
 
@@ -368,7 +370,7 @@ function TradesTab({ book, plays, account }) {
       {book.trips && (
         <>
           <div className="mb-3 flex flex-wrap gap-x-7 gap-y-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5">
-            {[["Round trips", String(trips.length)], ["Closed trades' P/L", money(total), tone(total)], ["Won", `${closed.filter((t) => t.realized > 0).length} of ${closed.length}`],
+            {[["Round trips", String(trips.length)], ["Closed trades' P/L", money(total), tone(total)], ["Won", `${closed.filter((t) => t.realized > 1e-9).length} of ${closed.length}`],
               ["Linked to a play", `${trips.filter((t) => t.play).length} of ${trips.length}`], ["Reviewed", `${trips.filter((t) => t.review?.followed).length} of ${trips.length}`]].map(([k, v, c]) => (
               <div key={k}><div className="text-xs text-slate-500">{k}</div><div className={`font-mono text-base ${c || ""}`}>{v}</div></div>
             ))}
@@ -405,7 +407,7 @@ function TradesTab({ book, plays, account }) {
             </div>
           )}
           <p className="mt-2 max-w-[75ch] text-xs text-slate-500">
-            {`From this account's share and coin fills, trades opened in this period; before commission and fees; option fills not included. A trade's play is the one active when the order that opened it was sent from the ticket or a hotkey, or the one you pick here. R: the result over the risk at entry (the opening order's size × its distance to the initial stop). The initial stop: typed in review, else the entry's bracket, else the first stop placed within five minutes of the entry; "—" when there is none (add it in Review) or it is under 0.2% from the entry. Positions held from before the period are not counted. Open trades show "open".`}
+            {`From this account's share and coin fills, trades opened in this period; before commission and fees; option fills not included. A trade's play is the one active when the order that opened it was sent from the ticket or a hotkey, or the one you pick here. R: the result over the risk at entry (the opening order's size × its distance to the initial stop). The initial stop: typed in review, else the entry's bracket, else a stop order sent while the entry was working or within five minutes of it; "—" when there is none (add it in Review) or it is under 0.05% from the entry. Positions held from before the period are not counted. Open trades show "open".`}
           </p>
         </>
       )}
@@ -452,7 +454,7 @@ function ReviewDrawer({ trip, plays, onClose, onSave }) {
   };
   const toggle = (k, v) => setD((x) => ({ ...x, [k]: x[k].includes(v) ? x[k].filter((y) => y !== v) : [...x[k], v] }));
   const label = "pt-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500";
-  const source = typed || trip.stopFrom === "hand" ? "Typed" : trip.stopFrom === "bracket" ? "From the entry's bracket" : trip.stopFrom === "stop order" ? (trip.stopAfter < 60 ? "Placed with the entry" : `Placed ${Math.round(trip.stopAfter / 60)} min after the entry`) : "No stop found";
+  const source = typed || trip.stopFrom === "hand" ? "Typed" : trip.stopFrom === "bracket" ? "From the entry's bracket" : trip.stopFrom === "stop order" ? stopWhen(trip.stopAfter).replace(/^p/, "P") : "No stop found";
   return (
     <>
       <div className="fixed inset-0 z-[60] bg-slate-900/30" onClick={onClose} />
@@ -479,7 +481,7 @@ function ReviewDrawer({ trip, plays, onClose, onSave }) {
               </div>
               {trip.bracket > 0 && typed && <p className="mt-1 text-xs text-slate-500">The entry&apos;s bracket stop was {px(trip.bracket)}.</p>}
               {wrongSide && <p className="mt-1 text-xs text-rose-700">{`A ${trip.side}'s stop is ${trip.side === "long" ? "below" : "above"} the entry (${px(trip.entry)}).`}</p>}
-              {tiny && <p className="mt-1 text-xs text-amber-800">Under 0.2% from the entry: too close to measure R by. Check the price.</p>}
+              {tiny && <p className="mt-1 text-xs text-amber-800">Under 0.05% from the entry: too close to measure R by. Check the price.</p>}
               <RBar r={r} risk={risk} />
             </div>
             <span className={label}>Followed the plan</span>
@@ -493,6 +495,7 @@ function ReviewDrawer({ trip, plays, onClose, onSave }) {
             </div>
             <span className={label}>Checklist present</span>
             <div className="flex flex-col gap-1.5">
+              {play?.checklist.length > 0 && <span className="text-xs text-slate-500">Saving counts an unticked item as not present.</span>}
               {play ? (play.checklist.length ? play.checklist.map((c) => (
                 <label key={c} className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={d.checks.includes(c)} onChange={() => toggle("checks", c)} />{c}</label>
               )) : <span className="pt-1 text-slate-500">This play has no checklist.</span>) : <span className="pt-1 text-slate-500">Pick a play to see its checklist.</span>}
@@ -521,7 +524,7 @@ function ReviewDrawer({ trip, plays, onClose, onSave }) {
 }
 
 function RBar({ r, risk }) {
-  if (r === null) return <p className="mt-1 text-xs text-slate-500">{risk ? "Shown once the trade is closed, with a stop at least 0.2% from the entry." : "Add the stop to see the trade in R."}</p>;
+  if (r === null) return <p className="mt-1 text-xs text-slate-500">{risk ? "Shown once the trade is closed, with a stop at least 0.05% from the entry." : "Add the stop to see the trade in R."}</p>;
   const lo = Math.min(-1.5, Math.floor(r) - 0.5);
   const hi = Math.max(1.5, Math.ceil(r) + 0.5);
   const W = 380; const L = 12; const R = 14;

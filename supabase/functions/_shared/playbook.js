@@ -115,8 +115,8 @@ export function cleanReview(input) {
 export const STOP_WINDOW = 300;
 /** How long before: a stop sent while the entry was still working (an hour at most, never before the symbol's previous trade closed). */
 export const STOP_BEFORE = 3600;
-/** A distance to the stop under this share of the entry price is too small to measure R by (19 Nov review). */
-export const TINY_RISK = 0.002;
+/** A distance to the stop under this share of the entry price is too small to measure R by: a typo, as 49.99 on 50.00 (20 Nov reviews). */
+export const TINY_RISK = 0.0005;
 
 /**
  * Each round trip with its play, initial stop, risk at entry and R (20 Nov
@@ -130,11 +130,12 @@ export const TINY_RISK = 0.002;
  * opening order alone, its size and average price (`openQty`, `openPrice`
  * from lib/replay.js roundTrips). The initial stop, on the losing side of that
  * entry: typed in a review, else the opening order's bracket stop, else the
- * first stop placed for the position, from while its entry was still working
- * (an hour at most, and after the symbol's previous trade closed) to five
- * minutes after it opened (`stopAfter`: how long after). The risk at entry: the stop's distance from the entry price
+ * stop placed for the position: the last one sent while its entry was still
+ * working (an hour before at most, and after the symbol's previous trade
+ * closed), else the first placed within five minutes after it opened
+ * (`stopAfter`: seconds after the entry, negative before). The risk at entry: the stop's distance from the entry price
  * times the opening size. R: the profit taken over that risk; for a closed
- * trip only, and not where the risk is under 0.2% of the price (`tinyRisk`).
+ * trip only, and not where the risk is under 0.05% of the price (`tinyRisk`).
  */
 export function withPlays(trips, { marks = {}, stops = [], reviews = {} } = {}) {
   // Each trip's key, and when the symbol's trade before it closed.
@@ -170,9 +171,13 @@ export function withPlays(trips, { marks = {}, stops = [], reviews = {} } = {}) 
     if (stop === null) {
       const from = Math.max(t.entryTime - STOP_BEFORE, prevExit.get(t) ?? -Infinity);
       const until = Math.min(t.entryTime + STOP_WINDOW, t.exitTime ?? Infinity);
-      const first = stops.filter((s) => s.symbol === t.symbol && s.at >= from && s.at <= until && s.stop > 0 && losing(s.stop))
-        .sort((x, y) => x.at - y.at)[0];
-      if (first) { stop = first.stop; stopFrom = "stop order"; stopAfter = Math.max(0, first.at - t.entryTime); }
+      const near = stops.filter((s) => s.symbol === t.symbol && s.at >= from && s.at <= until && s.stop > 0 && losing(s.stop));
+      // Before the entry, the latest (an earlier one may have gone with a
+      // cancelled entry, 20 Nov review); after it, the first.
+      const before = near.filter((s) => s.at <= t.entryTime).sort((x, y) => y.at - x.at)[0];
+      const after = near.filter((s) => s.at > t.entryTime).sort((x, y) => x.at - y.at)[0];
+      const found = before || after;
+      if (found) { stop = found.stop; stopFrom = "stop order"; stopAfter = found.at - t.entryTime; }
     }
     const tinyRisk = stop !== null && Math.abs(entry - stop) / entry < TINY_RISK;
     const risk = stop !== null ? Math.abs(entry - stop) * openQty : null;

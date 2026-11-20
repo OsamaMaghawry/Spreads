@@ -27,10 +27,11 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // matters: it is two steps, and between them the order does not exist.
 const CANNOT_REPLACE = /cannot replace order|42210000/i;
 
-async function copyMark(admin: any, accountId: string, from: string, to: string) {
+async function copyMark(admin: any, accountId: string, from: string, to: string, stopPrice: number) {
   try {
     const { data } = await admin.from("terminal_order_marks").select("*").eq("account_id", accountId).eq("order_id", from).maybeSingle();
-    if (data) await admin.from("terminal_order_marks").upsert({ ...data, order_id: to }, { onConflict: "account_id,order_id" });
+    // A stop's own price changed with it (20 Nov review): the mark keeps the new one.
+    if (data) await admin.from("terminal_order_marks").upsert({ ...data, order_id: to, ...(data.kind === "stop" && stopPrice > 0 ? { stop: stopPrice } : {}) }, { onConflict: "account_id,order_id" });
   } catch (e) {
     console.warn("order mark copy", String((e as Error)?.message || e).slice(0, 200));
   }
@@ -200,7 +201,7 @@ Deno.serve(async (req) => {
       // The terminal Playbook's mark (its play, or a position's stop) goes with
       // the new order id, so a trade whose entry price was changed keeps its
       // play (migration 0069). Never stops the answer.
-      inBackground(copyMark(admin, accountId, orderId, String(replaced.id)));
+      inBackground(copyMark(admin, accountId, orderId, String(replaced.id), Math.abs(Number(replaced.stop_price))));
       return jsonResponse({
         orderId: replaced.id,
         status: replaced.status,

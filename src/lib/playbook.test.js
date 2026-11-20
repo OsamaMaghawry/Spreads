@@ -196,14 +196,18 @@ test("the initial stop: placed within five minutes of the entry, not after the s
   assert.ok(Math.abs(two.r - 3) < 1e-9);
   // A stop sent while the entry was still working (two minutes before it filled) is its stop.
   assert.equal(withPlays(t1, { stops: [{ symbol: "XYZ", stop: 49, at: 10000 - 120 }] })[0].stop, 49);
+  // Of two sent before (the first with an entry since cancelled), the later.
+  const pre = withPlays(t1, { stops: [{ symbol: "XYZ", stop: 48, at: 10000 - 2400 }, { symbol: "XYZ", stop: 49, at: 10000 - 60 }, { symbol: "XYZ", stop: 49.5, at: 10060 }] })[0];
+  assert.deepEqual([pre.stop, pre.stopAfter], [49, -60]);
   // F. The previous trade's stop, placed 40 s before this one opened, is not this one's.
   const both = trip([["buy", 100, 10, 1000, "a1"], ["sell", 100, 10.3, 1960, "a2"], ["buy", 100, 10.2, 2000, "b1"], ["sell", 100, 10.4, 2100, "b2"]]);
   const f = withPlays(both, { stops: [{ symbol: "XYZ", stop: 9.8, at: 1940 }, { symbol: "XYZ", stop: 10.1, at: 2010 }] });
   assert.equal(f[1].stop, 10.1);
   assert.ok(Math.abs(f[1].r - 2) < 1e-9);
-  // A one-cent stop on a $50 entry is too small to measure R by.
+  // A one-cent stop on a $50 entry is too small to measure R by; 27 cents on 162.43 is not.
   assert.equal(withPlays(t1, { reviews: { [`XYZ|10000`]: { stop: 49.99 } } })[0].tinyRisk, true);
   assert.equal(withPlays(t1, { reviews: { [`XYZ|10000`]: { stop: 49.99 } } })[0].r, null);
+  assert.equal(withPlays(t1, { reviews: { [`XYZ|10000`]: { stop: 49.92 } } })[0].tinyRisk, false);
   // A typed stop above a long's entry is refused, said so, and the bracket stands.
   const w = withPlays(t1, { marks: { o1: { stop: 48 } }, reviews: { [`XYZ|10000`]: { stop: 52 } } })[0];
   assert.equal(w.typedWrong, true);
