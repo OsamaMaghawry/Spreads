@@ -471,10 +471,14 @@ export function roundTrips(trades) {
   const out = [];
   let q = 0;
   let avg = 0;
+  /** @type {any} */
   let trip = null;
   const begin = (sign, t, n) => {
     trip = { side: sign > 0 ? "long" : "short", entryTime: t.time, exitTime: null, maxSize: n, entryQty: n, entryValue: n * t.price, exitQty: 0, exitValue: 0, realized: 0, fills: 1, closedBy: [],
-      entryOrderId: t.orderId || null, carried: t.why === "carried" };
+      entryOrderId: t.orderId || null, carried: t.why === "carried",
+      // The opening order alone (all its fills before anything was sold or
+      // bought back): its size and price, the risk at entry (lib/playbook.js).
+      openQty: n, openValue: n * t.price };
     q = sign * n;
     avg = t.price;
   };
@@ -487,7 +491,8 @@ export function roundTrips(trades) {
       fills: trip.fills, closedBy: [...new Set(trip.closedBy)],
       // The order of the fill that opened it (a real account's), and whether it
       // was held from before the period rather than opened in it.
-      entryOrderId: trip.entryOrderId, carried: trip.carried
+      entryOrderId: trip.entryOrderId, carried: trip.carried,
+      openQty: trip.openQty, openPrice: trip.openValue / trip.openQty
     });
     trip = null;
   };
@@ -503,6 +508,7 @@ export function roundTrips(trades) {
       trip.entryValue += n * t.price;
       trip.maxSize = Math.max(trip.maxSize, Math.abs(q));
       trip.fills += 1;
+      if (trip.entryOrderId && t.orderId === trip.entryOrderId && trip.exitQty === 0) { trip.openQty += n; trip.openValue += n * t.price; }
       continue;
     }
     const closing = Math.min(Math.abs(q), n);

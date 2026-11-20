@@ -3,6 +3,7 @@ import { adminClient, requireUser } from "../_shared/supabaseClients.ts";
 import { tradingBase, alpacaFetch, loadAccount } from "../_shared/alpaca.ts";
 import { recordAttempt, updateAttempt } from "../_shared/orderAttempts.ts";
 import { replaceBody } from "../_shared/orderReplace.ts";
+import { inBackground } from "../_shared/background.ts";
 import { parseOCCSymbol } from "../_shared/occ.ts";
 import { filledUnits } from "../_shared/filledUnits.ts";
 
@@ -199,7 +200,7 @@ Deno.serve(async (req) => {
       // The terminal Playbook's mark (its play, or a position's stop) goes with
       // the new order id, so a trade whose entry price was changed keeps its
       // play (migration 0069). Never stops the answer.
-      await copyMark(admin, accountId, orderId, String(replaced.id));
+      inBackground(copyMark(admin, accountId, orderId, String(replaced.id)));
       return jsonResponse({
         orderId: replaced.id,
         status: replaced.status,

@@ -54,7 +54,10 @@ create index if not exists terminal_order_marks_stops on public.terminal_order_m
 
 create table if not exists public.terminal_trade_reviews (
   account_id uuid not null references public.trading_accounts(id) on delete cascade,
-  trip_key text not null check (trip_key ~ '^[A-Z0-9./]{1,24}\|[0-9]{9,11}$'),
+  -- The symbol and the second the trade opened (and its place among trades
+  -- opened in that same second, after the first).
+  trip_key text not null check (trip_key ~ '^[A-Z0-9./]{1,24}\|[0-9]{9,11}(\|[1-9])?$'),
+  opened_at timestamptz not null,
   user_id uuid not null references auth.users(id) on delete cascade,
   play_id uuid references public.terminal_plays(id) on delete set null,
   play_none boolean not null default false,
@@ -62,10 +65,13 @@ create table if not exists public.terminal_trade_reviews (
   followed text check (followed is null or followed in ('yes', 'partly', 'no')),
   mistakes jsonb not null default '[]'::jsonb check (jsonb_typeof(mistakes) = 'array'),
   checks jsonb not null default '[]'::jsonb check (jsonb_typeof(checks) = 'array'),
+  -- The play the checklist was answered for: only then is an unticked item a "no".
+  checks_play uuid references public.terminal_plays(id) on delete set null,
   notes text not null default '' check (char_length(notes) <= 4000),
   updated_at timestamptz not null default now(),
   primary key (account_id, trip_key)
 );
+create index if not exists terminal_trade_reviews_opened on public.terminal_trade_reviews (account_id, opened_at);
 
 alter table public.terminal_plays enable row level security;
 alter table public.terminal_order_marks enable row level security;

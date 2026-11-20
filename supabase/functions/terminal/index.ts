@@ -20,7 +20,8 @@ import { usSession, usOvernight, stopPlan, stopLimitPrice, exitPlan, tradeSize, 
 import { inBackground } from "../_shared/background.ts";
 import { allocate, splitTotal, wholeHoldings, percentSplit } from "../_shared/proRata.ts";
 import { shareMoves, SHARE_EVENTS, SHARE_EVENTS_CORE } from "../_shared/shareMoves.ts";
-import { cleanPlay, cleanReview, EXAMPLE_PLAYS, TRIP_KEY } from "../_shared/playbook.js";
+import { cleanPlay, cleanReview, EXAMPLE_PLAYS, TRIP_KEY, keyTime } from "../_shared/playbook.js";
+import { selectAllWhere } from "../_shared/paging.ts";
 import { orderStream } from "../_shared/orderStream.ts";
 import { isOwnerEmail, isAdminUser } from "../_shared/admin.ts";
 import { handBackFired, chaseFired } from "../_shared/stopGuardRun.ts";
@@ -2140,17 +2141,27 @@ async function writeMark(admin: any, row: Record<string, unknown>) {
 async function markOrder(admin: any, user: any, account: any, input: any, body: any, orderId: string, sym: string) {
   const playId = typeof input?.play === "string" && UUID.test(input.play) ? input.play : null;
   const stopType = body.type === "stop" || body.type === "stop_limit";
-  if (!playId && !stopType) return;
+  // A bracket's stop is its trade's initial stop, play or none (20 Nov review).
+  const bracket = num(body.stop_loss?.stop_price);
+  if (!playId && !stopType && !bracket) return;
   if (stopType && num(body.stop_price)) {
     // A stop that closes a holding is that position's stop; one that opens a position is an entry.
     const pos = await positionOf(account, sym).catch(() => null);
     const closes = pos && ((body.side === "sell" && pos.side === "long") || (body.side === "buy" && pos.side === "short"));
-    if (closes) return writeMark(admin, { account_id: account.id, order_id: orderId, user_id: user.id, symbol: sym, kind: "stop", stop: num(body.stop_price), play_id: null });
+    // Or a stop sent while its entry still works (20 Nov review): an order the
+    // other way, not a stop itself, waiting on the symbol.
+    const pending = !closes && !pos
+      ? (await openOrdersFor(account, sym).catch(() => [])).some((o: any) => o.id !== orderId && o.side !== body.side && !/stop/.test(String(o.type || "")))
+      : false;
+    if (closes || pending) return writeMark(admin, { account_id: account.id, order_id: orderId, user_id: user.id, symbol: sym, kind: "stop", stop: num(body.stop_price), play_id: null });
   }
-  if (!playId) return;
-  const { data } = await admin.from("terminal_plays").select("id").eq("id", playId).eq("user_id", user.id).maybeSingle();
-  if (!data) return;
-  await writeMark(admin, { account_id: account.id, order_id: orderId, user_id: user.id, symbol: sym, kind: "entry", play_id: playId, stop: num(body.stop_loss?.stop_price) });
+  let play: string | null = null;
+  if (playId) {
+    const { data } = await admin.from("terminal_plays").select("id").eq("id", playId).eq("user_id", user.id).maybeSingle();
+    play = data?.id || null;
+  }
+  if (!play && !bracket) return;
+  await writeMark(admin, { account_id: account.id, order_id: orderId, user_id: user.id, symbol: sym, kind: "entry", play_id: play, stop: bracket });
 }
 
 // The person's plays: listed (the four examples put in first, for one who has
@@ -2160,13 +2171,31 @@ async function plays(admin: any, userId: string, body: any): Promise<[any, numbe
   if (body.op === "save") {
     const c = cleanPlay(body.play);
     if (c.error) return [{ error: c.error }, 400];
-    const id = typeof body.play?.id === "string" && UUID.test(body.play.id) ? body.play.id : null;
+    if (body.play?.id !== undefined && body.play?.id !== null && !(typeof body.play.id === "string" && UUID.test(body.play.id))) return [{ error: "No such play." }, 400];
+    const id = typeof body.play?.id === "string" ? body.play.id : null;
     const row = { ...c.play, user_id: userId, updated_at: new Date().toISOString() };
+    // A checklist item renamed in place (same count, same position): the
+    // reviews that answered it keep their answer under its new words.
+    let renames: [string, string][] = [];
+    if (id) {
+      const { data: old } = await table().select("checklist").eq("id", id).eq("user_id", userId).maybeSingle();
+      const before: string[] = Array.isArray(old?.checklist) ? old.checklist : [];
+      const after = c.play!.checklist as string[];
+      if (before.length === after.length) renames = before.map((b, i) => [b, after[i]] as [string, string]).filter(([b, a]) => b !== a && !after.includes(b));
+    }
     const { data, error } = id
       ? await table().update(row).eq("id", id).eq("user_id", userId).select().maybeSingle()
       : await table().insert(row).select().single();
     if (error) return [{ error: /duplicate|unique/i.test(error.message) ? `The code ${c.play!.code} is already used by another play.` : error.message }, /duplicate|unique/i.test(error.message) ? 409 : 500];
     if (!data) return [{ error: "No such play." }, 404];
+    if (renames.length) {
+      const map = new Map(renames);
+      const revs = await selectAllWhere(admin, "terminal_trade_reviews", "account_id, trip_key, checks", "trip_key", (q: any) => q.eq("user_id", userId).eq("checks_play", id)).catch(() => []);
+      for (const v of revs) {
+        const checks = (Array.isArray(v.checks) ? v.checks : []).map((x: string) => map.get(x) ?? x);
+        await admin.from("terminal_trade_reviews").update({ checks }).eq("account_id", v.account_id).eq("trip_key", v.trip_key);
+      }
+    }
     return [{ play: playShape(data) }];
   }
   if (body.op === "archive") {
@@ -2194,6 +2223,26 @@ async function plays(admin: any, userId: string, body: any): Promise<[any, numbe
 // reads them, with the marks of the orders they came from, the stops placed on
 // those symbols, and the person's reviews. Or a review saved.
 async function playbook(admin: any, user: any, account: any, body: any): Promise<[any, number?]> {
+  // Only the play (picked from the Trades table): the review's other answers
+  // stay as they are, but the old play's checklist and "followed" no longer apply.
+  if (body.op === "setplay") {
+    const key = String(body.key || "");
+    if (!TRIP_KEY.test(key)) return [{ error: "Which trade?" }, 400];
+    const play = body.play === "none" ? "none" : typeof body.play === "string" && UUID.test(body.play) ? body.play : null;
+    if (!play) return [{ error: "Which play?" }, 400];
+    if (play !== "none") {
+      const { data } = await admin.from("terminal_plays").select("id").eq("id", play).eq("user_id", user.id).maybeSingle();
+      if (!data) return [{ error: "No such play." }, 400];
+    }
+    const cols = { play_id: play === "none" ? null : play, play_none: play === "none", followed: null, checks: [], checks_play: null, updated_at: new Date().toISOString() };
+    const { data: upd, error } = await admin.from("terminal_trade_reviews").update(cols).eq("account_id", account.id).eq("trip_key", key).eq("user_id", user.id).select("trip_key");
+    if (error) return [{ error: error.message }, 500];
+    if (!upd?.length) {
+      const ins = await admin.from("terminal_trade_reviews").insert({ ...cols, account_id: account.id, trip_key: key, user_id: user.id, opened_at: new Date(keyTime(key) * 1000).toISOString() });
+      if (ins.error) return [{ error: ins.error.message }, 500];
+    }
+    return [{ saved: key }];
+  }
   if (body.op === "review") {
     const key = String(body.key || "");
     if (!TRIP_KEY.test(key)) return [{ error: "Which trade?" }, 400];
@@ -2205,8 +2254,9 @@ async function playbook(admin: any, user: any, account: any, body: any): Promise
       if (!data) return [{ error: "No such play." }, 400];
     }
     const { error } = await admin.from("terminal_trade_reviews").upsert({
-      account_id: account.id, trip_key: key, user_id: user.id, play_id: r.play && r.play !== "none" ? r.play : null, play_none: r.play === "none",
-      stop: r.stop, followed: r.followed, mistakes: r.mistakes, checks: r.checks, notes: r.notes, updated_at: new Date().toISOString()
+      account_id: account.id, trip_key: key, user_id: user.id, opened_at: new Date(keyTime(key) * 1000).toISOString(),
+      play_id: r.play && r.play !== "none" ? r.play : null, play_none: r.play === "none",
+      stop: r.stop, followed: r.followed, mistakes: r.mistakes, checks: r.checks, checks_play: r.checksFor, notes: r.notes, updated_at: new Date().toISOString()
     }, { onConflict: "account_id,trip_key" });
     if (error) return [{ error: error.message }, 500];
     return [{ saved: key }];
@@ -2221,21 +2271,31 @@ async function playbook(admin: any, user: any, account: any, body: any): Promise
     if (error) return [{ error: error.message }, 500];
     for (const m of data || []) marks[m.order_id] = { play: m.play_id, stop: m.stop === null ? null : Number(m.stop) };
   }
-  const since = new Date(Date.parse(read.start) - 86400000).toISOString();
+  // Every stop and review in the period, a thousand rows at a time (a read is
+  // capped at a thousand, without a word: 20 Nov review).
+  const since = new Date(Date.parse(read.start) - 2 * 86400000).toISOString();
+  const until = read.end ? new Date(Date.parse(read.end) + 86400000).toISOString() : null;
   const stops: { symbol: string; stop: number; at: number }[] = [];
-  if (symbols.length) {
-    const { data, error } = await admin.from("terminal_order_marks").select("symbol, stop, at").eq("account_id", account.id).eq("kind", "stop")
-      .in("symbol", symbols.slice(0, 300)).gte("at", since).order("at").limit(5000);
-    if (error) return [{ error: error.message }, 500];
-    for (const m of data || []) if (Number(m.stop) > 0) stops.push({ symbol: m.symbol, stop: Number(m.stop), at: Math.floor(Date.parse(m.at) / 1000) });
+  let revs: any[] = [];
+  try {
+    for (let i = 0; i < symbols.length; i += 100) {
+      const chunk = symbols.slice(i, i + 100);
+      const rows = await selectAllWhere(admin, "terminal_order_marks", "order_id, symbol, stop, at", "order_id",
+        (q: any) => q.eq("account_id", account.id).eq("kind", "stop").in("symbol", chunk).gte("at", since));
+      for (const m of rows) if (Number(m.stop) > 0) stops.push({ symbol: m.symbol, stop: Number(m.stop), at: Math.floor(Date.parse(m.at) / 1000) });
+    }
+    revs = await selectAllWhere(admin, "terminal_trade_reviews", "*", "trip_key", (q: any) => {
+      const r = q.eq("account_id", account.id).eq("user_id", user.id).gte("opened_at", since);
+      return until ? r.lte("opened_at", until) : r;
+    });
+  } catch (e) {
+    return [{ error: String((e as Error)?.message || e) }, 500];
   }
-  const { data: revs, error: rerr } = await admin.from("terminal_trade_reviews").select("*").eq("account_id", account.id).eq("user_id", user.id).limit(5000);
-  if (rerr) return [{ error: rerr.message }, 500];
   const reviews: Record<string, any> = {};
-  for (const v of revs || []) {
+  for (const v of revs) {
     reviews[v.trip_key] = {
       play: v.play_none ? "none" : v.play_id, stop: v.stop === null ? null : Number(v.stop), followed: v.followed,
-      mistakes: Array.isArray(v.mistakes) ? v.mistakes : [], checks: Array.isArray(v.checks) ? v.checks : [], notes: v.notes || ""
+      mistakes: Array.isArray(v.mistakes) ? v.mistakes : [], checks: Array.isArray(v.checks) ? v.checks : [], checksFor: v.checks_play || null, notes: v.notes || ""
     };
   }
   // `marks` stays the closes the trips are built from; the orders' are `orderMarks`.

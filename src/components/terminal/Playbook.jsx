@@ -5,7 +5,7 @@ import { px, sizeText, isCrypto } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
 import { bookTrips } from "@/lib/replay";
 import { demoBook, periodStart, customPeriod, customBounds } from "@/lib/demoTrades";
-import { SIDES, TIMEFRAMES, MISTAKES, cleanPlay, withPlays, playStats, playSplits, sampleFlag } from "@/lib/playbook";
+import { SIDES, TIMEFRAMES, MISTAKES, TINY_RISK, cleanPlay, withPlays, playStats, playSplits, sampleFlag } from "@/lib/playbook";
 import useAccountSetting from "./useAccountSetting";
 
 // The terminal's Playbook (20 Nov 2026, the owner: "I need to implement the
@@ -94,7 +94,7 @@ export default function Playbook({ accountId, account, plays, onPlays, active })
     <div className="mx-auto max-w-[1320px] px-1 py-2 text-sm">
       <div className="mb-2 flex flex-wrap items-end gap-3">
         <h2 className="text-lg font-semibold">Playbook</h2>
-        <span className="text-xs text-slate-500">Your rules, every trade linked to one, and how each play really performs.</span>
+        <span className="text-xs text-slate-500">Your rules, the trades linked to them, and how each play has done in your recorded trades.</span>
       </div>
       <div className="mb-3 flex gap-5 border-b border-slate-200" role="tablist" aria-label="Playbook">
         {[["plays", "Plays"], ["trades", "Trades"], ["results", "Results"]].map(([id, name]) => (
@@ -138,7 +138,9 @@ function usePlaybookTrades({ accountId, active, plays }) {
   }, [active, key, nonce]);
   const data = state.key === key ? state.data : null;
   const trips = useMemo(() => {
-    if (!data || data.truncated) return null;
+    // Nothing shown from a read cut short, or from an ended period whose share
+    // movements could not all be read (as on the P/L tab).
+    if (!data || data.truncated || (data.endSec !== null && data.eventsRead === false)) return null;
     // Left out as on the P/L tab: a symbol whose shares changed without a trade.
     const skip = new Set((data.heldBack || []).map((e) => e.symbol).filter(Boolean));
     const keep = (s) => !skip.has(s);
@@ -146,15 +148,24 @@ function usePlaybookTrades({ accountId, active, plays }) {
       fills: data.fills.filter((f) => keep(f.symbol)), positions: Object.fromEntries(Object.entries(data.positions).filter(([s]) => keep(s))),
       marks: data.marks || {}, start: data.startSec, end: data.endSec, fees: (data.fees || []).filter((f) => keep(f.symbol))
     });
-    // Positions held from before the period are not trades made in it.
-    const own = bookTrips(built.book).filter((t) => !t.carried);
-    return withPlays(own, { marks: data.orderMarks || {}, stops: data.stops || [], reviews: data.reviews || {} }).sort((a, b) => b.entryTime - a.entryTime);
+    // Positions held from before the period are not trades made in it (they
+    // still bound the next trade's stop, so they are read first).
+    return withPlays(bookTrips(built.book), { marks: data.orderMarks || {}, stops: data.stops || [], reviews: data.reviews || {} })
+      .filter((t) => !t.carried).sort((a, b) => b.entryTime - a.entryTime);
   }, [data]);
   const tagged = useMemo(() => {
     const n = {};
     for (const t of trips || []) if (t.play) n[t.play] = (n[t.play] || 0) + 1;
     return n;
   }, [trips]);
+  // The play alone, from the Trades table: the rest of the review stays.
+  const savePlay = async (trip, play) => {
+    const r = await invokeFunction("terminal", { action: "playbook", op: "setplay", accountId, key: trip.key, play: play || "none" });
+    if (r?.data?.error) return r.data.error;
+    const cleared = { play: play || "none", followed: null, checks: [], checksFor: null };
+    setState((s) => (s.data ? { ...s, data: { ...s.data, reviews: { ...(s.data.reviews || {}), [trip.key]: { mistakes: [], notes: "", stop: null, ...(s.data.reviews?.[trip.key] || {}), ...cleared } } } } : s));
+    return null;
+  };
   const saveReview = async (trip, review) => {
     const r = await invokeFunction("terminal", { action: "playbook", op: "review", accountId, key: trip.key, review });
     if (r?.data?.error) return r.data.error;
@@ -162,9 +173,12 @@ function usePlaybookTrades({ accountId, active, plays }) {
     setState((s) => (s.data ? { ...s, data: { ...s.data, reviews: { ...(s.data.reviews || {}), [trip.key]: review } } } : s));
     return null;
   };
+  // The period in words, from the trading days it covers (8:00 p.m. New York the evening before).
+  const day = (sec) => new Date(sec * 1000).toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric" });
+  const periodText = data ? `${day(data.startSec)}, 8:00 p.m. to ${data.endSec !== null ? `${day(data.endSec)}, 8:00 p.m.` : "now"}` : "";
   return {
-    pick, setPick, bounds, from, to, custom, win, data, trips, tagged, plays,
-    error: state.key === key ? state.error : null, loading: state.loading, reload: () => setNonce((n) => n + 1), saveReview
+    pick, setPick, bounds, from, to, custom, win, data, trips, tagged, plays, periodText,
+    error: state.key === key ? state.error : null, loading: state.loading, reload: () => setNonce((n) => n + 1), saveReview, savePlay
   };
 }
 
@@ -200,10 +214,20 @@ function PeriodBar({ book, children }) {
 function Problems({ book }) {
   const { error, data } = book;
   if (error) return <p className="mb-2 text-rose-700">{error}</p>;
-  if (data?.truncated) return <p className="mb-2 text-amber-800">More fills from the start to now than can be read at once, so what was held at the start cannot be worked out. Choose a later start.</p>;
-  if (data && data.eventsRead === false && data.endSec !== null) return <p className="mb-2 text-amber-800">Assignments, splits and transfers since the start could not all be read; no figures are shown. Try again.</p>;
-  return null;
+  if (data?.truncated) return <p className="mb-2 text-amber-800">More fills from the start to now than can be read at once, so what was held at the start cannot be worked out and no figures are shown. Choose a later start.</p>;
+  if (data && data.eventsRead === false && data.endSec !== null) return <p className="mb-2 text-amber-800">Assignments, splits and transfers since the start could not all be read, so no figures are shown. Try again.</p>;
+  const left = (data?.heldBack || []).filter((e) => e.symbol);
+  return (
+    <>
+      {data && data.eventsRead === false && <p className="mb-2 text-amber-800">Assignments, splits and transfers could not be checked this time: if a symbol had one since the start, its trades here are off.</p>}
+      {left.length > 0 && <p className="mb-2 text-amber-800">{`Left out: ${[...new Set(left.map((e) => e.symbol))].join(", ")}: shares changed without a trade (a split, transfer or corporate action), so their trades cannot be worked out from the fills.`}</p>}
+    </>
+  );
 }
+
+// How the trade's initial stop was found, in words.
+const stopWords = (t) => (t.typedWrong ? "The stop typed is on the wrong side of the entry, so it is not used. " : "") + (!t.stop ? "No initial stop found: add it in Review."
+  : `Stop ${px(t.stop)}: ${t.stopFrom === "hand" ? "typed in review" : t.stopFrom === "bracket" ? "from the entry's bracket" : `the first stop placed on it, ${t.stopAfter < 60 ? "with the entry" : `${Math.round(t.stopAfter / 60)} min after the entry`}`}.${t.tinyRisk ? " Under 0.2% from the entry: too close to measure R by." : ""}`);
 
 // ---------- Plays ----------
 
@@ -284,7 +308,7 @@ function PlaysTab({ plays, onPlays, tagged }) {
               ))}
             </div>
             <button type="button" onClick={() => set("checklist", [...draft.checklist, ""])} className="mt-1 text-xs text-indigo-700 hover:underline">+ Add item</button>
-            <p className="mt-0.5 text-xs text-slate-500">You tick these on each trade in its review. Results then splits by each one.</p>
+            <p className="mt-0.5 text-xs text-slate-500">You tick these on each trade in its review. Results then splits by each one. Renaming an item in place keeps its answers on past trades.</p>
           </div>
           {[["entry", "Entry"], ["stop", "Stop"], ["exit", "Exit"]].map(([k, name]) => (
             <FragmentRow key={k} label={name} cls={label}><textarea className={input} rows={2} value={draft[k]} onChange={(e) => set(k, e.target.value)} /></FragmentRow>
@@ -324,7 +348,8 @@ function TradesTab({ book, plays, account }) {
     ...plays.filter((p) => !p.archived || p.id === sel).map((p) => <option key={p.id} value={p.id}>{p.name}{p.archived ? " (archived)" : ""}</option>)
   ];
   const setPlay = async (t, id) => {
-    setErr(await book.saveReview(t, { ...(t.review || {}), play: id || "none", mistakes: t.review?.mistakes || [], checks: [], notes: t.review?.notes || "" }));
+    // A new play: the old one's answers (followed, checklist) no longer apply; the rest stays.
+    setErr(await book.savePlay(t, id));
   };
   const th = "whitespace-nowrap border-b border-slate-200 bg-slate-50 px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500";
   const td = "whitespace-nowrap border-b border-slate-100 px-2 py-1.5";
@@ -343,7 +368,7 @@ function TradesTab({ book, plays, account }) {
       {book.trips && (
         <>
           <div className="mb-3 flex flex-wrap gap-x-7 gap-y-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5">
-            {[["Round trips", String(trips.length)], ["Realized", money(total), tone(total)], ["Won", `${closed.filter((t) => t.realized > 0).length} of ${closed.length}`],
+            {[["Round trips", String(trips.length)], ["Closed trades' P/L", money(total), tone(total)], ["Won", `${closed.filter((t) => t.realized > 0).length} of ${closed.length}`],
               ["Linked to a play", `${trips.filter((t) => t.play).length} of ${trips.length}`], ["Reviewed", `${trips.filter((t) => t.review?.followed).length} of ${trips.length}`]].map(([k, v, c]) => (
               <div key={k}><div className="text-xs text-slate-500">{k}</div><div className={`font-mono text-base ${c || ""}`}>{v}</div></div>
             ))}
@@ -363,7 +388,7 @@ function TradesTab({ book, plays, account }) {
                     <td className={`${td} text-right font-mono`}>{px(t.avgEntry)}</td>
                     <td className={`${td} text-right font-mono`}>{t.avgExit === null ? "—" : px(t.avgExit)}</td>
                     <td className={`${td} text-right font-mono ${tone(t.realized)}`}>{t.open ? "open" : money(t.realized)}</td>
-                    <td className={`${td} text-right font-mono ${tone(t.r ?? 0)}`} title={t.stop ? `Stop ${px(t.stop)} (${t.stopFrom === "hand" ? "typed in review" : t.stopFrom === "bracket" ? "from the entry's bracket" : "the first stop placed on it"})` : "No stop found. Add it in Review."}>{fR(t.r, 1)}</td>
+                    <td className={`${td} text-right font-mono ${tone(t.r ?? 0)}`} title={stopWords(t)}>{fR(t.r, 1)}{(t.tinyRisk || t.typedWrong) && <span className="ml-0.5 text-amber-700">!</span>}</td>
                     <td className={`${td} text-right font-mono text-slate-500`}>{t.open ? "—" : hold(t.exitTime - t.entryTime)}</td>
                     <td className={td}>
                       <select aria-label={`Play for ${t.symbol} ${when(t.entryTime, t.symbol)}`} value={t.play || ""} onChange={(e) => setPlay(t, e.target.value)}
@@ -380,7 +405,7 @@ function TradesTab({ book, plays, account }) {
             </div>
           )}
           <p className="mt-2 max-w-[75ch] text-xs text-slate-500">
-            {`From this account's share and coin fills. A trade's play is the one active when the order that opened it was sent from the ticket or a hotkey, or the one you pick here. R is the profit over the risk: the stop's distance from the average entry times the trade's largest size; "—" when no stop was found (add it in Review). Positions held from before the period are not counted as trades. Open trades show "open".`}
+            {`From this account's share and coin fills, trades opened in this period; before commission and fees; option fills not included. A trade's play is the one active when the order that opened it was sent from the ticket or a hotkey, or the one you pick here. R: the result over the risk at entry (the opening order's size × its distance to the initial stop). The initial stop: typed in review, else the entry's bracket, else the first stop placed within five minutes of the entry; "—" when there is none (add it in Review) or it is under 0.2% from the entry. Positions held from before the period are not counted. Open trades show "open".`}
           </p>
         </>
       )}
@@ -406,11 +431,17 @@ function ReviewDrawer({ trip, plays, onClose, onSave }) {
   const stopNum = Number(d.stop);
   const typed = d.stop !== "" && stopNum > 0 && stopNum !== trip.stop;
   const stop = stopNum > 0 ? stopNum : null;
-  const risk = stop ? Math.abs(trip.avgEntry - stop) * trip.size : null;
-  const r = !trip.open && risk > 0 ? trip.realized / risk : null;
+  // Against the opening order's price, as Results (lib/playbook.js withPlays).
+  const wrongSide = stop !== null && (trip.side === "long" ? stop >= trip.entry : stop <= trip.entry);
+  const tiny = stop !== null && !wrongSide && Math.abs(trip.entry - stop) / trip.entry < TINY_RISK;
+  const risk = stop !== null && !wrongSide ? Math.abs(trip.entry - stop) * trip.openQty : null;
+  const r = !trip.open && risk > 0 && !tiny ? trip.realized / risk : null;
   const save = async () => {
+    if (wrongSide) { setErr(`The initial stop is ${trip.side === "long" ? "below" : "above"} the entry (${px(trip.entry)}) for a ${trip.side}.`); return; }
     setBusy(true);
     const review = {
+      // The checklist answered for this play: its unticked items are a "no".
+      checksFor: play && play.checklist.length ? play.id : null,
       // A stop typed (or one found, then changed); cleared, none typed.
       play: d.play || "none", stop: d.stop === "" ? null : typed ? stopNum : trip.stopFrom === "hand" ? trip.stop : null, followed: d.followed,
       mistakes: d.mistakes, checks: d.checks.filter((c) => play?.checklist.includes(c)), notes: d.notes
@@ -421,7 +452,7 @@ function ReviewDrawer({ trip, plays, onClose, onSave }) {
   };
   const toggle = (k, v) => setD((x) => ({ ...x, [k]: x[k].includes(v) ? x[k].filter((y) => y !== v) : [...x[k], v] }));
   const label = "pt-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500";
-  const source = typed ? "Typed" : trip.stopFrom === "hand" ? "Typed" : trip.stopFrom === "bracket" ? "From the entry's bracket" : trip.stopFrom === "stop order" ? "The first stop placed on it" : "No stop found";
+  const source = typed || trip.stopFrom === "hand" ? "Typed" : trip.stopFrom === "bracket" ? "From the entry's bracket" : trip.stopFrom === "stop order" ? (trip.stopAfter < 60 ? "Placed with the entry" : `Placed ${Math.round(trip.stopAfter / 60)} min after the entry`) : "No stop found";
   return (
     <>
       <div className="fixed inset-0 z-[60] bg-slate-900/30" onClick={onClose} />
@@ -436,7 +467,7 @@ function ReviewDrawer({ trip, plays, onClose, onSave }) {
         <div className="flex flex-1 flex-col gap-4 overflow-auto px-5 py-4 text-sm">
           <div className="grid gap-2 sm:grid-cols-[128px_1fr]">
             <span className={label}>Play</span>
-            <select className={input} value={d.play} onChange={(e) => setD((x) => ({ ...x, play: e.target.value, checks: [] }))}>
+            <select className={input} value={d.play} onChange={(e) => setD((x) => ({ ...x, play: e.target.value, checks: [], followed: null }))}>
               <option value="">— No play</option>
               {plays.filter((p) => !p.archived || p.id === d.play).map((p) => <option key={p.id} value={p.id}>{p.name}{p.archived ? " (archived)" : ""}</option>)}
             </select>
@@ -446,6 +477,9 @@ function ReviewDrawer({ trip, plays, onClose, onSave }) {
                 <input className={`${input} w-28 font-mono`} type="number" step="0.01" placeholder="—" value={d.stop} onChange={(e) => setD((x) => ({ ...x, stop: e.target.value }))} />
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600">{source}</span>
               </div>
+              {trip.bracket > 0 && typed && <p className="mt-1 text-xs text-slate-500">The entry&apos;s bracket stop was {px(trip.bracket)}.</p>}
+              {wrongSide && <p className="mt-1 text-xs text-rose-700">{`A ${trip.side}'s stop is ${trip.side === "long" ? "below" : "above"} the entry (${px(trip.entry)}).`}</p>}
+              {tiny && <p className="mt-1 text-xs text-amber-800">Under 0.2% from the entry: too close to measure R by. Check the price.</p>}
               <RBar r={r} risk={risk} />
             </div>
             <span className={label}>Followed the plan</span>
@@ -487,7 +521,7 @@ function ReviewDrawer({ trip, plays, onClose, onSave }) {
 }
 
 function RBar({ r, risk }) {
-  if (r === null) return <p className="mt-1 text-xs text-slate-500">{risk ? "Shown once the trade is closed." : "Add the stop to see the trade in R."}</p>;
+  if (r === null) return <p className="mt-1 text-xs text-slate-500">{risk ? "Shown once the trade is closed, with a stop at least 0.2% from the entry." : "Add the stop to see the trade in R."}</p>;
   const lo = Math.min(-1.5, Math.floor(r) - 0.5);
   const hi = Math.max(1.5, Math.ceil(r) + 0.5);
   const W = 380; const L = 12; const R = 14;
@@ -502,7 +536,7 @@ function RBar({ r, risk }) {
         <rect x={Math.min(x(0), x(r))} y="22" width={Math.abs(x(r) - x(0))} height="8" rx="2" fill={r >= 0 ? "#047857" : "#be123c"} />
         <line x1={x(0)} x2={x(0)} y1="6" y2="36" stroke="#94a3b8" />
       </svg>
-      <p className="text-xs text-slate-500">Thin bar: the 1R you risked ({fmtMoney(risk)}). Thick bar: what you made.</p>
+      <p className="text-xs text-slate-500">Thin bar: 1R, the risk at entry ({fmtMoney(risk)}: the opening order&apos;s size × its distance to the stop). Thick bar: the result.</p>
     </div>
   );
 }
@@ -529,15 +563,18 @@ function ResultsTab({ book, plays, account }) {
         <>
           <div className="mb-4 overflow-x-auto rounded-lg border border-slate-200 bg-white">
             <table className="w-full border-collapse text-xs">
-              <thead><tr><th className={`${th} text-left`}>Play</th>{["Trades", "Win rate", "Avg R", "Total R", "Profit factor", "Avg hold", "P/L", ""].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
+              <thead><tr><th className={`${th} text-left`}>Play</th>{["Trades", "Win rate", "Avg R", "Total R", "With an R", "Profit factor", "Avg hold", "P/L", ""].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
               <tbody>{groups.map((x) => {
                 const s = playStats(x.list);
                 const dim = s.n < 10;
+                // R rests on the trades with a stop: greyed under 10 of them.
+                const dimR = s.nR < 10;
                 return (
                   <tr key={x.id} onClick={() => setSel(x.id)} className={`cursor-pointer ${x.id === g?.id ? "bg-indigo-50" : "hover:bg-slate-50"} ${dim ? "text-slate-400" : ""}`}>
                     <td className={`${td} text-left font-sans font-semibold text-slate-800`}>{x.name}</td>
                     <td className={`${td} text-slate-800`}>{s.n}</td><td className={td}>{pct(s.winRate)}</td>
-                    <td className={`${td} ${dim ? "" : tone(s.avgR ?? 0)}`}>{fR(s.avgR)}</td><td className={td}>{fR(s.totalR, 1)}</td>
+                    <td className={`${td} ${dimR ? "text-slate-400" : tone(s.avgR ?? 0)}`}>{fR(s.avgR)}</td><td className={`${td} ${dimR ? "text-slate-400" : ""}`}>{fR(s.totalR, 1)}</td>
+                    <td className={`${td} ${s.nR < s.n ? "text-amber-800" : ""}`}>{s.nR} of {s.n}</td>
                     <td className={td}>{pf(s.profitFactor)}</td><td className={td}>{hold(s.avgHold)}</td>
                     <td className={`${td} ${dim ? "" : tone(s.pl)}`}>{money(s.pl)}</td>
                     <td className={`${td} font-sans`}>{sampleFlag(s.n) && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">{sampleFlag(s.n)}</span>}</td>
@@ -546,18 +583,20 @@ function ResultsTab({ book, plays, account }) {
               })}</tbody>
             </table>
           </div>
-          {g && <PlayDetail group={g} />}
+          {g && <PlayDetail group={g} account={account} book={book} />}
         </>
       )}
     </div>
   );
 }
 
-function PlayDetail({ group }) {
-  const list = group.list.filter((t) => !t.open).sort((a, b) => a.entryTime - b.entryTime);
-  const s = playStats(list);
-  const sp = playSplits(list, group.play?.checklist || []);
+function PlayDetail({ group, account, book }) {
+  const all = group.list;
+  const list = all.filter((t) => !t.open).sort((a, b) => a.entryTime - b.entryTime);
+  const s = playStats(all);
+  const sp = playSplits(list, group.play?.checklist || [], group.play?.id ?? null);
   const dim = s.n < 10;
+  const dimR = s.nR < 10;
   const scale = Math.max(1, ...list.map((t) => Math.abs(t.r ?? 0)));
   const kpi = "border-r border-slate-100 px-3.5 py-2.5 last:border-r-0";
   return (
@@ -565,34 +604,36 @@ function PlayDetail({ group }) {
       <div className="flex flex-wrap items-baseline gap-3">
         <h3 className="text-base font-semibold">{group.name}</h3>
         {sampleFlag(s.n) && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">{sampleFlag(s.n)}</span>}
-        <span className="text-xs text-slate-500">Your recorded trades. Past results do not predict future ones.</span>
+        <span className="text-xs text-slate-500">{account?.name}{account?.type ? ` (${account.type})` : ""} · {book.periodText} · your recorded trades. Past results do not predict future ones.</span>
       </div>
       <div className={`grid grid-cols-2 rounded-lg border border-slate-200 bg-white sm:grid-cols-4 lg:grid-cols-7 ${dim ? "[&_.v]:text-slate-400" : ""}`}>
-        {[["Trades", String(s.n), "text-slate-900"], ["Win rate", pct(s.winRate)], ["Avg R", fR(s.avgR), tone(s.avgR ?? 0)], ["Total R", fR(s.totalR, 1), tone(s.totalR ?? 0)],
+        {[["Trades", String(s.n), "text-slate-900"], ["Win rate", pct(s.winRate)], [`Avg R (${s.nR} of ${s.n})`, fR(s.avgR), dimR ? "text-slate-400" : tone(s.avgR ?? 0)], ["Total R", fR(s.totalR, 1), dimR ? "text-slate-400" : tone(s.totalR ?? 0)],
           ["Profit factor", pf(s.profitFactor)], ["Avg hold", hold(s.avgHold)], ["P/L", money(s.pl), tone(s.pl)]].map(([k, v, c]) => (
           <div key={k} className={kpi}><div className="text-xs text-slate-500">{k}</div><div className={`v mt-0.5 font-mono text-lg ${c || ""}`}>{v}</div></div>
         ))}
       </div>
-      {(dim || s.nR < s.n) && (
-        <p className="text-xs text-slate-500">
-          {dim ? `With ${s.n} trade${s.n === 1 ? "" : "s"} the figures are greyed: under 10 trades they are too few to read, and 10 to 29 is a small sample. Every split below shows its own count. ` : ""}
-          {s.nR < s.n ? `${s.n - s.nR} trade${s.n - s.nR === 1 ? " has" : "s have"} no stop, so no R: R figures are over the other ${s.nR}.` : ""}
-        </p>
-      )}
+      <p className="text-xs text-slate-500">
+        {dim ? `With ${s.n} trade${s.n === 1 ? "" : "s"} the figures are greyed: under 10 trades they are too few to read, and 10 to 29 is a small sample. Every split below shows its own count. ` : ""}
+        {s.nR < s.n ? `R rests on the ${s.nR} trade${s.nR === 1 ? "" : "s"} with an initial stop; the other ${s.n - s.nR} made ${money(s.noRPl)} and are not in it. ` : ""}
+        {s.typedR ? `${s.typedR} R figure${s.typedR === 1 ? " rests" : "s rest"} on a stop typed in review. ` : ""}
+        {s.open ? `${s.open} open trade${s.open === 1 ? " is" : "s are"} not counted (taken so far: ${money(s.openRealized)}). ` : ""}
+        {`Closed trades opened in this period, from this account's own fills${account?.type === "Paper" ? " (a paper account: its fills are simulated)" : ""}; before commission and fees; option fills not included; shares from an option assignment open trades with no play; positions held from before the period are not counted.`}
+      </p>
       <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
         <div className="flex flex-wrap items-baseline gap-2"><h4 className="font-semibold">R per trade, in order</h4><span className="text-xs text-slate-500">Bars: each trade. Line: running total.</span></div>
-        <RChart list={list} />
+        <RChart list={list} dim={dimR} />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        <Split title="Followed the plan" rows={sp.followed} scale={scale} empty="No reviews yet." />
+        <Split title="Followed the plan" note={`answered on ${sp.answered.followed} of ${sp.answered.of}`} rows={sp.followed} scale={scale} empty="No answers yet: mark it in each trade's review." />
         <Split title="Time of day (New York)" rows={sp.times} scale={scale} />
-        <Split title="Checklist on the trade (reviewed trades)" rows={sp.checks} scale={scale} empty={group.play ? (group.play.checklist.length ? "No reviews yet." : "This play has no checklist.") : "Trades with no play have no checklist."} />
+        <Split title="Checklist on the trade" note={`answered on ${sp.answered.checks} of ${sp.answered.of}`} rows={sp.checks} scale={scale} empty={group.play ? (group.play.checklist.length ? "No checklist answered yet: tick it in each trade's review." : "This play has no checklist.") : "Trades with no play have no checklist."} />
         <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-          <h4 className="mb-2 font-semibold">Mistakes, by what they cost</h4>
+          <h4 className="font-semibold">Trades marked with each mistake</h4>
+          <p className="mb-2 text-xs text-slate-500">The whole trade&apos;s result; a trade can carry several mistakes.</p>
           {sp.mistakes.length ? sp.mistakes.map((m) => (
             <div key={m.label} className="grid grid-cols-[minmax(0,1fr)_52px_80px_88px] items-center gap-2 border-b border-slate-100 py-1.5 text-xs last:border-b-0">
               <span className="truncate">{m.label}</span><span className="text-right font-mono text-slate-500">×{m.n}</span>
-              <span className={`text-right font-mono ${tone(m.r ?? 0)}`}>{fR(m.r, 1)}</span><span className={`text-right font-mono ${tone(m.pl)}`}>{money(m.pl)}</span>
+              <span className={`text-right font-mono ${tone(m.r ?? 0)}`} title={`R over ${m.nR} of ${m.n}`}>{fR(m.r, 1)}</span><span className={`text-right font-mono ${tone(m.pl)}`}>{money(m.pl)}</span>
             </div>
           )) : <p className="text-xs text-slate-500">None marked.</p>}
         </div>
@@ -601,22 +642,23 @@ function PlayDetail({ group }) {
   );
 }
 
-function Split({ title, rows, scale, empty = "" }) {
+function Split({ title, note = "", rows, scale, empty = "" }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-      <h4 className="mb-2 font-semibold">{title}</h4>
+      <div className="mb-2 flex flex-wrap items-baseline gap-2"><h4 className="font-semibold">{title}</h4>{note && <span className="text-xs text-slate-500">{note}</span>}</div>
       {!rows.length ? <p className="text-xs text-slate-500">{empty}</p> : rows.map((g) => {
-        const a = g.stats.avgR;
+        // An average shown only on 5 R figures or more.
+        const a = g.stats.nR >= 5 ? g.stats.avgR : null;
         const w = a === null ? 0 : Math.min(1, Math.abs(a) / scale) * 50;
         return (
           <div key={g.label} className={`grid grid-cols-[minmax(0,1.4fr)_44px_minmax(0,1fr)_64px] items-center gap-2 border-b border-slate-100 py-1.5 text-xs last:border-b-0 ${g.n < 10 ? "opacity-60" : ""}`}>
             <span className="truncate" title={g.label}>{g.label}</span>
-            <span className="text-right font-mono text-slate-500">n={g.n}</span>
+            <span className="text-right font-mono text-slate-500" title={`${g.stats.nR} with an R`}>n={g.n}</span>
             <span className="relative h-3 rounded bg-slate-100">
               <span className="absolute -bottom-0.5 -top-0.5 left-1/2 w-px bg-slate-400" />
               {a !== null && <span className={`absolute bottom-0.5 top-0.5 rounded-sm ${a >= 0 ? "bg-emerald-600" : "bg-rose-600"}`} style={a >= 0 ? { left: "50%", width: `${w}%` } : { right: "50%", width: `${w}%` }} />}
             </span>
-            <span className={`text-right font-mono ${tone(a ?? 0)}`}>{fR(a)}</span>
+            <span className={`text-right font-mono ${tone(a ?? 0)}`} title={a === null ? "Under 5 trades with an R" : ""}>{fR(a)}</span>
           </div>
         );
       })}
@@ -624,7 +666,7 @@ function Split({ title, rows, scale, empty = "" }) {
   );
 }
 
-function RChart({ list }) {
+function RChart({ list, dim = false }) {
   const rs = list.filter((t) => t.r !== null);
   if (!rs.length) return <p className="mt-2 text-xs text-slate-500">No trade in this play has a stop yet, so there is no R to chart.</p>;
   let cum = 0;
@@ -648,9 +690,9 @@ function RChart({ list }) {
           <title>{`${t.symbol} ${when(t.entryTime, t.symbol)} · ${fR(t.r)}`}</title>
         </rect>
       ))}
-      <path d={path} fill="none" stroke="#4338ca" strokeWidth="2" />
-      <circle cx={xc(n - 1)} cy={y(cums[n - 1])} r="4" fill="#4338ca" />
-      <text x={xc(n - 1) + 10} y={y(cums[n - 1]) + 4} fontSize="11" fontWeight="600" fill="#4338ca">{fR(cums[n - 1], 1)} total</text>
+      <path d={path} fill="none" stroke={dim ? "#94a3b8" : "#4338ca"} strokeWidth="2" />
+      <circle cx={xc(n - 1)} cy={y(cums[n - 1])} r="4" fill={dim ? "#94a3b8" : "#4338ca"} />
+      <text x={xc(n - 1) + 10} y={y(cums[n - 1]) + 4} fontSize="11" fontWeight="600" fill={dim ? "#94a3b8" : "#4338ca"}>{fR(cums[n - 1], 1)} total</text>
       {rs.map((t, i) => ((n <= 14 || i % Math.ceil(n / 12) === 0) ? <text key={`l${t.key}`} x={xc(i)} y={H - 12} textAnchor="middle" fontSize="10" fill="#64748b">{t.symbol}</text> : null))}
     </svg>
   );

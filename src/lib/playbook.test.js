@@ -26,7 +26,8 @@ test("a play: code, name, side and timeframe checked; blank checklist items drop
 
 test("a review: stop, followed, mistakes from the list, play id or none", () => {
   const r = cleanReview({ play: PLAY, stop: "163.2", followed: "partly", mistakes: ["Moved stop", "Invented", "Moved stop"], checks: ["SPY under VWAP", ""], notes: " ok " });
-  assert.deepEqual(r.review, { play: PLAY, stop: 163.2, followed: "partly", mistakes: ["Moved stop"], checks: ["SPY under VWAP"], notes: "ok" });
+  assert.deepEqual(r.review, { play: PLAY, stop: 163.2, followed: "partly", mistakes: ["Moved stop"], checks: ["SPY under VWAP"], checksFor: null, notes: "ok" });
+  assert.equal(cleanReview({ checksFor: PLAY }).review.checksFor, PLAY);
   assert.equal(cleanReview({ play: "none" }).review.play, "none");
   assert.equal(cleanReview({ play: "drop table" }).review.play, null);
   assert.match(cleanReview({ stop: -1 }).error, /above zero/);
@@ -34,10 +35,17 @@ test("a review: stop, followed, mistakes from the list, play id or none", () => 
   assert.equal(cleanReview({}).review.stop, null);
 });
 
-test("trip keys: the symbol and the second it opened", () => {
+test("trip keys: the symbol and the second it opened; a second trade in that second is told apart", () => {
   assert.equal(tripKey({ symbol: "NVDA", entryTime: 1794581226 }), "NVDA|1794581226");
+  assert.equal(tripKey({ symbol: "NVDA", entryTime: 1794581226 }, 1), "NVDA|1794581226|1");
   assert.ok(TRIP_KEY.test("BTC/USD|1794581226"));
+  assert.ok(TRIP_KEY.test("SPY|1795014000|1"));
   assert.ok(!TRIP_KEY.test("nvda|1"));
+  // Buy, sell, buy SPY within one second: two trades, two keys.
+  let a = newPractice(0);
+  for (const [side, qty] of [["buy", 10], ["sell", 10], ["buy", 10]]) a = practiceFill(a, { side, qty, price: 600, time: 1795014000, orderId: side + qty });
+  const keys = withPlays(roundTrips(a.trades).map((x) => ({ ...x, symbol: "SPY" }))).map((x) => x.key);
+  assert.deepEqual(keys, ["SPY|1795014000", "SPY|1795014000|1"]);
 });
 
 // A short NVDA trade in two fills from order o1 (the play's), covered by o2.
@@ -124,26 +132,90 @@ test("a play's figures: closed trips only, R over the ones with a stop", () => {
   assert.equal(playStats([]).winRate, null);
 });
 
-test("splits: followed and checklist from reviewed trips; time of day in New York; mistakes by what they cost", () => {
-  const t = (iso, realized, r, review = null) => ({ open: false, realized, r, entryTime: at(iso), exitTime: at(iso) + 600, review });
+test("splits: followed and checklist only where answered; time of day in New York; mistakes by result", () => {
+  const t = (iso, realized, r, review = null) => ({ open: false, realized, r, entryTime: at(iso), exitTime: at(iso) + 600, play: PLAY, review });
   const list = [
-    t("2026-11-13T14:35:00Z", 300, 3, { followed: "yes", checks: ["SPY under VWAP"], mistakes: [] }),
-    t("2026-11-13T15:45:00Z", -100, -1, { followed: "no", checks: [], mistakes: ["Chased entry", "Moved stop"] }),
-    t("2026-11-13T19:30:00Z", -50, -0.5, { followed: "partly", checks: ["SPY under VWAP"], mistakes: ["Chased entry"] }),
+    t("2026-11-13T14:35:00Z", 300, 3, { followed: "yes", checks: ["SPY under VWAP"], checksFor: PLAY, mistakes: [] }),
+    t("2026-11-13T15:45:00Z", -100, -1, { followed: "no", checks: [], checksFor: PLAY, mistakes: ["Chased entry", "Moved stop"] }),
+    t("2026-11-13T19:30:00Z", -50, -0.5, { followed: "partly", checks: ["SPY under VWAP"], checksFor: PLAY, mistakes: ["Chased entry"] }),
+    // A play picked from the table, its checklist never answered: no "no".
+    t("2026-11-13T16:00:00Z", -80, -0.8, { play: PLAY, followed: null, checks: [], checksFor: null, mistakes: [] }),
     t("2026-11-13T12:00:00Z", 20, null)
   ];
-  const s = playSplits(list, ["SPY under VWAP"]);
+  const s = playSplits(list, ["SPY under VWAP"], PLAY);
   assert.deepEqual(s.followed.map((g) => [g.label, g.n]), [["Followed", 1], ["Partly", 1], ["Broke the plan", 1]]);
-  assert.deepEqual(s.times.map((g) => g.label), ["Pre-market", "9:30–10:30", "10:30–12:00", "14:00–16:00"]);
+  assert.deepEqual(s.times.map((g) => g.label), ["Before 9:30", "9:30–10:30", "10:30–12:00", "14:00–16:00"]);
   assert.deepEqual(s.checks.map((g) => [g.label, g.n]), [["SPY under VWAP: yes", 2], ["SPY under VWAP: no", 1]]);
+  assert.deepEqual(s.answered, { followed: 3, checks: 3, of: 5 });
   assert.deepEqual(s.mistakes.map((m) => [m.label, m.n, m.r, m.pl]), [["Chased entry", 2, -1.5, -150], ["Moved stop", 1, -1, -100]]);
 });
 
 test("time of day across a clock change, and sample flags", () => {
   assert.equal(timeBucket(at("2026-07-01T13:35:00Z")), "9:30–10:30"); // summer: 9:35
   assert.equal(timeBucket(at("2026-12-01T14:35:00Z")), "9:30–10:30"); // winter: 9:35
-  assert.equal(timeBucket(at("2026-12-01T21:05:00Z")), "After hours");
+  assert.equal(timeBucket(at("2026-12-01T21:05:00Z")), "After 16:00");
+  assert.equal(timeBucket(at("2026-12-01T08:00:00Z")), "Before 9:30"); // a coin at 3:00
   assert.equal(sampleFlag(9), "Too few to read");
   assert.equal(sampleFlag(29), "Small sample");
   assert.equal(sampleFlag(30), null);
+});
+
+// 20 Nov review: R over the risk at entry (the opening order's size and price).
+const trip = (fills, symbol = "XYZ") => {
+  let a = newPractice(0);
+  for (const [side, qty, price, time, orderId] of fills) a = practiceFill(a, { side, qty, price, time, orderId });
+  return roundTrips(a.trades).map((x) => ({ ...x, symbol }));
+};
+
+test("R is over the risk at entry: adding to a winner, averaging down, adding below the bracket", () => {
+  const marks = { o1: { play: PLAY, stop: 9 } };
+  // A. Buy 100 at 10 (stop 9: $100 at risk), add 100 at 11, sell 200 at 12: +$300 = +3R.
+  const [a] = withPlays(trip([["buy", 100, 10, 1000, "o1"], ["buy", 100, 11, 1100, "o2"], ["sell", 200, 12, 1200, "o3"]]), { marks });
+  assert.equal(a.risk, 100);
+  assert.ok(Math.abs(a.r - 3) < 1e-9);
+  // B. Averaging down: add 100 at 9.50, stopped at 9: −$150 = −1.5R.
+  const [b] = withPlays(trip([["buy", 100, 10, 1000, "o1"], ["buy", 100, 9.5, 1100, "o2"], ["sell", 200, 9, 1200, "o3"]]), { marks });
+  assert.ok(Math.abs(b.r + 1.5) < 1e-9);
+  // C. Add 300 at 8.50 below the bracket at 9, out at 8: the bracket still stands against the opening fill: −$350 = −3.5R.
+  const [c] = withPlays(trip([["buy", 100, 10, 1000, "o1"], ["buy", 300, 8.5, 1100, "o2"], ["sell", 400, 8, 1200, "o3"]]), { marks });
+  assert.equal(c.stop, 9);
+  assert.ok(Math.abs(c.r + 3.5) < 1e-9);
+  // The opening order's partial fills count together: 60 + 40 at 10.
+  const [p] = withPlays(trip([["buy", 60, 10, 1000, "o1"], ["buy", 40, 10, 1001, "o1"], ["sell", 100, 11, 1200, "o3"]]), { marks });
+  assert.equal(p.openQty, 100);
+  assert.ok(Math.abs(p.r - 1) < 1e-9);
+});
+
+test("the initial stop: placed within five minutes of the entry, not after the symbol's previous trade; tiny or wrong-side stops give no R", () => {
+  const t1 = trip([["buy", 100, 50, 10000, "o1"], ["sell", 100, 53, 20000, "o2"]]);
+  // D. A stop placed 90 minutes in is not the initial stop.
+  assert.equal(withPlays(t1, { stops: [{ symbol: "XYZ", stop: 49.95, at: 10000 + 5400 }] })[0].r, null);
+  // Placed two minutes in: it is, and says so.
+  const two = withPlays(t1, { stops: [{ symbol: "XYZ", stop: 49, at: 10120 }] })[0];
+  assert.equal(two.stopAfter, 120);
+  assert.ok(Math.abs(two.r - 3) < 1e-9);
+  // A stop sent while the entry was still working (two minutes before it filled) is its stop.
+  assert.equal(withPlays(t1, { stops: [{ symbol: "XYZ", stop: 49, at: 10000 - 120 }] })[0].stop, 49);
+  // F. The previous trade's stop, placed 40 s before this one opened, is not this one's.
+  const both = trip([["buy", 100, 10, 1000, "a1"], ["sell", 100, 10.3, 1960, "a2"], ["buy", 100, 10.2, 2000, "b1"], ["sell", 100, 10.4, 2100, "b2"]]);
+  const f = withPlays(both, { stops: [{ symbol: "XYZ", stop: 9.8, at: 1940 }, { symbol: "XYZ", stop: 10.1, at: 2010 }] });
+  assert.equal(f[1].stop, 10.1);
+  assert.ok(Math.abs(f[1].r - 2) < 1e-9);
+  // A one-cent stop on a $50 entry is too small to measure R by.
+  assert.equal(withPlays(t1, { reviews: { [`XYZ|10000`]: { stop: 49.99 } } })[0].tinyRisk, true);
+  assert.equal(withPlays(t1, { reviews: { [`XYZ|10000`]: { stop: 49.99 } } })[0].r, null);
+  // A typed stop above a long's entry is refused, said so, and the bracket stands.
+  const w = withPlays(t1, { marks: { o1: { stop: 48 } }, reviews: { [`XYZ|10000`]: { stop: 52 } } })[0];
+  assert.equal(w.typedWrong, true);
+  assert.equal(w.stop, 48);
+});
+
+test("scratch trades are neither won nor lost; the profit factor stays readable", () => {
+  const t = (realized) => ({ open: false, realized, r: null, entryTime: 0, exitTime: 1 });
+  const s = playStats([t(8.9e-14), t(-5.3e-15), t(100), t(100), t(100)]);
+  assert.equal(s.won, 3);
+  assert.equal(s.profitFactor, Infinity);
+  const o = playStats([t(50), { open: true, realized: 150, r: null, entryTime: 0, exitTime: null }]);
+  assert.deepEqual([o.n, o.open, o.openRealized], [1, 1, 150]);
+  assert.equal(playStats([{ ...t(-20), r: null }, { ...t(100), r: 1, stopFrom: "hand" }]).noRPl, -20);
 });

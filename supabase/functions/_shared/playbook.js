@@ -82,14 +82,21 @@ export function cleanPlay(input) {
   };
 }
 
-/** A round trip's key: its symbol and the second it opened. */
-export const tripKey = (t) => `${t.symbol}|${t.entryTime}`;
-export const TRIP_KEY = /^[A-Z0-9./]{1,24}\|[0-9]{9,11}$/;
+/**
+ * A round trip's key: its symbol and the second it opened, and, for a second
+ * trade opened in that same second, its place (`n`, 1 to 9).
+ */
+export const tripKey = (t, n = 0) => `${t.symbol}|${t.entryTime}${n ? `|${n}` : ""}`;
+export const TRIP_KEY = /^[A-Z0-9./]{1,24}\|[0-9]{9,11}(\|[1-9])?$/;
+/** When the trade a key names opened (seconds). */
+export const keyTime = (key) => Number(String(key).split("|")[1]);
 
 /**
  * A review as it may be stored, or why not: the play set by hand (an id, or
  * "none" for no play), the stop typed, whether the plan was followed, the
- * mistakes from the list, the checklist items ticked (their text), notes.
+ * mistakes from the list, the checklist items ticked (their text), the play
+ * the checklist was answered for (`checksFor`: only then are its unticked
+ * items a "no"), notes.
  */
 export function cleanReview(input) {
   const r = input && typeof input === "object" ? input : {};
@@ -100,68 +107,116 @@ export function cleanReview(input) {
   const mistakes = [...new Set((Array.isArray(r.mistakes) ? r.mistakes : []).filter((m) => MISTAKES.includes(m)))];
   const checks = [...new Set((Array.isArray(r.checks) ? r.checks : []).map((c) => text(c, 200)).filter(Boolean))].slice(0, CHECKLIST_MAX);
   const play = r.play === "none" ? "none" : typeof r.play === "string" && /^[0-9a-f-]{36}$/i.test(r.play) ? r.play : null;
-  return { review: { play, stop, followed, mistakes, checks, notes: text(r.notes, 4000) } };
+  const checksFor = typeof r.checksFor === "string" && /^[0-9a-f-]{36}$/i.test(r.checksFor) ? r.checksFor : null;
+  return { review: { play, stop, followed, mistakes, checks, checksFor, notes: text(r.notes, 4000) } };
 }
 
+/** How long after a trade opens a stop placed on it still counts as its initial stop. */
+export const STOP_WINDOW = 300;
+/** How long before: a stop sent while the entry was still working (an hour at most, never before the symbol's previous trade closed). */
+export const STOP_BEFORE = 3600;
+/** A distance to the stop under this share of the entry price is too small to measure R by (19 Nov review). */
+export const TINY_RISK = 0.002;
+
 /**
- * Each round trip with its play, initial stop and R.
- * - `marks`: { orderId: { play, stop } }, the entries sent with a play (and a bracket's stop);
+ * Each round trip with its play, initial stop, risk at entry and R (20 Nov
+ * review: R over the largest size and average entry pinned every stopped-out
+ * trade at −1R and hid adding to a loser).
+ * - `marks`: { orderId: { play, stop } }, the orders sent from the terminal
+ *   (their play, and a bracket's stop);
  * - `stops`: [{ symbol, stop, at }], stops placed on positions (seconds);
  * - `reviews`: { tripKey: review } (cleanReview's shape).
- * The play: set by hand in a review, else the opening order's. The initial
- * stop: typed in a review, else the opening order's bracket stop, else the
- * first stop placed on the position from a minute before it opened until it
- * closed, on the losing side of the entry (a stop already past the entry is
- * not a risk). R: the profit taken over the risk, the stop's distance from the
- * average entry times the trip's largest size; only for a closed trip.
+ * The play: set by hand in a review, else the opening order's. The entry: the
+ * opening order alone, its size and average price (`openQty`, `openPrice`
+ * from lib/replay.js roundTrips). The initial stop, on the losing side of that
+ * entry: typed in a review, else the opening order's bracket stop, else the
+ * first stop placed for the position, from while its entry was still working
+ * (an hour at most, and after the symbol's previous trade closed) to five
+ * minutes after it opened (`stopAfter`: how long after). The risk at entry: the stop's distance from the entry price
+ * times the opening size. R: the profit taken over that risk; for a closed
+ * trip only, and not where the risk is under 0.2% of the price (`tinyRisk`).
  */
 export function withPlays(trips, { marks = {}, stops = [], reviews = {} } = {}) {
+  // Each trip's key, and when the symbol's trade before it closed.
+  const keys = new Map();
+  const prevExit = new Map();
+  const seen = {};
+  const bySymbol = {};
+  for (const t of [...trips].sort((a, b) => a.entryTime - b.entryTime)) {
+    const base = tripKey(t);
+    keys.set(t, tripKey(t, seen[base] || 0));
+    seen[base] = (seen[base] || 0) + 1;
+    const last = bySymbol[t.symbol];
+    prevExit.set(t, last ? last.exitTime ?? last.entryTime : null);
+    bySymbol[t.symbol] = t;
+  }
   return trips.map((t) => {
-    const key = tripKey(t);
+    const key = keys.get(t);
     const review = reviews[key] || null;
     const mark = t.entryOrderId ? marks[t.entryOrderId] || null : null;
     const byHand = review?.play === "none" || !!review?.play;
     const play = review?.play === "none" ? null : review?.play || mark?.play || null;
-    const losing = (s) => (t.side === "long" ? s < t.avgEntry : s > t.avgEntry);
+    const entry = Number.isFinite(t.openPrice) ? t.openPrice : t.avgEntry;
+    const openQty = Number.isFinite(t.openQty) ? t.openQty : t.size;
+    const losing = (s) => (t.side === "long" ? s < entry : s > entry);
     let stop = null;
     let stopFrom = null;
-    if (review?.stop > 0) { stop = review.stop; stopFrom = "hand"; }
-    else if (mark?.stop > 0 && losing(mark.stop)) { stop = mark.stop; stopFrom = "bracket"; }
-    else {
-      const until = t.exitTime ?? Infinity;
-      const first = stops.filter((s) => s.symbol === t.symbol && s.at >= t.entryTime - 60 && s.at <= until && s.stop > 0 && losing(s.stop))
-        .sort((a, b) => a.at - b.at)[0];
-      if (first) { stop = first.stop; stopFrom = "stop order"; }
+    let stopAfter = null;
+    let typedWrong = false;
+    if (review?.stop > 0) {
+      if (losing(review.stop)) { stop = review.stop; stopFrom = "hand"; } else typedWrong = true;
     }
-    const risk = stop ? Math.abs(t.avgEntry - stop) * t.size : null;
-    const r = !t.open && risk > 0 ? t.realized / risk : null;
-    return { ...t, key, play, playFrom: play || byHand ? (byHand ? "hand" : "order") : null, stop, stopFrom, risk, r, review };
+    if (stop === null && mark?.stop > 0 && losing(mark.stop)) { stop = mark.stop; stopFrom = "bracket"; }
+    if (stop === null) {
+      const from = Math.max(t.entryTime - STOP_BEFORE, prevExit.get(t) ?? -Infinity);
+      const until = Math.min(t.entryTime + STOP_WINDOW, t.exitTime ?? Infinity);
+      const first = stops.filter((s) => s.symbol === t.symbol && s.at >= from && s.at <= until && s.stop > 0 && losing(s.stop))
+        .sort((x, y) => x.at - y.at)[0];
+      if (first) { stop = first.stop; stopFrom = "stop order"; stopAfter = Math.max(0, first.at - t.entryTime); }
+    }
+    const tinyRisk = stop !== null && Math.abs(entry - stop) / entry < TINY_RISK;
+    const risk = stop !== null ? Math.abs(entry - stop) * openQty : null;
+    const r = !t.open && risk > 0 && !tinyRisk ? t.realized / risk : null;
+    return {
+      ...t, key, play, playFrom: byHand ? "hand" : play ? "order" : null,
+      entry, openQty, stop, stopFrom, stopAfter, risk, tinyRisk, typedWrong, bracket: mark?.stop ?? null, r, review
+    };
   });
 }
 
 /** How sure a figure is, from how many trades it rests on. */
 export const sampleFlag = (n) => (n < 10 ? "Too few to read" : n < 30 ? "Small sample" : null);
 
+const EPS = 1e-9;
+
 /**
- * The figures of a list of closed trips: how many, the win rate, R (average
- * and total, over the trips with a stop), the profit factor (gross profit
- * over gross loss), the average hold and the profit.
+ * The figures of a list of trips: closed ones only (how many, won, the win
+ * rate, the profit factor, the average hold, the profit), R over the closed
+ * trips that have one (`nR` of `n`, average and total, and how many rest on a
+ * stop typed by hand), what the closed trips with no R made, and the open
+ * trips left out (how many, and what they have taken so far). A profit or
+ * loss under a billionth of a dollar is a scratch, neither won nor lost.
  */
 export function playStats(list) {
   const closed = list.filter((t) => !t.open);
+  const open = list.filter((t) => t.open);
   const n = closed.length;
-  const rs = closed.map((t) => t.r).filter((r) => r !== null && Number.isFinite(r));
-  const won = closed.filter((t) => t.realized > 0).length;
-  const grossWin = closed.filter((t) => t.realized > 0).reduce((a, t) => a + t.realized, 0);
-  const grossLoss = -closed.filter((t) => t.realized < 0).reduce((a, t) => a + t.realized, 0);
+  const withR = closed.filter((t) => t.r !== null && t.r !== undefined && Number.isFinite(t.r));
+  const rs = withR.map((t) => t.r);
+  const wins = closed.filter((t) => t.realized > EPS);
+  const losses = closed.filter((t) => t.realized < -EPS);
+  const grossWin = wins.reduce((a, t) => a + t.realized, 0);
+  const grossLoss = -losses.reduce((a, t) => a + t.realized, 0);
   return {
-    n, won, nR: rs.length,
-    winRate: n ? won / n : null,
+    n, won: wins.length, nR: rs.length, typedR: withR.filter((t) => t.stopFrom === "hand").length,
+    winRate: n ? wins.length / n : null,
     avgR: rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null,
     totalR: rs.length ? rs.reduce((a, b) => a + b, 0) : null,
-    profitFactor: grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? Infinity : null,
+    noRPl: closed.filter((t) => !withR.includes(t)).reduce((a, t) => a + t.realized, 0),
+    profitFactor: grossLoss > EPS ? grossWin / grossLoss : grossWin > EPS ? Infinity : null,
     avgHold: n ? closed.reduce((a, t) => a + (t.exitTime - t.entryTime), 0) / n : null,
-    pl: closed.reduce((a, t) => a + t.realized, 0)
+    pl: closed.reduce((a, t) => a + t.realized, 0),
+    open: open.length, openRealized: open.reduce((a, t) => a + (t.realized || 0), 0)
   };
 }
 
@@ -170,7 +225,7 @@ const nyMinute = (sec) => {
   const p = Object.fromEntries(NY.formatToParts(new Date(sec * 1000)).map((x) => [x.type, x.value]));
   return Number(p.hour) * 60 + Number(p.minute);
 };
-export const TIME_BUCKETS = ["Pre-market", "9:30–10:30", "10:30–12:00", "12:00–14:00", "14:00–16:00", "After hours"];
+export const TIME_BUCKETS = ["Before 9:30", "9:30–10:30", "10:30–12:00", "12:00–14:00", "14:00–16:00", "After 16:00"];
 /** The New York part of the day a trip opened in. */
 export function timeBucket(sec) {
   const m = nyMinute(sec);
@@ -179,24 +234,27 @@ export function timeBucket(sec) {
 
 /**
  * A play's closed trips split four ways, each group with its own figures:
- * whether the plan was followed (reviewed trips), the time of day, each
- * checklist item present or not (reviewed trips only: an unreviewed trip has
- * no answer), and each mistake with what it cost (in R and in dollars).
+ * whether the plan was followed (trips with that answer), the time of day,
+ * each checklist item present or not (only trips whose checklist was answered
+ * for this play: an unanswered one is no "no"), and the result of the trips
+ * marked with each mistake (a trip can carry several). `answered`: how many
+ * trips each of the first and third rest on.
  */
-export function playSplits(list, checklist = []) {
+export function playSplits(list, checklist = [], playId = null) {
   const closed = list.filter((t) => !t.open);
   const group = (label, l) => ({ label, n: l.length, stats: playStats(l) });
-  const reviewed = closed.filter((t) => t.review);
-  const followed = FOLLOWED.map((v) => group(v === "yes" ? "Followed" : v === "partly" ? "Partly" : "Broke the plan", reviewed.filter((t) => t.review.followed === v))).filter((g) => g.n);
+  const withFollowed = closed.filter((t) => t.review?.followed);
+  const checked = closed.filter((t) => t.review && t.review.checksFor && t.review.checksFor === (playId ?? t.play));
+  const followed = FOLLOWED.map((v) => group(v === "yes" ? "Followed" : v === "partly" ? "Partly" : "Broke the plan", withFollowed.filter((t) => t.review.followed === v))).filter((g) => g.n);
   const times = TIME_BUCKETS.map((b) => group(b, closed.filter((t) => timeBucket(t.entryTime) === b))).filter((g) => g.n);
   const checks = checklist.flatMap((c) => [
-    group(`${c}: yes`, reviewed.filter((t) => t.review.checks?.includes(c))),
-    group(`${c}: no`, reviewed.filter((t) => !t.review.checks?.includes(c)))
+    group(`${c}: yes`, checked.filter((t) => t.review.checks?.includes(c))),
+    group(`${c}: no`, checked.filter((t) => !t.review.checks?.includes(c)))
   ]).filter((g) => g.n);
   const mistakes = MISTAKES.map((m) => {
-    const l = reviewed.filter((t) => t.review.mistakes?.includes(m));
-    const rs = l.map((t) => t.r).filter((r) => r !== null);
-    return { label: m, n: l.length, r: rs.length ? rs.reduce((a, b) => a + b, 0) : null, pl: l.reduce((a, t) => a + t.realized, 0) };
-  }).filter((x) => x.n).sort((a, b) => (a.r ?? 0) - (b.r ?? 0));
-  return { followed, times, checks, mistakes };
+    const l = closed.filter((t) => t.review?.mistakes?.includes(m));
+    const rs = l.map((t) => t.r).filter((r) => r !== null && r !== undefined);
+    return { label: m, n: l.length, nR: rs.length, r: rs.length ? rs.reduce((a, b) => a + b, 0) : null, pl: l.reduce((a, t) => a + t.realized, 0) };
+  }).filter((x) => x.n).sort((a, b) => a.pl - b.pl);
+  return { followed, times, checks, mistakes, answered: { followed: withFollowed.length, checks: checked.length, of: closed.length } };
 }

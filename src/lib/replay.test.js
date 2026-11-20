@@ -373,3 +373,18 @@ test("practice orders at a price: limit or stop by where the price is, filled wh
   assert.equal(cancelFill(e, 0).orders.length, 1);
   assert.match(addOrder(a, { side: "buy", qty: 1, price: 10 }, null).reason, /No replay price/);
 });
+
+// The Playbook (lib/playbook.js): a trip keeps the order that opened it, and
+// that order's own size and price, the risk at entry.
+test("a trip carries its opening order: id, size and price, across its partial fills", () => {
+  let a = newPractice(0);
+  for (const [side, qty, price, time, orderId] of [["buy", 60, 10, 1, "o1"], ["buy", 40, 10.1, 2, "o1"], ["buy", 50, 11, 3, "o2"], ["sell", 150, 12, 4, "o3"]]) {
+    a = practiceFill(a, { side, qty, price, time, orderId });
+  }
+  const [t] = roundTrips(a.trades);
+  assert.equal(t.entryOrderId, "o1");
+  assert.equal(t.openQty, 100);
+  assert.ok(Math.abs(t.openPrice - 10.04) < 1e-12);
+  assert.equal(t.carried, false);
+  assert.equal(t.size, 150);
+});
