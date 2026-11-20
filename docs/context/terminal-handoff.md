@@ -57,6 +57,15 @@ staging.
   - deployed to staging at a10b61ee on 20 Nov;
   - migration 0069 applied to staging only.
 
+- **Holiday nights and overnight exits** (36e19e08 and the commit after it,
+  reviewed by systems-engineer, verdict SHIP):
+  - no overnight session the night before a full NYSE holiday
+    (`_shared/usHolidays.js`, shared by browser and server);
+  - an overnight exit with no overnight quote is refused before anything is
+    cancelled.
+  - **The owner must reload the terminal before Wed 25 Nov 20:00 ET.** The
+    hotkeys' holiday guard lives in the browser.
+
 ## Playbook: how it works
 
 - **Design:** the "DeltaMint Playbook" prototype,
@@ -115,6 +124,19 @@ These are in `docs/ops/queue.md`, with their options:
   for up to about 23 hours.
 - **W47-F1b:** a stop on a part-share holding lasts for the day only, and
   nothing puts it back.
+
+Watch items from the 20 Nov review (none blocking):
+- Overnight quotes are checked for presence, not age (W44 N9).
+- Overnight, a bid more than 3% from the mark is ignored for the mark minus 2%,
+  which feeds F4.
+- Closures announced at short notice are not known. The proper source is
+  Alpaca's `/v2/calendar`.
+- Alpaca's 23/5 overnight change starts 6 Dec. Re-check how it handles holidays
+  before 24 Dec.
+- The holiday day itself still reads as trading by the clock alone (W44 N10).
+  With `isTradingDay` now shared, the fix is about one line in `usSession` and
+  `sessionOf`.
+- No test pins "refuse before cancelling" in `exitPosition`.
 
 ## Still open with the owner
 

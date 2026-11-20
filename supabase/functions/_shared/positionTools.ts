@@ -304,7 +304,7 @@ export function exitPlan(position: Position, amount: { all: boolean; qty: number
   // there, nothing is sent and nothing is cancelled, rather than a limit off
   // the evening's stale quote or the mark (head-of-trading W46-F3).
   if (quote.overnight && !(num(quote[word]) && (num(quote[word]) as number) > 0)) {
-    return { ok: false, reason: `No overnight ${word} for this share right now (not every share trades overnight): the exit was not sent, and its stop and target stay working.` };
+    return { ok: false, reason: `No overnight ${word} for this share right now (not every share trades overnight, or the quote could not be read): the exit was not sent and nothing was cancelled; any stop or target on it is still in place (stops trigger from 9:30 New York).` };
   }
   const seen = [quote.live?.[word], quote[word]].map(num).filter((v): v is number => !!v && v > 0);
   const ref = num(quote.ref);

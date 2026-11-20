@@ -79,6 +79,8 @@ off.
 **What is broken right now:**
 - **The Content Routine failed on 20 Nov** (usage limit reached). No post went
   out on 19 or 20 Nov.
+- **Before Wed 25 Nov 20:00 ET (Thanksgiving eve):** reload the trading
+  terminal so it picks up the holiday-night fix, which is live on staging.
 - **Agent emails do not arrive.** Agent sessions cannot reach the production
   host that sends them (403 at the proxy). The fix is the owner's: allow
   `yecfbeohyakuoyczvdbj.supabase.co` in the Routine environment's network
