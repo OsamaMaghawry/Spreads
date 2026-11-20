@@ -10,6 +10,13 @@ smallest test that could disprove it, the kill criterion, and a cost guess.
 
 Last run: **2026-09-01** (vp-product, Tuesday cadence).
 
+Daily reconcile 2026-11-20: nothing shipped against #1–#3. Today's shipments
+(Terminal Playbook phase 1, % of equity sizing, overnight holiday clock, folded
+P/L notes) are all staging-only and all in the Terminal, which no proposal
+covers. The scan is still not recorded (#3 open); the screener still has no width
+or POP column (#1, #2 open). This backlog has not had a Tuesday run since
+2026-09-01.
+
 ## Open proposals
 
 **Three of five slots used.** Two deliberately left empty — this run killed one
