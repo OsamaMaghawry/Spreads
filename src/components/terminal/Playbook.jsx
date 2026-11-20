@@ -255,7 +255,7 @@ function PlaysTab({ plays, onPlays, tagged }) {
     const p = r.data.play;
     onPlays(draft.id ? plays.map((x) => (x.id === p.id ? p : x)) : [...plays, p]);
     setSel(p.id);
-    setMsg({ text: `${p.name} saved.` });
+    setMsg(r.data.warning ? { bad: true, text: r.data.warning } : { text: `${p.name} saved.` });
   };
   const archive = async () => {
     if (!current) return;
@@ -391,7 +391,7 @@ function TradesTab({ book, plays, account }) {
                     <td className={`${td} text-right font-mono ${tone(t.r ?? 0)}`} title={stopWords(t)}>{fR(t.r, 1)}{(t.tinyRisk || t.typedWrong) && <span className="ml-0.5 text-amber-700">!</span>}</td>
                     <td className={`${td} text-right font-mono text-slate-500`}>{t.open ? "—" : hold(t.exitTime - t.entryTime)}</td>
                     <td className={td}>
-                      <select aria-label={`Play for ${t.symbol} ${when(t.entryTime, t.symbol)}`} value={t.play || ""} onChange={(e) => setPlay(t, e.target.value)}
+                      <select aria-label={`Play for ${t.symbol} ${when(t.entryTime, t.symbol)}`} title="Changing the play clears this trade's checklist and 'followed the plan' answers (they belonged to the old play); its mistakes, notes and stop stay." value={t.play || ""} onChange={(e) => setPlay(t, e.target.value)}
                         className={`max-w-[190px] rounded border px-1 py-0.5 ${t.play ? "border-slate-300" : "border-dashed border-slate-300 text-slate-500"}`}>{options(t.play)}</select>
                     </td>
                     <td className={td}>

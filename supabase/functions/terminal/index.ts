@@ -2181,7 +2181,8 @@ async function plays(admin: any, userId: string, body: any): Promise<[any, numbe
       const { data: old } = await table().select("checklist").eq("id", id).eq("user_id", userId).maybeSingle();
       const before: string[] = Array.isArray(old?.checklist) ? old.checklist : [];
       const after = c.play!.checklist as string[];
-      if (before.length === after.length) renames = before.map((b, i) => [b, after[i]] as [string, string]).filter(([b, a]) => b !== a && !after.includes(b));
+      // Only new words for words gone (a typo fixed), never an item that was already there (20 Nov review).
+      if (before.length === after.length) renames = before.map((b, i) => [b, after[i]] as [string, string]).filter(([b, a]) => b !== a && !after.includes(b) && !before.includes(a));
     }
     const { data, error } = id
       ? await table().update(row).eq("id", id).eq("user_id", userId).select().maybeSingle()
@@ -2190,11 +2191,15 @@ async function plays(admin: any, userId: string, body: any): Promise<[any, numbe
     if (!data) return [{ error: "No such play." }, 404];
     if (renames.length) {
       const map = new Map(renames);
-      const revs = await selectAllWhere(admin, "terminal_trade_reviews", "account_id, trip_key, checks", "trip_key", (q: any) => q.eq("user_id", userId).eq("checks_play", id)).catch(() => []);
-      for (const v of revs) {
+      let failed = 0;
+      const revs = await selectAllWhere(admin, "terminal_trade_reviews", "account_id, trip_key, checks", "trip_key", (q: any) => q.eq("user_id", userId).eq("checks_play", id)).catch(() => null);
+      if (revs === null) failed = -1;
+      for (const v of revs || []) {
         const checks = (Array.isArray(v.checks) ? v.checks : []).map((x: string) => map.get(x) ?? x);
-        await admin.from("terminal_trade_reviews").update({ checks }).eq("account_id", v.account_id).eq("trip_key", v.trip_key);
+        const { error: uerr } = await admin.from("terminal_trade_reviews").update({ checks }).eq("account_id", v.account_id).eq("trip_key", v.trip_key);
+        if (uerr) failed += 1;
       }
+      if (failed) return [{ play: playShape(data), warning: "Saved, but the renamed checklist items' answers on past trades could not all be carried over." }];
     }
     return [{ play: playShape(data) }];
   }
