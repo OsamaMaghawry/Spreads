@@ -1,21 +1,13 @@
 # Trading terminal: session handoff (20 Nov 2026)
 
-Read this first in a new session. It replaces the long session that built
-the items below.
+The terminal part of the DeltaMint handoff. It replaces the long session
+that built the items below.
 
-## Read first: the whole of DeltaMint
+## Read first
 
-This note covers only the trading-terminal work. The rest of DeltaMint is in
-files the repo already keeps up to date:
-
-- `AGENTS.md`: the working rules, including Alpaca OAuth.
-- `docs/product-context.md`: the whole product in one file (architecture,
-  every edge function, brand, positioning, compliance, what shipped recently).
-  It is generated, so never edit it by hand.
-- `docs/context/handoff.md`: how deploys work across the two Supabase
-  projects, and the older owner items.
-- `docs/ops/queue.md`: the live list of what needs the owner.
-- `docs/deferred-work.md`: what is knowingly not built.
+This note is the trading-terminal detail. For the whole of DeltaMint, read
+`docs/context/handoff.md` first: what the product is, where it runs, the
+agents, the rules and what waits on the owner.
 
 ## Where things are
 
@@ -44,25 +36,9 @@ files the repo already keeps up to date:
 
 ## Rules the owner set
 
-- Never push to `main` without the owner's explicit yes.
-- Ask the owner every time before any action that reaches production.
-- Treat the service-role key like a password. Never paste it into chat or
-  commit it.
-- Broker and vendor keys (EODHD, Databento and the rest) live only in
-  Supabase secrets. They never go into code, logs or commits. Keys pasted in
-  chat earlier are never written anywhere.
-- "Don't push any broker related thing" means nothing broker-related goes to
-  the repo. The gap bot and backtests stay out of it.
-- Place no live order without asking. Verify on paper accounts only.
-- Before staging:
-  - money-path changes go to the systems-engineer agent;
-  - P/L and figures changes go to investment-analyst.
-- Prototype a design before building UI.
-- Give short, plain answers. Ask questions in plain text, with no menus (see
-  AGENTS.md).
-- Ask before dropping staging `zz_*` tables.
-- No model names in commits or in anything in the repo.
-- The DeltaMint connector is read-only.
+They are in `docs/context/handoff.md`, and they apply here in full: never
+`main` without the owner's yes, paper accounts only, and reviews before
+staging.
 
 ## Built in this stream (on staging)
 
@@ -130,6 +106,15 @@ files the repo already keeps up to date:
    - play levels on the chart;
    - history past 92 days;
    - Practice trades.
+
+## Waiting on the owner's choice (order behaviour)
+
+These are in `docs/ops/queue.md`, with their options:
+
+- **W46-F4:** an unfilled overnight exit leaves the position without its stop
+  for up to about 23 hours.
+- **W47-F1b:** a stop on a part-share holding lasts for the day only, and
+  nothing puts it back.
 
 ## Still open with the owner
 
