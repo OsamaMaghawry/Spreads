@@ -2998,6 +2998,7 @@ async function exitPosition(admin: any, user: any, account: any, input: any) {
   const crypto = isCrypto(symbol);
   const percent = Number(input.percent ?? 100);
   const session = usSession(Date.now());
+  const overnight = !crypto && usOvernight(Date.now());
   const partial = percent < 100;
   // Everything the exit needs, read together: the position, the orders
   // holding it, the fills that say how big the trade was (a partial exit is a
@@ -3007,11 +3008,12 @@ async function exitPosition(admin: any, user: any, account: any, input: any) {
     openOrdersFor(account, symbol),
     partial ? alpacaFetch(`${tradingBase(account)}/account/activities/FILL?direction=desc&page_size=100`, account).catch(() => []) : Promise.resolve([]),
     partial && crypto ? assetFor(account, symbol) : Promise.resolve(null),
-    // Overnight, the quote from Alpaca's overnight venue; the consolidated
-    // one stops at 20:00.
+    // Overnight, the quote from Alpaca's overnight venue only; the
+    // consolidated one stops at 20:00, so it is never a stand-in
+    // (head-of-trading W46-F3).
     crypto || session === "regular" ? Promise.resolve({}) : (async () => {
       const latest = (feed: string) => alpacaFetch(`${DATA}/stocks/${encodeURIComponent(symbol)}/quotes/latest?feed=${feed}`, account).then((r: any) => r?.quote || {});
-      return (usOvernight(Date.now()) ? latest("overnight").catch(() => latest(FEED)) : latest(FEED)).catch(() => ({}));
+      return (overnight ? latest("overnight") : latest(FEED)).catch(() => ({}));
     })()
   ]);
   if (!pos) return { status: 400, body: { error: `No ${symbol} position to exit.` } };
@@ -3033,7 +3035,7 @@ async function exitPosition(admin: any, user: any, account: any, input: any) {
   // and the screen's quote as well as IEX's (positionTools.ts exitPlan).
   const plan = exitPlan(pos, amount, session, {
     // Overnight the screen's quote is the one from 20:00, so only the overnight venue's counts.
-    bid: num((quote as any).bp), ask: num((quote as any).ap), ref: pos.last, live: usOvernight(Date.now()) ? {} : { bid: num(input?.bid), ask: num(input?.ask) }
+    bid: num((quote as any).bp), ask: num((quote as any).ap), ref: pos.last, live: overnight ? {} : { bid: num(input?.bid), ask: num(input?.ask) }, overnight
   }, crypto);
   if (!plan.ok) return { status: 400, body: { error: plan.reason } };
   // Every other working order on the symbol holds shares the exit needs. A

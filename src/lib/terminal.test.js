@@ -129,6 +129,17 @@ test("sessions: pre-market, regular, after hours, closed, in New York time", () 
   assert.equal(sessionOf(sec("2026-12-01T14:30:00Z")), "regular");
 });
 
+test("no overnight session the night before a full exchange holiday (W46-F1)", () => {
+  assert.equal(overnightOf(sec("2026-11-26T01:30:00Z")), false); // Wed 25 Nov 20:30, Thanksgiving eve
+  assert.equal(overnightOf(sec("2026-11-26T08:30:00Z")), false); // Thu 26 Nov 3:30, Thanksgiving
+  assert.equal(overnightOf(sec("2026-11-27T01:30:00Z")), true); // Thu 26 Nov 20:30, into Friday's trading
+  assert.equal(overnightOf(sec("2026-11-25T01:30:00Z")), true); // Tue 24 Nov 20:30, an ordinary night
+  assert.equal(overnightOf(sec("2026-12-25T01:30:00Z")), false); // Thu 24 Dec 20:30, Christmas eve
+  assert.equal(overnightOf(sec("2027-01-01T01:30:00Z")), false); // Thu 31 Dec 20:30, New Year's eve
+  assert.equal(overnightOf(sec("2027-01-18T01:30:00Z")), false); // Sun 17 Jan 20:30, before MLK Day
+  assert.equal(overnightOf(sec("2027-01-19T01:30:00Z")), true); // Mon 18 Jan 20:30, MLK Day night, into Tuesday
+});
+
 test("the overnight session: 20:00 to 4:00 New York, Sunday night to Friday morning", () => {
   assert.equal(overnightOf(sec("2026-11-11T01:45:00Z")), true); // Tuesday 20:45
   assert.equal(overnightOf(sec("2026-11-11T08:59:00Z")), true); // Wednesday 3:59

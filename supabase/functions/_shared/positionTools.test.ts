@@ -46,6 +46,11 @@ test("the share market's hours, New York time", () => {
   assert.equal(usSession(Date.parse("2026-11-15T23:00:00Z")), "closed");    // Sun 18:00
   assert.equal(usOvernight(Date.parse("2026-11-11T00:59:00Z")), false);     // Tue 19:59, after hours
   assert.equal(usSession(Date.parse("2026-10-24T15:00:00Z")), "closed");    // Saturday
+  // No overnight session the night before a full holiday (W46-F1).
+  assert.equal(usOvernight(Date.parse("2026-11-26T01:30:00Z")), false);     // Wed 25 Nov 20:30, Thanksgiving eve
+  assert.equal(usSession(Date.parse("2026-11-26T01:30:00Z")), "closed");
+  assert.equal(usOvernight(Date.parse("2026-11-27T01:30:00Z")), true);      // Thu 26 Nov 20:30, into Friday
+  assert.equal(usOvernight(Date.parse("2027-01-18T01:30:00Z")), false);     // Sun 17 Jan 20:30, before MLK Day
 });
 
 test("a stop for a long sits below, for a short above; from the last price or the entry", () => {
@@ -114,6 +119,12 @@ test("exits outside regular hours: a bid far from the broker's mark is not the m
   assert.deepEqual([live.limitPrice, live.note], [10.74, null]);
   // IEX's bid when it is near: unchanged from before.
   assert.equal((exitPlan(aiok, part, "extended", { bid: 10.7, ref: 10.8 }) as any).limitPrice, 10.7);
+  // Overnight with no bid on the overnight venue: refused, never priced off the mark (W46-F3).
+  const dark = exitPlan(aiok, part, "extended", { ref: 10.8, overnight: true }) as any;
+  assert.equal(dark.ok, false);
+  assert.match(dark.reason, /No overnight bid/);
+  assert.equal((exitPlan(aiok, part, "extended", { ask: 10.9, ref: 10.8, overnight: true }) as any).ok, false); // a long needs the bid
+  assert.equal((exitPlan(aiok, part, "extended", { bid: 10.74, ref: 10.8, overnight: true }) as any).limitPrice, 10.74);
   // No bid at all, but a mark: through the mark. Buying back: over it.
   assert.equal((exitPlan(aiok, part, "extended", { ref: 10.8 }) as any).limitPrice, 10.58);
   const cover = exitPlan({ qty: -50, side: "short" as const }, { all: true, qty: 0 }, "extended", { ask: 15, ref: 10 }) as any;

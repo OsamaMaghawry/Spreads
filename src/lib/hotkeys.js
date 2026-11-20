@@ -156,7 +156,7 @@ export function hotkeyOrder(h, ctx) {
   const last = n(q.last);
   const touch = buy ? ask ?? last : bid ?? last;
   const mid = bid && ask ? (bid + ask) / 2 : last;
-  if (!ctx.crypto && ctx.session === "closed") return { reason: "Shares cannot trade now (the weekend); the overnight session opens at 8:00 p.m. New York on Sunday." };
+  if (!ctx.crypto && ctx.session === "closed") return { reason: "Shares cannot trade now (the weekend, or the night before a market holiday, when Alpaca runs no overnight session)." };
   let price = h.price === "market" ? touch : h.price === "ask" ? ask : h.price === "bid" ? bid : mid;
   if (!(price > 0)) return { reason: `No ${h.price === "market" ? (buy ? "ask" : "bid") : h.price} price for ${ctx.symbol} yet.` };
   const extended = !ctx.crypto && ctx.session === "extended";

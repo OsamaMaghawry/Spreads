@@ -11,6 +11,8 @@
 export type Position = { qty: number; qtyText?: string; side: "long" | "short"; avgPrice: number | null; last: number | null };
 export type StopInput = { mode: "pct" | "usd" | "price"; value: number; from?: "last" | "entry" };
 
+import { overnightAt } from "./usHolidays.js";
+
 const num = (v: unknown): number | null => {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(v);
@@ -34,15 +36,14 @@ export function usSession(ms: number): "regular" | "extended" | "closed" {
  * Alpaca's overnight session: 20:00 to 4:00 New York, Sunday night to Friday
  * morning (Blue Ocean), where shares marked for it trade on a limit for
  * extended hours (11 Nov, the owner: the hotkey did not work at night; the
- * ticket did). Counted as extended hours.
+ * ticket did). Counted as extended hours. Never the night before a full
+ * exchange holiday, when Alpaca runs no overnight session (usHolidays.js;
+ * head-of-trading W46-F1, Thanksgiving eve).
  */
 export function usOvernight(ms: number) {
-  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
     .formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
-  const m = Number(p.hour) * 60 + Number(p.minute);
-  if (m >= 1200) return ["Sun", "Mon", "Tue", "Wed", "Thu"].includes(p.weekday);
-  if (m < 240) return ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(p.weekday);
-  return false;
+  return overnightAt(`${p.year}-${p.month}-${p.day}`, Number(p.hour) * 60 + Number(p.minute));
 }
 
 /**
@@ -289,16 +290,22 @@ type Side = { bid?: number | null; ask?: number | null };
  * there is. Overnight (20:00 to 4:00) counts as extended hours; at the
  * weekend shares cannot trade at all: refused.
  */
-export function exitPlan(position: Position, amount: { all: boolean; qty: number }, session: "regular" | "extended" | "closed", quote: Side & { ref?: number | null; live?: Side }, crypto = false):
+export function exitPlan(position: Position, amount: { all: boolean; qty: number }, session: "regular" | "extended" | "closed", quote: Side & { ref?: number | null; live?: Side; overnight?: boolean }, crypto = false):
   { ok: true; how: "close"; all: boolean; qty: number } | { ok: true; how: "limit"; side: "buy" | "sell"; qty: number; limitPrice: number; note: string | null } | { ok: false; reason: string } {
   const held = Math.abs(num(position?.qty) || 0);
   if (!(held > 0)) return { ok: false, reason: "No position to exit." };
   const wanted = amount.all ? held : Math.min(held, Math.abs(num(amount.qty) || 0));
   if (!(wanted > 0)) return { ok: false, reason: "Nothing to exit." };
   if (crypto || session === "regular") return { ok: true, how: "close", all: amount.all || wanted >= held - 1e-12, qty: wanted };
-  if (session === "closed") return { ok: false, reason: "The share market is shut now (the weekend); exits can be sent from 8:00 p.m. New York on Sunday." };
+  if (session === "closed") return { ok: false, reason: "The share market is shut now (the weekend or a holiday's eve); exits can be sent from the next session." };
   const long = position.side !== "short" && position.qty > 0;
   const word = long ? "bid" : "ask";
+  // Overnight only the overnight venue's own quote counts: with no bid (ask)
+  // there, nothing is sent and nothing is cancelled, rather than a limit off
+  // the evening's stale quote or the mark (head-of-trading W46-F3).
+  if (quote.overnight && !(num(quote[word]) && (num(quote[word]) as number) > 0)) {
+    return { ok: false, reason: `No overnight ${word} for this share right now (not every share trades overnight): the exit was not sent, and its stop and target stay working.` };
+  }
   const seen = [quote.live?.[word], quote[word]].map(num).filter((v): v is number => !!v && v > 0);
   const ref = num(quote.ref);
   const near = ref && ref > 0 ? seen.find((v) => Math.abs(v - ref) / ref <= EXIT_BAND) : null;

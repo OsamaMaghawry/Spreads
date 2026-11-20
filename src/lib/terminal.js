@@ -2,6 +2,8 @@
 // time & sales tape, the order book, and the watchlist. Kept out of the
 // components so every rule is tested (terminal.test.js).
 
+import { overnightAt } from "../../supabase/functions/_shared/usHolidays.js";
+
 // "BTC/USD": a coin and the currency it is priced in, as Alpaca writes it. A
 // symbol with a slash is crypto everywhere in the terminal.
 export const CRYPTO = /^[A-Z0-9]{1,10}\/(USD|USDT|USDC|BTC)$/;
@@ -77,13 +79,13 @@ export function sessionOf(sec) {
  * Whether a moment is in Alpaca's overnight session (20:00 to 4:00 New York,
  * Sunday night to Friday morning; Blue Ocean), when shares marked for it
  * trade on a limit order for extended hours, as the ticket sends (11 Nov, the
- * owner: the hotkey did not work at night; the ticket did).
+ * owner: the hotkey did not work at night; the ticket did). Never the night
+ * before a full exchange holiday, when Alpaca runs no overnight session
+ * (_shared/usHolidays.js).
  */
 export function overnightOf(sec) {
-  const { weekday, minutes } = nyClock(sec);
-  if (minutes >= 20 * 60) return ["Sun", "Mon", "Tue", "Wed", "Thu"].includes(weekday);
-  if (minutes < 4 * 60) return ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(weekday);
-  return false;
+  const { minutes, day } = nyClock(sec);
+  return overnightAt(day, minutes);
 }
 
 /**
