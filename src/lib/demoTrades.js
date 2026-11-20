@@ -52,7 +52,7 @@ export function demoBook({ fills = [], positions = {}, marks = {}, start, end = 
         carried[s] = { qty: before, price, from: mark !== null ? "close" : "cost" };
       }
     }
-    for (const f of list.filter(inPeriod)) acct = practiceFill(acct, { side: f.side, qty: f.qty, price: f.price, time: f.time });
+    for (const f of list.filter(inPeriod)) acct = practiceFill(acct, { side: f.side, qty: f.qty, price: f.price, time: f.time, orderId: f.orderId || null });
     if (acct.trades.length) book[s] = acct;
   }
   return { book, carried };

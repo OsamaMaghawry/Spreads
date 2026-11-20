@@ -92,7 +92,7 @@ incomplete.
 - **history** — RebuildPreview, StockLotsTable, StrategyTabs, TradeHistoryTable
 - **open** — CandidateList, OpenPositionDialog, OpenPricing, OrderSent, OrderWarnings, RestingOrder, ScanFilters, SetupPreview, StrategyPicker, TicketAnalysis, useLiveSetup, useOpenOrder, useScanLoop
 - **scanner** — ResultsTable, ScannerConfig, TradeDialog, useMarketScan
-- **terminal** — AccountsMenu, GexBoard, GexHistory, GexPage, Hotkeys, NewsPanel, OrderBook, OrderTicket, Panels, PriceChart, ReplayBar, ReplayPanels, Screener, SymbolSearch, TapePanel, Toasts, WatchlistMenu, channelLayer, drawingLayer, gexParts, orderFeed, runHotkey, useAccountSetting, useReplay, useTerminalStream
+- **terminal** — AccountsMenu, GexBoard, GexHistory, GexPage, Hotkeys, NewsPanel, OrderBook, OrderTicket, Panels, Playbook, PriceChart, ReplayBar, ReplayPanels, Screener, SymbolSearch, TapePanel, Toasts, WatchlistMenu, channelLayer, drawingLayer, gexParts, orderFeed, runHotkey, useAccountSetting, useReplay, useTerminalStream
 
 ## Recently shipped
 
@@ -197,6 +197,9 @@ revoked from the browser role entirely.
 - **terminal_guard_seen** — account_id, user_id, seen_at
 - **gex_history** — symbol, day, spot, at, oi_published, net_gex, flip, call_wall, put_wall, summary, chain, counts, source, usd, created_at
 - **gex_daily** — symbol, day, rank, dollar_vol, status, claimed_at, at, summary, error
+- **terminal_plays** — id, user_id, code, name, side, timeframe, entry, stop, exit, risk, invalid, notes, archived, created_at, updated_at
+- **terminal_order_marks** — account_id, order_id, user_id, symbol, kind, play_id, stop, at
+- **terminal_trade_reviews** — account_id, trip_key, user_id, play_id, play_none, stop, followed, mistakes, notes, updated_at
 
 ## Analytics vocabulary
 

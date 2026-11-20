@@ -217,7 +217,7 @@ export const newPractice = (cash = PRACTICE_CASH) => ({ cash, qty: 0, avg: 0, re
  * The stop and the take-profits belong to the position: they go when it is
  * closed or turned the other way round.
  */
-export function practiceFill(acct, { side, qty, price, time, why = "", range = null, was = null }) {
+export function practiceFill(acct, { side, qty, price, time, why = "", range = null, was = null, orderId = null }) {
   const n = Number(qty);
   if (!(n > 0) || !(price > 0)) return acct;
   const signed = side === "buy" ? n : -n;
@@ -237,7 +237,8 @@ export function practiceFill(acct, { side, qty, price, time, why = "", range = n
     ...acct, qty: q, avg, realized, cash: acct.cash - signed * price,
     // `range`: the low and high of the candle it was made in (the prices it
     // may be changed to); `was`: the price it first filled at, once changed.
-    trades: [...acct.trades, { side, qty: n, price, time, why, ...(range ? { range } : {}), ...(was ? { was } : {}) }],
+    // `orderId`: the broker's order a real fill came from (the Playbook's tag, lib/playbook.js).
+    trades: [...acct.trades, { side, qty: n, price, time, why, ...(range ? { range } : {}), ...(was ? { was } : {}), ...(orderId ? { orderId } : {}) }],
     stop: keep ? acct.stop : null, targets: keep ? acct.targets : []
   };
 }
@@ -472,7 +473,8 @@ export function roundTrips(trades) {
   let avg = 0;
   let trip = null;
   const begin = (sign, t, n) => {
-    trip = { side: sign > 0 ? "long" : "short", entryTime: t.time, exitTime: null, maxSize: n, entryQty: n, entryValue: n * t.price, exitQty: 0, exitValue: 0, realized: 0, fills: 1, closedBy: [] };
+    trip = { side: sign > 0 ? "long" : "short", entryTime: t.time, exitTime: null, maxSize: n, entryQty: n, entryValue: n * t.price, exitQty: 0, exitValue: 0, realized: 0, fills: 1, closedBy: [],
+      entryOrderId: t.orderId || null, carried: t.why === "carried" };
     q = sign * n;
     avg = t.price;
   };
@@ -482,7 +484,10 @@ export function roundTrips(trades) {
       side: trip.side, entryTime: trip.entryTime, exitTime: open ? null : trip.exitTime, open, size: trip.maxSize,
       avgEntry, avgExit: trip.exitQty ? trip.exitValue / trip.exitQty : null, closedQty: trip.exitQty,
       realized: trip.realized, returnPct: trip.exitQty ? trip.realized / (avgEntry * trip.exitQty) : null,
-      fills: trip.fills, closedBy: [...new Set(trip.closedBy)]
+      fills: trip.fills, closedBy: [...new Set(trip.closedBy)],
+      // The order of the fill that opened it (a real account's), and whether it
+      // was held from before the period rather than opened in it.
+      entryOrderId: trip.entryOrderId, carried: trip.carried
     });
     trip = null;
   };

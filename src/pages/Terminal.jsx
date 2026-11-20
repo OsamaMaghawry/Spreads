@@ -28,6 +28,7 @@ import { PracticePositions, SavedResults, DemoResults } from "@/components/termi
 import NewsPanel, { useNews } from "@/components/terminal/NewsPanel";
 import AccountsMenu from "@/components/terminal/AccountsMenu";
 import GexPage from "@/components/terminal/GexPage";
+import Playbook, { PlayChip } from "@/components/terminal/Playbook";
 import SymbolSearch from "@/components/terminal/SymbolSearch";
 import useAccountSetting from "@/components/terminal/useAccountSetting";
 import { cleanSizes, cleanTicks, sendPlan } from "@/lib/accountGroup";
@@ -180,8 +181,23 @@ export default function Terminal() {
   const [pick, setPick] = useState(null);
   const [preset, setPreset] = useState(null);
   const [page, setPage] = useAccountSetting("page", {
-    localKey: PAGE_KEY, initial: () => "trade", clean: (v) => (v === "screen" || v === "gamma" ? v : "trade"), fromLocal: (raw) => raw, toLocal: (v) => v
+    localKey: PAGE_KEY, initial: () => "trade", clean: (v) => (v === "screen" || v === "gamma" || v === "playbook" ? v : "trade"), fromLocal: (raw) => raw, toLocal: (v) => v
   });
+  // The Playbook (components/terminal/Playbook.jsx, 20 Nov): the person's
+  // plays, and the one active, which tags every entry from the ticket and the
+  // hotkeys (functions/terminal marks the order with it).
+  const [playbookSeen, setPlaybookSeen] = useState(page === "playbook");
+  useEffect(() => { if (page === "playbook") setPlaybookSeen(true); }, [page]);
+  const [plays, setPlays] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    invokeFunction("terminal", { action: "plays" }).then((r) => { if (alive && Array.isArray(r?.data?.plays)) setPlays(r.data.plays); });
+    return () => { alive = false; };
+  }, []);
+  const [activePlayId, setActivePlayId] = useAccountSetting("activeplay", {
+    localKey: "dm.terminal.activeplay", initial: () => "", clean: (v) => (typeof v === "string" && /^[0-9a-f-]{36}$/i.test(v) ? v : ""), fromLocal: (raw) => raw, toLocal: (v) => v
+  });
+  const activePlay = plays.find((p) => p.id === activePlayId && !p.archived) || null;
   const pageRef = useRef(page);
   const [screenSeen, setScreenSeen] = useState(page === "screen");
   useEffect(() => { if (page === "screen") setScreenSeen(true); }, [page]);
@@ -617,7 +633,7 @@ export default function Terminal() {
   // Everything a key press reads, current at the moment it is pressed.
   const live$ = useRef({});
   live$.current = {
-    account, symbol, quote, view, position, hotkeys, notify, refresh: refreshAll, replaying, liveOk, parts: partsOn,
+    account, symbol, quote, view, position, hotkeys, notify, refresh: refreshAll, replaying, liveOk, parts: partsOn, play: replaying ? null : activePlay?.id || null,
     group: replaying ? [] : groupSend, leadOff: !replaying && plan.leadOff, none: !replaying && plan.none, leadSize: replaying ? null : plan.leadSize
   };
   useEffect(() => {
@@ -650,11 +666,12 @@ export default function Terminal() {
         <h1 className="mr-2 text-lg font-semibold">Terminal</h1>
         <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">Staging test</span>
         <div className="flex rounded-md border border-slate-300 text-sm" role="tablist" aria-label="Page">
-          {[["trade", "Trade"], ["screen", "Scanner"], ["gamma", "Gamma"]].map(([id, name]) => (
+          {[["trade", "Trade"], ["screen", "Scanner"], ["gamma", "Gamma"], ["playbook", "Playbook"]].map(([id, name]) => (
             <button key={id} type="button" role="tab" aria-selected={page === id} onClick={() => setPage(id)}
               className={`px-3 py-1 first:rounded-l-md last:rounded-r-md ${page === id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}>{name}</button>
           ))}
         </div>
+        <PlayChip plays={plays} activeId={activePlay?.id || ""} onPick={setActivePlayId} />
         {/* Every account in one list: a tick for where orders go, each one's
             size, the one on screen, and the default to open on (3 Nov). */}
         <AccountsMenu accounts={accounts} liveOk={liveOk} ticks={ticks} onTicks={setTickPick} shownId={accountId} onShow={showAccount}
@@ -741,6 +758,11 @@ export default function Terminal() {
         <div className={page === "gamma" ? "" : "hidden"}>
           <GexPage accountId={accountId} active={page === "gamma"} chartSymbol={symbol} priceOf={(s) => quoteOf(s).last}
             onSymbol={setGexSymbol} chartLines={gexLines} onChartLines={setGexLines} stockFeed={shares.history} openRequest={gexOpen} />
+        </div>
+      )}
+      {playbookSeen && (
+        <div className={page === "playbook" ? "" : "hidden"}>
+          <Playbook accountId={accountId} account={account} plays={plays} onPlays={setPlays} active={page === "playbook"} />
         </div>
       )}
       {screenSeen && (
@@ -960,7 +982,7 @@ export default function Terminal() {
               </p>
             )}
             <OrderTicket account={account} symbol={symbol} quote={quote} held={held} heldText={held > 0 && position?.qtyText ? position.qtyText : ""}
-              buyingPower={view?.buyingPower ?? null} equity={view?.equity ?? null} onPlaced={refreshAll} pick={pick} preset={preset} onNotify={notify} liveOk={liveOk} partsOn={partsOn} onPartsOn={setPartsOn}
+              buyingPower={view?.buyingPower ?? null} equity={view?.equity ?? null} play={replaying ? null : activePlay} onPlaced={refreshAll} pick={pick} preset={preset} onNotify={notify} liveOk={liveOk} partsOn={partsOn} onPartsOn={setPartsOn}
               leadOff={plan.leadOff} none={plan.none}
               group={groupSend.map((g) => ({ ...accounts.find((a) => a.id === g.id), size: g })).filter((a) => a.id)}
               groupHeld={others.map((g) => ({ id: g.accountId, name: g.name, qty: signedQty((g.positions || []).find((p) => p.symbol === symbol)) }))} />

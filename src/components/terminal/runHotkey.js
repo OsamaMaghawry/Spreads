@@ -239,6 +239,8 @@ export async function runHotkey(h, ctx) {
       // Whole shares on the other accounts, a part share only where a buy there
       // comes to under one; their exact part shares with Part shares on (a buy).
       ...built.order, fromKey: true, parts: exactParts, basis: h.size === "bp" ? "buyingPower" : "equity", reference: built.price ?? null,
+      // The active play (the Playbook): the server marks the order with it, on every account.
+      ...(ctx.play ? { play: ctx.play } : {}),
       // A percent key: the same percent of each account's own portfolio (or buying power).
       pct: leadOff ? (h.size === "equity" || h.size === "bp" ? Number(h.amount) || null : null)
         : hotkeyPercent(h, { equity: ctx.view?.equity, buyingPower: ctx.view?.buyingPower, price: built.price }),

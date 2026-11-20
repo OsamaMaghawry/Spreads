@@ -20,6 +20,7 @@ import { usSession, usOvernight, stopPlan, stopLimitPrice, exitPlan, tradeSize, 
 import { inBackground } from "../_shared/background.ts";
 import { allocate, splitTotal, wholeHoldings, percentSplit } from "../_shared/proRata.ts";
 import { shareMoves, SHARE_EVENTS, SHARE_EVENTS_CORE } from "../_shared/shareMoves.ts";
+import { cleanPlay, cleanReview, EXAMPLE_PLAYS, TRIP_KEY } from "../_shared/playbook.js";
 import { orderStream } from "../_shared/orderStream.ts";
 import { isOwnerEmail, isAdminUser } from "../_shared/admin.ts";
 import { handBackFired, chaseFired } from "../_shared/stopGuardRun.ts";
@@ -2118,6 +2119,129 @@ const NOT_LIVE = "Orders from the terminal go to paper accounts only during this
 // A buy or sell key's own orders carry this label.
 const KEY_ORDER = "TERM_K_";
 
+// ---------- the Playbook (_shared/playbook.js; migration 0069) ----------
+//
+// 20 Nov, the owner: "I need to implement the Playbook too", then "Yes start
+// phase 1, load the four example plays". What an order was for is written
+// after the broker's answer goes back, never before it, and nothing about the
+// order depends on it: an entry sent while a play was active (that play, and
+// its bracket's stop), or a stop on a position (for its trade's initial stop).
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const playShape = (p: any) => ({
+  id: p.id, code: p.code, name: p.name, side: p.side, timeframe: p.timeframe, checklist: Array.isArray(p.checklist) ? p.checklist : [],
+  entry: p.entry, stop: p.stop, exit: p.exit, risk: p.risk, invalid: p.invalid, notes: p.notes, archived: !!p.archived
+});
+
+async function writeMark(admin: any, row: Record<string, unknown>) {
+  const { error } = await admin.from("terminal_order_marks").upsert(row, { onConflict: "account_id,order_id" });
+  if (error) console.warn("order mark", error.message);
+}
+
+async function markOrder(admin: any, user: any, account: any, input: any, body: any, orderId: string, sym: string) {
+  const playId = typeof input?.play === "string" && UUID.test(input.play) ? input.play : null;
+  const stopType = body.type === "stop" || body.type === "stop_limit";
+  if (!playId && !stopType) return;
+  if (stopType && num(body.stop_price)) {
+    // A stop that closes a holding is that position's stop; one that opens a position is an entry.
+    const pos = await positionOf(account, sym).catch(() => null);
+    const closes = pos && ((body.side === "sell" && pos.side === "long") || (body.side === "buy" && pos.side === "short"));
+    if (closes) return writeMark(admin, { account_id: account.id, order_id: orderId, user_id: user.id, symbol: sym, kind: "stop", stop: num(body.stop_price), play_id: null });
+  }
+  if (!playId) return;
+  const { data } = await admin.from("terminal_plays").select("id").eq("id", playId).eq("user_id", user.id).maybeSingle();
+  if (!data) return;
+  await writeMark(admin, { account_id: account.id, order_id: orderId, user_id: user.id, symbol: sym, kind: "entry", play_id: playId, stop: num(body.stop_loss?.stop_price) });
+}
+
+// The person's plays: listed (the four examples put in first, for one who has
+// none), saved, archived or restored. Archived plays stay on their trades.
+async function plays(admin: any, userId: string, body: any): Promise<[any, number?]> {
+  const table = () => admin.from("terminal_plays");
+  if (body.op === "save") {
+    const c = cleanPlay(body.play);
+    if (c.error) return [{ error: c.error }, 400];
+    const id = typeof body.play?.id === "string" && UUID.test(body.play.id) ? body.play.id : null;
+    const row = { ...c.play, user_id: userId, updated_at: new Date().toISOString() };
+    const { data, error } = id
+      ? await table().update(row).eq("id", id).eq("user_id", userId).select().maybeSingle()
+      : await table().insert(row).select().single();
+    if (error) return [{ error: /duplicate|unique/i.test(error.message) ? `The code ${c.play!.code} is already used by another play.` : error.message }, /duplicate|unique/i.test(error.message) ? 409 : 500];
+    if (!data) return [{ error: "No such play." }, 404];
+    return [{ play: playShape(data) }];
+  }
+  if (body.op === "archive") {
+    const id = typeof body.id === "string" && UUID.test(body.id) ? body.id : null;
+    if (!id) return [{ error: "Which play?" }, 400];
+    const { data, error } = await table().update({ archived: body.archived !== false, updated_at: new Date().toISOString() }).eq("id", id).eq("user_id", userId).select().maybeSingle();
+    if (error) return [{ error: error.message }, 500];
+    if (!data) return [{ error: "No such play." }, 404];
+    return [{ play: playShape(data) }];
+  }
+  const list = async () => table().select("*").eq("user_id", userId).order("created_at").order("code");
+  let { data, error } = await list();
+  if (error) return [{ error: error.message }, 500];
+  if (!data?.length) {
+    const seed = EXAMPLE_PLAYS.map((p: any, i: number) => ({ ...cleanPlay(p).play, user_id: userId, created_at: new Date(Date.now() + i).toISOString() }));
+    const put = await table().upsert(seed, { onConflict: "user_id,code", ignoreDuplicates: true });
+    if (put.error) return [{ error: put.error.message }, 500];
+    ({ data, error } = await list());
+    if (error) return [{ error: error.message }, 500];
+  }
+  return [{ plays: (data || []).map(playShape) }];
+}
+
+// One account's trades for the Playbook: the period's fills, as the P/L tab
+// reads them, with the marks of the orders they came from, the stops placed on
+// those symbols, and the person's reviews. Or a review saved.
+async function playbook(admin: any, user: any, account: any, body: any): Promise<[any, number?]> {
+  if (body.op === "review") {
+    const key = String(body.key || "");
+    if (!TRIP_KEY.test(key)) return [{ error: "Which trade?" }, 400];
+    const c = cleanReview(body.review);
+    if (c.error) return [{ error: c.error }, 400];
+    const r = c.review!;
+    if (r.play && r.play !== "none") {
+      const { data } = await admin.from("terminal_plays").select("id").eq("id", r.play).eq("user_id", user.id).maybeSingle();
+      if (!data) return [{ error: "No such play." }, 400];
+    }
+    const { error } = await admin.from("terminal_trade_reviews").upsert({
+      account_id: account.id, trip_key: key, user_id: user.id, play_id: r.play && r.play !== "none" ? r.play : null, play_none: r.play === "none",
+      stop: r.stop, followed: r.followed, mistakes: r.mistakes, checks: r.checks, notes: r.notes, updated_at: new Date().toISOString()
+    }, { onConflict: "account_id,trip_key" });
+    if (error) return [{ error: error.message }, 500];
+    return [{ saved: key }];
+  }
+  const read: any = await accountFills(account, String(body.start || ""), String(body.end || ""), body.custom === true ? FILL_PAGES_CUSTOM : FILL_PAGES);
+  if (read.error) return [read, 400];
+  const ids = [...new Set((read.fills as any[]).map((f) => f.orderId).filter(Boolean))] as string[];
+  const symbols = [...new Set((read.fills as any[]).map((f) => f.symbol))] as string[];
+  const marks: Record<string, { play: string | null; stop: number | null }> = {};
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await admin.from("terminal_order_marks").select("order_id, play_id, stop").eq("account_id", account.id).eq("kind", "entry").in("order_id", ids.slice(i, i + 200));
+    if (error) return [{ error: error.message }, 500];
+    for (const m of data || []) marks[m.order_id] = { play: m.play_id, stop: m.stop === null ? null : Number(m.stop) };
+  }
+  const since = new Date(Date.parse(read.start) - 86400000).toISOString();
+  const stops: { symbol: string; stop: number; at: number }[] = [];
+  if (symbols.length) {
+    const { data, error } = await admin.from("terminal_order_marks").select("symbol, stop, at").eq("account_id", account.id).eq("kind", "stop")
+      .in("symbol", symbols.slice(0, 300)).gte("at", since).order("at").limit(5000);
+    if (error) return [{ error: error.message }, 500];
+    for (const m of data || []) if (Number(m.stop) > 0) stops.push({ symbol: m.symbol, stop: Number(m.stop), at: Math.floor(Date.parse(m.at) / 1000) });
+  }
+  const { data: revs, error: rerr } = await admin.from("terminal_trade_reviews").select("*").eq("account_id", account.id).eq("user_id", user.id).limit(5000);
+  if (rerr) return [{ error: rerr.message }, 500];
+  const reviews: Record<string, any> = {};
+  for (const v of revs || []) {
+    reviews[v.trip_key] = {
+      play: v.play_none ? "none" : v.play_id, stop: v.stop === null ? null : Number(v.stop), followed: v.followed,
+      mistakes: Array.isArray(v.mistakes) ? v.mistakes : [], checks: Array.isArray(v.checks) ? v.checks : [], notes: v.notes || ""
+    };
+  }
+  // `marks` stays the closes the trips are built from; the orders' are `orderMarks`.
+  return [{ ...read, orderMarks: marks, stops, reviews }];
+}
+
 async function placeOrder(admin: any, user: any, account: any, input: any) {
   if (!canTrade(user, account)) return { status: 403, body: { error: NOT_LIVE } };
   const crypto = isCrypto(cryptoSymbol(input?.symbol));
@@ -2182,6 +2306,7 @@ async function placeOrder(admin: any, user: any, account: any, input: any) {
     // The record is written after the answer goes back, not before it: the
     // trader hears about the order a database write sooner.
     inBackground(recordAttempt(admin, { ...attempt, brokerOrderId: order.id, status: order.status }));
+    inBackground(markOrder(admin, user, account, input, body, String(order.id), sym));
     return { status: 200, body: { orderId: order.id, status: order.status, replaced } };
   } catch (e) {
     const message = brokerRefusal(String((e as Error)?.message || e), body.symbol);
@@ -2795,6 +2920,8 @@ async function protect(admin: any, user: any, account: any, input: any) {
   if (!built.ok) return { status: 400, body: { error: built.reason } };
   const sent = await sendBody(admin, user, account, "protect", built.body);
   if (sent.error) return { status: 422, body: { error: sent.error } };
+  // The position's stop, for its trade's initial stop (the Playbook).
+  if (stop) inBackground(writeMark(admin, { account_id: account.id, order_id: String(sent.order.id), user_id: user.id, symbol, kind: "stop", stop, play_id: null }));
   return {
     status: 200,
     body: { orderId: sent.order.id, status: sent.order.status, kind, stopPrice: stop, targetPrice: target, limitPrice, qty: held, side: closing, replaced: have.ids.length, paired: !!(stop && target), note }
@@ -3028,6 +3155,7 @@ Deno.serve(async (req) => {
     const user = who.user;
     const { action, accountId } = body || {};
     if (action === "prefs") return jsonResponse(...(await prefs(admin, user.id, body)));
+    if (action === "plays") return jsonResponse(...(await plays(admin, user.id, body)));
     // Which share tapes this person can stream: EODHD's real-time one only for
     // the owner, whose plan it is, while the project holds its key.
     // And whether this person's live accounts trade from the terminal (the owner's only).
@@ -3117,6 +3245,7 @@ Deno.serve(async (req) => {
       const r = await accountFills(account, String(body.start || ""), String(body.end || ""), body.custom === true ? FILL_PAGES_CUSTOM : FILL_PAGES);
       return jsonResponse(r, (r as any).error ? 400 : 200);
     }
+    if (action === "playbook") return jsonResponse(...(await playbook(admin, user, account, body)));
     if (action === "events") {
       if (!SYMBOL.test(symbol)) return jsonResponse({ symbol, earnings: [], sources: { note: "no earnings for coins" } });
       return jsonResponse(await earningsFor(admin, symbol));

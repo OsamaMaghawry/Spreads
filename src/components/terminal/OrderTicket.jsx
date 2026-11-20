@@ -38,7 +38,7 @@ const TIF_TEXT = { day: "for the day", gtc: "good till cancelled", ioc: "immedia
 const input = "w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm tabular-nums focus:border-emerald-500 focus:outline-none";
 const label = "mb-1 block text-[11px] uppercase tracking-wider text-slate-500";
 
-export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, equity = null, onPlaced, pick = null, preset = null, onNotify = (news) => void news, liveOk = false, group = [], groupHeld = [], leadOff = false, none = false, partsOn: partsGiven, onPartsOn }) {
+export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, equity = null, play = null, onPlaced, pick = null, preset = null, onNotify = (news) => void news, liveOk = false, group = [], groupHeld = [], leadOff = false, none = false, partsOn: partsGiven, onPartsOn }) {
   const crypto = isCrypto(symbol);
   const TYPES = crypto ? CRYPTO_TYPES : STOCK_TYPES;
   const [side, setSide] = useState("buy");
@@ -320,6 +320,8 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
     takeProfit: bracket && !partShare ? tp : null, stopLoss: bracket && !partShare ? sl : null, reference: ref ?? null,
     // The other accounts: exact part shares with Part shares on, else whole shares.
     parts: !crypto && parts,
+    // The active play (the Playbook): the server marks the order with it, on every account it goes to.
+    ...(play?.id ? { play: play.id } : {}),
     ...(leadOff ? { leadOff: true } : {})
   });
   // With other accounts ticked, the ticket's number is the total, shared by
@@ -697,10 +699,13 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
           </div>
         </div>
       ) : (
+        <>
+        {play && <p className="mb-1 text-[11px] text-slate-500">Tagged: <span className="font-medium text-indigo-800">{play.name}</span> (the Play chip at the top)</p>}
         <button type="button" disabled={!ready} onClick={() => setReview(true)}
           className={`w-full rounded-md py-2 text-sm font-semibold text-white disabled:opacity-40 ${side === "buy" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"}`}>
           Review {side === "buy" ? "buy" : "sell"}{count > 1 || leadOff ? ` · ${count} account${count === 1 ? "" : "s"}${groupLive ? " (live)" : ""}` : ""}
         </button>
+        </>
       )}
 
       {/* Shown when this account or any picked beside it holds the symbol (28 Oct:
