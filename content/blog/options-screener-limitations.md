@@ -28,13 +28,13 @@ Key Takeaways:
 
 Every figure on a screen's results page was computed from quotes taken at one moment. If that moment was a poor one, every column downstream of it inherits the problem, and the row gives no sign of it.
 
-Most US single-stock options trade only in regular hours, 9:30 a.m. to 4:00 p.m. Eastern. A screen run before the open reads option quotes left from the prior session against a stock that may already have moved in pre-market trading. The option prices and the stock price then describe two different moments.
+Most US single-stock options trade only in regular hours, 9:30 a.m. to 4:00 p.m. Eastern; since October 2026 one exchange also lists a small set of them before the open. For the rest, a screen run before the open reads option quotes left from the prior session against a stock that may already have moved in pre-market trading. The option prices and the stock price then describe two different moments.
 
 That mismatch spreads to every derived column:
 
 - **Implied volatility.** IV is backed out of option and stock prices together; mismatched, it describes neither.
 - **Delta.** It is computed from that IV, so it inherits the error.
-- **The last price.** On a strike that has not traded today, it can be a day or more old.
+- **The last price.** On an untraded strike, it can be days old.
 - **Earnings.** IV is often elevated before a report, so a sort by credit can fill its top rows with names reporting this week; see [selling options before earnings](/blog/selling-options-before-earnings).
 
 A row looks the same whether its inputs were taken a second ago or the evening before. Knowing when the chain was read, and whether the market was open, is the first check on any result.
@@ -43,7 +43,7 @@ A row looks the same whether its inputs were taken a second ago or the evening b
 
 Many screens price a spread at the mid: the midpoint of each leg's bid and ask, netted. The mid is a calculation, not a quote. On a tight market it sits close to where an order fills; on a wide one it can sit well above anything the market will pay, as the [bid-ask spread post](/blog/options-bid-ask-spread) sets out.
 
-The other price is the **natural**: for a credit spread, the short leg's bid minus the long leg's ask. It is what the market would pay right now for the whole spread. An order resting at the mid fills only if someone meets it there; on wide quotes, fills tend to land somewhere between the two.
+The other price is the **natural**: for a credit spread, the short leg's bid minus the long leg's ask. It is what the displayed quotes would pay right now for the whole spread, leg by leg. An order resting at the mid fills only if someone meets it there; on wide quotes, fills tend to land somewhere between the two.
 
 **Worked example, hypothetical and before fees.** A screen returns two 5-wide put credit spreads on two made-up stocks. The numbers are there to show the arithmetic, not any outcome.
 
@@ -56,7 +56,7 @@ The other price is the **natural**: for a credit spread, the short leg's bid min
 | Credit at the natural | 0.80 | 0.88 |
 | Max loss at the natural | $420 | $412 |
 
-[Max loss on a credit spread](/blog/credit-spread-max-loss) is the width minus the credit, times 100. At the mid, Spread A takes 1.10 against $390 at risk, a ratio of about 28.2%, and Spread B takes 0.93 against $407, about 22.9%. A screen sorting by credit against max loss lists A first.
+[Max loss on a credit spread](/blog/credit-spread-max-loss) is the width minus the credit, times 100. At the mid, Spread A takes $110 against $390 at risk, a ratio of about 28.2%, and Spread B takes $93 against $407, about 22.9%. A screen sorting by credit against max loss lists A first.
 
 At the natural, A's credit drops by 0.30 to 0.80, a ratio of about 19.0% on $420, while B's drops by only 0.05 to 0.88, about 21.4% on $412. The order reverses. The difference is not in the strikes or the stock: A's legs are quoted 0.30 wide each and B's are not.
 
@@ -68,7 +68,7 @@ The ratio is credit against max loss, the stance set out in [return on risk vs r
 
 A screen scores each row on its own. Credit, max loss, delta and days to expiry are properties of that one spread. What a new spread does to an account depends on [what is already open](/blog/managing-multiple-option-positions), and that is not an input to the filter.
 
-Continue the example. Suppose the account already holds two put credit spreads on the same stock as Spread A, each 5 wide and each sold for 1.00, so each carries $400 of max loss. The screen shows Spread A with $420 at risk at the natural. The account, if A fills there, holds $1,220 of max loss on one stock, all of it exposed to the same move below the short strikes.
+Continue the example. Suppose the account already holds two put credit spreads on the same stock as Spread A, each 5 wide and each sold for 1.00, so each carries $400 of max loss. The screen shows Spread A with $420 at risk at the natural. The account, if A fills there, holds $1,220 of max loss on one stock, all of it lost together if the stock falls below every long strike.
 
 | What the row shows | What the row leaves out |
 | --- | --- |
@@ -86,8 +86,7 @@ Every filter on a screen encodes an assumption, and the screen applies it withou
 
 - **Delta as probability.** A 0.20 delta is often read as about a 20% chance of finishing in the money; it is a model output from current IV, as [choosing a strike by delta](/blog/credit-spread-delta-strike-selection) shows.
 - **IV rank.** It compares today's IV to a lookback window the vendor chose; another window gives another rank.
-- **Liquidity minimums.** A strike can clear an open interest threshold and still be quoted wide.
-- **Fees.** Credits are commonly shown before commissions, which are charged on every leg.
+- **Fees.** Credits are commonly shown before commissions and exchange fees, which are charged per contract on every leg.
 
 A screen run with different filters returns different rows from the same chain. That is the whole of what a result is: the intersection of a chain and a set of choices. It carries no judgement about which row anyone should trade, and reading one into it is reading the filters back.
 
@@ -101,8 +100,8 @@ A screen run with different filters returns different rows from the same chain. 
 
 A screen does the mechanical part well: it reads a chain quickly and applies filters exactly. What it cannot do is see when its quotes were taken, which price a market will actually pay, or what the account already holds.
 
-In the worked example, two hypothetical spreads swapped places when priced at the natural instead of the mid, and the one ranked first at the mid, filled at the natural, would have put $1,220 of max loss on one stock. Both facts were outside the row.
+In the worked example, two hypothetical spreads swapped places when priced at the natural instead of the mid, and the one ranked first at the mid, filled at the natural, would have brought the account's max loss on one stock to $1,220. Both facts were outside the row.
 
-DeltaMint's Strategy Scanner prices a credit spread at the natural, the short leg's bid minus the long leg's ask, rather than at the mid. Its results are what matched the filters the trader set, and nothing on the list is a recommendation.
+DeltaMint's Strategy Scanner prices a credit spread at the natural, the short leg's bid minus the long leg's ask, rather than at the mid. Its results are spreads that matched the filters the trader set and passed its quote checks, and nothing on the list is a recommendation.
 
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.
