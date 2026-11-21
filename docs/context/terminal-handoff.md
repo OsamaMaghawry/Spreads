@@ -66,6 +66,31 @@ staging.
   - **The owner must reload the terminal before Wed 25 Nov 20:00 ET.** The
     hotkeys' holiday guard lives in the browser.
 
+- **Futures practice with a prop-firm challenge** (21 Nov, the owner:
+  "training on Futures ... with the contract sizes and points values ... prop
+  firms challenges"; design "DeltaMint Futures Challenge",
+  https://claude.ai/artifact/88TZzjE7SwBWxfJqSxZg4o, approved):
+  - replay only; no broker, and nothing for a `/ES` symbol reaches Alpaca;
+  - 55 CME contracts, standard, E-mini and micro (`_shared/futuresSpecs.js`);
+  - CME minute bars from Databento `GLBX.MDP3`, front contract by volume,
+    through terminal `replay` with a `/` symbol, cached in `futures_bars`
+    (migration 0070, applied to staging only);
+  - the `"cme"` market in `lib/replay.js` and `lib/terminal.js`: trade
+    dates from 18:00 New York;
+  - `lib/futuresPlay.js` plays held contracts minute by minute: rolls, exits
+    and the challenge (`lib/propRules.js`);
+  - Futures tab (`FuturesChallenge.jsx`): the owner's firm rules as a blank
+    form (pref `futures`), the challenge panel and the contract list;
+  - reviewed: systems-engineer SHIP, investment-analyst figures
+    trustworthy (21 Nov);
+  - **still to check:** one real day each of ES, 6J, ZN and LE, read through
+    staging, matched against CME's quoted units (from `futures_bars` once
+    the owner has opened a futures replay).
+  - Known, not blocking: stop and target hotkeys use share-style distances in
+    points on a contract; several orders filling in one minute past the
+    contract limit cancel every order on that symbol; a share traded in a
+    challenge replay shows in the bar's Equity but not the challenge's.
+
 ## Playbook: how it works
 
 - **Design:** the "DeltaMint Playbook" prototype,
