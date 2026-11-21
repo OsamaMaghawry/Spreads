@@ -16,7 +16,7 @@
 // Pure and tested (replay.test.js); components/terminal/PriceChart.jsx
 // fetches the candles (functions/terminal "replay") and drives it.
 
-import { bucketStart, nyClock, nyMidnight, px } from "./terminal.js";
+import { bucketStart, cmeDay, nyClock, nyMidnight, px } from "./terminal.js";
 import { futuresSpec, roundToTick } from "../../supabase/functions/_shared/futuresSpecs.js";
 
 const SPAN = { "1Hour": 60, "2Hour": 120, "4Hour": 240 };
@@ -33,10 +33,14 @@ export function inSession(t) {
   return weekday !== "Sat" && weekday !== "Sun" && minutes >= OPEN && minutes < CLOSE;
 }
 
-/** A trading day as its daily candle is stamped: New York midnight for shares, UTC midnight for coins. */
-export const dayOf = (t, crypto) => (crypto ? Math.floor(t / 86400) * 86400 : nyMidnight(t));
-/** When that day's candle is complete: 16:00 New York for shares, the next UTC midnight for coins. */
-export const dayClose = (day, crypto) => (crypto ? day + 86400 : day + CLOSE * 60);
+/**
+ * A trading day as its daily candle is stamped: New York midnight for shares,
+ * UTC midnight for coins, and for a futures contract ("cme") its CME trade
+ * date's UTC midnight (the session from 18:00 New York the evening before).
+ */
+export const dayOf = (t, crypto) => (crypto === "cme" ? cmeDay(t) : crypto ? Math.floor(t / 86400) * 86400 : nyMidnight(t));
+/** When that day's candle is complete: 16:00 New York for shares, the next UTC midnight for coins, 17:00 New York for a contract. */
+export const dayClose = (day, crypto) => (crypto === "cme" ? nyMidnight(day + 12 * 3600) + 17 * 3600 : crypto ? day + 86400 : day + CLOSE * 60);
 
 /**
  * The candle a minute belongs to. A share's hourly candles on a regular-hours
@@ -81,7 +85,7 @@ export function countBefore(list, t) {
  * before it, and nothing after. `regular`: a share's chart in regular hours.
  * Daily candles are regular-hours candles, as the broker's are.
  */
-export function replayCandles({ minutes = [], days = [], context = [] }, interval, cursor, { crypto = false, regular = false } = {}) {
+export function replayCandles({ minutes = [], days = [], context = [] }, interval, cursor, { crypto = /** @type {boolean | "cme"} */ (false), regular = false } = {}) {
   const shown = minutes.slice(0, countBefore(minutes, cursor));
   if (!CALENDAR.has(interval)) {
     // Half-hour and longer charts reach further back than the minutes do,
@@ -98,7 +102,7 @@ export function replayCandles({ minutes = [], days = [], context = [] }, interva
   let partial = null;
   if (native && cursor >= dayClose(today, crypto)) partial = { ...native };
   else {
-    const todays = shown.filter((m) => m.time >= today && dayOf(m.time, crypto) === today && (crypto || inSession(m.time)));
+    const todays = shown.filter((m) => (crypto === "cme" || m.time >= today) && dayOf(m.time, crypto) === today && (crypto || inSession(m.time)));
     if (todays.length) partial = aggregate(todays, () => today)[0];
   }
   const daily = partial ? [...finished, partial] : finished;
@@ -125,7 +129,7 @@ export function rollMinutes({ minutes = [], context = [], ...rest }, keepFrom) {
  * yet); a day, week or month walks the daily candles, to the close of the
  * last trading day in it. Null at the end of the data.
  */
-export function nextCursor({ minutes = [], days = [] }, unit, cursor, { crypto = false, regular = false } = {}) {
+export function nextCursor({ minutes = [], days = [] }, unit, cursor, { crypto = /** @type {boolean | "cme"} */ (false), regular = false } = {}) {
   if (!CALENDAR.has(unit)) {
     let i = countBefore(minutes, cursor);
     while (i < minutes.length && !crypto && regular && !inSession(minutes[i].time)) i++;
@@ -153,14 +157,14 @@ export function nextCursor({ minutes = [], days = [] }, unit, cursor, { crypto =
  * Intraday, to the start of the last candle shown; a day, week or month, to
  * the close of the trading day before it. Null when nothing before it is loaded.
  */
-export function prevCursor({ minutes = [], days = [] }, unit, cursor, { crypto = false, regular = false } = {}) {
+export function prevCursor({ minutes = [], days = [] }, unit, cursor, { crypto = /** @type {boolean | "cme"} */ (false), regular = false } = {}) {
   if (!CALENDAR.has(unit)) {
     let i = countBefore(minutes, cursor) - 1;
     while (i >= 0 && !crypto && regular && !inSession(minutes[i].time)) i--;
     return i < 0 ? null : bucketOf(minutes[i].time, unit, crypto, regular);
   }
   // The last day on screen: the last whose session had begun by the cursor.
-  const begun = (d) => (crypto ? d.time : d.time + OPEN * 60) < cursor;
+  const begun = (d) => (crypto === "cme" ? dayClose(d.time, crypto) - 23 * 3600 : crypto ? d.time : d.time + OPEN * 60) < cursor;
   let lo = 0;
   let hi = days.length;
   while (lo < hi) {
@@ -185,18 +189,22 @@ export function prevCursor({ minutes = [], days = [] }, unit, cursor, { crypto =
  * day, its daily candle complete; "HH:MM": through that minute. New York time
  * for shares (9:30 to 16:00), UTC for coins (midnight to midnight).
  */
-export function replayMoment(date, at, crypto = false) {
+export function replayMoment(date, at, crypto = /** @type {boolean | "cme"} */ (false)) {
   const [y, m, d] = String(date).split("-").map(Number);
-  const midnight = crypto ? Date.UTC(y, m - 1, d) / 1000 : nyMidnight(Date.UTC(y, m - 1, d, 12) / 1000);
-  if (at === "close") return crypto ? midnight + 86400 : midnight + CLOSE * 60;
-  if (at === "open" || !/^\d{1,2}:\d{2}$/.test(String(at))) return midnight + (crypto ? 0 : OPEN * 60) + 60;
+  // A contract keeps New York time; "open" is the 9:30 open its day trades
+  // around, "close" its 17:00 halt.
+  const ny = !crypto || crypto === "cme";
+  const midnight = ny ? nyMidnight(Date.UTC(y, m - 1, d, 12) / 1000) : Date.UTC(y, m - 1, d) / 1000;
+  if (at === "close") return crypto === "cme" ? midnight + 17 * 3600 : crypto ? midnight + 86400 : midnight + CLOSE * 60;
+  if (at === "open" || !/^\d{1,2}:\d{2}$/.test(String(at))) return midnight + (ny ? OPEN * 60 : 0) + 60;
   const [hh, mm] = String(at).split(":").map(Number);
   return midnight + Math.min(24 * 60, hh * 60 + mm) * 60 + 60;
 }
 
 /** The date (YYYY-MM-DD) of a replay moment's last minute, in New York (shares) or UTC (coins). */
-export function replayDate(t, crypto = false) {
-  return new Date((t - 1) * 1000).toLocaleDateString("en-CA", { timeZone: crypto ? "UTC" : "America/New_York" });
+export function replayDate(t, crypto = /** @type {boolean | "cme"} */ (false)) {
+  // A contract's is the New York calendar date the moment is in (what the date box shows).
+  return new Date((t - 1) * 1000).toLocaleDateString("en-CA", { timeZone: crypto === true ? "UTC" : "America/New_York" });
 }
 
 /** A candle of `unit` in seconds (a day for a day, week or month): a step back's fallback. */
@@ -465,14 +473,16 @@ export const removeTarget = (acct, id) => ({ ...acct, targets: acct.targets.filt
 export function targetSize(text, position, crypto) {
   const t = String(text || "").trim().toLowerCase();
   const held = Math.abs(position);
+  // Shares and futures contracts come whole; coins in parts.
+  const unit = crypto === "cme" ? "contracts" : "shares";
   if (!t || t === "all") return { qty: null };
   const pct = t.endsWith("%");
   const n = Number(pct ? t.slice(0, -1) : t);
-  if (!(n > 0)) return { reason: "Size: a number of shares, a percentage like 50%, or blank for all." };
+  if (!(n > 0)) return { reason: `Size: a number of ${unit}, a percentage like 50%, or blank for all.` };
   if (pct && n >= 100) return { qty: null };
   let qty = pct ? held * n / 100 : n;
-  if (!crypto) {
-    if (!pct && !Number.isInteger(n)) return { reason: "Shares come whole." };
+  if (crypto !== true) {
+    if (!pct && !Number.isInteger(n)) return { reason: `${unit === "contracts" ? "Contracts" : "Shares"} come whole.` };
     qty = Math.max(1, Math.floor(qty));
   } else qty = Math.floor(qty * 1e9) / 1e9;
   return { qty };
@@ -623,5 +633,6 @@ export function tradeStats(trips) {
 
 /** "Thu, Mar 5, 2026, 10:42" in New York time, for the replay bar. */
 export function replayClock(t, crypto) {
-  return new Date(t * 1000).toLocaleString("en-US", { timeZone: crypto ? "UTC" : "America/New_York", weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) + (crypto ? " UTC" : " New York");
+  const utc = crypto === true;
+  return new Date(t * 1000).toLocaleString("en-US", { timeZone: utc ? "UTC" : "America/New_York", weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) + (utc ? " UTC" : " New York");
 }

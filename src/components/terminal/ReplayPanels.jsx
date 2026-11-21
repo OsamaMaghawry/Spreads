@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
-import { px, sizeText, isCrypto } from "@/lib/terminal";
+import { px, pxFor, sizeText, isCrypto } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
 import { bookValue, bookTrips, tradeStats, replayDate, practiceValue } from "@/lib/replay";
 import { demoBook, periodStart, customPeriod, customBounds, tradingDay } from "@/lib/demoTrades";
@@ -62,12 +62,12 @@ export function PracticePositions({ book, priceOf, ended = false, onPick, onFlat
                 <tr key={s} className="border-t border-slate-100 hover:bg-slate-50">
                   <td className="px-2 py-1"><button type="button" className="font-semibold hover:underline" onClick={() => onPick?.(s)}>{s}</button></td>
                   <td className={td}>{a.qty ? `${a.qty > 0 ? "Long" : "Short"} ${sizeText(Math.abs(a.qty))}` : "Flat"}</td>
-                  <td className={td}>{a.qty ? px(a.avg) : "—"}</td>
-                  <td className={td}>{px(last)}</td>
+                  <td className={td}>{a.qty ? pxFor(s, a.avg) : "—"}</td>
+                  <td className={td}>{pxFor(s, last)}</td>
                   <td className={`${td} ${tone(open)}`}>{a.qty ? money(open) : "—"}</td>
                   <td className={`${td} ${tone(a.realized)}`}>{money(a.realized)}</td>
-                  <td className={td}>{a.stop ? px(a.stop) : "—"}</td>
-                  <td className={td}>{a.targets.length ? [...a.targets].sort((x, y) => (a.qty > 0 ? x.price - y.price : y.price - x.price)).map((t) => `${px(t.price)} × ${t.qty === null ? "rest" : sizeText(t.qty)}`).join(", ") : "—"}</td>
+                  <td className={td}>{a.stop ? pxFor(s, a.stop) : "—"}</td>
+                  <td className={td}>{a.targets.length ? [...a.targets].sort((x, y) => (a.qty > 0 ? x.price - y.price : y.price - x.price)).map((t) => `${pxFor(s, t.price)} × ${t.qty === null ? "rest" : sizeText(t.qty)}`).join(", ") : "—"}</td>
                   <td className="px-1">{!ended && a.qty ? <button type="button" onClick={() => onFlatten?.(s)} className="rounded border border-slate-300 px-1.5 py-0.5 text-[11px] hover:bg-slate-100">Flatten</button> : null}</td>
                 </tr>
               );

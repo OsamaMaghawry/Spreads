@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
+import { FUTURES } from "../../../supabase/functions/_shared/futuresSpecs.js";
 
 // Any symbol on the chart, from the chart itself (28 Oct: "I want to be able
 // to change the chart and the stock on focus from the chart itself not only
@@ -10,6 +11,20 @@ import { invokeFunction } from "@/lib/functions";
 // arrows move through the list, Esc closes; the watchlist is left as it is
 // unless "+" is pressed beside a match.
 const SHAPE = /^[A-Z][A-Z0-9.]{0,9}(\/[A-Z]{3,5})?$/;
+
+// CME futures for practice in the replay ("/ES"), matched here from their
+// contract list: "/es", "es", "gold", "micro nasdaq". Typed with a slash,
+// only futures; otherwise listed after the broker's matches.
+function futuresMatches(text) {
+  const q = text.trim().toLowerCase();
+  if (!q) return [];
+  const slash = q.startsWith("/");
+  const t = q.slice(slash ? 1 : 0);
+  return Object.values(FUTURES)
+    .filter((c) => (slash ? c.root.toLowerCase().startsWith(t) : c.root.toLowerCase() === t || (t.length >= 3 && c.name.toLowerCase().includes(t))))
+    .slice(0, 8)
+    .map((c) => ({ symbol: `/${c.root}`, name: `${c.name} · $${c.pointValue.toLocaleString("en-US")} a point`, assetClass: "futures" }));
+}
 
 export default function SymbolSearch({ accountId, initial = "", onPick, onAdd, onClose, watch = [], className = "" }) {
   const [text, setText] = useState(initial);
@@ -25,7 +40,8 @@ export default function SymbolSearch({ accountId, initial = "", onPick, onAdd, o
     const t = setTimeout(() => {
       invokeFunction("terminal", { action: "search", accountId, q }).then((r) => {
         if (!alive) return;
-        setMatches((r?.data?.results || []).slice(0, 10));
+        const local = futuresMatches(q);
+        setMatches(q.startsWith("/") ? local : [...(r?.data?.results || []).slice(0, 10), ...local].slice(0, 12));
         setAt(0);
       });
     }, 150);
@@ -67,6 +83,7 @@ export default function SymbolSearch({ accountId, initial = "", onPick, onAdd, o
               <span className="font-semibold">{r.symbol}</span>
               <span className="truncate text-slate-500">{r.name}</span>
               {r.assetClass === "crypto" && <span className="rounded bg-amber-100 px-1 text-[10px] font-semibold text-amber-800">Crypto</span>}
+              {r.assetClass === "futures" && <span className="shrink-0 rounded bg-indigo-100 px-1 text-[10px] font-semibold text-indigo-800" title="Practised in the replay only">Futures</span>}
             </button>
             {onAdd && !watch.includes(r.symbol) && (
               <button type="button" title={`Add ${r.symbol} to the watchlist`} onClick={() => onAdd(r.symbol)}

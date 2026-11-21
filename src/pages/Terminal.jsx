@@ -5,7 +5,8 @@ import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import "@/components/terminal/terminal.css";
 import { invokeFunction } from "@/lib/functions";
-import { readWatchlist, cleanWatchlist, withCoinsOnce, cleanWatchlists, activeWatchlist, withActiveSymbols, px, pctText, sizeText, isCrypto, WATCHLIST_MAX, shareFeed, SHARE_FEEDS } from "@/lib/terminal";
+import { readWatchlist, cleanWatchlist, withCoinsOnce, cleanWatchlists, activeWatchlist, withActiveSymbols, px, pctText, sizeText, isCrypto, marketOf, WATCHLIST_MAX, shareFeed, SHARE_FEEDS } from "@/lib/terminal";
+import FuturesChallenge, { FUTURES_DEFAULT, cleanFutures, rulesOf, futuresTerms } from "@/components/terminal/FuturesChallenge";
 import { DEFAULT_LAYOUTS, BREAKPOINTS, COLS, MARGIN, cleanLayouts, rowHeightFor, fromFirstVersion, foldWatch } from "@/lib/terminalLayout";
 import { fmtMoney } from "@/lib/format";
 import { readPrefs, savePref } from "@/lib/terminalPrefs";
@@ -130,7 +131,13 @@ export default function Terminal() {
   }, [closeToast]);
   // The bar replay (components/terminal/useReplay.js): while it runs, the
   // hotkeys and the replay bar trade its practice account.
-  const { session, version: replayVersion, last: lastReplay, saved: savedReplays, replay } = useReplay({ accountId, notify });
+  // Futures practice (components/terminal/FuturesChallenge.jsx): the firm's
+  // rules as typed, the commissions and the contracts per hotkey, kept with
+  // the account; the replay reads the terms through a ref.
+  const [futures, setFutures] = useAccountSetting("futures", { localKey: "terminal.futures", initial: () => FUTURES_DEFAULT, clean: cleanFutures });
+  const futuresRef = useRef(null);
+  futuresRef.current = futuresTerms(futures);
+  const { session, version: replayVersion, last: lastReplay, saved: savedReplays, replay } = useReplay({ accountId, notify, futuresRef });
   // The watchlists (lib/terminal cleanWatchlists): several, kept with the
   // account, the one picked on screen; the single list kept before is the
   // first, "Main". `watch` is the one on screen, `setWatch` changes it.
@@ -560,7 +567,17 @@ export default function Terminal() {
     if (sessionRef.current) replay.exit();
     else setReplayForm((f) => (f ? null : {}));
   }, [replay]);
-  const startReplay = (form) => { setReplayForm(null); setReplayOffer(false); const s = symbol; replay.start(form, isCrypto(s), { symbol: s }); setSymbol(s); };
+  const startReplay = (form) => {
+    setReplayForm(null);
+    setReplayOffer(false);
+    const s = symbol;
+    const market = marketOf(s);
+    // A futures replay runs the challenge when it is on and its rules are complete.
+    const rules = market === "cme" && futures.enabled ? rulesOf(futures) : null;
+    if (rules?.reason) notify({ key: "fchal", tone: "muted", title: "Futures replay without a challenge", detail: `The challenge's rules are not complete: ${rules.reason} Fill them in under Futures ▸ Settings.` });
+    replay.start(form, market, { symbol: s, challenge: rules?.rules || null });
+    setSymbol(s);
+  };
   const continueReplay = (kept) => {
     setReplayForm(null);
     setReplayOffer(false);
@@ -920,7 +937,8 @@ export default function Terminal() {
               ...(session || lastReplay || savedReplays?.length ? [["results", "Replay results"]] : []),
               ["positions", `Positions${view?.positions?.length ? ` (${view.positions.length})` : ""}`], ["orders", `Orders${workingCount ? ` (${workingCount})` : ""}`],
               ["demo", account?.type === "Paper" ? "Demo P/L" : "Trades P/L"], ["account", "Account"],
-              ["news", `News${news.recent ? ` (${news.recent})` : ""}`]
+              ["news", `News${news.recent ? ` (${news.recent})` : ""}`],
+              ["futures", session?.challenge ? `Futures · ${{ active: "active", locked: "locked", failed: "failed", passed: "passed" }[session.challenge.state.status]}` : "Futures"]
             ].map(([id, name]) => (
               <button key={id} type="button" onClick={() => setTab(id)}
                 className={`rounded px-2 py-0.5 text-xs font-medium ${tab === id ? (id === "practice" || id === "results" ? "bg-amber-600 text-white" : "bg-slate-900 text-white") : "text-slate-600 hover:bg-slate-100"}`}>{name}</button>
@@ -942,6 +960,7 @@ export default function Terminal() {
               others={others} group={replaying ? [] : groupSend} onNotify={notify} />}
             {tab === "demo" && <DemoResults accountId={accountId} refreshKey={`${view?.recent?.[0]?.id || ""}|${view?.recent?.[0]?.status || ""}|${view?.positions?.length || 0}`} />}
             {tab === "account" && <AccountSummary summary={view?.summary} paper={view?.paper} name={account?.name} />}
+            {tab === "futures" && <FuturesChallenge settings={futures} onSettings={setFutures} now={session ? replay.challengeNow() : null} replaying={replaying} onPick={setSymbol} />}
           </div>
         </div>
 

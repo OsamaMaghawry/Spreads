@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { createChart, createSeriesMarkers, createTextWatermark, CandlestickSeries, HistogramSeries, LineSeries, LineStyle, CrosshairMode } from "lightweight-charts";
 import { MousePointer2, Slash, MoveUpRight, Minus, SeparatorVertical, RectangleHorizontal, Rows3, Ruler, Trash2, Eraser, Activity, X, Type, CalendarDays, History, Pencil, ArrowUpDown, Eye, EyeOff, Magnet } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
-import { INTERVALS, applyTrade, applyMinuteBar, isCrypto, priceFormatFor, inRegularHours, sessionDay, sessionOf, px, sizeText, legendBar, valueAt } from "@/lib/terminal";
+import { INTERVALS, applyTrade, applyMinuteBar, isFutures, marketOf, priceFormatFor, inRegularHours, sessionDay, sessionOf, px, sizeText, legendBar, valueAt } from "@/lib/terminal";
 import { INDICATORS, LINE_COLORS, cleanIndicators, defaultParams, indicatorLabel, indicatorSeries } from "@/lib/indicators";
 import { TOOLS, COLORS, pointsFor, logicalToTime, hitTest, moveDrawing, readDrawings, writeDrawings, cleanDrawings } from "@/lib/chartDrawings";
 import { EVENT_KINDS, econEvents, earningsEvent, placeEvents, cleanShown, nextOfEach, eventWhen, badgeAt } from "@/lib/marketEvents";
@@ -217,7 +217,10 @@ function PriceChart({
   const liveFrom = useRef(null);
   const markersRef = useRef(null);
   const [state, setState] = useState({ loading: true, error: null, count: 0 });
-  const crypto = isCrypto(symbol);
+  // A futures contract ("/ES") is "cme": truthy where a coin and a contract
+  // agree (no regular-hours session, no earnings, no gamma), its own clock in
+  // the replay (lib/replay dayOf). It has no live chart: futures are practice only.
+  const crypto = marketOf(symbol);
 
   // Every bar read (rawRef) and the ones on screen (barsRef): a regular-hours
   // chart leaves out pre-market and after-hours bars without reading again.
@@ -742,7 +745,7 @@ function PriceChart({
     extRef.current = bars.map((b) => !cryptoRef.current && sessionOf(b.time) !== "regular");
     stepRef.current = STEP[intervalRef.current] || 300;
     chartRef.current?.applyOptions({ timeScale: { secondsVisible: stepRef.current < 60 } });
-    candlesRef.current?.applyOptions({ priceFormat: priceFormatFor(bars.at(-1)?.close ?? 1) });
+    candlesRef.current?.applyOptions({ priceFormat: priceFormatFor(bars.at(-1)?.close ?? 1, symbolRef.current) });
     candlesRef.current?.setData(bars);
     volumeRef.current?.setData(bars.map((b) => ({ time: b.time, value: b.volume, color: b.close >= b.open ? "#05966933" : "#e11d4833" })));
     lastRef.current = rawRef.current.at(-1) || null;
@@ -794,6 +797,12 @@ function PriceChart({
     liveFrom.current = null;
     olderRef.current = { busy: false, done: false };
     setOlder(null);
+    if (isFutures(symbol)) {
+      rawRef.current = [];
+      show();
+      setState({ loading: false, error: `${symbol} is a futures contract: it is practised in the replay only (Alpaca has no futures). Press Replay to start one.`, count: 0 });
+      return undefined;
+    }
     setState({ loading: true, error: null, count: 0 });
     // A share's hourly candles on a regular-hours chart come aligned to the
     // 9:30 open (functions/terminal sessionHours); all other charts use

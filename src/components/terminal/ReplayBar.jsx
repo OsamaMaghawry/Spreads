@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight, RotateCcw, X, History, Save } from "lucide-react";
-import { px, sizeText, amountToQty } from "@/lib/terminal";
+import { px, pxFor, isFutures, sizeText, amountToQty } from "@/lib/terminal";
+import { FUTURES } from "../../../supabase/functions/_shared/futuresSpecs.js";
 import useAccountSetting from "@/components/terminal/useAccountSetting";
 import { replayClock } from "@/lib/replay";
 import { fmtMoney } from "@/lib/format";
@@ -145,6 +146,9 @@ function TargetField({ targets, pos, crypto, onAdd, onRemove }) {
 
 export default function ReplayBar({ clock, playing, loading, note, unit, speed, value, acct, price, range = null, symbol, crypto, trades = 0, name = "", savedAt = null, at = "open", onRename, onSave, onPlay, onStep, onStepBack, onRestart, onUnit, onSpeed, onJump, onExit, onTrade, onFlatten, onStop, onAddTarget, onRemoveTarget }) {
   const [qty, setQty] = useState(crypto ? "0.1" : "100");
+  // A futures contract trades in whole contracts, never in dollars, with its own size.
+  const contract = isFutures(symbol) ? FUTURES[symbol.slice(1)] : null;
+  const [contracts, setContracts] = useState("1");
   // A price for the practice order: blank buys or sells at the price now.
   const [orderAt, setOrderAt] = useState("");
   // Practice size in shares (coins) or in dollars (2 Nov, the owner: "I need
@@ -154,7 +158,7 @@ export default function ReplayBar({ clock, playing, loading, note, unit, speed, 
   const [sizeIn, setSizeIn] = useAccountSetting("replayunit", { localKey: "terminal.replayUnit", initial: () => "qty", clean: (v) => (v === "usd" ? "usd" : "qty"), fromLocal: (raw) => raw, toLocal: (v) => v });
   const [dollars, setDollars] = useState("5000");
   const sizeAt = Number(orderAt) > 0 ? Number(orderAt) : price;
-  const tradeQty = sizeIn === "usd" ? amountToQty(dollars, sizeAt, { crypto, step: crypto ? 1e-9 : null }) : Number(qty);
+  const tradeQty = contract ? Math.floor(Number(contracts)) : sizeIn === "usd" ? amountToQty(dollars, sizeAt, { crypto, step: crypto ? 1e-9 : null }) : Number(qty);
   // What a typed price does: inside the candle on screen it fills now; one
   // the candle did not reach waits as a limit or a stop.
   const atNum = Number(orderAt);
@@ -220,6 +224,12 @@ export default function ReplayBar({ clock, playing, loading, note, unit, speed, 
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="font-medium">Practice <b>{symbol}</b></span>
+        {contract ? (
+          <>
+            <input className={`${field} w-12`} inputMode="numeric" value={contracts} onChange={(e) => setContracts(e.target.value.replace(/[^\d]/g, ""))} aria-label="Practice contracts" />
+            <span className="text-[10px] text-amber-900" title={contract.name}>contracts · ${contract.pointValue.toLocaleString("en-US")} a point · tick {contract.tick} = ${Number(contract.tickValue.toFixed(4))}</span>
+          </>
+        ) : (<>
         <div className="flex overflow-hidden rounded border border-amber-300" role="group" aria-label="Size in">
           {[["qty", crypto ? "Qty" : "Shares"], ["usd", "$"]].map(([id, name]) => (
             <button key={id} type="button" aria-pressed={sizeIn === id} onClick={() => setSizeIn(id)}
@@ -236,17 +246,18 @@ export default function ReplayBar({ clock, playing, loading, note, unit, speed, 
         ) : (
           <input className={`${field} w-16`} inputMode="decimal" value={qty} onChange={(e) => setQty(e.target.value.replace(/[^\d.]/g, ""))} aria-label="Practice quantity" />
         )}
+        </>)}
         <input className={`${field} w-20`} inputMode="decimal" value={orderAt} onChange={(e) => setOrderAt(e.target.value.replace(/[^\d.]/g, ""))} aria-label="Practice order price"
           placeholder="at price" title="Blank: at the price now. A price this candle traded at: filled now at that price. Any other price: an order that waits until the replay gets there (a limit, or a stop on the other side)." />
         <button type="button" disabled={!(tradeQty > 0)} onClick={() => { onTrade("buy", tradeQty, Number(orderAt) || null); setOrderAt(""); }} className="rounded bg-emerald-600 px-2 py-0.5 font-semibold text-white hover:bg-emerald-700 disabled:opacity-40">{`Buy${what("buy")}`}</button>
         <button type="button" disabled={!(tradeQty > 0)} onClick={() => { onTrade("sell", tradeQty, Number(orderAt) || null); setOrderAt(""); }} className="rounded bg-rose-600 px-2 py-0.5 font-semibold text-white hover:bg-rose-700 disabled:opacity-40">{`Sell${what("sell")}`}</button>
-        {atNum > 0 && <span className={`text-[10px] ${inCandle ? "text-emerald-700" : "text-amber-700"}`}>{inCandle ? `fills now (this candle ${px(range.low)} to ${px(range.high)})` : `waits until the price gets to ${orderAt}${range ? `; this candle ${px(range.low)} to ${px(range.high)}` : ""}`}</span>}
+        {atNum > 0 && <span className={`text-[10px] ${inCandle ? "text-emerald-700" : "text-amber-700"}`}>{inCandle ? `fills now (this candle ${pxFor(symbol, range.low)} to ${pxFor(symbol, range.high)})` : `waits until the price gets to ${orderAt}${range ? `; this candle ${pxFor(symbol, range.low)} to ${pxFor(symbol, range.high)}` : ""}`}</span>}
         <button type="button" onClick={onFlatten} disabled={!pos} className="rounded border border-amber-400 px-2 py-0.5 hover:bg-amber-100 disabled:opacity-40">Flatten</button>
         <StopField level={acct?.stop} pos={pos} onSet={onStop} />
         <TargetField targets={acct?.targets || []} pos={pos} crypto={crypto} onAdd={onAddTarget} onRemove={onRemoveTarget} />
         <span className="tabular-nums">
-          {pos ? `${pos > 0 ? "Long" : "Short"} ${sizeText(Math.abs(pos))} ${symbol} at ${px(acct.avg)}` : "Flat"}
-          {" · price "}{px(price)}
+          {pos ? `${pos > 0 ? "Long" : "Short"} ${sizeText(Math.abs(pos))} ${symbol} at ${pxFor(symbol, acct.avg)}` : "Flat"}
+          {" · price "}{pxFor(symbol, price)}
         </span>
         {value && <span className="ml-auto tabular-nums" title="The whole practice account, every symbol">Open {pnl(value.unrealized)} · Closed {pnl(value.realized)} · Equity {fmtMoney(value.equity)}{trades ? ` · ${trades} fill${trades === 1 ? "" : "s"}` : ""}</span>}
       </div>

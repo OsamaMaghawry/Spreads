@@ -3,11 +3,34 @@
 // components so every rule is tested (terminal.test.js).
 
 import { overnightAt } from "../../supabase/functions/_shared/usHolidays.js";
+import { FUTURES, formatFuturesPrice } from "../../supabase/functions/_shared/futuresSpecs.js";
 
 // "BTC/USD": a coin and the currency it is priced in, as Alpaca writes it. A
 // symbol with a slash is crypto everywhere in the terminal.
 export const CRYPTO = /^[A-Z0-9]{1,10}\/(USD|USDT|USDC|BTC)$/;
 export const isCrypto = (s) => CRYPTO.test(String(s || ""));
+
+// "/ES": a CME futures contract, practised in the replay only (Alpaca carries
+// none; candles from Databento, supabase/functions/_shared/futuresSpecs.js).
+export const isFutures = (s) => /^\/[A-Z0-9]{1,4}$/.test(String(s || "")) && !!FUTURES[String(s).slice(1)];
+/**
+ * A symbol's market, where the clock and candles differ: true for a coin (UTC
+ * days, always open), "cme" for a futures contract (days are CME trade dates,
+ * from 18:00 New York), false for a share. Truthy wherever a coin and a
+ * contract agree: no regular-hours session, no earnings, no gamma.
+ * @returns {boolean | "cme"}
+ */
+export const marketOf = (s) => (isCrypto(s) ? true : isFutures(s) ? "cme" : false);
+
+/**
+ * The CME trade date a moment belongs to, as its UTC midnight (the stamp of
+ * its daily candle): from 18:00 New York the next date's session has begun.
+ */
+export function cmeDay(sec) {
+  const { day, minutes } = nyClock(sec);
+  const t = Date.parse(`${day}T00:00:00Z`) / 1000;
+  return minutes >= 18 * 60 ? t + 86400 : t;
+}
 
 // Every interval the chart offers, 24 Oct: "from Monthly down to 5 seconds".
 // Seconds candles are built from trades (functions/terminal); the rest are
@@ -101,7 +124,7 @@ export function inRegularHours(time, stepSeconds) {
 }
 
 /** The session a VWAP restarts with: the New York day for shares, the UTC day for coins. */
-export const sessionDay = (sec, crypto) => (crypto ? Math.floor(sec / 86400) : nyClock(sec).day);
+export const sessionDay = (sec, crypto) => (crypto === "cme" ? cmeDay(sec) / 86400 : crypto ? Math.floor(sec / 86400) : nyClock(sec).day);
 
 /**
  * The start of the candle a moment falls in. A share's day, week and month
@@ -109,13 +132,14 @@ export const sessionDay = (sec, crypto) => (crypto ? Math.floor(sec / 86400) : n
  * coin's at midnight UTC, where Alpaca stamps crypto bars (crypto has no
  * session to anchor to). Shorter candles are fixed steps.
  */
-export function bucketStart(sec, interval, crypto = false) {
+export function bucketStart(sec, interval, crypto = /** @type {boolean | "cme"} */ (false)) {
   if (!CALENDAR.has(interval)) {
     const n = secondsOf(interval);
     return Math.floor(sec / n) * n;
   }
   if (crypto) {
-    const day = Math.floor(sec / 86400) * 86400;
+    // A contract's day is its CME trade date, stamped at that date's UTC midnight.
+    const day = crypto === "cme" ? cmeDay(sec) : Math.floor(sec / 86400) * 86400;
     if (interval === "1Day") return day;
     const d = new Date(day * 1000);
     if (interval === "1Week") return day - ((d.getUTCDay() + 6) % 7) * 86400;
@@ -143,7 +167,7 @@ export function bucketStart(sec, interval, crypto = false) {
  * (26 Oct: "Some candles get disappeared after few seconds": a minute of odd
  * lots alone drew a candle the history then did not have).
  */
-export function applyTrade(last, trade, interval, crypto = false) {
+export function applyTrade(last, trade, interval, crypto = /** @type {boolean | "cme"} */ (false)) {
   const price = Number(trade?.price);
   const size = Number(trade?.size) || 0;
   const sec = Math.floor(Date.parse(trade?.at) / 1000);
@@ -265,7 +289,10 @@ export function bookLevels(book, depth = 15) {
 }
 
 /** The chart's price scale for a market: two decimals at a dollar and above, more below. */
-export function priceFormatFor(price) {
+export function priceFormatFor(price, symbol = "") {
+  // A futures contract to its own tick: 6E to five places, ES in quarters.
+  const spec = isFutures(symbol) ? FUTURES[String(symbol).slice(1)] : null;
+  if (spec) return { type: "price", precision: spec.decimals, minMove: spec.tick };
   const p = Math.abs(Number(price)) || 0;
   const precision = p >= 1 ? 2 : p >= 0.01 ? 4 : p >= 0.0001 ? 6 : 8;
   return { type: "price", precision, minMove: 10 ** -precision };
@@ -341,6 +368,8 @@ export const px = (v) => {
   const n = Number(v);
   return n.toFixed(priceFormatFor(n).precision);
 };
+/** A price as its symbol is quoted: a futures contract to its tick (Treasuries in 32nds), anything else as px. */
+export const pxFor = (symbol, v) => (isFutures(symbol) && v !== null && v !== undefined && Number.isFinite(Number(v)) ? formatFuturesPrice(v, FUTURES[String(symbol).slice(1)]) : px(v));
 export const pctText = (v) => (v === null || v === undefined || !Number.isFinite(v) ? "—" : `${v >= 0 ? "+" : ""}${(v * 100).toFixed(2)}%`);
 // Sizes: shares in whole numbers, shortened when large; a coin's fraction to
 // as many places as it has, up to eight.
