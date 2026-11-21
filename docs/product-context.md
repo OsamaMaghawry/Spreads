@@ -200,6 +200,7 @@ revoked from the browser role entirely.
 - **terminal_plays** — id, user_id, code, name, side, timeframe, entry, stop, exit, risk, invalid, notes, archived, created_at, updated_at
 - **terminal_order_marks** — account_id, order_id, user_id, symbol, kind, play_id, stop, at
 - **terminal_trade_reviews** — account_id, trip_key, opened_at, user_id, play_id, play_none, stop, followed, mistakes, notes, updated_at
+- **futures_bars** — root, schema, day, bars, fetched_at
 
 ## Analytics vocabulary
 

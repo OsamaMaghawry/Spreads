@@ -31,6 +31,8 @@ import { closeOf } from "../_shared/gex.js";
 import { openInterestOf, quotesOf, historyChain, historySummary } from "../_shared/gexHistory.ts";
 import { screenSummary, screenUniverse as gexUniverse } from "../_shared/gexScreen.js";
 import { cboeOpenInterest, mergeOpenInterest } from "../_shared/openInterest.ts";
+import { futuresSpec } from "../_shared/futuresSpecs.js";
+import { parseRows, byUtcDay, utcDays, rollUp, sessionDays } from "../_shared/futuresBars.js";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -2812,6 +2814,102 @@ async function replayData(account: any, symbol: string, tf: string, from: string
   return { symbol, tf, feed, bars: [...byTime.values()].map(candle).sort((x, y) => x.time - y.time) };
 }
 
+// ---------- futures practice candles ----------
+//
+// 21 Nov, the owner: "I need to do some training on Futures ... simulate the
+// futures as is even with the contract sizes and points values". Alpaca has
+// no futures, so a "/ES" replay reads Databento's CME data (GLBX.MDP3), the
+// continuous front contract by volume, with the project's DATABENTO_API_KEY
+// (never returned). One-minute candles serve the minutes and the half hours;
+// one-hour candles the daily history, rolled into CME sessions (18:00 New
+// York). Each finished UTC day is kept in futures_bars, so it is bought once;
+// a request that would cost more than FUTURES_MAX_USD is refused before
+// anything is bought.
+
+const FUTURES_MAX_USD = 2;
+const FUTURES_DAYS: Record<string, number> = { "1Min": 45, "30Min": 60, "1Day": 4400 };
+let futuresRange: { at: number; end: number } | null = null;
+
+async function databento(path: string, q: Record<string, string>) {
+  const key = Deno.env.get("DATABENTO_API_KEY");
+  if (!key) throw new Error("No DATABENTO_API_KEY secret on this project yet.");
+  const r = await fetch(`https://hist.databento.com/v0/${path}?${new URLSearchParams(q)}`, { headers: { Authorization: `Basic ${btoa(`${key}:`)}` } });
+  const text = await r.text();
+  if (r.status !== 200) {
+    let msg: any = text.slice(0, 300);
+    try { const j = JSON.parse(text); msg = j?.detail?.message || j?.detail || msg; } catch { /* the body as it came */ }
+    throw new Error(`Databento ${r.status}: ${typeof msg === "string" ? msg : JSON.stringify(msg).slice(0, 300)}`);
+  }
+  return text;
+}
+
+// The newest moment CME data can be read to (Databento's historical end), kept ten minutes.
+async function futuresEnd() {
+  if (futuresRange && Date.now() - futuresRange.at < 600000) return futuresRange.end;
+  const body = JSON.parse(await databento("metadata.get_dataset_range", { dataset: "GLBX.MDP3" }));
+  const end = Date.parse(body?.end || body?.schema?.["ohlcv-1m"]?.end || "");
+  if (!Number.isFinite(end)) throw new Error("Databento did not say how recent its CME data is.");
+  futuresRange = { at: Date.now(), end };
+  return end;
+}
+
+// Candles of one schema between two moments (ms), from the cache where kept and Databento for the rest.
+async function futuresCandles(admin: any, root: string, continuous: string, schema: "1m" | "1h", start: number, end: number) {
+  const days = utcDays(Math.floor(start / 1000), Math.floor((end - 1) / 1000));
+  const { data: kept, error } = await admin.from("futures_bars").select("day, bars").eq("root", root).eq("schema", schema).in("day", days);
+  if (error) throw new Error(error.message);
+  const have = new Map<string, any[]>((kept || []).map((r: any) => [String(r.day).slice(0, 10), r.bars || []]));
+  const missing = days.filter((d) => !have.has(d));
+  if (missing.length) {
+    const from = Math.max(start, Date.parse(`${missing[0]}T00:00:00Z`));
+    const to = Math.min(end, Date.parse(`${missing[missing.length - 1]}T00:00:00Z`) + 86400000);
+    if (from < to) {
+      const q = { dataset: "GLBX.MDP3", symbols: continuous, stype_in: "continuous", schema: `ohlcv-${schema}`, start: new Date(from).toISOString(), end: new Date(to).toISOString() };
+      const usd = Number(await databento("metadata.get_cost", q));
+      if (!(usd <= FUTURES_MAX_USD)) throw new Error(`Those CME candles would cost $${usd.toFixed(2)} from Databento, over the $${FUTURES_MAX_USD} allowed at once. Choose a shorter period.`);
+      const fresh = byUtcDay(parseRows(await databento("timeseries.get_range", { ...q, encoding: "json", pretty_px: "true", pretty_ts: "true" })));
+      const keep: any[] = [];
+      for (const d of missing) {
+        const bars = fresh.get(d) || [];
+        have.set(d, bars);
+        // Only a day wholly read and wholly past is kept: it can no longer change.
+        const dayStart = Date.parse(`${d}T00:00:00Z`);
+        if (dayStart >= from && dayStart + 86400000 <= to) keep.push({ root, schema, day: d, bars, fetched_at: new Date().toISOString() });
+      }
+      if (keep.length) {
+        const { error: e } = await admin.from("futures_bars").upsert(keep, { onConflict: "root,schema,day" });
+        if (e) console.error("futures_bars", e.message);
+      }
+    }
+  }
+  const s = Math.floor(start / 1000);
+  const t = Math.floor(end / 1000);
+  return days.flatMap((d) => have.get(d) || []).filter((c: any) => c.time >= s && c.time < t);
+}
+
+async function futuresReplay(admin: any, symbolIn: string, tf: string, from: string, to: string) {
+  const spec = futuresSpec(symbolIn);
+  if (!spec) return { error: "That is not a futures contract the practice account trades." };
+  if (!FUTURES_DAYS[tf]) return { error: "Replay reads one-minute, half-hour or daily candles." };
+  try {
+    let start = Date.parse(from);
+    const end = Math.min(Date.parse(to), await futuresEnd());
+    const symbol = `/${spec.root}`;
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return { symbol, tf, bars: [] };
+    // Half hours further back than 60 days are left out rather than bought by the minute.
+    if (tf === "30Min") start = Math.max(start, end - FUTURES_DAYS[tf] * 86400000);
+    if (!(start < end)) return { symbol, tf, bars: [] };
+    if (end - start > FUTURES_DAYS[tf] * 86400000) return { error: `At most ${FUTURES_DAYS[tf]} days of candles at a time.` };
+    const schema = tf === "1Day" ? "1h" : "1m";
+    const candles = await futuresCandles(admin, spec.root, spec.continuous, schema, start, end);
+    const bars = tf === "1Day" ? sessionDays(candles) : tf === "30Min" ? rollUp(candles, 1800) : candles;
+    return { symbol, tf, feed: "cme", contract: spec, bars };
+  } catch (e) {
+    return { error: String((e as Error)?.message || e) };
+  }
+}
+
+
 // ---------- news ----------
 //
 // "I want to add news tab per stock I am on or seeing whether Demo or Replay
@@ -3239,6 +3337,11 @@ Deno.serve(async (req) => {
     }
     if (action === "gexHistoryDay") {
       const r = await gexHistoryDay(admin, String(body.symbol || "").toUpperCase(), String(body.day || ""));
+      return jsonResponse(r, (r as any).error ? 400 : 200);
+    }
+    // A futures contract's practice candles ("/ES"): CME data, no account needed.
+    if (action === "replay" && String(body.symbol || "").trim().startsWith("/")) {
+      const r = await futuresReplay(admin, String(body.symbol), String(body.tf || "1Min"), String(body.from || ""), String(body.to || ""));
       return jsonResponse(r, (r as any).error ? 400 : 200);
     }
     if (!accountId) return jsonResponse({ error: "Choose an account." }, 400);

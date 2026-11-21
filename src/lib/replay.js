@@ -17,6 +17,7 @@
 // fetches the candles (functions/terminal "replay") and drives it.
 
 import { bucketStart, nyClock, nyMidnight, px } from "./terminal.js";
+import { futuresSpec, roundToTick } from "../../supabase/functions/_shared/futuresSpecs.js";
 
 const SPAN = { "1Hour": 60, "2Hour": 120, "4Hour": 240 };
 const STEP = { "1Min": 60, "2Min": 120, "3Min": 180, "5Min": 300, "10Min": 600, "15Min": 900, "30Min": 1800, "1Hour": 3600, "2Hour": 7200, "4Hour": 14400 };
@@ -208,8 +209,30 @@ export const isCalendar = (unit) => CALENDAR.has(unit);
 
 export const PRACTICE_CASH = 100000;
 
-/** One symbol's practice account. In a book of several, each starts with no cash of its own (see bookValue). */
-export const newPractice = (cash = PRACTICE_CASH) => ({ cash, qty: 0, avg: 0, realized: 0, trades: [], stop: null, targets: [], orders: [], seq: 0 });
+/**
+ * The futures contract a practice symbol names, or null for a share or a coin.
+ * Futures are written with a leading slash ("/ES", "/MNQ"), so they can never
+ * be taken for a share with the same letters (ES is also a stock).
+ */
+export const contractOf = (symbol) => (String(symbol || "").startsWith("/") ? futuresSpec(symbol) : null);
+
+/**
+ * One symbol's practice account. In a book of several, each starts with no
+ * cash of its own (see bookValue). A futures contract's account carries its
+ * size: `mult` dollars per point, `tick` its price step and `fee` the
+ * commission per contract per side, so every figure below is in dollars.
+ * A share's has none of the three and counts as before.
+ */
+export const newPractice = (cash = PRACTICE_CASH, contract = null) => ({
+  cash, qty: 0, avg: 0, realized: 0, trades: [], stop: null, targets: [], orders: [], seq: 0,
+  ...(contract ? { mult: contract.pointValue, tick: contract.tick, fee: contract.commission, root: contract.root } : {})
+});
+
+// Dollars per point: a contract's multiplier, 1 for a share or a coin.
+const multOf = (acct) => acct?.mult || 1;
+// The same contract terms on a fresh account, for a rebuild from fills.
+const termsOf = (acct) => (acct?.mult ? { mult: acct.mult, tick: acct.tick, fee: acct.fee, root: acct.root } : {});
+const cents = (x) => Math.round(x * 100) / 100 || 0;
 
 /**
  * A practice fill: buying adds to a long or covers a short, selling the
@@ -220,6 +243,10 @@ export const newPractice = (cash = PRACTICE_CASH) => ({ cash, qty: 0, avg: 0, re
 export function practiceFill(acct, { side, qty, price, time, why = "", range = null, was = null, orderId = null }) {
   const n = Number(qty);
   if (!(n > 0) || !(price > 0)) return acct;
+  const mult = multOf(acct);
+  // A contract trades on its tick grid and pays its commission on every fill.
+  if (acct.tick) price = roundToTick(price, { tick: acct.tick, decimals: decimalsOf(acct.tick) });
+  const fee = acct.mult ? cents((acct.fee || 0) * n) : 0;
   const signed = side === "buy" ? n : -n;
   let { qty: q, avg, realized } = acct;
   const before = Math.sign(q);
@@ -228,17 +255,20 @@ export function practiceFill(acct, { side, qty, price, time, why = "", range = n
     q += signed;
   } else {
     const closing = Math.min(Math.abs(q), n);
-    realized += closing * (price - avg) * Math.sign(q);
+    realized += closing * (price - avg) * Math.sign(q) * mult;
     q += signed;
     if (Math.abs(q) < 1e-9) { q = 0; avg = 0; } else if (Math.sign(q) === Math.sign(signed)) avg = price;
   }
+  realized -= fee;
+  let cash = acct.cash - signed * price * mult - fee;
+  if (acct.mult) { realized = cents(realized); cash = cents(cash); }
   const keep = q !== 0 && Math.sign(q) === before;
   return {
-    ...acct, qty: q, avg, realized, cash: acct.cash - signed * price,
+    ...acct, qty: q, avg, realized, cash,
     // `range`: the low and high of the candle it was made in (the prices it
     // may be changed to); `was`: the price it first filled at, once changed.
     // `orderId`: the broker's order a real fill came from (the Playbook's tag, lib/playbook.js).
-    trades: [...acct.trades, { side, qty: n, price, time, why, ...(range ? { range } : {}), ...(was ? { was } : {}), ...(orderId ? { orderId } : {}) }],
+    trades: [...acct.trades, { side, qty: n, price, time, why, ...(fee ? { fee } : {}), ...(range ? { range } : {}), ...(was ? { was } : {}), ...(orderId ? { orderId } : {}) }],
     stop: keep ? acct.stop : null, targets: keep ? acct.targets : []
   };
 }
@@ -252,11 +282,12 @@ export function practiceFill(acct, { side, qty, price, time, why = "", range = n
  * `acct.trades`.
  */
 // The cash an account started with, before its fills.
-const startCash = (acct) => acct.trades.reduce((c, t) => c + (t.side === "buy" ? 1 : -1) * t.qty * t.price, acct.cash);
+const startCash = (acct) => acct.trades.reduce((c, t) => c + (t.side === "buy" ? 1 : -1) * t.qty * t.price * multOf(acct) + (t.fee || 0), acct.cash);
+const decimalsOf = (tick) => (String(tick).split(".")[1] || "").length;
 
 export function cancelFill(acct, index) {
   if (!acct || !(index >= 0 && index < acct.trades.length)) return acct;
-  let out = { ...newPractice(startCash(acct)), seq: acct.seq || 0 };
+  let out = { ...newPractice(startCash(acct)), ...termsOf(acct), seq: acct.seq || 0 };
   acct.trades.forEach((t, i) => { if (i !== index) out = practiceFill(out, t); });
   const same = out.qty !== 0 && Math.sign(out.qty) === Math.sign(acct.qty);
   return { ...out, stop: same ? acct.stop : null, targets: same ? acct.targets : [], orders: acct.orders || [] };
@@ -273,7 +304,7 @@ export function repriceFill(acct, index, price) {
   const t = acct?.trades?.[index];
   if (!t) return { acct, reason: "That fill is not there any more." };
   if (!(price > 0)) return { acct, reason: "Enter a price." };
-  let out = { ...newPractice(startCash(acct)), seq: acct.seq || 0 };
+  let out = { ...newPractice(startCash(acct)), ...termsOf(acct), seq: acct.seq || 0 };
   acct.trades.forEach((x, i) => { out = practiceFill(out, i === index ? { ...x, price, was: Math.abs(price - (x.was ?? x.price)) < 1e-9 ? null : (x.was ?? x.price) } : x); });
   const same = out.qty !== 0 && Math.sign(out.qty) === Math.sign(acct.qty);
   return { acct: { ...out, stop: same ? acct.stop : null, targets: same ? acct.targets : [], orders: acct.orders || [] } };
@@ -313,8 +344,9 @@ export function triggerOrders(acct, m) {
 
 /** Equity, open profit and loss, and the position's value at a price. */
 export function practiceValue(acct, price) {
-  const unrealized = acct.qty && price ? (price - acct.avg) * acct.qty : 0;
-  return { equity: acct.cash + acct.qty * (price || 0), unrealized, realized: acct.realized };
+  const mult = multOf(acct);
+  const unrealized = acct.qty && price ? (price - acct.avg) * acct.qty * mult : 0;
+  return { equity: acct.cash + acct.qty * (price || 0) * mult, unrealized, realized: acct.realized };
 }
 
 /**
@@ -435,7 +467,7 @@ export function targetSize(text, position, crypto) {
 // from no cash; the book adds them up over the one practice balance.
 
 /** A symbol's account in the book, or a fresh one. */
-export const acctIn = (book, symbol) => book[symbol] || newPractice(0);
+export const acctIn = (book, symbol) => book[symbol] || newPractice(0, contractOf(symbol));
 
 /** Equity, cash, open and closed profit across the book, at each symbol's price (`priceOf`); a symbol without one counts at cost. */
 export function bookValue(book, priceOf) {
@@ -446,8 +478,8 @@ export function bookValue(book, priceOf) {
   for (const [symbol, a] of Object.entries(book)) {
     const p = a.qty ? priceOf(symbol) : null;
     cash += a.cash;
-    held += a.qty * (p || a.avg);
-    if (p) unrealized += (p - a.avg) * a.qty;
+    held += a.qty * (p || a.avg) * multOf(a);
+    if (p) unrealized += (p - a.avg) * a.qty * multOf(a);
     realized += a.realized;
   }
   return { equity: cash + held, cash, unrealized, realized };
@@ -467,7 +499,7 @@ export function bookValue(book, priceOf) {
  * on the closing fills: "stop", "target", a hotkey, or "" for by hand). The
  * last may still be open.
  */
-export function roundTrips(trades) {
+export function roundTrips(trades, mult = 1) {
   const out = [];
   let q = 0;
   let avg = 0;
@@ -487,7 +519,7 @@ export function roundTrips(trades) {
     out.push({
       side: trip.side, entryTime: trip.entryTime, exitTime: open ? null : trip.exitTime, open, size: trip.maxSize,
       avgEntry, avgExit: trip.exitQty ? trip.exitValue / trip.exitQty : null, closedQty: trip.exitQty,
-      realized: trip.realized, returnPct: trip.exitQty ? trip.realized / (avgEntry * trip.exitQty) : null,
+      realized: mult === 1 ? trip.realized : cents(trip.realized), returnPct: trip.exitQty ? trip.realized / (avgEntry * trip.exitQty * mult) : null,
       fills: trip.fills, closedBy: [...new Set(trip.closedBy)],
       // The order of the fill that opened it (a real account's), and whether it
       // was held from before the period rather than opened in it.
@@ -500,7 +532,9 @@ export function roundTrips(trades) {
     const n = Number(t.qty);
     if (!(n > 0) || !(t.price > 0)) continue;
     const sign = t.side === "buy" ? 1 : -1;
-    if (!trip) { begin(sign, t, n); continue; }
+    if (!trip) { begin(sign, t, n); trip.realized -= t.fee || 0; continue; }
+    // A contract's commission is taken from the trip it was paid in.
+    trip.realized -= t.fee || 0;
     if (Math.sign(q) === sign) {
       avg = (avg * Math.abs(q) + t.price * n) / (Math.abs(q) + n);
       q += sign * n;
@@ -512,7 +546,7 @@ export function roundTrips(trades) {
       continue;
     }
     const closing = Math.min(Math.abs(q), n);
-    trip.realized += closing * (t.price - avg) * Math.sign(q);
+    trip.realized += closing * (t.price - avg) * Math.sign(q) * mult;
     trip.exitQty += closing;
     trip.exitValue += closing * t.price;
     trip.exitTime = t.time;
@@ -532,7 +566,7 @@ export function roundTrips(trades) {
 
 /** Every symbol's round trips in the book, with the symbol, in the order they opened. */
 export const bookTrips = (book) => Object.entries(book)
-  .flatMap(([symbol, a]) => roundTrips(a.trades).map((t) => ({ ...t, symbol })))
+  .flatMap(([symbol, a]) => roundTrips(a.trades, multOf(a)).map((t) => ({ ...t, symbol })))
   .sort((x, y) => x.entryTime - y.entryTime);
 
 /**

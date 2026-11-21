@@ -24,7 +24,7 @@ function nthWeekday(y, m, weekday, n) {
 }
 
 /** Easter Sunday (the Gregorian computus): [month, day]. */
-function easter(y) {
+export function easter(y) {
   const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4;
   const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
   const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
@@ -34,7 +34,7 @@ function easter(y) {
 }
 
 /** A fixed-date holiday moved off the weekend: "YYYY-MM-DD", or null when not kept. */
-function observed(y, m, d, keepSaturday = true) {
+export function observed(y, m, d, keepSaturday = true) {
   const w = weekdayOf(y, m, d);
   if (w === 6 && !keepSaturday) return null;
   const t = new Date(Date.UTC(y, m - 1, d + (w === 6 ? -1 : w === 0 ? 1 : 0)));
