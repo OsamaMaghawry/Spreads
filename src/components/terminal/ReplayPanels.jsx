@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
 import { px, sizeText, isCrypto } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
-import { bookValue, bookTrips, tradeStats, replayDate } from "@/lib/replay";
+import { bookValue, bookTrips, tradeStats, replayDate, practiceValue } from "@/lib/replay";
 import { demoBook, periodStart, customPeriod, customBounds, tradingDay } from "@/lib/demoTrades";
 import useAccountSetting from "./useAccountSetting";
 
@@ -57,7 +57,7 @@ export function PracticePositions({ book, priceOf, ended = false, onPick, onFlat
           <tbody>
             {rows.map(([s, a]) => {
               const last = priceOf(s);
-              const open = a.qty && last ? (last - a.avg) * a.qty : 0;
+              const open = a.qty && last ? practiceValue(a, last).unrealized : 0;
               return (
                 <tr key={s} className="border-t border-slate-100 hover:bg-slate-50">
                   <td className="px-2 py-1"><button type="button" className="font-semibold hover:underline" onClick={() => onPick?.(s)}>{s}</button></td>

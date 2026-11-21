@@ -80,3 +80,13 @@ test("full closures: New Year's Day, Good Friday and Christmas", () => {
   // Thanksgiving trades with an early halt; the clock alone keeps it open and the bars decide.
   assert.equal(cmeTradeDate("2026-11-26", 10 * 60), "2026-11-26");
 });
+
+test("prices are shown as each contract is quoted", async () => {
+  const { formatFuturesPrice } = await import("../../supabase/functions/_shared/futuresSpecs.js");
+  assert.equal(formatFuturesPrice(1.08505, FUTURES["6E"]), "1.08505");
+  assert.equal(formatFuturesPrice(5000.25, FUTURES.ES), "5000.25");
+  assert.equal(formatFuturesPrice(70.1, FUTURES.CL), "70.10");
+  assert.equal(formatFuturesPrice(110.015625, FUTURES.ZN), "110'00.5");
+  assert.equal(formatFuturesPrice(110.5, FUTURES.ZN), "110'16");
+  assert.equal(formatFuturesPrice(108.0078125, FUTURES.ZF), "108'00.25");
+});

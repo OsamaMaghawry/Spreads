@@ -49,10 +49,10 @@ test("commission is charged on every fill, and a scale-in averages", () => {
   a = fill(a, "buy", 1, 70.2);
   a = fill(a, "sell", 2, 70.3, 3);
   // avg 70.10, +0.20 x $1000 x 2 = $400, less 4 sides x $2
-  assert.equal(a.realized, 392);
+  near(a.realized, 392);
   const trips = bookTrips({ "/CL": a });
   assert.equal(trips.length, 1);
-  assert.equal(trips[0].realized, 392);
+  near(trips[0].realized, 392);
   assert.equal(trips[0].symbol, "/CL");
 });
 
@@ -76,4 +76,43 @@ test("a share account is untouched: no multiplier, no commission", () => {
   assert.equal(a.realized, 10);
   assert.equal(a.cash, 10);
   assert.equal(a.trades[0].fee, undefined);
+});
+
+const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-6, `${msg ?? ""} ${a} vs ${b}`);
+
+test("one-tick ZN trips add up exactly, with no rounding drift", () => {
+  let a = { ...acctIn({}, "/ZN"), fee: 0 };
+  for (let i = 0; i < 10; i++) {
+    a = fill(a, "buy", 1, 110, 2 * i);
+    a = fill(a, "sell", 1, 110.015625, 2 * i + 1);
+  }
+  near(a.realized, 156.25); // 10 x $15.625
+  const trips = roundTrips(a.trades, a.mult);
+  near(trips.reduce((s, t) => s + t.realized, 0), 156.25);
+});
+
+test("a fill that turns the position round splits its commission between the two trips", () => {
+  let a = { ...acctIn({}, "/ES"), fee: 2 };
+  a = fill(a, "buy", 1, 5000, 1);
+  a = fill(a, "sell", 3, 5001, 2); // closes 1, opens 2 short: $6 commission, $2 to the first trip, $4 to the second
+  a = fill(a, "buy", 2, 5001, 3);
+  const [first, second] = roundTrips(a.trades, a.mult);
+  near(first.realized, 50 - 2 - 2); // +1 point, its open and its share of the flip
+  near(second.realized, 0 - 4 - 4);
+  near(first.realized + second.realized, a.realized);
+});
+
+test("a futures trip shows its move in points, not a return on notional", () => {
+  let a = { ...acctIn({}, "/ES"), fee: 2 };
+  a = fill(a, "sell", 2, 5010, 1);
+  a = fill(a, "buy", 2, 5000, 2);
+  const [t] = roundTrips(a.trades, a.mult);
+  assert.equal(t.returnPct, null);
+  assert.equal(t.points, 10); // a short, the right way round
+  near(t.realized, 1000 - 8);
+});
+
+test("a challenge's book starts at its account size", () => {
+  const a = fill({ ...acctIn({}, "/MES"), fee: 0 }, "buy", 1, 5000);
+  assert.equal(bookValue({ "/MES": a }, () => 5010, 40000).equity, 40050);
 });

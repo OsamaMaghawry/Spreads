@@ -178,3 +178,19 @@ export function cmeTradeDate(day, minutes) {
 
 /** Whether Globex is open at a New York date and minute. */
 export const cmeOpenAt = (day, minutes) => cmeTradeDate(day, minutes) !== null;
+
+/**
+ * A contract's price as it is quoted: to its tick's decimals (6E 1.08505,
+ * not 1.09), and Treasuries in 32nds ("110'00.5" for 110 and half a 32nd).
+ */
+export function formatFuturesPrice(price, s) {
+  const p = Number(price);
+  if (!Number.isFinite(p)) return "—";
+  if (s.group === "Interest rates") {
+    const whole = Math.floor(p + 1e-9);
+    const t32 = Math.round((p - whole) * 32 * 8) / 8; // to an eighth of a 32nd
+    const [i, f] = String(t32).split(".");
+    return `${whole}'${i.padStart(2, "0")}${f ? `.${f}` : ""}`;
+  }
+  return p.toFixed(s.decimals);
+}

@@ -261,7 +261,6 @@ export function practiceFill(acct, { side, qty, price, time, why = "", range = n
   }
   realized -= fee;
   let cash = acct.cash - signed * price * mult - fee;
-  if (acct.mult) { realized = cents(realized); cash = cents(cash); }
   const keep = q !== 0 && Math.sign(q) === before;
   return {
     ...acct, qty: q, avg, realized, cash,
@@ -470,8 +469,8 @@ export function targetSize(text, position, crypto) {
 export const acctIn = (book, symbol) => book[symbol] || newPractice(0, contractOf(symbol));
 
 /** Equity, cash, open and closed profit across the book, at each symbol's price (`priceOf`); a symbol without one counts at cost. */
-export function bookValue(book, priceOf) {
-  let cash = PRACTICE_CASH;
+export function bookValue(book, priceOf, start = PRACTICE_CASH) {
+  let cash = start;
   let held = 0;
   let unrealized = 0;
   let realized = 0;
@@ -519,7 +518,11 @@ export function roundTrips(trades, mult = 1) {
     out.push({
       side: trip.side, entryTime: trip.entryTime, exitTime: open ? null : trip.exitTime, open, size: trip.maxSize,
       avgEntry, avgExit: trip.exitQty ? trip.exitValue / trip.exitQty : null, closedQty: trip.exitQty,
-      realized: mult === 1 ? trip.realized : cents(trip.realized), returnPct: trip.exitQty ? trip.realized / (avgEntry * trip.exitQty * mult) : null,
+      // A contract's return on its notional value means nothing to a futures
+      // trader: it has none, and `points` (the average exit against the
+      // average entry, per contract, the right way round) instead.
+      realized: trip.realized, returnPct: trip.exitQty && mult === 1 ? trip.realized / (avgEntry * trip.exitQty) : null,
+      ...(mult === 1 ? {} : { points: trip.exitQty ? (trip.exitValue / trip.exitQty - avgEntry) * (trip.side === "long" ? 1 : -1) : null }),
       fills: trip.fills, closedBy: [...new Set(trip.closedBy)],
       // The order of the fill that opened it (a real account's), and whether it
       // was held from before the period rather than opened in it.
@@ -532,10 +535,12 @@ export function roundTrips(trades, mult = 1) {
     const n = Number(t.qty);
     if (!(n > 0) || !(t.price > 0)) continue;
     const sign = t.side === "buy" ? 1 : -1;
-    if (!trip) { begin(sign, t, n); trip.realized -= t.fee || 0; continue; }
-    // A contract's commission is taken from the trip it was paid in.
-    trip.realized -= t.fee || 0;
+    // A contract's commission is charged to the trip it was paid in; a fill
+    // that turns the position round pays it in proportion to each side.
+    const fee = Number(t.fee) || 0;
+    if (!trip) { begin(sign, t, n); trip.realized -= fee; continue; }
     if (Math.sign(q) === sign) {
+      trip.realized -= fee;
       avg = (avg * Math.abs(q) + t.price * n) / (Math.abs(q) + n);
       q += sign * n;
       trip.entryQty += n;
@@ -546,7 +551,7 @@ export function roundTrips(trades, mult = 1) {
       continue;
     }
     const closing = Math.min(Math.abs(q), n);
-    trip.realized += closing * (t.price - avg) * Math.sign(q) * mult;
+    trip.realized += closing * (t.price - avg) * Math.sign(q) * mult - fee * closing / n;
     trip.exitQty += closing;
     trip.exitValue += closing * t.price;
     trip.exitTime = t.time;
@@ -558,6 +563,7 @@ export function roundTrips(trades, mult = 1) {
       const rest = Math.abs(q);
       finish(false);
       begin(sign, t, rest);
+      trip.realized -= fee * rest / n;
     }
   }
   if (trip) finish(true);
