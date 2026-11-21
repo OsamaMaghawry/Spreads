@@ -86,6 +86,14 @@ staging.
   - **still to check:** one real day each of ES, 6J, ZN and LE, read through
     staging, matched against CME's quoted units (from `futures_bars` once
     the owner has opened a futures replay).
+  - **Nothing in the replay is held back from the owner** (21 Nov: "Who
+    told you to disallow the price change or cancelling the order while am
+    testing ... Who told you to do this by yourself?!!"). Reviewers had
+    suggested freezing fills, refusing step back and long jumps in a
+    challenge; that was applied without asking and is removed. Fills are
+    repriced and cancelled freely; the challenge is worked out again from
+    the fills (`rebuildChallenge`). Never restrict the replay without his
+    say, whatever a review recommends: put it to him as a question.
   - Known, not blocking: stop and target hotkeys use share-style distances in
     points on a contract; several orders filling in one minute past the
     contract limit cancel every order on that symbol; a share traded in a

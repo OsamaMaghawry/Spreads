@@ -138,6 +138,7 @@ function ChallengeView({ settings, onSettings, now, replaying, rules }) {
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${tone}`}>{{ active: "Active", locked: "Locked for the day", failed: "Failed", passed: "Passed" }[s.status]}{now.ended ? " · replay ended" : ""}</span>
       </div>
       {s.why && s.status !== "active" && <p className="text-xs text-slate-700">{s.why}</p>}
+      {s.rebuilt && <p className="text-[11px] text-slate-500">Worked out again from your fills after an edit.</p>}
       {s.status === "active" && profit >= r.profitTarget && !goal.met && <p className="text-xs text-slate-700">{goal.why}</p>}
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded bg-slate-50 p-2"><div className="text-[11px] text-slate-500">Balance (closed)</div><div className="text-sm font-semibold tabular-nums">{fmtMoney(f.balance)}</div></div>
@@ -159,7 +160,7 @@ function ChallengeView({ settings, onSettings, now, replaying, rules }) {
         <div className="flex justify-between"><dt className="text-slate-500">Commission per side</dt><dd>{terms.feeFull || terms.feeMicro ? `${fmtMoney(terms.feeFull)} full-size, ${fmtMoney(terms.feeMicro)} micro` : "none set: figures are before commission"}</dd></div>
         <div className="flex justify-between"><dt className="text-slate-500">Consistency</dt><dd>{r.consistencyPct ? `best day at most ${r.consistencyPct}% of the ${r.consistencyBase === "target" ? "target" : "profit"}` : "off"}</dd></div>
       </dl>
-      <p className="text-[11px] text-slate-500">Checked every minute at that minute&apos;s worst price for what you hold; a breach with one contract held closes it where the limit was crossed (at the open when the minute opened through it); with several, or a closed-only daily limit, each closes at the minute&apos;s worst price, which can land below the limit. Inside one minute the order of high and low is unknown: an intraday floor raised by the minute&apos;s high applies from its close. Rules as they were when this replay started; a contract&apos;s commission is fixed at its first fill. Fills cannot be changed during a challenge. Practice only.</p>
+      <p className="text-[11px] text-slate-500">Checked every minute at that minute&apos;s worst price for what you hold; a breach with one contract held closes it where the limit was crossed (at the open when the minute opened through it); with several, or a closed-only daily limit, each closes at the minute&apos;s worst price, which can land below the limit. Inside one minute the order of high and low is unknown: an intraday floor raised by the minute&apos;s high applies from its close. Rules as they were when this replay started; a contract&apos;s commission is fixed at its first fill. Repricing or cancelling a fill, or going back, works the challenge out again from your fills (closed results; open profit is followed again from the next minute). Practice only.</p>
     </div>
   );
 }

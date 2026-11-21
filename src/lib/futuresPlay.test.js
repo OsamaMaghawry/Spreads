@@ -153,3 +153,29 @@ test("an intraday floor raised inside a minute does not fail that minute's own l
   const low = playFutures({ book: { "/ES": long("/ES", 1, 5000) }, minutes: { "/ES": [bar("2026-11-24T15:00:00Z", 5000, 5040, 5000, 5005)] }, challenge: { rules: r, state: newChallenge(r) } });
   assert.equal(low.challenge.state.status, "failed");
 });
+
+test("the challenge worked out again from edited fills", async () => {
+  const { rebuildChallenge } = await import("./futuresPlay.js");
+  const { repriceFill, cancelFill } = await import("./replay.js");
+  const r = rules({ minDays: 1 });
+  // Bought 5000, sold 4990 by hand: -$500.
+  let a = practiceFill(long("/ES", 1, 5000), { side: "sell", qty: 1, price: 4990, time: t("2026-11-24T15:10:00Z") });
+  let ch = rebuildChallenge(r, { "/ES": a });
+  assert.equal(ch.state.balance, 39500);
+  assert.equal(ch.state.days["2026-11-24"].traded, true);
+  // The sale repriced to 5050 (the candle missed): +$2,500, the target reached in one day.
+  a = repriceFill(a, 1, 5050).acct;
+  ch = rebuildChallenge(r, { "/ES": a });
+  assert.equal(ch.state.balance, 42500);
+  assert.equal(ch.state.status, "passed");
+  assert.equal(ch.state.rebuilt, true);
+  // A losing day that locked: cancelling its fill clears the lock.
+  let b = practiceFill(long("/ES", 1, 5000), { side: "sell", qty: 1, price: 4980, time: t("2026-11-24T15:10:00Z") }); // -$1,000 > $800 limit
+  assert.equal(rebuildChallenge(r, { "/ES": b }).state.status, "locked");
+  b = cancelFill(b, 1);
+  const c = rebuildChallenge(r, { "/ES": b });
+  assert.equal(c.state.status, "active");
+  // Only the fills up to a moment: after a step back.
+  const upTo = rebuildChallenge(r, { "/ES": a }, t("2026-11-24T15:00:00Z"));
+  assert.equal(upTo.state.balance, 40000);
+});

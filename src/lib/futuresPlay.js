@@ -17,7 +17,7 @@
 // Pure and tested (futuresPlay.test.js); components/terminal/useReplay.js drives it.
 
 import { practiceRoll, practiceFill, triggerExits, triggerOrders, contractOf } from "./replay.js";
-import { challengeStep, heldContracts, noteTraded } from "./propRules.js";
+import { challengeStep, heldContracts, noteTraded, newChallenge } from "./propRules.js";
 import { cmeTradeDate } from "../../supabase/functions/_shared/futuresSpecs.js";
 import { nyClock } from "./terminal.js";
 
@@ -156,3 +156,44 @@ export function playFutures({ book, minutes, prev = {}, challenge = null }) {
   }
   return { book: out, challenge: ch, events };
 }
+
+/**
+ * The challenge worked out again from the fills (21 Nov, the owner: fills are
+ * repriced and cancelled while practising, "if I missed a candle in the buy
+ * or sell, all challenge is not accurate"): from its start, every futures
+ * fill up to `upTo` in time order, the challenge stepped after each on its
+ * CME trade date with the closed balance and the contracts then held. Closed
+ * results only: a dip in open profit before the edit is not replayed; play
+ * goes on with open profit from the next minute.
+ */
+export function rebuildChallenge(rules, book, upTo = Infinity) {
+  const events = [];
+  for (const [symbol, acct] of Object.entries(book)) {
+    if (!contractOf(symbol)) continue;
+    let a = { ...newPracticeLike(acct) };
+    for (const t of acct.trades) {
+      if (!(t.time <= upTo)) break;
+      const before = a.realized;
+      a = practiceFill(a, t);
+      events.push({ time: t.time, symbol, root: contractOf(symbol).root, change: a.realized - before, qty: a.qty, traded: t.why !== "roll" });
+    }
+  }
+  events.sort((x, y) => x.time - y.time);
+  let state = newChallenge(rules);
+  let balance = rules.accountSize;
+  const held = {};
+  for (const e of events) {
+    balance += e.change;
+    held[e.root] = e.qty;
+    const { day, minutes } = nyClock(e.time);
+    const date = cmeTradeDate(day, minutes) || state.day;
+    if (!date) continue;
+    if (e.traded) state = noteTraded(state, date);
+    const contracts = heldContracts(Object.entries(held).filter(([, q]) => q).map(([root, qty]) => ({ root, qty })), rules);
+    state = challengeStep(state, rules, { day: date, minutes, balance, equity: balance, worstEquity: balance, bestEquity: balance, contracts, traded: e.traded }).state;
+  }
+  return { rules, state: { ...state, rebuilt: true } };
+}
+
+// A fresh account with the same contract terms (size, tick, commission).
+const newPracticeLike = (acct) => ({ cash: 0, qty: 0, avg: 0, realized: 0, trades: [], stop: null, targets: [], orders: [], seq: 0, mult: acct.mult, tick: acct.tick, decimals: acct.decimals, fee: acct.fee, root: acct.root });

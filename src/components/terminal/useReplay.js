@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { savePref, flushPrefs, readPrefs } from "@/lib/terminalPrefs";
 import { marketOf, nyClock, pxFor, sizeText } from "@/lib/terminal";
-import { playFutures, futuresFigures, noteFill } from "@/lib/futuresPlay";
+import { playFutures, futuresFigures, noteFill, rebuildChallenge } from "@/lib/futuresPlay";
 import { canOrder, heldContracts, newChallenge } from "@/lib/propRules";
 import { hotkeyOrder } from "@/lib/hotkeys";
 import {
@@ -39,9 +39,6 @@ const latest = () => Math.floor(Date.now() / 1000) - 16 * 60;
 // leaving it or the page. Every one is kept until deleted by hand.
 const SAVE_EVERY_MS = 2000;
 const dayWords = (date) => new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" });
-
-// Going back would undo a challenge's record (a lock, a roll, a trailed floor).
-const backNote = "A challenge only moves forward, as the market does: no stepping or jumping back. Start over to replay it from the beginning.";
 
 // A challenge's practice account starts at its account size.
 const startOf = (r) => r?.challenge?.rules?.accountSize || PRACTICE_CASH;
@@ -373,14 +370,11 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
     const tradedNow = (r, symbol) => {
       if (r?.challenge && contractOf(symbol)) patch({ challenge: noteFill(ref.current.challenge, r.cursor - 1) });
     };
-    // A challenge's record is the trades as they happened: a contract's fill
-    // in a challenge replay cannot be repriced or taken back, as at a firm.
-    const frozen = (symbol) => {
-      const ch = ref.current ? ref.current.challenge : lastRef.current?.challenge;
-      if (!ch || !contractOf(symbol)) return false;
-      say({ key: "rpfrozen", tone: "bad", title: "Not changed: this replay runs a challenge", detail: "A challenge's fills are its record, as at a firm: they cannot be repriced or cancelled. Start a replay without the challenge to practise freely." });
-      return true;
-    };
+    // A challenge worked out again from the fills (lib/futuresPlay
+    // rebuildChallenge), after a fill is repriced or cancelled, or the replay
+    // goes back (21 Nov, the owner: fills are changed while practising, and
+    // nothing in the replay is held back from him; never block these).
+    const rebuilt = (challenge, book, upTo = Infinity) => (challenge ? rebuildChallenge(challenge.rules, book, upTo) : null);
     // A symbol's practice account, a futures contract's new one with the
     // commission set in the Futures settings (none when left blank).
     const acctFor = (book, symbol) => {
@@ -600,9 +594,6 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
         // A contract held plays through too: its rolls and the challenge's rules act on the way.
         const exits = Object.entries(r.book).some(([s, a]) => (a.qty && (a.stop || a.targets.length || contractOf(s))) || a.orders?.length);
         // A challenge only moves forward, and only as far as it can be played through.
-        const futuresHeld = Object.entries(r.book).some(([s, a]) => contractOf(s) && (a.qty || a.orders?.length));
-        if (r.challenge && t < r.cursor) { patch({ note: backNote }); return; }
-        if ((r.challenge || futuresHeld) && t - r.cursor > 62 * DAY) { patch({ note: "A futures position or a challenge is played through minute by minute: jump at most two months ahead at a time." }); return; }
         patch({ playing: false, at, end, note: null });
         try {
           if (t > r.cursor && exits && t - r.cursor <= 62 * DAY) {
@@ -611,6 +602,8 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
             if (token === moveSeq) patch({ moveId: (ref.current?.moveId || 0) + 1, note: null });
           } else {
             rewind(t);
+            // Back: the challenge as it stood at the new moment, from the fills before it.
+            if (t < r.cursor && r.challenge) patch({ challenge: rebuilt(r.challenge, r.book, t) });
             if (t < r.cursor && Object.keys(r.book).length) patch({ note: "Went back: the practice account keeps its trades." });
             else if (t > r.cursor && exits) patch({ note: "Jumped more than two months: your practice stop and take-profits were not played through." });
           }
@@ -625,7 +618,6 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
       async stepBack() {
         const r = ref.current;
         if (!r || stepping) return false;
-        if (r.challenge) { patch({ note: backNote }); return false; }
         stepping = true;
         try {
           const symbol = active.symbol || tracked()[0];
@@ -640,6 +632,7 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
           move();
           patch({ playing: false });
           rewind(t);
+          if (r.challenge) patch({ challenge: rebuilt(r.challenge, r.book, t) });
           patch({ note: Object.keys(r.book).length ? "One candle back: the practice account keeps its trades." : null });
           return true;
         } catch (e) {
@@ -701,7 +694,6 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
       // repriceFill): in the replay running, or the last one left and its
       // saved copy.
       repriceFill(symbol, index, price) {
-        if (frozen(symbol)) return false;
         const r = ref.current;
         const book = r ? r.book : lastRef.current?.book;
         if (!book?.[symbol]) return false;
@@ -709,10 +701,14 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
         if (out.reason) { say({ key: "rpre", tone: "bad", title: "Price not changed", detail: out.reason }); return false; }
         const t = book[symbol].trades[index];
         say({ key: `rpre${symbol}${t.time}`, tone: "ok", title: `${symbol}: practice ${t.side === "buy" ? "buy" : "sale"} now at ${pxFor(symbol, price)}`, detail: `Was ${pxFor(symbol, t.was ?? t.price)}. The position, P&L and statistics follow.` });
-        if (r) { patch({ book: { ...r.book, [symbol]: out.acct } }); return true; }
+        if (r) {
+          const nextBook = { ...r.book, [symbol]: out.acct };
+          patch({ book: nextBook, ...(r.challenge && contractOf(symbol) ? { challenge: rebuilt(r.challenge, nextBook) } : {}) });
+          return true;
+        }
         const was = lastRef.current;
         const nextBook = { ...was.book, [symbol]: out.acct };
-        setLast({ ...was, book: nextBook });
+        setLast({ ...was, book: nextBook, ...(was.challenge && contractOf(symbol) ? { challenge: rebuilt(was.challenge, nextBook) } : {}) });
         const kept = (savedRef.current || []).find((k) => k.id === was.id);
         if (kept) {
           const value = bookValue(nextBook, (s) => was.prices[s] ?? null, startOf(was));
@@ -758,20 +754,20 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
       // A practice fill taken back (lib/replay cancelFill): from the replay
       // running, or from the last one left, and from the replay as saved.
       cancelFill(symbol, index) {
-        if (frozen(symbol)) return;
         const r = ref.current;
         if (r) {
           const acct = acctFor(r.book, symbol);
           const t = acct.trades[index];
           if (!t) return;
-          patch({ book: { ...r.book, [symbol]: cancelFill(acct, index) }, cancelled: (r.cancelled || 0) + 1 });
+          const nextBook = { ...r.book, [symbol]: cancelFill(acct, index) };
+          patch({ book: nextBook, cancelled: (r.cancelled || 0) + 1, ...(r.challenge && contractOf(symbol) ? { challenge: rebuilt(r.challenge, nextBook) } : {}) });
           say({ key: `rpcancel${symbol}${t.time}`, tone: "muted", title: `${symbol}: practice ${t.side === "buy" ? "buy" : "sale"} cancelled`, detail: `${sizeText(t.qty)} at ${pxFor(symbol, t.price)} is gone from the position, the P&L and the statistics.` });
           return;
         }
         const was = lastRef.current;
         if (!was?.book?.[symbol]?.trades[index]) return;
         const book = { ...was.book, [symbol]: cancelFill(was.book[symbol], index) };
-        setLast({ ...was, book });
+        setLast({ ...was, book, ...(was.challenge && contractOf(symbol) ? { challenge: rebuilt(was.challenge, book) } : {}) });
         const kept = (savedRef.current || []).find((k) => k.id === was.id);
         if (kept) {
           const value = bookValue(book, (s) => was.prices[s] ?? null, startOf(was));
