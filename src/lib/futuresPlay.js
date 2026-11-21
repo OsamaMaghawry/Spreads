@@ -67,10 +67,14 @@ export function playFutures({ book, minutes, prev = {}, challenge = null }) {
   let out = { ...book };
   let ch = challenge;
   const events = [];
-  const fills = () => symbols.reduce((n, s) => n + out[s].trades.length, 0);
+  // Fills that make a trading day: a roll is not a trade the trader made.
+  const fills = () => symbols.reduce((n, s) => n + out[s].trades.filter((x) => x.why !== "roll").length, 0);
   for (const time of times) {
     const was = fills();
     const now = {};
+    const clock = nyClock(time);
+    // A minute without a CME trade date (a closure the data still has) is checked under the last one.
+    const date = cmeTradeDate(clock.day, clock.minutes) || ch?.state.day || null;
     for (const s of symbols) {
       const m = minutes[s][at[s]];
       if (!m || m.time !== time) continue;
@@ -78,11 +82,13 @@ export function playFutures({ book, minutes, prev = {}, challenge = null }) {
       now[s] = m;
       let a = out[s];
       const b = before[s];
-      if (b?.id && m.id && b.id !== m.id && (a.qty || a.orders?.length)) {
+      const lastFill = a.trades.length ? a.trades[a.trades.length - 1].time : -Infinity;
+      if (b?.id && m.id && b.id !== m.id && (a.qty || a.orders?.length) && lastFill < m.time) {
         a = practiceRoll(a, { time: m.time, price: b.close });
         events.push({ kind: "roll", symbol: s, time: m.time, detail: `Rolled to the next contract: the position closed at ${b.close}, the old contract's last price; its exits and orders went with it.` });
       }
-      const blocked = ch && (ch.state.status === "failed" || ch.state.status === "passed" || ch.state.status === "locked");
+      // Locked: until the next trade date, whose first minute already trades.
+      const blocked = ch && (ch.state.status === "failed" || ch.state.status === "passed" || (ch.state.status === "locked" && ch.state.lockedDay === date));
       if (!blocked && working(a)) {
         a = triggerExits(a, [m]);
         if (a.orders?.length) {
@@ -101,10 +107,8 @@ export function playFutures({ book, minutes, prev = {}, challenge = null }) {
       before[s] = m;
       last[s] = m.close;
     }
-    if (!ch) continue;
-    const { day, minutes: mins } = nyClock(time);
-    const date = cmeTradeDate(day, mins);
-    if (!date) continue;
+    if (!ch || !date) continue;
+    const mins = clock.minutes;
     const start = ch.rules.accountSize;
     const close = futuresFigures(out, start, (s) => last[s]);
     // The worst price this minute for what is held: a long's low, a short's high.

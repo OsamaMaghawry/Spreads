@@ -900,7 +900,7 @@ export default function Terminal() {
             {!session && !replayForm && replayOffer && savedReplays?.[0]?.running && (
               <div className="flex flex-wrap items-center gap-2 border-b border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-950">
                 <History className="h-3.5 w-3.5 text-amber-700" />
-                <span>Your replay <b>{savedReplays[0].name}</b> was left at {replayClock(savedReplays[0].cursor, !!savedReplays[0].crypto)}, with its practice trades.</span>
+                <span>Your replay <b>{savedReplays[0].name}</b> was left at {replayClock(savedReplays[0].cursor, savedReplays[0].crypto || false)}, with its practice trades.</span>
                 <button type="button" onClick={() => continueReplay(savedReplays[0])} className="rounded bg-amber-600 px-2 py-0.5 font-semibold text-white hover:bg-amber-700">Continue it</button>
                 <button type="button" onClick={() => setReplayOffer(false)} className="rounded border border-amber-400 px-2 py-0.5 hover:bg-amber-100">Not now</button>
               </div>

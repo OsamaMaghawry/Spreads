@@ -37,6 +37,8 @@ export default function SymbolSearch({ accountId, initial = "", onPick, onAdd, o
     const q = text.trim();
     if (!q || !accountId) { setMatches([]); return undefined; }
     let alive = true;
+    // Futures from the contract list at once; the broker's matches join them when they come.
+    setMatches(futuresMatches(q));
     const t = setTimeout(() => {
       invokeFunction("terminal", { action: "search", accountId, q }).then((r) => {
         if (!alive) return;
@@ -85,7 +87,7 @@ export default function SymbolSearch({ accountId, initial = "", onPick, onAdd, o
               {r.assetClass === "crypto" && <span className="rounded bg-amber-100 px-1 text-[10px] font-semibold text-amber-800">Crypto</span>}
               {r.assetClass === "futures" && <span className="shrink-0 rounded bg-indigo-100 px-1 text-[10px] font-semibold text-indigo-800" title="Practised in the replay only">Futures</span>}
             </button>
-            {onAdd && !watch.includes(r.symbol) && (
+            {onAdd && r.assetClass !== "futures" && !watch.includes(r.symbol) && (
               <button type="button" title={`Add ${r.symbol} to the watchlist`} onClick={() => onAdd(r.symbol)}
                 className="shrink-0 rounded border border-emerald-300 px-1 text-[10px] text-emerald-700 hover:bg-emerald-50">
                 <Plus className="inline h-3 w-3" />List

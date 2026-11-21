@@ -40,6 +40,9 @@ const latest = () => Math.floor(Date.now() / 1000) - 16 * 60;
 const SAVE_EVERY_MS = 2000;
 const dayWords = (date) => new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" });
 
+// Going back would undo a challenge's record (a lock, a roll, a trailed floor).
+const backNote = "A challenge only moves forward, as the market does: no stepping or jumping back. Start over to replay it from the beginning.";
+
 // A challenge's practice account starts at its account size.
 const startOf = (r) => r?.challenge?.rules?.accountSize || PRACTICE_CASH;
 
@@ -156,7 +159,8 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
     // practice position (their stop and take-profits keep working).
     const tracked = () => {
       const book = ref.current?.book || {};
-      return [...new Set([...watching.keys(), ...Object.keys(book).filter((s) => book[s].qty || book[s].orders?.length)])];
+      const challenge = !!ref.current?.challenge;
+      return [...new Set([...watching.keys(), ...Object.keys(book).filter((s) => book[s].qty || book[s].orders?.length || (challenge && contractOf(s)))])];
     };
 
     // The stop and take-profits of one symbol against the minutes passed (a
@@ -278,7 +282,7 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
       const value = bookValue(r.book, priceOf, startOf(r));
       const fills = Object.values(r.book).reduce((n, a) => n + a.trades.length, 0);
       return {
-        id: r.id, name: r.name, symbol: active.symbol || r.symbol, crypto: !!r.crypto, start: r.start, end: r.end, cursor: r.cursor, at: r.at,
+        id: r.id, name: r.name, symbol: active.symbol || r.symbol, crypto: r.crypto || false, start: r.start, end: r.end, cursor: r.cursor, at: r.at,
         unit: r.unit, speed: r.speed, book: r.book, savedAt: Date.now(), running, challenge: r.challenge || null,
         // Fills cancelled on purpose, so the account's copy knows a smaller
         // book is meant (functions/_shared/replayKeep).
@@ -337,7 +341,10 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
       const held = heldContracts(positions, r.challenge.rules);
       const mine = positions.find((p) => p.root === contractOf(symbol).root)?.qty || 0;
       const next = mine + (side === "buy" ? qty : -qty);
-      const after = heldContracts([...positions.filter((p) => p.root !== contractOf(symbol).root), { root: contractOf(symbol).root, qty: next }], r.challenge.rules);
+      // Working orders count as if they filled: an order cannot be placed that, with
+      // the ones already waiting, could take the book past the limit.
+      const waiting = Object.entries(r.book).filter(([s]) => contractOf(s)).flatMap(([s, a]) => (a.orders || []).map((o) => ({ root: contractOf(s).root, qty: o.qty })));
+      const after = heldContracts([...positions.filter((p) => p.root !== contractOf(symbol).root), { root: contractOf(symbol).root, qty: next }, ...waiting], r.challenge.rules);
       const { minutes } = nyClock(r.cursor - 1);
       const ok = canOrder(r.challenge.state, r.challenge.rules, { after, held, minutes });
       return ok.ok ? null : ok.reason;
@@ -380,9 +387,9 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
         setLast(null);
         const end = latest();
         patch({
-          id: kept.id, name: kept.name, symbol: kept.symbol, crypto: !!kept.crypto, start: kept.start, end, cursor: kept.cursor, at: kept.at || "open",
+          id: kept.id, name: kept.name, symbol: kept.symbol, crypto: kept.crypto || false, start: kept.start, end, cursor: kept.cursor, at: kept.at || "open",
           playing: false, unit: kept.unit || "candle", speed: kept.speed || 1, loading: false, book: kept.book || {}, cancelled: kept.cancelled || 0, moveId: 1, challenge: kept.challenge || null,
-          note: `Continued where you left it, ${replayClock(kept.cursor, !!kept.crypto)}.`
+          note: `Continued where you left it, ${replayClock(kept.cursor, kept.crypto || false)}.`
         });
         tracked().forEach((s) => load(s));
         bump();
@@ -417,8 +424,10 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
         const traded = Object.values(r.book).some((a) => a.trades.length);
         if (traded) keep(snapshot(false));
         move();
-        if (traded) patch({ id: `R${Date.now().toString(36).toUpperCase()}`, name: `${String(r.name || "Replay").replace(/ \(again\)$/, "")} (again)`, playing: false, book: {}, cancelled: 0, note: "Started over: the replay before is kept in Replay results." });
-        else patch({ playing: false, book: {}, note: null });
+        // A challenge starts again too, under the same rules.
+        const challenge = r.challenge ? { rules: r.challenge.rules, state: newChallenge(r.challenge.rules) } : null;
+        if (traded) patch({ id: `R${Date.now().toString(36).toUpperCase()}`, name: `${String(r.name || "Replay").replace(/ \(again\)$/, "")} (again)`, playing: false, book: {}, cancelled: 0, challenge, note: "Started over: the replay before is kept in Replay results." });
+        else patch({ playing: false, book: {}, challenge, note: null });
         rewind(r.start);
         keep(snapshot(true));
       },
@@ -432,7 +441,7 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
         const kept = got?.[key];
         if (!kept || kept.deleted || ref.current?.id !== r.id || !(kept.savedAt > (wrote.get(r.id) || 0))) return;
         self.resume(kept);
-        patch({ note: `Brought up to date from your other window: ${replayClock(kept.cursor, !!kept.crypto)}.` });
+        patch({ note: `Brought up to date from your other window: ${replayClock(kept.cursor, kept.crypto || false)}.` });
       },
       // Whether a replay is running, at once (before the page draws again).
       on() { return !!ref.current; },
@@ -531,6 +540,10 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
         const end = latest();
         // A contract held plays through too: its rolls and the challenge's rules act on the way.
         const exits = Object.entries(r.book).some(([s, a]) => (a.qty && (a.stop || a.targets.length || contractOf(s))) || a.orders?.length);
+        // A challenge only moves forward, and only as far as it can be played through.
+        const futuresHeld = Object.entries(r.book).some(([s, a]) => contractOf(s) && (a.qty || a.orders?.length));
+        if (r.challenge && t < r.cursor) { patch({ note: backNote }); return; }
+        if ((r.challenge || futuresHeld) && t - r.cursor > 62 * DAY) { patch({ note: "A futures position or a challenge is played through minute by minute: jump at most two months ahead at a time." }); return; }
         patch({ playing: false, at, end, note: null });
         try {
           if (t > r.cursor && exits && t - r.cursor <= 62 * DAY) {
@@ -553,6 +566,7 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
       async stepBack() {
         const r = ref.current;
         if (!r || stepping) return false;
+        if (r.challenge) { patch({ note: backNote }); return false; }
         stepping = true;
         try {
           const symbol = active.symbol || tracked()[0];
@@ -722,7 +736,7 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
         if ((h.action === "buy" || h.action === "sell") && coin === "cme") {
           // A contract: the hotkey's size when it is a number of shares, else
           // the contracts set for hotkeys in the challenge settings (1 if none).
-          const n = h.size === "shares" ? Math.floor(h.amount) : Math.max(1, Math.floor(futuresRef?.current?.contracts || 1));
+          const n = Math.max(1, Math.floor(futuresRef?.current?.contracts || 1));
           if (!(n > 0)) { say({ key: "rph", tone: "bad", title: "Practice order not placed", detail: "The hotkey's size is under one contract." }); return; }
           self.trade(symbol, h.action, n, h.keys);
           return;

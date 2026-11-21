@@ -64,7 +64,7 @@ export function ReplayStart({ crypto, onStart, onCancel, busy, initial = null, d
                     )}
                   </div>
                   <div className="text-[11px] tabular-nums text-slate-600">
-                    at {replayClock(k.cursor, !!k.crypto)} · P&amp;L {pnl(p)} · {k.summary?.fills || 0} fill{k.summary?.fills === 1 ? "" : "s"} · saved {agoText(k.savedAt)}
+                    at {replayClock(k.cursor, k.crypto || false)} · P&amp;L {pnl(p)} · {k.summary?.fills || 0} fill{k.summary?.fills === 1 ? "" : "s"} · saved {agoText(k.savedAt)}
                   </div>
                 </div>
               );

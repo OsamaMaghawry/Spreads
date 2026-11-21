@@ -770,7 +770,7 @@ function PriceChart({
     // The replay's date, faint behind the candles.
     const pane = chartRef.current?.panes()[0];
     if (!pane) return;
-    const date = new Date((cursor - 1) * 1000).toLocaleDateString("en-US", { timeZone: cryptoRef.current ? "UTC" : "America/New_York", weekday: "short", month: "short", day: "numeric", year: "numeric" });
+    const date = new Date((cursor - 1) * 1000).toLocaleDateString("en-US", { timeZone: cryptoRef.current === true ? "UTC" : "America/New_York", weekday: "short", month: "short", day: "numeric", year: "numeric" });
     const lines = [{ text: `Replay · ${date}`, color: "rgba(217, 119, 6, 0.16)", fontSize: 28, fontStyle: "bold" }];
     if (markRef.current) markRef.current.applyOptions({ lines });
     else markRef.current = createTextWatermark(pane, { horzAlign: "center", vertAlign: "center", lines });
@@ -1376,7 +1376,7 @@ function PriceChart({
         )}
         <span className={`ml-auto text-[11px] text-slate-400 ${!toolInHand && !state.loading ? "hidden" : ""}`} title={crypto && !(STEP[interval] < 60) ? "Alpaca builds crypto candles from trades and, between trades, from the bid/ask midpoint, so a candle can move when nothing traded; time & sales lists actual trades only." : undefined}>
           {toolInHand ? `${toolInHand.label}: ${toolInHand.points === 1 ? "click to place" : drafting ? "click the second point" : "click the first point"} · Esc to cancel`
-            : state.loading ? "Loading…" : state.error ? "" : `${state.count} bars · ${replayOn ? (crypto ? "replay, Alpaca crypto" : "replay, consolidated tape") : STEP[interval] < 60 ? "built from trades" : crypto ? "Alpaca crypto: trades and midpoints" : `${stockFeed === "delayed" ? "every exchange to 15 min ago" : "IEX"}${liveSource === "eodhd" ? " · live: EODHD" : ""}`}`}
+            : state.loading ? "Loading…" : state.error ? "" : `${state.count} bars · ${replayOn ? (crypto === "cme" ? "replay, CME via Databento (front contract)" : crypto ? "replay, Alpaca crypto" : "replay, consolidated tape") : STEP[interval] < 60 ? "built from trades" : crypto ? "Alpaca crypto: trades and midpoints" : `${stockFeed === "delayed" ? "every exchange to 15 min ago" : "IEX"}${liveSource === "eodhd" ? " · live: EODHD" : ""}`}`}
         </span>
       </div>
       {state.error && <p className="px-3 py-2 text-xs text-rose-700">{state.error}</p>}

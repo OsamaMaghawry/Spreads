@@ -111,3 +111,34 @@ test("a working order that would pass the contract limit is cancelled when reach
   assert.deepEqual(out.book["/ES"].orders, []);
   assert.ok(out.events.some((e) => e.kind === "refused"));
 });
+
+test("a position entered after the roll minute is not rolled again, and a roll is not a trading day", () => {
+  // Bought at 5050 in the new contract (time after the roll), then played over the roll minute again.
+  const a = practiceFill({ ...acctIn({}, "/ES"), fee: 0 }, { side: "buy", qty: 1, price: 5050, time: t("2026-12-14T15:00:00Z") });
+  const prev = { "/ES": bar("2026-12-14T14:30:00Z", 5000, 5001, 4999, 5000, 1) };
+  let out = playFutures({ book: { "/ES": a }, minutes: { "/ES": [bar("2026-12-14T14:31:00Z", 5050, 5051, 5049, 5050, 2)] }, prev });
+  assert.equal(out.book["/ES"].qty, 1);
+  // A genuine roll: no trading day for it.
+  const r = rules({ minDays: 1 });
+  out = playFutures({ book: { "/ES": long("/ES", 1, 5000) }, minutes: { "/ES": [bar("2026-12-14T14:31:00Z", 5050, 5051, 5049, 5050, 2)] }, prev, challenge: { rules: r, state: newChallenge(r) } });
+  assert.equal(out.book["/ES"].qty, 0);
+  assert.equal(out.challenge.state.days["2026-12-14"].traded, false);
+});
+
+test("after a lock, the next session's first minute already fills", () => {
+  const r = rules();
+  let out = playFutures({ book: { "/MNQ": long("/MNQ", 10, 18000) }, minutes: { "/MNQ": [bar("2026-11-24T15:00:00Z", 17990, 17991, 17955, 17960)] }, challenge: { rules: r, state: newChallenge(r) } });
+  assert.equal(out.challenge.state.status, "locked");
+  const book = { "/MNQ": { ...out.book["/MNQ"], orders: [{ id: 9, side: "buy", qty: 1, price: 17962, kind: "limit" }] } };
+  out = playFutures({ book, minutes: { "/MNQ": [bar("2026-11-24T23:00:00Z", 17965, 17966, 17960, 17961)] }, challenge: out.challenge });
+  assert.equal(out.book["/MNQ"].qty, 1);
+});
+
+test("a minute with no trade date is still checked, under the last one", () => {
+  const r = rules({ dailyLoss: null });
+  let ch = { rules: r, state: newChallenge(r) };
+  ch = playFutures({ book: { "/ES": long("/ES", 1, 5000) }, minutes: { "/ES": [bar("2026-12-24T17:00:00Z", 5000, 5001, 4999, 5000)] }, challenge: ch }).challenge;
+  // 24 Dec 18:30 New York rolls into Christmas, a closure: a bar there still counts.
+  const out = playFutures({ book: { "/ES": long("/ES", 1, 5000) }, minutes: { "/ES": [bar("2026-12-24T23:30:00Z", 4970, 4971, 4960, 4965)] }, challenge: ch });
+  assert.equal(out.challenge.state.status, "failed");
+});
