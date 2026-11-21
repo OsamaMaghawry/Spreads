@@ -91,13 +91,40 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
       return next;
     };
 
-    const fetchCandles = async (symbol, tf, from, to) => {
+    const fetchOnce = async (symbol, tf, from, to) => {
       const r = await invokeFunction("terminal", { action: "replay", accountId: accountRef.current, symbol, tf, from: new Date(from * 1000).toISOString(), to: new Date(to * 1000).toISOString() });
-      if (r?.data?.error) throw new Error(r.data.error);
+      if (r?.data?.error) {
+        // A request the platform stopped (no message of ours): said plainly.
+        const slow = /non-2xx|took too long|Failed to fetch|timed? ?out/i.test(r.data.error);
+        throw Object.assign(new Error(slow ? "Reading CME candles took too long" : r.data.error), { slow });
+      }
       const bars = r?.data?.bars || [];
       // A futures read cut short (functions/terminal futuresCandles): the rest comes with the next read.
       if (r?.data?.partial) bars.partial = r.data.partial;
       return bars;
+    };
+    // A futures contract's candles: CME data from Databento is slow the first
+    // time for a span of dates (21 Nov, "heavy and not stable"), and the server
+    // keeps every slice it finished, so a read cut short or too slow is simply
+    // read again, up to four times, each from more of the saved copy.
+    const fetchCandles = async (symbol, tf, from, to) => {
+      if (!contractOf(symbol)) return fetchOnce(symbol, tf, from, to);
+      let last = null;
+      for (let i = 0; i < 4; i++) {
+        try {
+          const bars = await fetchOnce(symbol, tf, from, to);
+          if (!bars.partial || i === 3) return bars;
+          last = bars;
+        } catch (e) {
+          if (!e.slow || i === 3) {
+            if (last) return last;
+            throw e.slow ? new Error("CME data is slow right now: press Replay again to continue; what was read is saved") : e;
+          }
+        }
+        if (tf === "1Min" && ref.current) patch({ note: `Reading CME candles for ${symbol}… (part saved, continuing)` });
+        await new Promise((res) => setTimeout(res, 2500));
+      }
+      return last || [];
     };
     // How far a minute read reached: its end, or its last minute when it was cut short.
     const reached = (bars, from, to) => (bars.partial ? Math.max(from, (bars.at(-1)?.time ?? from - 60) + 60) : to);
@@ -111,8 +138,11 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
       if (have?.ready) return Promise.resolve(have);
       const coin = marketOf(symbol);
       const g = gen;
-      const minuteFrom = Math.floor((r.cursor - 30 * DAY) / 1800) * 1800;
-      const to = Math.min(r.cursor + 5 * DAY, latest());
+      // A contract reads less: its day is 23 hours, its candles come from
+      // Databento, and the browser carries them (21 Nov, "heavy").
+      const futures = !!contractOf(symbol);
+      const minuteFrom = Math.floor((r.cursor - (futures ? 10 : 30) * DAY) / 1800) * 1800;
+      const to = Math.min(r.cursor + (futures ? 2 : 5) * DAY, latest());
       // A futures contract's daily candles: the two years around the replay,
       // never ten (read from hourly CME candles; 21 Nov, ten years ran the
       // function out of its limits). Their failure never costs the minutes: the
@@ -120,15 +150,18 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
       // The chart draws as soon as the minutes and half hours are in (21 Nov,
       // "Still blank": it waited minutes for the daily history); the days come
       // after, and until then are built from what is loaded (lib/replay).
-      const futures = !!contractOf(symbol);
       const promise = Promise.all([
         futures ? Promise.resolve([]) : fetchCandles(symbol, "1Day", r.start - 3650 * DAY, latest()),
         fetchCandles(symbol, "1Min", minuteFrom, to),
-        fetchCandles(symbol, "30Min", minuteFrom - (coin ? 180 : 365) * DAY, minuteFrom).catch(() => [])
+        fetchCandles(symbol, "30Min", minuteFrom - (futures ? 30 : coin ? 180 : 365) * DAY, minuteFrom).catch(() => [])
       ]).then(([days, minutes, context]) => ({
         symbol, ready: true, days, minutes, context: context.filter((b) => b.time + 1800 <= minuteFrom), loadedTo: reached(minutes, minuteFrom, to)
       })).catch((e) => ({ symbol, ready: false, error: e.message })).then((d) => {
-        if (ref.current?.id === r.id && g === gen) { data.set(symbol, d); bump(); }
+        if (ref.current?.id === r.id && g === gen) {
+          data.set(symbol, d);
+          if (futures && d.ready && /Reading CME candles/.test(ref.current?.note || "")) patch({ note: null });
+          bump();
+        }
         return d;
       });
       if (futures) {
@@ -156,7 +189,7 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
       const end = latest();
       while (d.loadedTo < Math.min(through, end)) {
         const from = d.loadedTo;
-        const to = Math.min(from + 7 * DAY, end);
+        const to = Math.min(from + (contractOf(symbol) ? 2 : 7) * DAY, end);
         const more = await fetchCandles(symbol, "1Min", from, to);
         const cur = data.get(symbol);
         if (!cur?.ready) return cur;
@@ -164,7 +197,7 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
         const lastT = cur.minutes.at(-1)?.time ?? 0;
         // Minutes older than the short intraday charts look back are let go,
         // kept as half-hour candles for the longer ones.
-        const kept = rollMinutes(cur, (ref.current?.cursor ?? from) - 35 * DAY);
+        const kept = rollMinutes(cur, (ref.current?.cursor ?? from) - (contractOf(symbol) ? 12 : 35) * DAY);
         d = { ...kept, minutes: [...kept.minutes, ...more.filter((m) => m.time > lastT)], loadedTo: upTo };
         data.set(symbol, d);
         // A read cut short with nothing new: stop for now, the next step asks again.

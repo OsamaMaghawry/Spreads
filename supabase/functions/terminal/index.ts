@@ -2831,11 +2831,28 @@ const FUTURES_MAX_USD = 2;
 const FUTURES_DAYS: Record<string, number> = { "1Min": 45, "30Min": 60, "1Day": 730 };
 let futuresRange: { at: number; end: number } | null = null;
 
+// One Databento read may take no more than this: a slow one is given up and
+// read again later, so a request never outruns the function's own limit
+// (21 Nov: one read of a month of minutes took over a minute, and the request
+// died with 546).
+const DATABENTO_TIMEOUT_MS = 45000;
+
 async function databento(path: string, q: Record<string, string>) {
   const key = Deno.env.get("DATABENTO_API_KEY");
   if (!key) throw new Error("No DATABENTO_API_KEY secret on this project yet.");
-  const r = await fetch(`https://hist.databento.com/v0/${path}?${new URLSearchParams(q)}`, { headers: { Authorization: `Basic ${btoa(`${key}:`)}` } });
-  const text = await r.text();
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), DATABENTO_TIMEOUT_MS);
+  let r: Response;
+  let text: string;
+  try {
+    r = await fetch(`https://hist.databento.com/v0/${path}?${new URLSearchParams(q)}`, { headers: { Authorization: `Basic ${btoa(`${key}:`)}` }, signal: ctl.signal });
+    text = await r.text();
+  } catch (e) {
+    if (ctl.signal.aborted) throw new Error("Databento took too long to answer.");
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
   if (r.status !== 200) {
     let msg: any = text.slice(0, 300);
     try { const j = JSON.parse(text); msg = j?.detail?.message || j?.detail || msg; } catch { /* the body as it came */ }
@@ -2863,8 +2880,8 @@ async function futuresEnd() {
 // read), so hours come a year a slice; and no slice starts after
 // FUTURES_BUDGET_MS, so a request ends well inside the function's limit and
 // the next one goes on from what was kept.
-const FUTURES_SLICE_DAYS: Record<string, number> = { "1m": 30, "1h": 365 };
-const FUTURES_BUDGET_MS = 60000;
+const FUTURES_SLICE_DAYS: Record<string, number> = { "1m": 7, "1h": 365 };
+const FUTURES_BUDGET_MS = 40000;
 const FUTURES_UPSERT_ROWS = 150;
 
 async function futuresCandles(admin: any, root: string, continuous: string, schema: "1m" | "1h", start: number, end: number) {
