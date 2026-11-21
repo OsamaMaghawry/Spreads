@@ -7,6 +7,7 @@ import "@/components/terminal/terminal.css";
 import { invokeFunction } from "@/lib/functions";
 import { readWatchlist, cleanWatchlist, withCoinsOnce, cleanWatchlists, activeWatchlist, withActiveSymbols, px, pctText, sizeText, isCrypto, marketOf, WATCHLIST_MAX, shareFeed, SHARE_FEEDS } from "@/lib/terminal";
 import FuturesChallenge, { FUTURES_DEFAULT, cleanFutures, rulesOf, futuresTerms } from "@/components/terminal/FuturesChallenge";
+import { futuresFigures } from "@/lib/futuresPlay";
 import { DEFAULT_LAYOUTS, BREAKPOINTS, COLS, MARGIN, cleanLayouts, rowHeightFor, fromFirstVersion, foldWatch } from "@/lib/terminalLayout";
 import { fmtMoney } from "@/lib/format";
 import { readPrefs, savePref } from "@/lib/terminalPrefs";
@@ -947,11 +948,12 @@ export default function Terminal() {
           <div className="min-h-0 flex-1">
             {tab === "practice" && (session || lastReplay) && (
               <PracticePositions book={session ? session.book : lastReplay.book} priceOf={session ? replay.priceOf : (s) => lastReplay.prices[s] ?? null}
+                start={(session ? session.challenge : lastReplay?.challenge)?.rules?.accountSize}
                 ended={!session} onPick={setSymbol} onFlatten={(s) => replay.flatten(s, 100)} onCancel={replay.cancelFill}
                 onReprice={replay.repriceFill} onCancelOrder={replay.cancelOrder} />
             )}
             {tab === "results" && (
-              <SavedResults saved={savedReplays || []} current={session ? { id: session.id, name: session.name, book: session.book, priceOf: replay.priceOf, start: session.start, cursor: session.cursor, crypto: session.crypto } : null}
+              <SavedResults saved={savedReplays || []} current={session ? { id: session.id, name: session.name, book: session.book, priceOf: replay.priceOf, start: session.start, cursor: session.cursor, crypto: session.crypto, challenge: session.challenge || null } : null}
                 onRename={replay.renameSaved} onDelete={replay.remove} onContinue={continueReplay} />
             )}
             {tab === "news" && <NewsPanel news={news} symbol={symbol} crypto={crypto} cursor={session?.cursor ?? null} clock={session ? replayClock(session.cursor, crypto) : ""} onPick={setSymbol} />}
@@ -960,7 +962,7 @@ export default function Terminal() {
               others={others} group={replaying ? [] : groupSend} onNotify={notify} />}
             {tab === "demo" && <DemoResults accountId={accountId} refreshKey={`${view?.recent?.[0]?.id || ""}|${view?.recent?.[0]?.status || ""}|${view?.positions?.length || 0}`} />}
             {tab === "account" && <AccountSummary summary={view?.summary} paper={view?.paper} name={account?.name} />}
-            {tab === "futures" && <FuturesChallenge settings={futures} onSettings={setFutures} now={session ? replay.challengeNow() : null} replaying={replaying} onPick={setSymbol} />}
+            {tab === "futures" && <FuturesChallenge settings={futures} onSettings={setFutures} now={session ? replay.challengeNow() : lastReplay?.challenge ? { ...lastReplay.challenge, ended: true, figures: futuresFigures(lastReplay.book, lastReplay.challenge.rules.accountSize, (s) => lastReplay.prices[s] ?? null) } : null} replaying={replaying} onPick={setSymbol} />}
           </div>
         </div>
 

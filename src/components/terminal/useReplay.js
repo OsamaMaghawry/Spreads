@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { invokeFunction } from "@/lib/functions";
 import { savePref, flushPrefs, readPrefs } from "@/lib/terminalPrefs";
 import { marketOf, nyClock, pxFor, sizeText } from "@/lib/terminal";
-import { playFutures, futuresFigures } from "@/lib/futuresPlay";
+import { playFutures, futuresFigures, noteFill } from "@/lib/futuresPlay";
 import { canOrder, heldContracts, newChallenge } from "@/lib/propRules";
 import { hotkeyOrder } from "@/lib/hotkeys";
 import {
@@ -306,6 +306,18 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
     };
 
     const setAcct = (symbol, acct) => patch({ book: { ...ref.current.book, [symbol]: acct } });
+    // A fill by hand on a contract in a challenge: its trade date counts as traded.
+    const tradedNow = (r, symbol) => {
+      if (r?.challenge && contractOf(symbol)) patch({ challenge: noteFill(ref.current.challenge, r.cursor - 1) });
+    };
+    // A challenge's record is the trades as they happened: a contract's fill
+    // in a challenge replay cannot be repriced or taken back, as at a firm.
+    const frozen = (symbol) => {
+      const ch = ref.current ? ref.current.challenge : lastRef.current?.challenge;
+      if (!ch || !contractOf(symbol)) return false;
+      say({ key: "rpfrozen", tone: "bad", title: "Not changed: this replay runs a challenge", detail: "A challenge's fills are its record, as at a firm: they cannot be repriced or cancelled. Start a replay without the challenge to practise freely." });
+      return true;
+    };
     // A symbol's practice account, a futures contract's new one with the
     // commission set in the Futures settings (none when left blank).
     const acctFor = (book, symbol) => {
@@ -387,7 +399,7 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
         flushPrefs();
         move();
         const prices = Object.fromEntries(Object.keys(r.book).map((s) => [s, lastPrice(s)]));
-        if (Object.keys(r.book).length) setLast({ id: r.id, book: r.book, prices, start: r.start, end: r.cursor });
+        if (Object.keys(r.book).length) setLast({ id: r.id, book: r.book, prices, start: r.start, end: r.cursor, challenge: r.challenge || null });
         ref.current = null;
         setSession(null);
         data.clear();
@@ -591,6 +603,7 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
           const range = candleRange(symbol, r.cursor);
           if (range && at >= range.low - 1e-9 && at <= range.high + 1e-9) {
             setAcct(symbol, practiceFill(acctFor(r.book, symbol), { side, qty, price: at, time: r.cursor - 1, why, range }));
+            tradedNow(r, symbol);
             say({ key: `rp${Date.now()}`, tone: "ok", title: `Practice: ${side === "buy" ? "bought" : "sold"} ${sizeText(qty)} ${symbol} at ${pxFor(symbol, at)}`, detail: `Filled now: this candle traded from ${pxFor(symbol, range.low)} to ${pxFor(symbol, range.high)}. Replay only.` });
             return;
           }
@@ -601,6 +614,7 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
           return;
         }
         setAcct(symbol, practiceFill(acctFor(r.book, symbol), { side, qty, price, time: r.cursor - 1, why, range: candleRange(symbol, r.cursor) }));
+        tradedNow(r, symbol);
         say({ key: `rp${Date.now()}`, tone: "ok", title: `Practice: ${side === "buy" ? "bought" : "sold"} ${sizeText(qty)} ${symbol} at ${pxFor(symbol, price)}`, detail: "Replay only. To fill at another price in that candle, change it under Practice ▸ fills." });
       },
       // The low and high of the candle on screen now: a price inside fills at once.
@@ -614,6 +628,7 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
       // repriceFill): in the replay running, or the last one left and its
       // saved copy.
       repriceFill(symbol, index, price) {
+        if (frozen(symbol)) return false;
         const r = ref.current;
         const book = r ? r.book : lastRef.current?.book;
         if (!book?.[symbol]) return false;
@@ -627,7 +642,7 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
         setLast({ ...was, book: nextBook });
         const kept = (savedRef.current || []).find((k) => k.id === was.id);
         if (kept) {
-          const value = bookValue(nextBook, (s) => was.prices[s] ?? null);
+          const value = bookValue(nextBook, (s) => was.prices[s] ?? null, startOf(was));
           const fills = Object.values(nextBook).reduce((n, a) => n + a.trades.length, 0);
           keep({ ...kept, book: nextBook, savedAt: Date.now(), summary: { equity: value.equity, realized: value.realized, unrealized: value.unrealized, fills } });
         }
@@ -670,6 +685,7 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
       // A practice fill taken back (lib/replay cancelFill): from the replay
       // running, or from the last one left, and from the replay as saved.
       cancelFill(symbol, index) {
+        if (frozen(symbol)) return;
         const r = ref.current;
         if (r) {
           const acct = acctFor(r.book, symbol);
@@ -685,7 +701,7 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
         setLast({ ...was, book });
         const kept = (savedRef.current || []).find((k) => k.id === was.id);
         if (kept) {
-          const value = bookValue(book, (s) => was.prices[s] ?? null);
+          const value = bookValue(book, (s) => was.prices[s] ?? null, startOf(was));
           const fills = Object.values(book).reduce((n, a) => n + a.trades.length, 0);
           keep({ ...kept, book, cancelled: (kept.cancelled || 0) + 1, savedAt: Date.now(), summary: { equity: value.equity, realized: value.realized, unrealized: value.unrealized, fills } });
         }
@@ -712,7 +728,7 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
           return;
         }
         if (h.action === "buy" || h.action === "sell") {
-          const equity = bookValue(r.book, priceOf).equity;
+          const equity = bookValue(r.book, priceOf, startOf(r)).equity;
           const built = hotkeyOrder(h, { symbol, crypto: coin, quote: { bid: price, ask: price, last: price }, equity, buyingPower: equity, step: coin ? 1e-9 : null, session: "regular" });
           if (built.reason) { say({ key: "rph", tone: "bad", title: "Practice order not placed", detail: built.reason }); return; }
           self.trade(symbol, built.order.side, built.order.qty, h.keys);

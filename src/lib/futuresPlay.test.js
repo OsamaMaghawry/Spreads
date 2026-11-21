@@ -28,7 +28,7 @@ test("the stop works overnight: futures have no regular-hours filter", () => {
   assert.equal(out.book["/MES"].realized, -50); // 5 points x $5 x 2
 });
 
-test("a breach inside a minute flattens at the minute's worst price and fails the challenge", () => {
+test("a breach inside a minute flattens where equity crossed the floor and fails the challenge", () => {
   const r = rules({ dailyLoss: null });
   const challenge = { rules: r, state: newChallenge(r) };
   const book = { "/ES": long("/ES", 1, 5000) };
@@ -37,7 +37,8 @@ test("a breach inside a minute flattens at the minute's worst price and fails th
   const out = playFutures({ book, minutes, challenge });
   assert.equal(out.challenge.state.status, "failed");
   assert.equal(out.book["/ES"].qty, 0);
-  assert.equal(out.book["/ES"].trades.at(-1).price, 4967);
+  assert.equal(out.book["/ES"].trades.at(-1).price, 4968); // 32 points x $50 = $1,600: the floor, not the minute's low
+  assert.equal(out.challenge.state.balance, 40000 - 1600); // the figures follow the forced close
   assert.equal(out.book["/ES"].trades.at(-1).why, "breach");
   assert.ok(out.events.some((e) => e.kind === "failed"));
 });
@@ -59,14 +60,14 @@ test("the daily loss limit locks the day; nothing fills until the 18:00 session"
   assert.equal(out.challenge.state.status, "active");
 });
 
-test("past the flat-by time the position closes at the minute's close", () => {
+test("past the flat-by time the position closes at that minute's open", () => {
   const r = rules({ flatBy: 16 * 60 + 55 });
   const challenge = { rules: r, state: newChallenge(r) };
   const book = { "/GC": long("/GC", 1, 2650) };
   const out = playFutures({ book, minutes: { "/GC": [bar("2026-11-24T21:55:00Z", 2651, 2652, 2650.5, 2651.5)] }, challenge });
   assert.equal(out.book["/GC"].qty, 0);
   assert.equal(out.book["/GC"].trades.at(-1).why, "flatby");
-  assert.equal(out.book["/GC"].realized, 150); // 1.5 x $100
+  assert.equal(out.book["/GC"].realized, 100); // opened at 2651: 1 x $100
   assert.equal(out.challenge.state.status, "active");
 });
 
@@ -76,4 +77,37 @@ test("the challenge counts only the futures in the book", () => {
   assert.equal(f.balance, 40000);
   assert.equal(f.equity, 40500);
   assert.deepEqual(f.positions, [{ root: "ES", qty: 1 }]);
+});
+
+test("a minute that opens through the floor fills at its open", () => {
+  const r = rules({ dailyLoss: null });
+  const out = playFutures({ book: { "/ES": long("/ES", 1, 5000) }, minutes: { "/ES": [bar("2026-11-24T15:00:00Z", 4950, 4952, 4940, 4945)] }, challenge: { rules: r, state: newChallenge(r) } });
+  assert.equal(out.book["/ES"].trades.at(-1).price, 4950);
+});
+
+test("a fill made by hand counts its day as traded", async () => {
+  const { noteFill } = await import("./futuresPlay.js");
+  const r = rules({ minDays: 1 });
+  let ch = { rules: r, state: newChallenge(r) };
+  ch = noteFill(ch, t("2026-11-24T15:00:00Z"));
+  assert.equal(ch.state.days["2026-11-24"].traded, true);
+  // Bought and sold by hand for +$2,500: the next minute passes it.
+  const book = { "/ES": practiceFill(long("/ES", 1, 5000), { side: "sell", qty: 1, price: 5050, time: t("2026-11-24T15:01:00Z") }) };
+  const out = playFutures({ book, minutes: { "/ES": [bar("2026-11-24T15:02:00Z", 5050, 5051, 5049, 5050)] }, challenge: ch });
+  assert.equal(out.challenge.state.status, "passed");
+});
+
+test("an intraday floor trails the minute's best price for what is held", () => {
+  const r = rules({ drawdown: "intraday", dailyLoss: null, lockAt: 60000 });
+  const out = playFutures({ book: { "/ES": long("/ES", 1, 5000) }, minutes: { "/ES": [bar("2026-11-24T15:00:00Z", 5000, 5040, 5000, 5005)] }, challenge: { rules: r, state: newChallenge(r) } });
+  assert.equal(out.challenge.state.floor, 40000 + 2000 - 1600); // high 5040: +$2,000
+});
+
+test("a working order that would pass the contract limit is cancelled when reached", () => {
+  const r = rules({ maxContracts: 2 });
+  const a = { ...long("/ES", 2, 5000), orders: [{ id: 1, side: "buy", qty: 1, price: 4995, kind: "limit" }] };
+  const out = playFutures({ book: { "/ES": a }, minutes: { "/ES": [bar("2026-11-24T15:00:00Z", 4998, 4999, 4994, 4996)] }, challenge: { rules: r, state: newChallenge(r) } });
+  assert.equal(out.book["/ES"].qty, 2);
+  assert.deepEqual(out.book["/ES"].orders, []);
+  assert.ok(out.events.some((e) => e.kind === "refused"));
 });

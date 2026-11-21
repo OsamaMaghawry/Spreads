@@ -111,8 +111,9 @@ export function heldContracts(positions, rules) {
  * happened since the last step. Returns the new state and `flatten: true`
  * when the position must be closed now.
  */
-export function challengeStep(s, rules, { day, minutes, balance, equity, worstEquity, contracts, traded = false }) {
-  if (s.status === "passed" || s.status === "failed") return { state: s, flatten: contracts !== 0 };
+export function challengeStep(s, rules, { day, minutes, balance, equity, worstEquity, bestEquity, contracts, traded = false }) {
+  // Over: nothing more is decided, but the figures still follow the book (a forced close moves the balance).
+  if (s.status === "passed" || s.status === "failed") return { state: { ...s, balance: cents(balance), equity: cents(equity) }, flatten: contracts !== 0 };
   const st = { ...s, days: { ...s.days } };
   if (day && day !== st.day) {
     // The day before has closed: an end-of-day floor trails its closing equity,
@@ -131,17 +132,18 @@ export function challengeStep(s, rules, { day, minutes, balance, equity, worstEq
     // The day's result for the consistency rule: closed balance against its opening.
     st.days[day] = { pl: cents(st.balance - st.dayOpenBalance), traded: d.traded || traded };
   }
-  if (rules.drawdown === "intraday") { st.high = Math.max(st.high, st.equity); st.floor = trailFloor(st, rules, st.high); }
+  // An intraday floor trails the best equity reached, the minute's best price for what is held.
+  if (rules.drawdown === "intraday") { st.high = Math.max(st.high, st.equity, cents(bestEquity ?? equity)); st.floor = trailFloor(st, rules, st.high); }
 
   const held = contracts !== 0;
   if (worst <= st.floor) {
-    return { state: { ...st, status: "failed", why: `Equity ${money(worst)} reached the maximum-loss floor ${money(st.floor)}.` }, flatten: held };
+    return { state: { ...st, status: "failed", breach: "floor", why: `Equity ${money(worst)} reached the maximum-loss floor ${money(st.floor)}.` }, flatten: held };
   }
   const todayLow = rules.dailyCountsOpen ? worst - st.dayOpen : st.balance - st.dayOpenBalance;
   if (rules.dailyLoss > 0 && todayLow <= -rules.dailyLoss) {
     const why = `Down ${money(-todayLow)} today; the daily loss limit is ${money(rules.dailyLoss)}.`;
-    if (rules.dailyLossMode === "fail") return { state: { ...st, status: "failed", why }, flatten: held };
-    return { state: { ...st, status: "locked", why, lockedDay: st.day }, flatten: held };
+    if (rules.dailyLossMode === "fail") return { state: { ...st, status: "failed", breach: "daily", why }, flatten: held };
+    return { state: { ...st, status: "locked", breach: "daily", why, lockedDay: st.day }, flatten: held };
   }
   if (st.status === "locked") return { state: st, flatten: held };
   if (!held) {
@@ -150,6 +152,16 @@ export function challengeStep(s, rules, { day, minutes, balance, equity, worstEq
   }
   const late = rules.flatBy !== null && minutes !== undefined && minutes >= rules.flatBy && minutes < 18 * 60;
   return { state: st, flatten: late && held, ...(late && held ? { note: `Past the flat-by time, ${clock(rules.flatBy)} New York.` } : {}) };
+}
+
+/**
+ * A fill made by hand on a trade date (`day`): that day counts as traded. The
+ * minute-by-minute play only sees the fills its own stops and orders make.
+ */
+export function noteTraded(s, day) {
+  if (!day || s.status === "failed" || s.status === "passed") return s;
+  const d = s.days[day] || { pl: day === s.day ? cents(s.balance - s.dayOpenBalance) : 0, traded: false };
+  return d.traded ? s : { ...s, days: { ...s.days, [day]: { ...d, traded: true } } };
 }
 
 /** Whether the profit target, the minimum days and the consistency rule are all met, and what is left if not. */

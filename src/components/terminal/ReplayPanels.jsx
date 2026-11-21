@@ -28,13 +28,14 @@ const th = "whitespace-nowrap px-2 py-1 text-right font-medium";
 const td = "whitespace-nowrap px-2 py-1 text-right";
 
 /** What the practice book holds, symbol by symbol, with its stop and take-profits, and every fill. */
-export function PracticePositions({ book, priceOf, ended = false, onPick, onFlatten, onCancel, onReprice, onCancelOrder }) {
+export function PracticePositions({ book, priceOf, start = undefined, ended = false, onPick, onFlatten, onCancel, onReprice, onCancelOrder }) {
   const rows = Object.entries(book).filter(([, a]) => a.qty || a.trades.length);
   // The practice orders at a price still working, symbol by symbol.
   const orders = ended ? [] : Object.entries(book).flatMap(([s, a]) => (a.orders || []).map((o) => ({ ...o, symbol: s })));
   // A fill's price being changed: which one, and the price typed.
   const [pricing, setPricing] = useState(null);
-  const v = bookValue(book, priceOf);
+  // A challenge's account starts at its account size (useReplay startOf).
+  const v = bookValue(book, priceOf, start);
   // Every fill, newest first, each with its place in its symbol's list.
   const fills = Object.entries(book).flatMap(([s, a]) => a.trades.map((t, i) => ({ ...t, symbol: s, index: i }))).sort((a, b) => b.time - a.time);
   const [sure, setSure] = useState(null);
@@ -199,10 +200,10 @@ export function SavedResults({ saved = [], current = null, onRename, onDelete, o
         <span className="ml-auto text-[10px] text-amber-800">{saved.length} saved</span>
       </div>
       <div className="min-h-0 flex-1">
-        <TradeResults book={shown.book || {}} priceOf={priceOf}
+        <TradeResults book={shown.book || {}} priceOf={priceOf} start={shown.challenge?.rules?.accountSize}
           banner={running ? null : `${shown.name}: ${dayText(shown.start, shown.crypto)} to ${dayText(shown.cursor, shown.crypto)}, as saved ${new Date(shown.savedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}. Open positions at the replay's price then.`}
           empty="No practice trades in this replay." openHint="Positions still held, at the replay's price" holdHint="Replay time, open to close"
-          note="Practice trades in the replay, filled at the replayed prices with no commission or slippage. Return is on the cost of the part closed." />
+          note="Practice trades in the replay, filled at the replayed prices with no slippage. Shares and coins pay no commission; futures pay the commission set under Futures ▸ Settings, net in their P&L. Return is on the cost of the part closed, shown for shares and coins only (futures show points)." />
       </div>
     </div>
   );
@@ -214,10 +215,10 @@ export function SavedResults({ saved = [], current = null, onRename, onDelete, o
  * when holdings from before were brought in (the demo's), shown as such;
  * `showHow`: the column of what closed each trip, known in the replay only.
  */
-export function TradeResults({ book, priceOf, banner = null, empty, openHint, holdHint, note, carriedAt = null, showHow = true, netHint = "Closed plus open", closedHint = "Profit taken, every symbol" }) {
+export function TradeResults({ book, priceOf, start = undefined, banner = null, empty, openHint, holdHint, note, carriedAt = null, showHow = true, netHint = "Closed plus open", closedHint = "Profit taken, every symbol" }) {
   const trips = useMemo(() => bookTrips(book), [book]);
   const stats = useMemo(() => tradeStats(trips), [trips]);
-  const v = bookValue(book, priceOf);
+  const v = bookValue(book, priceOf, start);
   const bySymbol = useMemo(() => {
     const out = {};
     for (const t of trips) {
