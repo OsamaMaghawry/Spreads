@@ -120,6 +120,10 @@ carries its own limit price, and whether it fills nearer 0.91 depends on who
 is on the other side. The $2 width less whichever credit fills is the
 spread's [maximum loss at expiration](/blog/credit-spread-max-loss).
 
+Related: [options screener limitations](/blog/options-screener-limitations) shows the
+same choice inside a screen, where a credit priced at the mid can rank a
+spread above one that pays more at the natural.
+
 ## Why is the last price different from the bid and ask?
 
 The last price is a record of the most recent trade, not a quote. On a busy

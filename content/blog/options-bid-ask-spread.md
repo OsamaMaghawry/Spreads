@@ -89,6 +89,10 @@ price into [intrinsic and extrinsic
 value](/blog/intrinsic-vs-extrinsic-value-options) and which price you split -
 bid, mid or ask - decides whether the answer describes a fill or an estimate.
 
+Related: [options screener limitations](/blog/options-screener-limitations)
+covers screens that price spreads at the mid, and why a fill on wide quotes
+tends to land below the credit they show.
+
 ## What makes one option's quote wider than another's?
 
 Width is not a fixed property of a stock. It varies contract by contract down
