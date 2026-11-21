@@ -101,4 +101,6 @@ In the worked example, one hypothetical nine-day spread that kept $50 of its cre
 
 DeltaMint's Analysis page leaves its two annualized cards, simple and compounded return on capital, blank until the record holds at least 30 closed trades over at least 90 days, a display floor and not a mark of reliability, and says so under the dash. It also leaves them blank while the total includes an unrealized mark on open positions.
 
+Read next: [options screener limitations](/blog/options-screener-limitations), on what a screen's results cannot see before a trade is opened.
+
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.

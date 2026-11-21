@@ -1,0 +1,29 @@
+<svg viewBox="0 0 720 330" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Two hypothetical 5-wide put credit spreads ranked by credit as a share of max loss. Priced at the mid, spread A ranks first at 28.2 percent and spread B second at 22.9 percent. Priced at the natural, short bid minus long ask, the order reverses: spread B ranks first at 21.4 percent and spread A second at 19.0 percent, because A's quotes are wide and B's are tight.">
+  <rect width="720" height="330" fill="#FFFFFF"/>
+  <text x="40" y="32" font-size="13" fill="#767B8E">Credit / max loss</text>
+  <text x="680" y="32" font-size="12" fill="#767B8E" text-anchor="end">Hypothetical, before fees</text>
+  <line x1="40" y1="260" x2="340" y2="260" stroke="#14151C" stroke-width="1.5"/>
+  <line x1="380" y1="260" x2="680" y2="260" stroke="#14151C" stroke-width="1.5"/>
+  <g fill="#2E8B5F">
+    <rect x="90" y="60" width="80" height="200" rx="3"/>
+    <rect x="210" y="98" width="80" height="162" rx="3" fill-opacity="0.55"/>
+    <rect x="430" y="108" width="80" height="152" rx="3" fill-opacity="0.55"/>
+    <rect x="550" y="125" width="80" height="135" rx="3"/>
+  </g>
+  <g font-size="14" fill="#14151C" font-weight="600" text-anchor="middle">
+    <text x="130" y="50">28.2%</text>
+    <text x="250" y="88">22.9%</text>
+    <text x="470" y="98">21.4%</text>
+    <text x="590" y="115">19.0%</text>
+  </g>
+  <g font-size="14" fill="#14151C" font-weight="600" text-anchor="middle">
+    <text x="130" y="282">A</text>
+    <text x="250" y="282">B</text>
+    <text x="470" y="282">B</text>
+    <text x="590" y="282">A</text>
+  </g>
+  <g font-size="13" fill="#767B8E" text-anchor="middle">
+    <text x="190" y="314">Ranked at mid</text>
+    <text x="530" y="314">Ranked at natural</text>
+  </g>
+</svg>
