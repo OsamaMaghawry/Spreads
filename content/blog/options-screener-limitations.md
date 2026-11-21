@@ -1,9 +1,9 @@
 ---
 title: "Options screener limitations: what a screen cannot see"
-search_title: "Options Screener Limitations: What the Results Leave Out"
+search_title: "Options Screener Limitations: Stale Quotes, Mid Credits"
 slug: options-screener-limitations
 excerpt: An options screener returns the rows that match your filters, priced from one snapshot of the chain, and it cannot see whether that snapshot was stale, whether its credit is fillable, or what your account already holds.
-meta_description: "Options screener limitations: stale pre-market quotes, credits priced at a mid nobody fills, and a book the screen never sees. A hypothetical worked example."
+meta_description: "Options screener limitations: last session's quotes before the open, credits at a mid the market may not pay, and open positions. A hypothetical example."
 author: Osama Safwat Maghawry
 category: measuring
 series_order: 65
@@ -24,7 +24,7 @@ Key Takeaways:
 - **A screen never sees the book.** Open positions are not an input.
 - **A match is not a recommendation.** It is what the filters selected.
 
-## A screen ranks rows from a snapshot, and the snapshot can be stale
+## A screen reads one snapshot, and before the open it can be stale
 
 Every figure on a screen's results page was computed from quotes taken at one moment. If that moment was a poor one, every column downstream of it inherits the problem, and the row gives no sign of it.
 
@@ -39,7 +39,7 @@ That mismatch spreads to every derived column:
 
 A row looks the same whether its inputs were taken a second ago or the evening before. Knowing when the chain was read, and whether the market was open, is the first check on any result.
 
-## A credit priced at the mid is not a price you can fill
+## A credit priced at the mid is a calculation, not a fill
 
 Many screens price a spread at the mid: the midpoint of each leg's bid and ask, netted. The mid is a calculation, not a quote. On a tight market it sits close to where an order fills; on a wide one it can sit well above anything the market will pay, as the [bid-ask spread post](/blog/options-bid-ask-spread) sets out.
 
@@ -56,7 +56,7 @@ The other price is the **natural**: for a credit spread, the short leg's bid min
 | Credit at the natural | 0.80 | 0.88 |
 | Max loss at the natural | $420 | $412 |
 
-Max loss on a credit spread is the width minus the credit, times 100. At the mid, Spread A takes 1.10 against $390 at risk, a ratio of about 28.2%, and Spread B takes 0.93 against $407, about 22.9%. A screen sorting by credit against max loss lists A first.
+[Max loss on a credit spread](/blog/credit-spread-max-loss) is the width minus the credit, times 100. At the mid, Spread A takes 1.10 against $390 at risk, a ratio of about 28.2%, and Spread B takes 0.93 against $407, about 22.9%. A screen sorting by credit against max loss lists A first.
 
 At the natural, A's credit drops by 0.30 to 0.80, a ratio of about 19.0% on $420, while B's drops by only 0.05 to 0.88, about 21.4% on $412. The order reverses. The difference is not in the strikes or the stock: A's legs are quoted 0.30 wide each and B's are not.
 
@@ -66,7 +66,7 @@ The ratio is credit against max loss, the stance set out in [return on risk vs r
 
 ## A screen sees one candidate at a time, never the book it joins
 
-A screen scores each row on its own. Credit, max loss, delta and days to expiry are properties of that one spread. What a new spread does to an account depends on what is already open, and that is not an input to the filter.
+A screen scores each row on its own. Credit, max loss, delta and days to expiry are properties of that one spread. What a new spread does to an account depends on [what is already open](/blog/managing-multiple-option-positions), and that is not an input to the filter.
 
 Continue the example. Suppose the account already holds two put credit spreads on the same stock as Spread A, each 5 wide and each sold for 1.00, so each carries $400 of max loss. The screen shows Spread A with $420 at risk at the natural. The account, if A fills there, holds $1,220 of max loss on one stock, all of it exposed to the same move below the short strikes.
 
@@ -93,15 +93,15 @@ A screen run with different filters returns different rows from the same chain. 
 
 ## Frequently asked questions
 
-- **Why does a screen's credit differ from my fill?** If the screen priced at the mid, a fill on wide quotes tends to land below it.
-- **Can a screen be run before the open?** It can, but its option prices, IV and delta may come from the previous session.
-- **Does a screener count positions I already hold?** A filter scores each candidate alone; exposure already open has to be added separately.
+- **Why doesn't my fill match the screener's credit?** If the screener priced at the mid, a fill on wide quotes tends to land below it.
+- **Does an options screener work before the market opens?** It runs, but its option prices, IV and delta may come from the previous session.
+- **Does an options screener account for positions I already hold?** A filter scores each candidate alone; exposure already open has to be added separately.
 
 ## The Bottom Line: reading the chain is the easy part
 
-A screen does the mechanical part well: it reads a chain faster than anyone can and applies filters without error. What it cannot do is see when its quotes were taken, which price a market will actually pay, or what the account already holds.
+A screen does the mechanical part well: it reads a chain quickly and applies filters exactly. What it cannot do is see when its quotes were taken, which price a market will actually pay, or what the account already holds.
 
-In the worked example, two hypothetical spreads swapped places when priced at the natural instead of the mid, and the higher-ranked one at the mid would have put $1,220 of max loss on a single stock. Both facts were outside the row.
+In the worked example, two hypothetical spreads swapped places when priced at the natural instead of the mid, and the one ranked first at the mid, filled at the natural, would have put $1,220 of max loss on one stock. Both facts were outside the row.
 
 DeltaMint's Strategy Scanner prices a credit spread at the natural, the short leg's bid minus the long leg's ask, rather than at the mid. Its results are what matched the filters the trader set, and nothing on the list is a recommendation.
 
