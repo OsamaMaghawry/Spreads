@@ -20,8 +20,7 @@ const spec = (root, name, group, size, pointValue, tick, decimals, commission = 
     root, name, group, size, micro: size === "micro", pointValue, tick, decimals,
     tickValue: Math.round(pointValue * tick * 1e6) / 1e6,
     commission,
-    dataset: "GLBX.MDP3", // CME, CBOT, NYMEX and COMEX
-    continuous: `${root}.v.0` // the front contract by volume, rolled by Databento
+    dataset: "GLBX.MDP3" // CME, CBOT, NYMEX and COMEX
   });
 
 /** The contracts the practice account trades, by root. Contract terms as CME publishes them. */
@@ -90,6 +89,17 @@ export const FUTURES = Object.freeze(Object.fromEntries([
   spec("ETH", "Ether (50 ETH)", "Crypto", "standard", 50, 0.5, 1),
   spec("MET", "Micro Ether (0.1 ETH)", "Crypto", "micro", 0.1, 0.5, 1)
 ].map((x) => [x.root, x])));
+
+/**
+ * Where a contract's prices come from: its full-size contract's, for a mini or
+ * a micro (21 Nov, the owner: "not sure if this is separated from the MINI. I
+ * don't think so"). They quote the same index points, ounces or barrels on
+ * the same roll; only the dollars per point differ, and the engine keeps the
+ * smaller contract's own. One price history per market: read and kept once.
+ */
+export const dataRootOf = (spec) => PARENT[spec.root]?.[0] || spec.root;
+/** The Databento continuous symbol a contract's prices are read as: the front contract by volume. */
+export const continuousOf = (spec) => `${dataRootOf(spec)}.v.0`;
 
 /** The full-size contract a mini or micro is a fraction of, and how many of them make one (for a firm that counts micros as a tenth). */
 export const PARENT = Object.freeze({

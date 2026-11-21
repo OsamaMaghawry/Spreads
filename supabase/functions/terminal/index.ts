@@ -31,7 +31,7 @@ import { closeOf } from "../_shared/gex.js";
 import { openInterestOf, quotesOf, historyChain, historySummary } from "../_shared/gexHistory.ts";
 import { screenSummary, screenUniverse as gexUniverse } from "../_shared/gexScreen.js";
 import { cboeOpenInterest, mergeOpenInterest } from "../_shared/openInterest.ts";
-import { futuresSpec } from "../_shared/futuresSpecs.js";
+import { futuresSpec, dataRootOf, continuousOf } from "../_shared/futuresSpecs.js";
 import { parseRows, byUtcDay, utcDays, rollUp, sessionDays, rollsOf } from "../_shared/futuresBars.js";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
@@ -2884,15 +2884,17 @@ const FUTURES_SLICE_DAYS: Record<string, number> = { "1m": 7, "1h": 365 };
 const FUTURES_BUDGET_MS = 40000;
 const FUTURES_UPSERT_ROWS = 150;
 
-async function futuresCandles(admin: any, root: string, continuous: string, schema: "1m" | "1h", start: number, end: number) {
+// `bars: false` (the preload): only which days are kept is read, never their
+// candles, and none are returned; `left` is how many days are still missing.
+async function futuresCandles(admin: any, root: string, continuous: string, schema: "1m" | "1h", start: number, end: number, { bars: withBars = true } = {}) {
   const days = utcDays(Math.floor(start / 1000), Math.floor((end - 1) / 1000));
   // Read by range, a thousand days a page: years of days by name is too long a query.
   const have = new Map<string, any[]>();
   for (let from = 0; ; from += 1000) {
-    const { data: kept, error } = await admin.from("futures_bars").select("day, bars").eq("root", root).eq("schema", schema)
+    const { data: kept, error } = await admin.from("futures_bars").select(withBars ? "day, bars" : "day").eq("root", root).eq("schema", schema)
       .gte("day", days[0]).lte("day", days[days.length - 1]).order("day").range(from, from + 999);
     if (error) throw new Error(error.message);
-    for (const r of kept || []) have.set(String(r.day).slice(0, 10), r.bars || []);
+    for (const r of kept || []) have.set(String(r.day).slice(0, 10), withBars ? r.bars || [] : []);
     if (!kept || kept.length < 1000) break;
   }
   // The missing days in runs of consecutive days, each cut to the slice size.
@@ -2905,6 +2907,7 @@ async function futuresCandles(admin: any, root: string, continuous: string, sche
     else slices.push([d]);
   }
   let error: string | null = null;
+  let left = slices.reduce((n, run) => n + run.length, 0);
   const began = Date.now();
   for (const run of slices) {
     if (Date.now() - began > FUTURES_BUDGET_MS) { error = "More CME candles are still to be read: they come with the next load."; break; }
@@ -2919,7 +2922,7 @@ async function futuresCandles(admin: any, root: string, continuous: string, sche
       const keep: any[] = [];
       for (const d of run) {
         const bars = fresh.get(d) || [];
-        have.set(d, bars);
+        if (withBars) have.set(d, bars);
         // Only a day wholly read and wholly past is kept: it can no longer change.
         const dayStart = Date.parse(`${d}T00:00:00Z`);
         if (dayStart >= from && dayStart + 86400000 <= to) keep.push({ root, schema, day: d, bars, fetched_at: new Date().toISOString() });
@@ -2928,6 +2931,7 @@ async function futuresCandles(admin: any, root: string, continuous: string, sche
         const { error: e } = await admin.from("futures_bars").upsert(keep.slice(i, i + FUTURES_UPSERT_ROWS), { onConflict: "root,schema,day" });
         if (e) console.error("futures_bars", e.message);
       }
+      left -= keep.length;
     } catch (e) {
       error = String((e as Error)?.message || e);
       console.error("futures", JSON.stringify({ root, schema, from: new Date(from).toISOString(), to: new Date(to).toISOString(), error }));
@@ -2936,7 +2940,99 @@ async function futuresCandles(admin: any, root: string, continuous: string, sche
   }
   const s = Math.floor(start / 1000);
   const t = Math.floor(end / 1000);
-  return { candles: days.flatMap((d) => have.get(d) || []).filter((c: any) => c.time >= s && c.time < t), error };
+  if (!withBars) return { candles: [], error, left };
+  return { candles: days.flatMap((d) => have.get(d) || []).filter((c: any) => c.time >= s && c.time < t), error, left };
+}
+
+// ---------- futures preload ----------
+//
+// 21 Nov, the owner: "Does it have to load everytime. Can't we just save or
+// cache it?" Each day is kept once read; the preload reads a span ahead of
+// time so no replay waits on Databento. Priced first, free (Databento's
+// get_cost); bought only when the owner presses Preload for that price, a
+// slice at a time inside the time budget, the browser calling again until
+// it is done. Whole UTC days only, up to the last whole day Databento has.
+
+const FUTURES_PRELOAD_YEARS = [1, 2, 3];
+
+async function futuresSpan(years: number) {
+  const end = Math.floor((await futuresEnd()) / 86400000) * 86400000;
+  return { start: end - years * 365 * 86400000, end };
+}
+
+// Days kept, and missing, for one data root and schema over a span.
+async function futuresKept(admin: any, root: string, schema: string, start: number, end: number) {
+  const days = utcDays(Math.floor(start / 1000), Math.floor((end - 1) / 1000));
+  const kept = new Set<string>();
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await admin.from("futures_bars").select("day").eq("root", root).eq("schema", schema)
+      .gte("day", days[0]).lte("day", days[days.length - 1]).order("day").range(from, from + 999);
+    if (error) throw new Error(error.message);
+    for (const r of data || []) kept.add(String(r.day).slice(0, 10));
+    if (!data || data.length < 1000) break;
+  }
+  return { days: days.length, kept: kept.size, missing: days.filter((d) => !kept.has(d)) };
+}
+
+// What a preload of `roots` over `years` would buy: per data root and schema,
+// days kept, days missing, and Databento's price for the missing span (at most:
+// the price from the first missing day to the last).
+async function futuresPrice(admin: any, rootsIn: string[], years: number) {
+  if (!FUTURES_PRELOAD_YEARS.includes(years)) return { error: "Preload 1, 2 or 3 years." };
+  const specs = [...new Map(rootsIn.map((r) => futuresSpec(r)).filter(Boolean).map((sp: any) => [dataRootOf(sp), sp])).values()];
+  if (!specs.length) return { error: "Choose a futures contract." };
+  try {
+    const { start, end } = await futuresSpan(years);
+    const out: any[] = [];
+    for (const sp of specs.slice(0, 8)) {
+      const root = dataRootOf(sp);
+      const row: any = { root, years, from: new Date(start).toISOString().slice(0, 10), to: new Date(end - 86400000).toISOString().slice(0, 10), usd: 0, days: 0, kept: 0, missing: 0 };
+      for (const schema of ["1m", "1h"]) {
+        const k = await futuresKept(admin, root, schema, start, end);
+        row[schema] = { days: k.days, kept: k.kept, missing: k.missing.length };
+        row.days += k.days;
+        row.kept += k.kept;
+        row.missing += k.missing.length;
+        if (k.missing.length) {
+          const q = { dataset: "GLBX.MDP3", symbols: continuousOf(sp), stype_in: "continuous", schema: `ohlcv-${schema}`, start: `${k.missing[0]}T00:00:00Z`, end: new Date(Date.parse(`${k.missing[k.missing.length - 1]}T00:00:00Z`) + 86400000).toISOString() };
+          const usd = Number(await databento("metadata.get_cost", q));
+          row[schema].usd = Math.round(usd * 100) / 100;
+          row.usd += usd;
+        } else row[schema].usd = 0;
+      }
+      row.usd = Math.round(row.usd * 100) / 100;
+      out.push(row);
+    }
+    return { prices: out, usd: Math.round(out.reduce((a, r) => a + r.usd, 0) * 100) / 100 };
+  } catch (e) {
+    return { error: String((e as Error)?.message || e) };
+  }
+}
+
+// One step of a preload for one contract: hours first, then minutes, as far as
+// the time budget goes; refused when its price is now above what the owner agreed.
+async function futuresPreload(admin: any, rootIn: string, years: number, maxUsd: number, first: boolean) {
+  const sp: any = futuresSpec(rootIn);
+  if (!sp) return { error: "Choose a futures contract." };
+  if (!FUTURES_PRELOAD_YEARS.includes(years)) return { error: "Preload 1, 2 or 3 years." };
+  // Priced again at the first step (Databento's metadata is slow too, so not at every step).
+  if (first) {
+    const priced: any = await futuresPrice(admin, [sp.root], years);
+    if (priced.error) return priced;
+    if (!(priced.usd <= maxUsd + 0.01)) return { error: `The price is now $${priced.usd.toFixed(2)}, above the $${Number(maxUsd || 0).toFixed(2)} agreed: check the price again.` };
+  }
+  const root = dataRootOf(sp);
+  try {
+    const { start, end } = await futuresSpan(years);
+    const hours = await futuresCandles(admin, root, continuousOf(sp), "1h", start, end, { bars: false });
+    const minutes = hours.left > 0 ? { left: null, error: hours.error } : await futuresCandles(admin, root, continuousOf(sp), "1m", start, end, { bars: false });
+    const [h, m] = await Promise.all([futuresKept(admin, root, "1h", start, end), futuresKept(admin, root, "1m", start, end)]);
+    const missing = h.missing.length + m.missing.length;
+    const stuck = [hours.error, minutes.error].find((e) => e && !/still to be read/.test(e)) || null;
+    return { root, days: h.days + m.days, kept: h.kept + m.kept, missing, done: missing === 0, note: stuck };
+  } catch (e) {
+    return { error: String((e as Error)?.message || e) };
+  }
 }
 
 async function futuresReplay(admin: any, symbolIn: string, tf: string, from: string, to: string) {
@@ -2957,7 +3053,8 @@ async function futuresReplay(admin: any, symbolIn: string, tf: string, from: str
     if (!(start < end)) return { symbol, tf, bars: [] };
     if (end - start > (FUTURES_DAYS[tf] + 1) * 86400000) return { error: `At most ${FUTURES_DAYS[tf]} days of candles at a time.` };
     const schema = tf === "1Day" ? "1h" : "1m";
-    const read = await futuresCandles(admin, spec.root, spec.continuous, schema, start, end);
+    // A mini or micro reads and keeps its full-size contract's prices (futuresSpecs dataRootOf).
+    const read = await futuresCandles(admin, dataRootOf(spec), continuousOf(spec), schema, start, end);
     const candles = read.candles;
     // Nothing read at all: the reason. Some read: the candles, and the reason the rest is missing.
     if (!candles.length && read.error) return { error: read.error };
@@ -3400,6 +3497,15 @@ Deno.serve(async (req) => {
       return jsonResponse(r, (r as any).error ? 400 : 200);
     }
     // A futures contract's practice candles ("/ES"): CME data, no account needed.
+    // The futures preload: priced (free), then read on the owner's press.
+    if (action === "futuresPrice") {
+      const r = await futuresPrice(admin, Array.isArray(body.roots) ? body.roots.map(String) : [], Number(body.years));
+      return jsonResponse(r, (r as any).error ? 400 : 200);
+    }
+    if (action === "futuresPreload") {
+      const r = await futuresPreload(admin, String(body.root || ""), Number(body.years), Number(body.maxUsd), body.first === true);
+      return jsonResponse(r, (r as any).error ? 400 : 200);
+    }
     if (action === "replay" && String(body.symbol || "").trim().startsWith("/")) {
       const r = await futuresReplay(admin, String(body.symbol), String(body.tf || "1Min"), String(body.from || ""), String(body.to || ""));
       return jsonResponse(r, (r as any).error ? 400 : 200);

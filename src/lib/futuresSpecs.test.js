@@ -90,3 +90,18 @@ test("prices are shown as each contract is quoted", async () => {
   assert.equal(formatFuturesPrice(110.5, FUTURES.ZN), "110'16");
   assert.equal(formatFuturesPrice(108.0078125, FUTURES.ZF), "108'00.25");
 });
+
+test("a mini or micro reads its full-size contract's prices; a full-size its own", async () => {
+  const { dataRootOf, continuousOf } = await import("../../supabase/functions/_shared/futuresSpecs.js");
+  assert.equal(dataRootOf(FUTURES.MES), "ES");
+  assert.equal(dataRootOf(FUTURES.MNQ), "NQ");
+  assert.equal(continuousOf(FUTURES.MNQ), "NQ.v.0");
+  assert.equal(dataRootOf(FUTURES.ES), "ES");
+  assert.equal(continuousOf(FUTURES.CL), "CL.v.0");
+  for (const c of Object.values(FUTURES)) {
+    const p = FUTURES[dataRootOf(c)];
+    assert.ok(p, c.root);
+    assert.equal(p.group, c.group, c.root); // same market, same price units
+    assert.equal(dataRootOf(p), p.root, c.root); // a data root reads its own prices
+  }
+});

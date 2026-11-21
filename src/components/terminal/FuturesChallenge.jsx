@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
-import { FUTURES } from "../../../supabase/functions/_shared/futuresSpecs.js";
+import { useMemo, useRef, useState } from "react";
+import { FUTURES, dataRootOf } from "../../../supabase/functions/_shared/futuresSpecs.js";
+import { invokeFunction } from "@/lib/functions";
 import { cleanRules, heldContracts, goalMet } from "@/lib/propRules";
 import { fmtMoney } from "@/lib/format";
 
@@ -201,6 +202,88 @@ function SettingsView({ settings, onSettings, rules }) {
   );
 }
 
+/**
+ * Preloading CME candles (21 Nov, the owner: "Can't we just save or cache it?"):
+ * the contracts' price histories read ahead of time, so no replay waits on
+ * Databento. Priced first (free); bought only on the press that names the
+ * price; a step at a time until done, stoppable, and it goes on where it left
+ * off. A mini or micro shares its full-size contract's history.
+ */
+function PreloadPanel({ settings }) {
+  const fromPins = [...new Set(settings.pinned.map((r) => dataRootOf(FUTURES[r])))];
+  const [roots, setRoots] = useState(fromPins.length ? fromPins : ["NQ", "ES"]);
+  const [years, setYears] = useState(2);
+  const [price, setPrice] = useState(null);
+  const [busy, setBusy] = useState(null);
+  const [progress, setProgress] = useState({});
+  const [error, setError] = useState(null);
+  const stop = useRef(false);
+  const fullSize = Object.values(FUTURES).filter((c) => dataRootOf(c) === c.root);
+  const toggle = (r) => { setPrice(null); setRoots((x) => (x.includes(r) ? x.filter((y) => y !== r) : [...x, r])); };
+  const check = async () => {
+    setBusy("price"); setError(null); setPrice(null);
+    const r = await invokeFunction("terminal", { action: "futuresPrice", roots, years });
+    setBusy(null);
+    if (r?.data?.error) setError(r.data.error); else setPrice(r.data);
+  };
+  const run = async () => {
+    if (!price) return;
+    stop.current = false; setBusy("load"); setError(null);
+    for (const row of price.prices) {
+      if (!row.missing) { setProgress((p) => ({ ...p, [row.root]: { kept: row.kept, days: row.days, done: true } })); continue; }
+      let first = true;
+      for (let i = 0; i < 400 && !stop.current; i++) {
+        const r = await invokeFunction("terminal", { action: "futuresPreload", root: row.root, years, maxUsd: price.usd, first });
+        first = false;
+        if (r?.data?.error && !/non-2xx|too long/i.test(r.data.error)) { setError(`${row.root}: ${r.data.error}`); stop.current = true; break; }
+        if (r?.data?.root) setProgress((p) => ({ ...p, [row.root]: { kept: r.data.kept, days: r.data.days, done: r.data.done } }));
+        if (r?.data?.done) break;
+        if (r?.data?.note) setError(`${row.root}: ${r.data.note} (continuing)`);
+      }
+      if (stop.current) break;
+    }
+    setBusy(null);
+    setPrice(null);
+  };
+  return (
+    <div className="space-y-2 rounded border border-slate-200 p-2">
+      <div className="text-xs font-medium">Preload price history</div>
+      <p className="text-[11px] text-slate-500">Saved once, then every replay of those dates draws at once. A mini or micro uses its full-size contract&apos;s prices (the same index points; only the dollars per point differ), so NQ covers MNQ and ES covers MES.</p>
+      <div className="flex flex-wrap gap-1">
+        {fullSize.map((c) => <button key={c.root} type="button" aria-pressed={roots.includes(c.root)} onClick={() => toggle(c.root)} className={pill(roots.includes(c.root))}>{c.root}</button>)}
+      </div>
+      <div className="flex flex-wrap items-center gap-1 text-xs">
+        <span className="text-slate-500">Years back:</span>
+        {[1, 2, 3].map((y) => <button key={y} type="button" aria-pressed={years === y} onClick={() => { setYears(y); setPrice(null); }} className={pill(years === y)}>{y}</button>)}
+        <button type="button" disabled={!roots.length || !!busy} onClick={check} className="ml-auto rounded border border-slate-300 px-2 py-0.5 hover:bg-slate-50 disabled:opacity-40">{busy === "price" ? "Pricing…" : "Check price"}</button>
+      </div>
+      {price && (
+        <div className="space-y-1 text-xs">
+          {price.prices.map((r) => (
+            <div key={r.root} className="flex justify-between gap-2"><span className="font-mono">{r.root}</span><span className="text-slate-500">{r.from} to {r.to}: {r.kept} of {r.days} days saved</span><span className="tabular-nums">{r.missing ? `$${r.usd.toFixed(2)}` : "all saved"}</span></div>
+          ))}
+          <p className="text-[11px] text-slate-500">Databento&apos;s price for the missing days, at most (from the first missing day to the last). Nothing is bought until you press Preload.</p>
+          <button type="button" disabled={!!busy} onClick={run} className="rounded bg-slate-900 px-2 py-1 font-semibold text-white disabled:opacity-40">
+            {price.usd > 0 ? `Preload for $${price.usd.toFixed(2)}` : "Nothing to buy"}
+          </button>
+        </div>
+      )}
+      {Object.keys(progress).length > 0 && (
+        <div className="space-y-1 text-xs">
+          {Object.entries(progress).map(([r, p]) => (
+            <div key={r} className="space-y-0.5">
+              <div className="flex justify-between"><span className="font-mono">{r}</span><span className="tabular-nums">{p.done ? "done" : `${p.kept} of ${p.days} days`}</span></div>
+              <div className="h-1.5 overflow-hidden rounded bg-slate-100"><div className="h-1.5 rounded bg-indigo-600" style={{ width: `${Math.min(100, (p.kept / Math.max(1, p.days)) * 100).toFixed(1)}%` }} /></div>
+            </div>
+          ))}
+          {busy === "load" && <button type="button" onClick={() => { stop.current = true; }} className="rounded border border-slate-300 px-2 py-0.5 hover:bg-slate-50">Stop (goes on from here next time)</button>}
+        </div>
+      )}
+      {error && <p className="text-xs text-amber-800">{error}</p>}
+    </div>
+  );
+}
+
 function ContractsView({ settings, onSettings, onPick }) {
   const [group, setGroup] = useState("Equity index");
   const [size, setSize] = useState("all");
@@ -249,7 +332,8 @@ function ContractsView({ settings, onSettings, onPick }) {
           </table>
         </div>
       )}
-      <p className="text-[11px] text-slate-500">CME contract terms. Prices from Databento, the front contract by volume; a position held into a contract roll closes at the old contract&apos;s last price.</p>
+      <p className="text-[11px] text-slate-500">CME contract terms. Prices from Databento, the front contract by volume; a mini or micro uses its full-size contract&apos;s prices. A position held into a contract roll closes at the old contract&apos;s last price.</p>
+      <PreloadPanel settings={settings} />
     </div>
   );
 }
