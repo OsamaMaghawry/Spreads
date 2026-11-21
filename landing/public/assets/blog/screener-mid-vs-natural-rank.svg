@@ -1,7 +1,7 @@
 <svg viewBox="0 0 720 330" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Two hypothetical 5-wide put credit spreads ranked by credit as a share of max loss. Priced at the mid, spread A ranks first at 28.2 percent and spread B second at 22.9 percent. Priced at the natural, short bid minus long ask, the order reverses: spread B ranks first at 21.4 percent and spread A second at 19.0 percent, because A's quotes are wide and B's are tight.">
   <rect width="720" height="330" fill="#FFFFFF"/>
   <text x="40" y="32" font-size="13" fill="#767B8E">Credit / max loss</text>
-  <text x="680" y="32" font-size="12" fill="#767B8E" text-anchor="end">Hypothetical</text>
+  <text x="680" y="32" font-size="12" fill="#767B8E" text-anchor="end">Hypothetical, before fees</text>
   <line x1="40" y1="260" x2="340" y2="260" stroke="#14151C" stroke-width="1.5"/>
   <line x1="380" y1="260" x2="680" y2="260" stroke="#14151C" stroke-width="1.5"/>
   <g fill="#2E8B5F">

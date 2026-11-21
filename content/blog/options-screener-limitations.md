@@ -28,7 +28,7 @@ Key Takeaways:
 
 Every figure on a screen's results page was computed from quotes taken at one moment. If that moment was a poor one, every column downstream of it inherits the problem, and the row gives no sign of it.
 
-Most US single-stock options trade only in regular hours, 9:30 a.m. to 4:00 p.m. Eastern; since October 2026 one exchange also lists a small set of them before the open. For the rest, a screen run before the open reads option quotes left from the prior session against a stock that may already have moved in pre-market trading. The option prices and the stock price then describe two different moments.
+Most US single-stock options trade only in regular hours, 9:30 a.m. to 4:00 p.m. Eastern. For those, a screen run before the open reads option quotes left from the prior session against a stock that may already have moved in pre-market trading. The option prices and the stock price then describe two different moments.
 
 That mismatch spreads to every derived column:
 
@@ -102,6 +102,6 @@ A screen does the mechanical part well: it reads a chain quickly and applies fil
 
 In the worked example, two hypothetical spreads swapped places when priced at the natural instead of the mid, and the one ranked first at the mid, filled at the natural, would have brought the account's max loss on one stock to $1,220. Both facts were outside the row.
 
-DeltaMint's Strategy Scanner prices a credit spread at the natural, the short leg's bid minus the long leg's ask, rather than at the mid. Its results are spreads that matched the filters the trader set and passed its quote checks, and nothing on the list is a recommendation.
+DeltaMint's Strategy Scanner prices a credit spread at the natural, the short leg's bid minus the long leg's ask, rather than at the mid. Its results are spreads that matched the filters the trader set and passed its stale-quote checks, and nothing on the list is a recommendation.
 
 All figures on this page are hypothetical and are there to show the mechanics. This post is educational and is not investment advice.
