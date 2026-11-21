@@ -132,12 +132,18 @@ export function challengeStep(s, rules, { day, minutes, balance, equity, worstEq
     // The day's result for the consistency rule: closed balance against its opening.
     st.days[day] = { pl: cents(st.balance - st.dayOpenBalance), traded: d.traded || traded };
   }
-  // An intraday floor trails the best equity reached, the minute's best price for what is held.
+  // An intraday floor trails the best equity reached, the minute's best price
+  // for what is held. Inside one minute the order of its high and low is not
+  // known, so its worst price is tested against the floor as the minute began
+  // and the new high's floor from its close: a low that came before the high
+  // never fails against a floor that high set.
+  const floorBefore = st.floor;
   if (rules.drawdown === "intraday") { st.high = Math.max(st.high, st.equity, cents(bestEquity ?? equity)); st.floor = trailFloor(st, rules, st.high); }
 
   const held = contracts !== 0;
-  if (worst <= st.floor) {
-    return { state: { ...st, status: "failed", breach: "floor", why: `Equity ${money(worst)} reached the maximum-loss floor ${money(st.floor)}.` }, flatten: held };
+  if (worst <= floorBefore || st.equity <= st.floor) {
+    const at = worst <= floorBefore ? worst : st.equity;
+    return { state: { ...st, status: "failed", breach: "floor", why: `Equity ${money(at)} reached the maximum-loss floor ${money(worst <= floorBefore ? floorBefore : st.floor)}.` }, flatten: held };
   }
   const todayLow = rules.dailyCountsOpen ? worst - st.dayOpen : st.balance - st.dayOpenBalance;
   if (rules.dailyLoss > 0 && todayLow <= -rules.dailyLoss) {

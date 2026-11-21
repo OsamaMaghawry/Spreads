@@ -142,3 +142,14 @@ test("a minute with no trade date is still checked, under the last one", () => {
   const out = playFutures({ book: { "/ES": long("/ES", 1, 5000) }, minutes: { "/ES": [bar("2026-12-24T23:30:00Z", 4970, 4971, 4960, 4965)] }, challenge: ch });
   assert.equal(out.challenge.state.status, "failed");
 });
+
+test("an intraday floor raised inside a minute does not fail that minute's own low", () => {
+  const r = rules({ drawdown: "intraday", dailyLoss: null, lockAt: 60000, maxLoss: 1600 });
+  // Opened at its low 5000, high 5040, closed 5020: the floor rises to $40,400; the low ($40,000) came first.
+  const out = playFutures({ book: { "/ES": long("/ES", 1, 5000) }, minutes: { "/ES": [bar("2026-11-24T15:00:00Z", 5000, 5040, 5000, 5020)] }, challenge: { rules: r, state: newChallenge(r) } });
+  assert.equal(out.challenge.state.status, "active");
+  assert.equal(out.challenge.state.floor, 40400);
+  // Closing below the floor its own high raised fails: the high came before the close.
+  const low = playFutures({ book: { "/ES": long("/ES", 1, 5000) }, minutes: { "/ES": [bar("2026-11-24T15:00:00Z", 5000, 5040, 5000, 5005)] }, challenge: { rules: r, state: newChallenge(r) } });
+  assert.equal(low.challenge.state.status, "failed");
+});

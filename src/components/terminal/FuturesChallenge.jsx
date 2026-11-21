@@ -158,7 +158,7 @@ function ChallengeView({ settings, onSettings, now, replaying, rules }) {
         <div className="flex justify-between"><dt className="text-slate-500">Commission per side</dt><dd>{terms.feeFull || terms.feeMicro ? `${fmtMoney(terms.feeFull)} full-size, ${fmtMoney(terms.feeMicro)} micro` : "none set: figures are before commission"}</dd></div>
         <div className="flex justify-between"><dt className="text-slate-500">Consistency</dt><dd>{r.consistencyPct ? `best day at most ${r.consistencyPct}% of the ${r.consistencyBase === "target" ? "target" : "profit"}` : "off"}</dd></div>
       </dl>
-      <p className="text-[11px] text-slate-500">Checked every minute at that minute&apos;s worst price for what you hold; a breach closes the position where the limit was crossed (at the open when the minute opened through it). Rules as they were when this replay started; a contract&apos;s commission is fixed at its first fill. Fills cannot be changed during a challenge. Practice only.</p>
+      <p className="text-[11px] text-slate-500">Checked every minute at that minute&apos;s worst price for what you hold; a breach with one contract held closes it where the limit was crossed (at the open when the minute opened through it); with several, or a closed-only daily limit, each closes at the minute&apos;s worst price, which can land below the limit. Inside one minute the order of high and low is unknown: an intraday floor raised by the minute&apos;s high applies from its close. Rules as they were when this replay started; a contract&apos;s commission is fixed at its first fill. Fills cannot be changed during a challenge. Practice only.</p>
     </div>
   );
 }
