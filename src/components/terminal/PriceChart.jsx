@@ -1380,6 +1380,9 @@ function PriceChart({
         </span>
       </div>
       {state.error && <p className="px-3 py-2 text-xs text-rose-700">{state.error}</p>}
+      {state.loading && replayOn && crypto === "cme" && (
+        <p className="px-3 py-2 text-xs text-amber-800">Reading CME candles for {symbol} from Databento: the first time for these dates can take up to a minute; after that they come from the saved copy.</p>
+      )}
       {!state.loading && !state.error && state.count === 0 && rawRef.current.length > 0 && (
         <p className="px-3 py-2 text-xs text-slate-600">
           None of these candles fall in regular hours (9:30 to 16:00 New York). Switch to All hours to see them.

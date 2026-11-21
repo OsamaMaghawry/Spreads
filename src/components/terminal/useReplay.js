@@ -94,8 +94,13 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
     const fetchCandles = async (symbol, tf, from, to) => {
       const r = await invokeFunction("terminal", { action: "replay", accountId: accountRef.current, symbol, tf, from: new Date(from * 1000).toISOString(), to: new Date(to * 1000).toISOString() });
       if (r?.data?.error) throw new Error(r.data.error);
-      return r?.data?.bars || [];
+      const bars = r?.data?.bars || [];
+      // A futures read cut short (functions/terminal futuresCandles): the rest comes with the next read.
+      if (r?.data?.partial) bars.partial = r.data.partial;
+      return bars;
     };
+    // How far a minute read reached: its end, or its last minute when it was cut short.
+    const reached = (bars, from, to) => (bars.partial ? Math.max(from, (bars.at(-1)?.time ?? from - 60) + 60) : to);
 
     // A symbol's candles around the replay's moment, read once.
     const load = (symbol) => {
@@ -112,20 +117,30 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
       // never ten (read from hourly CME candles; 21 Nov, ten years ran the
       // function out of its limits). Their failure never costs the minutes: the
       // days are then built from the minutes and half hours (lib/replay).
+      // The chart draws as soon as the minutes and half hours are in (21 Nov,
+      // "Still blank": it waited minutes for the daily history); the days come
+      // after, and until then are built from what is loaded (lib/replay).
       const futures = !!contractOf(symbol);
-      const daysRead = futures
-        ? fetchCandles(symbol, "1Day", r.start - 700 * DAY, Math.min(latest(), r.start + 30 * DAY)).catch((e) => { patch({ note: `${symbol}: daily history not loaded (${e.message}); days are built from the minutes loaded.` }); return []; })
-        : fetchCandles(symbol, "1Day", r.start - 3650 * DAY, latest());
       const promise = Promise.all([
-        daysRead,
+        futures ? Promise.resolve([]) : fetchCandles(symbol, "1Day", r.start - 3650 * DAY, latest()),
         fetchCandles(symbol, "1Min", minuteFrom, to),
         fetchCandles(symbol, "30Min", minuteFrom - (coin ? 180 : 365) * DAY, minuteFrom).catch(() => [])
       ]).then(([days, minutes, context]) => ({
-        symbol, ready: true, days, minutes, context: context.filter((b) => b.time + 1800 <= minuteFrom), loadedTo: to
+        symbol, ready: true, days, minutes, context: context.filter((b) => b.time + 1800 <= minuteFrom), loadedTo: reached(minutes, minuteFrom, to)
       })).catch((e) => ({ symbol, ready: false, error: e.message })).then((d) => {
         if (ref.current?.id === r.id && g === gen) { data.set(symbol, d); bump(); }
         return d;
       });
+      if (futures) {
+        fetchCandles(symbol, "1Day", r.start - 700 * DAY, Math.min(latest(), r.start + 30 * DAY)).then(async (days) => {
+          await promise;
+          const cur = data.get(symbol);
+          if (!cur?.ready || ref.current?.id !== r.id || g !== gen || !days.length) return;
+          data.set(symbol, { ...cur, days });
+          bump();
+          if (days.partial) patch({ note: `${symbol}: part of the daily history is still being read; it fills in on the next load.` });
+        }).catch((e) => { if (ref.current?.id === r.id) patch({ note: `${symbol}: daily history not loaded (${e.message}); days are built from the minutes loaded.` }); });
+      }
       data.set(symbol, { symbol, ready: false, promise });
       bump();
       return promise;
@@ -145,12 +160,15 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
         const more = await fetchCandles(symbol, "1Min", from, to);
         const cur = data.get(symbol);
         if (!cur?.ready) return cur;
+        const upTo = reached(more, from, to);
         const lastT = cur.minutes.at(-1)?.time ?? 0;
         // Minutes older than the short intraday charts look back are let go,
         // kept as half-hour candles for the longer ones.
         const kept = rollMinutes(cur, (ref.current?.cursor ?? from) - 35 * DAY);
-        d = { ...kept, minutes: [...kept.minutes, ...more.filter((m) => m.time > lastT)], loadedTo: to };
+        d = { ...kept, minutes: [...kept.minutes, ...more.filter((m) => m.time > lastT)], loadedTo: upTo };
         data.set(symbol, d);
+        // A read cut short with nothing new: stop for now, the next step asks again.
+        if (upTo <= from) break;
       }
       return d;
     };

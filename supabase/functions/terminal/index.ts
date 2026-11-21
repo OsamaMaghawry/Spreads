@@ -2859,7 +2859,12 @@ async function futuresEnd() {
 // years of hourly candles in one read ran the function out of its limits and
 // the chart stayed blank), each priced, read and kept before the next; a slice
 // that fails leaves what was read so far, and says why (`error`).
-const FUTURES_SLICE_DAYS: Record<string, number> = { "1m": 30, "1h": 120 };
+// Databento's time is per request more than per row (21 Nov: 30 to 60 s a
+// read), so hours come a year a slice; and no slice starts after
+// FUTURES_BUDGET_MS, so a request ends well inside the function's limit and
+// the next one goes on from what was kept.
+const FUTURES_SLICE_DAYS: Record<string, number> = { "1m": 30, "1h": 365 };
+const FUTURES_BUDGET_MS = 60000;
 const FUTURES_UPSERT_ROWS = 150;
 
 async function futuresCandles(admin: any, root: string, continuous: string, schema: "1m" | "1h", start: number, end: number) {
@@ -2883,7 +2888,9 @@ async function futuresCandles(admin: any, root: string, continuous: string, sche
     else slices.push([d]);
   }
   let error: string | null = null;
+  const began = Date.now();
   for (const run of slices) {
+    if (Date.now() - began > FUTURES_BUDGET_MS) { error = "More CME candles are still to be read: they come with the next load."; break; }
     const from = Math.max(start, Date.parse(`${run[0]}T00:00:00Z`));
     const to = Math.min(end, Date.parse(`${run[run.length - 1]}T00:00:00Z`) + 86400000);
     if (!(from < to)) continue;
