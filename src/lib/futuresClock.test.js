@@ -48,3 +48,15 @@ test("a take-profit's size in contracts comes whole", () => {
   assert.equal(targetSize("50%", 3, "cme").qty, 1);
   assert.equal(targetSize("0.5", 3, true).qty, 0.5);
 });
+
+test("a contract's daily chart without its daily list: finished days built from the half hours and minutes", () => {
+  const m = (iso, p) => ({ time: t(iso), open: p, high: p + 1, low: p - 1, close: p, volume: 1 });
+  const context = [m("2026-11-19T15:00:00Z", 90), m("2026-11-19T20:30:00Z", 95)]; // Thu 19 Nov
+  const minutes = [m("2026-11-23T15:00:00Z", 100), m("2026-11-23T23:00:00Z", 110), m("2026-11-24T14:30:00Z", 120)];
+  const days = replayCandles({ minutes, days: [], context }, "1Day", t("2026-11-24T14:31:00Z"), { crypto: "cme" });
+  assert.deepEqual(days.map((d) => [new Date(d.time * 1000).toISOString().slice(0, 10), d.open, d.close]),
+    [["2026-11-19", 90, 95], ["2026-11-23", 100, 100], ["2026-11-24", 110, 120]]);
+  // With a daily list, its days win and only the gaps are built.
+  const listed = replayCandles({ minutes, days: [{ time: D("2026-11-23"), open: 99, high: 101, low: 98, close: 100.5, volume: 9 }], context }, "1Day", t("2026-11-24T14:31:00Z"), { crypto: "cme" });
+  assert.deepEqual(listed.map((d) => d.open), [90, 99, 110]);
+});

@@ -5,7 +5,7 @@ import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import "@/components/terminal/terminal.css";
 import { invokeFunction } from "@/lib/functions";
-import { readWatchlist, cleanWatchlist, withCoinsOnce, cleanWatchlists, activeWatchlist, withActiveSymbols, px, pctText, sizeText, isCrypto, marketOf, WATCHLIST_MAX, shareFeed, SHARE_FEEDS } from "@/lib/terminal";
+import { readWatchlist, cleanWatchlist, withCoinsOnce, cleanWatchlists, activeWatchlist, withActiveSymbols, px, pctText, sizeText, isCrypto, isFutures, marketOf, WATCHLIST_MAX, shareFeed, SHARE_FEEDS } from "@/lib/terminal";
 import FuturesChallenge, { FUTURES_DEFAULT, cleanFutures, rulesOf, futuresTerms } from "@/components/terminal/FuturesChallenge";
 import { futuresFigures } from "@/lib/futuresPlay";
 import { DEFAULT_LAYOUTS, BREAKPOINTS, COLS, MARGIN, cleanLayouts, rowHeightFor, fromFirstVersion, foldWatch } from "@/lib/terminalLayout";
@@ -606,7 +606,10 @@ export default function Terminal() {
     setReplayForm({ from: date, at: "open" });
   };
   // The news tab: the active chart's symbol; in a replay, up to its moment.
-  const news = useNews({ accountId, symbol, cursor: session?.cursor ?? null, end: session?.end ?? null });
+  // A futures contract has no Alpaca news, book, tape or ticket: practised in the replay only.
+  const futuresOn = isFutures(symbol);
+  const futuresNote = <p className="p-3 text-xs text-slate-500">{symbol} is a futures contract: practised in the replay only, with the replay bar and hotkeys. No live data or broker orders.</p>;
+  const news = useNews({ accountId, symbol: futuresOn ? "" : symbol, cursor: session?.cursor ?? null, end: session?.end ?? null });
   // A new replay opens on its practice positions.
   useEffect(() => { if (session?.id) setTab("practice"); }, [session?.id]);
   useEffect(() => { if (!session && !lastReplay) setTab((t) => (t === "practice" || (t === "results" && !savedReplays?.length) ? "positions" : t)); }, [session, lastReplay, savedReplays]);
@@ -967,11 +970,11 @@ export default function Terminal() {
         </div>
 
         <div key="book" className={frame}>
-          <OrderBook accountId={accountId} symbol={symbol} quote={quote} listen={listen} onPick={(price) => setPick({ price, at: Date.now() })} />
+          {futuresOn ? futuresNote : <OrderBook accountId={accountId} symbol={symbol} quote={quote} listen={listen} onPick={(price) => setPick({ price, at: Date.now() })} />}
         </div>
 
         <div key="tape" className={frame}>
-          <TapePanel accountId={accountId} symbol={symbol} listen={listen} live={tapeLive} epoch={epoch} quoteRef={quoteRef} stockFeed={shares.history} source={shares.live} />
+          {futuresOn ? futuresNote : <TapePanel accountId={accountId} symbol={symbol} listen={listen} live={tapeLive} epoch={epoch} quoteRef={quoteRef} stockFeed={shares.history} source={shares.live} />}
         </div>
 
         <div key="ticket" className={frame}>
@@ -1002,11 +1005,11 @@ export default function Terminal() {
                 Share prices here are fifteen minutes old (every exchange, delayed): IEX trades from 8:00 New York. Set a limit price with that in mind.
               </p>
             )}
-            <OrderTicket account={account} symbol={symbol} quote={quote} held={held} heldText={held > 0 && position?.qtyText ? position.qtyText : ""}
+            {futuresOn ? futuresNote : <OrderTicket account={account} symbol={symbol} quote={quote} held={held} heldText={held > 0 && position?.qtyText ? position.qtyText : ""}
               buyingPower={view?.buyingPower ?? null} equity={view?.equity ?? null} play={replaying ? null : activePlay} onPlaced={refreshAll} pick={pick} preset={preset} onNotify={notify} liveOk={liveOk} partsOn={partsOn} onPartsOn={setPartsOn}
               leadOff={plan.leadOff} none={plan.none}
               group={groupSend.map((g) => ({ ...accounts.find((a) => a.id === g.id), size: g })).filter((a) => a.id)}
-              groupHeld={others.map((g) => ({ id: g.accountId, name: g.name, qty: signedQty((g.positions || []).find((p) => p.symbol === symbol)) }))} />
+              groupHeld={others.map((g) => ({ id: g.accountId, name: g.name, qty: signedQty((g.positions || []).find((p) => p.symbol === symbol)) }))} />}
             <p className="px-1 text-[10px] leading-relaxed text-slate-400">Prices from your own Alpaca account: shares from the free IEX feed (real time, IEX trades only, 8:00 to 17:00 New York), or every exchange fifteen minutes late outside IEX&apos;s hours{eodhdOk ? "; or EODHD's real-time stream on your own EODHD plan" : ""}; coins from Alpaca&apos;s crypto venue, around the clock, with the full order book. Charts by TradingView Lightweight Charts. Not investment advice.</p>
           </div>
         </div>

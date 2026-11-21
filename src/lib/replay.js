@@ -97,7 +97,16 @@ export function replayCandles({ minutes = [], days = [], context = [] }, interva
     return aggregate(src, (m) => bucketOf(m.time, interval, crypto, regular));
   }
   const today = dayOf(cursor - 1, crypto);
-  const finished = days.slice(0, countBefore(days, today));
+  let finished = days.slice(0, countBefore(days, today));
+  if (crypto === "cme") {
+    // A contract's finished days the daily list does not have (it reaches two
+    // years, or did not load): built from the half hours and minutes loaded,
+    // by CME trade date. The daily list's own day wins where both have one.
+    const listed = new Set(finished.map((d) => d.time));
+    const built = aggregate([...context, ...shown].filter((m) => dayOf(m.time, crypto) < today), (m) => dayOf(m.time, crypto))
+      .filter((d) => !listed.has(d.time));
+    if (built.length) finished = [...finished, ...built].sort((a, b) => a.time - b.time);
+  }
   const native = days.find((d) => d.time === today);
   let partial = null;
   if (native && cursor >= dayClose(today, crypto)) partial = { ...native };

@@ -2827,7 +2827,8 @@ async function replayData(account: any, symbol: string, tf: string, from: string
 // anything is bought.
 
 const FUTURES_MAX_USD = 2;
-const FUTURES_DAYS: Record<string, number> = { "1Min": 45, "30Min": 60, "1Day": 4400 };
+// Daily candles reach two years back: built from hourly candles, which ten years of was too much to read.
+const FUTURES_DAYS: Record<string, number> = { "1Min": 45, "30Min": 60, "1Day": 730 };
 let futuresRange: { at: number; end: number } | null = null;
 
 async function databento(path: string, q: Record<string, string>) {
@@ -2853,10 +2854,17 @@ async function futuresEnd() {
   return end;
 }
 
-// Candles of one schema between two moments (ms), from the cache where kept and Databento for the rest.
+// Candles of one schema between two moments (ms), from the cache where kept
+// and Databento for the rest. The days missing are read in slices (21 Nov: ten
+// years of hourly candles in one read ran the function out of its limits and
+// the chart stayed blank), each priced, read and kept before the next; a slice
+// that fails leaves what was read so far, and says why (`error`).
+const FUTURES_SLICE_DAYS: Record<string, number> = { "1m": 30, "1h": 120 };
+const FUTURES_UPSERT_ROWS = 150;
+
 async function futuresCandles(admin: any, root: string, continuous: string, schema: "1m" | "1h", start: number, end: number) {
   const days = utcDays(Math.floor(start / 1000), Math.floor((end - 1) / 1000));
-  // Read by range, a thousand days a page: ten years of days by name is too long a query.
+  // Read by range, a thousand days a page: years of days by name is too long a query.
   const have = new Map<string, any[]>();
   for (let from = 0; ; from += 1000) {
     const { data: kept, error } = await admin.from("futures_bars").select("day, bars").eq("root", root).eq("schema", schema)
@@ -2865,32 +2873,46 @@ async function futuresCandles(admin: any, root: string, continuous: string, sche
     for (const r of kept || []) have.set(String(r.day).slice(0, 10), r.bars || []);
     if (!kept || kept.length < 1000) break;
   }
-  const missing = days.filter((d) => !have.has(d));
-  if (missing.length) {
-    const from = Math.max(start, Date.parse(`${missing[0]}T00:00:00Z`));
-    const to = Math.min(end, Date.parse(`${missing[missing.length - 1]}T00:00:00Z`) + 86400000);
-    if (from < to) {
+  // The missing days in runs of consecutive days, each cut to the slice size.
+  const slices: string[][] = [];
+  for (const d of days) {
+    if (have.has(d)) continue;
+    const run = slices[slices.length - 1];
+    const prev = run?.[run.length - 1];
+    if (run && prev && Date.parse(`${d}T00:00:00Z`) - Date.parse(`${prev}T00:00:00Z`) === 86400000 && run.length < FUTURES_SLICE_DAYS[schema]) run.push(d);
+    else slices.push([d]);
+  }
+  let error: string | null = null;
+  for (const run of slices) {
+    const from = Math.max(start, Date.parse(`${run[0]}T00:00:00Z`));
+    const to = Math.min(end, Date.parse(`${run[run.length - 1]}T00:00:00Z`) + 86400000);
+    if (!(from < to)) continue;
+    try {
       const q = { dataset: "GLBX.MDP3", symbols: continuous, stype_in: "continuous", schema: `ohlcv-${schema}`, start: new Date(from).toISOString(), end: new Date(to).toISOString() };
       const usd = Number(await databento("metadata.get_cost", q));
-      if (!(usd <= FUTURES_MAX_USD)) throw new Error(`Those CME candles would cost $${usd.toFixed(2)} from Databento, over the $${FUTURES_MAX_USD} allowed at once. Choose a shorter period.`);
+      if (!(usd <= FUTURES_MAX_USD)) throw new Error(`Those CME candles would cost $${usd.toFixed(2)} from Databento, over the $${FUTURES_MAX_USD} allowed at once.`);
       const fresh = byUtcDay(parseRows(await databento("timeseries.get_range", { ...q, encoding: "json", pretty_px: "true", pretty_ts: "true" })));
       const keep: any[] = [];
-      for (const d of missing) {
+      for (const d of run) {
         const bars = fresh.get(d) || [];
         have.set(d, bars);
         // Only a day wholly read and wholly past is kept: it can no longer change.
         const dayStart = Date.parse(`${d}T00:00:00Z`);
         if (dayStart >= from && dayStart + 86400000 <= to) keep.push({ root, schema, day: d, bars, fetched_at: new Date().toISOString() });
       }
-      if (keep.length) {
-        const { error: e } = await admin.from("futures_bars").upsert(keep, { onConflict: "root,schema,day" });
+      for (let i = 0; i < keep.length; i += FUTURES_UPSERT_ROWS) {
+        const { error: e } = await admin.from("futures_bars").upsert(keep.slice(i, i + FUTURES_UPSERT_ROWS), { onConflict: "root,schema,day" });
         if (e) console.error("futures_bars", e.message);
       }
+    } catch (e) {
+      error = String((e as Error)?.message || e);
+      console.error("futures", JSON.stringify({ root, schema, from: new Date(from).toISOString(), to: new Date(to).toISOString(), error }));
+      break;
     }
   }
   const s = Math.floor(start / 1000);
   const t = Math.floor(end / 1000);
-  return days.flatMap((d) => have.get(d) || []).filter((c: any) => c.time >= s && c.time < t);
+  return { candles: days.flatMap((d) => have.get(d) || []).filter((c: any) => c.time >= s && c.time < t), error };
 }
 
 async function futuresReplay(admin: any, symbolIn: string, tf: string, from: string, to: string) {
@@ -2906,15 +2928,18 @@ async function futuresReplay(admin: any, symbolIn: string, tf: string, from: str
     if (!Number.isFinite(start) || !Number.isFinite(end)) return { symbol, tf, bars: [] };
     // Half hours further back than 60 days are left out rather than bought by the minute.
     if (tf === "30Min") start = Math.max(start, end - FUTURES_DAYS[tf] * 86400000);
-    // A daily candle's session starts at 18:00 New York the evening before.
-    if (tf === "1Day") start -= 86400000;
+    // Daily candles two years back at most; a daily candle's session starts at 18:00 New York the evening before.
+    if (tf === "1Day") start = Math.max(start, end - FUTURES_DAYS[tf] * 86400000) - 86400000;
     if (!(start < end)) return { symbol, tf, bars: [] };
     if (end - start > (FUTURES_DAYS[tf] + 1) * 86400000) return { error: `At most ${FUTURES_DAYS[tf]} days of candles at a time.` };
     const schema = tf === "1Day" ? "1h" : "1m";
-    const candles = await futuresCandles(admin, spec.root, spec.continuous, schema, start, end);
+    const read = await futuresCandles(admin, spec.root, spec.continuous, schema, start, end);
+    const candles = read.candles;
+    // Nothing read at all: the reason. Some read: the candles, and the reason the rest is missing.
+    if (!candles.length && read.error) return { error: read.error };
     const bars = tf === "1Day" ? sessionDays(candles) : tf === "30Min" ? rollUp(candles, 1800) : candles;
     // Rolls from the one-minute candles: where the replay closes a held position (lib/replay practiceRoll).
-    return { symbol, tf, feed: "cme", contract: spec, bars, ...(tf === "1Min" ? { rolls: rollsOf(candles) } : {}) };
+    return { symbol, tf, feed: "cme", contract: spec, bars, ...(read.error ? { partial: read.error } : {}), ...(tf === "1Min" ? { rolls: rollsOf(candles) } : {}) };
   } catch (e) {
     return { error: String((e as Error)?.message || e) };
   }

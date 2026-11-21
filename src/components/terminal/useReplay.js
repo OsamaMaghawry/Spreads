@@ -108,8 +108,16 @@ export default function useReplay({ accountId, notify, futuresRef = null }) {
       const g = gen;
       const minuteFrom = Math.floor((r.cursor - 30 * DAY) / 1800) * 1800;
       const to = Math.min(r.cursor + 5 * DAY, latest());
+      // A futures contract's daily candles: the two years around the replay,
+      // never ten (read from hourly CME candles; 21 Nov, ten years ran the
+      // function out of its limits). Their failure never costs the minutes: the
+      // days are then built from the minutes and half hours (lib/replay).
+      const futures = !!contractOf(symbol);
+      const daysRead = futures
+        ? fetchCandles(symbol, "1Day", r.start - 700 * DAY, Math.min(latest(), r.start + 30 * DAY)).catch((e) => { patch({ note: `${symbol}: daily history not loaded (${e.message}); days are built from the minutes loaded.` }); return []; })
+        : fetchCandles(symbol, "1Day", r.start - 3650 * DAY, latest());
       const promise = Promise.all([
-        fetchCandles(symbol, "1Day", r.start - 3650 * DAY, latest()),
+        daysRead,
         fetchCandles(symbol, "1Min", minuteFrom, to),
         fetchCandles(symbol, "30Min", minuteFrom - (coin ? 180 : 365) * DAY, minuteFrom).catch(() => [])
       ]).then(([days, minutes, context]) => ({
