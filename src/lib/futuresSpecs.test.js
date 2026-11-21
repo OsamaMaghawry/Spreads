@@ -73,10 +73,10 @@ test("Globex: Sunday 18:00 to Friday 17:00, halted 17:00 to 18:00, trade date ro
   assert.equal(cmeOpenAt("2026-11-28", 12 * 60), false); // Saturday
 });
 
-test("full closures: New Year's Day, Good Friday and Christmas", () => {
-  assert.deepEqual([...cmeClosures(2026)].sort(), ["2026-01-01", "2026-04-03", "2026-12-25"]);
+test("fixed closures: New Year's Day and Christmas; Good Friday is left to the bars", () => {
+  assert.deepEqual([...cmeClosures(2026)].sort(), ["2026-01-01", "2026-12-25"]);
   assert.equal(cmeOpenAt("2026-12-24", 18 * 60 + 30), false); // into Christmas
-  assert.equal(cmeOpenAt("2026-04-02", 20 * 60), false); // into Good Friday
+  assert.equal(cmeTradeDate("2021-04-01", 20 * 60), "2021-04-02"); // Good Friday 2021 traded a short session
   // Thanksgiving trades with an early halt; the clock alone keeps it open and the bars decide.
   assert.equal(cmeTradeDate("2026-11-26", 10 * 60), "2026-11-26");
 });

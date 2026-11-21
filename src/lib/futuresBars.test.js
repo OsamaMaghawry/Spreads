@@ -42,3 +42,13 @@ test("UTC days and New York time", () => {
   assert.deepEqual(nyParts(t("2026-11-23T23:05:00Z")), { day: "2026-11-23", minutes: 18 * 60 + 5 });
   assert.deepEqual(nyParts(t("2026-07-06T22:05:00Z")), { day: "2026-07-06", minutes: 18 * 60 + 5 }); // summer time
 });
+
+test("a roll is where the series moves to the next contract", async () => {
+  const { rollsOf } = await import("../../supabase/functions/_shared/futuresBars.js");
+  const c = parseRows([
+    JSON.stringify({ hd: { ts_event: "2026-12-14T14:30:00Z", instrument_id: 1 }, open: "5000", high: "5001", low: "4999", close: "5000.5", volume: 1 }),
+    JSON.stringify({ hd: { ts_event: "2026-12-14T14:31:00Z", instrument_id: 2 }, open: "5050", high: "5051", low: "5049", close: "5050.25", volume: 1 })
+  ].join("\n"));
+  assert.equal(c[0].id, 1);
+  assert.deepEqual(rollsOf(c), [{ time: t("2026-12-14T14:31:00Z"), price: 5000.5, from: 1, to: 2, gap: 49.5 }]);
+});

@@ -171,12 +171,14 @@ export function goalMet(st, rules) {
 /**
  * Whether an order may go in: refused while locked, failed or passed, and
  * when the book would then hold more contracts than allowed (`after`, as
- * heldContracts counts them, gross).
+ * heldContracts counts them, gross; `held`: before it), and after the flat-by
+ * time any order that would add to what is held (`minutes`, New York).
  */
-export function canOrder(s, rules, { after }) {
+export function canOrder(s, rules, { after, held = 0, minutes }) {
   if (s.status === "failed") return { ok: false, reason: `The evaluation failed: ${s.why}` };
   if (s.status === "passed") return { ok: false, reason: "The evaluation is passed. Start a new one to keep trading." };
   if (s.status === "locked") return { ok: false, reason: `Locked until the next session: ${s.why}` };
+  if (rules.flatBy !== null && minutes !== undefined && minutes >= rules.flatBy && minutes < 18 * 60 && after > held + 1e-9) return { ok: false, reason: "Past the flat-by time: no new positions until the 18:00 session." };
   if (rules.maxContracts > 0 && after > rules.maxContracts + 1e-9) return { ok: false, reason: `That would hold ${after} contracts; the limit is ${rules.maxContracts}.` };
   return { ok: true };
 }

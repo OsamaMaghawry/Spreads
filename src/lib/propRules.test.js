@@ -172,3 +172,11 @@ test("past the flat-by time a held position must be closed", () => {
   assert.equal(challengeStep(s, r, { day: "2026-11-23", minutes: 16 * 60 + 55, balance: 40000, equity: 40100, contracts: 1 }).flatten, true);
   assert.equal(challengeStep(s, r, { day: "2026-11-23", minutes: 16 * 60 + 54, balance: 40000, equity: 40100, contracts: 1 }).flatten, false);
 });
+
+test("after the flat-by time an order may reduce but not add", () => {
+  const r = rulesOf();
+  const s = newChallenge(r);
+  assert.equal(canOrder(s, r, { after: 1, held: 0, minutes: 16 * 60 + 56 }).ok, false);
+  assert.equal(canOrder(s, r, { after: 0, held: 1, minutes: 16 * 60 + 56 }).ok, true);
+  assert.equal(canOrder(s, r, { after: 1, held: 0, minutes: 18 * 60 + 1 }).ok, true);
+});

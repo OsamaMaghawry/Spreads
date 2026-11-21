@@ -32,7 +32,7 @@ import { openInterestOf, quotesOf, historyChain, historySummary } from "../_shar
 import { screenSummary, screenUniverse as gexUniverse } from "../_shared/gexScreen.js";
 import { cboeOpenInterest, mergeOpenInterest } from "../_shared/openInterest.ts";
 import { futuresSpec } from "../_shared/futuresSpecs.js";
-import { parseRows, byUtcDay, utcDays, rollUp, sessionDays } from "../_shared/futuresBars.js";
+import { parseRows, byUtcDay, utcDays, rollUp, sessionDays, rollsOf } from "../_shared/futuresBars.js";
 
 // The staging trading terminal: chart history, quotes, symbol search, the
 // account's shares and orders, and share orders.
@@ -2856,9 +2856,15 @@ async function futuresEnd() {
 // Candles of one schema between two moments (ms), from the cache where kept and Databento for the rest.
 async function futuresCandles(admin: any, root: string, continuous: string, schema: "1m" | "1h", start: number, end: number) {
   const days = utcDays(Math.floor(start / 1000), Math.floor((end - 1) / 1000));
-  const { data: kept, error } = await admin.from("futures_bars").select("day, bars").eq("root", root).eq("schema", schema).in("day", days);
-  if (error) throw new Error(error.message);
-  const have = new Map<string, any[]>((kept || []).map((r: any) => [String(r.day).slice(0, 10), r.bars || []]));
+  // Read by range, a thousand days a page: ten years of days by name is too long a query.
+  const have = new Map<string, any[]>();
+  for (let from = 0; ; from += 1000) {
+    const { data: kept, error } = await admin.from("futures_bars").select("day, bars").eq("root", root).eq("schema", schema)
+      .gte("day", days[0]).lte("day", days[days.length - 1]).order("day").range(from, from + 999);
+    if (error) throw new Error(error.message);
+    for (const r of kept || []) have.set(String(r.day).slice(0, 10), r.bars || []);
+    if (!kept || kept.length < 1000) break;
+  }
   const missing = days.filter((d) => !have.has(d));
   if (missing.length) {
     const from = Math.max(start, Date.parse(`${missing[0]}T00:00:00Z`));
@@ -2890,6 +2896,8 @@ async function futuresCandles(admin: any, root: string, continuous: string, sche
 async function futuresReplay(admin: any, symbolIn: string, tf: string, from: string, to: string) {
   const spec = futuresSpec(symbolIn);
   if (!spec) return { error: "That is not a futures contract the practice account trades." };
+  // Only the front contract is read (continuous, by volume); a dated one would quietly be something else.
+  if (String(symbolIn).trim().toUpperCase().replace(/^\//, "") !== spec.root) return { error: `The replay trades the front contract: /${spec.root}.` };
   if (!FUTURES_DAYS[tf]) return { error: "Replay reads one-minute, half-hour or daily candles." };
   try {
     let start = Date.parse(from);
@@ -2898,12 +2906,15 @@ async function futuresReplay(admin: any, symbolIn: string, tf: string, from: str
     if (!Number.isFinite(start) || !Number.isFinite(end)) return { symbol, tf, bars: [] };
     // Half hours further back than 60 days are left out rather than bought by the minute.
     if (tf === "30Min") start = Math.max(start, end - FUTURES_DAYS[tf] * 86400000);
+    // A daily candle's session starts at 18:00 New York the evening before.
+    if (tf === "1Day") start -= 86400000;
     if (!(start < end)) return { symbol, tf, bars: [] };
-    if (end - start > FUTURES_DAYS[tf] * 86400000) return { error: `At most ${FUTURES_DAYS[tf]} days of candles at a time.` };
+    if (end - start > (FUTURES_DAYS[tf] + 1) * 86400000) return { error: `At most ${FUTURES_DAYS[tf]} days of candles at a time.` };
     const schema = tf === "1Day" ? "1h" : "1m";
     const candles = await futuresCandles(admin, spec.root, spec.continuous, schema, start, end);
     const bars = tf === "1Day" ? sessionDays(candles) : tf === "30Min" ? rollUp(candles, 1800) : candles;
-    return { symbol, tf, feed: "cme", contract: spec, bars };
+    // Rolls from the one-minute candles: where the replay closes a held position (lib/replay practiceRoll).
+    return { symbol, tf, feed: "cme", contract: spec, bars, ...(tf === "1Min" ? { rolls: rollsOf(candles) } : {}) };
   } catch (e) {
     return { error: String((e as Error)?.message || e) };
   }

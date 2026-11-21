@@ -16,7 +16,9 @@ export function dbCandle(row) {
   const [open, high, low, close] = ["open", "high", "low", "close"].map((k) => Number(row?.[k]));
   const volume = Number(row?.volume) || 0;
   if (!Number.isFinite(time) || ![open, high, low, close].every((x) => Number.isFinite(x) && x > 0)) return null;
-  return { time, open, high, low, close, volume };
+  // The contract the continuous series held at that minute (Databento's instrument id): a change is a roll.
+  const id = Number(row?.hd?.instrument_id ?? row?.instrument_id);
+  return { time, open, high, low, close, volume, ...(Number.isFinite(id) && id > 0 ? { id } : {}) };
 }
 
 /** Databento's newline-separated JSON body as candles, oldest first, one per time. */
@@ -30,6 +32,20 @@ export function parseRows(text) {
     if (c) byTime.set(c.time, c);
   }
   return [...byTime.values()].sort((a, b) => a.time - b.time);
+}
+
+/**
+ * Where the continuous series moved to the next contract: the first candle of
+ * the new one, and the old contract's last price before it.
+ */
+export function rollsOf(candles) {
+  const out = [];
+  for (let i = 1; i < candles.length; i++) {
+    const a = candles[i - 1];
+    const b = candles[i];
+    if (a.id && b.id && a.id !== b.id) out.push({ time: b.time, price: a.close, from: a.id, to: b.id, gap: b.open - a.close });
+  }
+  return out;
 }
 
 /** "YYYY-MM-DD" of a UTC second. */

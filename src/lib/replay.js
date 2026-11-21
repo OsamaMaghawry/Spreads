@@ -225,13 +225,16 @@ export const contractOf = (symbol) => (String(symbol || "").startsWith("/") ? fu
  */
 export const newPractice = (cash = PRACTICE_CASH, contract = null) => ({
   cash, qty: 0, avg: 0, realized: 0, trades: [], stop: null, targets: [], orders: [], seq: 0,
-  ...(contract ? { mult: contract.pointValue, tick: contract.tick, fee: contract.commission, root: contract.root } : {})
+  ...(contract ? { mult: contract.pointValue, tick: contract.tick, decimals: contract.decimals, fee: contract.commission, root: contract.root } : {})
 });
 
 // Dollars per point: a contract's multiplier, 1 for a share or a coin.
 const multOf = (acct) => acct?.mult || 1;
 // The same contract terms on a fresh account, for a rebuild from fills.
-const termsOf = (acct) => (acct?.mult ? { mult: acct.mult, tick: acct.tick, fee: acct.fee, root: acct.root } : {});
+const termsOf = (acct) => (acct?.mult ? { mult: acct.mult, tick: acct.tick, decimals: acct.decimals, fee: acct.fee, root: acct.root } : {});
+// A price on a contract's tick grid, rounded the way that cannot cross the
+// order's own price: "down", "up" or "nearest". A share's or coin's is as typed.
+const onGrid = (acct, price, mode = "nearest") => (acct?.tick ? roundToTick(price, { tick: acct.tick, decimals: acct.decimals ?? futuresSpec(acct.root)?.decimals ?? 8 }, mode) : price);
 const cents = (x) => Math.round(x * 100) / 100 || 0;
 
 /**
@@ -245,7 +248,7 @@ export function practiceFill(acct, { side, qty, price, time, why = "", range = n
   if (!(n > 0) || !(price > 0)) return acct;
   const mult = multOf(acct);
   // A contract trades on its tick grid and pays its commission on every fill.
-  if (acct.tick) price = roundToTick(price, { tick: acct.tick, decimals: decimalsOf(acct.tick) });
+  price = onGrid(acct, price);
   const fee = acct.mult ? cents((acct.fee || 0) * n) : 0;
   const signed = side === "buy" ? n : -n;
   let { qty: q, avg, realized } = acct;
@@ -282,7 +285,6 @@ export function practiceFill(acct, { side, qty, price, time, why = "", range = n
  */
 // The cash an account started with, before its fills.
 const startCash = (acct) => acct.trades.reduce((c, t) => c + (t.side === "buy" ? 1 : -1) * t.qty * t.price * multOf(acct) + (t.fee || 0), acct.cash);
-const decimalsOf = (tick) => (String(tick).split(".")[1] || "").length;
 
 export function cancelFill(acct, index) {
   if (!acct || !(index >= 0 && index < acct.trades.length)) return acct;
@@ -320,6 +322,7 @@ export function addOrder(acct, { side, qty, price }, last) {
   if (!(price > 0)) return { acct, reason: "Enter a price." };
   if (!(last > 0)) return { acct, reason: "No replay price yet: step forward once." };
   const kind = (side === "buy") === (price < last) ? "limit" : "stop";
+  price = onGrid(acct, price, (side === "buy") === (kind === "limit") ? "down" : "up");
   const seq = (acct.seq || 0) + 1;
   return { acct: { ...acct, seq, orders: [...(acct.orders || []), { id: seq, side, qty: n, price, kind }] }, kind };
 }
@@ -388,6 +391,21 @@ export function triggerExits(acct, revealed, { regularOnly = false } = {}) {
   return a;
 }
 
+/**
+ * A contract roll in the replay: the continuous series moves to the next
+ * contract at `time`, and `price` is the expiring contract's last price.
+ * A position held into it is closed there ("roll"), as a trader rolls or
+ * lets it go, and its stop, take-profits and working orders go with it: they
+ * were priced in the old contract. Without this the jump between the two
+ * contracts' prices would count as profit or loss that never happened.
+ */
+export function practiceRoll(acct, { time, price }) {
+  if (!acct?.mult) return acct;
+  let a = { ...acct, orders: [] };
+  if (a.qty) a = practiceFill(a, { side: a.qty > 0 ? "sell" : "buy", qty: Math.abs(a.qty), price, time, why: "roll" });
+  return { ...a, stop: null, targets: [] };
+}
+
 // A stop sits on the losing side of the price and a take-profit on the
 // winning side, or it would fill at once.
 function wrongSide(acct, kind, price, last) {
@@ -409,6 +427,7 @@ export function practiceExit(acct, kind, price, last) {
   if (!(price > 0)) return { acct, reason: "Enter a price." };
   const reason = wrongSide(acct, kind, price, last);
   if (reason) return { acct, reason };
+  price = onGrid(acct, price, (acct.qty > 0) === (kind === "stop") ? "down" : "up");
   if (kind === "stop") return { acct: { ...acct, stop: price } };
   const seq = acct.seq + 1;
   return { acct: { ...acct, seq, targets: [{ id: seq, price, qty: null }] } };
@@ -433,7 +452,7 @@ export function addTarget(acct, { price, qty }, last) {
     if (sized + qty > held + 1e-9) return { acct, reason: `Take-profits would cover ${+(sized + qty).toFixed(9)} of the ${+held.toFixed(9)} held.` };
   }
   const seq = acct.seq + 1;
-  return { acct: { ...acct, seq, targets: [...acct.targets, { id: seq, price, qty }] } };
+  return { acct: { ...acct, seq, targets: [...acct.targets, { id: seq, price: onGrid(acct, price, acct.qty > 0 ? "up" : "down"), qty }] } };
 }
 
 export const removeTarget = (acct, id) => ({ ...acct, targets: acct.targets.filter((t) => t.id !== id) });

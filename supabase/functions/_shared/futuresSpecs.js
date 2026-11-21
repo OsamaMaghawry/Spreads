@@ -10,7 +10,7 @@
 // The commission is a starting value for one contract, one side, to be set to
 // the trader's own firm's rate; it is not any broker's published price.
 
-import { easter, observed } from "./usHolidays.js";
+import { observed } from "./usHolidays.js";
 
 // size: "standard" (the full contract), "e-mini" or "micro". pointValue is
 // dollars for a move of 1.00 in the quoted price (grains are quoted in cents
@@ -142,10 +142,11 @@ const round2 = (x) => Math.round(x * 100) / 100 || 0;
 //
 // Sunday 18:00 to Friday 17:00, halted 17:00-18:00 each weekday. The trade
 // date rolls at 18:00: Sunday 18:00 belongs to Monday's session. Full
-// closures kept here are New Year's Day, Good Friday and Christmas. On the
-// other US holidays Globex opens with an early halt whose time differs by
-// product and year; a replay takes those from the bars themselves (no bars,
-// no trading), and they are not guessed here.
+// closures kept here are New Year's Day and Christmas only. Good Friday is
+// usually closed but was a short session in some years (2021, 2023), and on
+// the other US holidays Globex opens with an early halt whose time differs
+// by product and year; a replay takes all of those from the bars themselves
+// (no bars, no trading), and they are not guessed here.
 
 const HALT = 17 * 60;
 const REOPEN = 18 * 60;
@@ -157,11 +158,10 @@ const shift = (day, n) => {
 };
 
 const closures = new Map();
-/** CME Globex full-day closures in a year, as trade dates "YYYY-MM-DD". */
+/** CME Globex full-day closures in a year that hold every year, as trade dates "YYYY-MM-DD". */
 export function cmeClosures(y) {
   if (closures.has(y)) return closures.get(y);
-  const [em, ed] = easter(y);
-  const set = new Set([observed(y, 1, 1, false), iso(y, em, ed - 2), observed(y, 12, 25)].filter(Boolean));
+  const set = new Set([observed(y, 1, 1, false), observed(y, 12, 25)].filter(Boolean));
   closures.set(y, set);
   return set;
 }

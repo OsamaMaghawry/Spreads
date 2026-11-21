@@ -116,3 +116,38 @@ test("a challenge's book starts at its account size", () => {
   const a = fill({ ...acctIn({}, "/MES"), fee: 0 }, "buy", 1, 5000);
   assert.equal(bookValue({ "/MES": a }, () => 5010, 40000).equity, 40050);
 });
+
+test("a 6J fill keeps its seven decimals", () => {
+  let a = acctIn({}, "/6J"); // $2 a side
+  a = fill(a, "buy", 1, 0.0066665);
+  assert.equal(a.trades[0].price, 0.0066665);
+  a = fill(a, "sell", 1, 0.00667, 2);
+  near(a.realized, 7 * 6.25 - 4);
+});
+
+test("a contract roll closes a held position at the old contract's last price", async () => {
+  const { practiceRoll, practiceExit, addOrder } = await import("./replay.js");
+  let a = { ...acctIn({}, "/ES"), fee: 0 };
+  a = fill(a, "buy", 1, 5000);
+  a = practiceExit(a, "stop", 4990, 5005).acct;
+  a = addOrder(a, { side: "buy", qty: 1, price: 4980 }, 5005).acct;
+  a = practiceRoll(a, { time: 9, price: 5005 });
+  assert.equal(a.qty, 0);
+  assert.equal(a.realized, 250);
+  assert.equal(a.stop, null);
+  assert.deepEqual(a.orders, []);
+  assert.equal(a.trades.at(-1).why, "roll");
+  assert.equal(practiceRoll(newPractice(0), { time: 9, price: 5 }).trades.length, 0); // a share has no roll
+});
+
+test("an order or exit typed off the tick goes on the grid on its own side", async () => {
+  const { practiceExit, addOrder } = await import("./replay.js");
+  const es = { ...acctIn({}, "/ES"), fee: 0 };
+  assert.equal(addOrder(es, { side: "buy", qty: 1, price: 4990.13 }, 5000).acct.orders[0].price, 4990); // buy limit down
+  assert.equal(addOrder(es, { side: "sell", qty: 1, price: 5010.13 }, 5000).acct.orders[0].price, 5010.25); // sell limit up
+  assert.equal(addOrder(es, { side: "buy", qty: 1, price: 5010.13 }, 5000).acct.orders[0].price, 5010.25); // buy stop up
+  assert.equal(addOrder(es, { side: "sell", qty: 1, price: 4990.13 }, 5000).acct.orders[0].price, 4990); // sell stop down
+  const long = fill(es, "buy", 1, 5000);
+  assert.equal(practiceExit(long, "stop", 4990.13, 5000).acct.stop, 4990);
+  assert.equal(practiceExit(long, "target", 5010.13, 5000).acct.targets[0].price, 5010.25);
+});
