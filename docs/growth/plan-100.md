@@ -41,6 +41,35 @@ switch. The arithmetic is shown so the replacement is one edit.
 | ← Signups connecting a live account | 25 % (the rest stay on paper, at least at first) | **~2,700 signups** |
 | ← Visitors signing up | 3 % (intent-matched educational traffic) | **~90,000 visitors** over 17 weeks ≈ **5,300 a week** ≈ **760 a day** |
 
+### Measured rates — revised Mon 23 Nov 2026 (W48)
+
+Source: `docs/growth/metrics/2026-11-22.json` on `main`, the newest snapshot.
+`staging` stops at 21 Oct. The sample is four signups, so these figures are
+counts, not rates to plan on. They replace a benchmark only where the data
+exists. (A W47 revision exists on PR #20 and was never merged. This section
+supersedes it.)
+
+| Step | Benchmark | Measured (n) | Used for planning |
+| --- | --- | --- | --- |
+| Search impressions → click | — | **0.44 %** (2 of 451, 28 days, average position 29.5) | 0.44 %, measured |
+| Visitors → signup | 3 % | **not measurable**: GA4 is not configured, and there have been 0 signups since 22 Sep against about 2 search clicks a month | 3 % (benchmark kept) |
+| Signup → broker connected | — | **75 %** (3 of 4) | — |
+| Signup → live account trading | 25 % | **25 %** (1 of 4) | 25 %, measured |
+| Live → paid | 15 % | **no data**: 0 of 1, and billing is not enforced, so no one can pay | 15 % (benchmark kept) |
+
+Actual against the line:
+
+- Search: about **16 impressions a day** and **0.07 clicks a day**, against
+  760 visitors a day.
+- At the measured 0.44 % CTR, 760 clicks a day would need about 170,000
+  impressions a day. That is 10,000 times the current rate. Position, not
+  volume, is the lever.
+- Signups: **4 in total**, none in the 9 weeks since 22 Sep.
+- Paying: **0**.
+
+The 30 Nov checkpoint (Paying > 25) will be missed, and so will the 31 Dec
+target. Restating both is the owner's decision for the Friday pack.
+
 Two levers change this by more than any channel does:
 
 - **Signup → live**: if the product's own paper experience pushes the rate
