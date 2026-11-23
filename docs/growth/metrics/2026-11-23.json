@@ -727,12 +727,12 @@
       },
       {
         "url": "https://deltamint.app/blog/annualized-return-options-small-sample",
-        "coverage": "URL is unknown to Google",
+        "coverage": "Discovered - currently not indexed",
         "lastCrawl": null
       },
       {
         "url": "https://deltamint.app/blog/credit-spread-premium-capture",
-        "coverage": "URL is unknown to Google",
+        "coverage": "Discovered - currently not indexed",
         "lastCrawl": null
       },
       {
@@ -742,17 +742,17 @@
       },
       {
         "url": "https://deltamint.app/blog/capital-at-risk-options-portfolio",
-        "coverage": "URL is unknown to Google",
-        "lastCrawl": null
-      },
-      {
-        "url": "https://deltamint.app/blog/options-trade-record-realized-pl",
         "coverage": "Discovered - currently not indexed",
         "lastCrawl": null
       },
       {
-        "url": "https://deltamint.app/blog/naked-call-risk",
+        "url": "https://deltamint.app/blog/options-trade-record-realized-pl",
         "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/naked-call-risk",
+        "coverage": "Discovered - currently not indexed",
         "lastCrawl": null
       },
       {
@@ -767,7 +767,7 @@
       },
       {
         "url": "https://deltamint.app/blog/pmcc-vs-covered-call",
-        "coverage": "URL is unknown to Google",
+        "coverage": "Discovered - currently not indexed",
         "lastCrawl": null
       },
       {
