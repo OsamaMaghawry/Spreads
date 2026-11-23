@@ -1,0 +1,819 @@
+{
+  "day": "2026-11-23",
+  "search": {
+    "site": "sc-domain:deltamint.app",
+    "window": {
+      "start": "2026-10-24",
+      "end": "2026-11-20"
+    },
+    "lastDay": {
+      "clicks": 0,
+      "impressions": 1
+    },
+    "last28": {
+      "clicks": 2,
+      "impressions": 446,
+      "ctr": 0.004484304932735426,
+      "position": 29.982062780269057
+    },
+    "topQueries": [
+      {
+        "query": "1 and 2 options",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 97
+      },
+      {
+        "query": "are all call options for 100 shares",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 47
+      },
+      {
+        "query": "buy and write",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 35
+      },
+      {
+        "query": "buy write",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 39
+      },
+      {
+        "query": "buy write options",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 22
+      },
+      {
+        "query": "buy write strategy",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 38
+      },
+      {
+        "query": "buy-write",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 38
+      },
+      {
+        "query": "buying power for options trades",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 41
+      },
+      {
+        "query": "calendar spread",
+        "clicks": 0,
+        "impressions": 22,
+        "position": 32.6
+      },
+      {
+        "query": "calendar spread calculator",
+        "clicks": 0,
+        "impressions": 3,
+        "position": 97.7
+      },
+      {
+        "query": "calender spread",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 1
+      },
+      {
+        "query": "call calculation",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 89
+      },
+      {
+        "query": "call roll trading strategy",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 69
+      },
+      {
+        "query": "cash secured put calculator",
+        "clicks": 0,
+        "impressions": 5,
+        "position": 80.2
+      },
+      {
+        "query": "collar option",
+        "clicks": 0,
+        "impressions": 5,
+        "position": 83.6
+      },
+      {
+        "query": "covered call calculator",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 82
+      },
+      {
+        "query": "covered call collar",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 61
+      },
+      {
+        "query": "credit spread calculator",
+        "clicks": 0,
+        "impressions": 7,
+        "position": 88
+      },
+      {
+        "query": "day trading buying power",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 59.5
+      },
+      {
+        "query": "debit spread calculator",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 96
+      },
+      {
+        "query": "delta mint",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 3
+      },
+      {
+        "query": "diagonal spread",
+        "clicks": 0,
+        "impressions": 3,
+        "position": 41.3
+      },
+      {
+        "query": "diagonal spread vs calendar spread",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 46
+      },
+      {
+        "query": "diagonal spreads",
+        "clicks": 0,
+        "impressions": 3,
+        "position": 44.7
+      },
+      {
+        "query": "early option exercise",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 91
+      },
+      {
+        "query": "expected move calculator",
+        "clicks": 0,
+        "impressions": 4,
+        "position": 77.8
+      },
+      {
+        "query": "fidelity long calendar spread puts same strike expiration",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 39
+      },
+      {
+        "query": "horizontal spread",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 97
+      },
+      {
+        "query": "how to close a credit spread",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 34
+      },
+      {
+        "query": "how to roll an option trade",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 41
+      },
+      {
+        "query": "how to roll over options in crypto",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 59
+      },
+      {
+        "query": "implied move",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 87
+      },
+      {
+        "query": "intraday buying power",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 26
+      },
+      {
+        "query": "iron condor calculator",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 70
+      },
+      {
+        "query": "iron condor profit calculator",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 85
+      },
+      {
+        "query": "long collar option",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 57
+      },
+      {
+        "query": "margin buying power",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 26
+      },
+      {
+        "query": "married put",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 99
+      },
+      {
+        "query": "mint76630",
+        "clicks": 0,
+        "impressions": 4,
+        "position": 94
+      },
+      {
+        "query": "mint83170",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 95
+      },
+      {
+        "query": "mint94762",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 86
+      },
+      {
+        "query": "not enough buying power",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 37
+      },
+      {
+        "query": "oic long call calendar spread same strike near short far long",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 47
+      },
+      {
+        "query": "option credit spread calculator",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 79
+      },
+      {
+        "query": "option rollover",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 49
+      },
+      {
+        "query": "option spread calculator",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 100
+      },
+      {
+        "query": "options buying power",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 56.5
+      },
+      {
+        "query": "options roll over",
+        "clicks": 0,
+        "impressions": 3,
+        "position": 92
+      },
+      {
+        "query": "options roll over in crypto",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 74
+      },
+      {
+        "query": "options rollover",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 61.5
+      },
+      {
+        "query": "reserved cash",
+        "clicks": 0,
+        "impressions": 8,
+        "position": 56.8
+      },
+      {
+        "query": "rolling a call",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 33
+      },
+      {
+        "query": "rolling call options",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 30
+      },
+      {
+        "query": "rolling options",
+        "clicks": 0,
+        "impressions": 11,
+        "position": 36.5
+      },
+      {
+        "query": "rolling stock trading",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 39
+      },
+      {
+        "query": "rolling tariff meaning",
+        "clicks": 0,
+        "impressions": 3,
+        "position": 82.3
+      },
+      {
+        "query": "spx vs spy",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 76.5
+      },
+      {
+        "query": "stock option roll forward payout",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 43
+      },
+      {
+        "query": "stock option rollover payout",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 59
+      },
+      {
+        "query": "vertical spread calculator",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 90.5
+      },
+      {
+        "query": "what is a cash secured put",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 91
+      },
+      {
+        "query": "what is buying power",
+        "clicks": 0,
+        "impressions": 3,
+        "position": 61.7
+      },
+      {
+        "query": "what is buying power in stocks",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 90.5
+      },
+      {
+        "query": "what is implied share price",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 44
+      },
+      {
+        "query": "what is intraday buying power",
+        "clicks": 0,
+        "impressions": 2,
+        "position": 54
+      },
+      {
+        "query": "what is options roll over",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 92
+      },
+      {
+        "query": "when do covered calls get assigned",
+        "clicks": 0,
+        "impressions": 3,
+        "position": 54.7
+      },
+      {
+        "query": "why does volatility rise before earnings",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 1
+      },
+      {
+        "query": "yes",
+        "clicks": 0,
+        "impressions": 1,
+        "position": 2
+      }
+    ],
+    "topPages": [
+      {
+        "page": "https://deltamint.app/",
+        "clicks": 2,
+        "impressions": 49
+      },
+      {
+        "page": "https://deltamint.app/terms",
+        "clicks": 1,
+        "impressions": 11
+      },
+      {
+        "page": "https://deltamint.app/about",
+        "clicks": 0,
+        "impressions": 5
+      },
+      {
+        "page": "https://deltamint.app/blog",
+        "clicks": 0,
+        "impressions": 5
+      },
+      {
+        "page": "https://deltamint.app/blog/adjust-iron-condor",
+        "clicks": 0,
+        "impressions": 2
+      },
+      {
+        "page": "https://deltamint.app/blog/assignment-risk-credit-spread",
+        "clicks": 0,
+        "impressions": 5
+      },
+      {
+        "page": "https://deltamint.app/blog/buy-write-strategy",
+        "clicks": 0,
+        "impressions": 6
+      },
+      {
+        "page": "https://deltamint.app/blog/calendar-spread-explained",
+        "clicks": 0,
+        "impressions": 30
+      },
+      {
+        "page": "https://deltamint.app/blog/call-credit-spread-explained",
+        "clicks": 0,
+        "impressions": 1
+      },
+      {
+        "page": "https://deltamint.app/blog/call-vs-put-option-explained",
+        "clicks": 0,
+        "impressions": 4
+      },
+      {
+        "page": "https://deltamint.app/blog/cash-secured-put-explained",
+        "clicks": 0,
+        "impressions": 10
+      },
+      {
+        "page": "https://deltamint.app/blog/close-credit-spread-early-or-hold",
+        "clicks": 0,
+        "impressions": 15
+      },
+      {
+        "page": "https://deltamint.app/blog/collar-option-strategy",
+        "clicks": 0,
+        "impressions": 20
+      },
+      {
+        "page": "https://deltamint.app/blog/covered-call-after-assignment",
+        "clicks": 0,
+        "impressions": 2
+      },
+      {
+        "page": "https://deltamint.app/blog/covered-call-dividend-risk-assignment",
+        "clicks": 0,
+        "impressions": 6
+      },
+      {
+        "page": "https://deltamint.app/blog/covered-call-explained",
+        "clicks": 0,
+        "impressions": 13
+      },
+      {
+        "page": "https://deltamint.app/blog/credit-spread-delta-strike-selection",
+        "clicks": 0,
+        "impressions": 3
+      },
+      {
+        "page": "https://deltamint.app/blog/credit-spread-dte",
+        "clicks": 0,
+        "impressions": 21
+      },
+      {
+        "page": "https://deltamint.app/blog/credit-spread-in-the-money",
+        "clicks": 0,
+        "impressions": 1
+      },
+      {
+        "page": "https://deltamint.app/blog/credit-spread-max-loss",
+        "clicks": 0,
+        "impressions": 3
+      },
+      {
+        "page": "https://deltamint.app/blog/credit-spread-width",
+        "clicks": 0,
+        "impressions": 1
+      },
+      {
+        "page": "https://deltamint.app/blog/diagonal-spread-explained",
+        "clicks": 0,
+        "impressions": 10
+      },
+      {
+        "page": "https://deltamint.app/blog/early-exercise-options",
+        "clicks": 0,
+        "impressions": 4
+      },
+      {
+        "page": "https://deltamint.app/blog/hedge-cash-secured-puts",
+        "clicks": 0,
+        "impressions": 12
+      },
+      {
+        "page": "https://deltamint.app/blog/hedge-concentrated-stock-position",
+        "clicks": 0,
+        "impressions": 1
+      },
+      {
+        "page": "https://deltamint.app/blog/hedging",
+        "clicks": 0,
+        "impressions": 6
+      },
+      {
+        "page": "https://deltamint.app/blog/how-to-read-an-option-chain",
+        "clicks": 0,
+        "impressions": 1
+      },
+      {
+        "page": "https://deltamint.app/blog/implied-volatility-options-explained",
+        "clicks": 0,
+        "impressions": 10
+      },
+      {
+        "page": "https://deltamint.app/blog/leaps-delta-theta",
+        "clicks": 0,
+        "impressions": 4
+      },
+      {
+        "page": "https://deltamint.app/blog/leaps-position-sizing",
+        "clicks": 0,
+        "impressions": 3
+      },
+      {
+        "page": "https://deltamint.app/blog/managing-multiple-option-positions",
+        "clicks": 0,
+        "impressions": 1
+      },
+      {
+        "page": "https://deltamint.app/blog/married-put-tax",
+        "clicks": 0,
+        "impressions": 13
+      },
+      {
+        "page": "https://deltamint.app/blog/option-delta-explained",
+        "clicks": 0,
+        "impressions": 1
+      },
+      {
+        "page": "https://deltamint.app/blog/option-strike-price-expiration-premium",
+        "clicks": 0,
+        "impressions": 7
+      },
+      {
+        "page": "https://deltamint.app/blog/options-buying-power-requirement",
+        "clicks": 0,
+        "impressions": 25
+      },
+      {
+        "page": "https://deltamint.app/blog/return-on-risk-vs-return-on-capital",
+        "clicks": 0,
+        "impressions": 2
+      },
+      {
+        "page": "https://deltamint.app/blog/roll-protective-put",
+        "clicks": 0,
+        "impressions": 1
+      },
+      {
+        "page": "https://deltamint.app/blog/rolling-options-explained",
+        "clicks": 0,
+        "impressions": 64
+      },
+      {
+        "page": "https://deltamint.app/blog/spx-vs-spy-options-hedge",
+        "clicks": 0,
+        "impressions": 8
+      },
+      {
+        "page": "https://deltamint.app/blog/tail-risk-hedge-cost",
+        "clicks": 0,
+        "impressions": 2
+      },
+      {
+        "page": "https://deltamint.app/blog/vix-hedge-explained",
+        "clicks": 0,
+        "impressions": 1
+      },
+      {
+        "page": "https://deltamint.app/blog/what-happens-options-expiration",
+        "clicks": 0,
+        "impressions": 8
+      },
+      {
+        "page": "https://deltamint.app/blog/what-is-an-options-contract",
+        "clicks": 0,
+        "impressions": 5
+      },
+      {
+        "page": "https://deltamint.app/blog/wheel-strategy-explained",
+        "clicks": 0,
+        "impressions": 1
+      },
+      {
+        "page": "https://deltamint.app/connect",
+        "clicks": 0,
+        "impressions": 2
+      },
+      {
+        "page": "https://deltamint.app/privacy",
+        "clicks": 0,
+        "impressions": 12
+      },
+      {
+        "page": "https://deltamint.app/tools",
+        "clicks": 0,
+        "impressions": 11
+      },
+      {
+        "page": "https://deltamint.app/tools/annualized-return-calculator",
+        "clicks": 0,
+        "impressions": 14
+      },
+      {
+        "page": "https://deltamint.app/tools/cash-secured-put-calculator",
+        "clicks": 0,
+        "impressions": 11
+      },
+      {
+        "page": "https://deltamint.app/tools/covered-call-calculator",
+        "clicks": 0,
+        "impressions": 6
+      },
+      {
+        "page": "https://deltamint.app/tools/credit-spread-calculator",
+        "clicks": 0,
+        "impressions": 10
+      },
+      {
+        "page": "https://deltamint.app/tools/early-assignment-calculator",
+        "clicks": 0,
+        "impressions": 4
+      },
+      {
+        "page": "https://deltamint.app/tools/expected-move-calculator",
+        "clicks": 0,
+        "impressions": 7
+      },
+      {
+        "page": "https://deltamint.app/tools/iron-condor-calculator",
+        "clicks": 0,
+        "impressions": 2
+      },
+      {
+        "page": "https://deltamint.app/tools/option-roll-calculator",
+        "clicks": 0,
+        "impressions": 2
+      }
+    ]
+  },
+  "indexing": {
+    "sitemap": "https://deltamint.app/sitemap.xml",
+    "checked": 87,
+    "indexed": 74,
+    "notIndexed": [
+      {
+        "url": "https://deltamint.app/blog/investing",
+        "coverage": "Discovered - currently not indexed",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/options-screener-limitations",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/annualized-return-options-small-sample",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/credit-spread-premium-capture",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/options-win-rate-misleading",
+        "coverage": "Discovered - currently not indexed",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/capital-at-risk-options-portfolio",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/options-trade-record-realized-pl",
+        "coverage": "Discovered - currently not indexed",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/naked-call-risk",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/options-limit-order-not-filling",
+        "coverage": "Discovered - currently not indexed",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/sell-puts-to-buy-stock",
+        "coverage": "Discovered - currently not indexed",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/pmcc-vs-covered-call",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/stock-replacement-strategy",
+        "coverage": "URL is unknown to Google",
+        "lastCrawl": null
+      },
+      {
+        "url": "https://deltamint.app/blog/leaps-options-explained",
+        "coverage": "Discovered - currently not indexed",
+        "lastCrawl": null
+      }
+    ],
+    "canonicalMismatch": []
+  },
+  "submission": {
+    "google": {
+      "submitted": false,
+      "error": "Search Console refused (403). Give deltamint-metrics@deltamint-metrics.iam.gserviceaccount.com \"Full\" permission: Search Console → Settings → Users and permissions.",
+      "google": {
+        "known": true,
+        "lastSubmitted": "2026-09-12T13:22:05.660Z",
+        "lastDownloaded": "2026-11-19T22:45:02.646Z",
+        "isPending": false,
+        "errors": 0,
+        "warnings": 0,
+        "submittedUrls": 86
+      }
+    },
+    "indexNow": {
+      "sent": 0,
+      "urls": []
+    }
+  },
+  "analytics": {
+    "unavailable": "ga4 not configured"
+  },
+  "funnel": {
+    "signedUp": 4,
+    "signedUpLast7": 0,
+    "connected": 3,
+    "traded": 3,
+    "tradedLive": 1,
+    "paying": 0,
+    "bySource": {
+      "unknown": 4
+    }
+  }
+}
