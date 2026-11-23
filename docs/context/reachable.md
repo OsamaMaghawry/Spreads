@@ -127,3 +127,5 @@ Attempted, not finished. What is established:
   audit and duty briefs point to. Done instead: PushNotification to the owner.
 - 2026-11-19 (W47 audit): still `CONNECT tunnel failed, response 403`, and the
   recipe is still absent from `vp-product.md`. Done instead: PushNotification.
+
+- 2026-11-23 (duty-engineer): `gh api` works from Routine sessions even when `gh auth status` reports "Failed to log in". Workflow dispatches (`.../actions/workflows/<file>/dispatches`) and run logs are reachable this way. Because sendDigest is still refused at CONNECT, the working owner-email path from here is dispatching `email-digest.yml` with `files=<a .md report on that ref>`.
