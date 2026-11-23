@@ -3,7 +3,7 @@ title: "Rolling options explained: one ticket, two trades"
 search_title: "Rolling Options: How a Roll Works and What It Realizes"
 slug: rolling-options-explained
 excerpt: Rolling a short option means buying it back and selling a later one on the same ticket, and the credit on that ticket is not a profit, because the loss on the closed option has already happened.
-meta_description: "Rolling an option closes it and opens another on one ticket. The leg bought back realizes its gain or loss, so a roll's net credit is not a profit."
+meta_description: "Rolling options means closing an option and opening a later one, or a new strike, on one ticket. A worked put roll shows why the credit is not a profit."
 author: Osama Safwat Maghawry
 category: income
 series_order: 28

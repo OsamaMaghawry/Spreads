@@ -3,7 +3,7 @@ title: "Options buying power requirement: what a put and a spread hold"
 search_title: "Options Buying Power: What Puts, Spreads and Calls Hold"
 slug: options-buying-power-requirement
 excerpt: A short option reserves part of the account for as long as it is open, and a cash-secured put, a credit spread and a covered call each reserve something different.
-meta_description: "Options buying power requirement: a cash-secured put holds the strike, a credit spread its width less credit, until closed, expired or assigned."
+meta_description: "Options buying power is what an account can still commit to new trades. A cash-secured put holds the strike times 100, a credit spread its width less credit."
 author: Osama Safwat Maghawry
 category: foundations
 series_order: 13
