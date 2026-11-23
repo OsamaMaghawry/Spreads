@@ -38,6 +38,8 @@ The trader pays 4.27 and receives 1.47, a net debit of 2.80, or $280 per spread.
 
 The legs also differ in how they respond to the stock. At the start the long 48 call has a delta of about 0.63 and the short 52 call about 0.39, so the pair is net long roughly 0.24 per share, or $24 per spread for each $1 the stock moves. That figure changes as the stock moves and as time passes. A calendar at the strike starts closer to zero, the first sign the two structures differ.
 
+Related: [LEAPS options explained](/blog/leaps-options-explained) prices a far leg with a year or more left, where time value decays more gently than on a 60-day call.
+
 ## Why does the payoff tilt, and where does it break even?
 
 At the near expiration the short 52 call is worth only its intrinsic value, if any, while the long call still has 30 days left. The spread is worth the difference. Priced at 40% for each stock price:

@@ -55,6 +55,8 @@ Read the table in two directions, because both readings are true:
 
 About half the fall comes in the late, fast stretch: from 60 days, the mark falls about $27 over the first 39 days and $30 over the last 21. But the next table shows that the last stretch is also where the spread reacts most sharply to the stock. That is the logic behind a rule like "close early", and the table does not say whether it is worth following, only where the money and the reaction are.
 
+Related: [annualized return on options](/blog/annualized-return-options-small-sample) shows why a result from a few short-dated trades, scaled to a 365-day year, can become a very large figure that the next trade reverses.
+
 ## The same fall in the stock costs more as expiration nears
 
 Decay is the pleasant half. The other half is what happens when the stock does something. Move XYZ down $4, from $50 to the 46 short strike, and re-price the same spread at each DTE.
