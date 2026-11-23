@@ -43,4 +43,13 @@ jobs:
           git add docs/growth/metrics
           git diff --cached --quiet && { echo "nothing changed"; exit 0; }
           git commit -m "Metrics snapshot $(date -u +%F)"
-          git push origin HEAD:main
+          # Another job (the SEO daily's publish, the content merge) can push to
+          # main in the same minute; on 20 Nov that rejected this push and the
+          # day's snapshot was lost. Rebase onto the new main and try again.
+          for i in 1 2 3 4; do
+            git push origin HEAD:main && exit 0
+            sleep $((i * 5))
+            git pull --rebase origin main
+          done
+          echo "push to main failed four times" >&2
+          exit 1
