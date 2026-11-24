@@ -23,5 +23,12 @@ with a user:
   the table shipped 2026-08-31 with RLS letting a user read their own rows, and
   there is no screen. Post-first-trade, so it is trust and retention, not
   activation; needs a user asking for it before it competes for a slot.
+- Probability-of-profit column and sort on scan results — **returned from the
+  backlog 2026-11-24.** Carries teardown row E4 (Barchart sorts spread
+  screeners by break-even probability) but no user has asked for it, and
+  `impliedVol()` silently falls back to 0.25 when it cannot solve, so the
+  number needs a provenance flag before it can be shown. Returns when a user
+  asks in their own words, or when backlog #2's captured scan payload shows
+  POP reorders the top 10 by two or more places on average.
 - Debit-spread support surfaced properly (riskOf math exists; UX does not)
 - Index/cash-settled products once Alpaca takes them out of paper-only

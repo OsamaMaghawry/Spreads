@@ -201,3 +201,15 @@ effect sat on an unmerged branch; this replaces it.)
 - **What still has no evidence:** demand. Paying = 0, four signups ever, and
   nothing a stranger can buy is on `main` beyond the 4 Sep product. Decision
   3's switch date still has no release behind it (backlog #1).
+
+## 9. 2026-11-24 run — nothing moved the price
+
+Nine decisions stand; none reopened.
+
+- **Tiblio** has no source placing it on Alpaca (Tradier is its only
+  documented broker, `reported`). It stays a price anchor for the category,
+  not for our broker; $29 is under it either way.
+- **Futures practice and the Playbook** (staging, admin-only) are not priced
+  here. If the owner makes either the product (backlog #1), this file is
+  rewritten against that market's anchors, not stretched to cover it.
+- **Demand:** still none to price against — 0 paying, 0 signups in 7 days.

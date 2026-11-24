@@ -8,8 +8,46 @@ recorded below, as prominently as additions.
 Every entry carries: the user problem in the user's words, its evidence, the
 smallest test that could disprove it, the kill criterion, and a cost guess.
 
-Last run: **2026-11-17** (vp-product, Tuesday cadence). Previous ranked run
-on `main`: 2026-09-01.
+Last run: **2026-11-24** (vp-product, Tuesday cadence). Previous: 2026-11-17
+(merged into this branch with the 16–23 Nov end-of-day notes; none had
+reached `main`). Last ranked run on `main`: 2026-09-01.
+
+## Reconciliation — 2026-11-24 (read first)
+
+**What shipped this week (17–24 Nov).** Read from `git log origin/main`,
+`git log origin/staging`, `docs/ops/shipped.md` and the daily notes in
+`docs/product/daily/` (16–23 Nov, folded in from their session branches).
+
+- **`main`:** blog posts 63–66 (premium capture, annualized return on small
+  samples, screener limitations, debit vs credit spread) and SEO edits. **No
+  product code.** `_shared/optionScan.ts` and
+  `src/components/screener/ResultsTable.jsx` are unchanged on `main`.
+- **`staging`:** all in the administrator-only Terminal
+  (`src/App.jsx:79`, `LAB && <AdminOnly>`): Playbook phase 1 (plays,
+  checklists, R, per-play results; migration 0069), part-share and
+  several-account sizing, P/L tab periods, and on 21 Nov a **futures
+  practice replay with a prop-style challenge** (`43b7326`…`90e4934`,
+  `docs/context/terminal-handoff.md`). Plus one CI fix (metrics push
+  retry, PR #22). Nothing for the credit-spread screener or desk.
+- **Staging is 1,672 commits ahead of `main`** (1,571 on 17 Nov: +101 in a
+  week, all Terminal).
+- **Funnel** (`docs/growth/metrics/2026-11-23.json`): 4 signups ever, 0 in 7
+  days, 3 connected, 3 traded, 1 live, **0 paying**. Search Console 28 days:
+  2 clicks, 446 impressions. Unchanged for three weeks.
+
+| # | Proposal | Verdict | Evidence |
+| --- | --- | --- | --- |
+| 1 | Release path: what of staging a stranger can pay for | **Left — and the case got stronger** | Nothing promoted. This week's staging work opened a *third* candidate product (futures practice) beside the credit-spread desk and the stock terminal. `plan-100.md` 31 Dec target: 37 days left, paying 0 |
+| 2 | Quoted exit width on scan results | **Left.** Not shipped, not half-shipped | No bid/ask/width in `ResultsTable.jsx` on `main` or `staging`; no change to `optionScan.ts`. Test still unrun (see below) |
+| 3 | Probability-of-profit column | **Killed this run** | See Killed |
+
+**Why the width test is still unrun, recorded rather than called blocked.**
+Tried to run it from this session on live delayed data:
+`cdn.cboe.com/api/global/delayed_quotes` is 403 at CONNECT, and the session
+has no Alpaca data key (`.env.production` carries only the OAuth client id).
+Logged in `docs/context/reachable.md`. It needs the owner's paper scan (as
+the test always said) or an Alpaca paper data key in the scheduled
+environment, which would let this run do it unattended.
 
 ## Reconciliation — 2026-11-17 (read before the proposals)
 
@@ -74,7 +112,12 @@ or POP column (#1, #2 open). This backlog has not had a Tuesday run since
 
 ## Open proposals
 
-**Three of five slots used.** No addition: nothing new in funnel data,
+**As of 2026-11-24: two of five slots used** (#1 release path, #2 quoted
+width). #3 killed below. No addition: `docs/product/research/` still holds
+only its README, `growth/queue/` has had nothing since 29 Aug, and the funnel
+has not moved, so nothing carries the evidence a third slot needs.
+
+*17 Nov text:* **Three of five slots used.** No addition: nothing new in funnel data,
 support or the owner's research folder (`docs/product/research/` holds only
 its README) supports a fourth, and any user-facing feature reaches a user only through #1
 anyway. No teardown this run — Tiblio, the one that matters, is still
@@ -98,6 +141,17 @@ cheap offline tests that need no release, so they keep their places.
   targets 100 paying users by 31 Dec; 44 days remain, paying = 0.
   `docs/ops/queue.md` on staging carries open head-of-trading findings
   against the terminal, so "release all of staging" is not free.
+- **Added 2026-11-24.** This week staging gained a futures practice replay
+  with a prop-style evaluation challenge (`43b7326`…`90e4934`) and a trade
+  Playbook/journal (`1117b68`…). That is three candidate products on one
+  branch: the credit-spread desk (what `positioning.md`, `pricing.md`, the
+  homepage and 66 blog posts sell), the stock day-trading terminal, and
+  futures practice. Each faces a different competitor set (spread screeners;
+  trading terminals and journals such as Tradervue/TraderSync; prop-firm
+  evaluation simulators) and none of the latter two has a teardown, a price,
+  or a user quote in `growth/queue/`. The decision is therefore no longer
+  only *when* to release, but *which one is the product* — the backlog,
+  pricing and positioning can only be ranked against one.
 - **Smallest test:** the owner names the one thing a stranger can do on day
   one of Live (the credit-spread desk as it stands, with this week's two
   fixes; or the terminal), and agent-manager gates *that* scope. A scoping
@@ -168,39 +222,23 @@ cheap offline tests that need no release, so they keep their places.
   ceiling is a money-path question for `head-of-trading` / `agent-manager`,
   not a product one. Flagged, not investigated.
 
-### 3. Probability-of-profit column and sort
-
-- **User problem:** "The top result is always the spread right next to the
-  money — I can't tell which of these I'd actually win." (Still constructed.
-  No user has said this; the test below is what checks whether ranking would
-  really change.)
-- **Evidence:** teardown row E4 — Barchart's spread screeners sort by
-  descending break-even probability by default and show probability of loss
-  per row — against `scanCandidates` in `_shared/optionScan.ts`, whose only
-  ranking is `returnOnRisk` descending, which by construction fronts the
-  closest-to-the-money candidate; `ResultsTable.jsx` offers exactly three
-  sorts (RoR, credit, max risk) and no probability of anything.
-  Newly relevant: `positionWatch` (shipped 2026-08-31) now fires a
-  `short_through_strike` **critical** alert whenever a short leg goes in the
-  money. Whatever our ranking fronts, the watch will be emailing about it.
-- **Smallest test:** the same captured payload as #2 — every candidate already
-  carries `spot`, `strike`, `mid`, `expiry` per leg, and `impliedVol()` is an
-  exported pure function. Compute POP offline and compare the POP-ranked
-  top-10 against the RoR-ranked top-10. No new data, no logging, no deploy.
-- **Kill criteria — two now:**
-  1. POP ranking reorders the RoR top-10 by fewer than two positions on
-     average: the column adds nothing a user can act on. Kill.
-  2. **New, from our code.** `impliedVol()` returns a hard-coded `0.25`
-     whenever the bisection cannot bracket a root — silently, with no marker
-     on the result. If more than a small share of top-10 legs hit that
-     fallback, a POP column would be publishing a number we cannot stand
-     behind, which is exactly what `AGENTS.md` forbids ("never return a number
-     without its provenance"). Kill, or the proposal becomes "give `impliedVol`
-     a provenance flag first", which is a different and larger piece of work.
-- **Cost guess:** test ~a day; feature ~2 days, no new data source — *if*
-  kill criterion 2 does not fire.
-
 ## Killed
+
+### Probability-of-profit column and sort — killed 2026-11-24
+
+Its user problem was constructed and labelled so ("No user has said this").
+Twelve weeks later still nobody has: `growth/queue/` holds one file
+(2026-08-29) with no mention of probability, and the funnel has four users,
+none new in three weeks. Its only evidence is a competitor behaviour
+(teardown E4, Barchart sorts by probability) — which also means it is
+available free elsewhere, the "commodity" verdict `positioning.md` already
+gives screening. Its second kill criterion (`impliedVol()`'s silent `0.25`
+fallback) was never cleared, so the column could not ship without a
+provenance fix first. And it cannot reach a user before #1 is decided.
+A slot held by an idea with no user and no runnable test is the thing the cap
+exists to stop. **Returned to `ideas.md`** with E4 attached; it comes back if a
+user asks for it in their own words, or if #2's captured payload (same data)
+shows POP reranking the top 10 materially.
 
 ### Record what was scanned (`scan_runs`) — killed 2026-11-03, confirmed 2026-11-17
 

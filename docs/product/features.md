@@ -6,6 +6,9 @@
 > SnapTrade/Tradier plumbing, the admin terminal). Re-inventory the day a
 > release scope is chosen (backlog #1), not before — inventorying code that
 > may never ship is the wrong use of a run.
+> **Still stale, 2026-11-24:** staging is now 1,672 ahead and adds the
+> Terminal Playbook and futures practice. Same rule: re-inventory once
+> backlog #1 picks the release scope.
 
 Owned by `vp-product`. Read from the code on `main` at `3a22207` plus the
 `staging` delta (`git diff --stat main staging` = one migration and the

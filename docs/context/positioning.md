@@ -60,7 +60,8 @@ traders want, and that gap narrows each year.
 **Tiblio**, roughly $35–38/month (reported; see the 2026-11-17 note below), is
 the nearest thing to a direct competitor and should be treated as one. It
 screens spreads and iron condors, connects by OAuth to Schwab, Tradier,
-TradeStation, tastytrade and — **unverified as of 2026-11-17** — Alpaca, routes
+TradeStation, tastytrade and — **no source found as of 2026-11-24; the only
+documented integration is Tradier** — Alpaca, routes
 orders to the connected broker, and tracks open and closed positions with profit and loss and
 per-strategy win rates. That is screen → order → hold → measure, on our broker,
 already shipping and cheaper than most of the analytics layer.
@@ -169,6 +170,28 @@ Folds in the 10 Nov run's note, which sat on an unmerged branch.
   one (Puthouse, also unverified) — but it is not a reason to plan on broker
   choice as an advantage until checked at source.
 
+## Changes this week (vp-product, 2026-11-24)
+
+- **Our shipped product: unchanged again.** `main` took four blog posts and
+  no product code. Every verdict in the edge table stands. Nothing on
+  staging may be claimed.
+- **Tiblio is a Tradier platform on the evidence we have.** A search this run
+  returns Tradier's own platform page for Tiblio (`tradier.com/platforms/tiblio`)
+  and the Tiblio–Tradier partnership press release ("unlimited
+  commission-free options trading from Tradier Brokerage"), and **no source
+  for Alpaca or Schwab**. Both pages are `reported` (search result only;
+  `tradier.com` and `tiblio.com` are 403 at CONNECT, retested today). Until
+  Tiblio's own broker page is read, plan as if our closest competitor is
+  **not on our broker**. That is a fact about overlap, not an advantage:
+  Alpaca still has the smaller pool of options traders.
+- **What staging now builds sits outside this document.** This week added
+  futures practice with a prop-style challenge and a per-play trade journal
+  to the admin-only terminal. If either is released it competes with trade
+  journals (Tradervue, TraderSync, Edgewonk) and prop-firm evaluation
+  simulators, none of which this file covers or has verified. No teardown is
+  written until the owner says one of them is the product (backlog #1):
+  tearing down a market we may not enter is the wrong use of a run.
+
 ## Honest weaknesses
 
 - **No data moat.** No historical archive, so no credible backtesting story.
@@ -176,8 +199,9 @@ Folds in the 10 Nov run's note, which sat on an unmerged branch.
   earned slowly and neither purchasable.
 - **Alpaca is a smaller pond, and it is not empty.** Every competing automation
   product integrates tastytrade, Tradier, Schwab or TradeStation, and none of
-  them *leads* with Alpaca — but Tiblio already supports it via OAuth, so the
-  white space is narrower than previously recorded. The retail options traders
+  them *leads* with Alpaca. (This line used to say Tiblio supports Alpaca by
+  OAuth; as of 2026-11-24 no source says so — see the note above — so the
+  white space is not demonstrably narrower, only unmeasured.) The retail options traders
   with real size remain concentrated on the other platforms. Being first can mean
   uncontested or it can mean fishing where there are fewer fish — worth
   establishing empirically before betting the roadmap.

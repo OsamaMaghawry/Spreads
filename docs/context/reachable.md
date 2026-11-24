@@ -28,11 +28,14 @@ The allowlist matches **exact hostnames** — an allowed apex whose site 301s to
 | **www.sec.gov** | ✅ 200 **with EDGAR UA** | 2026-08-31 | 403 with a normal UA; 200 when the User-Agent is `DeltaMint research osamamaghawry@gmail.com` (SEC EDGAR requires a contact UA). Not a workaround — SEC's stated access rule |
 | **Not on the allowlist — 403 at CONNECT, before the site is ever asked** | | | The gateway refuses the tunnel. Reported, not routed around. Fix is an allowlist addition |
 | nexusfi.com | ❌ 403 (policy) | 2026-11-17 | Third-party listing carrying Tiblio's plan prices (Explore $38, top plan $99). Used the search snippet, marked `reported` |
-| tradier.com | ❌ 403 (policy) | 2026-11-17 | Tiblio–Tradier partnership press release. Search snippet only. (`trade.tradier.com` not tested) |
-| tiblio.com / www.tiblio.com | ❌ 403 (policy) | 2026-11-17 (retested; also 2026-11-10) | **The closest named competitor** (`docs/context/positioning.md`: screener + Alpaca OAuth + order routing + position tracking, ~$35/mo). A teardown to standard is impossible until this is allowed. Highest-value single addition for vp-product |
-| www.puthouse.com | ❌ 403 (policy) | 2026-11-17 (retested) | Second Alpaca-connected competitor named in positioning.md |
+| tradier.com / trade.tradier.com | ❌ 403 (policy) | 2026-11-24 (both retested) | Tiblio–Tradier press release and Tradier's own Tiblio platform page (`/platforms/tiblio`). Search result only, marked `reported` |
+| tiblio.com / www.tiblio.com | ❌ 403 (policy) | 2026-11-24 (retested; also 11-17, 11-10) | **The closest named competitor** (`docs/context/positioning.md`: screener + Alpaca OAuth + order routing + position tracking, ~$35/mo). A teardown to standard is impossible until this is allowed. Highest-value single addition for vp-product |
+| www.puthouse.com | ❌ 403 (policy) | 2026-11-24 (retested) | Second Alpaca-connected competitor named in positioning.md |
+| cdn.cboe.com (delayed quotes API) | ❌ 403 (policy) | 2026-11-24 | vp-product tried it to run backlog #2's width test on delayed chains. Not a workaround to pursue anyway: the staging terminal notes the file is personal-use only. The test needs an Alpaca paper data key in the scheduled environment, or the owner's own paper scan |
+| quantwheel.com | ❌ 403 (policy) | 2026-11-24 | Broker-fee marketplace listings; search snippets only |
+| www.tradervue.com | ❌ 403 (policy) | 2026-11-24 | Trade-journal competitor, relevant only if the staging Playbook is released |
 | wingmantracker.com / www.wingmantracker.com | ❌ 403 (policy) | 2026-09-01 | The "Wingman" teardown listed as pending in `docs/product/pricing.md` |
-| optionstrat.com (apex) | ❌ 403 (policy) | 2026-09-01 | See the `www.optionstrat.com` row — the apex is where the content actually lives |
+| optionstrat.com (apex) | ❌ 403 (policy) | 2026-11-24 (retested) | See the `www.optionstrat.com` row — the apex is where the content actually lives |
 | **Reached, but the site's own bot-wall refuses (403)** | | | Allowlist is fine; the *origin* blocks datacenter traffic. Not circumventable within the rules — use WebSearch |
 | www.tradersync.com | ❌ 403 (site) | 2026-09-01 | Re-tested; unchanged. Browser UA does not help |
 | www.reddit.com / old.reddit.com | ✅ allowlisted, ❌ content | 2026-09-01 | **Allowlist is open** — Reddit's edge answers (`server: snooserv`). But logged-out datacenter reads are refused: `old.reddit.com/r/*/new/` 302s to `/login/?reason=lor2`, `www.reddit.com/r/*/new/.json` returns 403 + block page. Do **not** ask for the allowlist again — it is done. Quote via WebSearch; the owner verifies and posts in a browser. **Do not spoof around it** |
