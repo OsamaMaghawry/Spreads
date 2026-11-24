@@ -180,12 +180,14 @@ export function QtyField({ label = "Qty", value, onChange, steps = [-100, -10, 1
 
 /** A change made on screen and not sent yet: Undo, or Confirm change. */
 export function PendingBar({ text, onUndo, onConfirm }) {
+  const [busy, setBusy] = useState(false);
+  const go = async () => { if (busy) return; setBusy(true); try { await onConfirm(); } finally { setBusy(false); } };
   return (
     <div className="space-y-2 rounded-xl bg-indigo-50 p-2.5">
       <p className="text-sm leading-snug text-slate-800"><span className="font-semibold">Not sent yet:</span> {text}</p>
       <div className="grid grid-cols-2 gap-2">
-        <Btn onClick={onUndo}>Undo</Btn>
-        <Btn tone="primary" onClick={onConfirm}>Confirm change</Btn>
+        <Btn onClick={onUndo} disabled={busy}>Undo</Btn>
+        <Btn tone="primary" onClick={go} disabled={busy}>{busy ? "Sending…" : "Confirm change"}</Btn>
       </div>
     </div>
   );

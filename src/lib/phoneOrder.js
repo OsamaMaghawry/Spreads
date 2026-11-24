@@ -18,15 +18,16 @@
 import { sessionOf, overnightOf } from "./terminal.js";
 import { stopOf } from "./accountGroup.js";
 
-/** "regular", "extended" (pre-market, after hours, overnight) or "closed". */
+/** "regular", "extended" (pre-market, after hours), "overnight" (20:00 to 4:00) or "closed". */
 export function phoneSession(sec) {
   const s = sessionOf(sec);
   if (s === "regular") return "regular";
-  if (s === "pre" || s === "post" || overnightOf(sec)) return "extended";
+  if (s === "pre" || s === "post") return "extended";
+  if (overnightOf(sec)) return "overnight";
   return "closed";
 }
 
-export const SESSION_LABEL = { regular: "Regular hours", extended: "Extended hours", closed: "Market closed" };
+export const SESSION_LABEL = { regular: "Regular hours", extended: "Extended hours", overnight: "Overnight", closed: "Market closed" };
 
 /** A price to the cent at a dollar and above, to the hundredth of a cent below. */
 export const roundPrice = (p) => {
@@ -78,6 +79,11 @@ export function buildPhoneOrder(draft, { session = "regular", quote = null, play
   /** @type {Record<string, any>} */
   const order = { symbol: d.symbol, side, qty, notional: null, timeInForce: "day", reference: touch || null, parts: false, ...(play ? { play } : {}) };
   let entry = touch || null;
+  // Overnight the screen's quote stopped at 20:00, and with the market closed
+  // nothing fills: a limit at a price of your own, never one worked out here.
+  if (type === "market" && (session === "overnight" || session === "closed")) {
+    return { error: session === "overnight" ? "Overnight the screen's price stopped at 20:00: use a limit order at your own price." : "The market is closed: use a limit order; it waits for the next session." };
+  }
   if (type === "market" && outside && ext) {
     const p = marketableLimit(side, quote);
     if (!p) return { error: "No price yet to send at in extended hours." };
@@ -88,7 +94,11 @@ export function buildPhoneOrder(draft, { session = "regular", quote = null, play
     Object.assign(order, { type: "market", extendedHours: false });
     if (outside) notes.push("Regular hours only: this waits for 9:30 and does not fill now.");
   } else if (type === "limit") {
-    Object.assign(order, { type: "limit", limitPrice: limit, extendedHours: ext });
+    // In regular hours a stop and target go with the entry as one bracket,
+    // which the broker takes for regular hours only (a day order that ends at
+    // 16:00); extended hours then apply to an entry placed outside them.
+    const bracket = !outside && d.sl && d.tp;
+    Object.assign(order, { type: "limit", limitPrice: limit, extendedHours: ext && !bracket });
     entry = limit;
     if (outside && !ext) notes.push("Regular hours only: this waits for 9:30 and does not fill now.");
   } else {
@@ -107,6 +117,7 @@ export function buildPhoneOrder(draft, { session = "regular", quote = null, play
   let later = null;
   if (sl && tp && !order.extendedHours) {
     Object.assign(order, { stopLoss: sl, takeProfit: tp });
+    if (order.type === "limit" && ext && !outside) notes.push("With its stop and target attached, this works until 16:00 today, not after hours (the broker takes these together in regular hours only).");
   } else if (sl || tp) {
     later = { stop: sl, target: tp };
     notes.push(`The ${[sl && "stop", tp && "target"].filter(Boolean).join(" and ")} go${sl && tp ? "" : "es"} on once it fills, while DeltaMint is open.`);
@@ -140,7 +151,8 @@ export function positionExits(orders, symbol, short) {
   let target = null;
   for (const o of mine) {
     if (stop === null && (["stop", "stop_limit"].includes(o.type) || o.orderClass === "oco")) stop = Number(stopOf(o)) || null;
-    if (target === null && o.type === "limit" && Number(o.limit) > 0) target = Number(o.limit);
+    // The last one, as the server reads them (functions/terminal existingExits).
+    if (o.type === "limit" && Number(o.limit) > 0) target = Number(o.limit);
   }
   return { stop, target };
 }

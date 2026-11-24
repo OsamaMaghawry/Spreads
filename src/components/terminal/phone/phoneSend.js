@@ -16,7 +16,7 @@ const partText = (p) => (p && !p.skip ? String(p.notional ?? p.qtyText ?? p.qty 
 export async function allocateParts({ account, order, group, leadOff }) {
   const groupIds = group.map((g) => g.id ?? g);
   if (!groupIds.length) return { rows: [{ accountId: account.id, name: account.name, part: String(order.qty), live: account.type === "Live", onScreen: true }], lead: null };
-  const r = await invokeFunction("terminal", { action: "allocate", accountId: account.id, order: { ...order, split: "total" }, group: groupIds })
+  const r = await invokeFunction("terminal", { action: "allocate", accountId: account.id, order: { ...order, split: "total", ...(leadOff ? { leadOff: true } : {}) }, group: groupIds })
     .catch((e) => ({ data: { error: String(e?.message || e) } }));
   if (r?.data?.error) return { error: r.data.error };
   const lead = r?.data?.lead || null;
@@ -61,6 +61,8 @@ export async function sendTicket({ account, built, alloc, leadOff, notify, refre
   } else if (leadOff) {
     body = { ...body, leadOff: true, qty: null };
   }
+  // Exits once the entry fills; also when it ends part-filled (expired or
+  // cancelled with shares held), for what was bought.
   const exitsOn = (accountId, who = "") => (later ? async () => {
     const d = await setExits({ accountId, symbol: order.symbol, stop: later.stop, target: later.target });
     const names = [later.stop && `stop ${px(later.stop)}`, later.target && `target ${px(later.target)}`].filter(Boolean).join(" and ");
@@ -75,7 +77,7 @@ export async function sendTicket({ account, built, alloc, leadOff, notify, refre
   if (later) {
     for (const [i, g] of (d.group || []).entries()) {
       if (!g.orderId || g.ok === false) continue;
-      trackOrder({ accountId: g.accountId, id: g.orderId, key: `${key}t${i}`, base: { status: g.status || "new", symbol: order.symbol, side: order.side, words: "" }, notify: () => {}, onFilled: exitsOn(g.accountId, g.name) });
+      trackOrder({ accountId: g.accountId, id: g.orderId, key: `${key}t${i}`, base: { status: g.status || "new", symbol: order.symbol, side: order.side, words: "" }, notify: () => {}, onFilled: exitsOn(g.accountId, g.name), onUnfilled: (o) => { if (Number(o?.filled) > 0) exitsOn(g.accountId, g.name)(); } });
     }
   }
   if (d.error) { notify({ key, ...orderNews({ error: d.error }) }); return false; }
@@ -84,6 +86,6 @@ export async function sendTicket({ account, built, alloc, leadOff, notify, refre
   const placed = { key, id: d.orderId, status: d.status || "new", words, symbol: order.symbol, side: order.side, unitName: "shares" };
   notify({ key, ...orderNews(placed) });
   refresh?.();
-  if (placed.id) trackOrder({ accountId: account.id, id: placed.id, key, base: placed, notify, onChange: refresh, onFilled: exitsOn(account.id) });
+  if (placed.id) trackOrder({ accountId: account.id, id: placed.id, key, base: placed, notify, onChange: refresh, onFilled: exitsOn(account.id), onUnfilled: (o) => { if (Number(o?.filled) > 0) exitsOn(account.id)(); } });
   return true;
 }

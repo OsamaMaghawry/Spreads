@@ -89,3 +89,22 @@ test("sessions", () => {
   assert.equal(phoneSession(Date.UTC(2025, 10, 25, 13, 0) / 1000), "extended");
   assert.equal(phoneSession(Date.UTC(2025, 10, 29, 15, 0) / 1000), "closed");
 });
+
+test("in regular hours a limit with stop and target is one bracket, not extended", () => {
+  const r = buildPhoneOrder({ ...base, type: "limit", limit: 12.3, sl: 12, tp: 13 }, { session: "regular", quote: q });
+  assert.equal(r.order.extendedHours, false);
+  assert.equal(r.order.stopLoss, 12);
+  assert.equal(r.later, null);
+  assert.match(r.notes.join(" "), /until 16:00/);
+});
+
+test("no market order overnight or while closed", () => {
+  assert.match(buildPhoneOrder({ ...base, type: "market" }, { session: "overnight", quote: q }).error, /limit/);
+  assert.match(buildPhoneOrder({ ...base, type: "market" }, { session: "closed", quote: q }).error, /closed/);
+  assert.equal(buildPhoneOrder({ ...base, type: "limit", limit: 12.3 }, { session: "overnight", quote: q }).order.extendedHours, true);
+});
+
+test("the target read as the server reads it: the last closing limit", () => {
+  const orders = [{ symbol: "XYZ", side: "sell", type: "limit", limit: 13 }, { symbol: "XYZ", side: "sell", type: "limit", limit: 14 }];
+  assert.equal(positionExits(orders, "XYZ", false).target, 14);
+});

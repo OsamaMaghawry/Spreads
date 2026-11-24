@@ -40,8 +40,10 @@ function Summary({ view, accountName }) {
  * account, as a hotkey's stop goes.
  */
 export async function sendExits({ symbol, cur, d, getCtx, notify, refresh }) {
-  const stop = d.stop !== undefined ? d.stop : cur.stop;
-  const target = d.target !== undefined ? d.target : cur.target;
+  // Only what changed: each ticked account keeps its own other half.
+  const stop = d.stop !== undefined ? d.stop : null;
+  const target = d.target !== undefined ? d.target : null;
+  if (!stop && !target) return;
   const c = getCtx();
   const r = await setExits({ accountId: c.account?.id, symbol, stop, target, group: c.group || [], leadOff: !!c.leadOff });
   const said = [stop && `stop ${px(stop)}`, target && `target ${px(target)}`].filter(Boolean).join(" · ");
@@ -57,7 +59,7 @@ export async function sendOrderChange({ b, d, getCtx, notify, refresh }) {
   const bad = (r.rows || []).filter((x) => x.error);
   if (r.error) notify({ key: `ocx${Date.now()}`, tone: "bad", title: "Not changed", detail: r.error });
   else if (bad.length) notify({ key: `ocx${Date.now()}`, tone: "bad", title: `Not changed on ${bad.length} account${bad.length === 1 ? "" : "s"}`, detail: bad.map((x) => `${x.name}: ${x.error}`).join(" · ") });
-  else if (!r.nothing) notify({ key: `ocx${Date.now()}`, tone: "ok", title: "Order changed", detail: `${b.symbol} ${b.side}` });
+  else if (!r.nothing && (r.rows || []).length) notify({ key: `ocx${Date.now()}`, tone: "ok", title: "Order changed", detail: `${b.symbol} ${b.side}` });
   refresh?.();
 }
 
@@ -70,21 +72,24 @@ export const orderText = (b, d) => [
   d.qty !== undefined && `Qty ${sizeText(b.qty)} → ${sizeText(d.qty)}`
 ].filter(Boolean).join(" · ");
 
-export function PositionCards({ view, quoteOf, getCtx, askConfirm, notify, refresh, onPick, to, accountName, pend, setPend }) {
+export function PositionCards({ view, quoteOf, getCtx, askConfirm, notify, refresh, onPick, to, accountName, pend, setPend, chartSymbol }) {
   const positions = view?.positions || [];
   const setP = (sym, k, v) => setPend((x) => ({ ...x, [sym]: { ...(x[sym] || {}), [k]: v } }));
   const undo = (sym) => setPend((x) => { const n = { ...x }; delete n[sym]; return n; });
-  const ctxFor = (p) => ({ ...getCtx(), symbol: p.symbol, quote: quoteOf(p.symbol), position: p });
+  // The streamed bid and ask go with a close only for the chart's symbol; any
+  // other is priced by the server alone (the screen's other quotes can be old).
+  const ctxFor = (p) => ({ ...getCtx(), symbol: p.symbol, quote: p.symbol === chartSymbol ? quoteOf(p.symbol) : { last: quoteOf(p.symbol).last ?? null }, position: p });
   const close = (p, percent) => {
     const short = p.side === "short";
     const q = quoteOf(p.symbol);
     const at = short ? q.ask ?? q.last : q.bid ?? q.last;
-    const n = percent >= 100 ? Math.abs(Number(p.qty)) : Math.floor(Math.abs(Number(p.qty)) * percent / 100);
+    const n = Math.abs(Number(p.qty));
     askConfirm({
       title: percent >= 100 ? `Close ${p.symbol}` : `Close half of ${p.symbol}`,
       lines: [
-        `${short ? "Buy back" : "Sell"} ${percent >= 100 ? `all ${sizeText(Math.abs(p.qty))}` : `${sizeText(n)} of ${sizeText(Math.abs(p.qty))}`} shares, about ${px(at)}`,
-        at && p.avgPrice ? `P/L on this part about ${signed((at - p.avgPrice) * (short ? -1 : 1) * n)}` : null,
+        percent >= 100 ? `${short ? "Buy back" : "Sell"} all ${sizeText(n)} shares, about ${px(at)}`
+          : `${short ? "Buy back" : "Sell"} half of the trade, as your half-exit key does: 50% of the size first entered, or all that is left when less remains (${sizeText(n)} held now)`,
+        percent >= 100 && at && p.avgPrice ? `P/L about ${signed((at - p.avgPrice) * (short ? -1 : 1) * n)}` : null,
         "At market in regular hours; outside them, a limit at the best price the server trusts, extended hours.",
         "On every ticked account holding it, each for its own shares."
       ],
@@ -94,7 +99,8 @@ export function PositionCards({ view, quoteOf, getCtx, askConfirm, notify, refre
   };
   const closeAll = () => askConfirm({
     title: `Close all ${positions.length} positions`,
-    lines: positions.map((p) => `${p.side === "short" ? "Buy back" : "Sell"} ${sizeText(Math.abs(p.qty))} ${p.symbol}`),
+    lines: [...positions.map((p) => `${p.side === "short" ? "Buy back" : "Sell"} ${sizeText(Math.abs(p.qty))} ${p.symbol}`),
+      `The positions in ${accountName}; each ticked account closes its own holding of these symbols.`],
     to, label: "Close all", tone: "sell",
     run: async () => { for (const p of positions) await runHotkey({ action: "exit", percent: 100, keys: "Phone" }, ctxFor(p)); }
   });

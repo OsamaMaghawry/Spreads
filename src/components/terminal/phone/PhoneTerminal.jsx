@@ -106,7 +106,8 @@ export default function PhoneTerminal(props) {
     const short = position.side === "short";
     setConfirm({
       title: percent >= 100 ? `Close ${symbol}` : `Close half of ${symbol}`,
-      lines: [`${short ? "Buy back" : "Sell"} ${percent >= 100 ? "all" : "half of"} ${sizeText(Math.abs(position.qty))} shares, about ${px(short ? quote.ask : quote.bid)}`,
+      lines: [percent >= 100 ? `${short ? "Buy back" : "Sell"} all ${sizeText(Math.abs(position.qty))} shares, about ${px(short ? quote.ask : quote.bid)}`
+        : `${short ? "Buy back" : "Sell"} half of the trade, as your half-exit key does: 50% of the size first entered, or all that is left when less remains (${sizeText(Math.abs(position.qty))} held now)`,
         "At market in regular hours; outside them, a limit at the best price the server trusts, extended hours."],
       to, label: percent >= 100 ? "Close position" : "Close half", tone: "sell",
       run: () => runHotkey({ action: "exit", percent, keys: "Phone" }, { ...getCtx(), symbol, quote, position })
@@ -125,7 +126,7 @@ export default function PhoneTerminal(props) {
           <span className="flex items-center gap-1 text-lg font-semibold leading-tight">{symbol}<Search className="h-4 w-4 text-slate-400" /></span>
           <span className="flex gap-2 text-[13px] tabular-nums text-slate-500">{px(quote.last)}<span className={quote.changePct >= 0 ? "text-emerald-700" : "text-rose-700"}>{pctText(quote.changePct)}</span></span>
         </button>
-        {!crypto && !futuresOn && <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${session === "regular" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{SESSION_LABEL[session]}</span>}
+        {!crypto && !futuresOn && <span className={`shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-semibold ${session === "regular" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{SESSION_LABEL[session]}</span>}
         <ModeBadge mode={mode} name={account?.name || ""} onClick={() => setAcctOpen(true)} />
       </header>
 
@@ -152,7 +153,7 @@ export default function PhoneTerminal(props) {
         )}
         {tab === "watch" && <WatchRows symbols={watch} quoteOf={quoteOf} current={symbol} onPick={pick} />}
         {tab === "positions" && (replaying ? renderPanel("practice") :
-          <PositionCards view={view} quoteOf={quoteOf} getCtx={getCtx} askConfirm={setConfirm} notify={notify} refresh={refresh} onPick={pick} to={to} accountName={account?.name || ""} pend={posPend} setPend={setPosPend} />)}
+          <PositionCards view={view} quoteOf={quoteOf} getCtx={getCtx} askConfirm={setConfirm} notify={notify} refresh={refresh} onPick={pick} to={to} accountName={account?.name || ""} pend={posPend} setPend={setPosPend} chartSymbol={symbol} />)}
         {tab === "orders" && <OrderCards blocks={blocks} recent={view?.recent || []} quoteOf={quoteOf} getCtx={getCtx} askConfirm={setConfirm} notify={notify} refresh={refresh} onPick={pick} pend={ordPend} setPend={setOrdPend} />}
         {tab === "more" && (
           <div className="space-y-3 p-3">
