@@ -31,6 +31,9 @@ export const prefetchStep = (accountId, symbol) => { if (accountId && symbol) as
  * from the stream for the account on screen (orderFeed.js), and by asking,
  * for that account's updates the stream missed and for the other accounts.
  */
+/**
+ * @param {{ accountId: any, id: any, key: any, base: any, notify: any, onChange?: any, onUpdate?: any, onFilled?: any, onUnfilled?: any }} o
+ */
 export function trackOrder({ accountId, id, key, base, notify, onChange, onUpdate, onFilled, onUnfilled }) {
   const sent = Date.now();
   let current = id;

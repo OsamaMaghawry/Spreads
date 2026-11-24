@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import TradeLines from "./TradeLines";
 import { createChart, createSeriesMarkers, createTextWatermark, CandlestickSeries, HistogramSeries, LineSeries, LineStyle, CrosshairMode } from "lightweight-charts";
 import { MousePointer2, Slash, MoveUpRight, Minus, SeparatorVertical, RectangleHorizontal, Rows3, Ruler, Trash2, Eraser, Activity, X, Type, CalendarDays, History, Pencil, ArrowUpDown, Eye, EyeOff, Magnet } from "lucide-react";
 import { invokeFunction } from "@/lib/functions";
@@ -202,7 +203,8 @@ function ChartLegend({ subscribe, read, indicators, onToggle, onRemove, crypto, 
 function PriceChart({
   accountId, symbol, interval, onInterval, listen, fills = [],
   replay = null, replayOn = false, replayCursor = null, replayVersion = 0, replayMove = 0, replayAcct = null, onReplayButton = () => {}, active = true, label = false,
-  stockFeed = "iex", liveSource = "iex", onSearch = null, fullView = false, gexLines = null, onGexLines = null
+  stockFeed = "iex", liveSource = "iex", onSearch = null, fullView = false, gexLines = null, onGexLines = null,
+  tradeLines = null, onLineMove = null
 }) {
   const boxRef = useRef(null);
   const chartRef = useRef(null);
@@ -1392,6 +1394,8 @@ function PriceChart({
           the replay bar (it was, at a fixed 260 pixels). */}
       <div className={`relative flex-1 ${compact ? "min-h-[90px]" : "min-h-[160px]"}`}>
         <div ref={boxRef} className={`absolute inset-0 ${tool !== "cursor" ? "cursor-crosshair" : ""}`} />
+        {/* The phone's position, exits and orders, with handles to drag them (TradeLines.jsx). */}
+        {tradeLines && !replayOn && onLineMove && <TradeLines series={candlesRef} box={boxRef} lines={tradeLines} onMove={onLineMove} />}
         {!fitted && (
           <button type="button" onClick={() => { chartRef.current?.priceScale("right").applyOptions({ autoScale: true }); setFitted(true); }}
             title="Fit the price scale to the candles again" className="absolute bottom-8 right-1 z-10 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50">Auto</button>

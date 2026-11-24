@@ -32,6 +32,8 @@ import AccountsMenu from "@/components/terminal/AccountsMenu";
 import GexPage from "@/components/terminal/GexPage";
 import Playbook, { PlayChip } from "@/components/terminal/Playbook";
 import SymbolSearch from "@/components/terminal/SymbolSearch";
+import PhoneTerminal from "@/components/terminal/phone/PhoneTerminal";
+import PhoneReplay from "@/components/terminal/phone/PhoneReplay";
 import useAccountSetting from "@/components/terminal/useAccountSetting";
 import { cleanSizes, cleanTicks, sendPlan } from "@/lib/accountGroup";
 import { acctIn, replayClock, isCalendar } from "@/lib/replay";
@@ -481,6 +483,11 @@ export default function Terminal() {
   // Part shares, one switch for the ticket and the hotkey buys (18 Nov, the
   // owner: "Why we don't use Fractional Shares with buy?"): kept with the
   // account, set in the ticket.
+  // Orders go for extended hours unless switched off (24 Nov, the owner:
+  // "make sure to make the default is extended hours ... I don't want to place
+  // an order and find it not executed"), kept with the account; the phone
+  // ticket starts from it.
+  const [extDefault, setExtDefault] = useAccountSetting("exthours", { localKey: "terminal.exthours", initial: () => true, clean: (v) => v !== false });
   const [partsOn, setPartsOn] = useAccountSetting("fractional", { localKey: "terminal.fractional", initial: () => false, clean: (v) => v === true });
   const [hotkeysOn, setHotkeysOn] = useAccountSetting("hotkeyson", {
     localKey: HOTKEYS_ON_KEY, initial: () => false, clean: (v) => v === true || v === "1", fromLocal: (raw) => raw === "1", toLocal: (v) => (v ? "1" : "0")
@@ -674,6 +681,95 @@ export default function Terminal() {
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [hotkeysOn, page, hotkeysOpen, replay]);
+
+  // The chart panel's parts, shared by the desktop grid and the phone.
+  const replayFormEl = (
+replayForm && !replaying && (
+    <div className="relative">
+      <ReplayStart key={JSON.stringify(replayForm)} crypto={crypto} busy={false} initial={replayForm} onStart={startReplay} onCancel={() => setReplayForm(null)}
+        daily={isCalendar(panes.list[panes.active]?.interval)} saved={savedReplays || []} onContinue={continueReplay} onDelete={replay.remove} />
+    </div>
+  )
+  );
+  const replayOfferEl = (
+!session && !replayForm && replayOffer && savedReplays?.[0]?.running && (
+    <div className="flex flex-wrap items-center gap-2 border-b border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-950">
+      <History className="h-3.5 w-3.5 text-amber-700" />
+      <span>Your replay <b>{savedReplays[0].name}</b> was left at {replayClock(savedReplays[0].cursor, savedReplays[0].crypto || false)}, with its practice trades.</span>
+      <button type="button" onClick={() => continueReplay(savedReplays[0])} className="rounded bg-amber-600 px-2 py-0.5 font-semibold text-white hover:bg-amber-700">Continue it</button>
+      <button type="button" onClick={() => setReplayOffer(false)} className="rounded border border-amber-400 px-2 py-0.5 hover:bg-amber-100">Not now</button>
+    </div>
+  )
+  );
+  const replayBarEl = (
+session && (
+    <ReplayBar
+      clock={replayClock(session.cursor, crypto)} playing={session.playing} loading={session.loading} note={session.note}
+      unit={session.unit} speed={session.speed} acct={acctIn(session.book, symbol)} price={replay.lastPrice(symbol)} value={replay.value()}
+      trades={Object.values(session.book).reduce((n, a) => n + a.trades.length, 0)} symbol={symbol} crypto={crypto}
+      name={session.name || ""} onRename={replay.rename} at={session.at} onSave={() => { replay.save(true); notify({ key: "rpsave", tone: "ok", title: "Replay saved", detail: `${session.name}: kept in Replay results until you delete it.` }); }} savedAt={(savedReplays || []).find((k) => k.id === session.id)?.savedAt ?? null}
+      onPlay={replay.toggle} onStep={replay.step} onStepBack={replay.stepBack} onRestart={replay.restart} onUnit={replay.setUnit} onSpeed={replay.setSpeed} onJump={replay.jump} onExit={replay.exit}
+      onTrade={(side, qty, at) => replay.trade(symbol, side, qty, "", at)} range={replay.rangeNow(symbol)} onFlatten={() => replay.flatten(symbol, 100)} onStop={(kind, price) => replay.setExit(symbol, kind, price)}
+      onAddTarget={(price, size) => replay.addTarget(symbol, price, size)} onRemoveTarget={(id) => replay.removeTarget(symbol, id)}
+    />
+  )
+  );
+  const chartPane = (p, i, extra = {}) => (
+    <PriceChart accountId={accountId} symbol={p.symbol} interval={p.interval} onInterval={paneInterval[i]} listen={listen} fills={fillsBySymbol[p.symbol] || NO_FILLS}
+      replay={replay} replayOn={replaying} replayCursor={session?.cursor ?? null} replayVersion={replayVersion} replayMove={session?.moveId || 0} replayAcct={session?.book[p.symbol] || null}
+      onReplayButton={replayButton} active={panes.active === i} label={panes.list.length > 1} stockFeed={shares.history} liveSource={shares.live}
+      onSearch={() => setChartSearch({ pane: i, initial: "" })} fullView={full || chartFill} gexLines={gexLines} onGexLines={setGexLines} {...extra} />
+  );
+  // The account panel's tabs, on the desktop and in the phone's More.
+  const accountPanel = (t) => (
+    <>
+    {t === "practice" && (session || lastReplay) && (
+      <PracticePositions book={session ? session.book : lastReplay.book} priceOf={session ? replay.priceOf : (s) => lastReplay.prices[s] ?? null}
+        start={(session ? session.challenge : lastReplay?.challenge)?.rules?.accountSize}
+        ended={!session} onPick={setSymbol} onFlatten={(s) => replay.flatten(s, 100)} onCancel={replay.cancelFill}
+        onReprice={replay.repriceFill} onCancelOrder={replay.cancelOrder} />
+    )}
+    {t === "results" && (
+      <SavedResults saved={savedReplays || []} current={session ? { id: session.id, name: session.name, book: session.book, priceOf: replay.priceOf, start: session.start, cursor: session.cursor, crypto: session.crypto, challenge: session.challenge || null } : null}
+        onRename={replay.renameSaved} onDelete={replay.remove} onContinue={continueReplay} />
+    )}
+    {t === "news" && <NewsPanel news={news} symbol={symbol} crypto={crypto} cursor={session?.cursor ?? null} clock={session ? replayClock(session.cursor, crypto) : ""} onPick={setSymbol} />}
+    {t === "positions" && <Positions positions={view?.positions || []} others={others} onPick={setSymbol} onClose={closePosition} onStop={stopPosition} />}
+    {t === "orders" && <Orders accountId={accountId} name={account?.name || "This account"} live={account?.type === "Live"} orders={view?.orders || []} recent={view?.recent || []} onChanged={refreshAll} onPick={setSymbol}
+      others={others} group={replaying ? [] : groupSend} onNotify={notify} />}
+    {t === "demo" && <DemoResults accountId={accountId} refreshKey={`${view?.recent?.[0]?.id || ""}|${view?.recent?.[0]?.status || ""}|${view?.positions?.length || 0}`} />}
+    {t === "account" && <AccountSummary summary={view?.summary} paper={view?.paper} name={account?.name} />}
+    {t === "futures" && <FuturesChallenge settings={futures} onSettings={setFutures} now={session ? replay.challengeNow() : lastReplay?.challenge ? { ...lastReplay.challenge, ended: true, figures: futuresFigures(lastReplay.book, lastReplay.challenge.rules.accountSize, (s) => lastReplay.prices[s] ?? null) } : null} replaying={replaying} onPick={setSymbol} />}
+    </>
+  );
+
+  // A phone gets its own layout (components/terminal/phone): the same state,
+  // data and server actions, one screen per job.
+  if (phone && page === "trade") {
+    return (
+      <PhoneTerminal account={account} accounts={accounts} ticks={ticks} onTicks={setTickPick} onShowAccount={showAccount} liveOk={liveOk} plan={plan}
+        symbol={symbol} onSymbol={setSymbol} quote={quote} quoteOf={quoteOf} view={view} others={others} refresh={refreshAll} notify={notify}
+        watch={watch} getCtx={() => live$.current} hotkeys={hotkeys} extDefault={extDefault} onExtDefault={setExtDefault}
+        replaying={replaying} onPage={setPage} renderPanel={accountPanel} crypto={crypto} futuresOn={futuresOn}
+        toasts={<Toasts toasts={toasts} onClose={closeToast} low={replaying} />}
+        renderChart={(tradeLines, onLineMove, askConfirm) => (
+          <div className="flex h-full min-h-0 flex-col bg-white">
+            {replayFormEl}
+            {replayOfferEl}
+            <div className="flex min-h-0 flex-1 flex-col">{chartPane(panes.list[panes.active] || panes.list[0], panes.active, { tradeLines, onLineMove })}</div>
+            {session && (
+              <PhoneReplay session={{ ...session, clockText: replayClock(session.cursor, crypto) }} replay={replay} symbol={symbol}
+                acct={acctIn(session.book, symbol)} price={replay.lastPrice(symbol)} askConfirm={askConfirm} fullBar={replayBarEl} />
+            )}
+          </div>
+        )}
+        fullTicket={<OrderTicket account={account} symbol={symbol} quote={quote} held={held} heldText={held > 0 && position?.qtyText ? position.qtyText : ""}
+          buyingPower={view?.buyingPower ?? null} equity={view?.equity ?? null} play={replaying ? null : activePlay} onPlaced={refreshAll} pick={pick} preset={preset} onNotify={notify} liveOk={liveOk} partsOn={partsOn} onPartsOn={setPartsOn} extDefault={extDefault}
+          leadOff={plan.leadOff} none={plan.none}
+          group={groupSend.map((g) => ({ ...accounts.find((a) => a.id === g.id), size: g })).filter((a) => a.id)}
+          groupHeld={others.map((g) => ({ id: g.accountId, name: g.name, qty: signedQty((g.positions || []).find((x) => x.symbol === symbol)) }))} />} />
+    );
+  }
 
   const grip = !locked && <GripVertical className="h-3.5 w-3.5 shrink-0 text-slate-300" />;
   const frame = "flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white";
@@ -894,39 +990,14 @@ export default function Terminal() {
                 {full || chartFill ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               </button>
             </div>
-            {replayForm && !replaying && (
-              <div className="relative">
-                <ReplayStart key={JSON.stringify(replayForm)} crypto={crypto} busy={false} initial={replayForm} onStart={startReplay} onCancel={() => setReplayForm(null)}
-                  daily={isCalendar(panes.list[panes.active]?.interval)} saved={savedReplays || []} onContinue={continueReplay} onDelete={replay.remove} />
-              </div>
-            )}
-            {!session && !replayForm && replayOffer && savedReplays?.[0]?.running && (
-              <div className="flex flex-wrap items-center gap-2 border-b border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-950">
-                <History className="h-3.5 w-3.5 text-amber-700" />
-                <span>Your replay <b>{savedReplays[0].name}</b> was left at {replayClock(savedReplays[0].cursor, savedReplays[0].crypto || false)}, with its practice trades.</span>
-                <button type="button" onClick={() => continueReplay(savedReplays[0])} className="rounded bg-amber-600 px-2 py-0.5 font-semibold text-white hover:bg-amber-700">Continue it</button>
-                <button type="button" onClick={() => setReplayOffer(false)} className="rounded border border-amber-400 px-2 py-0.5 hover:bg-amber-100">Not now</button>
-              </div>
-            )}
-            {session && (
-              <ReplayBar
-                clock={replayClock(session.cursor, crypto)} playing={session.playing} loading={session.loading} note={session.note}
-                unit={session.unit} speed={session.speed} acct={acctIn(session.book, symbol)} price={replay.lastPrice(symbol)} value={replay.value()}
-                trades={Object.values(session.book).reduce((n, a) => n + a.trades.length, 0)} symbol={symbol} crypto={crypto}
-                name={session.name || ""} onRename={replay.rename} at={session.at} onSave={() => { replay.save(true); notify({ key: "rpsave", tone: "ok", title: "Replay saved", detail: `${session.name}: kept in Replay results until you delete it.` }); }} savedAt={(savedReplays || []).find((k) => k.id === session.id)?.savedAt ?? null}
-                onPlay={replay.toggle} onStep={replay.step} onStepBack={replay.stepBack} onRestart={replay.restart} onUnit={replay.setUnit} onSpeed={replay.setSpeed} onJump={replay.jump} onExit={replay.exit}
-                onTrade={(side, qty, at) => replay.trade(symbol, side, qty, "", at)} range={replay.rangeNow(symbol)} onFlatten={() => replay.flatten(symbol, 100)} onStop={(kind, price) => replay.setExit(symbol, kind, price)}
-                onAddTarget={(price, size) => replay.addTarget(symbol, price, size)} onRemoveTarget={(id) => replay.removeTarget(symbol, id)}
-              />
-            )}
+            {replayFormEl}
+            {replayOfferEl}
+            {replayBarEl}
             <div className={`grid min-h-0 flex-1 gap-px bg-slate-200 ${PANE_GRID[panes.list.length]}`}>
               {panes.list.map((p, i) => (
                 <div key={i} onClickCapture={() => { if (panes.active !== i) setPanes((x) => ({ ...x, active: i })); }}
                   className={`min-h-0 min-w-0 overflow-hidden bg-white ${panes.list.length === 3 && i === 0 ? "col-span-2" : ""} ${panes.list.length > 1 && panes.active === i ? "outline outline-2 -outline-offset-2 outline-emerald-500" : ""}`}>
-                  <PriceChart accountId={accountId} symbol={p.symbol} interval={p.interval} onInterval={paneInterval[i]} listen={listen} fills={fillsBySymbol[p.symbol] || NO_FILLS}
-                    replay={replay} replayOn={replaying} replayCursor={session?.cursor ?? null} replayVersion={replayVersion} replayMove={session?.moveId || 0} replayAcct={session?.book[p.symbol] || null}
-                    onReplayButton={replayButton} active={panes.active === i} label={panes.list.length > 1} stockFeed={shares.history} liveSource={shares.live}
-                    onSearch={() => setChartSearch({ pane: i, initial: "" })} fullView={full || chartFill} gexLines={gexLines} onGexLines={setGexLines} />
+                  {chartPane(p, i)}
                 </div>
               ))}
             </div>
@@ -949,23 +1020,7 @@ export default function Terminal() {
             ))}
           </div>
           <div className="min-h-0 flex-1">
-            {tab === "practice" && (session || lastReplay) && (
-              <PracticePositions book={session ? session.book : lastReplay.book} priceOf={session ? replay.priceOf : (s) => lastReplay.prices[s] ?? null}
-                start={(session ? session.challenge : lastReplay?.challenge)?.rules?.accountSize}
-                ended={!session} onPick={setSymbol} onFlatten={(s) => replay.flatten(s, 100)} onCancel={replay.cancelFill}
-                onReprice={replay.repriceFill} onCancelOrder={replay.cancelOrder} />
-            )}
-            {tab === "results" && (
-              <SavedResults saved={savedReplays || []} current={session ? { id: session.id, name: session.name, book: session.book, priceOf: replay.priceOf, start: session.start, cursor: session.cursor, crypto: session.crypto, challenge: session.challenge || null } : null}
-                onRename={replay.renameSaved} onDelete={replay.remove} onContinue={continueReplay} />
-            )}
-            {tab === "news" && <NewsPanel news={news} symbol={symbol} crypto={crypto} cursor={session?.cursor ?? null} clock={session ? replayClock(session.cursor, crypto) : ""} onPick={setSymbol} />}
-            {tab === "positions" && <Positions positions={view?.positions || []} others={others} onPick={setSymbol} onClose={closePosition} onStop={stopPosition} />}
-            {tab === "orders" && <Orders accountId={accountId} name={account?.name || "This account"} live={account?.type === "Live"} orders={view?.orders || []} recent={view?.recent || []} onChanged={refreshAll} onPick={setSymbol}
-              others={others} group={replaying ? [] : groupSend} onNotify={notify} />}
-            {tab === "demo" && <DemoResults accountId={accountId} refreshKey={`${view?.recent?.[0]?.id || ""}|${view?.recent?.[0]?.status || ""}|${view?.positions?.length || 0}`} />}
-            {tab === "account" && <AccountSummary summary={view?.summary} paper={view?.paper} name={account?.name} />}
-            {tab === "futures" && <FuturesChallenge settings={futures} onSettings={setFutures} now={session ? replay.challengeNow() : lastReplay?.challenge ? { ...lastReplay.challenge, ended: true, figures: futuresFigures(lastReplay.book, lastReplay.challenge.rules.accountSize, (s) => lastReplay.prices[s] ?? null) } : null} replaying={replaying} onPick={setSymbol} />}
+            {accountPanel(tab)}
           </div>
         </div>
 
@@ -1006,7 +1061,7 @@ export default function Terminal() {
               </p>
             )}
             {futuresOn ? futuresNote : <OrderTicket account={account} symbol={symbol} quote={quote} held={held} heldText={held > 0 && position?.qtyText ? position.qtyText : ""}
-              buyingPower={view?.buyingPower ?? null} equity={view?.equity ?? null} play={replaying ? null : activePlay} onPlaced={refreshAll} pick={pick} preset={preset} onNotify={notify} liveOk={liveOk} partsOn={partsOn} onPartsOn={setPartsOn}
+              buyingPower={view?.buyingPower ?? null} equity={view?.equity ?? null} play={replaying ? null : activePlay} onPlaced={refreshAll} pick={pick} preset={preset} onNotify={notify} liveOk={liveOk} partsOn={partsOn} onPartsOn={setPartsOn} extDefault={extDefault}
               leadOff={plan.leadOff} none={plan.none}
               group={groupSend.map((g) => ({ ...accounts.find((a) => a.id === g.id), size: g })).filter((a) => a.id)}
               groupHeld={others.map((g) => ({ id: g.accountId, name: g.name, qty: signedQty((g.positions || []).find((p) => p.symbol === symbol)) }))} />}
