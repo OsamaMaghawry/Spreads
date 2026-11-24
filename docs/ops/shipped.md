@@ -3,6 +3,7 @@
 One line per change that reached `main`. What a user can now do, in plain
 English. Newest first.
 
+- 2026-11-24 · New blog post: debit spread vs credit spread — a put credit spread and a call debit spread on the same strikes pay the same at expiration; the post shows what differs (cash at the fill, collateral, early assignment), with two diagrams (`2b8cda2`, `9b07344`).
 - 2026-10-06 · New blog post: the diagonal spread explained, with two diagrams comparing it to a calendar spread (`4cef92c`).
 - 2026-09-28 · New blog post: the wheel strategy explained, with two diagrams, and a cross-link from the covered-call post (`9a76e9d`).
 - 2026-09-27 · The Saturday weekly digest no longer goes silent for
