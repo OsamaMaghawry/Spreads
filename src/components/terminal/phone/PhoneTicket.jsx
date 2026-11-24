@@ -81,6 +81,9 @@ export default function PhoneTicket({ open, onClose, start, account, symbol, quo
       label: `Send ${side === "buy" ? "buy" : "sell"}`,
       tone: side === "buy" ? "buy" : "sell",
       run: async () => {
+        // The session moved on while the review was open (19:59 to 20:00, or
+        // the open): built again from the start rather than sent as it was.
+        if (phoneSession(Date.now() / 1000) !== session) { setProblem("The trading session changed while you were reviewing. Review again."); return; }
         const ok = await sendTicket({ account, built, alloc, leadOff: !!ctx?.leadOff, notify, refresh });
         if (ok) onClose();
       }
