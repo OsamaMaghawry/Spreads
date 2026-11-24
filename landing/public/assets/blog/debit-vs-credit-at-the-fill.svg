@@ -1,0 +1,25 @@
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="What each hypothetical spread does to a margin account at the fill. Left, the 50/48 put credit spread: $81 of cash comes in and $200 is held against the position. Right, the 48/50 call debit spread: $119 of cash goes out and nothing further is held. Below both, the same $119 is committed either way.">
+  <rect width="720" height="300" fill="#FFFFFF"/>
+
+  <!-- column headers -->
+  <text x="190" y="40" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">credit spread</text>
+  <text x="530" y="40" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">debit spread</text>
+  <line x1="360" y1="20" x2="360" y2="200" stroke="#E2E5EE" stroke-width="1.5"/>
+
+  <!-- credit spread: cash in, width held -->
+  <rect x="90" y="62" width="200" height="48" rx="6" fill="#2E8B5F" fill-opacity="0.18"/>
+  <text x="190" y="93" font-size="17" font-weight="600" text-anchor="middle" fill="#2E8B5F">+$81 cash</text>
+  <rect x="90" y="124" width="200" height="48" rx="6" fill="#B4485C" fill-opacity="0.16"/>
+  <text x="190" y="155" font-size="17" font-weight="600" text-anchor="middle" fill="#B4485C">$200 held</text>
+
+  <!-- debit spread: cash out, nothing held -->
+  <rect x="430" y="62" width="200" height="48" rx="6" fill="#B4485C" fill-opacity="0.16"/>
+  <text x="530" y="93" font-size="17" font-weight="600" text-anchor="middle" fill="#B4485C">-$119 cash</text>
+  <rect x="430" y="124" width="200" height="48" rx="6" fill="none" stroke="#C9CEDC" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <text x="530" y="155" font-size="17" text-anchor="middle" fill="#767B8E">$0 held</text>
+
+  <!-- the common result -->
+  <path d="M190 186 L190 222 L530 222 L530 186" fill="none" stroke="#767B8E" stroke-width="1.5"/>
+  <rect x="250" y="236" width="220" height="44" rx="6" fill="#14151C"/>
+  <text x="360" y="265" font-size="17" font-weight="600" text-anchor="middle" fill="#FFFFFF">$119 at risk</text>
+</svg>

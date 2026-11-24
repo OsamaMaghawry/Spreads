@@ -1,0 +1,32 @@
+<svg viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Gain or loss at expiration, per share, of two hypothetical positions on the same XYZ chain: a 50/48 put credit spread opened for a 0.81 credit, drawn as a thick line, and a 48/50 call debit spread opened for a 1.19 debit, drawn as a dashed line on top of it. The two lines coincide everywhere: flat at a 0.81 gain at and above the 50 strike, sloping down between the strikes through a break-even of 49.19, and flat at a 1.19 loss at and below the 48 strike.">
+  <rect width="720" height="360" fill="#FFFFFF"/>
+
+  <!-- legend -->
+  <line x1="120" y1="28" x2="164" y2="28" stroke="#C9CEDC" stroke-width="10" stroke-linecap="round"/>
+  <text x="176" y="34" font-size="15" fill="#14151C">put credit</text>
+  <line x1="400" y1="28" x2="444" y2="28" stroke="#14151C" stroke-width="3" stroke-dasharray="8 6"/>
+  <text x="456" y="34" font-size="15" fill="#14151C">call debit</text>
+
+  <!-- zero line and strike guides -->
+  <line x1="80" y1="185" x2="660" y2="185" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="297.5" y1="60" x2="297.5" y2="310" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="442.5" y1="60" x2="442.5" y2="310" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="297.5" y="332" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">48</text>
+  <text x="442.5" y="332" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">50</text>
+
+  <!-- loss below the break-even, capped at the 48 strike -->
+  <polygon points="383.8,185 297.5,268.3 80,268.3 80,185" fill="#B4485C" fill-opacity="0.16"/>
+  <text x="190" y="293" font-size="15" font-weight="600" text-anchor="middle" fill="#B4485C">max loss 1.19</text>
+
+  <!-- gain at and above the 50 strike -->
+  <polygon points="383.8,185 442.5,128.3 660,128.3 660,185" fill="#2E8B5F" fill-opacity="0.18"/>
+  <text x="551" y="118" font-size="15" font-weight="600" text-anchor="middle" fill="#2E8B5F">max gain 0.81</text>
+
+  <!-- the two payoff lines, one on top of the other -->
+  <path d="M80 268.3 L297.5 268.3 L442.5 128.3 L660 128.3" fill="none" stroke="#C9CEDC" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M80 268.3 L297.5 268.3 L442.5 128.3 L660 128.3" fill="none" stroke="#14151C" stroke-width="3" stroke-dasharray="8 6" stroke-linejoin="round"/>
+
+  <!-- break-even -->
+  <circle cx="383.8" cy="185" r="6" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="371" y="172" font-size="15" font-weight="600" text-anchor="end" fill="#14151C">break-even 49.19</text>
+</svg>
