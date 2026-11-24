@@ -755,8 +755,16 @@ session && (
         renderChart={(tradeLines, onLineMove, askConfirm) => (
           <div className="flex h-full min-h-0 flex-col bg-white">
             {replayFormEl}
-            {replayOfferEl}
-            <div className="flex min-h-0 flex-1 flex-col">{chartPane(panes.list[panes.active] || panes.list[0], panes.active, { tradeLines, onLineMove })}</div>
+            {/* The replay left running: one line on a phone, not a block over the chart. */}
+            {!session && !replayForm && replayOffer && savedReplays?.[0]?.running && (
+              <div className="flex shrink-0 items-center gap-1 border-b border-amber-300 bg-amber-50 px-2 text-sm text-amber-950">
+                <button type="button" onClick={() => continueReplay(savedReplays[0])} className="flex min-h-[40px] min-w-0 flex-1 items-center gap-1.5 text-left">
+                  <History className="h-4 w-4 shrink-0 text-amber-700" /><span className="truncate">Continue replay <b>{savedReplays[0].name}</b> ›</span>
+                </button>
+                <button type="button" onClick={() => setReplayOffer(false)} aria-label="Not now" className="flex h-10 w-10 items-center justify-center"><X className="h-4 w-4" /></button>
+              </div>
+            )}
+            <div className="flex min-h-0 flex-1 flex-col">{chartPane(panes.list[panes.active] || panes.list[0], panes.active, { tradeLines, onLineMove, phone: true })}</div>
             {session && (
               <PhoneReplay session={{ ...session, clockText: replayClock(session.cursor, crypto) }} replay={replay} symbol={symbol}
                 acct={acctIn(session.book, symbol)} price={replay.lastPrice(symbol)} askConfirm={askConfirm} fullBar={replayBarEl} />

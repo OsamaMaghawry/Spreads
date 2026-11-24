@@ -144,8 +144,10 @@ const indicatorValue = (type, v) => (v === null || v === undefined ? "—" : IND
  * above"; "not to delete the moving average or the indicator, just to hide
  * it"). Its own state, so the chart is not drawn again as the pointer moves.
  */
-function ChartLegend({ subscribe, read, indicators, onToggle, onRemove, crypto, interval }) {
+function ChartLegend({ subscribe, read, indicators, onToggle, onRemove, crypto, interval, folded = false }) {
   const [, setTick] = useState(0);
+  // On a phone the indicator list is folded under one chip, off the candles.
+  const [open, setOpen] = useState(false);
   const atRef = useRef(null);
   useEffect(() => subscribe((t) => { atRef.current = t; setTick((n) => n + 1); }), [subscribe]);
   // Without a pointer on the chart, the latest candle as it trades.
@@ -168,7 +170,13 @@ function ChartLegend({ subscribe, read, indicators, onToggle, onRemove, crypto, 
           {Number.isFinite(got.bar.volume) && <span><span className="text-slate-400">Vol</span> <span className="text-slate-700">{sizeText(got.bar.volume)}</span></span>}
         </div>
       )}
-      {indicators.length > 0 && (
+      {folded && indicators.length > 0 && (
+        <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open}
+          className="pointer-events-auto self-start rounded-full border border-slate-200 bg-white/90 px-2 py-1 text-[11px] font-medium text-slate-600">
+          Indicators ({indicators.length}) {open ? "▴" : "▾"}
+        </button>
+      )}
+      {indicators.length > 0 && (!folded || open) && (
         <div className="flex flex-wrap gap-x-3 gap-y-0.5">
           {indicators.map((x) => {
             const values = got?.values[x.id] || [];
@@ -204,7 +212,7 @@ function PriceChart({
   accountId, symbol, interval, onInterval, listen, fills = [],
   replay = null, replayOn = false, replayCursor = null, replayVersion = 0, replayMove = 0, replayAcct = null, onReplayButton = () => {}, active = true, label = false,
   stockFeed = "iex", liveSource = "iex", onSearch = null, fullView = false, gexLines = null, onGexLines = null,
-  tradeLines = null, onLineMove = null
+  tradeLines = null, onLineMove = null, phone = false
 }) {
   const boxRef = useRef(null);
   const chartRef = useRef(null);
@@ -291,7 +299,9 @@ function PriceChart({
   const [tradesMenu, setTradesMenu] = useState(false);
   const [gammaMenu, setGammaMenu] = useState(false);
   // Several charts at once: one row of controls, the drawing tools behind a button.
-  const compact = label;
+  // A phone: one row too, the time frames and a Tools button; the rest under Tools.
+  const compact = label || phone;
+  const [phoneTools, setPhoneTools] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   // The replay's moment while one runs (null when live), the faint date
   // behind the candles, and the practice position's lines.
@@ -971,9 +981,10 @@ function PriceChart({
       }
       return { ind, series, colors: (sample.lines.length ? sample.lines : sample.legend || []).map((l) => l.color || "#94a3b8") };
     });
-    chart.panes().forEach((p, i) => p.setStretchFactor(i === 0 ? 3 : 1));
+    // On a phone the price gets more of the height.
+    chart.panes().forEach((p, i) => p.setStretchFactor(i === 0 ? (phone ? 5 : 3) : 1));
     paintIndicators();
-  }, [indicators, paintIndicators]);
+  }, [indicators, paintIndicators, phone]);
 
   // The account's fills on this symbol, as arrows on the candle each fell in:
   // up under the bar for a buy, down over it for a sell.
@@ -1160,7 +1171,7 @@ function PriceChart({
             className={`mr-1 rounded px-1.5 py-0.5 text-xs font-bold ${active ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
             title={`${active ? "The active chart: the watchlist, ticket and replay bar act on it." : "Make it the active chart."} Click to chart another symbol here.`}>{symbol} ▾</button>
         )}
-        {!compact && INTERVALS.filter((i) => i.quick).map((i) => (
+        {(!compact || phone) && INTERVALS.filter((i) => i.quick).map((i) => (
           <button
             key={i.id}
             type="button"
@@ -1179,6 +1190,12 @@ function PriceChart({
             </optgroup>
           ))}
         </select>
+        {phone && (
+          <button type="button" onClick={() => setPhoneTools((v) => !v)} aria-expanded={phoneTools}
+            className={`ml-auto rounded px-2 py-0.5 text-xs font-medium ${phoneTools ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-600"}`}>Tools</button>
+        )}
+        {phone && phoneTools && <div className="h-0 basis-full" />}
+        {(!phone || phoneTools) && (<>
         {!crypto && !["1Day", "1Week", "1Month"].includes(interval) && compact && (
           <button type="button" onClick={() => setSession(session === "regular" ? "all" : "regular")} title={session === "regular" ? "Regular hours (9:30 to 16:00 New York). Click for all hours." : "All hours, pre-market and after hours shaded. Click for regular hours."}
             className="rounded border border-slate-200 px-1 py-0.5 text-[11px] text-slate-600 hover:bg-slate-100">{session === "regular" ? "Reg" : "All"}</button>
@@ -1376,6 +1393,7 @@ function PriceChart({
         </button>
           </>
         )}
+        </>)}
         <span className={`ml-auto text-[11px] text-slate-400 ${!toolInHand && !state.loading ? "hidden" : ""}`} title={crypto && !(STEP[interval] < 60) ? "Alpaca builds crypto candles from trades and, between trades, from the bid/ask midpoint, so a candle can move when nothing traded; time & sales lists actual trades only." : undefined}>
           {toolInHand ? `${toolInHand.label}: ${toolInHand.points === 1 ? "click to place" : drafting ? "click the second point" : "click the first point"} · Esc to cancel`
             : state.loading ? "Loading…" : state.error ? "" : `${state.count} bars · ${replayOn ? (crypto === "cme" ? "replay, CME via Databento (front contract)" : crypto ? "replay, Alpaca crypto" : "replay, consolidated tape") : STEP[interval] < 60 ? "built from trades" : crypto ? "Alpaca crypto: trades and midpoints" : `${stockFeed === "delayed" ? "every exchange to 15 min ago" : "IEX"}${liveSource === "eodhd" ? " · live: EODHD" : ""}`}`}
@@ -1430,7 +1448,7 @@ function PriceChart({
             style={{ left: editing.x, top: editing.y - 11 }}
           />
         )}
-        <ChartLegend subscribe={onLegend} read={readLegend} indicators={indicators} onToggle={toggleIndicator} onRemove={removeIndicator}
+        <ChartLegend subscribe={onLegend} read={readLegend} indicators={indicators} onToggle={toggleIndicator} onRemove={removeIndicator} folded={phone}
           crypto={crypto} interval={interval} />
       </div>
     </div>
