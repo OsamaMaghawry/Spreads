@@ -611,3 +611,4 @@ English. Newest first.
 - 2026-10-09 · (staging) Close ticket: closing a position that pays you now reads as money received, not a minus, and a resumed single-leg sell no longer opens at the furthest price it may concede (`458abbf`) — awaiting owner review.
 - 2026-10-09 · (staging) Trade history re-syncs right after you close a trade instead of waiting up to 15 minutes, so the closed-trades total no longer dips in between (`e7d29bd`).
 - 2026-11-16 · New blog post: why an options win rate is not a result, with two diagrams (two books that both win 8 in 10 and end on opposite sides of zero); two older posts (buying power, rolling) get search titles matching what people search, and three posts gain internal links (`c32939c`, published `8a9b6a7`; `89a23a8`, published `eb6f783`).
+- 2026-11-17 · New blog post on premium capture for credit spreads, with two diagrams (`6dc5ead`, published `404b04b`).
