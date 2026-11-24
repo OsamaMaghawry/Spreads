@@ -1036,7 +1036,7 @@ function workingView(orders: any) {
     id: o.id, symbol: o.asset_class === "crypto" ? cryptoSymbol(o.symbol) : o.symbol, assetClass: o.asset_class,
     side: o.side, qty: num(o.qty), notional: num(o.notional), filled: num(o.filled_qty), type: o.type,
     limit: num(o.limit_price), stop: num(o.stop_price), tif: o.time_in_force, status: o.status,
-    orderClass: o.order_class || "simple", submittedAt: o.submitted_at,
+    orderClass: o.order_class || "simple", submittedAt: o.submitted_at, extendedHours: !!o.extended_hours,
     legs: (o.legs || []).map((l: any) => ({ id: l.id, side: l.side, type: l.type, limit: num(l.limit_price), stop: num(l.stop_price), status: l.status }))
   }));
 }

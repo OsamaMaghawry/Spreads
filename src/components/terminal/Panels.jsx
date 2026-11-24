@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { invokeFunction } from "@/lib/functions";
 import { px, sizeText, clockMs, pctText, isCrypto, orderState } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
-import { orderBlocks, resplit, stopOf } from "@/lib/accountGroup";
+import { orderBlocks, stopOf } from "@/lib/accountGroup";
+import { protectiveOrder, editableOrder, qtyChangeable, qtySplit, cancelRows, changeBlock } from "./orderActions";
 import useAccountSetting from "@/components/terminal/useAccountSetting";
 
 // The terminal's lower panels: the tape, the account's shares and coins, and
@@ -237,9 +237,8 @@ export function Orders({ accountId, name = "This account", live = false, orders,
   ].sort((x, y) => String(when(y)).localeCompare(String(when(x))));
   const today = finishedAll.filter((o) => (when(o) ? new Date(when(o)).toLocaleDateString("en-US", { timeZone: "America/New_York" }) === todayNy : false));
 
-  // A stop, or a stop and take profit pair, protecting what is held.
-  const protective = (o) => ["stop", "stop_limit"].includes(o.type) || o.orderClass === "oco";
-  const editable = (o) => (o.type === "limit" && o.orderClass !== "bracket") || (protective(o) && o.orderClass !== "bracket");
+  const protective = protectiveOrder;
+  const editable = editableOrder;
   const failed = (title, rows) => {
     const bad = rows.filter((r) => r.error);
     if (!bad.length) return;
@@ -250,72 +249,38 @@ export function Orders({ accountId, name = "This account", live = false, orders,
     });
     setNote(bad.map((r) => `${r.name}: ${r.error}`).join(" · "));
   };
-  const manage = (row, action, extra = {}) => invokeFunction("manageOrder", { accountId: row.accountId, orderId: row.order.id, action, ...extra })
-    .then((r) => ({ name: row.name, error: r?.data?.error || null }))
-    .catch((e) => ({ name: row.name, error: String(e?.message || e) }));
 
   const cancel = async (b, row = null) => {
     setBusy(row ? row.order.id : b.key);
     setNote(null);
-    const rows = await Promise.all((row ? [row] : b.rows).map((x) => manage(x, "cancel")));
+    const rows = await cancelRows(row ? [row] : b.rows);
     setBusy(null);
     failed("Cancel", rows);
     onChanged?.();
   };
 
-  // The new quantity, where it can change: not on a stop that covers what is
-  // held, and not once part of it has filled (how the broker counts the filled
-  // part on a change is not yet checked on paper: cancel and send the rest).
-  const qtyOk = (b) => !protective(b.first) && b.rows.every((r) => r.order.qty != null && !(Number(r.order.filled) > 0));
+  // The new quantity, where it can change (orderActions.js).
+  const qtyOk = qtyChangeable;
   const plan = (b) => {
     const e = edit[b.key] || {};
-    const total = e.qty !== undefined && e.qty !== "" ? Number(e.qty) : null;
-    if (total === null || !qtyOk(b) || Math.abs(total - (b.qty || 0)) < 1e-12) return null;
-    return resplit(b.rows, total, { crypto: isCrypto(b.symbol) });
+    return qtySplit(b, e.qty !== undefined && e.qty !== "" ? Number(e.qty) : null);
   };
 
   const change = async (b) => {
     const e = edit[b.key] || {};
     const limit = e.limit !== undefined && e.limit !== "" ? Number(e.limit) : null;
     const stop = e.stop !== undefined && e.stop !== "" ? Number(e.stop) : null;
+    const qty = e.qty !== undefined && e.qty !== "" ? Number(e.qty) : null;
     setNote(null);
-    if (protective(b.first)) {
-      // A stop or a stop and target pair: set again at the new prices on
-      // every account holding the symbol, each for all it holds (functions/
-      // terminal "protect"), the other half of a pair kept.
-      const newStop = stop !== null && stop !== b.stop ? stop : null;
-      const newTarget = b.orderClass === "oco" && limit !== null && limit !== b.limit ? limit : null;
-      if (newStop || newTarget) {
-        setBusy(b.key);
-        const kind = newStop && newTarget ? "both" : newStop ? "stop" : "target";
-        // Only the accounts in this block (18 Nov review: every ticked account's
-        // stop was set again, the screen's too, whatever block was changed).
-        const inBlock = b.rows.map((r) => r.accountId);
-        const r = await invokeFunction("terminal", {
-          action: "protect", accountId, symbol: b.symbol, kind, mode: "price", value: newStop ?? newTarget,
-          stopPrice: newStop ?? b.stop, targetPrice: newTarget ?? b.limit,
-          group: group.filter((g) => inBlock.includes(g?.id ?? g)), leadOff: !inBlock.includes(accountId)
-        }).catch((x) => ({ data: { error: String(x?.message || x) } }));
-        const d = r?.data || {};
-        const rows = [...(inBlock.includes(accountId) ? [{ name, error: d.error || null }] : []), ...(d.group || []).map((g) => ({ name: g.name, error: g.ok === false && !g.skip ? g.error || "refused" : null }))];
-        setBusy(null);
-        failed("Exits", rows);
-      }
-    } else {
-      const newLimit = limit !== null && limit !== b.limit ? limit : null;
-      const split = plan(b);
-      if (split?.error) { setNote(split.error); return; }
-      if (newLimit === null && !split) { setEdit((x) => ({ ...x, [b.key]: undefined })); return; }
-      setBusy(b.key);
-      const rows = await Promise.all(b.rows.map((row) => {
-        const q = split?.rows.find((x) => x.orderId === row.order.id)?.qty;
-        return manage(row, "replace", { ...(newLimit !== null ? { limitPrice: newLimit } : {}), ...(q ? { qty: q } : {}) });
-      }));
-      setBusy(null);
-      failed("Change", rows);
-    }
+    const split = protective(b.first) ? null : plan(b);
+    if (split?.error) { setNote(split.error); return; }
+    setBusy(b.key);
+    const r = await changeBlock(b, { limit, stop, qty }, { accountId, name, group });
+    setBusy(null);
+    if (r.error) { setNote(r.error); return; }
+    if (!r.nothing) failed(protective(b.first) ? "Exits" : "Change", r.rows);
     setEdit((x) => ({ ...x, [b.key]: undefined }));
-    onChanged?.();
+    if (!r.nothing) onChanged?.();
   };
 
   const switcher = (

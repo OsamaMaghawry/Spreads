@@ -38,7 +38,7 @@ const TIF_TEXT = { day: "for the day", gtc: "good till cancelled", ioc: "immedia
 const input = "w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm tabular-nums focus:border-emerald-500 focus:outline-none";
 const label = "mb-1 block text-[11px] uppercase tracking-wider text-slate-500";
 
-export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, equity = null, play = null, onPlaced, pick = null, preset = null, onNotify = (news) => void news, liveOk = false, group = [], groupHeld = [], leadOff = false, none = false, partsOn: partsGiven, onPartsOn }) {
+export default function OrderTicket({ account, symbol, quote, held = 0, heldText = "", buyingPower = null, equity = null, play = null, onPlaced, pick = null, preset = null, onNotify = (news) => void news, liveOk = false, group = [], groupHeld = [], leadOff = false, none = false, partsOn: partsGiven, onPartsOn, extDefault = false }) {
   const crypto = isCrypto(symbol);
   const TYPES = crypto ? CRYPTO_TYPES : STOCK_TYPES;
   const [side, setSide] = useState("buy");
@@ -50,7 +50,10 @@ export default function OrderTicket({ account, symbol, quote, held = 0, heldText
   const [trail, setTrail] = useState("2");
   const [trailBy, setTrailBy] = useState("pct");
   const [tif, setTif] = useState("day");
-  const [extended, setExtended] = useState(false);
+  // Ticked to start with when the account keeps extended hours on (the
+  // "exthours" setting, on unless switched off); unticked where the order cannot take it.
+  const [extended, setExtended] = useState(!!extDefault);
+  useEffect(() => { setExtended(!!extDefault); }, [extDefault]);
   const [bracket, setBracket] = useState(false);
   const [tp, setTp] = useState("");
   const [sl, setSl] = useState("");
