@@ -57,6 +57,8 @@ for strike distance. Implied volatility is a size and not a sign, so a call
 and a put on the same strike and expiration are priced off the same
 expectation of movement, in the same units, whatever the stock is worth.
 
+Related: [options screener limitations](/blog/options-screener-limitations) shows how an implied volatility figure computed before the open can mix the prior session's option quotes with a stock that has since moved.
+
 ## What is vega, and how does it turn IV into dollars?
 
 Vega does for IV what delta does for the stock price: it converts a change in

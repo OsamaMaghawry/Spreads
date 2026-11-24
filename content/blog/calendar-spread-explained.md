@@ -1,9 +1,9 @@
 ---
 title: "Calendar spread explained: one strike, two dates, long vega"
 slug: calendar-spread-explained
-search_title: "Calendar Spread: How It Works, the Payoff and IV Risk"
+search_title: "Calendar Spread: Debit or Credit, Max Loss and IV Risk"
 excerpt: A calendar spread sells a near expiration and buys a later one at the same strike, so it profits from the gap between two rates of decay and carries a payoff shaped like a hill, not a ramp.
-meta_description: "A calendar spread sells a near date and buys a later one at the same strike. One hypothetical call priced: the debit, the hill-shaped payoff, the IV risk."
+meta_description: "A calendar spread, or time spread, sells a near expiration and buys a later one at the same strike. A worked call: the debit, its max loss, the IV risk."
 author: Osama Safwat Maghawry
 category: income
 series_order: 25
@@ -39,6 +39,8 @@ The trader pays 3.23 and receives 2.29, a net debit of 0.94, or $94 per spread. 
 Related: [options limit order not filling](/blog/options-limit-order-not-filling) covers why a spread order at the mid can sit unfilled, and what walking the price a cent at a time gives up.
 
 Because the far option expires later than the near one, a broker can treat the pair as a spread. The [buying power post](/blog/options-buying-power-requirement) lists that condition for spreads. The amount held is commonly the debit paid, with no extra collateral for the short call, but the broker's own rule governs.
+
+Related: [debit spread vs credit spread](/blog/debit-spread-vs-credit-spread) sets a vertical debit spread against a credit spread on the same strikes: the cash at the fill, the collateral held and early assignment.
 
 ## Why does the near leg lose value faster?
 

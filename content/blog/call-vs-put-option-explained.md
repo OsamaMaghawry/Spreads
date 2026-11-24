@@ -41,6 +41,8 @@ The buyer now owns the right to buy 100 shares at $55 until that date. Nothing
 forces them to use it. If XYZ never trades above $55, the right is worth
 nothing at expiration and the $100 is spent.
 
+Related: the [stock replacement strategy](/blog/stock-replacement-strategy) holds a deep in-the-money call in place of 100 shares: the cash each takes, how closely the call tracks, and what it gives up.
+
 ## How does a put option work?
 
 A put lets its owner sell 100 shares at the strike price, up to and including

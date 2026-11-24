@@ -1,9 +1,9 @@
 ---
 title: "Closing a credit spread early vs holding to expiration"
 slug: close-credit-spread-early-or-hold
-search_title: "Close a Credit Spread Early or Hold to Expiration"
+search_title: "How to Close a Credit Spread Early, or Hold to Expiration"
 excerpt: Closing early turns a credit spread into a smaller, fixed result. Holding keeps the last cents of credit and the full risk. Here is the arithmetic of both on one spread.
-meta_description: "Close a credit spread early or hold to expiration? One hypothetical put spread: $22 of credit left, $130 max loss still possible, and what each exit costs."
+meta_description: "How to close a credit spread early: close both legs in one order for a debit. A hypothetical put spread: $22 of credit left, $130 max loss still possible."
 author: Osama Safwat Maghawry
 category: managing
 series_order: 52
