@@ -222,6 +222,8 @@ including what happens between the strikes, follows from those two.
 
 The same arithmetic on the call side, where the risk has no floor of its own, is the [call credit spread](/blog/call-credit-spread-explained).
 
+Related: [debit spread vs credit spread](/blog/debit-spread-vs-credit-spread) builds the 48/50 call debit spread beside this one and shows the two settle the same way.
+
 Paired with a call credit spread above the stock on the same expiration, it
 becomes an [iron condor](/blog/iron-condor-explained).
 
