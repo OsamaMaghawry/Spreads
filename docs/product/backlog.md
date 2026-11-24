@@ -57,6 +57,14 @@ Proposal by proposal:
 
 End-of-day reconciliation **2026-11-16**: nothing shipped against #1–#3. Today's only product change (staging, admin-only terminal P/L tab, `6075269`/`cc6d59c`) touches none of them; `ResultsTable.jsx` still renders no width or POP, and no `scan_runs` table exists on `main` or `staging`. No status changes.
 
+Daily reconciliation **2026-11-18**: no proposal moved. `main` took one blog
+post; `staging` took admin-only Terminal work (std dev channel on chart and
+Scanner, part-share and percent hotkeys, several-account sizing) and a brand
+tidy-up. None touches #1 (no bid/ask width shown in `ResultsTable.jsx`), #2
+(no probability column; `optionScan.ts` still ranks by return on risk only)
+or #3 (no `scan_runs` table on `main` or `staging`). Evidence:
+`git grep scan_runs origin/staging` empty.
+
 ## Open proposals
 
 **Three of five slots used.** No addition: nothing new in funnel data,

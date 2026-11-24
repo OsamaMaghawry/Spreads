@@ -612,3 +612,4 @@ English. Newest first.
 - 2026-10-09 · (staging) Trade history re-syncs right after you close a trade instead of waiting up to 15 minutes, so the closed-trades total no longer dips in between (`e7d29bd`).
 - 2026-11-16 · New blog post: why an options win rate is not a result, with two diagrams (two books that both win 8 in 10 and end on opposite sides of zero); two older posts (buying power, rolling) get search titles matching what people search, and three posts gain internal links (`c32939c`, published `8a9b6a7`; `89a23a8`, published `eb6f783`).
 - 2026-11-17 · New blog post on premium capture for credit spreads, with two diagrams (`6dc5ead`, published `404b04b`).
+- 2026-11-18 · New blog post in the measuring series: annualized return on options, simple and compounded, and why a few short trades cannot carry it, with two diagrams; reviewed by desk-editor, seo-editor and compliance-gate first (`72c8eb1`, published `79eb5cf`).
